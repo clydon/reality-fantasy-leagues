@@ -208,6 +208,9 @@ declare const StateLogic: {
     endsAt(state: LeagueState): number | null;
     /** Whether two or more went home in an episode (a winner's exit isn't one): a night a second pick counts. */
     double(state: LeagueState, ep: Episode): boolean;
+    /** R1 part 3: whether a pick went home in an episode, as a pool that stays in grades it (on the finale, anyone but the
+     *  winner did; false before its results). */
+    wentHome(state: LeagueState, ep: Episode, castawayId: string): boolean;
     secondCounted(state: LeagueState, ep: Episode, parts?: PoolParts | null): boolean;
     canBuyBack(state: LeagueState, buyback: PoolParts["buyback"], number: number): boolean;
   };
@@ -387,7 +390,8 @@ declare const StateLogic: {
     startFor(state: LeagueState, playerId: string): number | null;
     isUnderway(state: LeagueState): boolean;
     /** Late joining is on unless the commissioner switched it off, the game is locked down, or someone is out of it (someoneOut). */
-    allowed(state: LeagueState): boolean;
+    /** A12 part 4c: `opts.stagesOpen`, a game in stages' stages read by the caller (StageLogic.closed). */
+    allowed(state: LeagueState, opts?: { stagesOpen?: boolean }): boolean;
     /** Step A11 part 5c: someone playing the league's own season is out for good (a draft's cuts, a game of questions' walk where the
      *  state carries it, a pool's lives). */
     someoneOut(state: LeagueState): boolean;
@@ -560,7 +564,7 @@ declare const StateLogic: {
   activeOwnedCount(state: LeagueState, playerId: string): number;
   totalCastCount(state: LeagueState): number;
   /** `someoneOut`: whether anyone is out of the game, as the caller read it (a game of questions' walk isn't in its state). */
-  addPlayer(state: LeagueState, name: string, opts?: { automated?: boolean; someoneOut?: boolean }): Player;
+  addPlayer(state: LeagueState, name: string, opts?: { automated?: boolean; someoneOut?: boolean; stagesOpen?: boolean }): Player;
   updatePlayer(state: LeagueState, id: string, field: string, value: unknown): void;
   removePlayer(state: LeagueState, id: string): void;
   disablePlayer(state: LeagueState, playerId: string, disabledFromUserId?: string): Player | null;
@@ -905,11 +909,34 @@ declare const StateLogic: {
     walkOf(state: LeagueState): StageWalk | null;
     withWalk(state: LeagueState, walk: StageWalk | null): LeagueState;
     cutWalk(walk: StageWalk, n: number): StageWalk;
-    standings(state: LeagueState): { key: string; name: string | null; leagueId: string | null; from: number | null; to: number | null; started: boolean; over: boolean; rows: StageRow[] }[];
+    /** A12 part 4b: an own stage of the game plays on another season. */
+    crosses(state: LeagueState): boolean;
+    /** A12 part 2: `stage` the spec's stage, `copy` 1, 2, ... for a copy a format change started (null for a stage's own). A12 part 4b:
+     *  `season` the key of the season it plays on when it isn't the game's own, `at` when its last entry aired. */
+    standings(state: LeagueState): { key: string; stage: string; copy: number | null; side: boolean; alongside: boolean; season: string | null; name: string | null; leagueId: string | null; from: number | null; to: number | null; started: boolean; over: boolean; rows: StageRow[]; at?: string }[];
     overall(state: LeagueState): { playerId: string; overall: number; points: number; placePoints: number; wins: number; stages: { key: string; points: number | null; place: number | null; over: boolean }[] }[];
     over(state: LeagueState): boolean;
     endsAt(state: LeagueState): number | null;
+    /** A12 part 4b: a game with an own stage on another season is over once every own stage is. */
+    overAcross(state: LeagueState): boolean;
     started(state: LeagueState): boolean;
+    /** A12 part 4c: how a stage's own league takes someone new now ('over', 'draft', 'late', 'waits'), and whether a game in stages
+     *  takes nobody new (from the walk's `joins`; `opts.stagesOpen` the caller's reading; no walk: nobody once it's started). */
+    joinsOf(stage: LeagueState): StageJoins;
+    closed(state: LeagueState, opts?: { stagesOpen?: boolean }): boolean;
+    /** A12 part 2: a stage a format change starts (its copies keyed `<stage id>@<change id>`), how the game takes a change, what it
+     *  remembers of them, the maker's answer, and where each copy plays (changePlan, from the format's state over time). */
+    copyOf(key: string): string | null;
+    copyKey(stageId: string, changeId: string): string;
+    onStages(state: LeagueState): { id: string; name: string | null; game: import("./game-spec/index.js").GameSpec; on?: { change: string[]; again: boolean } }[];
+    /** A12 part 2b: the ids of the stages the one before's 'next-stage' fallback starts (groupsGone is one more of their triggers). */
+    fallbackStarts(state: LeagueState): Set<string>;
+    /** A12 part 3: the side stages (a copy beside the game's own stages for each grouping that lasts: format-timeline.js sideTriggers). */
+    sideStages(state: LeagueState): { id: string; name: string | null; game: import("./game-spec/index.js").GameSpec; side?: { held: number } }[];
+    changesOf(state: LeagueState): { ok: "auto" | "maker" | "vote"; unanswered: "start" | "carry-on" } | null;
+    changeRecord(state: LeagueState): ChangeRecord;
+    decide(state: LeagueState, key: string, what: string, by?: string | null, at?: string | null): string | null;
+    changePlan(state: LeagueState, input: ChangePlanInput): ChangePlan;
   };
   HandicapLogic: {
     parts(state: LeagueState): import("./game-spec/index.js").HandicapParts | null;
@@ -1075,7 +1102,85 @@ export interface StageRow {
   place: number;
 }
 export interface StageWalk {
-  stages: { key: string; leagueId: string; from: number | null; to: number | null; entries: { episode: number; over: boolean; rows: StageRow[] }[] }[];
+  /** A12 part 4a: `outside`, a stage scored outside the game (bingo, Weekly Calls): an entry for each episode as it airs. A12 part 4b:
+   *  `season`, the key of the season a stage plays on when it isn't the game's own (its entries that season's episodes, cut at the
+   *  viewer's mark there by the server), and each entry's `at`, when that episode aired (where known). */
+  stages: { key: string; leagueId: string; from: number | null; to: number | null; outside?: boolean; season?: string; joins?: StageJoins; ended?: boolean; entries: { episode: number; at?: string; over: boolean; rows: StageRow[] }[] }[];
+}
+/** A12 part 4c: how a stage's league takes someone new (StageLogic.joinsOf), on each stage of the walk; and `ended`, a stage on another
+ *  season whose league is over as far as the viewer has seen there (a stage that never started counts as over then). */
+export type StageJoins = "over" | "draft" | "late" | "waits";
+/** A12 part 2: a format change as a stage's trigger (format-timeline.js stageTriggers). */
+export interface StageTrigger {
+  id: string;
+  kind: string;
+  allNew: boolean;
+  from: number;
+  when: string | null;
+  episode: number;
+  what: string;
+  /** A12 part 2b: where the groups are gone (format-timeline.js groupsGone), a 'next-stage' fallback's start of the next stage. */
+  gone?: boolean;
+  /** A12 part 3: a grouping that lasted (format-timeline.js sideTriggers, kind 'lasted'): how many groups, the episodes it held, and
+   *  where research is sure it changed (`closes`), or not sure yet (`closing`: the side stage plays on). */
+  groups?: number;
+  held?: number;
+  closes?: SideClose | null;
+  closing?: SideClose;
+}
+/** A12 part 3: where a grouping a side stage rides changed: the last episode its groups played, the episode whose research said it,
+ *  and how it ended (the spell's: a swap, the merge, a split, 'changed'). */
+export interface SideClose {
+  at: number;
+  episode: number;
+  ended: string | null;
+}
+/** A12 part 2: what a game in stages remembers of its format changes (state.changeStages). */
+export interface ChangeRecord {
+  seen: Record<string, number>;
+  decided: Record<string, { do: "start" | "skip"; by: string | null; at: string | null }>;
+  told: string[];
+  undone: string[];
+}
+export interface ChangePlanInput {
+  triggers: Record<string, { act: StageTrigger[]; held: StageTrigger[] }>;
+  starts: Record<string, number | null>;
+  copies: Record<string, { from: number | null }>;
+  open: number;
+  last?: number | null;
+  /** A12 part 3: the game's own last episode once it's known (a side copy never plays past it). */
+  end?: number | null;
+}
+export interface ChangePlanEntry {
+  key: string;
+  stage: string;
+  copy: number | null;
+  trigger: StageTrigger | null;
+  from: number | null;
+  /** The plan's end: an episode, the stage's own end for the last copy (null, an episode or { phase }); undefined: the plan says nothing. */
+  to?: number | null | { phase: string; at?: number };
+  /** A12 part 3: a copy of a side stage (it plays beside the game's own stages, for a grouping that lasted). */
+  side?: boolean;
+}
+export interface ChangePlanItem {
+  key?: string;
+  stage: string;
+  trigger: StageTrigger;
+  until?: number;
+  by?: string;
+}
+export interface ChangePlan {
+  entries: ChangePlanEntry[];
+  pending: ChangePlanItem[];
+  lapsed: ChangePlanItem[];
+  skipped: ChangePlanItem[];
+  held: ChangePlanItem[];
+  late: ChangePlanItem[];
+  capped: ChangePlanItem[];
+  superseded: ChangePlanItem[];
+  /** A12 part 3: side copies whose grouping changed before they played an episode (taken away). */
+  unplayed: ChangePlanItem[];
+  seen: Record<string, number>;
 }
 export interface HandicapView {
   points: number;

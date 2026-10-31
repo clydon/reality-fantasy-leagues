@@ -18,7 +18,7 @@
 //
 // Pure CommonJS, like ./schema.js.
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
-const { PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, spanEnd, spanEndPhase, playsAs, callsAsk, finaleOf, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion, matchupParts, questionsGame, teamParts, handicapParts } = require('./schema.js');
+const { PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, spanEnd, spanEndPhase, playsAs, callsAsk, finaleOf, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion, matchupParts, questionsGame, teamParts, handicapParts, stageOn, ON_CHANGE, nextStageAts, fallsTo, stageSide, mainCount, stageAlongside, stageSeason, seasonKey } = require('./schema.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const NUMBER_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
@@ -51,7 +51,33 @@ function wordsOf(ctx) {
     moments: Array.isArray(c.moments) ? c.moments : null,
     stats: new Map((Array.isArray(c.stats) ? c.stats : []).map((x) => (isObj(x) ? [x.key, x.label || x.key] : [x, x]))),
     phases: new Map((Array.isArray(c.phases) ? c.phases : []).filter(isObj).map((p) => [p.id, p.name || p.id])),
+    // A12 part 2, inside a game in stages: a stage a format change starts says where it starts in these words, and the stage
+    // before it runs until then.
+    fromChange: typeof c.fromChange === 'string' ? c.fromChange : null,
+    // A12 part 2b: the words for where the stage ends ("until there are no more teams"), else true: until the format changes.
+    untilChange: typeof c.untilChange === 'string' && c.untilChange ? c.untilChange : c.untilChange === true,
   };
+}
+// A12 part 2: the kinds of format change in words ("teams form", "everyone goes on alone"); a list that's F3's MAJOR is "a major
+// change of format". The words are the user's (U0).
+const CHANGE_WORDS = {
+  'teams-formed': 'teams form',
+  'pairs-formed': 'pairs form',
+  'split-into-individuals': 'everyone goes on alone',
+  merge: 'the merge',
+  swap: 'a swap',
+  'swap-all': 'a swap that leaves no group as it was',
+  newcomer: 'someone new comes in',
+  'new-phase': 'a new phase begins',
+};
+/** Where a stage a format change starts plays from, in words: "from the first major change of format", "from each time teams form
+ *  or everyone goes on alone". */
+function onWords(on) {
+  const major = sameValue([...on.change].sort(), [...ON_CHANGE.change].sort());
+  const ks = on.change.map((k) => CHANGE_WORDS[k] || k);
+  const or = ks.length <= 1 ? ks.join('') : `${ks.slice(0, -1).join(', ')} or ${ks[ks.length - 1]}`;
+  if (major) return on.again ? 'from each major change of format' : 'from the first major change of format';
+  return on.again ? `from each time ${or}` : `from the first time ${or}`;
 }
 /** A phase by its name ("Merged"), else its id. */
 const phaseWord = (id, w) => w.phases.get(id) || id;
@@ -60,6 +86,18 @@ const phaseWord = (id, w) => w.phases.get(id) || id;
  *  and once that's settled "Episode 9 to the finale, starting with Merged" (aired or still to come). An end at a phase (A12 part
  *  1): "until Merged starts", "Episode 2 until Merged starts", and once that's settled "Episodes 1–8, until Merged". */
 function spanWords(span, w) {
+  // A12 part 2: a stage a format change starts (until its own end, when it has one), and the stage before it.
+  if (span.from === null) {
+    const start = w.fromChange || 'from a change of format';
+    const endPhase0 = spanEndPhase(span);
+    if (endPhase0) return `${start} until ${phaseWord(endPhase0, w)} starts`;
+    return span.to === null ? start : `${start} to ${w.Part} ${spanEnd(span)}`;
+  }
+  if (w.untilChange && span.to === null) {
+    const first = spanStart(span);
+    const start = isObj(span.from) ? (first === null ? `from when ${phaseWord(span.from.phase, w)} starts ` : `${w.Part} ${first} `) : span.from === 1 ? '' : `${w.Part} ${span.from} `;
+    return `${start}${typeof w.untilChange === 'string' ? w.untilChange : 'until the format changes'}`;
+  }
   const endPhase = spanEndPhase(span);
   if (endPhase) {
     const name = phaseWord(endPhase, w);
@@ -900,20 +938,73 @@ function placesWords(o) {
 function describeStages(s, ctx) {
   const w = wordsOf(ctx);
   const stages = s.stages.filter((x) => isObj(x) && isObj(x.game));
+  // A12 part 2b: a stage the one before's 'next-stage' fallback starts begins once there are no more groups (and on its own kinds'
+  // change, when it has any: whichever comes first); the stage with the fallback runs until then.
+  const noGroups = `once there are no more ${w.group}s`;
+  // A12 part 3: a side stage opens each time the groups last, beside the game's own stages.
+  const mains = mainCount(stages);
+  const heldWords = (side) => `${say(side.held)} ${side.held === 1 ? w.part : w.parts}`;
+  const fromWords = (st, i) => {
+    const side = stageSide(st);
+    if (side) return `each time the ${w.group}s hold ${heldWords(side)}, until they change`;
+    const on = stageOn(st);
+    if (!on) return null;
+    if (!fallsTo(stages, i)) return onWords(on);
+    return on.change.length ? `${onWords(on)}, or ${noGroups}` : noGroups;
+  };
+  // A12 part 4b: a stage on another season said in its season's words (ctx.seasons), and named there.
+  const seasonOf = (st) => {
+    const sn = stageSeason(st);
+    if (!sn) return null;
+    const c = isObj(ctx) && isObj(ctx.seasons) ? ctx.seasons[seasonKey(sn)] : undefined;
+    return { ctx: isObj(c) ? c : {}, label: isObj(c) && c.show ? c.show : `season ${sn.number} of ${sn.show}` };
+  };
   const each = stages.map((st, i) => {
-    const d = describeSpec(st.game, { ...(isObj(ctx) ? ctx : {}), show: null });
-    return { label: st.name || `Stage ${i + 1}`, d, sentence: d.sentence.replace(/^An? /, (m) => m.toLowerCase()).replace(/\.$/, '') };
+    const next = stages[i + 1];
+    const nextOn = next ? stageOn(next) : null;
+    const until = !nextOn ? false : !fallsTo(stages, i + 1) ? true : nextOn.change.length ? `until the format changes, or there are no more ${w.group}s` : `until there are no more ${w.group}s`;
+    const there = seasonOf(st);
+    const d = describeSpec(st.game, { ...(there ? there.ctx : isObj(ctx) ? ctx : {}), show: null, fromChange: fromWords(st, i), untilChange: until });
+    return { label: st.name || `Stage ${i + 1}`, on: there ? there.label : null, d, sentence: d.sentence.replace(/^An? /, (m) => m.toLowerCase()).replace(/\.$/, '') };
   });
   const parts = [{ text: `A game in ${say(stages.length)} stages`, at: 'preset' }];
-  if (w.show) parts.push({ text: ` for ${w.show}`, at: 'about' });
+  const others = [...new Set(each.map((x) => x.on).filter(Boolean))];
+  if (w.show) parts.push({ text: ` for ${[w.show, ...others].join(' and ')}`, at: 'about' });
   parts.push({ text: ': ', at: null });
-  each.forEach((x, i) => parts.push({ text: `${i ? '; then ' : ''}${x.label}, ${x.sentence}`, at: 'span' }));
+  each.forEach((x, i) => parts.push({ text: `${!i ? '' : i < mains ? '; then ' : i === mains ? `; and beside ${mains > 1 ? 'them' : 'it'}, ` : '; and '}${x.label}${x.on ? ` on ${x.on}` : ''}, ${x.sentence}`, at: 'span' }));
   const o = isObj(s.overall) ? s.overall : { by: 'points' };
   const overall = o.by === 'places' ? `${OVERALL_WORDS.places}${placesWords(o)}` : OVERALL_WORDS[o.by] || OVERALL_WORDS.points;
   parts.push({ text: `. ${overall}`, at: 'rank' });
   const rules = [overall];
   if (o.by === 'places' || o.by === 'wins') rules.push("A stage counts once it's over.");
-  each.forEach((x) => rules.push(`${x.label}: ${x.d.sentence}`, ...x.d.rules.map((r) => `${x.label}: ${r}`)));
+  // A12 part 2: a format change, and how the game takes it.
+  const moved = stages.find((st) => stageOn(st));
+  const ch = isObj(s.extras) && isObj(s.extras.changes) ? s.extras.changes : { ok: 'auto', unanswered: 'start' };
+  if (moved) {
+    rules.push("A change of format counts once research is sure of it: from the episode it takes effect, or the next still to play.");
+    rules.push(ch.ok === 'maker' ? `Whoever runs the game says whether a new stage starts; if nobody does by its first episode, ${ch.unanswered === 'start' ? 'it starts anyway' : 'the game carries on as it is'}.` : 'The new stage starts by itself; whoever runs the game can call it off.');
+  }
+  // A12 part 3: a side stage, when it opens and closes.
+  stages.forEach((st, i) => {
+    const side = stageSide(st);
+    if (!side) return;
+    const label = each[i].label;
+    rules.push(`${label}: once research is sure the ${w.group}s have held ${heldWords(side)} and go on as they are, it opens with the next ${w.part} (a new one each time they last), and plays until research is sure they changed, its points kept; until research is sure, it carries on.`);
+    rules.push(ch.ok === 'maker' ? `${label}: whoever runs the game says whether it opens; if nobody does by its first ${w.part}, ${ch.unanswered === 'start' ? 'it opens anyway' : "it doesn't"}.` : `${label}: it opens by itself; whoever runs the game can call it off.`);
+  });
+  // A12 part 4a: a stage alongside the game's own, at the same time.
+  stages.forEach((st, i) => {
+    if (i < mains || !stageAlongside(st)) return;
+    rules.push(`${each[i].label}: it plays at the same time as ${mains > 1 ? "the game's own stages" : each[0].label}, its points counting in the overall with ${mains > 1 ? 'theirs' : `${each[0].label}'s`}.`);
+  });
+  // A12 part 2b: where a 'next-stage' fallback ends its stage.
+  stages.forEach((st, i) => {
+    if (!nextStageAts(st.game).length || !stages[i + 1]) return;
+    rules.push(`${each[i].label}: once research is sure nobody is in a ${w.group} going into ${article(w.part)} ${w.part}, it ends and ${each[i + 1].label} starts; until it's sure, ${article(w.part)} ${w.part} it can't play doesn't count.`);
+  });
+  // A12 part 4b: a stage on another season counts its own episodes, and the game ends with its own stages wherever they play.
+  if (others.length) rules.push(`A stage on ${others.join(' or ')} plays that season's episodes, each counted as you've seen them there; the game ends once its own stages are over, wherever they play.`);
+  each.forEach((x) => rules.push(`${x.label}${x.on ? ` (${x.on})` : ''}: ${x.d.sentence}`, ...x.d.rules.map((r) => `${x.label}: ${r}`)));
   const e = isObj(s.extras) ? s.extras : {};
   const details = [
     { id: 'join', label: 'Who can join', recommended: e.join === null, value: e.lockedDown ? "Nobody new while it's locked down" : own(JOIN_WORDS, e.join) || JOIN_WORDS.open },

@@ -265,10 +265,10 @@ test("the staged spec: its stages whole, in order, its overall, what it waits fo
   assert.deepEqual(at({ ...two(out, lineup), extras: { seats: { people: 2 } } }), ["extras.seats"]);
   assert.deepEqual(at({ preset: "outlast", overall: { by: "points" } }), ["overall"]);
   assert.deepEqual(at({ preset: "outlast", score: { by: "stages" } }), ["score.by"]);
-  // What it waits for: a stage that scores outside the game, stages at the same time.
+  // A12 part 4a: a stage that scores outside the game plays; the game's own stages at the same time are refused (alongside plays).
   const waits = (sp) => G.specWaitsFor(sp).map((w) => w.at);
-  assert.deepEqual(waits(two(out, { id: "b", game: { preset: "weekly-bingo", span: { from: 5 } } })), ["stages[1].game"]);
-  assert.deepEqual(waits(two(out, { ...lineup, game: { ...lineup.game, span: { from: 3 } } })), ["stages[1].game.span.from"]);
+  assert.deepEqual(waits(two(out, { id: "b", game: { preset: "weekly-bingo", span: { from: 5 } } })), []);
+  assert.deepEqual(at(two(out, { ...lineup, game: { ...lineup.game, span: { from: 3 } } })), ["stages[1].game.span.from"]);
   assert.equal(G.typeOf(two(out, { ...lineup, game: { ...lineup.game, span: { from: 3 } } })), null);
   // The exclusive count: the first stage's where the game starts; a later stage's waits for its draft to open.
   const big = { id: "b", game: { preset: "outlast", get: { by: "draft", each: 5, order: "snake", own: "exclusive" }, span: { from: { phase: "merged" } } } };
@@ -397,10 +397,11 @@ test("nobody new once a game in stages' first stage has started: a code join wai
   assert.equal(p.lateJoin, undefined);
 });
 
-test("stages one after another: a gap between them is refused, as an overlap waits", () => {
+test("stages one after another: a gap between them is refused, and so is an overlap (A12 part 4a: alongside plays at once)", () => {
   const two = (to, from) => ({ stages: [{ id: "a", game: { preset: "outlast", span: { from: 1, to } } }, { id: "b", game: { preset: "outlast", span: { from } } }] });
   assert.deepEqual(G.specProblems(two(5, 6), CTX), []);
   assert.deepEqual(G.specProblems(two(5, 8), CTX).map((p) => p.at), ["stages[1].game.span.from"], "Episodes 6 and 7 would be nobody's");
-  assert.deepEqual(G.specProblems(two(5, 4), CTX), []);
-  assert.deepEqual(G.specWaitsFor(two(5, 4)).map((w) => w.at), ["stages[1].game.span.from"]);
+  assert.deepEqual(G.specProblems(two(5, 4), CTX).map((p) => p.at), ["stages[1].game.span.from"], "Episode 4 and 5 would be both's");
+  assert.match(G.specProblems(two(5, 4), CTX)[0].problem, /alongside: true/);
+  assert.deepEqual(G.specWaitsFor(two(5, 4)).filter((w) => w.step === "later"), [], "nothing waits for a later part");
 });

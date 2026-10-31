@@ -2091,17 +2091,43 @@
         {
           "id": "shape.minis",
           "what": "A season of mini-games",
-          "step": "A12"
+          "step": "A12",
+          "spec": {
+            "stages": [
+              { "id": "bingo", "name": "Bingo", "game": { "preset": "weekly-bingo", "span": { "from": 1, "to": 4 } } },
+              { "id": "draft", "name": "Draft", "game": { "preset": "outlast", "get": { "by": "draft", "each": 2, "order": "snake", "own": "exclusive" }, "span": { "from": 5, "to": 8 } } },
+              { "id": "calls", "name": "Calls", "game": { "preset": "weekly-calls", "span": { "from": 9 } } }
+            ],
+            "overall": { "by": "points" }
+          },
+          "page": { "show": "Survivor", "season": 51, "rulebook": "survivor" }
         },
         {
           "id": "shape.twoWays",
           "what": "A game that scores two ways (bingo lines plus answers)",
-          "step": "A12"
+          "step": "A12",
+          "spec": {
+            "stages": [
+              { "id": "bingo", "name": "Bingo", "game": { "preset": "weekly-bingo", "span": { "from": 1 } } },
+              { "id": "answers", "name": "Who goes home", "alongside": true, "game": { "get": { "by": "none" }, "score": { "by": "answers" }, "rank": { "by": "total" }, "ask": [ { "id": "out", "ask": "Who goes home?", "answer": "person", "points": 1, "asked": "each", "settle": { "by": "results", "take": "out" } } ] } }
+            ],
+            "overall": { "by": "points" }
+          },
+          "page": { "show": "Survivor", "season": 51, "rulebook": "survivor" }
         },
         {
           "id": "shape.twoShows",
           "what": "One game across two shows",
-          "step": "A12"
+          "step": "A12",
+          "spec": {
+            "stages": [
+              { "id": "survivor", "name": "Survivor", "game": { "preset": "outlast", "get": { "by": "draft", "each": 2, "order": "snake", "own": "exclusive" } } },
+              { "id": "traitors", "name": "The Traitors", "season": { "show": "the-traitors-us", "number": 5 }, "game": { "preset": "survival-pool" } }
+            ],
+            "overall": { "by": "places" }
+          },
+          "page": { "show": "Survivor", "season": 51, "rulebook": "survivor", "also": [{ "id": "the-traitors-us", "show": "The Traitors", "season": 5, "rulebook": "traitors" }] },
+          "note": "a stage on another show's season (A12 part 4b): an Outlast on Survivor 51, then a Survival Pool on The Traitors 5, each a league on its own season, by places"
         },
         {
           "id": "shape.keepers",
@@ -2172,13 +2198,13 @@
         "rulebook": "survivor"
       },
       "words": "bingo cards and trivia every episode, bingo lines are worth 5 points, correct trivia questions earn one point",
-      "step": "A12",
+      "step": "A13",
       "dials": [
         "shape",
         "score",
         "what"
       ],
-      "note": "A13 trivia questions, A9 points per line, A12 a game that scores two ways"
+      "note": "A13 trivia questions; its bingo half plays since A12 part 4a (a stage of bingo at 5 points a line, A9's, with a stage of trivia alongside it, the game's two ways of scoring added up in the overall: shape.twoWays), its trivia half A13's"
     },
     {
       "id": "p2",
@@ -2380,7 +2406,13 @@
       "dials": [
         "shape"
       ],
-      "note": "a stage that starts on a format change of the kinds named (format-timeline.js stageTriggers, F3); what players see and whether it waits for the maker's OK are the format-change design session's"
+      "spec": {
+        "stages": [
+          { "id": "draft", "name": "Draft", "game": { "preset": "outlast", "get": { "by": "draft", "each": 3, "order": "snake", "own": "exclusive" }, "span": { "from": 1 } } },
+          { "id": "redraft", "name": "New draft", "on": { "again": true }, "game": { "preset": "outlast", "get": { "by": "draft", "each": 3, "order": "snake", "own": "exclusive" } } }
+        ]
+      },
+      "note": "a stage a format change starts (A12 part 2): a copy of the new draft at each major change research is sure of (F3's MAJOR: teams or pairs formed, split into individuals, the merge, a swap that leaves no group as it was), each its own league from where the change takes effect, its draft opening then and counted then; by itself with an undo (the default; the maker's OK is a setting); what players see is the format-change design session's"
     },
     {
       "id": "p8",
@@ -2394,7 +2426,13 @@
       "dials": [
         "shape"
       ],
-      "note": "the solo draft plays now; the side stage that opens once a grouping has held N episodes (format-timeline.js sideStages, F3) is A12's"
+      "spec": {
+        "stages": [
+          { "id": "solo", "name": "Solo draft", "game": { "preset": "outlast", "get": { "by": "draft", "each": 3, "order": "snake", "own": "exclusive" }, "span": { "from": 1 } } },
+          { "id": "side", "name": "Side draft", "side": { "held": 2 }, "game": { "preset": "outlast", "get": { "by": "draft", "each": 2, "order": "snake", "own": "exclusive" }, "ask": [] } }
+        ]
+      },
+      "note": "a side stage (A12 part 3): the solo draft plays the season, and beside it a side draft (an Outlast of 2 each) for each grouping research is sure has held 2 episodes and goes on (format-timeline.js sideTriggers), from the episode after until research is sure it changed (its points kept), each its own league, its draft opening then and counted then; by itself with an undo (the maker's OK a setting); the side draft drafts people (follow the people: a pair's result flows to both); N's default, what it drafts and what players see are the format-change design session's"
     },
     {
       "id": "p9",
@@ -2931,13 +2969,22 @@
       "page": {
         "show": "Survivor",
         "season": 51,
-        "rulebook": "survivor"
+        "rulebook": "survivor",
+        "also": [{ "id": "the-traitors-us", "show": "The Traitors", "season": 5, "rulebook": "traitors" }]
       },
       "words": "One league across Survivor and The Traitors.",
       "step": "A12",
       "dials": [
         "shape"
-      ]
+      ],
+      "spec": {
+        "stages": [
+          { "id": "survivor", "name": "Survivor", "game": { "preset": "weekly-lineup" } },
+          { "id": "traitors", "name": "The Traitors", "season": { "show": "the-traitors-us", "number": 5 }, "game": { "preset": "weekly-lineup" } }
+        ],
+        "overall": { "by": "points" }
+      },
+      "note": "a game across two shows (A12 part 4b): a Weekly Lineup on Survivor 51, then one on The Traitors 5, each scored on its own season and added up"
     },
     {
       "id": "s21",
@@ -3586,7 +3633,7 @@
         "rulebook": "survivor"
       },
       "words": "A season of mini-games: bingo one week, a draft the next.",
-      "step": "A12",
+      "decide": "stages that take turns all season (bingo one episode, a draft the next, again and again: a new piece, a fresh copy of each stage every other episode on part 2's copies, for any season's length), or the season written out as stages (MAX_STAGES 6 can't hold a season of one-episode stages; raising it to a season's length is a league per episode, each read by every overall); a season of mini-games one after another plays since A12 part 4a (shape.minis); the user's (A12 part 4a's Noticed)",
       "dials": [
         "shape"
       ]

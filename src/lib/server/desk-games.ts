@@ -1,4 +1,5 @@
 import type { PoolClient } from "pg";
+import StateLogic from "@/lib/game/state-logic.js";
 import { cardArtSql } from "./art-sql";
 import { isUuid, type SessionUser } from "./auth-helpers";
 import type { GameUndo } from "./change-log";
@@ -273,7 +274,10 @@ export async function deskGame(id: string): Promise<DeskGame> {
   if (row.state === "playing" || row.state === "nobody") {
     const { rows: st } = await pool.query("SELECT state FROM leagues WHERE id = $1", [id]);
     const schedule = r.season_id ? (await seasonSchedules([r.season_id])).get(r.season_id) : undefined;
-    if (st[0] && gameOver(st[0].state as LeagueState, schedule)) row.state = "ended";
+    // Step A12 part 4b: a game in stages over as its stages stand, read whole (one on two seasons ends with them, never its season).
+    const state = st[0] ? (st[0].state as LeagueState) : null;
+    const read = state && StateLogic.StageLogic.on(state) ? (await (await import("./answer-points")).asItStands(id, state, undefined, "all")).state : state;
+    if (read && gameOver(read, schedule)) row.state = "ended";
   }
   // Archive, Delete and Restore each change how the game stands, so only the newest of them (the desk's, or one from
   // Backstage) can be undone: an older one's Undo would act on what's happened since.

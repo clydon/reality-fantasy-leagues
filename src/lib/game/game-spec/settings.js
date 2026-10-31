@@ -350,7 +350,11 @@ function stagedOf(st, copy) {
     score: { by: 'stages' },
     rank: { by: 'total' },
     overall: isObj(st.stageOverall) ? (copy ? clone(st.stageOverall) : st.stageOverall) : clone(OVERALL),
-    extras: { waivers: null, bets: null, calls: false, draft: null, join, hideStarters: false, lockedDown: st.lockedDown === true, lateLock: null },
+    extras: {
+      waivers: null, bets: null, calls: false, draft: null, join, hideStarters: false, lockedDown: st.lockedDown === true, lateLock: null,
+      // A12 part 2: how a game a format change moves takes the change (settings.formatChanges).
+      ...(isObj(st.formatChanges) ? { changes: copy ? clone(st.formatChanges) : st.formatChanges } : {}),
+    },
   };
 }
 
@@ -491,6 +495,8 @@ function settingsOf(spec) {
   // A12 part 1: a game in stages' stages and overall.
   out.stages = type === 'stages' ? clone(s.stages) : undefined;
   out.stageOverall = type === 'stages' ? clone(s.overall) : undefined;
+  // A12 part 2: how a game a format change moves takes the change.
+  out.formatChanges = type === 'stages' && isObj(s.extras.changes) ? clone(s.extras.changes) : undefined;
   return out;
 }
 
@@ -540,6 +546,8 @@ const PARTS = [
   { fields: ['startEpisode', 'startPhase', 'endEpisode', 'endPhase'], read: (s) => s.span },
   // A12 part 1: a game in stages' stages and its overall.
   { fields: ['stages', 'stageOverall'], read: (s) => [s.stages || null, s.overall || null] },
+  // A12 part 2: how a game a format change moves takes the change.
+  { fields: ['formatChanges'], read: (s) => (Array.isArray(s.stages) && isObj(s.extras) ? s.extras.changes || null : null) },
   { fields: ['ownershipMode', 'teamSize', 'activeSlots', 'benchSlots', 'bestBall', 'groupSlots', 'poolSecond', 'poolRepeat', 'poolFallback', 'draftDraw', 'draftAcross', 'draftAuction', 'draftBudget', 'draftKeep'], read: (s) => [s.get, s.count] },
   { fields: ['eventPoints', 'pickemCorrectPoints', 'poolSurvive', 'parlays', 'linePoints', 'captainTimes', 'pointsTimes', 'reverseOrder', 'poolLives', 'poolBuyback', 'poolMulligans', 'questionsLives', 'questionsLivesOn', 'questionsSaves'], read: (s) => s.score },
   { fields: ['poolRank', 'draftRank', 'draftRace', 'draftCut', 'rankOneLeft', 'rankAllOut', 'questionsRank', 'questionsRace', 'questionsCut', 'rankMatchups', 'rankTeams', 'rankHandicap'], read: (s) => s.rank },

@@ -1134,6 +1134,165 @@ nothing moved: **every game ended on all five seasons**, as after A12 part 1 (Su
 golden replays, which compare every read of every game before and after, found every one the same against this branch's code before
 the part and against master's.
 
+## A12 part 2: stages a format change starts, replayed blind (2026-10-30)
+
+A12's part 2 is the first piece of the engine whose structure follows the show's format changes: a game in stages whose later stage
+says `on` { change: the kinds that count, again } gets a copy of that stage, a league of its own, each time research is sure the format
+changed that way (format-timeline.js `stageTriggers`' `act`; an unsure change is held and never acted on), from the episode the change
+takes effect or the first still open, the stage before it ending there (state-logic.js `StageLogic.changePlan`; src/lib/server/
+change-stages.ts, from the season sync). The tracker's p7 ("automatically start a new draft stage whenever there is a major format
+change such as split into teams or split into individuals") plays: a Draft (an Outlast of 3 each) from Episode 1, then a New draft
+(the same) at each major change (F3's `MAJOR`, by default). `blind.js` finds each copy after the episode whose research made it and
+plays it from there as a game of its own, its draft at its start, from who's left.
+
+- **Every game ended on all five seasons**, the copies among them: Survivor 49 115 of 115, The Challenge 41 90 of 90, 40 85 of 85, 39 94
+  of 94, The Traitors 4 81 of 81; nothing refused; no copy taken away (F2's answers and the stand-ins are never corrected: the unit tests
+  and check-change-stages.js cover a corrected report); the questions waiting on early results are finding 20's as before.
+- **When a copy starts.** A change research says at an episode's end (from the next) starts its copy with that next episode: The
+  Challenge's re-pairings. A change at an episode's start is only known from its research, after it airs, so its copy starts with the
+  episode after: Survivor 49's swaps at 4 and 6 start copies at 5 and 7, its merge at 7 one at 8. A change held unsure at one episode
+  and sure at the next starts from the first episode still open then: The Challenge 40's split (said for 10 at 9, unsure; sure at 10)
+  starts its copy at 11.
+
+| p7 on | Copies (each from) | What started them |
+|---|---|---|
+| The Challenge 41 | 7: 3, 4, 5, 6 and 7 (one episode each), 8-9, 10 on | every pair re-drawn at the ends of 2 to 7 (a swap that left no group as it was), then pairs formed at 9's end |
+| The Challenge 40 | 2: 3-10, 11 on | teams formed (the eras) at 2's end; everyone on their own, sure at 10 |
+| The Challenge 39 | 11: 6 to 15 one episode each, 16 on | pairs, teams and a re-draw of every team at nearly every episode's end; the split at 15's end |
+| Survivor 49 | 3: 5-6, 7, 8 on | the two swaps (at 4's and 6's start) and the merge (at 7's start) |
+| The Traitors 4 | none: its first stage plays the season | no major change (a recruit is a role, a twist never counts) |
+
+- **What "major" by default does here:** The Challenge 39's and 41's re-draws make a new draft nearly every week (ten and five copies of
+  one episode), each scoring about the same for everyone (an Outlast over one episode: everyone outlasts the same few). With the kinds
+  of play only (no all-new swap), it would be five copies on 39, one on 41, one on Survivor 49 (the merge), two on 40 and none on The
+  Traitors: the plan's Noticed asks the user which, with that as the recommendation.
+- **The drafts as they open** are counted then, as part 1's: four of you × 3 fits The Challenge's casts at every copy; Survivor 49's
+  copies from 7 were shared (a private draft revealed at once) once 4 × 3 no longer fit who was left.
+- **Not on these replays:** the maker's OK, a corrected report taking a copy away and bringing it back, research missing for a while, the
+  game deleted and restored: `tests/change-stages.test.js` and `scripts/dev-test/check-change-stages.js` cover them.
+
+## R1 part 3: a pool's finale, replayed blind (2026-10-30)
+
+R1's part 3 grades a pool's finale by the user's decision (only the winner survives it: state-logic.js `nightOf`, every game's one
+reading of a night). Nothing about a format change reads differently. Replayed blind with A12 part 2b (below): every game ended on all
+five seasons. The golden replays found one game changed: The Challenge 40's Survival Pool, one seat whose pick at the final (Episode 19)
+was a winner, now right.
+
+## A12 part 2b: the 'next-stage' fallbacks, replayed blind (2026-10-30)
+
+A12's part 2b ends a stage whose group question or group slots can't be played as the groups stand, and starts the game's next stage,
+once research is sure nobody is in a group going into an episode (format-timeline.js `groupsGone`: everyone on their own, or the
+merge's one group of everyone, after groups; an unsure state is void and held; a re-draw moves nothing), through part 2's plan. No
+request in the corpus words it, so no tracker row plays it; `blind.js` now records, at each episode, where such a stage would end (its
+format record's `groupsGone`), as if live.
+
+- **Every game ended on all five seasons**, as after part 2: Survivor 49 115 of 115, The Challenge 41 90 of 90, 40 85 of 85, 39 94 of
+  94, The Traitors 4 81 of 81; nothing refused; the questions waiting on early results are finding 20's 3, 2 and 2, as before.
+
+| Season | Where 'next-stage' would end a stage (the next from) | What ends the groups |
+|---|---|---|
+| Survivor 49 | 8 | the merge, at 7's start (one group of everyone at 7's end): known from 7's research, so the next stage starts with 8 |
+| The Challenge 40 | 11 | everyone on their own: said for 10 at 9 (ahead, so unsure going in), sure at 10's research |
+| The Challenge 39 | 16 | everyone on their own at 15's end, sure |
+| The Challenge 41 | none in the season | the split at the final (19's end), held unsure at 19 and sure at 20's research: from 21, past the final (18 and 19) |
+| The Traitors 4 | none | never in groups |
+
+- **The same episodes part 2's split copies start at** (The Challenge 40's 11, 39's 16; Survivor 49's merge copy at 8): the fallback and a
+  stage's own `split-into-individuals` or `merge` kinds read the same change, under the same key, so a stage named by both starts once.
+- **The re-pairings and re-draws that make p7's one-episode copies move nothing here** (The Challenge 41's pairs re-drawn at the ends of
+  2 to 7, 39's teams nearly every week): the game is still in groups, so the question offers the new ones and the slots drop and open
+  again. The Challenge 41's individual Episode 9 between paired ones ends in pairs again: nothing moves.
+- **The Challenge 41 shows the finale's edge:** the groups go only at the final itself, so the next stage would start after the season
+  (the schedule's 21 episodes past the final's 19). The plan's Noticed (A12 part 2b, item 5) has it with part 2's edge cases.
+- **Not on these replays:** an unsure state turned sure later, a corrected report taking the next stage away and bringing it back, the
+  maker's OK: `tests/next-stage.test.js` and `scripts/dev-test/check-next-stage.js` cover them.
+
+## A12 part 3: when a grouping lasts, replayed blind (2026-10-30)
+
+A12's part 3 is the user's second example ("draft solo players in the challenge. if we ever get teams forming or pairing up that lasts
+for multiple episode i want us to start a 'side draft' after that episode ends"): a game in stages whose side stage (`side` { held: 2 })
+plays beside the game's own, a copy of it for each grouping research is sure has held two episodes and goes on (format-timeline.js
+`sideTriggers`, on F3's spells: a group going home whole doesn't end one), from the episode after, until research is sure the grouping
+changed (the later of its last episode and the one whose research said so), its points kept (state-logic.js `StageLogic.sidePlan`;
+src/lib/server/change-stages.ts, from the season sync). The tracker's p8 plays: a Solo draft (an Outlast of 3 each) all season, and a Side
+draft (an Outlast of 2 each) beside it. `blind.js` finds each side copy after the episode whose research made it and plays it from there;
+each episode's format record has `side` (opened, closed and held there).
+
+- **Every game ended on all five seasons**: Survivor 49 119 of 119, The Challenge 41 94 of 94, 40 88 of 88, 39 96 of 96, The Traitors 4
+  83 of 83; nothing refused; the questions waiting on early results are finding 20's 3, 2 and 2, as before.
+
+| Season | p8's side drafts (episodes) | When each opened and closed |
+|---|---|---|
+| The Challenge 41 | 2: 12-17, 19-20 | the locked pairs (shown at 9's end) held 10 and 11; the claim at 16 held unsure, sure at 17; the pairs after it held 17 and 18; the final's split held unsure at 19, sure at 20 |
+| The Challenge 40 | 1: 5-10 | the eras (teams from 3) held 3 and 4; everyone on their own said ahead at 9 (unsure), sure at 10 |
+| The Challenge 39 | none | every pair and team lasted one episode |
+| Survivor 49 | 2: 3-4, 6 | the starting tribes held 1 and 2, the swap at 4's start known from 4's research; the first swap's tribes held 4 and 5, the second swap at 6's start |
+| The Traitors 4 | none | never in groups |
+
+- **F1's lifetimes held up:** "a side draft once a grouping has held 2 episodes ... opens once on The Challenge 41 (the locked pairs),
+  never in episodes 1-8, never on The Challenge 39" (F1's item 9). It opens a second time on 41 for the pairs the claim made, and on
+  Survivor 49 for the starting tribes and the first swap's (the merged tribe is one group of everyone, no grouping).
+- **A side stage carries on while research isn't sure** (the claim, the final's split, the eras' split said ahead): the episode research
+  was unsure of is the side draft's, scored on its people. A change at an episode's start (Survivor's swaps) leaves the side draft that
+  episode too, since research says it after the episode aired: the plan's Noticed (A12 part 3, item 4) asks the user.
+- **Every side draft's 4 × 2 fitted who was left as it opened**, so each stayed exclusive.
+- **Not on these replays:** the maker's OK, a corrected report taking a side draft away and bringing it back, a close withdrawn, research
+  missing for a while: `tests/side-stages.test.js` and `scripts/dev-test/check-side-stages.js` cover them.
+
+## A12 part 4a: mini-games and two ways of scoring, replayed blind (2026-10-30)
+
+A12's part 4a adds a stage of bingo or Weekly Calls (its table the server's own counts of each seat's lines or right calls,
+answer-points.ts `outsideCounts`) and a stage `alongside: true` that plays at the same time as the game's own stages. Neither reads the
+format's state over time, so these replays show only that the two new tracker games play through every season and end: shape.minis
+(Bingo for Episodes 1 to 4, then a Draft, an Outlast of 2 each, 5 to 8, then Weekly Calls to the end) and shape.twoWays (bingo all
+season with a game of answers, "Who goes home?" each episode, alongside it).
+
+- **Every game played through and over on all five seasons**: Survivor 49 126 of 126, The Challenge 41 101 of 101, 40 95 of 95, 39 103
+  of 103, The Traitors 4 90 of 90 (part 3's numbers plus seven each: the two games and their five stages); nothing refused.
+- **Each stage ended where its span says**, a stage of bingo or Calls too: Bingo with 4, the Draft with 8, Calls and the stage alongside
+  with the season (on The Challenge, its last episode on the schedule, 21).
+- **The overall is the stages added up**; on the tapes nobody ticks a bingo card or makes a call, so bingo and Calls stages score 0 here
+  and the overall is the Draft's points (shape.minis) or the answers' (shape.twoWays: Survivor 49 the Tinkerer and the Drive-By 2 each).
+  Lines and calls counted into the overall are `tests/mini-stages.test.js`'s and `scripts/dev-test/check-mini-stages.js`'s.
+
+## A12 part 4b: one game across two shows, replayed blind (2026-10-30)
+
+A12's part 4b lets a later stage play on another season (a stage's `season`: another show's, or another season of the same show), as a
+league on that season, checked on that season's rules and cut at each viewer's mark there; and refuses two stages of bingo, or of Weekly
+Calls, on one season at the same time. A blind replay plays one season at a time, so the two tracker games on two seasons (shape.twoShows:
+an Outlast on Survivor 51, then a Survival Pool on The Traitors 5; s20: a Weekly Lineup on each) are left out of it (`blind.js` says so)
+and proven by `tests/two-shows.test.js` and `scripts/dev-test/check-two-shows.js` instead. A format change in a game on two seasons isn't
+read at all (a stage a change starts, a side stage and 'next-stage' are refused there: each reads the game's own season's format), so this
+part moves nothing the study's format readers do; these replays show every game the tracker played before still plays through and ends.
+
+- **Every game played through and over on all five seasons**, part 4a's numbers exactly: Survivor 49 126 of 126, The Challenge 41 101
+  of 101, 40 95 of 95, 39 103 of 103, The Traitors 4 90 of 90; nothing refused; the questions waiting on early results finding 20's 3, 2
+  and 2.
+- **No game the tracker plays changed** (the golden replays agree: every read the same against the step before; against production's
+  engine only R1 part 3's 20 on The Challenge 40), and the refusal of two stages of bingo or Calls at once touches none of them.
+- **On two seasons** (the unit tests and the check, not the tapes): The Traitors' stage counts its own episodes past Survivor's latest, a
+  viewer behind on one season sees that season's stage as far as they've seen it, Survivor's Sole Survivor doesn't end a game whose
+  Traitors stage plays on, and a stage's results come only through its own season's sync.
+
+## A12 part 4c: late joiners in a game in stages, replayed blind (2026-10-30)
+
+A12's part 4c lets someone join a game in stages once it has started: they join each stage under way as that stage's own late joiner,
+live (a team from who's free, or from who's still in, dealt from a hat, a pick from the next episode), every stage still to start from its
+start, none that's over; nobody new while a stage keeps a newcomer waiting (someone out of a pool's lives, a draft's cuts, a game of
+questions' walk). A seat that leaves and comes back is the same seat in every stage, and a stage that began while it was away takes it as
+its late joiner. A format change reaches a late joiner as it reaches anyone: a copy a change starts (part 2) or a side stage (part 3) is
+made with the game's seats as they are then, the late joiner's among them, and each stage's own pieces read the groups at each lock. The
+tapes' four seats are there from the start (nobody joins late), so these replays show the new join rule and the seat sync change nothing
+for the games the tracker plays; the late joiners themselves are `tests/late-stages.test.js`'s and `scripts/dev-test/check-late-stages.js`'s.
+
+- **Every game played through and over on all five seasons**, part 4b's numbers exactly: Survivor 49 126 of 126, The Challenge 41 101
+  of 101, 40 95 of 95, 39 103 of 103, The Traitors 4 90 of 90; nothing refused; the questions waiting on early results finding 20's 3, 2
+  and 2.
+- **No game the tracker plays changed** (the golden replays agree: every read the same against the step before; against production's
+  engine only R1 part 3's 20 on The Challenge 40).
+- **Part 4b's item 8** (a stage on another season that never starts no longer keeps the game from ending: over once its league is) is
+  the unit tests' (a replay plays one season, so no tracker game on two seasons is replayed: part 4b).
+
 ## Appendix: the timelines
 
 Generated with `node scripts/dev-test/format-study.js --md`. "Brought in" is when viewers learned of a change, against when it

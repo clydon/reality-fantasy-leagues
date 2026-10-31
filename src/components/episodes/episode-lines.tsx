@@ -42,7 +42,7 @@ export function scoredText(ep: Episode, state: LeagueState, me: string | null): 
     const pick = (ep.picks || []).find((p) => p.playerId === me);
     if (!pick) return me ? "You didn't pick" : null;
     const name = StateLogic.getCastaway(state, pick.castawayId)?.name ?? "Your pick";
-    const out = ep.events.some((e) => e.castawayId === pick.castawayId);
+    const out = StateLogic.PickEmLogic.wentHome(state, ep, pick.castawayId);
     const streak = me ? StateLogic.pickEmHistory(state, me).rows.find((r) => r.episode === ep.number)?.streak : undefined;
     return out ? `Your pick, ${name}, went home` : `Your pick, ${name}, survived${streak ? ` · streak ${streak}` : ""}`;
   }

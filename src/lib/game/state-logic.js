@@ -164,8 +164,10 @@ function spanView(state){
   // A11 part 2b: a game of questions' walk holds for its copy cut at the game's end (nothing it read is after it).
   return state.answerWalk && view !== state ? AnswerLogic.withWalk(view, state.answerWalk) : view;
 }
-// The game is over: its season is (seasonEnded), or its span's last episode has results.
+// The game is over: its season is (seasonEnded), or its span's last episode has results. A12 part 4b: a game in stages with an own
+// stage on another season once every own stage is (StageLogic.overAcross), never at its own season's end.
 function gameOver(state){
+  if(StageLogic.crosses(state)) return StageLogic.overAcross(state);
   if(seasonEnded(state)) return true;
   const end = lastEpisode(state);
   return end !== null && (state.episodes || []).some(e => e.number >= end && EpisodeLogic.hasResults(e));
@@ -181,6 +183,17 @@ function isWinnerExit(state, method){
   return w != null && method === w;
 }
 function seasonWinner(state){ return (state.castaways || []).find(c => isWinnerExit(state, c.exitMethod)) || null; }
+// An episode's night as the games grade it (R1 part 3: the Decisions table's "A pool's finale", only the winner survives the
+// finale): { gone, won }, Sets of castaway ids, the exits its results record as going home and as winning (each winner, on a
+// show with several). On a night with a winner everyone else in it went home, a losing finalist's exit or none; on any other
+// night (every night, on a show nobody wins) whoever isn't among its exits stayed (wentHome).
+function nightOf(state, ep){
+  const w = formatOf(state).winnerExitMethod;
+  const gone = new Set(), won = new Set();
+  ((ep && ep.events) || []).forEach(ev => (w != null && ev.method === w ? won : gone).add(ev.castawayId));
+  return { gone, won };
+}
+function wentHome(night, castawayId){ return night.won.size ? !night.won.has(castawayId) : night.gone.has(castawayId); }
 function seasonEnded(state){
   if(formatOf(state).winnerExitMethod != null) return !!seasonWinner(state);
   const cast = state.castaways || [];
@@ -3807,10 +3820,10 @@ class PickEmLogic {
   static parts(state){ return Spec.poolParts(gameOf(state)); }
   // Whether two or more went home in an episode: a night a second pick counts. Known only from its results (nothing at a lock
   // says a night is a double: the schedule doesn't, nor does a rulebook); a winner's exit isn't one going home.
-  static double(state, ep){
-    const gone = new Set((ep.events||[]).filter(ev => !isWinnerExit(state, ev.method)).map(ev => ev.castawayId));
-    return gone.size >= 2;
-  }
+  static double(state, ep){ return nightOf(state, ep).gone.size >= 2; }
+  // Whether a pick went home in an episode, as the pool grades it (nightOf: on the finale, anyone but the winner did). False
+  // before its results; a pool that survives by scoring grades by points instead (scored), so this is a staying-in pool's.
+  static wentHome(state, ep, castawayId){ return wentHome(nightOf(state, ep), castawayId); }
   // Whether an episode's second picks counted: it's decided, and two or more went home in it (or the pool's second pick counts
   // every night: fallback 'counts'). `parts`: the pool's, when the caller has them (a walk over every episode reads them once).
   static secondCounted(state, ep, parts){
@@ -3922,8 +3935,10 @@ class PickEmLogic {
         return row;
       }
       // Correct = the picked person isn't among this episode's eliminations (or, surviving by scoring, scored in it). Derived
-      // live from the episode rather than stored, so logging or undoing a result can't leave it stale.
-      const survived = (id) => !!id && (byScore ? PickEmLogic.scored(state, ep, id) : !ep.events.some(ev => ev.castawayId === id));
+      // live from the episode rather than stored, so logging or undoing a result can't leave it stale. R1 part 3: only the
+      // winner survives the finale (nightOf); a show nobody wins keeps the rule of every night.
+      const night = byScore ? null : nightOf(state, ep);
+      const survived = (id) => !!id && (byScore ? PickEmLogic.scored(state, ep, id) : !wentHome(night, id));
       const row = { episode: ep.number, postMerge: !!ep.postMerge, castawayId: pick ? pick.castawayId : null, correct: false, points: 0, streak: 0 };
       const counts = !!second && PickEmLogic.secondCounted(state, ep, parts);
       if(pick) used.add(pick.castawayId);
@@ -4345,28 +4360,289 @@ class DraftLogic {
 // each stage that's over, points for your place there: `places` [1st, 2nd, ...], else one for each of you below you plus one; ties
 // share the higher place) or wins (stages won, ties all win; level on that, places, then points). A stage not started for the viewer
 // counts nothing, and someone not in a stage's table scores nothing from it. Nothing is stored: the walk is worked out on each read.
+//
+// A12 part 2, a stage a format change starts (a stage's `on`): its copies are leagues the server makes when the change comes
+// (change-stages.ts), each keyed `<stage id>@<the change's id>` (format-timeline.js stageTriggers: `<episode>:<kind>`), one for the
+// first such change after the stage before it started, or one at every such change ("again"); the walk carries each copy, and the
+// standings each in order. Where each starts and ends is the plan (changePlan), worked out from the season's format state over time
+// each time the server settles: only a change research is sure of, from the episode it takes effect or the first still open; the
+// stage before ends where the copy starts; a change no longer in the data (a corrected report) takes its copy away. What the game
+// remembers of it (the server writes it; the plan reads it):
+//   state.changeStages { seen: { key: the first episode still open when the change was first seen }, decided: { key: { do: 'start' |
+//                        'skip', by, at } } (the maker's), told: [what Recent changes has said], undone: [copies taken away] }
+//
+// A12 part 3, a side stage (a stage's `side` { held }): it plays beside the game's own stages, a copy of it for each spell of a grouping
+// research is sure has held `held` episodes and goes on (format-timeline.js sideTriggers), keyed `<stage id>@<the spell's id>` (`s<the
+// episode that showed it>`), from the episode after (or the first still open; never before the game starts), until research is sure the
+// grouping changed (the later of its last episode and the one whose research said so: a side stage carries on while research isn't
+// sure), or its own end. The game's own stages are untouched by it; its copies count in the overall as any stage's, and the game ends
+// with its own last stage. Taken as a format change is (extras.changes), through the same record.
+//
+// A12 part 4b, one game across two shows (a stage's `season`): a stage on another season is a league on that season, its entries that
+// season's episodes, so the walk says which (`season`, its key, on such a stage only) and when each aired (`at`, where known). Nothing
+// is compared across seasons by episode number: a viewer's copy cuts the game's own season's stages at their mark (cutWalk) and the
+// server cuts each other season's at the viewer's mark there (answer-points.ts stageWalk, spoiler-safe: nothing of it without one);
+// the standings read such a stage as the walk has it. A game with an own stage on another season (Spec.crosses) is over once every own
+// stage is (overAcross: never at its own season's end, gameOver), ends on its own season where its last own stage there does (endsAt),
+// and a stage beside it on another season counts what aired by the time the game ended (its entries' `at`).
 class StageLogic {
   static on(state){ return !!state && scorePiece(state) === StagesScoringStrategy; }
   static stages(state){ return StageLogic.on(state) ? gameOf(state).stages : []; }
   static overallOf(state){ const o = gameOf(state).overall; return o && typeof o === 'object' ? o : Spec.OVERALL; }
   static walkOf(state){ return state && state.stageWalk && Array.isArray(state.stageWalk.stages) ? state.stageWalk : null; }
   static withWalk(state, walk){ return walk ? { ...state, stageWalk: walk } : state; }
-  // The walk as a viewer through episode n sees it: each stage's tables through n.
+  // The walk as a viewer through episode n sees it: each stage's tables through n (A12 part 4b: a stage on another season is cut at
+  // the viewer's mark there, by the server: n is the game's own season's).
   static cutWalk(walk, n){
     if(!walk || !Array.isArray(walk.stages) || !Number.isInteger(n)) return walk;
-    return { ...walk, stages: walk.stages.map(st => ({ ...st, entries: (st.entries || []).filter(e => e.episode <= n) })) };
+    return { ...walk, stages: walk.stages.map(st => (st.season ? st : { ...st, entries: (st.entries || []).filter(e => e.episode <= n) })) };
   }
+  // A12 part 4b: an own stage of the game plays on another season.
+  static crosses(state){ return StageLogic.on(state) && Spec.crosses(StageLogic.stages(state)); }
   // Each stage as it stood after the latest episode this copy has results for: { key, name, leagueId, from, to, started, over,
   // rows }, in the spec's order.
   static standings(state){
     const walk = StageLogic.walkOf(state);
     const latest = SpoilerLogic.latestWithResults(state);
-    return StageLogic.stages(state).map(st => {
-      const w = walk ? walk.stages.find(x => x.key === st.id) : null;
-      const entries = w ? (w.entries || []).filter(e => e.episode <= latest) : [];
+    // A12 part 4a: a stage scored outside the game (its walk says `outside`: bingo, Weekly Calls) counts each episode as it airs,
+    // results or not (a talk show's lines and calls are the couch's say).
+    const aired = Math.max(latest, ...(state.episodes || []).filter(e => hasAired(e)).map(e => e.number));
+    // A12 part 4b: a stage on another season as the walk has it (its own season's results, cut at the viewer's mark there); `atCap`,
+    // only what aired by then (a stage beside a game that ended on another season).
+    const row = (st, w, copy, cap, atCap) => {
+      const season = Spec.seasonKey(Spec.stageSeason(st));
+      const upTo = season ? Infinity : Math.min(w && w.outside ? aired : latest, cap);
+      const entries = w ? (w.entries || []).filter(e => e.episode <= upTo && !(atCap !== undefined && e.at && Date.parse(e.at) > atCap)) : [];
       const last = entries.length ? entries[entries.length - 1] : null;
-      return { key: st.id, name: st.name || null, leagueId: w ? w.leagueId : null, from: w ? w.from : null, to: w ? w.to : null, started: !!last, over: !!(last && last.over), rows: last ? last.rows : [] };
+      // A12 part 4c (part 4b's item 8): a stage on another season that never started is over once its league is (its season ended
+      // before its start, the walk's `ended`, as far as the viewer has seen there), counting nothing, so the game can end.
+      const over = !!(last && last.over) || (!!season && !last && !!(w && w.ended));
+      return { key: w ? w.key : st.id, stage: st.id, copy, side: !!Spec.stageSide(st), alongside: !!Spec.stageAlongside(st), season, name: st.name || null, leagueId: w ? w.leagueId : null, from: w ? w.from : null, to: w ? w.to : null, started: !!last, over, rows: last ? last.rows : [], ...(last && last.at ? { at: last.at } : {}) };
+    };
+    // A12 part 2: a stage a format change starts is its copies, in the order they start (none until its change comes); A12 part 3: a
+    // side stage too (none until a grouping lasts).
+    const rowsOf = (st, cap, atCap) => {
+      if(!Spec.stageOn(st) && !Spec.stageSide(st)) return [row(st, walk ? walk.stages.find(x => x.key === st.id) : null, null, cap, atCap)];
+      const mine = (walk ? walk.stages : []).filter(x => StageLogic.copyOf(x.key) === st.id).sort((a, b) => (a.from ?? Infinity) - (b.from ?? Infinity));
+      return mine.map((w, i) => row(st, w, i + 1, cap, atCap));
+    };
+    const stages = StageLogic.stages(state);
+    const own = stages.filter(st => !Spec.isBeside(st)).flatMap(st => rowsOf(st, Infinity));
+    // A12 part 4a: once the game's own last stage is over, each stage beside it (side or alongside) counts as it stood there and is
+    // over too (a game that ended early, its race won or one left standing: by places or wins it still counts). A12 part 4b: a game
+    // with an own stage on another season once every own stage is over; a stage beside it on another season (or any, in such a game)
+    // counts what aired by the time the last of them ended.
+    const crossing = Spec.crosses(stages);
+    const last = own[own.length - 1];
+    const done = crossing ? own.length > 0 && own.every(x => x.over) : !!(last && last.over);
+    // Where the game's own stages on its own season end, once the last of them there is over (part 4b: a stage beside them there plays
+    // inside that, schema.js alongsideSpan).
+    const homes = own.filter(x => !x.season);
+    const lastHome = homes[homes.length - 1];
+    const end = lastHome && lastHome.over && Number.isInteger(lastHome.to) ? lastHome.to : null;
+    // When the game ended, for a stage beside it on another season: the latest of its own stages' last airings, once every one is known
+    // (else, as it stands: Noticed).
+    const ats = own.map(x => (x.at ? Date.parse(x.at) : NaN));
+    const endAt = done && ats.length && ats.every(t => !Number.isNaN(t)) ? Math.max(...ats) : undefined;
+    const beside = stages.filter(st => Spec.isBeside(st)).flatMap(st => {
+      if(!Spec.stageSeason(st)) return rowsOf(st, end ?? Infinity).map(x => ((crossing ? done : end !== null) ? { ...x, over: true } : x));
+      return rowsOf(st, Infinity, endAt).map(x => (done ? { ...x, over: true } : x));
     });
+    return [...own, ...beside];
+  }
+  // A12 part 2: the stage a copy's key is of (`<stage id>@<change id>`), or null for a stage's own key.
+  static copyOf(key){ const at = String(key || '').indexOf('@'); return at > 0 ? String(key).slice(0, at) : null; }
+  static copyKey(stageId, changeId){ return `${stageId}@${changeId}`; }
+  // The stages a format change starts (their `on` whole).
+  static onStages(state){ return StageLogic.stages(state).filter(st => !!Spec.stageOn(st)); }
+  // A12 part 2b: the stages the one before's 'next-stage' fallback starts (Spec.nextStageAts): that stage ends where its group
+  // question or its group slots can't be played as the groups stand, and this one starts then (format-timeline.js groupsGone,
+  // one more of its triggers: the server's, change-stages.ts).
+  static fallbackStarts(state){
+    const list = StageLogic.stages(state);
+    return new Set(list.filter((st, i) => !!Spec.stageOn(st) && Spec.fallsTo(list, i)).map(st => st.id));
+  }
+  // A12 part 3: the side stages (their `side` whole).
+  static sideStages(state){ return StageLogic.stages(state).filter(st => !!Spec.stageSide(st)); }
+  // How the game takes a format change (extras.changes, its defaults Spec.CHANGES), or null for a game no change moves (A12 part 3: a
+  // side stage is taken the same way).
+  static changesOf(state){
+    if(!StageLogic.onStages(state).length && !StageLogic.sideStages(state).length) return null;
+    const c = gameOf(state).extras.changes;
+    return { ...Spec.CHANGES, ...(c && typeof c === 'object' ? c : {}) };
+  }
+  // What the game remembers of its format changes (state.changeStages), whole.
+  static changeRecord(state){
+    const r = state && state.changeStages && typeof state.changeStages === 'object' ? state.changeStages : {};
+    const obj = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
+    return { seen: obj(r.seen), decided: obj(r.decided), told: Array.isArray(r.told) ? r.told : [], undone: Array.isArray(r.undone) ? r.undone : [] };
+  }
+  // The maker's answer on a change that starts a stage (`key`, a copy's): 'start' or 'skip' (an undo, once it's started), by whom
+  // and when. A problem (in words), or null once it's recorded.
+  static decide(state, key, what, by, at){
+    if(what !== 'start' && what !== 'skip') return "Say 'start' or 'skip'";
+    const stage = StageLogic.copyOf(key);
+    if(!stage || ![...StageLogic.onStages(state), ...StageLogic.sideStages(state)].some(st => st.id === stage)) return "That isn't one of this game's format changes";
+    const rec = StageLogic.changeRecord(state);
+    rec.decided = { ...rec.decided, [key]: { do: what, by: by || null, at: at || null } };
+    state.changeStages = rec;
+    return null;
+  }
+  /**
+   * Where the stages a format change starts play (A12 part 2), worked out from the season's format state over time each time the
+   * server settles (change-stages.ts), never stored: pure. `input`:
+   *   triggers  { stageId: format-timeline.js stageTriggers(timeline, its on.change) }: `act` the changes research is sure of,
+   *             `held` the ones it isn't (flagged, never acted on)
+   *   starts    { stageId: the episode it plays from (its league's), or null while it waits } for the stages before
+   *   copies    { key: { from } } the copies made and still live (their leagues' starts)
+   *   open      the first episode still open for moves (the one after the latest that's aired or has results)
+   *   last      the season's last episode, when it's known
+   * A stage a change starts begins at the first change of its kinds research is sure of after the stage before it started (one per
+   * episode: two in one episode start one copy); with `again`, a copy at every such change after it, until the next stage a change
+   * starts begins (at most Spec.MAX_COPIES). Each plays from the episode its change takes effect or the first still open, whichever
+   * is later, and never moves once that's aired; the stage before (or the copy before) ends with the episode before it. With the
+   * maker's OK (extras.changes.ok 'maker'), a change nobody has answered waits until the lock of the episode it would start with
+   * (`until`: from when it was first seen), then the game's default (unanswered: 'start' from the first episode still open, or
+   * 'carry-on'); a skip is never started (and takes a started copy away). Two still to come that both start at the first episode
+   * still open: the later change is the format now, so it alone starts. Returns { entries: [{ key, stage, copy (1, 2, ... for a
+   * copy; null for a stage before them), trigger, from, to (the plan's end: an episode, the stage's own end for the last copy;
+   * undefined where the plan says nothing), side (A12 part 3) }], pending, lapsed, skipped, held, late (past the season's end),
+   * capped, superseded, unplayed (A12 part 3: a side copy whose grouping changed before it could play), seen: { key: open } first
+   * seen now }.
+   * A12 part 3, a side stage: its triggers are format-timeline.js sideTriggers' (a spell that held `held` episodes, research sure it
+   * goes on), a copy for each, once the game's first stage has started: from the spell's next episode or the first still open (never
+   * before the game's start), never moving once that's aired, with the maker's OK as a change's; to where research is sure the grouping
+   * changed (`closes`: the later of its last episode and the one whose research said so), else the stage's own end; unsure (`closing`),
+   * it plays on, held and said. The game's own stages are never moved by one.
+   */
+  static changePlan(state, input){
+    const inp = input || {};
+    const open = Number(inp.open);
+    const last = Number.isInteger(inp.last) ? inp.last : null;
+    const out = { entries: [], pending: [], lapsed: [], skipped: [], held: [], late: [], capped: [], superseded: [], unplayed: [], seen: {} };
+    const stages = StageLogic.stages(state);
+    const first = stages.findIndex(st => !!Spec.stageOn(st));
+    const sides = StageLogic.sideStages(state);
+    if((first < 1 && !sides.length) || !Number.isInteger(open)) return out;
+    const conf = StageLogic.changesOf(state);
+    const rec = StageLogic.changeRecord(state);
+    const starts = inp.starts || {};
+    const made = inp.copies || {};
+    // Where a copy for change `c` plays from: its start once that's aired, else the change's or the first still open (or `floor`);
+    // null while the maker's OK holds it, once it lapsed, or when it's skipped (each recorded in `out` when `record`).
+    const startOf = (st, c, key, record, floor) => {
+      const d = rec.decided[key];
+      const had = made[key];
+      if(d && d.do === 'skip'){ if(record) out.skipped.push({ key, stage: st.id, trigger: c }); return null; }
+      if(had && Number.isInteger(had.from) && had.from < open) return had.from;
+      if(conf.ok !== 'auto' && !(d && d.do === 'start') && !had){
+        const seen = Number.isInteger(rec.seen[key]) ? rec.seen[key] : open;
+        if(record && !Number.isInteger(rec.seen[key])) out.seen[key] = open;
+        const until = Math.max(c.from, seen);
+        if(open <= until){ if(record) out.pending.push({ key, stage: st.id, trigger: c, until }); return null; }
+        if(conf.unanswered !== 'start'){ if(record) out.lapsed.push({ key, stage: st.id, trigger: c, until }); return null; }
+      }
+      return Math.max(c.from, open, Number.isInteger(floor) ? floor : 0);
+    };
+    if(first >= 1) StageLogic.chainPlan(inp, out, { stages, first, last, made, startOf });
+    // A12 part 3: the side stages, once the game's first stage has started.
+    const gameStart = stages.length && Number.isInteger(starts[stages[0].id]) ? starts[stages[0].id] : null;
+    if(gameStart !== null) for(const st of sides) out.entries.push(...StageLogic.sidePlan(st, inp, out, { open, last, gameStart, made, startOf }));
+    return out;
+  }
+  // A12 part 2's plan for the stages a format change starts (changePlan's), into `out`.
+  static chainPlan(inp, out, { stages, first, last, made, startOf }){
+    const starts = inp.starts || {};
+    stages.slice(0, first).forEach(st => {
+      const from = Number.isInteger(starts[st.id]) ? starts[st.id] : null;
+      out.entries.push({ key: st.id, stage: st.id, copy: null, trigger: null, from, to: undefined });
+    });
+    // The stage right before: nothing starts on a change until it has (a phase start not known yet holds everything back).
+    const base = out.entries[out.entries.length - 1];
+    let after = base ? base.from : null;
+    // A stage's copies after episode `after` (its outcomes recorded in `out` only when `record`: the look ahead doesn't).
+    const copiesOf = (st, from0, record) => {
+      const o = Spec.stageOn(st);
+      const t = (inp.triggers && inp.triggers[st.id]) || { act: [], held: [] };
+      const byFrom = new Map();
+      (t.act || []).filter(c => Number.isInteger(c.from) && c.from > from0).sort((a, b) => a.from - b.from).forEach(c => { if(!byFrom.has(c.from)) byFrom.set(c.from, c); });
+      let cands = [...byFrom.values()];
+      if(record) (t.held || []).filter(c => Number.isInteger(c.from) && c.from > from0).forEach(c => out.held.push({ stage: st.id, trigger: c }));
+      // Once: a copy already made stays the stage's (a change that turns sure later doesn't take its place).
+      if(!o.again){
+        const had = cands.find(c => made[StageLogic.copyKey(st.id, c.id)]);
+        if(had) cands = [had];
+      }
+      const mine = [];
+      for(const c of cands){
+        const key = StageLogic.copyKey(st.id, c.id);
+        const from = startOf(st, c, key, record);
+        if(from === null) continue;
+        if(last !== null && from > last){ if(record) out.late.push({ key, stage: st.id, trigger: c }); continue; }
+        const prev = mine[mine.length - 1];
+        if(prev && prev.from >= from){
+          mine.pop();
+          if(record) out.superseded.push({ key: prev.key, stage: st.id, trigger: prev.trigger, by: key });
+        }
+        if(mine.length >= Spec.MAX_COPIES){ if(record) out.capped.push({ key, stage: st.id, trigger: c }); continue; }
+        mine.push({ key, stage: st.id, copy: 0, trigger: c, from, to: undefined });
+        if(!o.again) break;
+      }
+      return mine;
+    };
+    // A12 part 4a: only the stages a change starts (a stage beside the game's own, side or alongside, is never one).
+    const on = stages.slice(first).filter(st => !!Spec.stageOn(st));
+    const copies = [];
+    for(let j = 0; j < on.length && after !== null; j++){
+      let mine = copiesOf(on[j], after, true);
+      if(!mine.length) break;
+      // Until the next stage a change starts begins: a change of this stage's kinds after that is no longer this stage's.
+      const next = on[j + 1] ? copiesOf(on[j + 1], mine[0].from, false)[0] : null;
+      if(next) mine = mine.filter(x => x.from < next.from);
+      mine.forEach((x, i) => { x.copy = i + 1; });
+      copies.push(...mine);
+      after = mine[0].from;
+    }
+    copies.forEach((x, i) => {
+      const nx = copies[i + 1];
+      const st = stages.find(s => s.id === x.stage);
+      const own = st.game.span ? st.game.span.to : null;
+      x.to = nx ? nx.from - 1 : own && typeof own === 'object' ? { ...own } : own;
+    });
+    if(base) base.to = copies.length ? copies[0].from - 1 : null;
+    out.entries.push(...copies);
+  }
+  // A12 part 3: a side stage's copies (changePlan's): one for each grouping its triggers say lasted, in the order they open. Its end
+  // never past the game's own (its own episode, else the game's once known: `inp.end`, a phase end settled).
+  static sidePlan(st, inp, out, { open, last, gameStart, made, startOf }){
+    const t = (inp.triggers && inp.triggers[st.id]) || { act: [], held: [] };
+    (t.held || []).forEach(c => out.held.push({ stage: st.id, trigger: c }));
+    const own = st.game.span ? st.game.span.to : null;
+    const ends = [own, inp.end].filter(x => Number.isInteger(x));
+    const ownEnd = ends.length ? Math.min(...ends) : null;
+    const mine = [];
+    for(const c of (t.act || []).filter(x => Number.isInteger(x.from)).sort((a, b) => a.from - b.from)){
+      const key = StageLogic.copyKey(st.id, c.id);
+      // Where it would play from (startOf's, before the maker is asked): past the season or the game's end, or its grouping changed
+      // before then, it never plays, and nobody is asked about it.
+      const had = made[key];
+      const first = had && Number.isInteger(had.from) && had.from < open ? had.from : Math.max(c.from, open, gameStart);
+      if((last !== null && first > last) || (ownEnd !== null && first > ownEnd)){ out.late.push({ key, stage: st.id, trigger: c }); continue; }
+      let to = own && typeof own === 'object' ? { ...own } : own;
+      if(ownEnd !== null && !(own && typeof own === 'object')) to = ownEnd;
+      if(c.closes){
+        const at = Math.max(c.closes.at, c.closes.episode);
+        to = ownEnd !== null ? Math.min(at, ownEnd) : at;
+        if(to < first){ out.unplayed.push({ key, stage: st.id, trigger: { ...c, episode: c.closes.episode } }); continue; }
+      }
+      const from = startOf(st, c, key, true, gameStart);
+      if(from === null) continue;
+      // Research isn't sure its grouping changed: it plays on, said.
+      if(c.closing) out.held.push({ key, stage: st.id, trigger: { ...c, episode: c.closing.episode } });
+      if(mine.length >= Spec.MAX_COPIES){ out.capped.push({ key, stage: st.id, trigger: c }); continue; }
+      mine.push({ key, stage: st.id, copy: mine.length + 1, trigger: c, from, to, side: true });
+    }
+    return mine;
   }
   // Points for a place in a stage that's over: the overall's `places`, else one for each of `count` below it, plus one.
   static placePoints(o, place, count){
@@ -4402,17 +4678,54 @@ class StageLogic {
   // The episode the game ends with once its last stage is over (where that stage ended: early, if it did), else null.
   static endsAt(state){
     if(!StageLogic.on(state)) return null;
-    const st = StageLogic.standings(state);
+    // A12 part 3: the game's own last stage (a side stage plays inside it; part 4a: a stage alongside it too). A12 part 4b: on its own
+    // season, its last own stage there (gameOver reads overAcross for the rest).
+    const st = StageLogic.standings(state).filter(x => !x.side && !x.alongside && !x.season);
     const last = st[st.length - 1];
     return last && last.over && Number.isInteger(last.to) ? last.to : null;
   }
-  // Its first stage has started: the game's first episode has results, or has aired. Nobody new joins then (GhostLogic.allowed).
+  // A12 part 4b: a game with an own stage on another season is over once every own stage is, as far as this copy has seen (never at
+  // its own season's end: a stage on another season plays on).
+  static overAcross(state){
+    const st = StageLogic.standings(state).filter(x => !x.side && !x.alongside);
+    return st.length > 0 && st.every(x => x.over);
+  }
+  // Its first stage has started: the game's first episode has results, or has aired. From then on someone new joins as its stages
+  // take them (closed).
   static started(state){
     if(!StageLogic.on(state)) return false;
     const first = startEpisode(state);
     if(first === null) return false;
     if(SpoilerLogic.latestWithResults(state) >= first) return true;
     return hasAired((state.episodes || []).find(e => e.number === first));
+  }
+  // A12 part 4c: how a stage's own league takes someone new now, by its own rules (what addPlayer does with them there): 'over' once
+  // it's over (nobody new is seated in it: it counts nothing for them), 'draft' before it's underway (into its draft, as anyone),
+  // 'late' once it is and it takes late joiners (they start live, as that game alone takes one: a team from who's free, dealt from
+  // the hat, a pick or answers from the next episode), 'waits' where it doesn't (someone's out of it, or its joining is shut).
+  static joinsOf(stage){
+    if(gameOver(stage)) return 'over';
+    // A stage of bingo or Weekly Calls ends as its last episode airs (no results to wait for: A12 part 4a); the walk also says 'over'
+    // once its last entry is (answer-points.ts stageWalk, where the season's schedule ends one with no end of its own).
+    const pieces = piecesOf(stage);
+    const end = lastEpisode(stage);
+    if((pieces.hasBingo || pieces.hasCalls) && end !== null && hasAired((stage.episodes || []).find(e => e.number === end))) return 'over';
+    if(!GhostLogic.isUnderway(stage)) return 'draft';
+    return GhostLogic.allowed(stage) ? 'late' : 'waits';
+  }
+  // A12 part 4c: whether a game in stages takes nobody new now. Before its first stage starts, as any game (into each stage's
+  // draft). Once it has, as its stages do (the walk's `joins` for each stage league there now, the server's: answer-points.ts
+  // stageWalk): nobody new while any keeps a newcomer waiting (someone's out of it: A11 part 5c's rule, one rule for the game);
+  // else they join each stage underway as its late joiner, live, every stage still to start from its start, none that's over.
+  // Without the walk (the stored state), nobody new once it's started: the safe fallback. `opts.stagesOpen`: the caller read the
+  // walk already (a join route, whose write runs on the stored state).
+  static closed(state, opts){
+    if(!StageLogic.started(state)) return false;
+    if(opts && typeof opts.stagesOpen === 'boolean') return !opts.stagesOpen;
+    const walk = StageLogic.walkOf(state);
+    // No stage league read (none made, or all taken away): nowhere to seat them.
+    if(!walk || !walk.stages.length || walk.stages.some(st => !st.joins)) return true;
+    return walk.stages.some(st => st.joins === 'waits');
   }
 }
 
@@ -4440,9 +4753,10 @@ class RosterLogic {
     const turn = DraftLogic.currentTurn(state); // reflects players/draftOrder BEFORE this one is added
     const underway = GhostLogic.isUnderway(state);
     // A12 part 1: a game in stages whose first stage has started takes nobody new either (a code join, which nothing else gates,
-    // waits inactive, as one once someone's out does).
-    const out = (underway && (opts && typeof opts.someoneOut === 'boolean' ? opts.someoneOut : GhostLogic.someoneOut(state))) || StageLogic.started(state);
-    const late = !newPlayer.automated && !out && GhostLogic.allowed(state) && underway;
+    // waits inactive, as one once someone's out does). A12 part 4c: unless its stages take them (StageLogic.closed: the walk's, or
+    // `opts.stagesOpen`, the caller's reading of it): a late joiner then, playing live (its own start is the stages' first still open).
+    const out = (underway && (opts && typeof opts.someoneOut === 'boolean' ? opts.someoneOut : GhostLogic.someoneOut(state))) || StageLogic.closed(state, opts);
+    const late = !newPlayer.automated && !out && GhostLogic.allowed(state, opts) && underway;
     state.players.push(newPlayer);
     if(late){
       // A late joiner: invisible to the league, and they choose where to start (GhostLogic).
@@ -6598,7 +6912,6 @@ class AnswerLogic {
     const span = gameOf(state).span;
     const from = Spec.spanStart(span);
     const episodes = new Map();
-    const winnerOut = (method) => isWinnerExit(state, method);
     const eps = [...(state.episodes || [])].sort((a, b) => a.number - b.number);
     const epNo = new Map(eps.map(e => [e.id, e.number]));
     const cast = state.castaways || [];
@@ -6614,9 +6927,12 @@ class AnswerLogic {
       if(!inPlay(state, ep.number)) return;
       const stage = EpisodeLogic.resultsStage(ep);
       if(!stage) return;
-      const out = (ep.events || []).filter(ev => !winnerOut(ev.method)).map(ev => ev.castawayId);
       // Still in at its start: nobody who left in an episode before it.
       const stillIn = cast.filter(c => !(c.status === 'eliminated' && (epNo.get(c.exitEpisodeId) || 0) < ep.number)).map(c => c.id);
+      // Who went home in it, as a pool grades it (R1 part 3, nightOf): its exits but a winner's, and on the winner's night
+      // anyone else still in whose exit isn't recorded.
+      const night = nightOf(state, ep);
+      const out = [...night.gone, ...(night.won.size ? stillIn.filter(id => !night.won.has(id) && !night.gone.has(id)) : [])];
       let events = null;
       let who = null;
       let roleOf = null;
@@ -7369,8 +7685,9 @@ class GhostLogic {
   // On unless a commissioner switched it off (absent = on, so it covers every league that predates it), or locked the game down.
   // A11 part 1: nor once someone is knocked out of the game (a newcomer would join a field already cut: the fallback). Part 5c: the
   // same rule for every game that knocks people out (someoneOut).
-  // A12 part 1: nor once a game in stages' first stage has started (a seat joins it to join every stage: StageLogic.started).
-  static allowed(state){ return gameOf(state).extras.join !== 'locked' && !GhostLogic.lockedDown(state) && !GhostLogic.someoneOut(state) && !StageLogic.started(state); }
+  // A12 part 1: nor once a game in stages' first stage has started (a seat joins it to join every stage: StageLogic.started). A12 part
+  // 4c: unless its stages take them, each by its own rule (StageLogic.closed: read from the walk, or `opts.stagesOpen`).
+  static allowed(state, opts){ return gameOf(state).extras.join !== 'locked' && !GhostLogic.lockedDown(state) && !GhostLogic.someoneOut(state) && !StageLogic.closed(state, opts); }
   // Whether anyone playing the league's own season is out of the game for good: a draft's cuts and a game of questions' walk
   // (KnockoutLogic.outs; a game of questions' only where the state carries its walk, which the server's copy as it stands does:
   // answer-points.ts asItStands, so whatever reads joining walks it first), or a pool's lives run out with no buyback left
@@ -7418,6 +7735,9 @@ class GhostLogic {
     const latest = SpoilerLogic.latestWithResults(state);
     const start = startEpisode(state);
     if(start === null) return [latest + 1];
+    // A12 part 4c: a game in stages once it's started takes a newcomer live only: catching up would move its mark and each stage's
+    // apart (each league reveals on its own), so the next episode to play is the only start (the plan's Noticed).
+    if(StageLogic.started(state)) return [latest + 1];
     const out = [];
     for(let n = start; n <= latest + 1; n++) out.push(n);
     return out;

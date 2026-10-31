@@ -557,6 +557,13 @@ export async function syncSeasonLeagues(seasonId: string, actorUserId: string | 
       });
     }
   }
+  // Step A12 part 2: a game in stages whose stages a format change starts, settled on the season's format state over time now its
+  // research and results are in (change-stages.ts: a copy made, moved or taken away, the maker told). Loaded only here.
+  try {
+    await (await import("./change-stages")).settleSeasonChanges(seasonId);
+  } catch (e) {
+    console.error(`[sync] format changes for ${seasonId} failed:`, e);
+  }
   try {
     // Bingo is loaded only when a sync has an episode to look at (it reads the season's rulebook: a heavier module graph).
     for (const n of bingoAfter) notifyBingoLines({ seasonId, episode: n, lines: async () => (await import("./bingo")).bingoLinesOn(seasonId, n) });

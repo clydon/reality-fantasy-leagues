@@ -72,10 +72,11 @@ export interface GameHere {
 }
 
 /** A league ready to read: a game of questions that races or knocks players out walked as it stands (step A11 part 2b). One that
- *  can't be walked (its answers unreadable) reads as it would without its knockouts, as any other reader without them does. */
-async function standingHere(leagueId: string, ready: LeagueState): Promise<{ state: LeagueState; answers?: AnswerRow[] }> {
+ *  can't be walked (its answers unreadable) reads as it would without its knockouts, as any other reader without them does. Step A12
+ *  part 4b: a game in stages' stage on another season at `userId`'s mark there. */
+async function standingHere(leagueId: string, ready: LeagueState, userId: string): Promise<{ state: LeagueState; answers?: AnswerRow[] }> {
   try {
-    const { state, rows } = await asItStands(leagueId, ready);
+    const { state, rows } = await asItStands(leagueId, ready, undefined, { userId });
     return { state, answers: rows };
   } catch (e) {
     console.error(`[season-games] walk ${leagueId}:`, e);
@@ -103,7 +104,7 @@ export async function gamesHere(user: SessionUser, seasonId: string, couchId: st
       if (!seat || !state) continue;
       try {
         const ready = await readyLeague(g.leagueId, state);
-        const { state: walked, answers } = await standingHere(g.leagueId, ready);
+        const { state: walked, answers } = await standingHere(g.leagueId, ready, user.id);
         here.push({ game: g, ref: refOf(g), state: walked, playerId: seat.playerId, mark: markFor(ready, seat, seen), userOf: (p) => users.get(g.leagueId)?.get(p) ?? null, ...(answers ? { answers } : {}) });
       } catch (e) {
         console.error(`[season-games] league ${g.leagueId}:`, e);
@@ -122,7 +123,7 @@ async function readOnlyHere(user: SessionUser, seasonId: string, ro: ReadOnly): 
   if (!state) return { seen, here: [] };
   try {
     const ready = await readyLeague(g.leagueId, state);
-    const { state: walked, answers } = await standingHere(g.leagueId, ready);
+    const { state: walked, answers } = await standingHere(g.leagueId, ready, user.id);
     return {
       seen,
       here: [{ game: g, ref: refOf(g), state: walked, playerId: "", mark: seen === EVERYTHING ? null : seen, userOf: (p) => users.get(g.leagueId)?.get(p) ?? null, readOnly: true, ...(answers ? { answers } : {}) }],

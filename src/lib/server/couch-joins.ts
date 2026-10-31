@@ -9,11 +9,12 @@ import { outPreview, takeOut } from "./backstage-members";
 import { plainChange, recordChange } from "./change-log";
 import { couchMembers, ensureOwner, joinedLeague, newCouch, requireCouch } from "./couches";
 import { pool, HttpError, withLeagueLock } from "./db";
+import { lateStages, seatIn } from "./stages";
 import { followLeagueProgress } from "./follows";
 import { EVERYTHING, seenThrough } from "./guard";
 import { joinLeague } from "./join-league";
 import { leagueStates } from "./league-states";
-import { notifyCouchJoined, notifyJoinRequest, notifyLetIn, notifyMemberJoined } from "./push-events";
+import { leagueSeason, notifyCouchJoined, notifyJoinRequest, notifyLetIn, notifyMemberJoined } from "./push-events";
 import { latestAired, seasonSchedules, upNext, type SeasonSchedule } from "./schedule";
 import { endedThrough } from "./calls";
 import { games, seasonHeaders, type Game } from "./show-space";
@@ -341,9 +342,10 @@ async function couchGameList(viewer: SessionUser | null, couchId: string): Promi
   ]);
   // A game of questions that knocks players out or ends early (step A11 part 2b of docs/PLAN-start-a-game-gpt.md) as it stands: walked
   // over its answers, so who may join (nobody new once someone's out: part 5c) and whether it's over read the walk. One answers read
-  // per such game, side by side; any other game, its state as it is.
+  // per such game, side by side; any other game, its state as it is. Step A12 part 4b: a game in stages' stage on another season at your
+  // mark there (whether it's ended would tell you how that stage went), read whole when nobody's signed in.
   const stands = new Map(
-    await Promise.all(list.filter((g) => states.has(g.leagueId)).map(async (g) => [g.leagueId, (await asItStands(g.leagueId, states.get(g.leagueId) as LeagueState)).state] as const))
+    await Promise.all(list.filter((g) => states.has(g.leagueId)).map(async (g) => [g.leagueId, (await asItStands(g.leagueId, states.get(g.leagueId) as LeagueState, undefined, viewer ? { userId: viewer.id } : "all")).state] as const))
   );
   const out: JoinGame[] = [];
   for (const g of list) {
@@ -359,7 +361,9 @@ async function couchGameList(viewer: SessionUser | null, couchId: string): Promi
       seasonId: g.seasonId,
       shared: G.sharedJoin(s),
       mode: G.joinMode(s),
-      underway: G.isUnderway(s),
+      // Step A12 part 4c: a game in stages that has started takes a newcomer as its stages do (live, each by its own rule), so it's under
+      // way for joining from its first episode, results or not.
+      underway: G.isUnderway(s) || StateLogic.StageLogic.started(s),
       latest: StateLogic.SpoilerLogic.latestWithResults(s),
       players: s.players.filter((p) => !p.disabled && !G.isGhost(p)).length,
       teamSize: G.teamSize(s),
@@ -441,6 +445,7 @@ export async function joinOptions(user: SessionUser, couchId: string, leagueId: 
   const seen = seenMark === EVERYTHING ? null : seenMark;
   if (!join.underway) return { game: join, starts: null, seen, start: null, team: 0, pool: [] };
   const live = join.latest + 1;
+  if (StateLogic.StageLogic.on(state)) return stagedOptions(leagueId, state, join, seen, live, startAsked);
   const first = G.startChoices(state)[0] ?? 1;
   const starts = { live, catchUp: join.shared && first < live ? first : null };
   const n = Number(startAsked);
@@ -449,13 +454,135 @@ export async function joinOptions(user: SessionUser, couchId: string, leagueId: 
   // A game whose teams came out of a hat deals yours as you join (StateLogic.DrawLogic.lateDeal): nothing to pick.
   const dealt = !!team && StateLogic.DrawLogic.dealsLate(state);
   if (start === null || !team || dealt) return { game: join, starts, seen, start, team, ...(dealt ? { dealt } : {}), pool: [] };
-  const ids = new Set(G.draftPool(state, start, !join.shared));
-  const view = StateLogic.SpoilerLogic.viewThrough(state, start - 1);
-  const pool = castOf(view)
+  return { game: join, starts, seen, start, team, pool: poolFrom(state, start, !join.shared) };
+}
+
+/** The castaways a late joiner starting at `start` picks their team from (GhostLogic.draftPool), as the join sheet shows them. */
+function poolFrom(state: LeagueState, start: number, freeAgents: boolean): JoinOptions["pool"] {
+  const ids = new Set(StateLogic.GhostLogic.draftPool(state, start, freeAgents));
+  return castOf(StateLogic.SpoilerLogic.viewThrough(state, start - 1))
     .filter((c) => ids.has(c.id))
     .map((c) => ({ id: c.id, name: c.name, photo: c.photo, tribe: c.tribe }));
-  return { game: join, starts, seen, start, team, pool };
 }
+
+/**
+ * Step A12 part 4c: joining a game in stages once it has started: live only (StateLogic.GhostLogic.startChoices: catching up would move
+ * the game's mark and each stage's apart), the team, if any, the one the first stage taking a late joiner with a team to pick wants
+ * (stages.ts lateStages), from who's still in (or who's free, where its castaways are one team's each), dealt where its teams came
+ * out of a hat.
+ */
+async function stagedOptions(leagueId: string, state: LeagueState, join: JoinGame, seen: number | null, live: number, startAsked: unknown): Promise<JoinOptions> {
+  const G = StateLogic.GhostLogic;
+  const starts = { live, catchUp: null };
+  const start = Number(startAsked) === live ? live : null;
+  const { late, picks } = await lateStages(pool, leagueId, state);
+  const dealt = late.some((s) => G.teamSize(s.state) > 0 && StateLogic.DrawLogic.dealsLate(s.state));
+  if (!picks) return { game: join, starts, seen, start, team: 0, ...(dealt ? { dealt } : {}), pool: [] };
+  const team = G.teamSize(picks.state);
+  if (start === null) return { game: join, starts, seen, start, team, pool: [] };
+  return { game: join, starts, seen, start, team, pool: poolFrom(picks.state, liveIn(picks.state), !G.sharedJoin(picks.state)) };
+}
+
+/** A stage's own next episode to play: where a late joiner starts in it, live. */
+const liveIn = (s: LeagueState) => StateLogic.SpoilerLogic.latestWithResults(s) + 1;
+type LateStages = Awaited<ReturnType<typeof lateStages>>;
+
+/** The team a stage that wants one is given, checked on a copy of it first, as its own late join would check it, so a wrong team writes
+ *  nothing. A refusal, in words. */
+function teamProblem(picks: LateStages["picks"], name: string, team: string[]): string | null {
+  if (!picks) return null;
+  const copy = structuredClone(picks.state);
+  const seat = seatIn(copy, { id: "zt-join-check", name, color: "" } as Parameters<typeof seatIn>[1]);
+  return StateLogic.GhostLogic.begin(copy, seat.id, liveIn(copy), team, { freeAgents: !StateLogic.GhostLogic.sharedJoin(copy) });
+}
+
+/**
+ * Each stage taking a late joiner starts `playerId` live there (GhostLogic.begin: `team` in the one that wants it, dealt from a hat,
+ * nothing to pick in a pool or a game of questions), seen at once, their mark there where they are on its season. A stage whose start
+ * fails (it moved on meanwhile, or wants a team too) keeps their seat waiting for its start there (its own late join): those stages'
+ * leagues are returned, and said in the log.
+ */
+async function startInStages(user: SessionUser, late: LateStages["late"], picks: LateStages["picks"], team: string[], playerId: string): Promise<string[]> {
+  const G = StateLogic.GhostLogic;
+  const waits: string[] = [];
+  for (const st of late) {
+    const { seasonId } = await leagueSeason(st.id);
+    const there = seasonId ? await seenThrough(user.id, seasonId) : 0;
+    await withLeagueLock(st.id, async (s, client) => {
+      if (!G.needsStart(s, playerId)) return;
+      const from = liveIn(s);
+      const problem = G.begin(s, playerId, from, st.id === picks?.id ? team : [], { freeAgents: !G.sharedJoin(s) });
+      if (problem) {
+        console.error(`[stages] ${playerId} waits for a start in ${st.id}: ${problem}`);
+        waits.push(st.id);
+        return;
+      }
+      G.convert(s, playerId);
+      const at = Math.min(from - 1, there === EVERYTHING ? from - 1 : there);
+      const lj = G.lateJoinOf(s, playerId);
+      if (lj) lj.seenThrough = at;
+      await client.query("UPDATE league_memberships SET results_seen_through = $3 WHERE league_id = $1 AND player_id = $2", [st.id, playerId, at]);
+    });
+  }
+  return waits;
+}
+
+/**
+ * Step A12 part 4c: someone joins a game in stages that has started (its join rule already read from its stages as they stand:
+ * `join.mode`, StateLogic.StageLogic.closed). The team is checked against the stage that wants one before anything's written; then
+ * the game's seat (a late joiner from the next episode, seen at once); the game's write seats it in each stage by that stage's own
+ * rule (db.ts syncStages: stages.ts seatStage: a late joiner where it's underway, its draft where it's still to start, none where it's
+ * over); then each stage taking a late joiner starts them live there (GhostLogic.begin: the team in the one that wants it, dealt from
+ * a hat, nothing to pick in a pool or a game of questions), their mark there where they are on its season. A stage whose start fails
+ * (it moved on meanwhile, or wants a team too) keeps their seat waiting for its start there (its own late join), said in the log.
+ */
+async function joinStaged(user: SessionUser, game: Game, state: LeagueState, join: JoinGame, body: { start?: unknown; team?: unknown }, used: (c: Queryable) => Promise<void>) {
+  const G = StateLogic.GhostLogic;
+  const leagueId = join.leagueId;
+  const name = nameOf(user);
+  const live = join.latest + 1;
+  if (Number(body.start) !== live) throw new HttpError(400, `New players start from Episode ${live}`);
+  const team = teamOf(body);
+  const { late, picks } = await lateStages(pool, leagueId, state);
+  const problem = teamProblem(picks, name, team);
+  if (problem) throw new HttpError(400, problem);
+  const seasonMark = game.seasonId ? await seenThrough(user.id, game.seasonId) : 0;
+  const mark = Math.min(live - 1, seasonMark === EVERYTHING ? live - 1 : seasonMark);
+  let playerId = "";
+  await withLeagueLock(
+    leagueId,
+    async (s, client) => {
+      const { rows: there } = await client.query("SELECT 1 FROM league_memberships WHERE league_id = $1 AND user_id = $2", [leagueId, user.id]);
+      if (there.length) throw new HttpError(409, "You're already in it");
+      const p = StateLogic.addPlayer(s, name, { stagesOpen: true });
+      if (p.active === false) throw new HttpError(409, "Nobody new can join this game");
+      // A late joiner from the next episode once the game has results; before its first results (its first episode aired) a seat as
+      // any (the game has no draft of its own).
+      if (p.lateJoin) {
+        const problem = G.begin(s, p.id, live, []);
+        if (problem) throw new HttpError(400, problem);
+        G.convert(s, p.id);
+        const lj = G.lateJoinOf(s, p.id);
+        if (lj) lj.seenThrough = mark;
+      }
+      playerId = p.id;
+      await client.query("INSERT INTO league_memberships (league_id, user_id, player_id, role, results_seen_through) VALUES ($1, $2, $3, 'member', $4)", [
+        leagueId,
+        user.id,
+        p.id,
+        mark,
+      ]);
+      await used(client);
+    },
+    plainChange(user.id, "member", `${name} joined ${game.gameName} from Episode ${live}`)
+  );
+  const waits = await startInStages(user, late, picks, team, playerId);
+  await joinedLeague(leagueId, user.id);
+  await followLeagueProgress(user.id, leagueId);
+  notifyMemberJoined(leagueId, user.id, name, false);
+  return { leagueId, seasonId: game.seasonId, start: live as number | null, catchingUp: false, ...(waits.length ? { waits } : {}) };
+}
+const teamOf = (body: { team?: unknown }) => (Array.isArray(body.team) ? body.team.filter((x): x is string => typeof x === "string") : []);
 
 /** Join a game on the couch: open, or let in. Underway: `start` (live or catch up) and `team` (the castaways picked; a game whose
  *  teams came out of a hat deals them instead, and `team` isn't read: GhostLogic.begin). */
@@ -476,14 +603,28 @@ export async function joinGame(user: SessionUser, couchId: string, leagueId: str
   const G = StateLogic.GhostLogic;
 
   // Not started yet, or coming back to a seat you left: classic's join (into the draft, or your old seat back).
-  const ownSeat = state.players.some((p) => p.disabled && p.disabledFromUserId === user.id);
+  const own = state.players.find((p) => p.disabled && p.disabledFromUserId === user.id);
+  const ownSeat = !!own;
   if (!join.underway || ownSeat) {
+    // Step A12 part 4c: back in a game in stages that has started, the seat is the same in every stage it was in (its team and all);
+    // a stage that began while it was away (it went from that one: stages.ts seatStage) takes it as its late joiner, live, with `team`
+    // where it wants one, checked first (none given: the seat waits for its start there).
+    const back = own && StateLogic.StageLogic.on(state) && StateLogic.StageLogic.started(state) ? await lateStages(pool, leagueId, state) : null;
+    const wants = back?.picks && !back.picks.state.players.some((p) => p.id === own?.id) ? back.picks : null;
+    const team = teamOf(body);
+    if (wants && team.length) {
+      const problem = teamProblem(wants, name, team);
+      if (problem) throw new HttpError(400, problem);
+    }
     await joinLeague(leagueId, user, async (c) => {
       await used(c);
       await recordChange(c, leagueId, null, plainChange(user.id, "member", ownSeat ? `${name} came back to ${game.gameName}` : `${name} joined ${game.gameName}`));
     });
-    return { leagueId, seasonId: game.seasonId, start: null as number | null, catchingUp: false };
+    const waits = back && own ? await startInStages(user, back.late, wants, team, own.id) : [];
+    return { leagueId, seasonId: game.seasonId, start: null as number | null, catchingUp: false, ...(waits.length ? { waits } : {}) };
   }
+  // Step A12 part 4c: a game in stages that has started, as its stages take a newcomer.
+  if (StateLogic.StageLogic.on(state)) return joinStaged(user, game, state, join, body, used);
 
   const latest = join.latest;
   const live = latest + 1;

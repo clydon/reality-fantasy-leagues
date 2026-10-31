@@ -61,8 +61,25 @@ way, in parts: part 1, Survivor 51's three kinds as compositions of the pieces (
 and waivers, Weekly Lineup and Survival Pool drafted and scored by the pieces their spec names, never a league type: `piecesOf`; the
 league type only names a game for the screens now), and part 2, the games scored outside the state (2026-10-30: Weekly Calls,
 Weekly Bingo and the game of questions chosen by their pieces wherever they're read, the home's moves and classic's list included, nothing
-in scoring reading a league type or filtering the stored type by one), are built, so R1 is built (it merges once the Survivor 51
-rehearsal passes); A12's other parts next (part 2, a stage a format change starts). **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
+in scoring reading a league type or filtering the stored type by one), are built, so R1 is built and merged (live since 2026-10-30, 2:59 PM),
+and part 3, a pool's finale (2026-10-30, the user's decision: only the winner survives it, every game's one reading of a night, `nightOf`;
+proven on the Survivor 51 rehearsal and the golden replays), is built, to merge before Survivor 51's finale on Dec 16; A12's other parts next: part 2, a stage a format change starts (2026-10-30: a later stage's `on`, a copy
+of it made mid-season, a league of its own, each time research is sure the format changed that way, by itself or with the maker's OK,
+taken away when the report is corrected; `StageLogic.changePlan`, `change-stages.ts`, from the season sync), is built, and so is part 2b, the 'next-stage' fallbacks (2026-10-30: a stage whose group question or group slots
+can't be played as the groups stand ends there and the next starts, once research is sure nobody is in a group going into an episode;
+unsure, void and held; `format-timeline.js groupsGone`, through part 2's plan), and so is part 3, when a grouping lasts (2026-10-30: a side
+stage beside the game's own, a copy of it for each grouping research is sure has held N episodes, from the episode after until research
+is sure it changed, its points kept; `side` { held }, `format-timeline.js sideTriggers`, `StageLogic.sidePlan`, through part 2's
+machinery), and part 4 is under way, in parts: 4a, mini-games and two ways of scoring (2026-10-30: a stage of bingo or Weekly Calls, its
+table the server's own counts of each seat's lines or right calls; a season of mini-games one after another; a stage `alongside` the
+game's own, at the same time, bingo lines plus answers added up; `answer-points.ts outsideCounts`, `schema.js stageAlongside`), is built,
+and so is 4b, one game across two shows (2026-10-30: a stage's `season`, a league on another season checked on that season's rules and
+cut at each viewer's mark there, the game over once its own stages are, never at its season's end; two stages of bingo or of Weekly
+Calls on one season at once refused; `schema.js stageSeason`, `StageLogic.crosses`, `stageWalk`'s viewer), and so is 4c, late joiners
+(2026-10-30: someone joining once it has started joins each stage under way as its own late joiner, live, every stage still to start from
+its start, none that's over, nobody new while a stage keeps them waiting; a seat that leaves and comes back the same seat in every stage;
+seats reaching the stages after every membership write; `StageLogic.joinsOf` and `closed`, `couch-joins.ts joinStaged`), so **A12 is
+done**; A13 next. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
 your terminal, then on), after the merge. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5 at
 xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: folded in here as track L; its file keeps the details)
@@ -4137,16 +4154,29 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
   - **Part 2: a stage started by a format change** (p7): a stage that starts on a change of the kinds the spec names (F3's `MAJOR` by
     default, `stageTriggers`: the sure ones acted on from the episode they take effect, the unsure ones held and flagged), again at every
     such change ("whenever": a stage made each time from the spec's own), the maker's OK or by itself with an undo (both built, a spec
-    setting), a stage started on a report later corrected undone (`timelineDiff`: its start waits again and what it scored goes, as a
-    result taken back does), the 'next-stage' fallbacks VOCAB marks 'later' (`ask.fallback`, `get.groups.fallback`), proven on The
-    Challenge's three seasons and Survivor 49's swaps and merge, replayed blind.
+    setting), a stage started on a report later corrected undone (what it scored goes, as a result taken back does), proven on The
+    Challenge's three seasons and Survivor 49's swaps and merge, replayed blind: built (below).
+  - **Part 2b: the 'next-stage' fallbacks** VOCAB marks 'later' (`ask.fallback`, `get.groups.fallback`; split off part 2, 2026-10-30): a
+    stage whose group question or group slot can't be played as the groups stand (not sure at the lock, or not divided) ends there and
+    the game's next stage starts, through part 2's machinery (the plan, the copies, the undo): built (below; only a sure "nobody is in a
+    group going in" moves the game, an unsure state is void and held).
   - **Part 3: when a grouping lasts** (p8): a side stage that opens once a grouping has held N episodes (F3's `sideStages`), scores from
     then on and closes when it changes (its points kept), follow the people, a pick each episode from the groupings on screen, and a
     decision point for the game's people with the game's default if nobody answers by the next lock (the maker's OK now, A14's vote
-    later); and A11 part 5c's backing team if a request asks.
+    later); and A11 part 5c's backing team if a request asks: built (below; follow the people and a pick each episode needed nothing
+    new, and no request asks for the backing team).
   - **Part 4: mini-games, two ways of scoring, two shows, late joiners** (shape.minis, shape.twoWays, shape.twoShows, s45, s20, p1):
     stages of bingo and Weekly Calls (their tables from the server's own counts), stages that play at the same time, a stage on another
-    show's season, and someone joining a game in stages once it has started.
+    show's season, and someone joining a game in stages once it has started. **Split in three (2026-10-30), each its own session:**
+    - **4a: mini-games and two ways of scoring:** a stage of bingo or Weekly Calls, a season of mini-games one after another, and a stage
+      alongside the game's own, at the same time (two ways of scoring is two stages at once, so stages at the same time came here, not
+      with two shows): built (below).
+    - **4b: one game across two shows** (shape.twoShows, s20): a stage league on another season (the season sync, the couch, spoiler
+      marks per season, the overall at each viewer's marks), and 4a's Noticed item 5 first (two stages of bingo, or of Weekly Calls, at
+      the same time refused): built (below).
+    - **4c: late joiners** (A12 part 1's item 6): someone joining a game in stages once it has started joins the stage in play as its own
+      late joiner and every later stage from its start; a seat that left a begun stage and comes back; seats reaching the stages only
+      from `withLeagueLock` and `joinLeague`: built (below), with part 4b's item 8. **A12 is done.**
 
   **As built (A12 part 1, 2026-10-30, on `engine`, not merged; migration 0203).** One session, after `lane.js sync engine` (master's
   daylight-saving fixes and handoff; 1141 tests). A game in stages, on episodes and phases, with its overall. Every default and
@@ -4251,6 +4281,515 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     s39's second draft opened at 8 and went shared (4 × 3 more than the 11 left); each overall added up as its rule says (shape.stages
     by points, the Tinkerer 45 + 64 = 109; s39 by stages won, one each for the Fan and the Tinkerer). The season's halves (shape.episodes)
     played on all five. The study doc's "A12 part 1: stages, replayed blind".
+
+  **As built (A12 part 2, 2026-10-30, on `engine`, not merged; no migration).** One session, after `lane.js sync engine` (already up to
+  date; 1156 tests; `season-forward.js` not on master yet, so R1's line stands). A stage a format change starts: a copy of it, a league of
+  its own, each time research is sure the format changed that way, by itself or with the maker's OK, taken away when the report is
+  corrected. The 'next-stage' fallbacks split off as part 2b. Every default and everything a person sees is the user's (Noticed, below).
+  - **The spec** (`schema.js`): a later stage's `on` { `change`: the kinds of change that start it (format-timeline.js `TRIGGER_KINDS`;
+    left out, F3's `MAJOR`: teams formed, pairs formed, split into individuals, the merge, a swap that leaves no group as it was),
+    `again`: true for a copy at every such change ("whenever"), else the first only } (`ON_CHANGE`). Its game says no start (`span.from`
+    null in the whole form: each copy's is where its change takes effect) and the stage before it no end (it runs until then:
+    `stageGames`); a later stage's draft opens at its start, as part 1's. The first stage can't start on a change; every stage after one
+    a change starts is one too (one at an episode or a phase after it waits for the later parts: `specWaitsFor`); a twist or a role
+    never starts one. The game's `extras.changes` { `ok`: 'auto' (by itself, with an undo) | 'maker' (once the maker says so) | 'vote'
+    (A14's: waits), `unanswered`: 'start' | 'carry-on' (with the maker's OK, what happens when nobody answers by the stage's first lock)
+    }, `CHANGES` { auto, start } where it leaves a part out, only on a game a change moves; settings' `formatChanges`, both ways.
+    `MAX_COPIES` 12. `stageOn`, `stageGame` (the game a copy plays, its start given), `madeAs` (the league type a game is made as, a game
+    of questions as a pool: from game-spec, so nothing outside it names a type). Its words (`describe.js`): "Draft, an Outlast: everyone
+    drafts 3, until the format changes ...; then New draft, an Outlast: everyone drafts 3, from each major change of format", "from the
+    first time pairs form", How it works saying a change counts once research is sure of it and who starts the new stage.
+  - **The plan** (`state-logic.js StageLogic.changePlan`, pure): from the timeline's triggers for each stage a change starts
+    (`stageTriggers` with its kinds: `act` the sure ones, `held` the rest), the starts of the stages before it, the copies made, the
+    first episode still open and the season's last, never stored. A stage a change starts begins at the first change of its kinds
+    research is sure of after the stage right before it started (nothing while that one waits for its phase), one copy an episode (two
+    changes in one episode start one); with `again`, a copy at every such change until the next stage a change starts begins, each keyed
+    `<stage id>@<change id>`, at most `MAX_COPIES` (a change past them is `capped`: the last plays on). Each plays from the episode its
+    change takes effect or the first still open, whichever is later, and never moves once that's aired; the stage before, or the copy
+    before, ends with the episode before; the last copy takes the stage's own end. Two still to come that both land on the first
+    episode still open: the later change is the format now (`superseded`). Past the season's last episode, never (`late`). With the
+    maker's OK, a change nobody has answered waits until the lock of the episode it would start with, counted from when it was first
+    seen (`pending`, `until`), then the game's default: start, from the first episode still open, or carry on (`lapsed`); start and skip
+    are the maker's (`StageLogic.decide`), a skip taking a started copy away. What the game remembers of it: `state.changeStages` {
+    seen, decided, told, undone }. The standings read each copy from the walk, in the order they start (`stage`, `copy`), so the
+    overall, places and wins, each viewer's mark and the game's end work over copies unchanged.
+  - **Where it's noticed: the season sync** (`season-decisions.ts syncSeasonLeagues`, once every league on the season is synced:
+    `change-stages.ts settleSeasonChanges`), not when research is stored. Why: the season sync runs after every result and every
+    research answer goes in (the bot's full research reaches it through `submitAnswer`, a correction through `restageSeason`, the desk's
+    through its accept), and a copy's start and draft need the league's results (its draft opens once the episode before has results;
+    the first episode still open is worked out from them), while storing research alone moves nothing. The full research lands about 9
+    hours after an episode, with its results: the copy is made then and starts at the next lock, its draft open in the week between. A
+    maker who hasn't answered has the default applied by the first sync after the lock (that episode's early results); the maker's own
+    answer settles at once.
+  - **The server** (`src/lib/server/change-stages.ts`): the game, its stage leagues (live and taken away) and the season's timeline and
+    schedule (once per season sync); the plan; the game's own record in its write (when each change was first seen, the lines it hasn't
+    said, the copies taken away and back) with its lines in Recent changes (what changed and what the game did, the maker asked, held,
+    lapsed, called off, past the season, capped; each carrying the episode whose research said it); then the stage leagues to match. A
+    copy is made as the lab makes a stage (`makeLeague` on the game's couch, season and rules, the game's seats as the stages mirror them
+    under the same ids, its game the stage's from the plan's start to its end, tied by `stage_of` and `stage_key`; a refused one takes its
+    half-made league away); a stage or copy is moved (`setGame` on its span, settled at a phase where it ends at one, with a line); a copy
+    is taken away (soft-deleted with its memberships, `stages.ts takeStageAway`); one whose change is back is restored in one write (its
+    results caught up, from the first episode still open); then every stage's seats and memberships are mirrored (`syncStages`).
+    Research missing for a while (an episode's answer withdrawn, or asked again) takes nothing away: a copy whose change came from an
+    episode with no report now stands as it was. A game deleted and restored keeps its called-off copies away (`restoreStages`). The lab
+    no longer makes a stage a change starts at the start (`makeStages`). The maker's answer: `POST /api/leagues/[id]/stage-changes` {
+    key, do: start | skip } (whoever runs the game; only a change research is sure of for the game, else 400); `GET` the plan for a
+    member, as far as their spoiler mark goes (a change is as much a spoiler as its episode's result: `later` counts the rest).
+  - **A corrected report undone:** the plan is worked out from the timeline as it stands on every settle, so a change research no longer
+    says isn't in it, and its copy is taken away (what it scored goes with it: the overall reads only live stages), the stage before it
+    playing on (its end back to its own, so it scores those episodes now: it had their results all along). Said again, the copy is
+    restored, from the first episode still open, its team kept. `timelineDiff` isn't needed for the undo (nothing compares two
+    timelines); it says what moved, as the unit test shows.
+  - **The tracker:** p7 plays (a Draft, an Outlast of 3 each, then a New draft at each major change), ✅. **184 ✅** · 63 ⏳ · 1 🆕 · 2 ❓ ·
+    23 💬, of 273. Its first stage drafts 4 × 3 = 12 exclusively, which every taped season's cast covers; each copy is counted as its
+    draft opens.
+  - **`blind.js`:** a game in stages' copies are found after the episode whose research made them (`stageRecords` with the keys it
+    knows), each played from there as a game of its own (its draft at its start, from who's left), a copy taken away ending its record
+    there (not counted as unfinished), one back played on; the record and its .md say when each was made or taken away.
+  - **Tests:** `tests/change-stages.test.js` (new, 5): the spec (whole, its problems and waits, its settings both ways, its words, an end
+    of its own); where each copy plays, from timelines built from made-up research (a re-pairing and the split as copies, the kinds a
+    stage names, once, seen late, never moving once aired, an unsure change held, nothing before the first stage or while it waits, past
+    the season's end); the edge cases (two in one episode, two landing on the first episode still open, the most copies, two stages a
+    change starts, a stage before still waiting for its phase); the maker's OK (waiting until its lock, carry on and start by default,
+    seen late, start and skip, a corrected report taking a copy away and bringing it back); and a game a change moved through the
+    engine (each stage's league where the plan put it, drafted, scored, the copies in the standings and the overall, at a viewer's
+    mark). `game-spec.test.js`'s fields: `formatChanges`. `npm test` 1161.
+  - **API check:** `scripts/dev-test/check-change-stages.js` (new, on new-fixture.js's couch, its season in pairs from Episode 4 as
+    research stores it), 37 PASS: the desk's admin starts a solo draft and a new draft at each split or pairing from the lab (only the
+    first stage made); alex, riley, jordan and sam join; Solo drafted through the pick route; Episode 6's research says everyone plays on
+    their own from 7 and its result goes in: the season sync makes the copy (its own league, tied, on the couch, the five seats under the
+    same ids), from 7, Solo ending with 6, a line on the game and on each stage; GET keeps it from alex until he's seen 6; its draft open
+    at once and drafted; Episode 7's unsure pairs held and said; the game's table the two stages added up; Episode 6 corrected (no split):
+    the copy taken away, Solo playing on, the table Solo's alone; corrected back: the copy back from 8, Solo ending with 7; the game turned
+    to the maker's OK: Episode 8's split waits for the maker until 9 starts, a player can't answer (403) nor anyone a change research
+    doesn't have (400), the maker starts it (a second copy from 9) and calls it off (taken away); deleted and restored, the called-off copy
+    stays away. Also ALL PASS: `check-stages.js`, `check-phase-starts.js`, `check-engine-lab.js`. `npx tsc --noEmit -p .` clean.
+  - **Code review** (`/code-review` at high, before the long runs; ten findings, all taken): a copy whose setup failed (or a second copy
+    made at the same time) left a half-made league on the couch (taken away now, and a copy made meanwhile is never made twice); the plan
+    started copies before a stage still waiting for its phase (nothing starts until the stage right before has); a copy seated seats still
+    waiting to be brought in (only those the stages mirror); research missing for a while took every copy away (a copy whose change's
+    episode has no report stands); GET handed every change to any member (only as far as their mark); a stage a change starts with an end
+    of its own didn't say it; lines once said were never said again (a copy taken away, back and taken away again is said each time) and
+    the maker's line named raw ids; a restored copy came back outside one write; the season's timeline was built again for every game and
+    the maker's answer built the plan three times (once per season sync, and the settle's plan answered); the undo's transaction by hand
+    and the lab's type named (db.ts `tx`, `stages.ts takeStageAway`, `Spec.madeAs`).
+  - **Golden replays:** (`golden.js`, HEAD against the working tree after the code review's fixes, and `--before=master`): 7 seasons,
+    160 games, **19,361 reads, every one the same**, both (no game they play has a stage a format change starts).
+  - **Blind replays:** (`blind.js run`, the five seasons, on the final code; each copy found after the episode whose research made it):
+    **every game ended on all five seasons**: Survivor 49 115 of 115, The Challenge 41 90 of 90, 40 85 of 85, 39 94 of 94, The Traitors 4
+    81 of 81; nothing refused, nothing taken away (F2's answers and the stand-ins are never corrected). p7, a new draft at each major
+    change: The Challenge 41 seven copies (its pairs re-drawn at the ends of 2 to 7, a copy each, five of them one episode long, then pairs
+    formed at 9's end, from 10); The Challenge 40 two (teams from 3; everyone on their own from 11, its split held unsure at 9 and sure only at 10's
+    research); The Challenge 39 eleven (ten of one episode, 6 to 15, then the split from 16); Survivor 49 three (the swaps, each at an
+    episode's start and so from the next, 5 and 7, then the merge from 8, its later drafts shared as 4 × 3 no longer fit who was left);
+    The Traitors 4 none (no major change: its first stage plays the season). The study doc's "A12 part 2".
+  **As built (A12 part 2b, the 'next-stage' fallbacks, 2026-10-30, on `engine`, not merged; no migration).** The same session as R1
+  part 3, after it. A stage whose group question or group slots can't be played as the groups stand ends there, and the game's next
+  stage starts, through part 2's machinery. Every default and everything a person sees is the user's (Noticed, below).
+  - **The shape (decided):** 'next-stage' is a stage's, in a game in stages with a stage after it (`schema.js nextStageAts`, `fallsTo`):
+    a group question asked each episode (`ask[].fallback`) or group slots (`get.groups.fallback`), VOCAB 'now' for both. Alone, or in
+    the last stage, our check refuses it with why ("it's for a stage with another after it in a game in stages (else void, or
+    carry-on)"), a league's own spec too. The stage after starts on it: a stage a change starts, its `on` left out (`{ change: [] }` in
+    the whole form: nothing else starts it) or with kinds of its own (whichever comes first; an empty list is allowed only there); never
+    at an episode or a phase of its own (refused, with why); the stage with the fallback has no end of its own (refused).
+  - **Which states move it (`format-timeline.js groupsGone`), the 8:15 PM rule:** going into an episode nobody is in a group (everyone
+    on their own, or the merge's one group of everyone) after groups. Once a spell without groups, at the first episode whose research is
+    sure of it going into the next (that end sure, nothing announced for the next unsure; at the episode they went, the change that ended
+    them sure too, as `stageTriggers` counts it), from the episode it takes effect, or the first still open. A spell research isn't sure
+    of is held (flagged in the plan, said once in Recent changes, never acted on) and its episodes are void, the safe fallback; a later
+    sure report acts on it under the same key. A re-draw (a re-pairing, a swap) leaves the game divided and moves nothing: the question
+    offers the new groups, the slots drop and open again. Keyed by the change that ended the groups (so a stage its own kinds start too
+    starts once), else `<episode>:groups-gone`; `gone` on the trigger.
+  - **Through part 2's machinery:** `StageLogic.fallbackStarts` names the stages a fallback starts; `change-stages.ts triggersFor` adds
+    groupsGone's triggers to theirs (`format-timeline.js withGone`: one per change, a sure one taking a held one's place); the plan
+    (`changePlan`), the copies, the maker's OK, the undo when the report is corrected and the lines are part 2's, unchanged. A stage's
+    own league plays 'next-stage' as void (`schema.js stageLeagueGame`, for the lab's stages and change-stages' copies): where the stage
+    ends is the game's plan, never its own league's, so `groupChoices` and the slots read it as void and nothing else reads it.
+  - **Words** (`describe.js`): "Pairs, ..., until there are no more teams; then Solo, ..., once there are no more teams" (with kinds of
+    its own: "until the format changes, or there are no more teams", "from the first time teams form, or once there are no more teams");
+    How it works: "Pairs: once research is sure nobody is in a team going into an episode, it ends and Solo starts; until it's sure, an
+    episode it can't play doesn't count." Recent changes says "nobody was in a <group> any more" where no change is recorded (the game's
+    own word for its groups).
+  - **The tracker:** no request words it, so no row; 184 ✅ · 63 ⏳ · 1 🆕 · 2 ❓ · 23 💬, unchanged, and `--check`.
+  - **`blind.js`:** each episode's format record has `groupsGone` (act and held, as triggers): where a stage with the fallback would
+    end, as if live (the study doc's "A12 part 2b").
+  - **Tests:** `tests/next-stage.test.js` (new, 3): the spec (whole, its problems alone, in the last stage, with a start or an end of its
+    own, an empty `on.change` only after it, a void fallback starting nothing, a league of its own refused and a stage's league playing
+    it as void, its settings both ways, `fallbackStarts`, its words); where the groups are gone on made-up research (a sure split, unsure
+    then sure the next episode under the same key, before the research, a merge, a season never in groups, the re-pairing moving nothing,
+    `groupChoices` reading it as void, `withGone`); and the plan (from where the groups are gone, held while unsure, seen late, a copy
+    never moving once aired, with kinds of its own, the maker's OK, a corrected report taking it away and another starting it later).
+    `format-timeline-reads`, `group-slots` and `format-timeline` tests: 'next-stage' plays (refused alone), no longer waits. `npm test`
+    1187; `tsc` clean. `game-specs-flag.js check`: PASS (this lane's database, the flag on).
+  - **API check:** `scripts/dev-test/check-next-stage.js` (new, on new-fixture.js's couch, its season in pairs from Episode 4 as research
+    stores it), 21 PASS, twice: the desk's admin starts a pair each episode, then a solo draft once the pairs are gone, from the lab (only
+    Pairs made, its own league playing the question as void, from 6); alex, riley, jordan and sam join; Episode 6's research says the
+    split unsure: held, said, nothing made; Episode 7's research sure nobody's in a pair going into 8: Solo made by the season sync (its
+    own league, tied, the five seats under the same ids) from 8, keyed by the split, Pairs ending with 7, said on the game and on Pairs,
+    its draft open at once and drafted; Episodes 6 and 7 corrected (still in pairs): Solo taken away, Pairs playing on; corrected back:
+    Solo back with its team from 8; GET stage-changes listing it for alex once he's seen 7. Also ALL PASS: `check-change-stages.js`,
+    `check-format-groups.js`, `check-group-slots.js`, `check-stages.js`.
+  - **The code review** (`/code-review` at high, before the long runs; ten findings, all taken): an unsure split was held for ever even
+    when later episodes were sure (once a spell now, at its first sure episode); the refusal skipped any league's own spec, so a standalone
+    league could carry it (refused everywhere now, a stage's league playing it as void); `groupChoices` said the game moved on where
+    nothing would (it reads 'next-stage' as void); the stage before said only "until the format changes" beside a next stage that also
+    starts when the groups go; `fallsTo` worked out every stage's whole spec on the hot path (it reads them as written, once a list); the
+    kinds that end the groups written three times (`ENDS`); two checks that could never be true; Recent changes' word "group" hard-coded
+    (the game's own); `gone` missing from the trigger's type; the next stage's label worked out twice.
+  - **Golden replays:** `golden.js` (HEAD, R1 part 3, against the working tree, on the final code): 7 seasons, 160 games, **19,361
+    reads, every one the same**. Against master's (production's engine, `--before=master`): the same 7 seasons, 160 games and 19,361
+    reads, every one the same but R1 part 3's 20 (The Challenge 40's Survival Pool, one seat's pick of a winner at the final), nothing else.
+  - **Blind replays:** (`blind.js run`, the five seasons, on the final code): **every game ended on all five seasons**, as after part 2
+    (Survivor 49 115 of 115, The Challenge 41 90 of 90, 40 85 of 85, 39 94 of 94, The Traitors 4 81 of 81; nothing refused; the questions
+    waiting on early results finding 20's 3, 2 and 2). Where 'next-stage' would end a stage, as if live (each episode's `groupsGone`):
+    Survivor 49 from 8 (the merge, known from 7's research), The Challenge 40 from 11 (the split said ahead at 9, sure at 10), 39 from 16
+    (the split at 15's end), 41 not in the season (the split at the final, held unsure at 19, sure at 20's research: from 21), The
+    Traitors 4 never (no groups); the re-pairings and re-draws move nothing. The study doc's "A12 part 2b".
+
+  **As built (A12 part 3, when a grouping lasts, 2026-10-30, on `engine`, not merged; no migration).** One session, after `lane.js sync
+  engine` (master's plan edits only; 1187 tests). A side stage: a copy of it beside the game's own stages for each grouping research is
+  sure has held N episodes and goes on, from the episode after, until research is sure the grouping changed, its points kept. Every
+  default and everything a person sees is the user's (Noticed, below).
+  - **The shape (decided): a stage's `side` { held }**, not an `on` of its own, since a side stage plays beside the game's own stages
+    and never starts or ends one (`schema.js`: `SIDE` { held: 2 }, `MAX_HELD` 6, `stageSide`, `mainCount`, `isSide`). Side stages come
+    after the game's own (`mainCount`: the stages before the first side one; never the first stage; one of the game's own after a side
+    one refused); its game says no start (each copy's is where its grouping opened it: refused with why if it has one), ends where the
+    game's own last stage does unless it says (`stageGames`), and its draft opens at its start (who's still in, counted then, as a
+    later stage's). The game's span is its own stages' (`fullStaged`); nothing chains through a side stage (the stage before it gets no
+    end from it, 'next-stage' never starts one, a side stage can't carry 'next-stage'); never with `on` too. It's taken as a format
+    change is (`extras.changes`: by itself with an undo, or the maker's OK, through the same record), so `extras.changes` is allowed on
+    a game with a side stage alone. Its words (`describe.js`): "Solo draft, an Outlast ..., all season ...; and beside it, Side draft,
+    an Outlast: everyone drafts 2, each time the pairs hold two episodes, until they change", How it works when it opens and closes.
+  - **When a grouping lasts (`format-timeline.js sideTriggers`, on F3's spells):** a spell (the groups as a whole, from one change to
+    the next; a group going home whole doesn't end one) opens at the first episode, once its groups have played `held` of them, whose
+    research is sure the same groups go on into the next (goingInto's sure), from the next; one that held that long without research
+    ever sure it went on is `held` (flagged, never acted on); one gone at the episode it would open after never opens. It closes once
+    research is sure the grouping changed (`closes` { at: its last episode, episode: the one whose research made it sure, ended }); gone
+    but unsure, `closing` (it plays on, flagged). The only reliable-report rule (8:15 PM) for both. Keyed `<stage id>@s<the episode that
+    showed it>`.
+  - **The plan (`StageLogic.changePlan`, `sidePlan`; part 2's `chainPlan` split out unchanged):** once the game's first stage has
+    started, a copy for each, from the spell's next episode or the first still open (never before the game's start; never moving once
+    aired: part 2's `startOf`, the maker's OK with it), to the later of its last episode and the one whose research said it changed
+    (so a change at an episode's start, as a swap, leaves the copy that episode: it had aired), never past the season, its own end or
+    the game's own end once known (`input.end`: a phase end settled); a copy whose grouping changed before it could play is `unplayed`
+    (never made, or taken away), and nobody is asked about it; `MAX_COPIES` each. The game's own stages are never moved by one, and a
+    side stage plays beside a stage a change starts with part 2's plan as it was. `StageLogic.standings` marks each row `side`; the game
+    ends with its own last stage (`endsAt`).
+  - **The server (`change-stages.ts`, through part 2's machinery):** `triggersFor` adds each side stage's `sideTriggers`; a live copy
+    whose grouping research no longer says lasted, where an episode it was counted over has no report now, stands as it is, and one
+    whose close came from an episode with no report now keeps it (missing research moves nothing). The copies are made, moved, taken
+    away and restored as part 2's (`makeCopy`, `respan`, `takeStageAway`); the season sync settles every game with a side stage too
+    (`settleSeasonChanges`' SQL: `stages @> [{"side": {}}]`, the harness note's rule). Recent changes: "The tribes held 2 episodes (to
+    Episode 6): Side draft opens with Episode 7", "The tribes changed (a swap, at Episode 8): Side draft ends with Episode 8, its points
+    kept", "Research no longer says the tribes changed at Episode 8: Side draft plays on", held, asked, called off; a copy taken away and
+    back, or a close withdrawn and said again, said again. GET stage-changes: side copies with `side: true`, a copy's end where its
+    grouping changed only once the viewer has seen that episode, `unplayed`. The lab doesn't make a side stage at the start.
+  - **Follow the people and a pick each episode, the seed's other two:** nothing new. Any draft of people follows them (a pair's result
+    reaches each drafted member as research records it per person), and A6's group question asked each episode, its choices the groups
+    on screen at each lock, is any stage's game, a side stage's included (a test). **The decision point:** the maker's OK with the game's
+    default by the lock (part 2's; A14's vote waits). **A11 part 5c's backing team:** no request asks; not built (Noticed).
+  - **The tracker:** p8 plays (a Solo draft, an Outlast of 3 each, all season; beside it a Side draft, an Outlast of 2 each, no finale
+    predictions, held 2), ✅. **185 ✅** · 62 ⏳ · 1 🆕 · 2 ❓ · 23 💬, of 273, and `--check`. Its first stage drafts 4 × 3 = 12
+    exclusively, which every taped season's cast covers; each side draft (4 × 2) is counted as it opens.
+  - **`blind.js`:** each episode's format record has `side` (opened, closed and held at that episode's research, for a side stage of 2);
+    p8's copies are found after the episode whose research made them, as part 2's.
+  - **Tests:** `tests/side-stages.test.js` (new, 5): the spec (whole, its problems, waits, settings both ways, words, the maker's words);
+    when a grouping lasts on made-up research (rotating pairs never, one gone before it would open never, held 1, 3 and 5, opened again
+    for later pairs, an unreported episode moving the opening to the next sure one, an unsure announcement holding it, an unsure split
+    closing, a pair going home together keeping it, a change at an episode's start); the plan (from where it opened, closing with its
+    points kept, seen late, the game's start, unplayed, past the season, its own end and the game's (a phase end settled), again,
+    unsure, never sure, a corrected report taking it away and bringing it back, a split corrected away, the most copies, two side
+    stages, beside a stage a change starts); the maker's OK (waiting, its default, carry-on, start and skip, nobody asked about a copy
+    already dead, a skipped one not said to play on); and a game with a side stage through the engine (the stages' leagues, scored,
+    the copy in the standings and the overall, by wins too, the game ending with its own stage, at a viewer's mark). `npm test` 1192;
+    `tsc` clean. `game-specs-flag.js check`: PASS (this lane's database, the flag on).
+  - **API check:** `scripts/dev-test/check-side-stages.js` (new, on new-fixture.js's couch, its season in pairs from Episode 4 as research
+    stores it), 39 PASS: the desk's admin starts a solo draft with a side draft from the lab (only Solo made); alex, riley, jordan and sam
+    join; Solo drafted; Episode 6's research (the pairs held 5 and 6): the season sync makes the side draft (its own league, tied, the
+    five seats under the same ids) from 7, said on the game and on it, GET keeping it from alex until he's seen 6, its draft open and
+    drafted (exclusive: 5 × 1 fits); Episode 7, the game's table the two stages added up; Episode 6 corrected (re-drawn: it never lasted):
+    taken away, said; corrected back: back from 8, its team kept, said again; Episode 8's research (every pair re-drawn): it ends with 8,
+    its points kept, said, GET hiding its end from alex until he's seen 8; Episode 8 corrected: it plays on, said; corrected back: it ends
+    with 8, said again; the maker's OK: the new pairs hold 9 and 10, the second side draft waits until 11, a player can't answer (403),
+    the maker opens it (from 11) and calls it off. Also ALL PASS: `check-change-stages.js`, `check-next-stage.js`, `check-stages.js`.
+  - **The code review** (`/code-review` at high, before the long runs; nine findings, all taken): a side copy's opening and close lines
+    were never said again once taken away and back, or withdrawn and set again, and nothing said a close withdrawn (each said again now,
+    with a line for the withdrawal); the research-gap stand-in invented a close for a copy ending at a phase, and one missing report
+    anywhere froze a copy for good over later sure research (only the episodes its opening was counted over, and its close's own);
+    copies could open or run past a game ending at a phase (capped at the game's end once known); the maker was asked about a copy whose
+    grouping was already gone, and a skipped one was said to play on (both checked first now); `fallsTo` threw on a list that isn't one;
+    "held 1 episodes"; the close's words and the held sentence written twice; two tests of what a side stage is (one now, `isSide`).
+  - **Golden replays:** `golden.js` (HEAD, A12 part 2b, against the working tree, after the code review's fixes): 7 seasons, 160 games,
+    **19,361 reads, every one the same** (no game they play has a side stage). Against master's (production's engine, `--before=master`):
+    the same, every one the same but R1 part 3's 20 (The Challenge 40's Survival Pool, one seat's pick of a winner at the final), nothing
+    else. A side stage changes no game that doesn't have one, so the Survivor 51 rehearsal isn't run for this part (golden is the proof).
+  - **Blind replays:** (`blind.js run`, the five seasons, on the final code; p8's side copies found after the episode whose research made
+    them): **every game ended on all five seasons**: Survivor 49 119 of 119, The Challenge 41 94 of 94, 40 88 of 88, 39 96 of 96, The
+    Traitors 4 83 of 83 (part 2b's numbers plus p8's game, its Solo and its side copies); nothing refused; the questions waiting on early
+    results finding 20's 3, 2 and 2. p8's side drafts, as if live: The Challenge 41 two (the locked pairs shown at 9's end held 10 and
+    11: from 12, the claim at 16 held unsure and sure at 17's research, so 12 to 17; the pairs after the claim held 17 and 18: from 19,
+    the final's split held unsure at 19 and sure at 20, so 19 to 20); The Challenge 40 one (the eras, teams from 3, held 3 and 4: from 5,
+    the split said ahead at 9 and sure at 10, so 5 to 10); The Challenge 39 none (every pair and team lasted one episode); Survivor 49
+    two (the starting tribes held 1 and 2: from 3, the swap at 4's start known from 4's research, so 3 to 4; the first swap's tribes held
+    4 and 5: from 6, the second swap at 6's start, so just 6; the merged tribe is no grouping); The Traitors 4 none (never in groups).
+    Every side draft's 4 × 2 fitted who was left as it opened (exclusive). The study doc's "A12 part 3".
+
+  **As built (A12 part 4a, mini-games and two ways of scoring, 2026-10-30, on `engine`, not merged; no migration).** One session, after
+  `lane.js sync engine` (already up to date; 1192 tests). Part 4 split in three (above): this part is the stages scored outside the game
+  and the stages at the same time; two shows (4b) and late joiners (4c) next. Every default and everything a person sees is the user's
+  (Noticed, below).
+  - **A stage of bingo or Weekly Calls** (`schema.js STAGE_KINDS`: 'weekly-bingo', 'weekly-calls' beside part 1's four; `stagedWaits` no
+    longer waits for them): a stage league like any other (the lab makes it as its kind, `Spec.madeAs`), its seats mirrored, its cards and
+    calls each person's on the season as always. Its table at each episode is the server's own count (`answer-points.ts outsideCounts`,
+    from `stageWalk`): each seat's lines at the game's points per line (`pointsPerLine`) or right calls, from the stage's start through
+    that episode, on its couch, by the seat's first account, as `leagueBingo` and `leagueCalls` count them (`bingoLines` and `callRights`
+    fill a count by episode, `byEpisode`, through `calls.ts addAt`, in one read each); handed to `gameView` as its `GameCalls`, so the
+    table ranks and places as the stage's own does. Its entries run through the later of its results and the latest aired (a talk show's
+    lines and calls are the couch's say, with no results): the walk marks it `outside`, and `StageLogic.standings` reads such a stage
+    through the latest aired episode, every other through its results. Over once its last episode or the season's is within the episode,
+    or once its season's winner is crowned there (`gameOver`: a schedule's count can run past the final). Each season's schedule and calls
+    book are read once a walk.
+  - **A season of mini-games** (shape.minis): stages of any kind one after another, bingo, then a draft from who's still in (its draft
+    opening at its start), then Weekly Calls; nothing new beyond the kinds.
+  - **A stage alongside the game's own** (`alongside: true`, `KEYS.stage`; `isAlongside`, `stageAlongside`, `isBeside`): it plays at the
+    same time as the game's own stages, so two ways of scoring is a stage of bingo with one of answers alongside it, the overall adding
+    them up. It comes after the game's own (`mainCount` now stops at the first stage beside them, side or alongside), never the first,
+    never with `on` or `side`, never starting or ending another (`fallsTo`), no 'next-stage' in it (nothing after it of the game's own);
+    its span the game's own unless it says (`stageGames`: from the first stage's start, to the last's end), inside it when it says (from
+    the game's start on, starting by its end, ending by its end, or the same phase it ends before: `alongsideSpan`, said once at its start
+    when it starts after the game ends); its draft opening at its start, counted then. The game's own stages one after another as before,
+    and now an overlap among them is refused with what to do ("to play at the same time, put it after the game's own stages with
+    alongside: true"), where it used to wait for this part. The lab makes it at the start with the game's own stages. Its words
+    (`describe.js`): "...; and beside it, Calls, a Weekly Calls: ...", How it works "Calls: it plays at the same time as Bingo, its points
+    counting in the overall with Bingo's."
+  - **The engine** (`state-logic.js StageLogic`): standings rows say `alongside`; the game ends with its own last stage (`endsAt` leaves
+    out side and alongside rows); once that's over, every stage beside it counts as it stood at the game's end and is over there (a game
+    that ended early, its race won or one left standing, still counts the stage beside it by places and wins); part 2's chain copies only
+    the stages a change starts (`chainPlan`: `stageOn`, so a stage alongside after them is never taken for one); `stagedWaits`' 'later'
+    for a stage after one a change starts skips a stage beside the game's own.
+  - **The tracker:** shape.minis (Bingo for Episodes 1 to 4, a Draft, an Outlast of 2 each, 5 to 8, then Weekly Calls) and shape.twoWays
+    (bingo all season with a game of answers alongside, "Who goes home?" each episode) play, ✅; s45 ("bingo one week, a draft the next")
+    waits on a rule decision, ❓ (stages that take turns all season: Noticed item 1); p1 waits on A13 (its trivia), its bingo half playing
+    as shape.twoWays shows. **187 ✅** · 59 ⏳ · 1 🆕 · 3 ❓ · 23 💬, of 273, and `--check`.
+  - **Tests:** `tests/mini-stages.test.js` (new, 5): stages of bingo and Weekly Calls and a season of mini-games (whole, words, settings,
+    each stage's own league, a bingo stage at a phase); a stage alongside (whole, its span the game's, its own inside it, a phase end,
+    every problem, an overlap refused with what to do, its words, its settings); one alongside a stage a change starts (part 2's plan
+    copying only that stage, nothing waiting); two ways of scoring through the engine (each stage's league as its kind, the counts handed in
+    as the server's, the overall by points and places at each mark, the game's table, an alongside stage that ends earlier); and the review's
+    cases (a game ended early counting the stage beside it as it stood then, by places; a stage scored outside counting an aired episode
+    while a draft's waits for results; a late start said once). `tests/stages.test.js`: a bingo stage plays, an overlap is refused (no longer
+    waits). `npm test` 1197; `tsc` clean. `game-specs-flag.js check`: PASS (this lane's database, the flag on).
+  - **API check:** `scripts/dev-test/check-mini-stages.js` (new, on new-fixture.js's couch), 26 PASS: the desk's admin starts a season of
+    mini-games from the lab (Bingo at 5 a line for Episode 6, a Draft from 7, Calls alongside from 6: three stage leagues as their kinds,
+    tied, the admin seated; Calls from 6 to the season's end, the Draft's draft waiting for 6's results); alex, riley, jordan and sam join
+    and are seated in all three; Episode 6 (the season's clock moved past it): alex's card has a line (immunity, the free middle, an idol
+    found), riley's ticks none, alex and jordan call who goes home, riley doesn't: Bingo's own table alex 5, Calls' alex 1 and jordan 1,
+    the game's (the overall) alex 6, jordan 1, riley 0, the stages as the server reads them (Bingo over with 6, the Draft not started,
+    Calls alongside); the Draft's draft opens and is drafted through the pick route; Episode 7: the game's table each seat's three stages
+    added up, its end the Draft's; sam, behind, sees nothing; the flag's check passes on the game and its three stages. Also ALL PASS:
+    `check-stages.js`, `check-change-stages.js`, `check-next-stage.js`, `check-side-stages.js`.
+  - **The code review** (`/code-review` at high, before the long runs; eight findings, all taken): a stage of bingo or Calls had entries
+    only at episodes with results, so a talk show's never started (now through the latest aired, read so by the standings); a game that
+    ended early left a stage alongside never over, so by places or wins it counted nothing (now over at the game's end, as it stood then);
+    each such stage read its season's schedule and book again (once a walk now), summed every episode for every seat at every episode
+    (added up once), and the count by episode was written twice (`addAt`); two tests of what's alongside with different truthiness (one
+    now); a stage alongside starting after the game's end was refused at a path nobody wrote (said at its start, once); describe.js tested
+    it a third way (`stageAlongside`). Then, by hand, a bingo or Calls stage's end also reads the engine's `gameOver` (its season's winner).
+  - **Golden replays:** `golden.js` (HEAD, A12 part 3, against the working tree, on the final code): 7 seasons, 160 games, **19,361 reads,
+    every one the same** (no game they play is in stages). Against master's (production's engine, `--before=master`): the same, every one
+    the same but R1 part 3's 20 (The Challenge 40's Survival Pool, one seat's pick of a winner at the final), nothing else. A stage of bingo,
+    of Calls or alongside changes no game that doesn't have one, so the Survivor 51 rehearsal isn't run for this part (golden is the proof).
+  - **Blind replays:** (`blind.js run`, the five seasons, on the final code): **every game played through and over on all five seasons**:
+    Survivor 49 126 of 126, The Challenge 41 101 of 101, 40 95 of 95, 39 103 of 103, The Traitors 4 90 of 90 (part 3's numbers plus seven
+    each: shape.minis' game and its three stages, shape.twoWays' game and its two); nothing refused; the questions waiting on early results
+    finding 20's 3, 2 and 2. shape.minis: Bingo 1 to 4, the Draft 5 to 8 (drafted at 5 from who was left), Calls 9 to the end, each over
+    there, the overall the three added up (the Draft's points alone, since nobody ticks a card or makes a call on the tapes); shape.twoWays:
+    Bingo and Who goes home side by side all season, both over at the season's end, the overall
+    the answers' points (Survivor 49: the Tinkerer and the Drive-By 2 each). The study doc's "A12 part 4a".
+
+  **As built (A12 part 4b, one game across two shows, 2026-10-30, on `engine`, not merged; no migration).** One session, after `lane.js
+  sync engine` (already up to date; 1197 tests). 4a's Noticed item 5 first, then a stage on another season, each stage a league on its own
+  season. Every default and everything a person sees is the user's (Noticed, below).
+  - **4a's item 5: two stages of bingo, or of Weekly Calls, on one season at the same time are refused** (`schema.js outsideOverlaps`): a
+    card and a call are each person's for the season's episode, not a stage's, so both would count the same lines or calls. A stage beside
+    the game's own (alongside) against any other of the same kind on the same season is refused unless both spans are episodes that don't
+    meet (a phase can't be told until it's known); the game's own one after another never meet; on two seasons they're two cards. A side
+    stage of either is refused too (every copy would read the same card), with why.
+  - **The spec: a stage's `season` { show: the show's id (its slug, a league's settings.showId), number }** (`KEYS.stage`, `KEYS.season`;
+    `stageSeason`, `seasonKey` "<show>/<number>", `sameSeason`, `onSeasons`, `crosses`), the smallest the GPT can write and our check can
+    verify: left out, the game's own season; never the first stage's (the game is made and listed on its first stage's season: the page
+    it's typed on); never the game's own named again (`ctx.season`: "leave season out"). With ctx, the season must be one of `ctx.seasons`
+    (each other season's own ctx, by its key: "the-traitors-us 5 isn't a season set up as a game here" otherwise) and the stage is checked
+    with that season's ctx, so the data-can-settle rule is each stage's own (a Traitors stage scoring Survivor's immunity is refused; a
+    league's own spec, `opts.league`, keeps a stage it was made with when a later write's ctx doesn't carry its season). Episode numbers
+    are each season's own, so nothing is compared across seasons: a stage ends where the next starts only on the same season
+    (`stageGames`), a stage on another season may leave its start out (the lab starts it with the next episode to air there), the
+    one-after-another rule compares each own stage with the one before it on the same season (`prevOnSeason`, in `stagedProblems` and
+    `playsAs` alike, so a stage on another season between two of the game's own doesn't hide an overlap), a stage alongside on another
+    season plays its own span there (never the game's; `alongsideSpan` only on the game's own season), and the game's span is its own
+    stages' on its own season (`fullStaged`). A game on more than one season has no stage a format change starts, no side stage and no
+    'next-stage' (each reads the game's own season's format): refused, with why. Its words (`describe.js`): "A game in two stages for
+    Survivor 51 and The Traitors 5: Survivor, an Outlast ...; then The Traitors on The Traitors 5, a Survival Pool ...", How it works "A
+    stage on The Traitors 5 plays that season's episodes, each counted as you've seen them there; the game ends once its own stages are
+    over, wherever they play." The stage's `season` rides inside settings.stages, so the round trip needs nothing new.
+  - **The engine** (`state-logic.js StageLogic`): the walk says which stages are on another season (`season`, its key) and when each entry
+    aired (`at`, on a game on more than one season). `cutWalk` cuts only the game's own season's stages at the viewer's mark (a stage on
+    another season is cut by the server, at their mark there), and the standings read such a stage as the walk has it (never capped at the
+    game's own season's latest). A game with an own stage on another season (`StageLogic.crosses`) is over once every own stage is
+    (`overAcross`, in `gameOver` ahead of the season's end: Survivor's Sole Survivor doesn't end a game whose Traitors stage plays on;
+    without the walk it's never over, as nothing says the other stage is), ends on its own season where its last own stage there does
+    (`endsAt`, so `lastEpisode` and `spanView` stay on its own season's episodes), and a stage beside it counts as it stood at the game's
+    end: on the game's own season by episode (part 4a's rule, where its own stages there end), on another season by air time (what aired
+    by the latest of the own stages' last airings, once every one is known; else as it stands: Noticed).
+  - **The server.** `answer-points.ts stageWalk(parentId, parent, viewer?)`: each stage league's season (one query) and its schedule (once
+    a season, `seasonSchedules`: the entries' `at`), and a stage on another season cut at the viewer's mark there (`StageViewer`: a
+    person's, `guard.ts seenThrough` on that season; "all", the server's own read; left out, nothing of it: spoiler-safe, a reader that
+    forgot whose read it is shows it not started). `asItStands` passes it on: the Games tab, the reveal and the episodes (`season-games.ts
+    standingHere`, the viewer's), the couch's standings (`couch-hub.ts`, the viewer's), the couch's game list (`couch-joins.ts`, the
+    viewer's, so "ended" says nothing of a stage they haven't seen; "all" when nobody's signed in) and the desk's game list
+    (`desk-games.ts`, "all": a game in stages over as its stages stand). A stage on another season is a league there (its settings'
+    showId and wikiSeason), so the season sync reaches it with nothing new: that season's results reach its stage league and never the
+    game or its other stages, and the game's season's never reach it (`syncSeasonLeagues` picks leagues by their settings' season; the
+    walk reads each stage as it stands); its phase starts settle on its season (`settleSeasonStarts`) and its draft opening at its start
+    counts its exclusive draft from its own season's cast as it opens (the 9:10 PM decision: in the check, 4 of you × 2 outgrew The
+    Traitors' 7 still in, where Survivor's 13 would have fit). `stages.ts mirrorMemberships`: a membership's own mark (a late joiner's
+    week, an episode of the game's own season) is copied only to a stage on the same season.
+  - **The engine lab** (`engine-lab.ts`): `withSeasons` finds each other season a stage names (set up as a game: `seasonByKey`) with the
+    rules a game plays by there on the couch, and hands the check `ctx.season` and `ctx.seasons`; `withStart` starts each stage on another
+    season that doesn't say with the next episode to air there; `makeStages` makes each stage league on its own season (its rulebook,
+    cast, schedule and results, `makeLeague`'s season; its phases settled from that season).
+  - **The couch.** The game is on its own season's lists (its first stage's), each stage league on its own season's as a game of its own
+    (part 1's item 7): the Traitors stage is on The Traitors' Games tab, the game on Survivor's only. Which season shows the game is the
+    user's (Noticed item 1).
+  - **The tracker:** shape.twoShows (an Outlast on Survivor 51, then a Survival Pool on The Traitors 5, by places) and s20 ("One league
+    across Survivor and The Traitors.": a Weekly Lineup on each, by points) play, ✅; a page names the other seasons its stages play on
+    (`page.also`: each with its show's id and rulebook; `capability-rows.ts pageCtx` hands them over as `ctx.seasons`). **189 ✅** · 57 ⏳
+    · 1 🆕 · 3 ❓ · 23 💬, of 273, and `--check`.
+  - **Tests:** `tests/two-shows.test.js` (new, 4): a stage on another season (whole, nothing defaulted across seasons, the game's span its
+    own season's, checked with that season's rules, every problem, one after another per season, an overlap with a stage on another season
+    between, no format change, side stage or 'next-stage', its words, its settings, a stage alongside on another season); 4a's item 5 (two of
+    bingo or of Calls at once refused, with why; different kinds, two seasons, one after another and the game's own fine; a phase that might
+    meet; a side stage of bingo); the engine over two seasons (The Traitors' stage past Survivor's latest, a viewer's cut on Survivor only,
+    the game not over at Survivor's Sole Survivor and over once The Traitors' stage is, by points and places, never over without the walk);
+    a stage beside the game on another season (what aired by the game's end, as it stands with no air time, one on the game's own season
+    by episode in a game across two). `npm test` 1201; `tsc` clean; eslint clean on the server files. `game-specs-flag.js check`: PASS.
+  - **API check:** `scripts/dev-test/check-two-shows.js` (new, on new-fixture.js's couch: ZT Survivor 51 and ZT Traitors 5), 37 PASS:
+    the lab's check passes the game on each season's rules (in words, on each season) and refuses a season that isn't set up and a Traitors
+    stage scoring a Survivor moment; the desk's admin starts it (an Outlast of 2 each on Survivor to 13, then one on The Traitors 5): the
+    game on Survivor's season, its Survivor stage there from 6, its Traitors stage on The Traitors' season with The Traitors' cast (three
+    gone by its 3) from 4, the next to air there; the four join, seated in both; a mark of the game's own copied to its Survivor stage, never
+    The Traitors'; The Traitors' draft counted there and made shared, with its line; Survivor's drafted through the pick route, The
+    Traitors' through the blind lock route; The Traitors' Episode 4 through its own season's sync reaches its stage only, Survivor's 6 the
+    game and its Survivor stage only; on Survivor's Games tab the game's table at each viewer's marks (alex through Survivor 6 following no
+    Traitors: the Survivor stage alone; at The Traitors 4: both added up; riley at The Traitors 2: none of its 4; sam behind at Survivor 3
+    but through The Traitors 4: The Traitors' alone); read with no viewer, nothing of The Traitors'; whole, each stage from its own start;
+    not over; the Traitors stage on The Traitors' Games tab, the game on Survivor's; the flag's check on all three. Also ALL PASS:
+    `check-mini-stages.js`, `check-stages.js`, `check-side-stages.js`, `check-change-stages.js`, `check-next-stage.js`.
+  - **The code review** (`/code-review` at high, before the long runs; ten findings, six taken): a game across two seasons was never over
+    in the desk's list (it reads the stored state: now as its stages stand); a stage beside it was capped by air time even on the game's
+    own season, and too early when only some air times were known (now by episode there, and by time only once every own stage's last
+    airing is known); the couch's game list read every stage whole, so "ended" told someone behind on The Traitors how its stage went (now at
+    their marks); `playsAs` compared only neighbours, so an overlap on the game's own season with a stage on another season between them
+    played (now the one before on the same season, as the check does); air times were stamped per stage (now each season's schedule once);
+    a dead condition in `overAcross`. Left, in Noticed: `lastEpisode` on the game's own season, the tracker's pages naming no show id, the
+    words without a show.
+  - **Golden replays:** `golden.js` (HEAD, A12 part 4a, against the working tree, on the final code): 7 seasons, 160 games, **19,361 reads,
+    every one the same** (no game they play is in stages on two seasons, and none has two stages of bingo or Calls). Against master's
+    (production's engine, `--before=master`): every one the same but R1 part 3's 20 (The Challenge 40's Survival Pool, one seat's pick of a
+    winner at the final), nothing else. A game on two seasons and the refusal change no game that doesn't have them, so the Survivor 51
+    rehearsal isn't run for this part (golden is the proof).
+  - **Blind replays:** (`blind.js run`, the five seasons, on the final code): **every game played through and over on all five seasons**,
+    part 4a's numbers exactly: Survivor 49 126 of 126, The Challenge 41 101 of 101, 40 95 of 95, 39 103 of 103, The Traitors 4 90 of 90;
+    nothing refused; the questions waiting on early results finding 20's 3, 2 and 2. `blind.js` now leaves out a tracker game on more than
+    one season (a replay plays one season, and the other stage's league would be made on a real season beside the tapes' copy):
+    shape.twoShows and s20 are the unit tests' and `check-two-shows.js`'s. The study doc's "A12 part 4b".
+
+  **As built (A12 part 4c, late joiners, 2026-10-30, on `engine`, not merged; no migration).** One session, after `lane.js sync engine`
+  (master's Games tab insight; 1202 tests). Someone joining a game in stages once it has started joins each stage underway as that
+  stage's own late joiner, live, and every stage still to start from its start; a seat that left and comes back is the same seat in every
+  stage; seats reach the stages after every membership write; and part 4b's item 8. Every default and everything a person sees is the
+  user's (Noticed, below).
+  - **Each stage's own rule** (`state-logic.js StageLogic.joinsOf(stage)`, what `addPlayer` does with someone new there): 'over' once
+    it's over (`gameOver`; a stage of bingo or Weekly Calls once its last episode has aired; the walk also says over once its last entry
+    is) and nobody new is seated in it, so it counts nothing for them; 'draft' before it's underway (into its draft, as anyone); 'late'
+    once it is and it takes late joiners (they start live there, as that game alone takes one: a team from who's free where its castaways
+    are one team's each, from who's still in where they're shared, dealt from the hat after a draw, a pick or answers from the next
+    episode); 'waits' where it doesn't (someone's out of it: a pool's lives, a draft's cuts, a game of questions' walk; or its joining is
+    shut).
+  - **The game's rule over them** (`StageLogic.closed`, in `GhostLogic.allowed` and `addPlayer`, replacing part 1's "nobody new once the
+    first stage has started"): before its first stage starts, as any game; once it has, as its stages do, read from the walk (each stage
+    record's `joins`, `answer-points.ts stageWalk`, on the stage as it stands, so a game of questions' walk says who's out): nobody new
+    while any stage keeps a newcomer waiting (A11 part 5c's rule, one rule for the game: the couch's list says "locked"); else they join.
+    Without the walk (the stored state: classic's code join, an invite, Game settings), nobody new once it's started: the safe fallback, as
+    before. A join route that read the walk already says so (`opts.stagesOpen`). **Live only** (`GhostLogic.startChoices`: the next
+    episode to play): catching up would move the game's mark and each stage's apart, since each league reveals on its own (Noticed item 1).
+  - **The couch's join** (`couch-joins.ts`): a game in stages that has started is under way for joining from its first episode, results
+    or not. Its options (`stagedOptions`): live only, no catch-up; the team the first stage taking a late joiner with a team to pick wants
+    (spec order, the game's own stages first: `stages.ts lateStages`), its pool from that stage (`poolFrom`, shared with any game's
+    options), dealt where its teams came out of a hat. The join (`joinStaged`): the start must be the live one ("New players start from
+    Episode 7"); the team is checked on a copy of that stage first, as its own late join would check it, so a wrong team writes nothing;
+    then the game's seat (a late joiner from the next episode, seen at once, their mark where they are on the season), whose write seats
+    them in each stage by that stage's own rule (`syncStages` → `seatStage`: a late joiner where it's underway, its draft where it's still
+    to start, none where it's over); then each stage taking a late joiner starts them live there (`startInStages`: `GhostLogic.begin` and
+    `convert`, the team in the one that wants it, their mark there where they are on its season). A stage whose start fails (it moved on
+    meanwhile, or wants a team too) keeps their seat waiting for its start there (its own late join) and the join's answer names it
+    (`waits`: Noticed item 3).
+  - **A seat that leaves and comes back** (part 1's Noticed): the game has no draft of its own, so leaving always removed its seat, and
+    coming back made a new one in every stage, the old one left with its team. Now `backstage-members.ts freeSeat` keeps a game in stages'
+    seat, disabled, once any stage has begun (`stages.ts stagesBegun`; the take-out preview and the desk's Seats page read it the same
+    way, and the desk's Undo of a removed seat refuses once a stage has begun since: `desk-seat-moves.ts movedOn`), so the seat id is kept
+    and reclaimed by its account. `seatStage` mirrors it: left with its team in a stage that has begun, taken out of one that hasn't (as
+    leaving before a draft is), and back, the same seat (re-enabled, team and all) or seated again under the same id; a stage that began
+    while it was away takes it as its late joiner, live, with the team the join brings (checked first; none given, it waits for its start
+    there). `stagesToSeat` reads them the same way, so a stage that's over or a seat already let go is never written again.
+  - **Seats reach the stages after every membership write** (part 1's Noticed): `db.ts syncStagesFor(leagueIds)` (one query: whichever is
+    a game in stages) after the writes outside `withLeagueLock`: a role change (`roles.ts setLeagueRole`, so the desk's role, Backstage's
+    and their Undo), the desk's unlink, hand-on and the unlink's Undo (`desk-seats.ts`); every other seat move (the desk's link, take out,
+    put back, remove, leaving, joining) already runs through `withLeagueLock` or `joinLeague`, which sync after their commit.
+  - **Part 4b's item 8**: a stage on another season that never started is over once its league is (the walk's `ended`: the stage league's
+    `gameOver`, only as far as the viewer has seen there), counting nothing, so a game across two seasons whose other season ended before
+    that stage's start ends (`StageLogic.standings`; a stage on the game's own season is read as before: a merge that never comes ends with
+    the season).
+  - **The exclusive count** (the 9:10 PM decision): a late joiner in a stage whose exclusive draft is done takes from who's free (they
+    can't break it: a short team when too few are free, as any late joiner); someone seated in a stage still to draft is in its rotation, so
+    its count as it opens counts them (the check: 5 of you × 3, a late joiner and a seat that came back counted).
+  - **The tracker** needs no new row (joining is behaviour, not a spec's shape): regenerated unchanged, **189 ✅** · 57 ⏳ · 1 🆕 · 3 ❓ · 23
+    💬, of 273, and `--check`.
+  - **Tests:** `tests/late-stages.test.js` (new, 5): each stage's own rule (its draft, its late joiner, over, a bingo stage over as its last
+    episode airs, a pool with someone out, joining shut); the game's rule (before it starts, no walk, the walk, `stagesOpen`, any stage
+    waiting, no stage read, every stage over, live only); a late joiner seated in each stage by its own rule through `seatStage` (the
+    stage in play's late joiner with free agents, a later stage's draft, the exclusive count counting them, none in a stage that's over,
+    `stagesToSeat` agreeing, the overall counting nothing for a stage they weren't in); a seat that leaves and comes back (kept in a begun
+    stage, gone from one that hasn't, the same seat on return); part 4b's item 8. `npm test` 1207; `tsc` clean; `game-specs-flag.js check`:
+    PASS.
+  - **API check:** `scripts/dev-test/check-late-stages.js` (new, on new-fixture.js's couch), 43 PASS: two games in stages from the lab (A,
+    an exclusive Outlast then one from Merged; B, a Survival Pool with a life each, then an Outlast), joined before they start; Episode 6:
+    A takes someone new, B doesn't (alex out of its pool); sam's options (live from 7 only, a team of 2 from who's free in Pre-merge), a
+    catch-up start and a drafted castaway refused before anything's written, then sam joins live: seated in A, Pre-merge's late joiner from
+    7 with that team, seen at once, their mark where they are (3), in Post-merge's draft; sam can't join B; jordan leaves (kept, disabled,
+    in A and Pre-merge with the team, gone from Post-merge) and comes back (the same seat everywhere); the desk's role change reaches both
+    stages at once, and back; Merged at 8 and Episode 7: Pre-merge over, Post-merge's draft opens with five and goes shared, said so; kim
+    joins (no team to pick, seated in A and Post-merge only, 0 on A's table from Pre-merge); riley leaves, Post-merge begins at 8 while
+    they're away, riley comes back with a team of 3: Post-merge's late joiner from 9 under the same id. Also ALL PASS: `check-stages.js`
+    (its two lines on joining and on jordan's seat updated to this part's rule), `check-two-shows.js`, `check-mini-stages.js`,
+    `check-side-stages.js`, `check-change-stages.js`, `check-next-stage.js`, `check-late-joins.js`, `check-desk-seats.js`.
+  - **The code review** (`/code-review` at high, before the long runs; ten findings, seven taken): a seat coming back into a stage that
+    began while it was away was a late joiner there with no start (now started live, with the team the join brings); the take-out preview
+    and the desk's Seats page said a seat goes where it's now kept, and the desk's Undo of a removed seat could bring it back inactive
+    under a new id once a stage had begun (both read the stages now); a second stage wanting a team was left waiting silently (the join's
+    answer says `waits`); a walk with no stage read counted as open; a bingo or Calls stage never read as over (now once its last episode
+    airs, or its walk says so); the two pool builders shared. Left, in Noticed: `joins` read uncut (as any game's "locked" is), its cost,
+    and `syncStagesFor` added by hand.
+  - **Golden replays:** `golden.js` (HEAD, A12 part 4b, against the working tree, on the final code): 7 seasons, 160 games, **19,361
+    reads, every one the same** (no game they play is in stages, so nobody joins one late). Against master's (production's engine,
+    `--before=master`): every one the same but R1 part 3's 20 (The Challenge 40's Survival Pool, one seat's pick of the winner at the
+    final), nothing else. Joining and the seat sync change no game that isn't in stages, so the Survivor 51 rehearsal isn't run for this
+    part (golden is the proof).
+  - **Blind replays:** (`blind.js run`, the five seasons, on the final code): **every game played through and over on all five
+    seasons**, part 4b's numbers exactly: Survivor 49 126 of 126, The Challenge 41 101 of 101, 40 95 of 95, 39 103 of 103, The Traitors 4
+    90 of 90; nothing refused; the questions waiting on early results finding 20's 3, 2 and 2. Nobody joins late on the tapes' four seats
+    (each seat is there from the start), so the late joiners are the unit tests' and `check-late-stages.js`'s; the replays show the join
+    rule and the seat sync change nothing for the games already played. The study doc's "A12 part 4c".
 - **A13. Trivia and episode facts.** Trivia questions settled by the episode's trivia key (the bot's trivia research, written
   and checked as now); episode facts (who said the title quote) through new research questions rated reliable (Our check).
 - **A14. The players' own mechanics** (allowed 2026-10-28, with the Decisions table's guardrails): votes among the players,
@@ -4294,7 +4833,8 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
   the three kinds Survivor 51's couch plays (Outlast with finale predictions, side bets and waivers; Weekly Lineup; Survival Pool), in
   the engine and everything that scores them or reads what they hold; **part 2**, Weekly Calls, Weekly Bingo and the game of questions
   (the games scored outside the state: `answer-points.ts`, `answers.ts`, `calls.ts`, `bingo.ts`, `season-games.ts`'s calls, the me
-  route), which empties tests/pieces.test.js's list of part 2's files. R3 takes the rest of that list (the type field's writers and the
+  route), which empties tests/pieces.test.js's list of part 2's files; **part 3**, a pool's finale (the user's decision, 2026-10-30, 3:35
+  PM: the Decisions table's "A pool's finale", only the winner survives it). R3 takes the rest of that list (the type field's writers and the
   screens' readers). Its proof beyond the golden replays: the Survivor lane's Survivor 51 season-forward rehearsal
   (`scripts/dev-test/season-forward.js`), which has to pass before R1 merges (never on a Wednesday; the main folder merges).
 
@@ -4397,6 +4937,41 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     off the league type (the label stays the league type's, R3's); the guard's SQL check missing a filter split across lines (it reads
     the query whole). Kept, said here: the two moves each taking the states map (each chooses its own games, as before; the map covers
     every game with a season, the only ones either ever made a move for); a desk search by the stored type's ids (R3's, above).
+
+  **As built (R1 part 3, a pool's finale, 2026-10-30, on `engine`, not merged; no migration).** One session, with A12 part 2b after it,
+  after `lane.js sync engine` (master's R1 merge, the season-forward rehearsal and the decision; 1177 tests).
+  - **The rule** (the Decisions table, "A pool's finale": only the winner survives the finale): one reading of a night for every game,
+    `state-logic.js nightOf(state, ep)` { gone, won }: the exits its results record as going home and as winning (each winner's, on a show
+    with several). On a night with a winner, everyone else in it went home, a losing finalist's exit or none (a finalist the results
+    missed went home with the rest: "right only when its person is who the results record as winning"); on any other night, and every
+    night of a show nobody wins (`winnerExitMethod` null), whoever isn't among its exits stayed (`wentHome`). Before the winner is
+    recorded, a finale is a night like any other.
+  - **What reads it:** a pool's grading (`PickEmLogic.stepper`: every pool, with lives, a buyback, mulligans, a second pick, a pick that
+    never repeats or last one standing, all through the one walk), `PickEmLogic.double` (the exits recorded but a winner's: as before),
+    a game of questions' facts (`AnswerLogic.facts`' `out`, so "who goes home" and "who stays" grade the finale the same way: the winner
+    stays, everyone else in it went home), and classic's three screens that worked out a pick's night themselves (the reveal's "Your pick
+    went home", an episode's line, the episode page's plates: `PickEmLogic.wentHome`). The new design's views read the history's rows, and
+    a pool's Who goes home? (`calls.ts`) already left a winner out. A pool that survives by scoring (a sport) is graded by its points, as
+    before.
+  - **What reads differently:** a pick on the winner at the finale is right (it was wrong: the winner's exit read as going home); a pick
+    on a finalist the results missed is wrong. Nothing else.
+  - **Proof:** `tests/pool-finale.test.js` (7: the Sole Survivor's pick right, the fire's loser's and a losing finalist's wrong, a
+    correction taking the winner back and giving them a losing finalist's exit; several winners (The Traitors); a show nobody wins; a
+    pool with lives (a life lost on a losing finalist, out at none, the winner's pick standing); a second pick on a finale night; a finale
+    whose results miss a finalist; a game of questions' "who stays" and "who goes home" through its grader), four of them failing on the
+    code before; `npm test` 1184; `tsc` clean. **The Survivor 51 rehearsal** (`season-forward.js rehearse --from=backups/prod-2026-10-30
+    --scenario=realistic,rough,dst --before=master`, this lane's tree): every invariant holds in all three, flag off and on read the same
+    (2,856 reads each), and against master's engine realistic and dst read the same, rough differs in **4 reads, all one seat whose pick
+    at the finale (Episode 13) was the Sole Survivor**: master graded it wrong, this tree right (total 9 → 10, current streak 0 → 7,
+    longest 6 → 7, at the early and the final results, marks 13 and everything). **The golden replays** (`golden.js`, HEAD against the
+    working tree): 7 seasons, 160 games, 19,361 reads, every one the same but **20 reads of one game, The Challenge 40's Survival Pool**,
+    one seat whose pick at the final (Episode 19) was a winner (total 16 → 17, current streak 0 → 7, longest 6 → 7), as nobody and as
+    each of the four seats at marks 19, 20, 21 and everything. `golden.js` now prints where two reads part (the fields, before → after,
+    a name never shown), not their first 300 characters.
+  - **The code review** (`/code-review` at medium, before the long runs). Fixed: classic's reveal, episode line and episode page still
+    said a winner's pick went home (and hid the winner's plate); a finale whose results recorded the winner but missed a finalist graded
+    that finalist's pick right; the night's rule written out three times (a pool's grade, `double`, the answers' facts: one `nightOf` now)
+    and `formatOf` read for every exit of every pick (once a night now); a test that didn't touch a game of questions (it grades one now).
 - **R2.** The game-specs flag on in production (the user's OK), then a week of watching every table.
   **Done 2026-10-30, 2:39 PM** (the main folder's `.session-loop/flag-on-prod.ps1`, the user's Copy and Enter: the read-only
   check passed on all 10 leagues, then 10 of 10 carry their spec); the week of watching runs to 2026-11-06.
@@ -5141,6 +5716,22 @@ From R1 part 1 (2026-10-30):
 - **`LEAGUE_TYPES`' names are classic's** ("Classic", "Active Roster", "Eliminator Pool"): the me route and classic's setup show them.
   (R3: the preset's name, `PRESET_LABELS`; R1 part 2 left the me route's label on it, which games it lists going by the pieces.)
 
+From R1 part 3 (2026-10-30):
+- **For the main folder: it changes Survivor 51's Survival Pool on Dec 16** (the 3:35 PM note): a pick on the Sole Survivor at the finale
+  scores. It goes out in a main-folder merge before then, never on a Wednesday; the rehearsal's and golden's numbers are in the As built.
+  (The main folder, at the next merge.)
+- **For the user: telling the players.** How it works for a pool says "everyone picks one castaway to stay in each episode" and says
+  nothing of the finale. Recommended: a line ("At the finale, only the winner survives it: a pick on a finalist who loses is out"), in
+  How it works and on the pool's finale lock, before Dec 16; What's New stays paused (the user's). (U0's words, or whoever next touches
+  How it works's pool lines, with the user's OK.)
+- **A finalist the results miss goes home with the rest** once the winner is recorded (the Decisions table's "right only when its person
+  is who the results record as winning"; the 3:35 PM note's wording, every other exit that night going home, reads the same whenever the
+  results are whole). Before the winner is recorded the finale is graded as any night, so early results that name the winner and not
+  every finalist grade the finalists' picks wrong, and ones that miss the winner grade the night as usual until they're corrected.
+  (Nothing to do; said for the design session.)
+- **A lineup's "left the game" line** (classic's `episode-active-roster-section.tsx`) still counts the winner's exit as leaving: a lineup
+  scores moments, not survival, so it's left. (R3 or U1, if that line should say "won".)
+
 From R1 part 2 (2026-10-30):
 - **The Survivor 51 season-forward rehearsal still has to pass before R1 merges** (R1 part 1's item, for both parts):
   `scripts/dev-test/season-forward.js` still isn't on master. Part 2 moves no score (the golden replays, `--before=master` too), but R1
@@ -5150,7 +5741,8 @@ From R1 part 2 (2026-10-30):
   sees (under (a), a new Weekly Lineup on a show with moments the couch answers starts with those at 0 on its points page). The
   recommendation stands: (a), said as an assumption in the wizard. (Whoever next touches Start a game's spec, or U0, with the user's word.)
 - **Still the user's: a pick of the season's winner is wrong at the finale** (R1 part 1's item): part 2 doesn't touch pool grading. The
-  recommendation stands, ideally decided before Survivor 51's finale. (Whoever next touches pool grading, with the user's word.)
+  recommendation stands, ideally decided before Survivor 51's finale. (Whoever next touches pool grading, with the user's word.) **Decided
+  (the user, 2026-10-30, 3:35 PM: only the winner survives it) and built: R1 part 3.**
 - **`Game.gameType` is still the stored type field** (`show-space.ts` `games()`, read in SQL), carried on every game the screens get:
   nothing that scores or chooses a game reads it now, but the screens' readers do (Start a game's Run it back and counts, `start-game.ts`
   `KEY_OF`; End a game's words, `end-game.ts`; the trophy shelf's "same kind of game", `couch-standings.ts`; the desk's search by a game's
@@ -5161,6 +5753,271 @@ From R1 part 2 (2026-10-30):
   (R3, or whoever next works in Game settings.)
 - **For the hosting notes, at the merge:** `/api/me` (classic's sign-in and every classic load) now sends each league's settings, not its
   whole state (20-40 KB each): less Neon transfer than before. (The main folder: docs/HOSTING.md, with the merge.)
+
+From A12 part 4c (2026-10-30):
+- **For the user, in the format-change design session (after A12), with A12 parts 1's to 4b's items, each with a recommendation (built as
+  engine rules):**
+  1. **Catching up in a game in stages.** Built: live only (the next episode to play), since each league reveals on its own and catching
+     up would move the game's mark and each stage's apart. Option: catch up from the stage in play's first episode where it's shared (as a
+     shared game alone offers), one reveal moving the game's mark and each stage's together (the linked leagues' one catch-up, `late-join.ts
+     revealAcrossGroup`'s pattern). Recommended: live only until a couch asks, then the mirrored reveal.
+  2. **Nobody new where a stage keeps them waiting.** Built: any stage there now that would keep a newcomer waiting (someone out of a
+     pool's lives, a draft's cuts, a game of questions' walk; its joining shut) closes the game. Options: join the other stages and wait in
+     that one. Recommended: keep (one rule, A11 part 5c's).
+  3. **Which stage's team the join asks for.** Built: the first stage taking a late joiner with a team to pick (the game's own stages
+     first); a second at the same time (a draft beside a draft) keeps their seat waiting for its start there, named in the join's answer
+     (`waits`). Option: the join takes a team per stage. Recommended: a team per stage on the join sheet (U1), the route taking `teams` by
+     stage; rare (two drafts at once).
+  4. **A stage that's over.** Built: a newcomer isn't seated there (it counts nothing for them; by places they're in no table there).
+     Option: seated with 0, so places counts them last. Recommended: keep.
+  5. **A late joiner's place.** Built: in the stage in play they're in its table from their start (points from then, places among
+     everyone); a stage still to start, as anyone. Recommended: keep, the game's page saying they joined late (U1, track V).
+  6. **Coming back.** Built: the same seat in every stage it was in, a stage that began while away taking it as its late joiner, live,
+     with the team the join brings (none: it waits for its start there). Recommended: keep; the join sheet asks for that team (U1).
+  7. **The code join and invites** (`join-league.ts`, classic's) to a game in stages once it has started: still part 1's rule (the seat
+     waits, inactive); brought in (`activatePlayer`), each stage seats it by its own rule (a late joiner there needing its start: its own
+     late join). Recommended: refuse the code join once it has started (A11 part 5c's item 3: one rule everywhere), the couch's join being
+     the way in, and Backstage's bring-in starting the seat live in each stage (U1).
+  8. **What players and the maker are told** (U1): live only and why, which stage's team they're picking, a stage that's over not counting
+     for them, a stage that kept their seat waiting for its start, the couch's list saying "join" for a game in stages under way.
+- **`JoinGame.shared` for a game in stages is the game's own** (no roster: shared), so a screen reading it would offer a catch-up;
+  `joinOptions` says the truth (`starts.catchUp` null, the team from the stage). (U1: read joinOptions.)
+- **`joins` is read on the walk uncut**, so the couch's list says "locked" for a game in stages once someone's out of one of its stages at
+  every viewer's mark, as it does for any game with someone out (A11 part 5c); the walk itself never reaches a client. (The design session,
+  with item 2.)
+- **`joinsOf` runs on every read of a game in stages** (each stage: underway, someone out, a pool's walk), small beside the walk's
+  `gameView`s; the join routes read the stages once more (`lateStages`). (The merge: HOSTING.md beside part 1's stageWalk line.)
+- **`syncStagesFor` is called by hand** after the membership writes outside `withLeagueLock` (the desk's unlink, hand-on and its Undo, a
+  role change); a new write path to a game's memberships must call it. (Whoever adds one.)
+- **A bingo or Calls stage with no end of its own** (its season's last episode from the schedule) still seats a newcomer after that last
+  episode has aired, until its walk says over (the engine has no schedule): the game is over by then anyway. (Nothing to do.)
+- **Part 4b's item 8 is built** (a stage on another season that never starts is over once its league is).
+
+From A12 part 4b (2026-10-30):
+- **For the user, in the format-change design session (after A12), with A12 parts 1's to 4a's items, each with a recommendation (built as
+  spec rules or engine rules):**
+  1. **Which season's lists show a game across two shows.** Built: the game on its own season's (its first stage's), each stage league on
+     its own season's as a game of its own (part 1's item 7): the Traitors stage on The Traitors' Games tab, the game on Survivor's only.
+     Option: the game on both seasons' lists, read at each season's marks. Recommended: both (U1 and track V: the game's page on each, its
+     own season the first stage's, each stage's moves reached from it).
+  2. **The game's span across two seasons.** Built: its span is its own stages' on its own season; it ends once every own stage is over,
+     wherever they play, never at its season's end; on its own season it ends where its last own stage there does. Option: a span said in
+     dates for the game as a whole. Recommended: as built, the game's page saying where each stage plays and when (by date, where the
+     schedules know).
+  3. **The order.** Built: one after another in the spec, and alongside; stages on two seasons may air at the same time even one after
+     another (Survivor's spring season and The Traitors both run January to May), since episode numbers aren't compared across seasons.
+     Recommended: as built, the wizard saying when each stage's season airs (from the schedules) so the maker sees an overlap.
+  4. **The first stage is on the game's own season.** Built: refused otherwise (the game is made and listed where its first stage plays).
+     Option: a game made on one show's page whose first stage is another's ("on The Traitors' page, Survivor first"). Recommended: as
+     built; the GPT makes it from the first stage's show page, or Start a game moves to it.
+  5. **A stage beside the game on another season once the game ends.** Built: what aired by the latest of the own stages' last airings;
+     with an own stage's air time unknown (no schedule), as it stands (it counts on, marked over). Recommended: as built, the fallback
+     said on the game's page.
+  6. **A format change, a side stage or 'next-stage' in a game on two seasons.** Built: refused (each reads the game's own season's
+     format). Option: each reads its own stage's season's format (change-stages per season). Recommended: refused until a request asks.
+  7. **Spoiler marks per season.** Built: a stage on another season at the viewer's mark there; read with no viewer, nothing of it; the
+     couch's list says "ended" at the viewer's marks. Recommended: keep; the game's page says "you're behind on The Traitors" (track V).
+  8. **A stage on another season that never starts** (its season ends before its start, or never airs): the game never ends (it waits on
+     every own stage). Option: over once that stage's season is over, its stage counting nothing. Recommended: that, a small engine rule
+     (the walk carries whether a stage's league is over), in 4c or the next part that touches the end.
+- **Backstage's Game settings and the phase-start settle call `gameOver` on the stored state** (`backstage-games.ts spanState`,
+  `phase-starts.ts`): a game across two seasons is never over there (safe: nothing is decided from it; the desk's list now reads it as its
+  stages stand). (U1, with Game settings for games in stages: read it as it stands, "all".)
+- **`lastEpisode` and `spanView` on a game across two seasons stay on its own season** (where its last own stage there ends): a reader that
+  takes `lastEpisode` as the game's end (a span's text, "plays through") would say it ended at Survivor 13 while The Traitors' stage plays;
+  `gameOver` reads `overAcross`. (U1 and track V: the game's page words, where each stage plays.)
+- **The tracker's pages name no show id**, so `pageCtx` can't set `ctx.season`: a row whose stage names its page's own season is told the
+  season isn't set up, not "leave it out" (the lab says it right: `withSeasons`). (G1, with the context pack: give a page its show id.)
+- **Without a show, the words don't name the other season up front** ("A game in two stages: ...; then The Traitors on The Traitors 5,
+  ..."), and without that season's rules a stage says "on season 5 of the-traitors-us". (U0, with the wizard's words.)
+- **`stageWalk` on a game across two seasons** adds a query for the stages' seasons, each season's schedule once and, for a viewer, their
+  mark on each other season. (The merge: a line in HOSTING.md beside part 1's.)
+- **The blind replays don't play a game across two shows** (`blind.js` replays one season at a time; it leaves out a tracker game on more
+  than one season, saying so): shape.twoShows and s20 are proven by `tests/two-shows.test.js` and `check-two-shows.js`. (P5, if the
+  playtests ever replay two seasons side by side.)
+- **4a's item 5 is built** (two stages of bingo, or of Weekly Calls, on one season at the same time refused, and a side stage of either).
+
+From A12 part 4a (2026-10-30):
+- **For the user, in the format-change design session (after A12), with A12 parts 1's to 3's items, each with a recommendation (built as
+  spec rules or engine rules):**
+  1. **A season of mini-games that take turns** (s45, "bingo one week, a draft the next", ❓ in the tracker): stages one after another
+     play (shape.minis), but not a season that alternates every episode. Options: (a) a new piece, stages that take turns (`turns`: each
+     stage plays one episode, or N, in turn, all season, a fresh copy of it each turn on part 2's copies: a draft the next week drafts from
+     who's left, for any season's length); (b) the season written out as one-episode stages (MAX_STAGES raised to a season's length: a
+     league per episode, about 30 KB each, all read by every overall: some 400 KB a read on Survivor, 600 KB on The Challenge); (c) read
+     the words as stages of a few episodes each (within MAX_STAGES 6). Recommended: (a), its own part after 4c if the user wants it, the
+     builder saying up front how many leagues it makes.
+  2. **Which stage is the game's own in two ways of scoring.** Built: the first stage is the game's own, the stage alongside plays at the
+     same time, its span the game's unless it says (inside it), and the game ends with its own. Option: stages that are all alongside, none
+     the game's own. Recommended: as built (the overall is the same either way; one stage has to say where the game ends).
+  3. **A game that ends early with a stage beside it** (a race won, one left standing: A11's ends). Built: the stage beside counts as it
+     stood at the game's end and is over there, its place and win counting. Option: the stage beside plays on to its own end and the game
+     ends only then. Recommended: as built (the game's end is its own stages', part 3's rule).
+  4. **When a stage of bingo or Calls counts an episode.** Built: once it has aired (lines and a talk show's calls need no results; a
+     competition show's moment squares and calls settle on results, so they count 0 until then), while a draft's or a pool's stage counts
+     at results: the overall can move twice for one episode. Option: every stage at results only (a talk show's bingo stage then never
+     counts: no results). Recommended: as built, the game's page saying when each stage counts.
+  5. **Two stages of bingo (or of Weekly Calls) at the same time in one game** count the same lines twice: a card is each person's for the
+     season's episode, not the stage's, so both stages read the same card. Built: allowed (nothing refuses it). Recommended: our check
+     refuses two stages of the same kind scored outside the game whose spans can overlap (a stage alongside, or the game's own and one
+     alongside), with why; a small schema rule, first in part 4b. **Built: A12 part 4b** (on one season; a side stage of either too).
+  6. **What players and the maker are told.** Built: the words above; each stage a game on the couch's lists (part 1's item 7). Recommended:
+     the game's page shows the stages side by side where they play at the same time (track V's stages block).
+- **Weekly Bingo's and Weekly Calls' own tables say over only by the schedule's episode count** (`leagueBingo`, `leagueCalls`:
+  `endedThrough`), while the engine's `gameOver` knows a season's winner: on The Challenge's taped seasons the schedule counts 21 against a
+  final at 19, so their own tables never say over there. The stage walk reads both. (Whoever next touches leagueBingo or leagueCalls:
+  `|| gameOver`, with golden's word, as it changes what live tables say.)
+- **A stage's own sentence says "by the finale" where the stage ends earlier** ("Most lines by the finale wins" for Episodes 1–4), part
+  1's stage sentences again. (U0, with the wizard's words.)
+- **`stageWalk`'s cost, again:** a stage of bingo or Calls adds a few queries to every read of its game (its season, its seats, its lines
+  or calls; the season's schedule and book once a walk) and a `gameView` for each aired episode. (The merge: a line in HOSTING.md beside
+  part 1's; cache each stage's walk by its `updated_at` and the season's newest card or call if it shows.)
+- **The blind replays play no bingo ticks or calls** (the tapes have none), so bingo and Calls stages there score 0 and prove only that
+  the games play through and end; the sums are the unit tests' and check-mini-stages.js's. (P5, if the playtests ever tick cards.)
+- **A stage alongside's draft is counted as it opens** (as any later stage's), even when it starts with the game; the lab passes no
+  `ctx.pool` anyway (part 1's item). (G1, with the context pack: count it with the first stage when both start together.)
+- **A stage alongside ending at an episode while the game ends before a phase** can't be checked until the phase is known; if the phase
+  comes first, the stage beside counts only as it stood at the game's end (the standings' cap), and its own league plays on to its own
+  end unseen by the overall. (Nothing to do; said for the design session.)
+
+From A12 part 3 (2026-10-30):
+- **For the user, in the format-change design session (after A12), with A12 parts 1's, 2's and 2b's items, each with a recommendation
+  (built as spec settings or engine rules):**
+  1. How long a grouping holds before a side stage opens (`side.held`, `SIDE` 2). F1's lifetimes: The Challenge 41's rotating pairs one
+     episode each, then locked pairs from 10; The Challenge 39's every team one episode; The Challenge 40's eras 3 to 9; Survivor 49's
+     tribes 3, 2 and 1. With 2, on the blind replays: The Challenge 41 two side drafts (the locked pairs, 12 to 17; the pairs after the claim, 19 to 20), 40
+     one (the eras, 5 to 10), 39 none, Survivor 49 two (3 to 4 and just 6: Survivor's tribes last two or three episodes), The Traitors 4
+     none. Options: 3 (fewer, longer side stages); 1
+     (every grouping, a side stage most weeks on The Challenge). Recommended: 2 (the user's "lasts for multiple episodes": two is the
+     least that's multiple), the builder saying up front from the show's history how often it would open.
+  2. **What a side draft drafts** (a real question): built as any game a stage can be, and p8's side draft drafts people (an Outlast of
+     2: following the people, a pair's result reaching each drafted member). Options: a draft of the groups themselves (each of you
+     drafts a pair or a team, riding it while it lasts: group slots with no people, `get.each` 0, not built: a new piece, its own part);
+     a lineup with a group slot (built: a side stage's game can carry `get.groups`). Recommended: ask the user what "side draft" meant;
+     if it's the groups, build the draft of groups (it's group slots' records with a draft room) before U0, and make it p8's side game.
+  3. What closes one. Built: any change to the grouping but a group going home whole (a group is its exact members: a pair broken up by
+     a claim, a swap of a few, a re-draw, the merge, a split). Options: only when most groups change, or when the kind of play changes
+     (pairs to teams to solo). Recommended: as built (F1's question 4), its words "until they change".
+  4. A change at an episode's start (a swap): built, the copy keeps that episode (research says it after it aired; its people played
+     it). Option: take that episode back (its grouping didn't play it). Recommended: as built (part 2's "never moves once aired").
+  5. Once or each time. Built: a copy for each grouping that lasts (a new side draft each time), up to `MAX_COPIES`. Option: the first
+     only. Recommended: each time ("if we ever ... start a side draft": a side stage closes with its grouping, so the next is new).
+  6. Its points when it closes. Built: kept, as a stage that's over (by places and wins it counts once over, as any stage). Option: its
+     points only while it plays, nothing for places or wins. Recommended: as built.
+  7. Its draft (part 1's item 4, again): a copy's draft opens at its start, the week between, and nothing makes it finish before its
+     first lock. Recommended: part 1's (a deadline with picks made for whoever isn't done).
+  8. The maker's OK is one setting for both a format change and a side stage (`extras.changes`). Option: a setting of each. Recommended:
+     one setting.
+  9. The edge cases: a grouping lasting into the finale (the copy ends with the game); one seen too late to play (never made: said);
+     two side stages with different N (each its own); a side stage beside a stage a change starts (independent: a side draft carries on
+     across the game's new stage); one that comes back after a corrected report (back from the first episode still open, its team kept,
+     as part 2's item 8). Recommended: as built, each said on the game's page.
+  10. What players and the maker are told: built, the lines in As built, each with the episode whose research said it (a close's line
+     the episode that said it; a withdrawal's carries none). Recommended: the game's page says it in its stages block (track V), behind
+     each viewer's mark; the maker's ask a push.
+- **The backing team** (A11 part 5c's item 1: a team of players tied to one of the show's groups): no request in the corpus asks, so
+  not built. If one does ("each team roots for a tribe"), it's a side stage whose game is a team game tied to a group: on sideTriggers'
+  spells. (G1, when a request words it.)
+- **A side stage opens on any grouping** (Survivor's tribes too; the merged tribe never, one group of everyone isn't a grouping): no
+  `side.of` (pairs only, teams only). (G1, if a request says "only when pairs last".)
+- **`StageLogic.over` counts side copies** (a game whose own last stage is over while a side copy still plays isn't over); a copy never
+  runs past the game's own end once it's known (`input.end`), and while a phase end isn't settled both end at the same phase. (Nothing
+  to do; said for the design session.)
+- **Recent changes' withdrawal line ("Research no longer says ... plays on") carries no episode**, as part 2's called-off lines, and the
+  feed doesn't hide a line by its episode anyway (part 2's item). (U1.)
+- **For the hosting notes, at the merge:** the season sync's settle now also picks games with a side stage (one query, as part 2's); no
+  new service, schedule or table. (The main folder: docs/HOSTING.md.)
+- **format-timeline.js `sideStages`** (F3's reader) stays for its tests and `format-asks.js`; the engine reads `sideTriggers`. (Whoever
+  next touches F3's readers: fold it into sideTriggers.)
+
+From A12 part 2b (2026-10-30):
+- **For the user, in the format-change design session (after A12), with A12 part 2's items, each with a recommendation (built as spec
+  rules):**
+  1. Which states end a stage with 'next-stage'. Built: research sure that nobody is in a group going into an episode, after groups
+     (everyone on their own, the merge); an unsure state is void and held (said once, flagged), a sure report later acting on it; a
+     re-draw (pairs re-paired, a swap) moves nothing. Options: also end it at a re-draw of every group (a game whose slots or question
+     were about the groups it started with); end it on an unsure state too. Recommended: as built (the 8:15 PM rule: only a reliable
+     report moves a game's structure; a re-draw is still a game in groups).
+  2. 'next-stage' alone or in the last stage. Built: refused with why (nothing to start), the wizard offering void or carry-on. Options:
+     read it as void. Recommended: refused.
+  3. What starts the next stage. Built: the fallback alone when it says nothing (`on` left out), or with kinds of its own, whichever
+     comes first. Options: the fallback only. Recommended: as built.
+  4. A stage that starts without groups (never divided while it plays, or the groups gone at its first episode): nothing moves; its
+     episodes are void until groups form and go again. Options: start the next stage at once when the stage starts sure there are no
+     groups. Recommended: as built, the builder saying up front, from the show's history (F1's lifetimes), when a season starts without
+     groups.
+  5. The edge cases: groups that come back after the next stage started (the next plays on, the stage before doesn't come back:
+     recommended, as built); the groups gone at the final (a start past the season's last episode never comes: part 2's `late`; one at
+     the final itself a stage of one episode, as part 2's item 9c); with the maker's OK, the fallback's start waits for the maker too
+     (part 2's item 1).
+  6. What players and the maker are told. Built: part 2's lines ("The format changed (everyone went on to play on their own, from
+     Episode 8): Solo starts with Episode 8"; "Research isn't sure ..., so the game carries on as it is"), "nobody was in a <group> any
+     more" where no change is recorded; the stage's own league's How it works says void words (true for it alone); the game's says the
+     structure. Recommended: the game's page says it in its stages block (track V), behind each viewer's mark.
+- **No request words it** (the corpus), so no tracker row plays it and the blind replays only record where it would end (each episode's
+  `groupsGone`). (G1, when a request does: a row for it.)
+- **GET stage-changes' change has id, kind, from and what, not `gone`**: a screen tells a fallback's start by its stage
+  (`fallbackStarts`) or the kind `groups-gone`. (U1.)
+- **`setGame` returns no problems and writes nothing for a whole spec its league's type can't hold** (a game of questions on a league
+  made as a classic draft: `withSpec` gives null, and `specProblems` finds nothing): the lab and the copies make a game of questions as a
+  pool, so nothing hits it, but a caller that doesn't is told nothing. (Whoever next touches `setGame`: say why.)
+
+From A12 part 2 (2026-10-30):
+- **The Survivor 51 season-forward rehearsal still isn't on master** (looked for at this part's sync): R1's line stands, and R1 merges
+  only once it passes (the main folder).
+- **For the user, in the format-change design session (after A12), each with a recommendation (built as spec settings or engine rules):**
+  1. How a game takes a change by default (`extras.changes.ok`). Built: 'auto', the new stage starts by itself and whoever runs the game
+     can call it off. Options: 'maker' (it waits for their OK); the players' vote (A14). Recommended: 'auto' (the 8 PM note: no game waits
+     for someone), the maker told at once with a one-tap call-off.
+  2. With the maker's OK, nobody answers by the lock (`extras.changes.unanswered`). Built: 'start', from the first episode still open (one
+     episode later than it would have started). Options: 'carry-on'. Recommended: 'start' (the game does what its words said it would),
+     the ask saying so.
+  3. Which changes count by default (`on.change` left out: F3's `MAJOR`, F1's question 5). Built: teams formed, pairs formed, split into
+     individuals, the merge, and a swap that leaves no group as it was. On the blind replays that's eleven copies on The Challenge 39 (teams
+     re-drawn nearly every episode: ten copies of one episode), seven on The Challenge 41 (its rotating pairs: five of one episode),
+     three on Survivor 49, two on The Challenge 40 and none on The Traitors 4; with the kinds of play only, five, one, one (the merge),
+     two and none. Options: the kinds of play only (teams formed, pairs
+     formed, split into individuals, the merge), so a re-draw of the same kind isn't a new stage. Recommended: drop the all-new swap from
+     the default for a stage a change starts (the user's words name kinds of play: "split into teams or split into individuals"), a
+     builder offering "every time the pairs are re-drawn" as its own words; keep `MAJOR` as it is for the other readers.
+  4. Once or again by default (`on.again`). Built: once (the first such change). Recommended: once; "whenever" and "every time" in the
+     words make it again.
+  5. The most copies of a stage that starts again (`MAX_COPIES` 12; past them the last plays on, said). Recommended: keep, the builder
+     saying up front from the show's history (F1's lifetimes) when a season changes its format often.
+  6. What players and the maker are told. Built: lines in Recent changes, on the game (what changed and what it did, the ask, held,
+     lapsed, called off) and on each stage (where it plays now, why), each line carrying the episode whose research said it; GET
+     stage-changes gives a player only what's within their mark. Recommended: the game's page says it in its stages block (track V),
+     behind each viewer's mark, and the maker's ask is a push (the notifications design).
+  7. The maker asked without being spoiled: the ask names the change, so a maker who hasn't watched is spoiled by it. Options: ask only
+     once their mark reaches the episode (the default applying at the lock if they haven't by then); ask another of the game's runners
+     who has seen it. Recommended: the first.
+  8. A wrong report put right in front of players. Built: the copy is taken away with its points, the stage before plays on and scores
+     the episodes between (it had their results all along), a line on the game; said again, the copy is back from the first episode still
+     open, its team kept. Options: back where it was (its start kept, the episodes it missed scored after the fact). Recommended: as
+     built.
+  9. The edge cases. (a) A change during a draft: a copy's draft opens at once and nothing makes it finish before its first lock (part
+     1's item 4, recommended there: a deadline with picks made for whoever isn't done); a second change while a copy's draft is still
+     open ends that copy before it plays (built: it never plays, its draft wasted; option: hold the later change until the first copy
+     has played an episode; recommended: as built, the later change is the format). (b) Two in one episode: one copy (built,
+     recommended). (c) One in the finale: a change taking effect at the season's last episode starts a copy of that one episode; one
+     past it never starts (`late`), and the finale's own split is held anyway (F4); recommended: no copy for a change taking effect at
+     the finale itself (a one-episode stage isn't a game), a rule the plan can carry. (d) One that comes back: as 8.
+- **The 'next-stage' fallbacks** (`ask.fallback`, `get.groups.fallback`, VOCAB 'later'): part 2b, next. **Built: A12 part 2b.**
+- **A copy is a game on the couch's lists**, as part 1's stages are, named "<game> · <stage> 2" for the second; the hub counts the game
+  only (part 1's item 7 holds). (U1 and track V.)
+- **Recent changes lines carry an episode but the feed doesn't hide a line by it** (as results' lines today): a player behind can read
+  "The format changed (...)". (U1, or whoever next touches Recent changes: gate by the viewer's mark.)
+- **Words:** a stage's own line reads "Plays Episodes 6 to 6"; the maker's line "<username> said start New draft for everyone went on to
+  play on their own at 9"; the kinds' words are change-stages.ts's and describe.js's. (U0, with the wizard's words.)
+- **The season sync settles every game a change moves on the season** after every sync: one query for them, then per game its stage
+  leagues and the plan (the season's timeline and schedule read once); a write only when something's new. Negligible today; whoever adds
+  many such games watches it. (HOSTING.md, at the merge: no new service, no new schedule.)
+- **A change reaches a game only from the full research** (the quick check doesn't ask the format section: F2's item), about 9 hours
+  after an episode: fine for the next lock. A change at an episode's start, though, plays that episode under the old stage (the copy
+  starts with the next). (A15 or later, if a stage must start at the episode a change starts.)
+- **The engine lab has no way to answer a change** (the route only). (U1.)
+- **The overall by places or wins counts a copy once it's over**: a copy taken away after it ended takes its place points and win with
+  it, as its points. (The design session, with item 8.)
 
 From A12 part 1 (2026-10-30):
 - **For the user, in the format-change design session (after A12), each with a recommendation (built as spec settings or engine rules):**
