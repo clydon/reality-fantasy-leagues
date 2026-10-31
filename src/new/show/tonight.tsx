@@ -650,8 +650,15 @@ function LastTime({ show }: { show: ShowData }) {
         {lines.length > 0 && (
           <div className="rounded-[4px] bg-card px-3.5 pb-1 pt-3">
             <span className="type-caption block text-[13px] tracking-[0.04em] text-muted-foreground">Your night</span>
+            {/* Each game's line opens its table on the Games tab, on this episode (Weekly Lineup shows how everyone's week went). */}
             {lines.map((l) => (
-              <div key={`${l.leagueId}-${l.gameType}`} className="grid grid-cols-[110px_1fr] items-baseline gap-x-2.5 border-t border-border py-2.5 first-of-type:border-t-0">
+              <NavLink
+                key={`${l.leagueId}-${l.gameType}`}
+                href={paths.game(show.header?.seasonId ?? "", l.leagueId, e.number)}
+                replace
+                data-night-line={l.leagueId}
+                className="nd-press grid grid-cols-[110px_1fr_auto] items-baseline gap-x-2.5 border-t border-border py-2.5 first-of-type:border-t-0"
+              >
                 <span className="type-caption text-[13px] tracking-[0.04em]" style={{ color: l.gameType === "predictions" ? "var(--muted-foreground)" : gameInk(l.gameName) }}>
                   {l.gameName}
                 </span>
@@ -659,7 +666,8 @@ function LastTime({ show }: { show: ShowData }) {
                   <b className="block text-[17px]">{l.big}</b>
                   <small className="block truncate text-[13px] text-muted-foreground">{l.line}</small>
                 </span>
-              </div>
+                <ChevronRight className="size-5 self-center text-muted-foreground" aria-hidden />
+              </NavLink>
             ))}
           </div>
         )}

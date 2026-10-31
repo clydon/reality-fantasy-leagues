@@ -55,7 +55,7 @@ import type { ChatMode, MomentId } from "@/lib/moments";
 import type { Face as PersonFace } from "@/lib/people";
 import type { Theme } from "@/lib/appearance";
 
-export type { CastFace, GameView, LineupMove, PickMove, PredictionMove, TableRow, WeekProgress } from "@/lib/game/game-view";
+export type { CastFace, GameView, LineupMove, LineupWeek, PickMove, PredictionMove, TableRow, WeekProgress } from "@/lib/game/game-view";
 export type { EpisodeSeen, GameNight, Happened, OutFace, RevealGame, RevealTable, Scorer } from "@/lib/game/episode-view";
 export type { EpisodeRow, SeasonEpisodes, SeasonReveal } from "@/lib/server/season-episodes";
 export type { CastStat, Pattern, StatDef } from "@/lib/game/cast-stats";
