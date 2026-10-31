@@ -197,8 +197,6 @@ function Running({
   const root = useRef<HTMLDivElement>(null);
   const lower = useRef<HTMLDivElement>(null);
   const example = useRef<HTMLDivElement>(null);
-  const nextBtn = useRef<HTMLButtonElement>(null);
-  const actions = useRef<HTMLDivElement>(null);
   const holeRect = useRef<SVGRectElement>(null);
   const ringRect = useRef<SVGRectElement>(null);
   const hole = useRef<Rect | null>(null);
@@ -302,10 +300,13 @@ function Running({
     setLit(false);
     setShown(false);
     setPlaying(-1);
-    // Back to the top of Home the way it came, while the tour goes; then Home's foot as it was.
+    // Back to the top of Home as the tour goes, briskly, its (now clear) layer still taking taps so nothing's tapped on a moving
+    // page; then Home's foot as it was, and Home back.
     const y0 = window.scrollY;
-    void tween(reduce ? 0 : scrollMs(y0), (p) => window.scrollTo(0, y0 * (1 - p)), easeInOut).then(giveRoomBack);
-    setTimeout(() => onDone(at.current + 1, how), reduce ? 0 : 340);
+    void Promise.all([tween(reduce ? 0 : Math.min(900, scrollMs(y0)), (p) => window.scrollTo(0, y0 * (1 - p)), easeInOut), wait(reduce ? 0 : 340)]).then(() => {
+      giveRoomBack();
+      onDone(at.current + 1, how);
+    });
   };
 
   // The example fills its box: 324 wide, scaled to the phone.
@@ -382,13 +383,13 @@ function Running({
     };
   }, [steps, draw]);
 
-  // Keys: Escape skips, the right arrow goes on; the keys that would scroll Home don't.
+  // Keys: Escape skips; the right arrow, or Enter and Space on the tour itself, go on; the keys that would scroll Home don't.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
         finish("skip");
-      } else if (e.key === "ArrowRight" && !asks) {
+      } else if ((e.key === "ArrowRight" || ((e.key === "Enter" || e.key === " ") && e.target === root.current)) && !asks) {
         e.preventDefault();
         next();
       } else if (["ArrowDown", "ArrowUp", "PageDown", "PageUp", "Home", "End"].includes(e.key)) e.preventDefault();
@@ -397,11 +398,11 @@ function Running({
     return () => window.removeEventListener("keydown", onKey);
   });
 
-  // Focus on what's next: Next, or the step's own buttons on the last.
+  // Focus on the tour itself, once: Tab reaches Skip, Next and the last step's buttons, and no button wears a ring it wasn't
+  // tabbed to (it's yellow: the tour spends no yellow). The live region says each step.
   useEffect(() => {
-    const t = setTimeout(() => (asks ? actions.current?.querySelector("button") : nextBtn.current)?.focus({ preventScroll: true }), 60);
-    return () => clearTimeout(t);
-  }, [i, asks]);
+    root.current?.focus({ preventScroll: true });
+  }, []);
 
   const onTap = (e: MouseEvent) => {
     if ((e.target as HTMLElement).closest("button, a")) return;
@@ -417,14 +418,15 @@ function Running({
       aria-modal="true"
       aria-labelledby="nd-tour-title"
       aria-describedby="nd-tour-line"
+      tabIndex={-1}
       onClick={onTap}
-      className="nd-fixed-x fixed inset-y-0 z-[85] cursor-pointer touch-none select-none"
+      className="nd-fixed-x fixed inset-y-0 z-[85] cursor-pointer touch-none select-none outline-none"
     >
       <svg className="pointer-events-none absolute inset-0 size-full" aria-hidden>
         <defs>
           <mask id="nd-tour-mask">
             <rect width="100%" height="100%" fill="#fff" />
-            <rect ref={holeRect} rx={6} fill="#000" />
+            <rect ref={holeRect} rx={4} fill="#000" />
           </mask>
         </defs>
         <rect
@@ -436,7 +438,7 @@ function Running({
         />
         <rect
           ref={ringRect}
-          rx={6}
+          rx={4}
           fill="none"
           strokeWidth={2}
           style={{ stroke: "var(--foreground)" }}
@@ -449,7 +451,7 @@ function Running({
           type="button"
           data-tour-skip
           onClick={() => finish("skip")}
-          className={`-mb-1.5 -mr-1.5 grid h-10 place-items-center justify-self-end px-1.5 transition-opacity duration-300 ${shown ? "opacity-100 delay-300" : "opacity-0"}`}
+          className={`-mb-2 -mr-1.5 grid h-11 place-items-center justify-self-end px-1.5 transition-opacity duration-300 ${shown ? "opacity-100 delay-300" : "opacity-0"}`}
         >
           <span className="grid h-[30px] place-items-center rounded-full bg-background px-3.5 text-[13px] font-bold shadow-plate outline-1 -outline-offset-1 outline-edge">Skip tour</span>
         </button>
@@ -467,7 +469,6 @@ function Running({
         </div>
 
         <button
-          ref={nextBtn}
           type="button"
           data-tour-next
           disabled={asks}
@@ -499,7 +500,7 @@ function Running({
         </button>
 
         {asks && (
-          <div ref={actions} className={`grid gap-2 ${reminders === "install" ? "" : "grid-cols-2"}`}>
+          <div className={`grid gap-2 ${reminders === "install" ? "" : "grid-cols-2"}`}>
             {reminders === "install" ? (
               <Btn
                 tone="ink"

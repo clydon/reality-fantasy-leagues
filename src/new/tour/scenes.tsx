@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { CalendarDays, Check, ChevronRight, Eye, Lock, MessageCircle, Plus, Search, Share, ShieldCheck, Trophy, Tv, Users } from "lucide-react";
+import { ArrowUp, CalendarDays, Check, ChevronRight, Eye, Lock, MessageCircle, Plus, Search, Share, ShieldCheck, Trophy, Tv, Users } from "lucide-react";
 import { useMe } from "../session";
 import { ADD_TO_HOME_ART } from "../show/remind";
 import { Avatar } from "../ui/bars";
@@ -373,7 +373,6 @@ function MoveScene({ go }: { go: boolean }) {
         />
         <Plate className={shown("locked")} tag={<Lock className="size-4" aria-hidden />} tone="bg-quiet-tag text-quiet-tag-foreground" title="Locked" line="Episode 6 is on · scores after you reveal" />
       </div>
-      <Tabs on={0} />
     </div>
   );
 }
@@ -458,10 +457,8 @@ function Rows({ rows }: { rows: { who: Person; name: string; pts: number; at: nu
         >
           <b className="type-num w-3.5 text-[18px] text-muted-foreground">{r.at + 1}</b>
           <Face who={r.who} size={18} />
-          <span className="flex-1 text-[13px] font-semibold">
-            {r.name}
-            {r.who === "you" && <em className="ml-1.5 rounded-[2px] bg-foreground px-[5px] py-px text-[10px] font-bold not-italic uppercase tracking-[0.03em] text-background">You</em>}
-          </span>
+          {/* "You", never your name: these tables are made up, and your real place is on Home beside them. */}
+          <span className="flex-1 text-[13px] font-semibold">{r.who === "you" ? "You" : r.name}</span>
           <b className="type-num text-[18px]">{r.pts}</b>
         </div>
       ))}
@@ -470,7 +467,6 @@ function Rows({ rows }: { rows: { who: Person; name: string; pts: number; at: nu
 }
 
 function ShowScene({ go }: { go: boolean }) {
-  const me = useMe();
   const { b, root } = useBeats(SHOW, go, 2);
   const tab = b >= 4 ? 2 : b >= 2 ? 3 : 0;
   const climbed = b >= 5;
@@ -516,7 +512,7 @@ function ShowScene({ go }: { go: boolean }) {
             rows={[
               { who: "jordan", name: "jordan", pts: 21, at: 0 },
               { who: "riley", name: "riley", pts: 19, at: climbed ? 2 : 1 },
-              { who: "you", name: me.name, pts: climbed ? 20 : 18, at: climbed ? 1 : 2 },
+              { who: "you", name: "You", pts: climbed ? 20 : 18, at: climbed ? 1 : 2 },
             ]}
           />
         </div>
@@ -536,7 +532,6 @@ const EARNED = [
 ] as const;
 
 function PointsScene({ go }: { go: boolean }) {
-  const me = useMe();
   const { b, root } = useBeats(POINTS, go, POINTS.length);
   const mine = 126 + EARNED.slice(0, Math.min(b, 3)).reduce((n, [p]) => n + p, 0);
   const lead = b >= 4;
@@ -550,7 +545,7 @@ function PointsScene({ go }: { go: boolean }) {
       <Rows
         rows={[
           { who: "riley", name: "riley", pts: 132, at: lead ? 1 : 0 },
-          { who: "you", name: me.name, pts: mine, at: lead ? 0 : 1 },
+          { who: "you", name: "You", pts: mine, at: lead ? 0 : 1 },
           { who: "jordan", name: "jordan", pts: 97, at: 2 },
         ]}
       />
@@ -562,7 +557,7 @@ function PointsScene({ go }: { go: boolean }) {
           </span>
         ) : lead ? (
           <span key="lead" className="nd-tour-rise inline-flex h-7 items-center gap-1.5 text-[13px] font-bold">
-            <Trophy className="size-4" aria-hidden /> You lead the couch
+            <ArrowUp className="size-4" aria-hidden /> Up a place
           </span>
         ) : null}
       </div>
@@ -572,7 +567,8 @@ function PointsScene({ go }: { go: boolean }) {
 
 // ---------- 9 · never miss a move: a lock screen, two nudges land (or, on an iPhone, the Home Screen first) ----------
 
-const REMIND = [800, BEAT] as const;
+// The first nudge is there from the start (the step asks for a decision: the picture explains at once); the second lands.
+const REMIND = [LEAD] as const;
 
 function Nudge({ title, body, when, on }: { title: string; body: string; when: string; on: boolean }) {
   return (
@@ -619,8 +615,8 @@ function RemindScene({ go, reminders }: { go: boolean; reminders: TourReminders 
         <div className="text-[40px] font-light tracking-[-.02em]">6:00</div>
         <div className="mt-1 text-[12px] font-semibold text-white/85">Wednesday, November 4</div>
       </div>
-      <Nudge title="Survival Pool: episode 6 airs in about 2 hours" body="Make your episode 6 pick" when="now" on={b >= 1} />
-      <Nudge title="Episode 6 results are in" body="Reveal when you've watched" when="9:31 PM" on={b >= 2} />
+      <Nudge title="Survival Pool: episode 6 airs in about 2 hours" body="Make your episode 6 pick" when="now" on />
+      <Nudge title="Episode 6 results are in" body="Reveal when you've watched" when="9:31 PM" on={b >= 1} />
     </div>
   );
 }

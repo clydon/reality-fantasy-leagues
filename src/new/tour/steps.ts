@@ -32,11 +32,12 @@ export function tourSteps({ solo, reminders }: { solo: boolean; reminders: TourR
     solo
       ? { id: "invite", title: "Bring people in", line: "Start a couch, or join one with a code.", targets: ["[data-solo-start-couch]", "[data-solo-invite]"] }
       : { id: "invite", title: "Bring people in", line: "Your couch lives up here. Invite friends anytime.", targets: ['[data-tour="you"]'] },
+    // Only a real move: the status line saying results are in isn't yellow's lesson (nothing lit then).
     {
       id: "move",
       title: "Yellow means your move",
       line: "Some shows are games. Moves lock when the episode airs.",
-      targets: ['[data-upnext-plate="move"]', '[data-status="moves"]', "[data-status]"],
+      targets: ['[data-upnext-plate="move"]', '[data-status="moves"]'],
     },
     { id: "reveal", title: "Results wait for you", line: "Tap Reveal when you've watched. Chat waits too.", targets: ['[data-upnext-plate="reveal"]', '[data-status="reveal"]'] },
     { id: "show", title: "Inside each show", line: "Tap one for its cast, stats and standings.", targets: ["[data-poster]"] },

@@ -4,8 +4,8 @@
 
 Shaped with the user on 2026-10-31 through `/impeccable shape`, after everyone was moved onto the new design (0155). The
 classic tours (PLAN-guided-tour.md, PLAN-commissioner-tour.md) are classic's and play no part here. The clickable mock the user
-approved is a private page, https://claude.ai/artifact/KrgXF9AkNvpFeUv1Xn9qVf (source `.impeccable/mocks/tour/`, gitignored):
-its Look A, "in place", is the one built.
+approved is a private page, https://claude.ai/artifact/KrgXF9AkNvpFeUv1Xn9qVf (source `.impeccable/mocks/tour/` in the main
+folder, gitignored): its Look A, "in place", is the one built.
 
 ## What the user asked for
 
@@ -94,7 +94,16 @@ Start a game, waivers and other niche game flows, Watch along, ratings, the ⋯ 
 - **Reminders:** `remind.tsx markAsked`: the tour's ask counts as this phone's, so the sheet after a first save doesn't ask again.
 - **Changed from the mock:** Turn on is ink (the reminder sheet's), not yellow; the examples with a result, a stat or a pick
   are Golden Crust instead of Survivor 51's real cast (a spoiler for anyone behind); "Inside each show" and "Couch points" were
-  added after the mock (the user); the Home behind is the player's own.
+  added after the mock (the user); the Home behind is the player's own; the example's box is the ground, not the panel (the
+  examples' cards are the panel, and would vanish on it); the spotlight's corners are 4px (the broadcast shapes'), not 6.
+- **The /impeccable finish review (a fresh reviewer, 2026-10-31; disposition fix) and what changed for it:** the tour focuses
+  itself once, not Next each step (a programmatic focus drew the yellow focus ring on Next: the tour spends no yellow);
+  finishing scrolls to the top in at most 0.9 s with its clear layer still taking taps, then hands Home back (no tap on a
+  moving page); the examples' tables say "You", never your username, and Couch points' ends "Up a place" (not a lead claim
+  beside your real place); "Yellow means your move" lights only a real move (Up next's move plate, or the status line when it
+  says moves are due), else nothing; its example drops the tab bar (a second yellow); the reminders' example opens with the
+  first nudge there; Skip tour is 44px. Left as approved: step 2's "Game or not." (the reviewer suggested "Whatever you watch,
+  game or not."; the user's to say).
 - **Pictures:** `public/tour/` (80 KB): the three show pictures are the site mock's, four bakers copied from classic's tour.
 - **Leaving mid-tour** (Home unmounts with the tour up: the phone's back, a notification) keeps it as a skip at that step, a
   tick after the unmount so React's own remount in development doesn't count. A full unload (the app closed) keeps nothing:
