@@ -1274,6 +1274,25 @@ part moves nothing the study's format readers do; these replays show every game 
   viewer behind on one season sees that season's stage as far as they've seen it, Survivor's Sole Survivor doesn't end a game whose
   Traitors stage plays on, and a stage's results come only through its own season's sync.
 
+## A12 part 4c: late joiners in a game in stages, replayed blind (2026-10-30)
+
+A12's part 4c lets someone join a game in stages once it has started: they join each stage under way as that stage's own late joiner,
+live (a team from who's free, or from who's still in, dealt from a hat, a pick from the next episode), every stage still to start from its
+start, none that's over; nobody new while a stage keeps a newcomer waiting (someone out of a pool's lives, a draft's cuts, a game of
+questions' walk). A seat that leaves and comes back is the same seat in every stage, and a stage that began while it was away takes it as
+its late joiner. A format change reaches a late joiner as it reaches anyone: a copy a change starts (part 2) or a side stage (part 3) is
+made with the game's seats as they are then, the late joiner's among them, and each stage's own pieces read the groups at each lock. The
+tapes' four seats are there from the start (nobody joins late), so these replays show the new join rule and the seat sync change nothing
+for the games the tracker plays; the late joiners themselves are `tests/late-stages.test.js`'s and `scripts/dev-test/check-late-stages.js`'s.
+
+- **Every game played through and over on all five seasons**, part 4b's numbers exactly: Survivor 49 126 of 126, The Challenge 41 101
+  of 101, 40 95 of 95, 39 103 of 103, The Traitors 4 90 of 90; nothing refused; the questions waiting on early results finding 20's 3, 2
+  and 2.
+- **No game the tracker plays changed** (the golden replays agree: every read the same against the step before; against production's
+  engine only R1 part 3's 20 on The Challenge 40).
+- **Part 4b's item 8** (a stage on another season that never starts no longer keeps the game from ending: over once its league is) is
+  the unit tests' (a replay plays one season, so no tracker game on two seasons is replayed: part 4b).
+
 ## Appendix: the timelines
 
 Generated with `node scripts/dev-test/format-study.js --md`. "Brought in" is when viewers learned of a change, against when it

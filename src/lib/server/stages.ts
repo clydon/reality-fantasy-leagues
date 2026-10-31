@@ -22,12 +22,36 @@ export async function stagesOf(db: Queryable, parentId: string): Promise<{ id: s
   return rows.map((r) => ({ id: r.id as string, key: r.stage_key as string, state: r.state as LeagueState }));
 }
 
+type StageRow = { id: string; key: string; state: LeagueState };
+/** Step A12 part 4c: a game in stages' stage leagues in its spec's order (the game's own stages, then those beside them; a stage's copies
+ *  in the order they start). */
+export function inSpecOrder(parent: LeagueState, stages: StageRow[]): StageRow[] {
+  const ids = StateLogic.StageLogic.stages(parent).map((st) => st.id);
+  const at = (key: string) => {
+    const i = ids.indexOf(StateLogic.StageLogic.copyOf(key) ?? key);
+    return i < 0 ? ids.length : i;
+  };
+  const from = (s: StageRow) => StateLogic.startEpisode(s.state) ?? Number.POSITIVE_INFINITY;
+  return [...stages].sort((a, b) => at(a.key) - at(b.key) || from(a) - from(b));
+}
+/**
+ * Step A12 part 4c: the stages someone joining a game in stages once it has started joins as each one's late joiner (underway and
+ * taking them: StateLogic.StageLogic.joinsOf 'late'), in the spec's order, and the one whose team they pick as they join: the first
+ * with a team to pick that isn't dealt from a hat (DrawLogic.dealsLate). Read from the stages as stored: whether one keeps a newcomer
+ * waiting is the walk's (the game's join rule, StageLogic.closed), already read by the caller.
+ */
+export async function lateStages(db: Queryable, parentId: string, parent: LeagueState): Promise<{ late: StageRow[]; picks: StageRow | null }> {
+  const late = inSpecOrder(parent, await stagesOf(db, parentId)).filter((s) => StateLogic.StageLogic.joinsOf(s.state) === "late");
+  const picks = late.find((s) => StateLogic.GhostLogic.teamSize(s.state) > 0 && !StateLogic.DrawLogic.dealsLate(s.state)) ?? null;
+  return { late, picks };
+}
+
 /** The fields of a seat that are the seat's, not the game's: what a stage's copy of it mirrors. */
 const SEAT_FIELDS = ["name", "disabled", "formerName", "disabledFromUserId", "automated"] as const;
 type Fields = Record<string, unknown>;
 
 /** The game's seats a stage seats: everyone on it but a late joiner's private season or a seat waiting to be brought in (one that
- *  joined once the game had started: StateLogic.addPlayer). Someone who left is mirrored as left. */
+ *  joined once the game had started and its stages took nobody new: StateLogic.addPlayer). Someone who left is mirrored as left. */
 export const seatsToMirror = (parent: LeagueState) => parent.players.filter((p) => !p.ghost && !(p.active === false && !p.disabled));
 
 /**
@@ -48,17 +72,27 @@ function begunIn(stage: LeagueState): boolean {
   const first = StateLogic.startEpisode(stage);
   return StateLogic.DraftLogic.begun(stage) || (first !== null && StateLogic.SpoilerLogic.latestWithResults(stage) >= first);
 }
+/** Step A12 part 4c: whether any of a game in stages' stages has begun, so a seat leaving the game is kept there, disabled, rather than
+ *  removed (backstage-members.ts freeSeat: the game has no draft of its own to go by), and its account gets it back on its return. */
+export async function stagesBegun(db: Queryable, parentId: string): Promise<boolean> {
+  return (await stagesOf(db, parentId)).some((s) => begunIn(s.state));
+}
+/** Step A12 part 4c: a stage that's over seats nobody new (it counts nothing for them: StateLogic.StageLogic.joinsOf). */
+const seatsNobody = (stage: LeagueState) => StateLogic.StageLogic.joinsOf(stage) === "over";
 
 /**
- * A stage's seats as the game's (inside the stage's own write): a seat the game has and the stage doesn't is added (seatIn); a seat
- * gone from the game is taken out where the stage hasn't begun, else left (disabled) with its team and points, as leaving a game
- * does; a seat's name, leaving and coming back, and a computer player's switch are mirrored. Then the memberships
+ * A stage's seats as the game's (inside the stage's own write): a seat the game has and the stage doesn't is added (seatIn), by the
+ * stage's own rule for someone joining (step A12 part 4c: into its draft before it's underway, as its late joiner once it is, waiting
+ * where it takes nobody new; never in a stage that's over); a seat gone from the game, or one that left it (disabled there), is taken
+ * out where the stage hasn't begun, else left (disabled) with its team and points, as leaving a game does, and comes back under the
+ * same id; a seat's name, leaving and coming back, and a computer player's switch are mirrored. Then the memberships
  * (mirrorMemberships). Whether the stage's seats changed.
  */
 export async function seatStage(client: Queryable, parentId: string, parent: LeagueState, stageId: string, stage: LeagueState): Promise<boolean> {
   let changed = false;
   const all = new Set(parent.players.map((p) => p.id));
   const begun = begunIn(stage);
+  const shut = seatsNobody(stage);
   for (const q of [...stage.players]) {
     if (all.has(q.id)) continue;
     if (begun) {
@@ -70,9 +104,15 @@ export async function seatStage(client: Queryable, parentId: string, parent: Lea
   for (const p of seatsToMirror(parent)) {
     let q = stage.players.find((x) => x.id === p.id) as Player | undefined;
     if (!q) {
-      if (p.disabled) continue;
+      if (p.disabled || shut) continue;
       q = seatIn(stage, p);
       changed = true;
+    } else if (p.disabled && !begun) {
+      // Step A12 part 4c: left the game (kept there, disabled, once any stage has begun): gone from a stage that hasn't, as leaving
+      // before a draft is; back, it's seated again under the same id.
+      StateLogic.removePlayer(stage, q.id);
+      changed = true;
+      continue;
     }
     for (const f of SEAT_FIELDS) {
       const a = (p as unknown as Fields)[f];
@@ -133,12 +173,16 @@ export async function stagesToSeat(db: Queryable, parentId: string, parent: Leag
   return stages
     .filter(({ id, state }) => {
       if (state.players.some((q) => !all.has(q.id) && !q.disabled)) return true;
+      // Step A12 part 4c: as seatStage reads them (a stage that's over seats nobody new; a seat that left goes from one not begun).
+      const shut = seatsNobody(state);
+      const begun = begunIn(state);
       for (const p of mirror) {
         const q = state.players.find((x) => x.id === p.id);
         if (!q) {
-          if (!p.disabled) return true;
+          if (!p.disabled && !shut) return true;
           continue;
         }
+        if (p.disabled && !begun) return true;
         if (SEAT_FIELDS.some((f) => (p as unknown as Fields)[f] !== (q as unknown as Fields)[f])) return true;
       }
       const seated = new Set(seatedIds(parent, state));

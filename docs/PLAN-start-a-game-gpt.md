@@ -75,7 +75,11 @@ table the server's own counts of each seat's lines or right calls; a season of m
 game's own, at the same time, bingo lines plus answers added up; `answer-points.ts outsideCounts`, `schema.js stageAlongside`), is built,
 and so is 4b, one game across two shows (2026-10-30: a stage's `season`, a league on another season checked on that season's rules and
 cut at each viewer's mark there, the game over once its own stages are, never at its season's end; two stages of bingo or of Weekly
-Calls on one season at once refused; `schema.js stageSeason`, `StageLogic.crosses`, `stageWalk`'s viewer); 4c (late joiners) next. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
+Calls on one season at once refused; `schema.js stageSeason`, `StageLogic.crosses`, `stageWalk`'s viewer), and so is 4c, late joiners
+(2026-10-30: someone joining once it has started joins each stage under way as its own late joiner, live, every stage still to start from
+its start, none that's over, nobody new while a stage keeps them waiting; a seat that leaves and comes back the same seat in every stage;
+seats reaching the stages after every membership write; `StageLogic.joinsOf` and `closed`, `couch-joins.ts joinStaged`), so **A12 is
+done**; A13 next. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
 your terminal, then on), after the merge. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5 at
 xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: folded in here as track L; its file keeps the details)
@@ -4172,7 +4176,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
       the same time refused): built (below).
     - **4c: late joiners** (A12 part 1's item 6): someone joining a game in stages once it has started joins the stage in play as its own
       late joiner and every later stage from its start; a seat that left a begun stage and comes back; seats reaching the stages only
-      from `withLeagueLock` and `joinLeague`.
+      from `withLeagueLock` and `joinLeague`: built (below), with part 4b's item 8. **A12 is done.**
 
   **As built (A12 part 1, 2026-10-30, on `engine`, not merged; migration 0203).** One session, after `lane.js sync engine` (master's
   daylight-saving fixes and handoff; 1141 tests). A game in stages, on episodes and phases, with its overall. Every default and
@@ -4699,6 +4703,93 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     nothing refused; the questions waiting on early results finding 20's 3, 2 and 2. `blind.js` now leaves out a tracker game on more than
     one season (a replay plays one season, and the other stage's league would be made on a real season beside the tapes' copy):
     shape.twoShows and s20 are the unit tests' and `check-two-shows.js`'s. The study doc's "A12 part 4b".
+
+  **As built (A12 part 4c, late joiners, 2026-10-30, on `engine`, not merged; no migration).** One session, after `lane.js sync engine`
+  (master's Games tab insight; 1202 tests). Someone joining a game in stages once it has started joins each stage underway as that
+  stage's own late joiner, live, and every stage still to start from its start; a seat that left and comes back is the same seat in every
+  stage; seats reach the stages after every membership write; and part 4b's item 8. Every default and everything a person sees is the
+  user's (Noticed, below).
+  - **Each stage's own rule** (`state-logic.js StageLogic.joinsOf(stage)`, what `addPlayer` does with someone new there): 'over' once
+    it's over (`gameOver`; a stage of bingo or Weekly Calls once its last episode has aired; the walk also says over once its last entry
+    is) and nobody new is seated in it, so it counts nothing for them; 'draft' before it's underway (into its draft, as anyone); 'late'
+    once it is and it takes late joiners (they start live there, as that game alone takes one: a team from who's free where its castaways
+    are one team's each, from who's still in where they're shared, dealt from the hat after a draw, a pick or answers from the next
+    episode); 'waits' where it doesn't (someone's out of it: a pool's lives, a draft's cuts, a game of questions' walk; or its joining is
+    shut).
+  - **The game's rule over them** (`StageLogic.closed`, in `GhostLogic.allowed` and `addPlayer`, replacing part 1's "nobody new once the
+    first stage has started"): before its first stage starts, as any game; once it has, as its stages do, read from the walk (each stage
+    record's `joins`, `answer-points.ts stageWalk`, on the stage as it stands, so a game of questions' walk says who's out): nobody new
+    while any stage keeps a newcomer waiting (A11 part 5c's rule, one rule for the game: the couch's list says "locked"); else they join.
+    Without the walk (the stored state: classic's code join, an invite, Game settings), nobody new once it's started: the safe fallback, as
+    before. A join route that read the walk already says so (`opts.stagesOpen`). **Live only** (`GhostLogic.startChoices`: the next
+    episode to play): catching up would move the game's mark and each stage's apart, since each league reveals on its own (Noticed item 1).
+  - **The couch's join** (`couch-joins.ts`): a game in stages that has started is under way for joining from its first episode, results
+    or not. Its options (`stagedOptions`): live only, no catch-up; the team the first stage taking a late joiner with a team to pick wants
+    (spec order, the game's own stages first: `stages.ts lateStages`), its pool from that stage (`poolFrom`, shared with any game's
+    options), dealt where its teams came out of a hat. The join (`joinStaged`): the start must be the live one ("New players start from
+    Episode 7"); the team is checked on a copy of that stage first, as its own late join would check it, so a wrong team writes nothing;
+    then the game's seat (a late joiner from the next episode, seen at once, their mark where they are on the season), whose write seats
+    them in each stage by that stage's own rule (`syncStages` → `seatStage`: a late joiner where it's underway, its draft where it's still
+    to start, none where it's over); then each stage taking a late joiner starts them live there (`startInStages`: `GhostLogic.begin` and
+    `convert`, the team in the one that wants it, their mark there where they are on its season). A stage whose start fails (it moved on
+    meanwhile, or wants a team too) keeps their seat waiting for its start there (its own late join) and the join's answer names it
+    (`waits`: Noticed item 3).
+  - **A seat that leaves and comes back** (part 1's Noticed): the game has no draft of its own, so leaving always removed its seat, and
+    coming back made a new one in every stage, the old one left with its team. Now `backstage-members.ts freeSeat` keeps a game in stages'
+    seat, disabled, once any stage has begun (`stages.ts stagesBegun`; the take-out preview and the desk's Seats page read it the same
+    way, and the desk's Undo of a removed seat refuses once a stage has begun since: `desk-seat-moves.ts movedOn`), so the seat id is kept
+    and reclaimed by its account. `seatStage` mirrors it: left with its team in a stage that has begun, taken out of one that hasn't (as
+    leaving before a draft is), and back, the same seat (re-enabled, team and all) or seated again under the same id; a stage that began
+    while it was away takes it as its late joiner, live, with the team the join brings (checked first; none given, it waits for its start
+    there). `stagesToSeat` reads them the same way, so a stage that's over or a seat already let go is never written again.
+  - **Seats reach the stages after every membership write** (part 1's Noticed): `db.ts syncStagesFor(leagueIds)` (one query: whichever is
+    a game in stages) after the writes outside `withLeagueLock`: a role change (`roles.ts setLeagueRole`, so the desk's role, Backstage's
+    and their Undo), the desk's unlink, hand-on and the unlink's Undo (`desk-seats.ts`); every other seat move (the desk's link, take out,
+    put back, remove, leaving, joining) already runs through `withLeagueLock` or `joinLeague`, which sync after their commit.
+  - **Part 4b's item 8**: a stage on another season that never started is over once its league is (the walk's `ended`: the stage league's
+    `gameOver`, only as far as the viewer has seen there), counting nothing, so a game across two seasons whose other season ended before
+    that stage's start ends (`StageLogic.standings`; a stage on the game's own season is read as before: a merge that never comes ends with
+    the season).
+  - **The exclusive count** (the 9:10 PM decision): a late joiner in a stage whose exclusive draft is done takes from who's free (they
+    can't break it: a short team when too few are free, as any late joiner); someone seated in a stage still to draft is in its rotation, so
+    its count as it opens counts them (the check: 5 of you × 3, a late joiner and a seat that came back counted).
+  - **The tracker** needs no new row (joining is behaviour, not a spec's shape): regenerated unchanged, **189 ✅** · 57 ⏳ · 1 🆕 · 3 ❓ · 23
+    💬, of 273, and `--check`.
+  - **Tests:** `tests/late-stages.test.js` (new, 5): each stage's own rule (its draft, its late joiner, over, a bingo stage over as its last
+    episode airs, a pool with someone out, joining shut); the game's rule (before it starts, no walk, the walk, `stagesOpen`, any stage
+    waiting, no stage read, every stage over, live only); a late joiner seated in each stage by its own rule through `seatStage` (the
+    stage in play's late joiner with free agents, a later stage's draft, the exclusive count counting them, none in a stage that's over,
+    `stagesToSeat` agreeing, the overall counting nothing for a stage they weren't in); a seat that leaves and comes back (kept in a begun
+    stage, gone from one that hasn't, the same seat on return); part 4b's item 8. `npm test` 1207; `tsc` clean; `game-specs-flag.js check`:
+    PASS.
+  - **API check:** `scripts/dev-test/check-late-stages.js` (new, on new-fixture.js's couch), 43 PASS: two games in stages from the lab (A,
+    an exclusive Outlast then one from Merged; B, a Survival Pool with a life each, then an Outlast), joined before they start; Episode 6:
+    A takes someone new, B doesn't (alex out of its pool); sam's options (live from 7 only, a team of 2 from who's free in Pre-merge), a
+    catch-up start and a drafted castaway refused before anything's written, then sam joins live: seated in A, Pre-merge's late joiner from
+    7 with that team, seen at once, their mark where they are (3), in Post-merge's draft; sam can't join B; jordan leaves (kept, disabled,
+    in A and Pre-merge with the team, gone from Post-merge) and comes back (the same seat everywhere); the desk's role change reaches both
+    stages at once, and back; Merged at 8 and Episode 7: Pre-merge over, Post-merge's draft opens with five and goes shared, said so; kim
+    joins (no team to pick, seated in A and Post-merge only, 0 on A's table from Pre-merge); riley leaves, Post-merge begins at 8 while
+    they're away, riley comes back with a team of 3: Post-merge's late joiner from 9 under the same id. Also ALL PASS: `check-stages.js`
+    (its two lines on joining and on jordan's seat updated to this part's rule), `check-two-shows.js`, `check-mini-stages.js`,
+    `check-side-stages.js`, `check-change-stages.js`, `check-next-stage.js`, `check-late-joins.js`, `check-desk-seats.js`.
+  - **The code review** (`/code-review` at high, before the long runs; ten findings, seven taken): a seat coming back into a stage that
+    began while it was away was a late joiner there with no start (now started live, with the team the join brings); the take-out preview
+    and the desk's Seats page said a seat goes where it's now kept, and the desk's Undo of a removed seat could bring it back inactive
+    under a new id once a stage had begun (both read the stages now); a second stage wanting a team was left waiting silently (the join's
+    answer says `waits`); a walk with no stage read counted as open; a bingo or Calls stage never read as over (now once its last episode
+    airs, or its walk says so); the two pool builders shared. Left, in Noticed: `joins` read uncut (as any game's "locked" is), its cost,
+    and `syncStagesFor` added by hand.
+  - **Golden replays:** `golden.js` (HEAD, A12 part 4b, against the working tree, on the final code): 7 seasons, 160 games, **19,361
+    reads, every one the same** (no game they play is in stages, so nobody joins one late). Against master's (production's engine,
+    `--before=master`): every one the same but R1 part 3's 20 (The Challenge 40's Survival Pool, one seat's pick of the winner at the
+    final), nothing else. Joining and the seat sync change no game that isn't in stages, so the Survivor 51 rehearsal isn't run for this
+    part (golden is the proof).
+  - **Blind replays:** (`blind.js run`, the five seasons, on the final code): **every game played through and over on all five
+    seasons**, part 4b's numbers exactly: Survivor 49 126 of 126, The Challenge 41 101 of 101, 40 95 of 95, 39 103 of 103, The Traitors 4
+    90 of 90; nothing refused; the questions waiting on early results finding 20's 3, 2 and 2. Nobody joins late on the tapes' four seats
+    (each seat is there from the start), so the late joiners are the unit tests' and `check-late-stages.js`'s; the replays show the join
+    rule and the seat sync change nothing for the games already played. The study doc's "A12 part 4c".
 - **A13. Trivia and episode facts.** Trivia questions settled by the episode's trivia key (the bot's trivia research, written
   and checked as now); episode facts (who said the title quote) through new research questions rated reliable (Our check).
 - **A14. The players' own mechanics** (allowed 2026-10-28, with the Decisions table's guardrails): votes among the players,
@@ -5662,6 +5753,45 @@ From R1 part 2 (2026-10-30):
   (R3, or whoever next works in Game settings.)
 - **For the hosting notes, at the merge:** `/api/me` (classic's sign-in and every classic load) now sends each league's settings, not its
   whole state (20-40 KB each): less Neon transfer than before. (The main folder: docs/HOSTING.md, with the merge.)
+
+From A12 part 4c (2026-10-30):
+- **For the user, in the format-change design session (after A12), with A12 parts 1's to 4b's items, each with a recommendation (built as
+  engine rules):**
+  1. **Catching up in a game in stages.** Built: live only (the next episode to play), since each league reveals on its own and catching
+     up would move the game's mark and each stage's apart. Option: catch up from the stage in play's first episode where it's shared (as a
+     shared game alone offers), one reveal moving the game's mark and each stage's together (the linked leagues' one catch-up, `late-join.ts
+     revealAcrossGroup`'s pattern). Recommended: live only until a couch asks, then the mirrored reveal.
+  2. **Nobody new where a stage keeps them waiting.** Built: any stage there now that would keep a newcomer waiting (someone out of a
+     pool's lives, a draft's cuts, a game of questions' walk; its joining shut) closes the game. Options: join the other stages and wait in
+     that one. Recommended: keep (one rule, A11 part 5c's).
+  3. **Which stage's team the join asks for.** Built: the first stage taking a late joiner with a team to pick (the game's own stages
+     first); a second at the same time (a draft beside a draft) keeps their seat waiting for its start there, named in the join's answer
+     (`waits`). Option: the join takes a team per stage. Recommended: a team per stage on the join sheet (U1), the route taking `teams` by
+     stage; rare (two drafts at once).
+  4. **A stage that's over.** Built: a newcomer isn't seated there (it counts nothing for them; by places they're in no table there).
+     Option: seated with 0, so places counts them last. Recommended: keep.
+  5. **A late joiner's place.** Built: in the stage in play they're in its table from their start (points from then, places among
+     everyone); a stage still to start, as anyone. Recommended: keep, the game's page saying they joined late (U1, track V).
+  6. **Coming back.** Built: the same seat in every stage it was in, a stage that began while away taking it as its late joiner, live,
+     with the team the join brings (none: it waits for its start there). Recommended: keep; the join sheet asks for that team (U1).
+  7. **The code join and invites** (`join-league.ts`, classic's) to a game in stages once it has started: still part 1's rule (the seat
+     waits, inactive); brought in (`activatePlayer`), each stage seats it by its own rule (a late joiner there needing its start: its own
+     late join). Recommended: refuse the code join once it has started (A11 part 5c's item 3: one rule everywhere), the couch's join being
+     the way in, and Backstage's bring-in starting the seat live in each stage (U1).
+  8. **What players and the maker are told** (U1): live only and why, which stage's team they're picking, a stage that's over not counting
+     for them, a stage that kept their seat waiting for its start, the couch's list saying "join" for a game in stages under way.
+- **`JoinGame.shared` for a game in stages is the game's own** (no roster: shared), so a screen reading it would offer a catch-up;
+  `joinOptions` says the truth (`starts.catchUp` null, the team from the stage). (U1: read joinOptions.)
+- **`joins` is read on the walk uncut**, so the couch's list says "locked" for a game in stages once someone's out of one of its stages at
+  every viewer's mark, as it does for any game with someone out (A11 part 5c); the walk itself never reaches a client. (The design session,
+  with item 2.)
+- **`joinsOf` runs on every read of a game in stages** (each stage: underway, someone out, a pool's walk), small beside the walk's
+  `gameView`s; the join routes read the stages once more (`lateStages`). (The merge: HOSTING.md beside part 1's stageWalk line.)
+- **`syncStagesFor` is called by hand** after the membership writes outside `withLeagueLock` (the desk's unlink, hand-on and its Undo, a
+  role change); a new write path to a game's memberships must call it. (Whoever adds one.)
+- **A bingo or Calls stage with no end of its own** (its season's last episode from the schedule) still seats a newcomer after that last
+  episode has aired, until its walk says over (the engine has no schedule): the game is over by then anyway. (Nothing to do.)
+- **Part 4b's item 8 is built** (a stage on another season that never starts is over once its league is).
 
 From A12 part 4b (2026-10-30):
 - **For the user, in the format-change design session (after A12), with A12 parts 1's to 4a's items, each with a recommendation (built as

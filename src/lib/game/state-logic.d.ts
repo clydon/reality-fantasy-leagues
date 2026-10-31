@@ -390,7 +390,8 @@ declare const StateLogic: {
     startFor(state: LeagueState, playerId: string): number | null;
     isUnderway(state: LeagueState): boolean;
     /** Late joining is on unless the commissioner switched it off, the game is locked down, or someone is out of it (someoneOut). */
-    allowed(state: LeagueState): boolean;
+    /** A12 part 4c: `opts.stagesOpen`, a game in stages' stages read by the caller (StageLogic.closed). */
+    allowed(state: LeagueState, opts?: { stagesOpen?: boolean }): boolean;
     /** Step A11 part 5c: someone playing the league's own season is out for good (a draft's cuts, a game of questions' walk where the
      *  state carries it, a pool's lives). */
     someoneOut(state: LeagueState): boolean;
@@ -563,7 +564,7 @@ declare const StateLogic: {
   activeOwnedCount(state: LeagueState, playerId: string): number;
   totalCastCount(state: LeagueState): number;
   /** `someoneOut`: whether anyone is out of the game, as the caller read it (a game of questions' walk isn't in its state). */
-  addPlayer(state: LeagueState, name: string, opts?: { automated?: boolean; someoneOut?: boolean }): Player;
+  addPlayer(state: LeagueState, name: string, opts?: { automated?: boolean; someoneOut?: boolean; stagesOpen?: boolean }): Player;
   updatePlayer(state: LeagueState, id: string, field: string, value: unknown): void;
   removePlayer(state: LeagueState, id: string): void;
   disablePlayer(state: LeagueState, playerId: string, disabledFromUserId?: string): Player | null;
@@ -919,6 +920,10 @@ declare const StateLogic: {
     /** A12 part 4b: a game with an own stage on another season is over once every own stage is. */
     overAcross(state: LeagueState): boolean;
     started(state: LeagueState): boolean;
+    /** A12 part 4c: how a stage's own league takes someone new now ('over', 'draft', 'late', 'waits'), and whether a game in stages
+     *  takes nobody new (from the walk's `joins`; `opts.stagesOpen` the caller's reading; no walk: nobody once it's started). */
+    joinsOf(stage: LeagueState): StageJoins;
+    closed(state: LeagueState, opts?: { stagesOpen?: boolean }): boolean;
     /** A12 part 2: a stage a format change starts (its copies keyed `<stage id>@<change id>`), how the game takes a change, what it
      *  remembers of them, the maker's answer, and where each copy plays (changePlan, from the format's state over time). */
     copyOf(key: string): string | null;
@@ -1100,8 +1105,11 @@ export interface StageWalk {
   /** A12 part 4a: `outside`, a stage scored outside the game (bingo, Weekly Calls): an entry for each episode as it airs. A12 part 4b:
    *  `season`, the key of the season a stage plays on when it isn't the game's own (its entries that season's episodes, cut at the
    *  viewer's mark there by the server), and each entry's `at`, when that episode aired (where known). */
-  stages: { key: string; leagueId: string; from: number | null; to: number | null; outside?: boolean; season?: string; entries: { episode: number; at?: string; over: boolean; rows: StageRow[] }[] }[];
+  stages: { key: string; leagueId: string; from: number | null; to: number | null; outside?: boolean; season?: string; joins?: StageJoins; ended?: boolean; entries: { episode: number; at?: string; over: boolean; rows: StageRow[] }[] }[];
 }
+/** A12 part 4c: how a stage's league takes someone new (StageLogic.joinsOf), on each stage of the walk; and `ended`, a stage on another
+ *  season whose league is over as far as the viewer has seen there (a stage that never started counts as over then). */
+export type StageJoins = "over" | "draft" | "late" | "waits";
 /** A12 part 2: a format change as a stage's trigger (format-timeline.js stageTriggers). */
 export interface StageTrigger {
   id: string;

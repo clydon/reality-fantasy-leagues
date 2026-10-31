@@ -171,4 +171,23 @@ export async function syncStages(parentId: string, parent: LeagueState): Promise
   }
 }
 
+/**
+ * Step A12 part 4c: syncStages for whichever of these leagues is a game in stages, after a write to their memberships that isn't a write
+ * to the game (the desk's unlink and hand-on, a role change: roles.ts setLeagueRole), so the stages follow at once rather than at the
+ * game's next write. One query; nothing for any other league.
+ */
+export async function syncStagesFor(leagueIds: string[]): Promise<void> {
+  const ids = [...new Set(leagueIds)].filter(Boolean);
+  if (!ids.length) return;
+  try {
+    const { rows } = await pool.query(
+      "SELECT l.id, l.state FROM leagues l WHERE l.id = ANY($1::uuid[]) AND EXISTS (SELECT 1 FROM leagues c WHERE c.stage_of = l.id AND c.deleted_at IS NULL)",
+      [ids]
+    );
+    for (const r of rows) await syncStages(r.id as string, r.state as LeagueState);
+  } catch (e) {
+    console.error("[stages] seats after a membership change:", e);
+  }
+}
+
 // A subtle, non-editable feed entry (episode eliminations, resolved bets) attributed to no user.

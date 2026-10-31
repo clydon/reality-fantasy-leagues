@@ -4414,7 +4414,10 @@ class StageLogic {
       const upTo = season ? Infinity : Math.min(w && w.outside ? aired : latest, cap);
       const entries = w ? (w.entries || []).filter(e => e.episode <= upTo && !(atCap !== undefined && e.at && Date.parse(e.at) > atCap)) : [];
       const last = entries.length ? entries[entries.length - 1] : null;
-      return { key: w ? w.key : st.id, stage: st.id, copy, side: !!Spec.stageSide(st), alongside: !!Spec.stageAlongside(st), season, name: st.name || null, leagueId: w ? w.leagueId : null, from: w ? w.from : null, to: w ? w.to : null, started: !!last, over: !!(last && last.over), rows: last ? last.rows : [], ...(last && last.at ? { at: last.at } : {}) };
+      // A12 part 4c (part 4b's item 8): a stage on another season that never started is over once its league is (its season ended
+      // before its start, the walk's `ended`, as far as the viewer has seen there), counting nothing, so the game can end.
+      const over = !!(last && last.over) || (!!season && !last && !!(w && w.ended));
+      return { key: w ? w.key : st.id, stage: st.id, copy, side: !!Spec.stageSide(st), alongside: !!Spec.stageAlongside(st), season, name: st.name || null, leagueId: w ? w.leagueId : null, from: w ? w.from : null, to: w ? w.to : null, started: !!last, over, rows: last ? last.rows : [], ...(last && last.at ? { at: last.at } : {}) };
     };
     // A12 part 2: a stage a format change starts is its copies, in the order they start (none until its change comes); A12 part 3: a
     // side stage too (none until a grouping lasts).
@@ -4687,13 +4690,42 @@ class StageLogic {
     const st = StageLogic.standings(state).filter(x => !x.side && !x.alongside);
     return st.length > 0 && st.every(x => x.over);
   }
-  // Its first stage has started: the game's first episode has results, or has aired. Nobody new joins then (GhostLogic.allowed).
+  // Its first stage has started: the game's first episode has results, or has aired. From then on someone new joins as its stages
+  // take them (closed).
   static started(state){
     if(!StageLogic.on(state)) return false;
     const first = startEpisode(state);
     if(first === null) return false;
     if(SpoilerLogic.latestWithResults(state) >= first) return true;
     return hasAired((state.episodes || []).find(e => e.number === first));
+  }
+  // A12 part 4c: how a stage's own league takes someone new now, by its own rules (what addPlayer does with them there): 'over' once
+  // it's over (nobody new is seated in it: it counts nothing for them), 'draft' before it's underway (into its draft, as anyone),
+  // 'late' once it is and it takes late joiners (they start live, as that game alone takes one: a team from who's free, dealt from
+  // the hat, a pick or answers from the next episode), 'waits' where it doesn't (someone's out of it, or its joining is shut).
+  static joinsOf(stage){
+    if(gameOver(stage)) return 'over';
+    // A stage of bingo or Weekly Calls ends as its last episode airs (no results to wait for: A12 part 4a); the walk also says 'over'
+    // once its last entry is (answer-points.ts stageWalk, where the season's schedule ends one with no end of its own).
+    const pieces = piecesOf(stage);
+    const end = lastEpisode(stage);
+    if((pieces.hasBingo || pieces.hasCalls) && end !== null && hasAired((stage.episodes || []).find(e => e.number === end))) return 'over';
+    if(!GhostLogic.isUnderway(stage)) return 'draft';
+    return GhostLogic.allowed(stage) ? 'late' : 'waits';
+  }
+  // A12 part 4c: whether a game in stages takes nobody new now. Before its first stage starts, as any game (into each stage's
+  // draft). Once it has, as its stages do (the walk's `joins` for each stage league there now, the server's: answer-points.ts
+  // stageWalk): nobody new while any keeps a newcomer waiting (someone's out of it: A11 part 5c's rule, one rule for the game);
+  // else they join each stage underway as its late joiner, live, every stage still to start from its start, none that's over.
+  // Without the walk (the stored state), nobody new once it's started: the safe fallback. `opts.stagesOpen`: the caller read the
+  // walk already (a join route, whose write runs on the stored state).
+  static closed(state, opts){
+    if(!StageLogic.started(state)) return false;
+    if(opts && typeof opts.stagesOpen === 'boolean') return !opts.stagesOpen;
+    const walk = StageLogic.walkOf(state);
+    // No stage league read (none made, or all taken away): nowhere to seat them.
+    if(!walk || !walk.stages.length || walk.stages.some(st => !st.joins)) return true;
+    return walk.stages.some(st => st.joins === 'waits');
   }
 }
 
@@ -4721,9 +4753,10 @@ class RosterLogic {
     const turn = DraftLogic.currentTurn(state); // reflects players/draftOrder BEFORE this one is added
     const underway = GhostLogic.isUnderway(state);
     // A12 part 1: a game in stages whose first stage has started takes nobody new either (a code join, which nothing else gates,
-    // waits inactive, as one once someone's out does).
-    const out = (underway && (opts && typeof opts.someoneOut === 'boolean' ? opts.someoneOut : GhostLogic.someoneOut(state))) || StageLogic.started(state);
-    const late = !newPlayer.automated && !out && GhostLogic.allowed(state) && underway;
+    // waits inactive, as one once someone's out does). A12 part 4c: unless its stages take them (StageLogic.closed: the walk's, or
+    // `opts.stagesOpen`, the caller's reading of it): a late joiner then, playing live (its own start is the stages' first still open).
+    const out = (underway && (opts && typeof opts.someoneOut === 'boolean' ? opts.someoneOut : GhostLogic.someoneOut(state))) || StageLogic.closed(state, opts);
+    const late = !newPlayer.automated && !out && GhostLogic.allowed(state, opts) && underway;
     state.players.push(newPlayer);
     if(late){
       // A late joiner: invisible to the league, and they choose where to start (GhostLogic).
@@ -7652,8 +7685,9 @@ class GhostLogic {
   // On unless a commissioner switched it off (absent = on, so it covers every league that predates it), or locked the game down.
   // A11 part 1: nor once someone is knocked out of the game (a newcomer would join a field already cut: the fallback). Part 5c: the
   // same rule for every game that knocks people out (someoneOut).
-  // A12 part 1: nor once a game in stages' first stage has started (a seat joins it to join every stage: StageLogic.started).
-  static allowed(state){ return gameOf(state).extras.join !== 'locked' && !GhostLogic.lockedDown(state) && !GhostLogic.someoneOut(state) && !StageLogic.started(state); }
+  // A12 part 1: nor once a game in stages' first stage has started (a seat joins it to join every stage: StageLogic.started). A12 part
+  // 4c: unless its stages take them, each by its own rule (StageLogic.closed: read from the walk, or `opts.stagesOpen`).
+  static allowed(state, opts){ return gameOf(state).extras.join !== 'locked' && !GhostLogic.lockedDown(state) && !GhostLogic.someoneOut(state) && !StageLogic.closed(state, opts); }
   // Whether anyone playing the league's own season is out of the game for good: a draft's cuts and a game of questions' walk
   // (KnockoutLogic.outs; a game of questions' only where the state carries its walk, which the server's copy as it stands does:
   // answer-points.ts asItStands, so whatever reads joining walks it first), or a pool's lives run out with no buyback left
@@ -7701,6 +7735,9 @@ class GhostLogic {
     const latest = SpoilerLogic.latestWithResults(state);
     const start = startEpisode(state);
     if(start === null) return [latest + 1];
+    // A12 part 4c: a game in stages once it's started takes a newcomer live only: catching up would move its mark and each stage's
+    // apart (each league reveals on its own), so the next episode to play is the only start (the plan's Noticed).
+    if(StageLogic.started(state)) return [latest + 1];
     const out = [];
     for(let n = start; n <= latest + 1; n++) out.push(n);
     return out;

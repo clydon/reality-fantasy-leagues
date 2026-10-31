@@ -11,11 +11,12 @@
 //   - The second stage's draft can't start yet (409, and why); the first's is drafted through the draft routes, turn by turn.
 //   - Episode 6's result (the season sync) reaches every stage; the Games tab's table for the game is the first stage's.
 //   - jordan leaves the game: their memberships go from both stages, their seat left (disabled, team and points kept) in the first
-//     (it has begun) and taken out of the second (it hasn't).
+//     (it has begun) and taken out of the second (it hasn't); the game keeps it, disabled (step A12 part 4c).
 //   - The desk confirms Merged at Episode 8: the first stage ends with Episode 7, the second starts with 8 (each a line in its Recent
 //     changes); its draft still waits, now for Episode 7's results.
 //   - Episode 7's result: the second stage's draft opens, and four of you × 3 is more than who's still in, so it's shared, with a
-//     line in its Recent changes; it's drafted in private through the blind lock route; nobody new can join the game now.
+//     line in its Recent changes; it's drafted in private through the blind lock route; the game still takes someone new (step A12
+//     part 4c: Pre-merge is over, Post-merge's draft hasn't begun).
 //   - Episode 8's result: the game's table is each seat's two stages added up; the first stage is over; sam, behind, sees nothing
 //     until their mark reaches a stage's episodes, then the first stage only; the couch's hub counts the game, never its stages.
 //   - The desk deletes the game: its stages go with it, their memberships too; restored, they're back, memberships and all.
@@ -173,7 +174,8 @@ const STAGED = {
     check(po.settings.ownershipMode === "shared" && S.DraftLogic.waits(po) === null, `Episode 7's result: Post-merge's draft opens, and 4 of you × 3 is more than the ${left} still in: it's shared`, JSON.stringify({ own: po.settings.ownershipMode }));
     check((await changes(post)).some((t) => t === `The draft is shared: 4 of you × 3 is more than the ${left} still in, so two of you can have the same one`), "  whoever runs it hears, in its Recent changes", JSON.stringify(await changes(post)));
     const games = (await as.alex.call("GET", `/api/couches/${couch}/games`)).body.games ?? [];
-    check(games.find((x) => x.leagueId === G)?.mode === "locked", "  nobody new can join the game now its first stage has started");
+    // Step A12 part 4c: someone new joins as its stages take them: Pre-merge is over (none there), Post-merge's draft hasn't begun.
+    check(games.find((x) => x.leagueId === G)?.mode !== "locked", "  the game still takes someone new, as its stages do (Pre-merge over, Post-merge's draft to come)");
     r = await as.desk.call("POST", `/api/leagues/${post}/draft/force-start`, {});
     check(r.status === 200, "  its draft starts", `${r.status} ${errorOf(r)}`);
     const ids = still(po).map((c) => c.id);
@@ -208,7 +210,8 @@ const STAGED = {
     const hubIds = (hub.games ?? []).map((x) => x.leagueId);
     check(hubIds.includes(G) && !hubIds.includes(pre) && !hubIds.includes(post), "  the couch's hub counts the game, never its stages", JSON.stringify(hubIds));
     st = await stateOf(G);
-    check(st.players.length === 4 && !st.stageWalk, "  the game's own state stores no walk (worked out on every read)");
+    // Step A12 part 4c: jordan's seat kept, disabled (a stage had begun when they left: backstage-members.ts freeSeat).
+    check(st.players.length === 5 && st.players.filter((p) => p.disabled).length === 1 && !st.stageWalk, "  the game's own state stores no walk (worked out on every read); jordan's seat kept there, disabled");
 
     // ---------- the desk deletes the game, and restores it ----------
     const stageRows = async () => (await pool.query("SELECT l.id, l.deleted_at IS NOT NULL AS gone, (SELECT count(*)::int FROM league_memberships m WHERE m.league_id = l.id) AS seats FROM leagues l WHERE l.stage_of = $1 ORDER BY l.id", [G])).rows;

@@ -152,7 +152,12 @@ export async function stageWalk(parentId: string, parent: LeagueState, viewer?: 
         entries.push({ episode: n, ...(at ? { at } : {}), over: v.over, rows: v.table.map((t) => ({ playerId: t.playerId, points: t.total, place: t.place })) });
         if (v.over) break;
       }
-      return { key: r.key, leagueId: r.id, from, to: StateLogic.lastEpisode(state), ...(outside ? { outside: true } : {}), ...(there ? { season: there } : {}), entries };
+      // Step A12 part 4c: how the stage takes someone new now (StageLogic.joinsOf, on it as it stands: a game of questions' walk says
+      // who's out), for the game's join rule (StageLogic.closed); and, on another season, whether its league is over as far as the
+      // viewer has seen there (one that never started then counts as over: part 4b's item 8).
+      const ended = there && (cut === null || cut >= latest) && StateLogic.gameOver(state);
+      const joins = entries.length && entries[entries.length - 1].over ? "over" : StateLogic.StageLogic.joinsOf(state);
+      return { key: r.key, leagueId: r.id, from, to: StateLogic.lastEpisode(state), ...(outside ? { outside: true } : {}), ...(there ? { season: there } : {}), joins, ...(ended ? { ended: true } : {}), entries };
     })
   );
   return { stages };
