@@ -1,13 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowLeftRight, AtSign, Bell, BookOpen, Bot, Eye, FastForward, KeyRound, LayoutTemplate, LifeBuoy, LogOut, Mail, MonitorSmartphone, Plus, TriangleAlert, UserRound, Users } from "lucide-react";
+import { ArrowLeftRight, AtSign, Bell, BookOpen, Bot, Compass, Eye, FastForward, KeyRound, LayoutTemplate, LifeBuoy, LogOut, Mail, MonitorSmartphone, Plus, TriangleAlert, UserRound, Users } from "lucide-react";
 import { authClient, logOutTo } from "@/lib/auth-client";
 import { presetOf, PRESET_WORDS, SHARE_DEFAULT } from "@/lib/sharing";
 import { profileApi, switchDesign, useAfterProfile, useCurrentCouch, useHome, useProfile, type AiChoice, type Profile } from "../data";
 import { couchLine, FaceStack, openCouchSheet } from "../couch/couch-sheets";
+import { useNav } from "../nav";
 import { paths } from "../routes";
 import { useMe } from "../session";
+import { askTour } from "../tour/store";
 import { Avatar, PageHeader } from "../ui/bars";
 import { Loaded } from "../ui/loaded";
 import { Btn, Row, SectionHead } from "../ui/parts";
@@ -26,8 +28,9 @@ import { AutoSection, autoShows, plain } from "./keep-up";
 // one yellow plate when nothing reaches you), Couch chat, Hide scores (turning it off asks first: Undo can't unsee a result)
 // and Appearance (appearance.tsx). Then Everything else, each a row saying what it's set to that opens in place (Fold): Which
 // notifications, Shows that move along by themselves (keep-up.tsx), What your couch sees (sharing.tsx), Your couches, and Your
-// AI for results for whoever runs a game (only Backstage's Ask an AI reads it). Then Help and account: How each game works,
-// Report a problem, Your account (with the classic design), Sign out, Credits. (A site admin's Test couch went 2026-10-31.)
+// AI for results for whoever runs a game (only Backstage's Ask an AI reads it). Then Help and account: Take the tour (Home plays
+// the first-time tour again: docs/PLAN-first-time-tour.md), How each game works, Report a problem, Your account (with the classic
+// design), Sign out, Credits. (A site admin's Test couch went 2026-10-31.)
 // In plain words; every choice says what it does, the recommended one marked; a switch or a choice saves as it's tapped, with
 // Undo where it matters.
 
@@ -43,6 +46,7 @@ const EDGE_BTN = "nd-press inline-flex h-11 flex-none items-center justify-cente
 
 export function SettingsScreen() {
   const me = useMe();
+  const nav = useNav();
   const { data: home } = useHome();
   const { data: p } = useProfile();
   const after = useAfterProfile();
@@ -222,6 +226,16 @@ export function SettingsScreen() {
         <section className="mt-7" data-settings-help>
           <SectionHead title="Help and account" />
           <div className="flex flex-col px-4">
+            <Row
+              icon={Compass}
+              title="Take the tour"
+              detail="A quick look around Home, about a minute"
+              onClick={() => {
+                // Home plays it (tour/store.ts), back where Settings came from.
+                askTour();
+                nav.back(paths.home);
+              }}
+            />
             <Row icon={BookOpen} title="How each game works" detail="Outlast, Weekly Lineup, Survival Pool and the rest, in plain words" onClick={open("games")} />
             <Row icon={LifeBuoy} title="Report a problem" detail="Or an idea. It goes straight to us" onClick={open("report")} />
             <Fold id="account" icon={UserRound} title="Your account" value={`${username}${p?.account.google.linked ? " · Google linked" : ""}`}>

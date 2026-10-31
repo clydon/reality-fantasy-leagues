@@ -340,6 +340,18 @@ Last updated 2026-10-27.
       `giphyUrl` and left its test. **When:** whoever next touches GIFs.
     - **check-new-hub's grow note** asked `isVisible` the instant the address changed and failed twice in a row on a busy
       machine; it now waits for the page to slide in.
+38. **What the first-time tour left (noticed 2026-10-31, building it on branch `tour`; docs/PLAN-first-time-tour.md).**
+    - **Nothing reads `tour_reached` yet** (the furthest step an account got to, kept with `tour_seen_at`): a line on the desk's
+      person page, or a count of who skipped where, would say whether the tour's too long. **When:** the next desk people change.
+    - **The three show pictures in `public/tour/`** (Survivor, The Traitors, Pluribus) are the site mock's art, with the same
+      open question as /mock (PRODUCT.md: network key art has no confirmed usage rights). If that's settled against, the
+      examples can take the player's own shows' art (the home read has it) or the art-less placeholder.
+    - **Turn on is two colours across the app:** the reminder sheet's and the tour's are the bone ink button (yellow is for what
+      you must do), Settings' "this phone" plate is yellow. The tour follows the sheet. **When:** the next reminders change.
+    - **new-fixture.js's shows carry art the home read never shows** (it takes the season's `art_url` first, and the fixture's
+      seasons have none), so screenshots of the fixture's Home are art-less unless the seasons get it.
+    - **A player on several couches** gets the tour on the couch Home opens with; nothing in it says how to switch couches
+      (the profile sheet does). Left out on purpose: the simpler the better.
 
 
 

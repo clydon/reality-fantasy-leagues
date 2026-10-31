@@ -21,6 +21,18 @@ and the Neon password rotation (deferred; steps there). Fixed 2026-10-24: the ch
 end); GitHub Actions, stopped since 2026-10-19, runs again. Vercel builds production only (Preview shared
 production's database).
 
+## The first-time tour (2026-10-31; built on branch `tour`, lane `rfl-tour` port 3007, not merged: migration 0158)
+Everyone's on the new design (0155), so the user asked for the quickest, most useful first tour for players: couch first, then
+the game, few steps, almost no words, the real thing lit, examples instead of paragraphs; shaped with `/impeccable shape`, a
+clickable mock picked (Look A, "in place": https://claude.ai/artifact/KrgXF9AkNvpFeUv1Xn9qVf, from `.impeccable/mocks/tour/`),
+then built. **Read [PLAN-first-time-tour.md](PLAN-first-time-tour.md)** (the steps and their words, how it behaves, As built).
+Nine steps (eight when this phone already gets reminders; solo players get the couch pitched and no Couch points), once per
+account (`user_settings.tour_seen_at` / `tour_reached`, migration 0158), replay from Settings › Help and account or
+`/home?tour=1`, never while an admin acts as someone. **Checks:** `scripts/dev-test/check-new-tour.js` (92 PASS on the lane),
+`tests/tour-steps.test.js`; `npm test` 1227 of 1228 (the known `watch-along.test.js` failure, BACKLOG 37). **To ship:** it
+carries a migration, so the merge goes the rehearsal way (memory: deploy-rehearsal-routine) and not on an episode night.
+BACKLOG 38 has what it left.
+
 ## Settings, redesigned (2026-10-31; pushed to master the same day, no migration)
 The user found Settings "very difficult to navigate" (every section open at once, about 35 controls, several screens long).
 Four phone mocks and an /impeccable critique (dual-agent; A 25, B 27, C 19 /40; archived in `.impeccable/critique/`) are on a

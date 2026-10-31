@@ -11,6 +11,7 @@ import { BothWatch, CouchWatching, Feed, Foot, GetGoing, GrowNote, nextShow, OnN
 import { SoloHub } from "../hub/solo-hub";
 import { NotesBell } from "../hub/notes";
 import { useMe } from "../session";
+import { Tour } from "../tour/tour";
 import { TopBar } from "../ui/bars";
 import { Loaded } from "../ui/loaded";
 import { Btn, EmptyState } from "../ui/parts";
@@ -57,6 +58,8 @@ export function HomeScreen() {
           ) : (
             <FocusHub home={home} couch={couch} hub={hub} />
           )}
+          {/* The first-time tour (docs/PLAN-first-time-tour.md): once Home's shown, the first time, or asked for from Settings. */}
+          <Tour home={home} hub={hub} solo={shape === "solo"} />
         </Loaded>
       )}
       <ProfileSheet open={profile} onOpenChange={setProfile} me={me} couch={couch} hub={hub} />

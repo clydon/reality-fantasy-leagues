@@ -54,9 +54,10 @@ export const GET = apiRoute(async (req) => {
     couchMembers(couchIds),
     games(user.id, { couchIds }),
     games(user.id, { mine: true }),
-    // Your own face (step 15 part 1): your colour and picture, for your avatar wherever it shows; and your theme (part 4).
+    // Your own face (step 15 part 1): your colour and picture, for your avatar wherever it shows; and your theme (part 4). And
+    // whether you've seen the first-time tour (docs/PLAN-first-time-tour.md, 0158).
     pool.query(
-      `SELECT s.colour, s.theme, (EXTRACT(EPOCH FROM p.updated_at) * 1000)::bigint AS picture
+      `SELECT s.colour, s.theme, s.tour_seen_at IS NOT NULL AS tour_seen, (EXTRACT(EPOCH FROM p.updated_at) * 1000)::bigint AS picture
          FROM "user" u LEFT JOIN user_settings s ON s.user_id = u.id LEFT JOIN user_pictures p ON p.user_id = u.id WHERE u.id = $1`,
       [user.id]
     ),
@@ -161,6 +162,7 @@ export const GET = apiRoute(async (req) => {
       colour: (face.rows[0]?.colour as string | null) ?? null,
       picture: face.rows[0]?.picture == null ? null : Number(face.rows[0].picture),
       theme,
+      tourSeen: !!face.rows[0]?.tour_seen,
     },
     couches: couchRows.map((c) => ({
       id: c.id,

@@ -263,6 +263,7 @@ export function UpNext({ home, show, couch }: { home: Home; show: HomeShow; couc
           <NavLink
             href={href}
             channel
+            data-upnext-plate={kind}
             className="nd-press relative z-[1] flex min-h-14 w-full items-stretch overflow-hidden rounded-[3px] bg-plate text-left text-plate-foreground shadow-plate"
           >
             <span
@@ -938,16 +939,18 @@ export function GetGoing({ home, couch }: { home: Home; couch: Couch | null }) {
 /** One of the grow note's lines: a promise until it's arrived, then a way to the page it promised. */
 function GrowLine({ page, icon: Icon, ready, text }: { page: string; icon: typeof Trophy; ready: string | null; text: string }) {
   const p = usePushedPage(page);
+  // Couch points' row is the first-time tour's to light (docs/PLAN-first-time-tour.md), promised or there.
+  const tour = page === "rankings" ? "rankings" : undefined;
   if (!ready) {
     return (
-      <li className="flex min-h-11 items-center gap-2.5 text-[13.5px] text-muted-foreground">
+      <li data-tour={tour} className="flex min-h-11 items-center gap-2.5 text-[13.5px] text-muted-foreground">
         <Icon className="size-4 flex-none" aria-hidden />
         {text}
       </li>
     );
   }
   return (
-    <li>
+    <li data-tour={tour}>
       <button type="button" data-grow={page} onClick={p.show} className="flex min-h-11 w-full items-center gap-2.5 text-left text-[13.5px]">
         <Icon className="size-4 flex-none" aria-hidden />
         <span className="flex-1">{ready}</span>

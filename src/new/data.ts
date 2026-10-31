@@ -233,8 +233,8 @@ export interface CouchShow extends SeasonHeader {
 }
 
 export interface Home {
-  /** You: your face, and your Appearance (step 15 part 4). */
-  user: { id: string; name: string; colour: string | null; picture: number | null; theme: Theme };
+  /** You: your face, and your Appearance (step 15 part 4); whether you've seen the first-time tour (docs/PLAN-first-time-tour.md). */
+  user: { id: string; name: string; colour: string | null; picture: number | null; theme: Theme; tourSeen?: boolean };
   couches: Couch[];
   shows: HomeShow[];
   /** The couches' shows you don't follow (step 10: The couch is watching); who watches each is in the couches' members. */
@@ -1028,6 +1028,22 @@ export function useAfterProfile() {
 
 /** After joining or leaving a couch or a game: everything the new design reads moves on. */
 export const useAfterCouch = useAfterReveal;
+
+/**
+ * The first-time tour finished or skipped (docs/PLAN-first-time-tour.md; /api/me/tour): Home stops asking at once, and the
+ * account keeps it (the furthest step it got to). A write that fails leaves it to play again next time.
+ */
+export function useTourSeen() {
+  const qc = useQueryClient();
+  return useCallback(
+    (reached: number) => {
+      qc.setQueryData<Home>(HOME_KEY, (h) => (h ? { ...h, user: { ...h.user, tourSeen: true } } : h));
+      // keepalive: it's sent even if the page is left or reloaded straight after.
+      return fetch("/api/me/tour", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ reached }), keepalive: true }).catch(() => null);
+    },
+    [qc]
+  );
+}
 
 // ---- notifications (step 15 part 2; notify-prefs.ts): the bell, read when it opens (its count rides on the home read, never
 // polled), and a show's own switches, read when its sheet opens ----

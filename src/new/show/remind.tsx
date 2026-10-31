@@ -78,6 +78,12 @@ function remember(userId: string, patch: Memory) {
   emit();
 }
 
+/** The first-time tour asked on this device (docs/PLAN-first-time-tour.md, tour/tour.tsx): the sheet after a first save doesn't
+ *  ask again (unless it showed the iPhone's pictures and the app's on the Home Screen now, as when the sheet showed them). */
+export function markAsked(userId: string, as: "off" | "install") {
+  remember(userId, { asked: { at: Date.now(), as } });
+}
+
 /** Your moves saved: ask once, if this device hasn't (or asked only for the Home Screen and the app is installed now). */
 export function askAfterSave(kinds: string[]) {
   sheet = { open: true, kinds, fromRow: false };

@@ -607,3 +607,52 @@ html[data-nav="right"] .nd-dock {
     animation: none;
   }
 }
+
+/* The first-time tour (docs/PLAN-first-time-tour.md, src/new/tour/): a finger's tap in the examples (white with a dark edge, so
+   it reads on a white plate, a yellow button and the night alike), the search field's caret, a step's words rising in as the
+   page moves to it, a point landing in the Couch points example, and each example fading in. Reduced motion: none of it (the
+   examples hold their teaching picture still). */
+@keyframes nd-tour-tap {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+  30% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.35); }
+}
+.nd-tour-tap {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.95);
+  outline: 1.5px solid rgba(18, 16, 24, 0.5);
+  background: rgba(18, 16, 24, 0.16);
+  pointer-events: none;
+  animation: nd-tour-tap 0.62s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+@keyframes nd-tour-caret {
+  50% { opacity: 0; }
+}
+.nd-tour-caret {
+  animation: nd-tour-caret 1s steps(1) infinite;
+}
+@keyframes nd-tour-rise {
+  from { opacity: 0; transform: translateY(6px); }
+}
+.nd-tour-rise {
+  animation: nd-tour-rise 260ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes nd-tour-fade {
+  from { opacity: 0; }
+}
+.nd-tour-fade {
+  animation: nd-tour-fade 220ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .nd-tour-tap,
+  .nd-tour-caret,
+  .nd-tour-rise,
+  .nd-tour-fade {
+    animation: none;
+  }
+}
