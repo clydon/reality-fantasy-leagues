@@ -303,9 +303,14 @@ function check(ok, what, detail = "") {
     const dock = page.locator(".nd-dock");
     home = await (await page.request.get(`${BASE}/api/me/home`)).json();
     const due = home.moves.filter((m) => mine.has(m.leagueId)).length;
-    check(await dock.isVisible(), "the dock sits over Episodes");
-    check(((await dock.textContent()) || "").includes(due ? "Set" : "Edit"), `the dock says ${due ? "Set" : "Edit"} (${due} moves due)`, await dock.textContent());
-    check((await dock.locator("img").count()) === lineupGame.lineup.need + 1, "the dock shows your starters and your pick", `${await dock.locator("img").count()} faces`);
+    // Since 2026-10-31 (the user) the dock is there only while a move's due: all set, Tonight says so (with Change).
+    if (due) {
+      check(await dock.isVisible(), "the dock sits over Episodes while a move's due");
+      check(((await dock.textContent()) || "").includes("Set"), `the dock says Set (${due} moves due)`, await dock.textContent());
+      check((await dock.locator("img").count()) === lineupGame.lineup.need + 1, "the dock shows your starters and your pick", `${await dock.locator("img").count()} faces`);
+    } else {
+      check((await dock.count()) === 0, "all set: no dock over Episodes");
+    }
     check(await page.getByText(/of 4 lineups set · \d of 4 picked/).isVisible(), "who's set this week, real");
     check(await page.getByText("you're on Ep 5").isVisible(), "the guard chip says where you are");
     await collect();
@@ -328,8 +333,9 @@ function check(ok, what, detail = "") {
 
     // ---- Games ----
     await tabTo("Games");
-    const vt = await page.evaluate(() => window.__vt.at(-1) || null);
-    check(!!vt && vt.anims.some((a) => a.includes("nd-dock")), "the dock holds still while the tabs move", JSON.stringify(vt));
+    // No dock on Games (2026-10-31): each game's card under its name says your move (your-move.ts).
+    check((await page.locator(".nd-dock").count()) === 0, "no dock on Games");
+    check((await page.locator("[data-your-move]").count()) >= 2, "a card under each game's name with your move", `${await page.locator("[data-your-move]").count()}`);
     check((await page.locator("[data-table]").count()) === 3, "a real table per game");
     check((await page.locator("[data-table] [data-player]").count()) === 12, "four people on each", `${await page.locator("[data-table] [data-player]").count()}`);
     await collect();

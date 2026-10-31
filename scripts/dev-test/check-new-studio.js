@@ -421,7 +421,7 @@ const AUDIT = async (shot) => {
         ["hub-profile-sheet", "alex", "/home?hub=focus", (pg) => tap(pg, pg.locator("header button[aria-label*='rofile'], [data-profile-face], header button").first())],
         ["hub-bell", "alex", "/home?hub=focus", (pg) => tap(pg, pg.locator("[data-bell]"))],
         ["tonight", "alex", `/show/${sid}/tonight`],
-        ["games-your-moves", "alex", `/show/${sid}/games`, (pg) => tap(pg, pg.locator("button.nd-dock"))],
+        ["games-your-moves", "alex", `/show/${sid}/games`, (pg) => tap(pg, pg.locator('[data-your-move="lineup"]'))],
         ["episodes", "alex", `/show/${sid}/episodes`],
         ["episode-page", "alex", `/show/${sid}/episodes?page=ep4`],
         ["games", "alex", `/show/${sid}/games`],

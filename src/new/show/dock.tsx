@@ -22,19 +22,25 @@ import { Face, IconBox } from "./parts";
 import { useOpenMorning, useOpenReveal } from "./reveal";
 import { askAfterSave } from "./remind";
 
-// The moves dock (the mock's dock.js, option D): above the tab bar on Episodes, Games and Cast while you play a game
-// here, until airtime. Needs you (the one yellow: Set) → all set (Edit, change until airtime) → locked once it's on
-// (scores stay hidden). Its faces are your starters and your pick; its state and words come from your moves due
-// here and the schedule. It opens "Your moves", one sheet with a tab per game you play here (Weekly Lineup, Survival
+// The moves dock (the mock's dock.js, option D): above the tab bar on Episodes and Cast while a move of yours is due here (the
+// one yellow: Set), then locked once it's on (scores stay hidden). Since 2026-10-31 (the user) it isn't there when you're all
+// set (Tonight says so, with Change), nor on Games, where each game's card says your move (games.tsx, your-move.ts). Its faces
+// are your starters and your pick; its state and words come from your moves due here and the schedule. It opens "Your moves", one sheet with a tab per game you play here (Weekly Lineup, Survival
 // Pool, Outlast's team) and Predictions, which saves through the league routes the classic app uses (lineups,
 // picks, predictions). The games swipe by as a Weekly Lineup player's weeks do (ui/swipe-pager.tsx; the user, 2026-10-31),
 // the tabs' highlight sliding along with the finger. Saving never locks; airtime does. After an episode it follows the results (stages.js):
 // results in (Reveal), just aired and waiting, then the morning update's final scores.
 
-/** Whether the dock shows on this tab: not on Chat, and on Tonight only once it's on (Tonight has its own cards). */
+/** Whether the dock shows on this tab: not on Chat; once it's on, everywhere else; on Tonight only then (Tonight has its own
+ *  cards); results to reveal or on their way, everywhere else; your moves, only while one's due and not on Games (each game's
+ *  card says it there). */
 export function dockShows(show: ShowData, tab: ShowTab) {
   if (!show.upNext || !show.games.some((g) => g.yourRole) || tab === "chat") return false;
-  return tab !== "tonight" || show.upNext.live;
+  if (show.upNext.live) return true;
+  if (tab === "tonight") return false;
+  const eps = show.episodes;
+  if (eps?.reveal || eps?.waiting || eps?.final) return true;
+  return tab !== "games" && show.moves.length > 0;
 }
 
 /** Your starters (the first Weekly Lineup here) and your pick (the first Survival Pool), as overlapping faces. */
@@ -128,7 +134,8 @@ export function Dock({ show }: { show: ShowData }) {
       </button>
     );
   }
-  const need = show.moves.length > 0;
+  // Your moves, while one's due (dockShows keeps it away once you're all set).
+  if (!show.moves.length) return null;
   const faces = <DockFaces play={show.play} />;
   return (
     <button
@@ -150,24 +157,19 @@ export function Dock({ show }: { show: ShowData }) {
       {show.play?.some((g) => (g.lineup?.starters.length || g.pick?.pick) && !g.revealFirst) ? (
         faces
       ) : (
-        <span
-          className={`grid size-[34px] flex-none place-items-center rounded-[3px] ${need ? "text-plate-muted outline-2 -outline-offset-2 outline-dashed outline-plate-muted/60" : "bg-good/20 text-good"}`}
-          aria-hidden
-        >
-          {need ? <Plus className="size-4" /> : <Check className="size-4" strokeWidth={2.6} />}
+        <span className="grid size-[34px] flex-none place-items-center rounded-[3px] text-plate-muted outline-2 -outline-offset-2 outline-dashed outline-plate-muted/60" aria-hidden>
+          <Plus className="size-4" />
         </span>
       )}
       <span className="min-w-0 flex-1 leading-tight">
-        <b className="block truncate text-sm">{need ? dockWords(show.moves) : `All set for Episode ${up.number}`}</b>
+        <b className="block truncate text-sm">{dockWords(show.moves)}</b>
         {when && (
           <small className="block text-[11.5px] tabular-nums text-plate-muted">
-            {need ? (t !== airs ? "Due" : "Locks") : "Change until"} {when}
+            {t !== airs ? "Due" : "Locks"} {when}
           </small>
         )}
       </span>
-      <span className={`grid h-[38px] place-items-center rounded-[3px] px-3.5 text-sm font-extrabold ${need ? "bg-chyron text-chyron-foreground" : "bg-background text-foreground"}`}>
-        {need ? (drafting ? "Draft" : "Set") : "Edit"}
-      </span>
+      <span className="grid h-[38px] place-items-center rounded-[3px] bg-chyron px-3.5 text-sm font-extrabold text-chyron-foreground">{drafting ? "Draft" : "Set"}</span>
     </button>
   );
 }
