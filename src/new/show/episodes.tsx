@@ -7,11 +7,11 @@ import { airTime, dayOf } from "../clock";
 import { useEpisodeResults, useSeasonWaivers, type EpisodeRow, type GameNight, type WaiverWeek } from "../data";
 import { midLine, useFinalLine } from "../final-words";
 import { gameInk, ordinal } from "../games";
-import { NavLink } from "../nav";
-import { paths } from "../routes";
-import { episodesOf, type ShowData } from "../screens/show-space";
+import { NavLink, useCameFrom, useNav } from "../nav";
+import { paths, type ShowTab } from "../routes";
+import { episodesOf, isTabOf, type ShowData } from "../screens/show-space";
 import { PushedPage, usePushedPage } from "../ui/page";
-import { ShowArt } from "../ui/show-bar";
+import { ShowArt, tabLabel } from "../ui/show-bar";
 import { first } from "./moves";
 import { Block, Face } from "./parts";
 import { useOpenReveal } from "./reveal";
@@ -295,9 +295,16 @@ function EpisodePage({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const [shown, setShown] = useState(ep);
   if (ep != null && ep !== shown) setShown(ep);
   const page = usePushedPage(`ep${shown}`);
+  const nav = useNav();
   const e = show.episodes?.episodes.find((x) => x.number === shown && x.status === "seen") ?? null;
+  // Opened by a link on another of the show's tabs (Tonight's "What happened in Episode 4"): back goes there, and says so.
+  const from = useCameFrom();
+  const fromTab = ep != null && from && from !== paths.show(seasonId, "episodes") && isTabOf(seasonId)(from) ? (from.split("/")[3] as ShowTab) : null;
+  const back = fromTab
+    ? { label: tabLabel(fromTab, { episodes: show.words.episodesTab, cast: show.words.peopleTab }), close: () => nav.back(paths.show(seasonId, fromTab)) }
+    : { label: show.words.episodesTab, close: page.close };
   return (
-    <PushedPage open={ep != null} onClose={page.close} title={`${show.words.episode} ${shown ?? ""}`} back={show.words.episodesTab}>
+    <PushedPage open={ep != null} onClose={back.close} title={`${show.words.episode} ${shown ?? ""}`} back={back.label}>
       {e ? (
         <EpisodeBody
           seasonId={seasonId}
@@ -317,7 +324,8 @@ function EpisodePage({ seasonId, show }: { seasonId: string; show: ShowData }) {
 /** A game's line on the episode page: it opens that game's table on the Games tab, on this episode (as Tonight's do). */
 function GameLine({ l, href }: { l: GameNight; href: string }) {
   return (
-    <NavLink href={href} replace data-game-line={l.leagueId} className="nd-press grid grid-cols-[118px_1fr_auto] gap-x-2.5 gap-y-0.5 border-t border-border py-3">
+    // A jump to the Games tab: it pushes, so back comes back here.
+    <NavLink href={href} data-game-line={l.leagueId} className="nd-press grid grid-cols-[118px_1fr_auto] gap-x-2.5 gap-y-0.5 border-t border-border py-3">
       <span
         className="type-caption row-span-2 self-center text-[13px] tracking-[0.04em]"
         style={{ color: l.gameType === "predictions" ? "var(--muted-foreground)" : gameInk(l.gameName) }}

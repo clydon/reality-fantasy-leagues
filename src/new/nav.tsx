@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState, ViewTransition, type ComponentProps, type MouseEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, ViewTransition, type ComponentProps, type MouseEvent } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { navKind, type NavKind } from "./routes";
-import { leaveThroughSheets, navigating } from "./ui/sheet-history";
+import { leaveThroughSheets, navigating, sheetsAbove } from "./ui/sheet-history";
 import { startTuneIn } from "./tune-in";
 
 // Motion that grounds navigation (docs/PLAN-new-design.md step 0c; the mock's nav.js): every move says where you
@@ -70,7 +70,8 @@ function isPlainClick(e: MouseEvent) {
 
 // The page before this one in the history of this visit (NavMotion keeps it), so a Back button can be the
 // browser's back when that's where it leads, and the history doesn't grow a loop of pages you've already left.
-// A replace (a show's tabs) changes the page without adding an entry, so it leaves this alone.
+// A replace (a show's tabs) changes the page without adding an entry, so it leaves this alone. Where the browser has
+// the Navigation API (stepsBack), the history's own entries say it instead, as far back as it goes.
 let previousPath: string | null = null;
 let replacing = false;
 // nav.back marks its own kind; the popstate it causes shouldn't mark another.
@@ -88,12 +89,23 @@ export function NavLink({ channel, onClick, ...props }: ComponentProps<typeof Li
       onClick={(e) => {
         onClick?.(e);
         if (e.defaultPrevented || !isPlainClick(e) || typeof props.href !== "string") return;
+        const href = props.href;
         // Into a show from its card: the Tune in bumper (tune-in.tsx), which goes there itself once it covers the screen.
-        if (channel && startTuneIn(props.href, e.currentTarget.closest<HTMLElement>("[data-art-scope]") ?? e.currentTarget)) {
+        if (channel && startTuneIn(href, e.currentTarget.closest<HTMLElement>("[data-art-scope]") ?? e.currentTarget)) {
+          replacing = false;
           e.preventDefault();
           return;
         }
-        markNav(navKind(pathname, props.href, { channel }));
+        // A replace to the page right behind (the tab you jumped over from, a finished page's way out): back to it, so
+        // the history never has a page twice in a row (a dead press of back).
+        const behind = props.replace && !href.includes("?") ? stepsBack((p) => p === href) : null;
+        if (behind) {
+          replacing = false;
+          e.preventDefault();
+          historyBack(navKind(pathname, href), behind.steps);
+          return;
+        }
+        markNav(navKind(pathname, href, { channel }));
         navigating();
         replacing = !!props.replace;
         // The art that grows: the link's own, or its card's (data-art-scope) when the art sits beside the link.
@@ -122,12 +134,58 @@ function nameReturnArt(fromPath: string) {
   nameArt(art ?? null);
 }
 
-/** The browser's back, moving the screen as `kind` says (see the top of this file). From an open sheet (a desk page's
- *  Delete, held down), past the sheet's entry too. */
-function historyBack(kind: NavKind) {
+type Entries = EventTarget & { currentEntry: { index: number } | null; entries(): { url: string | null }[] };
+
+/**
+ * How far back (in entries) the nearest page `match` takes is, and its path: passing over this page's own entries (a
+ * gone sheet's, a closed pushed page's) and the pages `through` lets by (Home from a show passes over the show's own),
+ * stopping at any other. Null when it isn't there. Without the browser's Navigation API: the page before only.
+ */
+function stepsBack(match: (path: string) => boolean, through?: (path: string) => boolean): { steps: number; path: string } | null {
+  const nav = (window as unknown as { navigation?: Entries }).navigation;
+  if (!nav?.currentEntry) return previousPath && match(previousPath) ? { steps: 1, path: previousPath } : null;
+  const entries = nav.entries();
+  const here = window.location.pathname;
+  // The page's own entry, under the open sheets' (sheet-history.ts).
+  const page = nav.currentEntry.index - sheetsAbove();
+  for (let i = page - 1; i >= 0; i--) {
+    const url = entries[i]?.url;
+    if (!url) return null;
+    const path = new URL(url).pathname;
+    if (match(path)) return { steps: page - i, path };
+    if (path !== here && !through?.(path)) return null;
+  }
+  return null;
+}
+
+/** The path of the entry right under this page's own (where a page pushed over it was opened from: the page itself, or
+ *  another a link jumped from), else null; null too where the browser can't say (no Navigation API). */
+function cameFrom(): string | null {
+  const nav = (window as unknown as { navigation?: Entries }).navigation;
+  const url = nav?.currentEntry ? nav.entries()[nav.currentEntry.index - sheetsAbove() - 1]?.url : null;
+  return url ? new URL(url).pathname : null;
+}
+
+const onEntry = (f: () => void) => {
+  const nav = (window as unknown as { navigation?: Entries }).navigation;
+  // A beat later: Next puts its entry on from an insertion effect, where React takes no updates.
+  const later = () => queueMicrotask(f);
+  nav?.addEventListener("currententrychange", later);
+  return () => nav?.removeEventListener("currententrychange", later);
+};
+
+/** cameFrom, kept current: Next renders a page before it puts its entry on the history, so a render alone would read
+ *  the entry before. */
+export function useCameFrom(): string | null {
+  return useSyncExternalStore(onEntry, cameFrom, () => null);
+}
+
+/** The browser's back, `steps` pages, moving the screen as `kind` says (see the top of this file). From an open sheet (a
+ *  desk page's Delete, held down), past the sheet's entry too. */
+function historyBack(kind: NavKind, steps = 1) {
   const seq = markNav(kind);
   backing = true;
-  const by = -1 - leaveThroughSheets();
+  const by = -steps - leaveThroughSheets();
   // The Tune in's reverse moves the screen itself (see NavMotion).
   if (!document.startViewTransition || kind === "tune") {
     window.history.go(by);
@@ -165,16 +223,20 @@ export function useNav() {
     },
     /**
      * Up to `parent`: the browser's back when the page you came from is it (or is one `accepts`, e.g. any tab of the
-     * show), else a navigation there. A page opened from a link or a reload has nothing of this visit to go back to.
-     * `kind`: how it moves, when something else does the moving (the Tune in's reverse: "tune").
+     * show), else a navigation there that takes this page's place (a page opened from a link, a notification or a reload
+     * has nothing of this visit to go back to), so the phone's back never returns to the page you just left.
+     * `kind`: how it moves, when something else does the moving (the Tune in's reverse: "tune"). `through`: pages on the
+     * way back that belong to where you're leaving (Home from a show: the show's tabs you jumped between), passed over.
      */
-    back(parent: string, accepts?: (prev: string) => boolean, kind?: NavKind) {
-      if (previousPath && (previousPath === parent || accepts?.(previousPath))) {
-        historyBack(kind ?? navKind(pathname, previousPath));
+    back(parent: string, accepts?: (prev: string) => boolean, kind?: NavKind, through?: (path: string) => boolean) {
+      const behind = stepsBack((p) => p === parent || !!accepts?.(p), through);
+      if (behind) {
+        historyBack(kind ?? navKind(pathname, behind.path), behind.steps);
       } else {
         markNav(kind ?? navKind(pathname, parent));
         navigating();
-        router.push(parent);
+        replacing = true;
+        router.replace(parent);
       }
     },
   };

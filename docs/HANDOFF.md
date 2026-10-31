@@ -82,6 +82,22 @@ it doesn't go in the menu.** The audit (checked in the code, 2026-10-30), per ol
   full target first (A5, the capability tracker, then A6–A15), today's games rebuilt on it (R1–R3), the UI last (U0–U1), the
   GPT's words alongside (G1), and live sports folded in as track L. Lanes (worktree + branch + database + port + session loop):
   [PARALLEL-SESSIONS.md](PARALLEL-SESSIONS.md); season tapes and playtests: [PLAN-playtests.md](PLAN-playtests.md).
+- **Merged and pushed 2026-10-31, 12:31 AM: the engine's A12 (parts 2–4c) and R1 part 3** (`075d193e`, merging the engine's
+  `bebf4101`; no migration, so no Neon rehearsal). R1 part 3 is the user's pool finale: only the winner survives it (on a night the
+  results record a winner, everyone else in the episode went home, `nightOf`), which changes Survivor 51's Survival Pool on
+  Dec 16; a How it works line telling the pool's players is still the user's call. A12, games in stages, now has everything
+  its step asked for: a stage a format change starts (part 2), the 'next-stage' fallbacks (2b), a side stage while a grouping
+  lasts (3), mini-games and two ways of scoring (4a), one game across two shows (4b) and late joiners (4c), engine and API
+  only (no screen makes a game in stages yet). Checked on the merged tree (rfl-merge, branch merge-a12): unit tests 1207
+  (on the engine's tree; on the merged one at 12:30 AM two of `status-plate.test.js`'s failed, not the merge's: it adds 48
+  hours to the real clock, which the night before the clocks go back is tomorrow), eslint on the 30 changed source files
+  (nothing new), `next build` with its type-check, `golden.js --before=origin/master` (7 seasons, 160 games, 19,361 reads:
+  only R1 part 3's expected 20 differ, The Challenge 40's Survival Pool), the Survivor 51 rehearsal (`season-forward.js
+  rehearse --scenario=realistic,rough,dst --before=origin/master` from the 2026-10-30 backup: every invariant holds, flag
+  off and on read the same, and against the live engine only the rough scenario's finale pick on the Sole Survivor differs,
+  4 reads).
+  The format-change design session after A12 has its questions in A12's Noticed lists, the side draft's (people, or the
+  pairs and teams themselves) first.
 - **Merged and pushed 2026-10-30 afternoon: the engine's A11 part 5c, A12 part 1 and R1, and the game-specs flag on**
   (`46b77bba`, merging `3f5c6488`; migration 0203, rehearsed on the Neon branch `rehearse-r1-2026-10-30`; the snapshot to
   roll back to is `pre-r1-2026-10-30`, auto-deleted after 7 days). **The flag is on in production** (2:39 PM, the user's Copy
@@ -163,10 +179,12 @@ it doesn't go in the menu.** The audit (checked in the code, 2026-10-30), per ol
   **Waiting on the user:** restart the main bot (8765) on the new code, then the tapes move back to it and 8766 goes. The
   playtest branch is merged into master (`2c945d31`).
 - **Neon is on Launch** since 2026-10-28 (the user upgraded it at 98.3% of the free transfer; about $5 a month; HOSTING.md).
-- **On branches, not merged:** the engine from A12 part 2 on (`engine`), track L's live sports (`sports`: L5 done, its
-  next session on Monday 2026-11-02 once the weekend's recordings are final). Waiting on the user: S3 after two matching
-  episodes, R1 part 1's two (which rule a preset meets; a Survival Pool pick of the
-  season's winner graded wrong at the finale, before Dec 16), and the rule questions in the plan's "Where the engine is headed".
+- **On branches, not merged:** the engine from A13 on (`engine`: A13, trivia and episode facts, then A14), track L's live
+  sports (`sports`: L5 done, its next session on Monday 2026-11-02 once the weekend's recordings are final). Waiting on the
+  user: S3 after two matching episodes; which rule a preset meets (open until the engine is complete: the user, 2026-10-30);
+  the format-change design session after A12 (A12's Noticed lists); the watch along's concept before A15; and the rule
+  questions in the plan's "Where the engine is headed". Decided 2026-10-30 and live: a pool's finale, only the winner
+  survives it (R1 part 3).
 
 ## Next: moving the app onto the new design (plan written 2026-10-23)
 Steps can run back to back, unattended: `node scripts/session-loop.js` (its header comment says how: each session hands off to the next, stops only for a question, and can be paused and resumed).

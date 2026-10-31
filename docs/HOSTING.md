@@ -961,3 +961,8 @@ never handles it: the user does the reset and the pasting.
   keeps each stage as a league of its own, deleted with it) and a partial unique index on them. Classic's me route
   (`classic-list.ts`) now reads only each league's settings, not its whole state (20-40 KB a league), so it moves less from
   the database than before.
+- **2026-10-31, pushed to master (`075d193e`, no migration).** The engine's A12 parts 2–4c and R1 part 3. **Nothing polls,
+  nothing scheduled, no new service, no new table.** A game in stages keeps one league per stage (as since 0203): a stage a
+  format change starts, or a side stage, adds its league mid-season, and a stage on another show is a league on that
+  show's season. Only the engine's API and lab make such games so far (no screen does), so production has none; after each
+  season sync, one query asks for the ids of the season's leagues whose stages a change or a grouping starts (none today).

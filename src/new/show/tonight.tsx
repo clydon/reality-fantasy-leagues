@@ -650,12 +650,12 @@ function LastTime({ show }: { show: ShowData }) {
         {lines.length > 0 && (
           <div className="rounded-[4px] bg-card px-3.5 pb-1 pt-3">
             <span className="type-caption block text-[13px] tracking-[0.04em] text-muted-foreground">Your night</span>
-            {/* Each game's line opens its table on the Games tab, on this episode (Weekly Lineup shows how everyone's week went). */}
+            {/* Each game's line opens its table on the Games tab, on this episode (Weekly Lineup shows how everyone's week went).
+                A jump, not a tab move: it pushes, so back comes back here. */}
             {lines.map((l) => (
               <NavLink
                 key={`${l.leagueId}-${l.gameType}`}
                 href={paths.game(show.header?.seasonId ?? "", l.leagueId, e.number)}
-                replace
                 data-night-line={l.leagueId}
                 className="nd-press grid grid-cols-[110px_1fr_auto] items-baseline gap-x-2.5 border-t border-border py-2.5 first-of-type:border-t-0"
               >
@@ -672,7 +672,7 @@ function LastTime({ show }: { show: ShowData }) {
           </div>
         )}
         {e.out?.length === 0 && lines.length === 0 && <p className="text-sm text-muted-foreground">Nobody went home in Episode {e.number}.</p>}
-        <NavLink href={`${paths.show(show.header?.seasonId ?? "", "episodes")}?page=ep${e.number}`} replace className="flex h-11 items-center justify-center gap-1 rounded-[3px] font-bold outline-1 -outline-offset-1 outline-input">
+        <NavLink href={`${paths.show(show.header?.seasonId ?? "", "episodes")}?page=ep${e.number}`} className="flex h-11 items-center justify-center gap-1 rounded-[3px] font-bold outline-1 -outline-offset-1 outline-input">
           What happened in Episode {e.number} <ChevronRight className="size-4" aria-hidden />
         </NavLink>
       </div>
@@ -859,7 +859,8 @@ function YourGames({ seasonId, show }: { seasonId: string; show: ShowData }) {
     <section className="mt-[26px] px-4">
       <div className="mb-3 flex items-baseline justify-between gap-3">
         <h2 className="type-caption text-[24px]">Your games</h2>
-        <NavLink href={tab} replace className="text-[15px] font-semibold">
+        {/* Jumps to the Games tab push (back comes back here); only the tab bar moves sideways without a trail. */}
+        <NavLink href={tab} className="text-[15px] font-semibold">
           Standings
         </NavLink>
       </div>
@@ -868,7 +869,6 @@ function YourGames({ seasonId, show }: { seasonId: string; show: ShowData }) {
           <NavLink
             key={g.leagueId}
             href={tab}
-            replace
             data-game={g.leagueId}
             className="nd-press flex min-h-[104px] flex-col gap-1.5 rounded-b-[4px] border-t-[3px] bg-card p-3"
             style={{ borderTopColor: gameColour(g.gameName) }}
