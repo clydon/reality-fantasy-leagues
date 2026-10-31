@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowLeftRight, CalendarClock, Check, ChevronRight, Eye, Lock, Plus, Trophy } from "lucide-react";
 import { airTime, calm, ticks } from "../clock";
 import { moves as write, useAfterSave, type GameView, type Move } from "../data";
@@ -11,6 +11,7 @@ import { useNow } from "../ui/bars";
 import { useFinalLine } from "../final-words";
 import { Btn, Chip } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
+import { SwipePager, type PagerHandle } from "../ui/swipe-pager";
 import { toast } from "../ui/toast";
 import { ordinal } from "../games";
 import { closeMoves, dockWords, faceIn, first, moveCard, openMoves, sheetTabs, tabOf, useMovesSheet, type MovesTab, type SheetTab } from "./moves";
@@ -26,7 +27,8 @@ import { askAfterSave } from "./remind";
 // (scores stay hidden). Its faces are your starters and your pick; its state and words come from your moves due
 // here and the schedule. It opens "Your moves", one sheet with a tab per game you play here (Weekly Lineup, Survival
 // Pool, Outlast's team) and Predictions, which saves through the league routes the classic app uses (lineups,
-// picks, predictions). Saving never locks; airtime does. After an episode it follows the results (stages.js):
+// picks, predictions). The games swipe by as a Weekly Lineup player's weeks do (ui/swipe-pager.tsx; the user, 2026-10-31),
+// the tabs' highlight sliding along with the finger. Saving never locks; airtime does. After an episode it follows the results (stages.js):
 // results in (Reveal), just aired and waiting, then the morning update's final scores.
 
 /** Whether the dock shows on this tab: not on Chat, and on Tonight only once it's on (Tonight has its own cards). */
@@ -131,6 +133,7 @@ export function Dock({ show }: { show: ShowData }) {
   return (
     <button
       type="button"
+      data-dock="moves"
       onClick={() =>
         leadHref
           ? nav.push(leadHref)
@@ -283,22 +286,69 @@ function MovesBody({
     }
   }
 
-  const current = tabs.find((t) => t.key === seg);
-  const g = game(current?.leagueId ?? null);
+  const index = Math.max(0, tabs.findIndex((t) => t.key === seg));
+  const panel = (t: SheetTab) => {
+    const g = game(t.leagueId);
+    if (t.kind === "lineup" && g)
+      return <LineupPanel g={g} starters={lineups[g.leagueId] ?? []} onStarters={(s) => setLineups((x) => ({ ...x, [g.leagueId]: s }))} pickup={pickup(g.leagueId)} seasonId={seasonId} />;
+    if (t.kind === "pool" && g) return <PoolPanel g={g} pick={picks[g.leagueId] ?? null} onPick={(id) => setPicks((x) => ({ ...x, [g.leagueId]: id }))} />;
+    if (t.kind === "predict") return <PredictPanel play={play} guesses={guesses} onGuess={(k, v) => setGuesses((x) => ({ ...x, [k]: v }))} />;
+    if (t.kind === "outlast" && g) return <OutlastPanel g={g} pickup={pickup(g.leagueId)} seasonId={seasonId} />;
+    return null;
+  };
+
+  // The tabs' highlight follows the games, finger and all: between two tabs it's between their places and their widths.
+  const pager = useRef<PagerHandle>(null);
+  const bar = useRef<HTMLDivElement>(null);
+  const lit = useRef<HTMLSpanElement>(null);
+  const light = (at: number, ms = 0, easing = "linear") => {
+    const b = bar.current;
+    const hl = lit.current;
+    const tabEls = Array.from(b?.querySelectorAll<HTMLElement>('[role="tab"]') ?? []);
+    if (!b || !hl || !tabEls.length) return;
+    const c = Math.max(0, Math.min(tabEls.length - 1, at));
+    const i = Math.floor(c);
+    const a = tabEls[i];
+    const z = tabEls[Math.min(tabEls.length - 1, i + 1)];
+    const f = c - i;
+    hl.style.transition = ms ? `transform ${ms}ms ${easing}, width ${ms}ms ${easing}` : "none";
+    hl.style.transform = `translateX(${a.offsetLeft + (z.offsetLeft - a.offsetLeft) * f}px)`;
+    hl.style.width = `${a.offsetWidth + (z.offsetWidth - a.offsetWidth) * f}px`;
+    const near = Math.round(c);
+    tabEls.forEach((el, k) => (el.dataset.lit = String(k === near)));
+  };
+  useLayoutEffect(() => {
+    light(index);
+    // A bar wider than the sheet keeps the game you're on in view.
+    const b = bar.current;
+    if (b && b.scrollWidth > b.clientWidth) b.querySelectorAll<HTMLElement>('[role="tab"]')[index]?.scrollIntoView({ inline: "nearest", block: "nearest" });
+    // (Placed again whenever the game changes.)
+  }, [index]);
+  // The tabs' widths settle once the fonts are in.
+  useEffect(() => {
+    const b = bar.current;
+    if (!b || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => light(index));
+    ro.observe(b);
+    return () => ro.disconnect();
+    // (Observed again with each game, so it places the one you're on.)
+  }, [index]);
 
   if (!tabs.length) return <p className="mt-3 text-sm text-muted-foreground">Nothing to set here.</p>;
   return (
     <>
       {tabs.length > 1 && (
-        <div className="mb-3.5 flex gap-[3px] overflow-x-auto rounded-[3px] bg-background p-[3px] [scrollbar-width:none]" role="tablist">
-          {tabs.map((t) => (
+        <div ref={bar} className="relative mb-3.5 flex gap-[3px] overflow-x-auto rounded-[3px] bg-background p-[3px] [scrollbar-width:none]" role="tablist">
+          <span ref={lit} data-tabs-lit aria-hidden className="pointer-events-none absolute left-0 top-[3px] h-9 rounded-[2px] bg-foreground" />
+          {tabs.map((t, i) => (
             <button
               key={t.key}
               type="button"
               role="tab"
               aria-selected={seg === t.key}
-              onClick={() => setSeg(t.key)}
-              className={`relative h-9 flex-[1_0_auto] whitespace-nowrap rounded-[2px] px-2.5 text-[12.5px] font-bold ${seg === t.key ? "bg-foreground text-background" : "text-muted-foreground"}`}
+              data-lit={i === index}
+              onClick={() => pager.current?.go(i)}
+              className="relative z-[1] h-9 flex-[1_0_auto] whitespace-nowrap rounded-[2px] px-2.5 text-[12.5px] font-bold text-muted-foreground transition-colors duration-200 data-[lit=true]:text-background"
             >
               {t.label}
               {open(t) && <i className="absolute right-1 top-1.5 size-1.5 rounded-full bg-chyron-line" aria-label="To do" />}
@@ -307,12 +357,19 @@ function MovesBody({
         </div>
       )}
 
-      {current?.kind === "lineup" && g && (
-        <LineupPanel g={g} starters={lineups[g.leagueId] ?? []} onStarters={(s) => setLineups((x) => ({ ...x, [g.leagueId]: s }))} pickup={pickup(g.leagueId)} seasonId={seasonId} />
-      )}
-      {current?.kind === "pool" && g && <PoolPanel g={g} pick={picks[g.leagueId] ?? null} onPick={(id) => setPicks((x) => ({ ...x, [g.leagueId]: id }))} />}
-      {current?.kind === "predict" && <PredictPanel play={play} guesses={guesses} onGuess={(k, v) => setGuesses((x) => ({ ...x, [k]: v }))} />}
-      {current?.kind === "outlast" && g && <OutlastPanel g={g} pickup={pickup(g.leagueId)} seasonId={seasonId} />}
+      <SwipePager
+        ref={pager}
+        count={tabs.length}
+        index={index}
+        onIndex={(i) => setSeg(tabs[i].key)}
+        page={(i) => panel(tabs[i])}
+        onMove={light}
+        label="Your games: swipe between them, or use the arrow keys"
+        peek={tabs.length > 1 ? "gys.moves-games.peeked" : undefined}
+        className="-mx-4"
+        paneClass="px-4"
+        attrs={{ "data-moves-games": true }}
+      />
 
       <Btn tone="must" wide className="mt-3.5" disabled={saving} onClick={save}>
         {saving ? "Saving…" : "Save"}

@@ -2,8 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
-import { Archive, BookOpen, Check, ChevronLeft, ChevronRight, Eye, Plus, RotateCcw, X } from "lucide-react";
-import { airTime } from "../clock";
+import { Archive, BookOpen, Check, Eye, Plus, RotateCcw, X } from "lucide-react";
 import { backstage, gamesApi, useAfterReveal, useCouchGames, useHowItWorks, useSeasonPolls, useSeasonWaivers, useStartOptions, type GameView, type JoinGame, type TableRow, type WaiverWeek } from "../data";
 import { openStartGame } from "../couch/start-game";
 import { toast } from "../ui/toast";
@@ -28,7 +27,7 @@ import { PollRow, StartPollRow } from "./polls";
 import { rateLabel } from "./rate";
 import { bingoEpisode, BingoRow } from "./bingo";
 import { TriviaRow } from "./trivia";
-import { latestWeek, LineupSheet, nextWeek, signed, weekPlace } from "./lineup-sheet";
+import { latestWeek, LineupSheet, nextWeek, signed } from "./lineup-sheet";
 
 // Games (the mock's show.js tabStandings, gamestab.js, rulebook.js rbHowRow): where you play. Your games' tables when
 // you're in one (a pill per game, then each table; a row opens that person's team, Rules each game in plain words),
@@ -37,10 +36,9 @@ import { latestWeek, LineupSheet, nextWeek, signed, weekPlace } from "./lineup-s
 // This week's bingo, Call it, the couch's polls and trivia are real (step 12). Make it a game (10 part 2a) and Start a game, Run
 // it back and an archived game's Bring it back (10 part 2b) are real.
 // What everyone's doing (the 2026-10-30 mock): every table names its columns; Weekly Lineup's rows show who each player started
-// last episode, and its chips switch the table to an episode (ranked by that week, starters with their points, the bench faded)
-// or to the one being set (who's set; lineups stay private until they lock). A player's sheet steps through the table (‹ ›) and,
-// for Weekly Lineup, through their weeks (lineup-sheet.tsx). A game's line on Tonight or an episode page lands here
-// (?game=<id>&ep=N): that game's table, on that episode.
+// last episode and that week's points (its episode chips went 2026-10-31: the player sheet's weeks do that now). A player's sheet
+// steps through the table (‹ ›, or a swipe on its header) and, for Weekly Lineup, through their weeks (lineup-sheet.tsx). A
+// game's line on Tonight or an episode page lands here (?game=<id>&ep=N), on that game's table.
 
 /** A game's line under its name: what it is, for a game the new design knows. */
 const lineOf = (g: GameView) => (isGameName(g.gameName) ? GAME_STYLE[g.gameName].line : g.name);
@@ -153,7 +151,6 @@ function YourGamesHere({ show }: { show: ShowData }) {
             scope={show.header && show.couch ? { seasonId: show.header.seasonId, couchId: show.couch.id } : null}
             onPlayer={(row, game, week) => setPlayer({ row, game, week })}
             onRules={setRules}
-            asked={asked ? { leagueId: asked, episode: askedEp } : null}
           />
         ) : (
           <div aria-busy className="mx-4 mt-4 h-72 animate-pulse rounded-[4px] bg-card" />
@@ -243,7 +240,6 @@ function Standings({
   onPlayer,
   onRules,
   readOnly,
-  asked,
 }: {
   play: GameView[];
   words: ShowData["words"];
@@ -254,18 +250,7 @@ function Standings({
   onRules: (g: GameView) => void;
   /** One game, nobody's place in it to show: no pills, and the foot line is the caller's. */
   readOnly?: boolean;
-  /** The game (and episode) a game's line elsewhere asked for (?game=&ep=). */
-  asked?: { leagueId: string; episode: number | null } | null;
 }) {
-  // Weekly Lineup's view of each table: the season, an episode, or the one being set ("next").
-  const [views, setViews] = useState<Record<string, LineupView>>({});
-  const viewOf = (g: GameView): LineupView => {
-    if (views[g.leagueId] !== undefined) return views[g.leagueId];
-    const ep = asked?.leagueId === g.leagueId ? asked.episode : null;
-    if (ep && g.table[0]?.weeks.some((w) => w.episode === ep)) return ep;
-    if (ep && nextWeek(g)?.episode === ep) return "next";
-    return "season";
-  };
   const twin = (g: GameView) => play.filter((x) => x.gameType === g.gameType).length > 1;
   // A game over a span that's over stands at its last episode (it says Final): the line is the running games'.
   const running = play.filter((g) => g.to === null || !g.over);
@@ -311,7 +296,7 @@ function Standings({
           </div>
           {g.table.length === 0 && <p className="border-t border-border py-3 text-sm text-muted-foreground">Nobody on the table yet.</p>}
           {weekly(g) ? (
-            <LineupTable g={g} words={words} view={viewOf(g)} onView={(v) => setViews((x) => ({ ...x, [g.leagueId]: v }))} onPlayer={onPlayer} />
+            <LineupTable g={g} words={words} onPlayer={onPlayer} />
           ) : (
             <>
               {g.table.length > 0 && COLUMNS[g.gameType] && <Columns mid={COLUMNS[g.gameType][0]} end={COLUMNS[g.gameType][1]} />}
@@ -338,12 +323,10 @@ function Standings({
   );
 }
 
-/** Weekly Lineup's table: the season, an episode's week, or the episode being set. */
-type LineupView = "season" | "next" | number;
-/** A player's sheet: whose, in which game, on which week (Weekly Lineup), and which way it stepped there (‹ ›). */
-type Opened = { row: TableRow; game: GameView; week: number | null; step?: 1 | -1 };
+/** A player's sheet: whose, in which game, on which week (Weekly Lineup). */
+type Opened = { row: TableRow; game: GameView; week: number | null };
 
-/** Weekly Lineup with weeks to show (or one being set): its table gets the chips and episode views. */
+/** Weekly Lineup with weeks to show (or one being set): its table shows last episode's lineups and points. */
 const weekly = (g: GameView) => g.gameType === "active-roster" && (g.table.some((r) => r.weeks.length > 0) || !!nextWeek(g));
 
 /** Whether a row opens a sheet: not a public pool's strangers, nor the talk show's games (a count of right calls or lines, nothing
@@ -390,136 +373,38 @@ function PlayerRow({ g, r, rank, extras, total, below, onClick }: { g: GameView;
 }
 
 /**
- * Weekly Lineup's table (the 2026-10-30 mock): chips for the season, the episode being set and each episode with results, newest
- * first. The season shows who each player started last episode and that week's points under the total; an episode ranks the
- * couch by that week, starters with their points and the bench faded; the one being set says who's set (yours shows your
- * lineup). A row opens that player's sheet on the same week.
+ * Weekly Lineup's table: who each player started last episode and that week's points under their season total. A row opens that
+ * player's sheet, on that week, where their weeks swipe by (lineup-sheet.tsx); the user dropped the table's episode chips for it
+ * (2026-10-31).
  */
-function LineupTable({ g, words, view, onView, onPlayer }: { g: GameView; words: ShowData["words"]; view: LineupView; onView: (v: LineupView) => void; onPlayer: (row: TableRow, game: GameView, week: number | null) => void }) {
+function LineupTable({ g, words, onPlayer }: { g: GameView; words: ShowData["words"]; onPlayer: (row: TableRow, game: GameView, week: number | null) => void }) {
   const next = nextWeek(g);
-  const episodes = [...(g.table[0]?.weeks ?? [])].map((w) => w.episode).reverse();
-  const latest = episodes[0] ?? null;
-  const weekOf = (r: TableRow, n: number | null) => (n === null ? undefined : r.weeks.find((w) => w.episode === n));
-  const face = (id: string, size: string, dim = false) => {
+  const latest = g.table[0]?.weeks.at(-1)?.episode ?? null;
+  const face = (id: string) => {
     const c = faceIn(g, id);
-    return <Face key={id} src={c?.photo ?? null} name={c?.name} className={`${size} flex-none rounded-[2px] text-xs ${dim ? "grayscale-[0.6]" : ""}`} />;
+    return <Face key={id} src={c?.photo ?? null} name={c?.name} className="size-[26px] flex-none rounded-[2px] text-xs" />;
   };
-  const chip = (v: LineupView, label: ReactNode, dashed = false) => {
-    const on = view === v;
-    return (
-      <button
-        key={String(v)}
-        type="button"
-        aria-pressed={on}
-        data-week-chip={v}
-        onClick={() => onView(v)}
-        className={`inline-flex h-9 flex-none items-center whitespace-nowrap rounded-[2px] px-3 text-sm font-semibold transition-colors ${on ? "bg-foreground text-background" : dashed ? "outline-dashed outline-[1.5px] -outline-offset-[1.5px] outline-input" : "bg-secondary"}`}
-      >
-        {label}
-      </button>
-    );
-  };
-  const n = typeof view === "number" ? view : null;
   return (
     <>
-      <div data-week-chips className="-mx-4 mb-1 flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
-        {chip("season", "Season")}
-        {next && chip("next", `${words.ep} ${next.episode} · ${[...next.done.values()].filter(Boolean).length}/${next.done.size} set`, true)}
-        {episodes.map((e) => chip(e, `${words.ep} ${e}`))}
-      </div>
-      {view === "season" && (
-        <>
-          <Columns mid={latest !== null ? `Started ${words.ep} ${latest}` : undefined} end="Season" />
-          {g.table.map((r) => {
-            const w = weekOf(r, latest);
-            return (
-              <PlayerRow
-                key={r.playerId}
-                g={g}
-                r={r}
-                extras={(w ? w.started.map((s) => s.id) : r.last).map((id) => face(id, "size-[26px]"))}
-                total={
-                  <span className="flex min-w-[34px] flex-none flex-col items-end gap-1">
-                    <b className="type-num text-[24px]">{r.total}</b>
-                    {w && <small className="text-[12px] leading-none text-muted-foreground">{signed(w.total)}</small>}
-                  </span>
-                }
-                onClick={() => onPlayer(r, g, latest ?? next?.episode ?? null)}
-              />
-            );
-          })}
-        </>
-      )}
-      {n !== null && (
-        <>
-          <Columns left={`${words.episode} ${n} · ranked by the week`} end={`${words.ep} ${n}`} />
-          {[...g.table]
-            .sort((a, b) => (weekOf(b, n)?.total ?? 0) - (weekOf(a, n)?.total ?? 0))
-            .map((r) => {
-              const w = weekOf(r, n);
-              return (
-                <PlayerRow
-                  key={r.playerId}
-                  g={g}
-                  r={r}
-                  rank={weekPlace(g, r.playerId, n)}
-                  total={<b className="type-num min-w-[34px] flex-none text-right text-[24px]">{signed(w?.total ?? 0)}</b>}
-                  below={
-                    <span className="ml-[68px] mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5">
-                      {(w?.started ?? []).map((s) => (
-                        <span key={s.id} className="flex items-center gap-[5px]">
-                          {face(s.id, "size-[26px]")}
-                          <b className="type-num text-[15px]">{signed(s.points)}</b>
-                        </span>
-                      ))}
-                      {!!w?.bench.length && <span aria-hidden className="mx-0.5 h-5 w-px bg-border" />}
-                      {(w?.bench ?? []).map((s) => (
-                        <span key={s.id} className="flex items-center gap-1 opacity-50" aria-label={`${faceIn(g, s.id)?.name ?? ""}, bench`}>
-                          {face(s.id, "size-[22px]", true)}
-                          <span className="type-num text-[13px]">{signed(s.points)}</span>
-                        </span>
-                      ))}
-                    </span>
-                  }
-                  onClick={() => onPlayer(r, g, n)}
-                />
-              );
-            })}
-          <p className="border-t border-border pt-3 text-[13px] leading-snug text-muted-foreground">Faded faces sat on the bench and didn&apos;t count. Tap anyone for their week.</p>
-        </>
-      )}
-      {view === "next" && next && (
-        <>
-          <Columns left={[`${words.episode} ${next.episode}`, next.airsAt ? airTime(Date.parse(next.airsAt)) : null].filter(Boolean).join(" · ")} end="Lineup" />
-          {g.table.map((r) => {
-            const set = !!next.done.get(r.playerId);
-            return (
-              <PlayerRow
-                key={r.playerId}
-                g={g}
-                r={r}
-                extras={
-                  r.you ? (
-                    (g.lineup?.starters ?? []).map((id) => face(id, "size-[26px]"))
-                  ) : set ? (
-                    <span className="flex items-center gap-1 text-sm font-semibold text-good">
-                      <Check className="size-4" strokeWidth={3} aria-hidden />
-                      Set
-                    </span>
-                  ) : (
-                    <span className="text-sm font-semibold text-muted-foreground">Not set yet</span>
-                  )
-                }
-                total={r.you && !set ? <span className="ml-1.5 text-sm font-semibold text-muted-foreground">Not set yet</span> : null}
-                onClick={() => onPlayer(r, g, next.episode)}
-              />
-            );
-          })}
-          <p className="border-t border-border pt-3 text-[13px] leading-snug text-muted-foreground">
-            Lineups stay private until {words.episode} {next.episode} airs; you&apos;ll see them with the results. Not set by then? Last week&apos;s stands in.
-          </p>
-        </>
-      )}
+      <Columns mid={latest !== null ? `Started ${words.ep} ${latest}` : undefined} end="Season" />
+      {g.table.map((r) => {
+        const w = latest === null ? undefined : r.weeks.find((x) => x.episode === latest);
+        return (
+          <PlayerRow
+            key={r.playerId}
+            g={g}
+            r={r}
+            extras={(w ? w.started.map((s) => s.id) : r.last).map((id) => face(id))}
+            total={
+              <span className="flex min-w-[34px] flex-none flex-col items-end gap-1">
+                <b className="type-num text-[24px]">{r.total}</b>
+                {w && <small className="text-[12px] leading-none text-muted-foreground">{signed(w.total)}</small>}
+              </span>
+            }
+            onClick={() => onPlayer(r, g, latest ?? next?.episode ?? null)}
+          />
+        );
+      })}
     </>
   );
 }
@@ -530,13 +415,14 @@ function PlayerSheet({ open, onOpen, onClose, words }: { open: Opened | null; on
   const shown = open ?? last;
   const g = shown?.game;
   const r = shown?.row;
-  // ‹ › step through the table in its order, staying on the same week.
+  // ‹ › and a swipe on the header step through the table in its order, staying on the same week.
   const people = g ? g.table.filter((x) => opens(g, x)) : [];
   const at = r ? people.findIndex((x) => x.playerId === r.playerId) : -1;
   const prev = at > 0 ? people[at - 1] : null;
   const nextUp = at >= 0 && at < people.length - 1 ? people[at + 1] : null;
-  const step = (to: TableRow | null, dir: 1 | -1) => {
-    if (to && g && shown) onOpen({ row: to, game: g, week: shown.week, step: dir });
+  const step = (dir: 1 | -1) => {
+    const to = dir > 0 ? nextUp : prev;
+    if (to && g && shown) onOpen({ row: to, game: g, week: shown.week });
   };
   const lineup = !!g && !!r && g.gameType === "active-roster" && (r.weeks.length > 0 || !!nextWeek(g));
   return (
@@ -545,23 +431,11 @@ function PlayerSheet({ open, onOpen, onClose, words }: { open: Opened | null; on
       onOpenChange={(o) => !o && onClose()}
       title={r?.name ?? ""}
       subtitle={g && r ? `${g.gameName} · ${r.rank.startsWith("T") ? r.rank : ordinal(r.place)} of ${g.table.length}${g.gameType === "active-roster" ? ` · ${r.total} pts` : ""}` : undefined}
-      actions={
-        people.length > 1 && (
-          <>
-            <button type="button" data-sheet-prev aria-label={prev ? `Previous: ${prev.name}` : "No one ahead"} disabled={!prev} onClick={() => step(prev, -1)} className="grid h-10 w-9 place-items-center rounded-[3px] text-muted-foreground hover:bg-secondary disabled:opacity-30">
-              <ChevronLeft className="size-5" aria-hidden />
-            </button>
-            <button type="button" data-sheet-next aria-label={nextUp ? `Next: ${nextUp.name}` : "No one behind"} disabled={!nextUp} onClick={() => step(nextUp, 1)} className="grid h-10 w-9 place-items-center rounded-[3px] text-muted-foreground hover:bg-secondary disabled:opacity-30">
-              <ChevronRight className="size-5" aria-hidden />
-            </button>
-            <span aria-hidden className="mx-1 h-5 w-px bg-border" />
-          </>
-        )
-      }
+      stepper={people.length > 1 ? { prev: prev?.name ?? null, next: nextUp?.name ?? null, onStep: step } : undefined}
     >
       {g && r && (
-        // Keyed by player: stepping to another one brings their sheet up from the side of the table they came from.
-        <div key={r.playerId} data-sheet-player={r.playerId} className={`mt-3 pb-2 ${shown?.step === 1 ? "nd-sheet-next" : shown?.step === -1 ? "nd-sheet-prev" : ""}`}>
+        // Keyed by player: each one's sheet starts fresh (the sheet slides them in and out).
+        <div key={r.playerId} data-sheet-player={r.playerId} className="mt-3 pb-2">
           {g.gameType === "pickem" && (
             <>
               <p className="type-caption mb-2 text-[13px] text-muted-foreground">Picks, oldest first</p>

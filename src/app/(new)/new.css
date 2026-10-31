@@ -593,29 +593,3 @@ html[data-nav="right"] .nd-dock {
   }
 }
 
-/* A player's sheet stepping through the table (its arrows, games.tsx): the next player's sheet rises in from below, the previous one's
-   from above, so it never reads as the sideways move between their weeks. Reduced motion: a short fade. */
-@keyframes nd-sheet-next {
-  from {
-    transform: translateY(14px);
-    opacity: 0;
-  }
-}
-@keyframes nd-sheet-prev {
-  from {
-    transform: translateY(-14px);
-    opacity: 0;
-  }
-}
-.nd-sheet-next {
-  animation: nd-sheet-next 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-.nd-sheet-prev {
-  animation: nd-sheet-prev 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-@media (prefers-reduced-motion: reduce) {
-  .nd-sheet-next,
-  .nd-sheet-prev {
-    animation: nd-fade-in 0.15s;
-  }
-}

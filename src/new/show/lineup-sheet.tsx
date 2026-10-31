@@ -1,20 +1,21 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent } from "react";
+import { useEffect, useRef } from "react";
 import type { GameView, LineupWeek, TableRow } from "../data";
 import type { ShowData } from "../screens/show-space";
 import { airTime } from "../clock";
 import { gameColour, ordinal } from "../games";
 import { Btn } from "../ui/parts";
+import { SwipePager, type PagerHandle } from "../ui/swipe-pager";
 import { faceIn, first, openMoves } from "./moves";
 import { Face } from "./parts";
 
 // A Weekly Lineup player's sheet (the 2026-10-30 mock): week by week as bars, the dashed line their average; then the week
 // picked: who started, with what each scored that episode and why, and the bench (scored, didn't count), or for the episode
 // being set, who's set (lineups stay private until they lock); then the team over the season, what each castaway earned this
-// player in how many starts. Weeks move by a swipe (the week follows the finger and the bars' highlight with it, a flick counts,
-// the ends stretch and spring back), a tap on a bar or the arrow keys; the first time on a device the next week peeks in once.
-// Reduced motion: weeks swap with a short fade. Everything comes from the game's own table rows (TableRow.weeks), so a sheet
+// player in how many starts. Weeks move by a swipe (ui/swipe-pager.tsx: the week follows the finger and the bars' highlight with
+// it, a flick counts, the ends stretch and spring back), a tap on a bar or the arrow keys; the first time on a device the next
+// week peeks in once. Reduced motion: weeks swap with a short fade. Everything comes from the game's own table rows (TableRow.weeks), so a sheet
 // shows nothing past your mark.
 
 type Words = ShowData["words"];
@@ -54,140 +55,15 @@ const BAR = 64;
 // The bars' highlight sits behind a column: its left edge is the column's index times one column and one gap (4px).
 const pillAt = (i: number, n: number) => `translateX(calc(${Math.max(0, Math.min(n - 1, i))} * (100% + 4px)))`;
 const reduced = () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-const ARRIVE = "cubic-bezier(0.18, 0.9, 0.22, 1.06)";
-const SPRING = "cubic-bezier(0.34, 1.4, 0.64, 1)";
 
 export function LineupSheet({ g, r, week, onWeek, words, onClose }: { g: GameView; r: TableRow; week: number | null; onWeek: (episode: number) => void; words: Words; onClose: () => void }) {
   const next = nextWeek(g);
   const items: Item[] = [...r.weeks.map((w) => ({ n: w.episode, w })), ...(next ? [{ n: next.episode, w: null }] : [])];
   const found = items.findIndex((x) => x.n === week);
   const index = found >= 0 ? found : Math.max(0, items.length - (next && items.length > 1 ? 2 : 1));
-  const [jump, setJump] = useState<number | null>(null);
-
-  const vp = useRef<HTMLDivElement>(null);
-  const track = useRef<HTMLDivElement>(null);
+  const pager = useRef<PagerHandle>(null);
   const pill = useRef<HTMLSpanElement>(null);
   const chart = useRef<HTMLDivElement>(null);
-  // What the gesture and the animations share between renders.
-  const live = useRef({ at: index, count: items.length, anim: false, reset: false, fade: false, dir: 0, moved: false, timer: 0 });
-  const drag = useRef<{ id: number; x: number; y: number; dx: number; lock: boolean; vx: number; lx: number; lt: number } | null>(null);
-
-  const movePill = (i: number) => {
-    if (pill.current) pill.current.style.transform = pillAt(i, live.current.count);
-  };
-  // The window is as tall as the week it shows; the weeks beside it may be taller.
-  const syncHeight = () => {
-    const pane = vp.current?.querySelector<HTMLElement>('[data-pane="1"]');
-    if (!live.current.anim && !drag.current?.lock && vp.current && pane) vp.current.style.height = `${pane.offsetHeight}px`;
-  };
-  const settle = (target: number) => {
-    live.current.reset = true;
-    setJump(null);
-    onWeek(items[target].n);
-  };
-  const slideTo = (target: number, dir: number, fromDx = 0, speed = 0) => {
-    const t = track.current;
-    const v = vp.current;
-    if (!t || !v || target < 0 || target >= items.length) return;
-    live.current.anim = true;
-    window.clearTimeout(live.current.timer);
-    try {
-      navigator.vibrate?.(8);
-    } catch {}
-    if (reduced()) {
-      live.current.fade = true;
-      settle(target);
-      return;
-    }
-    const W = v.clientWidth;
-    const left = W - Math.abs(fromDx);
-    // As fast as the flick that sent it, a touch slower from a standstill; it lands with a little overshoot.
-    const ms = Math.round(Math.max(220, Math.min(440, speed > 0.3 ? (left / speed) * 0.9 : 180 + (left / W) * 260)));
-    const to = v.querySelector<HTMLElement>(`[data-pane="${dir > 0 ? 2 : 0}"]`);
-    t.style.transition = `transform ${ms}ms ${ARRIVE}`;
-    t.style.transform = `translateX(${dir > 0 ? "-200%" : "0%"})`;
-    if (pill.current) pill.current.style.transition = `transform ${ms}ms ${ARRIVE}`;
-    movePill(target);
-    if (to) {
-      v.style.transition = `height ${ms}ms cubic-bezier(0.2, 0.8, 0.2, 1)`;
-      v.style.height = `${to.offsetHeight}px`;
-    }
-    live.current.timer = window.setTimeout(() => settle(target), ms);
-  };
-  const snapBack = () => {
-    const t = track.current;
-    if (!t) return;
-    live.current.anim = true;
-    t.style.transition = `transform 360ms ${SPRING}`;
-    t.style.transform = "translateX(-100%)";
-    if (pill.current) pill.current.style.transition = `transform 360ms ${SPRING}`;
-    movePill(live.current.at);
-    window.clearTimeout(live.current.timer);
-    live.current.timer = window.setTimeout(() => {
-      live.current.anim = false;
-      if (track.current) track.current.style.transition = "none";
-    }, 370);
-  };
-  // A bar or a key slides the way a swipe would; a week further off takes the neighbour's place first.
-  const jumpTo = (target: number) => {
-    const at = live.current.at;
-    if (live.current.anim || target === at || target < 0 || target >= items.length) return;
-    const dir = target > at ? 1 : -1;
-    if (Math.abs(target - at) === 1) return slideTo(target, dir);
-    live.current.dir = dir;
-    setJump(target);
-  };
-  const remember = () => {
-    try {
-      localStorage.setItem(PEEK_KEY, "1");
-    } catch {}
-  };
-
-  useLayoutEffect(() => {
-    live.current.at = index;
-    live.current.count = items.length;
-    const l = live.current;
-    if (l.reset) {
-      // The week landed in the middle pane: put the track back under it without a jump.
-      l.reset = false;
-      l.anim = false;
-      if (track.current) {
-        track.current.style.transition = "none";
-        track.current.style.transform = "translateX(-100%)";
-      }
-      if (pill.current) pill.current.style.transition = "none";
-      const v = vp.current;
-      if (v) {
-        v.style.transition = "none";
-        if (l.fade) {
-          l.fade = false;
-          v.style.opacity = "0";
-          void v.offsetWidth;
-          v.style.transition = "opacity 180ms ease";
-          v.style.opacity = "1";
-        }
-      }
-    }
-    syncHeight();
-    if (l.dir && jump !== null) {
-      const dir = l.dir;
-      l.dir = 0;
-      slideTo(jump, dir);
-    }
-  });
-
-  useEffect(() => {
-    const pane = vp.current?.querySelector('[data-pane="1"]');
-    if (!pane || typeof ResizeObserver === "undefined") return;
-    const ro = new ResizeObserver(() => syncHeight());
-    ro.observe(pane);
-    const l = live.current;
-    return () => {
-      ro.disconnect();
-      window.clearTimeout(l.timer);
-    };
-    // Once: the middle pane's element stays; only its contents change.
-  }, []);
 
   // Keep the picked bar in view when there are more than fit.
   useEffect(() => {
@@ -197,112 +73,6 @@ export function LineupSheet({ g, r, week, onWeek, words, onClose }: { g: GameVie
     c.scrollTo({ left: col.offsetLeft - (c.clientWidth - col.offsetWidth) / 2, behavior: reduced() ? "auto" : "smooth" });
   }, [index]);
 
-  // Once on a device: the next week peeks in and slides back, so a swipe is the obvious next move.
-  useEffect(() => {
-    let seen = true;
-    try {
-      seen = localStorage.getItem(PEEK_KEY) === "1";
-    } catch {}
-    if (seen || reduced() || index >= items.length - 1) return;
-    const l = live.current;
-    const timer = window.setTimeout(() => {
-      const t = track.current;
-      const v = vp.current;
-      if (!t || !v || l.anim || drag.current) return;
-      remember();
-      l.anim = true;
-      const at = l.at;
-      const n = 44;
-      t.style.transition = "transform 380ms cubic-bezier(0.3, 0, 0.2, 1)";
-      t.style.transform = `translateX(calc(-100% - ${n}px))`;
-      if (pill.current) pill.current.style.transition = "transform 380ms cubic-bezier(0.3, 0, 0.2, 1)";
-      movePill(at + n / v.clientWidth);
-      l.timer = window.setTimeout(() => {
-        t.style.transition = `transform 520ms ${SPRING}`;
-        t.style.transform = "translateX(-100%)";
-        if (pill.current) pill.current.style.transition = `transform 520ms ${SPRING}`;
-        movePill(at);
-        l.timer = window.setTimeout(() => {
-          l.anim = false;
-          t.style.transition = "none";
-        }, 530);
-      }, 420);
-    }, 650);
-    return () => window.clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, when the sheet first shows this player
-  }, []);
-
-  const onPointerDown = (e: PointerEvent) => {
-    if (live.current.anim || (e.pointerType === "mouse" && e.button !== 0)) return;
-    drag.current = { id: e.pointerId, x: e.clientX, y: e.clientY, dx: 0, lock: false, vx: 0, lx: e.clientX, lt: e.timeStamp };
-    live.current.moved = false;
-  };
-  const onPointerMove = (e: PointerEvent) => {
-    const d = drag.current;
-    const v = vp.current;
-    const t = track.current;
-    if (!d || e.pointerId !== d.id || !v || !t) return;
-    const dx = e.clientX - d.x;
-    const dy = e.clientY - d.y;
-    if (!d.lock) {
-      if (Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy) * 1.2) {
-        d.lock = true;
-        try {
-          v.setPointerCapture(e.pointerId);
-        } catch {}
-        t.style.transition = "none";
-        if (pill.current) pill.current.style.transition = "none";
-      } else if (Math.abs(dy) > 10) {
-        drag.current = null;
-        return;
-      } else return;
-    }
-    d.vx = d.vx * 0.3 + ((e.clientX - d.lx) / Math.max(1, e.timeStamp - d.lt)) * 0.7;
-    d.lx = e.clientX;
-    d.lt = e.timeStamp;
-    live.current.moved = true;
-    const W = v.clientWidth;
-    const at = live.current.at;
-    let x = Math.max(-W, Math.min(W, dx));
-    // Past the first or last week it stretches a little and springs back.
-    if ((x > 0 && at <= 0) || (x < 0 && at >= live.current.count - 1)) x = Math.sign(x) * W * 0.16 * (1 - Math.exp(-Math.abs(x) / (W * 0.5)));
-    d.dx = x;
-    t.style.transform = `translateX(calc(-100% + ${x}px))`;
-    movePill(at - x / W);
-  };
-  const onPointerUp = (e: PointerEvent) => {
-    const d = drag.current;
-    drag.current = null;
-    const v = vp.current;
-    if (!d || !d.lock || !v) return;
-    remember();
-    const W = v.clientWidth;
-    const vx = e.timeStamp - d.lt < 90 ? d.vx : 0;
-    // A quick flick counts as much as a long drag.
-    const dir = d.dx < -W * 0.25 || (vx < -0.4 && d.dx < -16) ? 1 : d.dx > W * 0.25 || (vx > 0.4 && d.dx > 16) ? -1 : 0;
-    const target = live.current.at + dir;
-    if (dir && target >= 0 && target < live.current.count) slideTo(target, dir, d.dx, Math.abs(vx));
-    else snapBack();
-  };
-  const onPointerCancel = () => {
-    const d = drag.current;
-    drag.current = null;
-    if (d?.lock) snapBack();
-  };
-  const onKeyDown = (e: KeyboardEvent) => {
-    if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
-      e.preventDefault();
-      jumpTo(live.current.at + (e.key === "ArrowRight" ? 1 : -1));
-    }
-  };
-  // A drag isn't a tap on whatever it started over.
-  const onClickCapture = (e: MouseEvent) => {
-    if (!live.current.moved) return;
-    live.current.moved = false;
-    e.stopPropagation();
-    e.preventDefault();
-  };
-
   if (!items.length) return <p className="pb-2 text-sm text-muted-foreground">No weeks yet. Lineups count from the first {words.episode.toLowerCase()} with results.</p>;
 
   const totals = r.weeks.map((w) => w.total);
@@ -311,13 +81,6 @@ export function LineupSheet({ g, r, week, onWeek, words, onClose }: { g: GameVie
   const best = totals.length ? Math.max(...totals) : 0;
   const many = items.length > 8;
   const colour = gameColour(g.gameName);
-  const left = jump !== null && jump < index ? jump : index - 1;
-  const right = jump !== null && jump > index ? jump : index + 1;
-  const pane = (i: number, slot: number) => (
-    <div key={slot} data-pane={slot} aria-hidden={slot !== 1} inert={slot !== 1} className="w-full flex-none px-4 pb-0.5 pt-4">
-      {i >= 0 && i < items.length && <WeekPane g={g} r={r} it={items[i]} next={next} words={words} onClose={onClose} />}
-    </div>
-  );
 
   return (
     <div data-lineup-sheet={r.playerId}>
@@ -348,7 +111,7 @@ export function LineupSheet({ g, r, week, onWeek, words, onClose }: { g: GameVie
                 data-week-bar={i}
                 aria-pressed={on}
                 aria-label={it.w ? `${words.episode} ${it.n}, ${fmt(it.w.total)} points` : `${words.episode} ${it.n}, ${set ? "set" : "not set yet"}`}
-                onClick={() => jumpTo(i)}
+                onClick={() => pager.current?.go(i)}
                 className="relative flex flex-col items-center py-1.5"
               >
                 <span className={`type-num h-4 text-[15px] leading-4 transition-colors duration-200 ${!it.w ? (set ? "text-good" : "text-muted-foreground") : on ? "" : "text-muted-foreground"}`}>
@@ -368,26 +131,25 @@ export function LineupSheet({ g, r, week, onWeek, words, onClose }: { g: GameVie
         </div>
       </div>
       <div aria-hidden className="mt-4 border-t border-border" />
-      <div
-        ref={vp}
-        data-weeks
-        tabIndex={0}
-        aria-roledescription="carousel"
-        aria-label={`${r.name}'s weeks: swipe, or use the arrow keys`}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerCancel}
-        onKeyDown={onKeyDown}
-        onClickCapture={onClickCapture}
-        className="relative -mx-4 touch-pan-y select-none overflow-hidden outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-      >
-        <div ref={track} className="flex items-start will-change-transform" style={{ transform: "translateX(-100%)" }}>
-          {pane(left, 0)}
-          {pane(index, 1)}
-          {pane(right, 2)}
-        </div>
-      </div>
+      <SwipePager
+        ref={pager}
+        count={items.length}
+        index={index}
+        onIndex={(i) => onWeek(items[i].n)}
+        page={(i) => <WeekPane g={g} r={r} it={items[i]} next={next} words={words} onClose={onClose} />}
+        // The bars' highlight follows the week, finger and all.
+        onMove={(at, ms, easing) => {
+          const p = pill.current;
+          if (!p) return;
+          p.style.transition = ms ? `transform ${ms}ms ${easing}` : "none";
+          p.style.transform = pillAt(at, items.length);
+        }}
+        label={`${r.name}'s weeks: swipe, or use the arrow keys`}
+        peek={PEEK_KEY}
+        className="-mx-4"
+        paneClass="px-4 pb-0.5 pt-4"
+        attrs={{ "data-weeks": true }}
+      />
       <SeasonTeam g={g} r={r} words={words} />
     </div>
   );
