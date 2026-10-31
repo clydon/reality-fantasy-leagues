@@ -182,7 +182,8 @@ export function nextShow(home: Home): HomeShow | null {
  * The show on next: its art large, when it's on, and on a caption plate what it asks of you: Reveal when its results
  * are in (the one yellow), else your move for it (yellow), else the morning update's final scores (teal); then who's set.
  * Nothing to do: no plate (it said "All set · Nothing due", on a show with no game too, and a line that asks nothing of
- * you is noise; the show's name still opens it, and who's set still shows).
+ * you is noise; the card still opens it, and who's set still shows). The whole card opens the show (the user, 2026-10-30): the
+ * name's link stretches over it, and the plate, a planned night and Watch along sit above it with their own taps.
  */
 export function UpNext({ home, show, couch }: { home: Home; show: HomeShow; couch: Couch | null }) {
   const up = show.upNext;
@@ -252,7 +253,7 @@ export function UpNext({ home, show, couch }: { home: Home; show: HomeShow; couc
           </span>
         </div>
         <h2 className="type-caption mt-auto text-[44px] [text-shadow:0_2px_20px_rgba(0,0,0,.5)]">
-          <NavLink href={href} channel className="inline-flex items-center gap-1">
+          <NavLink href={href} channel data-upnext-open className="inline-flex items-center gap-1 after:absolute after:inset-0">
             {name}
             <ChevronRight className="size-7" strokeWidth={3} aria-hidden />
           </NavLink>
@@ -262,7 +263,7 @@ export function UpNext({ home, show, couch }: { home: Home; show: HomeShow; couc
           <NavLink
             href={href}
             channel
-            className="nd-press flex min-h-14 w-full items-stretch overflow-hidden rounded-[3px] bg-plate text-left text-plate-foreground shadow-plate"
+            className="nd-press relative z-[1] flex min-h-14 w-full items-stretch overflow-hidden rounded-[3px] bg-plate text-left text-plate-foreground shadow-plate"
           >
             <span
               className={`type-caption -mr-[13px] flex items-center whitespace-nowrap py-0 pl-[11px] pr-[22px] text-sm tracking-[0.04em] [clip-path:polygon(0_0,100%_0,calc(100%_-_13px)_100%,0_100%)] ${plate.tone}`}
@@ -278,14 +279,18 @@ export function UpNext({ home, show, couch }: { home: Home; show: HomeShow; couc
             </span>
           </NavLink>
         )}
-        {night && <PlannedNight plan={night} me={home.user.id} />}
+        {night && (
+          <div className="relative z-[1]">
+            <PlannedNight plan={night} me={home.user.id} />
+          </div>
+        )}
         <div className="flex items-center justify-between gap-2.5">
           {progress && !reveal ? <WhoIsSet progress={progress} /> : <span />}
           {!night && (
             <NavLink
               href={paths.watch(show.seasonId)}
               data-upnext-watch
-              className="flex h-9 items-center gap-1.5 whitespace-nowrap rounded-[3px] bg-[rgba(16,14,21,.7)] px-3 text-[13px] font-bold text-white outline-1 -outline-offset-1 outline-white/25 backdrop-blur-sm"
+              className="relative z-[1] flex h-9 items-center gap-1.5 whitespace-nowrap rounded-[3px] bg-[rgba(16,14,21,.7)] px-3 text-[13px] font-bold text-white outline-1 -outline-offset-1 outline-white/25 backdrop-blur-sm"
             >
               <Tv className="size-4" aria-hidden />
               Watch along
