@@ -18,13 +18,16 @@
 //                          resumes unasked). Its model and effort: --model / --effort, else the lane's standing choice (its
 //                          state.json, so `keep` restarts a lane at what it ran at), else Opus / xhigh. A lane with nothing
 //                          uncommitted takes master first, as `sync` does (backed out if it stops), so its loop runs
-//                          master's session-loop.js
+//                          master's session-loop.js. Refused once the week is near the usage cap (scripts/usage-cap.js;
+//                          --over-cap starts it anyway)
 //   node scripts/lane.js keep <name>... [--every 5] [--max-sessions 3] [--restarts 4] [--once]
 //                          stays open (until its window is closed), checking those lanes' loops every --every minutes: one
 //                          that's stopped with a hand-off still to run (out of --max-sessions, or its window closed between
 //                          sessions) is started again from it, as `start` does, at most --restarts times a lane. One waiting
-//                          on you (a question, or a session stopped partway) or done is left alone, and the weekly limit is
-//                          waited out. Logs to .session-loop/keeper.log; --once only says what it would do. It sees a loop
+//                          on you (a question, or a session stopped partway) or done is left alone. The usage cap
+//                          (scripts/usage-cap.js) holds for every lane it watches: near it nothing restarts and a running
+//                          loop stops after its session; at it a running loop pauses where it is, and goes on once the
+//                          week resets. Logs to .session-loop/keeper.log; --once only says what it would do. It sees a loop
 //                          by the lane's folder in its command lines (Windows only), so start a watched lane's loop with
 //                          `start`, never by hand in a terminal. While it runs, the PC stays out of idle sleep
 //                          (scripts/keep-awake.ps1 in a minimized window that ends with it)
@@ -45,6 +48,7 @@ const os = require("os");
 const path = require("path");
 const http = require("http");
 const { spawn, spawnSync } = require("child_process");
+const Cap = require("./usage-cap.js");
 
 const ROOT = path.join(__dirname, "..");
 const CONTAINER = process.env.LANE_PG_CONTAINER || "survivor-draft-pg";
@@ -386,23 +390,36 @@ function keep() {
   const tick = () => {
     const loops = loopsRunning();
     if (!loops) return say(null, "couldn't read the process list; trying again at the next check");
+    const cap = Cap.check();
     for (const l of lanes) {
+      const loopDir = path.join(l.lane.dir, ".session-loop");
+      const [stopFile, pauseFile] = [path.join(loopDir, "STOP"), path.join(loopDir, "PAUSE")];
+      // The usage cap: past it a running loop pauses where it is; near it, it stops after its session. A pause this
+      // keeper's cap wrote goes once the week is under the line again (the window reset), so the session carries on.
+      if (!cap.stop && Cap.pausedForCap(loopDir)) {
+        if (!once) fs.rmSync(pauseFile, { force: true });
+        say(l, `${cap.line}: ${once ? "would take its PAUSE away" : "its loop carries on"}`);
+      }
       if (loops.some((c) => c.includes(`${l.lane.dir.toLowerCase()}\\`))) {
-        say(l, "running");
+        if (cap.pause && !fs.existsSync(pauseFile)) {
+          if (!once) fs.writeFileSync(pauseFile, `${Cap.PAUSE_MARK} ${new Date().toISOString()}`);
+          say(l, `${cap.line}: ${once ? "would pause it" : "paused where it is (its session is kept and carries on once the week resets)"}`);
+        } else if (cap.stop && !cap.pause && !fs.existsSync(stopFile) && !fs.existsSync(pauseFile)) {
+          if (!once) fs.writeFileSync(stopFile, new Date().toISOString());
+          say(l, `${cap.line}: ${once ? "would stop its loop after this session" : "its loop stops after this session"}`);
+        } else if (!cap.stop) say(l, "running");
         continue;
       }
       let state = {};
       try {
-        state = JSON.parse(fs.readFileSync(path.join(l.lane.dir, ".session-loop", "state.json"), "utf8"));
+        state = JSON.parse(fs.readFileSync(path.join(loopDir, "state.json"), "utf8"));
       } catch {
         /* no loop has run there yet */
       }
-      const week = state.limits?.unifiedWindows?.seven_day;
       if (state.pending?.question) say(l, `waiting for you (${state.pending.name}): ${String(state.pending.question).split("\n")[0].slice(0, 200)}`);
       else if (state.pending) say(l, `stopped partway through ${state.pending.name}: run its loop again (start ${l.name}) to resume it`);
       else if (!state.next) say(l, "done: nothing handed off");
-      else if (week && week.utilization >= 0.9 && week.resetsAt * 1000 > Date.now())
-        say(l, `the weekly usage window is ${Math.round(week.utilization * 100)}% used: waiting until ${new Date(week.resetsAt * 1000).toLocaleString()}`);
+      else if (cap.stop) say(l, `${cap.line}: ${state.next.name} waits for the reset`);
       else if (l.restarted >= restarts) say(l, `stopped with ${state.next.name} handed off, but it's been started again ${restarts} times (--restarts): leaving it`);
       else if (once) say(l, `stopped with ${state.next.name} handed off: would start it again`);
       else {
@@ -447,7 +464,11 @@ function keep() {
   else if (cmd === "list") list();
   else if (cmd === "check") await check(laneOf(nameArg));
   else if (cmd === "dev") dev(nameArg ? laneOf(nameArg) : null);
-  else if (cmd === "start") start(laneOf(nameArg), nameArg);
+  else if (cmd === "start") {
+    const cap = Cap.check();
+    if (cap.stop && !has("--over-cap")) fail(`${cap.line}: no lane starts now (--over-cap to start it anyway)`);
+    start(laneOf(nameArg), nameArg);
+  }
   else if (cmd === "keep") keep();
   else if (cmd === "sync") sync(laneOf(nameArg));
   else if (cmd === "remove") remove(laneOf(nameArg));

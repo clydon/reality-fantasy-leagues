@@ -28,7 +28,8 @@
 // Pausing ends the running session where it is (its tool calls stop too) and keeps it: Enter resumes the same session,
 // or type a message to send it instead. Quitting keeps it the same way: the next run offers to resume it. `pause` from
 // another terminal (a .session-loop/PAUSE file) pauses the same way and `resume` lets it go on. A session that runs into
-// a usage limit pauses itself and resumes when the limit resets (a weekly limit stops the loop and says when).
+// a usage limit pauses itself and resumes when the limit resets (a weekly limit stops the loop and says when). Near the
+// weekly usage cap (scripts/usage-cap.js: the main folder's .session-loop/usage-cap.json) no session starts: the loop stops.
 //
 // Output: each session's messages and a line per tool call print here as they happen; the raw events go to
 // .session-loop/logs/<time>-<name>.jsonl and a readable copy to the .txt beside it (gitignored). Every session is saved,
@@ -64,6 +65,15 @@ const NEXT = path.join(DIR, "next-prompt.md");
 const IMAGE = /\.(png|jpe?g|gif|webp)$/i;
 /** How long a session's process may stay open after its result: then what it left running is ended (runSession). */
 const LINGER_MS = 60 * 1000;
+
+/** The weekly usage cap's check (scripts/usage-cap.js), or null where it can't be read (a branch without it, no git). */
+function capCheck() {
+  try {
+    return require("./usage-cap.js").check();
+  } catch {
+    return null;
+  }
+}
 /** How long a session that ended a turn without its hand-off may stay quiet (waiting on its own background work). */
 const QUIET_MS = 20 * 60 * 1000;
 
@@ -571,6 +581,11 @@ async function main() {
     const w = state.limits?.unifiedWindows ?? {};
     if (!run.resume && w.seven_day && w.seven_day.utilization >= Math.min(opts.pauseAt, 0.98) && w.seven_day.resetsAt * 1000 > Date.now()) {
       console.log(yellow(`\nThe weekly usage window is ${pct(w.seven_day.utilization)} used, until ${new Date(w.seven_day.resetsAt * 1000).toLocaleString()}. Stopping; run the loop again then.`));
+      break;
+    }
+    const cap = capCheck();
+    if (!run.resume && cap?.stop) {
+      console.log(yellow(`\nThe usage cap: ${cap.line}. Stopping; run the loop again once the week resets.`));
       break;
     }
     if (!run.resume && w.five_hour && w.five_hour.utilization >= opts.pauseAt && w.five_hour.resetsAt * 1000 > Date.now()) {

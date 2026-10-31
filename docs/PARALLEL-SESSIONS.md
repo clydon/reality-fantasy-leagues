@@ -92,6 +92,14 @@ A lane that builds to the mock reads it there by full path, read only, and shoot
   times, 4 by default), checking every 5 minutes. It leaves a lane alone that's waiting for the user, was stopped partway or
   is done, and its log is the main folder's `.session-loop/keeper.log`. The loops wait out the 5-hour window themselves, and
   the keeper waits out the weekly one. First used 2026-10-28, when the user went to sleep with three lanes running.
+- **The usage cap** (the user, 2026-10-31: "pause all lanes at 75%", the rest of the week kept for their own work until the
+  weekly reset): `scripts/usage-cap.js` reads the main folder's `.session-loop/usage-cap.json` (`node scripts/usage-cap.js
+  set 75`, or `off`; with no file it's 90%). Two points under the cap no session starts (`session-loop.js` stops, `lane.js
+  start` refuses without `--over-cap`, a keeper restarts nothing and writes a running loop's `STOP`, so its step finishes);
+  at the cap a keeper pauses a loop still running (its `PAUSE`, marked `usage-cap`) and takes that pause away once the week
+  resets, so the session carries on. The week is the loops' own reading (each session's rate-limit events, in its
+  `state.json`); the user's sessions count too, so between lanes' sessions it can read low. Only a keeper started on this
+  code enforces it on a loop already running; `lane-watch.js` says CAP as the week crosses each line.
 - **Relaying the lanes** (the user's ask, 2026-10-30): the main session runs `node scripts/lane-watch.js` in the background.
   It exits as soon as a lane finishes a step (with the session's final message), its sessions look at new screenshots, a
   loop stops and stays stopped, the keeper says something, or the tapes recorder stops. The session relays what it printed
