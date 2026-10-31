@@ -159,7 +159,8 @@ async function shot(page, name) {
 }
 
 async function session(who, opts = {}) {
-  const s = await open({ user: `zt_nd_${who}`, pass: fixture.PASSWORD, width: WIDTH, height: 844, ...opts });
+  // `tour: true`: browser.js turns the tour off for every other check.
+  const s = await open({ user: `zt_nd_${who}`, pass: fixture.PASSWORD, width: WIDTH, height: 844, tour: true, ...opts });
   if (opts.notifications) await s.page.context().grantPermissions(["notifications"], { origin: s.BASE });
   return s;
 }

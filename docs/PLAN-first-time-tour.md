@@ -1,6 +1,8 @@
 # Plan: the first-time tour (the new design)
 
-**Status:** built 2026-10-31 on branch `tour` (lane `rfl-tour`, port 3007); not merged (migration 0158). As built at the end.
+**Status:** built 2026-10-31 on branch `tour` (lane `rfl-tour`, port 3007); merged to master and pushed the same day with the
+user's go-ahead (migration 0158, pushed without the Neon rehearsal at the user's word, it being two empty columns; the snapshot to
+roll back to is the Neon branch `pre-tour-2026-10-31`, auto-deleted after 7 days). As built at the end.
 
 Shaped with the user on 2026-10-31 through `/impeccable shape`, after everyone was moved onto the new design (0155). The
 classic tours (PLAN-guided-tour.md, PLAN-commissioner-tour.md) are classic's and play no part here. The clickable mock the user
@@ -105,6 +107,9 @@ Start a game, waivers and other niche game flows, Watch along, ratings, the ⋯ 
   first nudge there; Skip tour is 44px. Left as approved: step 2's "Game or not." (the reviewer suggested "Whatever you watch,
   game or not."; the user's to say).
 - **Pictures:** `public/tour/` (80 KB): the three show pictures are the site mock's, four bakers copied from classic's tour.
+- **Every other check gets Home without it:** `scripts/dev-test/browser.js` sets a `gys_tour=off` cookie unless a check asks for
+  the tour with `tour: true` (check-new-tour.js does), and the home read counts that cookie as seen. Otherwise every check
+  that opens Home as a fresh zt account would find the tour over it.
 - **Leaving mid-tour** (Home unmounts with the tour up: the phone's back, a notification) keeps it as a skip at that step, a
   tick after the unmount so React's own remount in development doesn't count. A full unload (the app closed) keeps nothing:
   it plays again next time.

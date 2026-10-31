@@ -352,6 +352,10 @@ Last updated 2026-10-27.
       seasons have none), so screenshots of the fixture's Home are art-less unless the seasons get it.
     - **A player on several couches** gets the tour on the couch Home opens with; nothing in it says how to switch couches
       (the profile sheet does). Left out on purpose: the simpler the better.
+    - **check-new-hub's "and one in the deck, never a tied one" can fail on a cold server** (seen once shipping the tour, on
+      a lane's first run; 106 of 106 straight after): it reads By the numbers' deck 700 ms after the accolades list shows, and
+      the deck waits for every show's stats read (the skeleton until then). It should wait for `[data-stat-deck]`, or for the
+      skeleton to go. **When:** the next change to check-new-hub.
 
 
 

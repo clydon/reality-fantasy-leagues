@@ -975,7 +975,7 @@ never handles it: the user does the reset and the pasting.
   (11 ms on the local copy's live couch), returning a few dozen small rows. The same afternoon, the moves kept in the games'
   states count too (couch-moves.ts): read from the states the hub already loads, plus one tiny read of the couch's games'
   `created_at`. No new table.
-- **2026-10-31, on branch `tour` (migration 0158), not merged yet.** The first-time tour (docs/PLAN-first-time-tour.md).
+- **2026-10-31, pushed to master (migration 0158).** The first-time tour (docs/PLAN-first-time-tour.md).
   **Nothing polls, nothing scheduled, no new service, no new table.** `user_settings` gains `tour_seen_at` and `tour_reached`
   (0158; null on every existing row, backed up with the table). The home read selects one more column from the join it
   already makes; one small POST an account when the tour ends (`/api/me/tour`, keepalive), and again only when someone

@@ -36,7 +36,10 @@ function findChrome() {
 }
 
 // `headers` go with every request the page makes (a check's stand-ins: { "x-gys-listings": tv.url }, fake-listings.js).
-async function open({ user, pass, width = 390, height = 844, motion = process.env.MOTION || "on", watch = !!process.env.MOTION_WATCH, headers } = {}) {
+// The first-time tour (docs/PLAN-first-time-tour.md) plays over Home for an account that hasn't seen it; a check gets Home as
+// it is (the gys_tour=off cookie: the home read counts it as seen) unless it asks for the tour with `tour: true`
+// (check-new-tour.js).
+async function open({ user, pass, width = 390, height = 844, motion = process.env.MOTION || "on", watch = !!process.env.MOTION_WATCH, headers, tour = false } = {}) {
   const browser = await findPlaywright().chromium.launch({ executablePath: findChrome() });
   const context = await browser.newContext({
     viewport: { width, height },
@@ -47,6 +50,7 @@ async function open({ user, pass, width = 390, height = 844, motion = process.en
   });
   await motionTools.install(context, { mode: motion, watch });
   if (headers) await context.setExtraHTTPHeaders(headers);
+  if (!tour) await context.addCookies([{ name: "gys_tour", value: "off", url: BASE }]);
   if (user) {
     const r = await context.request.post(BASE + "/api/auth/sign-in/username", { data: { username: user, password: pass }, headers: { origin: BASE } });
     if (!r.ok()) throw new Error("sign-in failed: " + r.status() + " " + (await r.text()));

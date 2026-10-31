@@ -162,7 +162,8 @@ export const GET = apiRoute(async (req) => {
       colour: (face.rows[0]?.colour as string | null) ?? null,
       picture: face.rows[0]?.picture == null ? null : Number(face.rows[0].picture),
       theme,
-      tourSeen: !!face.rows[0]?.tour_seen,
+      // A check's browser says gys_tour=off (scripts/dev-test/browser.js): Home as it is, as if the tour were seen.
+      tourSeen: !!face.rows[0]?.tour_seen || /(?:^|;\s*)gys_tour=off(?:;|$)/.test(req.headers.get("cookie") ?? ""),
     },
     couches: couchRows.map((c) => ({
       id: c.id,
