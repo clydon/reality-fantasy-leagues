@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ChevronRight, Clock, Eye } from "lucide-react";
 import { airTime, dayOf } from "../clock";
-import { useEpisodeResults, useSeasonWaivers, type EpisodeRow, type GameNight, type WaiverWeek } from "../data";
+import { useEpisodeResults, useSeasonWaivers, type EpisodeRow, type GameNight, type WaiverRunView, type WaiverWeek } from "../data";
 import { midLine, useFinalLine } from "../final-words";
 import { gameInk, ordinal } from "../games";
 import { NavLink, useCameFrom, useNav } from "../nav";
@@ -22,7 +22,7 @@ import { SheetResultRow } from "./questions";
 import { BingoResults } from "./bingo";
 import { ShowChangeCard } from "./show-change";
 import { EpisodeCorrections, SomethingWrong } from "./something-wrong";
-import { playsWaivers, WaiverEpisodeRow } from "./waivers";
+import { movesIn, playsWaivers, WaiverEpisodeRow } from "./waivers";
 import { RecapsCard } from "./recaps";
 
 // Episodes (the mock's show.js tabEpisodes and episodePage, episode.js's locked row, waivers.js's row): this week's
@@ -73,10 +73,15 @@ export function Episodes({ seasonId, show }: { seasonId: string; show: ShowData 
   const progress = progressLine(show) ?? (ro && roGame && !roGame.over && !roGame.archived ? `${ro.name}: nothing to set before it airs` : null);
   const wv = useSeasonWaivers(seasonId, show.couch?.id ?? null, playsWaivers(show) && !show.readOnly);
   const rateFor = (n: number): RateTarget => ({ seasonId, couchId: show.couch?.id ?? null, episode: n, label: rateLabel(show), solo: show.solo });
-  // Each waiver week after the episode that opened it: in a newest-first list, just above that episode's row.
-  const weeks = (n: number) => (wv.data?.games ?? []).filter((w) => (w.run?.episode ?? w.period?.episode) === n && (w.run || (w.stage === "open" && (w.replace.length || w.swapsAllowed))));
-  const waiverRows = (list: WaiverWeek[]) =>
-    list.map((w) => <WaiverEpisodeRow key={w.leagueId} seasonId={seasonId} week={w} many={(wv.data?.games.length ?? 0) > 1} />);
+  // Each waiver week after the episode that opened it, in a newest-first list just above that episode's row: every week anyone
+  // moved in (a quiet week says nothing), and the week still open while there's something for you to do in it.
+  const weeks = (n: number) =>
+    (wv.data?.games ?? []).flatMap((w) => [
+      ...w.runs.filter((r) => r.episode === n && movesIn(r) > 0).map((r) => ({ w, r })),
+      ...(w.stage === "open" && w.period?.episode === n && (w.replace.length || w.swapsAllowed) ? [{ w, r: null }] : []),
+    ]);
+  const waiverRows = (list: { w: WaiverWeek; r: WaiverRunView | null }[]) =>
+    list.map(({ w, r }) => <WaiverEpisodeRow key={`${w.leagueId}-${r?.periodId ?? "open"}`} seasonId={seasonId} week={w} run={r} many={(wv.data?.games.length ?? 0) > 1} />);
   const n = episodesOf(show);
   const network = show.header?.show.network;
   // A streaming season: Up next is its drop, until it's out (schedule.ts upNext); then, watched without a game of yours, the

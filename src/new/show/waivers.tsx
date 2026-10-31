@@ -4,10 +4,10 @@ import { useCallback, useState, useSyncExternalStore, type ReactNode } from "rea
 import { createPortal } from "react-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
-import { ArrowLeftRight, Calendar, Check, ChevronRight, CircleHelp, Play, RefreshCw, Zap } from "lucide-react";
+import { ArrowLeftRight, ArrowRight, Calendar, Check, ChevronRight, CircleHelp, Play, RefreshCw, Zap } from "lucide-react";
 import { airTime, calm, ticks } from "../clock";
-import { useSeasonStats, useSeasonWaivers, waivers as write, type WaiverFace, type WaiverMove, type WaiverWeek } from "../data";
-import { gameColour, ordinal } from "../games";
+import { useSeasonStats, useSeasonWaivers, waivers as write, type WaiverFace, type WaiverMove, type WaiverRunView, type WaiverWeek } from "../data";
+import { gameColour, gameInk, ordinal } from "../games";
 import { NavLink, useNav } from "../nav";
 import { paths } from "../routes";
 import { isTabOf, useShow, type ShowData } from "../screens/show-space";
@@ -80,37 +80,80 @@ export function unseenRun(weeks: WaiverWeek[] | undefined, seen: string[] | unde
 /** Whether you play a game here that can have waivers (Outlast, Weekly Lineup), so it's worth asking. */
 export const playsWaivers = (show: ShowData) => show.games.some((g) => g.yourRole && (g.gameType === "classic-draft" || g.gameType === "active-roster"));
 
-/** Episodes' row for a waiver week, between the two episodes it falls between: open, to the Waivers page; run, to its page. */
-export function WaiverEpisodeRow({ seasonId, week, many }: { seasonId: string; week: WaiverWeek; many: boolean }) {
-  const ran = usePushedPage("waivers-ran", ["wv"]);
-  const run = week.run;
-  const n = run?.episode ?? week.period?.episode;
-  const mine = run?.moves.find((m) => m.you && m.outcome === "got" && m.add);
-  const moves = run ? run.moves.filter((m) => m.outcome === "got").length + run.freeAgency.length : 0;
-  const title = `${many ? `${week.gameName} waivers` : "Waivers"} · after Episode ${n}`;
-  const body = (
-    <>
-      <span className={`grid w-7 place-items-center ${run ? "text-muted-foreground" : "text-chyron-line"}`}>
-        <ArrowLeftRight className="size-5" aria-hidden />
-      </span>
-      {mine?.add && <Face src={mine.add.photo} name={mine.add.name} className="size-10 flex-none rounded-[3px]" />}
-      <span className="min-w-0 flex-1">
-        <b className="block text-base font-semibold">{title}</b>
-        <small className="mt-0.5 block text-[13px] text-muted-foreground">
-          {run
-            ? `${mine?.add ? `You got ${first(mine.add.name)}${mine.drop ? ` for ${first(mine.drop.name)}` : ""} · ` : ""}${moves} ${moves === 1 ? "move" : "moves"}`
-            : `Due ${week.period?.due ? airTime(Date.parse(week.period.due)) : "before airtime"} · ${
-                week.replace.length ? `replace ${names(week.replace.map((id) => first(week.team.find((f) => f.id === id)?.name ?? "someone")))}` : "optional swaps"
-              }`}
-        </small>
-      </span>
-    </>
-  );
+/** The moves a run made: who got whom, and free agency's since. */
+export const movesIn = (run: WaiverRunView) => run.moves.filter((m) => m.outcome === "got").length + run.freeAgency.length;
+
+/** A run's moves by player, you first, then in the run's order (picking order, where there is one): each player's moves made,
+ *  and whoever made none. */
+function byPlayer(run: WaiverRunView) {
+  const made = [...run.moves.filter((m) => m.outcome === "got" && m.add), ...run.freeAgency.filter((m) => m.add)];
+  const players: { playerId: string; name: string; userId: string | null; you: boolean; moves: WaiverMove[] }[] = [];
+  for (const m of made) {
+    const p = players.find((x) => x.playerId === m.playerId);
+    if (p) p.moves.push(m);
+    else players.push({ playerId: m.playerId, name: m.name, userId: m.userId, you: m.you, moves: [m] });
+  }
+  players.sort((a, b) => Number(b.you) - Number(a.you));
+  const none = run.moves.filter((m) => m.outcome !== "got" && !players.some((p) => p.playerId === m.playerId));
+  const missed = none.filter((m, i) => none.findIndex((x) => x.playerId === m.playerId) === i);
+  return { players, missed };
+}
+
+/** A player's moves in a line: "You got Ori for Carter"; several, "You got Jelly, Carter and Thien" (the faces say for whom). */
+const gotLine = (p: { you: boolean; name: string; moves: WaiverMove[] }) => {
+  const one = p.moves.length === 1 ? p.moves[0] : null;
+  return `${p.you ? "You" : p.name} got ${one ? `${first(one.add!.name)}${one.drop ? ` for ${first(one.drop.name)}` : ""}` : names(p.moves.map((m) => first(m.add!.name)))}`;
+};
+
+/**
+ * Episodes' row for a waiver week, just above the episode that opened it (2026-10-31, the user: every week's moves where they
+ * happened, at a glance, then a page of its own). A run: the game's label in its colour, what you got as a headline, your swaps as
+ * faces (who left, faded, then who came in), everyone else in a line. A week still open: what's due, to the Waivers page.
+ */
+export function WaiverEpisodeRow({ seasonId, week, run, many }: { seasonId: string; week: WaiverWeek; run: WaiverRunView | null; many: boolean }) {
+  const ran = usePushedPage("waivers-ran", ["wv", "run"]);
+  const label = many ? `${week.gameName} waivers` : "Waivers";
   if (run) {
+    const { players } = byPlayer(run);
+    const lead = players[0];
+    const rest = players.slice(1);
+    const count = movesIn(run);
     return (
-      <button type="button" data-wv-ep="ran" onClick={() => ran.showWith({ wv: week.leagueId })} className="nd-press flex min-h-[68px] w-full items-center gap-3 border-t border-border px-0 text-left">
-        {body}
-        <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />
+      <button
+        type="button"
+        data-wv-ep="ran"
+        data-wv-episode={run.episode}
+        onClick={() => ran.showWith({ wv: week.leagueId, run: run.periodId })}
+        className="nd-press flex w-full items-start gap-3 border-t border-border py-3 text-left"
+      >
+        <span className="grid w-7 flex-none place-items-center pt-0.5 text-muted-foreground">
+          <ArrowLeftRight className="size-5" aria-hidden />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="flex items-baseline justify-between gap-2">
+            <span className="type-caption truncate text-[13px] tracking-[0.04em]" style={{ color: gameInk(week.gameName) }}>
+              {label} <span className="text-muted-foreground">· after Ep {run.episode}</span>
+            </span>
+            <small className="flex-none text-[13px] text-muted-foreground">
+              {count} {count === 1 ? "move" : "moves"}
+            </small>
+          </span>
+          {lead && <b className="mt-1 block text-base font-semibold leading-snug">{gotLine(lead)}</b>}
+          {lead && (
+            <span className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2" aria-hidden>
+              {lead.moves.slice(0, 4).map((m) => (
+                <span key={`${m.drop?.id}-${m.add!.id}`} className="flex items-center gap-1">
+                  {m.drop && <Face src={m.drop.photo} name={m.drop.name} className="size-[26px] rounded-[2px] text-[11px] opacity-50 grayscale" />}
+                  {m.drop && <ArrowRight className="size-3 text-muted-foreground" />}
+                  <Face src={m.add!.photo} name={m.add!.name} className="size-[30px] rounded-[2px] text-xs" />
+                </span>
+              ))}
+              {lead.moves.length > 4 && <span className="text-[13px] font-semibold text-muted-foreground">+{lead.moves.length - 4}</span>}
+            </span>
+          )}
+          {rest.length > 0 && <small className="mt-2 line-clamp-2 block text-[13px] leading-snug text-muted-foreground">{rest.map(gotLine).join(" · ")}</small>}
+        </span>
+        <ChevronRight className="mt-0.5 size-5 flex-none text-muted-foreground" aria-hidden />
       </button>
     );
   }
@@ -120,7 +163,18 @@ export function WaiverEpisodeRow({ seasonId, week, many }: { seasonId: string; w
       href={`${paths.showPage(seasonId, "waivers")}?game=${week.leagueId}`}
       className="nd-press flex min-h-[68px] w-full items-center gap-3 border-t border-border bg-[linear-gradient(90deg,rgba(255,197,49,.09),transparent)] px-2 text-left"
     >
-      {body}
+      <span className="grid w-7 place-items-center text-chyron-line">
+        <ArrowLeftRight className="size-5" aria-hidden />
+      </span>
+      <span className="min-w-0 flex-1">
+        <b className="block text-base font-semibold">
+          {label} · after Episode {week.period?.episode}
+        </b>
+        <small className="mt-0.5 block text-[13px] text-muted-foreground">
+          Due {week.period?.due ? airTime(Date.parse(week.period.due)) : "before airtime"} ·{" "}
+          {week.replace.length ? `replace ${names(week.replace.map((id) => first(week.team.find((f) => f.id === id)?.name ?? "someone")))}` : "optional swaps"}
+        </small>
+      </span>
       <span className="text-[15px] font-semibold text-chyron-line">Open</span>
     </NavLink>
   );
@@ -237,19 +291,21 @@ export function WaiversScreen({ seasonId }: { seasonId: string }) {
 
 function Week({ seasonId, show, week }: { seasonId: string; show: ShowData; week: WaiverWeek }) {
   const [how, setHow] = useState(false);
-  const ran = usePushedPage("waivers-ran", ["wv"]);
+  const ran = usePushedPage("waivers-ran", ["wv", "run"]);
   const replay = usePushedPage("waivers-run", ["wv"]);
-  const pastMoves = week.run ? week.run.moves.filter((m) => m.outcome === "got").length + week.run.freeAgency.length : 0;
+  // Past waivers: the latest week anyone moved in (a quiet week says nothing), else the latest.
+  const past = [...week.runs].reverse().find((r) => movesIn(r) > 0) ?? week.run;
+  const pastMoves = past ? movesIn(past) : 0;
   const rows = (
     <section className="mt-[26px] px-4">
       {week.run && (
         <>
-          <button type="button" data-wv-past onClick={() => ran.showWith({ wv: week.leagueId })} className="nd-press flex min-h-[60px] w-full items-center gap-3 border-t border-border py-2 text-left">
+          <button type="button" data-wv-past onClick={() => ran.showWith({ wv: week.leagueId, run: past?.periodId ?? "" })} className="nd-press flex min-h-[60px] w-full items-center gap-3 border-t border-border py-2 text-left">
             <IconBox icon={Calendar} />
             <span className="min-w-0 flex-1">
               <b className="block text-[15px] font-semibold">Past waivers</b>
               <small className="block text-[13px] text-muted-foreground">
-                After Episode {week.run.episode} · {pastMoves} {pastMoves === 1 ? "move" : "moves"}
+                After Episode {past?.episode} · {pastMoves} {pastMoves === 1 ? "move" : "moves"}
               </small>
             </span>
             <ChevronRight className="size-5 text-muted-foreground" aria-hidden />
@@ -1075,38 +1131,92 @@ function RunBeats({ week, onSeen, onClose }: { week: WaiverWeek; onSeen: () => v
   );
 }
 
-/** The run's own page, like an episode's (the mock's wvRunPage): its moves in picking order, then free agency's. */
+/** One move as a card: who left (faded, and when) → who came in (still in, or since gone), and why where order mattered. */
+function SwapCard({ m, shared }: { m: WaiverMove; shared: boolean }) {
+  const add = m.add!;
+  const why = !shared && m.why && m.why !== "1st choice" && m.why !== "Free agency" ? m.why : m.why === "Free agency" ? "Free agency" : null;
+  return (
+    <li data-wv-move={m.name} className="flex items-center gap-2 rounded-[4px] bg-card py-2 pl-2 pr-2.5">
+      <span className="flex min-w-0 flex-1 items-center gap-2">
+        {m.drop ? (
+          <>
+            <Face src={m.drop.photo} name={m.drop.name} className="size-10 flex-none rounded-[3px] text-sm opacity-55 grayscale" />
+            <span className="min-w-0">
+              <b className="block truncate text-[15px] font-semibold text-muted-foreground">{first(m.drop.name)}</b>
+              <small className="block text-[12px] text-muted-foreground">{m.drop.out ? `Out Ep ${m.drop.out}` : m.kind === "swap" ? "Swapped out" : "Out"}</small>
+            </span>
+          </>
+        ) : (
+          <small className="text-[13px] text-muted-foreground">An open spot</small>
+        )}
+      </span>
+      <ArrowRight className="size-4 flex-none text-muted-foreground" aria-hidden />
+      <span className="flex min-w-0 flex-1 items-center gap-2">
+        <Face src={add.photo} name={add.name} className="size-11 flex-none rounded-[3px] text-sm" />
+        <span className="min-w-0">
+          <b className="block truncate text-[15px] font-semibold">{first(add.name)}</b>
+          <small className={`block text-[12px] leading-tight ${add.out ? "text-muted-foreground" : "text-good"}`}>{add.out ? `Out Ep ${add.out}` : "Still in"}</small>
+          {why && <small className="block text-[12px] leading-tight text-muted-foreground">{why}</small>}
+        </span>
+      </span>
+    </li>
+  );
+}
+
+/**
+ * A run's own page, like an episode's (the mock's wvRunPage; redrawn 2026-10-31): each player's moves as cards, you first (in
+ * picking order where there is one), then who made none and why. `?run=` picks the week (Episodes' rows), else the latest.
+ */
 export function WaiverRunPage({ weeks }: { weeks: WaiverWeek[] | null }) {
-  const page = usePushedPage("waivers-ran", ["wv"]);
-  const wv = useSearchParams().get("wv");
-  const week = weeks?.find((w) => w.leagueId === wv && w.run) ?? null;
-  const run = week?.run ?? null;
+  const page = usePushedPage("waivers-ran", ["wv", "run"]);
+  const params = useSearchParams();
+  const wv = params.get("wv");
+  const asked = params.get("run");
+  const week = weeks?.find((w) => w.leagueId === wv && w.runs.length) ?? null;
+  const run = (asked && week?.runs.find((r) => r.periodId === asked)) || week?.run || null;
+  const { players, missed } = run ? byPlayer(run) : { players: [], missed: [] };
+  const count = run ? movesIn(run) : 0;
+  // The week's still going (free agency until airtime) only for the latest run, while its week is.
+  const going = !!week && !!run && week.period?.id === run.periodId && week.stage === "processed";
   return (
     <PushedPage open={page.open && !!run} onClose={page.close} title={run ? `Waivers · after Episode ${run.episode}` : "Waivers"}>
       {week && run && (
         <div data-wv-run-page className="px-4 pb-12 pt-4">
-          <p className="text-[14px] text-muted-foreground">
-            {week.gameName} · ran {airTime(Date.parse(run.at))}
-            {week.shared ? "." : " · picks went through in picking order."}
+          <p className="type-caption text-[14px] tracking-[0.04em]" style={{ color: gameInk(week.gameName) }}>
+            {week.gameName}
           </p>
-          <div className="mt-3">
-            <MovesList moves={run.moves.filter((m) => m.outcome === "got")} shared={week.shared} numbered={!week.shared} />
-          </div>
-          {run.moves.some((m) => m.outcome !== "got") && (
-            <p className="mt-3 text-[13px] text-muted-foreground">
-              {names(run.moves.filter((m) => m.outcome !== "got").map((m) => (m.you ? "you" : m.name)))}: no change ({run.moves.find((m) => m.outcome !== "got")!.why.toLowerCase()}).
+          <p className="mt-1 text-[14px] text-muted-foreground">
+            Ran {airTime(Date.parse(run.at))} · {count} {count === 1 ? "move" : "moves"}
+            {week.shared ? " · castaways can be on several teams, so nobody's pick was taken" : " · picks went through in picking order"}
+          </p>
+          {players.map((p) => (
+            <section key={p.playerId} data-wv-player={p.you ? "you" : p.name} className="mt-6">
+              <div className="mb-2 flex items-center gap-2.5">
+                <Avatar id={p.userId ?? p.playerId} name={p.name} size={28} />
+                <b className="min-w-0 flex-1 truncate text-[16px]">{p.you ? "You" : p.name}</b>
+                <small className="text-[13px] text-muted-foreground">
+                  {p.moves.length} {p.moves.length === 1 ? "move" : "moves"}
+                </small>
+              </div>
+              <ul className="flex flex-col gap-1.5">
+                {p.moves.map((m, i) => (
+                  <SwapCard key={`${m.add!.id}-${i}`} m={m} shared={week.shared} />
+                ))}
+              </ul>
+            </section>
+          ))}
+          {players.length === 0 && <p className="mt-6 text-[15px] text-muted-foreground">Nobody moved this week.</p>}
+          {missed.length > 0 && (
+            <p data-wv-missed className="mt-6 border-t border-border pt-3 text-[13px] leading-snug text-muted-foreground">
+              No change: {missed.map((m) => `${m.you ? "you" : m.name} (${m.why.toLowerCase()})`).join(", ")}.
             </p>
           )}
-          {run.freeAgency.length > 0 && (
-            <>
-              <SectionHead title="Free agency" className="mt-6" flush />
-              <MovesList moves={run.freeAgency} shared />
-            </>
+          {going && (
+            <p className="mt-4 flex items-center gap-1.5 text-[13px] text-muted-foreground">
+              <RefreshCw className="size-3.5" aria-hidden />
+              Then free agency until airtime.
+            </p>
           )}
-          <p className="mt-4 flex items-center gap-1.5 text-[13px] text-muted-foreground">
-            <RefreshCw className="size-3.5" aria-hidden />
-            Then free agency until airtime.
-          </p>
         </div>
       )}
     </PushedPage>

@@ -71,6 +71,21 @@ test("your own picks, a spot at a time: first choice first, then backups", () =>
   assert.deepEqual(w.spots, [{ dropId: "a1", addIds: ["f2", "f1"] }]);
 });
 
+test("every week's run, oldest first (Episodes lists them where they happened); one you haven't revealed isn't there", () => {
+  const s = league();
+  W.process(s, { ann: W.checkClaim(s, W.current(s), "ann", { pairs: [{ addId: "f1", dropId: "a1" }] }).claim }, { now: T0 + 3600e3, by: "commissioner" });
+  S.addElimination(s, "ep4", "b2", "Voted Out");
+  W.open(s, T0 + 7 * 86400e3);
+  W.process(s, { bo: W.checkClaim(s, W.current(s), "bo", { pairs: [{ addId: "f2", dropId: "b2" }] }).claim }, { now: T0 + 7 * 86400e3 + 3600e3, by: "commissioner" });
+  const w = waiverWeek(ref, s, "ann", 4, userOf, null);
+  assert.deepEqual(w.runs.map((r) => r.episode), [3, 4]);
+  assert.equal(w.run, w.runs[1], "the week's run is the latest");
+  assert.ok(w.runs[0].moves.some((m) => m.you && m.outcome === "got" && m.add.id === "f1"), "after Episode 3: you got F1");
+  assert.ok(w.runs[1].moves.some((m) => m.name === "bo" && m.outcome === "got" && m.add.id === "f2"), "after Episode 4: bo got F2");
+  const behind = waiverWeek(ref, s, "ann", 3, userOf, null);
+  assert.deepEqual(behind.runs.map((r) => r.episode), [3], "on Episode 3: the week Episode 4 opened isn't there");
+});
+
 test("after the run: each move in picking order, yours marked, and why it wasn't a first choice", () => {
   const s = league();
   // bo (out B3) and ann (out A1) both want F1: whoever's first in line gets them.

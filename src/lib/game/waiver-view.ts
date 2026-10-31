@@ -82,6 +82,8 @@ export interface WaiverWeek extends GameRefIn {
   freeAgency: boolean;
   /** The last run you may see. */
   run: WaiverRunView | null;
+  /** Every run you may see, oldest first (each week's moves where they happened: Episodes, 2026-10-31). */
+  runs: WaiverRunView[];
   /** How it works here: the three answers and When moves happen. */
   how: { out: string; swap: string; order: string; lanes: { episodes: number[]; now: number; replace: boolean[]; swap: boolean[] } };
 }
@@ -233,31 +235,30 @@ export function waiverWeek(game: GameRefIn, full: LeagueState, playerId: string,
         you: id === playerId,
         points: pointsOf(id),
       }));
-  // The last run you may see, and free agency's moves in that week since.
-  const ran = W.periods(view).filter((p: WaiverPeriod) => p.run && !p.hidden);
-  const last = ran[ran.length - 1];
-  const run: WaiverRunView | null = last?.run
-    ? {
-        periodId: last.id,
-        episode: last.episode,
-        at: last.run.at,
-        moves: movesOf(view, last.run.results, playerId, faces, userOf, scored),
-        freeAgency: (view.midSeason.log ?? [])
-          .filter((tx) => tx.periodId === last.id && tx.via === "freeAgency")
-          .map((tx) => ({
-            playerId: tx.playerId,
-            userId: userOf(tx.playerId),
-            name: view.players.find((p) => p.id === tx.playerId)?.name ?? "someone",
-            you: tx.playerId === playerId,
-            kind: tx.type === "replenish" ? "replace" : "swap",
-            add: faceOf(view, faces.get(tx.addedCastawayId), scored),
-            drop: faceOf(view, tx.droppedCastawayId ? faces.get(tx.droppedCastawayId) : undefined, scored),
-            outcome: "got",
-            choice: null,
-            why: "Free agency",
-          })),
-      }
-    : null;
+  // Every run you may see, and free agency's moves in each week since; the last is the week's.
+  const runs: WaiverRunView[] = W.periods(view)
+    .filter((p: WaiverPeriod) => p.run && !p.hidden)
+    .map((p: WaiverPeriod) => ({
+      periodId: p.id,
+      episode: p.episode,
+      at: p.run!.at,
+      moves: movesOf(view, p.run!.results, playerId, faces, userOf, scored),
+      freeAgency: (view.midSeason.log ?? [])
+        .filter((tx) => tx.periodId === p.id && tx.via === "freeAgency")
+        .map((tx) => ({
+          playerId: tx.playerId,
+          userId: userOf(tx.playerId),
+          name: view.players.find((pl) => pl.id === tx.playerId)?.name ?? "someone",
+          you: tx.playerId === playerId,
+          kind: tx.type === "replenish" ? ("replace" as const) : ("swap" as const),
+          add: faceOf(view, faces.get(tx.addedCastawayId), scored),
+          drop: faceOf(view, tx.droppedCastawayId ? faces.get(tx.droppedCastawayId) : undefined, scored),
+          outcome: "got" as const,
+          choice: null,
+          why: "Free agency",
+        })),
+    }));
+  const run = runs[runs.length - 1] ?? null;
   return {
     ...game,
     playerId,
@@ -288,6 +289,7 @@ export function waiverWeek(game: GameRefIn, full: LeagueState, playerId: string,
     fallback: W.autoFillOn(view),
     freeAgency: W.freeAgencyOn(view),
     run,
+    runs,
     how: waiverHow(view),
   };
 }
