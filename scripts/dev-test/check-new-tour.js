@@ -10,6 +10,7 @@
 //      no Couch points; Turn on ends it.
 //   F. riley with reduced motion: each step's light at once, no taps in the examples.
 //   G. zt_nd_admin acting as jordan (the desk's Act as them): Home doesn't play it, and a write is refused (kept: false).
+//   I. casey leaves Home mid-tour by a move inside the app (as the phone's back): kept as a skip at that step.
 //   H. riley in Studio: plays, with no page errors.
 // Nothing wider than the screen; no page errors.
 //
@@ -333,6 +334,29 @@ async function playThrough(page, steps, who, { tapIn = "add" } = {}) {
         await page.evaluate(() => fetch("/api/desk/acting", { method: "DELETE" }));
       } finally {
         errors.push(...e.map((x) => `G: ${x}`));
+        await close();
+      }
+    }
+
+    // ---- I. casey leaves Home mid-tour (a move inside the app, as the phone's back makes): it counts as a skip ----
+    {
+      const { page, errors: e, BASE, close } = await session("casey");
+      try {
+        await page.goto(BASE + "/home", { waitUntil: "domcontentloaded" });
+        await page.waitForSelector('[role="dialog"][data-tour]', { timeout: 15000 });
+        await page.waitForFunction(() => document.querySelector('[role="dialog"][data-tour]')?.dataset.tourLit !== "off", null, { timeout: 9000 });
+        await page.click("[data-tour-next]");
+        await page.waitForTimeout(500);
+        const [res] = await Promise.all([
+          page.waitForResponse((r) => r.url().includes("/api/me/tour") && r.request().method() === "POST", { timeout: 10000 }),
+          page.evaluate(() => window.next.router.push("/settings")),
+        ]);
+        const row = await tourOf(pool, U.casey);
+        check(res.status() === 200 && !!row.tour_seen_at && row.tour_reached === 2, "I: leaving Home mid-tour counts as a skip (step 2)", JSON.stringify(row));
+        await page.waitForTimeout(800);
+        check(!(await tourUp(page)), "I: and the tour's gone with Home");
+      } finally {
+        errors.push(...e.map((x) => `I: ${x}`));
         await close();
       }
     }

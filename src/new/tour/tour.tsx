@@ -170,11 +170,22 @@ export function Tour({ home, hub, solo }: { home: Home | undefined; hub: CouchHu
     },
     [seen]
   );
+  const left = useCallback((reached: number) => void seen(reached), [seen]);
   if (!run) return null;
-  return createPortal(<Running steps={run.steps} reminders={run.reminders} onDone={done} />, document.body);
+  return createPortal(<Running steps={run.steps} reminders={run.reminders} onDone={done} onLeft={left} />, document.body);
 }
 
-function Running({ steps, reminders, onDone }: { steps: TourStep[]; reminders: TourReminders; onDone: (reached: number, how: Ending) => void }) {
+function Running({
+  steps,
+  reminders,
+  onDone,
+  onLeft,
+}: {
+  steps: TourStep[];
+  reminders: TourReminders;
+  onDone: (reached: number, how: Ending) => void;
+  onLeft: (reached: number) => void;
+}) {
   const me = useMe();
   const reduce = useReducedMotion();
   const [i, setI] = useState(0);
@@ -338,6 +349,19 @@ function Running({ steps, reminders, onDone }: { steps: TourStep[]; reminders: T
       el?.removeEventListener("touchmove", still);
     };
   }, []);
+
+  // Leaving Home mid-tour (the phone's back, a notification opened) counts as a skip: it was seen this far. A tick later, so a
+  // remount straight after (React's own, in development) doesn't count.
+  useEffect(
+    () => () => {
+      if (leaving.current) return;
+      const reached = at.current + 1;
+      setTimeout(() => {
+        if (!document.querySelector('[role="dialog"][data-tour]')) onLeft(reached);
+      }, 0);
+    },
+    [onLeft]
+  );
 
   // If Home's layout changes under a lit step (a read coming back), the spotlight follows its target.
   useEffect(() => {

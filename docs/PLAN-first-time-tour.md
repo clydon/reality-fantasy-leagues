@@ -48,7 +48,8 @@ example and lights nothing.
 
 - **When:** the first time an account opens Home in the new design, once Home's in (never over a deep link into a show, a
   pushed page or a sheet). Per account, not per device (an iPhone's Home Screen app is a device of its own), in
-  `user_settings.tour_seen_at` / `tour_reached` (migration 0158). Skip counts as seen. Not while an admin acts as someone or
+  `user_settings.tour_seen_at` / `tour_reached` (migration 0158). Skip counts as seen, and so does leaving Home mid-tour (the
+  phone's back, a notification opened: kept at the step it was on). Not while an admin acts as someone or
   views as a player (it would mark their account; 0048 was the same bug for What's New), and the write is refused then.
 - **Replay:** Settings › Help and account › Take the tour (back to Home, which plays it), or `/home?tour=1`.
 - **The lower third** (Lower Third, DESIGN.md): a "Skip tour" pill, the example in a box over the shoulder, and the caption
@@ -95,5 +96,8 @@ Start a game, waivers and other niche game flows, Watch along, ratings, the ⋯ 
   are Golden Crust instead of Survivor 51's real cast (a spoiler for anyone behind); "Inside each show" and "Couch points" were
   added after the mock (the user); the Home behind is the player's own.
 - **Pictures:** `public/tour/` (80 KB): the three show pictures are the site mock's, four bakers copied from classic's tour.
-- **Checks:** `check-new-tour.js` (A–H, 92 PASS on the lane, including "what's lit is clear of the lower third"),
+- **Leaving mid-tour** (Home unmounts with the tour up: the phone's back, a notification) keeps it as a skip at that step, a
+  tick after the unmount so React's own remount in development doesn't count. A full unload (the app closed) keeps nothing:
+  it plays again next time.
+- **Checks:** `check-new-tour.js` (A–I, including "what's lit is clear of the lower third" and leaving mid-tour),
   `tests/tour-steps.test.js` (5); `npm test` 1227 of 1228 (BACKLOG 37's known failure). BACKLOG 38 has what it left.
