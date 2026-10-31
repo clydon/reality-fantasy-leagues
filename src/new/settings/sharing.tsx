@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { ChevronRight, EyeOff } from "lucide-react";
+import { EyeOff } from "lucide-react";
 import { presetOf, PRESET_WORDS, SHARE_DEFAULT, SHARE_SWITCHES, SWITCH_WORDS } from "@/lib/sharing";
 import type { Profile, profileApi } from "../data";
 import { useMe } from "../session";
@@ -10,7 +9,8 @@ import { Choice, SwitchRow } from "./controls";
 
 // What your couch sees (docs/PLAN-new-design.md step 15 part 3; the mock's share.js privHTML / wirePriv): three levels (Everything,
 // recommended · Just my games · Only what games need), what someone on your couch sees about you under the one you're on (each
-// line from your own shows, ratings and reactions, or Hidden), and Customize, the four switches under the levels. A tap saves, with
+// line from your own shows, ratings and reactions, or Hidden), and Or choose each one, the four switches under the levels (open, not
+// a fold of its own: it's inside Settings' What your couch sees fold since the 2026-10-31 redesign). A tap saves, with
 // Undo. The server enforces it (guard.ts rule 3); a show watched privately stays yours whatever this says.
 
 type Save = (body: Parameters<typeof profileApi.save>[0], said: string, undo?: Parameters<typeof profileApi.save>[0]) => Promise<void>;
@@ -20,10 +20,9 @@ export function SharingSection({ p, save, viewer }: { p: Profile | undefined; sa
   const me = useMe();
   const on = p?.sharing.on ?? SHARE_DEFAULT;
   const level = presetOf(on);
-  const [open, setOpen] = useState(level === "custom");
   return (
     <div data-settings-sharing data-level={level}>
-      <div role="radiogroup" aria-label="What your couch sees" className="px-4">
+      <div role="radiogroup" aria-label="What your couch sees">
         {PRESET_WORDS.map((w) => (
           <Choice
             key={w.id}
@@ -37,7 +36,7 @@ export function SharingSection({ p, save, viewer }: { p: Profile | undefined; sa
         ))}
       </div>
 
-      <div className="mx-4 mt-3 rounded-[4px] bg-background p-3 outline-1 -outline-offset-1 outline-border" data-sharing-preview>
+      <div className="mt-3 rounded-[4px] bg-background p-3 outline-1 -outline-offset-1 outline-border" data-sharing-preview>
         <span className="type-caption mb-2 block text-[12px] tracking-[0.06em] text-muted-foreground">
           {viewer ? `What ${viewer} sees about you` : "What your couch sees about you"}
         </span>
@@ -55,12 +54,8 @@ export function SharingSection({ p, save, viewer }: { p: Profile | undefined; sa
         ))}
       </div>
 
-      <details className="group mx-4 mt-2.5 border-t border-border" open={open} onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)} data-sharing-custom>
-        <summary className="nd-press flex min-h-[56px] cursor-pointer list-none items-center gap-2.5 [&::-webkit-details-marker]:hidden">
-          <b className="text-[15px] font-semibold">Customize</b>
-          <small className="flex-1 text-[13px] text-muted-foreground">{level === "custom" ? "Your own mix" : "Using the choice above"}</small>
-          <ChevronRight className="size-5 rotate-90 text-muted-foreground transition-transform group-open:-rotate-90" aria-hidden />
-        </summary>
+      <div className="mt-4" data-sharing-custom>
+        <b className="block text-[15px] font-semibold">Or choose each one</b>
         {SHARE_SWITCHES.map((k) => (
           <SwitchRow
             key={k}
@@ -69,16 +64,13 @@ export function SharingSection({ p, save, viewer }: { p: Profile | undefined; sa
             disabled={!p}
             title={SWITCH_WORDS[k].title}
             line={SWITCH_WORDS[k].line}
-            onChange={(next) => {
-              setOpen(true);
-              void save({ sharing: { [k]: next } }, `${SWITCH_WORDS[k].title}: ${next ? "shared" : "hidden"}`, { sharing: { [k]: !next } });
-            }}
+            onChange={(next) => void save({ sharing: { [k]: next } }, `${SWITCH_WORDS[k].title}: ${next ? "shared" : "hidden"}`, { sharing: { [k]: !next } })}
           />
         ))}
-        <p className="mb-1 mt-2 text-[13px] leading-snug text-muted-foreground">
-          Your picks always show once they lock: the games need that. To keep one show to yourself, use &ldquo;Watch privately&rdquo; in its ⋯ menu, under Everything else.
+        <p className="mt-2 text-[13px] leading-snug text-muted-foreground">
+          Your picks always show once they lock: the games need that. To keep one show to yourself, use &ldquo;Watch privately&rdquo; in its &#8943; menu, under Everything else.
         </p>
-      </details>
+      </div>
     </div>
   );
 }

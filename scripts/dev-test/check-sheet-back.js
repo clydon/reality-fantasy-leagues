@@ -24,7 +24,7 @@ require("dotenv").config({ path: ".env.local", quiet: true });
 const fs = require("fs");
 const path_ = require("path");
 const { Pool } = require("pg");
-const { open } = require("./browser");
+const { open, openFold } = require("./browser");
 const fixture = require("./new-fixture");
 
 const DB = process.env.AUTH_DATABASE_URL || "";
@@ -123,6 +123,7 @@ const SHEET = "[role=dialog][data-open]";
     {
       const page = await tab();
       await fromHub(page, "/settings");
+      await openFold(page, "couches");
       const couch = page.locator('[data-settings-couch="ZT Survivor 51"]');
       await couch.waitFor({ timeout: 30000 });
       await couch.click();

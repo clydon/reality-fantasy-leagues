@@ -59,6 +59,7 @@
   --color-chart-1: var(--chart-1);
   --color-ring: var(--ring);
   --color-input: var(--input);
+  --color-edge: var(--edge);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
   --color-accent-foreground: var(--accent-foreground);
@@ -151,6 +152,9 @@
   --destructive: #c02a34;
   --border: #d6d3de;
   --input: #b9b4c6;
+  /* A control's edge that has to be seen (an outlined button, an empty radio, an off switch): 3:1 on the ground and the
+     panel (WCAG 1.4.11), where --input is a field's quieter line. */
+  --edge: #7a748a;
   --ring: #845800;
   --chart-1: #e0703f;
   --chart-2: #1f9a8a;
@@ -216,6 +220,7 @@
   --destructive: #f2545b;
   --border: #2e2a3a;
   --input: #3a3548;
+  --edge: #75708a;
   --ring: #ffc531;
   --chart-1: #f2804b;
   --chart-2: #35b5a5;

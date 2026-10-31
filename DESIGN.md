@@ -262,6 +262,7 @@ A cool violet-black night (or its daylight twin, a pale violet-grey studio) with
 - **Night Panel Raised** (#2a2633): muted fills: your own standings row, the quiet tag, secondary buttons on hover.
 - **Night Line** (#2e2a3a): row dividers and borders; also the hover fill (`accent`).
 - **Field Line** (#3a3548): input borders, a step brighter than row lines so fields are findable.
+- **Control Edge** (#75708a, `--edge`, `outline-edge` / `border-edge`): an edge that has to be seen, 3:1 on the ground and the panel (WCAG 1.4.11): Settings' outlined buttons, an empty radio ring, an off switch's track. Field Line is too faint for a control's only boundary.
 - **Bone Text** (#f4f2f8): body text on the night.
 - **Dusk Muted** (#a9a4b8): secondary text, ranks other than first, labels.
 - **Plate Ink** (#121018) and **Plate Muted** (#4a4558): text on a caption plate.
@@ -271,7 +272,7 @@ The same roles on a bright set. Plates, plate ink, the chyron fill and its ink d
 - **Studio Ground** (#ecebf1): the page. Pale and cool, a step darker than a plate so white plates still read as graphics over it.
 - **Studio Panel** (#f8f7fb): cards, popovers, sheets, fields, and the header, tab bar and sidebar (a step brighter than the ground, where Night's rail is a step darker).
 - **Studio Raised** (#e1dfe8): muted fills: your own row, the quiet tag, the segmented control's track. **Studio Hover** (#dcd9e4) is `accent`.
-- **Studio Line** (#d6d3de) for row hairlines; **Studio Field Line** (#b9b4c6) for input borders.
+- **Studio Line** (#d6d3de) for row hairlines; **Studio Field Line** (#b9b4c6) for input borders; **Studio Control Edge** (#7a748a) for a control's edge.
 - **Night Ink** (#16141d): body text, the night colour turned into ink. **Studio Muted** (#5d586b): secondary text, 5.2:1 or better on every Studio fill.
 - **Chyron Line** is deep amber (#845800). **Live Red** deepens to #c02a34 with white ink, **Safe Teal** to #0b7568 with white ink, **Gold Accent** to #85601a: each is 4.5:1 or better as text on the ground and as the fill behind its ink.
 - The You badge, the chosen side of a segmented control and your turn pills, bone on Night, are ink on Studio: they're `foreground` fills, so they invert with the ground.

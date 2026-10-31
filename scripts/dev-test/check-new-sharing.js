@@ -27,7 +27,7 @@ require("dotenv").config({ path: ".env.local", quiet: true });
 const fs = require("fs");
 const path = require("path");
 const { Pool } = require("pg");
-const { open, api, BASE } = require("./browser");
+const { open, api, BASE, openFold } = require("./browser");
 const fixture = require("./new-fixture");
 const streamingFixture = require("./streaming-fixture");
 const hubFixture = require("./hub-fixture");
@@ -296,6 +296,10 @@ function check(ok, what, detail = "") {
       const a = await browse("alex");
       const { pg } = a;
       await pg.goto(`${BASE}/settings`, { waitUntil: "load" });
+      // What your couch sees is a fold under Everything else (the 2026-10-31 redesign): shut, its row says the level.
+      await pg.locator('[data-fold="sharing"]').waitFor({ timeout: 30000 });
+      check(/^Everything · recommended$/.test(await pg.locator('[data-fold="sharing"] [data-fold-value]').innerText()), "shut, its row says Everything · recommended");
+      await openFold(pg, "sharing");
       const sec = pg.locator("[data-settings-sharing]");
       await sec.waitFor({ timeout: 30000 });
       await pg.waitForFunction(() => /ZT /.test(document.querySelector("[data-sees=where]")?.textContent || ""), null, { timeout: 15000 });
@@ -323,13 +327,12 @@ function check(ok, what, detail = "") {
       check(ls[0] === "where:no:Hidden" && ls[1] === "now:no:Hidden" && ls[2].startsWith("ratings:yes:") && ls[3].startsWith("reactions:yes:"), "where and when he's watching: Hidden; ratings and reactions still shared", ls.join(" | "));
       check(JSON.stringify(await row("alex")) === JSON.stringify({ share_where: false, share_now: false, share_ratings: true, share_reactions: true }), "saved on the server");
       const custom = sec.locator("[data-sharing-custom]");
-      check(/Using the choice above/.test(await custom.locator("summary").innerText()), "Customize: using the choice above");
-      await custom.locator("summary").click();
+      check(/Or choose each one/.test(await custom.innerText()), "Or choose each one: the four switches, open under the levels");
       await sec.locator('[data-setting="share-now"]').waitFor({ state: "visible" });
       await sec.locator('[data-setting="share-now"]').click();
       check(await a.toasted(/When I'm watching: shared/), "When I'm watching: shared, with its toast");
       await pg.waitForFunction(() => document.querySelector("[data-settings-sharing]")?.getAttribute("data-level") === "custom", null, { timeout: 10000 });
-      check(/Your own mix/.test(await custom.locator("summary").innerText()) && (await sec.locator("[data-choice][aria-checked=true]").count()) === 0, "your own mix: none of the three is his");
+      check(/^Your own mix$/.test(await pg.locator('[data-fold="sharing"] [data-fold-value]').innerText()) && (await sec.locator("[data-choice][aria-checked=true]").count()) === 0, "your own mix: none of the three is his, and its row says so");
       await custom.scrollIntoViewIfNeeded();
       await a.shot("sharing-custom");
       await pg.locator("[role=status]").getByRole("button", { name: /Undo/ }).click();

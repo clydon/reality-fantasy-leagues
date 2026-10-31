@@ -21,6 +21,19 @@ and the Neon password rotation (deferred; steps there). Fixed 2026-10-24: the ch
 end); GitHub Actions, stopped since 2026-10-19, runs again. Vercel builds production only (Preview shared
 production's database).
 
+## Settings, redesigned (2026-10-31; pushed to master the same day, no migration)
+The user found Settings "very difficult to navigate" (every section open at once, about 35 controls, several screens long).
+Four phone mocks and an /impeccable critique (dual-agent; A 25, B 27, C 19 /40; archived in `.impeccable/critique/`) are on a
+private page, https://claude.ai/artifact/Uci3rUyydKaGgBZrm7aQCe, from `.impeccable/mocks/settings/`; the user picked **D**, built
+in `src/new/settings/`: **Quick settings** (this phone, Couch chat as Every message · Quiet nights · Never, Hide scores, Appearance
+with Dark/Light/Auto under the names), **Everything else** as rows saying what they're set to that open in place (`Fold`: Which
+notifications, Shows that move along by themselves, What your couch sees, Your couches, Your AI for results only for whoever
+runs a game), then **Help and account** (How each game works, Report a problem, Your account with the classic design, a site
+admin's Test couch, Sign out, Credits). When nothing reaches you, this phone is the screen's one yellow plate (Turn on, or Not
+now, kept per device; on an iPhone in Safari the reminder ask's three pictures); turning Hide scores off asks first. New token
+`--edge` (DESIGN.md Control Edge) for 44px outlined buttons, radio rings and off switches (BACKLOG 34). Checks open folds with
+`openFold(page, id)` from `scripts/dev-test/browser.js`. The default theme stays Night (the user's call).
+
 ## The show's ⋯ menu, rebuilt for the casual player (2026-10-30; merged to master and pushed the same day, no migration)
 The user found the menu "way too cluttered and hard to read/navigate" (11 rows for a player, scrolling, every row the same weight).
 Mockups (a private design canvas, https://claude.ai/artifact/Snuugqw4eb5E2Ut4gVKxT4, options A–D) and the pick (D) are in that

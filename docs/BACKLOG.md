@@ -299,6 +299,20 @@ Last updated 2026-10-27.
     since a glide started earlier is cut short; a page that renders its tables at once would land sooner. **When:** (a, b)
     track V's blocks; (c) the next change to that hook; (d) if anyone finds the wait long.
 
+34. **Settings' controls under the floor (noticed 2026-10-31, the /impeccable critique of the Settings redesign mocks).** In
+    the app today (`src/new/settings/controls.tsx`, `Btn`): outlined buttons (Edit, Turn on/off) are 40px tall, under the
+    44px target; their edge (`outline-input`, Field Line), an unselected radio ring and an off switch's track are 1.2-1.6:1
+    against the ground, under WCAG 1.4.11's 3:1 (the knob still shows on/off). **Done in Settings 2026-10-31** (the
+    redesign, option D): a Control Edge token (`--edge`: Night #75708a, Studio #7a748a; DESIGN.md), 44px outlined buttons,
+    the radio ring and the off switch's track (controls.tsx, shared with a show's Notifications sheet). **Left:** `Btn`'s
+    optional tone app-wide is still `outline-input` (40-52px, faint edge on every screen); moving it to `outline-edge` is a
+    look change everywhere. **When:** a polish pass over the whole app, checked in Night and Studio.
+
+35. **The welcome page's "Nothing on" is too faint (noticed 2026-10-31, check-new-studio.js while checking the Settings
+    redesign).** `src/components/landing/landing-page.tsx` (its TV guide's empty day) colours it `var(--field)`: 1.37:1 on
+    Night, 1.89:1 on Studio, under 3:1. It only shows on a day with nothing on, so the check fails some days and not others.
+    **When:** the next change to the landing page (muted text instead of the field line).
+
 
 
 ## Decided against (don't re-propose without new information)

@@ -21,7 +21,7 @@ require("dotenv").config({ path: ".env.local", quiet: true });
 const fs = require("fs");
 const path = require("path");
 const { Pool } = require("pg");
-const { open, api, BASE } = require("./browser");
+const { open, api, BASE, openFold } = require("./browser");
 const fixture = require("./new-fixture");
 const fakeListings = require("./fake-listings");
 
@@ -173,6 +173,10 @@ function check(ok, what, detail = "") {
 
       // ---- Settings: Move along by itself ----
       await page.goto(`${BASE}/settings`);
+      // A fold under Everything else since the 2026-10-31 redesign: Shows that move along by themselves, shut, saying which.
+      await page.locator('[data-fold="auto"]').waitFor({ timeout: 30_000 });
+      check(/None: you move each one along/.test(await page.locator('[data-fold="auto"] [data-fold-value]').innerText()), "shut, its row says none move along by themselves yet");
+      await openFold(page, "auto");
       const auto = page.locator(`[data-auto-show="${tsid}"]`);
       await auto.waitFor({ timeout: 30_000 });
       check((await page.locator(`[data-settings-auto] [data-auto-show="${sid}"]`).count()) === 0, "a show he plays isn't offered");
@@ -186,6 +190,8 @@ function check(ok, what, detail = "") {
       await page.locator("[data-auto-confirm]").click();
       await page.waitForFunction((sel) => document.querySelector(sel)?.getAttribute("data-on") === "on", `[data-setting="auto-${tsid}"]`, { timeout: 15_000 }).catch(() => {});
       check((await follow(fx.users.alex, tsid)).keep_up === "auto", "Turn it on: it moves along by itself");
+      await page.waitForFunction(() => !/None/.test(document.querySelector('[data-fold="auto"] [data-fold-value]')?.textContent || "None"), null, { timeout: 15_000 }).catch(() => {});
+      check(!/None/.test(await page.locator('[data-fold="auto"] [data-fold-value]').innerText()), "and its row names the show", await page.locator('[data-fold="auto"] [data-fold-value]').innerText());
       await page.goto(`${BASE}/show/${tsid}/tonight`);
       await page.locator("[data-following] button").first().click();
       await sheet.locator("[data-where-auto]").waitFor({ timeout: 15_000 }).catch(() => {});

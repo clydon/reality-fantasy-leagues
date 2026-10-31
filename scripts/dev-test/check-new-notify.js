@@ -37,7 +37,7 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const { Pool } = require("pg");
-const { open, api, BASE } = require("./browser");
+const { open, api, BASE, openFold } = require("./browser");
 const fixture = require("./new-fixture");
 const fakePush = require("./fake-push");
 
@@ -526,10 +526,13 @@ async function person(pool, who, role = null) {
       };
       const sheet = pg.locator("[role=dialog][data-open]");
 
-      // Settings: What we notify you about.
+      // Settings: this phone and Couch chat in Quick settings, the moments in Which notifications (a fold under Everything
+      // else, since the 2026-10-31 redesign).
       await pg.goto(`${BASE}/settings`, { waitUntil: "load" });
+      await openFold(pg, "notify");
       await pg.locator("[data-settings-notify]").waitFor({ timeout: 30000 });
       await pg.locator("[data-phone=off]").waitFor({ timeout: 15000 });
+      check((await pg.locator("[data-phone-plate]").count()) === 0, "his other phone gets them: this phone's a quiet row, no plate");
       await pg.waitForTimeout(800);
       const switches = await pg.locator("[data-settings-notify] [data-setting]").evaluateAll((els) => els.map((e) => `${e.getAttribute("data-setting")}:${e.getAttribute("aria-checked")}`));
       check(
@@ -578,6 +581,12 @@ async function person(pool, who, role = null) {
       const other = push.subscription("alex");
       await pool.query("DELETE FROM push_subscriptions WHERE endpoint = $1", [other.endpoint]);
       await pg.reload({ waitUntil: "load" });
+      // Nothing reaches him: this phone is Quick settings' plate (the screen's one yellow), and the fold says so too.
+      await pg.locator("[data-phone-plate][data-phone=off]").waitFor({ timeout: 15000 });
+      check(/Nothing reaches you yet/i.test(await pg.locator("[data-phone-plate]").innerText()), "no phone of his on: this phone is a plate, Nothing reaches you yet, with Turn on");
+      check(/none reach you yet/.test(await pg.locator('[data-fold="notify"] [data-fold-value]').innerText()), "Which notifications says none reach him, shut");
+      await shot("settings-plate");
+      await openFold(pg, "notify");
       await pg.locator("[data-notify-quiet=off]").waitFor({ timeout: 15000 }).catch(() => {});
       check(
         /None of these reach you yet.*turn notifications on above/.test((await pg.locator("[data-notify-quiet]").textContent().catch(() => "")) || ""),
@@ -588,9 +597,15 @@ async function person(pool, who, role = null) {
       await pg.locator("[data-phone-toggle]").click();
       await pg.locator("[data-phone=on]").waitFor({ timeout: 10000 });
       await pg.waitForFunction(() => !document.querySelector("[data-notify-quiet]"), null, { timeout: 10000 }).catch(() => {});
-      check((await pg.locator("[data-notify-quiet]").count()) === 0, "turned on here: the line goes");
+      check((await pg.locator("[data-notify-quiet]").count()) === 0 && (await pg.locator("[data-phone-plate]").count()) === 0, "turned on from the plate: the plate and the line go");
       await pg.locator("[data-phone-toggle]").click();
-      await pg.locator("[data-phone=off]").waitFor({ timeout: 10000 });
+      await pg.locator("[data-phone-plate][data-phone=off]").waitFor({ timeout: 10000 });
+      // Not now: his choice, on this device; the row says Off, and it stays that way.
+      await pg.locator("[data-phone-not-now]").click();
+      await pg.locator("[data-phone=off]:not([data-phone-plate])").waitFor({ timeout: 5000 });
+      await pg.reload({ waitUntil: "load" });
+      await pg.locator("[data-phone=off]").waitFor({ timeout: 15000 });
+      check((await pg.locator("[data-phone-plate]").count()) === 0, "Not now: a quiet Off row, still after a reload");
       await pool.query("INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth, user_agent) VALUES ($1, $2, $3, $4, 'zt notify check')", [U.alex, other.endpoint, other.p256dh, other.auth]);
 
       // The hub's bell.
@@ -716,6 +731,19 @@ async function person(pool, who, role = null) {
       check((await ask.getAttribute("data-remind-sheet").catch(() => null)) === "install", "the row's Turn on shows the pictures again");
       await ask.locator("[data-remind-later]").click();
       await ask.waitFor({ state: "hidden", timeout: 10000 });
+      // Settings in Safari on the iPhone: this phone says Add to Home Screen (the same three pictures on its plate when nothing
+      // reaches him), never a Turn on that can't work.
+      await ip.goto(`${BASE}/settings`, { waitUntil: "load" });
+      await ip.locator("[data-phone=install]").waitFor({ timeout: 15000 }).catch(() => {});
+      const ipPlate = (await ip.locator("[data-phone-plate]").count()) === 1;
+      check(
+        (await ip.locator("[data-phone=install]").count()) === 1 &&
+          (await ip.locator("[data-phone-toggle]").count()) === 0 &&
+          (ipPlate ? (await ip.locator("[data-phone-plate] img[src*=add-to-home-screen]").count()) === 1 : /Add it to your Home Screen first/.test(await ip.locator("[data-phone=install]").innerText())),
+        `Settings on the iPhone in Safari: Add to Home Screen (${ipPlate ? "the plate, with the pictures" : "a row: another phone of his gets them"}), no Turn on`
+      );
+      await ip.waitForTimeout(400);
+      await ip.screenshot({ path: path.join(out, `${String(++n).padStart(2, "0")}-alex-settings-iphone.png`) });
 
       // Opened from the Home Screen: notifications can work now, so the next save asks again, and Turn on turns this phone on.
       await ip.evaluate(() => localStorage.setItem("zt-installed", "1"));
@@ -735,6 +763,7 @@ async function person(pool, who, role = null) {
       check(got("alex-iphone").length === 1, "a test push reaches it");
       await ip.goto(`${BASE}/settings`, { waitUntil: "load" });
       await ip.locator("[data-phone=on]").waitFor({ timeout: 15000 }).catch(() => {});
+      await openFold(ip, "notify");
       check((await ip.locator("[data-phone=on]").count()) === 1 && (await ip.locator("[data-notify-quiet]").count()) === 0, "Settings agrees: on for this phone, nothing about none reaching him");
       check(b2.errors.length === 0, "the iPhone: no page errors", b2.errors.join(" | "));
     }

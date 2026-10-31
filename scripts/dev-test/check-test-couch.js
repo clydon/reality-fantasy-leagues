@@ -26,7 +26,7 @@ require("dotenv").config({ path: ".env.local", quiet: true });
 const fs = require("fs");
 const path = require("path");
 const { Pool } = require("pg");
-const { open, api, BASE } = require("./browser");
+const { open, api, BASE, openFold } = require("./browser");
 const fixture = require("./new-fixture");
 const S = require("../../src/lib/game/state-logic.js");
 const { BUILT_IN_BLOCKS } = require("../../src/lib/game/formats/blocks/index.js");
@@ -105,6 +105,8 @@ function tables(state) {
       check(w <= width, `${where}: nothing wider than the screen`, `${w}px`);
     };
     await page.goto(BASE + "/settings");
+    // A fold in Help and account since the 2026-10-31 redesign.
+    await openFold(page, "test-couch");
     const section = page.locator("[data-settings-test-couch]");
     await section.waitFor({ timeout: 30000 });
     await section.scrollIntoViewIfNeeded();
@@ -247,6 +249,7 @@ function tables(state) {
     const ids = (await pool.query("SELECT id FROM leagues WHERE couch_id = $1", [couchId])).rows.map((x) => x.id).sort();
     check(r.status === 200 && !back.players.some((p) => p.name === "zt changed") && ids.join() === copies.map((c) => c.id).sort().join() && r.body.couch.rules === "template", "Copy again: what was changed in a test game put back, the same games, the same rules");
     await page.goto(BASE + "/settings");
+    await openFold(page, "test-couch");
     await page.locator("[data-test-couch]").waitFor({ timeout: 20000 });
     await page.locator("[data-settings-test-couch]").getByText("Remove the test couch").click();
     const hold = page.locator("[data-hold]:not([disabled])");

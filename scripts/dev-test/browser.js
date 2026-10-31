@@ -92,4 +92,13 @@ async function api({ user, pass, headers = {} }) {
   return { user, call, raw };
 }
 
-module.exports = { open, api, BASE };
+/** Opens one of Settings' folds (src/new/settings/controls.tsx Fold: notify, auto, sharing, couches, ai, account, test-couch)
+ *  if it's shut, and waits for it. Folds start shut on every visit. */
+async function openFold(page, id) {
+  const fold = page.locator(`[data-fold="${id}"]`);
+  await fold.waitFor({ timeout: 30000 });
+  if ((await fold.getAttribute("data-open")) !== "open") await fold.locator(":scope > button").click();
+  await page.waitForFunction((i) => document.querySelector(`[data-fold="${i}"]`)?.getAttribute("data-open") === "open", id, { timeout: 5000 });
+}
+
+module.exports = { open, api, BASE, openFold };
