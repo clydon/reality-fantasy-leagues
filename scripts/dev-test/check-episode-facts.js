@@ -13,9 +13,12 @@
 //     season sync, but research hasn't said who said its title: waiting. Its answer lands (sure, jordan's pick): jordan 1, the
 //     others 0, QT's tribe (Devin's, riley's answer) right for whoever named it; sam (seen 3) sees nothing graded. Research is corrected (alex's pick):
 //     read again at once, alex 1 and jordan 0.
-//   - Episode 7: research is sure the host said it: void for everyone, no points either way, and it says why. Episode 8: research
-//     isn't sure who said it: void. Episode 9: waiting while its answer isn't stored (Episode 10's being in changes nothing), void
-//     once it lands without the fact.
+//   - Episode 7: research is sure the host said it: void for everyone, no points either way, and it says why. Episode 8 (A13 part
+//     2b), aired two hours ago: research isn't sure who said it, and its final results (noon tomorrow) aren't in: waiting, since the
+//     morning's runs may settle it. Bot research's facts run (db/bot-research.js runJob, its answer a stand-in here: no bot is
+//     asked) asks it on its own, with the episode's title and the cast: still unsure, filed, still waiting; sure (riley's pick),
+//     filed into the stored answer, graded at once; a run after that asks nothing. Then two days on, Episode 9: waiting while its
+//     answer isn't stored (Episode 10's being in changes nothing), void once it lands without the fact (past its final results).
 //   - The game-specs flag's check passes on both games.
 //
 //   node scripts/lane.js dev   (or npm run dev; in another terminal)
@@ -30,6 +33,7 @@ const { api } = require("./browser");
 const fixture = require("./new-fixture");
 const K = require("./check-kit");
 const GameSpecs = require("../../db/game-specs.js");
+const BotResearch = require("../../db/bot-research.js");
 const { checkLeague } = require("../game-specs-flag.js");
 
 const DB = process.env.AUTH_DATABASE_URL || "";
@@ -147,12 +151,12 @@ const game = (q) => ({ get: { by: "none" }, score: { by: "answers" }, rank: { by
     check(tt.alex === 1 && tt.jordan === 0, `  research corrected (${A.name}): read again at once, alex 1 and jordan 0`, JSON.stringify(tt));
 
     // ---------- Episodes 7 to 9: the fallbacks ----------
-    const play = async (n, gone, facts, picks) => {
+    const play = async (n, gone, facts, picks, air = () => k.airs(7)) => {
       for (const [who, c] of picks) {
         r = await answer(who, Q, "quote", c.id, n);
         check(r.status === 200, `  before Episode ${n}: ${who} picks ${c.name}`, `${r.status} ${errorOf(r)}`);
       }
-      await k.airs(7);
+      await air();
       await decide(n, "elimination", gone);
       for (const who of ["alex", "riley", "jordan"]) await seen(who, n);
       for (const [m, f] of facts) await research(m, f);
@@ -160,8 +164,45 @@ const game = (q) => ({ get: { by: "none" }, score: { by: "answers" }, rank: { by
     };
     q = await play(7, still[still.length - 2].name, [[7, said("Jeff Probst")]], [["alex", A], ["riley", R]]);
     check(q?.verdict?.state === "off" && /^Jeff Probst said it, who wasn't one to pick: it doesn't count either way/.test(q.verdict.why ?? ""), "Episode 7: research is sure the host said it: void, and it says why", JSON.stringify(q?.verdict));
-    q = await play(8, still[still.length - 3].name, [[8, said(R.name, "low")]], [["riley", R]]);
-    check(q?.verdict?.state === "off" && /wasn't sure who says the title quote/.test(q.verdict.why ?? ""), "Episode 8: research isn't sure (it said riley's pick): void", JSON.stringify(q?.verdict));
+    // Episode n aired `hours` ago, on the season's own clock (its premiere and air time moved), whatever the time of day.
+    const airedAgo = (n, hours) =>
+      pool.query(
+        `UPDATE show_seasons SET premiere_date = ((now() AT TIME ZONE air_tz) - make_interval(hours => $3::int))::date - ($2::int - 1) * 7,
+                air_time = ((now() AT TIME ZONE air_tz) - make_interval(hours => $3::int))::time(0) WHERE id = $1`,
+        [sid, n, hours]
+      );
+    q = await play(8, still[still.length - 3].name, [[8, said(R.name, "low")]], [["riley", R]], () => airedAgo(8, 2));
+    check(q?.verdict?.state === "waiting", "Episode 8, aired two hours ago: research isn't sure (it said riley's pick), its final results not in yet: waiting", JSON.stringify(q?.verdict));
+    // Bot research's facts run, its answer a stand-in (no bot is asked).
+    const season = await BotResearch.loadSeasonForJob(pool, sid);
+    const stand = (titleQuote) => {
+      const asked = [];
+      const ask = async (prompt) => {
+        asked.push(prompt);
+        return { answer: "```json\n" + JSON.stringify({ episodeTitle: "Episode 8", episodeFacts: { titleQuote } }) + "\n```" };
+      };
+      return { asked, ask };
+    };
+    const factsRun = (bot) => BotResearch.runJob(pool, { season, episode: 8, kind: "facts", slot: "facts@750" }, { ask: bot.ask });
+    let bot = stand({ isQuote: "yes", line: null, by: R.name, sure: "low" });
+    let run = await factsRun(bot);
+    check(run.ok && bot.asked.length === 1 && /episode 8, titled "Episode 8"\./.test(bot.asked[0]) && bot.asked[0].includes(`. ${R.name}\n`) && /still not sure/.test(run.message), "  the facts run asks it on its own (its title and the cast in the prompt): still unsure, filed", JSON.stringify({ ok: run.ok, message: run.message, asked: bot.asked.length }));
+    q = qOf(await questions("alex", Q, 8), "quote");
+    check(q?.verdict?.state === "waiting", "  still waiting", JSON.stringify(q?.verdict));
+    bot = stand({ isQuote: "yes", line: "a line from the episode", by: R.name, sure: "high" });
+    run = await factsRun(bot);
+    check(run.ok && run.message === `Title quote: ${R.name}, sure`, "  asked again, sure (riley's pick): filed", JSON.stringify({ ok: run.ok, message: run.message }));
+    q = qOf(await questions("alex", Q, 8), "quote");
+    check(q?.verdict?.state === "known" && JSON.stringify(q.verdict.right) === JSON.stringify([R.id]), "  graded at once: riley's pick is right", JSON.stringify(q?.verdict));
+    const filed = (await pool.query("SELECT payload->'episodeFacts'->'titleQuote'->>'by' AS by, provenance->'factsRun'->>'runId' AS run FROM episode_research WHERE show_id = $1 AND season_number = 51 AND episode_number = 8 AND source = 'combined'", [showId])).rows[0];
+    check(filed?.by === R.name && filed?.run === run.runId, "  in the episode's stored answer, its provenance naming the run", JSON.stringify(filed));
+    const rows8 = (await pool.query("SELECT ok FROM bot_research_runs WHERE season_id = $1 AND episode_number = 8 AND kind = 'facts' ORDER BY started_at", [sid])).rows;
+    check(rows8.length === 2 && rows8.every((x) => x.ok === true), "  each run on bot research's runs, done", JSON.stringify(rows8));
+    bot = stand({ isQuote: "unknown", line: null, by: null, sure: "low" });
+    run = await factsRun(bot);
+    check(run.ok && bot.asked.length === 0 && /^Nothing to ask/.test(run.message), "  a run after that asks nothing: research is sure", JSON.stringify({ ok: run.ok, message: run.message }));
+    // Two days on: Episode 8's final results, and everything after, are past.
+    await k.airs(2);
     q = await play(9, still[still.length - 4].name, [], [["jordan", J]]);
     check(q?.verdict?.state === "waiting", "Episode 9: its result is in, research's answer isn't stored yet: waiting", JSON.stringify(q?.verdict));
     await research(10, said(J.name));
@@ -169,9 +210,9 @@ const game = (q) => ({ get: { by: "none" }, score: { by: "answers" }, rank: { by
     check(q?.verdict?.state === "waiting", "  still waiting once Episode 10's is (each episode's own answer settles it)", JSON.stringify(q?.verdict));
     await research(9, undefined);
     q = qOf(await questions("alex", Q, 9), "quote");
-    check(q?.verdict?.state === "off" && /Research didn't say/.test(q.verdict.why ?? ""), "  its answer lands without the fact (a pass that left it out): void", JSON.stringify(q?.verdict));
+    check(q?.verdict?.state === "off" && /Research didn't say/.test(q.verdict.why ?? ""), "  its answer lands without the fact (a pass that left it out), past its final results: void", JSON.stringify(q?.verdict));
     tt = totals(await gameIn("alex", Q), seatsQ);
-    check(tt.alex === 1 && tt.riley === 0 && tt.jordan === 0, "  Q's table: alex 1, riley 0, jordan 0 (none of the void ones counted)", JSON.stringify(tt));
+    check(tt.alex === 1 && tt.riley === 1 && tt.jordan === 0, "  Q's table: alex 1, riley 1 (Episode 8, by the facts run), jordan 0 (none of the void ones counted)", JSON.stringify(tt));
 
     // ---------- the flag ----------
     for (const [id, what] of [[Q, "Q"], [QT, "QT"]]) {

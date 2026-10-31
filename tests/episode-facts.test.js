@@ -279,3 +279,27 @@ test("the research section: every show's research asks it beside the format sect
   assert.deepEqual(F.fillFacts(sure, { titleQuote: null }), sure);
   assert.deepEqual(F.fillFacts(sure, { titleQuote: { ...sure.titleQuote, by: "Rizo" } }).titleQuote.by, "Rizo", "a sure correction replaces it");
 });
+
+test("part 2b: a fact research isn't sure of waits from the episode's airing until its final results, then stands (void)", () => {
+  const final = Date.parse("2026-10-22T16:00:00Z");
+  const unsure = { state: "unsure", why: "Research wasn't sure who says the title quote (it said C6)" };
+  // Before the final results: pending (the morning's runs, the facts run among them, may settle it); after them, or with no time
+  // to go by, it stands.
+  assert.deepEqual(F.pendingUntil(unsure, final, final - 1), { state: "pending", why: unsure.why });
+  assert.deepEqual(F.pendingUntil(unsure, final, final), unsure);
+  assert.deepEqual(F.pendingUntil(unsure, null, final - 1), unsure);
+  // From its airing: research about an episode the clock says hasn't aired (a replay's copy, a test) stands, as it can't live.
+  assert.deepEqual(F.pendingUntil(unsure, final, final - 1, final - 10), { state: "pending", why: unsure.why });
+  assert.deepEqual(F.pendingUntil(unsure, final, final - 20, final - 10), unsure);
+  // Anything research was sure of is as it is.
+  for (const o of [{ state: "who", who: "c1", name: "C1" }, { state: "outside", name: "Jeff Probst" }, { state: "none" }]) assert.deepEqual(F.pendingUntil(o, final, final - 1), o);
+  // The grader: pending is waiting (no points either way yet, nothing walked past it); once it stands, void.
+  const s = league(game([QUOTE]));
+  boot(s, 1, 0);
+  const at = (o) => G.verdictOf(QUOTE, 1, factsOf(s, new Map([[1, { titleQuote: o }]])));
+  assert.equal(at(F.pendingUntil(unsure, final, final - 1)).state, "waiting");
+  assert.equal(at(F.pendingUntil(unsure, final, final)).state, "off");
+  const g = A.grade(s, said(1, { ann: cid(s, 6) }), factsOf(s, new Map([[1, { titleQuote: { state: "pending", why: unsure.why } }]])));
+  assert.equal(g.verdicts.get("quote|1").state, "waiting");
+  assert.deepEqual(Object.fromEntries(g.points), {});
+});

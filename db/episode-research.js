@@ -2125,6 +2125,8 @@ async function storeMergedResearch(pool, ctx, payload, provenance, mergeOpts = {
               provider: prior[0].provenance && prior[0].provenance.provider,
               castKept: merged.kept,
             },
+            // A13 part 2b: the facts run that filed its episode facts (db/facts-research.js), which the merge keeps (fillFacts).
+            ...(prior[0].provenance && prior[0].provenance.factsRun ? { factsRun: prior[0].provenance.factsRun } : {}),
           }
         : {}),
     };

@@ -8,7 +8,7 @@
 //      runs are still to come (its start, its end, Now, each run at db/bot-research.js dueAt's time), Season 3's "no schedule"
 //      and Season 2's Autopilot off; the season page's Running it › Research and the bot line.
 //   3. The schedule (tier 1, each a History line with Undo): a run switched off, retimed, a duplicate refused, added, taken
-//      off, reset to our usual five (following it again); the episode's length; Autopilot off and on; Undo putting the length
+//      off, reset to our usual six (following it again); the episode's length; Autopilot off and on; Undo putting the length
 //      back too; Settings › Autopilot's line and link. The research pattern: a change for Episode N only (its own runs, marked
 //      on the rail, read by the bot's planner, back to the season's on its own or by Back, each with Undo); a change for every
 //      episode reaching the episode's own runs; Make this our usual (who it reaches, a moved run remembering its old slot,
@@ -58,11 +58,13 @@ const PASSWORD = "zt-pass-12345";
 const U = (k) => `zt_dr_${k}`;
 const SHOW = "zt-dr-show";
 const NAME = "ZT DR Show";
-// Our usual (db/bot-research.js DEFAULT_SCHEDULE, since 2026-10-29: who went home at its end, full again before noon's final results).
+// Our usual (db/bot-research.js DEFAULT_SCHEDULE, since 2026-10-29: who went home at its end, full again before noon's final results;
+// A13 part 2b: the facts run half an hour after that).
 const USUAL = [
   { kind: "quick", after: 0, on: true },
   { kind: "full", after: 60, on: true },
   { kind: "full", after: 720, on: true },
+  { kind: "facts", after: 750, on: true },
   { kind: "trivia", after: 1440, on: true },
   { kind: "bingo", after: 1440, on: true },
 ];
@@ -189,7 +191,7 @@ const REAL_BOTS = `SELECT md5(string_agg(ss.id || ss.bot_research_on::text || co
 
     // ---- 2. the page's read ----
     let r1 = await page(ids.s1);
-    check(r1.on && r1.name === `${NAME} 1` && r1.minutes === 60 && r1.runs.length === 5 && r1.follows && JSON.stringify(r1.usual) === JSON.stringify(usualBefore ?? USUAL), "Season 1: Autopilot on, an hour, following our usual", JSON.stringify({ on: r1.on, name: r1.name, minutes: r1.minutes, follows: r1.follows }));
+    check(r1.on && r1.name === `${NAME} 1` && r1.minutes === 60 && r1.runs.length === 6 && r1.follows && JSON.stringify(r1.usual) === JSON.stringify(usualBefore ?? USUAL), "Season 1: Autopilot on, an hour, following our usual", JSON.stringify({ on: r1.on, name: r1.name, minutes: r1.minutes, follows: r1.follows }));
     check(/^Next: (tonight|today|tomorrow|\w{3}), \d{1,2}:\d{2} [AP]M$/.test(r1.next), "its lower third: the next run's time", r1.next);
     check(r1.meta === "Asks ChatGPT · nothing run this week", "the meta line", r1.meta);
     const rail = r1.rail;
@@ -199,7 +201,7 @@ const REAL_BOTS = `SELECT md5(string_agg(ss.id || ss.bot_research_on::text || co
     const end = rail.rows.find((x) => x.type === "end");
     check(end.hm === "9:05" && end.line === "Episodes run 1 hr", "it ends an hour later", JSON.stringify(end));
     const runRows = rail.rows.filter((x) => x.type === "run");
-    check(runRows.length >= 3 && runRows.every((x) => /^(quick|full|trivia|bingo)@\d+$/.test(x.key) && x.on), "each run on the rail, on", runRows.map((x) => x.key).join());
+    check(runRows.length >= 3 && runRows.every((x) => /^(quick|full|facts|trivia|bingo)@\d+$/.test(x.key) && x.on), "each run on the rail, on", runRows.map((x) => x.key).join());
     const quick = runRows.find((x) => x.key === "quick@0");
     check(!!quick && quick.hm === "9:05" && quick.line === "At its end", "who went home: at its end", JSON.stringify(quick));
     const again = runRows.find((x) => x.key === "full@720");
@@ -209,7 +211,7 @@ const REAL_BOTS = `SELECT md5(string_agg(ss.id || ss.bot_research_on::text || co
     const nowAt = rail.rows.findIndex((x) => x.type === "now");
     check(nowAt >= 0 && (Date.parse(rail.airAt) > Date.now() ? rail.rows[nowAt + 1]?.type === "start" || rail.rows.slice(0, nowAt).every((x) => x.type === "run") : rail.rows.slice(0, nowAt).some((x) => x.type === "start")), "Now sits before what's still to come", JSON.stringify(rail.rows.map((x) => x.type)));
     check(r1.now.aired.length >= 2 && r1.now.aired[0].label === "The latest" && r1.now.scheduleEpisode === r1.now.aired[0].n && r1.now.bingo.length >= 1, "Run now's episodes: the aired ones, latest first; bingo's still to come", JSON.stringify(r1.now));
-    check(r1.line === "Autopilot on · 5 runs after each episode" && r1.games === 0 && r1.delete.line === "Its episodes, cast and results go", "Running it's line, and its Delete", `${r1.line} | ${r1.delete.line}`);
+    check(r1.line === "Autopilot on · 6 runs after each episode" && r1.games === 0 && r1.delete.line === "Its episodes, cast and results go", "Running it's line, and its Delete", `${r1.line} | ${r1.delete.line}`);
     const r2 = await page(ids.s2);
     check(!r2.on && r2.next === "Nothing runs on its own" && r2.line === "Autopilot off · Run now any time", "Season 2: Autopilot off", `${r2.next} | ${r2.line}`);
     const r3 = await page(ids.s3);
@@ -228,13 +230,13 @@ const REAL_BOTS = `SELECT md5(string_agg(ss.id || ss.bot_research_on::text || co
     check(c.status === 400 && /Two trivia runs/.test(c.body.error || ""), "a duplicate run refused", JSON.stringify(c.body));
     let now1 = (await sched(ids.s1)).runs;
     c = await change(ids.s1, { schedule: [...now1, { kind: "schedule", after: 30, on: true }] });
-    check(c.body.text === "Schedule check added, 30 min after it ends" && (await sched(ids.s1)).runs.length === 6, "added: its line", c.body.text);
+    check(c.body.text === "Schedule check added, 30 min after it ends" && (await sched(ids.s1)).runs.length === 7, "added: its line", c.body.text);
     now1 = (await sched(ids.s1)).runs;
     c = await change(ids.s1, { schedule: now1.filter((x) => x.kind !== "bingo") });
     check(c.body.text === "Bingo squares (a day before it airs) taken off", "taken off: its line", c.body.text);
     check((await sched(ids.s1)).runs !== null && !(await page(ids.s1)).follows, "a change to its runs: a schedule of its own");
     c = await change(ids.s1, { reset: true });
-    check(c.body.text === "Schedule reset to our usual five" && (await sched(ids.s1)).runs === null && (await page(ids.s1)).follows, "reset: it follows our usual again", c.body.text);
+    check(c.body.text === "Schedule reset to our usual six" && (await sched(ids.s1)).runs === null && (await page(ids.s1)).follows, "reset: it follows our usual again", c.body.text);
     c = await change(ids.s1, { episodeMinutes: 90 });
     check(c.body.text === "Episode length: 1 hr 30 min (was 1 hr)" && (await sched(ids.s1)).m === 90, "the episode's length", c.body.text);
     const lenId = c.body.changeId;
@@ -250,7 +252,7 @@ const REAL_BOTS = `SELECT md5(string_agg(ss.id || ss.bot_research_on::text || co
     check((await undo(offAt)).status === 200 && (await sched(ids.s1)).on === true, "Undo: Autopilot back on");
     check((await undo(offId)).status === 200, "an older line's Undo still works");
     r1 = await page(ids.s1);
-    check(r1.history.length >= 7 && r1.history.some((h) => h.text === "Schedule reset to our usual five" && h.who === U("desk")), "History: each change, by who", JSON.stringify(r1.history.slice(0, 3)));
+    check(r1.history.length >= 7 && r1.history.some((h) => h.text === "Schedule reset to our usual six" && h.who === U("desk")), "History: each change, by who", JSON.stringify(r1.history.slice(0, 3)));
     await change(ids.s1, { reset: true });
     const settings = (await as.desk.call("GET", "/api/desk/settings")).body;
     const ap = (settings.settings?.autopilot || []).find((a) => a.id === ids.s1);
@@ -260,7 +262,7 @@ const REAL_BOTS = `SELECT md5(string_agg(ss.id || ss.bot_research_on::text || co
     // Just this episode: its own runs over the season's, for it alone.
     r1 = await page(ids.s1);
     const N = r1.rail.n;
-    check(r1.follows && !r1.rail.own && r1.rail.runs.length === 5 && r1.rail.gone.length === 0, "the rail's runs: the season's (our usual's)", JSON.stringify(r1.rail.runs));
+    check(r1.follows && !r1.rail.own && r1.rail.runs.length === 6 && r1.rail.gone.length === 0, "the rail's runs: the season's (our usual's)", JSON.stringify(r1.rail.runs));
     const epRow = async () => (await pool.query("SELECT schedule FROM bot_research_episodes WHERE season_id = $1 AND episode_number = $2", [ids.s1, N])).rows[0]?.schedule ?? null;
     check((await change(ids.s1, { episode: N })).status === 400 && (await change(ids.s1, { episode: 0, back: true })).status === 400, "an episode's change needs a run or back, and an episode");
     c = await change(ids.s1, { episode: N, run: { from: "full@720", to: { kind: "full", after: 780, on: true } } });
@@ -276,7 +278,7 @@ const REAL_BOTS = `SELECT md5(string_agg(ss.id || ss.bot_research_on::text || co
     // A change for every episode reaches the episode's own runs too.
     c = await change(ids.s1, { run: { from: "quick@0", to: { kind: "quick", after: 0, on: false } } });
     own = await epRow();
-    check(c.body.text === "Who went home (at its end) off" && (await sched(ids.s1)).runs?.length === 5 && own?.find((x) => x.kind === "quick")?.on === false && own.some((x) => x.after === 780), "every episode: the season's runs (its own now) and the episode's own take it", JSON.stringify({ t: c.body.text, own }));
+    check(c.body.text === "Who went home (at its end) off" && (await sched(ids.s1)).runs?.length === 6 && own?.find((x) => x.kind === "quick")?.on === false && own.some((x) => x.after === 780), "every episode: the season's runs (its own now) and the episode's own take it", JSON.stringify({ t: c.body.text, own }));
     const everyId = c.body.changeId;
     // An episode's change that comes out as the season's runs lets its own go.
     c = await change(ids.s1, { episode: N, run: { from: "full@780", to: { kind: "full", after: 720, on: true }, was: ["full@720"] } });
@@ -425,14 +427,14 @@ const REAL_BOTS = `SELECT md5(string_agg(ss.id || ss.bot_research_on::text || co
     // The season page's row
     await pg.goto(`${BASE}/desk/season/${ids.s1}`);
     await pg.locator("[data-desk-row='research']").waitFor({ timeout: 30000 });
-    check((await pg.locator("[data-desk-row='research'] small").innerText()).trim() === "Autopilot on · 5 runs after each episode" && (await pg.locator("[data-season-bot]").count()) === 0, "the season page: Running it › Research and the bot, its schedule no longer on the page");
+    check((await pg.locator("[data-desk-row='research'] small").innerText()).trim() === "Autopilot on · 6 runs after each episode" && (await pg.locator("[data-season-bot]").count()) === 0, "the season page: Running it › Research and the bot, its schedule no longer on the page");
     await shot("season-page");
     await pg.locator("[data-desk-row='research']").click();
     await pg.locator("[data-desk-research]").waitFor({ timeout: 30000 });
     check((await pg.locator("[data-desk-back]").getAttribute("data-desk-back")) === `${NAME} 1`, "Back names the season");
     check(/Autopilot on/i.test(await pg.locator("[data-lower-third]").getAttribute("data-lower-third")) && /^Next: /.test(await pg.locator("[data-lower-third-name]").locator("xpath=following-sibling::small").innerText()), "the lower third: Autopilot on, the next run");
-    check((await pg.locator("[data-run-now-kind]").count()) === 5 && (await pg.locator("[data-rail-row]").count()) >= 5 && (await pg.locator("[data-rail-now]").count()) === 1, "Run now's five, and the rail with Now");
-    check((await pg.locator("[data-missing]").count()) === 0 && /Our usual five/i.test(await pg.locator("section", { hasText: "Its schedule" }).first().innerText()), "our usual five: nothing missing, no Reset");
+    check((await pg.locator("[data-run-now-kind]").count()) === 6 && (await pg.locator("[data-rail-row]").count()) >= 6 && (await pg.locator("[data-rail-now]").count()) === 1, "Run now's six, and the rail with Now");
+    check((await pg.locator("[data-missing]").count()) === 0 && /Our usual six/i.test(await pg.locator("section", { hasText: "Its schedule" }).first().innerText()), "our usual six: nothing missing, no Reset");
     const last = await pg.evaluate(() => [...document.querySelectorAll("section")].filter((s) => s.offsetParent).pop()?.getAttribute("data-delete-row"));
     check(last === "season", "the season's Delete is last", String(last));
     await fits("Research and the bot");
@@ -571,10 +573,10 @@ const REAL_BOTS = `SELECT md5(string_agg(ss.id || ss.bot_research_on::text || co
     await shot("not-in-schedule");
     await pg.locator("[data-reset]").click();
     await pg.locator("[data-reset-go]").waitFor({ timeout: 10000 });
-    check((await pg.locator("[data-reset-list] > div").count()) === 5 && /follows our usual from now on/.test(await dialog()), "Reset: our usual five, listed; it follows our usual from now on");
+    check((await pg.locator("[data-reset-list] > div").count()) === 6 && /follows our usual from now on/.test(await dialog()), "Reset: our usual six, listed; it follows our usual from now on");
     await shot("reset");
     await pg.locator("[data-reset-go]").click();
-    check(/Schedule reset to our usual five/.test(await toasted(/reset/)), "reset");
+    check(/Schedule reset to our usual six/.test(await toasted(/reset/)), "reset");
     // Add a run
     await pg.locator("[data-add-run]").click();
     await pg.locator("[data-add-kind='schedule']").click();
@@ -587,16 +589,16 @@ const REAL_BOTS = `SELECT md5(string_agg(ss.id || ss.bot_research_on::text || co
     await pg.locator("[data-make-usual]").click();
     await pg.locator("[data-make-usual-go]").waitFor({ timeout: 10000 });
     const mk = await dialog();
-    check((await pg.locator("[data-usual-list] > div").count()) === 6 && new RegExp(`${NAME} 4 follows our usual, and changes with it`).test(mk) && /follows our usual from now on/.test(mk), "Make this our usual: its six runs, who changes with it", mk.slice(0, 300));
+    check((await pg.locator("[data-usual-list] > div").count()) === 7 && new RegExp(`${NAME} 4 follows our usual, and changes with it`).test(mk) && /follows our usual from now on/.test(mk), "Make this our usual: its seven runs, who changes with it", mk.slice(0, 300));
     await fits("Make this our usual");
     await shot("make-usual");
     await pg.locator("[data-make-usual-go]").click();
     check(/Made this our usual: Schedule check added, 30 min after it ends/.test(await toasted(/Made this our usual/)), "made our usual");
     await pg.locator("[data-follows]").waitFor({ timeout: 10000 });
-    check(/Our usual six/i.test(await pg.locator("[data-follows]").innerText()) && ((await pool.query("SELECT value FROM app_settings WHERE key = 'bot_usual'")).rows[0]?.value || []).length === 6, "it follows our usual, now six; stored");
+    check(/Our usual seven/i.test(await pg.locator("[data-follows]").innerText()) && ((await pool.query("SELECT value FROM app_settings WHERE key = 'bot_usual'")).rows[0]?.value || []).length === 7, "it follows our usual, now seven; stored");
     await pg.locator("[data-toast] button", { hasText: "Undo" }).click();
     await pg.waitForFunction(() => /Undone/.test(document.querySelector("[data-toast]")?.textContent || ""), null, { timeout: 10000 });
-    check(JSON.stringify((await pool.query("SELECT value FROM app_settings WHERE key = 'bot_usual'")).rows[0]?.value ?? null) === JSON.stringify(usualBefore) && (await sched(ids.s1)).runs?.length === 6, "the toast's Undo: our usual as it was, its own six again");
+    check(JSON.stringify((await pool.query("SELECT value FROM app_settings WHERE key = 'bot_usual'")).rows[0]?.value ?? null) === JSON.stringify(usualBefore) && (await sched(ids.s1)).runs?.length === 7, "the toast's Undo: our usual as it was, its own seven again");
     // The Inbox: a usual kind its own schedule hasn't, with its Add
     await change(ids.s1, { run: { from: "bingo@1440" } });
     await pg.goto(`${BASE}/desk`);

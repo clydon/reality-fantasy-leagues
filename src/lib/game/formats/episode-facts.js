@@ -69,7 +69,13 @@ function looseEpisodeFacts(v, repairs = []) {
     return null;
   }
   const out = {};
-  const tq = v.titleQuote;
+  let tq = v.titleQuote;
+  // A13 part 2b: its fields flattened beside it ({ titleQuote: "unknown", line, by, sure }, as a run's answer once came back):
+  // read as the fact, its value as isQuote.
+  if (typeof tq === 'string' && ['isQuote', 'line', 'by', 'sure'].some((k) => k in v)) {
+    repairs.push('episodeFacts: the title quote\'s fields were beside it, not in it -- read as the title quote');
+    tq = { isQuote: 'isQuote' in v ? v.isQuote : tq, line: v.line, by: v.by, sure: v.sure };
+  }
   if (tq == null) out.titleQuote = null;
   else if (!isObj(tq)) {
     repairs.push('episodeFacts: titleQuote was not an object -- read as not answered');
@@ -90,7 +96,8 @@ function looseEpisodeFacts(v, repairs = []) {
   return out;
 }
 
-/** Whether research was sure of a fact's answer (the title is a line or isn't, said plainly). */
+/** Whether research was sure of a fact's answer (the title is a line or isn't, said plainly): what fillFacts keeps, and what the
+ *  facts run (db/facts-research.js) doesn't ask again. */
 const sureOf = (f) => isObj(f) && f.sure === 'high' && (f.isQuote === 'no' || (f.isQuote === 'yes' && !!f.by));
 
 /**
@@ -161,6 +168,21 @@ function outcomeOf(section, fact, cast) {
 }
 
 /**
+ * An episode's outcome while research may still settle it (A13 part 2b): one it wasn't sure of, or didn't say, is 'pending' from the
+ * episode's airing (`airAt`, ms) until its final results (`finalAt`, ms: final-results.js, noon the day after it airs, by when every
+ * research run of the night has landed, the full runs and the facts run, db/facts-research.js), so a game waits rather than voiding
+ * a week the morning's research then settles; after them, or with no time to go by, it stands (void). Research about an episode the
+ * clock says hasn't aired (a replay's copy, a test) stands too: live, research only comes after it airs. Any other outcome is as it
+ * is. Pure.
+ */
+function pendingUntil(outcome, finalAt, now, airAt = null) {
+  if (!isObj(outcome) || outcome.state !== 'unsure') return outcome;
+  if (!Number.isFinite(finalAt) || !Number.isFinite(now) || now >= finalAt) return outcome;
+  if (Number.isFinite(airAt) && now < airAt) return outcome;
+  return { state: 'pending', why: outcome.why };
+}
+
+/**
  * How research answered a fact over a show's stored episodes (`items`: each one's section, null for one asked before the section
  * was, with its season's cast: [{ section, cast }]): { asked, settled }, the episodes it was asked on and the ones it settled a pick
  * on, sure of someone in the cast by their name there (outcomeOf's 'who', as the grader reads it). The title not being a line,
@@ -223,4 +245,4 @@ function factProblem(fact, entry) {
   return `Research said ${what} for sure on ${r.settled} of the ${r.asked} episodes it was asked on this show: not reliably enough to settle it`;
 }
 
-module.exports = { SURE, IS_QUOTE, RELIABILITY, BAR, MEASURED, FACTS, FACT_IDS, measuredSeasons, looseEpisodeFacts, fillFacts, personIn, outcomeOf, measure, entryFor, ratingOf, factProblem };
+module.exports = { SURE, IS_QUOTE, RELIABILITY, BAR, MEASURED, FACTS, FACT_IDS, measuredSeasons, looseEpisodeFacts, sureOf, fillFacts, personIn, outcomeOf, pendingUntil, measure, entryFor, ratingOf, factProblem };

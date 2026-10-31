@@ -4,6 +4,7 @@ import * as Facts from "@/lib/game/formats/episode-facts.js";
 import type { FactEntry, FactOutcome } from "@/lib/game/formats/episode-facts.js";
 import type { LeagueState } from "@/lib/game/types";
 import { pool } from "./db";
+import { finalAtOf, seasonSchedules } from "./schedule";
 
 // A13 part 2: episode facts, for a game a fact settles (docs/PLAN-start-a-game-gpt.md step A13; game-spec schema.js's
 // `settle: { by: 'fact' }`). Every show's research answers them after each episode, in its stored answer's episodeFacts section
@@ -21,25 +22,44 @@ export const asksFacts = (state: LeagueState): boolean => StateLogic.AnswerLogic
  * early results aren't one), each fact's outcome with its person found in the viewer's cast (`view`: the league as they see it);
  * an answer without the facts section (asked before it was, or by a pass that leaves it out) says nothing ('unsure': research
  * didn't say). The grader reads only the episodes the viewer has seen with results. The league's season is its settings' show and
- * number (push-events.ts leagueSeason's), so a copy or a stage reads its own.
+ * number (push-events.ts leagueSeason's), so a copy or a stage reads its own. A13 part 2b: a fact research isn't sure of (or
+ * didn't say) is 'pending' from the episode's airing until its final results (`now` between them: formats/episode-facts.js
+ * pendingUntil), since the morning's runs, the facts run among them (db/facts-research.js), may still settle it; then it stands.
  */
-export async function episodeFactsFor(state: LeagueState, view: LeagueState): Promise<Map<number, Record<string, FactOutcome>> | undefined> {
+export async function episodeFactsFor(state: LeagueState, view: LeagueState, now = Date.now()): Promise<Map<number, Record<string, FactOutcome>> | undefined> {
   if (!asksFacts(state)) return undefined;
   const s = state.settings ?? {};
   if (!s.showId || s.wikiSeason == null || !Number.isFinite(Number(s.wikiSeason))) return undefined;
   const { rows } = await pool.query(
-    `SELECT er.episode_number, er.payload->'episodeFacts' AS facts
+    `SELECT er.episode_number, er.payload->'episodeFacts' AS facts, ss.id AS season_id,
+            er.researched_at > to_timestamp($3 / 1000.0) - interval '2 days' AS recent
        FROM episode_research er JOIN shows sh ON sh.id = er.show_id
+       LEFT JOIN show_seasons ss ON ss.show_id = er.show_id AND ss.season_number = er.season_number
       WHERE sh.slug = $1 AND er.season_number = $2 AND er.source = 'combined'`,
-    [s.showId, Number(s.wikiSeason)]
+    [s.showId, Number(s.wikiSeason), now]
   );
   const cast = (view.castaways ?? []).map((c) => ({ id: c.id, name: c.name }));
   const out = new Map<number, Record<string, FactOutcome>>();
+  const recent = new Set<number>();
   for (const r of rows) {
+    if (r.recent) recent.add(Number(r.episode_number));
     const section = Facts.looseEpisodeFacts(r.facts);
     const said: Record<string, FactOutcome> = {};
     for (const id of Facts.FACT_IDS) said[id] = Facts.outcomeOf(section, id, cast) ?? { state: "unsure", why: "Research didn't say" };
     out.set(Number(r.episode_number), said);
+  }
+  // Only when something isn't sure on an episode researched in the last two days (research comes after an episode airs, and its
+  // final results are at most a day and a half after that, so an older one's are in): the season's schedule, for their times.
+  const seasonId = rows.find((r) => r.season_id)?.season_id as string | undefined;
+  const open = [...out].filter(([n, said]) => recent.has(n) && Object.values(said).some((o) => o.state === "unsure"));
+  if (seasonId && open.length) {
+    const schedule = (await seasonSchedules([seasonId])).get(seasonId);
+    const finalAt = finalAtOf(schedule);
+    for (const [n, said] of open) {
+      const at = finalAt(n);
+      const aired = schedule?.episodes.find((e) => e.number === n)?.airAt;
+      for (const id of Object.keys(said)) said[id] = Facts.pendingUntil(said[id], at ? Date.parse(at) : null, now, aired ? Date.parse(aired) : null);
+    }
   }
   return out;
 }

@@ -85,8 +85,10 @@ trivia key, the bot's trivia research as it's written and checked today, the rou
 with no key; the trivia sheet holding a game's batch back from its players until the round locks; `answer: 'trivia'`, `trivia-key.ts`),
 is built, and so is part 2, episode facts (2026-10-31: who says the episode's title quote, a section of every show's research, a question
 settled by it only where research says it reliably on the show, void when it can't say for sure; `settle: { by: 'fact' }`,
-`episode-facts.js`); its proof found research right whenever it was sure but sure on only half of Survivor 49's weeks, so part 2b, a short
-run of its own for episode facts, is next, then A14. The live-sports plan is
+`episode-facts.js`), and so is part 2b, episode facts' own short run (2026-10-31: what an episode's stored research isn't sure of, asked
+on its own after the morning's full run and filed into it, a fact game waiting for it until the episode's final results; on the tapes
+Survivor now says it for sure on 10 of 10 weeks, The Challenge and The Traitors on almost none; `db/facts-research.js`, the bot's
+'facts' run, migration 0204), so **A13 is done**; A14 next. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5 at
 xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: folded in here as track L; its file keeps the details)
 and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track S here).
@@ -4798,7 +4800,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     rule and the seat sync change nothing for the games already played. The study doc's "A12 part 4c".
 - **A13. Trivia and episode facts.** Trivia questions settled by the episode's trivia key (the bot's trivia research, written
   and checked as now); episode facts (who said the title quote) through new research questions rated reliable (Our check). In parts:
-  part 1, trivia (below); part 2, episode facts (below); part 2b, episode facts' own short run (next: part 2's Noticed).
+  part 1, trivia (below); part 2, episode facts (below); part 2b, episode facts' own short run (below). A13 is done.
 
   **As built (A13 part 1, trivia in a game, 2026-10-30, on `engine`, not merged; no migration).** One session, after `lane.js sync engine`
   (nothing new from master; 1207 tests). A trivia question in a game of questions: the round before each episode, answered from the
@@ -4953,6 +4955,79 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     numbers exactly (Survivor 49 130 of 130, The Challenge 41 105, 40 99, 39 107, The Traitors 4 94); the questions waiting on early
     results finding 20's 3, 2 and 2; the three fact games refused on every season by the rating, as live they would be (Survivor patchy,
     the others unrated); each episode's re-asked facts filed in its research (the record's `facts`). The study doc's "A13 part 2".
+
+  **As built (A13 part 2b, episode facts' own short run, 2026-10-31, on `engine`, not merged; migration 0204).** One session, after `lane.js
+  sync engine` (master's swipe screens; 1227 tests). Part 2's first Noticed item, built: what an episode's stored research isn't sure of,
+  asked on its own after the morning's full run, filed into that answer as a second pass fills in, and a fact game waiting for it until the
+  episode's final results instead of voiding the week. Ridden on data with its fallback from the start (still unsure at the final results:
+  void, as before). It doesn't touch the trivia sheet or add a screen; the desk only gains the run's words where every run kind already
+  shows. Every default and everything a person sees is the user's (Noticed, below); the run's prompt is a prompt change, on this branch
+  only, the user's to approve at the merge with the section's (the study doc says so).
+  - **The run** (`db/facts-research.js`, new): `factsFor` (the episode's stored combined answer: stored or not, its title, else the
+    listings', the names the full run was asked about, else the season's cast, the show's word for them, `termOf`, its own plural first),
+    `unsureIn` (the facts it isn't sure of, a missing section counting as not sure: the ones asked), `buildFactsPrompt` (the episode and its
+    title, else find it; how to look for who says it, the focus experiment's words; the names; the section's JSON), `parseFactsAnswer` (read
+    loosely as the section is: the section's shape, a fact on its own, its fields at the top or flattened beside it; only what was asked),
+    `sameTitle`, `factsLine` (the desk's line), `storeFacts` (`fillFacts` into the stored answer under the lock a research store takes, its
+    provenance's `factsRun` saying which run and when, `researched_at` left as the full run's; nothing written when nothing changed).
+    `episode-facts.js` exports `sureOf`, and its loose read takes a title quote's fields flattened beside it (a run's answer came back so).
+  - **Bot research** (`db/bot-research.js`): a run kind of its own, `facts` (`KINDS`, exported with `SLOT_RE`, now built from it, which the
+    desk's server reads instead of its own copies); our usual's sixth run, `facts@750` (12 hr 30 min after the end, half an hour after the
+    morning's full run: 10:05 AM for Survivor's 9:35 PM end), on the schedule no later than an hour before the episode's final results and
+    no try once they're in (`dueFor`, `until`: a show ending at midnight or a 3 AM drop gets it an hour before noon; one still running then
+    gets none), three tries 20 minutes apart as a full run's. `factsJob`: no stored answer yet, a failed try (asked again); nothing unsure,
+    done with nothing asked; an answer without the facts, or about another title (the chat carrying an earlier question over), a failed try;
+    still unsure, filed and done (asking again minutes later seldom says more); a dry run files nothing. `storeMergedResearch` keeps a
+    stored answer's `factsRun` through a later merge. **Migration 0204**: `bot_research_runs`' and `desk_runs`' kind checks take `facts`
+    (`desk_runs`, made by 0424, sorts after it: widened only where it exists, and 0426, the check a database built from empty ends with,
+    lists `facts` too).
+  - **The wait** (`episode-facts.js pendingUntil`, `episode-facts.ts episodeFactsFor`, `answers.js factVerdict`): a fact research isn't sure
+    of, or didn't say, is pending from the episode's airing until its final results (`final-results.js`, noon the day after it airs in the
+    season's zone), which the grader reads as waiting (no points either way yet; a walk, a race or a cut waits on it); then it stands, void
+    as part 2 built. Research about an episode the clock says hasn't aired (a replay's copy, whose season airs a week ahead; a test) stands
+    at once: live, research only comes after an episode airs.
+    The schedule is read only when an unsure episode's research was stored in the last two days (research comes after an episode airs, and
+    its final results are at most a day and a half after that).
+  - **The desk** (words in the lists every run kind has; no new screen): `desk-bot-words.ts` (`facts`: "Episode facts", our usual six,
+    Run now's order), `desk-research.ts` (Run now refuses a facts ask before the episode's research is stored or once it's sure; a run's
+    question is what it would ask now, else what that run asked; the rail times it by `dueFor`), `desk-bot.ts`, `research.tsx` (its icon,
+    what Run now says it does, its run sheet). A season with its own schedule shows in the Inbox as having no Episode facts run, as for any
+    kind our usual gains. Seen at 390 on the desk check's screenshots (Run now's tile, the rail, Add a run).
+  - **The tapes' measure** (`facts-asks.js run`, `reread`, `score --write`; `heldOf` files each run's answer as the run does): Survivor 10 of
+    10 settled (**reliable**: our check takes a title-quote game on a Survivor season now), The Challenge 0 of 5 and The Traitors 1 of 2
+    (not rated). `blind.js` files the same per episode (the record's `facts` says which came from the run), and its copy of a show
+    (`zt-pt-<show>`, whose slug our check finds no measure for) carries the show's measure as stored answers of an earlier season
+    (`carryMeasure`, the record's `measure`), so our check rates the copy as it would the show live.
+  - **Tracker:** nothing moved (its ctx has no facts): `engine-capabilities.js --check` current. `game-specs-flag.js check`: PASS.
+  - **Proof:** `tests/facts-research.test.js` (new, 7): what the run asks (nothing when sure), its prompt, its answer's loose read (every
+    shape, only what was asked, another title), the run on a stand-in database and bot (no stored answer, nothing unsure, asked and filed,
+    still unsure, no facts, another episode's answer, dry), a sure answer kept over an unsure one (filing, and the morning's full run merging
+    after the run), and the schedule (its kind, its time, its tries, an hour before a late episode's final results, never past them);
+    `tests/episode-facts.test.js` (+1: pending until the final results, then void; the grader waits on it); `bot-research.test.js` and
+    `desk-bot-words.test.js` with our usual's six. `npm test` 1235; `tsc` clean.
+  - **API check:** `scripts/dev-test/check-episode-facts.js`, extended, ALL PASS: Episode 8 aired two hours ago, research unsure: waiting;
+    bot research's facts run (`runJob`, its answer a stand-in) asks it on its own with the title and the cast: still unsure, filed, still
+    waiting; sure (riley's pick), filed into the stored answer with its run named, graded at once; each run on bot research's runs; a run
+    after that asks nothing; two days on, Episode 9's answer without the fact, past its final results: void; the table riley 1 more.
+    `check-desk-research.js` (our usual six; Run now's six; Make this our usual's seven): every check but one, "full results again: 12 hours
+    on", which fails tonight only (the rail's episode's 12 hours cross Nov 1's clock change: 8:05 AM is right; Noticed). Also ALL PASS:
+    `check-trivia-game.js`, `check-questions.js`. Not run: `check-bot-research.js` (it asks the bot through the app's URL, production's first).
+  - **The code review** (`/code-review` at high, then medium on the fixes, before the long runs): the migration's order (0204 sorts before
+    `desk_runs`); a facts run landing after the final results, or never for a late episode (`until`, `dueFor`); the schedule read on every
+    read (recent episodes only); an answer's fields flattened at the top, and stray fields read as a title quote; `factsRun` lost on the next
+    merge; Run now's question for a settled run, and Run now queuing an ask that can't run; an answer about another episode filed; the kind
+    lists copied by hand (`KINDS`, `SLOT_RE` shared); the cast's word (`termOf`, with the show's plural). Left, in Noticed: our usual in
+    production, the bot's time, editing 0426, the regrade after the final results, the rail's timing sheet, the third copy of the cast word.
+    After the review, the first blind run found the replays' copy unrated (the fact games refused on every season, as in part 2: the copy's
+    slug) and a wait that would never end on a copy's season (aired a week ahead by the clock): `carryMeasure`, and the wait from the
+    episode's airing. Golden ran before those two; they read only fact questions, which no golden game asks.
+  - **Golden replays:** `golden.js` (HEAD, A13 part 2, against the working tree): 7 seasons, 160 games, **19,361 reads, every one the same**; against
+    master's (`--before=master`, production's engine): every one the same. No existing game scores differently (none asks an episode
+    fact), so the Survivor 51 rehearsal isn't run for this part.
+  - **Blind replays:** (`blind.js run`, the five seasons, on the final code): **every game played through and over on all five seasons**: Survivor 49
+    133 of 133 (the three fact games play there now: who says it graded on Episodes 1 to 10, void on 11 to 13, which nothing asked of;
+    which tribe graded to the merge, void after with one tribe left), The Challenge 41 105, 40 99, 39 107, The Traitors 4 94 (the fact
+    games refused there, not rated); the questions waiting on early results finding 20's 3, 2 and 2. The study doc's "A13 part 2b".
 - **A14. The players' own mechanics** (allowed 2026-10-28, with the Decisions table's guardrails): votes among the players,
   matching the majority, the top scorer's twist, a rotating host's questions (still data-settled), secret roles, bounties, the
   bot's call as an opponent; and numbers from vetted outside sources (an episode's TVmaze rating, settled once at a fixed
@@ -5916,8 +5991,44 @@ From R1 part 2 (2026-10-30):
 - **For the hosting notes, at the merge:** `/api/me` (classic's sign-in and every classic load) now sends each league's settings, not its
   whole state (20-40 KB each): less Neon transfer than before. (The main folder: docs/HOSTING.md, with the merge.)
 
+From A13 part 2b (2026-10-31):
+- **For the user at the merge, each built with a recommendation:**
+  1. **The run's prompt and its words on the desk** ("Episode facts", what Run now says it does): a prompt change, beside the section's.
+     Recommended: as built (the focus experiment's words, proven on the tapes).
+  2. **Which seasons it runs for (the bot's time).** Built: every season that follows our usual, asking only what research wasn't sure of
+     (on the tapes about half of Survivor's weeks and nearly all of The Challenge's and The Traitors'), one short ask of about 20 seconds
+     each, so every show's measure grows. Options: only seasons with a game a fact settles (a show nobody can start one on is then never
+     measured); every season until its show is measured on N episodes, then only where a game asks. Recommended: as built; the third once the
+     bot's time runs short.
+  3. **Survivor rates reliable now** (the tapes: 10 of 10, every sure answer right where truth is on file), so once merged our check takes a
+     title-quote game on any Survivor season, Survivor 51's included. The tapes were asked long after airing; live, the run asks 12 hr 30 min
+     after the end, maybe before the pages that say who said a title. Nearer live, the run's prompt on Survivor 51's six aired episodes (asked 2.5 days
+     to 5 weeks after each aired) was sure on all six, five naming a castaway and one the host (the study doc), with no truth on file to
+     say it was right. Recommended: let the run go on Survivor 51's episodes for a
+     few weeks first and decide the bar with the Custom moments bar (part 2's item 1), on the live rate the rating then shows.
+  4. **A fact week waits until the final results**, then a later answer (Run now, a paste) regrades it, as a result taken back does. Option:
+     freeze an episode's facts at its final results. Recommended: keep (part 2's item 4, the same question); the desk shows a game's facts.
+- **Production's schedules (the merge):** the run reaches a season only through our usual. If production's desk has made its own our usual
+  (`app_settings` 'bot_usual'), the run isn't in it until the desk adds it (Add a run, Make this our usual); a season with a schedule of its
+  own (Survivor 51's) keeps it exactly, and the Inbox lists each such airing season as having no Episode facts run. The main folder checks
+  'bot_usual' at the merge and the user says where the run goes.
+- **0204 and 0426 (the merge):** 0204 sorts before `desk_runs` (0424), so it widens that check only where the table exists, and 0426 (the
+  desk lane's file, applied in production long ago, so nothing changes there) lists `facts` for a database built from empty. A later
+  migration that redefines either kind check must keep `facts`. (Rehearsed on Neon with the merge.)
+- **The desk's timing sheet** (`desk-bot-words.ts runTime`, mirroring `dueAt`) shows a retimed facts run's plain time, not `dueFor`'s an hour
+  before a late episode's final results (the rail shows the real one). (Whoever next touches the desk's timing sheet.)
+- **The wait reads the schedule only for an episode researched in the last two days** (`researched_at`, which a later merge resets): it
+  holds because research comes after an episode airs. A store that isn't the same format (a rulebook made again) replaces the stored answer,
+  the run's facts with it, and past the final results the run doesn't come again. (Rare: the desk's Run now.)
+- **The show's word for its cast** has a third copy in `facts-research.js termOf` (with the show's plural; trivia's `castFor` ignores
+  `castaway_plural`; `show-words.ts` is TypeScript, out of reach of `db/`). (Whoever next touches trivia's prompt: a shared CommonJS helper.)
+- **`check-desk-research.js`'s "full results again: 12 hours on"** fails when the rail's episode's 12 hours cross a clock change (tonight,
+  Nov 1): it expects 9:05 AM where 8:05 AM is right. Not this step's. (The desk lane or the main session: give it the season's zone.)
+- **`check-bot-research.js`** asks the bot through the app's `LLM_BROWSER_API_URL` (production's first), so this lane didn't run it; the
+  planner's unit tests cover the facts run. (Whoever next runs it with a local bot URL.)
+
 From A13 part 2 (2026-10-31):
-- **A short run of its own for episode facts (A13 part 2b, next; the user approves its prompt at the merge).** The section in the full
+- **A short run of its own for episode facts (built: A13 part 2b; the user approves its prompt at the merge).** The section in the full
   prompt is right when it's sure (every sure answer of the proof's) but sure on only half of Survivor 49's episodes and none of The
   Challenge's or The Traitors', because the full run reads recaps, not the stats pages that say who said a title. The same question
   asked on its own after the full run settled every one of Survivor 49's unsure weeks, each right. Recommended: a short follow-up ask

@@ -13,14 +13,22 @@
 //   node scripts/dev-test/facts-asks.js ask [<show> <season> <eps>] [--again] [--max=N] [--pause=60]
 //                                                                     asks what isn't answered yet (the set, or episodes "1-10")
 //   node scripts/dev-test/facts-asks.js focus <show> <season> <eps>    the experiment: the title quote asked on its own (focus())
-//   node scripts/dev-test/facts-asks.js score [--md] [--write] [--focus]        each answer scored, then per season and overall; --write puts
-//                                                                     the tapes' measure in src/lib/game/formats/fact-measures.json
+//   node scripts/dev-test/facts-asks.js run [<show> <season> <eps>] [--again] [--pause=30]
+//                                                                     A13 part 2b: the facts run's own prompt (db/facts-research.js),
+//                                                                     asked for each answered episode whose section left a fact unsure
+//   node scripts/dev-test/facts-asks.js reread                       the run's kept answers read again by today's parse (a failed one
+//                                                                     that reads now is kept as that episode's answer, marked reread)
+//   node scripts/dev-test/facts-asks.js score [--md] [--write] [--section] [--focus]   each answer scored, then per season and overall:
+//                                                                     the section with the run's answer filled in as the run files it
+//                                                                     (fillFacts; --section: the section alone, as part 2 measured);
+//                                                                     --write puts the tapes' measure in src/lib/game/formats/fact-measures.json
 //
 // The set: Survivor 49 1-10 (its titles are castaways' lines; truth for most), The Challenge 41 2, 6 and 7 and The Traitors 4 2 and 5
 // (their titles are often lines too; no truth on file), The Challenge 40 4 and 6 (titles that are puns on its theme).
 //
 // Where: ~\rfl-tapes\<show>\<season>\facts\e<NN>.json (TAPES_DIR moves it), .answer.md beside it; a new ask of an answered episode
-// (--again) is e<NN>.2.json and on, a failed one e<NN>.fail<k>.json; scoring reads the latest. Needs what format-asks.js needs: the
+// (--again) is e<NN>.2.json and on, a failed one e<NN>.fail<k>.json; scoring reads the latest. The run's answers are in facts\run\
+// the same way (e<NN>.json, .2 and on with --again, .fail<k>), the focus experiment's in facts\focus\. Needs what format-asks.js needs: the
 // lane's .env.local (a local database with the seasons loaded: `tapes.js load <show> <season>`; LLM_BROWSER_API_KEY), F1's fixtures
 // (the state going in), and for `ask` the local bot at http://127.0.0.1:8765. Never production's bot: this lane's
 // LLM_BROWSER_API_URL lists it first, so it isn't read; FACTS_ASKS_BOT may name another local one. The local bot answers one
@@ -34,6 +42,7 @@ const path = require("path");
 const FA = require("./format-asks.js");
 const Study = require("./format-study.js");
 const Facts = require("../../src/lib/game/formats/episode-facts.js");
+const FR = require("../../db/facts-research.js");
 const TRUTH = require("../../tests/fixtures/title-quotes.json");
 
 const TAPES = process.env.TAPES_DIR || path.join(os.homedir(), "rfl-tapes");
@@ -58,9 +67,9 @@ const readJson = (f) => {
 };
 const dirOf = (show, season) => path.join(TAPES, show, String(season), "facts");
 
-/** Each episode's latest kept answer that reads, by number. */
-function answersOf(show, season) {
-  const dir = dirOf(show, season);
+/** Each episode's latest kept answer that reads, by number (`sub`: a folder beside them, the run's answers). */
+function answersOf(show, season, sub = null) {
+  const dir = sub ? path.join(dirOf(show, season), sub) : dirOf(show, season);
   if (!fs.existsSync(dir)) return {};
   const by = {};
   for (const f of fs.readdirSync(dir)) {
@@ -74,8 +83,8 @@ function answersOf(show, season) {
   return Object.fromEntries(Object.entries(by).map(([n, v]) => [n, v.record]));
 }
 
-function writeAnswer(show, season, episode, record, { again = false } = {}) {
-  const dir = dirOf(show, season);
+function writeAnswer(show, season, episode, record, { again = false, sub = null } = {}) {
+  const dir = sub ? path.join(dirOf(show, season), sub) : dirOf(show, season);
   fs.mkdirSync(dir, { recursive: true });
   let stem = `e${pad(episode)}`;
   let k = 1;
@@ -256,6 +265,130 @@ async function focus(args) {
   }
 }
 
+/**
+ * A13 part 2b: the facts run's own prompt (db/facts-research.js buildFactsPrompt, as bot research's 'facts' run asks it), for each
+ * answered episode of the set (or the episodes named) whose section left a fact unsure, with the episode's title from that answer
+ * and the names it was asked about; the show's name and its word for its cast from the local database, as the run reads them. Each
+ * answer read by the run's own parse (parseFactsAnswer) and kept in facts\run\, never filed anywhere. An episode the section was
+ * sure of isn't asked, as live.
+ */
+async function runAsks(args) {
+  if (!/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(BOT)) throw new Error("facts-asks.js asks only a local bot (FACTS_ASKS_BOT), never production's");
+  const { looksLimited } = require("./tapes.js");
+  const again = args.includes("--again");
+  const pause = (Number((args.find((a) => a.startsWith("--pause=")) || "").slice(8)) || 30) * 1000;
+  const { pool } = FA.appCode();
+  let stop = false;
+  process.on("SIGINT", () => {
+    if (stop) process.exit(1);
+    stop = true;
+    console.log("Stopping after this question (Ctrl+C again to stop now)");
+  });
+  for (const { show, season, episodes } of setOf(args.slice(1))) {
+    const { rows } = await pool.query("SELECT name, castaway_term, castaway_plural FROM shows WHERE slug = $1", [show]);
+    const showName = rows[0] ? rows[0].name : show;
+    const term = FR.termOf(rows[0] || {});
+    const full = answersOf(show, season);
+    for (const n of episodes) {
+      if (stop) break;
+      const rec = full[n];
+      if (!rec || !rec.ok || !rec.read) continue;
+      const ask = FR.unsureIn(rec.read.episodeFacts);
+      if (!ask.length) continue;
+      const have = answersOf(show, season, "run");
+      if (!again && have[n] && have[n].ok) continue;
+      for (;;) {
+        if (await botFree()) {
+          await sleep(10_000 + Math.floor(Math.random() * 10_000));
+          if (await botFree()) break;
+        }
+        await sleep(30_000);
+      }
+      const prompt = FR.buildFactsPrompt({ showName, season, episode: n, title: rec.read.episodeTitle, cast: rec.castAsked || [], term, facts: ask });
+      const t0 = Date.now();
+      const record = { show, season, episode: n, at: new Date().toISOString(), bot: { url: BOT, provider: "chatgpt" }, castAsked: rec.castAsked, asked: ask, prompt, answer: null, ok: false, error: null, read: null, seconds: null };
+      try {
+        const out = await botAsk(prompt);
+        record.answer = out.answer;
+        record.bot.seconds = out.seconds;
+        if (looksLimited(out.answer) && !/\{/.test(out.answer)) throw Object.assign(new Error("the answer reads like a usage limit or a bot check"), { limited: true });
+        const parsed = FR.parseFactsAnswer(out.answer, ask);
+        record.read = { episodeTitle: parsed.episodeTitle || rec.read.episodeTitle, episodeFacts: parsed.episodeFacts, repairs: parsed.repairs };
+        record.ok = parsed.found;
+        if (!record.ok) record.error = "no episode facts in the answer";
+      } catch (e) {
+        record.error = e instanceof Error ? e.message : String(e);
+        if ((e && e.limited) || looksLimited(record.error)) stop = true;
+      }
+      record.seconds = Math.round((Date.now() - t0) / 100) / 10;
+      const file = writeAnswer(show, season, n, record, { again, sub: "run" });
+      const tq = record.read && record.read.episodeFacts && record.read.episodeFacts.titleQuote;
+      console.log(`${new Date().toISOString()}  ${show} ${season} e${pad(n)} run  ${record.ok ? "ok" : "FAILED"}  ${record.seconds}s  ${tq ? `${tq.isQuote}, ${tq.by || "nobody"} (${tq.sure})` : record.error}  -> ${path.relative(TAPES, file)}`);
+      if (!stop) await sleep(pause);
+    }
+  }
+  await pool.end();
+}
+
+/**
+ * The run's kept answers read again by the run's parse as it is now (parseFactsAnswer, its loose read grown since they were asked):
+ * an ok one's `read` brought up to date; a failed one whose answer reads now kept as its episode's answer (e<NN>.json, or the next
+ * after it), marked `reread` with what it was, the failed file left as it is. Nothing is asked.
+ */
+function reread() {
+  for (const { show, season } of SET.filter((s, i, a) => a.findIndex((x) => x.show === s.show && x.season === s.season) === i)) {
+    const dir = path.join(dirOf(show, season), "run");
+    if (!fs.existsSync(dir)) continue;
+    for (const f of fs.readdirSync(dir).filter((x) => /^e\d+(\.\d+|\.fail\d+)?\.json$/.test(x))) {
+      const rec = readJson(path.join(dir, f));
+      if (!rec || !rec.answer) continue;
+      let parsed = null;
+      try {
+        parsed = FR.parseFactsAnswer(rec.answer, rec.asked || Facts.FACT_IDS);
+      } catch {
+        parsed = null;
+      }
+      const read = parsed && parsed.found ? { episodeTitle: parsed.episodeTitle || (rec.read && rec.read.episodeTitle) || null, episodeFacts: parsed.episodeFacts, repairs: parsed.repairs } : null;
+      if (!/\.fail\d+\.json$/.test(f)) {
+        if (read && JSON.stringify(read) !== JSON.stringify(rec.read)) {
+          fs.writeFileSync(path.join(dir, f), JSON.stringify({ ...rec, read, reread: { at: new Date().toISOString(), was: rec.read } }, null, 2), "utf8");
+          console.log(`${show} ${season} ${f}: read again`);
+        }
+        continue;
+      }
+      if (!read) continue;
+      const have = answersOf(show, season, "run");
+      if (have[rec.episode] && have[rec.episode].ok) continue;
+      const file = writeAnswer(show, season, rec.episode, { ...rec, ok: true, error: null, read, reread: { at: new Date().toISOString(), from: f, was: { ok: rec.ok, error: rec.error } } }, { again: true, sub: "run" });
+      const tq = read.episodeFacts.titleQuote;
+      console.log(`${show} ${season} ${f}: reads now (${tq ? `${tq.isQuote}, ${tq.by || "nobody"} (${tq.sure})` : "none"}) -> ${path.relative(TAPES, file)}`);
+    }
+  }
+}
+
+/**
+ * Each episode's answer as research would hold it once the facts run has filed its answer (fillFacts, as storeFacts does): the
+ * section's, with the run's answer filled in where the run was asked (`via`: 'section' or 'run', whichever the scored fact came
+ * from; `ran`: the run was asked). `section`: the section alone (A13 part 2's measure). Pure but for reading the kept answers.
+ */
+function heldOf(show, season, { section = false } = {}) {
+  const full = answersOf(show, season);
+  const run = section ? {} : answersOf(show, season, "run");
+  const out = {};
+  for (const [n, rec] of Object.entries(full)) {
+    if (!rec.ok || !rec.read) continue;
+    const r = run[n];
+    if (!r || !r.ok || !r.read || !r.read.episodeFacts) {
+      out[n] = { ...rec, via: "section" };
+      continue;
+    }
+    const merged = Facts.fillFacts(rec.read.episodeFacts, r.read.episodeFacts);
+    const from = JSON.stringify(merged.titleQuote) === JSON.stringify(rec.read.episodeFacts && rec.read.episodeFacts.titleQuote) ? "section" : "run";
+    out[n] = { ...rec, read: { ...rec.read, episodeFacts: merged }, via: from, ran: true };
+  }
+  return out;
+}
+
 /** One answer scored: its outcome as the grader reads it, and against the truth on file. Pure. */
 function scoreOne(show, season, record) {
   const cast = (record.castAsked || []).map((name) => ({ id: name, name }));
@@ -269,12 +402,13 @@ function scoreOne(show, season, record) {
   let verdict = "void";
   if (o && o.state === "who") verdict = truth ? (o.who === truth ? "right" : "wrong") : "said";
   else if (o && o.state === "outside") verdict = truth ? "outside" : "said";
-  return { episode: record.episode, title: record.read && record.read.episodeTitle, isQuote: tq ? tq.isQuote : null, by: tq ? tq.by : null, sure: tq ? tq.sure : null, line: tq ? tq.line : null, outcome: o ? o.state : "none asked", truth, verdict };
+  return { episode: record.episode, title: record.read && record.read.episodeTitle, isQuote: tq ? tq.isQuote : null, by: tq ? tq.by : null, sure: tq ? tq.sure : null, line: tq ? tq.line : null, outcome: o ? o.state : "none asked", truth, verdict, via: record.via || "section", ran: !!record.ran };
 }
 
 function score(args) {
   const md = args.includes("--md");
-  const read = args.includes("--focus") ? (show, season) => focusOf(show, season) : answersOf;
+  const section = args.includes("--section");
+  const read = args.includes("--focus") ? (show, season) => focusOf(show, season) : (show, season) => heldOf(show, season, { section });
   const all = [];
   const lines = [];
   const shows = {};
@@ -293,16 +427,16 @@ function score(args) {
     m.titleQuote.asked += rows.length;
     m.titleQuote.settled += rows.filter((r) => r.outcome === "who" && r.verdict !== "wrong").length;
     m.seasons.push(season);
-    lines.push(md ? `\n**${show} ${season}**\n\n| Ep | Title | Is a line | Who (sure) | Read as | Truth | Verdict |\n|---|---|---|---|---|---|---|` : `== ${show} ${season}`);
+    lines.push(md ? `\n**${show} ${season}**\n\n| Ep | Title | Is a line | Who (sure) | From | Read as | Truth | Verdict |\n|---|---|---|---|---|---|---|---|` : `== ${show} ${season}`);
     for (const r of rows) {
-      const cells = [r.episode, r.title || "-", r.isQuote, r.by ? `${r.by} (${r.sure})` : `nobody (${r.sure})`, r.outcome, r.truth || "-", r.verdict];
+      const cells = [r.episode, r.title || "-", r.isQuote, r.by ? `${r.by} (${r.sure})` : `nobody (${r.sure})`, r.ran ? `${r.via} (run asked)` : r.via, r.outcome, r.truth || "-", r.verdict];
       lines.push(md ? `| ${cells.join(" | ")} |` : `E${pad(r.episode)}  ${cells.slice(1).join("  |  ")}`);
     }
     lines.push(totalsLine(rows, md));
   }
   lines.push(md ? `\n**Overall:** ${totalsLine(all, false)}` : `== overall: ${totalsLine(all, false)}`);
   console.log(lines.join("\n"));
-  if (args.includes("--write") && !args.includes("--focus")) {
+  if (args.includes("--write") && !args.includes("--focus") && !section) {
     const file = path.join(__dirname, "..", "..", "src", "lib", "game", "formats", "fact-measures.json");
     const now = JSON.parse(fs.readFileSync(file, "utf8"));
     fs.writeFileSync(file, `${JSON.stringify({ about: now.about, measured: new Date().toISOString().slice(0, 10), shows }, null, 2)}\n`, "utf8");
@@ -331,8 +465,10 @@ async function main() {
     }
   } else if (cmd === "ask") await ask([cmd, ...rest]);
   else if (cmd === "focus") await focus(rest);
+  else if (cmd === "run") await runAsks([cmd, ...rest]);
+  else if (cmd === "reread") reread();
   else if (cmd === "score") score(rest);
-  else console.log("usage: facts-asks.js plan | ask [<show> <season> <eps>] [--again] [--max=N] [--pause=60] | score [--md] [--write]");
+  else console.log("usage: facts-asks.js plan | ask [<show> <season> <eps>] [--again] [--max=N] [--pause=60] | focus <show> <season> <eps> | run [<show> <season> <eps>] [--again] [--pause=30] | reread | score [--md] [--write] [--section] [--focus]");
   const a = FA.appCode && cmd === "ask" ? FA.appCode() : null;
   if (a && a.pool) await a.pool.end();
 }
@@ -342,4 +478,4 @@ if (require.main === module) main().catch((e) => {
   process.exit(1);
 });
 
-module.exports = { SET, answersOf, scoreOne };
+module.exports = { SET, answersOf, heldOf, scoreOne };

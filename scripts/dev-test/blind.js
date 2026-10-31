@@ -31,7 +31,9 @@
 //     game that asks trivia (A13), each episode's trivia as its tape has it (written and checked then) filed after its results,
 //     the key of the round before the next episode, every question of a round answered by each seat's habit; a game an episode fact
 //     settles (A13 part 2), each episode's facts in its research as the local bot said them where A13 part 2's proof asked it again
-//     (facts-asks.js), else none (the question void), recorded per episode in `facts`.
+//     (facts-asks.js), with the facts run's answer filled in where part 2b's proof asked it (the run's own prompt, filed as the run
+//     files it: facts-asks.js heldOf), else none (the question void), recorded per episode in `facts`; the copy carrying its show's
+//     measure of each fact (carryMeasure), as live the show has the season tapes', so our check rates it as it would live.
 // Nothing asks a bot. The local bot's answers are F2's, kept beside the tapes; the stand-ins are marked as such in the record.
 //
 //   node scripts/dev-test/blind.js run [<show> <season>] [--only=3,7] [--through=N] [--keep]
@@ -825,6 +827,34 @@ async function premiere(r) {
   }
 }
 
+/**
+ * A13 part 2b: the copy carries its show's measure of each episode fact, as live the show has the season tapes' (fact-measures.json:
+ * Survivor's 10 of 10). Our check reads a show's measure by its slug, and the copy's is zt-pt-<show>, so the tapes' counts go in as
+ * stored answers of an earlier season of the copy (999, its one cast name), each sure of that name or not, as many as the tapes say:
+ * the copy's own stored research, as the show's would be live. H.down takes them with the copy. The entries carried, by fact.
+ */
+async function carryMeasure(show, seasonId) {
+  const { pool } = app();
+  const Facts = require("../../src/lib/game/formats/episode-facts.js");
+  const entries = Object.fromEntries(Facts.FACT_IDS.map((id) => [id, Facts.entryFor(show, id, {})]));
+  const n = Math.max(0, ...Object.values(entries).map((e) => e.asked));
+  if (!n) return entries;
+  const showId = (await pool.query("SELECT show_id FROM show_seasons WHERE id = $1", [seasonId])).rows[0].show_id;
+  const earlier = (await pool.query("INSERT INTO show_seasons (show_id, season_number, status) VALUES ($1, 999, 'completed') RETURNING id", [showId])).rows[0].id;
+  await pool.query("INSERT INTO season_cast (season_id, name) VALUES ($1, 'Tape Measure')", [earlier]);
+  const said = { isQuote: "yes", line: null, by: "Tape Measure", sure: "high" };
+  const unsure = { isQuote: "unknown", line: null, by: null, sure: "low" };
+  for (let k = 1; k <= n; k++) {
+    const episodeFacts = Object.fromEntries(Facts.FACT_IDS.map((id) => [id, k > entries[id].asked ? null : k <= entries[id].settled ? said : unsure]));
+    await pool.query(
+      `INSERT INTO episode_research (show_id, season_number, episode_number, payload, provenance, source)
+       VALUES ($1, 999, $2, $3::jsonb, $4::jsonb, 'combined')`,
+      [showId, k, JSON.stringify({ episodeTitle: null, castaways: [], episodeFacts }), JSON.stringify({ provider: "blind: the season tapes' measure" })]
+    );
+  }
+  return entries;
+}
+
 async function run(show, season, opts = {}) {
   const { S, pool } = app();
   const Tapes = require("./tapes");
@@ -836,6 +866,7 @@ async function run(show, season, opts = {}) {
   const through = Math.min(E, Number(opts.through) || E);
   const format = (await app().Research.resolveSeasonResearchContext(pool, H.SLUG(show), season, 1)).format;
   const f2 = FA.answersOf(show, season);
+  const measure = await carryMeasure(show, copy.seasonId);
   const all = await gamesFor(copy.seasonId, show);
   const only = opts.only ? String(opts.only).split(",").map(Number) : null;
   const games = all.filter((g) => g.plays && (!only || only.includes(g.n)));
@@ -852,9 +883,10 @@ async function run(show, season, opts = {}) {
     if (r.problems.length) console.log(`  ${g.n}. ${g.label}: ${r.problems[0]}`);
   }
   const live = () => replays.filter((r) => r.leagueId && !r.dead);
-  const record = { show, season, title: t.title, episodes: E, at: new Date().toISOString(), games: all.map(({ spec, ...g }) => ({ ...g, spec })), premiere: {}, format: [], sources: {}, exits: {}, trivia: {}, facts: {}, replays: [] };
-  // A13 part 2: each episode's facts as A13 part 2's proof asked it again at the local bot (facts-asks.js), where it did.
-  const factsAsked = require("./facts-asks.js").answersOf(show, season);
+  const record = { show, season, title: t.title, episodes: E, at: new Date().toISOString(), games: all.map(({ spec, ...g }) => ({ ...g, spec })), premiere: {}, format: [], sources: {}, exits: {}, trivia: {}, facts: {}, measure, replays: [] };
+  // A13 part 2: each episode's facts as A13 part 2's proof asked it again at the local bot (facts-asks.js), where it did; part 2b:
+  // with the facts run's answer filled in where its proof asked it (heldOf, as the run files it).
+  const factsAsked = require("./facts-asks.js").heldOf(show, season);
   // A13: each episode's trivia as the tape has it, written and checked then (bot research's 'trivia' run: db/trivia-research.js).
   const triviaTapes = Tapes.readTape(show, season).files.filter((f) => f.kind === "trivia" && f.ok && f.result && Array.isArray(f.result.questions));
   for (const r of live()) {
@@ -906,7 +938,7 @@ async function run(show, season, opts = {}) {
         const fq = fixtureQuick(t, ep, format, null);
         const asked = ctx ? app().Research.pasteSkeleton(ctx, []).castaways : [];
         const fa = factsAsked[ep] && factsAsked[ep].ok && factsAsked[ep].read ? factsAsked[ep].read.episodeFacts : null;
-        if (fa) record.facts[ep] = fa.titleQuote ? `${fa.titleQuote.isQuote}, ${fa.titleQuote.by || "nobody"} (${fa.titleQuote.sure})` : "none";
+        if (fa) record.facts[ep] = fa.titleQuote ? `${fa.titleQuote.isQuote}, ${fa.titleQuote.by || "nobody"} (${fa.titleQuote.sure}${factsAsked[ep].via === "run" ? ", the facts run's" : ""})` : "none";
         const got = blindFull(text, { quick: fq.quick, asked, format, section: src.section, merged: src.merged, facts: fa || null });
         reshaped = got.changes;
         return got.text;

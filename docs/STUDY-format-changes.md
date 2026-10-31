@@ -1370,7 +1370,7 @@ source that shows it, ordinary-sounding titles are said to be lines often, and t
 
 ### What it means (the user's to decide at the merge, with Claude's recommendation)
 
-- **A short run of its own for episode facts** (A13 part 2b, recommended next): after the full run, a short ask for whatever the
+- **A short run of its own for episode facts** (A13 part 2b, recommended next; built, below): after the full run, a short ask for whatever the
   section left unsure (or for every fact, in place of the section), filed into the episode's stored answer as a second pass fills in
   (`fillFacts`: a sure answer is never replaced by an unsure one). On the experiment's evidence Survivor would rate reliable (ten of
   ten sure, every one right where truth is on file); the cost is one short bot question per show-episode where the section wasn't sure.
@@ -1391,6 +1391,75 @@ tapes' (their seasons are left out of the live count). Each episode's research c
 did (the record's `facts`: Survivor 49's 1 to 10, The Challenge 41's 2, 6, 7, 40's 4, 6, The Traitors 4's 2, 5), so the replays' stored
 answers have the section a live season's would. The fact games' play is the API check's and the unit tests' to prove until a show is
 rated (part 2b).
+
+## A13 part 2b: episode facts' own short run (2026-10-31)
+
+Part 2's recommendation, built: a short run of its own for episode facts, beside trivia's in bot research (`db/facts-research.js`; the
+bot's 'facts' run, `db/bot-research.js`). After the morning's full run (our usual's sixth run, 12 hr 30 min after the episode ends: 10:05
+AM for Survivor's 9:35 PM end, and never later than an hour before the episode's final results at noon), it reads the episode's stored
+answer, asks only the facts its section isn't sure of (none: nothing is asked), in a short prompt with the episode's title and the names
+the full run was asked about, and files the answer into that stored answer as a second pass fills in (`fillFacts`: a sure answer is never
+replaced by an unsure one). Until the episode's final results, a game's question about a fact research isn't sure of waits instead of
+voiding the week, since the morning's runs may still settle it; after them, it's void as before. **The prompt's words, the run's place in
+our usual and the bar are the user's to approve at the merge**, as the section's are.
+
+**How it was proven.** Part 2's set asked again, but only where the section wasn't sure (12 episodes: Survivor 49's 1, 2, 3, 8 and 10; The
+Challenge 41's 2, 6 and 7; The Traitors 4's 2 and 5; The Challenge 40's 4 and 6), with the run's own prompt (`buildFactsPrompt`, exactly
+as the run asks it) through the local bot only (http://127.0.0.1:8765, waiting for it to be free), each answer read by the run's own parse
+and kept in `~\rfl-tapes\<show>\<season>\facts\run\`, nothing written to the database: `node scripts/dev-test/facts-asks.js run`. Each
+answer about 20 seconds. One came back with the section's shape flattened (`"titleQuote": "unknown"` with its fields beside it): the loose
+read takes that shape now (a repair said), and `facts-asks.js reread` read the kept answer again with it. Then `score` files each run's
+answer into its episode's section as the run does and scores the whole, and `score --write` wrote the tapes' measure from it.
+
+### What came back
+
+| Season | Asked (the section unsure) | The run sure | Right (truth on file) | Wrong | Season now, sure of |
+|---|---|---|---|---|---|
+| Survivor 49 | 5 (Episodes 1, 2, 3, 8, 10) | 5: Jawan Pitts, Nate Moore, Alex Moore, Savannah Louie, Steven Ramm | 4 of the 4 with truth | 0 | 10 of 10 (8 of 8 right with truth) |
+| The Challenge 41 | 3 | 0 (Episode 2 named Will Gagnon, low) | | | 0 of 3 |
+| The Traitors 4 | 2 | 1 (Episode 5: Colton Underwood) | no truth on file | | 1 of 2 |
+| The Challenge 40 | 2 | 0 | | | 0 of 2 |
+
+1. **On Survivor it does what the experiment said it would.** Every week the section left unsure came back sure, each right where truth is
+   on file, the same names the focus experiment found. With the section's five, Survivor 49 is sure on all ten weeks and right on every one
+   the truth covers: the tapes' measure rates Survivor **reliable** (10 of 10), so our check now takes a title-quote game on a Survivor season.
+2. **The Challenge and The Traitors stay where they were.** Their titles' speakers are seldom written down where a search finds them: one sure
+   answer in seven (The Traitors 4's Episode 5). Neither is rated yet (fewer than six episodes asked); on this showing The Challenge would
+   rate patchy. Their fact games stay refused.
+3. **Every sure answer was right where it could be checked** (8 of 8, all Survivor's); none named someone outside the cast.
+
+**Nearer live: Survivor 51** (a one-off experiment beside the proof, not counted in the measure: the run's prompt asked of Survivor 51's six
+aired episodes, 2.5 days to 5 weeks after each aired, the titles of 1 to 4 from this lane's copy of research and 5 and 6 found by the
+prompt itself, the cast the season's 21; kept in `~\rfl-tapes\survivor\51\facts\live\`). Sure on all six: five name a castaway (Devin
+Way for 2 and 3, Eric Macksoud for 4 and 6, Linnea Capobianco for 5, the night she went home), and one the host (Episode 1's "Permanent
+Uncertainty", Jeff Probst: void, nobody could pick him), so five of six would have settled a pick. No truth is on file for Survivor 51
+(no stats page with its title lines turned up), so this says how often research is sure that soon after airing, not whether it's right.
+Even Episode 6, asked two and a half days after it aired, came back sure.
+
+### What it means (the user's to decide at the merge, with Claude's recommendation)
+
+- **The tapes were asked long after airing; live, the run asks 12 hr 30 min after the episode ends.** The stats pages that say who said a
+  title can come a day or two later. The live count adds each show's stored answers to the tapes' as research files them, so a lower live
+  rate will show in the rating. Recommended: let the run go on Survivor 51's episodes as they air for a few weeks before the bar is approved
+  (the desk's Run now, or the run in its schedule), and decide the bar with the Custom moments bar (part 2's item 1).
+- **Which seasons it runs for.** Built: every season that follows our usual, asking only when research wasn't sure (on these numbers about
+  half of Survivor's weeks and nearly all of the other shows'), so every show's measure grows; one short ask of about 20 seconds each. The
+  alternative, only seasons with a game a fact settles, never measures a show nobody can start one on yet. Recommended: as built; narrow it
+  to measured shows only if the bot's time runs short.
+
+### Replayed blind
+
+`blind.js run` (the five seasons, on the final code): **every game played through and over on all five seasons**: Survivor 49 133 of 133
+(part 2's 130 and the three fact games), The Challenge 41 105 of 105, 40 99 of 99, 39 107 of 107, The Traitors 4 94 of 94; the questions
+waiting on early results finding 20's 3, 2 and 2. A replay plays on a `zt-pt-` copy of its show, whose slug our check found no measure
+for, so in part 2 the fact games were refused there for want of one, not by the rating; now each copy carries its show's measure
+(`carryMeasure`: the tapes' counts as stored answers of an earlier season of the copy, the record's `measure`), as live the show has the
+tapes'. So on Survivor 49 the three fact games play: who says the title quote, graded on Episodes 1 to 10 (the section's five answers and
+the run's five, each the name the truth has where it has one) and void on 11 to 13 (nothing was asked of them: the proof's set stops at
+10), the table the Fan 3, the Drive-By 1, the others 0 (the seats pick by habit among a dozen or more); which tribe it comes from, graded on
+Episodes 1 to 7 and void from the merge (one tribe left, nothing to choose), the same following the people. On The Challenge and The
+Traitors they stay refused (0 of 5 and 1 of 2: not rated). A copy's season airs a week ahead by the clock, so nothing there waits on final
+results: research about an episode that hasn't aired by the clock stands at once (live it can't come before the airing).
 
 ## Appendix: the timelines
 

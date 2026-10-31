@@ -1,7 +1,9 @@
 import { after } from "next/server";
 import { buildPasteImportPrompt, resolveSeasonResearchContext } from "@db/episode-research.js";
-import { buildQuickPrompt, buildSchedulePrompt, dueAt, episodeAirTimes, episodeMinutesOf, loadSeasonForJob, runJob, RUNNING_STALE_MS, SEASON_BINGO_SLOT, triedAs } from "@db/bot-research.js";
+import { buildQuickPrompt, buildSchedulePrompt, dueFor, episodeAirTimes, episodeMinutesOf, KINDS as BOT_KINDS, loadSeasonForJob, runJob, RUNNING_STALE_MS, SEASON_BINGO_SLOT, triedAs } from "@db/bot-research.js";
 import { castFor, buildTriviaPrompt } from "@db/trivia-research.js";
+import { factsFor, buildFactsPrompt } from "@db/facts-research.js";
+import { FACT_IDS, type FactId } from "@/lib/game/formats/episode-facts.js";
 import { adminBingoBank } from "./bingo-bank";
 import { KINDS, cap, dur, researchLine, sameRun, when, type Run, type RunKind } from "@/lib/desk-bot-words";
 import { finalResultsAt } from "@/lib/game/final-results.js";
@@ -18,7 +20,7 @@ import { deskSetup, type SeasonDelete } from "./desk-setup";
 
 // A season's Research and the bot on the desk (docs/PLAN-desk-parity.md step 4, part 4a; the mock's desk-research.js): its
 // lower third (Autopilot on or off, the next run or what it's asking now), Run now (five kinds, each saying what it does
-// before it asks), its schedule drawn as the next episode's night (each run at the time db/bot-research.js dueAt gives it,
+// before it asks), its schedule drawn as the next episode's night (each run at the time db/bot-research.js dueFor gives it,
 // the episode's length, Autopilot), its latest runs, History and the season's Delete. Schedule changes are desk-bot.ts's
 // setSeasonBot (a History line with Undo).
 //
@@ -33,7 +35,7 @@ const DRIVE_STALE_MS = 6 * MIN;
 const WAIT_MS = 240_000;
 const POLL_MS = 4_000;
 /** How long each kind usually takes (seconds), for "in about N minutes". */
-const TYPICAL: Record<string, number> = { full: 200, tiebreak: 200, quick: 30, schedule: 40, trivia: 120, bingo: 220, cast: 90 };
+const TYPICAL: Record<string, number> = { full: 200, tiebreak: 200, quick: 30, schedule: 40, trivia: 120, bingo: 220, facts: 60, cast: 90 };
 
 type Progress = { stage?: string; done?: number; of?: number } | null;
 
@@ -351,7 +353,7 @@ function railOf(season: SeasonJob, schedule: Run[], episodes: Record<number, Run
   const endOf = (e: { at: Date; minutes?: number }) => e.at.getTime() + (e.minutes ?? minutes) * MIN;
   const dues = (e: { episode: number; at: Date; minutes?: number }) => {
     const next = times.find((x) => x.episode === e.episode + 1);
-    return runsOf(e).map((r) => dueAt(r, endOf(e), next ? next.at : null, e.at.getTime()));
+    return runsOf(e).map((r) => dueFor(r, endOf(e), next ? next.at : null, e.at.getTime(), tz));
   };
   const aired = times.filter((e) => e.at.getTime() <= t);
   const last = aired[aired.length - 1];
@@ -536,8 +538,8 @@ export async function runNow(
 ): Promise<{ text: string; waits: string | null }> {
   const now = o.now ?? new Date();
   const season = await job(id);
-  const kind = body.kind;
-  if (kind !== "quick" && kind !== "full" && kind !== "schedule" && kind !== "trivia" && kind !== "bingo") throw new HttpError(400, "kind must be quick, full, schedule, trivia or bingo");
+  if (typeof body.kind !== "string" || !(BOT_KINDS as string[]).includes(body.kind)) throw new HttpError(400, `kind must be ${BOT_KINDS.join(", ")}`);
+  const kind = body.kind as RunKind;
   if (body.scope !== undefined && (kind !== "bingo" || (body.scope !== "episode" && body.scope !== "season"))) throw new HttpError(400, "scope is bingo's: episode or season");
   const forSeason = body.scope === "season";
   const times = episodeAirTimes(season);
@@ -554,6 +556,12 @@ export async function runNow(
     if (kind === "bingo") {
       if (ep && ep.at.getTime() <= now.getTime()) throw new HttpError(400, `Episode ${episode} has aired: bingo squares are for an episode still to come`);
     } else if (!ep || ep.at.getTime() > now.getTime()) throw new HttpError(400, `Episode ${episode} hasn't aired yet`);
+  }
+  // The facts run asks only what an episode's stored research isn't sure of: nothing to queue without either.
+  if (kind === "facts") {
+    const about = await factsFor(pool, id, episode);
+    if (!about.stored) throw new HttpError(409, `Episode ${episode}'s research isn't in yet: its facts are asked once it is`);
+    if (!about.ask.length) throw new HttpError(409, `Nothing to ask: research was sure of Episode ${episode}'s facts`);
   }
   if (!(await askBotStatus({ bot: o.bot })).available) throw new HttpError(503, "Our bot isn't answering right now. Try again in a while.");
   const what = `${KINDS[kind].short}, ${epName(kind, episode, forSeason)}`;
@@ -716,6 +724,15 @@ export async function runQuestion(id: string, runId: string): Promise<{ question
       return { question: buildSchedulePrompt(show[0]?.name ?? season.slug, season.season_number, n, airedAt, tz) };
     }
     if (r.kind === "trivia") return { question: buildTriviaPrompt({ ...(await castFor(pool, id, n)), episode: n }) };
+    if (r.kind === "facts") {
+      const about = await factsFor(pool, id, n);
+      if (!about.stored) throw new HttpError(409, `Episode ${n}'s research isn't in yet: its facts are asked once it is`);
+      // What it would ask now; once research is sure, what this run asked (its result's facts), as it would be asked now.
+      const asked = Array.isArray(r.result?.asked) ? (r.result.asked as FactId[]).filter((x) => FACT_IDS.includes(x)) : [];
+      const facts = about.ask.length ? about.ask : asked;
+      if (!facts.length) throw new HttpError(409, "Nothing left to ask: research was sure of its facts");
+      return { question: buildFactsPrompt({ ...about, facts }) };
+    }
     if (r.kind === "bingo") {
       const forSeason = r.slot === SEASON_BINGO_SLOT || !!r.result?.forSeason;
       return { question: (await adminBingoBank(id, n, forSeason ? "season" : "episode", new Date())).prompt };

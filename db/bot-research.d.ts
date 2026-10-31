@@ -3,11 +3,15 @@ import type { Pool } from "pg";
 
 /** quick: who left and the headline; full: every result, staged for review; schedule: when the next episode airs
  *  and how long it runs (season_episodes), nothing to review; trivia: questions about it and the season so far, checked
- *  (trivia_questions, 0140); bingo: the squares for the episode coming up, checked (bingo_squares, 0146). */
-export type BotKind = "quick" | "full" | "schedule" | "trivia" | "bingo";
+ *  (trivia_questions, 0140); bingo: the squares for the episode coming up, checked (bingo_squares, 0146); facts: the episode
+ *  facts its stored answer isn't sure of, asked on their own and filed into it (db/facts-research.js, A13 part 2b). */
+export type BotKind = "quick" | "full" | "schedule" | "trivia" | "bingo" | "facts";
 /** A run row's kind: a schedule's, or a tie-break (the full research again, when a result's been disputed a day; the
  *  desk's switch) or a rulebook check (a show change the couches confirmed). */
 export type RunKind = BotKind | "tiebreak" | "rulebook";
+/** Every kind a schedule's run can be, and a run's slot ("full@60") as the schedule writes it. */
+export const KINDS: BotKind[];
+export const SLOT_RE: RegExp;
 export interface BotScheduleRun {
   kind: BotKind;
   /** Minutes after the episode ends (its air time plus the season's episode length); trivia's, before the next one airs;
@@ -157,6 +161,8 @@ export function tiebreakQuestions(pool: Pool, seasonId?: string | null): Promise
 /** When one run of an episode is due (ms in, Date out): from its end, trivia's back from the next one, bingo's back from its
  *  start; null when it never is. */
 export function dueAt(run: { kind: BotKind; after: number }, ends: number, nextAt: Date | null, starts?: number | null): Date | null;
+/** dueAt's time on the schedule: the facts run's no later than an hour before the episode's final results (`tz`, the season's). */
+export function dueFor(run: { kind: BotKind; after: number }, ends: number, nextAt: Date | null, starts?: number | null, tz?: string | null): Date | null;
 /** When each episode of a season (loadSeasonForJob's) airs, and its own length when research confirmed it. */
 export function episodeAirTimes(season: unknown): { episode: number; at: Date; minutes?: number }[];
 /** How long a season's episodes run, in minutes: its own setting, else an hour. */

@@ -339,6 +339,8 @@ function factVerdict(q, episode, facts) {
   }
   const o = said[st.fact];
   if (!o) return off("Research didn't say: it doesn't count either way");
+  // A13 part 2b: not sure yet while research may still settle it (the morning's runs, before the episode's final results).
+  if (o.state === 'pending') return WAITING;
   if (o.state === 'unsure') return off(`${o.why}: it doesn't count either way`);
   if (o.state === 'none') return off("The title isn't a line from the episode: it doesn't count either way");
   if (o.state === 'outside') return off(`${o.name} said it, who wasn't one to pick: it doesn't count either way`);

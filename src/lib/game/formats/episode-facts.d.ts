@@ -18,7 +18,9 @@ export type FactOutcome =
   | { state: "who"; who: string; name: string }
   | { state: "outside"; name: string }
   | { state: "none" }
-  | { state: "unsure"; why: string };
+  | { state: "unsure"; why: string }
+  /** Not sure yet, while research may still settle it (until the episode's final results: pendingUntil). */
+  | { state: "pending"; why: string };
 
 /** What our check knows of a fact on a show: the episodes research was asked it on there, and those it said for sure. */
 export interface FactEntry {
@@ -34,7 +36,9 @@ export const MEASURED: number;
 export const FACTS: Record<FactId, { label: string; takes: Record<string, string[]> }>;
 export const FACT_IDS: FactId[];
 export function looseEpisodeFacts(v: unknown, repairs?: string[]): EpisodeFactsSection | null;
+export function sureOf(f: unknown): boolean;
 export function fillFacts(was: unknown, now: unknown): EpisodeFactsSection;
+export function pendingUntil(outcome: FactOutcome, finalAt: number | null, now: number, airAt?: number | null): FactOutcome;
 export function measuredSeasons(show: string): number[];
 export function personIn(cast: { id: string; name: string }[], name: string, loose?: boolean): string | null;
 export function outcomeOf(section: EpisodeFactsSection | null, fact: string, cast: { id: string; name: string }[]): FactOutcome | null;
