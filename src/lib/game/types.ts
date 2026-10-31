@@ -1192,6 +1192,8 @@ export interface ChatMessage {
   /** "system": the retired automated result lines (no longer shown). "reveal": "conor revealed episode 9". */
   type: "message" | "system" | "reveal";
   text: string;
+  /** A GIF message's picture (migration 0156; its text is "GIF"). */
+  gif?: { id: string; url: string; w: number; h: number; title: string } | null;
   created_at: string;
   edited_at: string | null;
   reactions: Record<string, ChatReaction>;

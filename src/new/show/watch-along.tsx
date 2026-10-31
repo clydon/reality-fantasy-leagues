@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { usePathname, useSearchParams } from "next/navigation";
-import { Crown, Eye, Flame, Grid3x3, Laugh, Pause, Play, Radio, Search, Star, Tv, Users, X, Zap, type LucideIcon } from "lucide-react";
+import { Crown, Eye, Flame, Grid3x3, Laugh, Pause, Play, Radio, Star, Tv, Users, X, Zap, type LucideIcon } from "lucide-react";
 import {
   adoptClock,
   BEAT_MS,
@@ -59,6 +59,7 @@ import type { ShowData } from "../screens/show-space";
 import { Avatar, useNow } from "../ui/bars";
 import { usePushedPage } from "../ui/page";
 import { Btn } from "../ui/parts";
+import { GifSheet } from "../ui/gif-sheet";
 import { Sheet } from "../ui/sheet";
 import { ShowArt } from "../ui/show-bar";
 import { toast } from "../ui/toast";
@@ -1134,7 +1135,7 @@ function WatchAlong({ show, episode: n, planId: planAsked, onClose }: { show: Sh
 
       <GifSheet
         open={sheet === "gif"}
-        at={pos}
+        subtitle={`At ${runtimeText(pos)} · the couch sees it when they reach this moment`}
         onOpenChange={(o) => !o && setSheet(null)}
         onPick={(g) => {
           setSheet(null);
@@ -1441,56 +1442,6 @@ function EndPanel({ show, episode: n, info, onBack, onKeepWatching }: { show: Sh
 }
 
 // ---------- the sheets ----------
-
-function GifSheet({ open, at, onOpenChange, onPick }: { open: boolean; at: number; onOpenChange: (o: boolean) => void; onPick: (g: GifHit) => void }) {
-  const [q, setQ] = useState("");
-  const [asked, setAsked] = useState<string | null>(null);
-  const [hits, setHits] = useState<GifHit[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    if (!open) return;
-    const words = q.trim();
-    const t = setTimeout(
-      () => {
-        setAsked(words);
-        watchApi
-          .gifs(words)
-          .then((r) => {
-            setHits(r.gifs);
-            setError(null);
-          })
-          .catch((e) => setError((e as Error).message));
-      },
-      words ? 350 : 0
-    );
-    return () => clearTimeout(t);
-  }, [open, q]);
-  return (
-    <Sheet open={open} onOpenChange={onOpenChange} title="Send a GIF" subtitle={`At ${runtimeText(at)} · the couch sees it when they reach this moment`}>
-      <label className="flex h-12 items-center gap-2 rounded-[3px] border border-input bg-background px-3">
-        <Search className="size-4 text-muted-foreground" aria-hidden />
-        <input data-gif-search value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search GIFs" autoComplete="off" className="min-w-0 flex-1 bg-transparent text-base outline-0" />
-      </label>
-      {error ? (
-        <p className="py-6 text-center text-sm text-muted-foreground">{error}</p>
-      ) : !hits ? (
-        <div aria-busy className="mt-3 h-48 animate-pulse rounded-[3px] bg-secondary" />
-      ) : !hits.length ? (
-        <p className="py-6 text-center text-sm text-muted-foreground">No GIFs for &ldquo;{asked}&rdquo;</p>
-      ) : (
-        <div data-gif-grid className="mt-3 grid grid-cols-3 gap-1.5">
-          {hits.map((g) => (
-            <button key={g.id} type="button" data-gif={g.id} onClick={() => onPick(g)} className="nd-press overflow-hidden rounded-[3px] bg-secondary">
-              {/* eslint-disable-next-line @next/next/no-img-element -- GIPHY's own picture */}
-              <img src={g.preview} alt={g.title || "GIF"} className="aspect-[4/3] size-full object-cover" loading="lazy" />
-            </button>
-          ))}
-        </div>
-      )}
-      <p className="mt-2.5 text-center text-[11px] font-semibold text-muted-foreground">Powered by GIPHY</p>
-    </Sheet>
-  );
-}
 
 function SetTimeSheet({ open, at, onOpenChange, onSet }: { open: boolean; at: number; onOpenChange: (o: boolean) => void; onSet: (ms: number) => void }) {
   const [v, setV] = useState("");

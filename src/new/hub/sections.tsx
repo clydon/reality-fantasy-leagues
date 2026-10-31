@@ -773,7 +773,12 @@ function FeedRow({ e }: { e: FeedItem }) {
         )}
         {e.kind === "said" && (
           <>
-            <span className="mt-[5px] block break-words rounded-[3px] bg-card px-2.5 py-2 text-[15px]">{e.text}</span>
+            {e.gif ? (
+              // eslint-disable-next-line @next/next/no-img-element -- a GIF from KLIPY's own hosts (0156)
+              <img src={e.gif.url} alt={e.gif.title || "GIF"} data-feed-gif className="mt-[5px] block max-h-[120px] w-[150px] rounded-[3px] object-cover" style={{ aspectRatio: `${e.gif.w} / ${e.gif.h}` }} />
+            ) : (
+              <span className="mt-[5px] block break-words rounded-[3px] bg-card px-2.5 py-2 text-[15px]">{e.text}</span>
+            )}
             <span className="mt-0.5 block text-xs text-muted-foreground">{e.label}</span>
             {!!e.reactions?.length && (
               <span className="mt-2 flex flex-wrap gap-1.5">

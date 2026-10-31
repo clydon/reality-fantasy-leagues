@@ -25,12 +25,13 @@ export interface Gif {
   title: string;
 }
 
-/** A GIF's picture only from GIPHY's own media hosts (what /api/gifs hands out), so nothing else is put in front of the couch. */
-export function giphyUrl(url: unknown): url is string {
+/** A GIF's picture only from KLIPY's own media hosts (what /api/gifs hands out since 2026-10-31; server/gifs.ts), or GIPHY's for
+ *  one sent before, so nothing else is put in front of the couch. */
+export function gifUrl(url: unknown): url is string {
   if (typeof url !== "string" || url.length > 500) return false;
   try {
     const u = new URL(url);
-    return u.protocol === "https:" && /^(media\d*|i)\.giphy\.com$/.test(u.hostname);
+    return u.protocol === "https:" && (/^([a-z0-9-]+\.)*klipy\.com$/.test(u.hostname) || /^(media\d*|i)\.giphy\.com$/.test(u.hostname));
   } catch {
     return false;
   }
@@ -44,7 +45,7 @@ export function cleanGif(g: unknown): Gif | null {
   const dim = (v: unknown) => (Number.isInteger(v) && (v as number) > 0 && (v as number) <= 2000 ? (v as number) : null);
   const w = dim(o.w);
   const h = dim(o.h);
-  if (!id || !giphyUrl(o.url) || !w || !h) return null;
+  if (!id || !gifUrl(o.url) || !w || !h) return null;
   const title = typeof o.title === "string" ? o.title.replace(/\s+/g, " ").trim().slice(0, 100) : "";
   return { id, url: o.url, w, h, title };
 }

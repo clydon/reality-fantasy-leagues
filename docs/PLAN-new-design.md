@@ -3655,6 +3655,10 @@ pushes. New: `src/lib/game/watch-along.ts` (pure: `watchEpisode`, `mayWatch`, `o
   the card leads Tonight** (the mock's during phase: "On air · Episode 6", above Tonight's bingo and Your moves). The hub's Up next
   Watch along, Previously on's "Watch along · Episode 6" and the solo hub's On your own tile (your first show with an episode out you
   haven't seen, else what's on next) open the show with it (`paths.watch`).
+- **GIFs are KLIPY's since 2026-10-31** (the user's pick of the free options; also in the couch chat, migration 0156: a GIF is its own
+  message, its text "GIF", folded like any message, not editable; `src/new/ui/gif-sheet.tsx` is the one picker; `KLIPY_API_KEY`,
+  `gifUrl` allows klipy.com's hosts and GIPHY's for anything sent before; the user makes the key in KLIPY's Partner Panel, and asks
+  there for the production key when the test key's 100 an hour isn't enough). What follows is as first built, on GIPHY.
 - **GIFs** are GIPHY's, behind config like Continue with Google (Tenor's API, the plan's other choice, closed on 2026-06-30): no
   `GIPHY_API_KEY`, no GIF button and `/api/gifs` 404s. The picker (Send a GIF: trending, then search as you type, "Powered by
   GIPHY", PG-13 at most) asks our server, which asks GIPHY (edge-cached an hour per search); a GIF reaction keeps only GIPHY's own

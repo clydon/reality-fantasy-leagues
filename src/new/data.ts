@@ -351,8 +351,10 @@ async function chatSend<T = unknown>(url: string, method: "POST" | "PATCH" | "DE
 }
 
 /** Post to the couch's chat about this show: Share this, the reveal's Post to the couch, and the composer. */
-export async function postToCouch(seasonId: string, couchId: string, text: string): Promise<ChatLine> {
-  return (await chatSend<{ message: ChatLine }>(chatUrl(seasonId, couchId), "POST", { text })).message;
+export async function postToCouch(seasonId: string, couchId: string, text: string, gif?: GifHit): Promise<ChatLine> {
+  // A GIF goes as Watch along's do: its kept fields only (no preview), checked on the server (0156).
+  const body = gif ? { gif: { id: gif.id, url: gif.url, w: gif.w, h: gif.h, title: gif.title } } : { text };
+  return (await chatSend<{ message: ChatLine }>(chatUrl(seasonId, couchId), "POST", body)).message;
 }
 
 export type ChatRead = CouchChat | { out: true };
@@ -418,8 +420,8 @@ export function useChatActions(seasonId: string, couchId: string | null) {
   const refresh = () => client.invalidateQueries({ queryKey: ["new-design", "chat", seasonId, couchId] });
   const at = (id: string, rest = "") => chatUrl(seasonId, couchId as string, `/${encodeURIComponent(id)}${rest}`);
   return {
-    async post(text: string) {
-      const line = await postToCouch(seasonId, couchId as string, text);
+    async post(text: string, gif?: GifHit) {
+      const line = await postToCouch(seasonId, couchId as string, text, gif);
       await refresh();
       return line;
     },

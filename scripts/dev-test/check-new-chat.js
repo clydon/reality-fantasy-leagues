@@ -19,6 +19,9 @@
 //     the server), refused for a message that isn't this chat's; `&since=` everything from a message on; in the browser, as
 //     alex, Earlier messages at the top adds 100 and keeps his place, and the open chat's poll asks `since` from then on; that
 //     very message deleted while it's open: `since`/`before` with its time (`&at=`) read from where it was, and the page drops it;
+//   - GIFs (0156; KLIPY, here fake-gifs.js through `x-gys-gifs`): a GIF is its own message, its text "GIF", refused with no GIFs
+//     set up (409) or from anywhere but KLIPY (400), not editable, folded for sam like any message; the read says whether GIFs are
+//     on; in a browser, no GIF button without them, and with them jordan picks one from the sheet and it shows in the chat;
 //   - nothing wider than the screen, no page errors.
 // Screenshots go to <outDir>.
 //
@@ -33,6 +36,7 @@ const path = require("path");
 const { Pool } = require("pg");
 const { open, api } = require("./browser");
 const fixture = require("./new-fixture");
+const fakeGifs = require("./fake-gifs");
 
 const DB = process.env.AUTH_DATABASE_URL || "";
 if (!/@(localhost|127\.0\.0\.1|\[::1\])[:/]/.test(DB)) throw new Error("check-new-chat runs against a local database only");
@@ -138,6 +142,25 @@ function check(ok, what, detail = "") {
     const trow = (await pool.query(`SELECT league_id, couch_id, season_id FROM chat_messages WHERE id = $1`, [tp.body.message.id])).rows[0];
     check(tp.status === 200 && trow.league_id === null && trow.couch_id === fx.couchId && trow.season_id === tid, "a post there goes to the couch and season, no league", JSON.stringify(trow));
     await pool.query(`DELETE FROM chat_messages WHERE id = $1`, [tp.body.message.id]);
+    // ---- GIFs (0156; KLIPY since 2026-10-31, the stand-in here) ----
+    const gifs = await fakeGifs.start();
+    closers.push(gifs.close);
+    const chatPath = `/api/seasons/${sid}/chat?couch=${fx.couchId}`;
+    const gifAlex = await api({ user: fixture.username("alex"), pass: fixture.PASSWORD, headers: { "x-gys-gifs": gifs.url } });
+    const hit = (await gifAlex.call("GET", "/api/gifs?q=clap")).body.gifs?.[0];
+    check(!!hit && hit.url.startsWith(gifs.url), "the stand-in's search answers, in KLIPY's shape", JSON.stringify(hit));
+    const keep = { id: hit.id, url: hit.url, w: hit.w, h: hit.h, title: hit.title };
+    check((await as.alex.call("POST", chatPath, { gif: keep })).status === 409, "a GIF with no GIFs set up: 409");
+    check((await gifAlex.call("POST", chatPath, { gif: { ...keep, url: "https://example.com/x.gif" } })).status === 400, "a GIF from anywhere but KLIPY: 400");
+    const gp = await gifAlex.call("POST", chatPath, { gif: keep });
+    const gm = gp.body.message;
+    check(gp.status === 200 && gm.gif?.url === keep.url && gm.text === "GIF", "a GIF posts as its own message, its text GIF (for classic and the push)", JSON.stringify(gp.body));
+    check((await gifAlex.call("PATCH", `/api/seasons/${sid}/chat/${gm.id}?couch=${fx.couchId}`, { text: "words" })).status === 400, "a GIF can't be edited");
+    const gifSam = (await chat("sam", sid)).body.messages.find((m) => m.id === gm.id);
+    check(!!gifSam && gifSam.folded && !gifSam.gif && gifSam.text === null, "folded for sam (past Episode 4): no picture, as no words", JSON.stringify(gifSam));
+    check((await chat("riley", sid)).body.messages.find((m) => m.id === gm.id)?.gif?.url === keep.url, "riley (on 5) sees the GIF");
+    check((await gifAlex.call("GET", chatPath)).body.gifs === true && (await chat("alex", sid)).body.gifs === false, "the read says whether GIFs are on (the composer's GIF button)");
+    await pool.query(`DELETE FROM chat_messages WHERE id = $1`, [gm.id]);
     const alexT = (await chat("alex", tid)).body;
     check(alexT.fold && alexT.fold.episode === 1 && alexT.messages.filter((m) => m.folded).length === 3, "alex (not following it) has everyone's folded from Episode 1", JSON.stringify(alexT.fold));
 
@@ -335,7 +358,31 @@ function check(ok, what, detail = "") {
     check(sinceAsked.slice(asked).some((u) => u.includes(`since=${anchor.id}`) && /[?&]at=/.test(u)), "its poll still asks from there, with the time");
     await shot("chat-earlier-deleted");
 
-    const real = [...errors, ...sb.errors, ...rb.errors].filter((e) => !/Download the React DevTools|\[HMR\]|\[Fast Refresh\]/.test(e));
+    // ---- GIFs in the browser: none without them; with them, jordan sends one from the sheet ----
+    check((await page.locator("[data-chat-gif-button]").count()) === 0, "no GIFs set up: no GIF button in the composer");
+    const jb = await open({ user: fixture.username("jordan"), pass: fixture.PASSWORD, width, height: 844, headers: { "x-gys-gifs": gifs.url } });
+    closers.push(jb.close);
+    await jb.page.goto(`${BASE}/show/${sid}/chat`, { waitUntil: "load" });
+    await jb.page.locator("[data-chat-gif-button]").waitFor({ timeout: 30_000 });
+    await jb.page.locator("[data-chat-gif-button]").click();
+    const gifSheet = jb.page.locator("[role=dialog][data-open]");
+    await gifSheet.locator("[data-gif-grid] [data-gif]").first().waitFor({ timeout: 10_000 });
+    check(/Powered by KLIPY/.test(await gifSheet.innerText()) && (await gifSheet.locator("[data-gif]").count()) === fakeGifs.GIFS.length, "the GIF sheet: what's featured, Powered by KLIPY");
+    await jb.page.screenshot({ path: path.join(out, "chat-gif-sheet.png") });
+    await gifSheet.locator("[data-gif-search]").fill("plot");
+    await jb.page.waitForFunction(() => document.querySelectorAll("[role=dialog][data-open] [data-gif]").length === 1, null, { timeout: 10_000 }).catch(() => {});
+    await gifSheet.locator("[data-gif]").first().click();
+    await jb.page.locator("[data-chat-gif]").last().waitFor({ timeout: 15_000 });
+    const sentGif = (await pool.query(`SELECT text, gif FROM chat_messages WHERE user_id = $1 AND gif IS NOT NULL ORDER BY created_at DESC LIMIT 1`, [fx.users.jordan])).rows[0];
+    check(sentGif?.text === "GIF" && sentGif.gif?.id === fakeGifs.idOf("Plot twist"), "picked from a search, it shows in the chat (kept as GIF with its picture)", JSON.stringify(sentGif));
+    await jb.page.waitForTimeout(600);
+    await jb.page.screenshot({ path: path.join(out, "chat-gif-sent.png") });
+    await jb.page.locator("[data-chat-gif]").last().click();
+    const jsheet = jb.page.locator("[data-message-sheet]");
+    await jsheet.waitFor();
+    check((await jsheet.getByRole("button", { name: "Edit" }).count()) === 0 && (await jsheet.getByRole("button", { name: "Copy text" }).count()) === 0, "a GIF's sheet has no Edit or Copy text");
+
+    const real = [...errors, ...sb.errors, ...rb.errors, ...jb.errors].filter((e) => !/Download the React DevTools|\[HMR\]|\[Fast Refresh\]/.test(e));
     check(real.length === 0, "no page errors", real.slice(0, 3).join(" | "));
   } catch (e) {
     failures++;

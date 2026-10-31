@@ -440,7 +440,7 @@ export async function sayAt(
   } else if (kind === "gif") {
     if (!src) throw new HttpError(409, "GIFs aren't on here");
     gif = gifFrom(src, body.gif);
-    if (!gif) throw new HttpError(400, "That GIF isn't one of GIPHY's");
+    if (!gif) throw new HttpError(400, "That GIF isn't one of KLIPY's");
   } else if (!isReactKind(kind)) {
     throw new HttpError(400, "kind must be text, gif, fire, laugh, eye or crown");
   }

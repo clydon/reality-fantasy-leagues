@@ -68,6 +68,8 @@ export interface FeedItem {
   at: string;
   /** What they said; the episode they revealed. */
   text?: string;
+  /** A GIF they sent (0156): drawn instead of the text. */
+  gif?: { id: string; url: string; w: number; h: number; title: string };
   episode?: number;
   /** The show it's about, and where it opens. */
   seasonId?: string;
@@ -384,7 +386,7 @@ async function feedFor(
   const seasonOf = new Map(list.map((g) => [g.leagueId, g.seasonId]));
   const ids = list.map((g) => g.leagueId);
   const { rows: said } = await pool.query(
-    `SELECT id, league_id, season_id, user_id, author_name, type, text, created_at, ${AUTHOR_SEEN} FROM chat_messages
+    `SELECT id, league_id, season_id, user_id, author_name, type, text, gif, created_at, ${AUTHOR_SEEN} FROM chat_messages
       WHERE (league_id = ANY($1::uuid[]) OR (league_id IS NULL AND couch_id = $2)) AND type IN ('message', 'reveal') AND ${REVEAL_SHARED("$3")}
       ORDER BY created_at DESC LIMIT 40`,
     [ids, couchId, user.id]
@@ -433,6 +435,7 @@ async function feedFor(
         ...base,
         kind: "said",
         text: m.text,
+        ...(m.gif ? { gif: m.gif } : {}),
         reactions: Object.entries(r).map(([emoji, x]) => ({ emoji, n: x.count, mine: x.userIds.includes(user.id) })),
       });
     }

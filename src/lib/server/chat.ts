@@ -1,6 +1,7 @@
 import { marksAuthor } from "@/lib/game/chat-fold";
 import { ownPace } from "@/lib/game/streaming";
 import type { ChatMessage, ChatReaction } from "@/lib/game/types";
+import type { Gif } from "@/lib/game/watch-along";
 import { pool, HttpError } from "./db";
 import { seenThrough, switchOn } from "./guard";
 import { LEAGUE_SEASON_JOIN } from "./league-season";
@@ -14,7 +15,7 @@ type RawMessage = Omit<ChatMessage, "reactions">;
 // whichever design wrote it.
 
 /** The columns a message is sent with (never author_seen: how far someone had seen is nobody else's). */
-export const MESSAGE_COLUMNS = "id, user_id, author_name, type, text, created_at, edited_at";
+export const MESSAGE_COLUMNS = "id, user_id, author_name, type, text, gif, created_at, edited_at";
 
 /**
  * chat_messages.author_seen as the fold may go by it (for a query on chat_messages unaliased): only while its author shares Where I
@@ -61,13 +62,13 @@ export async function authorMark(userId: string, place: ChatPlace): Promise<numb
 }
 
 /** Posts a message, signed with the author's name and, where the fold goes by it, their mark (authorMark). */
-export async function insertMessage(user: { id: string; name: string; username?: string | null }, place: ChatPlace, text: string): Promise<RawMessage> {
+export async function insertMessage(user: { id: string; name: string; username?: string | null }, place: ChatPlace, text: string, gif: Gif | null = null): Promise<RawMessage> {
   const mark = await authorMark(user.id, place);
   const couch = "couchId" in place && !place.leagueId ? place : null;
   const { rows } = await pool.query(
-    `INSERT INTO chat_messages (league_id, couch_id, season_id, user_id, author_name, type, text, author_seen)
-     VALUES ($1, $2, $3, $4, $5, 'message', $6, $7) RETURNING ${MESSAGE_COLUMNS}`,
-    [couch ? null : place.leagueId, couch?.couchId ?? null, couch?.seasonId ?? null, user.id, authorName(user), text, mark]
+    `INSERT INTO chat_messages (league_id, couch_id, season_id, user_id, author_name, type, text, author_seen, gif)
+     VALUES ($1, $2, $3, $4, $5, 'message', $6, $7, $8) RETURNING ${MESSAGE_COLUMNS}`,
+    [couch ? null : place.leagueId, couch?.couchId ?? null, couch?.seasonId ?? null, user.id, authorName(user), text, mark, gif ? JSON.stringify(gif) : null]
   );
   return rows[0];
 }
@@ -117,7 +118,9 @@ export async function toggleReaction(messageId: string, userId: string, rawEmoji
 /** A message's new text (marked edited), with its reactions. */
 export async function editMessage(messageId: string, rawText: unknown): Promise<ChatMessage> {
   const text = messageText(rawText);
-  const updated = await pool.query(`UPDATE chat_messages SET text=$1, edited_at=now() WHERE id=$2 RETURNING ${MESSAGE_COLUMNS}`, [text, messageId]);
+  // A GIF is sent as it is (0156): it can be removed, not edited.
+  const updated = await pool.query(`UPDATE chat_messages SET text=$1, edited_at=now() WHERE id=$2 AND gif IS NULL RETURNING ${MESSAGE_COLUMNS}`, [text, messageId]);
+  if (!updated.rows.length) throw new HttpError(400, "A GIF can't be edited");
   return (await withReactions(updated.rows))[0];
 }
 

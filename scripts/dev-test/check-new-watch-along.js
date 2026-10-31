@@ -8,13 +8,13 @@
 //     many, alex's next to air (6, "soon": nothing in it);
 //   - the refusals: an episode past your next (sam's 5, alex's 7: 403), saying something before an episode airs (409), a couch
 //     you're not on (404), not a season (404), not an episode (400), a comment that's empty or too long, a kind that isn't one, a
-//     GIF with no GIFs set up (409) or not GIPHY's (400), a moment that hasn't aired, too many at once (429);
+//     GIF with no GIFs set up (409) or not KLIPY's (400), a moment that hasn't aired, too many at once (429);
 //   - what reaches whom: the couch's reactions only 30 s after their moment (riley's at 1:00 reaches sam at 1:30, not 1:29.999),
 //     yours at once, what's new since a moment, the pins and the couch's count on opening, a private watcher's (jordan's Traitors)
 //     reaching nobody, another couch's (ZT Extra) never, alone (no couch) only yours, taking one back;
 //   - an episode on air (Episode 6 moved to have started ten minutes ago): the card says live, nothing past what's aired reaches
 //     anyone or can be said, sam (behind) can't watch it;
-//   - GIFs: none without GIPHY_API_KEY or the stand-in (fake-gifs.js, `x-gys-gifs`), trending and a search with it.
+//   - GIFs: none without KLIPY_API_KEY or the stand-in (fake-gifs.js, `x-gys-gifs`), trending and a search with it.
 //   In a real browser at --width (390 by default): as sam (with the stand-in's GIFs and a wake lock stand-in), Tonight's card,
 //   the start, the screen kept on, Set the time, the couch's comments 30 s late and their pins, a reaction arriving on the poll,
 //   reacting, saying something, a GIF, taking one back, pause, the bingo card, End with Reveal your scores, closing and picking up
@@ -56,7 +56,7 @@
 //   node scripts/dev-test/check-new-watch-along.js <outDir> [--width=390] [--keep] [--api]
 //
 // --api: the API half only. Brings new-fixture.js and solo-fixture.js up and takes them down (--keep leaves them); touches zt
-// rows only; refuses a non-local database, and a GIPHY_API_KEY in .env.local (it would answer instead of the stand-in). Prints
+// rows only; refuses a non-local database, and a KLIPY_API_KEY in .env.local (it would answer instead of the stand-in). Prints
 // PASS/FAIL.
 require("dotenv").config({ path: ".env.local", quiet: true });
 const fs = require("fs");
@@ -69,7 +69,7 @@ const fakeGifs = require("./fake-gifs");
 
 const DB = process.env.AUTH_DATABASE_URL || "";
 if (!/@(localhost|127\.0\.0\.1|\[::1\])[:/]/.test(DB)) throw new Error("check-new-watch-along runs against a local database only");
-if (process.env.GIPHY_API_KEY) throw new Error("check-new-watch-along needs GIPHY_API_KEY unset (the stand-in answers instead)");
+if (process.env.KLIPY_API_KEY) throw new Error("check-new-watch-along needs KLIPY_API_KEY unset (the stand-in answers instead)");
 
 const args = process.argv.slice(2);
 const out = args.find((a) => !a.startsWith("--"));
@@ -151,13 +151,13 @@ const MIN = 60_000;
       [{ at: 1000, kind: "heart" }, 400, /kind must be/, "a kind that isn't one"],
       [{ at: -5, kind: "fire" }, 400, /moment of the episode/, "a moment before the start"],
       [{ kind: "fire" }, 400, /moment of the episode/, "no moment"],
-      [{ at: 1000, kind: "gif", gif: { id: "zt1", url: "https://media.giphy.com/media/zt1/200w.gif", w: 200, h: 150 } }, 409, /GIFs aren't on/, "a GIF with no GIFs set up"],
+      [{ at: 1000, kind: "gif", gif: { id: "zt1", url: "https://static.klipy.com/zt1/200w.gif", w: 200, h: 150 } }, 409, /GIFs aren't on/, "a GIF with no GIFs set up"],
     ]) {
       r = await say("riley", 4, body);
       check(r.status === status && re.test(r.body.error), `${what}: ${status}`, `${r.status} ${JSON.stringify(r.body)}`);
     }
     r = await say("riley", 4, { at: 1000, kind: "gif", gif: { id: "zt1", url: "https://evil.example/zt1.gif", w: 200, h: 150 } }, { gifs: true });
-    check(r.status === 400 && /GIPHY/.test(r.body.error), "a GIF that isn't GIPHY's (or the stand-in's): 400", JSON.stringify(r.body));
+    check(r.status === 400 && /KLIPY/.test(r.body.error), "a GIF that isn't KLIPY's (or the stand-in's): 400", JSON.stringify(r.body));
     check((await said("riley")).length === 0, "and nothing was kept");
 
     // ---------- GIFs ----------
@@ -168,10 +168,10 @@ const MIN = 60_000;
     r = await withGifs.riley.call("GET", "/api/gifs?q=clap");
     check(r.status === 200 && r.body.gifs.length === 1 && r.body.gifs[0].title === "Slow clap GIF", "a search: Slow clap");
     const clap = r.body.gifs[0];
-    check(gifs.asked.some((a) => a.startsWith("/v1/gifs/search") && /q=clap/.test(a) && /rating=pg-13/.test(a)), "asked GIPHY's search, PG-13 at most");
+    check(gifs.asked.some((a) => a.startsWith("/v2/search") && /q=clap/.test(a) && /contentfilter=low/.test(a)), "asked KLIPY's search, PG-13 at most (its low filter)");
     gifs.down = true;
     r = await withGifs.riley.call("GET", "/api/gifs?q=nope");
-    check(r.status === 503, "GIPHY not answering: 503");
+    check(r.status === 503, "KLIPY not answering: 503");
     gifs.down = false;
     r = await as.riley.call("GET", "/api/gifs");
     const signedOut = await fetch(`${BASE}/api/gifs`, { headers: { "x-gys-gifs": gifs.url } });
@@ -715,7 +715,7 @@ const MIN = 60_000;
       // A GIF from the stand-in.
       await pg.locator("[data-gif-button]").click();
       await S.sheet().locator("[data-gif-grid] [data-gif]").first().waitFor({ timeout: 10_000 });
-      check((await S.sheet().locator("[data-gif]").count()) === fakeGifs.GIFS.length && /Powered by GIPHY/.test(await S.sheet().innerText()), "the GIF sheet: what's trending, Powered by GIPHY");
+      check((await S.sheet().locator("[data-gif]").count()) === fakeGifs.GIFS.length && /Powered by KLIPY/.test(await S.sheet().innerText()), "the GIF sheet: what's featured, Powered by KLIPY");
       await S.sheet().locator("[data-gif-search]").fill("plot");
       await pg.waitForFunction(() => document.querySelectorAll("[role=dialog][data-open] [data-gif]").length === 1, null, { timeout: 10_000 }).catch(() => {});
       await S.shot("gif-sheet");
