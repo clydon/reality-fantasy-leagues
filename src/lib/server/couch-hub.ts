@@ -13,6 +13,7 @@ import { bingoLines } from "./bingo";
 import { pointsPerLine } from "@/lib/game/bingo";
 import { callRights, endedThrough } from "./calls";
 import { AUTHOR_SEEN, REVEAL_SHARED, withReactions } from "./chat";
+import { couchPointCounts } from "./couch-points";
 import { couchMembers, requireCouch } from "./couches";
 import { pool } from "./db";
 import { EVERYTHING, seenThrough, sharesSql, switchOn } from "./guard";
@@ -26,8 +27,9 @@ import { followsOf, games, seasonHeaders, type Game } from "./show-space";
 import { plansLately, type PlanHow } from "./watch-plans";
 
 // The hub's couch, for More on the couch, your profile's numbers and the feed (docs/PLAN-new-design.md step 8; GET
-// /api/couches/[id]/hub): every game the couch plays, read as you may see it, turned into power rankings, the trophy
-// shelf, Commercial break's "You're playing", By the numbers' couch accolades and your numbers (couch-standings.ts);
+// /api/couches/[id]/hub): every game the couch plays, read as you may see it, turned into head to head, the trophy
+// shelf, Commercial break's "You're playing", By the numbers' couch accolades and your numbers (couch-standings.ts); power
+// rankings are Couch points since 2026-10-31, what everyone has done on the couch (couch-points.ts);
 // and On the couch, what the couch has been up to and said lately. Since step 12 part 1 also your taste on the couch (your taste
 // twin, how often you agree with the couch, how many shows have a verdict) and the accolades ratings can say (ratings.ts).
 //
@@ -182,12 +184,13 @@ export async function couchHub(user: SessionUser, couchId: string): Promise<Couc
   const list = all.filter((g): g is Game & { seasonId: string } => !!g.seasonId);
   const seasonIds = [...new Set(list.map((g) => g.seasonId))];
   const ids = list.map((g) => g.leagueId);
-  const [headers, states, seats, marks, schedules] = await Promise.all([
+  const [headers, states, seats, marks, schedules, points] = await Promise.all([
     seasonHeaders(seasonIds),
     leagueStates(ids),
     ids.length ? pool.query("SELECT league_id, user_id, player_id FROM league_memberships WHERE league_id = ANY($1::uuid[]) ORDER BY seat_slot, created_at", [ids]) : { rows: [] },
     Promise.all(seasonIds.map(async (id) => [id, await seenThrough(user.id, id)] as const)).then((xs) => new Map(xs)),
     seasonSchedules(seasonIds),
+    couchPointCounts(couchId, people.map((p) => p.userId)),
   ]);
   // Each seat's accounts, its first first (a team two people share: step A10 part 4b); a seat's face is its first's.
   const usersOf = new Map<string, Map<string, string[]>>(ids.map((id) => [id, new Map()]));
@@ -256,7 +259,7 @@ export async function couchHub(user: SessionUser, couchId: string): Promise<Couc
     }
   }
 
-  const rankings = rankingsOf(standings, people, user.id, new Date().getFullYear());
+  const rankings = rankingsOf(standings, people, user.id, points.counts, points.weekInYear);
   const trophies = trophiesOf(standings, people, user.id);
   const yours = standings
     .filter((g) => mine.has(g.leagueId))

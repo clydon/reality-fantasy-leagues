@@ -967,3 +967,9 @@ never handles it: the user does the reset and the pasting.
   format change starts, or a side stage, adds its league mid-season, and a stage on another show is a league on that
   show's season. Only the engine's API and lab make such games so far (no screen does), so production has none; after each
   season sync, one query asks for the ids of the season's leagues whose stages a change or a grouping starts (none today).
+- **2026-10-31, committed locally (not pushed; migration 0157).** Power rankings are Couch points. **Nothing polls, nothing
+  scheduled, no new service.** A new table, `user_days` (0157: one row a person a day they open the app, ~40 bytes; not backed
+  up), written in the same statement as `user_last_seen` (a CTE, so no extra round trip; at most once a minute a person, as
+  before). The hub's read (`/api/couches/[id]/hub`, when it opens) gains one query: a count by person and kind over the couch's
+  memberships, games, moves, chats, polls, plans, reactions and its people's follows, trivia, bingo, calls, ratings and days
+  (11 ms on the local copy's live couch), returning a few dozen small rows.

@@ -525,11 +525,11 @@ function Couch() {
             </div>
           </div>
           <div className="ranks reveal-up">
-            <h4 className="cap">Power rankings <small>Across every show this year</small></h4>
+            <h4 className="cap">Power rankings <small>Couch points for joining in</small></h4>
             {ranks.map(([n, c, a, b, cc], i) => { const t = a + b + cc; return (
               <div key={n} className={`rk${i === 0 ? " lead" : ""}${n === "You" ? " me" : ""}`}>
                 <span className="r num">{i + 1}</span><span className="a" style={{ background: c }}>{n[0]}</span>
-                <span className="nm">{n}<span className="bar" style={{ width: `${(t / 112) * 100}%` }}><i style={{ width: `${(a / t) * 100}%`, background: "#f2804b" }} /><i style={{ width: `${(b / t) * 100}%`, background: "#c23a4b", transitionDelay: ".15s" }} /><i style={{ width: `${(cc / t) * 100}%`, background: "#5089c9", transitionDelay: ".3s" }} /></span></span>
+                <span className="nm">{n}<span className="bar" style={{ width: `${(t / 112) * 100}%` }}><i style={{ width: `${(a / t) * 100}%`, background: "#f2804b" }} /><i style={{ width: `${(b / t) * 100}%`, background: "#5089c9", transitionDelay: ".15s" }} /><i style={{ width: `${(cc / t) * 100}%`, background: "#a76bb0", transitionDelay: ".3s" }} /></span></span>
                 <span className="t num">{t}</span>
               </div>); })}
             <div className="shelf">

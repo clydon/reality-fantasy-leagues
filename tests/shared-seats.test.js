@@ -128,25 +128,21 @@ test("a shared team on the couch: each person credited with its place, one team 
   assert.equal(fieldOf(shared), 3);
   assert.equal(fieldOf(shared.map(({ seat, ...r }) => r)), 4, "rows without a seat each count, as before");
   const game = { leagueId: "g", name: "G", gameName: "Outlast", gameType: "classic-draft", seasonId: "s", showId: "surv", showName: "Survivor", label: "Survivor 51", span: null, artUrl: null, year: 2026, through: 5, ended: true, rows: shared, before: null };
-  const r = rankingsOf([game], people, "cy", 2026);
-  const pts = Object.fromEntries(r.all.map((x) => [x.userId, x.total]));
-  assert.equal(pts.ann, placePoints(1, 3));
-  assert.equal(pts.bo, placePoints(1, 3), "both of them credited");
-  assert.equal(pts.cy, placePoints(2, 3), "second of three teams, not of four rows");
-  assert.equal(pts.di, placePoints(3, 3));
+  // Power rankings are Couch points since 2026-10-31; a place's points (your best show) are of three teams, not four rows.
+  const r = rankingsOf([game], people, "cy", [], true);
+  assert.deepEqual(shared.map((x) => placePoints(x.place, fieldOf(shared))), [10, 10, 6, 1], "both of them credited first; second of three teams, not of four rows");
   // The trophy goes to both; each has the game in their numbers.
   const t = trophiesOf([game], people, "bo");
   assert.deepEqual(t.plaques[0].winners.map((w) => w.userId).sort(), ["ann", "bo"]);
   assert.deepEqual(t.plaques[0].you, { place: 1, rank: "1" });
-  assert.deepEqual(r.all.map((x) => [x.userId, x.games]).sort(), [["ann", 1], ["bo", 1], ["cy", 1], ["di", 1]]);
   for (const me of ["ann", "bo"]) {
-    const you = yourNumbers([game], rankingsOf([game], people, me, 2026), trophiesOf([game], people, me), me);
+    const you = yourNumbers([game], rankingsOf([game], people, me, [], true), trophiesOf([game], people, me), me);
     assert.equal(you.bestFinish?.rank, "1", `${me}'s best finish`);
   }
   assert.equal(r.h2h.find((h) => h.userId === "ann").won, 0, "cy lost to the pair's team");
   assert.equal(r.h2h.find((h) => h.userId === "ann").lost, 1);
   // Partners didn't play each other: no head to head between ann and bo.
-  assert.equal(rankingsOf([game], people, "ann", 2026).h2h.find((h) => h.userId === "bo"), undefined);
+  assert.equal(rankingsOf([game], people, "ann", [], true).h2h.find((h) => h.userId === "bo"), undefined);
   // One winning team: its plaque has the margin (90 to 80), and running it back counts for whichever of them won before.
   assert.equal(t.plaques[0].by, 10);
   const last = { ...game, leagueId: "g0", seasonId: "s0", label: "Survivor 50", year: 2025, rows: [

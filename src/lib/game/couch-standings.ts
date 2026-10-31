@@ -3,9 +3,11 @@
 // game's table as the viewer may see it (couch-hub.ts reads them at the viewer's mark on each season, guard.ts), so a
 // place here is never past where they are. Pure, for the tests.
 //
-// One table for every game, whatever kind: each game a person plays gives them points by where they placed in it,
-// normalised to how many played (placePoints), so a Survival Pool and an Outlast weigh the same. A game counts once an
-// episode of it has scored as far as you've seen; a running game counts where it stands, a finished one where it ended.
+// Power rankings are Couch points since 2026-10-31 (the user): how much each person joins in on the couch (COUCH_POINTS,
+// counted by couch-points.ts), not where they placed, which had everyone tied. Head to head, the trophy shelf and your best
+// show stay the games' results: each game a person plays is worth points by where they placed in it, normalised to how many
+// played (placePoints), so a Survival Pool and an Outlast weigh the same. A game counts once an episode of it has scored as far
+// as you've seen; a running game counts where it stands, a finished one where it ended.
 
 export interface StandingRow {
   /** Null for a computer player or anyone without an account: they take up places but aren't ranked. */
@@ -89,16 +91,60 @@ function ranked<T>(items: T[], value: (x: T) => number): { item: T; place: numbe
   });
 }
 
+/**
+ * What each thing someone does on the couch is worth in Couch points (the user, 2026-10-31), most first; the rankings page's How
+ * you earn them reads it. `group` is the bar's colour and legend. couch-points.ts counts each kind: on the couch itself (joining
+ * it, its games and their moves, its chats, polls, watch along plans and reactions) whenever it was, and on your own (shows you
+ * follow openly, trivia, bingo, Call it, ratings, days you open the app) since you joined it.
+ */
+export const COUCH_POINTS = [
+  { kind: "couch", points: 10, says: "Joining the couch", group: "here" },
+  { kind: "started", points: 10, says: "Starting a game on it", group: "play" },
+  { kind: "follow", points: 5, says: "Each show you follow", group: "watch" },
+  { kind: "joined", points: 5, says: "Joining a game", group: "play" },
+  { kind: "trivia", points: 5, says: "A round of trivia", group: "play" },
+  { kind: "bingo", points: 5, says: "A bingo card you mark", group: "play" },
+  { kind: "plan", points: 3, says: "Answering a watch along plan", group: "watch" },
+  { kind: "move", points: 2, says: "Each move you set", group: "play" },
+  { kind: "call", points: 2, says: "A Call it answer", group: "play" },
+  { kind: "poll", points: 2, says: "A poll vote", group: "talk" },
+  { kind: "rating", points: 2, says: "Rating an episode", group: "watch" },
+  { kind: "chat", points: 1, says: "A chat message", cap: "10 a day", group: "talk" },
+  { kind: "reaction", points: 1, says: "A watch along reaction", cap: "5 an episode", group: "watch" },
+  { kind: "day", points: 1, says: "Each day you open the app", group: "here" },
+] as const;
+export type PointKind = (typeof COUCH_POINTS)[number]["kind"];
+export type PointGroup = (typeof COUCH_POINTS)[number]["group"];
+/** The bar's groups, in the order it draws them. */
+export const POINT_GROUPS: { group: PointGroup; name: string }[] = [
+  { group: "play", name: "Playing" },
+  { group: "watch", name: "Watching" },
+  { group: "talk", name: "Talking" },
+  { group: "here", name: "Showing up" },
+];
+const WORTH = new Map<string, { points: number; group: PointGroup }>(COUCH_POINTS.map((p) => [p.kind, p]));
+
+/** How many times someone did one kind of thing on the couch (couch-points.ts): ever, this calendar year, the last seven days. */
+export interface PointCount {
+  userId: string;
+  kind: PointKind;
+  all: number;
+  year: number;
+  week: number;
+}
+
 export interface RankRow {
   userId: string;
   name: string;
   place: number;
   rank: string;
+  /** Couch points. */
   total: number;
-  /** Where the points came from, by show (the bar). */
-  byShow: { showId: string; points: number }[];
-  games: number;
-  /** Since the last episode: up, down, or null. Only "This year" says. */
+  /** Where they came from, by kind (only kinds they have), most first; the bar adds them up by group. */
+  byKind: { kind: PointKind; points: number }[];
+  /** Points in the last seven days. */
+  week: number;
+  /** Their place against a week ago: up, down, or null. */
   move: "up" | "down" | null;
 }
 
@@ -113,13 +159,11 @@ export interface HeadToHead {
 }
 
 export interface Rankings {
-  year: RankRow[];
+  /** Couch points this calendar year; null until the couch has done something before it (till then it's all time again). */
+  year: RankRow[] | null;
   all: RankRow[];
-  /** The shows the points came from, most first: the legend and the bar's order. */
-  shows: { showId: string; name: string }[];
+  /** Head to head stays the games' results. */
   h2h: HeadToHead[];
-  /** Games counted this year and all-time. */
-  counted: { year: number; all: number };
 }
 
 /** How many teams a game's rows are: a team two people share counts once (its rows share a `seat`), and so does a team of players
@@ -141,26 +185,20 @@ const versus = (g: GameStanding) => counts(g) && !g.coop;
 /** The seasons you've played on the couch (finished or not), co-op games too. */
 const seasonsOf = (games: GameStanding[], me: string) => new Set(games.filter((g) => counts(g) && g.rows.some((r) => r.userId === me)).map((g) => g.seasonId)).size;
 
-function totals(games: GameStanding[], people: Person[], rowsOf: (g: GameStanding) => StandingRow[] | null) {
-  const by = new Map(people.map((p) => [p.userId, { ...p, total: 0, games: 0, shows: new Map<string, number>() }]));
-  for (const g of games) {
-    const rows = rowsOf(g);
-    if (!rows || fieldOf(rows) < 2) continue;
-    for (const r of rows) {
-      const t = r.userId ? by.get(r.userId) : undefined;
-      if (!t) continue;
-      const pts = placePoints(r.place, fieldOf(rows));
-      t.total += pts;
-      t.games++;
-      t.shows.set(g.showId, (t.shows.get(g.showId) ?? 0) + pts);
-    }
+/** One Couch points table: everyone on the couch (nobody's left off for having none), ranked, each with where a week ago left
+ *  them when `moves` (among those with points then: someone who wasn't on the table a week ago hasn't moved on it). */
+function table(counts: PointCount[], people: Person[], count: (c: PointCount) => number, moves: boolean): RankRow[] {
+  const by = new Map(people.map((p) => [p.userId, { ...p, total: 0, week: 0, kinds: new Map<PointKind, number>() }]));
+  for (const c of counts) {
+    const t = by.get(c.userId);
+    const worth = WORTH.get(c.kind);
+    if (!t || !worth || !count(c)) continue;
+    t.total += count(c) * worth.points;
+    t.week += c.week * worth.points;
+    t.kinds.set(c.kind, (t.kinds.get(c.kind) ?? 0) + count(c) * worth.points);
   }
-  return [...by.values()].filter((t) => t.games > 0);
-}
-
-function table(games: GameStanding[], people: Person[], beforeToo: boolean): RankRow[] {
-  const now = ranked(totals(games, people, (g) => g.rows), (t) => t.total);
-  const was = beforeToo ? ranked(totals(games, people, (g) => g.before), (t) => t.total) : [];
+  const now = ranked([...by.values()], (t) => t.total);
+  const was = moves ? ranked([...by.values()].filter((t) => t.total > t.week), (t) => t.total - t.week) : [];
   return now
     .map(({ item, place, rank }) => {
       const then = was.find((w) => w.item.userId === item.userId);
@@ -170,23 +208,33 @@ function table(games: GameStanding[], people: Person[], beforeToo: boolean): Ran
         place,
         rank,
         total: item.total,
-        byShow: [...item.shows].map(([showId, points]) => ({ showId, points })).sort((a, b) => b.points - a.points),
-        games: item.games,
+        byKind: [...item.kinds].map(([kind, points]) => ({ kind, points })).sort((a, b) => b.points - a.points),
+        week: item.week,
         move: then && then.place !== place ? (then.place > place ? ("up" as const) : ("down" as const)) : null,
       };
     })
     .sort((a, b) => a.place - b.place || a.name.localeCompare(b.name));
 }
 
-/** Power rankings and head to head for `me`, or null before any game has scored. `year`: this calendar year. */
-export function rankingsOf(games: GameStanding[], people: Person[], me: string, year: number): Rankings | null {
+/**
+ * Power rankings for `me`: Couch points all time, and this calendar year once the couch has done something before it; null for
+ * a couch of nobody. `counts`: what everyone did (couch-points.ts); `weekInYear`: the last seven days are all this year (so a
+ * week ago is in the year's table too, and it can say who moved). Head to head from the games everyone has played.
+ */
+export function rankingsOf(games: GameStanding[], people: Person[], me: string, counts: PointCount[], weekInYear: boolean): Rankings | null {
+  if (!people.length) return null;
+  const before = counts.some((c) => c.all > c.year);
+  return {
+    year: before ? table(counts, people, (c) => c.year, weekInYear).map((r) => (weekInYear ? r : { ...r, week: 0 })) : null,
+    all: table(counts, people, (c) => c.all, true),
+    h2h: headToHead(games, people, me),
+  };
+}
+
+/** `me` against everyone else on the couch: every game you've both played against each other, how often you finished above. */
+export function headToHead(games: GameStanding[], people: Person[], me: string): HeadToHead[] {
   const all = games.filter(versus);
-  if (!all.length) return null;
-  const thisYear = all.filter((g) => g.year === year || (!g.ended && g.year === null));
-  const pts = new Map<string, number>();
-  for (const r of table(all, people, false)) for (const s of r.byShow) pts.set(s.showId, (pts.get(s.showId) ?? 0) + s.points);
-  const names = new Map(all.map((g) => [g.showId, g.showName]));
-  const h2h: HeadToHead[] = people
+  return people
     .filter((p) => p.userId !== me)
     .map((p) => {
       const out = { userId: p.userId, name: p.name, games: 0, won: 0, lost: 0, tied: 0 };
@@ -204,13 +252,6 @@ export function rankingsOf(games: GameStanding[], people: Person[], me: string, 
     })
     .filter((h) => h.games > 0)
     .sort((a, b) => b.won - b.lost - (a.won - a.lost) || b.games - a.games || a.name.localeCompare(b.name));
-  return {
-    year: table(thisYear, people, true),
-    all: table(all, people, false),
-    shows: [...pts].sort((a, b) => b[1] - a[1]).map(([showId]) => ({ showId, name: names.get(showId) ?? "" })),
-    h2h,
-    counted: { year: thisYear.length, all: all.length },
-  };
 }
 
 // ---------- the trophy shelf ----------
@@ -337,9 +378,10 @@ export function trophiesOf(games: GameStanding[], people: Person[], me: string):
 
 export interface YourNumbers {
   titles: number;
-  /** This year's ranking points, and your place. */
+  /** Your Couch points and place, in the table the rankings open on: this year's once there is one (`thisYear`), else all time. */
   points: number;
   place: string | null;
+  thisYear: boolean;
   seasons: number;
   /** The show you do best at: the most points per game. */
   bestShow: { showId: string; name: string; seasonId: string; artUrl: string | null } | null;
@@ -363,11 +405,12 @@ export function yourNumbers(games: GameStanding[], rankings: Rankings | null, tr
   const best = [...perShow.values()].sort((a, b) => b.pts / b.n - a.pts / a.n)[0];
   const finishes = games.filter((g) => g.ended && versus(g)).flatMap((g) => g.rows.filter((r) => r.userId === me).map((r) => ({ r, g })));
   const top = finishes.sort((a, b) => a.r.place - b.r.place)[0];
-  const row = rankings?.year.find((r) => r.userId === me);
+  const row = (rankings?.year ?? rankings?.all)?.find((r) => r.userId === me);
   return {
     titles: trophies?.titles ?? 0,
     points: row?.total ?? 0,
     place: row ? row.rank : null,
+    thisYear: !!rankings?.year,
     seasons: seasonsOf(games, me),
     bestShow: best ? { showId: best.g.showId, name: best.g.showName, seasonId: best.g.seasonId, artUrl: best.g.artUrl } : null,
     called: games.reduce((n, g) => n + (g.rows.find((r) => r.userId === me)?.called ?? 0), 0),
@@ -380,10 +423,30 @@ export function yourNumbers(games: GameStanding[], rankings: Rankings | null, tr
 export interface Accolade {
   key: string;
   stat: string;
-  /** A person, or (Most-watched show) a show's name. */
+  /** A person, the two sharing it ("alex and riley"), or (Most-watched show) a show's name. */
   who: string;
+  /** The person's, or the first of those sharing it. */
   userId: string | null;
+  /** The two sharing it, when two do: neither leads alone. */
+  tied?: Person[];
   line: string;
+}
+
+/**
+ * Whether a lead says something worth naming (the user, 2026-10-31: too many sharing first said nothing). `leaders`: how many share
+ * the top count; `top`: that count; `field`: how many could have it (a season's counted cast, a couch's people). One leader alone
+ * always does. A shared lead only between two (three or more never), when it's more than once (a count of one is "did it", not a
+ * lead) and it singles them out: a quarter of the field or fewer share it, so a field of eight or more.
+ *
+ *   named  ⇔  leaders = 1  ∨  (leaders = 2 ∧ top ≥ 2 ∧ leaders ≤ field / 4)
+ */
+export function leadWorthNaming(leaders: number, top: number, field: number): boolean {
+  return leaders === 1 || (leaders === 2 && top >= 2 && leaders <= field / 4);
+}
+
+/** "ann", "ann and bo", "ann, bo and cy". */
+export function joinNames(names: string[]): string {
+  return names.length < 2 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }
 
 /** A streaming season's first to finish on the couch (step 14 part 2), from show_follows.finished_at. */
@@ -402,7 +465,8 @@ const DAY_MS = 24 * 3600 * 1000;
  * The couch's own accolades: who follows the most shows (only what they share), the show the most people watch, who's
  * called the most predictions, who talks most this month, who reacts most in watch alongs and who watches along most this
  * month (step 13 part 3), who's on the longest Survival Pool run now, and who was first to finish a streaming season (step
- * 14 part 2: the newest such first). Each only when it says something (a count worth naming).
+ * 14 part 2: the newest such first). Each only when it says something (a count worth naming); a count shared at the top names
+ * everyone sharing it (2026-10-31), never one of them as if they led alone, and only when the tie is worth naming (leadWorthNaming).
  */
 export function accoladesOf(opts: {
   people: Person[];
@@ -421,9 +485,18 @@ export function accoladesOf(opts: {
   const { people, follows, messages, games } = opts;
   const member = new Map(people.map((p) => [p.userId, p]));
   const out: Accolade[] = [];
+  /** The most anyone on the couch has, when it's at least `min`, and everyone who has it (by name): a tie names them all, when
+   *  it's worth naming at all (leadWorthNaming, the couch the field). */
   const leader = (m: Map<string, number>, min: number) => {
-    const top = [...m].filter(([id]) => member.has(id)).sort((a, b) => b[1] - a[1] || member.get(a[0])!.name.localeCompare(member.get(b[0])!.name))[0];
-    return top && top[1] >= min ? top : null;
+    const on = [...m].filter(([id]) => member.has(id));
+    const n = Math.max(0, ...on.map(([, x]) => x));
+    if (!on.length || n < min) return null;
+    const ids = on
+      .filter(([, x]) => x === n)
+      .map(([id]) => id)
+      .sort((a, b) => member.get(a)!.name.localeCompare(member.get(b)!.name));
+    if (!leadWorthNaming(ids.length, n, people.length)) return null;
+    return { n, by: { who: joinNames(ids.map((id) => member.get(id)!.name)), userId: ids[0], ...(ids.length > 1 ? { tied: ids.map((id) => member.get(id)!) } : {}) } };
   };
 
   const shows = new Map<string, Set<string>>();
@@ -437,8 +510,9 @@ export function accoladesOf(opts: {
   }
   const most = leader(new Map([...shows].map(([id, s]) => [id, s.size])), 2);
   if (most) {
-    const alone = [...shows.get(most[0])!].filter((s) => watchers.get(s)!.who.size === 1).length;
-    out.push({ key: "shows", stat: "Most shows on their list", who: member.get(most[0])!.name, userId: most[0], line: `${most[1]} shows${alone ? ` · ${alone} nobody else watches` : ""}` });
+    // Nobody else watching is one person's to say.
+    const alone = most.by.tied ? 0 : [...shows.get(most.by.userId)!].filter((s) => watchers.get(s)!.who.size === 1).length;
+    out.push({ key: "shows", stat: "Most shows on their list", ...most.by, line: `${most.n} shows${alone ? ` · ${alone} nobody else watches` : ""}` });
   }
   const watched = [...watchers].sort((a, b) => b[1].who.size - a[1].who.size)[0];
   if (watched && watched[1].who.size >= 2) out.push({ key: "watched", stat: "Most-watched show", who: watched[1].name, userId: null, line: `${watched[1].who.size} of ${people.length} watch it` });
@@ -446,15 +520,15 @@ export function accoladesOf(opts: {
   const called = new Map<string, number>();
   for (const g of games) for (const r of g.rows) if (r.userId && r.called) called.set(r.userId, (called.get(r.userId) ?? 0) + r.called);
   const caller = leader(called, 1);
-  if (caller) out.push({ key: "called", stat: "Called it most", who: member.get(caller[0])!.name, userId: caller[0], line: `${caller[1]} ${caller[1] === 1 ? "prediction" : "predictions"} right` });
+  if (caller) out.push({ key: "called", stat: "Called it most", ...caller.by, line: `${caller.n} ${caller.n === 1 ? "prediction" : "predictions"} right` });
 
   const talker = leader(messages, 3);
-  if (talker) out.push({ key: "chat", stat: "Says the most", who: member.get(talker[0])!.name, userId: talker[0], line: `${talker[1]} messages this month` });
+  if (talker) out.push({ key: "chat", stat: "Says the most", ...talker.by, line: `${talker.n} messages this month` });
 
   const reactor = leader(opts.reactions ?? new Map(), 5);
-  if (reactor) out.push({ key: "reactions", stat: "Most reactions this month", who: member.get(reactor[0])!.name, userId: reactor[0], line: `${reactor[1]} reactions` });
+  if (reactor) out.push({ key: "reactions", stat: "Most reactions this month", ...reactor.by, line: `${reactor.n} reactions` });
   const along = leader(opts.watchAlongs ?? new Map(), 2);
-  if (along) out.push({ key: "watch-alongs", stat: "Most watch alongs", who: member.get(along[0])!.name, userId: along[0], line: `${along[1]} this month` });
+  if (along) out.push({ key: "watch-alongs", stat: "Most watch alongs", ...along.by, line: `${along.n} this month` });
 
   let run: { who: string; n: number; label: string } | null = null;
   for (const g of games) if (!g.ended && g.through > 0) for (const r of g.rows) if (r.userId && member.has(r.userId) && (r.streak ?? 0) > (run?.n ?? 1)) run = { who: r.userId, n: r.streak!, label: g.label };

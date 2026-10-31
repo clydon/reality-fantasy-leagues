@@ -958,18 +958,18 @@ function GrowLine({ page, icon: Icon, ready, text }: { page: string; icon: typeo
 }
 
 /**
- * The grows-with-you hub's note of what shows up as the couch plays: power rankings after the first scored episode, By
- * the numbers once the stats come in, the trophy shelf when a season ends. Each turns into a way to its page once it's
- * there.
+ * The grows-with-you hub's note of what shows up as the couch plays: power rankings (Couch points, there from the start since
+ * 2026-10-31), By the numbers once the stats come in, the trophy shelf when a season ends. Each turns into a way to its page
+ * once it's there.
  */
 export function GrowNote({ home, hub }: { home: Home; hub: CouchHub | undefined }) {
-  const me = hub?.rankings?.year.find((r) => r.userId === home.user.id) ?? hub?.rankings?.all.find((r) => r.userId === home.user.id);
+  const me = (hub?.rankings?.year ?? hub?.rankings?.all)?.find((r) => r.userId === home.user.id);
   const stats = home.shows.some((s) => s.following && s.seenThrough !== 0);
   return (
     <section className="mx-4 mt-8 p-3.5" data-grow-note>
       <b className="type-caption text-base">More shows up as the couch plays</b>
       <ul className="mt-1.5 flex flex-col">
-        <GrowLine page="rankings" icon={Trophy} text="Power rankings, after your first scored episode" ready={hub?.rankings ? (me ? `Power rankings: you're ${me.rank.startsWith("T") ? `tied ${ordinal(me.place)}` : ordinal(me.place)}` : "Power rankings are in") : null} />
+        <GrowLine page="rankings" icon={Trophy} text="Power rankings: Couch points for joining in" ready={hub?.rankings ? (me ? `Power rankings: you're ${me.rank.startsWith("T") ? `tied ${ordinal(me.place)}` : ordinal(me.place)}` : "Power rankings are in") : null} />
         <GrowLine page="numbers" icon={ChartColumn} text="By the numbers, once the stats come in" ready={stats ? "By the numbers: who leads every stat" : null} />
         <GrowLine page="trophies" icon={Crown} text="The trophy shelf, when a season ends" ready={hub?.trophies ? "The trophy shelf: every season the couch has finished" : null} />
       </ul>

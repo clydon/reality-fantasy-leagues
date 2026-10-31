@@ -1,12 +1,12 @@
 // The couch's standings across its games (src/lib/game/couch-standings.ts, docs/PLAN-new-design.md step 8): points by
-// place normalised to the field, power rankings this year and all-time with who moved, head to head, the trophy shelf
+// place normalised to the field, power rankings as Couch points (2026-10-31) with who moved, head to head, the trophy shelf
 // once a season ends and its records, your numbers and the couch's accolades; and what results ask of someone
 // (src/lib/game/results-due.ts) on real demo leagues. No database: made-up tables and demo seasons. Run with `npm test`.
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const path = require("path");
 const jiti = require("jiti")(__filename, { alias: { "@": path.join(__dirname, "..", "src") } });
-const { placePoints, rankingsOf, trophiesOf, yourNumbers, accoladesOf } = jiti("../src/lib/game/couch-standings.ts");
+const { placePoints, rankingsOf, headToHead, trophiesOf, yourNumbers, accoladesOf, COUCH_POINTS, joinNames, leadWorthNaming } = jiti("../src/lib/game/couch-standings.ts");
 const { resultsDue } = jiti("../src/lib/game/results-due.ts");
 const { buildDemoState } = jiti("../src/lib/game/demo-season-builder.ts");
 const S = require("../src/lib/game/state-logic.js");
@@ -54,30 +54,48 @@ test("a place is worth 10 for first down to 1 for last, whatever the field", () 
   assert.equal(placePoints(1, 1), 0, "a game of one counts for nothing");
 });
 
-test("power rankings: one table across games, ties share a place, the bar by show, who moved", () => {
+test("power rankings are Couch points: what each thing is worth, everyone on the couch, ties share a place, the bar by kind, who moved since a week ago", () => {
+  const c = (userId, kind, all, year = all, week = 0) => ({ userId, kind, all, year, week });
+  const counts = [
+    // ann: 10 + 6 moves × 2 + 10 messages = 32, 4 of it this week.
+    c("ann", "couch", 1), c("ann", "move", 6, 6, 2), c("ann", "chat", 10),
+    // bo: 10 + a game started 10 + 2 shows × 5 + a rating 2 = 32, 5 this week.
+    c("bo", "couch", 1), c("bo", "started", 1), c("bo", "follow", 2, 2, 1), c("bo", "rating", 1),
+    // cy: 10 + 5 reactions + 3 days = 18, 8 this week.
+    c("cy", "couch", 1), c("cy", "reaction", 5, 5, 5), c("cy", "day", 3, 3, 3),
+    c("stranger", "couch", 1), c("ann", "nonsense", 9),
+  ];
+  const r = rankingsOf([], people, "ann", counts, true);
+  assert.equal(r.year, null, "nothing from before this year: no This year table");
+  assert.deepEqual(r.all.map((x) => [x.name, x.total, x.rank, x.week]), [["ann", 32, "T1", 4], ["bo", 32, "T1", 5], ["cy", 18, "3", 8], ["di", 0, "4", 0]], "di has none and is still on the table; a stranger and an unknown kind count for nothing");
+  assert.deepEqual(r.all[0].byKind, [{ kind: "move", points: 12 }, { kind: "couch", points: 10 }, { kind: "chat", points: 10 }]);
+  // A week ago: ann 28, bo 27, cy 10, di 0. bo caught ann.
+  assert.deepEqual(r.all.map((x) => [x.name, x.move]), [["ann", null], ["bo", "up"], ["cy", null], ["di", null]]);
+  assert.equal(rankingsOf([], [], "ann", counts, true), null, "a couch of nobody");
+  const newcomer = rankingsOf([], people, "ann", [...counts, c("di", "couch", 1, 1, 1)], true).all.find((x) => x.name === "di");
+  assert.deepEqual([newcomer.total, newcomer.rank, newcomer.move], [10, "4", null], "joined this week: not on last week's table, so no arrow");
+
+  // di joined last year and opened the app twice this year: This year is its own table now.
+  const later = rankingsOf([], people, "ann", [...counts, c("di", "couch", 1, 0), c("di", "day", 2, 2, 0)], false);
+  assert.deepEqual(later.year.map((x) => [x.name, x.total]), [["ann", 32], ["bo", 32], ["cy", 18], ["di", 2]]);
+  assert.deepEqual(later.all.map((x) => [x.name, x.total]).at(-1), ["di", 12]);
+  assert.ok(later.year.every((x) => x.move === null && x.week === 0), "a week that started last year says nothing of who moved this year");
+  assert.equal(later.all.find((x) => x.name === "bo").move, "up", "all time still does");
+  assert.equal(COUCH_POINTS.find((p) => p.kind === "chat").cap, "10 a day");
+});
+
+test("head to head stays the games: how often you finished above each of them", () => {
   const games = [
     game({ leagueId: "a", seasonId: "s51", label: "Survivor 51", rows: rows(["ann", "bo", "cy", "di"]), before: rows(["bo", "ann", "cy", "di"]) }),
     game({ leagueId: "b", seasonId: "t5", showId: "trt", showName: "Traitors", label: "Traitors 5", gameType: "pickem", pool: true, gameName: "Survival Pool", rows: rows(["bo=cy", "ann", "di"]) }),
     game({ leagueId: "c", seasonId: "s50", label: "Survivor 50", year: 2025, ended: true, rows: rows(["di", "cy", "bo", "ann"]) }),
     game({ leagueId: "d", seasonId: "s52", label: "Survivor 52", through: 0, rows: rows(["ann", "bo"]) }),
   ];
-  const r = rankingsOf(games, people, "ann", 2026);
-  assert.deepEqual(r.counted, { year: 2, all: 3 }, "a game with nothing scored doesn't count; Survivor 50 was 2025");
-  // This year: ann 10 + 4 = 14, bo 7 + 10 = 17, cy 4 + 10 = 14, di 1 + 1 = 2.
-  assert.deepEqual(r.year.map((x) => [x.name, x.total, x.rank]), [["bo", 17, "1"], ["ann", 14, "T2"], ["cy", 14, "T2"], ["di", 2, "4"]]);
-  const ann = r.year.find((x) => x.name === "ann");
-  assert.deepEqual(ann.byShow, [{ showId: "surv", points: 10 }, { showId: "trt", points: 4 }]);
-  // One episode back only Survivor 51 had a table (bo, ann, cy, di): cy was 3rd and is T2 now; ann 2nd then and now.
-  assert.equal(r.year.find((x) => x.name === "cy").move, "up");
-  assert.equal(ann.move, null);
-  assert.equal(r.year.find((x) => x.name === "bo").move, null);
-  assert.deepEqual(r.all.map((x) => [x.name, x.total]), [["bo", 21], ["cy", 21], ["ann", 15], ["di", 12]]);
-  assert.ok(r.all.every((x) => x.move === null), "only This year says who moved");
-  // Head to head for ann, over all three games.
-  assert.deepEqual(r.h2h.find((h) => h.name === "di"), { userId: "di", name: "di", games: 3, won: 2, lost: 1, tied: 0 });
-  assert.deepEqual(r.h2h.find((h) => h.name === "bo"), { userId: "bo", name: "bo", games: 3, won: 1, lost: 2, tied: 0 });
-  assert.deepEqual(r.h2h.map((h) => h.name), ["di", "bo", "cy"], "best record first, then by name");
-  assert.equal(rankingsOf([games[3]], people, "ann", 2026), null, "nothing scored yet: no rankings");
+  const h2h = rankingsOf(games, people, "ann", [], true).h2h;
+  assert.deepEqual(h2h, headToHead(games, people, "ann"));
+  assert.deepEqual(h2h.find((h) => h.name === "di"), { userId: "di", name: "di", games: 3, won: 2, lost: 1, tied: 0 }, "a game with nothing scored doesn't count");
+  assert.deepEqual(h2h.find((h) => h.name === "bo"), { userId: "bo", name: "bo", games: 3, won: 1, lost: 2, tied: 0 });
+  assert.deepEqual(h2h.map((h) => h.name), ["di", "bo", "cy"], "best record first, then by name");
 });
 
 test("the trophy shelf waits for a season to end, then titles, plaques, ran it back and the records", () => {
@@ -107,7 +125,8 @@ test("the trophy shelf waits for a season to end, then titles, plaques, ran it b
   assert.deepEqual(rec.streak, ["ann", "6 episodes · Survivor 50"]);
   assert.equal(rec.average[0], "bo");
 
-  const you = yourNumbers(games, rankingsOf(games, people, "ann", 2026), t, "ann");
+  const you = yourNumbers(games, rankingsOf(games, people, "ann", [{ userId: "ann", kind: "couch", all: 1, year: 1, week: 0 }], true), t, "ann");
+  assert.deepEqual([you.points, you.place, you.thisYear], [10, "1", false], "your Couch points and place, all time while there's no year before this one");
   assert.equal(you.titles, 1);
   assert.equal(you.seasons, 3);
   assert.deepEqual(you.bestFinish, { rank: "1", label: "Survivor 50", gameName: "Survival Pool" });
@@ -128,6 +147,28 @@ test("couch accolades: only shared follows, only when they say something", () =>
   assert.equal(a.chat, "di: 5 messages this month");
   assert.equal(a.streak, "cy: 4 in a row · Survivor 51 Survival Pool");
   assert.deepEqual(accoladesOf({ people, follows: [], messages: new Map([["di", 2]]), games: [] }), [], "nothing worth naming yet");
+
+  // A tie at the top is named only when it's worth it: two of a field of eight or more, on more than one. Never one of them alone.
+  const eight = [...people, ...["ed", "fi", "gus", "hal"].map((n) => ({ userId: n, name: n }))];
+  const tie = accoladesOf({ people: eight, follows: [...follows, { userId: "ann", showId: "trt", showName: "trt" }, { userId: "ann", showId: "chl", showName: "chl" }], messages: new Map([["di", 5], ["ann", 5], ["bo", 4]]), games: [] });
+  const t = Object.fromEntries(tie.map((x) => [x.key, x]));
+  assert.deepEqual([t.chat.who, t.chat.line, t.chat.tied.map((p) => p.userId)], ["ann and di", "5 messages this month", ["ann", "di"]]);
+  assert.deepEqual([t.shows.who, t.shows.line], ["ann and bo", "3 shows"], "nobody else watching is one person's to say");
+  const small = accoladesOf({ people, follows: [], messages: new Map([["di", 5], ["ann", 5]]), games: [] });
+  assert.equal(small.find((x) => x.key === "chat"), undefined, "two of a couch of four is half of it: no accolade");
+  assert.equal(accoladesOf({ people: eight, follows: [], messages: new Map([["di", 5], ["ann", 5], ["bo", 5]]), games: [] }).find((x) => x.key === "chat"), undefined, "three sharing it: never");
+  assert.equal(accoladesOf({ people, follows, messages: new Map([["di", 5], ["ann", 2]]), games }).find((x) => x.key === "chat").tied, undefined, "one leader: no tie");
+  assert.deepEqual([joinNames(["ann"]), joinNames(["ann", "bo"]), joinNames(["ann", "bo", "cy"])], ["ann", "ann and bo", "ann, bo and cy"]);
+});
+
+test("a lead is worth naming: one leader alone, or two on more than once in a field of eight or more", () => {
+  assert.equal(leadWorthNaming(1, 1, 18), true, "one did it: a fact worth naming");
+  assert.equal(leadWorthNaming(2, 1, 18), false, "two did it once: not a lead");
+  assert.equal(leadWorthNaming(2, 2, 18), true);
+  assert.equal(leadWorthNaming(2, 3, 8), true, "two is a quarter of eight");
+  assert.equal(leadWorthNaming(2, 3, 7), false, "and more than a quarter of seven");
+  assert.equal(leadWorthNaming(3, 4, 24), false, "three or more: never");
+  assert.equal(leadWorthNaming(5, 1, 18), false);
 });
 
 test("first to finish: the newest first finish on the couch, in days from the drop", () => {

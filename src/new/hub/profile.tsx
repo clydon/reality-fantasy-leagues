@@ -14,8 +14,9 @@ import { ShowArt } from "../ui/show-bar";
 import { Sheet } from "../ui/sheet";
 
 // Your profile, from the hub's avatar (the mock's index.html profileSheet): your couch at the top (moved off the hub
-// on 2026-10-23; it opens the couch switcher, step 9: couch-sheets.tsx), your numbers on this couch (step 8: titles, this year's ranking
-// points, seasons played, your best show, predictions called, your best finish; couch-hub.ts, as far as you've seen),
+// on 2026-10-23; it opens the couch switcher, step 9: couch-sheets.tsx), your numbers on this couch (step 8: titles, your Couch
+// points and place (since 2026-10-31; this year's once the couch has a year before it), seasons played, your best show,
+// predictions called, your best finish; couch-hub.ts, as far as you've seen),
 // Admin for site admins (the desk, step 6b part 2, with what needs them), and Settings. Since step 12 part 1 your taste on the
 // couch from its ratings (ratings.ts): Agree with the couch in place of seasons played once there's enough to say, and your
 // taste twin. (A site admin's test couch switches went 2026-10-31 with the test couch, the user's call.)
@@ -28,7 +29,7 @@ function YourNumbers({ hub }: { hub: CouchHub | undefined }) {
   const twin = hub.taste.twin;
   const stats: [string, string][] = [
     [String(y.titles), y.titles === 1 ? "Title" : "Titles"],
-    [String(y.points), "Ranking points"],
+    [String(y.points), "Couch points"],
     agree ? [`${agree.pct}%`, "Agree with the couch"] : [String(y.seasons), y.seasons === 1 ? "Season played" : "Seasons played"],
   ];
   return (
@@ -53,7 +54,15 @@ function YourNumbers({ hub }: { hub: CouchHub | undefined }) {
         <p className="mt-3 text-[13px] leading-snug text-muted-foreground">Your numbers fill in as the couch plays: every game you play counts, as far as you&apos;ve seen.</p>
       )}
       <div className="mt-2 flex flex-col">
-        {y.place && <Row icon={Star} title={`${y.place.startsWith("T") ? `Tied ${ordinal(Number(y.place.slice(1)))}` : ordinal(Number(y.place))} on the couch this year`} detail={`${y.points} ranking points`} />}
+        {y.place && (
+          <span data-your-place className="contents">
+            <Row
+              icon={Star}
+              title={`${y.place.startsWith("T") ? `Tied ${ordinal(Number(y.place.slice(1)))}` : ordinal(Number(y.place))} on the couch${y.thisYear ? " this year" : ""}`}
+              detail={`${y.points} Couch points`}
+            />
+          </span>
+        )}
         {y.bestFinish && <Row icon={Medal} title={`Best finish: ${ordinal(Number(y.bestFinish.rank))}`} detail={`${y.bestFinish.gameName} · ${y.bestFinish.label}`} />}
         {y.called > 0 && <Row icon={Zap} title={`Called it: ${y.called} ${y.called === 1 ? "prediction" : "predictions"} right`} detail="In every game on the couch, as far as you've seen" />}
         {twin && (
