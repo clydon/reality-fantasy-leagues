@@ -16,8 +16,8 @@
 //     your games; the feed; More on the couch's rows say your place and titles, and each page opens over the hub (?page=)
 //     with real data (rankings and its tabs, Commercial break, By the numbers' accolades, Previously on for two shows, the
 //     trophy shelf), and back closes it; the profile's numbers; the grow note's lines open their pages;
-//   - every hub.* entry of the Preview registry (src/new/preview.ts) still shows somewhere; Up next's art grows into the
-//     show bar (the channel change); nothing wider than the screen; no page errors.
+//   - every hub.* entry of the Preview registry (src/new/preview.ts) still shows somewhere; Up next plays the Tune in
+//     bumper into the show; nothing wider than the screen; no page errors.
 // Screenshots of each shape (a screen at a time), the sheet and every page go to <outDir>.
 //
 //   npm run dev                                                  (in another terminal)
@@ -350,10 +350,12 @@ const placePoints = (place, of) => (of < 2 ? 0 : Math.round(1 + (9 * (of - Math.
     await hubReady();
     await page.evaluate(() => (window.__vt.length = 0));
     await page.locator("[data-art-scope] h2 a").click();
+    // Since 2026-10-30: the Tune in bumper (src/new/tune-in.tsx; check-tune-in.js checks it beat by beat).
+    await page.locator("[data-tune-in]").waitFor({ timeout: 3000 });
     await page.waitForURL(`**/show/**/tonight`);
-    await page.waitForTimeout(700);
+    await page.locator("[data-tune-in]").waitFor({ state: "detached", timeout: 8000 });
     const vt = await page.evaluate(() => window.__vt.at(-1) || null);
-    check(!!vt && vt.nav === "channel" && vt.anims.some((a) => a.includes("nd-art")), "Up next: its art grows into the show bar", JSON.stringify(vt));
+    check(!!vt && vt.nav === "tune", "Up next: the Tune in bumper plays into the show", JSON.stringify(vt));
 
     const real = errors.filter((e) => !/Download the React DevTools|\[HMR\]|\[Fast Refresh\]/.test(e) && !/favicon\.ico/.test(e));
     check(real.length === 0, "no page errors", real.slice(0, 3).join(" | "));

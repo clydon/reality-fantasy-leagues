@@ -2,7 +2,7 @@
 // server, as new-fixture.js's alex:
 //   - opting in: classic's More › "Try the new design" lands on /home (on a desktop width: the setting, then "/");
 //     "/" goes to /home from then on, by the cookie, and through AuthGate on a device without it;
-//   - the hub's show card changes the channel into the show (its art grows into the show bar), the tabs slide
+//   - the hub's show card tunes into the show (the Tune in bumper, since 2026-10-30), the tabs slide
 //     sideways with the show bar and tab bar still, Backstage and its pages push in and pop back, How it works
 //     is a page pushed over the show that the back gesture closes, the hub's bell opens Notifications, the guard
 //     chip says where you are, first run steps forward;
@@ -156,9 +156,18 @@ function recordTransitions() {
     await page.evaluate(() => (window.__vt.length = 0));
 
     // ---- into the show: the channel change ----
+    // Since 2026-10-30 the Tune in bumper (src/new/tune-in.tsx; check-tune-in.js checks it beat by beat) plays over it, and the
+    // page swaps under it ("tune"; "calm" under reduced motion).
     await card.click();
+    await page.locator("[data-tune-in]").waitFor({ timeout: 3000 });
     await page.waitForURL(`**/show/${sid}/tonight`);
-    await moved("hub → show", "channel", "(nd-art)");
+    await page.locator("[data-tune-in]").waitFor({ state: "detached", timeout: 8000 });
+    {
+      const vt = await lastVt();
+      const want = reduce ? "calm" : "tune";
+      check(!!vt && vt.nav === want, `hub → show: the Tune in bumper, the page swapping under it ("${want}")`, JSON.stringify(vt && { nav: vt.nav }));
+      await page.evaluate(() => (window.__vt.length = 0));
+    }
     await page.getByRole("heading", { level: 1 }).first().waitFor();
     // "in 3 days" by the database's date (the fixture's), "in 4" by the browser's once it's past midnight UTC.
     check(await page.getByText(/^Ep 6 · in \d days$/).first().isVisible(), "the show bar's calm clock: Ep 6 · in N days");
@@ -182,7 +191,9 @@ function recordTransitions() {
     await page.locator("nav[aria-label=Show] a", { hasText: "Episodes" }).click();
     await page.waitForURL(`**/show/${sid}/episodes`);
     await moved("Tonight → Episodes", "left", "nd-tabind");
-    check(await page.getByText("you're on Ep 5").isVisible(), "the guard chip says where you are (Ep 5)");
+    // The tab's content can still be coming in once the move has played: wait for the chip, don't just look once.
+    const chip = await page.getByText("you're on Ep 5").first().waitFor({ timeout: 8000 }).then(() => true, () => false);
+    check(chip, "the guard chip says where you are (Ep 5)");
     await snap("episodes");
     await page.locator("nav[aria-label=Show] a", { hasText: "Cast" }).click();
     await page.waitForURL(`**/show/${sid}/cast`);
@@ -229,7 +240,14 @@ function recordTransitions() {
     // ---- back to the hub: the channel change in reverse ----
     await page.getByRole("button", { name: "Home" }).click();
     await page.waitForURL("**/home");
-    await moved("show → hub", "channel", "(nd-art)");
+    if (reduce) await moved("show → hub", "channel");
+    else {
+      // The Tune in's reverse: the header drops into the show's card, the page swapping under it.
+      await page.locator("[data-tune-in]").waitFor({ state: "detached", timeout: 4000 });
+      const vt = await lastVt();
+      check(!!vt && vt.nav === "tune", 'show → hub: the Tune in reverse ("tune")', JSON.stringify(vt && { nav: vt.nav }));
+      await page.evaluate(() => (window.__vt.length = 0));
+    }
 
     // ---- you ----
     await page.getByRole("button", { name: "Your profile" }).click();

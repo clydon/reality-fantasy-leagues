@@ -21,6 +21,10 @@ const OFF_CSS =
 /** Runs in every page of the context, before the app: motion off, and/or the animation recorder. */
 async function install(context, { mode, watch }) {
   if (mode === "off") {
+    // The app's own WAAPI sequences that a check can't wait out by CSS (the Tune in bumper, src/new/tune-in.tsx) skip themselves.
+    await context.addInitScript(() => {
+      window.__ndMotion = "off";
+    });
     await context.addInitScript((css) => {
       const add = () => {
         const el = document.createElement("style");

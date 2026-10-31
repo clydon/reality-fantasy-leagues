@@ -268,6 +268,12 @@ html[data-nav="channel"]::view-transition-new(root) {
   animation-duration: 0.44s;
 }
 
+/* Tuning in (src/new/tune-in.tsx): the bumper covers the screen while the page changes under it, so the page just swaps. */
+html[data-nav="tune"]::view-transition-old(root),
+html[data-nav="tune"]::view-transition-new(root) {
+  animation: none;
+}
+
 /* A plain swap (same depth, no order): a crossfade. */
 html[data-nav="fade"]::view-transition-old(root),
 html[data-nav="calm"]::view-transition-old(root) {
