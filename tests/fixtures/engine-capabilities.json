@@ -1120,7 +1120,16 @@
         {
           "id": "answer.vote",
           "what": "Vote among the players",
-          "step": "A14"
+          "step": "A14",
+          "spec": {
+            "stages": [
+              { "id": "draft", "name": "Draft", "game": { "preset": "outlast", "get": { "by": "draft", "each": 3, "order": "snake", "own": "exclusive" }, "span": { "from": 1 } } },
+              { "id": "redraft", "name": "New draft", "on": { "again": true }, "game": { "preset": "outlast", "get": { "by": "draft", "each": 3, "order": "snake", "own": "exclusive" } } }
+            ],
+            "extras": { "changes": { "ok": "vote", "unanswered": "carry-on" } }
+          },
+          "page": { "show": "The Challenge", "season": 42, "rulebook": "challenge" },
+          "note": "the players' vote (A14 part 1): a format change waits for the game's seats to vote on the new stage until the lock of its first episode, decided once more than half say the same, else by the votes cast, a tie or none the game's default; the maker can still call it off"
         }
       ]
     },
@@ -1282,7 +1291,18 @@
         {
           "id": "settle.majority",
           "what": "The group's own answers (match the majority)",
-          "step": "A14"
+          "step": "A14",
+          "spec": {
+            "get": { "by": "none" },
+            "score": { "by": "answers" },
+            "rank": { "by": "total" },
+            "ask": [
+              { "id": "boot", "ask": "Who goes home?", "answer": "person", "points": 1, "asked": "each", "settle": { "by": "results", "take": "out" } },
+              { "id": "most", "ask": "Who will most of us say goes home?", "answer": "person", "points": 2, "asked": "each", "settle": { "by": "players", "take": "majority", "of": "boot" } }
+            ]
+          },
+          "page": { "show": "Survivor", "season": 51, "rulebook": "survivor" },
+          "note": "the players' own answers settling a question (A14 part 1): what most of you answered to the boot question, each answer hidden until the lock; a tie, or fewer than two answers, doesn't count either way"
         },
         {
           "id": "settle.bot",
@@ -3313,7 +3333,13 @@
       "step": "A14",
       "dials": [
         "settle"
-      ]
+      ],
+      "spec": {
+        "get": { "by": "none" },
+        "score": { "by": "answers" },
+        "rank": { "by": "total" },
+        "ask": [ { "id": "herd", "ask": "Who goes home? Pick who most of us will", "answer": "person", "points": 1, "asked": "each", "settle": { "by": "players", "take": "majority" } } ]
+      }
     },
     {
       "id": "s32",

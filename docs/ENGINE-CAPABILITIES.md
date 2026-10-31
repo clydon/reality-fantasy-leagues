@@ -9,8 +9,8 @@ A row plays now when its spec passes the validator (`specProblems`, with what it
 needs waits (`specWaitsFor`); it then says the game in the engine's own words (`describeSpec`). A show the tracker has no
 rules for is checked against a show of its kind, and says so.
 
-**Now:** 194 ✅ · 53 ⏳ · 1 🆕 · 3 ❓ · 23 💬, of 274.
-**Waiting, by step:** A14 14 · A15 15 · L3 7 · L4 13 · G1 4.
+**Now:** 197 ✅ · 50 ⏳ · 1 🆕 · 3 ❓ · 23 💬, of 274.
+**Waiting, by step:** A14 11 · A15 15 · L3 7 · L4 13 · G1 4.
 
 ## The dials
 
@@ -67,7 +67,7 @@ Every watch-along game is a setting on these dials (the plan's "Where the engine
 | ✅ | Bid (an auction draft) | An Outlast for Survivor 51: everyone has 100 to bid on a team of 3, all season. Each scores by how long they last: the last one standing carries you. |
 | ✅ | Trade (buy and sell castaways) | A Weekly Lineup for Survivor 51: everyone drafts 4 with 100 to spend, then buys and sells after every episode and starts 2 each episode, all season. Scored by Survivor 51's rules. |
 | ✅ | A random draw (names out of a hat) | An Outlast for Survivor 51: everyone gets 2 drawn at random, all season. Each scores by how long they last: the last one standing carries you. |
-| ⏳ | Vote among the players | A14 |
+| ✅ | Vote among the players | A game in two stages for The Challenge 42: Draft, an Outlast: everyone drafts 3, until the format changes. Each scores by how long they last: the last one standing carries you; then New draft, an Outlast: everyone drafts 3, from each major change of format. Each scores by how long they last: the last one standing carries you. Overall, each stage's points add up. You vote on each new stage. |
 
 ### What settles it
 
@@ -79,7 +79,7 @@ Every watch-along game is a setting on these dials (the plan's "Where the engine
 | ✅ | The episode's trivia key (the bot's trivia research) | A game for Survivor 51: everyone answers one question before each episode: trivia about the episode before, all season. A point for each right answer. |
 | ✅ | A phase of the season (the merge happened) | A game for Survivor 51: everyone answers one question before each episode: will the merge happen within the next two, all season. A point for each right answer. |
 | ✅ | Episode facts (the title quote) | A game for Survivor 51: everyone answers one question before each episode: which tribe does the title quote come from, all season. A point for each right answer. |
-| ⏳ | The group's own answers (match the majority) | A14 |
+| ✅ | The group's own answers (match the majority) | A game for Survivor 51: everyone answers two questions before each episode: who goes home and who will most of us say goes home, all season. Points for each right answer. |
 | ⏳ | The bot's own call, as an opponent | A14 |
 | ⏳ | A number from a vetted outside source (an episode's TVmaze rating) | A14 |
 | ⏳ | A sport's stats and finals | L3 |
@@ -211,7 +211,7 @@ Requests that push the dials, from fantasy leagues, beyond them, and live with t
 | ✅ | s28 | Survivor 51 | Each episode, guess who says the episode's title quote. | what, settle | A game for Survivor 51: everyone answers one question before each episode: who says the title quote, all season. A point for each right answer. |
 | ✅ | s29 | Survivor 51 | 10 points an episode, split between everyone who called the boot. | score | A game for Survivor 51: everyone answers one question before each episode: who goes home, all season. 10 points each time, split between everyone right. |
 | ✅ | s30 | Survivor 51 | You only score if you're the only one who called it. | score | A game for Survivor 51: everyone answers one question before each episode: who goes home, all season. 5 points for a right answer nobody else has. |
-| ⏳ | s31 | Survivor 51 | Guess what most of us will pick; you score if you match the majority. | settle | A14 |
+| ✅ | s31 | Survivor 51 | Guess what most of us will pick; you score if you match the majority. | settle | A game for Survivor 51: everyone answers one question before each episode: who goes home? Pick who most of us will, all season. A point when yours is the answer most of you give. |
 | ✅ | s32 | Survivor 51 | If nobody calls it, the points roll over. | score | A game for Survivor 51: everyone answers one question before each episode: who goes home, all season. 3 points for each right answer. If nobody's right, the points roll over. |
 | ✅ | s33 | Survivor 51 | Spread 10 chips on who wins immunity. | answer | A game for Survivor 51: everyone answers one question before each episode: spread 10 chips on who wins immunity, all season. A point for each right answer. |
 | ✅ | s34 | Survivor 51 | Bet any of your points on your call, double or nothing. | score | A game for Survivor 51: everyone answers one question before each episode: who goes home, all season. A point for each right answer. Stake any of your points on it: double or nothing. |

@@ -43,10 +43,12 @@
 // has seen that phase begin). Its answers' key is the episode it opens at (0 asked once). It settles once every episode of it
 // has its results (and its end is known).
 //
-//   verdictOf(q, episode, facts)  { state: 'waiting' } | { state: 'off', why } | { state: 'known', right, value?, groups?, each? }
-//                                 (right: the right answers: castaway ids, 'yes'/'no', 'over'/'under', options; value: a count;
-//                                 groups: the groups the right people were on, for a group answer; each: a question about each
-//                                 person's own verdicts, by castaway id)
+//   verdictOf(q, episode, facts, answers)  { state: 'waiting' } | { state: 'off', why } | { state: 'known', right, value?, groups?,
+//                                 each? } (right: the right answers: castaway ids, 'yes'/'no', 'over'/'under', options; value: a
+//                                 count; groups: the groups the right people were on, for a group answer; each: a question about
+//                                 each person's own verdicts, by castaway id). `answers` (A14 part 1): the window's answers that
+//                                 settle a question the players settle ([{ playerId, answer }]: its own, or its `of` question's;
+//                                 left out, none), with what each said and how many (`tally`); every other question ignores them
 //   pointsFor(q, verdict, answers) Map playerId -> points, for one question's answers ([{ playerId, answer }]) on one
 //                                 episode (a number answer is the closest's, so they're graded together)
 //   windowPoints(q, v, answers, facts, { worth })  the same with A9's ways of combining: a pot split between everyone right, only
@@ -351,10 +353,46 @@ function factVerdict(q, episode, facts) {
   return known([o.who], undefined, groupsIn([o.who], e));
 }
 
+/**
+ * A14 part 1: a question the players' own answers settle (settle.by 'players'), from `answers`, the window's answers that settle it
+ * (its own, or with `of` the game's question it names: the grader's, [{ playerId, answer }]): the answer most of them gave is right
+ * (majority), or the one fewest did (minority). Data settles it, the couch's answers, never what happened on the show. Known once its
+ * window's first episode (the game's, asked once) has results as far as the viewer has seen: every answer is in by its lock, which is
+ * that episode's start, and its points come with the episode, as every question's do. Its fallbacks, from the start: fewer than two
+ * answers, or a minority everyone answered the same way, is off (void: no points either way); a tie for the most (or the fewest) is
+ * off with `tie` 'none' (the default), or each tied answer right with 'all'. `tally`: each answer given and how many gave it, most
+ * first.
+ */
+function playersVerdict(q, episode, facts, answers) {
+  const at = q.asked === 'once' ? facts.from : episode;
+  if (!Number.isInteger(at) || !facts.episodes.has(at)) return WAITING;
+  const st = q.settle;
+  const counts = new Map();
+  for (const a of answers || []) {
+    // A wagered answer counts by what it says, not its stake.
+    const raw = isObj(a.answer) && 'answer' in a.answer ? a.answer.answer : a.answer;
+    const x = picks(q, raw)[0];
+    if (x === undefined || x === null || x === '') continue;
+    const k = key(q, x);
+    if (!counts.has(k)) counts.set(k, { answer: x, n: 0 });
+    counts.get(k).n++;
+  }
+  const tally = [...counts.values()].sort((a, b) => b.n - a.n);
+  const given = tally.reduce((n, t) => n + t.n, 0);
+  const said = (v) => ({ ...v, tally });
+  if (given < 2) return said(off("Fewer than two of you answered: it doesn't count either way"));
+  if (st.take === 'minority' && tally.length < 2) return said(off("You all said the same, so nobody's in the minority: it doesn't count either way"));
+  const best = st.take === 'minority' ? tally[tally.length - 1].n : tally[0].n;
+  const top = tally.filter((t) => t.n === best);
+  if (top.length > 1 && st.tie !== 'all') return said(off("It was a tie: it doesn't count either way"));
+  return said(known(top.map((t) => t.answer)));
+}
+
 /** How a question stands for the window it opens at `episode` (asked each, every N or by phase) or the game (asked once;
- *  `episode` ignored). */
-function verdictOf(q, episode, facts) {
+ *  `episode` ignored). A14 part 1: `answers`, what settles a question the players settle (playersVerdict). */
+function verdictOf(q, episode, facts, answers) {
   const st = q && q.settle;
+  if (st && st.by === 'players') return playersVerdict(q, episode, facts, answers);
   if (st && st.by === 'trivia') return triviaVerdict(episode, facts);
   if (st && st.by === 'fact') {
     const fg = timelineGroups(q, episode, facts);
@@ -535,6 +573,8 @@ const valueOf = (v) => (v && v.state === 'known' && isNum(v.value) ? v.value : n
  *  line). Null when nothing is right (still to settle, off, or right on the line). */
 function rightAnswers(q, v, facts) {
   if (!v || v.state !== 'known') return null;
+  // A14 part 1: the players' own answers are right as they were given (a choice's option, a person's or group's id, yes or no).
+  if (q.settle && q.settle.by === 'players') return v.right.length ? v.right : null;
   const value = valueOf(v);
   if (q.answer === 'overUnder') {
     if (value === null || !isNum(q.line) || value === q.line) return null;

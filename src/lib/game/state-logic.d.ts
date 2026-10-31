@@ -936,6 +936,13 @@ declare const StateLogic: {
     changesOf(state: LeagueState): { ok: "auto" | "maker" | "vote"; unanswered: "start" | "carry-on" } | null;
     changeRecord(state: LeagueState): ChangeRecord;
     decide(state: LeagueState, key: string, what: string, by?: string | null, at?: string | null): string | null;
+    /** A14 part 1: who votes on the game's format changes (its seats, no computer player). */
+    voters(state: LeagueState): string[];
+    /** A14 part 1: a change's votes (the server's, { playerId: vote }) as they stand: decided once more than half of the voters say the same. */
+    tally(state: LeagueState, ballots: Ballots): VoteTally;
+    /** A14 part 1: a seat's vote on a change waiting for the players' vote, on its votes so far: a problem in words, or null once taken
+     *  (its decision, when this vote makes one, recorded on the state). */
+    vote(state: LeagueState, key: string, what: string, playerId: string, ballots: Ballots, at?: string | null): string | null;
     changePlan(state: LeagueState, input: ChangePlanInput): ChangePlan;
   };
   HandicapLogic: {
@@ -1138,9 +1145,19 @@ export interface SideClose {
 /** A12 part 2: what a game in stages remembers of its format changes (state.changeStages). */
 export interface ChangeRecord {
   seen: Record<string, number>;
+  /** The maker's answers, and (A14 part 1) a players' vote once it's decided (by "vote"). */
   decided: Record<string, { do: "start" | "skip"; by: string | null; at: string | null }>;
   told: string[];
   undone: string[];
+}
+/** A14 part 1: a change's votes, { playerId: 'start' | 'skip' } (stage_change_votes), and their count. */
+export type Ballots = Record<string, "start" | "skip">;
+export interface VoteTally {
+  start: number;
+  skip: number;
+  voted: number;
+  of: number;
+  decided: "start" | "skip" | null;
 }
 export interface ChangePlanInput {
   triggers: Record<string, { act: StageTrigger[]; held: StageTrigger[] }>;
@@ -1150,6 +1167,8 @@ export interface ChangePlanInput {
   last?: number | null;
   /** A12 part 3: the game's own last episode once it's known (a side copy never plays past it). */
   end?: number | null;
+  /** A14 part 1: each change's votes cast (the server's count of stage_change_votes), what a vote the lock decides is decided by. */
+  votes?: Record<string, { start: number; skip: number }>;
 }
 export interface ChangePlanEntry {
   key: string;

@@ -1461,6 +1461,32 @@ Episodes 1 to 7 and void from the merge (one tribe left, nothing to choose), the
 Traitors they stay refused (0 of 5 and 1 of 2: not rated). A copy's season airs a week ahead by the clock, so nothing there waits on final
 results: research about an episode that hasn't aired by the clock stands at once (live it can't come before the airing).
 
+## A14 part 1: the players' own answers and their vote (2026-10-31)
+
+Two pieces where the couch's own answers are the data, never what happened on the show. A question the players' own answers settle
+(`settle: { by: 'players', take: 'majority' | 'minority' }`: the answer most of you give, or fewest, to it or to another of the game's
+questions), every answer hidden until the lock as every game of questions' is. And **the players' vote on a format change**
+(`extras.changes.ok 'vote'`, which A12 part 2 left waiting for this step): when research is sure the format changed and the game would
+start a new stage on it, its seats vote until the lock of the episode the stage would start with, decided once more than half of them say
+the same, else by the votes cast at the lock, a tie or none the game's default, the maker's own answer standing over it. Nothing here
+changes research or its prompt: a vote rides on the same format report (F2's section, F3's timeline) and acts only on a change research is
+sure of, as the maker's OK does; a vote that's never cast (no screen yet, a quiet couch) falls to the game's default by the lock, so no
+game waits for anyone.
+
+### Replayed blind
+
+`blind.js run` (the five seasons, on the final code): **every game played through and over on all five seasons**: Survivor 49 137 of 137,
+The Challenge 41 109 of 109, 40 103 of 103, 39 111 of 111, The Traitors 4 98 of 98 (four more each than A13 part 2b's, the three new
+tracker rows' games among them); the questions waiting on early results finding 20's 3, 2 and 2. Nothing here reads the format
+differently: the sure changes and the held ones are Survivor 49's 5 and 1, The Challenge 41's 18 and 5, 40's 8 and 1, 39's 16 and 0, The
+Traitors 4's 8 and 0. **The vote game** (a new draft at each major change, taken by the players' vote, carrying on if it ties) is the
+fallback's proof: blind's four seats never vote, so each change research was sure of waited until the lock of the episode it would have
+started with and then took the game's default, and the game played on as its one stage to the end on every season, nothing made (beside
+it, A12's p7, taking each change by itself, made its copies as before: The Challenge 39's eleven, Survivor 49's three). A change nobody
+votes on never holds a game up. **The two majority games** (what most of us will say to who goes home; who goes home, picked as most of us
+will) settled every week on the seats' own answers, ties and too few answers void: on Survivor 49 the Drive-By 6, the Tinkerer 2, the Fan
+Who Forgets 1 and the Fan 0 on the first; 1 each on the second (the seats pick by habit, so they rarely agree).
+
 ## Appendix: the timelines
 
 Generated with `node scripts/dev-test/format-study.js --md`. "Brought in" is when viewers learned of a change, against when it

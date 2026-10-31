@@ -18,7 +18,7 @@
 //
 // Pure CommonJS, like ./schema.js.
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
-const { PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, spanEnd, spanEndPhase, playsAs, callsAsk, finaleOf, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion, matchupParts, questionsGame, teamParts, handicapParts, stageOn, ON_CHANGE, nextStageAts, fallsTo, stageSide, mainCount, stageAlongside, stageSeason, seasonKey } = require('./schema.js');
+const { PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, spanEnd, spanEndPhase, playsAs, callsAsk, finaleOf, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion, matchupParts, questionsGame, teamParts, handicapParts, stageOn, ON_CHANGE, nextStageAts, fallsTo, stageSide, mainCount, stageAlongside, stageSeason, seasonKey, isPlayers } = require('./schema.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const NUMBER_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
@@ -263,7 +263,9 @@ function sentenceParts(s, w) {
     const each = pts.length === 1 ? `${pts[0] === 1 ? 'A point' : pointsWord(pts[0])}` : 'Points';
     // A9's ways of combining, as far as they're the whole game's.
     let said = ` ${each} for each right answer.`;
-    if (all((q) => q.share === 'split')) said = ` ${each} each time, split between everyone right.`;
+    // A14 part 1: the players' own answers settle every one, the same way.
+    if (all((q) => isPlayers(q) && q.settle.take === s.ask[0].settle.take && q.share === undefined && q.wager === undefined)) said = ` ${each} when yours is the answer ${s.ask[0].settle.take === 'minority' ? 'fewest' : 'most'} of you give.`;
+    else if (all((q) => q.share === 'split')) said = ` ${each} each time, split between everyone right.`;
     else if (all((q) => q.share === 'only')) said = ` ${each} for a right answer nobody else has.`;
     else if (all((q) => q.wager !== undefined)) {
       const w0 = s.ask[0].wager;
@@ -304,7 +306,7 @@ function whenWords(q, w, each) {
   return q.closes === 'finale' ? 'Before the finale: ' : each ? 'Before it starts: ' : '';
 }
 /** One question as How it works says it: when it's asked, what it is, and what a right answer earns. */
-function questionRule(q, w, each) {
+function questionRule(q, w, each, ask) {
   const when = whenWords(q, w, each);
   const pts = typeof q.points === 'number' ? q.points : null;
   let earn = pts === null ? '' : ` ${cap(pointsWord(pts))} if you're right.`;
@@ -322,6 +324,8 @@ function questionRule(q, w, each) {
   }
   // A13 part 2: an episode fact's fallback, void.
   if (isObj(q.settle) && q.settle.by === 'fact') earn += " If research can't say for sure, or it's nobody you could pick, it doesn't count either way.";
+  // A14 part 1: the players' own answers settle it, and its fallbacks.
+  if (isPlayers(q) && pts !== null) earn = playersWords(q, pts, ask);
   // A question about each person (A6): an answer for each of them, each graded on its own.
   if (q.each && pts !== null) {
     earn = q.answer === 'number'
@@ -335,6 +339,17 @@ function questionRule(q, w, each) {
     ? ` Stake up to ${pointsWord(q.wager)} on it: right, you win them too; wrong, you lose them.`
     : q.wager === 'total' ? ' Stake any of your points on it: right, you win them too; wrong, you lose them.' : '';
   return `${when}${askOf(q)}${line}${from}${earn}${wager}${combineWords(q, w)}`;
+}
+/** A14 part 1: what a question the players settle earns, as How it works says it: the answer most (or fewest) of you give, to it or
+ *  to the question it's about (`of`, among the game's `ask`), and when it doesn't count. */
+function playersWords(q, pts, ask) {
+  const st = q.settle;
+  const of = st.of && Array.isArray(ask) ? ask.find((x) => isObj(x) && x.id === st.of) : null;
+  const most = st.take === 'minority' ? 'fewest' : 'most';
+  const what = of ? `what ${most} of you answer to "${askOf(of)}"` : `the answer ${most} of you give`;
+  const tie = st.tie === 'all' ? ' A tie: each of them counts.' : " A tie doesn't count either way.";
+  const none = st.take === 'minority' ? 'If you all say the same, or fewer than two of you answer,' : 'If fewer than two of you answer,';
+  return ` ${cap(pointsWord(pts))} if yours is ${what}.${tie} ${none} it doesn't count either way.`;
 }
 /** How a question's points combine (A9), as How it works says it. */
 function combineWords(q, w) {
@@ -816,7 +831,7 @@ function rulesOf(s, w) {
   if (s.score.by === 'answers' && !callsAsk(s.ask)) {
     const each = s.ask.some((q) => q.asked !== 'once');
     rules.push(`${teamParts(s) ? 'No draft.' : 'No draft, no team.'} Answer ${say(s.ask.length)} ${s.ask.length === 1 ? 'question' : 'questions'}${each ? '' : ' before it starts'}:`);
-    for (const q of s.ask) rules.push(questionRule(q, w, each));
+    for (const q of s.ask) rules.push(questionRule(q, w, each, s.ask));
     // A9's parlays.
     for (const p of parlaysOf(s.score)) {
       const legs = p.of.map((id) => s.ask.find((q) => q.id === id)).filter(Boolean);
@@ -986,7 +1001,9 @@ function describeStages(s, ctx) {
   const ch = isObj(s.extras) && isObj(s.extras.changes) ? s.extras.changes : { ok: 'auto', unanswered: 'start' };
   if (moved) {
     rules.push("A change of format counts once research is sure of it: from the episode it takes effect, or the next still to play.");
-    rules.push(ch.ok === 'maker' ? `Whoever runs the game says whether a new stage starts; if nobody does by its first episode, ${ch.unanswered === 'start' ? 'it starts anyway' : 'the game carries on as it is'}.` : 'The new stage starts by itself; whoever runs the game can call it off.');
+    // A14 part 1: or the players vote on it.
+    if (ch.ok === 'vote') rules.push(`You vote on whether a new stage starts: once more than half of you say the same, that's it; else the most votes by its first episode decide, and a tie or no votes ${ch.unanswered === 'start' ? 'starts it anyway' : 'carries the game on as it is'}. Whoever runs the game can still call it off.`);
+    else rules.push(ch.ok === 'maker' ? `Whoever runs the game says whether a new stage starts; if nobody does by its first episode, ${ch.unanswered === 'start' ? 'it starts anyway' : 'the game carries on as it is'}.` : 'The new stage starts by itself; whoever runs the game can call it off.');
   }
   // A12 part 3: a side stage, when it opens and closes.
   stages.forEach((st, i) => {
@@ -994,7 +1011,8 @@ function describeStages(s, ctx) {
     if (!side) return;
     const label = each[i].label;
     rules.push(`${label}: once research is sure the ${w.group}s have held ${heldWords(side)} and go on as they are, it opens with the next ${w.part} (a new one each time they last), and plays until research is sure they changed, its points kept; until research is sure, it carries on.`);
-    rules.push(ch.ok === 'maker' ? `${label}: whoever runs the game says whether it opens; if nobody does by its first ${w.part}, ${ch.unanswered === 'start' ? 'it opens anyway' : "it doesn't"}.` : `${label}: it opens by itself; whoever runs the game can call it off.`);
+    if (ch.ok === 'vote') rules.push(`${label}: you vote on whether it opens: once more than half of you say the same, that's it; else the most votes by its first ${w.part} decide, and a tie or no votes ${ch.unanswered === 'start' ? 'opens it anyway' : "doesn't"}. Whoever runs the game can still call it off.`);
+    else rules.push(ch.ok === 'maker' ? `${label}: whoever runs the game says whether it opens; if nobody does by its first ${w.part}, ${ch.unanswered === 'start' ? 'it opens anyway' : "it doesn't"}.` : `${label}: it opens by itself; whoever runs the game can call it off.`);
   });
   // A12 part 4a: a stage alongside the game's own, at the same time.
   stages.forEach((st, i) => {
@@ -1009,6 +1027,8 @@ function describeStages(s, ctx) {
   // A12 part 4b: a stage on another season counts its own episodes, and the game ends with its own stages wherever they play.
   if (others.length) rules.push(`A stage on ${others.join(' or ')} plays that season's episodes, each counted as you've seen them there; the game ends once its own stages are over, wherever they play.`);
   each.forEach((x) => rules.push(`${x.label}${x.on ? ` (${x.on})` : ''}: ${x.d.sentence}`, ...x.d.rules.map((r) => `${x.label}: ${r}`)));
+  // A14 part 1: the players vote on each stage a change (or a grouping that lasts) would start.
+  if (ch.ok === 'vote' && (moved || stages.some((st) => stageSide(st)))) parts.push({ text: `${/\.$/.test(overall) ? '' : '.'} You vote on each new stage.`, at: 'extras' });
   const e = isObj(s.extras) ? s.extras : {};
   const details = [
     { id: 'join', label: 'Who can join', recommended: e.join === null, value: e.lockedDown ? "Nobody new while it's locked down" : own(JOIN_WORDS, e.join) || JOIN_WORDS.open },

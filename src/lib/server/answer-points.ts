@@ -332,7 +332,7 @@ export async function sheetNights(o: { leagueId: string; state: LeagueState; pla
   const seats = new Set(view.players.map((p) => p.id));
   const rows = live.filter((r) => r.episode > 0 && seats.has(r.playerId));
   // What each window earned, A9's ways of combining in (a split pot, a rollover's jackpot, a parlay).
-  const { earned } = StateLogic.AnswerLogic.grade(view, rows, facts);
+  const { earned, verdicts } = StateLogic.AnswerLogic.grade(view, rows, facts);
   const out: SheetNights = new Map();
   // Asked each episode, or over a run or a phase (A7: a night is the episode its window opens at).
   for (const q of StateLogic.AnswerLogic.questions(view).filter((x) => x.asked !== "once" && !Spec.isCalls(x))) {
@@ -342,7 +342,8 @@ export async function sheetNights(o: { leagueId: string; state: LeagueState; pla
       if (!mine) continue;
       const n = out.get(ep) ?? { answered: 0, settled: 0, off: 0, right: 0, earned: 0 };
       n.answered++;
-      const v = Spec.verdictOf(q, ep, facts);
+      // As the grade has it (A14 part 1: a question the players settle, on the window's answers).
+      const v = verdicts.get(`${q.id}|${ep}`) ?? Spec.verdictOf(q, ep, facts);
       // Off (nobody went home, right on the line): settled, but it doesn't count either way.
       if (v.state !== "waiting") n.settled++;
       if (v.state === "off") n.off++;

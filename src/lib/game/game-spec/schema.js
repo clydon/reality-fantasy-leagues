@@ -125,8 +125,10 @@
 // sure of moves the game (format-timeline.js stageTriggers' act; the unsure ones are held and flagged), from the episode it takes
 // effect or the first still open, whichever is later. Every stage after one a change starts is one too (a stage at an episode or a
 // phase after it comes with A12's later parts). The game's extras.changes { ok: 'auto' (the stage starts by itself, with an undo)
-// | 'maker' (it waits for the maker's OK), unanswered: 'start' | 'carry-on' (what happens with 'maker' when nobody answers by the
-// lock the stage would start with) }, CHANGES its defaults (the user's: Noticed). StageLogic.changePlan, change-stages.ts.
+// | 'maker' (it waits for the maker's OK) | 'vote' (A14 part 1: it waits for the players' vote, decided once more than half of them
+// say the same, else at the lock by the votes cast), unanswered: 'start' | 'carry-on' (what happens with 'maker' or 'vote' when
+// nobody answers, or a vote ties, by the lock the stage would start with) }, CHANGES its defaults (the user's: Noticed).
+// StageLogic.changePlan, change-stages.ts.
 // A12 part 2b, the 'next-stage' fallback (a group question asked each episode's `fallback`, group slots' `get.groups.fallback`):
 // only in a stage with a stage after it (alone, or in the last stage, it's refused: nothing to start; a stage's own league plays
 // it as void, stageLeagueGame, the game in stages' plan saying where the stage ends). That stage ends where it
@@ -196,7 +198,11 @@ const VOCAB = {
     // A13: the episode's trivia, settled by its key (the bot's trivia research).
     trivia: 'now',
   },
-  'ask.settle': { results: 'now', moment: 'now', role: 'now', phase: 'now', points: 'now', calls: 'now', trivia: 'now', fact: 'now', final: 'sports', stat: 'sports' },
+  // A14 part 1: the players' own answers (the answer most of you give, or fewest), as data: the couch never decides what happened.
+  'ask.settle': { results: 'now', moment: 'now', role: 'now', phase: 'now', points: 'now', calls: 'now', trivia: 'now', fact: 'now', players: 'now', final: 'sports', stat: 'sports' },
+  // A14 part 1: a question the players' own answers settle, on a tie for the most (or the fewest): nobody's right (void, no points
+  // either way), or each of the tied answers is.
+  'ask.settle.tie': { none: 'now', all: 'now' },
   'ask.asked': { once: 'now', each: 'now', every: 'now', phase: 'now' },
   'ask.closes': { start: 'now', finale: 'now' },
   'ask.from': { cast: 'now', team: 'now' },
@@ -276,9 +282,10 @@ const VOCAB = {
   'extras.draft.opens': { any: 'now', start: 'now' },
   // A12 part 2: a stage a format change starts (a stage's `on`): which kinds of change count (format-timeline.js TRIGGER_KINDS:
   // 'swap-all' a swap that left no group as it was), and how the game takes it: by itself with an undo, or once the maker says
-  // so (the players' vote is A14's), and with the maker's OK, what happens when nobody answers by the stage's first lock.
+  // so, or (A14 part 1) once the players vote for it, and with the maker's OK or the vote, what happens when nobody answers by the
+  // stage's first lock.
   'on.change': Object.fromEntries(TRIGGER_KINDS.map((k) => [k, 'now'])),
-  'extras.changes.ok': { auto: 'now', maker: 'now', vote: 'later' },
+  'extras.changes.ok': { auto: 'now', maker: 'now', vote: 'now' },
   'extras.changes.unanswered': { start: 'now', 'carry-on': 'now' },
 };
 
@@ -372,6 +379,16 @@ const VOCAB = {
 //               group they were on); asked each episode, about that one. Void when research isn't sure, the title isn't a
 //               line, or whoever said it couldn't be picked (the host, someone already out): no points either way. Our check
 //               takes it only where research says it reliably on the show (ctx.facts, what it returned there: ratingOf, BAR)
+//             { by: 'players', take: majority | minority, of?, tie? } (A14 part 1) the players' own answers, as data (the
+//               couch never decides what happened on the show: what's right is what you said, not what happened): the answer
+//               most of you gave in its window (majority: "guess what most of us will pick; you score if you match the
+//               majority"), or the one fewest did (minority), among the game's answers to it or, with `of`, to the game's
+//               question it names (the same answer, asked the same way: "what will most of us say?"). One answer each: a
+//               person or group (one of them), a yes or no, a choice or an over/under. Known once its window's first episode
+//               has results as far as the viewer has seen (every answer is in by the lock; nobody sees another's before it:
+//               answers.ts). Its fallbacks, from the start: fewer than two answers, or everyone saying the same on a
+//               minority, void it (no points either way); a tie, `tie`: none (the default, void) or all (each tied one is
+//               right). A game of questions only, with one lock for everyone (no late lock)
 //           sports: { by: 'final', take: winner | total | margin } | { by: 'stat', stat, take: most | least | value }
 const TAKES = {
   results: ['winner', 'out', 'placed', 'top', 'stays', 'order', 'split', 'outlast'],
@@ -382,6 +399,7 @@ const TAKES = {
   calls: [],
   trivia: [],
   fact: ['who'],
+  players: ['majority', 'minority'],
   final: ['winner', 'total', 'margin'],
   stat: ['most', 'least', 'value'],
 };
@@ -392,19 +410,21 @@ const SEASON_TAKES = ['results:winner', 'results:placed', 'results:top', 'result
 const NUMBERS = ['moment:count', 'role:count', 'phase:starts', 'final:total', 'final:margin', 'stat:value'];
 /** Who's right, as people (A8's confidence and chips are graded by any of them). */
 const PEOPLE = ['results:winner', 'results:out', 'results:placed', 'results:top', 'results:stays', 'moment:who', 'moment:most', 'moment:first', 'role:who', 'role:end', 'points:most'];
+/** A14 part 1: the players' own answers, as a settle ('by:take'). A choice takes them too (it takes anything). */
+const PLAYERS_TAKES = ['players:majority', 'players:minority'];
 const SETTLES_FOR = {
-  person: [...PEOPLE, 'stat:most', 'stat:least', 'fact:who'],
-  group: ['results:out', 'moment:who', 'fact:who'],
+  person: [...PEOPLE, 'stat:most', 'stat:least', 'fact:who', ...PLAYERS_TAKES],
+  group: ['results:out', 'moment:who', 'fact:who', ...PLAYERS_TAKES],
   order: ['results:order', 'moment:order', 'points:order'],
   confidence: PEOPLE,
   chips: PEOPLE,
   split: ['results:split'],
   pairs: ['results:outlast'],
   side: ['final:winner'],
-  yesNo: ['moment:happened', 'phase:happened'],
+  yesNo: ['moment:happened', 'phase:happened', ...PLAYERS_TAKES],
   // A number is a count, or an episode (which one a phase starts in, or a moment first happens in).
   number: [...NUMBERS, 'moment:first'],
-  overUnder: [...NUMBERS, 'moment:first'],
+  overUnder: [...NUMBERS, 'moment:first', ...PLAYERS_TAKES],
   choice: null,
   calls: ['calls:'],
   trivia: ['trivia:'],
@@ -928,6 +948,10 @@ const isCalls = (q) => isObj(q) && q.answer === 'calls';
 const isTrivia = (q) => isObj(q) && q.answer === 'trivia';
 /** A13 part 2: a question an episode fact settles (who says the title quote). */
 const isFact = (q) => isObj(q) && isObj(q.settle) && q.settle.by === 'fact';
+/** A14 part 1: a question the players' own answers settle (the answer most of you give, or fewest). */
+const isPlayers = (q) => isObj(q) && isObj(q.settle) && q.settle.by === 'players';
+/** A14 part 1: a question the players settle, on a tie: nobody's right by default (void). The default is the user's (Noticed). */
+const PLAYERS = { tie: 'none' };
 /** The settles that settle themselves, with no take: the show's calls, the episode's trivia key (A13). */
 const NO_TAKE = ['calls', 'trivia'];
 /** An ask that's exactly the show's calls (Weekly Calls). */
@@ -942,6 +966,7 @@ function fullQuestion(q) {
   if (out.closes === undefined) out.closes = 'start';
   if (NAMES.includes(out.answer) && out.pick === undefined) out.pick = 1;
   if (out.answer === 'person' && out.from === undefined) out.from = 'cast';
+  if (isPlayers(out) && out.settle.tie === undefined) out.settle = { ...out.settle, tie: PLAYERS.tie };
   return out;
 }
 
@@ -1753,7 +1778,7 @@ function questionProblems(q, at, s, ids, league) {
   else if (q.closes === 'finale' && q.asked !== 'once') add('closes', 'Only a question asked once waits for the finale: one asked each episode closes as it starts');
   const st = isObj(q.settle) ? q.settle : {};
   let settled = false;
-  if (!one('ask.settle', st.by)) add('settle', 'Data settles every question: results, moment, role, phase, points, calls, trivia, fact, final or stat');
+  if (!one('ask.settle', st.by)) add('settle', 'Data settles every question: results, moment, role, phase, points, calls, trivia, fact, players (your own answers), final or stat');
   else if (NO_TAKE.includes(st.by)) {
     if (st.take !== undefined) add('settle.take', st.by === 'calls' ? 'The calls settle themselves: no take' : 'The trivia key settles it: no take');
     else settled = true;
@@ -1780,6 +1805,28 @@ function questionProblems(q, at, s, ids, league) {
     if (q.asked !== 'each' || q.over !== undefined) add('asked', "An episode fact is that episode's: ask it each episode");
   }
   if (st.fact !== undefined && st.by !== 'fact') add('settle.fact', 'Only an episode fact settles by a fact');
+  // A14 part 1: the players' own answers, one each, in a game of questions with one lock for everyone (each answer is hidden until
+  // it; a late lock would show some of you the answers while others can still give theirs).
+  if (st.by === 'players') {
+    if (NAMES.includes(q.answer) && q.pick !== undefined && q.pick !== 1) add('pick', 'The answer most of you give is one: name one');
+    if (!(isObj(s.score) && s.score.by === 'answers')) add('settle', "Your own answers settle a question in a game of questions");
+    if (isObj(s.extras) && s.extras.lateLock !== undefined && s.extras.lateLock !== null && s.extras.lateLock !== false) add('settle', 'Your own answers lock at one time for everyone: no late lock with it');
+    if (st.tie !== undefined && !one('ask.settle.tie', st.tie)) add('settle.tie', "On a tie, nobody's right or each of them is: none or all");
+    if (st.of !== undefined) {
+      const of = Array.isArray(s.ask) ? s.ask.find((x) => isObj(x) && x.id === st.of) : undefined;
+      // Compared with their defaults in (a person picks from the cast unless it says otherwise; a question is asked once).
+      const [a, b] = of ? [fullQuestion(of), fullQuestion(q)] : [];
+      const same = (k) => JSON.stringify(a[k] === undefined ? null : a[k]) === JSON.stringify(b[k] === undefined ? null : b[k]);
+      if (typeof st.of !== 'string' || !st.of || st.of === q.id) add('settle.of', "Which of the game's other questions: its id");
+      else if (!of) add('settle.of', `The game has no question "${st.of}"`);
+      else if (isPlayers(of) || isCalls(of) || isTrivia(of) || of.each !== undefined) add('settle.of', "It's what most of you answer to a question of the game's own, one answer each");
+      else if (of.answer !== q.answer || !['options', 'line', 'from'].every(same)) add('settle.of', "It's answered the same way as the question it's about: the same kind of answer, options, line and from");
+      else if (!['asked', 'every', 'over'].every(same)) add('settle.of', 'It is asked when the question it\'s about is: the same asked, every and over');
+      else if (NAMES.includes(of.answer) && (of.pick === undefined ? 1 : of.pick) !== 1) add('settle.of', 'The question it\'s about names one');
+    }
+  }
+  if (st.of !== undefined && st.by !== 'players') add('settle.of', "Only your own answers settle by another question's");
+  if (st.tie !== undefined && st.by !== 'players') add('settle.tie', 'Only your own answers settle on a tie');
   // Where a phase starts is one episode for the whole game.
   if (how === 'phase:starts' && q.asked !== 'once') add('asked', 'Which episode a phase starts in is the game\'s: ask it once');
   if (st.by === 'stat' && (typeof st.stat !== 'string' || !st.stat)) add('settle.stat', 'Which stat settles it');
@@ -1935,7 +1982,7 @@ const KEYS = {
   draft: ['at', 'timer', 'away', 'opens'],
   bets: ['points'],
   question: ['id', 'ask', 'answer', 'points', 'settle', 'asked', 'closes', 'pick', 'from', 'line', 'options', 'each', 'every', 'over', 'within', 'chips', 'pairs', 'wager', 'share', 'rollover', 'shrink', 'fallback'],
-  settle: ['by', 'take', 'moment', 'role', 'phase', 'stat', 'place', 'fact'],
+  settle: ['by', 'take', 'moment', 'role', 'phase', 'stat', 'place', 'fact', 'of', 'tie'],
 };
 /** The paths of keys a spec has that no game spec does. */
 function unknownKeys(s) {
@@ -2756,10 +2803,10 @@ function stagedProblems(spec, s, ctx, opts, add) {
       // A12 part 2: how the game takes a format change, only where one starts a stage.
       const c = e.changes;
       if (!list.some((x) => isObj(x) && (isObj(x.on) || isObj(x.side)))) add('extras.changes', 'How a format change is taken is a game whose stage a change starts (or a side stage)');
-      else if (!isObj(c)) add('extras.changes', "How a format change is taken: { ok: 'auto' | 'maker', unanswered: 'start' | 'carry-on' }");
+      else if (!isObj(c)) add('extras.changes', "How a format change is taken: { ok: 'auto' | 'maker' | 'vote', unanswered: 'start' | 'carry-on' }");
       else {
         for (const x of Object.keys(c)) if (!KEYS.changes.includes(x)) add(`extras.changes.${x}`, `"${x}" isn't part of how a format change is taken`);
-        if (own(VOCAB['extras.changes.ok'], c.ok) === undefined) add('extras.changes.ok', "Who starts a stage on a format change: 'auto' (it starts by itself, with an undo) or 'maker' (once the maker says so)");
+        if (own(VOCAB['extras.changes.ok'], c.ok) === undefined) add('extras.changes.ok', "Who starts a stage on a format change: 'auto' (it starts by itself, with an undo), 'maker' (once the maker says so) or 'vote' (once the players vote for it)");
         if (own(VOCAB['extras.changes.unanswered'], c.unanswered) === undefined) add('extras.changes.unanswered', "What happens when the maker hasn't answered by the stage's first lock: 'start' or 'carry-on'");
       }
     } else if (!(k in plain) || !sameValue(e[k], plain[k])) add(`extras.${k}`, `A game in stages' ${k} is each stage's`);
@@ -2964,8 +3011,6 @@ function stagedWaits(s) {
     // stage beside the game's own isn't one of them).
     if (!isObj(st.on) && !isBeside(st) && list.slice(0, i).some((x) => isObj(x) && isObj(x.on))) out.push({ at: `stages[${i}].game.span.from`, step: 'later', problem: "A stage at an episode or a phase after one a format change starts comes with A12's later parts" });
   });
-  const ch = isObj(s.extras) && isObj(s.extras.changes) ? s.extras.changes : null;
-  if (ch && own(VOCAB['extras.changes.ok'], ch.ok) === 'later') out.push({ at: 'extras.changes.ok', step: 'later', problem: "The players' vote on a format change comes with A14" });
   if (!out.length && !playsAs(s)) out.push({ at: '', step: null, problem: 'No game plays this way yet' });
   return out;
 }
@@ -2981,7 +3026,7 @@ module.exports = {
   HANDICAP, MAX_HANDICAP, handicapParts,
   REPLACE_RULES, WINDOW_SCHEDULES, WAIVER_FEELS, WAIVER_ORDERS, WAIVER_HOURS, DRAFT_TIMERS, MAX_BET_POINTS, JOINS, ORDER_OF,
   MAX_TEAM, MAX_STARTERS, MAX_BENCH, MAX_LINEUP_TEAM, MAX_QUESTIONS, MAX_PICK, MAX_QUESTION_POINTS, MAX_OPTIONS, YES_NO,
-  CALLS, finaleQuestions, finaleOf, isCalls, isTrivia, isFact, callsAsk, fullQuestion, optionRange, playable,
+  CALLS, finaleQuestions, finaleOf, isCalls, isTrivia, isFact, isPlayers, PLAYERS, callsAsk, fullQuestion, optionRange, playable,
   fullSpec, typeOf, playsAs, flagsOf, sizesOf, specProblems, specWaitsFor, waiversFit, finaleFits, betsFit, countKind, presetOf, sameValue, own,
   spanStart, spanPhase, spanEnd, spanEndPhase, phaseTo,
   MAX_STAGES, MAX_STAGE_NAME, MAX_PLACES, OVERALL, STAGE_KINDS, stageGames, stagesOverlap,

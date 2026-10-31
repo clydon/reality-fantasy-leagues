@@ -88,7 +88,11 @@ settled by it only where research says it reliably on the show, void when it can
 `episode-facts.js`), and so is part 2b, episode facts' own short run (2026-10-31: what an episode's stored research isn't sure of, asked
 on its own after the morning's full run and filed into it, a fact game waiting for it until the episode's final results; on the tapes
 Survivor now says it for sure on 10 of 10 weeks, The Challenge and The Traitors on almost none; `db/facts-research.js`, the bot's
-'facts' run, migration 0204), so **A13 is done**; A14 next. The live-sports plan is
+'facts' run, migration 0204), so **A13 is done**. A14 (the players' own mechanics) is under way, in parts: part 1, what the players answer
+that depends on each other (2026-10-31: a question the players' own answers settle, the answer most (or fewest) of you give, every answer
+hidden until the lock; the players' vote on a format change, decided once more than half of the seats say the same, else by the votes cast at
+the lock; `settle.by 'players'`, `StageLogic.vote`, `stage_change_votes`, migration 0205), is built; part 2, the bot's call as an opponent,
+next. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5 at
 xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: folded in here as track L; its file keeps the details)
 and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track S here).
@@ -5032,6 +5036,93 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
   matching the majority, the top scorer's twist, a rotating host's questions (still data-settled), secret roles, bounties, the
   bot's call as an opponent; and numbers from vetted outside sources (an episode's TVmaze rating, settled once at a fixed
   moment). Answers stay hidden until the lock once they depend on each other.
+  **In parts (2026-10-31), one a session, as A11 and A12 were:** part 1, what the players answer that depends on each other (a question
+  their own answers settle; the players' vote); part 2, the bot's call as an opponent (beat the bot); then bounties, secret roles, the top
+  scorer's twist and a rotating host's questions, and numbers from a vetted outside source (an episode's TVmaze rating), as the parts
+  find their boundaries.
+
+  **As built (A14 part 1, the players' own answers and their vote, 2026-10-31, on `engine`, not merged; migration 0205).** One session,
+  after `lane.js sync engine` (nothing new from master; 1235 tests). What the players answer that depends on each other, in two pieces: a
+  question the players' own answers settle (match the majority, or the minority), and the players' vote on a format change (A12 part 2's
+  `extras.changes.ok 'vote'`, which waited for it). Data settles both: the couch's own answers and votes as data, never what happened on
+  the show (the Decisions table's guardrail: the couch never decides what happened; what's right is what you said, and a player-decided
+  outcome changes the game only). Both stay hidden until the lock: a game of questions' answers already are (answers.ts shows how many
+  have answered, nobody's answer, until it locks), and the votes are kept apart from the state. Each fallback is in the spec from the
+  start. No screen; every default and everything a person sees is the user's (Noticed, below).
+  - **The settle** (`schema.js`, `answers.js playersVerdict`): `settle: { by: 'players', take: 'majority' | 'minority', of?, tie? }`, the
+    answer most of you gave in its window (or fewest), among its own answers or, with `of`, the game's question it names ("who will most
+    of us say goes home?", about the boot question: the same kind of answer, options, line and from, asked the same way, itself not one the
+    players settle, defaults compared filled in). One answer each: a person or a group (one of them), a yes or no, a choice, an over/under
+    (`SETTLES_FOR`'s `PLAYERS_TAKES`; a number, an order, chips or a question about each person refused). A game of questions only (a
+    draft's finale predictions are the results'), with one lock for everyone (no late lock: it would show some of you the answers while
+    others can still give theirs). Known once its window's first episode has results as far as the viewer has seen: every answer is in
+    by the lock, and its points come with the episode, as every question's. **Its fallbacks, from the start:** fewer than two answers, or a
+    minority everyone answered the same way, is void (no points either way); a tie for the most (or the fewest), `tie`: 'none' (the
+    default, `PLAYERS`: void) or 'all' (each tied answer right). The verdict carries `tally` (each answer as given and how many gave it,
+    most first) for the reads. A wager (counted by what each said, not the stake), a split pot, only, a rollover and a life all play on it
+    as on any answer (`rightAnswers` reads its right answers as given). Its words (`describe.js playersWords`): "2 points if yours is the
+    answer most of you give. A tie doesn't count either way. If fewer than two of you answer, it doesn't count either way."; with `of`,
+    "if yours is what most of you answer to "Who goes home?""; the sentence, when every question is one: "2 points when yours is the
+    answer most of you give."
+  - **The grade** (`state-logic.js AnswerLogic.grade`, `walk`): each window's answers to it, or to its `of` question, handed to the verdict
+    (`verdictOf`'s fourth argument; left out, none), counting this copy's seats but a ghost's: a late joiner playing a season of their own
+    is in nobody else's copy, so they're graded on the couch's majority and never counted in it, and every copy says the same. A window
+    nobody answered whose `of` question has answers still has its verdict for the reads; the walk's lives read the same answers (live
+    rows once an episode). `answer-points.ts sheetNights` reads the grade's verdicts.
+  - **The vote** (`StageLogic.voters`, `tally`, `vote`; `changePlan`'s `votes` input): a change waits for the game's seats (no ghost, no
+    computer player, nobody disabled) until the lock of the episode it would start with, as it waits for the maker's OK. Each votes start or
+    skip, changeable until it's decided: once more than half of the seats say the same, it is, recorded in the game's `decided` (by
+    'vote', so nobody joining or leaving afterwards moves it), and it starts on time, as the maker's start does. At the lock the votes cast
+    decide (every one cast before it, the server's count, so one voter leaving later can't tie it): more skips, skipped; more starts, from
+    the first episode still open; a tie or nobody voting, the game's default (`unanswered`). The maker's own answer stands over the vote
+    (their undo; the votes kept beside it). A side stage takes it the same way. Its words: How it works ("You vote on whether a new stage
+    starts: once more than half of you say the same, that's it; else the most votes by its first episode decide, and a tie or no votes
+    carries the game on as it is. Whoever runs the game can still call it off.") and the sentence ("... You vote on each new stage.").
+  - **The server** (`change-stages.ts voteChange`, `ballotsFor`, `seatInGame`; the stage-changes route): POST `{ key, vote }` from a member
+    with a seat who has reached the change (their mark: a change is as much a spoiler as its episode's result), only while it's pending,
+    checked again inside the game's lock (409 once its episode has started). The vote is kept in **`stage_change_votes` (migration 0205)**,
+    never in the state: every route returns the state whole, 0004's reason for `blind_draft_picks`. A deciding vote says so in Recent
+    changes ("The players voted to start New draft for everyone went on to play on their own at 7"); the plan's input counts every vote
+    cast (`readGame`). GET says on a pending change `vote` { voted, of, mine } (never what anyone else said), and on one no longer pending
+    `votes` { start, skip }. Recent changes ask the players ("start New draft? Vote before Episode 7 starts (more than half of you saying
+    the same decides it), a tie or no votes and the game carries on as it is"), and say a tie or none ("The vote on whether to start ...
+    tied, or nobody voted: the game carries on as it is") and a skip the lock decided ("The players voted not to start ...").
+  - **Tracker:** three rows ✅ (197 ✅ · 50 ⏳, A14 11 waiting): answer.vote (a new draft at each format change, taken by the players'
+    vote, The Challenge 42), settle.majority (what most of us will say to who goes home) and s31 ("Guess what most of us will pick; you
+    score if you match the majority"). `engine-capabilities.js --check` current; `game-specs-flag.js check`: PASS.
+  - **Proof:** `tests/players-settle.test.js` (new, 8): its shape and our check (every kind, one each, of, tie, a late lock, a draft's
+    finale), its words, majority (waiting, known, the tally, each answer's own verdict, a tie void or all, too few, nobody, everyone the
+    same), minority (a yes or no, a choice, a group by its id), a guess about another question (and nobody guessing), a wager, a split pot
+    and a rollover through a void week, a viewer's mark, asked once, a ghost graded but never counted, a life riding on it;
+    `tests/players-vote.test.js` (new, 4): its spec, check and words (a side stage's too), who votes, a vote changed and decided (never in
+    the state), the plan at each step (decided early on time, at the lock by the votes cast, a tie and none the default, decided staying
+    decided, a voter leaving after the lock), the maker over the vote, a started copy never moving; `change-stages.test.js` (the vote plays
+    now). `npm test` 1247; `tsc` clean; eslint clean on the changed files.
+  - **API check:** `scripts/dev-test/check-players-game.js` (new), ALL PASS: two lab games on the fixture's couch; three answer for Episode
+    6, two names refused, sam behind; before the lock riley sees only how many answered and her own; locked, everyone's answers, waiting;
+    Episode 6's result: what most said is the right guess (two of three), alex and jordan right, riley not, the yes-or-no tie void (neither
+    right nor wrong), the table 3, 1, 2 and 0. The vote: pending until Episode 7 starts, nothing made, the players asked; sam behind and a bad
+    vote refused; one of five and yours shown, riley seeing a count only; the state carrying no vote (the table does); riley changing hers;
+    three of five deciding it (the copy from 7, Solo ending with 6, said, its votes shown); no vote after; the maker calling it off; then
+    pairs from 8 and one skip by the lock: skipped, never made, said. Also ALL PASS: `check-change-stages.js` (the maker's OK through the
+    route), `check-questions-scoring.js`.
+  - **The code review** (`/code-review` at high, before the long runs): ten findings, all taken: the votes kept in the state (readable from
+    anyone's Network tab before it's decided: a table of their own, migration 0205); a vote the lock decided worked out again from who's in
+    now (every vote cast counts); late joiners on a season of their own counted in one copy's tally and not another's (a ghost never
+    counted); a vote that waited on the game's lock past the episode's start (checked again inside it); the `of` check comparing raw
+    defaults; a side stage's "not to open"; the walk's live rows read per question; the route's extra reads; a type's doc comment. Not
+    changed: `verdictOf`'s answers left optional (every caller that has the answers passes them; one that doesn't reads a window nobody
+    answered, void as it should be, or only asks whether it waits, which doesn't depend on them).
+  - **Golden replays:** `golden.js` (HEAD, A13 part 2b, against the working tree): 7 seasons, 160 games, **19,361 reads, every one the
+    same**; against master's (`--before=master`, production's engine): every one the same.
+  - **Blind replays:** (`blind.js run`, the five seasons, on the final code): **every game played through and over on all five seasons**:
+    Survivor 49 137 of 137, The Challenge 41 109, 40 103, 39 111, The Traitors 4 98 (four more each than A13 part 2b's, the three new
+    rows' games among them); the questions waiting on early results finding 20's 3, 2 and 2. The vote game, whose seats never vote (blind's
+    don't), took the game's default at each change's lock and carried on as one stage to the end on every season, nothing made; the two
+    majority games settled every week on the seats' own answers (Survivor 49: the Drive-By 6, the Tinkerer 2, the Fan Who Forgets 1). The
+    study doc's "A14 part 1".
+  - **The Survivor 51 rehearsal** isn't run for this part: no existing game scores differently (none settles by the players or votes;
+    golden every read the same).
 - **A15. Live and replay** (with the watch along, docs/PLAN-couch-and-episode-night.md §6, and the sports branch's
   `GameClock`). It needs A7. The watch along is in its infancy (the user, 2026-10-28): its concept, how it's built and how it
   connects to games are all open, so A15 is where the games shape it, not only where they plug into it.
@@ -5990,6 +6081,29 @@ From R1 part 2 (2026-10-30):
   (R3, or whoever next works in Game settings.)
 - **For the hosting notes, at the merge:** `/api/me` (classic's sign-in and every classic load) now sends each league's settings, not its
   whole state (20-40 KB each): less Neon transfer than before. (The main folder: docs/HOSTING.md, with the merge.)
+
+From A14 part 1 (2026-10-31):
+- **For the user, in the design session (decide nothing a person sees), each built with a recommendation:**
+  1. **A tie on a question the players settle** (`settle.tie`). Built: 'none' (void: nobody scores, the board game Herd Mentality's rule).
+     Option: 'all' (each tied answer scores). Recommended: 'none' for the majority, as built; for the minority, where a tie for the fewest
+     is common (two of you each alone), 'all' may play better: decide it on a playtest.
+  2. **How few answers make a majority.** Built: two (fewer is void), whatever the couch's size. Option: more than half the seats. Recommended:
+     two, as built (a quiet week still plays), the tally shown with it ("2 of 3 said Rizo").
+  3. **What a question the players settle shows before the lock.** Built: how many have answered, as every question does, nobody's answer.
+     Option: not even the count. Recommended: as built.
+  4. **The players' vote.** Built: every seat votes (a team two share once, a late joiner on a season of their own and a computer player
+     not); decided once more than half of the seats say the same, closed then; else at the lock by the votes cast, a tie or none the game's
+     default; the maker's own answer stands over it (the undo); players see how many have voted and their own, and the votes once it's
+     decided. Options: a vote of those who voted only (no early decision); the maker unable to overrule a vote; the tally shown as it goes.
+     Recommended: as built; the maker's override said to everyone in Recent changes, as it is.
+  5. **The default way a game takes a format change** stays 'auto' (A12 part 2's item 1): 'vote' is real now. Recommended: still 'auto', the
+     vote offered where a couch wants a say (the wizard's).
+- **A vote cast by a seat that left before the lock still counts** (every vote cast counts, so nothing after the lock can move it). An edge
+  case, recorded; change it with the user's word. (Whoever next touches the vote.)
+- **For the hosting notes, at the merge:** migration 0205's `stage_change_votes`, a row per seat per format change voted on (a handful a
+  season for a game that votes): negligible storage, read once per settle and per stage-changes read of such a game. (The main folder:
+  docs/HOSTING.md, with the merge.)
+- **No prompt changed** in this part (nothing new is asked of research): the merge's prompt approvals are A13's.
 
 From A13 part 2b (2026-10-31):
 - **For the user at the merge, each built with a recommendation:**

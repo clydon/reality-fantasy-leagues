@@ -4369,7 +4369,17 @@ class DraftLogic {
 // stage before ends where the copy starts; a change no longer in the data (a corrected report) takes its copy away. What the game
 // remembers of it (the server writes it; the plan reads it):
 //   state.changeStages { seen: { key: the first episode still open when the change was first seen }, decided: { key: { do: 'start' |
-//                        'skip', by, at } } (the maker's), told: [what Recent changes has said], undone: [copies taken away] }
+//                        'skip', by, at } } (the maker's, or A14 part 1's vote once it's decided: by 'vote'), told: [what Recent
+//                        changes has said], undone: [copies taken away] }
+//
+// A14 part 1, the players' vote (extras.changes.ok 'vote'): a change waits for the game's players as it waits for the maker's OK,
+// until the lock of the episode it would start with. Each seat in the game (no late joiner playing a season of their own, no
+// computer player) votes start or skip, and can change it until the vote's decided: once more than half of them say the same, it is
+// (recorded in `decided`, by 'vote', so nobody joining or leaving later moves it); at the lock, the votes cast decide (every one cast
+// before it: changePlan's input), and a tie or nobody voting is the game's default (unanswered). The maker's own answer stands over
+// the vote (their undo). The votes themselves are never in the state (the server keeps them in stage_change_votes, migration 0205:
+// every route returns the state whole), so what each said stays hidden until it's decided: answers that depend on each other stay
+// hidden until the lock. A player-decided outcome changes the game only.
 //
 // A12 part 3, a side stage (a stage's `side` { held }): it plays beside the game's own stages, a copy of it for each spell of a grouping
 // research is sure has held `held` episodes and goes on (format-timeline.js sideTriggers), keyed `<stage id>@<the spell's id>` (`s<the
@@ -4477,6 +4487,39 @@ class StageLogic {
     const obj = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
     return { seen: obj(r.seen), decided: obj(r.decided), told: Array.isArray(r.told) ? r.told : [], undone: Array.isArray(r.undone) ? r.undone : [] };
   }
+  // A14 part 1: who votes on the game's format changes (extras.changes.ok 'vote'): each seat in it, but a late joiner playing a season
+  // of their own (a ghost), a computer player and anyone disabled.
+  static voters(state){
+    return (state.players || []).filter(p => !isGhost(p) && p.automated !== true && !p.disabled && p.active !== false).map(p => p.id);
+  }
+  // A14 part 1: a change's votes (`ballots`, { playerId: 'start' | 'skip' }: the server's, stage_change_votes, every one cast, each by
+  // a seat that could vote then) as they stand: { start, skip, voted, of (how many can vote now), decided: 'start' | 'skip' once more
+  // than half of them say the same, else null }.
+  static tally(state, ballots){
+    const list = Object.values(ballots && typeof ballots === 'object' ? ballots : {}).filter(v => v === 'start' || v === 'skip');
+    const start = list.filter(v => v === 'start').length;
+    const skip = list.length - start;
+    const of = StageLogic.voters(state).length;
+    const decided = start * 2 > of ? 'start' : skip * 2 > of ? 'skip' : null;
+    return { start, skip, voted: list.length, of, decided };
+  }
+  // A14 part 1: a seat's vote on a change (`key`, a copy's) that waits for the players' vote: 'start' or 'skip', on the change's votes
+  // so far (`ballots`, the server's), changeable until the vote's decided. Once more than half of the game's players say the same with
+  // it, the vote is decided: recorded in the game's `decided` (by 'vote'). Whether it's still open (before the lock) is the plan's, the
+  // server's to check; the vote itself is the server's to keep. A problem (in words), or null once it's taken.
+  static vote(state, key, what, playerId, ballots, at){
+    if(what !== 'start' && what !== 'skip') return "Vote 'start' or 'skip'";
+    const conf = StageLogic.changesOf(state);
+    if(!conf || conf.ok !== 'vote') return "This game's players don't vote on its format changes";
+    const stage = StageLogic.copyOf(key);
+    if(!stage || ![...StageLogic.onStages(state), ...StageLogic.sideStages(state)].some(st => st.id === stage)) return "That isn't one of this game's format changes";
+    if(!StageLogic.voters(state).includes(playerId)) return 'Only a seat in the game votes';
+    const rec = StageLogic.changeRecord(state);
+    if(rec.decided[key]) return "It's been decided";
+    const t = StageLogic.tally(state, { ...(ballots && typeof ballots === 'object' ? ballots : {}), [playerId]: what });
+    if(t.decided) state.changeStages = { ...rec, decided: { ...rec.decided, [key]: { do: t.decided, by: 'vote', at: at || null } } };
+    return null;
+  }
   // The maker's answer on a change that starts a stage (`key`, a copy's): 'start' or 'skip' (an undo, once it's started), by whom
   // and when. A problem (in words), or null once it's recorded.
   static decide(state, key, what, by, at){
@@ -4503,7 +4546,10 @@ class StageLogic {
    * is later, and never moves once that's aired; the stage before (or the copy before) ends with the episode before it. With the
    * maker's OK (extras.changes.ok 'maker'), a change nobody has answered waits until the lock of the episode it would start with
    * (`until`: from when it was first seen), then the game's default (unanswered: 'start' from the first episode still open, or
-   * 'carry-on'); a skip is never started (and takes a started copy away). Two still to come that both start at the first episode
+   * 'carry-on'); a skip is never started (and takes a started copy away). A14 part 1, the players' vote ('vote'): the same wait, the
+   * vote decided once more than half the game's players say the same (StageLogic.vote records it), else at the lock by the votes cast
+   * (`votes` { key: { start, skip } }, the server's count of every vote cast: more skips, skipped; more starts, from the first still
+   * open; a tie or none, the default). Two still to come that both start at the first episode
    * still open: the later change is the format now, so it alone starts. Returns { entries: [{ key, stage, copy (1, 2, ... for a
    * copy; null for a stage before them), trigger, from, to (the plan's end: an episode, the stage's own end for the last copy;
    * undefined where the plan says nothing), side (A12 part 3) }], pending, lapsed, skipped, held, late (past the season's end),
@@ -4529,10 +4575,12 @@ class StageLogic {
     const starts = inp.starts || {};
     const made = inp.copies || {};
     // Where a copy for change `c` plays from: its start once that's aired, else the change's or the first still open (or `floor`);
-    // null while the maker's OK holds it, once it lapsed, or when it's skipped (each recorded in `out` when `record`).
+    // null while the maker's OK (or A14 part 1's vote) holds it, once it lapsed, or when it's skipped (each recorded in `out` when
+    // `record`).
     const startOf = (st, c, key, record, floor) => {
       const d = rec.decided[key];
       const had = made[key];
+      const from = () => Math.max(c.from, open, Number.isInteger(floor) ? floor : 0);
       if(d && d.do === 'skip'){ if(record) out.skipped.push({ key, stage: st.id, trigger: c }); return null; }
       if(had && Number.isInteger(had.from) && had.from < open) return had.from;
       if(conf.ok !== 'auto' && !(d && d.do === 'start') && !had){
@@ -4540,9 +4588,15 @@ class StageLogic {
         if(record && !Number.isInteger(rec.seen[key])) out.seen[key] = open;
         const until = Math.max(c.from, seen);
         if(open <= until){ if(record) out.pending.push({ key, stage: st.id, trigger: c, until }); return null; }
+        // A14 part 1: the players' vote at the lock, the votes cast deciding (a tie, or nobody voting: the game's default).
+        if(conf.ok === 'vote'){
+          const t = (inp.votes && inp.votes[key]) || { start: 0, skip: 0 };
+          if(t.skip > t.start){ if(record) out.skipped.push({ key, stage: st.id, trigger: c }); return null; }
+          if(t.start > t.skip) return from();
+        }
         if(conf.unanswered !== 'start'){ if(record) out.lapsed.push({ key, stage: st.id, trigger: c, until }); return null; }
       }
-      return Math.max(c.from, open, Number.isInteger(floor) ? floor : 0);
+      return from();
     };
     if(first >= 1) StageLogic.chainPlan(inp, out, { stages, first, last, made, startOf });
     // A12 part 3: the side stages, once the game's first stage has started.
@@ -7128,10 +7182,27 @@ class AnswerLogic {
     const verdicts = new Map();
     const earned = new Map();
     const worth = new Map();
+    // A14 part 1: the answers a question the players settle is settled by, in a window: its own, or (`of`) the game's question it
+    // names, its seats' but a late joiner's playing a season of their own (a ghost: never in anyone else's copy), so every copy counts
+    // the same answers.
+    const ghosts = ghostIdSet(state);
+    const tallyOf = (q, ep) => {
+      const g = groups.get((Spec.isPlayers(q) && q.settle.of ? q.settle.of : q.id) + '|' + ep);
+      return g ? g.list.filter(a => !ghosts.has(a.playerId)) : [];
+    };
     groups.forEach(({ q, ep, list }, key) => {
-      const v = Spec.verdictOf(q, ep, f);
+      const v = Spec.verdictOf(q, ep, f, tallyOf(q, ep));
       verdicts.set(key, v);
       if(!q.rollover) earned.set(key, Spec.windowPoints(q, v, list, f));
+    });
+    // ...and where nobody answered one about another question (`of`) that has answers, how it stands all the same (what the reads
+    // show of it).
+    qs.forEach(q => {
+      if(!Spec.isPlayers(q) || !q.settle.of) return;
+      groups.forEach(({ q: of, ep }) => {
+        const key = q.id + '|' + ep;
+        if(of.id === q.settle.of && !verdicts.has(key)) verdicts.set(key, Spec.verdictOf(q, ep, f, tallyOf(q, ep)));
+      });
     });
     // A9: each question that rolls over, window by window.
     qs.forEach(q => {
@@ -7139,7 +7210,7 @@ class AnswerLogic {
       let carry = 0;
       for(const ep of windows(q).list.filter(n => inPlay(state, n))){
         const key = q.id + '|' + ep;
-        const v = verdicts.get(key) || Spec.verdictOf(q, ep, f);
+        const v = verdicts.get(key) || Spec.verdictOf(q, ep, f, tallyOf(q, ep));
         // The first window still to settle has its jackpot (what the read shows it's for); nothing after it is known yet.
         const w = q.points + carry;
         worth.set(key, w);
@@ -7228,6 +7299,14 @@ class AnswerLogic {
     const series = new Map();
     let ends = null;
     const live = () => AnswerLogic.liveRows(state, rows, out);
+    // A14 part 1: the answers a question the players settle is settled by at episode k (its own, or its `of` question's), as the
+    // grade has them: the answers that count (`now`, live()'s at k), of this copy's seats but a ghost's.
+    const seats = new Set((state.players || []).filter(p => !isGhost(p)).map(p => p.id));
+    const tallyAt = (q, k, now) => {
+      const src = q.settle.of ? q.settle.of : q.id;
+      return now.filter(a => a.question === src && a.episode === k && seats.has(a.playerId)).map(a => ({ playerId: a.playerId, answer: a.answer }));
+    };
+    const byPlayers = lifeQs.some(q => Spec.isPlayers(q));
     // Who can lose a life, be cut or finish a race after episode k: in, started by then, and caught up.
     const inAt = k => everyone.filter(p => !out.has(p.id) && !catching.has(p.id) && (startOf.get(p.id) || start) <= k);
     // A11 part 3: co-op's lives, the couch's together, and the nights they went; whose answers count there at k (in it from their
@@ -7254,8 +7333,9 @@ class AnswerLogic {
       const lost = new Map();
       const couchLost = [];
       let waiting = false;
+      const liveNow = byPlayers ? live() : null;
       for(const q of lifeQs){
-        const v = Spec.verdictOf(q, k, fk);
+        const v = Spec.verdictOf(q, k, fk, Spec.isPlayers(q) ? tallyAt(q, k, liveNow) : undefined);
         if(v.state === 'waiting'){ waiting = true; continue; }
         if(v.state !== 'known') continue;
         const list = rows.filter(a => a.question === q.id && a.episode === k).map(a => ({ playerId: a.playerId, answer: a.answer }));
@@ -7281,6 +7361,7 @@ class AnswerLogic {
           if((mine ? Spec.isRight(q, v, mine, list, fk) : false) === false) lost.set(p.id, (lost.get(p.id) || 0) + 1);
         });
       }
+      // (A question the players settle waits only for its episode, its answers or not: none passed here.)
       if(parts.matchups && k === newest && !waiting) waiting = aboutOne.some(q => Spec.verdictOf(q, k, fk).state === 'waiting');
       if(k === newest && (waiting || ((parts.race || parts.cuts.length || parts.matchups) && EpisodeLogic.resultsStage(ep) === 'early'))){ walkedAll = false; break; }
       // Head to head's final is the game's end: its questions about the game settle there, as the table's totals have them.

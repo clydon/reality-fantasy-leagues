@@ -189,6 +189,9 @@ export type SpecSettle =
   | { by: "trivia" }
   /** A13 part 2: an episode fact research answers after each episode (formats/episode-facts.js FACTS): who it names. */
   | { by: "fact"; fact: string; take: "who" }
+  /** A14 part 1: the players' own answers in its window (its own, or `of` the game's question it names): the answer most of you gave
+   *  (majority) or fewest (minority); on a tie, nobody's right ('none', the default) or each tied one is ('all'). */
+  | { by: "players"; take: "majority" | "minority"; of?: string; tie?: "none" | "all" }
   /** sports */
   | { by: "final"; take: "winner" | "total" | "margin" }
   /** sports */
@@ -323,13 +326,17 @@ export interface FormatGroups {
    *  going in), 'apart' (played without groups, or nobody in one going in); null on the timeline's own. */
   off?: "unknown" | "apart" | null;
 }
+/** A14 part 1: each answer given to a question the players settle (as it was given) and how many gave it, most first. */
+export type PlayersTally = { answer: string; n: number }[];
 /** How a question stands: still to settle, off (nobody went home, right on the line), or what was right (and a count; the
  *  groups the right people were on; a question about each person, each one's verdict by castaway id). */
 export type Verdict =
   | { state: "waiting" }
-  | { state: "off"; why: string }
+  | { state: "off"; why: string; tally?: PlayersTally }
   | {
       state: "known";
+      /** A14 part 1, a question the players settle: what each of you said and how many, most first. */
+      tally?: PlayersTally;
       right: string[];
       value?: number;
       groups?: string[];
@@ -560,6 +567,10 @@ export function isCalls(q: unknown): boolean;
 export function isTrivia(q: unknown): boolean;
 /** A13 part 2: a question an episode fact settles. */
 export function isFact(q: unknown): boolean;
+/** A14 part 1: a question the players' own answers settle. */
+export function isPlayers(q: unknown): boolean;
+/** A14 part 1: a question the players settle, its default on a tie. */
+export const PLAYERS: { tie: "none" | "all" };
 export function callsAsk(ask: unknown): boolean;
 export function fullQuestion(q: SpecQuestion): Question;
 /** A choice option as the range a count falls in ("2", "3+", "0-1"), else null. */
@@ -568,7 +579,8 @@ export const MAX_QUESTIONS: number;
 export const MAX_PICK: number;
 export const MAX_QUESTION_POINTS: number;
 /** Grading (answers.js): how a question stands, what each answer earns, whether one was right, why one can't be given. */
-export function verdictOf(q: Question, episode: number, facts: AnswerFacts): Verdict;
+/** `answers` (A14 part 1): the window's answers that settle a question the players settle (its own, or its `of` question's). */
+export function verdictOf(q: Question, episode: number, facts: AnswerFacts, answers?: { playerId: string; answer: unknown }[]): Verdict;
 /** F3 part 2: whether a group question reads its groups from the format's state over time where the season has them (asked
  *  each episode, about the one episode). */
 export function readsTimeline(q: Question): boolean;
