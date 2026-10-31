@@ -19,7 +19,6 @@ import { ChatSetting, MomentsList, momentsLine, QuickPhone, usePhone } from "./n
 import { SharingSection } from "./sharing";
 import { AppearanceSection } from "./appearance";
 import { AutoSection, autoShows, plain } from "./keep-up";
-import { TestCouchSection } from "./test-couch";
 
 // Settings (/settings; docs/PLAN-new-design.md step 15; redesigned 2026-10-31 from .impeccable/mocks/settings/, option D, after
 // the /impeccable critique of three mocks: the old page had every section open at once). You (your face, name and couches,
@@ -28,7 +27,7 @@ import { TestCouchSection } from "./test-couch";
 // and Appearance (appearance.tsx). Then Everything else, each a row saying what it's set to that opens in place (Fold): Which
 // notifications, Shows that move along by themselves (keep-up.tsx), What your couch sees (sharing.tsx), Your couches, and Your
 // AI for results for whoever runs a game (only Backstage's Ask an AI reads it). Then Help and account: How each game works,
-// Report a problem, Your account (with the classic design), a site admin's Test couch (test-couch.tsx), Sign out, Credits.
+// Report a problem, Your account (with the classic design), Sign out, Credits. (A site admin's Test couch went 2026-10-31.)
 // In plain words; every choice says what it does, the recommended one marked; a switch or a choice saves as it's tapped, with
 // Undo where it matters.
 
@@ -272,7 +271,6 @@ export function SettingsScreen() {
                 />
               </div>
             </Fold>
-            <TestCouchSection />
             <button
               type="button"
               data-sign-out

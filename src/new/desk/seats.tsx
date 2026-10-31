@@ -590,9 +590,12 @@ function EmptySeatSheet({ g, e, drafted, noLink, first, onClose }: { g: SeatsGam
   );
 }
 
-/** Someone out of the game (the mock's dgOutSheet): what happened, and Put them back (tier 1, Undo). */
+/** Someone out of the game (the mock's dgOutSheet): what happened, and Put them back (tier 1, Undo). A seat still in the standings
+ *  can be erased, last (tier 3, held, no Undo; 2026-10-31): its team and scores leave the game as if they never played. */
 function OutSeatSheet({ g, o, onClose }: { g: SeatsGame; o: SeatOut; onClose: () => void }) {
   const { send, busy } = useSeatSend(onClose);
+  const after = useAfterDesk();
+  const [erasing, setErasing] = useState(false);
   const name = o.person?.name ?? o.name;
   const happened =
     o.how === "left"
@@ -603,7 +606,8 @@ function OutSeatSheet({ g, o, onClose }: { g: SeatsGame; o: SeatOut; onClose: ()
   const standing = o.stays ? " Its team stays in the standings with its points; nobody plays it." : " It's out of the standings.";
   const couch = o.person && g.couch ? (o.onCouch ? ` ${name} is still on ${g.couch.name}.` : ` ${name} isn't on ${g.couch.name} any more.`) : "";
   return (
-    <Sheet open onOpenChange={(x) => !x && onClose()} title={o.person ? `${name}'s seat` : `${o.name}'s seat`} subtitle={`${g.name} · ${outLine(o).replace(/^./, (c) => c.toLowerCase())}`}>
+    <>
+    <Sheet open={!erasing} onOpenChange={(x) => !x && onClose()} title={o.person ? `${name}'s seat` : `${o.name}'s seat`} subtitle={`${g.name} · ${outLine(o).replace(/^./, (c) => c.toLowerCase())}`}>
       <div data-out-sheet={name}>
         <Says data="seat-out">
           {happened}
@@ -643,8 +647,32 @@ function OutSeatSheet({ g, o, onClose }: { g: SeatsGame; o: SeatOut; onClose: ()
             />
           </div>
         )}
+        {o.stays && o.playerId && (
+          <button type="button" data-out-erase onClick={() => setErasing(true)} className="nd-press mt-3 flex h-12 w-full items-center gap-2.5 border-t border-border pt-3 text-left text-[15px] font-semibold text-live">
+            <Trash2 className="size-5" aria-hidden />
+            Erase the seat
+          </button>
+        )}
       </div>
     </Sheet>
+    {o.playerId && (
+      <HoldSheet
+        open={erasing}
+        onOpenChange={(x) => !x && onClose()}
+        title={`Erase ${name}'s seat?`}
+        subtitle="This can't be undone"
+        consequence={`${name}'s team, picks and scores leave ${g.name} as if they never played, and the standings count without them. A castaway only they had goes back undrafted.`}
+        cta={`erase ${name}'s seat`}
+        restore="Can't be undone"
+        onConfirm={async () => {
+          const out = await deskSend<{ text: string }>(`/seats/${g.id}/player/${o.playerId}`, { erase: true });
+          onClose();
+          await after();
+          toast(out.text);
+        }}
+      />
+    )}
+    </>
   );
 }
 

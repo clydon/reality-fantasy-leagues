@@ -8,7 +8,6 @@ import { ordinal } from "../games";
 import { NavLink } from "../nav";
 import { paths } from "../routes";
 import { useMe } from "../session";
-import { TestSwitches } from "../settings/test-couch";
 import { BackToAdminRow } from "../desk/view-as";
 import { Row } from "../ui/parts";
 import { ShowArt } from "../ui/show-bar";
@@ -19,7 +18,7 @@ import { Sheet } from "../ui/sheet";
 // points, seasons played, your best show, predictions called, your best finish; couch-hub.ts, as far as you've seen),
 // Admin for site admins (the desk, step 6b part 2, with what needs them), and Settings. Since step 12 part 1 your taste on the
 // couch from its ratings (ratings.ts): Agree with the couch in place of seasons played once there's enough to say, and your
-// taste twin. For a site admin with a test couch (settings/test-couch.tsx), its test players to switch into, and Back to me.
+// taste twin. (A site admin's test couch switches went 2026-10-31 with the test couch, the user's call.)
 
 /** Your numbers on the couch, or a line saying they fill in as it plays. */
 function YourNumbers({ hub }: { hub: CouchHub | undefined }) {
@@ -122,7 +121,6 @@ export function ProfileSheet({ open, onOpenChange, me, couch, hub }: { open: boo
         </NavLink>
       )}
       {viewingAs && <BackToAdminRow as={viewingAs} />}
-      <TestSwitches open={open} />
       <NavLink
         href={paths.settings}
         className="nd-press mt-3.5 flex h-[52px] items-center justify-center gap-2 rounded-[3px] bg-card text-[15px] font-bold outline-1 -outline-offset-1 outline-input"

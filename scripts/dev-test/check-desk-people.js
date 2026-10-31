@@ -953,6 +953,11 @@ const REAL_USERS = `SELECT md5(string_agg(id || coalesce(username, '') || email 
     );
     check((await roleIn("r1", "c14")) === "commissioner" && (await roleIn("r2", "c13")) === "commissioner" && (await roleIn("r3", "c13")) === "commissioner", "each is a Commissioner now");
     await shot("delete-handed");
+    // R3 has drafted now too, but pri's seat there is a late joiner still catching up (GhostLogic): it goes whole (2026-10-31).
+    await pool.query(
+      `UPDATE leagues SET state = jsonb_set(jsonb_set(state, '{draftPicksMade}', '2'), '{players,0,lateJoin}', '{"catchingUp": true, "startEpisode": 2}') WHERE id = $1`,
+      [ids.r3]
+    );
     const holdBox = await pg.locator("[data-hold]").boundingBox();
     await pg.mouse.move(holdBox.x + holdBox.width / 2, holdBox.y + holdBox.height / 2);
     await pg.mouse.down();
@@ -974,6 +979,16 @@ const REAL_USERS = `SELECT md5(string_agg(id || coalesce(username, '') || email 
     check(!(await stateOf("practice")), "the practice game is gone");
     check((await gameLines("r1")).some((l) => l.kind === "member" && l.tier === 3 && !l.undo && l.text === `${U("pri")}'s account was deleted: their seat stays in the standings, unplayed`), "R1's Recent changes: the seat stays, no Undo");
     check((await gameLines("r2")).some((l) => l.text === `${U("pri")}'s account was deleted: their seat went from the game`), "R2's: the seat went");
+    check(
+      !(await stateOf("r3")).players.some((x) => x.id === "p1") && (await gameLines("r3")).some((l) => l.text === `${U("pri")}'s account was deleted: their seat went from the game`),
+      "R3 had drafted, but pri was still catching up there: that seat goes whole"
+    );
+    // Erase (2026-10-31): a seat that's out of the game leaves it whole; never one someone's signed in to.
+    const live = (await stateOf("r1")).players.find((x) => !x.disabled);
+    check((await as.desk.call("POST", `/api/desk/seats/${ids.r1}/player/${live.id}`, { erase: true })).status === 409, "Erase on a seat someone plays: refused");
+    const erased = await as.desk.call("POST", `/api/desk/seats/${ids.r1}/player/p1`, { erase: true });
+    check(erased.status === 200 && !(await stateOf("r1")).players.some((x) => x.id === "p1"), "Erase pri's left seat in R1: it leaves the game whole", JSON.stringify(erased.body));
+    check((await gameLines("r1")).some((l) => l.tier === 3 && l.text === `Erased ${U("pri")}'s seat: their team and scores left the game`), "R1's Recent changes say so");
     const raceOwner = (await pool.query("SELECT user_id FROM couch_members WHERE couch_id = $1 AND role = 'owner'", [ids.race])).rows;
     check(raceOwner.length === 1 && raceOwner[0].user_id === ids.c13, "Race passes to c13 (its earliest Commissioner)", JSON.stringify(raceOwner));
     await pg.goto(`${BASE}/desk/find`);

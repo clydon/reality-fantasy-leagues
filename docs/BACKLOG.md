@@ -313,6 +313,14 @@ Last updated 2026-10-27.
     Night, 1.89:1 on Studio, under 3:1. It only shows on a day with nothing on, so the check fails some days and not others.
     **When:** the next change to the landing page (muted text instead of the field line).
 
+36. **The test couch's backend is dormant (2026-10-31, the user: delete the test players and the switcher).** Production's test
+    couch was removed through its own Remove (`DELETE /api/test-couch`: its 3 games, couch and 4 test players), and Settings' Test
+    couch fold and the profile menu's test-player switches are gone, with check-test-couch.js. What's left, unreachable from any
+    screen: `/api/test-couch`, `src/lib/server/test-couch.ts` and `test-players.ts`, the `test_couches`/`test_players` tables, the
+    engine lab's "your test couch" option (engine-lab.ts), the desk's test-couch marks (desk-couches.ts) and Act as them's
+    `from: "test-couch"` (desk-person-actions.ts, `api.actAsTestPlayer`). `src/lib/game/shadow.ts` is shared with the local shadow
+    leagues and stays. **When:** step C's cleanup (a migration drops the two tables).
+
 
 
 ## Decided against (don't re-propose without new information)

@@ -92,7 +92,7 @@ async function api({ user, pass, headers = {} }) {
   return { user, call, raw };
 }
 
-/** Opens one of Settings' folds (src/new/settings/controls.tsx Fold: notify, auto, sharing, couches, ai, account, test-couch)
+/** Opens one of Settings' folds (src/new/settings/controls.tsx Fold: notify, auto, sharing, couches, ai, account)
  *  if it's shut, and waits for it. Folds start shut on every visit. */
 async function openFold(page, id) {
   const fold = page.locator(`[data-fold="${id}"]`);
