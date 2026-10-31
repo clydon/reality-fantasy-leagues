@@ -31,6 +31,10 @@
 //                   each), the questions the bot's trivia research wrote after the episode before and a second ask passed, less
 //                   any pulled (two flags, or an admin's); a round with none has no entry. The server's (answer-points.ts
 //                   triviaKeyFor), never the state's: without it, a trivia question waits
+//     episodeFacts  (A13 part 2) Map episode -> each episode fact research said about it (formats/episode-facts.js outcomeOf:
+//                   { state: 'who', who } | 'outside' | 'none' | 'unsure'), for each episode research has stored its answer for
+//                   (one without the facts section: 'unsure', research didn't say); the server's (episode-facts.ts
+//                   episodeFactsFor), never the state's: without it, a fact question waits
 //   }
 //   and each episode's `points` (A8): each person's points in it by the game's rules, once its full results are in
 //
@@ -316,11 +320,44 @@ function triviaVerdict(episode, facts) {
   return { state: 'known', right: [], each };
 }
 
+/**
+ * A13 part 2: an episode fact (facts.episodeFacts: what research said of it, the server's), graded once its episode has results as
+ * far as the viewer has seen, as any question about the episode is. Its fallback from the start is void, no points either way:
+ * research's answer for the episode came without it or wasn't sure, the title isn't a line from the episode, someone outside the cast
+ * said it (the host) or someone already out of the game (a juror): nobody could pick them. Research's answer not stored yet (the full
+ * run comes after the early results, the game's last episode's too): waiting, until research for a later episode the viewer has seen
+ * is stored (its run for this one came to nothing): void. No facts read at all: waiting.
+ */
+function factVerdict(q, episode, facts) {
+  if (!facts.episodes.has(episode)) return WAITING;
+  if (!(facts.episodeFacts instanceof Map)) return WAITING;
+  const st = q.settle;
+  const said = facts.episodeFacts.get(episode);
+  if (!said) {
+    const seen = Number.isInteger(facts.seen) ? facts.seen : Math.max(0, ...facts.episodes.keys());
+    return [...facts.episodeFacts.keys()].some((n) => n > episode && n <= seen) ? off("Research didn't say: it doesn't count either way") : WAITING;
+  }
+  const o = said[st.fact];
+  if (!o) return off("Research didn't say: it doesn't count either way");
+  if (o.state === 'unsure') return off(`${o.why}: it doesn't count either way`);
+  if (o.state === 'none') return off("The title isn't a line from the episode: it doesn't count either way");
+  if (o.state === 'outside') return off(`${o.name} said it, who wasn't one to pick: it doesn't count either way`);
+  if (o.state !== 'who') return off("Research didn't say: it doesn't count either way");
+  const e = facts.episodes.get(episode);
+  // Someone not in at the episode's start (a juror at the finale) couldn't be picked either.
+  if (inAt(e).length && !inAt(e).includes(o.who)) return off(`${facts.names.get(o.who) || o.name} said it, who wasn't one to pick: it doesn't count either way`);
+  return known([o.who], undefined, groupsIn([o.who], e));
+}
+
 /** How a question stands for the window it opens at `episode` (asked each, every N or by phase) or the game (asked once;
  *  `episode` ignored). */
 function verdictOf(q, episode, facts) {
   const st = q && q.settle;
   if (st && st.by === 'trivia') return triviaVerdict(episode, facts);
+  if (st && st.by === 'fact') {
+    const fg = timelineGroups(q, episode, facts);
+    return fg ? onTimeline(q, factVerdict(q, episode, facts), fg, facts) : forGroups(q, factVerdict(q, episode, facts));
+  }
   if (!st || !['results', 'moment', 'role', 'phase', 'points'].includes(st.by)) return WAITING; // the sports branch's settles, and the calls
   if (q.each) return eachVerdict(q, episode, facts);
   if (st.by === 'results' && st.take === 'outlast') return pairsVerdict(q, facts);
@@ -846,6 +883,7 @@ function factsThrough(facts, k) {
     phases,
     seen: Number.isInteger(facts.seen) ? Math.min(facts.seen, k) : k,
     ...(facts.formatGroups ? { formatGroups: upTo(facts.formatGroups) } : {}),
+    ...(facts.episodeFacts ? { episodeFacts: upTo(facts.episodeFacts) } : {}),
   };
 }
 

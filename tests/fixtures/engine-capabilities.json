@@ -741,7 +741,15 @@
         {
           "id": "what.quote",
           "what": "Who says the episode's title quote",
-          "step": "A13"
+          "step": "A13",
+          "spec": {
+            "get": { "by": "none" },
+            "score": { "by": "answers" },
+            "rank": { "by": "total" },
+            "ask": [ { "id": "quote", "ask": "Who says the title quote?", "answer": "person", "points": 1, "asked": "each", "settle": { "by": "fact", "fact": "titleQuote", "take": "who" } } ]
+          },
+          "page": { "show": "Survivor", "season": 51, "rulebook": "survivor" },
+          "note": "research's episode facts (A13 part 2): who says the episode's title quote, void when research isn't sure, the title isn't a line, or nobody you could pick said it; our check takes it only where research says it reliably on the show"
         }
       ]
     },
@@ -1261,7 +1269,15 @@
         {
           "id": "settle.facts",
           "what": "Episode facts (the title quote)",
-          "step": "A13"
+          "step": "A13",
+          "spec": {
+            "get": { "by": "none" },
+            "score": { "by": "answers" },
+            "rank": { "by": "total" },
+            "ask": [ { "id": "quote", "ask": "Which tribe does the title quote come from?", "answer": "group", "points": 1, "asked": "each", "settle": { "by": "fact", "fact": "titleQuote", "take": "who" } } ]
+          },
+          "page": { "show": "Survivor", "season": 51, "rulebook": "survivor" },
+          "note": "an episode fact settling a group answer: the group whoever said the title quote was on (A13 part 2)"
         },
         {
           "id": "settle.majority",
@@ -3202,7 +3218,13 @@
       "dials": [
         "what",
         "settle"
-      ]
+      ],
+      "spec": {
+        "get": { "by": "none" },
+        "score": { "by": "answers" },
+        "rank": { "by": "total" },
+        "ask": [ { "id": "quote", "ask": "Who says the title quote?", "answer": "person", "points": 1, "asked": "each", "settle": { "by": "fact", "fact": "titleQuote", "take": "who" } } ]
+      }
     },
     {
       "id": "s29",

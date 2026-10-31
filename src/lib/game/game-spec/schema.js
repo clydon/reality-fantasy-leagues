@@ -168,6 +168,9 @@ const SPEC_VERSION = 1;
 // A12 part 2: the kinds of format change a stage can start on (a twist or a role never), and "major" by default.
 // eslint-disable-next-line @typescript-eslint/no-require-imports -- CommonJS on purpose, as index.js
 const { TRIGGER_KINDS, MAJOR } = require('../formats/format-timeline.js');
+// A13 part 2: the episode facts research answers (who says the title quote), and how reliably it does on a show.
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- CommonJS on purpose, as index.js
+const EpisodeFacts = require('../formats/episode-facts.js');
 
 /** Who builds each value. A value not listed isn't one. */
 const VOCAB = {
@@ -193,7 +196,7 @@ const VOCAB = {
     // A13: the episode's trivia, settled by its key (the bot's trivia research).
     trivia: 'now',
   },
-  'ask.settle': { results: 'now', moment: 'now', role: 'now', phase: 'now', points: 'now', calls: 'now', trivia: 'now', final: 'sports', stat: 'sports' },
+  'ask.settle': { results: 'now', moment: 'now', role: 'now', phase: 'now', points: 'now', calls: 'now', trivia: 'now', fact: 'now', final: 'sports', stat: 'sports' },
   'ask.asked': { once: 'now', each: 'now', every: 'now', phase: 'now' },
   'ask.closes': { start: 'now', finale: 'now' },
   'ask.from': { cast: 'now', team: 'now' },
@@ -364,6 +367,11 @@ const VOCAB = {
 //               rulebook's points): who scored most, the leaderboard
 //             { by: 'calls' } (Call it's)
 //             { by: 'trivia' } (A13: the episode's trivia key; a trivia answer only)
+//             { by: 'fact', fact: id, take: who } (A13 part 2) an episode fact research answers after each episode
+//               (formats/episode-facts.js FACTS: titleQuote, who says its title quote): who it names (a group answer: the
+//               group they were on); asked each episode, about that one. Void when research isn't sure, the title isn't a
+//               line, or whoever said it couldn't be picked (the host, someone already out): no points either way. Our check
+//               takes it only where research says it reliably on the show (ctx.facts, what it returned there: ratingOf, BAR)
 //           sports: { by: 'final', take: winner | total | margin } | { by: 'stat', stat, take: most | least | value }
 const TAKES = {
   results: ['winner', 'out', 'placed', 'top', 'stays', 'order', 'split', 'outlast'],
@@ -373,6 +381,7 @@ const TAKES = {
   points: ['most', 'order'],
   calls: [],
   trivia: [],
+  fact: ['who'],
   final: ['winner', 'total', 'margin'],
   stat: ['most', 'least', 'value'],
 };
@@ -384,8 +393,8 @@ const NUMBERS = ['moment:count', 'role:count', 'phase:starts', 'final:total', 'f
 /** Who's right, as people (A8's confidence and chips are graded by any of them). */
 const PEOPLE = ['results:winner', 'results:out', 'results:placed', 'results:top', 'results:stays', 'moment:who', 'moment:most', 'moment:first', 'role:who', 'role:end', 'points:most'];
 const SETTLES_FOR = {
-  person: [...PEOPLE, 'stat:most', 'stat:least'],
-  group: ['results:out', 'moment:who'],
+  person: [...PEOPLE, 'stat:most', 'stat:least', 'fact:who'],
+  group: ['results:out', 'moment:who', 'fact:who'],
   order: ['results:order', 'moment:order', 'points:order'],
   confidence: PEOPLE,
   chips: PEOPLE,
@@ -917,6 +926,8 @@ function finaleOf(ask) {
 const isCalls = (q) => isObj(q) && q.answer === 'calls';
 /** A13: a question answered from the episode's trivia key. */
 const isTrivia = (q) => isObj(q) && q.answer === 'trivia';
+/** A13 part 2: a question an episode fact settles (who says the title quote). */
+const isFact = (q) => isObj(q) && isObj(q.settle) && q.settle.by === 'fact';
 /** The settles that settle themselves, with no take: the show's calls, the episode's trivia key (A13). */
 const NO_TAKE = ['calls', 'trivia'];
 /** An ask that's exactly the show's calls (Weekly Calls). */
@@ -1742,7 +1753,7 @@ function questionProblems(q, at, s, ids, league) {
   else if (q.closes === 'finale' && q.asked !== 'once') add('closes', 'Only a question asked once waits for the finale: one asked each episode closes as it starts');
   const st = isObj(q.settle) ? q.settle : {};
   let settled = false;
-  if (!one('ask.settle', st.by)) add('settle', 'Data settles every question: results, moment, role, phase, points, calls, trivia, final or stat');
+  if (!one('ask.settle', st.by)) add('settle', 'Data settles every question: results, moment, role, phase, points, calls, trivia, fact, final or stat');
   else if (NO_TAKE.includes(st.by)) {
     if (st.take !== undefined) add('settle.take', st.by === 'calls' ? 'The calls settle themselves: no take' : 'The trivia key settles it: no take');
     else settled = true;
@@ -1762,6 +1773,13 @@ function questionProblems(q, at, s, ids, league) {
   if (st.role !== undefined && st.by !== 'role') add('settle.role', 'Only a role settles by a role');
   if (st.by === 'phase' && (typeof st.phase !== 'string' || !st.phase)) add('settle.phase', 'Which phase settles it');
   if (st.phase !== undefined && st.by !== 'phase') add('settle.phase', 'Only a phase settles by a phase');
+  // A13 part 2: an episode fact research answers (who says its title quote), about one episode: asked each episode, closing as it
+  // starts (its answer is in the episode, so nobody answers what they've seen).
+  if (st.by === 'fact') {
+    if (!EpisodeFacts.FACT_IDS.includes(st.fact)) add('settle.fact', `Which episode fact settles it: ${EpisodeFacts.FACT_IDS.join(', ')}`);
+    if (q.asked !== 'each' || q.over !== undefined) add('asked', "An episode fact is that episode's: ask it each episode");
+  }
+  if (st.fact !== undefined && st.by !== 'fact') add('settle.fact', 'Only an episode fact settles by a fact');
   // Where a phase starts is one episode for the whole game.
   if (how === 'phase:starts' && q.asked !== 'once') add('asked', 'Which episode a phase starts in is the game\'s: ask it once');
   if (st.by === 'stat' && (typeof st.stat !== 'string' || !st.stat)) add('settle.stat', 'Which stat settles it');
@@ -1917,7 +1935,7 @@ const KEYS = {
   draft: ['at', 'timer', 'away', 'opens'],
   bets: ['points'],
   question: ['id', 'ask', 'answer', 'points', 'settle', 'asked', 'closes', 'pick', 'from', 'line', 'options', 'each', 'every', 'over', 'within', 'chips', 'pairs', 'wager', 'share', 'rollover', 'shrink', 'fallback'],
-  settle: ['by', 'take', 'moment', 'role', 'phase', 'stat', 'place'],
+  settle: ['by', 'take', 'moment', 'role', 'phase', 'stat', 'place', 'fact'],
 };
 /** The paths of keys a spec has that no game spec does. */
 function unknownKeys(s) {
@@ -2648,6 +2666,13 @@ function settleProblems(s, ctx, opts) {
     // A13: the trivia key is the season's research's (its trivia run, on in our usual): a season whose research writes none
     // (ctx.trivia false: the desk switched its trivia run off) has nothing to settle it. Unsaid, it's written.
     if (st.by === 'trivia' && ctx.trivia === false) out.push([`ask[${i}].settle`, "This season's research writes no trivia, so nothing settles it"]);
+    // A13 part 2: an episode fact only where research says it reliably on the show (ctx.facts: what it returned there, the season
+    // tapes' measure and the show's stored episodes: episode-facts.js ratingOf); at the bar (BAR, reliable only until the user says
+    // usually too). Left out (a reader that didn't say), not checked, as ctx.trivia.
+    if (st.by === 'fact' && isObj(ctx.facts)) {
+      const p = EpisodeFacts.factProblem(st.fact, ctx.facts[st.fact]);
+      if (p) out.push([`ask[${i}].settle.fact`, p]);
+    }
   });
   return out;
 }
@@ -2956,7 +2981,7 @@ module.exports = {
   HANDICAP, MAX_HANDICAP, handicapParts,
   REPLACE_RULES, WINDOW_SCHEDULES, WAIVER_FEELS, WAIVER_ORDERS, WAIVER_HOURS, DRAFT_TIMERS, MAX_BET_POINTS, JOINS, ORDER_OF,
   MAX_TEAM, MAX_STARTERS, MAX_BENCH, MAX_LINEUP_TEAM, MAX_QUESTIONS, MAX_PICK, MAX_QUESTION_POINTS, MAX_OPTIONS, YES_NO,
-  CALLS, finaleQuestions, finaleOf, isCalls, isTrivia, callsAsk, fullQuestion, optionRange, playable,
+  CALLS, finaleQuestions, finaleOf, isCalls, isTrivia, isFact, callsAsk, fullQuestion, optionRange, playable,
   fullSpec, typeOf, playsAs, flagsOf, sizesOf, specProblems, specWaitsFor, waiversFit, finaleFits, betsFit, countKind, presetOf, sameValue, own,
   spanStart, spanPhase, spanEnd, spanEndPhase, phaseTo,
   MAX_STAGES, MAX_STAGE_NAME, MAX_PLACES, OVERALL, STAGE_KINDS, stageGames, stagesOverlap,

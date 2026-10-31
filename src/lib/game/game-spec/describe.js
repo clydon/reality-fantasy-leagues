@@ -320,6 +320,8 @@ function questionRule(q, w, each) {
     // A13: the round of trivia before each one, about the one before it.
     if (q.answer === 'trivia') earn = ` A few questions about the ${w.part} before it and the season so far, the same for everyone: ${pointsWord(pts)} for each one right.`;
   }
+  // A13 part 2: an episode fact's fallback, void.
+  if (isObj(q.settle) && q.settle.by === 'fact') earn += " If research can't say for sure, or it's nobody you could pick, it doesn't count either way.";
   // A question about each person (A6): an answer for each of them, each graded on its own.
   if (q.each && pts !== null) {
     earn = q.answer === 'number'

@@ -63,7 +63,7 @@ league type only names a game for the screens now), and part 2, the games scored
 Weekly Bingo and the game of questions chosen by their pieces wherever they're read, the home's moves and classic's list included, nothing
 in scoring reading a league type or filtering the stored type by one), are built, so R1 is built and merged (live since 2026-10-30, 2:59 PM),
 and part 3, a pool's finale (2026-10-30, the user's decision: only the winner survives it, every game's one reading of a night, `nightOf`;
-proven on the Survivor 51 rehearsal and the golden replays), is built, to merge before Survivor 51's finale on Dec 16; A12's other parts next: part 2, a stage a format change starts (2026-10-30: a later stage's `on`, a copy
+proven on the Survivor 51 rehearsal and the golden replays), is built, merged and live (with A12's parts, 2026-10-31, 12:31 AM, before Survivor 51's finale on Dec 16); A12's other parts next: part 2, a stage a format change starts (2026-10-30: a later stage's `on`, a copy
 of it made mid-season, a league of its own, each time research is sure the format changed that way, by itself or with the maker's OK,
 taken away when the report is corrected; `StageLogic.changePlan`, `change-stages.ts`, from the season sync), is built, and so is part 2b, the 'next-stage' fallbacks (2026-10-30: a stage whose group question or group slots
 can't be played as the groups stand ends there and the next starts, once research is sure nobody is in a group going into an episode;
@@ -79,11 +79,13 @@ Calls on one season at once refused; `schema.js stageSeason`, `StageLogic.crosse
 (2026-10-30: someone joining once it has started joins each stage under way as its own late joiner, live, every stage still to start from
 its start, none that's over, nobody new while a stage keeps them waiting; a seat that leaves and comes back the same seat in every stage;
 seats reaching the stages after every membership write; `StageLogic.joinsOf` and `closed`, `couch-joins.ts joinStaged`), so **A12 is
-done**. A13 is under way, in parts: part 1, trivia in a game (2026-10-30: a question in a game of questions answered from the episode's
+done** (merged and live since 2026-10-31, 12:31 AM). A13 is under way, in parts: part 1, trivia in a game (2026-10-30: a question in a game of questions answered from the episode's
 trivia key, the bot's trivia research as it's written and checked today, the round before each episode a point for each one right, void
 with no key; the trivia sheet holding a game's batch back from its players until the round locks; `answer: 'trivia'`, `trivia-key.ts`),
-is built; part 2, episode facts, next, then A14. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
-your terminal, then on), after the merge. The live-sports plan is
+is built, and so is part 2, episode facts (2026-10-31: who says the episode's title quote, a section of every show's research, a question
+settled by it only where research says it reliably on the show, void when it can't say for sure; `settle: { by: 'fact' }`,
+`episode-facts.js`); its proof found research right whenever it was sure but sure on only half of Survivor 49's weeks, so part 2b, a short
+run of its own for episode facts, is next, then A14. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5 at
 xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: folded in here as track L; its file keeps the details)
 and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track S here).
@@ -4794,8 +4796,8 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     (each seat is there from the start), so the late joiners are the unit tests' and `check-late-stages.js`'s; the replays show the join
     rule and the seat sync change nothing for the games already played. The study doc's "A12 part 4c".
 - **A13. Trivia and episode facts.** Trivia questions settled by the episode's trivia key (the bot's trivia research, written
-  and checked as now); episode facts (who said the title quote) through new research questions rated reliable (Our check). In two
-  parts: part 1, trivia (below); part 2, episode facts (next).
+  and checked as now); episode facts (who said the title quote) through new research questions rated reliable (Our check). In parts:
+  part 1, trivia (below); part 2, episode facts (below); part 2b, episode facts' own short run (next: part 2's Noticed).
 
   **As built (A13 part 1, trivia in a game, 2026-10-30, on `engine`, not merged; no migration).** One session, after `lane.js sync engine`
   (nothing new from master; 1207 tests). A trivia question in a game of questions: the round before each episode, answered from the
@@ -4878,6 +4880,78 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     20's 3, 2 and 2. Each episode's trivia filed from its tape as its run filed it (five or six live a round); the round before each
     premiere void, every other round graded, the seats' habits scoring about chance (the Drive-By 18 to 25 on The Challenge). The study
     doc's "A13 part 1".
+
+  **As built (A13 part 2, episode facts, 2026-10-31, on `engine`, not merged; no migration).** One session, after `lane.js sync engine`
+  (master's tune-in screens; 1216 tests). A fact about the episode itself, in every show's research, and a question a game asks each
+  episode settled by it: who says the episode's title quote. Ridden on data with its fallback from the start (void when research can't
+  say for sure), and our check takes it only where research says it reliably on the show, rated from what research returned. It doesn't
+  touch the trivia sheet or any other screen. Every default and everything a person sees is the user's (Noticed, below); the research
+  prompt's new section is a prompt change, on this branch only, the user's to approve at the merge (the study doc says so).
+  - **The research section** (`db/episode-research.js`, beside F2's format section and asked wherever it is: a cut-down pass leaves both
+    out): `episodeFacts.titleQuote` { isQuote yes | no | unknown, line, by (a name exactly as the list has it, or someone off the list by
+    the show's name for them), sure high | low }, its words in the prompt ("THE EPISODE ITSELF"), the paste skeleton and the prose prompt;
+    read loosely (`formats/episode-facts.js looseEpisodeFacts`: missing is not asked, a bad value repaired and reported, never a failed
+    run); a later pass, filling in or not, never replaces a sure answer with an unsure one (`fillFacts`). The words were tuned once on the
+    proof (the first had the bot call real lines not lines, sure): 'no' needs a source, and the section says where who said it is written.
+  - **The vocabulary and what an answer says** (`src/lib/game/formats/episode-facts.js`, new, pure): `FACTS` (titleQuote, settling a
+    person or a group), `outcomeOf` (who, sure, by their exact name in the cast; someone outside it; not a line; unsure), `personIn` (the
+    exact name only, so the host or a castaway's relative is never read as a castaway and a shortened name is void), `measure` and
+    `ratingOf` (rated once asked on six episodes: reliable from 90% settled, usually from 70%, else patchy), `factProblem` (our check's
+    words), `BAR` (reliable only).
+  - **The spec** (`schema.js`): `settle: { by: 'fact', fact: 'titleQuote', take: 'who' }`, a person answer (and its picks, wager, split
+    pot, rollover) or a group answer (the group whoever said it was on, F3's groups where the season has them); asked each episode, about
+    that one; `isFact`. **The data rule:** `ctx.facts` (what research returned of each fact on the show: the season tapes' measure in
+    `formats/fact-measures.json`, written by `facts-asks.js score --write`, plus the show's own stored answers but the seasons the tapes
+    counted, each name read against its season's cast: `src/lib/server/episode-facts.ts factContext`, in `questionContext` and the lab's
+    `rulesOn`) must rate the fact at the bar, else refused with how often research said it; left out, not checked (the tracker's reads). A
+    stage copy made mid-season skips the trivia and facts data checks (`change-stages.ts`: the game was checked when it started). Words
+    (`describe.js`): "... 1 point if you're right. If research can't say for sure, or it's nobody you could pick, it doesn't count either
+    way."
+  - **The grader** (`answers.js factVerdict`; `facts.episodeFacts`, the server's, never the state's: `answer-points.ts serverFacts` beside
+    the format groups and the trivia key, `episode-facts.ts episodeFactsFor`, read on each read from the season's stored combined answers,
+    so research that lands, or a correction, is read at once): graded once the episode has results as far as the viewer has seen;
+    research's answer not stored yet (the full run comes after the early results; the game's last episode too) waits, until research for
+    a later episode the viewer has seen is stored (void); an answer without the fact, unsure, not a line, the host's line or one from
+    someone already out (a juror): void, with its reason. `factsThrough` cuts it for a walk; a life rides on it (a void week costs
+    nothing).
+  - **Tracker:** what.quote, settle.facts (a group answer: which tribe the title quote comes from) and s28 ✅: 194 ✅ · 53 ⏳ (A13's
+    done; A14 14).
+  - **Blind replays' seats** (`blind.js`): each episode's facts in its research as the local bot said them where this part's proof asked it
+    again (`facts-asks.js`), else none; per episode in the record's `facts`.
+  - **Proof:** `tests/episode-facts.test.js` (new, 11): the section's loose read, each answer's outcome and the strict names, the rating and
+    the bar, the shape and what's refused, the data rule, the words, grading at a viewer's mark, each fallback (unsure, not a line, the
+    host, a juror, an answer without the fact, waiting and when it turns void, never from an episode the viewer hasn't seen), a group
+    answer, a life riding on it, and the research section (asked beside the format section, the skeleton, a second pass filling in).
+    `npm test` 1227, every one passing (`status-plate.test.js`'s two clock tests failed from midnight to 1 AM Eastern, the lane note's
+    known window, and passed after); `tsc` and eslint clean; `game-specs-flag.js check`: PASS; `engine-capabilities.js --check` current.
+  - **API check:** `scripts/dev-test/check-episode-facts.js` (new, on new-fixture.js's couch), ALL PASS: the lab refuses a title-quote
+    game on a show research was never asked it on, then on five sure episodes (not yet six), then starts Q (who says it, from 6) and QT
+    (which tribe) on six of six (one an earlier season's, read against its own cast); picks through the route, sam's (seen 3) refused;
+    Episode 6's result through the season sync waits for research's answer, which lands (jordan's pick: jordan 1; QT's right tribe for
+    riley), as sam nothing; research corrected (alex's pick): read again at once; 7, the host: void, and why; 8, unsure: void; 9, waiting
+    while its answer isn't stored (Episode 10's in changes nothing), void once it lands without the fact; the flag's check on both. Also
+    ALL PASS: `check-trivia-game.js`, `check-questions.js`.
+  - **The research section, asked again** (`scripts/dev-test/facts-asks.js`, new, the local bot only): 17 recorded episodes (Survivor 49
+    1-10, The Challenge 41 2, 6, 7, The Traitors 4 2, 5, The Challenge 40 4, 6) with the whole prompt, scored against Survivor 49's truth
+    from Inside Survivor's weekly stats (`tests/fixtures/title-quotes.json`): every sure answer right (4 of 4 with truth; 5 sure in all,
+    none wrong, none outside the cast), but sure on only 5 of Survivor 49's 10 and none of the other shows' 7. So the tapes' measure rates
+    Survivor patchy and the others unrated, and our check refuses a title-quote game on every show today. The experiment beside it
+    (`focus`: the title quote asked on its own, a short prompt after the full run): Survivor 49's five unsure episodes all sure and right;
+    The Challenge's and The Traitors' never sure. The study doc's "A13 part 2".
+  - **The code review** (`/code-review` at high, then medium on the fixes, before the long runs): the game's last episode voided before
+    research could land, and "a later episode's research" read past the viewer's mark (waiting until research for a later episode the
+    viewer has seen is stored); a stage copy refused on a rating that moved since the game started (and trivia's the same: both skipped
+    there); a shortened or relative's name read as a castaway (exact names only); the tapes' measure never written (`score --write`); a
+    non-fill merge replacing a sure answer (`fillFacts` on every merge); the tapes' seasons counted twice locally (left out of the live
+    count); the measure counting names the grader voids (read against each season's cast); literal combining marks in a regex. Left, in
+    Noticed: the bar's view of a sure "not a line", a sure but wrong answer that only a sure correction replaces, the reads on every walk.
+  - **Golden replays:** `golden.js` (HEAD, A13 part 1, against the working tree): 7 seasons, 160 games, **19,361 reads, every one the
+    same**; against master's (`--before=master`, production's engine, which has R1 part 3 since the 12:31 AM merge): every one the same.
+    No existing game scores differently (none asks an episode fact), so the Survivor 51 rehearsal isn't run for this part.
+  - **Blind replays:** (`blind.js run`, the five seasons, on the final code): **every game played through and over on all five seasons**, part 1's
+    numbers exactly (Survivor 49 130 of 130, The Challenge 41 105, 40 99, 39 107, The Traitors 4 94); the questions waiting on early
+    results finding 20's 3, 2 and 2; the three fact games refused on every season by the rating, as live they would be (Survivor patchy,
+    the others unrated); each episode's re-asked facts filed in its research (the record's `facts`). The study doc's "A13 part 2".
 - **A14. The players' own mechanics** (allowed 2026-10-28, with the Decisions table's guardrails): votes among the players,
   matching the majority, the top scorer's twist, a rotating host's questions (still data-settled), secret roles, bounties, the
   bot's call as an opponent; and numbers from vetted outside sources (an episode's TVmaze rating, settled once at a fixed
@@ -5839,6 +5913,50 @@ From R1 part 2 (2026-10-30):
   (R3, or whoever next works in Game settings.)
 - **For the hosting notes, at the merge:** `/api/me` (classic's sign-in and every classic load) now sends each league's settings, not its
   whole state (20-40 KB each): less Neon transfer than before. (The main folder: docs/HOSTING.md, with the merge.)
+
+From A13 part 2 (2026-10-31):
+- **A short run of its own for episode facts (A13 part 2b, next; the user approves its prompt at the merge).** The section in the full
+  prompt is right when it's sure (every sure answer of the proof's) but sure on only half of Survivor 49's episodes and none of The
+  Challenge's or The Traitors', because the full run reads recaps, not the stats pages that say who said a title. The same question
+  asked on its own after the full run settled every one of Survivor 49's unsure weeks, each right. Recommended: a short follow-up ask
+  for whatever the section left unsure (most weeks then cost nothing extra), filed into the episode's stored answer as a second pass
+  fills in (`fillFacts`), its measure taken again with `facts-asks.js` (the tapes' rating then moves Survivor to reliable if it holds);
+  a run kind beside trivia's in `db/bot-research.js` (KINDS, the schedule, the desk's words), asked only for a season with a game a
+  fact settles, or every season so the measure grows (the user's: the bot's time).
+- **For the user (U0's wizard and the game's page, or a rules session), each built as an engine rule with a recommendation:**
+  1. **The bar.** Built: reliable only (90% of six or more episodes settled a pick for sure). Option: usually too (70%), with the nets
+     (void when research can't say; the rate shown to the maker as the season goes). Recommended: decide it with the Custom moments bar
+     (the same question), once part 2b's measure is in.
+  2. **What counts toward the rating.** Built: a week settles only when research is sure of someone in the cast by their name there; a
+     sure "the title isn't a line", the host's line and a shortened name count against it (those weeks are void, so the game is that much
+     less of a game). Option: count any sure answer. Recommended: keep (the rating says how often a pick can score).
+  3. **The host's line, a juror's line, a name research shortened.** Built: void (nobody could pick them; a shortened name could be
+     someone else's). Option: everyone wrong (the same 0 on a plain question, but it costs a life, breaks a rollover). Recommended: keep.
+  4. **A correction after the game is graded.** Built: research's answer is read on each read, so a later correction regrades (as a
+     result taken back is), and a later pass can't replace a sure answer with an unsure one: a sure but wrong answer stays until a sure
+     correction (a paste, Run now) replaces it. Option: freeze an episode's fact at its final results (noon the next day, once the desk
+     lane's early and final results are merged). Recommended: keep, and have the desk show a game's facts beside its research.
+  5. **What players see** (U1): the question's words ("Who says the title quote?"), whether the episode's title is shown at the lock (it's
+     usually published ahead), the reasons a week doesn't count ("Research wasn't sure who says the title quote (it said X): it doesn't
+     count either way"; "X said it, who wasn't one to pick"; "The title isn't a line from the episode"; "Research didn't say"), and How it
+     works' line. Recommended: the reasons as built, shorter on a phone (U1's).
+- **ctx.facts is read only by the lab and `questionContext`** (and `questionContext` has no caller today): Start a game's and Backstage's
+  checks build their ctx from `contextOf(book)` alone (no trivia, no facts), which is fine while neither can make a trivia or fact
+  question; the GPT's and U1's paths must use `questionContext`. (G1/U1.)
+- **The tracker says the three rows play** (its ctx has no facts) while our check refuses them on every show today (the tapes' rating):
+  the wizard says the show's rating when it offers one. (U0.)
+- **Research's facts are read on every read of a fact game** (`episodeFactsFor`: one query over the season's stored answers, in `walked`
+  and `answerFacts`, once per stage), and the live measure scans the show's every stored answer when a game is checked (with each season's
+  cast). (The merge: HOSTING.md, beside trivia's line; a per-show cache if a show's research grows to hundreds of episodes.)
+- **A question waits for good if research never stores the game's last episode** (no later episode turns it void): the desk's paste or
+  Run now settles it. (The desk; rare.)
+- **A stage copy made mid-season skips the trivia and facts data checks** (`change-stages.ts`); a general "already started" flag on our
+  check would cover the next data check too. (Whoever next adds one.)
+- **Names:** the section asks for names exactly as listed and the grader takes only those (every sure answer of the proof's did). A show
+  whose research shortens names would void every week; the rating would show it. (Part 2b's measure.)
+- **The first words' answers** are kept in `~\rfl-tapes\survivor\49\facts\v1\` (two real lines called not lines, sure), and the focus
+  experiment's in `facts\focus\`. (The study doc.)
+- **The GPT's manual** (G1) has the fact settle in its vocabulary now; its words are G1's.
 
 From A13 part 1 (2026-10-30):
 - **For the user (U0's design of the round and the wizard, or a rules session), each built as an engine rule with a recommendation:**

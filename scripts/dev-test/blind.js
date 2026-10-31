@@ -29,7 +29,9 @@
 //     stage played as a game of its own beside it, and a stage a format change starts (A12 part 2) found as the season sync makes
 //     each copy mid-season (its draft at its start, from who's left), its record ended where a corrected report takes it away; a
 //     game that asks trivia (A13), each episode's trivia as its tape has it (written and checked then) filed after its results,
-//     the key of the round before the next episode, every question of a round answered by each seat's habit.
+//     the key of the round before the next episode, every question of a round answered by each seat's habit; a game an episode fact
+//     settles (A13 part 2), each episode's facts in its research as the local bot said them where A13 part 2's proof asked it again
+//     (facts-asks.js), else none (the question void), recorded per episode in `facts`.
 // Nothing asks a bot. The local bot's answers are F2's, kept beside the tapes; the stand-ins are marked as such in the record.
 //
 //   node scripts/dev-test/blind.js run [<show> <season>] [--only=3,7] [--through=N] [--keep]
@@ -167,7 +169,7 @@ function fixtureQuick(t, n, format, tapeText) {
  * asks about them), then the format section and `merged` put in. { text, changes } (quickExits' changes: who it made leave
  * or stay). Pure.
  */
-function blindFull(text, { quick, asked, format, section, merged }) {
+function blindFull(text, { quick, asked, format, section, merged, facts }) {
   // The quick check's wording for an exit both name (so the two agree: the app holds an exit they word differently, the
   // playtest report's finding 2), and a leaver's entry as sure as the fixture is (a medium one never reaches a game: finding
   // 3), so who went home reaches every game as the fixture has it.
@@ -182,6 +184,8 @@ function blindFull(text, { quick, asked, format, section, merged }) {
     }
   }
   if (section !== undefined) raw.formatState = section;
+  // A13 part 2: the episode's facts as the local bot said them where A13 part 2's proof asked it again (facts-asks.js); else none.
+  if (facts !== undefined) raw.episodeFacts = facts;
   if (merged != null && ("merged" in raw || (format && format.hasMerge))) raw.merged = merged;
   return { text: JSON.stringify(raw), changes: got.changes };
 }
@@ -848,7 +852,9 @@ async function run(show, season, opts = {}) {
     if (r.problems.length) console.log(`  ${g.n}. ${g.label}: ${r.problems[0]}`);
   }
   const live = () => replays.filter((r) => r.leagueId && !r.dead);
-  const record = { show, season, title: t.title, episodes: E, at: new Date().toISOString(), games: all.map(({ spec, ...g }) => ({ ...g, spec })), premiere: {}, format: [], sources: {}, exits: {}, trivia: {}, replays: [] };
+  const record = { show, season, title: t.title, episodes: E, at: new Date().toISOString(), games: all.map(({ spec, ...g }) => ({ ...g, spec })), premiere: {}, format: [], sources: {}, exits: {}, trivia: {}, facts: {}, replays: [] };
+  // A13 part 2: each episode's facts as A13 part 2's proof asked it again at the local bot (facts-asks.js), where it did.
+  const factsAsked = require("./facts-asks.js").answersOf(show, season);
   // A13: each episode's trivia as the tape has it, written and checked then (bot research's 'trivia' run: db/trivia-research.js).
   const triviaTapes = Tapes.readTape(show, season).files.filter((f) => f.kind === "trivia" && f.ok && f.result && Array.isArray(f.result.questions));
   for (const r of live()) {
@@ -899,7 +905,9 @@ async function run(show, season, opts = {}) {
       full: (text, { ctx }) => {
         const fq = fixtureQuick(t, ep, format, null);
         const asked = ctx ? app().Research.pasteSkeleton(ctx, []).castaways : [];
-        const got = blindFull(text, { quick: fq.quick, asked, format, section: src.section, merged: src.merged });
+        const fa = factsAsked[ep] && factsAsked[ep].ok && factsAsked[ep].read ? factsAsked[ep].read.episodeFacts : null;
+        if (fa) record.facts[ep] = fa.titleQuote ? `${fa.titleQuote.isQuote}, ${fa.titleQuote.by || "nobody"} (${fa.titleQuote.sure})` : "none";
+        const got = blindFull(text, { quick: fq.quick, asked, format, section: src.section, merged: src.merged, facts: fa || null });
         reshaped = got.changes;
         return got.text;
       },

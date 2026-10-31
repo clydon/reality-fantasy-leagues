@@ -1314,6 +1314,84 @@ run files it), and every question of a round is answered by each seat's habit.
   trivia sheet does, and the seats score about chance (The Challenge 41: the Drive-By 25, the Tinkerer 20; Survivor 49: 22 and 18).
 - **p1's overall is its two stages added up**; nobody ticks a bingo card on the tapes, so it equals the trivia stage's table.
 
+## A13 part 2: episode facts asked again (2026-10-31)
+
+A13's part 2 adds a fact about the episode itself to every show's research, as F2 added the format section: who says the episode's
+title quote, in a section of its own (`episodeFacts.titleQuote`: whether the title is a line someone says in the episode, the line,
+who says it, and how sure), asked wherever the format section is, and a question a game asks each episode settled by it (`settle: {
+by: 'fact', fact: 'titleQuote', take: 'who' }`: a person, or the group they were on). Its fallback from the start is void, no points
+either way (research not sure, the title not a line, the host or someone already out said it, a name research shortened); our check
+takes such a question only where research has said it reliably on the show (rated from what it returned: the season tapes' measure
+below, plus the show's own stored episodes once there are any; reliable from 90% of six or more). **The section's words, its shape
+and the bar are the user's to approve at the merge**, as F2's are; until then production's research is as it was.
+
+**How it was proven.** As F2's was: 17 recorded episodes asked again through the local bot only (signed-in ChatGPT,
+http://127.0.0.1:8765, waiting for it to be free), each with the whole full-research prompt the bot's run sends (the groups going in
+as F2's answers had them), kept beside the tapes (`~\rfl-tapes\<show>\<season>\facts\`), read by the app's own parser, nothing
+written to the database: `node scripts/dev-test/facts-asks.js` (`plan`, `ask`, `score [--md] [--write]`, `focus`). Survivor 49's
+Episodes 1 to 10 (its titles are castaways' lines), The Challenge 41's 2, 6 and 7 and The Traitors 4's 2 and 5 (titles that read as
+lines too), and The Challenge 40's 4 and 6 (puns on its eras). The truth: Survivor 49's from Inside Survivor's weekly stats pages
+("The episode title ... was said by ..."), eleven of its thirteen episodes (`tests/fixtures/title-quotes.json`); no source on file for
+the other shows' titles, so theirs count for how often research said it, not whether it was right.
+
+The words were tuned once. The first answers (four of Survivor 49's, kept in `facts\v1\`) called two real lines not lines, sure
+("Cinema" and "Lovable Losers", Nate's and Alex's): the words then said a title that's a theme or a pun is 'no'. Now 'no' needs a
+source that shows it, ordinary-sounding titles are said to be lines often, and the section says where who said it is written
+("the episode title was said by ...": recaps, stats pages, the episode's page). Everything below was asked with the final words.
+
+### What came back
+
+| Season | Asked | Said for sure | Right | Wrong | Void |
+|---|---|---|---|---|---|
+| Survivor 49 | 10 | 5 (Episodes 4, 5, 6, 7, 9) | 4 of the 4 with truth | 0 | 5 (unknown, low) |
+| The Challenge 41 | 3 | 0 | | | 3 |
+| The Traitors 4 | 2 | 0 | | | 2 |
+| The Challenge 40 | 2 | 0 | | | 2 |
+
+1. **What research was sure of was right.** Every sure answer named the castaway the truth names, by their name exactly as the list
+   gave it (Nate Moore, Sage Ahrens-Nichols, Rizo Velovic three times); none wrong, none named outside the cast, none 'no' for a real
+   line. Unsure, it said so ("unknown", low): the void the grader gives it, no points either way.
+2. **But it was sure on only half of Survivor 49, and on none of the other shows'.** The answers came back in a minute or so and read
+   recaps (CBS's episode page, Inside Survivor's recap, TV Insider, True Dork Times' box score), never the stats pages that say who said
+   the title. So the rating is Survivor **patchy** (5 of 10) and the others not yet rated (fewer than six asked): our check refuses a
+   title-quote game on every show today (`fact-measures.json`, written by `score --write`). That's the rule doing its job: a game that
+   would be void half its weeks isn't offered.
+3. **Asked on its own, the same question settles the weeks the section left unsure.** The experiment beside the proof (`focus`: a
+   short prompt with just the episode's title and the cast list, after the full run, as trivia's run is): Survivor 49's five unsure
+   episodes all came back sure (Jawan Pitts for Episode 1; Nate, Alex, Savannah and Steven for 2, 3, 8 and 10, each right against the
+   truth). On The Challenge 41 and The Traitors 4 it named someone for two of three, but never sure: their titles' speakers are rarely
+   written down where a search finds them.
+
+| Experiment (`focus`) | Asked | Said for sure | Right |
+|---|---|---|---|
+| Survivor 49 (1, 2, 3, 8, 10) | 5 | 5 | 4 of the 4 with truth |
+| The Challenge 41 (2, 6) | 2 | 0 (one named, low) | |
+| The Traitors 4 (2) | 1 | 0 (one named, low) | |
+
+### What it means (the user's to decide at the merge, with Claude's recommendation)
+
+- **A short run of its own for episode facts** (A13 part 2b, recommended next): after the full run, a short ask for whatever the
+  section left unsure (or for every fact, in place of the section), filed into the episode's stored answer as a second pass fills in
+  (`fillFacts`: a sure answer is never replaced by an unsure one). On the experiment's evidence Survivor would rate reliable (ten of
+  ten sure, every one right where truth is on file); the cost is one short bot question per show-episode where the section wasn't sure.
+  Recommended: the follow-up ask only when the section wasn't sure, so most weeks cost nothing extra.
+- **The bar** (reliable only, as built, or usually too): on these numbers it only matters once the run exists. Recommended: decide it
+  with the Custom moments bar (the same question), after part 2b's measure.
+- **The Challenge and The Traitors**: no source writes down who says their titles where research finds it, so neither the section
+  nor a short ask is sure; their fact games stay refused, honestly, until research's own rate there says otherwise.
+
+### Replayed blind
+
+`blind.js run` (the five seasons, on the final code): **every game played through and over on all five seasons**, part 1's numbers
+exactly (Survivor 49 130 of 130, The Challenge 41 105 of 105, 40 99 of 99, 39 107 of 107, The Traitors 4 94 of 94); the questions waiting
+on early results finding 20's 3, 2 and 2. The three new tracker games (what.quote and s28, who says the title quote; settle.facts, which
+tribe it comes from, and its follow-the-people copy) are refused on every season, as live they would be: our check reads the tapes'
+measure (Survivor patchy at 5 of 10; The Challenge and The Traitors not yet rated) and research's own answers on these seasons are the
+tapes' (their seasons are left out of the live count). Each episode's research carries the facts this part's proof asked again where it
+did (the record's `facts`: Survivor 49's 1 to 10, The Challenge 41's 2, 6, 7, 40's 4, 6, The Traitors 4's 2, 5), so the replays' stored
+answers have the section a live season's would. The fact games' play is the API check's and the unit tests' to prove until a show is
+rated (part 2b).
+
 ## Appendix: the timelines
 
 Generated with `node scripts/dev-test/format-study.js --md`. "Brought in" is when viewers learned of a change, against when it

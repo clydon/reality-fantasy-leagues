@@ -15,6 +15,7 @@ import type { AnswerWalk, CoopWalk } from "@/lib/game/state-logic.js";
 import { seasonBook } from "./calls";
 import { gamesHere, type GameHere } from "./season-games";
 import { playedInSheet, triviaWritten } from "./trivia-key";
+import { factContextForSeason } from "./episode-facts";
 
 // A game's questions (docs/PLAN-start-a-game-gpt.md step A4; migration 0200 game_answers):
 //   GET  /api/seasons/[id]/answers?league=&episode=   the game's questions as you may see them: this week's (asked each
@@ -630,9 +631,10 @@ export async function answerQuestions(user: SessionUser, seasonId: string, leagu
  * whether anyone wins, who settles the show's calls, and its phases.
  */
 export async function questionContext(leagueId: string, seasonId: string): Promise<SpecContext> {
-  // A13: and whether the season's research writes the trivia a trivia question is settled by.
-  const [book, trivia] = await Promise.all([leagueBook(leagueId, seasonId), triviaWritten(seasonId)]);
-  return { ...contextOf(book), trivia };
+  // A13: and whether the season's research writes the trivia a trivia question is settled by; part 2, what research has returned
+  // of each episode fact on the show.
+  const [book, trivia, facts] = await Promise.all([leagueBook(leagueId, seasonId), triviaWritten(seasonId), factContextForSeason(seasonId)]);
+  return { ...contextOf(book), trivia, facts };
 }
 
 /** The rules a game plays by: the couch's own copy (Make it ours), else the season's rulebook, else its show's format read back

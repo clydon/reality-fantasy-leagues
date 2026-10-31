@@ -1,0 +1,34 @@
+{
+  "about": "What the season tapes measured of each episode fact (A13 part 2, episode-facts.js): recorded episodes asked again at the local bot with the research prompt's episode facts section (scripts/dev-test/facts-asks.js score --write). Per show (its slug): each fact's asked, the episodes asked, and settled, those research said for sure who, less any the truth on file says it got wrong; and the seasons measured, whose stored research the live count leaves out (a local database with the tapes loaded holds them too). Added to research's own counts on the show's stored episodes for our check's rating (episode-facts.js entryFor, ratingOf).",
+  "measured": "2026-10-31",
+  "shows": {
+    "survivor": {
+      "titleQuote": {
+        "asked": 10,
+        "settled": 5
+      },
+      "seasons": [
+        49
+      ]
+    },
+    "the-challenge": {
+      "titleQuote": {
+        "asked": 5,
+        "settled": 0
+      },
+      "seasons": [
+        41,
+        40
+      ]
+    },
+    "the-traitors-us": {
+      "titleQuote": {
+        "asked": 2,
+        "settled": 0
+      },
+      "seasons": [
+        4
+      ]
+    }
+  }
+}

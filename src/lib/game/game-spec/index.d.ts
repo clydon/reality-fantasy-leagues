@@ -2,6 +2,7 @@
 // sports are in the schema now and built by the sports branch (VOCAB says which); today's engine plays the rest (questions
 // since step A4).
 import type { LeagueSettings } from "../types";
+import type { FactEntry, FactOutcome } from "../formats/episode-facts.js";
 
 export type PresetId = "outlast" | "weekly-lineup" | "survival-pool" | "weekly-calls" | "weekly-bingo";
 export type LeagueTypeId = "classic-draft" | "active-roster" | "pickem" | "weekly-calls" | "weekly-bingo" | "questions" | "stages";
@@ -186,6 +187,8 @@ export type SpecSettle =
   | { by: "calls" }
   /** A13: the episode's trivia key (the bot's trivia research), a trivia answer's. */
   | { by: "trivia" }
+  /** A13 part 2: an episode fact research answers after each episode (formats/episode-facts.js FACTS): who it names. */
+  | { by: "fact"; fact: string; take: "who" }
   /** sports */
   | { by: "final"; take: "winner" | "total" | "margin" }
   /** sports */
@@ -289,6 +292,9 @@ export interface AnswerFacts {
   /** A13: the trivia key of the round before each episode (the batch written after the one before it), by episode: the server's
    *  (answer-points.ts triviaKeyFor). A round with none has no entry; no map at all, a trivia question waits. */
   trivia?: Map<number, TriviaKeyItem[]>;
+  /** A13 part 2: what research said of each episode fact, by episode, for each episode whose stored research has the section: the
+   *  server's (episode-facts.ts episodeFactsFor). No map at all, a fact question waits. */
+  episodeFacts?: Map<number, Record<string, FactOutcome>>;
 }
 /** A13: one question of a round's trivia key (trivia_questions, live and not pulled): what the grader reads (id, answer) and what
  *  the round shows (the rest). */
@@ -479,6 +485,10 @@ export interface SpecContext {
   jury?: boolean;
   /** A13: false when the season's research writes no trivia (its trivia run off): no trivia question. Left out: it's written. */
   trivia?: boolean;
+  /** A13 part 2: what research returned of each episode fact on the show (the season tapes' measure and the show's stored
+   *  episodes: episode-facts.ts factContext): a question it settles only at the bar (episode-facts.js ratingOf). Left out: not
+   *  checked. */
+  facts?: Record<string, FactEntry>;
   /** A10 part 1: how many can be drafted where the game drafts, and how many people are on its couch: an exclusive draft has to
    *  cover every pick (covers), else it's shared. Either left out: not counted. */
   pool?: number;
@@ -548,6 +558,8 @@ export const EACH_SETTLES_FOR: Partial<Record<SpecQuestion["answer"], string[]>>
 export function isCalls(q: unknown): boolean;
 /** A13: a question answered from the episode's trivia key. */
 export function isTrivia(q: unknown): boolean;
+/** A13 part 2: a question an episode fact settles. */
+export function isFact(q: unknown): boolean;
 export function callsAsk(ask: unknown): boolean;
 export function fullQuestion(q: SpecQuestion): Question;
 /** A choice option as the range a count falls in ("2", "3+", "0-1"), else null. */
