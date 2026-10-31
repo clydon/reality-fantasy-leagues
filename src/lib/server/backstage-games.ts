@@ -137,6 +137,9 @@ export interface WaiverAdminGame {
   };
   /** "Balanced · Wait for a waiver window · every 3 episodes". */
   summary: string;
+  /** When waivers start (WaiverLogic.startsAt): from the start (phase null), or when a later phase of the season starts. `at`: its
+   *  first episode, once you've seen it; `phases`: the later phases they could start with (the rulebook the game plays by). */
+  start: { phase: string | null; name: string | null; at: number | null; phases: { id: string; name: string }[] };
   period: {
     id: string;
     episode: number;
@@ -168,7 +171,7 @@ export interface WaiverAdminGame {
   how: WaiverWeek["how"];
 }
 
-function waiverAdmin(l: Loaded, me: string, mark: number | null, users: Map<string, string>, batches: Map<string, string>): WaiverAdminGame | null {
+function waiverAdmin(l: Loaded, me: string, mark: number | null, users: Map<string, string>, batches: Map<string, string>, phases: SeasonPhase[]): WaiverAdminGame | null {
   const W = StateLogic.WaiverLogic;
   const s = l.state;
   if (!W.supported(s)) return null;
@@ -187,6 +190,9 @@ function waiverAdmin(l: Loaded, me: string, mark: number | null, users: Map<stri
   const w = c.waiverWindows;
   const feelWord = c.waiverFeel[0].toUpperCase() + c.waiverFeel.slice(1);
   const recommended = W.isRecommended(s);
+  // When they start: the phase by its name, and where it started only once you've seen it (`at` below).
+  const starts = W.startsAt(view);
+  const startName = starts ? (phases.find((p) => p.id === starts.phase)?.name ?? starts.phase) : null;
   return {
     leagueId: l.game.leagueId,
     name: l.game.name,
@@ -207,6 +213,7 @@ function waiverAdmin(l: Loaded, me: string, mark: number | null, users: Map<stri
     },
     summary: [
       recommended ? feelWord : "Customized",
+      ...(startName ? [`Starts with ${startName}`] : []),
       RULE_WORDS[rule],
       w.schedule === "manual" ? "you open windows" : w.schedule === "everyEpisode" ? "a window every episode" : `every ${w.every} episodes`,
     ].join(" · "),
@@ -250,7 +257,13 @@ function waiverAdmin(l: Loaded, me: string, mark: number | null, users: Map<stri
         }
       : null,
     latest: Math.max(0, StateLogic.SpoilerLogic.latestWithResults(s)),
-    how: waiverHow(view),
+    how: waiverHow(view, phases),
+    start: {
+      phase: starts?.phase ?? null,
+      name: startName,
+      at: starts && starts.at !== null && (mark === null || starts.at <= mark) ? starts.at : null,
+      phases: phases.filter((p) => !p.first).map((p) => ({ id: p.id, name: p.name })),
+    },
   };
 }
 
@@ -283,9 +296,13 @@ export async function waiversAdmin(scope: BackstageScope): Promise<{ games: Waiv
   const loaded = await load(scope);
   const ids = loaded.map((l) => l.game.leagueId);
   const [mark, users, batches] = await Promise.all([markOf(scope), usersByLeague(ids, scope.user.id), runBatches(ids)]);
+  // Each game's phases (the rulebook it plays by, the season's read once): When waivers start's choices.
+  const W = StateLogic.WaiverLogic;
+  const season = loaded.some((l) => W.supported(l.state)) ? await seasonBlocks(scope.seasonId) : null;
+  const phases = await Promise.all(loaded.map((l) => (season && W.supported(l.state) ? leaguePhases(pool, l.game.leagueId, scope.seasonId, season) : Promise.resolve([]))));
   const games: WaiverAdminGame[] = [];
-  for (const l of loaded) {
-    const g = waiverAdmin(l, scope.user.id, mark, users.get(l.game.leagueId) ?? new Map(), batches);
+  for (const [i, l] of loaded.entries()) {
+    const g = waiverAdmin(l, scope.user.id, mark, users.get(l.game.leagueId) ?? new Map(), batches, phases[i]);
     if (g) games.push(g);
   }
   return { games };
@@ -301,8 +318,9 @@ export type WaiverAction =
   | { action: "claimView"; playerId: string }
   | { action: "claimFor"; playerId: string; dropId: string; addIds: string[] };
 
-// Fine-tune's fields, and what each may be (WaiverLogic.updateSetting checks the values).
-const WAIVER_FIELDS = ["replaceRule", "waiverWindows", "autoFill", "waiverProcessHours", "replenishOrderBy", "freeAgencyEnabled"];
+// Fine-tune's fields, and what each may be (WaiverLogic.updateSetting checks the values), and when waivers start: a later phase of
+// the season the game plays by, or null for from the start (checked here, against its phases).
+const WAIVER_FIELDS = ["replaceRule", "waiverWindows", "autoFill", "waiverProcessHours", "replenishOrderBy", "freeAgencyEnabled", "waiverStartPhase"];
 
 /** A waiver write for one game you run: answers its batch in Recent changes (null when nothing changed), or the preview. */
 export async function waiverWrite(scope: BackstageScope, leagueId: unknown, body: WaiverAction): Promise<Record<string, unknown>> {
@@ -432,7 +450,20 @@ export async function waiverWrite(scope: BackstageScope, leagueId: unknown, body
   if (body.action === "set" && (!body.set || typeof body.set !== "object" || Object.keys(body.set).some((k) => !WAIVER_FIELDS.includes(k))))
     throw new HttpError(400, `set may change ${WAIVER_FIELDS.join(", ")}`);
   const feel = body.action === "feel" ? body.feel : null;
-  const label = feel ? `Waivers on ${feel[0].toUpperCase()}${feel.slice(1)}` : "Changed how waivers work";
+  const set = body.action === "set" ? body.set : {};
+  const starting = "waiverStartPhase" in set;
+  const startTo = typeof set.waiverStartPhase === "string" && set.waiverStartPhase ? set.waiverStartPhase : null;
+  const phases = starting ? await leaguePhases(pool, id, scope.seasonId) : [];
+  const startName = startTo ? phases.find((p) => p.id === startTo && !p.first)?.name : null;
+  if (startTo && !startName) throw new HttpError(400, "Waivers start with a later phase of the season, or from the start");
+  const label = feel
+    ? `Waivers on ${feel[0].toUpperCase()}${feel.slice(1)}`
+    : starting && Object.keys(set).length === 1
+      ? startName
+        ? `Waivers start when ${startName} starts`
+        : "Waivers run from the start"
+      : "Changed how waivers work";
+  const schedule = starting ? (await seasonSchedules([scope.seasonId])).get(scope.seasonId) : undefined;
   let changed = false;
   await withLeagueLock(
     id,
@@ -440,7 +471,10 @@ export async function waiverWrite(scope: BackstageScope, leagueId: unknown, body
       if (!W.supported(s)) throw new HttpError(400, "This game doesn't use waivers");
       if (feel) {
         refused(W.writeRecommendation(s, feel), 409);
-      } else for (const [k, v] of Object.entries((body as { set: Record<string, unknown> }).set)) refused(StateLogic.updateSettings(s, k, v));
+      } else for (const [k, v] of Object.entries(set)) refused(StateLogic.updateSettings(s, k, v));
+      // Where their phase starts, recorded now (the season sync does after every result): the waiver clock, run after this
+      // write, opens the window they start with when it's already in.
+      if (starting) settleIn(s, phases, schedule);
     },
     (b, a) => {
       const spec = settingsSetChange(user, label, { kind: "settings", batch });

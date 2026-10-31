@@ -325,6 +325,8 @@ export interface SpecWaivers {
   hours: 12 | 24 | 48;
   freeAgency: boolean;
   autoFill: boolean;
+  /** Waivers that start when this phase of the season does (none before it); left out: from the start. */
+  from?: { phase: string };
 }
 
 export interface SpecExtras {

@@ -102,6 +102,9 @@ function waiversOf(st, lineup, R) {
     hours: WAIVER_HOURS.includes(hours) ? hours : 24,
     freeAgency: st.freeAgencyEnabled !== false,
     autoFill: st.autoFill !== false,
+    // Waivers that start when a phase of the season does (settings.waiverStartPhase: "When Merged starts"), only when it's
+    // set, so a stored spec without it reads as it always did.
+    ...(typeof st.waiverStartPhase === 'string' && st.waiverStartPhase ? { from: { phase: st.waiverStartPhase } } : {}),
   };
 }
 
@@ -421,6 +424,7 @@ function settingsOf(spec) {
         replenishOrderBy: w.order,
         waiverProcessHours: w.hours,
         freeAgencyEnabled: w.freeAgency,
+        waiverStartPhase: isObj(w.from) ? w.from.phase : undefined,
         // The pre-v2 switches, kept in step for whatever still reads them (WaiverLogic.mirrorLegacy).
         replenishEnabled: w.replace !== 'never',
         tradeEnabled: w.windows.schedule !== 'manual' && w.windows.swaps > 0,
@@ -540,7 +544,7 @@ function withSpec(settings, spec) {
 }
 
 // The spec's parts and the settings fields each writes (OWNED is all of them).
-const WAIVER_FIELDS = ['replaceRule', 'replenishAt', 'waiverWindows', 'waiverFeel', 'autoFill', 'replenishOrderBy', 'waiverProcessHours', 'freeAgencyEnabled', 'replenishEnabled', 'tradeEnabled', 'swapEvery'];
+const WAIVER_FIELDS = ['replaceRule', 'replenishAt', 'waiverWindows', 'waiverFeel', 'autoFill', 'replenishOrderBy', 'waiverProcessHours', 'freeAgencyEnabled', 'waiverStartPhase', 'replenishEnabled', 'tradeEnabled', 'swapEvery'];
 const PARTS = [
   { fields: ['leagueTypeId'], read: (s) => typeOf(s) },
   { fields: ['startEpisode', 'startPhase', 'endEpisode', 'endPhase'], read: (s) => s.span },

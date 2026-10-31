@@ -123,6 +123,35 @@ test("shared ownership: no picking order; How it works says who picks first", ()
   assert.ok(ex.lanes.replace.every(Boolean), "replace right away: every episode");
 });
 
+test("waivers that start when Merged does: How it works says so, and the lanes are empty until it", () => {
+  const s = league({ settings: { replaceRule: "never", waiverWindows: { schedule: "manual", every: 3, swaps: 1 }, waiverStartPhase: "merged" } });
+  s.midSeason.waivers.periods = [];
+  const how = waiverHow(s);
+  assert.equal(how.starts, "Waivers start when Merged starts");
+  assert.match(how.out, /^They stay on your team until Merged starts\. After its first episode, a waiver window lets you replace everyone who's out\. After that, out is out\.$/);
+  assert.match(how.swap, /^Not until Merged starts: its waiver window allows 1 swap\. After that, when your commissioner opens a waiver window\.$/);
+  assert.ok(how.lanes.replace.every((on) => !on) && how.lanes.swap.every((on) => !on), "nothing while nobody knows when");
+  // The merge's start known (Episode 6) but not seen yet: nothing says where (a spoiler), in the season's name for the phase.
+  S.settlePhases(s, { phases: [{ id: "tribes", from: 1 }, { id: "merged", from: 6 }], open: 4 });
+  const known = waiverHow(s, [{ id: "merged", name: "The Merge" }]);
+  assert.equal(known.starts, "Waivers start when The Merge starts");
+  assert.ok(known.lanes.replace.every((on) => !on) && known.lanes.swap.every((on) => !on));
+  // Once you've seen it start: its window in the lanes, and the usual words.
+  S.addElimination(s, "ep4", "a2", "Voted Out");
+  S.addElimination(s, "ep5", "c2", "Voted Out");
+  S.addElimination(s, "ep6", "b2", "Voted Out");
+  const after = waiverHow(s);
+  assert.equal(after.starts, null);
+  assert.equal(after.out, "They stay on your team: there are no replacements.");
+  const at = (lane) => after.lanes.episodes.filter((n, i) => lane[i]);
+  assert.deepEqual(at(after.lanes.replace), [6]);
+  assert.deepEqual(at(after.lanes.swap), [6]);
+  // A viewer who hasn't seen Episode 6 still reads it as ahead.
+  const behind = waiverHow(S.GhostLogic.viewFor(s, "ann", 4));
+  assert.equal(behind.starts, "Waivers start when Merged starts");
+  assert.ok(behind.lanes.replace.every((on) => !on));
+});
+
 test("a game with no waivers has no week", () => {
   const s = league({ settings: { leagueTypeId: "pickem" } });
   assert.equal(waiverWeek({ ...ref, gameType: "pickem" }, s, "ann", 3, userOf, null), null);

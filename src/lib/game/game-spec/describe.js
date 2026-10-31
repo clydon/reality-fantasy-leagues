@@ -897,7 +897,9 @@ function detailsOf(s, w) {
     const win = e.waivers.windows;
     const windows = win.schedule === 'manual' ? (win.swaps > 0 ? 'windows when you open one' : 'no windows unless you open one')
       : `a window ${win.schedule === 'everyEpisode' ? `after every ${w.part}` : `every ${win.every} ${w.parts}`}${win.swaps ? `, ${win.swaps === 1 ? 'one swap' : `${win.swaps} swaps`}` : ''}`;
-    out.push({ id: 'waivers', label: 'Waivers', recommended: rec('waivers'), value: `${own(REPLACE_WORDS, e.waivers.replace) || 'Replacements as set'} · ${windows}` });
+    // Waivers that start with a phase: "From when Merged starts: ...".
+    const from = isObj(e.waivers.from) ? `From when ${phaseWord(e.waivers.from.phase, w)} starts: ` : '';
+    out.push({ id: 'waivers', label: 'Waivers', recommended: rec('waivers'), value: `${from}${(own(REPLACE_WORDS, e.waivers.replace) || 'Replacements as set').replace(/^./, (c) => (from ? c.toLowerCase() : c))} · ${windows}` });
   }
   // Side bets and finale predictions go with a draft: nothing else scores them.
   if (betsFit(s)) out.push({ id: 'bets', label: 'Side bets', recommended: rec('bets'), value: isObj(e.bets) ? `On, ${pointsWord(e.bets.points)} each` : 'Off' });

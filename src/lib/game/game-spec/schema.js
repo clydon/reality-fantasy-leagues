@@ -560,6 +560,8 @@ const JOINS = ['open', 'ask', 'locked'];
 // The extras: { waivers, bets, calls, draft, join, hideStarters, lockedDown }
 //   waivers       a draft's mid-season moves, or null (no waivers: shared Outlast, no draft):
 //                 { feel, replace, short, windows: { schedule, every, swaps }, order, hours, freeAgency, autoFill }
+//                 and `from: { phase }` when they start with a phase of the season (none before it; a window replacing
+//                 everyone who's out after its first episode, then the usual schedule: WaiverLogic.startsAt)
 //                 (replaceRule, replenishAt, waiverWindows, replenishOrderBy, waiverProcessHours, ...: WaiverLogic)
 //   bets          side bets ("Predictions", graded by whoever runs the game): { points } (each new one's), or null. Only
 //                 beside a draft, the games that score them (A4: a pool, Weekly Calls and Weekly Bingo never did)
@@ -1884,7 +1886,7 @@ const KEYS = {
   extras: ['waivers', 'bets', 'calls', 'draft', 'join', 'hideStarters', 'lockedDown', 'lateLock', 'seats'],
   lateLock: ['hours'],
   seats: ['people'],
-  waivers: ['feel', 'replace', 'short', 'windows', 'order', 'hours', 'freeAgency', 'autoFill'],
+  waivers: ['feel', 'replace', 'short', 'windows', 'order', 'hours', 'freeAgency', 'autoFill', 'from'],
   windows: ['schedule', 'every', 'swaps'],
   draft: ['at', 'timer', 'away', 'opens'],
   bets: ['points'],
@@ -1950,6 +1952,7 @@ function unknownKeys(s) {
   if (isObj(e)) {
     for (const k of ['waivers', 'draft', 'bets', 'lateLock', 'seats']) check(e[k], KEYS[k], `extras.${k}`);
     if (isObj(e.waivers)) check(e.waivers.windows, KEYS.windows, 'extras.waivers.windows');
+    if (isObj(e.waivers)) check(e.waivers.from, ['phase'], 'extras.waivers.from');
   }
   return out;
 }
@@ -2372,6 +2375,8 @@ function waiverProblems(w, s) {
   if (!WAIVER_HOURS.includes(w.hours)) out.push(['.hours', `They run ${WAIVER_HOURS.join(', ')} hours before`]);
   if (typeof w.freeAgency !== 'boolean') out.push(['.freeAgency', 'freeAgency is true or false']);
   if (typeof w.autoFill !== 'boolean') out.push(['.autoFill', 'autoFill is true or false']);
+  // Waivers that start when a phase of the season does: which phase is the data rule's (settleProblems).
+  if (w.from !== undefined && !(isObj(w.from) && typeof w.from.phase === 'string' && w.from.phase)) out.push(['.from', 'Waivers start { phase }: when which phase of the season starts, or leave it out for from the start']);
   return out;
 }
 
@@ -2571,6 +2576,13 @@ function settleProblems(s, ctx, opts) {
       }
       if (c.quiet === 'skip' && ctx.results === false) out.push([`rank.cut[${i}].quiet`, "The show's results don't say who goes home, so nothing says a night was quiet"]);
     });
+  }
+  // Waivers that start when a phase does: one of the season's, never its first (that starts with Episode 1: leave it out).
+  const wFrom = isObj(s.extras) && isObj(s.extras.waivers) && isObj(s.extras.waivers.from) ? s.extras.waivers.from.phase : null;
+  if (typeof wFrom === 'string' && wFrom && Array.isArray(ctx.phases)) {
+    const at = ctx.phases.findIndex((p) => (isObj(p) ? p.id : p) === wFrom);
+    if (at < 0) out.push(['extras.waivers.from.phase', `"${wFrom}" isn't one of the season's phases`]);
+    else if (at === 0) out.push(['extras.waivers.from.phase', 'The first phase starts with Episode 1: leave it out, and waivers run from the start']);
   }
   // A9 part 2: a phase whose points multiply is one of the season's (where it starts is data: the desk confirms it); the finale
   // is the episode that ends the season, which only a show whose results say who goes home or wins places.

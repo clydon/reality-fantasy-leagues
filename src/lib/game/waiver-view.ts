@@ -2,7 +2,7 @@ import type { LeagueState, WaiverPair, WaiverPeriod, WaiverResult } from "./type
 import StateLogic from "./state-logic.js";
 import { castawayEventStats } from "./active-roster-rows";
 import { castOf, type CastFace, type GameRefIn, type UserOf } from "./game-view";
-import { ruleAnswers } from "@/components/waivers/waivers-words";
+import { phaseWord, ruleAnswers, waiversAhead } from "@/components/waivers/waivers-words";
 
 // Simple waivers as one player reads them (docs/PLAN-new-design.md step 6a; the mock's waivers.js, "simple"): the week
 // that's running in one of your games, who of yours to replace and how many optional swaps you have, your whole team,
@@ -85,7 +85,14 @@ export interface WaiverWeek extends GameRefIn {
   /** Every run you may see, oldest first (each week's moves where they happened: Episodes, 2026-10-31). */
   runs: WaiverRunView[];
   /** How it works here: the three answers and When moves happen. */
-  how: { out: string; swap: string; order: string; lanes: { episodes: number[]; now: number; replace: boolean[]; swap: boolean[] } };
+  how: {
+    out: string;
+    swap: string;
+    order: string;
+    lanes: { episodes: number[]; now: number; replace: boolean[]; swap: boolean[] };
+    /** Waivers that start with a phase you haven't seen start: "Waivers start when Merged starts", else null. */
+    starts: string | null;
+  };
 }
 
 /** A castaway's points and tag by name, counted from the season's facts (the Cast tab's numbers), when the server has them. */
@@ -158,9 +165,12 @@ function movesOf(view: LeagueState, results: WaiverResult[], me: string, faces: 
     });
 }
 
-/** How waivers work in this game, as players read it: the three answers and When moves happen (Backstage's What players see too). */
-export function waiverHow(view: LeagueState): WaiverWeek["how"] {
-  const answers = ruleAnswers(view);
+/** How waivers work in this game, as players read it: the three answers and When moves happen (Backstage's What players see too).
+ *  `phases`: the season's, by name, for waivers that start with one (else "merged" reads "Merged"). */
+export function waiverHow(view: LeagueState, phases?: { id: string; name: string }[]): WaiverWeek["how"] {
+  const names = phases ? Object.fromEntries(phases.map((p) => [p.id, p.name])) : undefined;
+  const answers = ruleAnswers(view, names);
+  const ahead = waiversAhead(view);
   const by = view.settings.replenishOrderBy || "rolling";
   const shared = view.settings.ownershipMode === "shared";
   return {
@@ -169,6 +179,7 @@ export function waiverHow(view: LeagueState): WaiverWeek["how"] {
     // Simple waivers' words for the standings orders; rolling keeps classic's.
     order: shared ? answers.order : by === "leastPoints" ? "Lowest score picks first." : by === "mostPoints" ? "Highest score picks first." : answers.order,
     lanes: lanesOf(view, Math.max(0, StateLogic.SpoilerLogic.latestWithResults(view))),
+    starts: ahead ? `Waivers start when ${names?.[ahead] ?? phaseWord(ahead)} starts` : null,
   };
 }
 
@@ -181,11 +192,18 @@ function lanesOf(view: LeagueState, now: number) {
   const first = Math.max(1, now - 2);
   const episodes = Array.from({ length: 10 }, (_, i) => first + i).filter((n) => n < total);
   const window = (n: number) => W.isWindowEpisode(view, n);
+  // Waivers that start with a phase (WaiverLogic.startsAt): nothing before it, and its first episode opens a window replacing
+  // everyone who's out, with the windows' swaps. Where it starts only once you've seen it (else nothing shows: waiversAhead).
+  const from = W.startsAt(view);
+  const at = from && from.at !== null && from.at <= now ? from.at : null;
+  const gated = !!waiversAhead(view) || (at !== null && at > (StateLogic.startEpisode(view) ?? at));
+  const before = (n: number) => gated && (at === null || n < at);
+  const opens = (n: number) => gated && at === n;
   return {
     episodes,
     now,
-    replace: episodes.map((n) => rule !== "never" && (W.weekly(view) || window(n))),
-    swap: episodes.map((n) => swaps && window(n)),
+    replace: episodes.map((n) => !before(n) && (opens(n) || (rule !== "never" && (W.weekly(view) || window(n))))),
+    swap: episodes.map((n) => swaps && !before(n) && (opens(n) || window(n))),
   };
 }
 

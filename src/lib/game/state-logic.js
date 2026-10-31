@@ -5340,12 +5340,14 @@ class RosterLogic {
 
 // Whether a game reads the season's phase starts, so the settle passes record them (RosterLogic.settlePhases: phase-starts.ts,
 // the season sync, Start a game, the lab): it asks by phase (A7, AnswerLogic.byPhase), or its points multiply in a phase (A9
-// part 2, score.times).
+// part 2, score.times), or its waivers start with one (WaiverLogic.startsAt).
 function readsPhases(state){
   if(AnswerLogic.byPhase(state)) return true;
   const score = gameOf(state).score;
   // A pool's buyback until a phase starts (A10 part 2: PickEmLogic.canBuyBack).
   if(score.by === 'survive' && score.buyback && score.buyback.before && typeof score.buyback.before.phase === 'string') return true;
+  // A draft whose waivers start when a phase does (WaiverLogic.startsAt).
+  if(WaiverLogic.startsAt(state)) return true;
   // A draft that cuts players before a phase starts (A11 part 1: KnockoutLogic).
   const rank = gameOf(state).rank;
   if(Array.isArray(rank.cut) && rank.cut.some(c => c && c.at && typeof c.at.phase === 'string')) return true;
@@ -5663,10 +5665,37 @@ class WaiverLogic {
   static enabled(state){
     if(!WaiverLogic.supported(state)) return false;
     if(WaiverLogic.replaceRule(state) !== 'never' || WaiverLogic.windows(state).swaps > 0) return true;
+    // Waivers that start with a phase open with a window replacing everyone who's out, whatever the rule (startsAt).
+    if(WaiverLogic.startsAt(state)) return true;
     const cur = WaiverLogic.current(state);
     return !!(cur && cur.openedBy === 'commissioner');
   }
   static processHours(state){ return WaiverLogic.waivers(state).hours; }
+  // Waivers that start when a phase of the season does (the spec's waivers.from, settings.waiverStartPhase: "When Merged
+  // starts"): { phase, at: its first episode, or null while that isn't known (state.phaseStarts, the desk's:
+  // RosterLogic.settlePhases) }; null when they run from the game's start. Before it no week opens on its own; the results of
+  // its first episode open a window that replaces everyone who's out (opensAtStart: whatever the rule, with the windows'
+  // swaps), and the usual schedule runs on from there, its windows counted from it. A phase that started before the game did
+  // holds nothing back. A window the commissioner opens is theirs to open any time.
+  static startsAt(state){
+    const from = WaiverLogic.supported(state) ? WaiverLogic.waivers(state).from : null;
+    if(!from || typeof from.phase !== 'string' || !from.phase) return null;
+    const at = state.phaseStarts && state.phaseStarts[from.phase];
+    return { phase: from.phase, at: Number.isInteger(at) ? at : null };
+  }
+  /** After episode n, waivers are still waiting for the phase they start with (its start not known yet, or still ahead). */
+  static waiting(state, n){
+    const from = WaiverLogic.startsAt(state);
+    return !!from && (from.at === null || !(n >= from.at));
+  }
+  /** Episode n's results open the window waivers start with: their phase started inside the game, by n, and no week has
+   *  opened since it did (one the commissioner opened there was it). */
+  static opensAtStart(state, n){
+    const from = WaiverLogic.startsAt(state);
+    const start = startEpisode(state);
+    if(!from || from.at === null || start === null || from.at <= start || !Number.isInteger(n) || n < from.at) return false;
+    return !WaiverLogic.periods(state).some(p => p.episode >= from.at);
+  }
   static freeAgencyOn(state){ return WaiverLogic.waivers(state).freeAgency; }
   static rolling(state){ return WaiverLogic.waivers(state).order === 'rolling'; }
   /** whenShort's N: replace once down to this many still in (the spec's waivers.short; default: starting spots - 1;
@@ -5732,6 +5761,12 @@ class WaiverLogic {
         break;
       case 'autoFill':
         st.autoFill = value !== false;
+        break;
+      // When waivers start: a phase of the season ("When Merged starts": WaiverLogic.startsAt), or null for from the start.
+      // Which phases there are is the season's (the writer checks it: backstage-games.ts).
+      case 'waiverStartPhase':
+        if(typeof value === 'string' && value) st.waiverStartPhase = value;
+        else delete st.waiverStartPhase;
         break;
       case 'waiverRecommendation':
         WaiverLogic.applyRecommendation(state, WAIVER_FEELS.includes(value) ? value : c.waiverFeel);
@@ -5911,6 +5946,12 @@ class WaiverLogic {
     if(!(w.swaps > 0 || WaiverLogic.replaceRule(state) === 'windows')) return false;
     const start = startEpisode(state);
     if(start === null) return false; // waiting for its phase (step A3): no windows before it starts
+    // Waivers that start with a phase (startsAt): none before it, and the schedule's windows counted after the one it opens with.
+    const from = WaiverLogic.startsAt(state);
+    if(from && (from.at === null || from.at > start)){
+      const k = from.at === null ? 0 : n - from.at;
+      return k >= 1 && (w.schedule === 'everyEpisode' || k % w.every === 0);
+    }
     const k = n - start + 1;
     return k >= 1 && (w.schedule === 'everyEpisode' || k % w.every === 0);
   }
@@ -6046,6 +6087,9 @@ class WaiverLogic {
     const ps = WaiverLogic.periods(state);
     const prev = ps[ps.length - 1];
     if(prev && prev.episode >= last) return null;
+    // Waivers that start with a phase: nothing before it, then the window they start with (startsAt).
+    if(WaiverLogic.waiting(state, last)) return null;
+    if(WaiverLogic.opensAtStart(state, last)) return 'open';
     // Replacements that don't wait for windows: every week, owed or not (a week that only opened when
     // someone lost a castaway would say someone had). Otherwise only the scheduled windows open.
     if(!WaiverLogic.weekly(state) && !WaiverLogic.isWindowEpisode(state, last)) return null;
@@ -6056,7 +6100,9 @@ class WaiverLogic {
     const o = opts || {};
     const n = lastCompletedEpisode(state);
     if(!state.midSeason.waivers) state.midSeason.waivers = { periods: [] };
-    const window = !!o.window || WaiverLogic.isWindowEpisode(state, n);
+    // The window waivers start with (startsAt), when the clock opens it.
+    const starts = !o.window && WaiverLogic.opensAtStart(state, n);
+    const window = !!o.window || starts || WaiverLogic.isWindowEpisode(state, n);
     const swaps = window ? (Number.isInteger(o.swaps) ? o.swaps : WaiverLogic.windows(state).swaps) : 0;
     const p = {
       id: Core.uid('wv'), episode: n, openedAt: new Date(now).toISOString(), processAt: null, closesAt: null,
@@ -6065,6 +6111,11 @@ class WaiverLogic {
     };
     if(o.by === 'commissioner') p.openedBy = 'commissioner';
     if(window && typeof o.replace === 'boolean') p.replace = o.replace;
+    // It replaces everyone who's out, whatever the rule; `starts` names the phase it starts with.
+    if(starts){
+      p.replace = true;
+      p.starts = WaiverLogic.startsAt(state).phase;
+    }
     Object.assign(p, WaiverLogic.schedule(state, p));
     state.midSeason.waivers.periods.push(p);
     return p;

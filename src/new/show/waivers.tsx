@@ -565,7 +565,7 @@ function Quiet({ week }: { week: WaiverWeek }) {
         <span className="flex-1 py-2.5 pl-2 pr-3">
           <b className="type-caption block text-[20px]">Nothing to do this week</b>
           <small className="block text-[13px] text-plate-muted">
-            {week.nobodyFree ? "Nobody's free to pick up: your team plays as it is." : next ? `Next chance to move: after Episode ${next}` : "Your team plays as it is."}
+            {week.nobodyFree ? "Nobody's free to pick up: your team plays as it is." : week.how.starts ? `${week.how.starts}. Your team plays as it is till then.` : next ? `Next chance to move: after Episode ${next}` : "Your team plays as it is."}
           </small>
         </span>
       </div>

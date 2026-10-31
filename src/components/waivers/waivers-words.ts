@@ -113,11 +113,28 @@ export function latestEpisode(state: LeagueState): number {
   return Math.max(0, StateLogic.SpoilerLogic.latestWithResults(state));
 }
 
+/** A phase of the season by its id, when there's no rulebook to name it: "merged" is "Merged". */
+export const phaseWord = (id: string) => cap(id.replace(/[-_]+/g, " "));
+
+/**
+ * Waivers that start with a phase of the season (WaiverLogic.startsAt) whose start this viewer hasn't seen: its id. Never where
+ * it starts: a start past what they've seen says nothing yet (as AnswerLogic's phases). Null when they run from the start, or
+ * it's started (or started before the game did).
+ */
+export function waiversAhead(state: LeagueState): string | null {
+  const from = StateLogic.WaiverLogic.startsAt(state);
+  if (!from) return null;
+  const start = StateLogic.startEpisode(state);
+  if (from.at !== null && (start === null || from.at <= start || latestEpisode(state) >= from.at)) return null;
+  return from.phase;
+}
+
 /**
  * The rules sheet's three answers (and the quiet week's sentence): when one of yours is voted out, when
- * you can swap someone still in, and who gets a free agent two people want. For THIS league.
+ * you can swap someone still in, and who gets a free agent two people want. For THIS league. `names`: the
+ * season's phases by id, for waivers that start with one (else "merged" reads "Merged").
  */
-export function ruleAnswers(state: LeagueState): { out: string; swap: string; order: string } {
+export function ruleAnswers(state: LeagueState, names?: Record<string, string>): { out: string; swap: string; order: string } {
   const W = StateLogic.WaiverLogic;
   const rule = W.replaceRule(state);
   const w = W.windows(state);
@@ -135,7 +152,7 @@ export function ruleAnswers(state: LeagueState): { out: string; swap: string; or
             : `You can replace them at the next waiver window${next ? ` (after Episode ${next})` : ""}.`
           : "They stay on your team: there are no replacements.";
   const n = w.swaps >= R ? "any" : String(w.swaps);
-  const swap =
+  let swap =
     w.swaps <= 0
       ? w.schedule === "manual"
         ? "When your commissioner opens a waiver window that allows swaps."
@@ -145,13 +162,22 @@ export function ruleAnswers(state: LeagueState): { out: string; swap: string; or
         : w.schedule === "everyEpisode"
           ? `After any episode: ${n === "any" ? "any of them" : n === "1" ? "1 swap" : `up to ${n}`}.`
           : `Once every ${w.every} episodes, ${n === "any" ? "any of them" : n === "1" ? "1 swap" : `up to ${n} swaps`}${next ? `: next after Episode ${next}` : ""}.`;
+  // Waivers that start with a phase, still ahead: nothing until it, then a window replacing everyone who's out, then the usual.
+  const ahead = waiversAhead(state);
+  let replace = out;
+  if (ahead) {
+    const P = names?.[ahead] ?? phaseWord(ahead);
+    const then = (line: string) => `After that, ${line.charAt(0).toLowerCase()}${line.slice(1)}`;
+    replace = `They stay on your team until ${P} starts. After its first episode, a waiver window lets you replace everyone who's out. ${rule === "never" ? "After that, out is out." : then(out)}`;
+    if (w.swaps > 0) swap = `Not until ${P} starts: its waiver window allows ${n === "any" ? "swapping any of them" : n === "1" ? "1 swap" : `up to ${n} swaps`}. ${then(swap)}`;
+  }
   const by = state.settings.replenishOrderBy || "rolling";
   const order = state.settings.ownershipMode === "shared"
     ? "Nobody: everyone can have the same free agent in this league."
     : by === "rolling"
       ? "Whoever's first in line. Get a free agent and you go to the back, so a quiet week moves you up."
       : `Whoever's higher in the standings order: ${by === "leastPoints" ? "fewest" : "most"} points first.`;
-  return { out, swap, order };
+  return { out: replace, swap, order };
 }
 
 /** What a waiver window allows, with no names: the sheet's preview, the commissioner's plate and the
