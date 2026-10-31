@@ -146,7 +146,11 @@ const TAB_META: Record<ShowTab, { label: string; icon: LucideIcon }> = {
   chat: { label: "Chat", icon: MessageCircle },
 };
 
-/** The show's tabs. A tab move replaces the history entry: back from any tab leaves the show. */
+/** What a tab is called: the show's own word ("Schedule", "Players") where it has one. */
+export const tabLabel = (tab: ShowTab, labels?: Partial<Record<ShowTab, string>> | null) => labels?.[tab] ?? TAB_META[tab].label;
+
+/** The show's tabs. A tab move replaces the history entry: back from any tab leaves the show, or returns to the tab a
+ *  link jumped from (a jump pushes); tapping that tab goes back to it (NavLink), so it's never in the history twice. */
 export function TabBar({
   seasonId,
   tabs,
@@ -172,7 +176,7 @@ export function TabBar({
     >
       {tabs.map((tab) => {
         const { icon: Icon } = TAB_META[tab];
-        const label = labels?.[tab] ?? TAB_META[tab].label;
+        const label = tabLabel(tab, labels);
         const on = tab === current;
         const badge = badges[tab];
         return (

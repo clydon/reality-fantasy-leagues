@@ -244,8 +244,12 @@ export function SpaceFrame({ seasonId, children }: { seasonId: string; children:
           back={
             ro
               ? { label: "Desk", onClick: () => leaveToDesk(nav, ro) }
-              : // Home: the Tune in's reverse, the header dropping into the show's card (else the usual move).
-                { label: "Home", onClick: () => (startTuneBack(seasonId) ? nav.back(paths.home, undefined, "tune") : nav.back(paths.home)) }
+              : // Home: the Tune in's reverse, the header dropping into the show's card (else the usual move). Back past the
+                // show's own pages you jumped between, to the hub you came from, rather than a new hub on top of them.
+                {
+                  label: "Home",
+                  onClick: () => nav.back(paths.home, undefined, startTuneBack(seasonId) ? "tune" : undefined, (p) => p.startsWith(`/show/${seasonId}/`)),
+                }
           }
           status={status}
           menu={ro ? <ReadOnlyMenu /> : <ShowMenu seasonId={seasonId} show={show} />}

@@ -164,7 +164,8 @@ export function DraftScreen({ seasonId, kind }: { seasonId: string; kind: "snake
           title={`Reveal Episode ${game.revealFirst} first`}
           line="Who's left to draft would give away who went home."
           action={
-            <BtnLink tone="must" wide href={paths.show(seasonId)}>
+            // Ways out of the draft replace it (back to the show's tab when it's right behind): back from the show never returns here.
+            <BtnLink tone="must" wide href={paths.show(seasonId)} replace>
               To Episode {game.revealFirst}&apos;s results
             </BtnLink>
           }
@@ -787,7 +788,7 @@ function DraftDone({ seasonId, show, game }: { seasonId: string; show: ShowData;
         ))}
       </div>
       <div className="px-4 pt-6">
-        <BtnLink tone="ink" wide href={paths.show(seasonId)}>
+        <BtnLink tone="ink" wide href={paths.show(seasonId)} replace>
           Go to {name}
         </BtnLink>
       </div>
@@ -1074,7 +1075,7 @@ function BlindReveal({ seasonId, show, game }: { seasonId: string; show: ShowDat
             <b className="text-foreground">{first(topFace.name)}</b> is on {top![1]} teams. Shared ownership: everyone who has them scores with them.
           </p>
         )}
-        <BtnLink tone="ink" wide href={paths.show(seasonId)}>
+        <BtnLink tone="ink" wide href={paths.show(seasonId)} replace>
           Go to {name}
         </BtnLink>
       </div>

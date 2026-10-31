@@ -134,8 +134,19 @@ their own step, against the screen that needs them, so nothing is designed specu
 ## Noticed, not fixed
 
 Behaviour a session saw and left alone because it wasn't that step's to change. Each says what happens, where, and
-the step that could take it (a guess: any later step that touches it may). Fixed ones come out, with a line in that
-step's As built.
+the step that could take it (a guess: any later step that touches it may). Fixed ones come out, with a line in that
+step's As built.
+
+- **A page pushed over a tab and opened from the hub closes onto that tab, not back to the hub (2026-10-30, ui/page.tsx
+  usePushedPage.close)**: Make a game (`games?page=make` from the hub, Start a game, the solo pool) drops its `?page` and leaves
+  you on the Games tab, which its back button names; the phone's back from there goes to the hub. Consistent with its label, so
+  left alone when back was fixed to go where you came from (check-show-back.js); the episode page opened from Tonight does go
+  back to Tonight. Any step that touches those pages could make their back return to the hub, labelled "Home".
+- **The "tune" mark stays up to 4 s after Home's reverse (2026-10-30, nav.tsx historyBack)**: harmless (it only stops a view
+  transition, and every navigation marks its own), but a tidy-up could clear it when the reverse bumper ends.
+- **check-desk-shows.js fails "Show 5 more · 5 left" on master too (seen 2026-10-31)**: the text it reads matches, so the other
+  half of the assertion (exactly one `[data-shows-more]`) is what's off, against the local database as it is now. Not from the
+  back fixes (it fails the same with them stashed). The desk's next step, or whoever touches the Shows list, could look.
 
 - **The guide's Competitions (2026-10-27, tv-listings.ts competitionOf, migration 0147) is a guess from TVmaze's blurb**: about
   1 in 15 wrong (a makeover show that "crowns" the ugliest house), and a competition whose blurb never says so is missed (Love Is
