@@ -2,7 +2,9 @@
 // new-fixture.js's couch plus hub-fixture.js's two finished seasons (ZT Survivor 49 and 50):
 //   API, GET /api/couches/[id]/hub:
 //   - power rankings are Couch points (2026-10-31, couch-points.ts): everyone on the couch, 10 for joining it, its games
-//     started and joined, shows followed openly (jordan's private follow isn't); then known activity for riley (a day's 12
+//     started and joined, shows followed openly (jordan's private follow isn't), moves from each game's state (couch-moves.ts:
+//     pool picks, own draft picks, lineups that bring someone in; Survivor 49's, aired last year, count from when its games were
+//     made, so This year stays hidden) and from their tables; then known activity for riley (a day's 12
 //     messages count 10, 7 reactions on an episode count 5, a poll vote, a rating, trivia, a marked bingo card and not an
 //     unmarked one, a watch along plan answered, a game's answers once an episode, a Call it answer, a day opened and not one
 //     from before she joined, a follow made private) adding up exactly, all time and this week; This year hidden till the couch
@@ -161,6 +163,41 @@ const EASTERN_TODAY = "(now() AT TIME ZONE 'America/New_York')::date";
       jordanPrivate > 0 && onCouch.every((w) => (kindsOf(alexHub, w).follow ?? 0) === 5 * (follows.get(fx.users[w]) ?? 0)),
       "5 for each show followed openly: jordan's private follow doesn't count",
       JSON.stringify(onCouch.map((w) => [w, kindsOf(alexHub, w).follow, follows.get(fx.users[w])]))
+    );
+    // Moves (2 each): what the games keep in their state, by the rules written out again here (couch-moves.ts: a pool pick an
+    // episode; the player's own draft picks, else, before the draft log, what an exclusive draft gave them; a lineup that's their
+    // first or brings someone in), plus the ones with tables (a game's answers once an episode a seat, blind picks, waiver claims).
+    const couchGames = (await pool.query("SELECT id, state FROM leagues WHERE couch_id = $1 AND deleted_at IS NULL AND stage_of IS NULL", [fx.couchId])).rows;
+    const seatsOf = new Map();
+    for (const r of (await pool.query("SELECT league_id, player_id, user_id FROM league_memberships WHERE league_id = ANY($1::uuid[])", [couchGames.map((g) => g.id)])).rows)
+      seatsOf.set(`${r.league_id}:${r.player_id}`, [...(seatsOf.get(`${r.league_id}:${r.player_id}`) ?? []), r.user_id]);
+    const movesBy = new Map();
+    const credit = (league, seat) => (seatsOf.get(`${league}:${seat}`) ?? []).forEach((u) => movesBy.set(u, (movesBy.get(u) ?? 0) + 1));
+    for (const { id, state } of couchGames) {
+      const eps = [...(state.episodes ?? [])].sort((a, b) => a.number - b.number);
+      for (const e of eps) for (const p of e.picks ?? []) credit(id, p.playerId);
+      if ((state.draftLog ?? []).length) for (const d of state.draftLog) if (!d.by && !d.auto && !d.drawn && !d.filled) credit(id, d.playerId);
+      if (!(state.draftLog ?? []).length && state.settings.ownershipMode !== "shared") for (const c of state.castaways ?? []) if (c.acquiredVia === "draft") (c.ownerIds ?? []).forEach((s) => credit(id, s));
+      const last = new Map();
+      for (const e of eps)
+        for (const [s, ids] of Object.entries(e.lineups ?? {})) {
+          if (last.has(s) ? ids.some((x) => !last.get(s).includes(x)) : ids.length > 0) credit(id, s);
+          last.set(s, ids);
+        }
+    }
+    const tabled = await counted(
+      `SELECT user_id, count(*)::int AS n FROM (
+         SELECT DISTINCT a.league_id, a.player_id, a.episode, COALESCE(a.answered_by, m.user_id) AS user_id FROM game_answers a JOIN leagues l ON l.id = a.league_id
+           LEFT JOIN league_memberships m ON m.league_id = a.league_id AND m.player_id = a.player_id WHERE l.couch_id = $1 AND l.deleted_at IS NULL
+         UNION ALL SELECT b.league_id, b.player_id, 0, m.user_id FROM blind_draft_picks b JOIN leagues l ON l.id = b.league_id JOIN league_memberships m ON m.league_id = b.league_id AND m.player_id = b.player_id WHERE l.couch_id = $1 AND l.deleted_at IS NULL
+         UNION ALL SELECT w.league_id, w.player_id, 0, m.user_id FROM waiver_claims w JOIN leagues l ON l.id = w.league_id JOIN league_memberships m ON m.league_id = w.league_id AND m.player_id = w.player_id
+          WHERE l.couch_id = $1 AND l.deleted_at IS NULL AND (w.pairs <> '[]'::jsonb OR w.pickup_ids <> '[]'::jsonb OR w.add_ids <> '[]'::jsonb)) x GROUP BY 1`
+    );
+    const moveWant = onCouch.map((w) => [w, 2 * ((movesBy.get(fx.users[w]) ?? 0) + (tabled.get(fx.users[w]) ?? 0))]);
+    check(
+      moveWant.every(([w, n]) => (kindsOf(alexHub, w).move ?? 0) === n) && moveWant.some(([, n]) => n > 0),
+      "moves: pool picks, their own draft picks and lineups that bring someone in, from each game's state, 2 each",
+      JSON.stringify(onCouch.map((w, i) => [w, kindsOf(alexHub, w).move ?? 0, moveWant[i][1]]))
     );
     // A day is stamped as alex uses the app (auth-helpers.ts, beside user_last_seen; fire-and-forget, so give it a moment).
     let stamped = false;

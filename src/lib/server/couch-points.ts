@@ -6,7 +6,8 @@ import { pool } from "./db";
 // opens, never polled.
 //
 // On the couch itself whenever it was: joining it, starting and joining its games (not a stage inside one, not a deleted one),
-// moves in them (a game's answers once an episode a seat, a blind draft's picks, a waiver claim with something in it), what's said
+// moves in them (a game's answers once an episode a seat, a blind draft's picks, a waiver claim with something in it; the moves
+// kept in a game's state, pool picks, draft picks and lineups, couch-hub.ts reads with couch-moves.ts), what's said
 // in its chats (10 a day count), its polls, answering its watch along plans, reactions in its watch alongs (5 an episode count).
 // On your own since you joined it: shows you follow openly (a private follow isn't the couch's to count), trivia rounds, bingo
 // cards you've marked, Call it answers, episode ratings, days you opened the app (user_days, 0157). A day and a year are Eastern's
@@ -18,10 +19,15 @@ export interface CouchPointCounts {
   counts: PointCount[];
   /** The last seven days are all in this calendar year (so the year's table can say who moved since a week ago). */
   weekInYear: boolean;
+  /** When this calendar year began, Eastern (ms): for counting what couch-hub.ts reads from the games' states (couch-moves.ts). */
+  yearStart: number;
 }
 
+/** When this calendar year began, Eastern. */
+const YEAR_START = `date_trunc('year', now() AT TIME ZONE '${ZONE}') AT TIME ZONE '${ZONE}'`;
+
 export async function couchPointCounts(couchId: string, people: string[]): Promise<CouchPointCounts> {
-  if (!people.length) return { counts: [], weekInYear: true };
+  if (!people.length) return { counts: [], weekInYear: true, yearStart: 0 };
   const { rows } = await pool.query(
     `WITH members AS (SELECT user_id, joined_at FROM couch_members WHERE couch_id = $1 AND user_id = ANY($2::text[])),
           games AS (SELECT id, created_by, created_at, stage_of FROM leagues WHERE couch_id = $1 AND deleted_at IS NULL),
@@ -59,11 +65,12 @@ export async function couchPointCounts(couchId: string, people: string[]): Promi
             UNION ALL SELECT d.user_id, 'day', d.day::timestamp AT TIME ZONE '${ZONE}' FROM user_days d JOIN members m USING (user_id)
                        WHERE d.day >= (m.joined_at AT TIME ZONE '${ZONE}')::date
           ),
-          bounds AS (SELECT date_trunc('year', now() AT TIME ZONE '${ZONE}') AT TIME ZONE '${ZONE}' AS year_start)
+          bounds AS (SELECT ${YEAR_START} AS year_start)
      SELECT a.user_id, a.kind, count(*)::int AS "all",
             count(*) FILTER (WHERE a.at >= b.year_start)::int AS year,
             count(*) FILTER (WHERE a.at > now() - interval '7 days')::int AS week,
-            bool_and(now() - interval '7 days' >= b.year_start) AS week_in_year
+            bool_and(now() - interval '7 days' >= b.year_start) AS week_in_year,
+            extract(epoch FROM min(b.year_start)) * 1000 AS year_start
        FROM acts a CROSS JOIN bounds b
       GROUP BY a.user_id, a.kind`,
     [couchId, people]
@@ -71,5 +78,6 @@ export async function couchPointCounts(couchId: string, people: string[]): Promi
   return {
     counts: rows.map((r) => ({ userId: r.user_id as string, kind: r.kind as PointKind, all: r.all as number, year: r.year as number, week: r.week as number })),
     weekInYear: rows.length ? !!rows[0].week_in_year : true,
+    yearStart: rows.length ? Number(rows[0].year_start) : 0,
   };
 }

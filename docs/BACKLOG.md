@@ -322,12 +322,11 @@ Last updated 2026-10-27.
     leagues and stays. **When:** step C's cleanup (a migration drops the two tables).
 
 37. **What Couch points left (noticed 2026-10-31, building Couch points and By the numbers' ties).**
-    - **The couch's moves aren't counted (needs the user's call).** "Each move you set" counts `game_answers`, `blind_draft_picks`
-      and `waiver_claims`, but the live couch's three games (Survival Pool, Outlast, Weekly Lineup) keep their picks, draft and
-      lineups in the league's state, so those tables are empty for it and nobody gets move points there. Pool picks
-      (`episodes[].picks`, one per player who picked) and draft picks (`draftLog`, with `at`) would count cleanly; lineups are a
-      snapshot every episode, carried forward, so they need a rule (an episode whose lineup changed?). Their year and week would
-      come from the episode's airtime or the draft log's `at`.
+    - **Done the same day (the user: yes): the moves kept in a game's state count** (src/lib/game/couch-moves.ts): a pool pick an
+      episode, the player's own draft picks (before the draft log, what an exclusive draft gave them), a lineup that's their first
+      or brings someone in, at the episode's airtime (never before the game was made: a catch-up game plays old episodes now).
+      **Left:** a lineup change that only benches someone isn't told apart from carrying it forward (which only drops people),
+      so it doesn't count; a public pool's "Who goes home?" calls (`episodes[].calls`) don't count as moves.
     - **Tonight's Stats card has the same tie** (`src/new/show/stats.tsx` StatsCard and StatRows): Stat of the week takes
       `statBoard(d, key)[0]`, and the short boards number a tie 1, 2, 3. `leadWorthNaming` (couch-standings.ts) is the rule to
       reuse. **When:** the next change to Tonight's stats.

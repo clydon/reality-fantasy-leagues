@@ -14,6 +14,7 @@ import { pointsPerLine } from "@/lib/game/bingo";
 import { callRights, endedThrough } from "./calls";
 import { AUTHOR_SEEN, REVEAL_SHARED, withReactions } from "./chat";
 import { couchPointCounts } from "./couch-points";
+import { movesCounted, stateMoves } from "@/lib/game/couch-moves";
 import { couchMembers, requireCouch } from "./couches";
 import { pool } from "./db";
 import { EVERYTHING, seenThrough, sharesSql, switchOn } from "./guard";
@@ -184,13 +185,14 @@ export async function couchHub(user: SessionUser, couchId: string): Promise<Couc
   const list = all.filter((g): g is Game & { seasonId: string } => !!g.seasonId);
   const seasonIds = [...new Set(list.map((g) => g.seasonId))];
   const ids = list.map((g) => g.leagueId);
-  const [headers, states, seats, marks, schedules, points] = await Promise.all([
+  const [headers, states, seats, marks, schedules, points, made] = await Promise.all([
     seasonHeaders(seasonIds),
     leagueStates(ids),
     ids.length ? pool.query("SELECT league_id, user_id, player_id FROM league_memberships WHERE league_id = ANY($1::uuid[]) ORDER BY seat_slot, created_at", [ids]) : { rows: [] },
     Promise.all(seasonIds.map(async (id) => [id, await seenThrough(user.id, id)] as const)).then((xs) => new Map(xs)),
     seasonSchedules(seasonIds),
     couchPointCounts(couchId, people.map((p) => p.userId)),
+    ids.length ? pool.query("SELECT id, created_at FROM leagues WHERE id = ANY($1::uuid[])", [ids]) : { rows: [] },
   ]);
   // Each seat's accounts, its first first (a team two people share: step A10 part 4b); a seat's face is its first's.
   const usersOf = new Map<string, Map<string, string[]>>(ids.map((id) => [id, new Map()]));
@@ -259,7 +261,24 @@ export async function couchHub(user: SessionUser, couchId: string): Promise<Couc
     }
   }
 
-  const rankings = rankingsOf(standings, people, user.id, points.counts, points.weekInYear);
+  // Couch points' moves kept in the games' states (couch-moves.ts), each credited to everyone on its seat: pool picks and lineups at
+  // their episode's airtime, draft picks when the log says (else the season's first airtime), never before the game was made (a
+  // catch-up game plays an old season's episodes now).
+  const member = new Set(people.map((p) => p.userId));
+  const madeAt = new Map(made.rows.map((r) => [r.id as string, new Date(r.created_at).getTime()]));
+  const moves = list
+    .filter((g) => !g.stageOf)
+    .flatMap((g) => {
+      const state = states.get(g.leagueId);
+      if (!state) return [];
+      const air = new Map((schedules.get(g.seasonId)?.episodes ?? []).map((e) => [e.number, e.airAt ? Date.parse(e.airAt) : null]));
+      const since = madeAt.get(g.leagueId) ?? points.yearStart;
+      const first = [...air.values()].find((x) => x !== null) ?? since;
+      return stateMoves(state, (n) => air.get(n) ?? null, first).flatMap((m) =>
+        (usersOf.get(g.leagueId)?.get(m.playerId) ?? []).filter((u) => member.has(u)).map((userId) => ({ userId, at: Math.max(m.at, since) }))
+      );
+    });
+  const rankings = rankingsOf(standings, people, user.id, [...points.counts, ...movesCounted(moves, points.yearStart)], points.weekInYear);
   const trophies = trophiesOf(standings, people, user.id);
   const yours = standings
     .filter((g) => mine.has(g.leagueId))
