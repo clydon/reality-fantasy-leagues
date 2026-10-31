@@ -365,7 +365,7 @@ async function accoladesFor(user: SessionUser, couchId: string, people: Person[]
   });
 }
 
-const FEED_SIZE = 8;
+const FEED_SIZE = 6;
 
 /**
  * On the couch: the newest of what's been said in the couch's chats (folded past where you are, as the chat folds:

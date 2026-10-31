@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { ChartColumn, ChevronRight, CircleQuestionMark, Crown, Grid3x3, Plus, Repeat, RotateCcw, Shield, ShieldCheck, Star, Trophy, Tv, Zap, type LucideIcon } from "lucide-react";
+import { ChartColumn, ChevronRight, CircleQuestionMark, Crown, Gamepad2, Grid3x3, Plus, Repeat, RotateCcw, Shield, ShieldCheck, Star, Trophy, Tv, Zap, type LucideIcon } from "lucide-react";
 import {
   useCouchGames,
   useCouchThisWeek,
@@ -49,11 +49,12 @@ import { movesByDue } from "./sections";
 // accolades now), Previously on (each show's story up to where you are) and the trophy shelf (once a season has ended).
 // Couch verdicts are real since step 12 part 1 (the couch's ratings, ratings.ts); Commercial break's This week only has each
 // show's Call it and the couch's polls since part 2 (calls.ts, polls.ts couchThisWeek), and each show's bingo card and this week's
-// trivia since part 3 (bingo.ts, trivia.ts).
+// trivia since part 3 (bingo.ts, trivia.ts). Commercial break is called All games since 2026-10-31 (the user), with a gamepad
+// for its icon; its key and ?page= stay "break".
 
 const PAGES = {
   rankings: { title: "Power rankings", line: "Where everyone stands this year", icon: Trophy },
-  break: { title: "Commercial break", line: "Every game on the couch · join any", icon: Zap },
+  break: { title: "All games", line: "Every game on the couch · join any", icon: Gamepad2 },
   numbers: { title: "By the numbers", line: "Who leads every stat, up to where you are", icon: ChartColumn },
   verdicts: { title: "Couch verdicts", line: "How the couch rated each episode", icon: Star },
   previously: { title: "Previously on", line: "The story so far, up to where you are", icon: Tv },
@@ -391,7 +392,7 @@ function CommercialBreak({ hub, home, couch }: { hub: CouchHub | undefined; home
           ))}
         </span>
         <div className="relative mx-3 mb-4 rounded-[3px] bg-plate px-3.5 py-2.5 text-plate-foreground shadow-plate">
-          <b className="type-caption block text-[34px]">Commercial break</b>
+          <b className="type-caption block text-[34px]">All games</b>
           <small className="mt-1 block text-[13px] text-plate-muted">Every game on the couch. Join any, or none.</small>
         </div>
       </section>
