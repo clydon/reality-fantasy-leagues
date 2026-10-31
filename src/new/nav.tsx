@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, ViewTransition, type ComponentProps, type MouseEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, ViewTransition, type ComponentProps, type MouseEvent } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { navKind, type NavKind } from "./routes";
@@ -41,12 +41,14 @@ function reducedMotion() {
  *  goes nowhere, a browser without View Transitions). */
 export function markNav(kind: NavKind): number {
   const seq = ++navSeq;
-  document.documentElement.dataset.nav = reducedMotion() ? "calm" : kind;
+  // (The Tune in's bumper has its own reduced-motion version; its mark only stops a view transition, NavMotion.)
+  document.documentElement.dataset.nav = reducedMotion() && kind !== "tune" ? "calm" : kind;
   setTimeout(() => clearNav(seq), 4000);
   return seq;
 }
 
-function clearNav(seq: number) {
+/** Clears a mark (the Tune in's, once its bumper has gone). */
+export function clearNav(seq: number) {
   if (seq !== navSeq) return;
   delete document.documentElement.dataset.nav;
   document.querySelectorAll<HTMLElement>("[data-art]").forEach(unnameArt);
@@ -126,7 +128,8 @@ function historyBack(kind: NavKind) {
   const seq = markNav(kind);
   backing = true;
   const by = -1 - leaveThroughSheets();
-  if (!document.startViewTransition) {
+  // The Tune in's reverse moves the screen itself (see NavMotion).
+  if (!document.startViewTransition || kind === "tune") {
     window.history.go(by);
     return;
   }
@@ -181,8 +184,16 @@ export function useNav() {
 export function NavMotion() {
   const pathname = usePathname();
   const last = useRef(pathname);
+  // The boundary's key: a new one starts React's view transition (it starts one whenever a boundary enters, whatever
+  // its class). Under the Tune in it keeps the old one, so none starts: the bumper moves the screen itself, a snapshot
+  // would freeze it mid-move and then blend the frozen copy over the live one, and React would hold the screen still
+  // while the show's pictures load.
+  const [mark, setMark] = useState(pathname);
+  if (mark !== pathname && !(typeof document !== "undefined" && document.documentElement.dataset.nav === "tune")) setMark(pathname);
   useLayoutEffect(() => {
     if (last.current === pathname) return;
+    // After the Tune in's move (which kept the old key), the key catches up outside the transition: no view transition.
+    setMark(pathname);
     if (!replacing) previousPath = last.current;
     replacing = false;
     // A channel change back to the hub: the art it shrinks into (inside the transition, before the new screen is
@@ -205,7 +216,7 @@ export function NavMotion() {
   }, []);
   return (
     <ViewTransition
-      key={pathname}
+      key={mark}
       enter="nd-mark"
       exit="nd-mark"
       default="none"

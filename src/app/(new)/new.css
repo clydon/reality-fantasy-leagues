@@ -268,7 +268,8 @@ html[data-nav="channel"]::view-transition-new(root) {
   animation-duration: 0.44s;
 }
 
-/* Tuning in (src/new/tune-in.tsx): the bumper covers the screen while the page changes under it, so the page just swaps. */
+/* Tuning in (src/new/tune-in.tsx): the bumper covers the screen while the page changes under it, so the page just swaps.
+   (nav.tsx keeps a view transition from starting at all; this is for one that starts anyway.) */
 html[data-nav="tune"]::view-transition-old(root),
 html[data-nav="tune"]::view-transition-new(root) {
   animation: none;

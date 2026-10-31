@@ -65,7 +65,8 @@ function check(ok, what, detail = "") {
         new MutationObserver((list) => {
           for (const m of list) {
             const el = m.target;
-            if (m.type === "attributes" && m.attributeName === "data-fold" && el.dataset) window.__folds.push({ at: Number(el.dataset.fold), why: el.dataset.why });
+            // Where the page was when it folded: the show, which opened under the bumper while it held.
+            if (m.type === "attributes" && m.attributeName === "data-fold" && el.dataset) window.__folds.push({ at: Number(el.dataset.fold), why: el.dataset.why, path: location.pathname });
           }
         }).observe(document, { subtree: true, attributes: true, attributeFilter: ["data-fold"] });
       });
@@ -96,18 +97,19 @@ function check(ok, what, detail = "") {
     await page.locator("[data-upnext] [data-upnext-open]").click();
     await bumper(page).waitFor({ timeout: 2000 });
     check(Date.now() - t0 < 600, "Up next: the bumper appears at once", `${Date.now() - t0} ms`);
+    // Read before the screenshots, which are slow enough (~0.4 s each) to outlast the bumper.
+    const third = (await bumper(page).innerText()).toLowerCase();
+    check(third.includes("survivor") && third.includes("season 51"), "the lower third names the show and its season", third.replace(/\s+/g, " "));
     await page.waitForTimeout(150);
     await page.screenshot({ path: path.join(out, "1-bloom.png") });
     await page.waitForTimeout(450);
     await page.screenshot({ path: path.join(out, "2-scanline.png") });
-    await page.waitForTimeout(500);
-    const third = (await bumper(page).innerText()).toLowerCase();
-    check(third.includes("survivor") && third.includes("season 51"), "the lower third names the show and its season", third.replace(/\s+/g, " "));
-    await page.screenshot({ path: path.join(out, "3-lower-third.png") });
-    await page.waitForURL(`**/show/${sid}/tonight`, { timeout: 3000 });
-    check((await bumper(page).count()) === 1, "the show opens under the bumper while it holds", `${Date.now() - t0} ms`);
+    await page.waitForTimeout(300);
+    if (await bumper(page).count()) await page.screenshot({ path: path.join(out, "3-lower-third.png") });
+    await page.waitForURL(`**/show/${sid}/tonight`, { timeout: 4000 });
     await bumper(page).waitFor({ state: "detached", timeout: 6000 });
     const fold = (await page.evaluate(() => window.__folds)).at(-1);
+    check(fold?.path === `/show/${sid}/tonight`, "the show opens under the bumper while it holds", JSON.stringify(fold));
     check(!!fold && fold.at >= 1490 && fold.why === "ready", "it held at least 1.5 s, then folded once the show was in", JSON.stringify(fold));
     await page.waitForTimeout(500);
     check(await page.getByRole("heading", { level: 1 }).first().isVisible(), "the show's header is there under it");

@@ -354,8 +354,9 @@ const placePoints = (place, of) => (of < 2 ? 0 : Math.round(1 + (9 * (of - Math.
     await page.locator("[data-tune-in]").waitFor({ timeout: 3000 });
     await page.waitForURL(`**/show/**/tonight`);
     await page.locator("[data-tune-in]").waitFor({ state: "detached", timeout: 8000 });
-    const vt = await page.evaluate(() => window.__vt.at(-1) || null);
-    check(!!vt && vt.nav === "tune", "Up next: the Tune in bumper plays into the show", JSON.stringify(vt));
+    // With no view transition under it (its snapshot froze the bumper mid-move: nav.tsx, NavMotion).
+    const vts = await page.evaluate(() => window.__vt.map((v) => v.nav));
+    check(vts.length === 0, "Up next: the Tune in bumper plays into the show, no view transition under it", JSON.stringify(vts));
 
     const real = errors.filter((e) => !/Download the React DevTools|\[HMR\]|\[Fast Refresh\]/.test(e) && !/favicon\.ico/.test(e));
     check(real.length === 0, "no page errors", real.slice(0, 3).join(" | "));
