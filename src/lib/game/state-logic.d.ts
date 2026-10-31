@@ -1062,6 +1062,8 @@ declare const StateLogic: {
     questions(state: LeagueState): Question[];
     /** A8: who was in at the game's first episode (a pairs question's pairs are drawn from them). */
     startIn(state: LeagueState): string[];
+    /** A14 part 2: who an answer can name at a lock, as `state` has them (a seat's answers and the bot's calls alike). */
+    faces(state: LeagueState, q: Question, o?: { playerId?: string | null; groups?: import("./game-spec/index.js").FormatGroups | null }): { id: string; name: string; photoUrl: string | null }[];
     /** A7: whether the game asks anything by phase (asked once a phase, or settled by where a phase starts). */
     byPhase(state: LeagueState): boolean;
     /** A7: where a question's windows open, in order (none asked once). */

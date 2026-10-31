@@ -7062,6 +7062,23 @@ class AnswerLogic {
     const epNo = new Map((state.episodes || []).map(e => [e.id, e.number]));
     return (state.castaways || []).filter(c => !(c.status === 'eliminated' && (epNo.get(c.exitEpisodeId) || 0) < first)).map(c => c.id);
   }
+  // Who an answer can name at a lock (A14 part 2: shared by a seat's answers, answers.ts, and the bot's calls, db/bot-calls.js), as
+  // `state` has them (a viewer's copy: as far as they've seen): a person answer, who's still in (from your own team, `o.playerId`'s); a
+  // group answer, the groups someone still in is on, or on a season played in pairs the format's groups going into it (`o.groups`, F3
+  // part 2's FormatGroups: none when they aren't sure, unless the question follows the people); a question about each person, each one
+  // still in. [{ id, name, photoUrl (a castaway's, else null) }].
+  static faces(state, q, o){
+    const opt = o || {};
+    const stillIn = (state.castaways || []).filter(c => c.status !== 'eliminated');
+    const fg = opt.groups;
+    if(fg && Spec.readsTimeline(q)) return fg.lockSure || q.fallback === 'carry-on' ? fg.offered.map(g => ({ id: g.id, name: g.name, photoUrl: null })) : [];
+    if(q.answer === 'group' && !q.each){
+      const on = new Set(stillIn.map(c => c.tribeId).filter(Boolean));
+      return (state.tribes || []).filter(t => on.has(t.id)).map(t => ({ id: t.id, name: t.name, photoUrl: null }));
+    }
+    const team = q.from === 'team' && !q.each ? new Set(Core.ownedCastawayIds(state, opt.playerId)) : null;
+    return stillIn.filter(c => !team || team.has(c.id)).map(c => ({ id: c.id, name: c.name, photoUrl: c.photoUrl || null }));
+  }
   // Whether the game asks anything by phase (A7: asked once a phase, or settled by where a phase starts): what the season sync
   // and the desk record phase starts and windows for (phase-starts.ts settleIn, StateLogic.settlePhases).
   static byPhase(state){ return AnswerLogic.questions(state).some(q => q.asked === 'phase' || (q.settle && q.settle.by === 'phase')); }
@@ -7190,10 +7207,12 @@ class AnswerLogic {
       const g = groups.get((Spec.isPlayers(q) && q.settle.of ? q.settle.of : q.id) + '|' + ep);
       return g ? g.list.filter(a => !ghosts.has(a.playerId)) : [];
     };
+    // A14 part 2: the bot's call on a window of a question played against it (the server's: facts.bot), for its points.
+    const botOf = key => (f.bot instanceof Map && f.bot.has(key) ? { bot: f.bot.get(key) } : {});
     groups.forEach(({ q, ep, list }, key) => {
       const v = Spec.verdictOf(q, ep, f, tallyOf(q, ep));
       verdicts.set(key, v);
-      if(!q.rollover) earned.set(key, Spec.windowPoints(q, v, list, f));
+      if(!q.rollover) earned.set(key, Spec.windowPoints(q, v, list, f, botOf(key)));
     });
     // ...and where nobody answered one about another question (`of`) that has answers, how it stands all the same (what the reads
     // show of it).
@@ -7215,7 +7234,7 @@ class AnswerLogic {
         const w = q.points + carry;
         worth.set(key, w);
         if(v.state === 'waiting') break;
-        const got = Spec.windowPoints(q, v, groups.has(key) ? groups.get(key).list : [], f, { worth: w });
+        const got = Spec.windowPoints(q, v, groups.has(key) ? groups.get(key).list : [], f, { worth: w, ...botOf(key) });
         if(groups.has(key)) earned.set(key, got);
         carry = [...got.values()].some(n => n > 0) ? 0 : w;
       }

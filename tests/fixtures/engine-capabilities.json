@@ -1307,7 +1307,15 @@
         {
           "id": "settle.bot",
           "what": "The bot's own call, as an opponent",
-          "step": "A14"
+          "step": "A14",
+          "spec": {
+            "get": { "by": "none" },
+            "score": { "by": "answers" },
+            "rank": { "by": "total" },
+            "ask": [ { "id": "idol", "ask": "Will an idol be played?", "answer": "yesNo", "points": 2, "asked": "each", "settle": { "by": "moment", "moment": "idolPlayed", "take": "happened" }, "beat": { "by": "bot" } } ]
+          },
+          "page": { "show": "Survivor", "season": 51, "rulebook": "survivor" },
+          "note": "the bot's own call on each episode's question, made before it locks and hidden until then, graded by the same data as everyone's (A14 part 2): you score when you're right and it isn't; a week the bot made no call plays as usual (a setting: or doesn't count)"
         },
         {
           "id": "settle.outside",
@@ -1962,7 +1970,18 @@
         {
           "id": "win.bot",
           "what": "Beat the bot",
-          "step": "A14"
+          "step": "A14",
+          "spec": {
+            "get": { "by": "none" },
+            "score": { "by": "answers" },
+            "rank": { "by": "total" },
+            "ask": [
+              { "id": "boot", "ask": "Who goes home?", "answer": "person", "points": 2, "asked": "each", "settle": { "by": "results", "take": "out" }, "beat": { "by": "bot" } },
+              { "id": "immunity", "ask": "Who wins immunity?", "answer": "person", "points": 1, "asked": "each", "settle": { "by": "moment", "moment": "individualImmunity", "take": "who" }, "beat": { "by": "bot" } }
+            ]
+          },
+          "page": { "show": "Survivor", "season": 51, "rulebook": "survivor" },
+          "note": "every question played against the bot's call (A14 part 2): points only for beating it, and the table's line beside it says how each of you did against it (answer-points.ts botLine: the bot's calls right, and each seat's windows beat and beaten); the bot is never a seat on the table nor a place on it"
         }
       ]
     },
@@ -3467,7 +3486,13 @@
       "step": "A14",
       "dials": [
         "win"
-      ]
+      ],
+      "spec": {
+        "get": { "by": "none" },
+        "score": { "by": "answers" },
+        "rank": { "by": "total" },
+        "ask": [ { "id": "boot", "ask": "Who goes home?", "answer": "person", "points": 2, "asked": "each", "settle": { "by": "results", "take": "out" }, "beat": { "by": "bot" } } ]
+      }
     },
     {
       "id": "s36",

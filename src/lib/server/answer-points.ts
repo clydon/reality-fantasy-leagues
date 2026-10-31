@@ -1,14 +1,13 @@
 import StateLogic from "@/lib/game/state-logic.js";
 import * as Spec from "@/lib/game/game-spec/index.js";
 import type { SheetNights } from "@/lib/game/episode-view";
-import { gameView, type GameCalls } from "@/lib/game/game-view";
+import { gameView, type BotLine, type GameCalls } from "@/lib/game/game-view";
 import { pointsPerLine } from "@/lib/game/bingo";
-import type { AnswerFacts, FormatGroups } from "@/lib/game/game-spec/index.js";
+import type { AnswerFacts, FormatGroups, Question, Verdict } from "@/lib/game/game-spec/index.js";
 import type { AnswerWalk, StageWalk } from "@/lib/game/state-logic.js";
-import { groupFacts } from "@/lib/game/formats/format-timeline.js";
 import type { LeagueState } from "@/lib/game/types";
 import type { CallBook } from "@/lib/game/calls";
-import { timelineForShow } from "@db/format-timeline.js";
+import { leagueGroupFacts } from "@db/format-timeline.js";
 import { HttpError, pool } from "./db";
 import { stagesOf } from "./stages";
 import { triviaKeyFor } from "./trivia-key";
@@ -66,7 +65,7 @@ export async function walked(o: { leagueId: string; state: LeagueState; playerId
   const all = o.rows ?? (StateLogic.piecesOf(o.state).hasQuestions ? await storedAnswers(o.leagueId) : []);
   // The format's groups, the trivia key and the episode facts (A13), read once (the seen copy and the one cut at the game's end
   // have the same cast).
-  const extra = await serverFacts(o.state, seen);
+  const extra = await serverFacts(o.state, seen, o.leagueId);
   const factsOf = (v: LeagueState): AnswerFacts => ({ ...A.facts(v), ...extra });
   if (!Spec.answerParts(StateLogic.gameOf(seen))) {
     const view = StateLogic.spanView(seen);
@@ -89,7 +88,7 @@ export async function asItStands(leagueId: string, state: LeagueState, rows?: An
   if (StateLogic.StageLogic.on(state)) return { state: StateLogic.StageLogic.withWalk(state, await stageWalk(leagueId, state, viewer)), rows };
   if (!Spec.answerParts(StateLogic.gameOf(state))) return { state, rows };
   const all = rows ?? (await storedAnswers(leagueId));
-  const walk = StateLogic.AnswerLogic.walk(state, all, await answerFacts(state, state));
+  const walk = StateLogic.AnswerLogic.walk(state, all, await answerFacts(state, state, leagueId));
   return { state: StateLogic.AnswerLogic.withWalk(state, walk), rows: all };
 }
 
@@ -262,27 +261,70 @@ export const readsTimeline = Spec.readsTimeline;
  */
 export async function formatGroupsFor(state: LeagueState, view: LeagueState): Promise<Map<number, FormatGroups> | undefined> {
   if (!StateLogic.AnswerLogic.questions(state).some(readsTimeline)) return undefined;
-  const s = state.settings ?? {};
-  const tl = await timelineForShow(pool, s.showId, s.wikiSeason);
-  if (!tl) return undefined;
-  const resolve = (name: string) => StateLogic.Core.findCastawayByName(view, name).castaway?.id ?? null;
-  const through = Math.max(0, ...state.episodes.map((e) => e.number));
-  const map = groupFacts(tl, { cast: view.castaways, tribes: (view.tribes ?? []).map((t) => t.name), resolve, through });
-  return map.size ? map : undefined;
+  // A14 part 2: db/format-timeline.js's, which the bot's calls read too (db/bot-calls.js), so both offer the same groups at a lock.
+  return leagueGroupFacts(pool, state, view);
+}
+
+/**
+ * Step A14 part 2: the bot's own calls on a game's questions played against it (bot_calls, migration 0206: db/bot-calls.js files
+ * them), by window ("question|episode", 0 asked once): `bot`, each call once that window has locked for everyone as the players'
+ * questions do (StateLogic.AnswerLogic.closed with the schedule's air time and finale, as answers.ts isClosed reads it, nobody's late
+ * lock), so nothing graded or shown carries a call sooner; `botCalled`, every window the game still asks that has one (nothing of
+ * what it said: what the questions show before the lock). A window the game no longer plays (its span moved) is neither. Undefined
+ * for a game with no such question. Read on each read (a call filed just now is in at once), never kept in the state; the schedule is
+ * read only while a call's window is still open as the league's own state has it.
+ */
+export async function botCallsFor(leagueId: string, state: LeagueState, now = new Date()): Promise<Pick<AnswerFacts, "bot" | "botCalled"> | undefined> {
+  const A = StateLogic.AnswerLogic;
+  const qs = new Map(A.questions(state).filter((q) => Spec.isBeat(q)).map((q) => [q.id, q]));
+  if (!qs.size) return undefined;
+  const { rows } = await pool.query("SELECT question, episode, answer FROM bot_calls WHERE league_id = $1", [leagueId]);
+  const bot = new Map<string, unknown>();
+  const botCalled = new Set<string>();
+  let lockOf: ((q: Question, ep: number) => { finale: number | null; airAt: string | null }) | null = null;
+  for (const r of rows) {
+    const q = qs.get(r.question as string);
+    const ep = r.episode as number;
+    if (!q || (q.asked !== "once" && !A.opensAt(state, q, ep))) continue;
+    const key = Spec.botKey(q, ep);
+    botCalled.add(key);
+    let shut = A.closed(state, q, ep, { now: now.getTime() });
+    if (!shut) {
+      lockOf ??= await scheduleLock(leagueId, state, now);
+      shut = A.closed(state, q, ep, { now: now.getTime(), ...lockOf(q, ep) });
+    }
+    if (shut) bot.set(key, r.answer);
+  }
+  return { bot, botCalled };
+}
+
+/** A league's season schedule as a question's lock reads it (answers.ts closing's): the finale's episode, and the air time of the
+ *  episode that closes a window, for one the league hasn't stamped. */
+async function scheduleLock(leagueId: string, state: LeagueState, now: Date): Promise<(q: Question, ep: number) => { finale: number | null; airAt: string | null }> {
+  const { leagueSeason } = await import("./push-events");
+  const { seasonSchedules } = await import("./schedule");
+  const { seasonId } = await leagueSeason(leagueId);
+  const schedule = seasonId ? (await seasonSchedules([seasonId], now)).get(seasonId) : undefined;
+  const finale = finaleEpisode(schedule)?.number ?? null;
+  return (q, ep) => {
+    const at = StateLogic.AnswerLogic.closesAt(state, q, ep, finale);
+    return { finale, airAt: at === null ? null : (schedule?.episodes.find((e) => e.number === at)?.airAt ?? null) };
+  };
 }
 
 /** What only the server knows of a game's facts: the timeline's groups (F3 part 2), for a game that asks trivia each round's
- *  trivia key (A13: trivia-key.ts triviaKeyFor), and for one an episode fact settles each episode's facts as research said them
- *  (A13 part 2: episode-facts.ts episodeFactsFor). Each only when the game reads it. */
-async function serverFacts(state: LeagueState, view: LeagueState): Promise<Pick<AnswerFacts, "formatGroups" | "trivia" | "episodeFacts">> {
-  const [formatGroups, trivia, episodeFacts] = await Promise.all([formatGroupsFor(state, view), triviaKeyFor(state), episodeFactsFor(state, view)]);
-  return { ...(formatGroups ? { formatGroups } : {}), ...(trivia ? { trivia } : {}), ...(episodeFacts ? { episodeFacts } : {}) };
+ *  trivia key (A13: trivia-key.ts triviaKeyFor), for one an episode fact settles each episode's facts as research said them
+ *  (A13 part 2: episode-facts.ts episodeFactsFor), and for one played against the bot its calls (A14 part 2: botCallsFor). Each
+ *  only when the game reads it. */
+async function serverFacts(state: LeagueState, view: LeagueState, leagueId: string): Promise<Pick<AnswerFacts, "formatGroups" | "trivia" | "episodeFacts" | "bot" | "botCalled">> {
+  const [formatGroups, trivia, episodeFacts, bot] = await Promise.all([formatGroupsFor(state, view), triviaKeyFor(state), episodeFactsFor(state, view), botCallsFor(leagueId, state)]);
+  return { ...(formatGroups ? { formatGroups } : {}), ...(trivia ? { trivia } : {}), ...(episodeFacts ? { episodeFacts } : {}), ...(bot ?? {}) };
 }
 
 /** The facts a game's questions are graded on as a viewer sees them (StateLogic.AnswerLogic.facts), the timeline's groups, the
- *  trivia key and the episode facts in. */
-export async function answerFacts(state: LeagueState, view: LeagueState): Promise<AnswerFacts> {
-  return { ...StateLogic.AnswerLogic.facts(view), ...(await serverFacts(state, view)) };
+ *  trivia key, the episode facts and the bot's calls in. */
+export async function answerFacts(state: LeagueState, view: LeagueState, leagueId: string): Promise<AnswerFacts> {
+  return { ...StateLogic.AnswerLogic.facts(view), ...(await serverFacts(state, view, leagueId)) };
 }
 
 /**
@@ -295,16 +337,59 @@ export async function leagueAnswers(o: { leagueId: string; state: LeagueState; p
   const w = await walked(o);
   // Step A11 part 2b: a game that races or knocks players out has its points in its walk (frozen once someone's out), and the
   // table reads who's out from the walk (gameView puts it on its copy of the league).
-  return { right: pointsOf(w), move: null, walk: w.walk };
+  // Graded once, for the table (unless its walk has the points) and the bot's line.
+  const graded = w.walk && !w.facts.bot ? null : StateLogic.AnswerLogic.grade(w.view, w.rows, w.facts);
+  return { right: pointsOf(w, graded), move: null, walk: w.walk, bot: botLine(w, graded) };
 }
 
-/** Each one's points as the table shows them: a walk's (frozen once out), else graded on the view. */
-function pointsOf(w: Walked): (playerId: string) => number {
+/**
+ * Step A14 part 2: how the couch did against the bot on a game's questions played against it, as far as the viewer has seen: the
+ * windows its call is settled on (a void call isn't one), how many it got right, and each seat's record against it (`beat`: the
+ * windows you scored on, right where it wasn't; `beaten`: those it was right on and you scored nothing, of the windows you answered).
+ * Null for a game with none. The bot is never a seat on the table, nor a place on it: this is a line beside it.
+ */
+export function botLine(w: Walked, graded?: { verdicts: Map<string, Verdict>; earned: Map<string, Map<string, number>> } | null): BotLine | null {
+  const qs = new Map(StateLogic.AnswerLogic.questions(w.view).filter((q) => Spec.isBeat(q)).map((q) => [q.id, q]));
+  const calls = w.facts.bot;
+  if (!qs.size || !calls) return null;
+  // The grade's own (it counts this copy's seats only), and each window's answers, grouped once.
+  const { verdicts, earned } = graded ?? StateLogic.AnswerLogic.grade(w.view, w.rows, w.facts);
+  const seats = new Set(w.view.players.map((p) => p.id));
+  const byWindow = new Map<string, { playerId: string; answer: unknown }[]>();
+  for (const a of w.rows) {
+    const q = qs.get(a.question);
+    if (!q || !seats.has(a.playerId)) continue;
+    const key = Spec.botKey(q, a.episode);
+    byWindow.set(key, [...(byWindow.get(key) ?? []), { playerId: a.playerId, answer: a.answer }]);
+  }
+  const line: BotLine = { called: 0, right: 0, vs: {} };
+  for (const [key, call] of calls) {
+    const cut = key.lastIndexOf("|");
+    const q = qs.get(key.slice(0, cut));
+    if (!q) continue;
+    const ep = Number(key.slice(cut + 1));
+    const list = byWindow.get(key) ?? [];
+    const right = Spec.botRight(q, verdicts.get(key) ?? Spec.verdictOf(q, ep, w.facts), call, list, w.facts);
+    if (right === null) continue;
+    line.called++;
+    if (right) line.right++;
+    const got = earned.get(key);
+    for (const a of list) {
+      const r = (line.vs[a.playerId] ??= { beat: 0, beaten: 0 });
+      if ((got?.get(a.playerId) ?? 0) > 0) r.beat++;
+      else if (right) r.beaten++;
+    }
+  }
+  return line;
+}
+
+/** Each one's points as the table shows them: a walk's (frozen once out), else graded on the view (`graded`, when it has been). */
+function pointsOf(w: Walked, graded?: { points: Map<string, number> } | null): (playerId: string) => number {
   if (w.walk) {
     const totals = w.walk.totals;
     return (p) => totals[p] ?? 0;
   }
-  const { points } = StateLogic.AnswerLogic.grade(w.view, w.rows, w.facts);
+  const { points } = graded ?? StateLogic.AnswerLogic.grade(w.view, w.rows, w.facts);
   return (p) => points.get(p) ?? 0;
 }
 

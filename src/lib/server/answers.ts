@@ -122,6 +122,10 @@ export interface QuestionView {
   verdict: Verdict | null;
   /** Once it's closed: everyone's answers, you first, and how each did as far as you've seen. */
   people: QuestionPerson[];
+  /** Step A14 part 2: a question played against the bot's own call: whether the bot has made its call on this window (before it
+   *  locks for you, nothing of what it is), and once it's closed for you, its call and whether it was right as far as you've seen
+   *  (null: still to settle, or void); null for any other question. The bot is never one of `people`. */
+  bot: { called: boolean; answer: unknown; right: boolean | null } | null;
 }
 
 export interface GameQuestions {
@@ -171,16 +175,10 @@ function pairsOf(state: LeagueState, q: Question): { key: string; ids: [string, 
  *  groups someone still in is on (after any swap you've seen, never one you haven't; `fg`, F3 part 2: on a season played in
  *  pairs, the format's state over time's groups going into the episode); for a question about each person, each of those still in. */
 function facesFor(view: LeagueState, q: Question, playerId: string, fg?: FormatGroups | null): QuestionFace[] {
-  const stillIn = view.castaways.filter((c) => c.status !== "eliminated");
   // F3 part 2: on a season played in groups the league doesn't hold (pairs), the groups going into the lock, from the format's
-  // state over time ("Ann & Bea"); none when that isn't sure, unless the question follows the people (carry-on).
-  if (fg && readsTimeline(q)) return fg.lockSure || q.fallback === "carry-on" ? fg.offered.map((g) => ({ id: g.id, name: g.name, photo: null })) : [];
-  if (q.answer === "group" && !q.each) {
-    const on = new Set(stillIn.map((c) => c.tribeId).filter((t): t is string => !!t));
-    return (view.tribes ?? []).filter((t) => on.has(t.id)).map((t) => ({ id: t.id, name: t.name, photo: null }));
-  }
-  const team = q.from === "team" && !q.each ? new Set(StateLogic.Core.ownedCastawayIds(view, playerId)) : null;
-  return stillIn.filter((c) => !team || team.has(c.id)).map((c) => ({ id: c.id, name: c.name, photo: publicMediaSrc(c.photoUrl) }));
+  // state over time ("Ann & Bea"); none when that isn't sure, unless the question follows the people (carry-on). A14 part 2: the
+  // engine's (AnswerLogic.faces), which the bot's calls are checked against too.
+  return StateLogic.AnswerLogic.faces(view, q, { playerId, groups: fg ?? null }).map((f) => ({ id: f.id, name: f.name, photo: publicMediaSrc(f.photoUrl) }));
 }
 
 /** Why a group question on the timeline's groups (F3 part 2) has nothing to pick at an episode's lock, or null. */
@@ -369,6 +367,8 @@ async function readQuestions(r: Read, episodeIn?: unknown): Promise<GameQuestion
   // A9: your stakes still on the line, and how many of the game's episodes have started (a shrinking call made now).
   const held = heldStakes(qs, stored, graded.verdicts, me);
   const lateNow = startedNow(r);
+  // A14 part 2: the windows the bot has made its call on (whether it has, before the lock: nothing of what it is), as the facts read them.
+  const made = facts.botCalled ?? null;
   for (const q of qs) {
     // Its window this week (A7: asked each, its episode; every few or by phase, the run it's in), or the game's own (0).
     const each = q.asked !== "once";
@@ -432,6 +432,7 @@ async function readQuestions(r: Read, episodeIn?: unknown): Promise<GameQuestion
       answered: new Set(theirs.map((a) => a.playerId)).size,
       verdict: null,
       people: [],
+      bot: made && Spec.isBeat(q) ? { called: made.has(Spec.botKey(q, ep)), answer: null, right: null } : null,
     };
     if (closed) {
       // Locked: everyone's answers, and how each stands as far as you've seen (the view is cut at your mark).
@@ -450,6 +451,9 @@ async function readQuestions(r: Read, episodeIn?: unknown): Promise<GameQuestion
           earned: earned.get(a.playerId) ?? 0,
         }))
         .sort((x, y) => Number(y.you) - Number(x.you) || y.earned - x.earned || x.name.localeCompare(y.name));
+      // A14 part 2: the bot's call, once it's closed for you (the grade's facts carry it from the game's lock: botCallsFor).
+      const call = Spec.isBeat(q) ? Spec.botCall(q, ep, facts) : undefined;
+      if (view1.bot && call !== undefined) view1.bot = { called: true, answer: call, right: Spec.botRight(q, v as Verdict, call, list, facts) };
     }
     out.push(view1);
   }

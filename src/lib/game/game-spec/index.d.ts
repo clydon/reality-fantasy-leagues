@@ -250,6 +250,10 @@ export interface SpecQuestion {
    *  state over time): void (the default) when its groups aren't sure, no points either way; carry-on follows the people;
    *  next-stage is A12's. */
   fallback?: "void" | "carry-on" | "next-stage";
+  /** A14 part 2: played against the bot's own call (beat the bot): a right answer scores only where the bot's call isn't right
+   *  (a person or group answer, each right pick it didn't name; a number, the closest only when closer than the bot). `none`:
+   *  a window the bot made no call for plays as usual (the default) or doesn't count either way. */
+  beat?: { by: "bot"; none?: "plays" | "void" };
 }
 /** A question as a spec holds it once it's whole (fullSpec): asked and closes always said. */
 export type Question = SpecQuestion & { asked: "once" | "each" | "every" | "phase"; closes: "start" | "finale" };
@@ -298,6 +302,12 @@ export interface AnswerFacts {
   /** A13 part 2: what research said of each episode fact, by episode, for each episode whose stored research has the section: the
    *  server's (episode-facts.ts episodeFactsFor). No map at all, a fact question waits. */
   episodeFacts?: Map<number, Record<string, FactOutcome>>;
+  /** A14 part 2: the bot's own call on each window of a question played against it ("question|episode", the window's key: 0 asked
+   *  once), each once its window's lock has passed (bot_calls): the server's (answer-points.ts botCallsFor). A window with none has
+   *  no entry; no map at all, a question played against the bot waits. */
+  bot?: Map<string, unknown>;
+  /** A14 part 2: every window the bot has made its call on that the game still asks, locked or not (nothing of what it said). */
+  botCalled?: Set<string>;
 }
 /** A13: one question of a round's trivia key (trivia_questions, live and not pulled): what the grader reads (id, answer) and what
  *  the round shows (the rest). */
@@ -571,6 +581,12 @@ export function isFact(q: unknown): boolean;
 export function isPlayers(q: unknown): boolean;
 /** A14 part 1: a question the players settle, its default on a tie. */
 export const PLAYERS: { tie: "none" | "all" };
+/** A14 part 2: a question played against the bot's own call. */
+export function isBeat(q: unknown): boolean;
+/** A14 part 2: a question played against the bot, its default for a window the bot made no call for. */
+export const BEAT: { none: "plays" | "void" };
+/** A14 part 2: the answers the bot makes its call on. */
+export const BEATS: readonly SpecQuestion["answer"][];
 export function callsAsk(ask: unknown): boolean;
 export function fullQuestion(q: SpecQuestion): Question;
 /** A choice option as the range a count falls in ("2", "3+", "0-1"), else null. */
@@ -596,8 +612,15 @@ export function windowPoints(
   v: Verdict,
   answers: { playerId: string; answer: unknown; late?: number; changes?: number }[],
   facts?: AnswerFacts,
-  o?: { worth?: number }
+  o?: { worth?: number; bot?: unknown }
 ): Map<string, number>;
+/** A14 part 2: a window's key ("question|episode", 0 asked once), as the grade and the bot's calls have it. */
+export function botKey(q: Question, episode: number): string;
+/** A14 part 2: the bot's call on a question's window (facts.bot), or undefined. */
+export function botCall(q: Question, episode: number, facts: AnswerFacts): unknown;
+/** A14 part 2: whether the bot's call on a window was right (null: not settled, no call, or a void one); a number, among the
+ *  window's answers. */
+export function botRight(q: Question, v: Verdict, call: unknown, answers: { playerId: string; answer: unknown }[], facts?: AnswerFacts): boolean | null;
 /** A9: who's right on every leg of a parlay in one window. */
 export function allRight(legs: { q: Question; v: Verdict | undefined; answers: { playerId: string; answer: unknown }[] }[], facts?: AnswerFacts): Set<string>;
 /** A11 part 2b: the facts as they stood once episode `k` was in (the walk's totals through it). */

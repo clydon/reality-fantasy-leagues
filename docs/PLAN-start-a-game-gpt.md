@@ -91,8 +91,11 @@ Survivor now says it for sure on 10 of 10 weeks, The Challenge and The Traitors 
 'facts' run, migration 0204), so **A13 is done**. A14 (the players' own mechanics) is under way, in parts: part 1, what the players answer
 that depends on each other (2026-10-31: a question the players' own answers settle, the answer most (or fewest) of you give, every answer
 hidden until the lock; the players' vote on a format change, decided once more than half of the seats say the same, else by the votes cast at
-the lock; `settle.by 'players'`, `StageLogic.vote`, `stage_change_votes`, migration 0205), is built; part 2, the bot's call as an opponent,
-next. The live-sports plan is
+the lock; `settle.by 'players'`, `StageLogic.vote`, `stage_change_votes`, migration 0205), is built, and so is part 2, the bot's call as an
+opponent (2026-10-31: a question played against the bot, `beat: { by: 'bot', none }`, a right answer scoring only where the bot's call
+isn't right, the bot's call kept apart and hidden until the lock, a week it made no call playing as usual or void; the table's line on how
+each of you did against it; proven with stand-in calls: `bot_calls`, migration 0206, `db/bot-calls.js`); part 2b, the bot's own run that
+makes the call before each lock (a prompt change), next. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5 at
 xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: folded in here as track L; its file keeps the details)
 and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track S here).
@@ -5037,7 +5040,8 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
   bot's call as an opponent; and numbers from vetted outside sources (an episode's TVmaze rating, settled once at a fixed
   moment). Answers stay hidden until the lock once they depend on each other.
   **In parts (2026-10-31), one a session, as A11 and A12 were:** part 1, what the players answer that depends on each other (a question
-  their own answers settle; the players' vote); part 2, the bot's call as an opponent (beat the bot); then bounties, secret roles, the top
+  their own answers settle; the players' vote); part 2, the bot's call as an opponent (beat the bot: the piece, its storage and reads, then
+  2b, the bot's own run that makes the call before each lock); then bounties, secret roles, the top
   scorer's twist and a rotating host's questions, and numbers from a vetted outside source (an episode's TVmaze rating), as the parts
   find their boundaries.
 
@@ -5123,6 +5127,79 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     study doc's "A14 part 1".
   - **The Survivor 51 rehearsal** isn't run for this part: no existing game scores differently (none settles by the players or votes;
     golden every read the same).
+
+  **As built (A14 part 2, the bot's call as an opponent, 2026-10-31, on `engine`, not merged; migration 0206).** One session, after
+  `lane.js sync engine` (nothing new from master; 1247 tests). "Beat the bot" (the dial rows settle.bot and win.bot, the request s35: "the AI
+  makes its call too; you score when you're right and it's wrong"), as a piece of a question, in two halves like A13 part 2 and 2b: this part
+  is the piece, where the bot's call is kept, how it's graded and read, and its fallback, proven with **stand-in calls**; part 2b is the
+  bot's own run that makes the call before each lock (a prompt: the user's to approve at the merge, as every prompt change is). Until 2b, no
+  call is ever made in production, so a game played against the bot plays its fallback (as usual, every right answer scoring). The bot is
+  never a seat on the couch nor a place on its table: a line beside it. No screen; every default and everything a person sees is the user's
+  (Noticed, below).
+  - **The piece** (`schema.js`, `answers.js beatVerdict`, `beatUnits`, `botRight`): a question's `beat: { by: 'bot', none? }`. A right answer
+    scores only where the bot's call isn't right: a person or group answer, each right pick the bot didn't name (a double boot, pick two: the
+    one it missed still scores); a number, the closest with the bot's among them, only when the bot's isn't (a tie with the bot is the
+    bot's); a yes or no, a choice or an over/under, only when the bot's call was wrong. Rightness stays your own call's: a life, co-op's
+    saves and a parlay's legs read whether you were right, so a right answer the bot also got keeps your life and scores nothing. It composes:
+    a split pot shared by those who beat it, `only` (a right pick nobody else, the bot included, named), a rollover a week the bot got carries
+    ("if the bot gets it, the points roll over"), a parlay (only what you earned multiplies), lives, a viewer's mark, asked once (window 0).
+    Our check: one call the bot can make (`BEATS`: a person or group, a yes or no, a number, an over/under or a choice; never an order,
+    chips, pairs, a question about each person or trivia), settled by what happened (not the players' own answers, the calls or trivia),
+    a game of questions' own (a draft's finale predictions are refused), never with a wager (a stake is on your own call), never from your
+    own team (the bot has none). **Its fallback, from the start:** a window the bot made no call for (it was away, the game was made after
+    it called) or whose call is void (a group that didn't play as offered), `none`: 'plays' (the default, `BEAT`: as if there were no bot)
+    or 'void' (no points either way, neither right nor wrong: "The bot made no call: it doesn't count either way"). Without the server's
+    calls (`facts.bot`) a question played against the bot waits, as trivia without its key. Its words (`describe.js beatWords`): "The bot
+    makes its call too, before it locks. 2 points if you're right and it isn't. If the bot makes no call, it plays as usual." (pick two: "for
+    each one right that the bot didn't name"; a number: "the closest wins 3 points, if closer than the bot"; void: "it doesn't count either
+    way"; an episode fact's own fallback still said); the sentence when every question is one: "2 points when you're right and the bot
+    isn't.", some of them: "On who goes home, only when the bot's call isn't right."
+  - **Where the call is kept** (`bot_calls`, migration 0206: one call a window, per game, question and episode, its answer, a note, and
+    `made_by` 'bot' | 'stand-in'): never in the state (every route returns it whole: 0004's reason) and apart from `game_answers` (no
+    seat). `db/bot-calls.js fileCalls` files calls, each checked as a seat's answer is: a question played against the bot, a window the game
+    asks, still open for the bot (`locked`: the players' own lock, `AnswerLogic.closed` with the schedule's air time, a league catching up
+    at its own pace never on the broadcast's clock; a question asked once that waits for the finale locks for the bot at the game's first
+    episode, so it calls before anyone could know more), and an answer it could give then (`Spec.answerProblem` against who could be named
+    at that lock: the engine's new `AnswerLogic.faces`, the same a seat's answers now read, on the league as it stands; the format's groups
+    from `db/format-timeline.js leagueGroupFacts`, the same read the seats' have). Changeable until the lock, never after. `windowsAt`
+    lists the windows whose call locks at an episode, for part 2b's run.
+  - **The grade and the reads** (`answer-points.ts botCallsFor`, in `serverFacts`): `facts.bot`, each call once its window has locked for
+    everyone (the players' lock, with the schedule's air time and finale for an episode the league hasn't stamped, read only while a call's
+    window is still open as the state has it), and `facts.botCalled`, every window it has called that the game still asks (a window the game
+    no longer plays is neither). `AnswerLogic.grade` hands each window's call to `windowPoints`. The answers route's `bot` on each question
+    played against it: before the lock `{ called }` only (nothing of what), once it's closed for you its call and whether it was right as
+    far as you've seen; the bot is never one of `people`. The table's line (`answer-points.ts botLine`, the game view's `bot`): the windows
+    its call is settled on, how many it got right, and each seat's record against it (`beat`: windows you scored on; `beaten`: windows it
+    was right and you scored nothing, of those you answered), graded once with the table.
+  - **Tracker:** three rows ✅ (200 ✅ · 47 ⏳, A14 8 waiting): settle.bot (will an idol be played, against the bot), win.bot (who goes home
+    and who wins immunity, both against the bot, the table's line beside it) and s35. `engine-capabilities.js --check` current;
+    `game-specs-flag.js check`: PASS.
+  - **Proof:** `tests/beat-bot.test.js` (new, 10): its shape and our check (every kind, each refusal, the round trip), its words, a person
+    (wrong, right, a double boot per pick), a yes or no, a number (a tie with the bot), a group, an over/under and a choice, the fallback
+    (plays, void, a null call, still waiting), what it composes with (a split pot, only, a rollover, a parlay, a life), asked once and a
+    viewer's mark, the bot's lock (a league catching up, the finale's question locking at the start, `windowsAt`), the engine's faces, the
+    bot's line. `npm test` 1257; `tsc` clean; eslint clean on the changed files (the require() style aside).
+  - **API check:** `scripts/dev-test/check-beat-bot.js` (new), ALL PASS: a lab game of two questions against the bot (one 'plays', one
+    'void') on the fixture's couch; a stand-in calls Episode 6 (wrong), refused naming someone out, on a question not against the bot, before
+    the game's start, and once the episode aired; before the lock riley sees only that the bot has called (and that it hasn't on the other),
+    the state carrying no call; closed, its call shown; the result: alex and riley beat it (2 each), jordan (with the bot) nothing, the void
+    question off; the table 2, 2, 0 and the line (one call, none right, one beat each); sam, behind, no call settled; Episode 7 the bot right:
+    nothing on either, the line three calls, two right. Also ALL PASS: `check-players-game.js`, `check-questions-scoring.js`,
+    `check-format-groups.js` (the faces and groups every seat now reads through the shared code).
+  - **The code review** (`/code-review` at high, before the long runs): ten findings, all taken: three lock checks that disagreed (filing
+    reading the broadcast's clock for a league catching up, the reveal without the schedule's air time or finale, a call on a window the game
+    no longer plays counted in the line): now one, `AnswerLogic.closed` with the same inputs; a fact question's own fallback words lost;
+    `from: 'team'` with the bot refused; the bot's faces and the format's groups copied from the seats' (now shared: `AnswerLogic.faces`,
+    `leagueGroupFacts`); a second read of the calls per questions read (`facts.botCalled`); the table graded twice (once now); `isBeat`
+    inlined in the grader.
+  - **Golden replays:** `golden.js` (HEAD, A14 part 1, against the working tree): 7 seasons, 160 games, **19,361 reads, every one the
+    same**; against master's (`--before=master`, production's engine): every one the same.
+  - **Blind replays:** (`blind.js run`, the five seasons, on the final code, with a stand-in's call filed before each lock: blind.js
+    `standInCalls`): **every game played through and over on all five seasons**: Survivor 49 140 of 140, The Challenge 41 110, 40 104, 39
+    112, The Traitors 4 99 (Survivor's three new games, the others s35's); every stand-in call filed, none refused; the weeks it was right
+    scored nobody who said the same, a night of several exits only the one it named. The study doc's "A14 part 2".
+  - **The Survivor 51 rehearsal** isn't run for this part: no existing game scores differently (none is played against the bot; golden
+    every read the same).
 - **A15. Live and replay** (with the watch along, docs/PLAN-couch-and-episode-night.md §6, and the sports branch's
   `GameClock`). It needs A7. The watch along is in its infancy (the user, 2026-10-28): its concept, how it's built and how it
   connects to games are all open, so A15 is where the games shape it, not only where they plug into it.
@@ -6081,6 +6158,29 @@ From R1 part 2 (2026-10-30):
   (R3, or whoever next works in Game settings.)
 - **For the hosting notes, at the merge:** `/api/me` (classic's sign-in and every classic load) now sends each league's settings, not its
   whole state (20-40 KB each): less Neon transfer than before. (The main folder: docs/HOSTING.md, with the merge.)
+
+From A14 part 2 (2026-10-31):
+- **For the user, in the design session (decide nothing a person sees), each built with a recommendation:**
+  1. **A week the bot made no call** (`beat.none`). Built: 'plays' (the default: as if there were no bot, every right answer scores) or
+     'void' (no points either way). Recommended: 'plays', as built: the bot being away is our side's, not the couch's, and nobody's call is
+     wasted; 'void' for a couch that wants every point to be a win over the bot.
+  2. **A tie with the bot on a number** (both closest). Built: the bot's (nobody scores). Option: shared (whoever tied it scores). Recommended:
+     as built, "closer than the bot" is the rule's plain reading.
+  3. **What players see of the bot before the lock.** Built: whether it has called, nothing of what (the call is hidden until the lock, as
+     everyone's answers are). Option: the bot shows its call first, so you play against a call you can see (a different game: dodging it is
+     the skill). Recommended: hidden, as built; the open call as a spec setting later if a couch asks.
+  4. **How the table shows the bot.** Built: a line beside the table (its calls right of those settled, each seat's beat and beaten), never a
+     row or a place. Option: a ghost row ranked among you ("where the bot would be"). Recommended: the line, as built (the Decisions table's
+     guardrail: a player-decided outcome never moves anyone's place, and the bot is no player); its words and look are U1's.
+  5. **When the bot calls and what it's told** (part 2b's): recommended, a run of its own a few hours before each lock, for every game with
+     a question against the bot, told only what anyone could know before the episode (the show, the season, the episode number, who's still
+     in, the question and its choices) and asked not to look anything up about the episode or after it; one ask per game per episode.
+- **A call can be made early** (any open window, Episode 12 now): harmless (it's checked against who's in now, and someone who goes home
+  before it is simply a wrong call), but part 2b's run calls each window only shortly before its lock. (Part 2b, if it matters.)
+- **For the hosting notes, at the merge:** migration 0206's `bot_calls`, a row per game per window played against the bot (a few a week a
+  game): negligible storage; a read of a game against the bot reads its calls once, and the season's schedule while a call's window is still
+  open (two small queries). (The main folder: docs/HOSTING.md, with the merge.)
+- **No prompt changed** in this part (the bot is never asked: the checks and blind file stand-ins); part 2b's run is the prompt change.
 
 From A14 part 1 (2026-10-31):
 - **For the user, in the design session (decide nothing a person sees), each built with a recommendation:**

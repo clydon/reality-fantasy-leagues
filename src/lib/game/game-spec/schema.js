@@ -203,6 +203,10 @@ const VOCAB = {
   // A14 part 1: a question the players' own answers settle, on a tie for the most (or the fewest): nobody's right (void, no points
   // either way), or each of the tied answers is.
   'ask.settle.tie': { none: 'now', all: 'now' },
+  // A14 part 2: a question played against the bot's own call ("beat the bot": you score when you're right and it isn't), and what
+  // a window the bot made no call for does: it plays as usual (every right answer scores), or doesn't count either way.
+  'ask.beat.by': { bot: 'now' },
+  'ask.beat.none': { plays: 'now', void: 'now' },
   'ask.asked': { once: 'now', each: 'now', every: 'now', phase: 'now' },
   'ask.closes': { start: 'now', finale: 'now' },
   'ask.from': { cast: 'now', team: 'now' },
@@ -390,6 +394,19 @@ const VOCAB = {
 //               minority, void it (no points either way); a tie, `tie`: none (the default, void) or all (each tied one is
 //               right). A game of questions only, with one lock for everyone (no late lock)
 //           sports: { by: 'final', take: winner | total | margin } | { by: 'stat', stat, take: most | least | value }
+//   beat    (A14 part 2) { by: 'bot', none? }: played against the bot's own call ("beat the bot: the AI makes its call too; you
+//           score when you're right and it's wrong"). The bot makes its call before each window's first lock (asked once, before
+//           the game's first episode), from only what anyone could know then, and it's kept apart from everyone's answers and
+//           hidden until that lock (bot_calls, migration 0206; the server hands it to the grade as a fact: facts.bot); it's
+//           graded by the same data as everyone's. A right answer scores only where the bot's call isn't right: a person or group
+//           answer, each right pick the bot didn't name; a number, the closest only when it's closer than the bot's; a yes or no,
+//           a choice or an over/under, only when the bot's call was wrong. It's never a seat on the couch nor a place on its table.
+//           Its fallback, from the start: a window the bot made no call for (it was away, the game was made after it called) or
+//           whose call is void (a group that didn't play as offered), `none`: plays (the default, BEAT: as if there were no bot,
+//           every right answer scores) | void (that window doesn't count either way). One answer each: a person or group, a
+//           yes or no, a number, an over/under or a choice (BEATS), settled by data (not by your own answers, the calls or
+//           trivia), in a game of questions, never with a wager. Rightness is still your own call's (a life, co-op's saves, a
+//           parlay's legs read whether you were right); only the points are the bot's to take
 const TAKES = {
   results: ['winner', 'out', 'placed', 'top', 'stays', 'order', 'split', 'outlast'],
   moment: ['happened', 'count', 'who', 'most', 'first', 'order'],
@@ -952,6 +969,13 @@ const isFact = (q) => isObj(q) && isObj(q.settle) && q.settle.by === 'fact';
 const isPlayers = (q) => isObj(q) && isObj(q.settle) && q.settle.by === 'players';
 /** A14 part 1: a question the players settle, on a tie: nobody's right by default (void). The default is the user's (Noticed). */
 const PLAYERS = { tie: 'none' };
+/** A14 part 2: a question played against the bot's own call. */
+const isBeat = (q) => isObj(q) && isObj(q.beat) && q.beat.by === 'bot';
+/** A14 part 2: a window the bot made no call for plays as usual by default (every right answer scores). The default is the
+ *  user's (Noticed). */
+const BEAT = { none: 'plays' };
+/** A14 part 2: the answers the bot makes its call on (one call, right or wrong; a number the closest). */
+const BEATS = ['person', 'group', 'yesNo', 'number', 'overUnder', 'choice'];
 /** The settles that settle themselves, with no take: the show's calls, the episode's trivia key (A13). */
 const NO_TAKE = ['calls', 'trivia'];
 /** An ask that's exactly the show's calls (Weekly Calls). */
@@ -967,6 +991,7 @@ function fullQuestion(q) {
   if (NAMES.includes(out.answer) && out.pick === undefined) out.pick = 1;
   if (out.answer === 'person' && out.from === undefined) out.from = 'cast';
   if (isPlayers(out) && out.settle.tie === undefined) out.settle = { ...out.settle, tie: PLAYERS.tie };
+  if (isBeat(out) && out.beat.none === undefined) out.beat = { ...out.beat, none: BEAT.none };
   return out;
 }
 
@@ -1825,6 +1850,17 @@ function questionProblems(q, at, s, ids, league) {
       else if (NAMES.includes(of.answer) && (of.pick === undefined ? 1 : of.pick) !== 1) add('settle.of', 'The question it\'s about names one');
     }
   }
+  // A14 part 2: a question played against the bot's own call: one call it can make, settled by data, a game of questions' own.
+  if (q.beat !== undefined) {
+    const b = q.beat;
+    if (!(isObj(b) && one('ask.beat.by', b.by))) add('beat', "It's played against the bot's own call: { by: 'bot' }");
+    else if (b.none !== undefined && !one('ask.beat.none', b.none)) add('beat.none', "A window the bot made no call for plays as usual, or doesn't count either way: plays or void");
+    if (!BEATS.includes(q.answer) || each) add('beat', 'The bot makes one call: a person or group, a yes or no, a number, an over/under or a choice');
+    else if (st.by === 'players' || NO_TAKE.includes(st.by)) add('beat', "The bot's call is graded by what happened: not by your own answers, the calls or trivia");
+    if (!(isObj(s.score) && s.score.by === 'answers')) add('beat', "The bot plays a game of questions' own questions");
+    if (q.wager !== undefined) add('beat', "A wager is on your own call: not with the bot's");
+    if (q.from === 'team') add('beat', 'The bot has no team: it names from the cast, so ask from the cast');
+  }
   if (st.of !== undefined && st.by !== 'players') add('settle.of', "Only your own answers settle by another question's");
   if (st.tie !== undefined && st.by !== 'players') add('settle.tie', 'Only your own answers settle on a tie');
   // Where a phase starts is one episode for the whole game.
@@ -1981,8 +2017,9 @@ const KEYS = {
   windows: ['schedule', 'every', 'swaps'],
   draft: ['at', 'timer', 'away', 'opens'],
   bets: ['points'],
-  question: ['id', 'ask', 'answer', 'points', 'settle', 'asked', 'closes', 'pick', 'from', 'line', 'options', 'each', 'every', 'over', 'within', 'chips', 'pairs', 'wager', 'share', 'rollover', 'shrink', 'fallback'],
+  question: ['id', 'ask', 'answer', 'points', 'settle', 'asked', 'closes', 'pick', 'from', 'line', 'options', 'each', 'every', 'over', 'within', 'chips', 'pairs', 'wager', 'share', 'rollover', 'shrink', 'fallback', 'beat'],
   settle: ['by', 'take', 'moment', 'role', 'phase', 'stat', 'place', 'fact', 'of', 'tie'],
+  beat: ['by', 'none'],
 };
 /** The paths of keys a spec has that no game spec does. */
 function unknownKeys(s) {
@@ -2036,6 +2073,7 @@ function unknownKeys(s) {
     if (isObj(q)) {
       check(q.settle, KEYS.settle, `ask[${i}].settle`);
       check(q.shrink, KEYS.shrink, `ask[${i}].shrink`);
+      check(q.beat, KEYS.beat, `ask[${i}].beat`);
     }
   });
   const e = s.extras;
@@ -3026,7 +3064,7 @@ module.exports = {
   HANDICAP, MAX_HANDICAP, handicapParts,
   REPLACE_RULES, WINDOW_SCHEDULES, WAIVER_FEELS, WAIVER_ORDERS, WAIVER_HOURS, DRAFT_TIMERS, MAX_BET_POINTS, JOINS, ORDER_OF,
   MAX_TEAM, MAX_STARTERS, MAX_BENCH, MAX_LINEUP_TEAM, MAX_QUESTIONS, MAX_PICK, MAX_QUESTION_POINTS, MAX_OPTIONS, YES_NO,
-  CALLS, finaleQuestions, finaleOf, isCalls, isTrivia, isFact, isPlayers, PLAYERS, callsAsk, fullQuestion, optionRange, playable,
+  CALLS, finaleQuestions, finaleOf, isCalls, isTrivia, isFact, isPlayers, PLAYERS, isBeat, BEAT, BEATS, callsAsk, fullQuestion, optionRange, playable,
   fullSpec, typeOf, playsAs, flagsOf, sizesOf, specProblems, specWaitsFor, waiversFit, finaleFits, betsFit, countKind, presetOf, sameValue, own,
   spanStart, spanPhase, spanEnd, spanEndPhase, phaseTo,
   MAX_STAGES, MAX_STAGE_NAME, MAX_PLACES, OVERALL, STAGE_KINDS, stageGames, stagesOverlap,

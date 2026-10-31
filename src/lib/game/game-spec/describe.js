@@ -18,7 +18,7 @@
 //
 // Pure CommonJS, like ./schema.js.
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
-const { PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, spanEnd, spanEndPhase, playsAs, callsAsk, finaleOf, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion, matchupParts, questionsGame, teamParts, handicapParts, stageOn, ON_CHANGE, nextStageAts, fallsTo, stageSide, mainCount, stageAlongside, stageSeason, seasonKey, isPlayers } = require('./schema.js');
+const { PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, spanEnd, spanEndPhase, playsAs, callsAsk, finaleOf, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion, matchupParts, questionsGame, teamParts, handicapParts, stageOn, ON_CHANGE, nextStageAts, fallsTo, stageSide, mainCount, stageAlongside, stageSeason, seasonKey, isPlayers, isBeat } = require('./schema.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const NUMBER_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
@@ -265,6 +265,8 @@ function sentenceParts(s, w) {
     let said = ` ${each} for each right answer.`;
     // A14 part 1: the players' own answers settle every one, the same way.
     if (all((q) => isPlayers(q) && q.settle.take === s.ask[0].settle.take && q.share === undefined && q.wager === undefined)) said = ` ${each} when yours is the answer ${s.ask[0].settle.take === 'minority' ? 'fewest' : 'most'} of you give.`;
+    // A14 part 2: every one played against the bot's own call.
+    else if (all((q) => isBeat(q) && q.share === undefined)) said = ` ${each} when you're right and the bot isn't.`;
     else if (all((q) => q.share === 'split')) said = ` ${each} each time, split between everyone right.`;
     else if (all((q) => q.share === 'only')) said = ` ${each} for a right answer nobody else has.`;
     else if (all((q) => q.wager !== undefined)) {
@@ -273,6 +275,10 @@ function sentenceParts(s, w) {
       said = `${pts.length === 1 && pts[0] === 0 ? '' : said} Stake ${stake} on ${s.ask.length === 1 ? 'it' : 'each'}: double or nothing.`;
     }
     put(said, 'score');
+    // A14 part 2: some of them played against the bot (or all, sharing their points): the bot makes its call too.
+    if (some(isBeat) && !all((q) => isBeat(q) && q.share === undefined)) {
+      put(all(isBeat) ? " Only when the bot's call isn't right." : ` On ${listOf(s.ask.filter(isBeat).map(questionPhrase))}, only when the bot's call isn't right.`, 'score');
+    }
     if (some((q) => q.rollover)) put(" If nobody's right, the points roll over.", 'score');
     if (some((q) => isObj(q.shrink))) put(some((q) => isObj(q.shrink) && q.shrink.per === 'change') ? ' Changing your call once it starts costs points.' : " The earlier you call it, the more it's worth.", 'score');
     for (const p of parlaysOf(sc)) {
@@ -322,6 +328,8 @@ function questionRule(q, w, each, ask) {
     // A13: the round of trivia before each one, about the one before it.
     if (q.answer === 'trivia') earn = ` A few questions about the ${w.part} before it and the season so far, the same for everyone: ${pointsWord(pts)} for each one right.`;
   }
+  // A14 part 2: played against the bot's own call, and its fallback (an episode fact's own, below, still said).
+  if (isBeat(q) && pts !== null) earn = beatWords(q, pts);
   // A13 part 2: an episode fact's fallback, void.
   if (isObj(q.settle) && q.settle.by === 'fact') earn += " If research can't say for sure, or it's nobody you could pick, it doesn't count either way.";
   // A14 part 1: the players' own answers settle it, and its fallbacks.
@@ -350,6 +358,15 @@ function playersWords(q, pts, ask) {
   const tie = st.tie === 'all' ? ' A tie: each of them counts.' : " A tie doesn't count either way.";
   const none = st.take === 'minority' ? 'If you all say the same, or fewer than two of you answer,' : 'If fewer than two of you answer,';
   return ` ${cap(pointsWord(pts))} if yours is ${what}.${tie} ${none} it doesn't count either way.`;
+}
+/** A14 part 2: what a question played against the bot earns, as How it works says it: when you're right and the bot isn't, and what a
+ *  window the bot made no call for does. */
+function beatWords(q, pts) {
+  let earn = ` ${cap(pointsWord(pts))} if you're right and it isn't.`;
+  if (NAMES.includes(q.answer) && q.pick > 1) earn = ` Name ${say(q.pick)}: ${pointsWord(pts)} for each one right that the bot didn't name.`;
+  if (q.answer === 'number') earn = ` The closest wins ${pointsWord(pts)}, if closer than the bot.`;
+  const none = q.beat.none === 'void' ? " If the bot makes no call, it doesn't count either way." : ' If the bot makes no call, it plays as usual.';
+  return ` The bot makes its call too, before it locks.${earn}${none}`;
 }
 /** How a question's points combine (A9), as How it works says it. */
 function combineWords(q, w) {

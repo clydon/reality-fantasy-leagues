@@ -169,6 +169,17 @@ export interface GameCalls {
   ended?: boolean;
   /** Step A11 part 2b: a game of questions' walk on this viewer's own copy (answer-points.ts walked): who's out, where it ended. */
   walk?: AnswerWalk | null;
+  /** Step A14 part 2: how the couch did against the bot, on a game whose questions are played against it (answer-points.ts botLine). */
+  bot?: BotLine | null;
+}
+
+/** Step A14 part 2: a game of questions played against the bot's own call, as far as you've seen: the windows its call is settled on,
+ *  how many it got right, and each seat's record against it (beat: windows you scored on, right where it wasn't; beaten: windows it
+ *  was right on and you scored nothing, of those you answered). Never a seat on the table, nor a place on it. */
+export interface BotLine {
+  called: number;
+  right: number;
+  vs: Record<string, { beat: number; beaten: number }>;
 }
 
 export interface PredictionMove {
@@ -270,6 +281,9 @@ export interface GameView extends GameRefIn {
   /** Step A11 part 5b: a handicap, as far as you've seen: its points an episode, what newcomers are new to, who it names, whether
    *  you're one and whether that's kept yet; null for any other game. What it shows is U1's. */
   handicap: HandicapView | null;
+  /** Step A14 part 2: a game played against the bot, how the couch did against it as far as you've seen; null (or left out) for any
+   *  other game. What it shows is U1's. */
+  bot?: BotLine | null;
 }
 
 /** Whose user a seat is, for faces. */
@@ -329,6 +343,7 @@ export function gameView(game: GameRefIn, full: LeagueState, playerId: string | 
     // The teams as the table ranked them (each row's side), not worked out again.
     teams: StateLogic.TeamLogic.view(view, seat ? me : null, everyone.map((r) => ({ playerId: r.playerId, total: r.points, team: r.side }))),
     handicap: StateLogic.HandicapLogic.view(view, seat ? me : null),
+    bot: calls?.bot ?? null,
   };
 }
 

@@ -1487,6 +1487,42 @@ votes on never holds a game up. **The two majority games** (what most of us will
 will) settled every week on the seats' own answers, ties and too few answers void: on Survivor 49 the Drive-By 6, the Tinkerer 2, the Fan
 Who Forgets 1 and the Fan 0 on the first; 1 each on the second (the seats pick by habit, so they rarely agree).
 
+## A14 part 2: the bot's call as an opponent (2026-10-31)
+
+"Beat the bot": a question's `beat: { by: 'bot', none }`, the bot's own call on each window graded by the same data as everyone's, a right
+answer scoring only where the bot's isn't right (each right pick it didn't name; a number only closer than the bot). The call is the bot's
+alone, made before the window's first lock from what anyone could know then, kept apart from the state and from everyone's answers
+(`bot_calls`, migration 0206) and hidden until the lock. This part is the piece and its reads; the bot's own run that makes the call is
+part 2b, so nothing here asks the bot: the checks and these replays file a **stand-in's** call (`made_by` 'stand-in'). Nothing reads the
+format differently: a call names who (or which group) a seat's answer could at that lock, from the same faces and the same format groups
+(`AnswerLogic.faces`, `leagueGroupFacts`, now shared by both), so a swap, a re-pairing or a merge reaches the bot's choices exactly as it
+reaches the couch's. Its fallback from the start: a window the bot made no call for, or whose call is void, plays as usual (or, a setting,
+doesn't count).
+
+### Replayed blind
+
+`blind.js run` (the five seasons, on the final code): **every game played through and over on all five seasons**: Survivor 49 140 of 140,
+The Challenge 41 110 of 110, 40 104 of 104, 39 112 of 112, The Traitors 4 99 of 99 (Survivor three more than A14 part 1's, the three new
+tracker rows' games; the others one more each, s35's: settle.bot and win.bot need Survivor's idol and immunity moments); the sure changes
+and the held ones and the questions waiting on early results as before (finding 20's 3, 2 and 2). Before each lock a stand-in made its call
+by a habit of its own from what the app offered then (blind.js standInCalls), every one filed: never refused, on every season.
+
+| Season | Game | Stand-in calls | Right | The table at the end (Tinkerer, Fan Who Forgets, Drive-By, Fan) |
+|---|---|---|---|---|
+| Survivor 49 | will an idol be played (settle.bot) | 13 | 5 | 8, 4, 8, 2 |
+| Survivor 49 | who goes home and who wins immunity (win.bot) | 26 | 1 | 1, 3, 5, 2 |
+| Survivor 49 | who goes home (s35) | 13 | 2 | 0, 0, 4, 0 |
+| The Challenge 41 | who goes home (s35) | 19 | 2 | 2, 0, 6, 2 |
+| The Challenge 40 | who goes home (s35) | 19 | 1 | 6, 2, 8, 2 |
+| The Challenge 39 | who goes home (s35) | 19 | 3 | 2, 2, 4, 2 |
+| The Traitors 4 | who goes home (s35) | 11 | 2 | 4, 2, 6, 4 |
+
+Each week the stand-in was right took the points from everyone who said the same (on the idol question, weeks 5, 7, 8, 10 and 12 scored
+nobody), and a night several went home it took only the one it named: at Survivor 49's finale (four out) it named Kristina Mills in win.bot's
+game and Sage Ahrens-Nichols in s35's, both right, and in both the Drive-By still scored on another of the four. A stand-in picks at random among who's still in, so it's seldom right; a
+real bot (part 2b) should be right far more often, which is the game: the more it's right, the rarer a point. The Challenge's last two
+weeks had no call, and no answers either: nothing was open to answer there.
+
 ## Appendix: the timelines
 
 Generated with `node scripts/dev-test/format-study.js --md`. "Brought in" is when viewers learned of a change, against when it
