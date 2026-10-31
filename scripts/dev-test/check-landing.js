@@ -43,9 +43,10 @@ const ZT_PASS = process.env.ZT_PASS || "zt-pass-12345";
   await page.locator('input:not([type="password"])').first().fill(ZT_USER);
   await pw.fill(ZT_PASS);
   await pw.press("Enter");
-  await page.waitForURL((u) => new URL(u).pathname === "/", { timeout: 20000 }).catch(() => {});
+  // The app: the new design's /home since 0155 (everyone on it), classic's / for an account that chose classic.
+  await page.waitForURL((u) => ["/", "/home"].includes(new URL(u).pathname), { timeout: 20000 }).catch(() => {});
   await page.waitForTimeout(2500);
-  check(new URL(page.url()).pathname === "/", "after signing in you're on /");
+  check(["/", "/home"].includes(new URL(page.url()).pathname), "after signing in you're in the app (/home on the new design)", page.url());
   check(!(await page.locator(".gys-landing").count()), "signed in, / is the app, not the landing page");
   await page.screenshot({ path: path.join(out, `after-signin-${width}.png`) });
   check(!errors.length, `no page errors${errors.length ? ": " + errors.join(" | ") : ""}`);

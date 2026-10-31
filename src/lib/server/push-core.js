@@ -111,7 +111,7 @@ async function readersOf(db, ids, seasonId) {
       const r = byId.get(id);
       return {
         userId: id,
-        ui: r.ui === "new" ? "new" : "classic",
+        ui: r.ui === "classic" ? "classic" : "new",
         tz: r.tz || null,
         chat: chatMode(r.disabled, r.chat),
         disabled: r.disabled || {},
