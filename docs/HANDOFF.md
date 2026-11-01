@@ -38,7 +38,11 @@ faces, C Episodes bookmarks, D hub board, then for the hub E captions, F faces, 
   `src/new/couch/where.ts` (tests/couch-where.test.js). The couch's words are "Up to Episode 5" now, never "On Episode 5":
   one rule, lib/sharing.ts whereWords (its "full" style is the sheet's "Up to Episode 5 of 7"), and the Settings preview line.
   Your own face on Episodes needs a known mark (none while you see results straight away, as on Tonight).
-- Check: `node scripts/dev-test/check-where-everyone.js <outDir> [--width=390]` (new-fixture.js; jordan turns Where I am off).
+- Check: `node scripts/dev-test/check-where-everyone.js <outDir> [--width=390] [--theme=night|studio]` (new-fixture.js; jordan
+  turns Where I am off).
+- **Everyone on dark, shipped with it (the user, 2026-11-01: "force everyone on dark mode by default"):** migration 0159 puts
+  every account on Night (Studio and Match phone choices reset; Settings › Appearance still offers both, and a choice made
+  after it sticks); classic's per-browser theme defaults to dark (src/lib/theme.ts, theme-script.ts; a Light chosen there stays).
 
 ## The first-time tour (2026-10-31; merged to master and pushed the same day, migration 0158)
 Everyone's on the new design (0155), so the user asked for the quickest, most useful first tour for players: couch first, then
