@@ -35,15 +35,17 @@ fast-forward of master without the Neon rehearsal (the user: push; 0158 is two e
 roll back to is the Neon branch `pre-tour-2026-10-31` (auto-deleted after 7 days). **Checks get Home without the tour** (browser.js's `gys_tour=off` cookie; a check
 that wants it passes `tour: true`). BACKLOG 38 has what it left.
 
-**Version 2, built 2026-11-01 on branch `tour2` (lane `rfl-tour2`, port 3007), not merged:** the night version 1 went live the user
+**Version 2, built 2026-11-01 on branch `tour2` (lane `rfl-tour2`), merged to master and pushed the same day (no migration):** the night version 1 went live the user
 found it too passive; after two mocks they set it: a welcome card (what the app is, its three ideas), then the real Home with
 **practice runs that save nothing**: Add a show (the first of Survivor, The Amazing Race, The Challenge you don't have, typed in for
 you; then "you don't need a game to add a show", and the tour adds HBO's Harry Potter and the next NFL game by itself), Your couch
 sees it (the TV guide with them in it), the reveal (your last one replayed: POST reveal with `replay`, or a made-up one), Start a game
 (a Prediction Sheet on the practice show, with Create a game with AI coming soon, also in the real sheet). Seven steps. **Read
-PLAN-first-time-tour.md, Version 2.** Checked: check-new-tour 108 PASS (twice), npm test 1237/1238 (the one fails on master too).
-**Before the push:** the user's OK, and the practice shows' current seasons set up as games in production (The Amazing Race, The
-Challenge). No migration.
+PLAN-first-time-tour.md, Version 2.** **Take the tour** again from the menu behind your picture on Home (beside Settings; Home
+plays it at once), or Settings. Checked: check-new-tour 111 PASS (phases A to K), npm test 1237/1238 (the one fails on master too),
+`next build`. **Production data first** (the user's go-ahead): The Amazing Race 39 added through the desk's New show and made a game
+with the bot (Ask ChatGPT for me), approved as drafted: ready, on nobody's Home; it's the couch's practice show (they all play
+Survivor 51). The Challenge has no current season (42 ended 2026-10-28).
 
 ## Settings, redesigned (2026-10-31; pushed to master the same day, no migration)
 The user found Settings "very difficult to navigate" (every section open at once, about 35 controls, several screens long).

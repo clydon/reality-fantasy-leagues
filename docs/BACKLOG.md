@@ -356,9 +356,17 @@ Last updated 2026-10-27.
       a lane's first run; 106 of 106 straight after): it reads By the numbers' deck 700 ms after the accolades list shows, and
       the deck waits for every show's stats read (the skeleton until then). It should wait for `[data-stat-deck]`, or for the
       skeleton to go. **When:** the next change to check-new-hub.
-    - **Version 2 (2026-11-01, branch `tour2`):** the practice shows need their current seasons set up as games in production (The
-      Amazing Race, The Challenge: PLAN-first-time-tour.md, The practice shows' data); until then the couch's tour adds "any show".
-      **When:** before version 2's push, with the user.
+    - **Version 2's practice shows in production:** done 2026-11-01 for The Amazing Race 39 (the desk's New show, then Make it a
+      game with the bot); The Challenge has no current season (42 ended 2026-10-28). **When:** its next season, make it a game
+      the same way, or the tour skips it.
+    - **The Amazing Race 39's make review said "Who's playing · 26 teams"**: they're 26 racers in 13 pairs. The bot's cast says
+      `unit: "teams"` while its faces are people, and the pairs aren't grouped (`who.groups` empty), so a Survival Pool or Outlast
+      on it picks a racer, not a team. Approved as drafted (the tour's Prediction Sheet doesn't pick racers). **When:** before the
+      couch starts a pick game on The Amazing Race, or the next change to the make review (it could notice a unit that doesn't
+      match its faces).
+    - **The desk's New show keeps the admin as the show's adder** (`shows.created_by`), so its seasons aren't "curated" and first
+      run's wall leaves them out (The Amazing Race 39 is one). If a show the desk adds should be on the wall, New show could
+      leave `created_by` empty. **When:** the next desk shows change.
     - **A poster for a premiere weeks away says only its weekday** ("Season 1 · Fri" for HBO's Harry Potter on Dec 25, seen in the
       tour's demo): Your shows' poster takes `day()` of the next episode however far off. A date past a week ("Dec 25") would read
       better, for every show coming back. **When:** the next Your shows change.
