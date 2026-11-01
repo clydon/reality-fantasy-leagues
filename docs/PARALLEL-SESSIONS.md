@@ -97,9 +97,12 @@ A lane that builds to the mock reads it there by full path, read only, and shoot
   set 75`, or `off`; with no file it's 90%). Two points under the cap no session starts (`session-loop.js` stops, `lane.js
   start` refuses without `--over-cap`, a keeper restarts nothing and writes a running loop's `STOP`, so its step finishes);
   at the cap a keeper pauses a loop still running (its `PAUSE`, marked `usage-cap`) and takes that pause away once the week
-  resets, so the session carries on. The week is the loops' own reading (each session's rate-limit events, in its
-  `state.json`); the user's sessions count too, so between lanes' sessions it can read low. Only a keeper started on this
-  code enforces it on a loop already running; `lane-watch.js` says CAP as the week crosses each line.
+  resets, so the session carries on. The week is the fullest reading of it: the loops' own (each session's rate-limit
+  events, in its `state.json`) or a probe's (`node scripts/usage-cap.js probe`, a one-line Haiku ask, under a cent, kept in
+  `.session-loop/usage-week.json`). The user's sessions count too, so the loops' readings go stale while only the user
+  works (on 2026-11-01 they said 66% when a probe found 88%): `lane.js start` probes first, and so does a keeper before a
+  restart. Only a keeper started on this code enforces it on a loop already running; `lane-watch.js` says CAP as the week
+  crosses each line.
 - **Relaying the lanes** (the user's ask, 2026-10-30): the main session runs `node scripts/lane-watch.js` in the background.
   It exits as soon as a lane finishes a step (with the session's final message), its sessions look at new screenshots, a
   loop stops and stays stopped, the keeper says something, or the tapes recorder stops. The session relays what it printed

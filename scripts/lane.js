@@ -423,9 +423,15 @@ function keep() {
       else if (l.restarted >= restarts) say(l, `stopped with ${state.next.name} handed off, but it's been started again ${restarts} times (--restarts): leaving it`);
       else if (once) say(l, `stopped with ${state.next.name} handed off: would start it again`);
       else {
-        l.restarted++;
-        say(l, `stopped with ${state.next.name} handed off: started again (${l.restarted} of ${restarts})`);
-        start(l.lane, l.name);
+        // The week as it is now (a probe), not as the loops last saw it: the user's own sessions count too.
+        Cap.probe();
+        const now = Cap.check();
+        if (now.stop) say(l, `${now.line}: ${state.next.name} waits for the reset`);
+        else {
+          l.restarted++;
+          say(l, `stopped with ${state.next.name} handed off: started again (${l.restarted} of ${restarts})`);
+          start(l.lane, l.name);
+        }
       }
     }
   };
@@ -465,6 +471,8 @@ function keep() {
   else if (cmd === "check") await check(laneOf(nameArg));
   else if (cmd === "dev") dev(nameArg ? laneOf(nameArg) : null);
   else if (cmd === "start") {
+    // The week as it is now (a probe), not as the loops last saw it: the user's own sessions count too.
+    if (!has("--over-cap")) Cap.probe();
     const cap = Cap.check();
     if (cap.stop && !has("--over-cap")) fail(`${cap.line}: no lane starts now (--over-cap to start it anyway)`);
     start(laneOf(nameArg), nameArg);
