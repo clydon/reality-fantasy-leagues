@@ -21,6 +21,23 @@ and the Neon password rotation (deferred; steps there). Fixed 2026-10-24: the ch
 end); GitHub Actions, stopped since 2026-10-19, runs again. Vercel builds production only (Preview shared
 production's database).
 
+## Where everyone is (2026-11-01; built in the `where` lane, rfl-where on port 3008; no migration, no new API)
+The user: people say what episode they're on when they add a show, but the couch had no intuitive way to see it. Mocked
+with /impeccable on a private Design canvas (https://claude.ai/artifact/3EvNJC8CP7HDA3CHJuvAaB: A rail, B numbered header
+faces, C Episodes bookmarks, D hub board, then for the hub E captions, F faces, G poster backs, H one list). The user picked
+**F** ("we don't really have a view of the full couch yet") and **C**; B wasn't picked (ask before building it).
+- **F, the hub:** the couch's faces under the status line (`CouchRow`, hub/sections.tsx), You first, a teal dot on whoever's
+  watching along now. A face opens the person sheet (`couch/person-sheet.tsx`, `openCouchSheet({ kind: "person" })`): every
+  show they share Where I am on, "Caught up · Episode 7" / "Up to Episode 5 of 7", watching now, "2 ahead of you", and on a
+  show you don't watch "You don't watch it" with Add (the where sheet). Your own face: what the couch sees of you, your
+  private shows marked as only yours, a link to Settings. The couch details sheet's faces open it too, with a way back.
+- **C, Episodes:** each row carries the faces of whoever's up to it ("You're here · riley", your row lifted), a line saying
+  what a face marks, then who hasn't started and who plays without sharing where they are (show/episodes.tsx).
+- All from what the home and space reads already carried (guard.ts visibleFollows: private shows and Where I am off never
+  show). The pure part is `src/new/couch/where.ts` (tests/couch-where.test.js). The couch's words are "Up to Episode 5" now,
+  never "On Episode 5" (lib/sharing.ts whereWords, the Settings preview line).
+- Check: `node scripts/dev-test/check-where-everyone.js <outDir> [--width=390]` (new-fixture.js; jordan turns Where I am off).
+
 ## The first-time tour (2026-10-31; merged to master and pushed the same day, migration 0158)
 Everyone's on the new design (0155), so the user asked for the quickest, most useful first tour for players: couch first, then
 the game, few steps, almost no words, the real thing lit, examples instead of paragraphs; shaped with `/impeccable shape`, a

@@ -216,7 +216,7 @@ function Following({ show }: { show: ShowData }) {
 }
 
 /** Who on the couch watches it (openly) or plays a game on it, you first, and how far each is where they share it (step 15 part
- *  3's Where I am: "On Episode 5", "Caught up", "2 ahead"; at your own pace "Ep 4 of 8" with a bar), and who's watching along right
+ *  3's Where I am: "Up to Episode 5", "Caught up", "2 ahead"; at your own pace "Ep 4 of 8" with a bar), and who's watching along right
  *  now, which says the episode (step 13 part 2: the Watch along card's read, only from those who share When I'm watching). */
 function WhosWatching({ show }: { show: ShowData }) {
   const me = useMe();

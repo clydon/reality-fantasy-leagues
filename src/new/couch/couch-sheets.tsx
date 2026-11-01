@@ -12,6 +12,7 @@ import { HoldSheet } from "../ui/guards";
 import { Btn, Row } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
+import { PersonSheet } from "./person-sheet";
 
 // Couches (docs/PLAN-new-design.md step 9; the mock's round2.js couchSwitch and newCouchSheet, index.html couchSheet and
 // joinSheet): the switcher (the hub shows one couch at a time; your profile's couch line opens it), a couch's details
@@ -28,7 +29,9 @@ export type CouchSheet =
   | { kind: "join" }
   | { kind: "leave"; couchId: string }
   | { kind: "rename"; couchId: string }
-  | { kind: "handOn"; couchId: string };
+  | { kind: "handOn"; couchId: string }
+  /** Someone on the couch: what they watch and how far they are (person-sheet.tsx). `from`: the details sheet, to go back to. */
+  | { kind: "person"; couchId: string; userId: string; from?: "details" };
 
 // The open sheet, and how many times each kind has opened: a sheet is keyed by its count, so each opening starts fresh
 // (and a closing one keeps its key until it's gone).
@@ -100,6 +103,12 @@ export function CouchSheets() {
       <LeaveCouchSheet key={`leave-${opened.leave ?? 0}`} couchId={sheet?.kind === "leave" ? sheet.couchId : null} onOpenChange={close} />
       <RenameCouchSheet key={`rename-${opened.rename ?? 0}`} couchId={sheet?.kind === "rename" ? sheet.couchId : null} onOpenChange={close} />
       <HandOnSheet key={`handOn-${opened.handOn ?? 0}`} couchId={sheet?.kind === "handOn" ? sheet.couchId : null} onOpenChange={close} />
+      <PersonSheet
+        couchId={sheet?.kind === "person" ? sheet.couchId : null}
+        userId={sheet?.kind === "person" ? sheet.userId : null}
+        back={sheet?.kind === "person" && sheet.from === "details" ? { label: "Back to the couch", onClick: () => openCouchSheet({ kind: "details", couchId: sheet.couchId }) } : undefined}
+        onOpenChange={close}
+      />
     </>
   );
 }
@@ -259,12 +268,20 @@ function DetailsSheet({ couchId, onOpenChange }: { couchId: string | null; onOpe
       {couch && (
         <div data-couch-details={couch.name}>
           <div className="grid grid-cols-4 gap-x-2 gap-y-3">
+            {/* A face opens what that person watches and how far they are (person-sheet.tsx), with a way back here. */}
             {couch.members.map((m) => (
-              <div key={m.userId} className="flex min-w-0 flex-col items-center gap-1 text-center" data-member={m.name}>
+              <button
+                key={m.userId}
+                type="button"
+                onClick={() => openCouchSheet({ kind: "person", couchId: couch.id, userId: m.userId, from: "details" })}
+                aria-label={`${m.name}: what they watch and how far they are`}
+                className="nd-press flex min-w-0 flex-col items-center gap-1 text-center"
+                data-member={m.name}
+              >
                 <Avatar id={m.userId} name={m.name} size={52} />
                 <span className="w-full truncate text-[13px]">{m.name}</span>
                 {m.role === "owner" && <small className="-mt-1 text-[11px] text-muted-foreground">Runs it</small>}
-              </div>
+              </button>
             ))}
             <button type="button" data-invite-tile onClick={() => openCouchSheet({ kind: "invite", couchId: couch.id })} className="flex flex-col items-center gap-1 text-center">
               <span className="grid size-[52px] place-items-center rounded-[3px] outline-[1.5px] -outline-offset-[1.5px] outline-dashed outline-input">

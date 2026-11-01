@@ -7,7 +7,7 @@ import { CouchPages, MoreOnTheCouch } from "../hub/couch-pages";
 import { Guide } from "../hub/guide";
 import { StreamingRail } from "../hub/streaming";
 import { ProfileSheet } from "../hub/profile";
-import { BothWatch, CouchWatching, Feed, Foot, GetGoing, GrowNote, nextShow, OnNow, StatusLine, UpNext, YourShows } from "../hub/sections";
+import { BothWatch, CouchRow, CouchWatching, Feed, Foot, GetGoing, GrowNote, nextShow, OnNow, StatusLine, UpNext, YourShows } from "../hub/sections";
 import { SoloHub } from "../hub/solo-hub";
 import { NotesBell } from "../hub/notes";
 import { useMe } from "../session";
@@ -19,10 +19,11 @@ import { Btn, EmptyState } from "../ui/parts";
 
 // The hub (/home; the mock's refine.js wireHub), in its two shapes, or solo (on no couch: hub/solo-hub.tsx, step 9 part 3):
 //   grows with you: a new member's first week, or a couch with no games yet. The status line, Get the couch going
-//     (a new couch), Up next, your shows, the "you both watch" nudge, the guide and the streaming rail (step 14), what the couch
-//     is watching (step 10: where games start), the feed, and a note of what shows up as the couch plays.
-//   focus first: the status line, Up next, who's on now (step 13 part 2), your shows, the "you both watch" nudge, the guide, the
-//     streaming rail, what the couch is watching, the feed, and More on the couch (six pages, one tap each).
+//     (a new couch), the couch's faces, Up next, your shows, the "you both watch" nudge, the guide and the streaming rail (step
+//     14), what the couch is watching (step 10: where games start), the feed, and a note of what shows up as the couch plays.
+//   focus first: the status line, the couch's faces (2026-11-01: each opens what they watch and how far they are), Up next,
+//     who's on now (step 13 part 2), your shows, the "you both watch" nudge, the guide, the streaming rail, what the couch is
+//     watching, the feed, and More on the couch (six pages, one tap each).
 // The couch's own numbers (rankings, trophies, the feed, your numbers: couch-hub.ts) come in one read beside the home's.
 // `?hub=focus`, `?hub=grow` (a new member) or `?hub=new` (a brand-new couch) shows that shape, for a look; with no couch
 // it's always the solo hub.
@@ -77,6 +78,7 @@ function FocusHub({ home, couch, hub }: { home: Home; couch: Couch | null; hub: 
   return (
     <>
       <StatusLine home={home} />
+      <CouchRow home={home} couch={couch} />
       {up && <UpNext home={home} show={up} couch={couch} />}
       <OnNow home={home} couch={couch} />
       <YourShows home={home} hub={hub} />
@@ -97,6 +99,7 @@ function GrowHub({ home, couch, hub, newCouch }: { home: Home; couch: Couch | nu
     <>
       <StatusLine home={home} />
       {newCouch && <GetGoing home={home} couch={couch} />}
+      <CouchRow home={home} couch={couch} />
       {up && <UpNext home={home} show={up} couch={couch} />}
       <YourShows home={home} hub={hub} />
       <BothWatch home={home} couch={couch} />

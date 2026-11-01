@@ -2,7 +2,7 @@
 // couch ("ZT Survivor 51": alex owns it, riley, jordan and sam on it; casey with alex on "ZT Extra"), streaming-fixture.js's
 // seasons (ZT Severed: alex on 3, riley 6, jordan 9) and hub-fixture.js's finished ZT Survivor 49 and 50.
 //   API:
-//   - migration 0137's four switches; the profile's sharing (Everything by default) and its lines ("zt_nd_alex is on Episode 5
+//   - migration 0137's four switches; the profile's sharing (Everything by default) and its lines ("zt_nd_alex is up to Episode 5
 //     of ..."), refusals, a level, one switch over a level;
 //   - Where I am: what someone watches and how far they are on everyone's home read (members' `at`) and the space's people
 //     (`seen`), the couch's shows, the feed's "started watching", reveal lines (read, and none written while it's off), First to
@@ -98,7 +98,7 @@ function check(ok, what, detail = "") {
     let p = await profile("alex");
     check(JSON.stringify(p.sharing?.on) === JSON.stringify({ where: true, now: true, ratings: true, reactions: true }), "alex shares everything by default (the recommended level)", JSON.stringify(p.sharing));
     check(
-      /^zt_nd_alex (is on Episode \d+ of|finished) ZT /.test(p.sharing.lines.where) && /^zt_nd_alex is watching ZT .+ now$/.test(p.sharing.lines.now),
+      /^zt_nd_alex (is up to Episode \d+ of|finished) ZT /.test(p.sharing.lines.where) && /^zt_nd_alex is watching ZT .+ now$/.test(p.sharing.lines.now),
       "what riley sees about him, from his own shows: where he is, that he's watching",
       JSON.stringify(p.sharing.lines)
     );
@@ -316,7 +316,7 @@ function check(ok, what, detail = "") {
       check(/^What zt_nd_\w+ sees about you$/i.test(seesHead), "What riley sees about you (someone on his couch)", seesHead);
       const lines = async () => sec.locator("[data-sees]").evaluateAll((els) => els.map((e) => `${e.getAttribute("data-sees")}:${e.getAttribute("data-shown")}:${e.lastElementChild.textContent.trim()}`));
       let ls = await lines();
-      check(ls.length === 4 && ls.every((x) => x.includes(":yes:")) && /^where:yes:zt_nd_alex (is on Episode|finished)/.test(ls[0]), "four lines, each what it lets out", ls.join(" | "));
+      check(ls.length === 4 && ls.every((x) => x.includes(":yes:")) && /^where:yes:zt_nd_alex (is up to Episode|finished)/.test(ls[0]), "four lines, each what it lets out", ls.join(" | "));
       await sec.scrollIntoViewIfNeeded();
       await a.wide("What your couch sees");
       await a.shot("sharing-everything");

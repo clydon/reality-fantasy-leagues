@@ -50,8 +50,9 @@ export const SWITCH_WORDS: Record<ShareSwitch, { title: string; line: string }> 
 
 /**
  * How far someone is, as the couch sees it when they share Where I am (the mock's watching.js Who's watching and couchWatchHTML,
- * streaming.js progress): a weekly show "Caught up", "On Episode 5", "Not started"; one watched at your own pace "Finished", "Ep 4
- * of 8". `short` for a chip ("caught up", "Ep 5", "finished"). Null before anything has aired: there's nowhere to be yet.
+ * streaming.js progress): a weekly show "Caught up", "Up to Episode 5", "Not started"; one watched at your own pace "Finished", "Ep
+ * 4 of 8". `short` for a chip ("caught up", "Ep 5", "finished"). Null before anything has aired: there's nowhere to be yet.
+ * "Up to", not "On" (the user's pick of the 2026-11-01 mocks): "on Episode 5" reads as halfway through it.
  */
 export function whereWords(seen: number, o: { aired: number; total: number; ownPace: boolean }, short = false): string | null {
   if (o.aired <= 0) return null;
@@ -61,5 +62,5 @@ export function whereWords(seen: number, o: { aired: number; total: number; ownP
     return short || !o.total ? `Ep ${seen}` : `Ep ${seen} of ${o.total}`;
   }
   if (seen >= o.aired) return short ? "caught up" : "Caught up";
-  return short ? `Ep ${seen}` : `On Episode ${seen}`;
+  return short ? `Ep ${seen}` : `Up to Episode ${seen}`;
 }

@@ -403,6 +403,50 @@ export function OnNow({ home, couch }: { home: Home; couch: Couch | null }) {
   );
 }
 
+// ---------- The couch ----------
+
+/**
+ * The couch's faces (the user's pick F of the 2026-11-01 "Where everyone is" mocks: the hub had no view of the whole couch):
+ * everyone on it, you first, a dot on whoever's watching along right now. A face opens what that person watches and how far
+ * they are in each (couch/person-sheet.tsx), shows you don't watch included. Not on a couch of one.
+ */
+export function CouchRow({ home, couch }: { home: Home; couch: Couch | null }) {
+  const { data: on } = useOnNow(couch?.id ?? null);
+  if (!couch || couch.members.length < 2) return null;
+  const me = home.user.id;
+  const people = [...couch.members.filter((m) => m.userId === me), ...couch.members.filter((m) => m.userId !== me)];
+  const live = new Set((on?.now ?? []).map((w) => w.userId));
+  return (
+    <section className="mt-6" data-couch-row>
+      <SectionHead title={couch.name} aside="Tap a face" />
+      <div className="flex gap-3 overflow-x-auto px-4 pb-1 pt-1 [scrollbar-width:none]">
+        {people.map((m) => {
+          const you = m.userId === me;
+          return (
+            <button
+              key={m.userId}
+              type="button"
+              data-couch-face={m.name}
+              data-live={live.has(m.userId) || undefined}
+              onClick={() => openCouchSheet({ kind: "person", couchId: couch.id, userId: m.userId })}
+              aria-label={`${you ? "You" : m.name}${live.has(m.userId) ? ", watching along now" : ""}: what ${you ? "the couch sees of you" : "they watch and how far they are"}`}
+              className="nd-press flex w-[60px] flex-none flex-col items-center gap-1.5 text-center"
+            >
+              <span className="relative">
+                <Avatar id={m.userId} name={m.name} size={44} />
+                {live.has(m.userId) && <i className="absolute -right-1 -top-1 size-3 rounded-full bg-good shadow-[0_0_0_2px_var(--background)]" aria-hidden />}
+              </span>
+              <span data-couch-face-name className={`w-full truncate text-xs font-semibold ${you ? "text-foreground" : "text-muted-foreground"}`}>
+                {you ? "You" : m.name}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 // ---------- Your shows ----------
 
 /** "T2" → 2. */

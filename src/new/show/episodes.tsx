@@ -2,8 +2,11 @@
 
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ChevronRight, Clock, Eye } from "lucide-react";
+import { ChevronRight, Clock, Eye, EyeOff } from "lucide-react";
 import { airTime, dayOf } from "../clock";
+import { episodeMarks, marksLine, namesLine, type Mark } from "../couch/where";
+import { useMe } from "../session";
+import { Avatar } from "../ui/bars";
 import { useEpisodeResults, useSeasonWaivers, type EpisodeRow, type GameNight, type WaiverRunView, type WaiverWeek } from "../data";
 import { midLine, useFinalLine } from "../final-words";
 import { gameInk, ordinal } from "../games";
@@ -37,6 +40,9 @@ import { RecapsCard } from "./recaps";
 // you play from its page.
 // A streaming season (step 14; the mock's streaming.js wEpisodes): the drop instead of this week's episode, "All 8 out ·
 // Netflix", and a season you only watch from Episode 1 down, the way you'll watch it.
+// Where everyone is (the user's pick C of the 2026-11-01 mocks): on a couch, each row carries the faces of whoever's up to it
+// (the last episode they've seen, as they share it: couch/where.ts), yours lifted with "You're here"; under the list, who
+// hasn't started and who plays here without sharing where they are. Never on the desk's read-only view.
 
 /** "3 of 4 lineups set · 2 of 4 picked": who's set for the next episode in your games here, a line per kind. */
 function progressLine(show: ShowData): string | null {
@@ -83,6 +89,11 @@ export function Episodes({ seasonId, show }: { seasonId: string; show: ShowData 
   const waiverRows = (list: { w: WaiverWeek; r: WaiverRunView | null }[]) =>
     list.map(({ w, r }) => <WaiverEpisodeRow key={`${w.leagueId}-${r?.periodId ?? "open"}`} seasonId={seasonId} week={w} run={r} many={(wv.data?.games.length ?? 0) > 1} />);
   const n = episodesOf(show);
+  const me = useMe();
+  // Your own mark when it's yours to have (you follow it or play it): seeing results straight away is having seen what's out.
+  const yourMark = show.following || show.plays ? (show.seenThrough ?? show.latestAired) : null;
+  const marks = show.solo || show.readOnly || !show.people ? null : episodeMarks(show.people, { id: me.id, name: me.name, seen: yourMark });
+  const whoAt = (ep: number) => marks?.at.get(ep);
   const network = show.header?.show.network;
   // A streaming season: Up next is its drop, until it's out (schedule.ts upNext); then, watched without a game of yours, the
   // episodes in the order you'll watch them.
@@ -140,6 +151,11 @@ export function Episodes({ seasonId, show }: { seasonId: string; show: ShowData 
             </span>
           )}
         </div>
+        {marks && marks.at.size > 0 && (
+          <p data-ep-legend className="-mt-1.5 mb-2.5 text-[13px] text-muted-foreground">
+            A face marks the last {show.words.episode.toLowerCase()} each person has seen.
+          </p>
+        )}
         {!eps ? (
           <div aria-busy className="h-56 animate-pulse rounded-[4px] bg-card" />
         ) : (
@@ -148,13 +164,13 @@ export function Episodes({ seasonId, show }: { seasonId: string; show: ShowData 
               <div key={e.number} className="contents">
                 {waiverRows(weeks(e.number))}
                 {e.status === "hidden" ? (
-                  <HiddenRow e={e} onReveal={() => openReveal(e.number)} />
+                  <HiddenRow e={e} who={whoAt(e.number)} onReveal={() => openReveal(e.number)} />
                 ) : e.status === "waiting" ? (
-                  <WaitingRow e={e} />
+                  <WaitingRow e={e} who={whoAt(e.number)} />
                 ) : e.status === "aired" ? (
-                  <AiredRow e={e} solo={show.solo} streaming={show.streaming} word={show.words.episode} onRate={() => openRate(rateFor(e.number))} />
+                  <AiredRow e={e} who={whoAt(e.number)} solo={show.solo} streaming={show.streaming} word={show.words.episode} onRate={() => openRate(rateFor(e.number))} />
                 ) : (
-                  <SeenRow e={e} solo={show.solo} ro={ro} />
+                  <SeenRow e={e} who={whoAt(e.number)} solo={show.solo} ro={ro} />
                 )}
               </div>
             ))}
@@ -179,6 +195,24 @@ export function Episodes({ seasonId, show }: { seasonId: string; show: ShowData 
                 </span>
               </div>
             )}
+            {marks && (marks.notStarted.length > 0 || marks.quiet.length > 0) && (
+              <div data-ep-elsewhere className="flex flex-col gap-2.5 pt-3.5 text-[13px] text-muted-foreground">
+                {marks.notStarted.length > 0 && (
+                  <span data-ep-not-started className="flex min-w-0 items-center gap-2">
+                    <Faces marks={marks.notStarted} />
+                    <span className="min-w-0">{notStartedLine(marks.notStarted)}</span>
+                  </span>
+                )}
+                {marks.quiet.length > 0 && (
+                  <span data-ep-quiet className="flex min-w-0 items-center gap-2">
+                    <EyeOff className="size-4 flex-none" aria-hidden />
+                    <span className="min-w-0">
+                      {namesLine(marks.quiet.map((m) => m.name))} {marks.quiet.length === 1 ? "plays here but doesn't" : "play here but don't"} share where they are
+                    </span>
+                  </span>
+                )}
+              </div>
+            )}
           </>
         )}
       </section>
@@ -187,14 +221,58 @@ export function Episodes({ seasonId, show }: { seasonId: string; show: ShowData 
   );
 }
 
-function HiddenRow({ e, onReveal }: { e: EpisodeRow; onReveal: () => void }) {
+// ---------- who's up to each episode ----------
+
+/** Your row, where you're up to: lifted like your standings row. Its width is its own (a row's w-full would beat it). */
+const LIFT = "-mx-2 w-[calc(100%+1rem)] rounded-[3px] border-t-transparent bg-secondary px-2";
+const mineIn = (who?: Mark[]) => !!who?.some((m) => m.you);
+
+/** Up to four faces, overlapping (three and a count past that); yours ringed. `ground`: what they sit on, for their edge. */
+function Faces({ marks, ground = "var(--background)" }: { marks: Mark[]; ground?: string }) {
+  const shown = marks.slice(0, marks.length > 4 ? 3 : 4);
+  return (
+    <span className="flex flex-none items-center" aria-hidden>
+      {shown.map((m, i) => (
+        <span key={m.userId} className={`rounded-[3px] ${i ? "-ml-1.5" : ""} ${m.you ? "relative z-[1] outline-2 outline-offset-1 outline-foreground" : ""}`} style={{ boxShadow: `0 0 0 2px ${ground}` }}>
+          <Avatar id={m.userId} name={m.name} size={22} />
+        </span>
+      ))}
+      {marks.length > shown.length && (
+        <span className="type-num -ml-1.5 grid h-[22px] min-w-[22px] place-items-center rounded-[3px] bg-secondary px-1 text-[11px]" style={{ boxShadow: `0 0 0 2px ${ground}` }}>
+          +{marks.length - shown.length}
+        </span>
+      )}
+    </span>
+  );
+}
+
+/** Who's up to this episode: their faces, then "You're here · riley and casey". */
+function WhoHere({ who }: { who?: Mark[] }) {
+  if (!who?.length) return null;
+  return (
+    <span data-ep-who={who.map((m) => (m.you ? "you" : m.name)).join(",")} className="mt-2 flex min-w-0 items-center gap-2 text-[13px] font-semibold">
+      <Faces marks={who} ground={mineIn(who) ? "var(--secondary)" : "var(--background)"} />
+      <span data-ep-who-line className="truncate">
+        {marksLine(who)}
+      </span>
+    </span>
+  );
+}
+
+/** "max hasn't started", "You and max haven't started". */
+function notStartedLine(marks: Mark[]): string {
+  const names = marks.map((m) => (m.you ? "You" : m.name));
+  return `${namesLine(names, 4)} ${names.length > 1 || mineIn(marks) ? "haven't" : "hasn't"} started`;
+}
+
+function HiddenRow({ e, who, onReveal }: { e: EpisodeRow; who?: Mark[]; onReveal: () => void }) {
   const finalWords = useFinalLine(e.stage, e.finalAt);
   return (
     <button
       type="button"
       data-ep-hidden={e.number}
       onClick={onReveal}
-      className="nd-press flex min-h-[68px] w-full items-center gap-3 border-t border-border bg-[repeating-linear-gradient(135deg,transparent_0_10px,color-mix(in_srgb,var(--foreground)_3%,transparent)_10px_20px)] text-left"
+      className="nd-press flex min-h-[68px] w-full items-center gap-3 border-t border-border bg-[repeating-linear-gradient(135deg,transparent_0_10px,color-mix(in_srgb,var(--foreground)_3%,transparent)_10px_20px)] py-2 text-left"
     >
       <span className="type-num w-7 text-[28px] text-muted-foreground">{e.number}</span>
       <span className="grid size-10 flex-none place-items-center rounded-[3px] bg-secondary text-chyron-line">
@@ -203,6 +281,7 @@ function HiddenRow({ e, onReveal }: { e: EpisodeRow; onReveal: () => void }) {
       <span className="min-w-0 flex-1">
         <b className="block text-base font-semibold">{e.stage === "early" ? "Early results are in" : "Final results are in"}</b>
         <small className="mt-0.5 block text-[13px] text-muted-foreground">{e.stage === "early" && finalWords ? `Hidden until you reveal · ${midLine(finalWords)}` : "Hidden until you reveal"}</small>
+        <WhoHere who={who} />
       </span>
       <span className="text-[15px] font-semibold text-chyron-line">Reveal</span>
     </button>
@@ -211,7 +290,8 @@ function HiddenRow({ e, onReveal }: { e: EpisodeRow; onReveal: () => void }) {
 
 /** An episode of a show you only watch, with no results to show (step 10): when it aired, and whether you've seen it. One
  *  you've seen opens Rate it (step 12 part 1), with the couch's verdict on the row. */
-function AiredRow({ e, solo, streaming, word = "Episode", onRate }: { e: EpisodeRow; solo: boolean; streaming?: boolean; word?: string; onRate: () => void }) {
+function AiredRow({ e, who, solo, streaming, word = "Episode", onRate }: { e: EpisodeRow; who?: Mark[]; solo: boolean; streaming?: boolean; word?: string; onRate: () => void }) {
+  const lift = mineIn(who) ? LIFT : "";
   const body = (
     <>
       <span className={`type-num w-7 text-[28px] ${e.watched ? "" : "text-muted-foreground"}`}>{e.number}</span>
@@ -227,27 +307,28 @@ function AiredRow({ e, solo, streaming, word = "Episode", onRate }: { e: Episode
             {e.summary}
           </small>
         )}
+        <WhoHere who={who} />
       </span>
     </>
   );
   if (!e.watched) {
     return (
-      <div data-ep-aired={e.number} data-watched="no" className="flex min-h-[68px] items-center gap-3 border-t border-border py-2">
+      <div data-ep-aired={e.number} data-watched="no" className={`flex min-h-[68px] items-center gap-3 border-t border-border py-2 ${lift}`}>
         {body}
       </div>
     );
   }
   return (
-    <button type="button" data-ep-aired={e.number} data-watched="yes" onClick={onRate} className="nd-press flex min-h-[68px] w-full items-center gap-3 border-t border-border py-2.5 text-left">
+    <button type="button" data-ep-aired={e.number} data-watched="yes" onClick={onRate} className={`nd-press flex min-h-[68px] items-center gap-3 border-t border-border py-2.5 text-left ${lift || "w-full"}`}>
       {body}
       <VerdictMark v={e.verdict} solo={solo} rate />
     </button>
   );
 }
 
-function WaitingRow({ e }: { e: EpisodeRow }) {
+function WaitingRow({ e, who }: { e: EpisodeRow; who?: Mark[] }) {
   return (
-    <div data-ep-waiting={e.number} className="flex min-h-[68px] items-center gap-3 border-t border-border">
+    <div data-ep-waiting={e.number} className={`flex min-h-[68px] items-center gap-3 border-t border-border py-2 ${mineIn(who) ? LIFT : ""}`}>
       <span className="type-num w-7 text-[28px] text-muted-foreground">{e.number}</span>
       <span className="grid size-10 flex-none place-items-center rounded-[3px] bg-secondary text-muted-foreground">
         <Clock className="size-5" aria-hidden />
@@ -257,6 +338,7 @@ function WaitingRow({ e }: { e: EpisodeRow }) {
         <small className="mt-0.5 block text-[13px] text-muted-foreground">
           {e.airAt ? `Aired ${airTime(Date.parse(e.airAt))} · ` : ""}nothing is spoiled meanwhile
         </small>
+        <WhoHere who={who} />
       </span>
     </div>
   );
@@ -266,16 +348,17 @@ function WaitingRow({ e }: { e: EpisodeRow }) {
 /** `from` null: a game waiting for a phase of the season (step A3 of docs/PLAN-start-a-game-gpt.md), not started yet. */
 type ReadOnlyLine = { name: string; from: number | null; to: number | null };
 
-function SeenRow({ e, solo, ro }: { e: EpisodeRow; solo: boolean; ro: ReadOnlyLine | null }) {
+function SeenRow({ e, who, solo, ro }: { e: EpisodeRow; who?: Mark[]; solo: boolean; ro: ReadOnlyLine | null }) {
   const page = usePushedPage(`ep${e.number}`);
   const out = e.out ?? [];
+  const mine = mineIn(who);
   return (
-    <button type="button" data-ep={e.number} onClick={page.show} className="nd-press flex min-h-[68px] w-full items-center gap-3 border-t border-border text-left">
-      <span className="type-num w-7 text-[28px] text-muted-foreground">{e.number}</span>
+    <button type="button" data-ep={e.number} onClick={page.show} className={`nd-press flex min-h-[68px] items-center gap-3 border-t border-border py-2 text-left ${mine ? LIFT : "w-full"}`}>
+      <span className={`type-num w-7 text-[28px] ${mine ? "" : "text-muted-foreground"}`}>{e.number}</span>
       {out.length > 0 && (
         <span className="flex flex-none">
           {out.slice(0, 3).map((c, i) => (
-            <Face key={c.id} src={c.photo} name={c.name} out className={`size-10 rounded-[3px] shadow-[0_0_0_2px_var(--background)] ${i ? "-ml-3" : ""}`} />
+            <Face key={c.id} src={c.photo} name={c.name} out className={`size-10 rounded-[3px] ${mine ? "shadow-[0_0_0_2px_var(--secondary)]" : "shadow-[0_0_0_2px_var(--background)]"} ${i ? "-ml-3" : ""}`} />
           ))}
         </span>
       )}
@@ -285,6 +368,7 @@ function SeenRow({ e, solo, ro }: { e: EpisodeRow; solo: boolean; ro: ReadOnlyLi
           {rowLine(e, ro)}
           {e.stage === "early" ? " · full scores to come" : ""}
         </small>
+        <WhoHere who={who} />
       </span>
       <VerdictMark v={e.verdict} solo={solo} />
       <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />

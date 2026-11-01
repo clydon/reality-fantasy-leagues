@@ -130,7 +130,7 @@ async function sharingLines(userId: string, name: string): Promise<Record<ShareS
     where: where
       ? where.count && where.seen >= where.count
         ? `${name} finished ${where.label}`
-        : `${name} is on Episode ${where.seen} of ${where.label}`
+        : `${name} is up to Episode ${where.seen} of ${where.label}`
       : `What ${name} watches, and how far ${name} is`,
     now: x.now ? `${name} is watching ${x.now} now` : `When ${name} is watching along`,
     ratings: rated ? `${name} rated ${rated.label} Episode ${rated.episode} ★${rated.stars}` : `${name}'s episode ratings`,
