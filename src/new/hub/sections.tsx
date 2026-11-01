@@ -408,8 +408,10 @@ export function OnNow({ home, couch }: { home: Home; couch: Couch | null }) {
 
 /**
  * The couch's faces (the user's pick F of the 2026-11-01 "Where everyone is" mocks: the hub had no view of the whole couch):
- * everyone on it, you first, a dot on whoever's watching along right now. A face opens what that person watches and how far
- * they are in each (couch/person-sheet.tsx), shows you don't watch included. Not on a couch of one.
+ * one line under the status line, the couch's name then everyone on it, you first and ringed, a dot on whoever's watching along
+ * right now. A face opens what that person watches and how far they are in each (couch/person-sheet.tsx), shows you don't watch
+ * included; their name is in the sheet (and the face's label), not under it. One 44px line, no heading or names, so Your shows'
+ * posters stay whole on a phone's first screen (the user, 2026-11-01). Not on a couch of one.
  */
 export function CouchRow({ home, couch }: { home: Home; couch: Couch | null }) {
   const shown = !!couch && couch.members.length > 1;
@@ -419,9 +421,9 @@ export function CouchRow({ home, couch }: { home: Home; couch: Couch | null }) {
   const people = [...couch.members.filter((m) => m.userId === me), ...couch.members.filter((m) => m.userId !== me)];
   const live = new Set((on?.now ?? []).map((w) => w.userId));
   return (
-    <section className="mt-6" data-couch-row>
-      <SectionHead title={couch.name} aside="Tap a face" />
-      <div className="flex gap-3 overflow-x-auto px-4 pb-1 pt-1 [scrollbar-width:none]">
+    <section className="-mt-1 mb-1 flex min-h-11 items-center gap-2 pl-4" data-couch-row>
+      <h2 className="type-caption max-w-[40%] flex-none truncate text-[17px]">{couch.name}</h2>
+      <div className="flex min-w-0 flex-1 items-center overflow-x-auto pr-3 [scrollbar-width:none]">
         {people.map((m) => {
           const you = m.userId === me;
           return (
@@ -429,17 +431,15 @@ export function CouchRow({ home, couch }: { home: Home; couch: Couch | null }) {
               key={m.userId}
               type="button"
               data-couch-face={m.name}
+              data-you={you || undefined}
               data-live={live.has(m.userId) || undefined}
               onClick={() => openCouchSheet({ kind: "person", couchId: couch.id, userId: m.userId })}
               aria-label={`${you ? "You" : m.name}${live.has(m.userId) ? ", watching along now" : ""}: what ${you ? "the couch sees of you" : "they watch and how far they are"}`}
-              className="nd-press flex w-[56px] flex-none flex-col items-center gap-1.5 text-center"
+              className="nd-press grid size-11 flex-none place-items-center"
             >
-              <span className="relative">
-                <Avatar id={m.userId} name={m.name} size={38} />
-                {live.has(m.userId) && <i className="absolute -right-1 -top-1 size-3 rounded-full bg-good shadow-[0_0_0_2px_var(--background)]" aria-hidden />}
-              </span>
-              <span data-couch-face-name className={`w-full truncate text-xs font-semibold ${you ? "text-foreground" : "text-muted-foreground"}`}>
-                {you ? "You" : m.name}
+              <span className={`relative rounded-[3px] ${you ? "outline-2 outline-offset-1 outline-foreground" : ""}`}>
+                <Avatar id={m.userId} name={m.name} size={32} />
+                {live.has(m.userId) && <i className="absolute -right-1 -top-1 size-2.5 rounded-full bg-good shadow-[0_0_0_2px_var(--background)]" aria-hidden />}
               </span>
             </button>
           );

@@ -6,7 +6,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const path = require("path");
 const jiti = require("jiti")(__filename, { alias: { "@": path.join(__dirname, "..", "src") } });
-const { personShows, episodeMarks, marksLine, namesLine, seasonLabel, marksOf, whereGroups, caughtUpLine } = jiti("../src/new/couch/where.ts");
+const { personShows, episodeMarks, marksLine, namesLine, seasonLabel, marksOf, whereGroups, caughtUpLine, knownMark } = jiti("../src/new/couch/where.ts");
 const { whereWords } = jiti("../src/lib/sharing.ts");
 const whereLong = (seen, o) => whereWords(seen, o, "full");
 
@@ -150,14 +150,32 @@ test("the header line (B): you first, then furthest along; groups by episode, fu
   const { known, quiet } = marksOf(people, { id: "alex", name: "alex", seen: 5 });
   assert.deepEqual(known.map((w) => [w.name, w.seen, w.you]), [["alex", 5, true], ["riley", 7, false], ["casey", 7, false], ["sam", 3, false], ["max", 0, false]]);
   assert.deepEqual(quiet.map((m) => m.name), ["jamie"]);
+  const weekly = { aired: 7, total: 13, ownPace: false };
   assert.deepEqual(
-    whereGroups(known, 7).map((g) => [g.title, g.people.map((w) => w.name)]),
-    [["Caught up · Episode 7", ["riley", "casey"]], ["Up to Episode 5", ["alex"]], ["Up to Episode 3", ["sam"]], ["Not started", ["max"]]]
+    whereGroups(known, weekly).map((g) => [g.title, g.people.map((w) => w.name)]),
+    [["Caught up · Episode 7", ["riley", "casey"]], ["Up to Episode 5 of 7", ["alex"]], ["Up to Episode 3 of 7", ["sam"]], ["Not started", ["max"]]]
   );
-  assert.equal(whereGroups(known, 7, "Race")[1].title, "Up to Race 5");
-  assert.deepEqual(caughtUpLine(known, 7), { top: "2 caught up", under: "3 catching up" });
-  assert.deepEqual(caughtUpLine(known.filter((w) => w.seen === 7), 7), { top: "All 2 caught up", under: null });
-  assert.deepEqual(caughtUpLine(known.filter((w) => w.seen < 7), 7), { top: "3 catching up", under: null });
+  assert.equal(whereGroups(known, { ...weekly, word: "Race" })[1].title, "Up to Race 5 of 7");
+  assert.deepEqual(caughtUpLine(known, weekly), { top: "2 caught up", under: "3 catching up" });
+  assert.deepEqual(caughtUpLine(known.filter((w) => w.seen === 7), weekly), { top: "All 2 caught up", under: null });
+  assert.deepEqual(caughtUpLine(known.filter((w) => w.name === "riley"), weekly), { top: "Caught up", under: null }, "one person: never \"All 1\"");
+  assert.deepEqual(caughtUpLine(known.filter((w) => w.seen < 7), weekly), { top: "3 catching up", under: null });
+  // A mark past what's aired (an early mark) is caught up, in the same group as the rest at the end.
+  const early = [{ userId: "a", name: "a", you: false, seen: 8 }, { userId: "b", name: "b", you: false, seen: 7 }];
+  assert.deepEqual(whereGroups(early, weekly).map((g) => [g.title, g.people.length]), [["Caught up · Episode 7", 2]]);
+  // At your own pace (all 8 out): the end is Finished, the rest "Up to Episode 4 of 8", in its own words.
+  const binge = { aired: 8, total: 8, ownPace: true };
+  const streamers = [{ userId: "a", name: "a", you: false, seen: 8 }, { userId: "b", name: "b", you: false, seen: 4 }];
+  assert.deepEqual(whereGroups(streamers, binge).map((g) => g.title), ["Finished", "Up to Episode 4 of 8"]);
+  assert.deepEqual(caughtUpLine(streamers, binge), { top: "1 finished", under: "1 still watching" });
   // Without your mark (results straight away), you're not in it.
   assert.equal(marksOf(people, { id: "alex", name: "alex", seen: null }).known.some((w) => w.you), false);
+});
+
+test("your own mark: yours when you follow or play it and it's known", () => {
+  assert.equal(knownMark({ following: true, seenThrough: 4 }), 4);
+  assert.equal(knownMark({ following: false, plays: true, seenThrough: 4 }), 4);
+  assert.equal(knownMark({ following: false, plays: false, seenThrough: 4 }), null);
+  assert.equal(knownMark({ following: true, seenThrough: null }), null, "results straight away: not guessed");
+  assert.equal(knownMark({ following: true, seenThrough: Infinity }), null);
 });

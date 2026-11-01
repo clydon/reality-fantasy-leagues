@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ChevronRight, Clock, Eye, EyeOff } from "lucide-react";
 import { airTime, dayOf } from "../clock";
-import { episodeMarks, marksLine, namesLine, type Mark } from "../couch/where";
+import { episodeMarks, knownMark, marksLine, namesLine, type Mark } from "../couch/where";
 import { useMe } from "../session";
 import { Avatar } from "../ui/bars";
 import { useEpisodeResults, useSeasonWaivers, type EpisodeRow, type GameNight, type WaiverRunView, type WaiverWeek } from "../data";
@@ -90,10 +90,9 @@ export function Episodes({ seasonId, show }: { seasonId: string; show: ShowData 
     list.map(({ w, r }) => <WaiverEpisodeRow key={`${w.leagueId}-${r?.periodId ?? "open"}`} seasonId={seasonId} week={w} run={r} many={(wv.data?.games.length ?? 0) > 1} />);
   const n = episodesOf(show);
   const me = useMe();
-  // Your own mark when it's yours (you follow it or play it) and known: seeing results straight away leaves it unknown, as
-  // Tonight's Who's watching has it, so no face of yours rather than a guess.
-  const yourMark = (show.following || show.plays) && show.seenThrough != null ? show.seenThrough : null;
-  const marks = show.solo || show.readOnly || !show.people ? null : episodeMarks(show.people, { id: me.id, name: me.name, seen: yourMark });
+  // Your own mark when it's yours and known (couch/where.ts knownMark, as everywhere you're among the couch): no face of yours
+  // rather than a guess while you see results straight away.
+  const marks = show.solo || show.readOnly || !show.people ? null : episodeMarks(show.people, { id: me.id, name: me.name, seen: knownMark(show) });
   const whoAt = (ep: number) => marks?.at.get(ep);
   const network = show.header?.show.network;
   // A streaming season: Up next is its drop, until it's out (schedule.ts upNext); then, watched without a game of yours, the
@@ -209,7 +208,7 @@ export function Episodes({ seasonId, show }: { seasonId: string; show: ShowData 
                   <span data-ep-quiet className="flex min-w-0 items-center gap-2">
                     <EyeOff className="size-4 flex-none" aria-hidden />
                     <span className="min-w-0">
-                      {namesLine(marks.quiet.map((m) => m.name))} {marks.quiet.length === 1 ? "plays here but doesn't" : "play here but don't"} share where they are
+                      {namesLine(marks.quiet.map((m) => m.name))} {marks.quiet.length === 1 ? "plays here; their place isn't" : "play here; their places aren't"} shown
                     </span>
                   </span>
                 )}

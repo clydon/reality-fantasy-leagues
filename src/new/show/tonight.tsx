@@ -25,6 +25,7 @@ import { WaiversRanPlate } from "./waivers";
 import { CatchUpSheet, CatchUpStrips } from "../couch/join-game";
 import { openStartGame } from "../couch/start-game";
 import { openCouchSheet } from "../couch/couch-sheets";
+import { knownMark } from "../couch/where";
 import { openPlan, PlanInvite, PlanPlates } from "../couch/watch-plans";
 import { useOpenMorning, useOpenReveal } from "./reveal";
 import { StatsCard } from "./stats";
@@ -224,7 +225,7 @@ function WhosWatching({ show }: { show: ShowData }) {
   const card = useWatchCard(show.header?.seasonId ?? null, show.couch?.id ?? null, !!show.header);
   const nowOf = (userId: string) => (card.data?.now ?? []).find((w) => w.userId === userId);
   const total = episodesOf(show) ?? 0;
-  const mine = show.following && show.seenThrough != null && Number.isFinite(show.seenThrough) ? show.seenThrough : null;
+  const mine = knownMark(show);
   const seenOf = (p: { userId: string; seen?: number | null }) => (p.userId === me.id ? mine : (p.seen ?? null));
   const where = (seen: number | null) => (seen == null ? null : whereWords(seen, { aired: show.streaming ? total : show.latestAired, total, ownPace: show.ownPace }));
   const people = (show.people ?? []).filter((p) => p.watching || p.playing.length || p.userId === me.id);

@@ -34,7 +34,7 @@ import { CaptionPlate, EmptyState, GuardChip, Row } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { ShowBar, TabBar } from "../ui/show-bar";
 import { openCouchSheet } from "../couch/couch-sheets";
-import { caughtUpLine, marksOf, plainName, type Where } from "../couch/where";
+import { atEnd, caughtUpLine, knownMark, marksOf, plainName, type Mark, type Pace, type Where } from "../couch/where";
 import { PoolPage } from "../show/solo";
 import { MakeGamePage } from "../show/make-game";
 import { openWatching, type WhereTarget } from "../watching/sheets";
@@ -311,14 +311,21 @@ function CouchLine({ show }: { show: ShowData }) {
   const watchers = games ? null : (show.people ?? []).filter((p) => p.watching || p.playing.length);
   const faces = watchers ?? show.people;
   // Where everyone is (the user's pick B, 2026-11-01): once anyone else here shares how far they are and something has aired,
-  // the faces move into the numbered line under this one (WhereLine).
-  const yours = (show.following || show.plays) && show.seenThrough != null ? show.seenThrough : null;
-  const { known } = marksOf(show.people, { id: me.id, name: me.name, seen: yours });
-  const where = !show.readOnly && !show.solo && !!show.couch && !!show.header && show.latestAired > 0 && known.some((w) => !w.you);
+  // the faces move into the numbered line under this one (WhereLine). Until the space read is in, the home read's couch says the
+  // same (its members' shared marks, guard.ts visibleFollows), so the header doesn't grow under you when it lands.
+  const seasonId = show.header?.seasonId ?? null;
+  const people: ShowData["people"] =
+    show.people ??
+    (seasonId && show.couch
+      ? show.couch.members.map((m) => ({ userId: m.userId, name: m.name, role: m.role, watching: m.watching.includes(seasonId), seen: m.userId === me.id ? null : (m.at?.[seasonId] ?? null), playing: [] }))
+      : null);
+  const { known, quiet } = marksOf(people, { id: me.id, name: me.name, seen: knownMark(show) });
+  const where = !show.readOnly && !show.solo && !!show.couch && !!seasonId && show.latestAired > 0 && known.some((w) => !w.you);
+  const pace: Pace = { aired: show.latestAired, total: show.header?.episodeCount ?? 0, ownPace: show.ownPace };
   return (
     <>
       <CouchText show={show} faces={where ? null : faces} watchers={watchers} games={games} />
-      {where && show.couch && show.header && <WhereLine known={known} aired={show.latestAired} couchId={show.couch.id} seasonId={show.header.seasonId} />}
+      {where && show.couch && seasonId && <WhereLine known={known} quiet={quiet} pace={pace} couchId={show.couch.id} seasonId={seasonId} />}
     </>
   );
 }
@@ -361,12 +368,14 @@ function CouchText({ show, faces, watchers, games }: { show: ShowData; faces: Sh
 
 /**
  * The couch on this show, numbered (the user's pick B of the 2026-11-01 mocks): each face with the last episode they've seen
- * under it (yours ringed, the caught-up in bold), then "3 caught up" over "2 catching up". It opens where everyone is
- * (couch/where-sheet.tsx). On the show's art, so its words are white on a dark glass, never muted grey (DESIGN.md Show Art).
+ * under it (yours ringed, the caught-up in bold, "–" not started), then whoever plays here without their place shown, dimmed and
+ * unnumbered; then "3 caught up" over "2 catching up". It opens where everyone is (couch/where-sheet.tsx). On the show's art, so
+ * its words are white on a dark glass, never muted grey (DESIGN.md Show Art).
  */
-function WhereLine({ known, aired, couchId, seasonId }: { known: Where[]; aired: number; couchId: string; seasonId: string }) {
-  const shown = known.slice(0, known.length > 6 ? 5 : 6);
-  const { top, under } = caughtUpLine(known, aired);
+function WhereLine({ known, quiet, pace, couchId, seasonId }: { known: Where[]; quiet: Mark[]; pace: Pace; couchId: string; seasonId: string }) {
+  const all = [...known, ...quiet.map((m) => ({ ...m, seen: null }))];
+  const shown = all.slice(0, all.length > 6 ? 5 : 6);
+  const { top, under } = caughtUpLine(known, pace);
   return (
     <button
       type="button"
@@ -377,16 +386,24 @@ function WhereLine({ known, aired, couchId, seasonId }: { known: Where[]; aired:
     >
       <span className="flex flex-none gap-1.5" aria-hidden>
         {shown.map((w) => (
-          <span key={w.userId} data-where-face={w.you ? "you" : w.name} data-where-seen={w.seen} className="flex w-6 flex-col items-center gap-1">
-            <span className={`rounded-[3px] ${w.you ? "outline-2 outline-offset-1 outline-white" : ""}`}>
+          <span
+            key={w.userId}
+            data-where-face={w.you ? "you" : w.name}
+            data-where-seen={w.seen ?? undefined}
+            data-where-quiet={w.seen == null || undefined}
+            className="flex w-6 flex-col items-center gap-1"
+          >
+            <span className={`rounded-[3px] ${w.you ? "outline-2 outline-offset-1 outline-white" : ""} ${w.seen == null ? "opacity-45 grayscale" : ""}`}>
               <Avatar id={w.userId} name={w.name} size={24} />
             </span>
-            <span className={`type-num text-[12px] leading-none ${aired > 0 && w.seen >= aired ? "font-bold text-white" : "text-white/85"}`}>{w.seen > 0 ? w.seen : "–"}</span>
+            <span className={`type-num text-[12px] leading-none ${w.seen != null && atEnd(w.seen, pace) ? "font-bold text-white" : "text-white/85"}`}>
+              {w.seen == null ? " " : w.seen > 0 ? w.seen : "–"}
+            </span>
           </span>
         ))}
-        {known.length > shown.length && (
+        {all.length > shown.length && (
           <span className="flex w-6 flex-col items-center gap-1">
-            <span className="type-num grid size-6 place-items-center rounded-[3px] bg-white/15 text-[11px]">+{known.length - shown.length}</span>
+            <span className="type-num grid size-6 place-items-center rounded-[3px] bg-white/15 text-[11px]">+{all.length - shown.length}</span>
           </span>
         )}
       </span>

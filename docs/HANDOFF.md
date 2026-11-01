@@ -28,10 +28,13 @@ faces, C Episodes bookmarks, D hub board, then for the hub E captions, F faces, 
 **F** ("we don't really have a view of the full couch yet") and **C**, then asked for **B** too (and the faces a smidge smaller).
 - **B, Tonight's header:** under the couch line's words, a button of numbered faces (`WhereLine`, screens/show-space.tsx: each
   face with the last episode they've seen, "3 caught up" / "2 catching up"), once anyone else shares and something has aired.
-  It opens where everyone is (`couch/where-sheet.tsx`, `openCouchSheet({ kind: "where" })`): a group per episode, then Not
-  sharing; each row says watching now or what they play, and opens the person sheet, whose back arrow returns
-  (`kind: "person"`'s `back`). Tonight's Who's watching rows open the person sheet too.
-- **F, the hub:** the couch's faces (38px) under the status line (`CouchRow`, hub/sections.tsx), You first, a teal dot on whoever's
+  It opens where everyone is (`couch/where-sheet.tsx`, `openCouchSheet({ kind: "where" })`): a group per place, then Place not
+  shown; each row says watching now or what they play, and opens the person sheet, whose back arrow returns
+  (`kind: "person"`'s `back`). Tonight's Who's watching rows open the person sheet too. Your own mark is one rule everywhere
+  (couch/where.ts knownMark); the words are whereWords' (`whereGroups`, `caughtUpLine`, own pace included).
+- **F, the hub:** the couch's faces under the status line on one 44px line with the couch's name (32px faces, no heading, no names:
+  the user wanted Your shows' poster whole on the first screen; check-where-everyone.js measures it at 412×823 too)
+  (`CouchRow`, hub/sections.tsx), You first and ringed, a teal dot on whoever's
   watching along now. A face opens the person sheet (`couch/person-sheet.tsx`, `openCouchSheet({ kind: "person" })`): every
   show they share Where I am on, "Caught up · Episode 7" / "Up to Episode 5 of 7", watching now, "2 ahead of you", and on a
   show you don't watch "You don't watch it" with Add (the where sheet). Your own face: what the couch sees of you, your
@@ -44,7 +47,7 @@ faces, C Episodes bookmarks, D hub board, then for the hub E captions, F faces, 
   one rule, lib/sharing.ts whereWords (its "full" style is the sheet's "Up to Episode 5 of 7"), the Settings preview line, and
   your own spoiler chip ("you're up to Ep 5"). Your own face on Episodes needs a known mark (none while you see results
   straight away, as on Tonight).
-- Check: `node scripts/dev-test/check-where-everyone.js <outDir> [--width=390] [--theme=night|studio]` (new-fixture.js; jordan
+- Check: `node scripts/dev-test/check-where-everyone.js <outDir> [--width=390] [--height=844] [--theme=night|studio]` (new-fixture.js; jordan
   turns Where I am off).
 - **Everyone on dark, shipped with it (the user, 2026-11-01: "force everyone on dark mode by default"):** migration 0159 puts
   every account on Night (Studio and Match phone choices reset; Settings › Appearance still offers both, and a choice made

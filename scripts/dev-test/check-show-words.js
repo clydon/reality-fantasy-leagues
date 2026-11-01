@@ -173,7 +173,7 @@ function worldSeries(shows) {
       check(t1.includes("Schedule") && t1.includes("Players") && t1.includes("Games") && !t1.includes("Episodes") && !t1.includes("Cast"), "its tabs: Schedule and Players beside the app's Games", t1.join());
       const phase = await page.locator("[data-phase]").innerText();
       check(/^Game 7/i.test(phase), "Tonight: Game 7 is up next", phase);
-      check(/you're on Game 6/.test(await page.locator("[data-following]").innerText()), "the spoiler chip: you're on Game 6");
+      check(/you're up to Game 6/.test(await page.locator("[data-following]").innerText()), "the spoiler chip: you're up to Game 6");
       const bar = await page.locator("header").first().innerText();
       check(/Game 7 ·/.test(bar), "the show bar: Game 7 · when", bar.replace(/\s+/g, " ").slice(0, 120));
       await shot("ws-tonight");

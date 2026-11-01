@@ -94,8 +94,9 @@ export interface Where extends Mark {
 
 /**
  * Who on the couch is where on a show: `known`, everyone whose mark the viewer may see (you first, then furthest along, then the
- * couch's order), and `quiet`: someone who plays a game here but doesn't share where they are (a follower who doesn't share is
- * left out: whether they watch at all is theirs to say). You're in it only when your mark is known (`me.seen`).
+ * couch's order), and `quiet`: someone who plays a game here whose place isn't shown (they turned Where I am off, or never said:
+ * which, isn't ours to say). A follower who doesn't share is left out: whether they watch at all is theirs to say. You're in it
+ * only when your mark is known (`me.seen`: knownMark).
  */
 export function marksOf(people: Space["people"], me: { id: string; name: string; seen: number | null } | null): { known: Where[]; quiet: Mark[] } {
   const known: Where[] = [];
@@ -126,26 +127,44 @@ export function episodeMarks(people: Space["people"], me: { id: string; name: st
 }
 
 /**
- * Where everyone is on a show, as its header's list has it (the user's pick B, 2026-11-01): one group per episode someone's up
- * to, furthest first ("Caught up · Episode 7" at the latest, then "Up to Episode 6", ...), then "Not started". Who doesn't
- * share follows in the sheet itself, as "Not sharing".
+ * Your own mark on a show, when it's yours to have and known: you follow it or play it, and you don't see results straight away
+ * (then it's null, and you're left out rather than guessed at). Every place that shows you among the couch reads it here.
  */
-export function whereGroups(known: Where[], aired: number, word = "Episode"): { seen: number; title: string; people: Where[] }[] {
-  const eps = [...new Set(known.map((w) => w.seen))].sort((a, b) => b - a);
-  return eps.map((seen) => ({
+export function knownMark(o: { following: boolean; plays?: boolean; seenThrough: number | null }): number | null {
+  return (o.following || !!o.plays) && o.seenThrough != null && Number.isFinite(o.seenThrough) ? o.seenThrough : null;
+}
+
+/** A show's place in time, for the words: what's aired, how many it has, and whether it's watched at your own pace. */
+export type Pace = { aired: number; total: number; ownPace: boolean; word?: string };
+
+/** Where someone is counts as the end once they've seen what's aired (a mark past it, an early mark, is the end too). */
+export const atEnd = (seen: number, p: Pace) => p.aired > 0 && seen >= (p.ownPace && p.total > 0 ? p.total : p.aired);
+
+/**
+ * Where everyone is on a show, as its header's list has it (the user's pick B, 2026-11-01): one group per place, furthest first,
+ * in the couch's own words (lib/sharing.ts whereWords' "full": "Caught up · Episode 7", "Up to Episode 6 of 7", "Not started";
+ * at your own pace "Finished", "Up to Episode 4 of 8"). Everyone at the end is one group. Who doesn't share follows in the sheet.
+ */
+export function whereGroups(known: Where[], p: Pace): { seen: number; title: string; people: Where[] }[] {
+  const end = p.ownPace && p.total > 0 ? p.total : p.aired;
+  const placeOf = (w: Where) => (atEnd(w.seen, p) ? end : Math.max(0, w.seen));
+  const places = [...new Set(known.map(placeOf))].sort((a, b) => b - a);
+  return places.map((seen) => ({
     seen,
-    title: seen <= 0 ? "Not started" : aired > 0 && seen >= aired ? `Caught up · ${word} ${seen}` : `Up to ${word} ${seen}`,
-    people: known.filter((w) => w.seen === seen),
+    title: whereWords(seen, p, "full") ?? "Not on yet",
+    people: known.filter((w) => placeOf(w) === seen),
   }));
 }
 
-/** The header line's words: "3 caught up" over "2 catching up", "All 4 caught up", or "4 catching up" when nobody is. */
-export function caughtUpLine(known: Where[], aired: number): { top: string; under: string | null } {
-  const caught = known.filter((w) => aired > 0 && w.seen >= aired).length;
+/** The header line's words: "3 caught up" over "2 catching up", "All 4 caught up", "Caught up" for one; at your own pace
+ *  "finished" and "still watching". */
+export function caughtUpLine(known: Where[], p: Pace): { top: string; under: string | null } {
+  const caught = known.filter((w) => atEnd(w.seen, p)).length;
   const rest = known.length - caught;
-  if (!caught) return { top: `${rest} catching up`, under: null };
-  if (!rest) return { top: `All ${caught} caught up`, under: null };
-  return { top: `${caught} caught up`, under: `${rest} catching up` };
+  const [done, going] = p.ownPace ? ["finished", "still watching"] : ["caught up", "catching up"];
+  if (!caught) return { top: `${rest} ${going}`, under: null };
+  if (!rest) return { top: caught === 1 ? done[0].toUpperCase() + done.slice(1) : `All ${caught} ${done}`, under: null };
+  return { top: `${caught} ${done}`, under: `${rest} ${going}` };
 }
 
 /** "riley and casey", "riley, casey and 2 more": up to `few` names, then a count. */
