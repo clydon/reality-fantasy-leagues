@@ -266,8 +266,10 @@ it doesn't go in the menu.** The audit (checked in the code, 2026-10-30), per ol
   **Waiting on the user:** restart the main bot (8765) on the new code, then the tapes move back to it and 8766 goes. The
   playtest branch is merged into master (`2c945d31`).
 - **Neon is on Launch** since 2026-10-28 (the user upgraded it at 98.3% of the free transfer; about $5 a month; HOSTING.md).
-- **On branches, not merged:** the engine from A13 on (`engine`: A13, trivia and episode facts, then A14), track L's live
-  sports (`sports`: L5 done, its next session on Monday 2026-11-02 once the weekend's recordings are final). Waiting on the
+- **On branches, not merged:** the engine from A13 on (`engine`: A13 done, A14 parts 1-2 done, part 2b next), track L's live
+  sports (`sports`: L5 done, its next session after the weekly usage reset, Thu 2026-11-05 3 PM ET). **The lanes are held
+  by the usage cap until then** (the user, 2026-10-31: lanes pause at 75% of the week; a probe found 88% on 2026-11-01:
+  [PARALLEL-SESSIONS.md](PARALLEL-SESSIONS.md), "The usage cap"). Waiting on the
   user: S3 after two matching episodes; which rule a preset meets (open until the engine is complete: the user, 2026-10-30);
   the format-change design session after A12 (A12's Noticed lists); the watch along's concept before A15; and the rule
   questions in the plan's "Where the engine is headed". Decided 2026-10-30 and live: a pool's finale, only the winner
