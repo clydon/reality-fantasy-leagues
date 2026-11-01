@@ -26,10 +26,17 @@ test("a couch member: up top, down Home a section a beat, then hands on, each re
   assert.equal(s.flip.tap, "[data-flip]");
   assert.equal(s.guide.play, "[data-guide-tv]");
   assert.equal(s.home.union, true);
-  assert.equal(s.add.line, "Let's add The Amazing Race. Practice: it won't show up.");
-  assert.equal(s.start.line, "Make a Prediction Sheet for The Amazing Race. Practice again: it won't show up.");
+  assert.ok(steps.filter((x) => x.act).every((x) => x.act.label === "Tap it"), "the plate says Tap it: it points at the real thing, never does it");
+  assert.equal(s.add.line, "Let's add The Amazing Race. Practice: nothing's saved.");
+  assert.equal(s.start.line, "Make a Prediction Sheet for The Amazing Race. Practice again: nothing's saved.");
   assert.match(s.reveal.line, /replays your last one/);
+  assert.equal(s.done.title, "That's a wrap");
   assert.equal(s.done.line, "Want a nudge before your picks lock?");
+});
+
+test("real results waiting past the replay's episode: the reveal step says they stay sealed", () => {
+  const s = byId(tourSteps(at({ sealed: { now: 4, replays: 3 } })));
+  assert.equal(s.reveal.line, "Nothing shows until you tap Reveal. Episode 4 stays sealed: this replays Episode 3.");
 });
 
 test("the count: down Home's beats share one number, ten in all", () => {
@@ -52,8 +59,8 @@ test("nothing due: the moves step explains the top line, with nothing to tap; no
 
 test("nothing to practise with: the add and the start in general words; nothing to replay: a made-up reveal", () => {
   const s = byId(tourSteps(at({ show: null, replay: false })));
-  assert.equal(s.add.line, "Add any show you watch. Practice: it won't show up.");
-  assert.equal(s.start.line, "Make a Prediction Sheet. Practice again: it won't show up.");
+  assert.equal(s.add.line, "Add any show you watch. Practice: nothing's saved.");
+  assert.equal(s.start.line, "Make a Prediction Sheet. Practice again: nothing's saved.");
   assert.match(s.reveal.line, /made-up one/);
 });
 
@@ -135,14 +142,10 @@ test("spoilers off (seen null): the latest that's aired", () => {
 
 const have = (...tv) => ({ shows: tv.map((tvmazeId) => ({ show: { tvmazeId } })) });
 
-test("the demo adds Harry Potter, then Saturday Night Live (no sports: they aren't set up yet)", () => {
-  assert.deepEqual(demoOf(have()), [
-    { query: "Harry Potter", tvmazeId: 68803 },
-    { query: "Saturday Night Live", tvmazeId: 361 },
-  ]);
+test("the demo adds one show, Saturday Night Live (no sports: they aren't set up yet)", () => {
+  assert.deepEqual(demoOf(have()), [{ query: "Saturday Night Live", tvmazeId: 361 }]);
 });
 
 test("one you have is passed over", () => {
-  assert.deepEqual(demoOf(have(68803)), [{ query: "Saturday Night Live", tvmazeId: 361 }]);
-  assert.deepEqual(demoOf(have(68803, 361)), []);
+  assert.deepEqual(demoOf(have(361)), []);
 });

@@ -3,13 +3,10 @@ import type { AddDemo } from "../watching/sheets";
 
 // What the first-time tour's practice runs use (docs/PLAN-first-time-tour.md version 2), worked out from your own Home.
 
-/** After your own practice add, the ones the tour adds by itself (the user, 2026-11-01: "you don't have to add a show just for the
- *  games"): HBO's Harry Potter and Saturday Night Live (in the NFL's weekly game's place: sports aren't set up yet, the user, the
- *  same day; docs/PLAN-sports-add.md). None you have already. Found by their TV listings. */
-const DEMO: AddDemo[] = [
-  { query: "Harry Potter", tvmazeId: 68803 },
-  { query: "Saturday Night Live", tvmazeId: 361 },
-];
+/** After your own practice add, the one the tour adds by itself (the user, 2026-11-01: "you don't have to add a show just for the
+ *  games"): Saturday Night Live, on this week (in the NFL's weekly game's place: sports aren't set up yet; Harry Potter went with the
+ *  critique's trim, one show only). Not when you have it already. Found by its TV listing. */
+const DEMO: AddDemo[] = [{ query: "Saturday Night Live", tvmazeId: 361 }];
 
 export function demoOf(home: Home): AddDemo[] {
   const have = new Set(home.shows.map((s) => s.show.tvmazeId).filter((id): id is number => id != null));

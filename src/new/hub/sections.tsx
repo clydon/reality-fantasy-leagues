@@ -443,6 +443,12 @@ function Poster({ show, due, places }: { show: HomeShow; due: boolean; places: P
                 Best {ordinal(best)}
               </span>
             )}
+            {/* One the first-time tour's practice added (tour/practice-shows.ts): here for the tour, not saved. */}
+            {show.seasonId.startsWith("tour-") && (
+              <span data-practice-tag className="type-caption absolute left-[9px] top-[9px] bg-quiet-tag py-1 pl-[7px] pr-3 text-xs text-quiet-tag-foreground [clip-path:polygon(0_0,100%_0,calc(100%_-_7px)_100%,0_100%)]">
+                Practice
+              </span>
+            )}
             {due && <i className="absolute right-[11px] top-[11px] size-2.5 rounded-full bg-live" aria-label="A move is due" />}
             <b className="type-caption text-[28px] leading-[.92]">{showName(show)}</b>
             <span className="mt-1 text-xs font-semibold opacity-90">

@@ -404,7 +404,7 @@ function AddShowSheet({ open, practice, onOpenChange }: { open: boolean; practic
   const title = !step
     ? "Add a show"
     : step.kind === "demoed"
-      ? "Tell your couch"
+      ? "Shows you add"
       : step.kind === "practiced"
         ? step.demo
           ? "Added"
@@ -439,7 +439,7 @@ function AddShowSheet({ open, practice, onOpenChange }: { open: boolean; practic
             : null;
   return (
     <Sheet open={open} onOpenChange={onOpenChange} title={title} subtitle={subtitle}>
-      <div data-add-show={step ? step.kind : "search"} onClickCapture={keepToPath(path)}>
+      <div data-add-show={step ? step.kind : "search"} data-practice-path={path ? "" : undefined} onClickCapture={keepToPath(path)}>
         {practice && !yoursDone && step?.kind !== "demoed" && <PracticeStrip />}
         {step?.kind === "practiced" &&
           (step.demo ? (
@@ -448,7 +448,7 @@ function AddShowSheet({ open, practice, onOpenChange }: { open: boolean; practic
             </p>
           ) : (
             <PracticeFinish
-              line={`${said(step.label)} won't show up on your list: this was just to show you how.`}
+              line={`${said(step.label)} isn't saved: it's on your Home for the tour, then gone.`}
               done={demoMore ? "Show me" : "Done"}
               onDone={() => (demoMore ? void runDemo() : onOpenChange(false))}
             >
@@ -457,7 +457,7 @@ function AddShowSheet({ open, practice, onOpenChange }: { open: boolean; practic
           ))}
         {step?.kind === "demoed" && (
           <PracticeFinish
-            line={step.labels.length ? `${listOf(step.labels.map(said))} won't show up either: just practice.` : "Nothing was saved: it was all practice."}
+            line={step.labels.length ? `${listOf(step.labels.map(said))} ${step.labels.length > 1 ? "aren't" : "isn't"} saved either: just for the tour.` : "Nothing was saved: it was all practice."}
             onDone={() => onOpenChange(false)}
           >
             <PracticeNote>Shows you add land on your Home, and in your couch&rsquo;s TV guide when you share what you watch.</PracticeNote>

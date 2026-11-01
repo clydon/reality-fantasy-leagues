@@ -72,6 +72,14 @@ tour's own typing and taps slowed to be followed (each tap ringed and pressed in
   - **The reveal step draws Home with results waiting** on the episode the replay plays.
   - **The demo adds Saturday Night Live** in the NFL game's place (sports aren't set up yet).
   - **The show you practice-add goes on Home's guide** with the demo's, read from its listing.
+- **After an /impeccable critique (26/40, the same day; its five issues bar accessibility, the user's picks):**
+  - **Says what it does:** "nothing's saved" in place of "won't show up"; a Practice tag on practice posters and guide cards;
+    "Episode 4 stays sealed".
+  - **The demo adds SNL only.**
+  - **The wrap:** Turn on reminders is the main button; on an iPhone, the Add to Home Screen pictures.
+  - **Skip tour:** top right, with Undo.
+  - **The plate says Tap it ↑.**
+  - **Left:** BACKLOG 38.
 
 ## Next: adding sports by team (planned 2026-11-01, not started)
 The user: people search a team, not "Sunday Night Football"; show its schedule, take two teams in any order, add a series.

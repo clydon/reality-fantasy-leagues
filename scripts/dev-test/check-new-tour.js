@@ -1,37 +1,39 @@
 // Dev-only check of the first-time tour, version 3 (docs/PLAN-first-time-tour.md, src/new/tour/): a welcome card, up top, down Home a
-// section a beat, then hands on, each real thing tapped by the person (the plate's Try it only shakes it): your moves for real (the
+// section a beat, then hands on, each real thing tapped by the person (the plate's Tap it only shakes it): your moves for real (the
 // top line's page, Back to the tour), Add a show as a practice that saves nothing (and its demo), a show flipped over to your games,
 // the TV guide's filters, the reveal replayed, Start a game as a practice; kept once an account:
 //   A. sam (results waiting; notifications allowed): the card; every step's count, words and light, down Home's beats with a dot
-//      each; your moves: Try it shakes the top line and goes nowhere, the line itself goes to its show, Back to the tour brings Home
-//      and the step ticks, and that's no skip; Add a show: Try it shakes the tile, the tile itself opens the practice: the practice
+//      each; your moves: Tap it shakes the top line and goes nowhere, the line itself goes to its show, Back to the tour brings Home
+//      and the step ticks, and that's no skip; Add a show: Tap it shakes the tile, the tile itself opens the practice: the practice
 //      show the catalog says (the first of Survivor, The Amazing Race, The Challenge sam doesn't have) typed in, slowly enough to
-//      follow, and ringed, Where are you, its finish (won't show up; you don't need a game), Show me: the demo adds Harry Potter and
-//      Saturday Night Live by itself, slowly enough to follow (its Add to my shows ringed and pressed before the tap); Flip a show:
-//      Try it shakes the corner, the tap turns sam's show over to sam's games and back, the demo's shows on the shelf; the TV guide:
-//      SNL on its night, held on today, its filters working through the tour, Sports saying it's coming; the reveal: Up next with
+//      follow, and ringed, Where are you, its finish (isn't saved; you don't need a game), Show me: the demo adds one show, Saturday
+//      Night Live, by itself, slowly enough to follow (its Add to my shows ringed and pressed before the tap); Flip a show: Tap it
+//      shakes the corner, the tap turns sam's show over to sam's games and back, the practice shows on the shelf saying Practice; the
+//      TV guide: those shows on their nights (tagged Practice), its filters working through the tour, Sports saying it's coming; the
+//      reveal: the line saying sam's real waiting episode stays sealed, Up next with
 //      results waiting on the episode the replay plays (Home drawn so for the step, then as it was), the replay of sam's last
 //      episode with nothing that would be real (no Share, no next episode), the demo's shows gone by then; Start a game: the
 //      practice show first, its rules' moment, the Prediction Sheet chosen, Create a game with AI (coming soon), Start it in sight
 //      in the sheet's foot without scrolling, its finish. One path through each practice: the search the tour's to type, another
 //      show shakes the one to tap, Back to search shakes Add to my shows, another game shakes Start it. Nothing written: no write
 //      but the tour's own and the replay's
-//      (with replay: true), and sam's follows, marks, leagues and chat as they were. Explore keeps it (seen, to the last step);
-//      Home doesn't play it again.
+//      (with replay: true), and sam's follows, marks, leagues and chat as they were. The wrap: Turn on reminders first and solid,
+//      Explore quieter, no Skip tour; Explore keeps it (seen, to the last step); Home doesn't play it again.
 //   B/C. alex: Skip on the welcome card keeps it (step 1); Settings › Take the tour plays it again; Escape skips it.
 //   D. sam: /home?tour=1 plays it and takes ?tour off the address.
 //   K. sam: the menu behind your picture › Take the tour plays it there and then; once played, a reload doesn't play it again.
 //   E. zt_nd_solo (no couch, one show, no game): no Start a game practice (the couch pitched), no flip, a made-up reveal (no server
 //      call); Turn on ends it.
-//   F. riley with reduced motion: each step lit at once; Try it blinks the ring and moves nothing; Start a game's rules moment
+//   F. riley with reduced motion: each step lit at once; Tap it blinks the ring and moves nothing; Start a game's rules moment
 //      still shows (a pause, not a movement).
 //   G. zt_nd_admin acting as jordan (the desk's Act as them): Home doesn't play it, and a write isn't kept.
 //   I. casey leaves Home mid-tour by a move inside the app (as the phone's back): kept as a skip at that step.
 //   H. riley in Studio: plays through, with no page errors.
 //   J. the real Start a game sheet (no tour): Create a game with AI, coming soon, for everyone; Start it in the sheet's foot.
-//   L. jordan: on the first step with a real thing to tap, the plate says Try it where Next was the step before, and a tap there
+//   L. jordan: on the first step with a real thing to tap, the plate says Tap it where Next was the step before, and a tap there
 //      (or anywhere off what's lit) shakes it and does nothing else; the skip pill (its own words) moves on (the user, 2026-11-01:
-//      Next skipped it by habit; then: Try it mustn't do it for them).
+//      Next skipped it by habit; then: Tap it mustn't do it for them). Skip tour sits at the top, far from the thumb, and a skip
+//      can be undone: Undo takes the tour up again at that step.
 // Nothing wider than the screen; no page errors.
 //
 //   node scripts/lane.js dev                                  (the server, in another terminal; BASE from .env.local)
@@ -244,7 +246,7 @@ async function tapAt(page, sel) {
 }
 /** Whether something in a sheet is moving right now (a practice's next thing, shaken: a Web Animation on it). */
 const moving = (page, sel) => page.evaluate((sel) => (document.querySelector(sel)?.getAnimations().length ?? 0) > 0, sel);
-/** Whether the step's thing to tap is moving right now (Try it's shake: a Web Animation on it); `ring`, the tour's ring instead. */
+/** Whether the step's thing to tap is moving right now (Tap it's shake: a Web Animation on it); `ring`, the tour's ring instead. */
 const shook = (page, step, ring = false) =>
   page.evaluate(
     ([step, ring]) => {
@@ -286,7 +288,10 @@ async function stepsFor(page, { solo = false, reminders = "off" } = {}) {
     for (const sel of ["[data-your-shows]", "[data-guide]", "[data-feed-list]", "[data-more-couch]"]) top[sel] = boxed(sel)?.getBoundingClientRect().top ?? null;
     return { moves: !!hub?.querySelector("a[data-status]"), flip: !!hub?.querySelector("[data-flip]"), top };
   });
-  let steps = tourSteps({ solo, reminders, show: practice?.name ?? null, replay: !!replay, moves: here.moves, flip: here.flip });
+  // Real results waiting on the replay's show, past the episode it replays (tour.tsx): the reveal step says they stay sealed.
+  const waiting = replay ? home.shows.find((s) => s.seasonId === replay.seasonId)?.results?.reveal?.episode : null;
+  const sealed = replay && waiting && waiting !== replay.n ? { now: waiting, replays: replay.n } : null;
+  let steps = tourSteps({ solo, reminders, show: practice?.name ?? null, replay: !!replay, sealed, moves: here.moves, flip: here.flip });
   steps = steps.filter((s) => !s.optional || s.targets.some((sel) => here.top[sel] != null));
   const first = steps.findIndex((s) => s.part);
   if (first >= 0) {
@@ -364,7 +369,7 @@ async function stepsFor(page, { solo = false, reminders = "off" } = {}) {
           await page.click('[data-tour-act="moves"]');
           const shake = await shook(page, steps[k]);
           await page.waitForTimeout(700);
-          check(shake && /\/home$/.test(page.url()) && (await tourId(page)) === "moves", "A: Your moves: Try it shakes the top line, and goes nowhere", page.url());
+          check(shake && /\/home$/.test(page.url()) && (await tourId(page)) === "moves", "A: Your moves: Tap it shakes the top line, and goes nowhere", page.url());
           const kept = [];
           const keep = (r) => r.url().includes("/api/me/tour") && r.method() === "POST" && kept.push(r.url());
           page.on("request", keep);
@@ -391,7 +396,7 @@ async function stepsFor(page, { solo = false, reminders = "off" } = {}) {
         await page.click('[data-tour-act="add"]');
         const addShook = await shook(page, steps[k]);
         await page.waitForTimeout(700);
-        check(addShook && !(await page.$("[role=dialog][data-open] [data-practice]")), "A: Add a show: Try it shakes the tile, and opens nothing");
+        check(addShook && !(await page.$("[role=dialog][data-open] [data-practice]")), "A: Add a show: Tap it shakes the tile, and opens nothing");
         await tapLit(page);
         await page.waitForSelector("[role=dialog][data-open] [data-practice]", { timeout: 15000 });
         const typing = Date.now();
@@ -419,7 +424,7 @@ async function stepsFor(page, { solo = false, reminders = "off" } = {}) {
         await page.click("[role=dialog][data-open] [data-where-save]");
         await page.waitForSelector("[data-practice-done]", { timeout: 10000 });
         const fin = await page.textContent("[data-practice-done]");
-        check(fin.includes(`${practice.label} won't show up`) && /You don.t need a game to add a show/.test(fin) && /Show me$/.test(fin.trim()), "A: its finish: it won't show up; you don't need a game; Show me", fin);
+        check(fin.includes(`${practice.label} isn't saved`) && /You don.t need a game to add a show/.test(fin) && /Show me$/.test(fin.trim()), "A: its finish: it isn't saved; you don't need a game; Show me", fin);
         await shot(page, "sam-5b-finish");
         // Show me: the demo adds the rest by itself, each tap seen (the button ringed, then pressed in).
         const ringed = page.waitForSelector("[data-where-save][data-tour-tap]", { timeout: 60000 }).then(() => true, () => false);
@@ -429,7 +434,7 @@ async function stepsFor(page, { solo = false, reminders = "off" } = {}) {
         const showed = Date.now() - showing;
         const names = demo.map((d) => DEMO_SHOWS().find((x) => x.show.id === d.tvmazeId).show.name);
         const demoed = await page.textContent("[data-practice-done]");
-        check(names.every((n) => demoed.includes(n)) && demoed.includes("won't show up either"), `A: Show me: the tour adds ${names.join(" and ")} by itself, and says they won't show up either`, demoed);
+        check(names.length === 1 && names.every((n) => demoed.includes(n)) && demoed.includes("saved either"), `A: Show me: the tour adds one show, ${names.join(" and ")}, by itself, and says it isn't saved either`, demoed);
         check(showed >= 6000 * names.length, `A: the demo slow enough to follow (${Math.round(showed / 100) / 10} s for ${names.length} shows)`);
         check(await ringed, "A: the demo's Add to my shows ringed and pressed before it's tapped");
         await shot(page, "sam-5c-demoed");
@@ -444,11 +449,14 @@ async function stepsFor(page, { solo = false, reminders = "off" } = {}) {
           stepChecks("sam", s, plan, k);
           const shelf = await page.$$eval("[data-poster]", (p) => p.map((x) => x.getAttribute("data-poster")));
           check(demo.every((d) => shelf.includes(`tour-${d.tvmazeId}`)) && (!practice.tvmazeId || shelf.includes(`tour-${practice.tvmazeId}`)), "A: Your shows has the show you practice-added and the demo's, for now", shelf.join(", "));
+          // Said as they are: practice, here for the tour (the critique: "won't show up", then they did).
+          const tagged = await page.$$eval('[data-poster^="tour-"]', (p) => p.every((x) => x.querySelector("[data-practice-tag]")?.textContent?.trim() === "Practice"));
+          check(tagged && !(await page.$('[data-poster]:not([data-poster^="tour-"]) [data-practice-tag]')), "A: each practice poster says Practice, and no real one does");
           await shot(page, "sam-6-flip");
           await page.click('[data-tour-act="flip"]');
           const flipShook = await shook(page, steps[k]);
           await page.waitForTimeout(600);
-          check(flipShook && !(await page.$("[data-hub] [data-flipped]")), "A: Flip a show: Try it shakes the corner, and turns nothing");
+          check(flipShook && !(await page.$("[data-hub] [data-flipped]")), "A: Flip a show: Tap it shakes the corner, and turns nothing");
           await tapLit(page);
           const turned = await page.waitForSelector("[data-hub] [data-flipped]", { timeout: 4000 }).then(() => true, () => false);
           await page.waitForTimeout(900);
@@ -468,6 +476,8 @@ async function stepsFor(page, { solo = false, reminders = "off" } = {}) {
         const snlName = snl && DEMO_SHOWS().find((x) => x.show.id === snl.tvmazeId).show.name;
         check(!snl || cards.some((c) => c.startsWith(snlName)), `A: the guide has the demo's Saturday Night Live on its night (${snlName})`, cards.join(" | "));
         check(!practice.tvmazeId || cards.some((c) => c.startsWith(OWN)), "A: and the show you practice-added, on its night", cards.join(" | "));
+        const cardTags = await page.$$eval('[data-guide-card^="tour-"]', (c) => c.length > 0 && c.every((x) => x.querySelector("[data-practice-tag]")));
+        check(cardTags && !(await page.$('[data-guide-card]:not([data-guide-card^="tour-"]) [data-practice-tag]')), "A: the practice shows' guide cards say Practice, and no real one does");
         // The reel goes to those nights in turn, yours first, so they're seen.
         const inView = (key) =>
           page
@@ -510,7 +520,7 @@ async function stepsFor(page, { solo = false, reminders = "off" } = {}) {
         await page.click('[data-tour-act="reveal"]');
         const revealShook = await shook(page, steps[k]);
         await page.waitForTimeout(600);
-        check(revealShook && !(await page.$("[data-tour-reveal]")), "A: the reveal: Try it shakes Reveal, and plays nothing");
+        check(revealShook && !(await page.$("[data-tour-reveal]")), "A: the reveal: Tap it shakes Reveal, and plays nothing");
         await tapLit(page);
         await page.waitForSelector('[data-tour-reveal="replay"] [data-beat]', { timeout: 20000 });
         await shot(page, "sam-8a-replay");
@@ -567,15 +577,27 @@ async function stepsFor(page, { solo = false, reminders = "off" } = {}) {
         await page.click("[data-start-go]");
         await page.waitForSelector("[data-practice-done]", { timeout: 10000 });
         const started = await page.textContent("[data-practice-done]");
-        check(/Prediction Sheet .* won't show up/.test(started) && !!(await page.$("[data-practice-done] [data-coming-soon-ai]")), "A: its finish: it won't show up, and the AI's coming", started);
+        check(/Prediction Sheet .* isn't saved/.test(started) && !!(await page.$("[data-practice-done] [data-coming-soon-ai]")), "A: its finish: it isn't saved, and the AI's coming", started);
         await page.click("[data-practice-close]");
         await ticked(page);
 
-        // 10: you're set: reminders, Explore.
+        // 10: the wrap: reminders first, Explore quieter, no Skip tour.
         k = steps.length - 1;
         s = await onStep(page, steps, k);
         stepChecks("sam", s, plan, k);
-        check(!!(await page.$("[data-tour-on]")) && !!(await page.$("[data-tour-explore]")), "A: the last step: Turn on reminders · Explore");
+        const ending = await page.evaluate(() => {
+          const on = document.querySelector("[data-tour-on]");
+          const explore = document.querySelector("[data-tour-explore]");
+          return {
+            on: !!on,
+            explore: !!explore,
+            onFirst: !!on && !!explore && !!(on.compareDocumentPosition(explore) & Node.DOCUMENT_POSITION_FOLLOWING),
+            onSolid: !!on && getComputedStyle(on).backgroundColor !== getComputedStyle(explore.querySelector("span") ?? explore).backgroundColor,
+            // The tour's own Skip tour (a child of its root), not the welcome card's, which stays in the page faded out.
+            skip: !!document.querySelector('[role="dialog"][data-tour] > [data-tour-skip]'),
+          };
+        });
+        check(ending.on && ending.explore && ending.onFirst && ending.onSolid && !ending.skip, "A: the wrap: Turn on reminders first and solid, Explore quieter under it, no Skip tour", JSON.stringify(ending));
         await shot(page, "sam-10-done");
         const status = await endWith(page, () => page.click("[data-tour-explore]"));
         check(status === 200 && /your picture to take the tour again/.test((await page.textContent('[data-toast="done"]').catch(() => "")) ?? ""), "A: Explore ends it, and says where it lives", String(status));
@@ -705,7 +727,7 @@ async function stepsFor(page, { solo = false, reminders = "off" } = {}) {
       }
     }
 
-    // ---- F. riley, reduced motion: lit at once; Try it only blinks the ring; the rules' moment still shows ----
+    // ---- F. riley, reduced motion: lit at once; Tap it only blinks the ring; the rules' moment still shows ----
     {
       const { page, errors: e, BASE, close } = await session("riley", { motion: "reduce", notifications: true });
       try {
@@ -736,7 +758,7 @@ async function stepsFor(page, { solo = false, reminders = "off" } = {}) {
           if (k < steps.length - 1) await page.click("[data-tour-next]");
         }
         check(ok, "F: reduced motion: each step lit at once, around its target");
-        check(blinked === true, "F: reduced motion: Try it blinks the ring and moves nothing");
+        check(blinked === true, "F: reduced motion: Tap it blinks the ring and moves nothing");
         await endWith(page, () => page.click("[data-tour-explore]"));
       } finally {
         errors.push(...e.map((x) => `F: ${x}`));
@@ -832,7 +854,7 @@ async function stepsFor(page, { solo = false, reminders = "off" } = {}) {
       }
     }
 
-    // ---- L. jordan: a step with a real thing to tap: Try it at the thumb's spot only shakes it, and a stray tap doesn't skip it ----
+    // ---- L. jordan: a step with a real thing to tap: Tap it at the thumb's spot only shakes it, and a stray tap doesn't skip it ----
     {
       const { page, errors: e, BASE, close } = await session("jordan");
       try {
@@ -860,8 +882,8 @@ async function stepsFor(page, { solo = false, reminders = "off" } = {}) {
         await page.waitForTimeout(1000);
         const says = await page.$eval("[data-tour-act] > span:last-child", (el) => el.textContent.trim());
         check(
-          s.act === steps[k].act.kind && says === "Try it" && thumb && page.url() === url && (await tourId(page)) === steps[k].id && !(await page.$("[role=dialog][data-open] [data-practice]")),
-          `L: ${steps[k].id}: the plate says Try it, and a tap where Next was shakes the thing to tap and does nothing else`,
+          s.act === steps[k].act.kind && says === "Tap it" && thumb && page.url() === url && (await tourId(page)) === steps[k].id && !(await page.$("[role=dialog][data-open] [data-practice]")),
+          `L: ${steps[k].id}: the plate says Tap it, and a tap where Next was shakes the thing to tap and does nothing else`,
           JSON.stringify({ says, thumb, url: page.url() })
         );
         check(s.skip === steps[k].act.skip, `L: its skip says "${steps[k].act.skip}", up by Skip tour`, s.skip);
@@ -875,6 +897,15 @@ async function stepsFor(page, { solo = false, reminders = "off" } = {}) {
         await page.click("[data-tour-next]");
         const s2 = await onStep(page, steps, k + 1);
         check(s2.id === steps[k + 1].id, `L: the skip moves on, to ${steps[k + 1].id}`, s2.id);
+        // Skip tour is up top, where the welcome card has it, far from the thumb's Next; and a skip can be undone.
+        const skipAt = await page.$eval('[role="dialog"][data-tour] > [data-tour-skip]', (el) => el.getBoundingClientRect().bottom);
+        check(skipAt < 120 && skipAt < nextAt.y - 300, "L: Skip tour sits at the top, far from where a thumb taps Next", `${Math.round(skipAt)} vs ${Math.round(nextAt.y)}`);
+        await endWith(page, () => page.click('[role="dialog"][data-tour] > [data-tour-skip]'));
+        await page.waitForSelector('[data-toast] >> text=Undo', { timeout: 4000 });
+        check(/Tour skipped/.test((await page.textContent("[data-toast]")) ?? ""), "L: a skip says so, with Undo");
+        await page.click('[data-toast] >> text=Undo');
+        const s3 = await onStep(page, steps, k + 1);
+        check(s3.id === steps[k + 1].id && !(await page.$("[data-tour-welcome].opacity-100")), `L: Undo takes the tour up again at ${steps[k + 1].id}, not from the start`, s3.id);
         await endWith(page, () => page.keyboard.press("Escape"));
         const row = await tourOf(pool, U.jordan);
         check(row.tour_reached === nums[k + 1], `L: kept as seen to step ${nums[k + 1]}`, JSON.stringify(row));

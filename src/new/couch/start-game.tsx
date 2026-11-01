@@ -310,7 +310,9 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
     >
       <div
         data-start-sheet={practiced ? "practiced" : warming ? "warming" : (o?.kind ?? "loading")}
-        // The practice's one path: the Prediction Sheet's chosen, so only Start it (the sheet's foot) goes on.
+        // The practice's one path: the Prediction Sheet's chosen, so only Start it (the sheet's foot) goes on; what's chosen
+        // here isn't yellow, since it can't be changed (new.css).
+        data-practice-path={practice && !practiced ? "" : undefined}
         onClickCapture={keepToPath(
           practice && !practiced && !warming ? { on: "[data-start-go]", next: () => document.querySelector("[role=dialog][data-open] [data-start-go]"), word: "Practice: just tap Start it" } : null
         )}
@@ -318,7 +320,7 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
       >
         {practice && !practiced && <PracticeStrip />}
         {practiced ? (
-          <PracticeFinish line={`${practiced}${o ? ` for ${said(o.show)}` : ""} won't show up: this was just to show you how.`} onDone={() => onOpenChange(false)}>
+          <PracticeFinish line={`${practiced}${o ? ` for ${said(o.show)}` : ""} isn't saved: this was just to show you how.`} onDone={() => onOpenChange(false)}>
             <ComingSoonAI />
           </PracticeFinish>
         ) : warming ? (

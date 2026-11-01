@@ -370,6 +370,18 @@ Last updated 2026-10-27.
     - **The guide's foot takes two lines at 390 since Sports joined its filters** (version 3: Couch · Competitions · All TV ·
       Sports, then Add a show wrapped under them). Fine as it stands; if the foot should stay one line, Add a show could shrink to
       its icon there, or Sports go once sports are added by team (docs/PLAN-sports-add.md). **When:** that plan's UI step.
+    - **Left from the tour's critique (2026-11-01, 26/40; PLAN-first-time-tour.md version 3, The critique):**
+      - **Keyboard and screen readers can't do the steps with a real tap.** Home is inert under the tour, Tap it only shakes, and
+        Enter works only on the tour root. The dismissed welcome card also stays a modal dialog whose buttons can still be tabbed
+        to (welcome.tsx:21-28). Fix: Tap it moves focus to the lit thing (un-inert only it) and announces it; the welcome unmounts
+        once dismissed. **When:** the user's call ("not a big deal to me" for now).
+      - **No resume after a reload or iOS killing the app.** The tour starts over at 1/10 when it's next asked for: keep the step
+        in sessionStorage and offer "Pick up at 6/10?".
+      - **The solo reveal step lights Up next with no Reveal on it** (the made-up reveal has no card of its own).
+      - **The welcome card's "Welcome to" kicker** is banned by the impeccable craft floor; the user approved it in the mock.
+      - **Outside the tour:** the reveal's standings reorder has a bounce easing (reveal.tsx:465, "No bounce" in DESIGN.md), and
+        Home's 10 px game chips and "Not on your list" tag (hub/sections.tsx:456, :671) are under the 11 px floor.
+      - **When:** the next tour change, or the next polish pass on Home and the reveal.
     - **A poster for a premiere weeks away says only its weekday** ("Season 1 · Fri" for HBO's Harry Potter on Dec 25, seen in the
       tour's demo): Your shows' poster takes `day()` of the next episode however far off. A date past a week ("Dec 25") would read
       better, for every show coming back. **When:** the next Your shows change.

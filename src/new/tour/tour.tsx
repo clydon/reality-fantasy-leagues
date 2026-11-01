@@ -8,7 +8,7 @@ import { useCatalog, useCurrentCouch, useTourSeen, type Couch, type CouchHub, ty
 import { useMe } from "../session";
 import { usePhone } from "../settings/notify";
 import { TourReveal, type TourRevealPlay } from "../show/reveal";
-import { markAsked, turnOn } from "../show/remind";
+import { ADD_TO_HOME_ART, markAsked, turnOn } from "../show/remind";
 import { useShown } from "../ui/loaded";
 import { Btn } from "../ui/parts";
 import { toast } from "../ui/toast";
@@ -18,14 +18,14 @@ import type { AddDemo } from "../watching/sheets";
 import { demoOf, MADE_UP_REVEAL, MADE_UP_SHOW, practiceShowOf, replayOf, type PracticeShow, type ReplayOf } from "./plan";
 import { practiceShow, setPracticeReveal, setPracticeShows } from "./practice-shows";
 import { numbered, tourSteps, type TourReminders, type TourStep } from "./steps";
-import { clearTourAsk, setTourVisit, takeTourVisit, useTourAsked, useTourVisit } from "./store";
+import { askTour, clearTourAsk, setTourVisit, takeTourVisit, useTourAsked, useTourVisit } from "./store";
 import { Welcome } from "./welcome";
 
 // The first-time tour (docs/PLAN-first-time-tour.md version 3, the user's own outline, 2026-11-01): a welcome card (what the app is,
 // its three ideas), then the real Home a step at a time, each lighting the thing it's about with a lower third at the phone's foot (a
 // Skip tour pill and the caption plate: the count on a quiet tag, the title, the line, Next). First down Home, a section a beat
-// (steps.ts `part`), then hands on. A step with an `act` is done by the person on the real thing that's lit (the user: Try it
-// mustn't do it for them): the plate says Try it where Next is on the others, and it (or a tap off what's lit) only shakes the
+// (steps.ts `part`), then hands on. A step with an `act` is done by the person on the real thing that's lit (the user: the plate
+// mustn't do it for them): the plate says Tap it where Next is on the others, and it (or a tap off what's lit) only shakes the
 // thing to tap; the skip pill up by Skip tour moves on without it. The top line goes to your moves for real, the tour waiting on
 // that page with a Back to the tour pill (back.tsx, store.ts); a show's corner flips it over to your games and back; Add a show and
 // Start a game open their real sheets as practice that saves nothing (watching/sheets.tsx, couch/start-game.tsx), and the reveal
@@ -54,8 +54,9 @@ const PILL = "grid h-[30px] place-items-center rounded-full bg-background px-3.5
 
 type Rect = { x: number; y: number; w: number; h: number };
 type Ending = "skip" | "done" | "on";
-/** A tour's run: its steps and what its practices use; `from`, the step it carries on from after a step's own page. */
-type Run = { steps: TourStep[]; reminders: TourReminders; practice: PracticeShow | null; replay: ReplayOf | null; demo: AddDemo[]; from?: number };
+/** A tour's run: its steps and what its practices use; `from`, the step it carries on from: after a step's own page (ticked, then
+ *  on), or `again`, at that step itself (Undo after a skip). */
+type Run = { steps: TourStep[]; reminders: TourReminders; practice: PracticeShow | null; replay: ReplayOf | null; demo: AddDemo[]; from?: number; again?: boolean };
 
 const ease = (t: number) => 1 - Math.pow(1 - t, 4);
 const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
@@ -173,7 +174,7 @@ function holdGuide(on: boolean, reduce: boolean) {
   if (on) reel.scrollTo({ left: 0, behavior: reduce ? "auto" : "smooth" });
 }
 
-/** The arrow on Next; on Try it, up at what's lit. */
+/** The arrow on Next; on Tap it, up at what's lit. */
 function NextArrow({ up = false }: { up?: boolean }) {
   return (
     <svg viewBox="0 0 24 24" className="size-[18px]" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -233,7 +234,10 @@ export function Tour({ home, hub, solo }: { home: Home | undefined; hub: CouchHu
         const hub = document.querySelector("[data-hub]");
         const moves = !!hub?.querySelector("a[data-status]");
         const flip = !!hub?.querySelector("[data-flip]");
-        const steps = onHome(tourSteps({ solo, reminders, show: practice?.name ?? null, replay: !!replay, moves, flip }));
+        // Real results waiting on the replay's show, past the episode it replays: the reveal step says they stay sealed.
+        const waiting = replay ? home.shows.find((s) => s.seasonId === replay.seasonId)?.results?.reveal?.episode : null;
+        const sealed = replay && waiting && waiting !== replay.n ? { now: waiting, replays: replay.n } : null;
+        const steps = onHome(tourSteps({ solo, reminders, show: practice?.name ?? null, replay: !!replay, sealed, moves, flip }));
         setRun({ steps, reminders, practice, replay, demo: demoOf(home) });
         // Asked for (your picture's menu, Settings): heard, so the next Home doesn't play it again.
         clearTourAsk();
@@ -248,22 +252,40 @@ export function Tour({ home, hub, solo }: { home: Home | undefined; hub: CouchHu
     return () => clearTimeout(t);
   }, [want, ready, run, tries, phone, solo, linked, home, catalog]);
   const done = useCallback(
-    (reached: number, how: Ending) => {
+    (reached: number, how: Ending, at: number) => {
+      const was = run;
       setRun(null);
       clearTourAsk();
       void seen(reached);
+      // Skipped by a thumb a little high: Undo takes it up again at that step (the critique, 2026-11-01).
+      if (how === "skip" && was)
+        toast("Tour skipped. Tap your picture to take it again.", {
+          undo: () => (at > 0 ? setTourVisit({ at, count: "", run: { ...was, again: true } }) : askTour()),
+        });
       // Turn on says its own (remind.tsx turnOn: on, or why not).
-      if (how !== "on") toast("Tap your picture to take the tour again.");
+      else if (how !== "on") toast("Tap your picture to take the tour again.");
     },
-    [seen]
+    [seen, run]
   );
   const left = useCallback((reached: number) => void seen(reached), [seen]);
   if (!run || !home) return null;
   return createPortal(<Running run={run} home={home} couch={couch} onDone={done} onLeft={left} />, document.body);
 }
 
-function Running({ run, home, couch, onDone, onLeft }: { run: Run; home: Home; couch: Couch | null; onDone: (reached: number, how: Ending) => void; onLeft: (reached: number) => void }) {
-  const { steps, reminders, practice, replay, demo, from } = run;
+function Running({
+  run,
+  home,
+  couch,
+  onDone,
+  onLeft,
+}: {
+  run: Run;
+  home: Home;
+  couch: Couch | null;
+  onDone: (reached: number, how: Ending, at: number) => void;
+  onLeft: (reached: number) => void;
+}) {
+  const { steps, reminders, practice, replay, demo, from, again } = run;
   const me = useMe();
   const reduce = useReducedMotion();
   const { nums, of } = useMemo(() => numbered(steps), [steps]);
@@ -420,7 +442,7 @@ function Running({ run, home, couch, onDone, onLeft }: { run: Run; home: Home; c
     void Promise.all([tween(reduce ? 0 : Math.min(900, scrollMs(y0)), (p) => window.scrollTo(0, y0 * (1 - p)), easeInOut), wait(reduce ? 0 : 340)]).then(() => {
       giveRoomBack();
       // The step it got to as the count said it (down Home's beats are one).
-      onDone(nums[at.current], how);
+      onDone(nums[at.current], how, at.current);
     });
   };
 
@@ -469,7 +491,7 @@ function Running({ run, home, couch, onDone, onLeft }: { run: Run; home: Home; c
     tick();
   }, [tick, showDemo]);
 
-  /** What to tap, shaken: the step's own real thing (Try it, a tap off it), never done for them (the user, 2026-11-01). The ring
+  /** What to tap, shaken: the step's own real thing (Tap it, a tap off it), never done for them (the user, 2026-11-01). The ring
    *  blinks too; under reduced motion that's all (a blink, not a movement). */
   const nudge = () => {
     if (stepped.current || ticking.current || moving.current) return;
@@ -486,7 +508,7 @@ function Running({ run, home, couch, onDone, onLeft }: { run: Run; home: Home; c
     const link = document.querySelector<HTMLAnchorElement>("[data-hub] a[data-status]");
     if (!link) return next();
     visiting.current = true;
-    setTourVisit({ at: at.current, count: `${nums[at.current]}/${of}`, run });
+    setTourVisit({ at: at.current, count: `${nums[at.current]}/${of}`, run: { ...run, again: false } });
     press(link);
   };
 
@@ -537,13 +559,13 @@ function Running({ run, home, couch, onDone, onLeft }: { run: Run; home: Home; c
     const raf = requestAnimationFrame(() => setCard(true));
     return () => cancelAnimationFrame(raf);
   }, [from]);
-  // Back from a step's own page (your moves): that step again, ticked, then on.
+  // Back from a step's own page (your moves): that step again, ticked, then on; after Undo on a skip, the step itself.
   const resumed = useRef(false);
   useEffect(() => {
     if (from == null || resumed.current) return;
     resumed.current = true;
-    void move(from, true).then(tick);
-  }, [from, move, tick]);
+    void move(from, true).then(again ? undefined : tick);
+  }, [from, again, move, tick]);
 
   // The guide step: the reel goes to the nights of the shows the practice added, yours first, then the demo's, a while on each, so
   // they're seen (the user, 2026-11-01: "make sure the practice shows we add show up in the guide"); it's held still all the step.
@@ -628,7 +650,7 @@ function Running({ run, home, couch, onDone, onLeft }: { run: Run; home: Home; c
     };
   }, [steps, draw]);
 
-  // Keys: Escape skips; the right arrow goes on; Enter and Space on the tour itself do what its plate does (Try it, or Next); the
+  // Keys: Escape skips; the right arrow goes on; Enter and Space on the tour itself do what its plate does (Tap it, or Next); the
   // keys that would scroll Home don't. Not while a practice run's up: it has its own.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -681,7 +703,7 @@ function Running({ run, home, couch, onDone, onLeft }: { run: Run; home: Home; c
   };
 
   const asks = last && reminders === "off";
-  // A step with a real thing to tap: the plate's Try it shakes it.
+  // A step with a real thing to tap: the plate's Tap it shakes it.
   const tries = step.act && !last ? step.act : null;
   return (
     <div
@@ -731,19 +753,28 @@ function Running({ run, home, couch, onDone, onLeft }: { run: Run; home: Home; c
         />
       </svg>
 
+      {/* Skip tour where the welcome card has it, top right, far from the thumb's Next (a tap a little high ended the tour: the
+          critique, 2026-11-01); not on the last step, which ends it anyway. */}
+      {i > 0 && !last && (
+        <button
+          type="button"
+          data-tour-skip
+          onClick={() => finish("skip")}
+          className={`absolute right-[10px] top-[calc(5px+env(safe-area-inset-top,0px))] grid h-11 cursor-default place-items-center px-1.5 transition-opacity duration-300 ${shown ? "opacity-100 delay-300" : "pointer-events-none opacity-0"}`}
+        >
+          <span className={PILL}>Skip tour</span>
+        </button>
+      )}
+
       <div ref={lower} data-tour-lower className="absolute inset-x-4 bottom-[calc(14px+env(safe-area-inset-bottom,0px))] grid cursor-default gap-2">
-        <div className={`-mb-2 flex items-center justify-between transition-opacity duration-300 ${shown ? "opacity-100 delay-300" : "opacity-0"}`}>
-          {tries ? (
+        {/* The row above the plate keeps its height on every step, so the plate (and the thumb's spot) never moves. */}
+        <div className={`-mb-2 flex h-11 items-center transition-opacity duration-300 ${shown ? "opacity-100 delay-300" : "opacity-0"}`}>
+          {tries && (
             // Moving on without doing it: up here, away from where a thumb taps Next from habit.
             <button type="button" data-tour-next data-tour-skip-step onClick={() => !ticking.current && next()} className="-ml-1.5 grid h-11 place-items-center px-1.5">
               <span className={PILL}>{tries.skip}</span>
             </button>
-          ) : (
-            <span />
           )}
-          <button type="button" data-tour-skip onClick={() => finish("skip")} className="-mr-1.5 grid h-11 place-items-center px-1.5">
-            <span className={PILL}>Skip tour</span>
-          </button>
         </div>
 
         <button
@@ -758,7 +789,7 @@ function Running({ run, home, couch, onDone, onLeft }: { run: Run; home: Home; c
         >
           <span
             data-tour-count={ticked ? "done" : `${nums[i]}/${of}`}
-            className={`tag-cut type-num grid place-items-center pl-[11px] pr-5 text-[17px] [--tag-slant:12px] transition-colors duration-200 ${ticked ? "bg-good text-good-foreground" : "bg-quiet-tag text-quiet-tag-foreground"}`}
+            className={`tag-cut type-num grid place-items-center pl-[11px] pr-5 text-[15px] [--tag-slant:12px] transition-colors duration-200 ${ticked ? "bg-good text-good-foreground" : "bg-quiet-tag text-quiet-tag-foreground"}`}
           >
             {ticked ? (
               <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" aria-label="Done">
@@ -778,7 +809,7 @@ function Running({ run, home, couch, onDone, onLeft }: { run: Run; home: Home; c
             )}
           </span>
           <span key={i} className={`flex min-w-0 flex-1 flex-col justify-center gap-1 py-2 pl-1 pr-2 ${shown ? "nd-tour-rise" : "opacity-0"}`}>
-            <b id="nd-tour-title" className="type-caption text-[21px] [text-wrap:balance]">
+            <b id="nd-tour-title" className="type-caption text-[22px] [text-wrap:balance]">
               {step.title}
             </b>
             <span id="nd-tour-line" className="text-[14px] leading-snug text-plate-muted [text-wrap:pretty]">
@@ -793,10 +824,33 @@ function Running({ run, home, couch, onDone, onLeft }: { run: Run; home: Home; c
           )}
         </button>
 
+        {/* The wrap: reminders first, as the app's own ask has them (remind.tsx RemindSheet: Turn on solid, the rest quiet); on an
+            iPhone outside the installed app, its Add to Home Screen pictures. Explore marks nothing asked, so the ask after a first
+            save still comes (the critique, 2026-11-01). */}
         {last && (
-          <div className={`grid gap-2 ${asks ? "grid-cols-2" : ""}`}>
-            {asks && (
+          <div className="grid gap-1">
+            {reminders === "install" && (
+              <div data-tour-install className="mb-1 rounded-[4px] bg-card p-2 text-foreground shadow-plate">
+                {/* eslint-disable-next-line @next/next/no-img-element -- a static picture from public/, at its own size */}
+                <img
+                  src={ADD_TO_HOME_ART}
+                  alt="1: in Safari, tap Share, the square with an arrow pointing up. 2: tap Add to Home Screen. 3: open Game Your Show from your Home Screen."
+                  className="block aspect-[372/120] w-full rounded-[3px]"
+                />
+                <ol className="mt-2 grid grid-cols-3 gap-2" aria-hidden>
+                  {["Tap Share", "Add to Home Screen", "Open it from there"].map((s, n) => (
+                    <li key={s} className="flex items-start gap-1.5 text-[13px] font-bold leading-tight">
+                      <i className="grid size-5 flex-none place-items-center rounded-full bg-foreground text-[11px] not-italic text-background">{n + 1}</i>
+                      {s}
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            )}
+            {asks ? (
               <Btn
+                tone="ink"
+                wide
                 data-tour-on
                 onClick={() => {
                   markAsked(me.id, "off");
@@ -807,18 +861,29 @@ function Running({ run, home, couch, onDone, onLeft }: { run: Run; home: Home; c
               >
                 Turn on reminders
               </Btn>
+            ) : reminders === "install" ? (
+              <Btn
+                tone="ink"
+                wide
+                data-tour-got
+                onClick={() => {
+                  // The pictures were shown, as the reminder sheet shows them: it asks again once the app's on the Home Screen.
+                  markAsked(me.id, "install");
+                  finish("done");
+                }}
+              >
+                Got it
+              </Btn>
+            ) : null}
+            {asks ? (
+              <button type="button" data-tour-explore onClick={() => finish("done")} className="mx-auto grid h-11 place-items-center px-1.5">
+                <span className={PILL}>Not now · Explore</span>
+              </button>
+            ) : reminders === "install" ? null : (
+              <Btn tone="ink" wide data-tour-explore onClick={() => finish("done")}>
+                Explore
+              </Btn>
             )}
-            <Btn
-              tone="ink"
-              wide={!asks}
-              data-tour-explore
-              onClick={() => {
-                if (reminders) markAsked(me.id, reminders);
-                finish("done");
-              }}
-            >
-              Explore
-            </Btn>
           </div>
         )}
       </div>

@@ -58,8 +58,49 @@
   (Wednesday's), then SNL's (Saturday's), about 2.6 s on each: held on today they'd be off to the right, unseen.
 - **`tour_reached`** keeps the step number as the count shows it (Down Home's beats are one).
 
+**The critique** (2026-11-01; the user asked "Review the tour, any improvements? Are you confident in its design? Impeccable skill
+agrees?"; snapshot in `.impeccable/critique/2026-11-01T18-59-25Z__src-new-tour-tour-tsx.md`). /impeccable critique ran two
+assessments: a design review and the detector with a browser scan. It scored **26/40 (Acceptable)**, 4 P1s and 1 P2:
+- **Too long, and the longest part passive:** 2:20 to 3:00, about 60 s of it the app moving by itself.
+- **It said one thing and showed another:** "won't show up", then the shows were on Home; Episode 4 silently became Episode 3.
+- **Keyboard and screen readers can't do the steps with a real tap.**
+- **The ending undercut reminders:** Explore solid, Turn on outlined.
+- **Skip tour sat right above the thumb's Next spot** (the P2).
+
+The detector found nothing on what the tour draws, beyond two type sizes off the ramp.
+
+The user's picks: says-versus-shows first; all five but accessibility ("not a big deal to me"); the demo one show only; "Tap it ↑".
+What changed:
+- **Says what it does:**
+  - "Practice: nothing's saved", and each finish says "isn't saved: it's on your Home for the tour, then gone".
+  - A quiet Practice tag on every practice poster and guide card (hub/sections.tsx, hub/guide.tsx).
+  - The reveal says "Episode 4 stays sealed: this replays Episode 3." when real results are waiting (steps.ts `sealed`).
+  - The demo's finish is titled "Shows you add", not "Tell your couch".
+  - With nothing due, the moves line reads "it shows up here, one tap away".
+- **Shorter:** the demo adds Saturday Night Live only (plan.ts).
+- **The wrap** ("That's a wrap"):
+  - Turn on reminders is the solid button, with "Not now · Explore" a quiet pill under it.
+  - On an iPhone outside the installed app: the Add to Home Screen pictures and Got it.
+  - Explore marks nothing asked, so the ask after a first save still comes.
+  - No Skip tour on it.
+- **Thumb-safe skip:**
+  - Skip tour sits top right on every step, as on the welcome card. The row above the plate keeps its height, so the plate never
+    moves.
+  - "Tour skipped" comes with Undo, which takes the tour up again at that step (store.ts visit with `again`).
+- **Polish:**
+  - The plate says **Tap it ↑**.
+  - In a practice sheet what's chosen isn't yellow (new.css `[data-practice-path]`); only the one thing to tap is.
+  - The count is 15 px and the title 22 px, on the ramp.
+
+Left, with why:
+- **Accessibility** (Tap it moving focus to the lit thing; the dismissed welcome card still tabbable): the user's call.
+- **Resuming after a reload:** not yet.
+- **The solo reveal step lights an Up next with no Reveal.**
+- **The welcome's "Welcome to" kicker:** the craft floor bans kickers, but the user approved it in the mock.
+- **Outside the tour:** the reveal's bouncy standings reorder (reveal.tsx:465) and Home's 10 px chips. All in BACKLOG 38.
+
 **Checks:**
-- `check-new-tour.js`, rewritten for version 3 (A to L): 183 PASS. It covers each real tap, the visit and its way back, the flip,
+- `check-new-tour.js`, rewritten for version 3 (A to L): 188 PASS after the critique's fixes (183 before). It covers each real tap, the visit and its way back, the flip,
   the filters through the tour, Start it in the foot, and Try it shaking at the thumb's spot. Also each practice's one path, the
   reveal step's results waiting, and SNL and your practice show on their nights in the guide.
 - `tests/tour-steps.test.js`: 17.

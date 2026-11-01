@@ -634,6 +634,11 @@ html[data-nav="right"] .nd-dock {
 [data-tour-tap="press"] {
   transform: scale(0.97);
 }
+/* A practice sheet's one path (tour/practice.tsx keepToPath): what's chosen there can't be changed, so its outline isn't the
+   yellow of your move; the one thing to tap keeps its yellow (the critique, 2026-11-01). */
+[data-practice-path] .outline-chyron-line {
+  outline-color: color-mix(in srgb, var(--foreground) 45%, transparent);
+}
 @media (prefers-reduced-motion: reduce) {
   .nd-tour-rise,
   .nd-tour-pulse {

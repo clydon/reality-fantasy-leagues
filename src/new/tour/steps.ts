@@ -5,7 +5,7 @@
 // (`act`), three of them as practice runs that save nothing (watching/sheets.tsx, show/reveal.tsx TourReveal, couch/start-game.tsx).
 //
 // Each step lights the first of its `targets` that's on Home (a CSS selector), or with `union` every one of them together; none:
-// nothing lit, its words stand on their own. On a step with an `act` the person taps the real thing that's lit; the plate's Try it
+// nothing lit, its words stand on their own. On a step with an `act` the person taps the real thing that's lit; the plate's Tap it
 // (where Next is on the others) only shakes it (`tap`, when that's part of what's lit), and the skip pill moves on without it
 // (tour.tsx). `play`: what's lit that takes taps of its own (the guide's filter switch). `part`: beats under one number, left out
 // (`optional`) when the section isn't on this Home.
@@ -29,9 +29,9 @@ export interface TourStep {
   part?: string;
   /** Left out when it isn't on this Home as the tour starts (a section this Home hasn't got). */
   optional?: boolean;
-  /** Its real thing to tap: the plate's words for Try it (in Next's place) and the skip pill's. */
+  /** Its real thing to tap: the plate's words for it, Tap it (in Next's place) and the skip pill's. */
   act?: { kind: TourAct; label: string; skip: string };
-  /** What Try it shakes, inside what's lit (a show's flip corner); else all that's lit. */
+  /** What Tap it shakes, inside what's lit (a show's flip corner); else all that's lit. */
   tap?: string;
   /** What's lit that takes taps of its own, through the tour (the guide's filters). */
   play?: string;
@@ -44,13 +44,15 @@ export interface TourContext {
   show: string | null;
   /** Something of yours to reveal again; else a made-up one. */
   replay: boolean;
+  /** When that show has real results waiting past the one the replay plays: both episodes, so the step says the real one stays sealed. */
+  sealed?: { now: number; replays: number } | null;
   /** The top line goes somewhere (a move due, results in), so the moves step goes there for real. */
   moves: boolean;
   /** A show on your shelf turns over to your games (it has the corner). */
   flip: boolean;
 }
 
-export function tourSteps({ solo, reminders, show, replay, moves, flip }: TourContext): TourStep[] {
+export function tourSteps({ solo, reminders, show, replay, sealed = null, moves, flip }: TourContext): TourStep[] {
   const steps: TourStep[] = [
     { id: "welcome", title: "Welcome", line: "Watch with your people. Make any show a game.", targets: [] },
     { id: "home", title: "Your Home", line: "What needs you is always up top.", targets: ["[data-status]", "[data-upnext]"], union: true },
@@ -68,14 +70,15 @@ export function tourSteps({ solo, reminders, show, replay, moves, flip }: TourCo
     { id: "more", part: "down", optional: true, title: "More on the couch", line: "Rankings, every game and the numbers, when you want them.", targets: ["[data-more-couch]"] },
     // Back up top, hands on: the line goes to the moves you need to make, for real (the tour waits: tour/back.tsx).
     moves
-      ? { id: "moves", title: "Your moves", line: "Tap the top line: it takes you straight to what needs you.", targets: ["[data-status]"], act: { kind: "moves", label: "Try it", skip: "Skip this step" } }
-      : { id: "moves", title: "Your moves", line: "When something needs you, it shows up here. Tap it to go straight there.", targets: ["[data-status]", "[data-upnext]"] },
+      ? { id: "moves", title: "Your moves", line: "Tap the top line: it takes you straight to what needs you.", targets: ["[data-status]"], act: { kind: "moves", label: "Tap it", skip: "Skip this step" } }
+      : { id: "moves", title: "Your moves", line: "When something needs you, it shows up here, one tap away.", targets: ["[data-status]", "[data-upnext]"] },
+    // Practice saves nothing; what it adds sits on Home for the tour, tagged Practice, then goes (the user, 2026-11-01).
     {
       id: "add",
       title: "Add a show",
-      line: show ? `Let's add ${show}. Practice: it won't show up.` : "Add any show you watch. Practice: it won't show up.",
+      line: show ? `Let's add ${show}. Practice: nothing's saved.` : "Add any show you watch. Practice: nothing's saved.",
       targets: ["[data-add-show-poster]", "[data-guide-add]"],
-      act: { kind: "add", label: "Try it", skip: "Skip adding a show" },
+      act: { kind: "add", label: "Tap it", skip: "Skip adding a show" },
     },
     ...(flip
       ? [
@@ -85,7 +88,7 @@ export function tourSteps({ solo, reminders, show, replay, moves, flip }: TourCo
             line: "Tap a show's corner to see your games on it.",
             targets: ["[data-poster]:has([data-flip])"],
             tap: "[data-flip]",
-            act: { kind: "flip" as const, label: "Try it", skip: "Skip this step" },
+            act: { kind: "flip" as const, label: "Tap it", skip: "Skip this step" },
           },
         ]
       : []),
@@ -100,22 +103,28 @@ export function tourSteps({ solo, reminders, show, replay, moves, flip }: TourCo
     {
       id: "reveal",
       title: "Results wait for you",
-      line: replay ? "Nothing shows until you tap Reveal. Try it: this replays your last one." : "Nothing shows until you tap Reveal. Try a made-up one.",
+      // Real results waiting: say they stay sealed, since the plate shows the replay's episode (the critique, 2026-11-01).
+      line: !replay
+        ? "Nothing shows until you tap Reveal. Try a made-up one."
+        : sealed
+          ? `Nothing shows until you tap Reveal. Episode ${sealed.now} stays sealed: this replays Episode ${sealed.replays}.`
+          : "Nothing shows until you tap Reveal. This replays your last one.",
       targets: ['[data-upnext-plate="reveal"]', '[data-status="reveal"]', "[data-upnext]"],
-      act: { kind: "reveal", label: "Try it", skip: "Skip the reveal" },
+      act: { kind: "reveal", label: "Tap it", skip: "Skip the reveal" },
     },
     solo
       ? { id: "start", title: "Start a game", line: "Games are played on a couch: start one, and bring your people.", targets: ["[data-solo-start-couch]", "[data-solo-invite]"] }
       : {
           id: "start",
           title: "Start a game",
-          line: show ? `Make a Prediction Sheet for ${show}. Practice again: it won't show up.` : "Make a Prediction Sheet. Practice again: it won't show up.",
+          line: show ? `Make a Prediction Sheet for ${show}. Practice again: nothing's saved.` : "Make a Prediction Sheet. Practice again: nothing's saved.",
           targets: ["[data-foot-start]"],
-          act: { kind: "start", label: "Try it", skip: "Skip starting a game" },
+          act: { kind: "start", label: "Tap it", skip: "Skip starting a game" },
         },
+    // The wrap: reminders first where this phone can get them (the tour's most useful end: the critique, 2026-11-01).
     {
       id: "done",
-      title: "You're set",
+      title: "That's a wrap",
       line:
         reminders === "off"
           ? "Want a nudge before your picks lock?"

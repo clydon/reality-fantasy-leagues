@@ -346,6 +346,12 @@ function CardBody({ c, now, me }: { c: GuideCard; now: number; me: string }) {
           All {c.drop} drop
         </span>
       )}
+      {/* One the first-time tour's practice added (tour/practice-shows.ts): here for the tour, not saved. */}
+      {c.key.startsWith("tour-") && (
+        <span data-practice-tag className="type-caption mb-1 self-start bg-quiet-tag py-[3px] pl-1.5 pr-2.5 text-[11px] tracking-[0.06em] text-quiet-tag-foreground [clip-path:polygon(0_0,100%_0,calc(100%_-_6px)_100%,0_100%)]">
+          Practice
+        </span>
+      )}
       {/* A planned night (part 3): teal, good news rather than a duty (the mock's b-tag good). */}
       {c.plan && (
         <span data-plan-tag className="type-caption mb-1 self-start bg-good py-[3px] pl-1.5 pr-2.5 text-[10px] tracking-[0.06em] text-good-foreground [clip-path:polygon(0_0,100%_0,calc(100%_-_6px)_100%,0_100%)]">
