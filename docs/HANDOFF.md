@@ -45,7 +45,16 @@ PLAN-first-time-tour.md, Version 2.** **Take the tour** again from the menu behi
 plays it at once), or Settings. Checked: check-new-tour 111 PASS (phases A to K), npm test 1237/1238 (the one fails on master too),
 `next build`. **Production data first** (the user's go-ahead): The Amazing Race 39 added through the desk's New show and made a game
 with the bot (Ask ChatGPT for me), approved as drafted: ready, on nobody's Home; it's the couch's practice show (they all play
-Survivor 51). The Challenge has no current season (42 ended 2026-10-28).
+Survivor 51). The Challenge has no current season (42 ended 2026-10-28). **Follow-up, live the same day (`fd3ae05f`, branch
+`tour3`, lane `rfl-tour3` kept while the user tests):** after trying it on their phone, on a practice step the plate says Try it
+where Next was (Next there skipped the practice by habit), Skip this step sits by Skip tour, a stray tap shakes the plate; the
+tour's own typing and taps slowed to be followed (each tap ringed and pressed in; ~19 s for the demo's two shows). check-new-tour
+119 PASS (phase L).
+
+## Next: adding sports by team (planned 2026-11-01, not started)
+The user: people search a team, not "Sunday Night Football"; show its schedule, take two teams in any order, add a series.
+**Read [PLAN-sports-add.md](PLAN-sports-add.md).** It builds on the `sports` branch's L1 part 3 (a team's ESPN schedule, matchups
+made as shared seasons, migration 0300), brought to master early in a lane of its own; the sports lane keeps track L.
 
 ## Settings, redesigned (2026-10-31; pushed to master the same day, no migration)
 The user found Settings "very difficult to navigate" (every section open at once, about 35 controls, several screens long).
