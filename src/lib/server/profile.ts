@@ -44,7 +44,7 @@ export interface Profile {
   since: string | null;
   /** What we notify you about (step 15 part 2): each moment on or off, and Couch chat's choice. */
   notify: NotifySettings;
-  /** What your couch sees (step 15 part 3): the four switches, and a line each on what one lets out ("alex is on Episode 4 of
+  /** What your couch sees (step 15 part 3): the four switches, and a line each on what one lets out ("alex is up to Episode 4 of
    *  Survivor 51"), from your own shows, ratings and reactions where you have any (only shows you follow openly). */
   sharing: { on: Sharing; lines: Record<ShareSwitch, string> };
   account: {

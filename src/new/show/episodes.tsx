@@ -90,8 +90,9 @@ export function Episodes({ seasonId, show }: { seasonId: string; show: ShowData 
     list.map(({ w, r }) => <WaiverEpisodeRow key={`${w.leagueId}-${r?.periodId ?? "open"}`} seasonId={seasonId} week={w} run={r} many={(wv.data?.games.length ?? 0) > 1} />);
   const n = episodesOf(show);
   const me = useMe();
-  // Your own mark when it's yours to have (you follow it or play it): seeing results straight away is having seen what's out.
-  const yourMark = show.following || show.plays ? (show.seenThrough ?? show.latestAired) : null;
+  // Your own mark when it's yours (you follow it or play it) and known: seeing results straight away leaves it unknown, as
+  // Tonight's Who's watching has it, so no face of yours rather than a guess.
+  const yourMark = (show.following || show.plays) && show.seenThrough != null ? show.seenThrough : null;
   const marks = show.solo || show.readOnly || !show.people ? null : episodeMarks(show.people, { id: me.id, name: me.name, seen: yourMark });
   const whoAt = (ep: number) => marks?.at.get(ep);
   const network = show.header?.show.network;
@@ -195,9 +196,10 @@ export function Episodes({ seasonId, show }: { seasonId: string; show: ShowData 
                 </span>
               </div>
             )}
-            {marks && (marks.notStarted.length > 0 || marks.quiet.length > 0) && (
+            {marks && ((marks.notStarted.length > 0 && show.latestAired > 0) || marks.quiet.length > 0) && (
               <div data-ep-elsewhere className="flex flex-col gap-2.5 pt-3.5 text-[13px] text-muted-foreground">
-                {marks.notStarted.length > 0 && (
+                {/* Before the premiere there's nothing to have started. */}
+                {marks.notStarted.length > 0 && show.latestAired > 0 && (
                   <span data-ep-not-started className="flex min-w-0 items-center gap-2">
                     <Faces marks={marks.notStarted} />
                     <span className="min-w-0">{notStartedLine(marks.notStarted)}</span>

@@ -233,8 +233,9 @@ export interface CouchShow extends SeasonHeader {
 }
 
 export interface Home {
-  /** You: your face, and your Appearance (step 15 part 4); whether you've seen the first-time tour (docs/PLAN-first-time-tour.md). */
-  user: { id: string; name: string; colour: string | null; picture: number | null; theme: Theme; tourSeen?: boolean };
+  /** You: your face, and your Appearance (step 15 part 4); whether you've seen the first-time tour (docs/PLAN-first-time-tour.md);
+   *  whether you share Where I am (What your couch sees), for your own person sheet. */
+  user: { id: string; name: string; colour: string | null; picture: number | null; theme: Theme; tourSeen?: boolean; shareWhere?: boolean };
   couches: Couch[];
   shows: HomeShow[];
   /** The couches' shows you don't follow (step 10: The couch is watching); who watches each is in the couches' members. */

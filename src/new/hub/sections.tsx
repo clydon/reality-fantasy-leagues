@@ -411,8 +411,9 @@ export function OnNow({ home, couch }: { home: Home; couch: Couch | null }) {
  * they are in each (couch/person-sheet.tsx), shows you don't watch included. Not on a couch of one.
  */
 export function CouchRow({ home, couch }: { home: Home; couch: Couch | null }) {
-  const { data: on } = useOnNow(couch?.id ?? null);
-  if (!couch || couch.members.length < 2) return null;
+  const shown = !!couch && couch.members.length > 1;
+  const { data: on } = useOnNow(shown ? couch.id : null);
+  if (!shown) return null;
   const me = home.user.id;
   const people = [...couch.members.filter((m) => m.userId === me), ...couch.members.filter((m) => m.userId !== me)];
   const live = new Set((on?.now ?? []).map((w) => w.userId));

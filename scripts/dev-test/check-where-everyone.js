@@ -4,7 +4,8 @@
 //   The hub, as alex:
 //   - the couch's faces under the status line, You first, then riley, jordan and sam;
 //   - riley's face: ZT Survivor 51 "Caught up · Episode 5" (yours), the ZT Traitors with "You don't watch it" and Add;
-//   - jordan's (shares nothing): no shows, and the sheet says so; your own: what the couch sees of you, with the Settings link;
+//   - jordan's (shares nothing): no shows, and the sheet says so; your own: what the couch sees of you, with the Settings link,
+//     and with alex's Where I am off for a moment, that the couch sees none of it;
 //   - Add on riley's Traitors closes the sheet and asks where you are (nothing is saved: the check closes it);
 //   Survivor's Episodes tab:
 //   - as alex (caught up): Episode 5 carries "You're here · zt_nd_riley", lifted; Episode 3 carries sam; the legend line; jordan
@@ -131,6 +132,16 @@ function check(ok, what, detail = "") {
     check((await showRow("alex", "ZT Survivor 51").locator("[data-person-where]").textContent())?.trim() === "Caught up · Episode 5", "your Survivor: Caught up · Episode 5");
     await alex.shot("you");
     await alex.page.keyboard.press("Escape");
+    // With his Where I am off, his own sheet says the couch sees none of it (put back after).
+    await pool.query(`UPDATE user_settings SET share_where = false WHERE user_id = $1`, [fx.users.alex]);
+    await alex.page.goto(`${alex.BASE}/home`);
+    await row.locator(`[data-couch-face="${name("alex")}"]`).click();
+    await sheet("alex").waitFor({ timeout: 15_000 }).catch(() => {});
+    const hidden = (await alex.page.locator("[role=dialog][data-open]").textContent()) ?? "";
+    check(/The couch sees none of this: your Where I am is off/.test(hidden) && /Only you see it: your Where I am is off/.test(hidden), "Where I am off: your own sheet says the couch sees none of it", hidden.slice(0, 200));
+    await alex.shot("you-not-sharing");
+    await alex.page.keyboard.press("Escape");
+    await pool.query(`UPDATE user_settings SET share_where = true WHERE user_id = $1`, [fx.users.alex]);
 
     // ---- Survivor's Episodes tab ----
     const episodes = async (p) => {

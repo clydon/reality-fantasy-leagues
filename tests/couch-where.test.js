@@ -5,8 +5,9 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const path = require("path");
 const jiti = require("jiti")(__filename, { alias: { "@": path.join(__dirname, "..", "src") } });
-const { whereLong, personShows, episodeMarks, marksLine, namesLine, seasonLabel } = jiti("../src/new/couch/where.ts");
+const { personShows, episodeMarks, marksLine, namesLine, seasonLabel } = jiti("../src/new/couch/where.ts");
 const { whereWords } = jiti("../src/lib/sharing.ts");
+const whereLong = (seen, o) => whereWords(seen, o, "full");
 
 const show = (id, name, over = {}) => ({
   seasonId: id,
@@ -31,10 +32,11 @@ test("how far someone is, in full and as a chip", () => {
   assert.equal(whereLong(4, { aired: 8, total: 8, ownPace: true }), "Up to Episode 4 of 8");
   assert.equal(whereLong(8, { aired: 8, total: 8, ownPace: true }), "Finished");
   assert.equal(whereLong(2, { ...weekly, word: "Race" }), "Up to Race 2 of 7");
-  // The couch's short words say "Up to" too, never "On Episode 5" (it reads as halfway through it).
+  // The couch's other words say "Up to" too, never "On Episode 5" (it reads as halfway through it): one rule, three styles.
   assert.equal(whereWords(5, weekly), "Up to Episode 5");
   assert.equal(whereWords(5, weekly, true), "Ep 5");
   assert.equal(whereWords(7, weekly), "Caught up");
+  assert.equal(whereWords(3, { aired: 0, total: 13, ownPace: false }), null);
   assert.equal(seasonLabel(show("t", "The Traitors (US)", { seasonNumber: 5 })), "The Traitors 5");
 });
 
@@ -44,6 +46,7 @@ const home = {
   couchShows: [show("race", "The Amazing Race", { seasonNumber: 39, latestAired: 6 })],
 };
 const couch = {
+  games: [],
   members: [
     { userId: "alex", name: "alex", watching: ["surv", "trait"], at: { surv: 5, trait: 3 } },
     { userId: "riley", name: "riley", watching: ["surv", "race", "trait"], at: { surv: 7, race: 6, trait: 2 } },
@@ -79,6 +82,29 @@ test("your own sheet: what the couch sees of you, then what you watch privately,
       ["Love Island 51", "Up to Episode 2 of 7", "Watching privately: only you see it"],
     ]
   );
+});
+
+test("your own sheet with Where I am off: the couch sees none of it, and each says so", () => {
+  const list = personShows(home, couch, "alex", [], false);
+  assert.deepEqual(
+    list.map((p) => [p.label, p.line, p.private]),
+    [
+      ["Love Island 51", "Watching privately: only you see it", true],
+      ["Survivor 51", "Only you see it: your Where I am is off", true],
+      ["The Traitors 5", "Only you see it: your Where I am is off", true],
+    ]
+  );
+});
+
+test("a finished season the couch plays is weekly, as its show says, even when you don't play it", () => {
+  const done = show("old", "Survivor", { seasonNumber: 50, status: "completed", latestAired: 13, episodeCount: 13 });
+  const h = { ...home, couchShows: [done] };
+  const c = { ...couch, members: [...couch.members, { userId: "sam", name: "sam", watching: ["old"], at: { old: 13 } }] };
+  // Nobody plays it: watched at your own pace, where the end of it is "Finished".
+  assert.equal(personShows(h, c, "sam")[0].where, "Finished");
+  // The couch plays it (though you don't): weekly, as its own show space says.
+  assert.equal(personShows(h, { ...c, games: [{ seasonId: "old" }] }, "sam")[0].where, "Caught up · Episode 13");
+  assert.equal(personShows(h, c, "sam")[0].word, "Episode");
 });
 
 test("who's up to which episode: you first, not started apart, a player who doesn't share said so, a quiet follower left out", () => {

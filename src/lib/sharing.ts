@@ -52,15 +52,21 @@ export const SWITCH_WORDS: Record<ShareSwitch, { title: string; line: string }> 
  * How far someone is, as the couch sees it when they share Where I am (the mock's watching.js Who's watching and couchWatchHTML,
  * streaming.js progress): a weekly show "Caught up", "Up to Episode 5", "Not started"; one watched at your own pace "Finished", "Ep
  * 4 of 8". `short` for a chip ("caught up", "Ep 5", "finished"). Null before anything has aired: there's nowhere to be yet.
+ * "full" for a sheet's line, which says which one and how many ("Caught up · Episode 7", "Up to Episode 5 of 7", "Up to Episode 4
+ * of 8", "Not on yet" before it airs: the person sheet, couch/person-sheet.tsx). `word` is what the show calls an episode.
  * "Up to", not "On" (the user's pick of the 2026-11-01 mocks): "on Episode 5" reads as halfway through it.
  */
-export function whereWords(seen: number, o: { aired: number; total: number; ownPace: boolean }, short = false): string | null {
-  if (o.aired <= 0) return null;
+export function whereWords(seen: number, o: { aired: number; total: number; ownPace: boolean; word?: string }, style: boolean | "full" = false): string | null {
+  const short = style === true;
+  const full = style === "full";
+  const word = o.word ?? "Episode";
+  if (o.aired <= 0) return full ? "Not on yet" : null;
   if (seen <= 0) return short ? "not started" : "Not started";
   if (o.ownPace) {
     if (o.total > 0 && seen >= o.total) return short ? "finished" : "Finished";
+    if (full) return `Up to ${word} ${seen}${o.total > 0 ? ` of ${o.total}` : ""}`;
     return short || !o.total ? `Ep ${seen}` : `Ep ${seen} of ${o.total}`;
   }
-  if (seen >= o.aired) return short ? "caught up" : "Caught up";
-  return short ? `Ep ${seen}` : `Up to Episode ${seen}`;
+  if (seen >= o.aired) return short ? "caught up" : full ? `Caught up · ${word} ${o.aired}` : "Caught up";
+  return short ? `Ep ${seen}` : full ? `Up to ${word} ${seen} of ${o.aired}` : `Up to ${word} ${seen}`;
 }

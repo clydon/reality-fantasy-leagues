@@ -9,15 +9,13 @@ import { Btn } from "../ui/parts";
 import { ShowArt } from "../ui/show-bar";
 import { Sheet } from "../ui/sheet";
 import { openWatching } from "../watching/sheets";
-import { personShows, type PersonShow } from "./where";
+import { personShows, plainName, type PersonShow } from "./where";
 
 // Someone on the couch (the user's pick F of the 2026-11-01 "Where everyone is" mocks: "we don't really have a view of the full
 // couch yet"): every show they share Where I am on, how far they are in each ("Caught up · Episode 7", "Up to Episode 5 of 7"),
 // who's watching along now, how far ahead of you, and Add to my shows on one you don't watch. Your own is what the couch sees
 // of you, with the shows you watch privately marked as only yours. Opened from the hub's couch row and the couch's details
 // (couch-sheets.tsx: openCouchSheet({ kind: "person" })). A row opens the show; nothing here moves anyone's mark.
-
-const plainName = (name: string) => name.replace(/\s*\([^)]*\)\s*$/, "").trim() || name;
 
 /** Add a show they watch to yours: the where sheet asks how far you are (as The couch is watching's Add does). */
 function addIt(p: PersonShow, close: () => void) {
@@ -34,6 +32,7 @@ function addIt(p: PersonShow, close: () => void) {
       aired: s.latestAired,
       status: s.status === "upcoming" || s.status === "completed" ? s.status : "airing",
       premiere: s.premiereDate,
+      episodeWord: p.word,
       seen: 0,
       following: false,
       plays: false,
@@ -47,7 +46,8 @@ export function PersonSheet({ couchId, userId, back, onOpenChange }: { couchId: 
   const member = couch?.members.find((m) => m.userId === userId) ?? null;
   const { data: on } = useOnNow(member ? couchId : null);
   const you = !!home && member?.userId === home.user.id;
-  const list = home && couch && member ? personShows(home, couch, member.userId, on?.now ?? []) : [];
+  const youShare = home?.user.shareWhere !== false;
+  const list = home && couch && member ? personShows(home, couch, member.userId, on?.now ?? [], youShare) : [];
   const shared = list.filter((p) => !p.private).length;
   const name = member?.name ?? "";
   return (
@@ -61,7 +61,15 @@ export function PersonSheet({ couchId, userId, back, onOpenChange }: { couchId: 
           <span className="min-w-0 truncate">{you ? "You" : name}</span>
         </span>
       }
-      subtitle={you ? "What the couch sees of you" : shared ? `${shared} ${shared === 1 ? "show" : "shows"} shared with the couch` : "Nothing shared yet"}
+      subtitle={
+        you
+          ? youShare
+            ? "What the couch sees of you"
+            : "The couch sees none of this: your Where I am is off"
+          : shared
+            ? `${shared} ${shared === 1 ? "show" : "shows"} shared with the couch`
+            : "Nothing shared yet"
+      }
     >
       <div data-person-sheet={name}>
         {list.map((p) => (

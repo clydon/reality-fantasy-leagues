@@ -21,7 +21,7 @@ and the Neon password rotation (deferred; steps there). Fixed 2026-10-24: the ch
 end); GitHub Actions, stopped since 2026-10-19, runs again. Vercel builds production only (Preview shared
 production's database).
 
-## Where everyone is (2026-11-01; built in the `where` lane, rfl-where on port 3008; no migration, no new API)
+## Where everyone is (2026-11-01; built in the `where` lane, rfl-where on port 3008; no migration, no new endpoint)
 The user: people say what episode they're on when they add a show, but the couch had no intuitive way to see it. Mocked
 with /impeccable on a private Design canvas (https://claude.ai/artifact/3EvNJC8CP7HDA3CHJuvAaB: A rail, B numbered header
 faces, C Episodes bookmarks, D hub board, then for the hub E captions, F faces, G poster backs, H one list). The user picked
@@ -34,8 +34,10 @@ faces, C Episodes bookmarks, D hub board, then for the hub E captions, F faces, 
 - **C, Episodes:** each row carries the faces of whoever's up to it ("You're here · riley", your row lifted), a line saying
   what a face marks, then who hasn't started and who plays without sharing where they are (show/episodes.tsx).
 - All from what the home and space reads already carried (guard.ts visibleFollows: private shows and Where I am off never
-  show). The pure part is `src/new/couch/where.ts` (tests/couch-where.test.js). The couch's words are "Up to Episode 5" now,
-  never "On Episode 5" (lib/sharing.ts whereWords, the Settings preview line).
+  show), plus `user.shareWhere` on the home read so your own sheet says when the couch sees none of it. The pure part is
+  `src/new/couch/where.ts` (tests/couch-where.test.js). The couch's words are "Up to Episode 5" now, never "On Episode 5":
+  one rule, lib/sharing.ts whereWords (its "full" style is the sheet's "Up to Episode 5 of 7"), and the Settings preview line.
+  Your own face on Episodes needs a known mark (none while you see results straight away, as on Tonight).
 - Check: `node scripts/dev-test/check-where-everyone.js <outDir> [--width=390]` (new-fixture.js; jordan turns Where I am off).
 
 ## The first-time tour (2026-10-31; merged to master and pushed the same day, migration 0158)
