@@ -15,7 +15,7 @@
 // Screenshots of each state go to <outDir>.
 //
 //   npm run dev                                                  (in another terminal)
-//   node scripts/dev-test/check-where-everyone.js <outDir> [--width=390] [--keep]
+//   node scripts/dev-test/check-where-everyone.js <outDir> [--width=390] [--theme=night|studio] [--keep]
 //
 // Brings new-fixture.js up and takes it down (--keep leaves it); touches zt-nd rows only; refuses a non-local database. Two
 // checks on the zt_nd_ fixture must never run at once against one database (run each lane's on its own). Prints PASS/FAIL.
@@ -34,6 +34,8 @@ const out = args.find((a) => !a.startsWith("--"));
 if (!out) throw new Error("usage: check-where-everyone.js <outDir> [--width=390] [--keep]");
 const width = Number((args.find((a) => a.startsWith("--width=")) || "--width=390").slice(8));
 const keep = args.includes("--keep");
+const theme = (args.find((a) => a.startsWith("--theme=")) || "--theme=night").slice(8);
+if (!["night", "studio"].includes(theme)) throw new Error("--theme is night or studio");
 
 let failures = 0;
 function check(ok, what, detail = "") {
@@ -48,7 +50,9 @@ function check(ok, what, detail = "") {
   try {
     const fx = await fixture.up(pool);
     const sid = fx.seasonId;
-    for (const u of Object.values(fx.users)) await pool.query(`INSERT INTO user_settings (user_id, ui) VALUES ($1, 'new') ON CONFLICT (user_id) DO UPDATE SET ui = 'new'`, [u]);
+    for (const u of Object.values(fx.users)) {
+      await pool.query(`INSERT INTO user_settings (user_id, ui, theme) VALUES ($1, 'new', $2) ON CONFLICT (user_id) DO UPDATE SET ui = 'new', theme = $2`, [u, theme]);
+    }
     // jordan keeps where he is to himself (What your couch sees › Where I am off).
     await pool.query(`UPDATE user_settings SET share_where = false WHERE user_id = $1`, [fx.users.jordan]);
 
@@ -64,9 +68,13 @@ function check(ok, what, detail = "") {
           document.head.appendChild(s);
         });
       });
+      // The home read writes this device's theme cookie (appearance.ts); one load and a reload put the page on it.
+      await page.goto(`${BASE}/home`);
+      await page.locator("[data-status]").waitFor({ timeout: 30_000 }).catch(() => {});
+      await page.reload();
       const shot = async (name, full = false) => {
         await page.waitForTimeout(450);
-        await page.screenshot({ path: path.join(out, `${String(++n).padStart(2, "0")}-${name}-${width}.png`), fullPage: full });
+        await page.screenshot({ path: path.join(out, `${String(++n).padStart(2, "0")}-${name}-${theme}-${width}.png`), fullPage: full });
       };
       const fits = async (where) => {
         const wide = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
