@@ -356,6 +356,17 @@ Last updated 2026-10-27.
       a lane's first run; 106 of 106 straight after): it reads By the numbers' deck 700 ms after the accolades list shows, and
       the deck waits for every show's stats read (the skeleton until then). It should wait for `[data-stat-deck]`, or for the
       skeleton to go. **When:** the next change to check-new-hub.
+    - **Version 2 (2026-11-01, branch `tour2`):** the practice shows need their current seasons set up as games in production (The
+      Amazing Race, The Challenge: PLAN-first-time-tour.md, The practice shows' data); until then the couch's tour adds "any show".
+      **When:** before version 2's push, with the user.
+    - **A poster for a premiere weeks away says only its weekday** ("Season 1 · Fri" for HBO's Harry Potter on Dec 25, seen in the
+      tour's demo): Your shows' poster takes `day()` of the next episode however far off. A date past a week ("Dec 25") would read
+      better, for every show coming back. **When:** the next Your shows change.
+    - **`tests/watch-along.test.js` fails on master** ("what a reaction may carry": `W.giphyUrl is not a function`), seen building
+      version 2; nothing of the tour's. **When:** the next watch along change, or now if it's a quick rename.
+    - **The tour's demo leans on two TV listings by id** (HBO's Harry Potter 68803; Sunday, Monday and Thursday Night Football
+      30940, 30941, 59591, in tour/plan.ts). If TVmaze renumbers or the season's off the air, the demo passes that show over (its
+      row never comes) and says what it did add. **When:** the NFL season's end (March), see that it leaves the game out cleanly.
 
 
 

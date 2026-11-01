@@ -110,7 +110,6 @@ export function RevealScreen({ show, seasonId }: { show: ShowData; seasonId: str
 function Broadcast({ show, seasonId, n, onClose }: { show: ShowData; seasonId: string; n: number; onClose: () => void }) {
   const [r, setR] = useState<SeasonReveal | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [k, setK] = useState(0);
   const [sharing, setSharing] = useState(false);
   const after = useAfterReveal();
   const asked = useRef(false);
@@ -128,9 +127,55 @@ function Broadcast({ show, seasonId, n, onClose }: { show: ShowData; seasonId: s
       .catch((e: Error) => setError(e.message));
   }, [seasonId, show.couch?.id, n, after]);
 
+  return (
+    <>
+      <Beats
+        name={name}
+        season={show.header?.seasonNumber ?? null}
+        n={n}
+        r={r}
+        error={error}
+        onClose={onClose}
+        end={
+          r && (
+            <>
+              <Btn wide onClick={() => setSharing(true)}>
+                <Send className="size-[18px]" aria-hidden />
+                Share your night
+              </Btn>
+              {r.next ? (
+                <>
+                  {/* The next one in the same place: back still closes the reveal. */}
+                  <Btn tone="ink" wide onClick={() => ask(r.next!)}>
+                    Reveal Episode {r.next}
+                  </Btn>
+                  <button type="button" onClick={onClose} className="h-11 text-[15px] font-semibold text-muted-foreground">
+                    Back to {name}
+                  </button>
+                </>
+              ) : (
+                <Btn tone="ink" wide onClick={onClose}>
+                  Back to {name}
+                </Btn>
+              )}
+            </>
+          )
+        }
+      />
+      {r && <ShareSheet open={sharing} onOpenChange={setSharing} r={r} show={show} />}
+    </>
+  );
+}
+
+/**
+ * A reveal's beats, a tap at a time, under its bar (the show's name; Skip, then Close) and over its progress, and what the last
+ * beat offers (`end`): the show's own reveal (Broadcast) and the first-time tour's (TourReveal).
+ */
+function Beats({ name, season, n, r, error, replay, end, onClose }: { name: string; season: number | null; n: number; r: SeasonReveal | null; error: string | null; replay?: boolean; end: ReactNode; onClose: () => void }) {
+  const [k, setK] = useState(0);
   const beats: { key: string; node: ReactNode }[] = r
     ? [
-        { key: "open", node: <Opener r={r} show={show} /> },
+        { key: "open", node: <Opener r={r} name={name} season={season} replay={replay} /> },
         ...(r.happened.length ? [{ key: "happened", node: <Challenges r={r} /> }] : []),
         { key: "out", node: <VoteCards r={r} /> },
         ...(r.lineup ? [{ key: "lineup", node: <LineupBeat r={r} /> }] : []),
@@ -182,32 +227,59 @@ function Broadcast({ show, seasonId, n, onClose }: { show: ShowData; seasonId: s
             ))}
           </div>
         )}
-        {last && r && (
-          <>
-            <Btn wide onClick={() => setSharing(true)}>
-              <Send className="size-[18px]" aria-hidden />
-              Share your night
-            </Btn>
-            {r.next ? (
-              <>
-                {/* The next one in the same place: back still closes the reveal. */}
-                <Btn tone="ink" wide onClick={() => ask(r.next!)}>
-                  Reveal Episode {r.next}
-                </Btn>
-                <button type="button" onClick={onClose} className="h-11 text-[15px] font-semibold text-muted-foreground">
-                  Back to {name}
-                </button>
-              </>
-            ) : (
-              <Btn tone="ink" wide onClick={onClose}>
-                Back to {name}
-              </Btn>
-            )}
-          </>
-        )}
+        {last && r && end}
       </div>
-      {r && <ShareSheet open={sharing} onOpenChange={setSharing} r={r} show={show} />}
     </>
+  );
+}
+
+/** The first-time tour's reveal: the last episode you revealed on a show you play, again, or a made-up one. */
+export type TourRevealPlay = { name: string; season: number | null } & ({ seasonId: string; couchId: string | null; n: number } | { made: SeasonReveal });
+
+/**
+ * The first-time tour's reveal (docs/PLAN-first-time-tour.md version 2), over Home: a replay (POST .../reveal with `replay`, which
+ * writes nothing) or a made-up episode (no server at all). Nothing that would be real at the end: no Share your night, no next
+ * episode; Back to the tour.
+ */
+export function TourReveal({ play, onFail, onClose }: { play: TourRevealPlay; onFail?: () => void; onClose: () => void }) {
+  const [fetched, setFetched] = useState<SeasonReveal | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const asked = useRef(false);
+  useEffect(() => {
+    if ("made" in play || asked.current) return;
+    asked.current = true;
+    revealEpisode(play.seasonId, play.couchId, play.n, { replay: true })
+      .then(setFetched)
+      // A replay that can't be had: the made-up one instead (onFail), else say why.
+      .catch((e: Error) => (onFail ? onFail() : setError(e.message)));
+  }, [play, onFail]);
+  const r = "made" in play ? play.made : fetched;
+  const mounted = useSyncExternalStore(noop, () => true, () => false);
+  if (!mounted) return null;
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="The reveal"
+      data-tour-reveal={"made" in play ? "made" : "replay"}
+      className="dark nd-fixed-x fixed inset-y-0 z-[86] flex flex-col bg-[#0b0a10] text-foreground"
+    >
+      <Beats
+        name={play.name.replace(/^The /, "")}
+        season={play.season}
+        n={"made" in play ? play.made.episode : play.n}
+        r={r}
+        error={error}
+        replay
+        onClose={onClose}
+        end={
+          <Btn tone="ink" wide data-tour-reveal-done onClick={onClose}>
+            Back to the tour
+          </Btn>
+        }
+      />
+    </div>,
+    document.body
   );
 }
 
@@ -217,16 +289,17 @@ function Kicker({ children }: { children: ReactNode }) {
   return <span className="type-caption mb-3 block text-[15px] tracking-[0.06em] text-muted-foreground">{children}</span>;
 }
 
-function Opener({ r, show }: { r: SeasonReveal; show: ShowData }) {
-  const season = show.header?.seasonNumber;
+/** The first beat: the show and episode, and "Previously on the couch" (an episode revealed early whose final scores are in now:
+ *  "Final scores are in"; never in the tour's replay, which plays it as it was). */
+function Opener({ r, name, season, replay }: { r: SeasonReveal; name: string; season: number | null; replay?: boolean }) {
   const finalWords = useFinalLine(r.stage, r.finalAt);
   return (
     <div>
       <Kicker>
-        {(show.header?.show.name ?? "").replace(/^The /, "")}
+        {name}
         {season ? ` ${season}` : ""} · Episode {r.episode}
       </Kicker>
-      {r.again && r.stage === "final" ? (
+      {r.again && r.stage === "final" && !replay ? (
         <h2 className="type-caption text-[56px] leading-[.92]">
           Final scores
           <br />

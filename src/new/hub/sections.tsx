@@ -38,6 +38,7 @@ import { ShowArt } from "../ui/show-bar";
 import { toast } from "../ui/toast";
 import { openWatching } from "../watching/sheets";
 import { useOpenTogether } from "../show/watch-along";
+import { usePracticeShows } from "../tour/practice-shows";
 import { showWords } from "@/lib/game/show-words";
 
 // The hub's sections (the mock's index.html hub, refine.js wireHub, hubplus.js, watching.js, fresh.js), in the order
@@ -510,11 +511,14 @@ function shelfOrder(shows: HomeShow[]) {
 
 export function YourShows({ home, hub }: { home: Home; hub: CouchHub | undefined }) {
   const due = new Set(home.moves.map((m) => showOfMove(home, m)?.seasonId).filter(Boolean));
+  // The first-time tour's demo shows (tour/practice-shows.ts), on the shelf while it shows where shows you add go.
+  const practice = usePracticeShows();
+  const shows = practice.length ? [...home.shows, ...practice] : home.shows;
   return (
     <section className="mt-8">
-      <SectionHead title="Your shows" aside={home.shows.length ? "Tap to open" : undefined} />
+      <SectionHead title="Your shows" aside={shows.length ? "Tap to open" : undefined} />
       <div className="flex gap-3 overflow-x-auto px-4 pb-[18px] pt-1 [scroll-snap-type:x_mandatory] [scrollbar-width:none]">
-        {shelfOrder(home.shows).map((s) => (
+        {shelfOrder(shows).map((s) => (
           <Poster key={s.seasonId} show={s} due={due.has(s.seasonId)} places={(hub?.games ?? []).filter((p) => p.seasonId === s.seasonId)} />
         ))}
         <button

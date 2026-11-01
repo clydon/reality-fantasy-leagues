@@ -14,9 +14,11 @@ import {
   type KeepUp,
   type ListingHit,
 } from "../data";
+import { PracticeFinish, PracticeNote, PracticeStrip, said } from "../tour/practice";
 import { Btn } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
+import { useReducedMotion } from "../welcome/hooks";
 import { AddNewBlock, ListingsCredit, SearchNote, SearchRows, SuggestionCard, seasonLine, useShowSearch, type SearchRow } from "./search";
 import { WhereAsk, type WhereSeason } from "./where";
 import { episodeWordFromTitles } from "@/lib/game/show-words";
@@ -30,9 +32,20 @@ import { episodeWordFromTitles } from "@/lib/game/show-words";
 //          then saved, following it if you weren't.
 //   listing  Add to my shows from a TV listing (the guide's Also on, step 11 part 2): where you are, read from the listing's
 //          season as Add a show does, then added; `then` goes on from there (part 3: Plan a watch along on the show it made).
+// Add a show also runs as the first-time tour's practice (docs/PLAN-first-time-tour.md version 2): the same sheet with a Practice
+// strip, the show's name typed in for you and its row ringed, and every save (follow, add from a listing, add by name) ending in
+// the practice finish instead: nothing is written.
 
 export type WhereTarget = WhereSeason & { seen: number; following: boolean; plays: boolean; keepUp?: KeepUp };
-type WatchingSheet = { kind: "add" } | { kind: "where"; target: WhereTarget } | { kind: "listing"; hit: ListingHit; then?: (seasonId: string) => void };
+/** The tour's practice: the show to type in (null: none, search anything), the season to ring, and what to do once it closes.
+ *  `demo`: after yours, the shows it adds by itself (the user, 2026-11-01: you don't need a game to add a show), each found by its
+ *  listing; `onDemo` hears the ones it added. */
+export type AddPractice = { name: string | null; seasonId: string | null; demo?: AddDemo[]; onDemo?: (tvmazeIds: number[]) => void; onClose: () => void };
+export type AddDemo = { query: string; tvmazeId: number };
+type WatchingSheet =
+  | { kind: "add"; practice?: AddPractice }
+  | { kind: "where"; target: WhereTarget }
+  | { kind: "listing"; hit: ListingHit; then?: (seasonId: string) => void };
 
 type Store = { sheet: WatchingSheet | null; n: number };
 let store: Store = { sheet: null, n: 0 };
@@ -68,10 +81,15 @@ function useWatchingSheet(): Store {
 
 export function WatchingSheets() {
   const { sheet, n } = useWatchingSheet();
-  const onOpenChange = (o: boolean) => !o && close();
+  const practice = sheet?.kind === "add" ? sheet.practice : undefined;
+  const onOpenChange = (o: boolean) => {
+    if (o) return;
+    close();
+    practice?.onClose();
+  };
   return (
     <>
-      <AddShowSheet key={`add-${n}`} open={sheet?.kind === "add"} onOpenChange={onOpenChange} />
+      <AddShowSheet key={`add-${n}`} open={sheet?.kind === "add"} practice={practice} onOpenChange={onOpenChange} />
       <WhereSheet key={`where-${n}`} target={sheet?.kind === "where" ? sheet.target : null} onOpenChange={onOpenChange} />
       <ListingSheet key={`listing-${n}`} hit={sheet?.kind === "listing" ? sheet.hit : null} then={sheet?.kind === "listing" ? sheet.then : undefined} onOpenChange={onOpenChange} />
     </>
@@ -165,10 +183,25 @@ function watchersOf(home: Home | undefined, couchId: string | null, me: string) 
   return (seasonId: string) => (couch?.members ?? []).filter((m) => m.userId !== me && m.watching.includes(seasonId)).map((m) => m.name);
 }
 
-type Step = { kind: "season"; s: WhereSeason; ready: boolean } | { kind: "listing"; hit: ListingHit } | { kind: "name"; name: string } | null;
+type Step =
+  | { kind: "season"; s: WhereSeason; ready: boolean }
+  | { kind: "listing"; hit: ListingHit }
+  | { kind: "name"; name: string }
+  // The tour's practice, where the save would have been (`demo`: one the tour added itself), and the end of its demo.
+  | { kind: "practiced"; label: string; demo?: boolean }
+  | { kind: "demoed"; labels: string[] }
+  | null;
 
-function AddShowSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+/** "Harry Potter and Sunday Night Football", "A, B and C". */
+const listOf = (names: string[]) => (names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : (names[0] ?? ""));
+
+/** How long the tour's typing waits for the sheet to come up, then takes a letter. */
+const TYPE_AFTER = 450;
+const TYPE_EACH = 55;
+
+function AddShowSheet({ open, practice, onOpenChange }: { open: boolean; practice?: AddPractice; onOpenChange: (o: boolean) => void }) {
   const { data: home } = useHome();
+  const reduce = useReducedMotion();
   const couch = useCurrentCouch(home);
   // Read once Add a show opens, not on every page it's mounted on (step 11, from Noticed).
   const [asked, setAsked] = useState(open);
@@ -185,11 +218,33 @@ function AddShowSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o:
   const mine = useMemo(() => new Set((home?.shows ?? []).filter((s) => s.following || s.games.length).map((s) => s.seasonId)), [home]);
   const watchers = useMemo(() => watchersOf(home, couch?.id ?? null, me), [home, couch?.id, me]);
   const search = useShowSearch(q, catalog, mine, watchers);
+  // Not for the tour's practice: the name's typed in for you, and a phone's keyboard coming up would only cover it.
   useEffect(() => {
-    if (!open || step) return;
+    if (!open || step || practice) return;
     const t = setTimeout(() => input.current?.focus(), 320);
     return () => clearTimeout(t);
-  }, [open, step]);
+  }, [open, step, practice]);
+  // The tour's practice types the show's name in, a letter at a time, once the sheet is up.
+  const typing = practice?.name ?? null;
+  useEffect(() => {
+    if (!open || !typing) return;
+    const timers = reduce
+      ? [setTimeout(() => setQ(typing), TYPE_AFTER)]
+      : Array.from(typing, (_, i) => setTimeout(() => setQ(typing.slice(0, i + 1)), TYPE_AFTER + i * TYPE_EACH));
+    return () => timers.forEach(clearTimeout);
+  }, [open, typing, reduce]);
+  // The practice's demo (runDemo): the row it's about to tap, ringed; and what it reads as it goes (the rows found, the step).
+  const [ringedKey, setRingedKey] = useState<string | null>(null);
+  const [demoOn, setDemoOn] = useState(false);
+  const demoing = useRef(false);
+  const run_ = useRef(0);
+  const rowsNow = useRef<SearchRow[]>([]);
+  const stepNow = useRef<Step>(null);
+  useEffect(() => {
+    rowsNow.current = search.rows;
+    stepNow.current = step;
+  });
+  useEffect(() => () => void run_.current++, []);
 
   // Before you type: what the couch watches that you don't, then what's on now or coming up, six at most.
   const suggestions = useMemo(() => {
@@ -230,8 +285,10 @@ function AddShowSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o:
       setBusy(false);
     }
   };
-  const addSeason = (s: WhereSeason, ready: boolean, seen: number, live = false) =>
-    run(async () => {
+  const addSeason = (s: WhereSeason, ready: boolean, seen: number, live = false) => {
+    // The tour's practice saves nothing: its finish stands in.
+    if (practice) return setStep({ kind: "practiced", label: s.label, demo: demoing.current });
+    return run(async () => {
       try {
         await watching.follow(s.seasonId, { following: true, seenThrough: seen, ...(live ? { keepUp: "ask" as const } : {}) });
       } catch (e) {
@@ -241,6 +298,7 @@ function AddShowSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o:
       }
       await done(s.label, ready);
     });
+  };
   const pickSeason = (s: WhereSeason, ready: boolean) => {
     if (mine.has(s.seasonId)) return toast.quiet(`${s.label} is already on your list`);
     // Nothing's aired yet: nothing to ask.
@@ -251,13 +309,116 @@ function AddShowSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o:
     if (r.kind === "season") return pickSeason(r.season, r.season.ready);
     setStep({ kind: "listing", hit: r.hit });
   };
+  // The practice's demo (the user, 2026-11-01): after yours, a couple more the tour adds by itself (a show that's no game, a
+  // ballgame), every step the real one: the name typed, its row ringed and tapped, Where are you, Add to my shows (still saving
+  // nothing). A row that doesn't come (the listings down) is passed over.
+  const runDemo = async () => {
+    const run = ++run_.current;
+    const alive = () => run === run_.current;
+    const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, reduce ? Math.min(ms, 60) : ms));
+    const added: string[] = [];
+    const ids: number[] = [];
+    demoing.current = true;
+    setDemoOn(true);
+    for (const d of practice?.demo ?? []) {
+      setStep(null);
+      setRingedKey(null);
+      setQ("");
+      await sleep(400);
+      for (let i = 1; i <= d.query.length; i++) {
+        if (!alive()) return;
+        setQ(d.query.slice(0, i));
+        await sleep(TYPE_EACH);
+      }
+      let row: SearchRow | null = null;
+      for (let t = 0; t < 80 && !row; t++) {
+        await sleep(100);
+        if (!alive()) return;
+        row = rowsNow.current.find((r) => (r.kind === "listing" ? r.hit.tvmazeId === d.tvmazeId : r.season.tvmazeId === d.tvmazeId)) ?? null;
+      }
+      if (!row) continue;
+      setRingedKey(row.key);
+      await sleep(1000);
+      if (!alive()) return;
+      setRingedKey(null);
+      pick(row);
+      // Where are you (unless nothing's aired: then it's added straight away), then its Add to my shows: the real button.
+      let save: HTMLButtonElement | null = null;
+      for (let t = 0; t < 100 && !save && stepNow.current?.kind !== "practiced"; t++) {
+        await sleep(100);
+        if (!alive()) return;
+        save = document.querySelector<HTMLButtonElement>("[role=dialog][data-open] [data-where-save]");
+      }
+      if (save) {
+        await sleep(1300);
+        if (!alive()) return;
+        save.click();
+        await sleep(200);
+      }
+      const now = stepNow.current;
+      if (now?.kind === "practiced") {
+        added.push(now.label);
+        ids.push(d.tvmazeId);
+        await sleep(1000);
+      }
+    }
+    if (!alive()) return;
+    demoing.current = false;
+    setDemoOn(false);
+    setStep({ kind: "demoed", labels: added });
+    practice?.onDemo?.(ids);
+  };
 
-  const title = !step ? "Add a show" : step.kind === "name" ? `Add ${step.name}?` : "Where are you?";
-  const subtitle = !step ? "Everything on TV. Playing is optional." : step.kind === "name" ? "A show nobody here has added yet" : step.kind === "season" ? step.s.label : step.hit.name;
+  // A practice's finish: yours (then the demo, when there's one), one the demo added (on its way to the next), the demo's end.
+  const yoursDone = step?.kind === "practiced" && !step.demo;
+  const demoMore = !!practice?.demo?.length;
+  const title = !step
+    ? "Add a show"
+    : step.kind === "demoed"
+      ? "Tell your couch"
+      : step.kind === "practiced"
+        ? step.demo
+          ? "Added"
+          : "That's how you add a show"
+        : step.kind === "name"
+          ? `Add ${step.name}?`
+          : "Where are you?";
+  const subtitle = !step
+    ? "Everything on TV. Playing is optional."
+    : step.kind === "practiced" || step.kind === "demoed"
+      ? "Practice run"
+      : step.kind === "name"
+        ? "A show nobody here has added yet"
+        : step.kind === "season"
+          ? step.s.label
+          : step.hit.name;
   return (
     <Sheet open={open} onOpenChange={onOpenChange} title={title} subtitle={subtitle}>
       <div data-add-show={step ? step.kind : "search"}>
-        {step && (
+        {practice && !yoursDone && step?.kind !== "demoed" && <PracticeStrip />}
+        {step?.kind === "practiced" &&
+          (step.demo ? (
+            <p data-practice-added className="text-[15px] font-semibold leading-snug">
+              {said(step.label)} added, for practice
+            </p>
+          ) : (
+            <PracticeFinish
+              line={`${said(step.label)} won't show up on your list: this was just to show you how.`}
+              done={demoMore ? "Show me" : "Done"}
+              onDone={() => (demoMore ? void runDemo() : onOpenChange(false))}
+            >
+              <PracticeNote>You don&rsquo;t need a game to add a show. Tell your couch what you&rsquo;re watching!</PracticeNote>
+            </PracticeFinish>
+          ))}
+        {step?.kind === "demoed" && (
+          <PracticeFinish
+            line={step.labels.length ? `${listOf(step.labels.map(said))} won't show up either: just practice.` : "Nothing was saved: it was all practice."}
+            onDone={() => onOpenChange(false)}
+          >
+            <PracticeNote>Shows you add land on your Home, and in your couch&rsquo;s TV guide when you share what you watch.</PracticeNote>
+          </PracticeFinish>
+        )}
+        {step && step.kind !== "practiced" && step.kind !== "demoed" && (
           <button type="button" onClick={() => setStep(null)} className="-ml-1 mb-2 flex h-10 items-center gap-1 text-[14px] font-semibold text-muted-foreground">
             <ChevronLeft className="size-4" aria-hidden /> Back to search
           </button>
@@ -289,7 +450,7 @@ function AddShowSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o:
               )
             ) : (
               <>
-                <SearchRows rows={search.rows} onPick={pick} />
+                <SearchRows rows={search.rows} onPick={pick} ringed={ringedKey ?? (demoOn ? undefined : (practice?.seasonId ?? undefined))} />
                 <SearchNote loading={search.loading} unavailable={search.unavailable} />
                 {!search.exact && !search.loading && q.trim().length >= 2 && <AddNewBlock q={q} any={search.rows.length > 0} onPick={() => setStep({ kind: "name", name: q.trim() })} />}
               </>
@@ -303,10 +464,12 @@ function AddShowSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o:
             hit={step.hit}
             busy={busy}
             onSave={(seen, live) =>
-              run(async () => {
-                const r = await watching.add({ listing: step.hit.tvmazeId, seenThrough: seen, live });
-                await done(r.label, r.ready);
-              })
+              practice
+                ? setStep({ kind: "practiced", label: step.hit.name, demo: demoing.current })
+                : run(async () => {
+                    const r = await watching.add({ listing: step.hit.tvmazeId, seenThrough: seen, live });
+                    await done(r.label, r.ready);
+                  })
             }
           />
         )}
@@ -322,10 +485,12 @@ function AddShowSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o:
               className="mt-4"
               disabled={busy}
               onClick={() =>
-                run(async () => {
-                  const r = await watching.add({ name: step.name });
-                  await done(r.label, r.ready);
-                })
+                practice
+                  ? setStep({ kind: "practiced", label: step.name, demo: demoing.current })
+                  : run(async () => {
+                      const r = await watching.add({ name: step.name });
+                      await done(r.label, r.ready);
+                    })
               }
             >
               {busy ? "Adding…" : "Add to my shows"}

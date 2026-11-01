@@ -272,8 +272,10 @@ function mainTable(parts: RevealPart[]): RevealTable | null {
 /**
  * Reveals episode `n` in every game you play on this season, then returns its beats from `couchId`'s games. An
  * episode you've already revealed comes back as it is now (again: true): its final scores, after an early reveal.
+ * `replay` (the first-time tour's, docs/PLAN-first-time-tour.md version 2) only plays one you've revealed: nothing is
+ * written (no league's mark, no early night), and one you haven't is refused.
  */
-export async function revealSeason(user: SessionUser, seasonId: string, couchId: string | null, n: number): Promise<SeasonReveal> {
+export async function revealSeason(user: SessionUser, seasonId: string, couchId: string | null, n: number, { replay = false }: { replay?: boolean } = {}): Promise<SeasonReveal> {
   // Where you are is yours, not a couch's (show_follows): the reveal moves every league of yours on the season, on
   // any couch. The beats are this couch's games.
   const before = await gamesHere(user, seasonId, null);
@@ -281,8 +283,9 @@ export async function revealSeason(user: SessionUser, seasonId: string, couchId:
   const latest = latestIn(before.here.map((h) => h.state));
   if (!Number.isInteger(n) || n < 1 || n > latest) throw new HttpError(400, "Nothing to reveal for that episode yet");
   const again = before.seen !== EVERYTHING && n <= before.seen;
+  if (replay && !again && before.seen !== EVERYTHING) throw new HttpError(400, "Only an episode you've revealed plays again");
   // Each league once (reveal.ts moves its linked leagues too, and a second call for one of those is a no-op).
-  for (const h of before.here) {
+  for (const h of replay ? [] : before.here) {
     if (h.mark !== null && n > h.mark) {
       try {
         await markRevealed(user, h.game.leagueId, h.playerId, n);
@@ -306,7 +309,7 @@ export async function revealSeason(user: SessionUser, seasonId: string, couchId:
   const waitingOn = (was[0]?.early_seen as number | null | undefined) ?? null;
   const kept = (was[0]?.early_night as EarlyNight | null | undefined) ?? null;
   const early = stage === "early" ? n : waitingOn !== null && stageAcross(states, waitingOn) !== "final" ? waitingOn : null;
-  if (early !== waitingOn || stage === "early") {
+  if (!replay && (early !== waitingOn || stage === "early")) {
     const night = stage === "early" ? earlyNight(parts) : early === waitingOn ? kept : null;
     await pool.query(
       `INSERT INTO show_follows (user_id, season_id, early_seen, early_night) VALUES ($1, $2, $3, $4)

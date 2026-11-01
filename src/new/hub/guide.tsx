@@ -14,6 +14,7 @@ import { Sheet } from "../ui/sheet";
 import { ShowArt } from "../ui/show-bar";
 import { toast } from "../ui/toast";
 import { openPlan, PlanPlates } from "../couch/watch-plans";
+import { usePracticeShows } from "../tour/practice-shows";
 import { ListingsCredit } from "../watching/search";
 import { openWatching } from "../watching/sheets";
 import { useReducedMotion } from "../welcome/hooks";
@@ -37,7 +38,8 @@ const plain = (name: string) => name.replace(/\s*\([^)]*\)\s*$/, "").trim() || n
  * The guide rolls on its own once you reach it (not while it's the first thing you see: the critique, 2026-10-23), and is
  * Paused for a few seconds when you move it yourself: a swipe across it, a sideways wheel or trackpad, the keyboard. A tap (on
  * a card or between them) and a swipe up or down the page leave it rolling (2026-10-27: a stray tap used to stop it).
- * Reduced motion: it never rolls.
+ * Reduced motion: it never rolls. The first-time tour holds it on today while it's lit (an `nd-guide-hold` event on the reel,
+ * `detail` the ms to hold for; 0 lets it go): tour/tour.tsx.
  */
 function useRoll(reel: React.RefObject<HTMLDivElement | null>) {
   const [rolling, setRolling] = useState(false);
@@ -79,6 +81,7 @@ function useRoll(reel: React.RefObject<HTMLDivElement | null>) {
     // Whatever else moves it (a fling still gliding, the arrow keys): it's somewhere the roll didn't put it.
     const scroll = () => Math.abs(el.scrollLeft - x) > 2 && hold();
     const focus = (e: FocusEvent) => (e.target as Element).matches(":focus-visible") && hold();
+    const held = (e: Event) => (holdUntil = performance.now() + ((e as CustomEvent<number>).detail ?? 0));
     const io = new IntersectionObserver(
       ([e]) => {
         if (e.isIntersecting && !started) {
@@ -97,6 +100,7 @@ function useRoll(reel: React.RefObject<HTMLDivElement | null>) {
     el.addEventListener("wheel", wheel, { passive: true });
     el.addEventListener("scroll", scroll, { passive: true });
     el.addEventListener("focusin", focus);
+    el.addEventListener("nd-guide-hold", held);
     return () => {
       cancelAnimationFrame(raf);
       io.disconnect();
@@ -107,6 +111,7 @@ function useRoll(reel: React.RefObject<HTMLDivElement | null>) {
       el.removeEventListener("wheel", wheel);
       el.removeEventListener("scroll", scroll);
       el.removeEventListener("focusin", focus);
+      el.removeEventListener("nd-guide-hold", held);
     };
   }, [reel]);
   return rolling;
@@ -539,11 +544,14 @@ function Day({
 }
 
 /** The guide: the week rolling by, the foot (what dashed and faded mean, what's hidden, Add a show), and its sheets. */
-export function Guide({ home, couch }: { home: Home; couch: Couch | null }) {
+export function Guide({ home: read, couch }: { home: Home; couch: Couch | null }) {
   const reel = useRef<HTMLDivElement>(null);
   const rolling = useRoll(reel);
   const still = useReducedMotion();
   const now = useMinute();
+  // The first-time tour's demo shows (tour/practice-shows.ts), as yours while it shows where shows you add go.
+  const practice = usePracticeShows();
+  const home = useMemo(() => (practice.length ? { ...read, shows: [...read.shows, ...practice] } : read), [read, practice]);
   const shows = useMemo(() => guideShows(home, couch), [home, couch]);
   const plans = useMemo(() => guidePlans(home, couch), [home, couch]);
   const week = useMemo(() => guideWeek(shows, now, undefined, plans), [shows, now, plans]);
@@ -592,6 +600,7 @@ export function Guide({ home, couch }: { home: Home; couch: Couch | null }) {
       </div>
       <div
         ref={reel}
+        data-guide-reel
         className="mx-2 flex overflow-x-auto pb-1.5 pt-2 [scrollbar-width:none] [mask-image:linear-gradient(90deg,transparent,#000_14px,#000_calc(100%_-_24px),transparent)]"
       >
         {week.map((d, i) => (

@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
-import { Bell, Bot, Check, ChevronRight, Plus, Radio, RotateCcw, Trophy, Users } from "lucide-react";
+import { Bell, Bot, Check, ChevronRight, Plus, Radio, RotateCcw, Sparkles, Trophy, Users } from "lucide-react";
 import { airTime, calmWhen } from "../clock";
 import { LEVEL_WORDS, type BotLevel } from "@/lib/game/computer-players";
 import { spanName } from "@/lib/game/spans";
@@ -10,6 +10,7 @@ import { gamesApi, useAfterReveal, useCurrentCouch, useHome, useStartOptions, ty
 import { gameColour } from "../games";
 import { useNav } from "../nav";
 import { paths } from "../routes";
+import { PracticeFinish, PracticeStrip, said } from "../tour/practice";
 import { Btn } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { ShowArt } from "../ui/show-bar";
@@ -31,11 +32,19 @@ import { openCouchSheet } from "./couch-sheets";
 //     your shows still airing; one that isn't a game yet goes to Make it a game.
 //   - `again` (Run it back): the same game, its name and settings, on the show's next season.
 // Starting it takes you to the show's Games tab, where the couch joins it.
+//   - `practice` (the first-time tour's, docs/PLAN-first-time-tour.md version 2): the same sheets with a Practice strip, the show
+//     the tour practice-added first in Pick the show, a moment "getting its rules" (they're in already: the user wants the bot's
+//     wait felt, briefly), the Prediction Sheet chosen, and Start it ending in the practice finish: nothing is started.
+// Under the games, Create a game with AI, coming soon (the user, 2026-11-01; docs/PLAN-start-a-game-gpt.md).
+
+/** The tour's practice: the show to offer first (the one it practice-added; not on your list), and what to do once it closes. */
+export type StartPractice = { seasonId: string | null; label: string | null; artUrl: string | null; onClose: () => void };
 
 export type StartTarget = {
   seasonId?: string | null;
   couchId?: string | null;
   again?: string | null;
+  practice?: StartPractice;
 };
 
 type Store = { target: StartTarget | null; n: number };
@@ -73,10 +82,15 @@ function useStartTarget(): Store {
 /** The sheets' host, in the signed-in layout. */
 export function StartGameSheets() {
   const { target, n } = useStartTarget();
-  const onOpenChange = (o: boolean) => !o && close();
+  const onOpenChange = (o: boolean) => {
+    if (o) return;
+    const practice = target?.practice;
+    close();
+    practice?.onClose();
+  };
   return (
     <>
-      <PickShowSheet key={`pick-${n}`} open={!!target && !target.seasonId} couchId={target?.couchId ?? null} onOpenChange={onOpenChange} />
+      <PickShowSheet key={`pick-${n}`} open={!!target && !target.seasonId} couchId={target?.couchId ?? null} practice={target?.practice} onOpenChange={onOpenChange} />
       <StartSheet key={`start-${n}`} target={target?.seasonId ? target : null} onOpenChange={onOpenChange} />
     </>
   );
@@ -85,18 +99,37 @@ export function StartGameSheets() {
 /** "Survivor 51". */
 const labelOf = (s: HomeShow) => `${s.show.name.replace(/\s*\([^)]*\)\s*$/, "").replace(/^The /, "")}${s.seasonNumber ? ` ${s.seasonNumber}` : ""}`;
 
-/** Pick the show (the mock's startGamePicker): your shows still to finish, soonest first; how many games the couch has on each. */
-function PickShowSheet({ open, couchId, onOpenChange }: { open: boolean; couchId: string | null; onOpenChange: (o: boolean) => void }) {
+/** Pick the show (the mock's startGamePicker): your shows still to finish, soonest first; how many games the couch has on each. In
+ *  the tour's practice, the show it practice-added comes first. */
+function PickShowSheet({ open, couchId, practice, onOpenChange }: { open: boolean; couchId: string | null; practice?: StartPractice; onOpenChange: (o: boolean) => void }) {
   const { data: home } = useHome();
   const couch = home?.couches.find((c) => c.id === couchId) ?? null;
   const nav = useNav();
   const shows = (home?.shows ?? [])
     .filter((s) => (s.following || s.games.length) && s.status !== "completed" && s.release !== "binge")
     .sort((a, b) => (a.upNext?.airAt ? Date.parse(a.upNext.airAt) : Infinity) - (b.upNext?.airAt ? Date.parse(b.upNext.airAt) : Infinity));
+  const practiceShow = practice?.seasonId && !shows.some((s) => s.seasonId === practice.seasonId) ? practice : null;
   return (
     <Sheet open={open} onOpenChange={onOpenChange} title="Start a game" subtitle="Pick the show">
       <div data-start-pick className="flex flex-col pb-2">
-        {shows.length ? (
+        {practice && <PracticeStrip />}
+        {practiceShow && (
+          <button
+            type="button"
+            data-pick-show={practiceShow.seasonId}
+            data-pick-practice
+            onClick={() => openStartGame({ seasonId: practiceShow.seasonId, couchId, practice })}
+            className="nd-press relative z-[1] flex min-h-[72px] w-full items-center gap-3 rounded-[3px] px-2 py-2 text-left outline-2 outline-offset-2 outline-foreground"
+          >
+            <ShowArt seasonId={`pick-${practiceShow.seasonId}`} artUrl={practiceShow.artUrl} name={practiceShow.label ?? ""} className="size-14 flex-none rounded-[3px] text-[14px]" />
+            <span className="min-w-0 flex-1">
+              <b className="block truncate text-[16px] font-semibold">{practiceShow.label}</b>
+              <small className="block text-[13px] text-muted-foreground">The one you just added · practice</small>
+            </span>
+            <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />
+          </button>
+        )}
+        {shows.length || practiceShow ? (
           shows.map((s) => {
             const have = (couch?.games ?? []).filter((g) => g.seasonId === s.seasonId && !g.archived).length;
             const ready = s.ready !== false;
@@ -106,7 +139,9 @@ function PickShowSheet({ open, couchId, onOpenChange }: { open: boolean; couchId
                 type="button"
                 data-pick-show={s.seasonId}
                 onClick={() => {
-                  if (ready) openStartGame({ seasonId: s.seasonId, couchId });
+                  if (ready) openStartGame({ seasonId: s.seasonId, couchId, practice });
+                  // The tour's practice stays in its sheets: Make it a game would really ask the bot.
+                  else if (practice) toast.quiet("For practice, pick a show that's a game already");
                   else {
                     close();
                     nav.push(`${paths.show(s.seasonId, "games")}?page=make`);
@@ -153,6 +188,17 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
   if (asked && asked !== shown) setShown(asked);
   const target = asked ?? shown;
   const couchId = target?.couchId ?? current?.id ?? null;
+  const practice = target?.practice;
+  // The tour's practice show: its rules are in already, but the wait for them is shown, briefly (the user, 2026-11-01). A pause, not
+  // a movement: reduced motion keeps it (its spinner stands still).
+  const [warming, setWarming] = useState(!!practice?.seasonId && target?.seasonId === practice.seasonId);
+  useEffect(() => {
+    if (!warming) return;
+    const t = setTimeout(() => setWarming(false), 1300);
+    return () => clearTimeout(t);
+  }, [warming]);
+  // The practice's finish: the game it would have started.
+  const [practiced, setPracticed] = useState<string | null>(null);
   // Include it: the options again from the episode on now (its spans, How long), when there is one. Starts: from a later
   // listed episode instead (null: the next to air), the options again from there.
   const [late, setLate] = useState(false);
@@ -176,7 +222,8 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
   // A Prediction Sheet's questions (step A4 part 2 of docs/PLAN-start-a-game-gpt.md): the ones switched on (null: the defaults).
   const [asks, setAsks] = useState<string[] | null>(null);
   const [busy, setBusy] = useState(false);
-  const pick = picked ?? o?.again?.key ?? startable[0]?.key ?? null;
+  // The tour's practice makes a Prediction Sheet (the easiest to start: the user, 2026-11-01) where the show has one.
+  const pick = picked ?? o?.again?.key ?? (practice && startable.some((g) => g.key === "questions") ? "questions" : startable[0]?.key) ?? null;
   const phaseId = late ? null : phaseChosen !== undefined ? phaseChosen : (o?.again?.phase ?? null);
   const phase = (phaseId && o?.phases.find((p) => p.id === phaseId)) || null;
   const me = home?.user.name ?? "you";
@@ -192,6 +239,8 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
 
   const start = async () => {
     if (!o || !couchId || !pick) return;
+    // The tour's practice starts nothing: its finish stands in.
+    if (practice) return setPracticed(fits.find((g) => g.key === pick)?.name ?? "Your game");
     setBusy(true);
     try {
       const r = await gamesApi.start(o.seasonId, couchId, {
@@ -222,23 +271,37 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
     <Sheet
       open={!!asked}
       onOpenChange={onOpenChange}
-      title={again ? "Run it back" : "Start a game"}
+      title={practiced ? "That's how a game starts" : again ? "Run it back" : "Start a game"}
       subtitle={
-        o
-          ? again
-            ? `${o.label}${to === null ? "" : ` · ${spanName(o.from, to, o.part)}`} · the same ${again.gameName} as ${again.label}`
-            : `${o.show} · ${phase ? `when ${phase.name} starts` : to === null ? `from ${partAt(o)}` : spanName(o.from, to, o.part)}`
-          : undefined
+        practiced
+          ? "Practice run"
+          : o
+            ? again
+              ? `${o.label}${to === null ? "" : ` · ${spanName(o.from, to, o.part)}`} · the same ${again.gameName} as ${again.label}`
+              : `${o.show} · ${phase ? `when ${phase.name} starts` : to === null ? `from ${partAt(o)}` : spanName(o.from, to, o.part)}`
+            : undefined
       }
     >
-      <div data-start-sheet={o?.kind ?? "loading"} className="flex flex-col gap-2 pb-2">
-        {!couchId ? (
+      <div data-start-sheet={practiced ? "practiced" : warming ? "warming" : (o?.kind ?? "loading")} className="flex flex-col gap-2 pb-2">
+        {practice && !practiced && <PracticeStrip />}
+        {practiced ? (
+          <PracticeFinish line={`${practiced}${o ? ` for ${said(o.show)}` : ""} won't show up: this was just to show you how.`} onDone={() => onOpenChange(false)}>
+            <ComingSoonAI />
+          </PracticeFinish>
+        ) : warming ? (
+          <div data-start-warming className="flex min-h-48 flex-col items-center justify-center gap-3 rounded-[4px] bg-secondary/60 p-4 text-center" aria-busy>
+            <span className="size-6 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent motion-reduce:animate-none" aria-hidden />
+            <span className="text-[15px] font-semibold">Getting {practice?.label ?? "the show"}&rsquo;s rules&hellip;</span>
+          </div>
+        ) : !couchId ? (
           <>
             <p className="text-[15px] leading-snug text-muted-foreground">Games are played on a couch. Start one and send the code, or join one with a code.</p>
-            <Btn tone="must" wide onClick={() => openCouchSheet({ kind: "new" })}>
-              <Users className="size-5" aria-hidden />
-              Start a couch
-            </Btn>
+            {!practice && (
+              <Btn tone="must" wide onClick={() => openCouchSheet({ kind: "new" })}>
+                <Users className="size-5" aria-hidden />
+                Start a couch
+              </Btn>
+            )}
           </>
         ) : opts.error ? (
           <p className="text-[15px] text-muted-foreground">{(opts.error as Error).message}</p>
@@ -295,6 +358,7 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
                 <span>{o.noFit}</span>
               </p>
             )}
+            {!again && <ComingSoonAI />}
             {startable.length > 0 && o.onAir && (
               <button
                 type="button"
@@ -622,6 +686,24 @@ function Computers({ n, setN, level, setLevel }: { n: number; setN: (n: number) 
         />
       )}
     </section>
+  );
+}
+
+/** Create a game with AI, coming soon (the user, 2026-11-01; docs/PLAN-start-a-game-gpt.md): what it'll be, nothing to tap yet. */
+function ComingSoonAI() {
+  return (
+    <div data-coming-soon-ai className="flex items-start gap-3 rounded-[4px] p-3 outline-1 -outline-offset-1 outline-dashed outline-input">
+      <span className="grid size-10 flex-none place-items-center rounded-[3px] bg-secondary">
+        <Sparkles className="size-5" aria-hidden />
+      </span>
+      <span className="min-w-0 flex-1">
+        <b className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[15px] font-semibold">
+          Create a game with AI
+          <span className="type-caption rounded-[2px] bg-secondary px-1.5 py-0.5 text-[11px] tracking-[0.06em] text-muted-foreground">Coming soon</span>
+        </b>
+        <small className="mt-0.5 block text-[13px] leading-snug text-muted-foreground">Describe the game you want, and AI sets it up for your couch.</small>
+      </span>
+    </div>
   );
 }
 

@@ -100,6 +100,8 @@ export interface ListingSeason {
   season: { number: number; name: string | null; status: "upcoming" | "airing" | "completed"; premiere: string | null; aired: number; episodeCount: number | null } | null;
   /** Its aired episodes for the where stepper (schedule.ts stepEpisodes): nobody's seen any yet, so only a sport's titles. */
   episodes: StepEpisode[];
+  /** Its next episode to air, when the listing has one (the first-time tour shows it in the guide: docs/PLAN-first-time-tour.md). */
+  next: { number: number; airAt: string; runtimeMin: number | null; title: string | null } | null;
 }
 
 /** What adding a show from its listing would follow, for where you are before it's added (first run, Add a show). */
@@ -107,11 +109,12 @@ export async function listingSeason(id: number, base = TVMAZE, now = new Date())
   const found = await showListing(id, base);
   if (!found) return null;
   const season = pickSeason(found.seasons, now);
-  if (!season) return { hit: hitOf(found.show), season: null, episodes: [] };
+  if (!season) return { hit: hitOf(found.show), season: null, episodes: [], next: null };
   const episodes = episodesOf(await seasonListing(season.id, base));
   const status = seasonStatus(season, now);
   const hit = hitOf(found.show);
   const aired = airedOf(episodes, now);
+  const next = episodes.find((e) => e.airAt && Date.parse(e.airAt) > now.getTime()) ?? null;
   return {
     hit,
     season: {
@@ -123,5 +126,6 @@ export async function listingSeason(id: number, base = TVMAZE, now = new Date())
       episodeCount: season.episodeOrder && season.episodeOrder > 0 ? season.episodeOrder : status === "completed" ? episodes.length || null : null,
     },
     episodes: stepEpisodes(episodes, aired, 0, hit.kind),
+    next: next?.airAt ? { number: next.number, airAt: next.airAt, runtimeMin: next.runtimeMin, title: next.title } : null,
   };
 }

@@ -98,12 +98,21 @@ export function StatePill({ state }: { state: RowState }) {
   return <span className={`type-caption flex-none whitespace-nowrap rounded-[2px] px-[7px] py-[3px] text-[11px] tracking-[0.05em] ${cls}`}>{text}</span>;
 }
 
-/** The rows, each a tap: its art, name, one line, and where it stands (or `picked` instead, in first run). */
-export function SearchRows({ rows, onPick, picked }: { rows: SearchRow[]; onPick: (r: SearchRow) => void; picked?: Set<string> }) {
+/** The rows, each a tap: its art, name, one line, and where it stands (or `picked` instead, in first run). `ringed`: the row the
+ *  first-time tour's practice asks for (its key), ringed. */
+export function SearchRows({ rows, onPick, picked, ringed }: { rows: SearchRow[]; onPick: (r: SearchRow) => void; picked?: Set<string>; ringed?: string }) {
   return (
     <div className="mt-1" data-search-results>
       {rows.map((r) => (
-        <button key={r.key} type="button" data-hit={r.title} data-hit-kind={r.kind} onClick={() => onPick(r)} className="nd-press flex min-h-16 w-full items-center gap-3 border-b border-border text-left">
+        <button
+          key={r.key}
+          type="button"
+          data-hit={r.title}
+          data-hit-kind={r.kind}
+          data-practice-pick={r.key === ringed || undefined}
+          onClick={() => onPick(r)}
+          className={`nd-press flex min-h-16 w-full items-center gap-3 border-b border-border text-left ${r.key === ringed ? "relative z-[1] rounded-[3px] px-2 outline-2 outline-offset-2 outline-foreground" : ""}`}
+        >
           <ShowArt seasonId={`search-${r.key}`} artUrl={r.art} name={r.title[0]} position={r.position} className="size-12 flex-none rounded-[3px] text-[22px]" />
           <span className="min-w-0 flex-1">
             <b className="block truncate text-[16px]">{r.title}</b>

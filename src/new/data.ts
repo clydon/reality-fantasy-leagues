@@ -322,12 +322,13 @@ export function useSeasonEpisodes(seasonId: string, couchId: string | null, enab
   });
 }
 
-/** The one reveal: episode n in every game of yours on the show, at once; answers its beats (POST .../reveal). */
-export async function revealEpisode(seasonId: string, couchId: string | null, episode: number): Promise<SeasonReveal> {
+/** The one reveal: episode n in every game of yours on the show, at once; answers its beats (POST .../reveal). `replay` (the
+ *  first-time tour's) plays one you've revealed again and writes nothing. */
+export async function revealEpisode(seasonId: string, couchId: string | null, episode: number, { replay = false }: { replay?: boolean } = {}): Promise<SeasonReveal> {
   const res = await fetch(`/api/seasons/${seasonId}/reveal`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ episode, couch: couchId }),
+    body: JSON.stringify({ episode, couch: couchId, ...(replay ? { replay: true } : {}) }),
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(body.error || `Couldn't reveal (${res.status})`);
