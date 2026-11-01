@@ -4,26 +4,16 @@ import type { AddDemo } from "../watching/sheets";
 // What the first-time tour's practice runs use (docs/PLAN-first-time-tour.md version 2), worked out from your own Home.
 
 /** After your own practice add, the ones the tour adds by itself (the user, 2026-11-01: "you don't have to add a show just for the
- *  games"): HBO's Harry Potter, and whichever of the NFL's weekly games is on next while there's a season (September to February).
- *  None you have already. Found by their TV listings. */
-const HARRY_POTTER: AddDemo = { query: "Harry Potter", tvmazeId: 68803 };
-const NFL = [
-  { query: "Sunday Night Football", tvmazeId: 30940, day: 0 },
-  { query: "Monday Night Football", tvmazeId: 30941, day: 1 },
-  { query: "Thursday Night Football", tvmazeId: 59591, day: 4 },
+ *  games"): HBO's Harry Potter and Saturday Night Live (in the NFL's weekly game's place: sports aren't set up yet, the user, the
+ *  same day; docs/PLAN-sports-add.md). None you have already. Found by their TV listings. */
+const DEMO: AddDemo[] = [
+  { query: "Harry Potter", tvmazeId: 68803 },
+  { query: "Saturday Night Live", tvmazeId: 361 },
 ];
 
-export function demoOf(home: Home, now = new Date()): AddDemo[] {
+export function demoOf(home: Home): AddDemo[] {
   const have = new Set(home.shows.map((s) => s.show.tvmazeId).filter((id): id is number => id != null));
-  const out: AddDemo[] = have.has(HARRY_POTTER.tvmazeId) ? [] : [HARRY_POTTER];
-  const month = now.getMonth();
-  if (month >= 8 || month <= 1) {
-    // Days to each one's next night (today's until late).
-    const days = (day: number) => (day - now.getDay() + 7) % 7 || (now.getHours() >= 23 ? 7 : 0);
-    const next = NFL.filter((g) => !have.has(g.tvmazeId)).sort((a, b) => days(a.day) - days(b.day))[0];
-    if (next) out.push({ query: next.query, tvmazeId: next.tvmazeId });
-  }
-  return out;
+  return DEMO.filter((d) => !have.has(d.tvmazeId));
 }
 
 /** The shows the practice adds, in order (the user, 2026-11-01): the first you don't have whose season is a game already (its rules
@@ -40,6 +30,8 @@ export interface PracticeShow {
   /** "The Amazing Race 38". */
   label: string;
   artUrl: string | null;
+  /** Its TV listing: once it's practice-added, it's on Home's guide for a moment with the demo's (tour.tsx). */
+  tvmazeId: number | null;
 }
 
 /** The practice's show: of Survivor, The Amazing Race and The Challenge, the first with no season on your list whose season on now
@@ -53,7 +45,7 @@ export function practiceShowOf(catalog: CatalogSeason[], home: Home): PracticeSh
       .filter((s) => s.ready && s.status !== "completed")
       .sort((a, b) => Number(b.status === "airing") - Number(a.status === "airing") || (b.premiere ?? "").localeCompare(a.premiere ?? ""))[0];
     // Said as people say it: "The Amazing Race 39", not "The Amazing Race (American edition) 39".
-    if (best) return { seasonId: best.seasonId, name: spoken(best.show), label: best.label.replace(/\s*\([^)]*\)/g, "").trim(), artUrl: best.artUrl };
+    if (best) return { seasonId: best.seasonId, name: spoken(best.show), label: best.label.replace(/\s*\([^)]*\)/g, "").trim(), artUrl: best.artUrl, tvmazeId: best.tvmazeId ?? null };
   }
   return null;
 }

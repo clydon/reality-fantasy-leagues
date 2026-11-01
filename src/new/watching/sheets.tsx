@@ -14,7 +14,7 @@ import {
   type KeepUp,
   type ListingHit,
 } from "../data";
-import { PracticeFinish, PracticeNote, PracticeStrip, said } from "../tour/practice";
+import { keepToPath, PracticeFinish, PracticeNote, PracticeStrip, said, type PracticePath } from "../tour/practice";
 import { Btn } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
@@ -39,8 +39,8 @@ import { episodeWordFromTitles } from "@/lib/game/show-words";
 export type WhereTarget = WhereSeason & { seen: number; following: boolean; plays: boolean; keepUp?: KeepUp };
 /** The tour's practice: the show to type in (null: none, search anything), the season to ring, and what to do once it closes.
  *  `demo`: after yours, the shows it adds by itself (the user, 2026-11-01: you don't need a game to add a show), each found by its
- *  listing; `onDemo` hears the ones it added. */
-export type AddPractice = { name: string | null; seasonId: string | null; demo?: AddDemo[]; onDemo?: (tvmazeIds: number[]) => void; onClose: () => void };
+ *  listing; `onDemo` hears the ones it added, `onAdded` that you added yours. */
+export type AddPractice = { name: string | null; seasonId: string | null; demo?: AddDemo[]; onDemo?: (tvmazeIds: number[]) => void; onAdded?: () => void; onClose: () => void };
 export type AddDemo = { query: string; tvmazeId: number };
 type WatchingSheet =
   | { kind: "add"; practice?: AddPractice }
@@ -291,9 +291,14 @@ function AddShowSheet({ open, practice, onOpenChange }: { open: boolean; practic
       setBusy(false);
     }
   };
+  // A practice add, where the save would be: its finish. The tour hears you added yours (it's on Home's guide for a moment).
+  const addedForPractice = (label: string) => {
+    setStep({ kind: "practiced", label, demo: demoing.current });
+    if (!demoing.current) practice?.onAdded?.();
+  };
   const addSeason = (s: WhereSeason, ready: boolean, seen: number, live = false) => {
     // The tour's practice saves nothing: its finish stands in.
-    if (practice) return setStep({ kind: "practiced", label: s.label, demo: demoing.current });
+    if (practice) return addedForPractice(s.label);
     return run(async () => {
       try {
         await watching.follow(s.seasonId, { following: true, seenThrough: seen, ...(live ? { keepUp: "ask" as const } : {}) });
@@ -416,9 +421,25 @@ function AddShowSheet({ open, practice, onOpenChange }: { open: boolean; practic
         : step.kind === "season"
           ? step.s.label
           : step.hit.name;
+  // The practice's one path (tour/practice.tsx keepToPath): the show it typed in, where you are and Add to my shows, then its finish;
+  // nothing while the demo adds its shows by itself. A practice with no show typed in takes any show.
+  const here = (sel: string) => document.querySelector(`[role=dialog][data-open] ${sel}`);
+  const path: PracticePath | null = !practice
+    ? null
+    : demoOn
+      ? { on: "[data-practice-demo-never]", next: () => null, word: "Just watch: the tour's adding these for you" }
+      : !step
+        ? practice.name
+          ? { on: "[data-practice-pick]", next: () => here("[data-practice-pick]") ?? here("[data-add-input]"), word: `For practice, tap ${said(practice.name)}` }
+          : null
+        : step.kind === "season" || step.kind === "listing"
+          ? { on: "[data-where-ask]", next: () => here("[data-where-save]") }
+          : step.kind === "practiced" || step.kind === "demoed"
+            ? { on: "[data-practice-close]", next: () => here("[data-practice-close]") }
+            : null;
   return (
     <Sheet open={open} onOpenChange={onOpenChange} title={title} subtitle={subtitle}>
-      <div data-add-show={step ? step.kind : "search"}>
+      <div data-add-show={step ? step.kind : "search"} onClickCapture={keepToPath(path)}>
         {practice && !yoursDone && step?.kind !== "demoed" && <PracticeStrip />}
         {step?.kind === "practiced" &&
           (step.demo ? (
@@ -455,6 +476,8 @@ function AddShowSheet({ open, practice, onOpenChange }: { open: boolean; practic
                 ref={input}
                 data-add-input
                 value={q}
+                // The tour's practice types the name for you.
+                readOnly={!!practice?.name}
                 onChange={(e) => setQ(e.target.value)}
                 placeholder="Search or add a show"
                 aria-label="Search or add a show"
@@ -489,7 +512,7 @@ function AddShowSheet({ open, practice, onOpenChange }: { open: boolean; practic
             busy={busy}
             onSave={(seen, live) =>
               practice
-                ? setStep({ kind: "practiced", label: step.hit.name, demo: demoing.current })
+                ? addedForPractice(step.hit.name)
                 : run(async () => {
                     const r = await watching.add({ listing: step.hit.tvmazeId, seenThrough: seen, live });
                     await done(r.label, r.ready);
@@ -510,7 +533,7 @@ function AddShowSheet({ open, practice, onOpenChange }: { open: boolean; practic
               disabled={busy}
               onClick={() =>
                 practice
-                  ? setStep({ kind: "practiced", label: step.name, demo: demoing.current })
+                  ? addedForPractice(step.name)
                   : run(async () => {
                       const r = await watching.add({ name: step.name });
                       await done(r.label, r.ready);

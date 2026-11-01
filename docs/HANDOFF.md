@@ -66,6 +66,12 @@ tour's own typing and taps slowed to be followed (each tap ringed and pressed in
 - **Start a game's Start it** sits in the sheet's foot for everyone (ui/sheet.tsx `foot`).
 - **In practice, another show in Start a game's list** shakes the practice show's row instead of opening.
 - **`tour_reached`** is the count's number (10 at most).
+- **Then the same morning:**
+  - **One path through each practice** (tour/practice.tsx `keepToPath`): only the show it typed in, Where are you and Add, the
+    Prediction Sheet's Start it. Anything else shakes the next thing.
+  - **The reveal step draws Home with results waiting** on the episode the replay plays.
+  - **The demo adds Saturday Night Live** in the NFL game's place (sports aren't set up yet).
+  - **The show you practice-add goes on Home's guide** with the demo's, read from its listing.
 
 ## Next: adding sports by team (planned 2026-11-01, not started)
 The user: people search a team, not "Sunday Night Football"; show its schedule, take two teams in any order, add a series.

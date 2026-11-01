@@ -91,7 +91,7 @@ const CATALOG = [
 ];
 
 test("the practice adds Survivor when you don't have it", () => {
-  assert.deepEqual(practiceShowOf(CATALOG, home()), { seasonId: "Survivor-51", name: "Survivor", label: "Survivor 51", artUrl: null });
+  assert.deepEqual(practiceShowOf(CATALOG, home()), { seasonId: "Survivor-51", name: "Survivor", label: "Survivor 51", artUrl: null, tvmazeId: null });
 });
 
 test("a show you have in any season is passed over; the name is said without its edition", () => {
@@ -135,20 +135,14 @@ test("spoilers off (seen null): the latest that's aired", () => {
 
 const have = (...tv) => ({ shows: tv.map((tvmazeId) => ({ show: { tvmazeId } })) });
 
-test("in the NFL's season: Harry Potter, then the NFL's next weekly game (Sunday night on a Sunday afternoon)", () => {
-  const sunday = new Date(2026, 10, 1, 15, 0);
-  assert.deepEqual(demoOf(have(), sunday), [
+test("the demo adds Harry Potter, then Saturday Night Live (no sports: they aren't set up yet)", () => {
+  assert.deepEqual(demoOf(have()), [
     { query: "Harry Potter", tvmazeId: 68803 },
-    { query: "Sunday Night Football", tvmazeId: 30940 },
+    { query: "Saturday Night Live", tvmazeId: 361 },
   ]);
 });
 
-test("late on Sunday, Monday's; on a Tuesday, Thursday's; one you have is passed over", () => {
-  assert.equal(demoOf(have(), new Date(2026, 10, 1, 23, 30))[1].tvmazeId, 30941);
-  assert.equal(demoOf(have(), new Date(2026, 10, 3, 12, 0))[1].tvmazeId, 59591);
-  assert.deepEqual(demoOf(have(68803, 30940), new Date(2026, 10, 1, 15, 0)), [{ query: "Monday Night Football", tvmazeId: 30941 }]);
-});
-
-test("out of the NFL's season: Harry Potter alone", () => {
-  assert.deepEqual(demoOf(have(), new Date(2026, 5, 7, 12, 0)), [{ query: "Harry Potter", tvmazeId: 68803 }]);
+test("one you have is passed over", () => {
+  assert.deepEqual(demoOf(have(68803)), [{ query: "Saturday Night Live", tvmazeId: 361 }]);
+  assert.deepEqual(demoOf(have(68803, 361)), []);
 });

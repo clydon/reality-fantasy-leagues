@@ -375,9 +375,10 @@ Last updated 2026-10-27.
       better, for every show coming back. **When:** the next Your shows change.
     - **`tests/watch-along.test.js` fails on master** ("what a reaction may carry": `W.giphyUrl is not a function`), seen building
       version 2; nothing of the tour's. **When:** the next watch along change, or now if it's a quick rename.
-    - **The tour's demo leans on two TV listings by id** (HBO's Harry Potter 68803; Sunday, Monday and Thursday Night Football
-      30940, 30941, 59591, in tour/plan.ts). If TVmaze renumbers or the season's off the air, the demo passes that show over (its
-      row never comes) and says what it did add. **When:** the NFL season's end (March), see that it leaves the game out cleanly.
+    - **The tour's demo leans on two TV listings by id** (HBO's Harry Potter 68803 and Saturday Night Live 361, in tour/plan.ts;
+      SNL took the NFL's weekly game's place on 2026-11-01, sports not being set up yet). If TVmaze renumbers, the demo passes
+      that show over (its row never comes) and says what it did add. Off its season SNL has no night in the guide that week.
+      **When:** SNL's summer break (June to September), see what the guide step shows without it.
 
 
 

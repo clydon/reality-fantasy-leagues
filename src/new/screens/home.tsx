@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useCouchHub, useCurrentCouch, useHome, type Couch, type CouchHub, type Home } from "../data";
 import { CouchPages, MoreOnTheCouch } from "../hub/couch-pages";
@@ -11,6 +11,7 @@ import { BothWatch, CouchWatching, Feed, Foot, GetGoing, GrowNote, nextShow, OnN
 import { SoloHub } from "../hub/solo-hub";
 import { NotesBell } from "../hub/notes";
 import { useMe } from "../session";
+import { usePracticeReveal, withPracticeReveal } from "../tour/practice-shows";
 import { Tour } from "../tour/tour";
 import { TopBar } from "../ui/bars";
 import { Loaded } from "../ui/loaded";
@@ -36,7 +37,10 @@ function grows(couch: Couch | null, meId: string) {
 
 export function HomeScreen() {
   const me = useMe();
-  const { data: home, error, refetch } = useHome();
+  const { data: read, error, refetch } = useHome();
+  // The tour's reveal step: Home as it is when results are waiting (tour/practice-shows.ts), for that step alone.
+  const practiceReveal = usePracticeReveal();
+  const home = useMemo(() => (read && practiceReveal ? withPracticeReveal(read, practiceReveal) : read), [read, practiceReveal]);
   const couch = useCurrentCouch(home);
   const { data: hub } = useCouchHub(couch?.id ?? null);
   const asked = useSearchParams().get("hub");

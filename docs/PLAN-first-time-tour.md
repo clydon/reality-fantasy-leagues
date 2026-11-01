@@ -34,14 +34,34 @@
 - **The skip pill** sits up top left by Skip tour, in its step's words. During a tick nothing moves on or starts again.
 - **Start a game's Start it** lives in the sheet's foot (ui/sheet.tsx `foot`), so it's in sight however long the options run. This
   holds in the real sheet for everyone.
-- **In the practice's Pick the show,** another of your shows shakes the practice show's row (with "For practice, pick The Amazing
-  Race 39") instead of opening. The user's phone run showed why: they picked their own Survivor, and its sheet didn't match the
-  tour's words.
+- **One path through each practice** (the user, 2026-11-01: "don't let the user stray from the intended path, for instance they
+  shouldn't be able to tap Outlast"; "I shouldn't be able to tap any other show than The Amazing Race"). A tap off the path is
+  stopped and the next thing on it shakes (tour/practice.tsx `keepToPath`, the sheet content's onClickCapture; the demo's own
+  taps, from script, go through):
+  - **Add a show:** the search is read-only (the tour types it), and only the show it typed in can be picked. Another result
+    shakes it ("For practice, tap The Amazing Race"). On Where are you, only Where are you and Add to my shows work, so Back to
+    search shakes Add. Then only the finish's button. During the demo, nothing ("Just watch: the tour's adding these for you").
+  - **Start a game:** in Pick the show, only the practice show; another of yours shakes its row. In the options, only Start it.
+    Another game, Starts, How long or a switch shakes Start it ("Practice: just tap Start it").
+  - **The reveal** is one path already (its beats, Skip to the end, Back to the tour).
+- **The reveal step's Home is drawn as it is with results waiting** (the user, 2026-11-01: "this should simulate that top card as
+  results waiting"). The show the replay plays gets its episode's final results in (tour/practice-shows.ts `withPracticeReveal`,
+  read by screens/home.tsx for that step alone). So Up next shows "Episode 6 final results are in · Reveal" and the top line says
+  so; the tap on Reveal plays that episode again. Nothing's read or written for it, and Home's back as it was after the step. With
+  nothing to replay (someone new), Up next is lit as it is and the reveal is the made-up one.
+- **The demo adds Harry Potter and Saturday Night Live** (TVmaze 361) now, the NFL's weekly game taken out: sports aren't set up
+  yet (the user, 2026-11-01; docs/PLAN-sports-add.md).
+- **Your practice-added show is on Home with the demo's** (the user, 2026-11-01: "make sure the practice shows we add show up in the
+  guide"). Once you've added it (Add a show's `onAdded`), the show the practice typed in is read from its listing (PracticeShow
+  `tvmazeId`, from the catalog: The Amazing Race is 18). It goes on Your shows (a game: `ready`) and on its night in the guide, beside
+  Harry Potter and SNL, for the flip and guide steps. On the guide step the reel glides to those nights in turn, yours first
+  (Wednesday's), then SNL's (Saturday's), about 2.6 s on each: held on today they'd be off to the right, unseen.
 - **`tour_reached`** keeps the step number as the count shows it (Down Home's beats are one).
 
 **Checks:**
-- `check-new-tour.js`, rewritten for version 3 (A to L): 175 PASS. It covers each real tap, the visit and its way back, the flip,
-  the filters through the tour, Start it in the foot, and Try it shaking at the thumb's spot.
+- `check-new-tour.js`, rewritten for version 3 (A to L): 183 PASS. It covers each real tap, the visit and its way back, the flip,
+  the filters through the tour, Start it in the foot, and Try it shaking at the thumb's spot. Also each practice's one path, the
+  reveal step's results waiting, and SNL and your practice show on their nights in the guide.
 - `tests/tour-steps.test.js`: 17.
 - The regressions with the Start button's new place (their selectors now look in the dialog): check-new-start-game 75,
   -phase-starts 57, -spans 98, -questions 97. Also check-new-guide 67, -hub 106, -watching 116.

@@ -16,7 +16,7 @@ import { openWatching } from "../watching/sheets";
 import { useReducedMotion } from "../welcome/hooks";
 import type { AddDemo } from "../watching/sheets";
 import { demoOf, MADE_UP_REVEAL, MADE_UP_SHOW, practiceShowOf, replayOf, type PracticeShow, type ReplayOf } from "./plan";
-import { practiceShow, setPracticeShows } from "./practice-shows";
+import { practiceShow, setPracticeReveal, setPracticeShows } from "./practice-shows";
 import { numbered, tourSteps, type TourReminders, type TourStep } from "./steps";
 import { clearTourAsk, setTourVisit, takeTourVisit, useTourAsked, useTourVisit } from "./store";
 import { Welcome } from "./welcome";
@@ -378,13 +378,19 @@ function Running({ run, home, couch, onDone, onLeft }: { run: Run; home: Home; c
 
   const next = useCallback(() => {
     if (leaving.current || at.current >= steps.length - 1) return;
-    // Past the guide, the demo's shows go from Home again.
+    // Past the guide, the demo's shows go from Home again; past the reveal, its results waiting.
     if (steps[at.current].id === "guide") setPracticeShows([]);
+    if (steps[at.current].id === "reveal") setPracticeReveal(null);
     const k = at.current + 1;
     at.current = k;
     setI(k);
-    void move(k, false);
-  }, [move, steps]);
+    // The reveal: Home as it is with results waiting on the show the replay plays (the user, 2026-11-01), Up next's Reveal drawn
+    // before the light looks for it.
+    if (steps[k].id === "reveal" && replay) {
+      setPracticeReveal({ seasonId: replay.seasonId, episode: replay.n });
+      requestAnimationFrame(() => requestAnimationFrame(() => void move(k, false)));
+    } else void move(k, false);
+  }, [move, steps, replay]);
 
   /** The step's tick (its count turns green: a state, not a movement, so under reduced motion too), then the next one. No tap
    *  moves on or tries it again meanwhile. */
@@ -403,6 +409,7 @@ function Running({ run, home, couch, onDone, onLeft }: { run: Run; home: Home; c
     leaving.current = true;
     token.current++;
     setPracticeShows([]);
+    setPracticeReveal(null);
     holdGuide(false, reduce);
     setLit(false);
     setShown(false);
@@ -427,25 +434,29 @@ function Running({ run, home, couch, onDone, onLeft }: { run: Run; home: Home; c
     void move(1, true);
   };
 
-  // What Add a show's demo added (its listings): on Home for a moment, in Your shows and the guide, for the step that says where
-  // shows you add go (practice-shows.ts).
+  // What Add a show's practice added, yours (the user, 2026-11-01: "make sure the practice shows we add show up in the guide") and
+  // the demo's, read from their listings: on Home for a moment, in Your shows and the guide, for the steps that show where shows
+  // you add go (practice-shows.ts).
   const demoed = useRef<number[]>([]);
+  const addedOwn = useRef(false);
   const showDemo = useCallback(async () => {
-    const ids = demoed.current;
+    const own = addedOwn.current && practice?.tvmazeId != null ? practice.tvmazeId : null;
+    const ids = [...(own != null ? [own] : []), ...demoed.current.filter((id) => id !== own)];
     demoed.current = [];
+    addedOwn.current = false;
     if (!ids.length) return;
     const shows = await Promise.all(
       ids.map(async (id) => {
         try {
           const r = await fetch(`/api/listings/${id}`);
-          return r.ok ? practiceShow(id, await r.json()) : null;
+          return r.ok ? practiceShow(id, await r.json(), Date.now(), id === own) : null;
         } catch {
           return null;
         }
       })
     );
     if (!leaving.current) setPracticeShows(shows.filter((s) => s !== null));
-  }, []);
+  }, [practice]);
   // Back from a practice run: the step ticks, then the next one.
   const back = useCallback(() => {
     if (!stepped.current) return;
@@ -506,7 +517,14 @@ function Running({ run, home, couch, onDone, onLeft }: { run: Run; home: Home; c
     if (a.kind === "add")
       openWatching({
         kind: "add",
-        practice: { name: practice?.name ?? null, seasonId: practice?.seasonId ?? null, demo, onDemo: (ids) => (demoed.current = ids), onClose: back },
+        practice: {
+          name: practice?.name ?? null,
+          seasonId: practice?.seasonId ?? null,
+          demo,
+          onDemo: (ids) => (demoed.current = ids),
+          onAdded: () => (addedOwn.current = true),
+          onClose: back,
+        },
       });
     else if (a.kind === "start")
       openStartGame({ couchId: couch?.id ?? null, practice: { seasonId: practice?.seasonId ?? null, label: practice?.label ?? null, artUrl: practice?.artUrl ?? null, onClose: back } });
@@ -527,6 +545,31 @@ function Running({ run, home, couch, onDone, onLeft }: { run: Run; home: Home; c
     void move(from, true).then(tick);
   }, [from, move, tick]);
 
+  // The guide step: the reel goes to the nights of the shows the practice added, yours first, then the demo's, a while on each, so
+  // they're seen (the user, 2026-11-01: "make sure the practice shows we add show up in the guide"); it's held still all the step.
+  const nights = useRef(-1);
+  useEffect(() => {
+    if (steps[i].id !== "guide" || !lit || nights.current === i) return;
+    nights.current = i;
+    const reel = document.querySelector<HTMLElement>("[data-guide-reel]");
+    if (!reel) return;
+    const own = practice?.tvmazeId != null ? `tour-${practice.tvmazeId}:` : null;
+    const days: HTMLElement[] = [];
+    for (const card of reel.querySelectorAll<HTMLElement>('[data-guide-card^="tour-"]')) {
+      const day = card.closest<HTMLElement>("[data-guide-day]");
+      if (!day || days.includes(day)) continue;
+      if (own && card.dataset.guideCard?.startsWith(own)) days.unshift(day);
+      else days.push(day);
+    }
+    const timers = days.map((day, n) =>
+      window.setTimeout(() => {
+        const left = reel.scrollLeft + day.getBoundingClientRect().left - reel.getBoundingClientRect().left - 8;
+        reel.scrollTo({ left: Math.max(0, left), behavior: reduce ? "auto" : "smooth" });
+      }, 500 + n * 2600)
+    );
+    return () => timers.forEach((t) => window.clearTimeout(t));
+  }, [i, lit, steps, practice, reduce]);
+
   // Home underneath: out of reach (inert) and still (no scrolling it by hand) while the tour's up, with room at its foot so
   // its last rows (Start a game, a solo player's Start a couch) can scroll up clear of the lower third.
   useEffect(() => {
@@ -544,6 +587,7 @@ function Running({ run, home, couch, onDone, onLeft }: { run: Run; home: Home; c
     return () => {
       col?.removeAttribute("inert");
       setPracticeShows([]);
+      setPracticeReveal(null);
       holdGuide(false, true);
       // Leaving gives it back once it's scrolled to the top (finish); otherwise now.
       if (!leaving.current) giveRoomBack();

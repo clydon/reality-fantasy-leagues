@@ -7,12 +7,15 @@
 //      and the step ticks, and that's no skip; Add a show: Try it shakes the tile, the tile itself opens the practice: the practice
 //      show the catalog says (the first of Survivor, The Amazing Race, The Challenge sam doesn't have) typed in, slowly enough to
 //      follow, and ringed, Where are you, its finish (won't show up; you don't need a game), Show me: the demo adds Harry Potter and
-//      the NFL's next game by itself, slowly enough to follow (its Add to my shows ringed and pressed before the tap); Flip a show:
+//      Saturday Night Live by itself, slowly enough to follow (its Add to my shows ringed and pressed before the tap); Flip a show:
 //      Try it shakes the corner, the tap turns sam's show over to sam's games and back, the demo's shows on the shelf; the TV guide:
-//      the demo's game on its day, held on today, its filters working through the tour, Sports saying it's coming; the reveal
-//      replays sam's last episode with nothing that would be real (no Share, no next episode), the demo's shows gone by then; Start
-//      a game: the practice show first, its rules' moment, the Prediction Sheet chosen, Create a game with AI (coming soon), Start it
-//      in sight in the sheet's foot without scrolling, its finish. Nothing written: no write but the tour's own and the replay's
+//      SNL on its night, held on today, its filters working through the tour, Sports saying it's coming; the reveal: Up next with
+//      results waiting on the episode the replay plays (Home drawn so for the step, then as it was), the replay of sam's last
+//      episode with nothing that would be real (no Share, no next episode), the demo's shows gone by then; Start a game: the
+//      practice show first, its rules' moment, the Prediction Sheet chosen, Create a game with AI (coming soon), Start it in sight
+//      in the sheet's foot without scrolling, its finish. One path through each practice: the search the tour's to type, another
+//      show shakes the one to tap, Back to search shakes Add to my shows, another game shakes Start it. Nothing written: no write
+//      but the tour's own and the replay's
 //      (with replay: true), and sam's follows, marks, leagues and chat as they were. Explore keeps it (seen, to the last step);
 //      Home doesn't play it again.
 //   B/C. alex: Skip on the welcome card keeps it (step 1); Settings › Take the tour plays it again; Escape skips it.
@@ -36,8 +39,8 @@
 //
 // Brings new-fixture.js's couch up (its zt_nd_ people) and adds zt_nd_solo (on no couch, following its season) and zt_nd_admin
 // (a site admin); takes them all down at the end unless --keep (new-fixture's down removes every zt_nd_ account). The TV listings
-// are fake-listings.js with HBO's Harry Potter and the NFL's three weekly games under their real TVmaze ids (the demo finds them
-// by id: tour/plan.ts), each game in the coming week; nothing is added from them (the practice saves nothing). Needs the real
+// are fake-listings.js with HBO's Harry Potter and Saturday Night Live under their real TVmaze ids (the demo finds them by id:
+// tour/plan.ts), SNL on next Saturday night; nothing is added from them (the practice saves nothing). Needs the real
 // Survivor, The Amazing Race or The Challenge set up as a game in the database (a copy of production has Survivor 51). Refuses a
 // non-local database. Don't run it beside another check on the same database: they share the zt_nd_ fixture.
 require("dotenv").config({ path: ".env.local", quiet: true });
@@ -102,7 +105,7 @@ async function rowsOf(pool, userId) {
   };
 }
 
-// The demo's shows in the stand-in listings: HBO's Harry Potter (upcoming) and the NFL's three weekly games, each next on its day.
+// The demo's shows in the stand-in listings: HBO's Harry Potter (upcoming) and Saturday Night Live, on next Saturday night.
 const DAY = 24 * 3600 * 1000;
 function nextDay(day, hour, minute) {
   const t = new Date();
@@ -113,9 +116,7 @@ function nextDay(day, hour, minute) {
 }
 const DEMO_SHOWS = () => [
   listings.oneNight(68803, "ZT Harry Potter", Date.now() + 54 * DAY, { type: "Scripted", network: "ZT HBO", episodes: 8 }),
-  listings.oneNight(30940, "ZT Sunday Night Football", nextDay(0, 20, 20), { type: "Sports", network: "ZT NBC", season: 2026, first: 9, runtime: 200 }),
-  listings.oneNight(30941, "ZT Monday Night Football", nextDay(1, 20, 15), { type: "Sports", network: "ZT ESPN", season: 2026, first: 9, runtime: 200 }),
-  listings.oneNight(59591, "ZT Thursday Night Football", nextDay(4, 20, 15), { type: "Sports", web: { name: "ZT Prime", country: "US" }, season: 2026, first: 9, runtime: 200 }),
+  listings.oneNight(361, "ZT Saturday Night Live", nextDay(6, 23, 30), { type: "Variety", network: "ZT NBC", season: 52, first: 5, runtime: 90 }),
 ];
 
 /** The tour as it stands: which step, lit or not, its words, the ring, and what its step list says it lights (all, for `union`). */
@@ -241,6 +242,8 @@ async function tapAt(page, sel) {
   });
   await page.mouse.click(c.x, c.y);
 }
+/** Whether something in a sheet is moving right now (a practice's next thing, shaken: a Web Animation on it). */
+const moving = (page, sel) => page.evaluate((sel) => (document.querySelector(sel)?.getAnimations().length ?? 0) > 0, sel);
 /** Whether the step's thing to tap is moving right now (Try it's shake: a Web Animation on it); `ring`, the tour's ring instead. */
 const shook = (page, step, ring = false) =>
   page.evaluate(
@@ -322,6 +325,10 @@ async function stepsFor(page, { solo = false, reminders = "off" } = {}) {
         const { steps, nums, of, practice, replay, demo } = plan;
         const at = (sid) => steps.findIndex((x) => x.id === sid);
         check(!!practice, "A: the catalog has a practice show for sam (Survivor, The Amazing Race or The Challenge, set up as a game)", JSON.stringify(practice));
+        // The practice show's listing (under its real id) in the stand-in TV listings, airing Wednesday: once it's practice-added it's on
+        // Home's guide (the user: "make sure the practice shows we add show up in the guide").
+        const OWN = "ZT Practice Survivor";
+        if (practice?.tvmazeId) tv.shows.push(listings.oneNight(practice.tvmazeId, OWN, nextDay(3, 21, 0), { network: "ZT CBS", season: 51, first: 7, runtime: 60 }));
         check(!!replay, "A: sam has a reveal to replay (a game, an episode revealed)", JSON.stringify(replay));
         check((await page.textContent("[data-tour-welcome]")).includes(`1/${of}`), `A: the welcome card, 1/${of}`);
         await shot(page, "sam-1-welcome");
@@ -393,9 +400,22 @@ async function stepsFor(page, { solo = false, reminders = "off" } = {}) {
         check(typed >= 0.8 * (900 + (practice.name.length - 1) * 100), `A: the tile itself opens the practice, the name typed slowly enough to follow (${typed} ms for ${practice.name.length} letters)`);
         await page.waitForSelector("[data-practice-pick]", { timeout: 20000 });
         check((await page.inputValue("[data-add-input]")) === practice.name, "A: Add a show's practice types the practice show's name", await page.inputValue("[data-add-input]"));
+        check(await page.$eval("[data-add-input]", (el) => el.readOnly), "A: the practice's search is the tour's to type: read-only");
         await shot(page, "sam-5a-typed");
+        // One path (the user: "don't let the user stray"): another show shakes the one to tap, and nothing opens.
+        const stray = await page.$("[data-add-show=search] [data-hit]:not([data-practice-pick])");
+        if (stray) {
+          await stray.click();
+          const row = await moving(page, "[data-practice-pick]");
+          await page.waitForTimeout(500);
+          check(row && !!(await page.$("[data-add-show=search]")), "A: another show in the practice's results shakes the one to tap, and opens nothing");
+        }
         await page.click("[data-practice-pick]");
         await page.waitForSelector("[role=dialog][data-open] [data-where-save]", { timeout: 15000 });
+        await page.click("[role=dialog][data-open] >> text=Back to search");
+        const save = await moving(page, "[role=dialog][data-open] [data-where-save]");
+        await page.waitForTimeout(500);
+        check(save && !(await page.$("[data-add-show=search]")), "A: Back to search shakes Add to my shows, and stays on Where are you");
         await page.click("[role=dialog][data-open] [data-where-save]");
         await page.waitForSelector("[data-practice-done]", { timeout: 10000 });
         const fin = await page.textContent("[data-practice-done]");
@@ -423,7 +443,7 @@ async function stepsFor(page, { solo = false, reminders = "off" } = {}) {
           s = await onStep(page, steps, k);
           stepChecks("sam", s, plan, k);
           const shelf = await page.$$eval("[data-poster]", (p) => p.map((x) => x.getAttribute("data-poster")));
-          check(demo.every((d) => shelf.includes(`tour-${d.tvmazeId}`)), "A: Your shows has the demo's shows for now", shelf.join(", "));
+          check(demo.every((d) => shelf.includes(`tour-${d.tvmazeId}`)) && (!practice.tvmazeId || shelf.includes(`tour-${practice.tvmazeId}`)), "A: Your shows has the show you practice-added and the demo's, for now", shelf.join(", "));
           await shot(page, "sam-6-flip");
           await page.click('[data-tour-act="flip"]');
           const flipShook = await shook(page, steps[k]);
@@ -443,11 +463,30 @@ async function stepsFor(page, { solo = false, reminders = "off" } = {}) {
         s = await onStep(page, steps, k);
         stepChecks("sam", s, plan, k);
         await page.waitForTimeout(800);
-        const nfl = demo.find((d) => d.tvmazeId !== 68803);
+        const snl = demo.find((d) => d.tvmazeId === 361);
         const cards = await page.$$eval("[data-guide-card]", (c) => c.map((x) => x.getAttribute("aria-label") ?? ""));
-        const nflName = nfl && DEMO_SHOWS().find((x) => x.show.id === nfl.tvmazeId).show.name;
-        check(!nfl || cards.some((c) => c.startsWith(nflName)), `A: the guide has the demo's game (${nflName})`, cards.join(" | "));
-        check(!!(await page.$("[data-guide-reel]")) && (await page.evaluate(() => document.querySelector("[data-guide-reel]").scrollLeft)) < 8, "A: the guide's held on today");
+        const snlName = snl && DEMO_SHOWS().find((x) => x.show.id === snl.tvmazeId).show.name;
+        check(!snl || cards.some((c) => c.startsWith(snlName)), `A: the guide has the demo's Saturday Night Live on its night (${snlName})`, cards.join(" | "));
+        check(!practice.tvmazeId || cards.some((c) => c.startsWith(OWN)), "A: and the show you practice-added, on its night", cards.join(" | "));
+        // The reel goes to those nights in turn, yours first, so they're seen.
+        const inView = (key) =>
+          page
+            .waitForFunction(
+              (key) => {
+                const reel = document.querySelector("[data-guide-reel]");
+                const card = reel?.querySelector(`[data-guide-card^="${key}"]`);
+                if (!card) return false;
+                const r = card.getBoundingClientRect();
+                const b = reel.getBoundingClientRect();
+                return r.left >= b.left - 2 && r.right <= b.right + 2;
+              },
+              key,
+              { timeout: 6000 }
+            )
+            .then(() => true, () => false);
+        if (practice.tvmazeId) check(await inView(`tour-${practice.tvmazeId}:`), "A: the guide goes to the night of the show you practice-added");
+        await shot(page, "sam-7-guide-yours");
+        if (snl) check(await inView("tour-361:"), "A: then on to Saturday Night Live's");
         await shot(page, "sam-7-guide");
         await tapAt(page, "[data-guide-tv-soon]");
         const soon = await page.waitForFunction(() => /Sports are coming soon/.test(document.querySelector("[data-toast]")?.textContent ?? ""), null, { timeout: 4000 }).then(() => true, () => false);
@@ -464,6 +503,9 @@ async function stepsFor(page, { solo = false, reminders = "off" } = {}) {
         stepChecks("sam", s, plan, k);
         const shelfAfter = await page.$$eval("[data-poster]", (p) => p.map((x) => x.getAttribute("data-poster")));
         check(!shelfAfter.some((x) => x.startsWith("tour-")), "A: past the guide, the demo's shows are off Home", shelfAfter.join(", "));
+        // Home as it is with results waiting, on the episode the replay plays (the user: "simulate that top card as results waiting").
+        const waiting = (await page.textContent('[data-upnext-plate="reveal"]').catch(() => "")) ?? "";
+        check(waiting.includes(`Episode ${replay.n} final results are in`), `A: the reveal step: Up next shows results waiting, Episode ${replay.n} (the one the replay plays)`, waiting);
         await shot(page, "sam-8-reveal");
         await page.click('[data-tour-act="reveal"]');
         const revealShook = await shook(page, steps[k]);
@@ -485,6 +527,8 @@ async function stepsFor(page, { solo = false, reminders = "off" } = {}) {
         k = at("start");
         s = await onStep(page, steps, k);
         stepChecks("sam", s, plan, k);
+        const upAfter = (await page.textContent("[data-upnext]").catch(() => "")) ?? "";
+        check(!upAfter.includes(`Episode ${replay.n} final results are in`), "A: past the reveal, Up next is as it was");
         await shot(page, "sam-9-start");
         await tapLit(page);
         await page.waitForSelector(`[data-pick-practice][data-pick-show="${practice.seasonId}"]`, { timeout: 15000 });
@@ -507,6 +551,18 @@ async function stepsFor(page, { solo = false, reminders = "off" } = {}) {
           return { foot: !!el.closest("[data-sheet-foot]"), seen: r.top >= 0 && r.bottom <= window.innerHeight };
         });
         check(go.foot && go.seen, "A: Start it sits in the sheet's foot, in sight without scrolling", JSON.stringify(go));
+        // One path: another game (Outlast, say) stays unchosen, and Start it shakes.
+        const other = await page.$('[role=dialog][data-open] [data-start-game]:not([data-start-game="questions"]):not([disabled])');
+        if (other) {
+          const name = await other.getAttribute("data-start-game");
+          await other.click();
+          const startShook = await moving(page, "[role=dialog][data-open] [data-start-go]");
+          await page.waitForTimeout(500);
+          check(
+            startShook && (await page.getAttribute('[data-start-game="questions"]', "aria-pressed")) === "true" && (await other.getAttribute("aria-pressed")) !== "true",
+            `A: in practice, ${name} stays unchosen: the Prediction Sheet's kept and Start it shakes`
+          );
+        }
         await shot(page, "sam-9a-options");
         await page.click("[data-start-go]");
         await page.waitForSelector("[data-practice-done]", { timeout: 10000 });

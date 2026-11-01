@@ -10,7 +10,7 @@ import { gamesApi, useAfterReveal, useCurrentCouch, useHome, useStartOptions, ty
 import { gameColour } from "../games";
 import { useNav } from "../nav";
 import { paths } from "../routes";
-import { PracticeFinish, PracticeStrip, said } from "../tour/practice";
+import { keepToPath, PracticeFinish, PracticeStrip, said, shake } from "../tour/practice";
 import { Btn } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { ShowArt } from "../ui/show-bar";
@@ -113,8 +113,7 @@ function PickShowSheet({ open, couchId, practice, onOpenChange }: { open: boolea
   // 2026-11-01, picked their own show and got a sheet the tour's words didn't match).
   const practiceRow = useRef<HTMLButtonElement>(null);
   const toPractice = () => {
-    if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches)
-      practiceRow.current?.animate([{ transform: "none" }, { transform: "translateX(-7px)" }, { transform: "translateX(7px)" }, { transform: "translateX(-4px)" }, { transform: "none" }], { duration: 450, easing: "ease-in-out" });
+    shake(practiceRow.current);
     toast.quiet(`For practice, pick ${practiceShow?.label ?? "the one you just added"}`);
   };
   return (
@@ -309,7 +308,14 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
             : undefined
       }
     >
-      <div data-start-sheet={practiced ? "practiced" : warming ? "warming" : (o?.kind ?? "loading")} className="flex flex-col gap-2 pb-2">
+      <div
+        data-start-sheet={practiced ? "practiced" : warming ? "warming" : (o?.kind ?? "loading")}
+        // The practice's one path: the Prediction Sheet's chosen, so only Start it (the sheet's foot) goes on.
+        onClickCapture={keepToPath(
+          practice && !practiced && !warming ? { on: "[data-start-go]", next: () => document.querySelector("[role=dialog][data-open] [data-start-go]"), word: "Practice: just tap Start it" } : null
+        )}
+        className="flex flex-col gap-2 pb-2"
+      >
         {practice && !practiced && <PracticeStrip />}
         {practiced ? (
           <PracticeFinish line={`${practiced}${o ? ` for ${said(o.show)}` : ""} won't show up: this was just to show you how.`} onDone={() => onOpenChange(false)}>
