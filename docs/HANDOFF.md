@@ -80,6 +80,15 @@ tour's own typing and taps slowed to be followed (each tap ringed and pressed in
   - **Skip tour:** top right, with Undo.
   - **The plate says Tap it ↑.**
   - **Left:** BACKLOG 38.
+- **After the user tried it again (the same evening; PLAN-first-time-tour.md, "Trying it again"):**
+  - **Flip a show lit nothing** ("impossible to complete"): the light was measured mid-scroll on a long shelf. It now waits for the
+    shelf to stop, waits for the practice's shows to land, and follows its target.
+  - **Hints:** Where are you's Add to my shows shakes by itself; Start a game's options scroll to their end, then Start it shakes
+    (`useNudge`, practice only).
+  - **The TV guide's week scrolls by swipe or wheel** during the tour.
+  - **Found on the way:** a guide taller than the room above the plate (a night with many shows) now keeps its filters in sight;
+    in practice a switch that's on isn't yellow.
+  - `tests/watch-along.test.js` fixed (`gifUrl`): `npm test` all green. check-new-tour 198 PASS.
 
 ## Next: adding sports by team (planned 2026-11-01, not started)
 The user: people search a team, not "Sunday Night Football"; show its schedule, take two teams in any order, add a series.

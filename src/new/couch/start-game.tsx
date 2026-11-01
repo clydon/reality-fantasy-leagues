@@ -10,7 +10,7 @@ import { gamesApi, useAfterReveal, useCurrentCouch, useHome, useStartOptions, ty
 import { gameColour } from "../games";
 import { useNav } from "../nav";
 import { paths } from "../routes";
-import { keepToPath, PracticeFinish, PracticeStrip, said, shake } from "../tour/practice";
+import { keepToPath, PracticeFinish, PracticeStrip, said, shake, useNudge } from "../tour/practice";
 import { Btn } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { ShowArt } from "../ui/show-bar";
@@ -291,6 +291,8 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
         {busy ? "Starting…" : startable.length ? "Start it" : "Coming soon"}
       </Btn>
     ) : null;
+  // The practice: down the options to their end, then Start it shakes (the user, 2026-11-01: "scroll down then shake Start it").
+  useNudge(!!practice && !!go, "[data-start-go]", "[data-start-sheet]");
 
   return (
     <Sheet

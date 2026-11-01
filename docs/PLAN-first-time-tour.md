@@ -108,6 +108,48 @@ Left, with why:
   -phase-starts 57, -spans 98, -questions 97. Also check-new-guide 67, -hub 106, -watching 116.
 - `npm test` 1239 of 1240 (the known watch-along one) and `next build`.
 
+**Trying it again** (the user, 2026-11-01 evening, on their phone):
+- **"This step is impossible to complete"** (Flip a show, nothing lit). The step before lights Add a show's tile, at the end of Your
+  shows, so the flip step scrolls the shelf all the way back to the show with games. The light was measured after a fixed 450 ms,
+  before a long smooth scroll had finished on a phone. The show was still off screen, so the hole came out empty, and Tap it shook
+  something out of sight. Also, the practice's shows landed on the shelf a listing read later and could push that show along it.
+  Now (tour.tsx):
+  - The light waits for the shelf to stop (`settled`). If the phone's snapping cut the scroll short, it jumps straight there.
+  - The step after a practice waits for the practice's shows to land (`tick(after)`, 4 s at most).
+  - The light follows its target when anything scrolls or the hub's DOM changes. A target pushed out of sight along its shelf is
+    brought back once a step (`brought`).
+- **"Shake Add to my shows to show it's what we need to do to progress"** and **"scroll down then shake Start it"**. A practice step
+  that waits on the person shows what moves it on (tour/practice.tsx `useNudge`):
+  - 1.2 s in, the sheet scrolls to its end (Start a game's options; Where are you if it's taller than the phone), then the thing
+    to tap shakes.
+  - It shakes again every 5 s while nothing's tapped, and not within 2.5 s of a tap in the sheet. Under reduced motion it blinks
+    and the scroll jumps.
+  - Only in practice: the real sheets never do it.
+- **"Allow me to scroll in the tv guide"**. On the guide step (and the down-Home beat on it), a swipe across the week scrolls it, and
+  so does a sideways wheel. Home stays inert, so the tour moves the reel with the finger. A swipe isn't a tap: no card opens.
+  The tour's glide to the practice shows' nights gives way to the finger. The guide's own hold (hub/guide.tsx `useRoll`) is no
+  longer cut to 4 s by a scroll during the tour's 10-minute hold, so the week stays where it's left.
+- **Found on the way:**
+  - **A guide taller than the room above the lower third.** A night with many shows makes it so: the check's long shelf made one
+    708 px tall. The guide step now keeps its filters clear of the lower third (`scrollPlan`'s `keep`, the step's `play`). If a
+    filter makes the week taller (all of TV), the page follows (the redo, a few times a step at most). The down-Home beat on it keeps
+    its top in sight.
+  - **In a practice sheet a switch that's on isn't yellow** (Tell the couch, Include it; new.css), as the critique set for what's
+    chosen there. Only Start it is.
+  - **No bringing back during a step's tick:** after Add a show, the practice's shows push its tile out of view, and bringing it
+    back just before the next step flickered.
+- **Checks:** check-new-tour, **198 PASS** (188 before). It gives sam a long shelf (`longShelf`: four zt shows on tomorrow night,
+  before the couch's). It checks:
+  - The flip step's show, the fifth poster, comes into view and is what's lit.
+  - Add to my shows shakes by itself.
+  - Start a game's options scroll to their end, then Start it shakes; the real sheet (J) doesn't.
+  - Only Start it is yellow in the practice; the real sheet's switch keeps its yellow.
+  - A swipe and a wheel scroll the week, the swipe is no tap, and the week stays put.
+  - The guide, taller than the room, keeps its filters clear of the lower third, on All TV too. A lit thing taller than that room
+    has its top in sight, or, on a step with things to tap in it, those clear (`stepChecks`).
+- Also fixed: tests/watch-along.test.js still called `giphyUrl`, renamed `gifUrl` when GIFs moved to KLIPY (1c7cedc1). `npm test`
+  is all green again.
+
 ## Version 2: welcome first, with practice runs (built 2026-11-01 on branch `tour2`, lane `rfl-tour2`; merged and pushed the same day)
 
 **Status:** live: merged to master and pushed 2026-11-01 with the user's go-ahead ("Merge and push once it's in"), no migration,

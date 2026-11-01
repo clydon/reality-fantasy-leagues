@@ -39,7 +39,7 @@ const plain = (name: string) => name.replace(/\s*\([^)]*\)\s*$/, "").trim() || n
  * Paused for a few seconds when you move it yourself: a swipe across it, a sideways wheel or trackpad, the keyboard. A tap (on
  * a card or between them) and a swipe up or down the page leave it rolling (2026-10-27: a stray tap used to stop it).
  * Reduced motion: it never rolls. The first-time tour holds it on today while it's lit (an `nd-guide-hold` event on the reel,
- * `detail` the ms to hold for; 0 lets it go): tour/tour.tsx.
+ * `detail` the ms to hold for; 0 lets it go; a swipe meanwhile doesn't cut it short): tour/tour.tsx.
  */
 function useRoll(reel: React.RefObject<HTMLDivElement | null>) {
   const [rolling, setRolling] = useState(false);
@@ -68,7 +68,7 @@ function useRoll(reel: React.RefObject<HTMLDivElement | null>) {
       }
       raf = requestAnimationFrame(step);
     };
-    const hold = () => (holdUntil = performance.now() + 4000);
+    const hold = () => (holdUntil = Math.max(holdUntil, performance.now() + 4000));
     // A swipe is across once it's gone further across than down, past a tap's wobble.
     const touchStart = (e: TouchEvent) => (from = { x: e.touches[0].clientX, y: e.touches[0].clientY });
     const touchMove = (e: TouchEvent) => {

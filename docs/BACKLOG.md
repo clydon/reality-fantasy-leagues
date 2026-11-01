@@ -336,8 +336,9 @@ Last updated 2026-10-27.
       would want its own zone.
     - **Couch points count what someone did whatever What your couch sees says** (reactions, watch alongs): only totals show,
       never what or when. A private follow is left out (the hub's rule for follows).
-    - **`tests/watch-along.test.js` fails on master** ("what a reaction may carry"): the KLIPY change (1c7cedc1) removed
-      `giphyUrl` and left its test. **When:** whoever next touches GIFs.
+    - **Done 2026-11-01 (with the tour's fixes): `tests/watch-along.test.js` failed on master** ("what a reaction may carry"):
+      the KLIPY change (1c7cedc1) renamed `giphyUrl` to `gifUrl` and left its test. It calls `gifUrl` now, with a KLIPY host and
+      a look-alike one.
     - **check-new-hub's grow note** asked `isVisible` the instant the address changed and failed twice in a row on a busy
       machine; it now waits for the page to slide in.
 38. **What the first-time tour left (noticed 2026-10-31, building it on branch `tour`; docs/PLAN-first-time-tour.md).**
@@ -385,8 +386,11 @@ Last updated 2026-10-27.
     - **A poster for a premiere weeks away says only its weekday** ("Season 1 · Fri" for HBO's Harry Potter on Dec 25, seen in the
       tour's demo): Your shows' poster takes `day()` of the next episode however far off. A date past a week ("Dec 25") would read
       better, for every show coming back. **When:** the next Your shows change.
-    - **`tests/watch-along.test.js` fails on master** ("what a reaction may carry": `W.giphyUrl is not a function`), seen building
-      version 2; nothing of the tour's. **When:** the next watch along change, or now if it's a quick rename.
+    - **Done 2026-11-01: `tests/watch-along.test.js`** (`W.giphyUrl is not a function`): a quick rename after all (item 37).
+    - **The guide's week is as tall as its fullest night** (seen 2026-11-01 with the tour check's long shelf: four shows on one
+      Monday made every night's column about 700 px, mostly empty, at 390). The tour keeps the guide's filters in sight now
+      (PLAN-first-time-tour.md, "Trying it again"); the guide itself could show a night's first few cards and "N more", as All TV
+      does. **When:** the next guide change.
     - **The tour's demo leans on two TV listings by id** (HBO's Harry Potter 68803 and Saturday Night Live 361, in tour/plan.ts;
       SNL took the NFL's weekly game's place on 2026-11-01, sports not being set up yet). If TVmaze renumbers, the demo passes
       that show over (its row never comes) and says what it did add. Off its season SNL has no night in the guide that week.

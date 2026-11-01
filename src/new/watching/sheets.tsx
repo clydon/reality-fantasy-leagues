@@ -14,7 +14,7 @@ import {
   type KeepUp,
   type ListingHit,
 } from "../data";
-import { keepToPath, PracticeFinish, PracticeNote, PracticeStrip, said, type PracticePath } from "../tour/practice";
+import { keepToPath, PracticeFinish, PracticeNote, PracticeStrip, said, useNudge, type PracticePath } from "../tour/practice";
 import { Btn } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
@@ -437,6 +437,8 @@ function AddShowSheet({ open, practice, onOpenChange }: { open: boolean; practic
           : step.kind === "practiced" || step.kind === "demoed"
             ? { on: "[data-practice-close]", next: () => here("[data-practice-close]") }
             : null;
+  // Where are you: Add to my shows is what moves it on, so it shows itself.
+  useNudge(!!practice && !demoOn && (step?.kind === "season" || step?.kind === "listing"), "[data-where-save]");
   return (
     <Sheet open={open} onOpenChange={onOpenChange} title={title} subtitle={subtitle}>
       <div data-add-show={step ? step.kind : "search"} data-practice-path={path ? "" : undefined} onClickCapture={keepToPath(path)}>

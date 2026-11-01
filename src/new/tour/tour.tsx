@@ -121,14 +121,19 @@ function unionOf(els: HTMLElement[]) {
 }
 
 /** Where the page scrolls to for a box: the top when it's in the clear above the lower third there, else it centred in that space
- *  (its top a little under the phone's when it's too tall for it). */
-function scrollPlan(r: { top: number; height: number }, freeY: number) {
+ *  (its top a little under the phone's when it's too tall for it). `keep`, what's to tap in it (the guide's filters, at its foot),
+ *  is kept clear of the lower third however tall it is (a night with many shows, all of TV). */
+function scrollPlan(r: { top: number; height: number }, freeY: number, keep?: { bottom: number } | null) {
   const top = r.top + window.scrollY;
   const max = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
   if (top + r.height + PAD <= freeY - 8) return 0;
-  const y = r.height + 2 * PAD + 32 > freeY ? top - 16 : top - (freeY - r.height) / 2;
+  let y = r.height + 2 * PAD + 32 > freeY ? top - 16 : top - (freeY - r.height) / 2;
+  if (keep) y = Math.max(y, keep.bottom + window.scrollY - (freeY - 8));
   return Math.round(Math.min(max, Math.max(0, y)));
 }
+
+/** What a step has to tap in what it lights (`play`: the guide's filters), on Home. */
+const playOf = (step: TourStep) => (step.play ? (document.querySelector("[data-hub]")?.querySelector<HTMLElement>(step.play) ?? null) : null);
 
 /** A row that scrolls sideways around `el` (Your shows' shelf), if there's one with somewhere to go. */
 function shelfOf(el: HTMLElement): HTMLElement | null {
@@ -145,6 +150,32 @@ function shelfPlan(el: HTMLElement, shelf: HTMLElement) {
   const s = shelf.getBoundingClientRect();
   if (r.left >= s.left + 8 && r.right <= s.right - 8) return shelf.scrollLeft;
   return Math.round(Math.max(0, Math.min(shelf.scrollLeft + (r.left - s.left) - 16, shelf.scrollWidth - shelf.clientWidth)));
+}
+
+/** A shelf's sideways scroll, done: at `left`, or still for a few frames once it's had time to start (snapping stops it short of
+ *  `left`), or 1.6 s on. */
+function settled(el: HTMLElement, left: number, max = 1600) {
+  return new Promise<void>((done) => {
+    const t0 = performance.now();
+    let last = el.scrollLeft;
+    let still = 0;
+    const frame = () => {
+      const x = el.scrollLeft;
+      const t = performance.now() - t0;
+      still = Math.abs(x - last) < 0.5 ? still + 1 : 0;
+      last = x;
+      if (Math.abs(x - left) < 2 || (still >= 4 && t > 300) || t > max) return done();
+      requestAnimationFrame(frame);
+    };
+    requestAnimationFrame(frame);
+  });
+}
+
+/** How much of `el` shows across its shelf, 0 to 1. */
+function across(el: HTMLElement, shelf: HTMLElement) {
+  const r = el.getBoundingClientRect();
+  const s = shelf.getBoundingClientRect();
+  return Math.max(0, Math.min(r.right, s.right) - Math.max(r.left, s.left)) / Math.max(1, r.width);
 }
 
 /** The spotlight around a box, in the tour's own box (the phone's column). */
@@ -362,7 +393,7 @@ function Running({
         return;
       }
       const freeY = (lower.current?.getBoundingClientRect().top ?? window.innerHeight) - 10;
-      const y = scrollPlan(unionOf(els), freeY);
+      const y = scrollPlan(unionOf(els), freeY, playOf(steps[k])?.getBoundingClientRect());
       const shelf = els.length === 1 ? shelfOf(els[0]) : null;
       const left = shelf ? shelfPlan(els[0], shelf) : null;
       const dy = Math.abs(y - window.scrollY);
@@ -384,7 +415,13 @@ function Running({
       if (shelf && left != null && dx >= 3) shelf.scrollTo({ left, behavior: reduce ? "auto" : "smooth" });
       const y0 = window.scrollY;
       await tween(reduce ? 0 : scrollMs(dy), (p) => alive() && window.scrollTo(0, y0 + (y - y0) * p), easeInOut);
-      if (shelf && dx >= 3) await pause(450);
+      // A long shelf's smooth scroll outlasts any fixed wait on a phone: the light waits for it to stop (measured mid-scroll, the
+      // target was still off screen and the hole came out empty: the user, 2026-11-01, "this step is impossible to complete"). One
+      // cut short (a phone's own snapping) leaves it out of sight: then straight there.
+      if (shelf && dx >= 3) {
+        await settled(shelf, left!);
+        if (across(els[0], shelf) < 0.6) shelf.scrollTo({ left: shelfPlan(els[0], shelf), behavior: "auto" });
+      }
       if (!alive() || !root.current) return;
       const to = holeOf(unionOf(els), root.current.getBoundingClientRect());
       hole.current = to;
@@ -414,17 +451,21 @@ function Running({
     } else void move(k, false);
   }, [move, steps, replay]);
 
-  /** The step's tick (its count turns green: a state, not a movement, so under reduced motion too), then the next one. No tap
-   *  moves on or tries it again meanwhile. */
-  const tick = useCallback(() => {
-    ticking.current = true;
-    setTicked(true);
-    setTimeout(() => {
-      ticking.current = false;
-      setTicked(false);
-      next();
-    }, TICK);
-  }, [next]);
+  /** The step's tick (its count turns green: a state, not a movement, so under reduced motion too), then the next one, once what
+   *  the step left landing on Home has (`after`: the practice's shows, a listing read away; 4 s at most). No tap moves on or tries
+   *  it again meanwhile. */
+  const tick = useCallback(
+    (after?: Promise<unknown>) => {
+      ticking.current = true;
+      setTicked(true);
+      void Promise.all([wait(TICK), after && Promise.race([after, wait(4000)])]).then(() => {
+        ticking.current = false;
+        setTicked(false);
+        next();
+      });
+    },
+    [next]
+  );
 
   const finish = (how: Ending) => {
     if (leaving.current) return;
@@ -479,16 +520,17 @@ function Running({
     );
     if (!leaving.current) setPracticeShows(shows.filter((s) => s !== null));
   }, [practice]);
-  // Back from a practice run: the step ticks, then the next one.
+  // Back from a practice run: the step ticks, then the next one, once the practice's shows are on Home (in the shelf, they can
+  // push the next step's show along it: the user, 2026-11-01, "this step is impossible to complete").
   const back = useCallback(() => {
     if (!stepped.current) return;
     stepped.current = false;
-    void showDemo();
+    const landing = showDemo();
     setRevealing(null);
     setAway(false);
     if (leaving.current) return;
     document.querySelector(".nd")?.setAttribute("inert", "");
-    tick();
+    tick(landing);
   }, [tick, showDemo]);
 
   /** What to tap, shaken: the step's own real thing (Tap it, a tap off it), never done for them (the user, 2026-11-01). The ring
@@ -564,17 +606,21 @@ function Running({
   useEffect(() => {
     if (from == null || resumed.current) return;
     resumed.current = true;
-    void move(from, true).then(again ? undefined : tick);
+    void move(from, true).then(again ? undefined : () => tick());
   }, [from, again, move, tick]);
 
   // The guide step: the reel goes to the nights of the shows the practice added, yours first, then the demo's, a while on each, so
   // they're seen (the user, 2026-11-01: "make sure the practice shows we add show up in the guide"); it's held still all the step.
   const nights = useRef(-1);
+  /** When a finger last moved the guide's week (the swipe below; performance.now's clock, an event's timeStamp's): the tour's own
+   *  glide gives way to it. */
+  const reelHand = useRef(0);
   useEffect(() => {
     if (steps[i].id !== "guide" || !lit || nights.current === i) return;
     nights.current = i;
     const reel = document.querySelector<HTMLElement>("[data-guide-reel]");
     if (!reel) return;
+    const since = performance.now();
     const own = practice?.tvmazeId != null ? `tour-${practice.tvmazeId}:` : null;
     const days: HTMLElement[] = [];
     for (const card of reel.querySelectorAll<HTMLElement>('[data-guide-card^="tour-"]')) {
@@ -585,6 +631,7 @@ function Running({
     }
     const timers = days.map((day, n) =>
       window.setTimeout(() => {
+        if (reelHand.current > since) return;
         const left = reel.scrollLeft + day.getBoundingClientRect().left - reel.getBoundingClientRect().left - 8;
         reel.scrollTo({ left: Math.max(0, left), behavior: reduce ? "auto" : "smooth" });
       }, 500 + n * 2600)
@@ -631,24 +678,96 @@ function Running({
     [onLeft, nums]
   );
 
-  // If Home's layout changes under a lit step (a read coming back), the spotlight follows its target.
+  // If Home's layout changes under a lit step (a read coming back, shows added to a shelf, all of TV in the guide), the spotlight
+  // follows its target. One pushed along its shelf out of sight, or what's to tap in it pushed under the lower third, is brought
+  // back (a few times a step at most; not during its tick, the next step's on its way): the step must never light nothing.
+  const brought = useRef({ k: -1, n: 0 });
   useEffect(() => {
+    let raf = 0;
     const redo = () => {
       if (moving.current || leaving.current || stepped.current || !hole.current || !root.current) return;
-      const els = findTargets(steps[at.current]);
+      const k = at.current;
+      const els = findTargets(steps[k]);
       if (!els.length) return;
+      const shelf = els.length === 1 ? shelfOf(els[0]) : null;
+      const play = playOf(steps[k])?.getBoundingClientRect();
+      const freeY = (lower.current?.getBoundingClientRect().top ?? window.innerHeight) - 10;
+      const lost = (shelf && across(els[0], shelf) < 0.6) || (play && (play.bottom > freeY || play.top < 0));
+      if (brought.current.k !== k) brought.current = { k, n: 0 };
+      if (lost && !ticking.current && brought.current.n < 3) {
+        brought.current.n++;
+        void move(k, false);
+        return;
+      }
       hole.current = holeOf(unionOf(els), root.current.getBoundingClientRect());
       draw(hole.current);
     };
-    const ro = new ResizeObserver(redo);
+    const soon = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(redo);
+    };
+    const ro = new ResizeObserver(soon);
     const hub = document.querySelector("[data-hub]");
     if (hub) ro.observe(hub);
-    window.addEventListener("resize", redo);
+    const mo = new MutationObserver(soon);
+    if (hub) mo.observe(hub, { childList: true, subtree: true });
+    window.addEventListener("resize", soon);
+    // And when anything scrolls under it (a shelf still easing sideways, the guide's week): the light stays on its target.
+    document.addEventListener("scroll", redo, { capture: true, passive: true });
     return () => {
+      cancelAnimationFrame(raf);
       ro.disconnect();
-      window.removeEventListener("resize", redo);
+      mo.disconnect();
+      window.removeEventListener("resize", soon);
+      document.removeEventListener("scroll", redo, { capture: true });
     };
-  }, [steps, draw]);
+  }, [steps, draw, move]);
+
+  // A step lighting the guide: a swipe across its week scrolls it, as on Home itself (the user, 2026-11-01: "allow me to scroll in
+  // the tv guide"). Home stays inert under the tour, so the tour moves the reel with the finger; a swipe isn't a tap.
+  useEffect(() => {
+    if (steps[i].id !== "guide" && steps[i].id !== "week") return;
+    const el = root.current;
+    const reel = document.querySelector<HTMLElement>("[data-guide-reel]");
+    if (!el || !reel) return;
+    let drag: { x: number; y: number; left: number; on: boolean } | null = null;
+    const over = (x: number, y: number) => {
+      const r = reel.getBoundingClientRect();
+      return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+    };
+    const down = (e: PointerEvent) => {
+      if (!stepped.current && over(e.clientX, e.clientY)) drag = { x: e.clientX, y: e.clientY, left: reel.scrollLeft, on: false };
+    };
+    const along = (e: PointerEvent) => {
+      if (!drag) return;
+      const dx = e.clientX - drag.x;
+      if (!drag.on && Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(e.clientY - drag.y)) drag.on = true;
+      if (!drag.on) return;
+      reelHand.current = performance.now();
+      reel.scrollLeft = drag.left - dx;
+    };
+    const up = () => {
+      if (drag?.on) reelHand.current = performance.now();
+      drag = null;
+    };
+    const wheel = (e: WheelEvent) => {
+      if (Math.abs(e.deltaX) <= Math.abs(e.deltaY) || !over(e.clientX, e.clientY)) return;
+      reelHand.current = performance.now();
+      reel.scrollLeft += e.deltaX;
+    };
+    el.addEventListener("pointerdown", down);
+    el.addEventListener("pointermove", along);
+    el.addEventListener("pointerup", up);
+    el.addEventListener("pointercancel", up);
+    el.addEventListener("wheel", wheel, { passive: true });
+    return () => {
+      el.removeEventListener("pointerdown", down);
+      el.removeEventListener("pointermove", along);
+      el.removeEventListener("pointerup", up);
+      el.removeEventListener("pointercancel", up);
+      el.removeEventListener("wheel", wheel);
+    };
+  }, [i, steps]);
 
   // Keys: Escape skips; the right arrow goes on; Enter and Space on the tour itself do what its plate does (Tap it, or Next); the
   // keys that would scroll Home don't. Not while a practice run's up: it has its own.
@@ -679,6 +798,8 @@ function Running({
    *  to tap (a stray tap mustn't skip it); else on to the next. */
   const onTap = (e: MouseEvent) => {
     if (at.current === 0 || stepped.current || (e.target as HTMLElement).closest("button, a")) return;
+    // The end of a swipe across the guide's week, not a tap.
+    if (e.timeStamp - reelHand.current < 450) return;
     const h = hole.current;
     const box = root.current?.getBoundingClientRect();
     const onLit = !!h && !!box && hasHole && e.clientX - box.left >= h.x && e.clientX - box.left <= h.x + h.w && e.clientY - box.top >= h.y && e.clientY - box.top <= h.y + h.h;

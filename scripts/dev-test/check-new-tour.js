@@ -6,15 +6,19 @@
 //      each; your moves: Tap it shakes the top line and goes nowhere, the line itself goes to its show, Back to the tour brings Home
 //      and the step ticks, and that's no skip; Add a show: Tap it shakes the tile, the tile itself opens the practice: the practice
 //      show the catalog says (the first of Survivor, The Amazing Race, The Challenge sam doesn't have) typed in, slowly enough to
-//      follow, and ringed, Where are you, its finish (isn't saved; you don't need a game), Show me: the demo adds one show, Saturday
-//      Night Live, by itself, slowly enough to follow (its Add to my shows ringed and pressed before the tap); Flip a show: Tap it
-//      shakes the corner, the tap turns sam's show over to sam's games and back, the practice shows on the shelf saying Practice; the
-//      TV guide: those shows on their nights (tagged Practice), its filters working through the tour, Sports saying it's coming; the
+//      follow, and ringed, Where are you (left a moment, its Add to my shows shakes by itself), its finish (isn't saved; you don't
+//      need a game), Show me: the demo adds one show, Saturday Night Live, by itself, slowly enough to follow (its Add to my shows
+//      ringed and pressed before the tap); Flip a show: sam's show far along a long shelf (four shows on before it: longShelf) brought
+//      into view and lit, Tap it shakes the corner, the tap turns it over to sam's games and back, the practice shows on the shelf
+//      saying Practice; the TV guide: those shows on their nights (tagged Practice), taller than the room above the lower third
+//      (the long shelf's night) with its filters kept clear of it (on All TV too), the filters working through the tour, Sports
+//      saying it's coming, a swipe across its week scrolling it (no tap; it stays put after), a sideways wheel too; the
 //      reveal: the line saying sam's real waiting episode stays sealed, Up next with
 //      results waiting on the episode the replay plays (Home drawn so for the step, then as it was), the replay of sam's last
 //      episode with nothing that would be real (no Share, no next episode), the demo's shows gone by then; Start a game: the
 //      practice show first, its rules' moment, the Prediction Sheet chosen, Create a game with AI (coming soon), Start it in sight
-//      in the sheet's foot without scrolling, its finish. One path through each practice: the search the tour's to type, another
+//      in the sheet's foot without scrolling (left a moment, the options scroll to their end and it shakes; the one thing yellow,
+//      Tell the couch neutral), its finish. One path through each practice: the search the tour's to type, another
 //      show shakes the one to tap, Back to search shakes Add to my shows, another game shakes Start it. Nothing written: no write
 //      but the tour's own and the replay's
 //      (with replay: true), and sam's follows, marks, leagues and chat as they were. The wrap: Turn on reminders first and solid,
@@ -29,7 +33,8 @@
 //   G. zt_nd_admin acting as jordan (the desk's Act as them): Home doesn't play it, and a write isn't kept.
 //   I. casey leaves Home mid-tour by a move inside the app (as the phone's back): kept as a skip at that step.
 //   H. riley in Studio: plays through, with no page errors.
-//   J. the real Start a game sheet (no tour): Create a game with AI, coming soon, for everyone; Start it in the sheet's foot.
+//   J. the real Start a game sheet (no tour): Create a game with AI, coming soon, for everyone; Start it in the sheet's foot; no
+//      practice hint (it stays put); Tell the couch keeps its yellow.
 //   L. jordan: on the first step with a real thing to tap, the plate says Tap it where Next was the step before, and a tap there
 //      (or anywhere off what's lit) shakes it and does nothing else; the skip pill (its own words) moves on (the user, 2026-11-01:
 //      Next skipped it by habit; then: Tap it mustn't do it for them). Skip tour sits at the top, far from the thumb, and a skip
@@ -39,8 +44,9 @@
 //   node scripts/lane.js dev                                  (the server, in another terminal; BASE from .env.local)
 //   node scripts/dev-test/check-new-tour.js [--width=390] [--shots=<dir>] [--keep]
 //
-// Brings new-fixture.js's couch up (its zt_nd_ people) and adds zt_nd_solo (on no couch, following its season) and zt_nd_admin
-// (a site admin); takes them all down at the end unless --keep (new-fixture's down removes every zt_nd_ account). The TV listings
+// Brings new-fixture.js's couch up (its zt_nd_ people) and adds zt_nd_solo (on no couch, following its season), zt_nd_admin
+// (a site admin) and four zt-nd-shelf shows sam follows (alex's); takes them all down at the end unless --keep (new-fixture's
+// down removes every zt_nd_ account and the zt- shows they made). The TV listings
 // are fake-listings.js with HBO's Harry Potter and Saturday Night Live under their real TVmaze ids (the demo finds them by id:
 // tour/plan.ts), SNL on next Saturday night; nothing is added from them (the practice saves nothing). Needs the real
 // Survivor, The Amazing Race or The Challenge set up as a game in the database (a copy of production has Survivor 51). Refuses a
@@ -107,6 +113,23 @@ async function rowsOf(pool, userId) {
   };
 }
 
+/** A long shelf for sam (the user, 2026-11-01: Flip a show lit nothing when the show sat far along Your shows, the shelf still
+ *  easing back from Add a show's tile at its end): four zt shows on tomorrow night, so the shelf puts them before the couch's (on in
+ *  three days), sam caught up on each. Alex's, so new-fixture's down takes them. */
+async function longShelf(pool, U) {
+  for (let i = 1; i <= 4; i++) {
+    const show = (await pool.query("INSERT INTO shows (slug, name, created_by) VALUES ($1, $2, $3) RETURNING id", [`zt-nd-shelf-${i}`, `ZT Shelf ${i}`, U.alex])).rows[0].id;
+    const season = (
+      await pool.query(
+        `INSERT INTO show_seasons (show_id, season_number, name, status, premiere_date, air_time, air_tz, episode_minutes, episode_count)
+         VALUES ($1, 1, $2, 'airing', current_date + 1 - 7, $3, 'America/New_York', 60, 10) RETURNING id`,
+        [show, `ZT Shelf ${i} 1`, `${18 + i}:00`]
+      )
+    ).rows[0].id;
+    await pool.query("INSERT INTO show_follows (user_id, season_id, seen_through, following) VALUES ($1, $2, 1, true)", [U.sam, season]);
+  }
+}
+
 // The demo's shows in the stand-in listings: HBO's Harry Potter (upcoming) and Saturday Night Live, on next Saturday night.
 const DAY = 24 * 3600 * 1000;
 function nextDay(day, hour, minute) {
@@ -145,7 +168,10 @@ function state(page, steps) {
     }
     const ring = root.querySelector("svg rect[stroke-width]");
     const n = (a) => Number(ring?.getAttribute(a) ?? 0);
+    // What the step has to tap in what's lit (the guide's filters).
+    const pr = step?.play ? hub?.querySelector(step.play)?.getBoundingClientRect() : null;
     return {
+      play: pr ? { y: pr.top - box.top, h: pr.height } : null,
       id: root.dataset.tour,
       lit: root.dataset.tourLit,
       count: root.querySelector("[data-tour-count]")?.textContent ?? "",
@@ -195,7 +221,12 @@ function stepChecks(who, s, plan, k) {
   check(s.count === `${nums[k]}/${of}` && s.title === want.title && s.line === want.line && s.beats === (beats > 1 ? beats : 0), `${label}: ${want.id}, its count and words`, `${s.count} ·${s.beats} "${s.title}" "${s.line}"`);
   check(ringFits(s), `${label}: ${s.target ? `lights ${s.target.sel}` : "lights nothing, the screen dims"}`, JSON.stringify({ lit: s.lit, ring: s.ring, target: s.target }));
   check(!s.wide, `${label}: nothing wider than the screen`);
-  check(!s.target || s.target.y + s.target.h + 6 <= s.lowerTop + 1, `${label}: what's lit is clear of the lower third`, s.target && `${Math.round(s.target.y + s.target.h)} vs ${Math.round(s.lowerTop)}`);
+  // Taller than the room above the lower third (the guide, a night with many shows): its top in sight, or on a step with things to
+  // tap in it, those (the guide's filters) clear of the lower third.
+  const tall = !!s.target && s.target.h + 12 + 32 > s.lowerTop - 10;
+  if (!tall) check(!s.target || s.target.y + s.target.h + 6 <= s.lowerTop + 1, `${label}: what's lit is clear of the lower third`, s.target && `${Math.round(s.target.y + s.target.h)} vs ${Math.round(s.lowerTop)}`);
+  else if (want.play) check(!!s.play && s.play.y >= 0 && s.play.y + s.play.h <= s.lowerTop - 1, `${label}: what's lit is taller than the room above the lower third: what's to tap in it is clear of it`, JSON.stringify({ play: s.play, lowerTop: s.lowerTop }));
+  else check(s.target.y >= -1, `${label}: what's lit is taller than the room above the lower third: its top in sight`, JSON.stringify(s.target));
   check((s.act ?? null) === (want.act?.kind ?? null) && (s.skip ?? null) === (want.act?.skip ?? null), `${label}: ${want.act ? `its real thing to tap (${want.act.kind}; "${want.act.skip}")` : "nothing to tap"}`, `${s.act} "${s.skip}"`);
 }
 
@@ -313,6 +344,7 @@ async function stepsFor(page, { solo = false, reminders = "off" } = {}) {
   U.admin = await makeUser(pool, "admin", "admin");
   // Solo: one show, as first run's "Just me for now" leaves someone (no couch, no game).
   await pool.query("INSERT INTO show_follows (user_id, season_id, seen_through, following) VALUES ($1, $2, 3, true) ON CONFLICT DO NOTHING", [U.solo, fx.seasonId]);
+  await longShelf(pool, U);
   const errors = [];
   try {
     // ---- A. sam: all of it, every real thing, to Explore ----
@@ -417,6 +449,21 @@ async function stepsFor(page, { solo = false, reminders = "off" } = {}) {
         }
         await page.click("[data-practice-pick]");
         await page.waitForSelector("[role=dialog][data-open] [data-where-save]", { timeout: 15000 });
+        // Left a moment, Add to my shows shows itself (the user: "shake Add to my shows to show it's what we need to do to progress").
+        const saveNudged = await page
+          .waitForFunction(
+            () => {
+              const b = document.querySelector("[role=dialog][data-open] [data-where-save]");
+              const r = b?.getBoundingClientRect();
+              return !!b && b.getAnimations().length > 0 && r.top >= 0 && r.bottom <= window.innerHeight;
+            },
+            null,
+            { timeout: 4000 }
+          )
+          .then(() => true, () => false);
+        check(saveNudged, "A: Where are you, left a moment: Add to my shows shakes by itself, in view");
+        await shot(page, "sam-5a-where");
+        await page.waitForFunction(() => !document.querySelector("[role=dialog][data-open] [data-where-save]")?.getAnimations().length, null, { timeout: 3000 });
         await page.click("[role=dialog][data-open] >> text=Back to search");
         const save = await moving(page, "[role=dialog][data-open] [data-where-save]");
         await page.waitForTimeout(500);
@@ -447,6 +494,14 @@ async function stepsFor(page, { solo = false, reminders = "off" } = {}) {
         if (k > 0) {
           s = await onStep(page, steps, k);
           stepChecks("sam", s, plan, k);
+          // Far along a long shelf (longShelf), the shelf at Add a show's tile the step before: brought back to it, lit whole.
+          const far = await page.evaluate(() => {
+            const all = [...document.querySelectorAll("[data-hub] [data-poster]")];
+            const p = document.querySelector("[data-hub] [data-poster]:has([data-flip])");
+            const r = p.getBoundingClientRect();
+            return { at: all.indexOf(p), left: Math.round(r.left), right: Math.round(r.right) };
+          });
+          check(far.at >= 4 && far.left >= -1 && far.right <= WIDTH + 1 && ringFits(s), `A: Flip a show: sam's show, far along the shelf (the ${far.at + 1}th), comes into view and is what's lit`, JSON.stringify({ far, ring: s.ring }));
           const shelf = await page.$$eval("[data-poster]", (p) => p.map((x) => x.getAttribute("data-poster")));
           check(demo.every((d) => shelf.includes(`tour-${d.tvmazeId}`)) && (!practice.tvmazeId || shelf.includes(`tour-${practice.tvmazeId}`)), "A: Your shows has the show you practice-added and the demo's, for now", shelf.join(", "));
           // Said as they are: practice, here for the tour (the critique: "won't show up", then they did).
@@ -505,6 +560,51 @@ async function stepsFor(page, { solo = false, reminders = "off" } = {}) {
         await page.waitForTimeout(400);
         const all = await page.getAttribute("[data-guide-tv]", "data-guide-tv");
         check(soon && all === "all" && (await tourId(page)) === "guide", "A: the TV guide's filters work through the tour, and Sports says it's coming", `${soon} ${all}`);
+        // All of TV can make the week taller: its filters stay clear of the lower third, to tap again.
+        const filtersClear = await page
+          .waitForFunction(
+            () => {
+              const f = document.querySelector("[data-hub] [data-guide-tv]")?.getBoundingClientRect();
+              const low = document.querySelector('[role="dialog"][data-tour] [data-tour-lower]')?.getBoundingClientRect();
+              return !!f && !!low && f.top >= 0 && f.bottom <= low.top - 1;
+            },
+            null,
+            { timeout: 5000 }
+          )
+          .then(() => true, () => false);
+        check(filtersClear, "A: on All TV its filters stay clear of the lower third");
+        // A swipe across the week scrolls it (the user: "allow me to scroll in the tv guide"), and is no tap: still the guide,
+        // nothing opened; it stays where it's left (the tour's hold on it isn't cut short); a sideways wheel scrolls it too.
+        await page.waitForTimeout(600);
+        const reelAt = () => page.$eval("[data-guide-reel]", (r) => Math.round(r.scrollLeft));
+        const rb = await page.$eval("[data-guide-reel]", (r) => {
+          const b = r.getBoundingClientRect();
+          return { cx: b.left + b.width / 2, y: b.top + b.height / 2, max: r.scrollWidth - r.clientWidth };
+        });
+        const x0 = await reelAt();
+        const dir = x0 > rb.max / 2 ? 1 : -1;
+        await page.mouse.move(rb.cx - dir * 80, rb.y);
+        await page.mouse.down();
+        for (let j = 1; j <= 8; j++) await page.mouse.move(rb.cx - dir * 80 + dir * 20 * j, rb.y);
+        await page.mouse.up();
+        await page.waitForTimeout(300);
+        const x1 = await reelAt();
+        const opened = !!(await page.$('[role="dialog"][data-open]:not([data-tour])'));
+        check(Math.abs(x1 - (x0 - dir * 160)) <= 4 && (await tourId(page)) === "guide" && !opened, "A: a swipe across the guide's week scrolls it, and is no tap: still the guide, nothing opened", `${x0} → ${x1}, opened ${opened}`);
+        await page.waitForTimeout(4500);
+        check(Math.abs((await reelAt()) - x1) < 3, "A: the week stays where the swipe left it while the guide's lit (it doesn't roll on)");
+        await page.evaluate(() => {
+          window.__wheels = [];
+          document.addEventListener("wheel", (e) => window.__wheels.push({ dx: e.deltaX, dy: e.deltaY, x: Math.round(e.clientX), y: Math.round(e.clientY), on: e.target?.tagName }), { capture: true, passive: true });
+        });
+        await page.mouse.wheel(dir * 100, 0);
+        await page.waitForTimeout(300);
+        const x2 = await reelAt();
+        // By the wheel's own delta (the device scale halves Playwright's 100).
+        const wheels = await page.evaluate(() => window.__wheels);
+        const by = wheels.reduce((a, w) => a + w.dx, 0);
+        check(Math.abs(by) >= 20 && Math.abs(x2 - (x1 + by)) <= 4, "A: a sideways wheel (a trackpad) scrolls the week too", `${x1} → ${x2}, by ${by}; wheels ${JSON.stringify(wheels)}`);
+        await shot(page, "sam-7a-guide-swiped");
         await page.click("[data-tour-next]");
 
         // 8: the reveal, replayed.
@@ -561,6 +661,29 @@ async function stepsFor(page, { solo = false, reminders = "off" } = {}) {
           return { foot: !!el.closest("[data-sheet-foot]"), seen: r.top >= 0 && r.bottom <= window.innerHeight };
         });
         check(go.foot && go.seen, "A: Start it sits in the sheet's foot, in sight without scrolling", JSON.stringify(go));
+        // Left a moment, the options go down to their end and Start it shakes (the user: "scroll down then shake Start it").
+        const room = await page.$eval("[role=dialog][data-open] [data-start-sheet]", (el) => el.parentElement.scrollHeight - el.parentElement.clientHeight);
+        const startNudged = await page
+          .waitForFunction(
+            () => {
+              const body = document.querySelector("[role=dialog][data-open] [data-start-sheet]")?.parentElement;
+              const go = document.querySelector("[role=dialog][data-open] [data-start-go]");
+              return !!body && !!go && body.scrollHeight - body.clientHeight - body.scrollTop <= 4 && go.getAnimations().length > 0;
+            },
+            null,
+            { timeout: 5000 }
+          )
+          .then(() => true, () => false);
+        check(startNudged && room > 2, `A: Start a game's options, left a moment: down to their end (${room}px), then Start it shakes`);
+        // Only Start it is yellow: Tell the couch, on, isn't (what's chosen in a practice can't be changed).
+        const yellow = await page.evaluate(() => {
+          const go = getComputedStyle(document.querySelector("[role=dialog][data-open] [data-start-go]")).backgroundColor;
+          const track = document.querySelector('[role=dialog][data-open] [data-start-tell="on"] > span:last-child');
+          return { go, tell: track ? getComputedStyle(track).backgroundColor : null };
+        });
+        check(!!yellow.tell && yellow.tell !== yellow.go, "A: in practice only Start it is yellow: Tell the couch, on, is neutral", JSON.stringify(yellow));
+        await shot(page, "sam-9a-nudged");
+        await page.waitForFunction(() => !document.querySelector("[role=dialog][data-open] [data-start-go]")?.getAnimations().length, null, { timeout: 3000 });
         // One path: another game (Outlast, say) stays unchosen, and Start it shakes.
         const other = await page.$('[role=dialog][data-open] [data-start-game]:not([data-start-game="questions"]):not([disabled])');
         if (other) {
@@ -847,6 +970,19 @@ async function stepsFor(page, { solo = false, reminders = "off" } = {}) {
           return { foot: !!el.closest("[data-sheet-foot]"), seen: r.top >= 0 && r.bottom <= window.innerHeight };
         });
         check(go.foot && go.seen, "J: Start it in the sheet's foot, in sight without scrolling, for everyone", JSON.stringify(go));
+        // The practice's hint is the practice's: the real sheet stays put, Start it still.
+        await page.waitForTimeout(2600);
+        const still = await page.$eval("[role=dialog][data-open] [data-start-sheet]", (el) => ({
+          top: el.parentElement.scrollTop,
+          shaking: document.querySelector("[role=dialog][data-open] [data-start-go]").getAnimations().length > 0,
+        }));
+        check(still.top === 0 && !still.shaking, "J: no practice hint in the real sheet: it stays put and Start it doesn't shake", JSON.stringify(still));
+        const tellOn = await page.evaluate(() => {
+          const go = getComputedStyle(document.querySelector("[role=dialog][data-open] [data-start-go]")).backgroundColor;
+          const track = document.querySelector('[role=dialog][data-open] [data-start-tell="on"] > span:last-child');
+          return { go, tell: track ? getComputedStyle(track).backgroundColor : null };
+        });
+        check(tellOn.tell === tellOn.go, "J: in the real sheet Tell the couch, on, keeps its yellow", JSON.stringify(tellOn));
         await shot(page, "start-game-ai");
       } finally {
         errors.push(...e.map((x) => `J: ${x}`));
