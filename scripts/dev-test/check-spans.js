@@ -181,7 +181,7 @@ function check(ok, what, detail = "") {
       await starts.scrollIntoViewIfNeeded();
       await shot("start-later");
       await wide("Start a game, starting later");
-      await first.locator("[data-start-go]").click();
+      await page.locator('[role=dialog]:has([data-start-sheet="competition"]) [data-start-go]').click();
       await page.locator("text=Outlast started").first().waitFor({ timeout: 20000 });
       await page.goto(`${BASE}/show/${sid}/games`, { waitUntil: "load" });
       await page.locator("[data-start-row]").waitFor();
@@ -199,7 +199,7 @@ function check(ok, what, detail = "") {
       await how.scrollIntoViewIfNeeded();
       await shot("start-how-long");
       await wide("Start a game");
-      await sheet.locator("[data-start-go]").click();
+      await page.locator('[role=dialog]:has([data-start-sheet="competition"]) [data-start-go]').click();
       // Already on the Games tab: the toast says it's done.
       await page.locator("text=Weekly Lineup started").first().waitFor({ timeout: 20000 });
       const { rows } = await pool.query(
@@ -423,7 +423,7 @@ function check(ok, what, detail = "") {
       await sheet.locator("[data-start-span]").scrollIntoViewIfNeeded();
       await shot("run-it-back-sheet");
       await wide("Run it back");
-      await sheet.locator("[data-start-go]").click();
+      await page.locator('[role=dialog]:has([data-start-sheet="competition"]) [data-start-go]').click();
       await page.locator("text=Weekly Lineup started").first().waitFor({ timeout: 20000 });
       const { rows: again } = await pool.query("SELECT id, state FROM leagues WHERE created_by = $1 AND state->'settings'->>'endEpisode' = '9' AND deleted_at IS NULL", [fx.users.jordan]);
       check(again.length === 1 && again[0].state.settings.startEpisode === 8 && again[0].state.settings.leagueTypeId === "active-roster", "  Start it: a Weekly Lineup over Episodes 8–9");

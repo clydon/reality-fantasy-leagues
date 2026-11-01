@@ -154,13 +154,15 @@ const useOnTv = () =>
     (): OnTv => "couch"
   );
 
-/** The guide's switch, quiet in its foot: Couch (My shows, solo) · Competitions · All TV. */
+/** The guide's switch, quiet in its foot: Couch (My shows, solo) · Competitions · All TV · Sports, which says it's coming (the
+ *  user, 2026-11-01: games by team, docs/PLAN-sports-add.md). */
 function OnTvSwitch({ on, solo }: { on: OnTv; solo: boolean }) {
   const choices: [OnTv, string][] = [
     ["couch", solo ? "My shows" : "Couch"],
     ["comps", "Competitions"],
     ["all", "All TV"],
   ];
+  const choice = "nd-press h-9 rounded-[2px] px-2 text-[12px] font-semibold transition-colors";
   return (
     <div role="radiogroup" aria-label="What the guide shows" data-guide-tv={on} className="flex flex-none gap-[2px] rounded-[3px] p-[2px] outline-1 -outline-offset-1 outline-border">
       {choices.map(([id, label]) => (
@@ -171,11 +173,14 @@ function OnTvSwitch({ on, solo }: { on: OnTv; solo: boolean }) {
           aria-checked={on === id}
           data-guide-tv-choice={id}
           onClick={() => setOnTv(id)}
-          className={`nd-press h-9 rounded-[2px] px-2 text-[12px] font-semibold transition-colors ${on === id ? "bg-secondary text-foreground" : "text-muted-foreground"}`}
+          className={`${choice} ${on === id ? "bg-secondary text-foreground" : "text-muted-foreground"}`}
         >
           {label}
         </button>
       ))}
+      <button type="button" aria-disabled data-guide-tv-soon onClick={() => toast("Sports are coming soon.")} className={`${choice} text-muted-foreground`}>
+        Sports
+      </button>
     </div>
   );
 }

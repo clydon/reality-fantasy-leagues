@@ -1,27 +1,53 @@
 // The first-time tour's steps and what its practice runs use (src/new/tour/steps.ts and plan.ts, docs/PLAN-first-time-tour.md
-// version 2): welcome, your Home, add a show, the reveal, start a game, you're set; the practice's show (the first of Survivor, The
-// Amazing Race and The Challenge you don't have, set up as a game) and the reveal to play again. Run with `npm test`.
+// version 3): welcome, up top, down Home a section a beat, then hands on (your moves, add a show, flip a show, the TV guide, the
+// reveal, start a game), you're set; the practice's show (the first of Survivor, The Amazing Race and The Challenge you don't have,
+// set up as a game) and the reveal to play again. Run with `npm test`.
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const path = require("path");
 const jiti = require("jiti")(__filename, { alias: { "@": path.join(__dirname, "..", "src") } });
-const { tourSteps } = jiti("../src/new/tour/steps.ts");
+const { numbered, tourSteps } = jiti("../src/new/tour/steps.ts");
 const { demoOf, practiceShowOf, replayOf } = jiti("../src/new/tour/plan.ts");
 
 const ids = (steps) => steps.map((s) => s.id);
 const byId = (steps) => Object.fromEntries(steps.map((s) => [s.id, s]));
-const at = (o) => ({ solo: false, reminders: "off", show: "The Amazing Race", replay: true, ...o });
+const at = (o) => ({ solo: false, reminders: "off", show: "The Amazing Race", replay: true, moves: true, flip: true, ...o });
 
-test("a couch member: seven steps, welcome first, the three practice runs in the middle, the guide after adding", () => {
+test("a couch member: up top, down Home a section a beat, then hands on, each real thing tapped by them", () => {
   const steps = tourSteps(at({}));
-  assert.deepEqual(ids(steps), ["welcome", "home", "add", "guide", "reveal", "start", "done"]);
+  assert.deepEqual(ids(steps), ["welcome", "home", "shows", "week", "feed", "more", "moves", "add", "flip", "guide", "reveal", "start", "done"]);
   const s = byId(steps);
-  assert.deepEqual([s.add.act.kind, s.reveal.act.kind, s.start.act.kind], ["add", "reveal", "start"]);
+  assert.deepEqual(
+    ["moves", "add", "flip", "reveal", "start"].map((k) => s[k].act.kind),
+    ["moves", "add", "flip", "reveal", "start"]
+  );
+  assert.deepEqual([s.add.act.skip, s.reveal.act.skip, s.start.act.skip], ["Skip adding a show", "Skip the reveal", "Skip starting a game"]);
+  assert.ok(["shows", "week", "feed", "more"].every((k) => s[k].part === "down" && s[k].optional && !s[k].act));
+  assert.equal(s.flip.tap, "[data-flip]");
+  assert.equal(s.guide.play, "[data-guide-tv]");
   assert.equal(s.home.union, true);
   assert.equal(s.add.line, "Let's add The Amazing Race. Practice: it won't show up.");
   assert.equal(s.start.line, "Make a Prediction Sheet for The Amazing Race. Practice again: it won't show up.");
   assert.match(s.reveal.line, /replays your last one/);
   assert.equal(s.done.line, "Want a nudge before your picks lock?");
+});
+
+test("the count: down Home's beats share one number, ten in all", () => {
+  const steps = tourSteps(at({}));
+  const { nums, of } = numbered(steps);
+  assert.equal(of, 10);
+  assert.deepEqual(nums, [1, 2, 3, 3, 3, 3, 4, 5, 6, 7, 8, 9, 10]);
+  // A beat this Home hasn't got is left out before the count (tour.tsx onHome): the rest close up.
+  const less = steps.filter((x) => x.id !== "more" && x.id !== "feed");
+  assert.deepEqual(numbered(less).nums.slice(0, 5), [1, 2, 3, 3, 4]);
+});
+
+test("nothing due: the moves step explains the top line, with nothing to tap; no games to flip: no flip step", () => {
+  const s = byId(tourSteps(at({ moves: false, flip: false })));
+  assert.equal(s.moves.act, undefined);
+  assert.match(s.moves.line, /shows up here/);
+  assert.equal(s.flip, undefined);
+  assert.equal(numbered(tourSteps(at({ flip: false }))).of, 9);
 });
 
 test("nothing to practise with: the add and the start in general words; nothing to replay: a made-up reveal", () => {
@@ -40,11 +66,11 @@ test("solo: no game to start without a couch, so the start step pitches one and 
 
 test("the last step asks about reminders only while this phone could get them", () => {
   assert.match(byId(tourSteps(at({ reminders: "install" }))).done.line, /Home Screen/);
-  assert.match(byId(tourSteps(at({ reminders: null }))).done.line, /Settings/);
+  assert.match(byId(tourSteps(at({ reminders: null }))).done.line, /your picture/);
 });
 
 test("every line is short, every title shorter", () => {
-  for (const o of [{}, { solo: true }, { show: null, replay: false }, { reminders: "install" }, { reminders: null }]) {
+  for (const o of [{}, { solo: true }, { show: null, replay: false }, { reminders: "install" }, { reminders: null }, { moves: false, flip: false }]) {
     for (const s of tourSteps(at(o))) {
       assert.ok(s.line.split(/\s+/).length <= 16, `${s.id}: "${s.line}" is over sixteen words`);
       assert.ok(s.title.length <= 24, `${s.id}: title "${s.title}" is long`);

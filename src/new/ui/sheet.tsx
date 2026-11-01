@@ -15,7 +15,8 @@ import { ARRIVE, SPRING } from "./swipe-pager";
 // ⋯ menu › Everything else) puts a back arrow before its title, for the sheet it came from. `stepper`: a sheet that steps through
 // a list (a player's sheet through the table): ‹ › beside Close, and a sideways swipe on its header (the user, 2026-10-31). The
 // header and what's under it follow the finger, the neighbour's name coming in at the edge; past a fifth, or on a flick, they
-// slide out the way they're going and the next one slides in from the other side; the ends stretch and spring back.
+// slide out the way they're going and the next one slides in from the other side; the ends stretch and spring back. `foot`: what
+// stays in sight under what scrolls (Start a game's Start it: the user, 2026-11-01, couldn't tell to scroll down for it).
 
 type Stepper = { prev: string | null; next: string | null; onStep: (dir: 1 | -1) => void };
 
@@ -26,6 +27,7 @@ export function Sheet({
   subtitle,
   back,
   stepper,
+  foot,
   children,
 }: {
   open: boolean;
@@ -34,6 +36,7 @@ export function Sheet({
   subtitle?: ReactNode;
   back?: { label: string; onClick: () => void };
   stepper?: Stepper;
+  foot?: ReactNode;
   children: ReactNode;
 }) {
   const popupRef = useRef<HTMLDivElement>(null);
@@ -104,7 +107,12 @@ export function Sheet({
               </Dialog.Close>
             </div>
           </div>
-          <div className={`min-h-0 overflow-y-auto overscroll-contain px-4 pb-[22px] ${stepper ? "overflow-x-hidden" : ""}`}>{stepper ? <div ref={body}>{children}</div> : children}</div>
+          <div className={`min-h-0 overflow-y-auto overscroll-contain px-4 ${foot ? "pb-3" : "pb-[22px]"} ${stepper ? "overflow-x-hidden" : ""}`}>{stepper ? <div ref={body}>{children}</div> : children}</div>
+          {foot && (
+            <div data-sheet-foot className="relative flex-none px-4 pb-4 pt-2 before:pointer-events-none before:absolute before:inset-x-0 before:bottom-full before:h-5 before:bg-gradient-to-t before:from-card before:to-transparent">
+              {foot}
+            </div>
+          )}
         </Dialog.Popup>
       </Dialog.Portal>
     </Dialog.Root>

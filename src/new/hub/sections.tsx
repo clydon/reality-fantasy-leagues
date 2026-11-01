@@ -515,7 +515,7 @@ export function YourShows({ home, hub }: { home: Home; hub: CouchHub | undefined
   const practice = usePracticeShows();
   const shows = practice.length ? [...home.shows, ...practice] : home.shows;
   return (
-    <section className="mt-8">
+    <section className="mt-8" data-your-shows>
       <SectionHead title="Your shows" aside={shows.length ? "Tap to open" : undefined} />
       <div className="flex gap-3 overflow-x-auto px-4 pb-[18px] pt-1 [scroll-snap-type:x_mandatory] [scrollbar-width:none]">
         {shelfOrder(shows).map((s) => (

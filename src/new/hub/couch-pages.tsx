@@ -123,7 +123,7 @@ export function MoreOnTheCouch({ home, hub }: { home: Home; hub: CouchHub | unde
     ...(hub?.trophies ? (["trophies"] as const) : []),
   ];
   return (
-    <section className="mt-8">
+    <section className="mt-8" data-more-couch>
       <SectionHead title="More on the couch" aside="When you want it" />
       <div className="flex flex-col border-b border-border px-4">
         {keys.map((k) => (

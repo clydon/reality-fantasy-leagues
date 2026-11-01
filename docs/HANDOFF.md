@@ -51,6 +51,22 @@ where Next was (Next there skipped the practice by habit), Skip this step sits b
 tour's own typing and taps slowed to be followed (each tap ringed and pressed in; ~19 s for the demo's two shows). check-new-tour
 119 PASS (phase L).
 
+**Version 3, the same day (branch `tour3`, lane `rfl-tour3`; PLAN-first-time-tour.md, Version 3):**
+- **Why:** the user, trying it again: Try it mustn't do the thing for them; Start a game's Start hid below the fold; and they set a
+  new order.
+- **The order:** up top, then **Down Home** (one step, a beat a section with a dot each: Your shows, This week on the couch, On the
+  couch, More on the couch), then hands on:
+  - **Your moves**, for real: the top line goes to its show, a "4/10 Back to the tour" pill sits on that page (tour/back.tsx), and
+    the tour carries on at Home without counting a skip.
+  - **Add a show.**
+  - **Flip a show:** the poster's corner turns it over to your games and back.
+  - **The TV guide:** its filters work through the tour, and a **Sports** filter says it's coming, in the guide for everyone.
+  - **The reveal**, then **Start a game**.
+- **Try it only shakes the thing to tap.** The skip pill uses its step's own words.
+- **Start a game's Start it** sits in the sheet's foot for everyone (ui/sheet.tsx `foot`).
+- **In practice, another show in Start a game's list** shakes the practice show's row instead of opening.
+- **`tour_reached`** is the count's number (10 at most).
+
 ## Next: adding sports by team (planned 2026-11-01, not started)
 The user: people search a team, not "Sunday Night Football"; show its schedule, take two teams in any order, add a series.
 **Read [PLAN-sports-add.md](PLAN-sports-add.md).** It builds on the `sports` branch's L1 part 3 (a team's ESPN schedule, matchups

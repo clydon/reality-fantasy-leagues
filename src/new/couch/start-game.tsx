@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
 import { Bell, Bot, Check, ChevronRight, Plus, Radio, RotateCcw, Sparkles, Trophy, Users } from "lucide-react";
 import { airTime, calmWhen } from "../clock";
@@ -109,12 +109,21 @@ function PickShowSheet({ open, couchId, practice, onOpenChange }: { open: boolea
     .filter((s) => (s.following || s.games.length) && s.status !== "completed" && s.release !== "binge")
     .sort((a, b) => (a.upNext?.airAt ? Date.parse(a.upNext.airAt) : Infinity) - (b.upNext?.airAt ? Date.parse(b.upNext.airAt) : Infinity));
   const practiceShow = practice?.seasonId && !shows.some((s) => s.seasonId === practice.seasonId) ? practice : null;
+  // The tour's practice is on its own show: another one tapped shakes that row instead (the tour shows what to tap: the user,
+  // 2026-11-01, picked their own show and got a sheet the tour's words didn't match).
+  const practiceRow = useRef<HTMLButtonElement>(null);
+  const toPractice = () => {
+    if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches)
+      practiceRow.current?.animate([{ transform: "none" }, { transform: "translateX(-7px)" }, { transform: "translateX(7px)" }, { transform: "translateX(-4px)" }, { transform: "none" }], { duration: 450, easing: "ease-in-out" });
+    toast.quiet(`For practice, pick ${practiceShow?.label ?? "the one you just added"}`);
+  };
   return (
     <Sheet open={open} onOpenChange={onOpenChange} title="Start a game" subtitle="Pick the show">
       <div data-start-pick className="flex flex-col pb-2">
         {practice && <PracticeStrip />}
         {practiceShow && (
           <button
+            ref={practiceRow}
             type="button"
             data-pick-show={practiceShow.seasonId}
             data-pick-practice
@@ -139,7 +148,8 @@ function PickShowSheet({ open, couchId, practice, onOpenChange }: { open: boolea
                 type="button"
                 data-pick-show={s.seasonId}
                 onClick={() => {
-                  if (ready) openStartGame({ seasonId: s.seasonId, couchId, practice });
+                  if (practiceShow) toPractice();
+                  else if (ready) openStartGame({ seasonId: s.seasonId, couchId, practice });
                   // The tour's practice stays in its sheets: Make it a game would really ask the bot.
                   else if (practice) toast.quiet("For practice, pick a show that's a game already");
                   else {
@@ -267,10 +277,27 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
     }
   };
 
+  // Start it, in the sheet's foot: in sight however long the options run (the user, 2026-11-01).
+  const go =
+    !practiced && !warming && couchId && !opts.error && o && !o.blocked ? (
+      <Btn
+        tone="must"
+        wide
+        data-start-go
+        // Not while the options reload for a new start (Include it, Starts): what's on screen is still the last one's.
+        disabled={busy || opts.isPlaceholderData || !pick || !startable.some((g) => g.key === pick) || (sheet && !askOn.length)}
+        onClick={start}
+      >
+        {again ? <RotateCcw className="size-5" aria-hidden /> : <Plus className="size-5" aria-hidden />}
+        {busy ? "Starting…" : startable.length ? "Start it" : "Coming soon"}
+      </Btn>
+    ) : null;
+
   return (
     <Sheet
       open={!!asked}
       onOpenChange={onOpenChange}
+      foot={go}
       title={practiced ? "That's how a game starts" : again ? "Run it back" : "Start a game"}
       subtitle={
         practiced
@@ -432,18 +459,6 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
                 </span>
               </button>
             )}
-            <Btn
-              tone="must"
-              wide
-              data-start-go
-              // Not while the options reload for a new start (Include it, Starts): what's on screen is still the last one's.
-              disabled={busy || opts.isPlaceholderData || !pick || !startable.some((g) => g.key === pick) || (sheet && !askOn.length)}
-              onClick={start}
-              className="mt-2"
-            >
-              {again ? <RotateCcw className="size-5" aria-hidden /> : <Plus className="size-5" aria-hidden />}
-              {busy ? "Starting…" : startable.length ? "Start it" : "Coming soon"}
-            </Btn>
           </>
         )}
       </div>

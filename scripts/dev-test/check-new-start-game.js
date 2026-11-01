@@ -349,7 +349,7 @@ function lateNight(shows) {
       await shot("start-competition");
       await wide("Start a game");
       await sheet.locator('[data-start-game="outlast"]').click();
-      await sheet.locator("[data-start-go]").click();
+      await page.locator("[role=dialog]:has([data-start-sheet]) [data-start-go]").click();
       await page.waitForURL(/\/games$/);
       await page.locator("text=Outlast started").first().waitFor();
       const { rows: started } = await pool.query("SELECT id FROM leagues WHERE created_by = $1 AND name = 'Outlast' AND deleted_at IS NULL", [fx.users.alex]);
@@ -385,7 +385,7 @@ function lateNight(shows) {
       await page.goto(`${BASE}/show/${late}/games`, { waitUntil: "load" });
       await page.locator("[data-start-row], [data-play-start]").first().click();
       await page.locator('[data-start-sheet="talk"]').waitFor();
-      check((await sheet.locator("[data-start-game][disabled]").count()) === 0 && (await sheet.locator("[data-start-go][disabled]").count()) === 0, "a talk show: Weekly Bingo and Weekly Calls can both start");
+      check((await sheet.locator("[data-start-game][disabled]").count()) === 0 && (await page.locator("[role=dialog]:has([data-start-sheet]) [data-start-go][disabled]").count()) === 0, "a talk show: Weekly Bingo and Weekly Calls can both start");
       await shot("start-talk");
       await page.keyboard.press("Escape");
 

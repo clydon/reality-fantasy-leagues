@@ -1,5 +1,52 @@
 # Plan: the first-time tour (the new design)
 
+## Version 3: down Home, then hands on (built 2026-11-01 on branch `tour3`, lane `rfl-tour3`)
+
+**Why** (the user, trying version 2 on their phone, 2026-11-01):
+- "The try it button does what we want the user to do. So instead the try it should shake the action they must do."
+- "The long start a game sheet is hard to tell you must scroll to the bottom to proceed."
+- After the top section, go down Home's sections (Your shows, This week on the couch, On the couch, More on the couch). Then back
+  to the top: tap it and it takes you to the moves you need to make. Then Add a show, with its skip "not in the finger spot that
+  continues". Then the shows' card flip ("user might not know the card flip button"), then the TV guide and its filters, with a
+  Sports filter that says it's coming.
+- Their picks (AskUserQuestion): **overview, then hands-on** (Down Home is one step with a beat per section, not four), and your
+  moves go to **the real page, then back**.
+
+**The steps** (10 when every part is there; steps.ts, numbered by `numbered`):
+
+| # | Step | What's lit | The real thing to tap (the plate's Try it only shakes it) |
+|---|---|---|---|
+| 1 | **Welcome** card | (a card over Home) | Show me around |
+| 2 | **Your Home:** "What needs you is always up top." | the status line and Up next | (Next) |
+| 3 | **Down Home**, a beat each, a dot each under "3/10": Your shows · This week on the couch · On the couch · More on the couch | each section in turn (one this Home hasn't got is left out; solo: in the page's order) | (Next from beat to beat) |
+| 4 | **Your moves:** "Tap the top line: it takes you straight to what needs you." | the status line | the line itself: its own page for real, a **"4/10 Back to the tour"** pill under the header there (tour/back.tsx), Back to Home, the step ticks and the tour carries on (not a skip). Nothing due: "When something needs you, it shows up here." and Next |
+| 5 | **Add a show** (practice, as version 2) | the Add a show tile | the tile; "Skip adding a show" |
+| 6 | **Flip a show:** "Tap a show's corner to see your games on it." | a show of yours that has the corner | the show: it turns over to your games, 2.6 s, and back. Only when a show has your games |
+| 7 | **The TV guide:** "Shows you add land here, for your couch too. Filter it below." | the guide (the demo's shows still in it) | its filters, for real through the tour (`play`); **Sports** says "Sports are coming soon." (in the guide for everyone) |
+| 8 | **Results wait for you** (the replay, as version 2) | Up next's Reveal | Reveal; "Skip the reveal" |
+| 9 | **Start a game** (practice, as version 2) | Home's Start a game | the button; "Skip starting a game" |
+| 10 | **You're set** | nothing | Turn on reminders, Explore |
+
+**How it behaves:**
+- **On a step with something to do**, the plate says **Try it** with an up arrow where Next is on the others. It, or a tap anywhere
+  off what's lit, **shakes the thing to tap** (Web Animations; under reduced motion only the ring blinks). Only a tap on what's
+  lit does it, so a thumb's habit never does it by accident and the tour never does it for them.
+- **The skip pill** sits up top left by Skip tour, in its step's words. During a tick nothing moves on or starts again.
+- **Start a game's Start it** lives in the sheet's foot (ui/sheet.tsx `foot`), so it's in sight however long the options run. This
+  holds in the real sheet for everyone.
+- **In the practice's Pick the show,** another of your shows shakes the practice show's row (with "For practice, pick The Amazing
+  Race 39") instead of opening. The user's phone run showed why: they picked their own Survivor, and its sheet didn't match the
+  tour's words.
+- **`tour_reached`** keeps the step number as the count shows it (Down Home's beats are one).
+
+**Checks:**
+- `check-new-tour.js`, rewritten for version 3 (A to L): 175 PASS. It covers each real tap, the visit and its way back, the flip,
+  the filters through the tour, Start it in the foot, and Try it shaking at the thumb's spot.
+- `tests/tour-steps.test.js`: 17.
+- The regressions with the Start button's new place (their selectors now look in the dialog): check-new-start-game 75,
+  -phase-starts 57, -spans 98, -questions 97. Also check-new-guide 67, -hub 106, -watching 116.
+- `npm test` 1239 of 1240 (the known watch-along one) and `next build`.
+
 ## Version 2: welcome first, with practice runs (built 2026-11-01 on branch `tour2`, lane `rfl-tour2`; merged and pushed the same day)
 
 **Status:** live: merged to master and pushed 2026-11-01 with the user's go-ahead ("Merge and push once it's in"), no migration,

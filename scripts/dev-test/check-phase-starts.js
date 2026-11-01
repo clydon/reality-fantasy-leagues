@@ -156,7 +156,7 @@ function check(ok, what, detail = "") {
       await starts.scrollIntoViewIfNeeded();
       await shot(page, "start-when-merged");
       await wide(page, "Start a game, when Merged starts");
-      await sheet.locator("[data-start-go]").click();
+      await page.locator('[role=dialog]:has([data-start-sheet="competition"]) [data-start-go]').click();
       await page.locator("text=Weekly Lineup started").first().waitFor({ timeout: 20000 });
       const { rows } = await pool.query("SELECT id FROM leagues WHERE created_by = $1 AND state->'settings'->>'startPhase' = 'merged' AND deleted_at IS NULL", [fx.users.jordan]);
       LINEUP = rows[0]?.id ?? null;

@@ -40,14 +40,39 @@ export function clearTourAsk() {
   emit();
 }
 
+const subscribe = (l: () => void) => {
+  listeners.add(l);
+  return () => void listeners.delete(l);
+};
+
 /** Whether the tour's been asked for, as it changes. */
 export function useTourAsked(): boolean {
+  return useSyncExternalStore(subscribe, tourAsked, () => false);
+}
+
+// The tour waiting on another page (a step that goes there for real: your moves, tour.tsx), to carry on from that step when Home's
+// back: its run (tour.tsx's own), the step and its count ("4/10") for the Back to the tour pill (back.tsx). This page only: a reload
+// starts the tour over.
+export type TourVisit = { at: number; count: string; run: unknown };
+let visit: TourVisit | null = null;
+
+export function setTourVisit(v: TourVisit | null) {
+  visit = v;
+  emit();
+}
+
+/** The waiting tour, taken: Home carries on with it. */
+export function takeTourVisit() {
+  const v = visit;
+  visit = null;
+  emit();
+  return v;
+}
+
+export function useTourVisit(): TourVisit | null {
   return useSyncExternalStore(
-    (l) => {
-      listeners.add(l);
-      return () => listeners.delete(l);
-    },
-    tourAsked,
-    () => false
+    subscribe,
+    () => visit,
+    () => null
   );
 }

@@ -367,6 +367,9 @@ Last updated 2026-10-27.
     - **The desk's New show keeps the admin as the show's adder** (`shows.created_by`), so its seasons aren't "curated" and first
       run's wall leaves them out (The Amazing Race 39 is one). If a show the desk adds should be on the wall, New show could
       leave `created_by` empty. **When:** the next desk shows change.
+    - **The guide's foot takes two lines at 390 since Sports joined its filters** (version 3: Couch · Competitions · All TV ·
+      Sports, then Add a show wrapped under them). Fine as it stands; if the foot should stay one line, Add a show could shrink to
+      its icon there, or Sports go once sports are added by team (docs/PLAN-sports-add.md). **When:** that plan's UI step.
     - **A poster for a premiere weeks away says only its weekday** ("Season 1 · Fri" for HBO's Harry Potter on Dec 25, seen in the
       tour's demo): Your shows' poster takes `day()` of the next episode however far off. A date past a week ("Dec 25") would read
       better, for every show coming back. **When:** the next Your shows change.
