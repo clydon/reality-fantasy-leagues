@@ -1,9 +1,10 @@
 # Plan: the first-time tour (the new design)
 
-## Version 2: welcome first, with practice runs (built 2026-11-01 on branch `tour2`, lane `rfl-tour2`; not merged)
+## Version 2: welcome first, with practice runs (built 2026-11-01 on branch `tour2`, lane `rfl-tour2`; merged and pushed the same day)
 
-**Status:** built and checked on the lane (`check-new-tour.js` 108 PASS, twice; `npm test` 1237 of 1238, the one failing on master
-too); waiting on the user's OK to merge and push, and on the practice shows' data in production (below). No migration.
+**Status:** live: merged to master and pushed 2026-11-01 with the user's go-ahead ("Merge and push once it's in"), no migration,
+after the practice show's data went into production (below). Checked on the lane: `check-new-tour.js` (phases A to K), `npm test`
+1237 of 1238 (the one failing on master too), `next build`.
 
 **Why:** the night after version 1 went live the user found it too passive, turned down a version where players tap pretend examples
 ("act something out with no payoff... nope"), tried one where each tap opened the real thing, and then asked for something plainer:
@@ -24,6 +25,9 @@ they set the real version's rules (2026-11-01):
   **"Coming soon: create a game with AI"**, in the tour and in the real Start a game sheet, for everyone.
 - **Join a game:** dropped.
 - **Remind them** that the show and the game they add in the tour won't show up: it's a demonstration.
+- **Take it again** from the menu behind your picture on Home (Take the tour, beside Settings: Home plays it as the menu closes), as
+  well as Settings › Help and account or `/home?tour=1`; its end says "Tap your picture to take the tour again." (the user,
+  2026-11-01: "restarted and manually started again from the first level menu when pressing your profile image").
 
 ### The steps (7; the last asks about reminders only while this phone could get them)
 
@@ -80,11 +84,15 @@ current season is ready (from the catalog): the couch all play Survivor 51, so f
 need their current seasons set up in production through the app (the desk, or Make it a game ahead of time), with the user. Until then
 the couch's tour adds "any show you watch" (nothing typed) and Start a game's practice uses a show of theirs.
 
-Production's catalog on 2026-11-01 (read through the user's signed-in Chrome, nothing changed): Survivor 51 only. The Amazing Race's
-show is set up, curated and linked to its listing (TVmaze 18) with no season (as in the local copy), and a season of a set-up show is
-ready as soon as it's there (the catalog's `ready` is the show's `set_up_at`), so **adding The Amazing Race 39** (on now, Sep 29 to
-Dec 9) is the whole step: Add a show from any account makes its season row (and follows it for that account, which can let it go
-after). The Challenge 42 ended 2026-10-28, so it's no practice show until its next season.
+**Done in production, 2026-11-01** (the user: "You can add it to production... I just want the show's data to be ready"; through
+their signed-in Chrome). Production's catalog had Survivor 51 only, and unlike the local copy **no Amazing Race show at all**. The
+desk's New show added it from its listing (TVmaze 18: a new show with its season 39, on now, Sep 29 to Dec 9, following nothing),
+then Make it a game with the bot (Ask ChatGPT for me): a competition, 26 racers, Survival Pool, Weekly Lineup, Outlast and the
+Prediction Sheet (seven questions); approved as drafted. Now the catalog has **The Amazing Race 39 ready** (airing, six aired), on
+nobody's Home (no one follows it) and not on first run's wall (the desk's add keeps who made the show, so it isn't "curated"); Start
+a game on the couch offers all four games. The couch all play Survivor 51, so their practice show is The Amazing Race 39. The
+Challenge 42 ended 2026-10-28, so it's no practice show until its next season. (The catalog is edge-cached for five minutes, ten more
+stale: a new game shows within a quarter of an hour.)
 
 ### As built
 
@@ -98,7 +106,10 @@ after). The Challenge 42 ended 2026-10-28, so it's no practice show until its ne
   `TourReveal`), `data.ts` (`revealEpisode(..., { replay })`), the reveal route and `season-episodes.ts revealSeason` (`replay`),
   `server/listings.ts` (`ListingSeason.next`: the next episode to air), `hub/guide.tsx` (the demo's shows; the hold), `hub/sections.tsx`
   (Your shows: the demo's shows).
-- Checks: `scripts/dev-test/check-new-tour.js` (rewritten: phases A to J, 108 PASS at 390), `tests/tour-steps.test.js` (15).
+- `tour/store.ts` (the ask to play it again, heard at once by Home's tour: `useTourAsked`), `hub/profile.tsx` (Take the tour beside
+  Settings in the menu behind your picture).
+- Checks: `scripts/dev-test/check-new-tour.js` (rewritten: phases A to K at 390; K is your picture's Take the tour),
+  `tests/tour-steps.test.js` (15).
 
 ## Version 1 (live since 2026-10-31)
 

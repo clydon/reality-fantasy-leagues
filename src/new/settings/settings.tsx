@@ -229,7 +229,7 @@ export function SettingsScreen() {
             <Row
               icon={Compass}
               title="Take the tour"
-              detail="A quick look around Home, about a minute"
+              detail="A quick look around Home, a couple of minutes"
               onClick={() => {
                 // Home plays it (tour/store.ts), back where Settings came from.
                 askTour();

@@ -18,7 +18,7 @@ import type { AddDemo } from "../watching/sheets";
 import { demoOf, MADE_UP_REVEAL, MADE_UP_SHOW, practiceShowOf, replayOf, type PracticeShow, type ReplayOf } from "./plan";
 import { practiceShow, setPracticeShows } from "./practice-shows";
 import { tourSteps, type TourReminders, type TourStep } from "./steps";
-import { clearTourAsk, tourAsked } from "./store";
+import { clearTourAsk, useTourAsked } from "./store";
 import { Welcome } from "./welcome";
 
 // The first-time tour (docs/PLAN-first-time-tour.md version 2, the user's own outline, 2026-11-01): a welcome card (what the app is,
@@ -34,8 +34,8 @@ import { Welcome } from "./welcome";
 // the target has arrived; a target on the same screen gets a glide instead. Back to the top at the end.
 //
 // It plays once an account (Home's read says `tourSeen`; finished or skipped, it's kept: data.ts useTourSeen), never while an
-// admin acts as someone or views as a player, never over a sheet or a pushed page; again from Settings (store.ts) or
-// /home?tour=1. While it's up (and not stepped aside), Home underneath is inert and doesn't scroll by hand.
+// admin acts as someone or views as a player, never over a sheet or a pushed page; again from the menu behind your picture or
+// Settings (store.ts), or /home?tour=1. While it's up (and not stepped aside), Home underneath is inert and doesn't scroll by hand.
 
 const FIRST_BEAT = 500;
 const LIGHT_OFF = 260;
@@ -167,19 +167,18 @@ export function Tour({ home, hub, solo }: { home: Home | undefined; hub: CouchHu
   const [phone] = usePhone();
   const seen = useTourSeen();
   const couch = useCurrentCouch(home);
-  const [forced, setForced] = useState(tourAsked);
+  const asked = useTourAsked();
   const [run, setRun] = useState<Run | null>(null);
   const [tries, setTries] = useState(0);
   const [waited, setWaited] = useState(false);
   const linked = params.get("tour") === "1";
   const page = params.get("page");
   useEffect(() => {
-    clearTourAsk();
     // The couch's own read and the catalog get a moment; past it, the tour goes on without them.
     const t = setTimeout(() => setWaited(true), 2500);
     return () => clearTimeout(t);
   }, []);
-  const want = forced || linked || (home?.user.tourSeen === false && !me.impersonating && !me.viewingAs);
+  const want = asked || linked || (home?.user.tourSeen === false && !me.impersonating && !me.viewingAs);
   // The practice's show comes from the catalog, read only when the tour's due.
   const catalog = useCatalog(want).data?.seasons;
   // Home on screen (ui/loaded.tsx shows it all at once, its reads in), and nothing opened over it.
@@ -195,6 +194,8 @@ export function Tour({ home, hub, solo }: { home: Home | undefined; hub: CouchHu
         const practice = catalog ? practiceShowOf(catalog, home) : null;
         const replay = replayOf(home);
         setRun({ steps: tourSteps({ solo, reminders, show: practice?.name ?? null, replay: !!replay }), reminders, practice, replay, demo: demoOf(home) });
+        // Asked for (your picture's menu, Settings): heard, so the next Home doesn't play it again.
+        clearTourAsk();
         if (linked) {
           const url = new URL(window.location.href);
           url.searchParams.delete("tour");
@@ -208,10 +209,10 @@ export function Tour({ home, hub, solo }: { home: Home | undefined; hub: CouchHu
   const done = useCallback(
     (reached: number, how: Ending) => {
       setRun(null);
-      setForced(false);
+      clearTourAsk();
       void seen(reached);
       // Turn on says its own (remind.tsx turnOn: on, or why not).
-      if (how !== "on") toast("Take the tour again anytime in Settings.");
+      if (how !== "on") toast("Tap your picture to take the tour again.");
     },
     [seen]
   );

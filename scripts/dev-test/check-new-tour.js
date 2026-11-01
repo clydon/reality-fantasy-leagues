@@ -11,6 +11,7 @@
 //      Explore keeps it (seen, every step); Home doesn't play it again.
 //   B/C. alex: Skip on the welcome card keeps it (step 1); Settings › Take the tour plays it again; Escape skips it.
 //   D. sam: /home?tour=1 plays it and takes ?tour off the address.
+//   K. sam: the menu behind your picture › Take the tour plays it there and then; once played, a reload doesn't play it again.
 //   E. zt_nd_solo (no couch, one show, no game): no Start a game practice (the couch pitched), a made-up reveal (no server call);
 //      Turn on ends it.
 //   F. riley with reduced motion: each step lit at once; Start a game's rules moment still shows (a pause, not a movement).
@@ -349,7 +350,7 @@ async function stepsFor(page, { solo = false, reminders = "off" } = {}) {
         check(!!(await page.$("[data-tour-on]")) && !!(await page.$("[data-tour-explore]")), "A: the last step: Turn on reminders · Explore");
         await shot(page, "sam-7-done");
         const status = await endWith(page, () => page.click("[data-tour-explore]"));
-        check(status === 200 && /Take the tour again/.test((await page.textContent('[data-toast="done"]').catch(() => "")) ?? ""), "A: Explore ends it, and says where it lives", String(status));
+        check(status === 200 && /your picture to take the tour again/.test((await page.textContent('[data-toast="done"]').catch(() => "")) ?? ""), "A: Explore ends it, and says where it lives", String(status));
         const row = await tourOf(pool, U.sam);
         check(!!row.tour_seen_at && row.tour_reached === steps.length, "A: kept for the account, every step", JSON.stringify(row));
 
@@ -408,6 +409,28 @@ async function stepsFor(page, { solo = false, reminders = "off" } = {}) {
         await endWith(page, () => page.click("[data-tour-welcome] [data-tour-skip]"));
       } finally {
         errors.push(...e.map((x) => `D: ${x}`));
+        await close();
+      }
+    }
+
+    // ---- K. sam: your picture › Take the tour, on Home itself ----
+    {
+      const { page, errors: e, BASE, close } = await session("sam");
+      try {
+        await page.goto(BASE + "/home", { waitUntil: "domcontentloaded" });
+        await noTour(page, "K: sam's seen it, so Home doesn't play it by itself");
+        await page.click('button[aria-label="Your profile"]');
+        await page.click("[role=dialog][data-open] [data-take-tour]", { timeout: 8000 });
+        await welcome(page);
+        check(/\/home$/.test(page.url()) && !(await page.$("[role=dialog][data-open] [data-take-tour]")), "K: your picture › Take the tour: the menu closes and the tour plays on Home", page.url());
+        await shot(page, "sam-picture-tour");
+        await page.click("[data-tour-go]");
+        await page.waitForFunction(() => document.querySelector('[role="dialog"][data-tour]')?.dataset.tour === "home", null, { timeout: 8000 });
+        await endWith(page, () => page.keyboard.press("Escape"));
+        await page.reload({ waitUntil: "domcontentloaded" });
+        await noTour(page, "K: once it's played, a reload doesn't play it again");
+      } finally {
+        errors.push(...e.map((x) => `K: ${x}`));
         await close();
       }
     }
