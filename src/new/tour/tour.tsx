@@ -24,10 +24,12 @@ import { Welcome } from "./welcome";
 // The first-time tour (docs/PLAN-first-time-tour.md version 2, the user's own outline, 2026-11-01): a welcome card (what the app is,
 // its three ideas), then the real Home a step at a time, each lighting the thing it's about with a lower third at the phone's foot (a
 // Skip tour pill and the caption plate: the count on a quiet tag, the title, the line, Next). Three steps can be tried for real with
-// nothing saved (steps.ts `act`, its button under the plate or a tap on what's lit): Add a show and Start a game open their real
-// sheets as practice (watching/sheets.tsx, couch/start-game.tsx), the reveal plays your last one again or a made-up one
-// (show/reveal.tsx TourReveal). While one's up the tour steps aside; when it closes the step ticks (its count turns green) and the
-// next comes on. Next is the bone ink button, never yellow: the tour teaches that yellow is your move.
+// nothing saved (steps.ts `act`): Add a show and Start a game open their real sheets as practice (watching/sheets.tsx,
+// couch/start-game.tsx), the reveal plays your last one again or a made-up one (show/reveal.tsx TourReveal). On those the plate
+// itself says Try it, where Next is on the others, so the tap a thumb makes from habit tries it (the user, 2026-11-01: Next there
+// skipped it by accident); a tap on what's lit tries it too, Skip this step (by Skip tour) moves on without it, and a tap anywhere
+// else only shakes the plate. While one's up the tour steps aside; when it closes the step ticks (its count turns green) and the
+// next comes on. The plate is bone ink, never yellow: the tour teaches that yellow is your move.
 //
 // Moving between steps looks the way a person moves (the user, 2026-10-31): the light goes off, the whole Home shows while the
 // page scrolls (eased in and out, slower for further; a shelf scrolls sideways to its card), and the spotlight comes on once
@@ -41,8 +43,10 @@ const FIRST_BEAT = 500;
 const LIGHT_OFF = 260;
 const LIGHT_ON = 120;
 const GLIDE = 420;
-const TICK = 650;
+const TICK = 1000;
 const PAD = 6;
+/** Skip tour's and Skip this step's pill. */
+const PILL = "grid h-[30px] place-items-center rounded-full bg-background px-3.5 text-[13px] font-bold shadow-plate outline-1 -outline-offset-1 outline-edge";
 
 type Rect = { x: number; y: number; w: number; h: number };
 type Ending = "skip" | "done" | "on";
@@ -232,6 +236,7 @@ function Running({ run, home, couch, onDone, onLeft }: { run: Run; home: Home; c
   const [shown, setShown] = useState(false);
   const [away, setAway] = useState(false);
   const [ticked, setTicked] = useState(false);
+  const [shake, setShake] = useState(false);
   const [revealing, setRevealing] = useState<TourRevealPlay | null>(null);
   const root = useRef<HTMLDivElement>(null);
   const lower = useRef<HTMLDivElement>(null);
@@ -243,6 +248,8 @@ function Running({ run, home, couch, onDone, onLeft }: { run: Run; home: Home; c
   const moving = useRef(false);
   const leaving = useRef(false);
   const stepped = useRef(false);
+  /** Back from a practice run, its tick showing: no tap moves on (the next step's coming) or tries it again. */
+  const ticking = useRef(false);
   const at = useRef(0);
   /** Home's foot while the tour's up (room to scroll its last rows clear of the lower third), and what it was. */
   const room = useRef<{ el: HTMLElement; was: string } | null>(null);
@@ -396,8 +403,10 @@ function Running({ run, home, couch, onDone, onLeft }: { run: Run; home: Home; c
     if (leaving.current) return;
     document.querySelector(".nd")?.setAttribute("inert", "");
     // The tick is a state, not a movement: it shows under reduced motion too.
+    ticking.current = true;
     setTicked(true);
     setTimeout(() => {
+      ticking.current = false;
       setTicked(false);
       next();
     }, TICK);
@@ -405,7 +414,7 @@ function Running({ run, home, couch, onDone, onLeft }: { run: Run; home: Home; c
   // A practice run: the tour steps aside (Home in reach again) and the real thing opens; its close brings the tour back.
   const act = () => {
     const a = steps[at.current].act;
-    if (!a || leaving.current || moving.current || stepped.current) return;
+    if (!a || leaving.current || moving.current || stepped.current || ticking.current) return;
     stepped.current = true;
     setAway(true);
     document.querySelector(".nd")?.removeAttribute("inert");
@@ -482,8 +491,8 @@ function Running({ run, home, couch, onDone, onLeft }: { run: Run; home: Home; c
     };
   }, [steps, draw]);
 
-  // Keys: Escape skips; the right arrow, or Enter and Space on the tour itself, go on; the keys that would scroll Home don't.
-  // Not while a practice run's up: it has its own.
+  // Keys: Escape skips; the right arrow goes on; Enter and Space on the tour itself do what its plate does (Try it, or Next); the
+  // keys that would scroll Home don't. Not while a practice run's up: it has its own.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (stepped.current) return;
@@ -493,7 +502,8 @@ function Running({ run, home, couch, onDone, onLeft }: { run: Run; home: Home; c
       } else if (e.key === "ArrowRight" || ((e.key === "Enter" || e.key === " ") && e.target === root.current)) {
         e.preventDefault();
         if (at.current === 0) around();
-        else if (!last) next();
+        else if (e.key !== "ArrowRight" && step.act) act();
+        else if (!last && !ticking.current) next();
       } else if (["ArrowDown", "ArrowUp", "PageDown", "PageUp", "Home", "End"].includes(e.key)) e.preventDefault();
     };
     window.addEventListener("keydown", onKey);
@@ -505,7 +515,8 @@ function Running({ run, home, couch, onDone, onLeft }: { run: Run; home: Home; c
     root.current?.focus({ preventScroll: true });
   }, []);
 
-  /** A tap: on what's lit, its practice run when the step has one; anywhere else, on to the next. */
+  /** A tap: on what's lit, its practice run when the step has one; anywhere else, on to the next, or on a step with a practice
+   *  run a shake of the plate that tries it (a stray tap mustn't skip it). */
   const onTap = (e: MouseEvent) => {
     if (at.current === 0 || stepped.current || (e.target as HTMLElement).closest("button, a")) return;
     const h = hole.current;
@@ -515,10 +526,13 @@ function Running({ run, home, couch, onDone, onLeft }: { run: Run; home: Home; c
       const y = e.clientY - box.top;
       if (x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h) return act();
     }
-    if (!last) next();
+    if (step.act) return setShake(true);
+    if (!last && !ticking.current) next();
   };
 
   const asks = last && reminders === "off";
+  // A step with a practice run: the plate tries it.
+  const tries = step.act && !last ? step.act : null;
   return (
     <div
       ref={root}
@@ -568,23 +582,30 @@ function Running({ run, home, couch, onDone, onLeft }: { run: Run; home: Home; c
       </svg>
 
       <div ref={lower} data-tour-lower className="absolute inset-x-4 bottom-[calc(14px+env(safe-area-inset-bottom,0px))] grid cursor-default gap-2">
-        <button
-          type="button"
-          data-tour-skip
-          onClick={() => finish("skip")}
-          className={`-mb-2 -mr-1.5 grid h-11 place-items-center justify-self-end px-1.5 transition-opacity duration-300 ${shown ? "opacity-100 delay-300" : "opacity-0"}`}
-        >
-          <span className="grid h-[30px] place-items-center rounded-full bg-background px-3.5 text-[13px] font-bold shadow-plate outline-1 -outline-offset-1 outline-edge">Skip tour</span>
-        </button>
+        <div className={`-mb-2 flex items-center justify-between transition-opacity duration-300 ${shown ? "opacity-100 delay-300" : "opacity-0"}`}>
+          {tries ? (
+            // Moving on without trying it: up here, away from where a thumb taps Next from habit.
+            <button type="button" data-tour-next onClick={() => !ticking.current && next()} className="-ml-1.5 grid h-11 place-items-center px-1.5">
+              <span className={PILL}>Skip this step</span>
+            </button>
+          ) : (
+            <span />
+          )}
+          <button type="button" data-tour-skip onClick={() => finish("skip")} className="-mr-1.5 grid h-11 place-items-center px-1.5">
+            <span className={PILL}>Skip tour</span>
+          </button>
+        </div>
 
         <button
           type="button"
-          data-tour-next
+          data-tour-next={tries ? undefined : true}
+          data-tour-act={tries?.kind}
           disabled={last}
-          onClick={() => !last && next()}
+          onClick={() => (tries ? act() : !last && !ticking.current && next())}
+          onAnimationEnd={(e) => e.animationName === "nd-shake" && setShake(false)}
           className={`flex min-h-[68px] w-full items-stretch overflow-hidden rounded-[3px] bg-plate text-left text-plate-foreground shadow-plate transition-[opacity,transform] duration-500 ease-[cubic-bezier(.16,1,.3,1)] disabled:cursor-default ${
             shown ? "translate-y-0 opacity-100" : "translate-y-[18px] opacity-0"
-          }`}
+          } ${shake ? "nd-shake" : ""}`}
         >
           <span
             data-tour-count={ticked ? "done" : `${i + 1}/${n}`}
@@ -608,17 +629,11 @@ function Running({ run, home, couch, onDone, onLeft }: { run: Run; home: Home; c
           </span>
           {!last && (
             <span className="flex items-center gap-0.5 border-l border-plate-muted/25 pl-3 pr-3 text-[15px] font-bold">
-              Next
+              {tries ? tries.label : "Next"}
               <NextArrow />
             </span>
           )}
         </button>
-
-        {step.act && !last && (
-          <Btn wide data-tour-act={step.act.kind} onClick={act} className={`transition-opacity duration-300 ${shown ? "opacity-100" : "opacity-0"}`}>
-            {step.act.label}
-          </Btn>
-        )}
 
         {last && (
           <div className={`grid gap-2 ${asks ? "grid-cols-2" : ""}`}>

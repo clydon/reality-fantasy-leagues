@@ -195,9 +195,15 @@ type Step =
 /** "Harry Potter and Sunday Night Football", "A, B and C". */
 const listOf = (names: string[]) => (names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : (names[0] ?? ""));
 
-/** How long the tour's typing waits for the sheet to come up, then takes a letter. */
-const TYPE_AFTER = 450;
-const TYPE_EACH = 55;
+/** The tour's own doing, slow enough to follow (the user, 2026-11-01): the typing's wait for the sheet to come up, then a letter;
+ *  a row or button ringed before it's tapped, the tap pressed in, Where are you seen before its button's ringed, and what was
+ *  added held long enough to read. */
+const TYPE_AFTER = 900;
+const TYPE_EACH = 100;
+const RING = 1500;
+const PRESS = 220;
+const SEE = 1000;
+const READ = 1700;
 
 function AddShowSheet({ open, practice, onOpenChange }: { open: boolean; practice?: AddPractice; onOpenChange: (o: boolean) => void }) {
   const { data: home } = useHome();
@@ -311,11 +317,23 @@ function AddShowSheet({ open, practice, onOpenChange }: { open: boolean; practic
   };
   // The practice's demo (the user, 2026-11-01): after yours, a couple more the tour adds by itself (a show that's no game, a
   // ballgame), every step the real one: the name typed, its row ringed and tapped, Where are you, Add to my shows (still saving
-  // nothing). A row that doesn't come (the listings down) is passed over.
+  // nothing), each slow enough to follow. A row that doesn't come (the listings down) is passed over.
   const runDemo = async () => {
     const run = ++run_.current;
     const alive = () => run === run_.current;
-    const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, reduce ? Math.min(ms, 60) : ms));
+    // Reduced motion: the name goes in at once, but each screen gets the same time to be read.
+    const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+    /** The tour's tap, seen: what it's about to tap ringed (a row by `ringed`, a button here), pressed in, then tapped. */
+    const tap = async (el: HTMLElement | null, ring: boolean) => {
+      if (!el) return;
+      if (ring) {
+        el.setAttribute("data-tour-tap", "ring");
+        await sleep(RING * 0.6);
+      }
+      el.setAttribute("data-tour-tap", "press");
+      await sleep(PRESS);
+      el.removeAttribute("data-tour-tap");
+    };
     const added: string[] = [];
     const ids: number[] = [];
     demoing.current = true;
@@ -324,12 +342,14 @@ function AddShowSheet({ open, practice, onOpenChange }: { open: boolean; practic
       setStep(null);
       setRingedKey(null);
       setQ("");
-      await sleep(400);
-      for (let i = 1; i <= d.query.length; i++) {
-        if (!alive()) return;
-        setQ(d.query.slice(0, i));
-        await sleep(TYPE_EACH);
-      }
+      await sleep(TYPE_AFTER);
+      if (reduce) setQ(d.query);
+      else
+        for (let i = 1; i <= d.query.length; i++) {
+          if (!alive()) return;
+          setQ(d.query.slice(0, i));
+          await sleep(TYPE_EACH);
+        }
       let row: SearchRow | null = null;
       for (let t = 0; t < 80 && !row; t++) {
         await sleep(100);
@@ -338,7 +358,9 @@ function AddShowSheet({ open, practice, onOpenChange }: { open: boolean; practic
       }
       if (!row) continue;
       setRingedKey(row.key);
-      await sleep(1000);
+      await sleep(RING);
+      if (!alive()) return;
+      await tap(document.querySelector<HTMLElement>("[role=dialog][data-open] [data-practice-pick]"), false);
       if (!alive()) return;
       setRingedKey(null);
       pick(row);
@@ -350,7 +372,9 @@ function AddShowSheet({ open, practice, onOpenChange }: { open: boolean; practic
         save = document.querySelector<HTMLButtonElement>("[role=dialog][data-open] [data-where-save]");
       }
       if (save) {
-        await sleep(1300);
+        await sleep(SEE);
+        if (!alive()) return;
+        await tap(save, true);
         if (!alive()) return;
         save.click();
         await sleep(200);
@@ -359,7 +383,7 @@ function AddShowSheet({ open, practice, onOpenChange }: { open: boolean; practic
       if (now?.kind === "practiced") {
         added.push(now.label);
         ids.push(d.tvmazeId);
-        await sleep(1000);
+        await sleep(READ);
       }
     }
     if (!alive()) return;

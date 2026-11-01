@@ -624,6 +624,16 @@ html[data-nav="right"] .nd-dock {
 .nd-tour-pulse {
   animation: nd-tour-pulse 1.6s cubic-bezier(0.16, 1, 0.3, 1) infinite;
 }
+/* Add a show's demo tapping for you (watching/sheets.tsx runDemo): what it's about to tap ringed, then pressed in, so each tap
+   is seen (the user, 2026-11-01). Reduced motion: the ring, no press. */
+[data-tour-tap] {
+  outline: 2px solid var(--foreground);
+  outline-offset: 2px;
+  transition: transform 0.14s cubic-bezier(0.16, 1, 0.3, 1);
+}
+[data-tour-tap="press"] {
+  transform: scale(0.97);
+}
 @media (prefers-reduced-motion: reduce) {
   .nd-tour-rise,
   .nd-tour-pulse {
@@ -631,5 +641,8 @@ html[data-nav="right"] .nd-dock {
   }
   .nd-tour-pulse {
     opacity: 0;
+  }
+  [data-tour-tap="press"] {
+    transform: none;
   }
 }

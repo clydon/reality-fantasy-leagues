@@ -4,7 +4,9 @@
 
 **Status:** live: merged to master and pushed 2026-11-01 with the user's go-ahead ("Merge and push once it's in"), no migration,
 after the practice show's data went into production (below). Checked on the lane: `check-new-tour.js` (phases A to K), `npm test`
-1237 of 1238 (the one failing on master too), `next build`.
+1237 of 1238 (the one failing on master too), `next build`. **Follow-up the same day** (branch `tour3`, after the user tried it on
+their phone): on a step with a practice run the plate tries it instead of Next, and the tour's own typing and tapping slowed down
+to be followed (A step with a practice run; Slow enough to follow); check-new-tour phase L.
 
 **Why:** the night after version 1 went live the user found it too passive, turned down a version where players tap pretend examples
 ("act something out with no payoff... nope"), tried one where each tap opened the real thing, and then asked for something plainer:
@@ -31,21 +33,25 @@ they set the real version's rules (2026-11-01):
 
 ### The steps (7; the last asks about reminders only while this phone could get them)
 
-| # | Step | What's lit | Its button (a tap on what's lit does the same) |
+| # | Step | What's lit | The plate's button (a tap on what's lit does the same) |
 |---|---|---|---|
 | 1 | **Welcome** card: the wordmark, "Watch with your people. Make any show a game.", the three ideas with pictures of your own (your couch's faces, your shows' art; the tour's own art when there are none) | (a card over Home) | Show me around |
 | 2 | **Your Home:** "What needs you is always up top." | the status line and Up next, together | Next |
 | 3 | **Add a show:** "Let's add Survivor. Practice: it won't show up." | the Add a show tile | Try it: Add a show, practice, then its demo |
 | 4 | **Your couch sees it:** "Shows you add land in the couch's TV guide, when you share what you watch." | the guide, held on today | Next |
-| 5 | **Results wait for you:** "Nothing shows until you tap Reveal. Try it: this replays your last one." | Up next's Reveal (else Up next) | Watch a reveal: the replay, or a made-up one |
+| 5 | **Results wait for you:** "Nothing shows until you tap Reveal. Try it: this replays your last one." | Up next's Reveal (else Up next) | Try it: the replay, or a made-up one |
 | 6 | **Start a game:** "Make a Prediction Sheet for Survivor. Practice again: it won't show up." | Home's Start a game | Try it: Start a game, practice |
 | 7 | **You're set:** "Want a nudge before your picks lock?" | nothing | Turn on reminders, Explore |
 
 Solo (no couch): step 6 pitches a couch (Start a couch lit, no practice: a game needs a couch); step 4's line says on a couch your
 people see them too. No practice show (none of the three, or all on your list): the add says "Add any show you watch", and its
-practice opens Add a show with nothing typed. Next (or a tap anywhere but what's lit) moves on without doing a step's practice. Skip
-on every step. Back on Home after a practice run, the step ticks (its count turns green, under reduced motion too) and the next one
-comes on.
+practice opens Add a show with nothing typed. Skip tour on every step.
+
+**A step with a practice run** (fixed 2026-11-01 after the user tried it on their phone: Next sat where the thumb goes from habit,
+so it skipped the practice by accident): the plate itself says **Try it ›** where Next is on the others, so that habitual tap tries
+it; **Skip this step** is a pill up by Skip tour, away from the thumb; a tap anywhere else gives the plate a shake and stays put (on
+the other steps a tap anywhere moves on). Back on Home after a practice run, the step ticks (its count turns green, under reduced
+motion too, for a second) and the next one comes on; no tap moves on or tries it again while it ticks.
 
 ### How the practice runs work
 
@@ -61,12 +67,18 @@ comes on.
   demoOf), each passed over when you have it already, found by its listing's id. Its finish: "Harry Potter and NBC Sunday Night
   Football won't show up either: just practice." and "Shows you add land on your Home, and in your couch's TV guide when you share what
   you watch."
+- **Slow enough to follow** (the user, 2026-11-01: "slow down the simulated actions more so a player can visually digest what's
+  happening"): the typing starts 0.9 s after the sheet's up and takes a letter every 0.1 s (it was 0.45 s and 0.055 s); the demo
+  rings a row 1.5 s before its tap and shows the tap (pressed in), holds Where are you 1 s, then rings Add to my shows and presses it,
+  and holds each Added 1.7 s; about 8 to 9 s a show (it was about 5). Under reduced motion the name goes in at once and nothing's
+  pressed in, but every hold stays (they were cut to 0.06 s, so the demo flashed by).
 - **Your couch sees it:** the demo's shows go on Home for that step only (tour/practice-shows.ts: read from their listings, the `next`
   episode included; only Your shows and the guide merge them in, nothing saves them, the tour clears them as it moves on), so the guide
   shows tonight's game on its day and both sit on Your shows; the guide is held on today (an `nd-guide-hold` event on its reel stops its
   roll; let go after).
 - **Start a game (practice):** Pick the show lists the practice show first ("The one you just added: practice"); picking it plays the
-  simulated rules load (1.3 s, "Getting Survivor 51's rules...", under reduced motion too: a pause, not a movement), then the real
+  simulated rules load (2 s since 2026-11-01, was 1.3 s; "Getting Survivor 51's rules...", under reduced motion too: a pause, not a
+  movement), then the real
   options with the Prediction Sheet chosen and its questions; Start it ends in the practice finish, with Create a game with AI (coming
   soon), which also sits under the games in the real sheet for everyone.
 - **The reveal (practice):** a replay over Home of the last episode they revealed on a show they play (POST `.../reveal` with `replay:

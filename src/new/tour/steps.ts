@@ -4,7 +4,8 @@
 // TourReveal, couch/start-game.tsx).
 //
 // Each step lights the first of its `targets` that's on Home (a CSS selector), or with `union` every one of them together; none:
-// nothing lit, its words stand on their own. `act` is its practice run's button (a tap on what's lit does the same).
+// nothing lit, its words stand on their own. `act` is its practice run: the plate says its label where Next is on the others, so the
+// tap a thumb makes from habit tries it (a tap on what's lit does the same; Skip this step moves on without it: tour.tsx).
 
 export type StepId = "welcome" | "home" | "add" | "guide" | "reveal" | "start" | "done";
 
@@ -21,7 +22,7 @@ export interface TourStep {
   targets: string[];
   /** Light all of `targets` found, as one. */
   union?: boolean;
-  /** Its practice run, and the button's words. */
+  /** Its practice run, and the plate's words for it (in Next's place). */
   act?: { kind: TourAct; label: string };
 }
 
@@ -57,7 +58,7 @@ export function tourSteps({ solo, reminders, show, replay }: TourContext): TourS
       title: "Results wait for you",
       line: replay ? "Nothing shows until you tap Reveal. Try it: this replays your last one." : "Nothing shows until you tap Reveal. Try a made-up one.",
       targets: ['[data-upnext-plate="reveal"]', '[data-status="reveal"]', "[data-upnext]"],
-      act: { kind: "reveal", label: "Watch a reveal" },
+      act: { kind: "reveal", label: "Try it" },
     },
     solo
       ? { id: "start", title: "Start a game", line: "Games are played on a couch: start one, and bring your people.", targets: ["[data-solo-start-couch]", "[data-solo-invite]"] }

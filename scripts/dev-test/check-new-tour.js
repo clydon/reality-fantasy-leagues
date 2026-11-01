@@ -2,9 +2,10 @@
 // Home a step at a time; Add a show, the reveal and Start a game tried as practice runs that save nothing; Add a show's demo (it
 // adds a couple of shows by itself) and the guide step that shows them; kept once an account:
 //   A. sam (results waiting; notifications allowed): the card, every step's count, words and light, and each practice end to end:
-//      the practice show the catalog says (the first of Survivor, The Amazing Race, The Challenge sam doesn't have) typed in and
-//      ringed, Where are you, its finish (won't show up; you don't need a game), Show me: the demo adds Harry Potter and the NFL's
-//      next game by itself, the guide step shows that game on its day and both on Your shows (gone at the next step); the reveal
+//      the practice show the catalog says (the first of Survivor, The Amazing Race, The Challenge sam doesn't have) typed in, slowly
+//      enough to follow, and ringed, Where are you, its finish (won't show up; you don't need a game), Show me: the demo adds Harry
+//      Potter and the NFL's next game by itself, slowly enough to follow (its Add to my shows ringed and pressed before the tap), the
+//      guide step shows that game on its day and both on Your shows (gone at the next step); the reveal
 //      replays sam's last episode with nothing that would be real (no Share, no next episode); Start a game: the practice show
 //      first, its rules' moment, the Prediction Sheet chosen, Create a game with AI (coming soon), its finish. Nothing written:
 //      no write but the tour's own and the replay's (with replay: true), and sam's follows, marks, leagues and chat as they were.
@@ -19,6 +20,8 @@
 //   I. casey leaves Home mid-tour by a move inside the app (as the phone's back): kept as a skip at that step.
 //   H. riley in Studio: plays through, with no page errors.
 //   J. the real Start a game sheet (no tour): Create a game with AI, coming soon, for everyone.
+//   L. jordan: on a step with a practice run the plate says Try it, and a tap where Next was on the step before tries it; a tap
+//      anywhere else shakes the plate and doesn't move on; Skip this step does (the user, 2026-11-01: Next skipped it by habit).
 // Nothing wider than the screen; no page errors.
 //
 //   node scripts/lane.js dev                                  (the server, in another terminal; BASE from .env.local)
@@ -267,6 +270,10 @@ async function stepsFor(page, { solo = false, reminders = "off" } = {}) {
         await shot(page, "sam-3-add");
         await page.click('[data-tour-act="add"]');
         await page.waitForSelector("[role=dialog][data-open] [data-practice]", { timeout: 15000 });
+        const typing = Date.now();
+        await page.waitForFunction((name) => document.querySelector("[data-add-input]")?.value === name, practice.name, { timeout: 20000 });
+        const typed = Date.now() - typing;
+        check(typed >= 0.8 * (900 + (practice.name.length - 1) * 100), `A: the name's typed slowly enough to follow (${typed} ms for ${practice.name.length} letters)`);
         await page.waitForSelector("[data-practice-pick]", { timeout: 20000 });
         check((await page.inputValue("[data-add-input]")) === practice.name, "A: Add a show's practice types the practice show's name", await page.inputValue("[data-add-input]"));
         await shot(page, "sam-3a-typed");
@@ -277,12 +284,17 @@ async function stepsFor(page, { solo = false, reminders = "off" } = {}) {
         const fin = await page.textContent("[data-practice-done]");
         check(fin.includes(`${practice.label} won't show up`) && /You don.t need a game to add a show/.test(fin) && /Show me$/.test(fin.trim()), "A: its finish: it won't show up; you don't need a game; Show me", fin);
         await shot(page, "sam-3b-finish");
-        // Show me: the demo adds the rest by itself.
+        // Show me: the demo adds the rest by itself, each tap seen (the button ringed, then pressed in).
+        const ringed = page.waitForSelector("[data-where-save][data-tour-tap]", { timeout: 60000 }).then(() => true, () => false);
+        const showing = Date.now();
         await page.click("[data-practice-close]");
-        await page.waitForSelector('[data-add-show="demoed"] [data-practice-done]', { timeout: 45000 });
+        await page.waitForSelector('[data-add-show="demoed"] [data-practice-done]', { timeout: 60000 });
+        const showed = Date.now() - showing;
         const names = demo.map((d) => DEMO_SHOWS().find((x) => x.show.id === d.tvmazeId).show.name);
         const demoed = await page.textContent("[data-practice-done]");
         check(names.every((n) => demoed.includes(n)) && demoed.includes("won't show up either"), `A: Show me: the tour adds ${names.join(" and ")} by itself, and says they won't show up either`, demoed);
+        check(showed >= 6000 * names.length, `A: the demo slow enough to follow (${Math.round(showed / 100) / 10} s for ${names.length} shows)`);
+        check(await ringed, "A: the demo's Add to my shows ringed and pressed before it's tapped");
         await shot(page, "sam-3c-demoed");
         await page.click("[data-practice-close]");
         await ticked(page);
@@ -588,6 +600,46 @@ async function stepsFor(page, { solo = false, reminders = "off" } = {}) {
         await shot(page, "start-game-ai");
       } finally {
         errors.push(...e.map((x) => `J: ${x}`));
+        await close();
+      }
+    }
+
+    // ---- L. jordan: a step with a practice run: the plate tries it, and a stray tap doesn't skip it ----
+    {
+      const { page, errors: e, BASE, close } = await session("jordan");
+      try {
+        await page.goto(BASE + "/home", { waitUntil: "domcontentloaded" });
+        await welcome(page);
+        const { steps } = await stepsFor(page);
+        await page.click("[data-tour-go]");
+        await onStep(page, steps, 1);
+        // Where a thumb taps Next on a step with nothing to try.
+        const nextAt = await page.$eval(`[data-tour-next] > span:last-child`, (el) => {
+          const r = el.getBoundingClientRect();
+          return { x: r.left + r.width / 2, y: r.top + r.height / 2, text: el.textContent.trim() };
+        });
+        check(nextAt.text === "Next", "L: a step with nothing to try: the plate says Next", nextAt.text);
+        await page.click("[data-tour-next]");
+        const s = await onStep(page, steps, 2);
+        const at = await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest("[data-tour-act]")?.getAttribute("data-tour-act") ?? null, nextAt);
+        const says = await page.$eval("[data-tour-act] > span:last-child", (el) => el.textContent.trim());
+        const skip = await page.$eval("[data-tour-next]", (el) => el.textContent.trim());
+        check(s.id === "add" && at === "add" && says === "Try it" && skip === "Skip this step", "L: Add a show: the plate says Try it, a tap where Next was tries it, and Skip this step sits up top", JSON.stringify({ at, says, skip }));
+        await shot(page, "jordan-try-it");
+        // A tap on the dimmed page, away from what's lit and the lower third: a shake, not a skip.
+        const shook = page.waitForSelector("[data-tour-act].nd-shake", { timeout: 2000 }).then(() => true, () => false);
+        await page.mouse.click(24, 96);
+        const still = (await shook) && (await page.waitForTimeout(1200).then(() => page.evaluate(() => document.querySelector('[role="dialog"][data-tour]')?.dataset.tour)));
+        check(still === "add" && !(await page.$("[role=dialog][data-open] [data-practice]")), "L: a tap anywhere else shakes the plate and stays on Add a show", String(still));
+        await page.click("[data-tour-next]");
+        const s4 = await onStep(page, steps, 3);
+        const plate = await page.$eval("[data-tour-next] > span:last-child", (el) => el.textContent.trim());
+        check(s4.id === "guide" && plate === "Next", "L: Skip this step moves on, and the next step's plate says Next again", `${s4.id} ${plate}`);
+        await endWith(page, () => page.keyboard.press("Escape"));
+        const row = await tourOf(pool, U.jordan);
+        check(row.tour_reached === 4, "L: kept as seen to step 4", JSON.stringify(row));
+      } finally {
+        errors.push(...e.map((x) => `L: ${x}`));
         await close();
       }
     }

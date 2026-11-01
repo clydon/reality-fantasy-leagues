@@ -189,12 +189,12 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
   const target = asked ?? shown;
   const couchId = target?.couchId ?? current?.id ?? null;
   const practice = target?.practice;
-  // The tour's practice show: its rules are in already, but the wait for them is shown, briefly (the user, 2026-11-01). A pause, not
-  // a movement: reduced motion keeps it (its spinner stands still).
+  // The tour's practice show: its rules are in already, but the wait for them is shown, long enough to read (the user, 2026-11-01).
+  // A pause, not a movement: reduced motion keeps it (its spinner stands still).
   const [warming, setWarming] = useState(!!practice?.seasonId && target?.seasonId === practice.seasonId);
   useEffect(() => {
     if (!warming) return;
-    const t = setTimeout(() => setWarming(false), 1300);
+    const t = setTimeout(() => setWarming(false), 2000);
     return () => clearTimeout(t);
   }, [warming]);
   // The practice's finish: the game it would have started.
