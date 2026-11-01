@@ -24,6 +24,7 @@ import { Block, Face } from "./parts";
 import { WaiversRanPlate } from "./waivers";
 import { CatchUpSheet, CatchUpStrips } from "../couch/join-game";
 import { openStartGame } from "../couch/start-game";
+import { openCouchSheet } from "../couch/couch-sheets";
 import { openPlan, PlanInvite, PlanPlates } from "../couch/watch-plans";
 import { useOpenMorning, useOpenReveal } from "./reveal";
 import { StatsCard } from "./stats";
@@ -241,8 +242,16 @@ function WhosWatching({ show }: { show: ShowData }) {
           const seen = seenOf(p);
           const at = where(seen);
           const ahead = !you && seen != null && mine != null && seen > mine ? seen - mine : 0;
+          // A row opens that person's own sheet (couch/person-sheet.tsx: everything they watch, how far), on a couch you're on.
+          const couchId = show.readOnly ? null : (show.couch?.id ?? null);
+          const Tag = couchId ? "button" : "div";
           return (
-            <div key={p.userId} data-watcher={p.name} className="flex min-h-[60px] items-center gap-3 border-t border-border py-2 first:border-t-0">
+            <Tag
+              key={p.userId}
+              data-watcher={p.name}
+              {...(couchId ? { type: "button" as const, onClick: () => openCouchSheet({ kind: "person", couchId, userId: p.userId }) } : {})}
+              className={`flex min-h-[60px] w-full items-center gap-3 border-t border-border py-2 text-left first:border-t-0 ${couchId ? "nd-press" : ""}`}
+            >
               <Avatar id={p.userId} name={p.name} size={34} />
               <span className="min-w-0 flex-1">
                 <b className="flex items-center gap-2 text-[15px] font-semibold">
@@ -275,7 +284,7 @@ function WhosWatching({ show }: { show: ShowData }) {
                   {ahead} ahead
                 </span>
               )}
-            </div>
+            </Tag>
           );
         })}
         {!others && <p className="mt-1 text-[13px] text-muted-foreground">Nobody else on the couch watches it yet.</p>}

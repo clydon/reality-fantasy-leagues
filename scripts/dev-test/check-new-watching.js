@@ -393,7 +393,7 @@ async function newcomer(pool, who, approved = true) {
       await page.locator("[data-whos-watching] [data-watcher]").nth(1).waitFor({ timeout: 15000 }).catch(() => {});
       const line = await page.locator("[data-couch-line]").innerText();
       check(/2 on the couch watch/.test(line) && /Not a game yet/i.test(line), "the couch line: who watches it, Not a game yet", line);
-      check(/you're on Ep 3/.test(await page.locator("[data-following]").innerText()), "the spoiler chip: he's on Episode 3");
+      check(/you're up to Ep 3/.test(await page.locator("[data-following]").innerText()), "the spoiler chip: he's on Episode 3");
       const watchers = await page.locator("[data-whos-watching] [data-watcher]").evaluateAll((els) => els.map((e) => e.getAttribute("data-watcher")));
       check(watchers.join() === "zt_nd_alex,zt_nd_riley", "Who's watching: him, then riley (never how far)", watchers.join());
       check((await page.locator('[data-play-it="make"] [data-make-it]').count()) === 1, "Make it a game (real since step 10 part 2a)");
@@ -430,9 +430,9 @@ async function newcomer(pool, who, approved = true) {
       await sheet(page).getByRole("button", { name: "Earlier in ZT Love Shack 1" }).click();
       await sheet(page).getByRole("button", { name: "Earlier in ZT Love Shack 1" }).click();
       await sheet(page).locator("[data-where-save]").click();
-      check(/Saved · you're on Episode 1/.test(await toasted(/Saved/, page)), "where you are, moved back to Episode 1");
-      await page.waitForFunction(() => /you're on Ep 1/.test(document.querySelector("[data-following]")?.textContent || ""), null, { timeout: 10000 }).catch(() => {});
-      check(/you're on Ep 1/.test(await page.locator("[data-following]").innerText()), "the chip follows");
+      check(/Saved · you're up to Episode 1/.test(await toasted(/Saved/, page)), "where you are, moved back to Episode 1");
+      await page.waitForFunction(() => /you're up to Ep 1/.test(document.querySelector("[data-following]")?.textContent || ""), null, { timeout: 10000 }).catch(() => {});
+      check(/you're up to Ep 1/.test(await page.locator("[data-following]").innerText()), "the chip follows");
       await page.goto(`${BASE}/show/${ss.id}/episodes`);
       await page.locator("[data-ep-aired]").first().waitFor({ timeout: 30_000 });
       const aired = await page.locator("[data-ep-aired]").evaluateAll((els) => els.map((e) => `${e.getAttribute("data-ep-aired")}:${e.getAttribute("data-watched")}`));

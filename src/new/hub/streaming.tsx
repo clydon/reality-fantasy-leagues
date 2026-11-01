@@ -11,6 +11,7 @@ import { TinyFace } from "../ui/bars";
 import { Sheet } from "../ui/sheet";
 import { ShowArt } from "../ui/show-bar";
 import { openWatching } from "../watching/sheets";
+import { plainName as plain } from "../couch/where";
 import { hides, useMinute } from "./guide";
 
 // Streaming on the couch (docs/PLAN-new-design.md step 14 part 1; the mock's streaming.js railHTML / railChip / allStreamingSheet,
@@ -21,8 +22,6 @@ import { hides, useMinute } from "./guide";
 // past three. On the solo hub, "Streaming": your own shows. How far someone else is only where they share it (the guard: step 15
 // part 3's Where I am); who's on now, from those who share it. A couch show you've hidden from the guide is off the rail too (your
 // own can't be hidden).
-
-const plain = (name: string) => name.replace(/\s*\([^)]*\)\s*$/, "").trim() || name;
 
 /** The home's seasons as the rail takes them: yours (followed or played), then the couch's you don't follow and haven't hidden. */
 export function streamShows(home: Home, couch: Couch | null): StreamShow[] {

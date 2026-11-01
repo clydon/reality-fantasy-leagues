@@ -1,11 +1,12 @@
-// Where everyone is (src/new/couch/where.ts; the user's picks F and C of the 2026-11-01 mocks): how far someone is in words
-// ("Up to Episode 5 of 7", never "On Episode 5"), what one person on the couch watches as the hub's person sheet lists it, and
-// who's up to which episode on a show's Episodes tab. Made-up home and space reads, no database. Run with `npm test`.
+// Where everyone is (src/new/couch/where.ts; the user's picks F, C and B of the 2026-11-01 mocks): how far someone is in words
+// ("Up to Episode 5 of 7", never "On Episode 5"), what one person on the couch watches as the hub's person sheet lists it,
+// who's up to which episode on a show's Episodes tab, and the header line's faces, groups and words. Made-up home and space
+// reads, no database. Run with `npm test`.
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const path = require("path");
 const jiti = require("jiti")(__filename, { alias: { "@": path.join(__dirname, "..", "src") } });
-const { personShows, episodeMarks, marksLine, namesLine, seasonLabel } = jiti("../src/new/couch/where.ts");
+const { personShows, episodeMarks, marksLine, namesLine, seasonLabel, marksOf, whereGroups, caughtUpLine } = jiti("../src/new/couch/where.ts");
 const { whereWords } = jiti("../src/lib/sharing.ts");
 const whereLong = (seen, o) => whereWords(seen, o, "full");
 
@@ -136,4 +137,27 @@ test("names: a few, then a count", () => {
   assert.equal(namesLine(["riley", "casey", "pat"]), "riley, casey and pat");
   assert.equal(namesLine(["riley", "casey", "pat", "lee"]), "riley, casey and 2 more");
   assert.equal(marksLine([{ userId: "a", name: "alex", you: true }]), "You're here");
+});
+
+test("the header line (B): you first, then furthest along; groups by episode, furthest first; its words", () => {
+  const people = [
+    { userId: "sam", name: "sam", role: "member", watching: true, seen: 3, playing: ["g1"] },
+    { userId: "riley", name: "riley", role: "member", watching: true, seen: 7, playing: ["g1"] },
+    { userId: "max", name: "max", role: "member", watching: true, seen: 0, playing: [] },
+    { userId: "jamie", name: "jamie", role: "member", watching: false, seen: null, playing: ["g1"] },
+    { userId: "casey", name: "casey", role: "member", watching: true, seen: 7, playing: [] },
+  ];
+  const { known, quiet } = marksOf(people, { id: "alex", name: "alex", seen: 5 });
+  assert.deepEqual(known.map((w) => [w.name, w.seen, w.you]), [["alex", 5, true], ["riley", 7, false], ["casey", 7, false], ["sam", 3, false], ["max", 0, false]]);
+  assert.deepEqual(quiet.map((m) => m.name), ["jamie"]);
+  assert.deepEqual(
+    whereGroups(known, 7).map((g) => [g.title, g.people.map((w) => w.name)]),
+    [["Caught up · Episode 7", ["riley", "casey"]], ["Up to Episode 5", ["alex"]], ["Up to Episode 3", ["sam"]], ["Not started", ["max"]]]
+  );
+  assert.equal(whereGroups(known, 7, "Race")[1].title, "Up to Race 5");
+  assert.deepEqual(caughtUpLine(known, 7), { top: "2 caught up", under: "3 catching up" });
+  assert.deepEqual(caughtUpLine(known.filter((w) => w.seen === 7), 7), { top: "All 2 caught up", under: null });
+  assert.deepEqual(caughtUpLine(known.filter((w) => w.seen < 7), 7), { top: "3 catching up", under: null });
+  // Without your mark (results straight away), you're not in it.
+  assert.equal(marksOf(people, { id: "alex", name: "alex", seen: null }).known.some((w) => w.you), false);
 });

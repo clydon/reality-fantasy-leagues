@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
-import { BookOpen, Ellipsis, EyeOff, Eye, KeyRound, Bell, Lock, LogOut, RotateCcw, ShieldCheck, Tv, UserPlus, Users, X } from "lucide-react";
+import { BookOpen, ChevronRight, Ellipsis, EyeOff, Eye, KeyRound, Bell, Lock, LogOut, RotateCcw, ShieldCheck, Tv, UserPlus, Users, X } from "lucide-react";
 import { airTime, calm, justAired, ticks } from "../clock";
 import { chatCouch, gameAdmin, useAfterReveal, useAfterWatching, watching, useBackstage, useChatBadge, useCouchForSeason, useHome, useSeasonDraft, useSeasonEpisodes, useSeasonGames, useSpace, type Couch, type DraftGame, type GameRef, type GameView, type Need, type OutPreview, type SeasonEpisodes, type SeasonHeader, type Space } from "../data";
 import { leaveToDesk, ReadOnlyPanel, useReadOnly, type ReadOnlyGame } from "../read-only";
@@ -34,6 +34,7 @@ import { CaptionPlate, EmptyState, GuardChip, Row } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { ShowBar, TabBar } from "../ui/show-bar";
 import { openCouchSheet } from "../couch/couch-sheets";
+import { caughtUpLine, marksOf, plainName, type Where } from "../couch/where";
 import { PoolPage } from "../show/solo";
 import { MakeGamePage } from "../show/make-game";
 import { openWatching, type WhereTarget } from "../watching/sheets";
@@ -133,9 +134,6 @@ function readOnlyCouch(ro: ReadOnlyGame, space: Space | undefined): Couch {
     seasons: [],
   };
 }
-
-/** As people say a show: "The Traitors", not "The Traitors (US)". */
-const plainName = (name: string) => name.replace(/\s*\([^)]*\)\s*$/, "").trim() || name;
 
 /** Where you are in this show, for the where sheet (step 10: watching/sheets.tsx). */
 export function whereTarget(show: ShowData): WhereTarget | null {
@@ -308,9 +306,25 @@ function ReadOnlyMenu() {
  *  watches it (the mock's "2 on the couch watch"), "Streaming" on a season that drops at once (step 14), and "Not a game yet"
  *  on a show nobody's set up. */
 function CouchLine({ show }: { show: ShowData }) {
+  const me = useMe();
   const games = show.games.length;
   const watchers = games ? null : (show.people ?? []).filter((p) => p.watching || p.playing.length);
   const faces = watchers ?? show.people;
+  // Where everyone is (the user's pick B, 2026-11-01): once anyone else here shares how far they are and something has aired,
+  // the faces move into the numbered line under this one (WhereLine).
+  const yours = (show.following || show.plays) && show.seenThrough != null ? show.seenThrough : null;
+  const { known } = marksOf(show.people, { id: me.id, name: me.name, seen: yours });
+  const where = !show.readOnly && !show.solo && !!show.couch && !!show.header && show.latestAired > 0 && known.some((w) => !w.you);
+  return (
+    <>
+      <CouchText show={show} faces={where ? null : faces} watchers={watchers} games={games} />
+      {where && show.couch && show.header && <WhereLine known={known} aired={show.latestAired} couchId={show.couch.id} seasonId={show.header.seasonId} />}
+    </>
+  );
+}
+
+/** The couch line's own words (and, without the numbered line under it, its faces). */
+function CouchText({ show, faces, watchers, games }: { show: ShowData; faces: ShowData["people"]; watchers: ShowData["people"]; games: number }) {
   return (
     <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 px-2 pt-2.5 text-[13px] font-semibold" data-couch-line>
       {faces && faces.length > 0 && (
@@ -342,6 +356,46 @@ function CouchLine({ show }: { show: ShowData }) {
         </span>
       )}
     </div>
+  );
+}
+
+/**
+ * The couch on this show, numbered (the user's pick B of the 2026-11-01 mocks): each face with the last episode they've seen
+ * under it (yours ringed, the caught-up in bold), then "3 caught up" over "2 catching up". It opens where everyone is
+ * (couch/where-sheet.tsx). On the show's art, so its words are white on a dark glass, never muted grey (DESIGN.md Show Art).
+ */
+function WhereLine({ known, aired, couchId, seasonId }: { known: Where[]; aired: number; couchId: string; seasonId: string }) {
+  const shown = known.slice(0, known.length > 6 ? 5 : 6);
+  const { top, under } = caughtUpLine(known, aired);
+  return (
+    <button
+      type="button"
+      data-where-line
+      onClick={() => openCouchSheet({ kind: "where", couchId, seasonId })}
+      aria-label={`Where everyone is: ${top}${under ? `, ${under}` : ""}`}
+      className="nd-press mx-2 mt-2.5 flex min-h-[60px] items-center gap-3 rounded-[4px] bg-[rgba(16,14,21,.6)] px-2.5 py-2 text-left backdrop-blur-sm"
+    >
+      <span className="flex flex-none gap-1.5" aria-hidden>
+        {shown.map((w) => (
+          <span key={w.userId} data-where-face={w.you ? "you" : w.name} data-where-seen={w.seen} className="flex w-6 flex-col items-center gap-1">
+            <span className={`rounded-[3px] ${w.you ? "outline-2 outline-offset-1 outline-white" : ""}`}>
+              <Avatar id={w.userId} name={w.name} size={24} />
+            </span>
+            <span className={`type-num text-[12px] leading-none ${aired > 0 && w.seen >= aired ? "font-bold text-white" : "text-white/85"}`}>{w.seen > 0 ? w.seen : "–"}</span>
+          </span>
+        ))}
+        {known.length > shown.length && (
+          <span className="flex w-6 flex-col items-center gap-1">
+            <span className="type-num grid size-6 place-items-center rounded-[3px] bg-white/15 text-[11px]">+{known.length - shown.length}</span>
+          </span>
+        )}
+      </span>
+      <span className="min-w-0 flex-1">
+        <b className="block truncate text-[14px] font-semibold">{top}</b>
+        {under && <small className="block truncate text-[12.5px] text-white/85">{under}</small>}
+      </span>
+      <ChevronRight className="size-5 flex-none text-white/85" aria-hidden />
+    </button>
   );
 }
 
@@ -543,7 +597,7 @@ function ShowMenu({ seasonId, show }: { seasonId: string; show: ShowData }) {
             <Row
               icon={ShieldCheck}
               title="Where you are"
-              detail={`Spoiler-safe · ${show.seenThrough ? `you're on ${show.words.ep} ${show.seenThrough}` : "not started yet"}`}
+              detail={`Spoiler-safe · ${show.seenThrough ? `you're up to ${show.words.ep} ${show.seenThrough}` : "not started yet"}`}
               onClick={() => {
                 setOpen(false);
                 openWhere(show);

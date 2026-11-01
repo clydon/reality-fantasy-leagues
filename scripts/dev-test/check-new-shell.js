@@ -199,7 +199,7 @@ function recordTransitions() {
     await page.waitForURL(`**/show/${sid}/episodes`);
     await moved("Tonight → Episodes", "left", "nd-tabind");
     // The tab's content can still be coming in once the move has played: wait for the chip, don't just look once.
-    const chip = await page.getByText("you're on Ep 5").first().waitFor({ timeout: 8000 }).then(() => true, () => false);
+    const chip = await page.getByText("you're up to Ep 5").first().waitFor({ timeout: 8000 }).then(() => true, () => false);
     check(chip, "the guard chip says where you are (Ep 5)");
     await snap("episodes");
     await page.locator("nav[aria-label=Show] a", { hasText: "Cast" }).click();

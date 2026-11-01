@@ -1,17 +1,22 @@
-// Dev-only check for Where everyone is (the user's picks F and C of the 2026-11-01 mocks; src/new/couch/where.ts), in a real
+// Dev-only check for Where everyone is (the user's picks F, C and B of the 2026-11-01 mocks; src/new/couch/where.ts), in a real
 // browser against the dev server, on new-fixture.js's couch (alex, riley, jordan, sam on ZT Survivor 51: alex, riley and jordan
 // up to Episode 5, sam up to 3; riley follows the ZT Traitors openly, which alex doesn't). Here jordan turns Where I am off.
 //   The hub, as alex:
-//   - the couch's faces under the status line, You first, then riley, jordan and sam;
+//   - the couch's faces (38px) under the status line, You first, then riley, jordan and sam;
 //   - riley's face: ZT Survivor 51 "Caught up · Episode 5" (yours), the ZT Traitors with "You don't watch it" and Add;
 //   - jordan's (shares nothing): no shows, and the sheet says so; your own: what the couch sees of you, with the Settings link,
 //     and with alex's Where I am off for a moment, that the couch sees none of it;
 //   - Add on riley's Traitors closes the sheet and asks where you are (nothing is saved: the check closes it);
+//   Survivor's Tonight (B): the header's numbered faces (you 5, riley 5, sam 3; "2 caught up", "1 catching up"), the couch line's
+//   words above it without faces; it opens where everyone is (Caught up · Episode 5, Up to Episode 3, Not sharing: jordan),
+//   whose rows say what each plays, and riley's row opens riley's sheet, whose back arrow returns to it;
+//   the Traitors' Tonight (a show alex doesn't watch): Who's watching's riley row opens riley's sheet;
 //   Survivor's Episodes tab:
 //   - as alex (caught up): Episode 5 carries "You're here · zt_nd_riley", lifted; Episode 3 carries sam; the legend line; jordan
 //     plays without sharing, said under the list; no face on an episode nobody's up to;
 //   - as sam (up to 3, Episodes 4 and 5 still to reveal): Episode 5's hidden row carries alex and riley, his own row is 3;
-//   - "Up to Episode", never "On Episode", anywhere on these screens; nothing wider than the screen; no page errors.
+//   - the spoiler chip says "you're up to Ep 5"; "Up to Episode", never "On Episode", anywhere on these screens; nothing wider
+//     than the screen; no page errors.
 // Screenshots of each state go to <outDir>.
 //
 //   npm run dev                                                  (in another terminal)
@@ -96,6 +101,8 @@ function check(ok, what, detail = "") {
     const faces = await row.locator("[data-couch-face]").evaluateAll((els) => els.map((e) => e.getAttribute("data-couch-face")));
     check(JSON.stringify(faces) === JSON.stringify(["alex", "riley", "jordan", "sam"].map(name)), "You first, then everyone else on the couch", faces.join(", "));
     check((await row.locator("[data-couch-face-name]").first().textContent())?.trim() === "You", "your face says You");
+    const faceSize = await row.locator("[data-couch-face] [data-face]").first().evaluate((e) => Math.round(e.getBoundingClientRect().width));
+    check(faceSize === 38, "the faces are 38px (a smidge under the 44 they shipped at)", `${faceSize}px`);
     const order = await alex.page.evaluate(() => {
       const at = (sel) => [...document.querySelectorAll("main *, body *")].indexOf(document.querySelector(sel));
       return { status: at("[data-status]"), row: at("[data-couch-row]") };
@@ -151,6 +158,43 @@ function check(ok, what, detail = "") {
     await alex.page.keyboard.press("Escape");
     await pool.query(`UPDATE user_settings SET share_where = true WHERE user_id = $1`, [fx.users.alex]);
 
+    // ---- B: Survivor's Tonight header, numbered faces, and where everyone is ----
+    await alex.page.goto(`${alex.BASE}/show/${sid}/tonight`);
+    const line = alex.page.locator("[data-where-line]");
+    check(await line.waitFor({ timeout: 30_000 }).then(() => true, () => false), "Tonight's header: the line of numbered faces");
+    const heads = await line.locator("[data-where-face]").evaluateAll((els) => els.map((e) => `${e.getAttribute("data-where-face")}:${e.getAttribute("data-where-seen")}`));
+    check(JSON.stringify(heads) === JSON.stringify(["you:5", `${name("riley")}:5`, `${name("sam")}:3`]), "you first, then furthest along, each with the last episode they've seen (jordan shares nothing)", heads.join(", "));
+    const lineText = (await line.innerText()).replace(/\s+/g, " ");
+    check(/2 caught up/.test(lineText) && /1 catching up/.test(lineText), "2 caught up, 1 catching up", lineText);
+    check(/\d+ games?/.test((await alex.page.locator("[data-couch-line]").textContent()) ?? "") && (await alex.page.locator("[data-couch-line] [data-face]").count()) === 0, "the couch line above keeps its words, its faces moved into the numbered line");
+    await alex.noOn("Tonight");
+    await alex.fits("Tonight");
+    await alex.shot("tonight-header");
+    await line.click();
+    const ws = alex.page.locator("[data-where-sheet]");
+    check(await ws.waitFor({ timeout: 15_000 }).then(() => true, () => false), "the line opens where everyone is");
+    const groups = await ws.locator("[data-where-group]").evaluateAll((els) => els.map((e) => e.getAttribute("data-where-group")));
+    check(JSON.stringify(groups) === JSON.stringify(["5", "3", "quiet"]), "grouped: caught up at 5, up to 3, then who doesn't share", groups.join(", "));
+    const wsText = ((await ws.textContent()) ?? "").replace(/\s+/g, " ");
+    check(/Caught up · Episode 5/.test(wsText) && /Up to Episode 3/.test(wsText) && /Not sharing/.test(wsText) && /Doesn't share where they are/.test(wsText), "said as Caught up · Episode 5, Up to Episode 3, Not sharing", wsText.slice(0, 240));
+    check(/Plays /.test(wsText), "each row says what they play here");
+    await alex.fits("where everyone is");
+    await alex.shot("where-sheet");
+    await ws.locator(`[data-where-person="${name("riley")}"]`).click();
+    check(await sheet("riley").waitFor({ timeout: 15_000 }).then(() => true, () => false), "a row opens that person's own sheet");
+    await alex.page.locator("[data-sheet-back]").click();
+    check(await ws.waitFor({ timeout: 15_000 }).then(() => true, () => false), "and its back arrow returns to where everyone is");
+    await alex.page.keyboard.press("Escape");
+    await ws.waitFor({ state: "detached", timeout: 10_000 }).catch(() => {});
+
+    // ---- a show alex only looks at (the Traitors): Who's watching's rows open the person sheet ----
+    await alex.page.goto(`${alex.BASE}/show/${fx.traitorsSeasonId}/tonight`);
+    const watcher = alex.page.locator(`[data-whos-watching] [data-watcher="${name("riley")}"]`);
+    check(await watcher.waitFor({ timeout: 30_000 }).then(() => true, () => false), "the Traitors' Who's watching lists riley");
+    await watcher.click();
+    check(await sheet("riley").waitFor({ timeout: 15_000 }).then(() => true, () => false), "riley's row opens riley's sheet");
+    await alex.page.keyboard.press("Escape");
+
     // ---- Survivor's Episodes tab ----
     const episodes = async (p) => {
       await p.page.goto(`${p.BASE}/show/${sid}/episodes`);
@@ -167,6 +211,7 @@ function check(ok, what, detail = "") {
     check((await alex.page.locator("[data-ep-legend]").count()) === 1, "the line saying what a face marks");
     check(/zt_nd_jordan plays here but doesn't share where they are/.test((await alex.page.locator("[data-ep-quiet]").textContent().catch(() => "")) ?? ""), "jordan plays without sharing: said under the list");
     await alex.noOn("Episodes");
+    check(/you're up to Ep 5/.test(await alex.page.evaluate(() => document.body.innerText)), "the spoiler chip says you're up to Ep 5, as the couch's words do");
     await alex.fits("Episodes");
     await alex.shot("episodes-alex", true);
 

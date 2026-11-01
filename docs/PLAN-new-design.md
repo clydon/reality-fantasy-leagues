@@ -137,14 +137,14 @@ Behaviour a session saw and left alone because it wasn't that step's to change. 
 the step that could take it (a guess: any later step that touches it may). Fixed ones come out, with a line in that
 step's As built.
 
-- **Where everyone is, left for later (2026-11-01, the `where` lane: hub CouchRow, couch/person-sheet.tsx, Episodes faces)**:
-  (1) B of the mocks (numbers under the faces in Tonight's header) wasn't picked: the user's call before building it.
-  (2) Tonight's "Who's watching" (tonight.tsx WhosWatching) still shows only on shows you don't play, near the bottom; its rows
-  could open the person sheet. (3) Your own chip still says "you're on Ep 5" (ui/parts.tsx GuardChip) while the couch's words
-  are now "Up to Episode 5". (4) The first-time tour doesn't point at the couch's faces. (5) The person sheet doesn't say which
-  games someone plays on a show. (6) A long username truncates under its face (60px). (7) The plain show name (no "(US)") is
-  still copied in sections.tsx, show-space.tsx, guide.tsx and streaming.tsx beside couch/where.ts plainName: one helper could
-  serve them all. Any step that touches those could.
+- **Where everyone is, left for later (2026-11-01, F, C and B: hub CouchRow, couch/person-sheet.tsx, couch/where-sheet.tsx,
+  Episodes faces, Tonight's WhereLine)**: (1) The first-time tour doesn't point at the couch's faces or the header line.
+  (2) The person sheet (from the hub) doesn't say which games someone plays on a show; where-sheet.tsx does, from the space
+  read, which the home read lacks. (3) A long username truncates under its face (56px). (4) The plain show name (no "(US)") is
+  one helper in the new design's client code now (couch/where.ts plainName), but the server keeps its own copies, and some
+  labels also drop "The" (start-game, couch-hub, polls, trivia, ratings, rate.tsx, keep-up.tsx): a naming pass could settle
+  one rule. (5) Tonight's Who's watching (shows you don't play) and the header line now say much the same; the section could go
+  once the user has lived with the line. Any step that touches those could.
 - **A page pushed over a tab and opened from the hub closes onto that tab, not back to the hub (2026-10-30, ui/page.tsx
   usePushedPage.close)**: Make a game (`games?page=make` from the hub, Start a game, the solo pool) drops its `?page` and leaves
   you on the Games tab, which its back button names; the phone's back from there goes to the hub. Consistent with its label, so

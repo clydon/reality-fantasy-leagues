@@ -26,6 +26,7 @@ import {
   type WeekProgress,
 } from "../data";
 import { openCouchSheet } from "../couch/couch-sheets";
+import { plainName } from "../couch/where";
 import { openStartGame } from "../couch/start-game";
 import { midLine, useFinalLine } from "../final-words";
 import { ordinal } from "../games";
@@ -431,10 +432,10 @@ export function CouchRow({ home, couch }: { home: Home; couch: Couch | null }) {
               data-live={live.has(m.userId) || undefined}
               onClick={() => openCouchSheet({ kind: "person", couchId: couch.id, userId: m.userId })}
               aria-label={`${you ? "You" : m.name}${live.has(m.userId) ? ", watching along now" : ""}: what ${you ? "the couch sees of you" : "they watch and how far they are"}`}
-              className="nd-press flex w-[60px] flex-none flex-col items-center gap-1.5 text-center"
+              className="nd-press flex w-[56px] flex-none flex-col items-center gap-1.5 text-center"
             >
               <span className="relative">
-                <Avatar id={m.userId} name={m.name} size={44} />
+                <Avatar id={m.userId} name={m.name} size={38} />
                 {live.has(m.userId) && <i className="absolute -right-1 -top-1 size-3 rounded-full bg-good shadow-[0_0_0_2px_var(--background)]" aria-hidden />}
               </span>
               <span data-couch-face-name className={`w-full truncate text-xs font-semibold ${you ? "text-foreground" : "text-muted-foreground"}`}>
@@ -596,9 +597,6 @@ export function namesOf(who: string[]) {
   if (who.length <= 2) return who.join(" and ");
   return `${who.slice(0, 2).join(", ")} and ${who.length - 2} more`;
 }
-
-/** As people say a show: "The Traitors", not "The Traitors (US)". */
-const plainName = (name: string) => name.replace(/\s*\([^)]*\)\s*$/, "").trim() || name;
 
 /** Who else on the couch openly watches a season (and shares Where I am: guard.ts; each member's `at` says how far they are). */
 export const watchersOn = (couch: Couch | null, meId: string, seasonId: string) => (couch?.members ?? []).filter((m) => m.userId !== meId && m.watching.includes(seasonId));

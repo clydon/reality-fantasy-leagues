@@ -21,12 +21,17 @@ and the Neon password rotation (deferred; steps there). Fixed 2026-10-24: the ch
 end); GitHub Actions, stopped since 2026-10-19, runs again. Vercel builds production only (Preview shared
 production's database).
 
-## Where everyone is (2026-11-01; built in the `where` lane, rfl-where on port 3008; no migration, no new endpoint)
+## Where everyone is (2026-11-01; F and C pushed 31ea9286, then B; no migration, no new endpoint)
 The user: people say what episode they're on when they add a show, but the couch had no intuitive way to see it. Mocked
 with /impeccable on a private Design canvas (https://claude.ai/artifact/3EvNJC8CP7HDA3CHJuvAaB: A rail, B numbered header
 faces, C Episodes bookmarks, D hub board, then for the hub E captions, F faces, G poster backs, H one list). The user picked
-**F** ("we don't really have a view of the full couch yet") and **C**; B wasn't picked (ask before building it).
-- **F, the hub:** the couch's faces under the status line (`CouchRow`, hub/sections.tsx), You first, a teal dot on whoever's
+**F** ("we don't really have a view of the full couch yet") and **C**, then asked for **B** too (and the faces a smidge smaller).
+- **B, Tonight's header:** under the couch line's words, a button of numbered faces (`WhereLine`, screens/show-space.tsx: each
+  face with the last episode they've seen, "3 caught up" / "2 catching up"), once anyone else shares and something has aired.
+  It opens where everyone is (`couch/where-sheet.tsx`, `openCouchSheet({ kind: "where" })`): a group per episode, then Not
+  sharing; each row says watching now or what they play, and opens the person sheet, whose back arrow returns
+  (`kind: "person"`'s `back`). Tonight's Who's watching rows open the person sheet too.
+- **F, the hub:** the couch's faces (38px) under the status line (`CouchRow`, hub/sections.tsx), You first, a teal dot on whoever's
   watching along now. A face opens the person sheet (`couch/person-sheet.tsx`, `openCouchSheet({ kind: "person" })`): every
   show they share Where I am on, "Caught up · Episode 7" / "Up to Episode 5 of 7", watching now, "2 ahead of you", and on a
   show you don't watch "You don't watch it" with Add (the where sheet). Your own face: what the couch sees of you, your
@@ -36,8 +41,9 @@ faces, C Episodes bookmarks, D hub board, then for the hub E captions, F faces, 
 - All from what the home and space reads already carried (guard.ts visibleFollows: private shows and Where I am off never
   show), plus `user.shareWhere` on the home read so your own sheet says when the couch sees none of it. The pure part is
   `src/new/couch/where.ts` (tests/couch-where.test.js). The couch's words are "Up to Episode 5" now, never "On Episode 5":
-  one rule, lib/sharing.ts whereWords (its "full" style is the sheet's "Up to Episode 5 of 7"), and the Settings preview line.
-  Your own face on Episodes needs a known mark (none while you see results straight away, as on Tonight).
+  one rule, lib/sharing.ts whereWords (its "full" style is the sheet's "Up to Episode 5 of 7"), the Settings preview line, and
+  your own spoiler chip ("you're up to Ep 5"). Your own face on Episodes needs a known mark (none while you see results
+  straight away, as on Tonight).
 - Check: `node scripts/dev-test/check-where-everyone.js <outDir> [--width=390] [--theme=night|studio]` (new-fixture.js; jordan
   turns Where I am off).
 - **Everyone on dark, shipped with it (the user, 2026-11-01: "force everyone on dark mode by default"):** migration 0159 puts

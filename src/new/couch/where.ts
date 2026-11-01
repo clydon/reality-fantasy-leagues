@@ -3,8 +3,9 @@ import { showWords } from "@/lib/game/show-words";
 import { whereWords } from "@/lib/sharing";
 import type { Couch, CouchShow, Home, HomeShow, OnNow, Space } from "../data";
 
-// Where everyone is (the user's picks of the 2026-11-01 mocks, F and C): what one person on the couch watches and how far they
-// are in each (the hub's couch row opens it: person-sheet.tsx), and who's up to which episode on a show's Episodes tab. Only
+// Where everyone is (the user's picks of the 2026-11-01 mocks, F, C and B): what one person on the couch watches and how far they
+// are in each (the hub's couch row opens it: person-sheet.tsx), who's up to which episode on a show's Episodes tab, and Tonight's
+// header line of numbered faces with the list it opens (where-sheet.tsx). Only
 // what the home and space reads already carry: someone's follows they share Where I am on (guard.ts visibleFollows), so a show
 // watched privately, or someone who shares nothing, never shows. The words are lib/sharing.ts whereWords' ("Up to Episode 5",
 // never "On Episode 5", which reads as halfway through it). Pure, for tests/couch-where.test.js.
@@ -86,23 +87,65 @@ export interface Mark {
   you: boolean;
 }
 
+/** Someone whose mark on a show is known: the last episode they've seen (0: not started). */
+export interface Where extends Mark {
+  seen: number;
+}
+
 /**
- * Who's up to which episode on a show (its Episodes tab): `at` by episode (the last one each has seen), `notStarted`, and
- * `quiet`: someone who plays a game here but doesn't share where they are (a follower who doesn't share is left out: whether
- * they watch at all is theirs to say). You first in each; you're there only when your mark is known (`me.seen`).
+ * Who on the couch is where on a show: `known`, everyone whose mark the viewer may see (you first, then furthest along, then the
+ * couch's order), and `quiet`: someone who plays a game here but doesn't share where they are (a follower who doesn't share is
+ * left out: whether they watch at all is theirs to say). You're in it only when your mark is known (`me.seen`).
  */
-export function episodeMarks(people: Space["people"], me: { id: string; name: string; seen: number | null } | null): { at: Map<number, Mark[]>; notStarted: Mark[]; quiet: Mark[] } {
-  const at = new Map<number, Mark[]>();
-  const notStarted: Mark[] = [];
+export function marksOf(people: Space["people"], me: { id: string; name: string; seen: number | null } | null): { known: Where[]; quiet: Mark[] } {
+  const known: Where[] = [];
   const quiet: Mark[] = [];
-  const put = (n: number, m: Mark) => (n <= 0 ? notStarted.push(m) : at.set(n, [...(at.get(n) ?? []), m]));
-  if (me && me.seen != null) put(me.seen, { userId: me.id, name: me.name, you: true });
   for (const p of people ?? []) {
     if (p.userId === me?.id) continue;
-    if (p.seen != null) put(p.seen, { userId: p.userId, name: p.name, you: false });
+    if (p.seen != null) known.push({ userId: p.userId, name: p.name, you: false, seen: Math.max(0, p.seen) });
     else if (p.playing.length > 0) quiet.push({ userId: p.userId, name: p.name, you: false });
   }
+  known.sort((a, b) => b.seen - a.seen);
+  if (me && me.seen != null) known.unshift({ userId: me.id, name: me.name, you: true, seen: Math.max(0, me.seen) });
+  return { known, quiet };
+}
+
+/**
+ * Who's up to which episode on a show (its Episodes tab): `at` by episode (the last one each has seen), `notStarted`, and
+ * `quiet` (marksOf). You first in each.
+ */
+export function episodeMarks(people: Space["people"], me: { id: string; name: string; seen: number | null } | null): { at: Map<number, Mark[]>; notStarted: Mark[]; quiet: Mark[] } {
+  const { known, quiet } = marksOf(people, me);
+  const at = new Map<number, Mark[]>();
+  const notStarted: Mark[] = [];
+  for (const { seen, ...m } of known) {
+    if (seen <= 0) notStarted.push(m);
+    else at.set(seen, [...(at.get(seen) ?? []), m]);
+  }
   return { at, notStarted, quiet };
+}
+
+/**
+ * Where everyone is on a show, as its header's list has it (the user's pick B, 2026-11-01): one group per episode someone's up
+ * to, furthest first ("Caught up · Episode 7" at the latest, then "Up to Episode 6", ...), then "Not started". Who doesn't
+ * share follows in the sheet itself, as "Not sharing".
+ */
+export function whereGroups(known: Where[], aired: number, word = "Episode"): { seen: number; title: string; people: Where[] }[] {
+  const eps = [...new Set(known.map((w) => w.seen))].sort((a, b) => b - a);
+  return eps.map((seen) => ({
+    seen,
+    title: seen <= 0 ? "Not started" : aired > 0 && seen >= aired ? `Caught up · ${word} ${seen}` : `Up to ${word} ${seen}`,
+    people: known.filter((w) => w.seen === seen),
+  }));
+}
+
+/** The header line's words: "3 caught up" over "2 catching up", "All 4 caught up", or "4 catching up" when nobody is. */
+export function caughtUpLine(known: Where[], aired: number): { top: string; under: string | null } {
+  const caught = known.filter((w) => aired > 0 && w.seen >= aired).length;
+  const rest = known.length - caught;
+  if (!caught) return { top: `${rest} catching up`, under: null };
+  if (!rest) return { top: `All ${caught} caught up`, under: null };
+  return { top: `${caught} caught up`, under: `${rest} catching up` };
 }
 
 /** "riley and casey", "riley, casey and 2 more": up to `few` names, then a count. */

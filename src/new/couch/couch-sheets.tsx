@@ -13,6 +13,7 @@ import { Btn, Row } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { PersonSheet } from "./person-sheet";
+import { WhereSheet } from "./where-sheet";
 
 // Couches (docs/PLAN-new-design.md step 9; the mock's round2.js couchSwitch and newCouchSheet, index.html couchSheet and
 // joinSheet): the switcher (the hub shows one couch at a time; your profile's couch line opens it), a couch's details
@@ -30,8 +31,10 @@ export type CouchSheet =
   | { kind: "leave"; couchId: string }
   | { kind: "rename"; couchId: string }
   | { kind: "handOn"; couchId: string }
-  /** Someone on the couch: what they watch and how far they are (person-sheet.tsx). `from`: the details sheet, to go back to. */
-  | { kind: "person"; couchId: string; userId: string; from?: "details" };
+  /** Someone on the couch: what they watch and how far they are (person-sheet.tsx). `back`: the sheet it was opened from. */
+  | { kind: "person"; couchId: string; userId: string; back?: { kind: "details"; couchId: string } | { kind: "where"; couchId: string; seasonId: string } }
+  /** Where everyone is on a show (where-sheet.tsx): Tonight's header line of numbered faces opens it. */
+  | { kind: "where"; couchId: string; seasonId: string };
 
 // The open sheet, and how many times each kind has opened: a sheet is keyed by its count, so each opening starts fresh
 // (and a closing one keeps its key until it's gone).
@@ -106,9 +109,14 @@ export function CouchSheets() {
       <PersonSheet
         couchId={sheet?.kind === "person" ? sheet.couchId : null}
         userId={sheet?.kind === "person" ? sheet.userId : null}
-        back={sheet?.kind === "person" && sheet.from === "details" ? { label: "Back to the couch", onClick: () => openCouchSheet({ kind: "details", couchId: sheet.couchId }) } : undefined}
+        back={
+          sheet?.kind === "person" && sheet.back
+            ? { label: sheet.back.kind === "details" ? "Back to the couch" : "Back to where everyone is", onClick: () => sheet.back && openCouchSheet(sheet.back) }
+            : undefined
+        }
         onOpenChange={close}
       />
+      <WhereSheet couchId={sheet?.kind === "where" ? sheet.couchId : null} seasonId={sheet?.kind === "where" ? sheet.seasonId : null} onOpenChange={close} />
     </>
   );
 }
@@ -273,7 +281,7 @@ function DetailsSheet({ couchId, onOpenChange }: { couchId: string | null; onOpe
               <button
                 key={m.userId}
                 type="button"
-                onClick={() => openCouchSheet({ kind: "person", couchId: couch.id, userId: m.userId, from: "details" })}
+                onClick={() => openCouchSheet({ kind: "person", couchId: couch.id, userId: m.userId, back: { kind: "details", couchId: couch.id } })}
                 aria-label={`${m.name}: what they watch and how far they are`}
                 className="nd-press flex min-w-0 flex-col items-center gap-1 text-center"
                 data-member={m.name}

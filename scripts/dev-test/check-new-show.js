@@ -312,7 +312,7 @@ function check(ok, what, detail = "") {
       check((await dock.count()) === 0, "all set: no dock over Episodes");
     }
     check(await page.getByText(/of 4 lineups set · \d of 4 picked/).isVisible(), "who's set this week, real");
-    check(await page.getByText("you're on Ep 5").isVisible(), "the guard chip says where you are");
+    check(await page.getByText("you're up to Ep 5").isVisible(), "the guard chip says where you are");
     await collect();
     await fits("Episodes");
     await shoot("episodes");

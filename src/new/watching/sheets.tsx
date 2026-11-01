@@ -96,10 +96,10 @@ export function WatchingSheets() {
   );
 }
 
-/** "Saved · you're on Episode 4", "The Amazing Race 38 added to your shows". */
+/** "Saved · you're up to Episode 4", "The Amazing Race 38 added to your shows". */
 function savedLine(label: string, following: boolean, seen: number) {
   if (!following) return `${label} added to your shows`;
-  return seen ? `Saved · you're on Episode ${seen}` : "Saved · not started yet";
+  return seen ? `Saved · you're up to Episode ${seen}` : "Saved · not started yet";
 }
 
 function WhereSheet({ target, onOpenChange }: { target: WhereTarget | null; onOpenChange: (o: boolean) => void }) {

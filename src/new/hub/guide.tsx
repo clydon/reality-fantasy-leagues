@@ -14,6 +14,7 @@ import { Sheet } from "../ui/sheet";
 import { ShowArt } from "../ui/show-bar";
 import { toast } from "../ui/toast";
 import { openPlan, PlanPlates } from "../couch/watch-plans";
+import { plainName as plain } from "../couch/where";
 import { usePracticeShows } from "../tour/practice-shows";
 import { ListingsCredit } from "../watching/search";
 import { openWatching } from "../watching/sheets";
@@ -32,7 +33,6 @@ import { namesOf, showOfMove } from "./sections";
 const DAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const DAY_LONG = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const plain = (name: string) => name.replace(/\s*\([^)]*\)\s*$/, "").trim() || name;
 
 /**
  * The guide rolls on its own once you reach it (not while it's the first thing you see: the critique, 2026-10-23), and is
