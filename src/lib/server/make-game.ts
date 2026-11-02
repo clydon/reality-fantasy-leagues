@@ -517,6 +517,42 @@ async function runAsk(id: string, seasonId: string, base: string, bot?: string):
   }
 }
 
+/**
+ * Getting it ready (season-fill.ts, docs/PLAN-getting-it-ready.md): a brand-new show made a game by itself as it's added, as
+ * whoever added it (no day's limit: it's one per show added). Our bot asks what's still missing, now: how it works, then who's
+ * in it. When our check passes it's set up as Looks right sets it up, new until another couch checks it (never the desk's,
+ * whoever added it). "done" once it's a game; "paused" when the time ran out between the two asks (the next run carries on),
+ * or with `ask` false (our bot's away) while what's been pasted isn't both answers yet; "busy" while an ask is going already
+ * (someone's own, from Make it a game); "needs" when the answer needs a person (Make it a game shows the review). A failed ask
+ * throws its reason. Copy and paste (season-fill.ts fillPaste, the free way) fills the same attempt, so answers pasted there
+ * are set up here too, with no bot.
+ */
+export async function autoMake(userId: string, seasonId: string, base: string, bot?: string, o: { ask?: boolean } = {}): Promise<"done" | "paused" | "busy" | "needs"> {
+  const show = await showOf(seasonId);
+  if (show.header.ready) return "done";
+  await pool.query("INSERT INTO show_setups (season_id, started_by, via) VALUES ($1, $2, 'bot') ON CONFLICT (season_id) WHERE done_at IS NULL DO NOTHING", [seasonId, userId]);
+  let row = await openRow(seasonId);
+  if (!row || askingNow(row)) return "busy";
+  if (row.stage !== "ready" && o.ask === false) return "paused";
+  if (row.stage !== "ready") {
+    const { rowCount } = await pool.query(
+      `UPDATE show_setups SET via = 'bot', asking_at = now(), message = NULL, stage = CASE WHEN rules_answer IS NULL THEN 'rules' ELSE 'cast' END, updated_at = now()
+        WHERE id = $1 AND (asking_at IS NULL OR asking_at < now() - make_interval(secs => $2))`,
+      [row.id, ASK_STALE_MS / 1000]
+    );
+    if (!rowCount) return "busy";
+    await runAsk(row.id, seasonId, base, bot);
+    row = await rowById(row.id);
+    if (row.stage === "failed") throw new Error(row.message ?? "ChatGPT didn't answer");
+    if (row.stage !== "ready") return "paused";
+  }
+  const worked = workOut(row, show, Infinity);
+  if (!worked?.review.approvable) return "needs";
+  // Whoever added it, as plain someone: what it makes is new until another couch checks it, even when they run the desk.
+  await confirmMake({ id: userId } as SessionUser, seasonId, null, base, { auto: true });
+  return "done";
+}
+
 /** Copy and paste it yourself: an answer to how it works (`part: "rules"`) or to who's in it (`"cast"`). */
 export async function pasteMake(user: SessionUser, seasonId: string, couchId: string | null, body: { part?: unknown; answer?: unknown }, base: string): Promise<MakeState> {
   const show = await notReady(seasonId);
@@ -641,8 +677,9 @@ const startedFrom = (blocks: RulebookBlocks): TemplateRef | null => {
   return m ? { from: "rulebook", id: m[1] } : null;
 };
 
-/** Looks right: the season's rulebook and cast (with the photos the review showed), and the show set up for every couch. */
-export async function confirmMake(user: SessionUser, seasonId: string, couchId: string | null, base?: string): Promise<MakeState> {
+/** Looks right: the season's rulebook and cast (with the photos the review showed), and the show set up for every couch.
+ *  `auto`: nobody tapped it (Getting it ready, autoMake): so its History line and the rulebook's provenance say. */
+export async function confirmMake(user: SessionUser, seasonId: string, couchId: string | null, base?: string, o: { auto?: boolean } = {}): Promise<MakeState> {
   const show = await notReady(seasonId);
   const h = show.header;
   const row = await openRow(seasonId);
@@ -682,7 +719,7 @@ export async function confirmMake(user: SessionUser, seasonId: string, couchId: 
       base: null,
       aliases: { events: {}, exits: {} },
       phaseStarts,
-      provenance: { from: "made", via: row.via, by: user.id, couch: row.couch_id, setup: row.id, template, dropped: worked.review.dropped, leftOut: worked.review.leftOut },
+      provenance: { from: "made", via: row.via, by: user.id, couch: row.couch_id, setup: row.id, template, dropped: worked.review.dropped, leftOut: worked.review.leftOut, ...(o.auto ? { auto: true } : {}) },
       reviewStatus: desk ? "reviewed" : "unreviewed",
       createdBy: user.id,
       ...(desk ? { approvedBy: user.id, approvedAt: new Date().toISOString() } : {}),
@@ -722,7 +759,7 @@ export async function confirmMake(user: SessionUser, seasonId: string, couchId: 
       entity: "rulebook",
       entityId: book.id,
       action: "made",
-      text: `${labelOf(h)} made a game (${row.via === "bot" ? "Ask ChatGPT for me" : row.via === "template" ? "from a template" : "copy and paste"}): ${kindName(key, worked.review.kind.start).toLowerCase()}, ${cast.length} in the cast`,
+      text: `${labelOf(h)} made a game (${o.auto ? "by itself, as it was added" : row.via === "bot" ? "Ask ChatGPT for me" : row.via === "template" ? "from a template" : "copy and paste"}): ${kindName(key, worked.review.kind.start).toLowerCase()}, ${cast.length} in the cast`,
       userId: user.id,
     });
     await c.query("COMMIT");

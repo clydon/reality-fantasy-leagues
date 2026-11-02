@@ -8,6 +8,7 @@ import { listingsFor } from "@/lib/server/listings";
 import { listingsDue, refreshListings } from "@/lib/server/tv-listings";
 import { advanceAllAuto } from "@/lib/server/keep-up";
 import { notifyResearched } from "@/lib/server/push-events";
+import { fillsNextAt, runDueFill } from "@/lib/server/season-fill";
 import { runNext, planRuns } from "@db/bot-research.js";
 
 // The bot research clock (db/bot-research.js): the ask-AI bot's VM calls this, and each call runs at most
@@ -31,6 +32,9 @@ import { runNext, planRuns } from "@db/bot-research.js";
 // Results someone asked for (research-asks.ts, slot 'asked') are planned with the rest; a run that ends its ask (it worked, or
 // was its last try) tells whoever asked (push-events.ts notifyResearched), after the answer.
 //
+// So is Getting it ready (season-fill.ts, docs/PLAN-getting-it-ready.md): a call that ran no research runs the earliest season
+// job that's due (`fill`: its season), and `next` counts when the next one comes due.
+//
 // Authorization: Bearer <CRON_SECRET>, the same value in Vercel and the VM's .env.
 export const maxDuration = 300;
 
@@ -43,9 +47,12 @@ function nowFrom(req: Request): Date {
   return d;
 }
 
+const earliest = (a: Date | null, b: Date | null) => (a && b ? (a < b ? a : b) : (a ?? b));
+
 export const GET = apiRoute(async (req) => {
   requireCron(req);
-  const { due, next } = await planRuns(pool, { now: nowFrom(req) });
+  const { due, next: research } = await planRuns(pool, { now: nowFrom(req) });
+  const next = earliest(research, await fillsNextAt());
   return NextResponse.json({
     due: due.map((d) => ({ season: d.season.slug, seasonNumber: d.season.season_number, episode: d.episode, slot: d.slot, at: d.at })),
     next,
@@ -54,15 +61,18 @@ export const GET = apiRoute(async (req) => {
 
 export const POST = apiRoute(async (req) => {
   requireCron(req);
+  const t0 = Date.now();
   const bot = botFor(req);
   const base = listingsFor(req);
   const out = await runNext(pool, { ask: (prompt, o) => askBot(prompt, { ...o, bot }), send: botSend, now: nowFrom(req) });
   if (out.job && out.asked?.userId) {
     notifyResearched({ userId: out.asked.userId, seasonId: out.job.seasonId, episode: out.job.episode, askedAt: new Date(out.asked.askedAt), ok: out.asked.ok, found: out.asked.found });
   }
+  const fill = out.job ? null : await runDueFill({ base, bot, budgetMs: 280_000 - (Date.now() - t0) });
+  const next = earliest(out.next, await fillsNextAt());
   const listings = !out.job && (await listingsDue());
   if (listings) after(() => refreshListings(base, { how: "clock" }).catch((e) => console.error("[listings] the daily run:", e)));
   // Shows set to move along by themselves (keep-up.ts): marks moved for everyone, so a couch sees each other where they are.
   after(() => advanceAllAuto().catch((e) => console.error("[keep-up] auto:", e)));
-  return NextResponse.json({ ...out, listings });
+  return NextResponse.json({ ...out, next, fill, listings });
 });

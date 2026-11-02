@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { usePathname } from "next/navigation";
 import { BookOpen, ChevronRight, Ellipsis, EyeOff, Eye, KeyRound, Bell, Lock, LogOut, RotateCcw, ShieldCheck, Tv, UserPlus, Users, X } from "lucide-react";
 import { airTime, calm, justAired, ticks } from "../clock";
-import { chatCouch, gameAdmin, useAfterReveal, useAfterWatching, watching, useBackstage, useChatBadge, useCouchForSeason, useHome, useSeasonDraft, useSeasonEpisodes, useSeasonGames, useSpace, type Couch, type DraftGame, type GameRef, type GameView, type Need, type OutPreview, type SeasonEpisodes, type SeasonHeader, type Space } from "../data";
+import { chatCouch, fill, gameAdmin, useFill, useAfterReveal, useAfterWatching, watching, useBackstage, useChatBadge, useCouchForSeason, useHome, useSeasonDraft, useSeasonEpisodes, useSeasonGames, useSpace, type Couch, type DraftGame, type GameRef, type GameView, type Need, type OutPreview, type SeasonEpisodes, type SeasonHeader, type Space } from "../data";
 import { leaveToDesk, ReadOnlyPanel, useReadOnly, type ReadOnlyGame } from "../read-only";
 import { READ_ONLY_SAYS } from "@/lib/read-only";
 import { movesByDue } from "../hub/sections";
@@ -37,6 +38,7 @@ import { openCouchSheet } from "../couch/couch-sheets";
 import { atEnd, caughtUpLine, knownMark, marksOf, plainName, type Mark, type Pace, type Where } from "../couch/where";
 import { PoolPage } from "../show/solo";
 import { MakeGamePage } from "../show/make-game";
+import { GettingReadySheet, ReadyChip, ReadyLine, useFillSync } from "../show/getting-ready";
 import { openWatching, type WhereTarget } from "../watching/sheets";
 import { openPlan, PlanIcon } from "../couch/watch-plans";
 import { WatchAlongPage } from "../show/watch-along";
@@ -225,6 +227,24 @@ export function SpaceFrame({ seasonId, children }: { seasonId: string; children:
   useEffect(() => {
     if (settled) tunedIn(seasonId);
   }, [settled, seasonId]);
+  // Getting it ready (show/getting-ready.tsx): while its rules, cast or episodes are being got, the header's chip and line say
+  // so; a season you follow of a show that's a game, with nobody in its cast and nothing getting it, is started here, once a visit.
+  const filling = ro ? null : (show.header?.filling ?? null);
+  const fillRead = useFill(seasonId, !!filling);
+  const f = fillRead.data;
+  useFillSync(seasonId, f);
+  const qc = useQueryClient();
+  const started = useRef(false);
+  const mine = show.following || show.plays;
+  useEffect(() => {
+    if (filling !== "missing" || started.current || !mine) return;
+    started.current = true;
+    fill
+      .start(seasonId)
+      .then((s) => qc.setQueryData(["new-design", "fill", seasonId], s))
+      .catch(() => undefined);
+  }, [filling, mine, seasonId, qc]);
+  const fillOn = !!f && (f.status === "going" || f.status === "stuck");
 
   if (show.notFound) {
     return <EmptyState icon={Tv} title="Show not found" line="It may have been removed." />;
@@ -249,7 +269,8 @@ export function SpaceFrame({ seasonId, children }: { seasonId: string; children:
                   onClick: () => nav.back(paths.home, undefined, startTuneBack(seasonId) ? "tune" : undefined, (p) => p.startsWith(`/show/${seasonId}/`)),
                 }
           }
-          status={status}
+          status={fillOn ? <ReadyChip f={f} /> : status}
+          progress={fillOn ? <ReadyLine f={f} /> : undefined}
           menu={ro ? <ReadOnlyMenu /> : <ShowMenu seasonId={seasonId} show={show} />}
           below={<CouchLine show={show} />}
         />
@@ -272,6 +293,7 @@ export function SpaceFrame({ seasonId, children }: { seasonId: string; children:
           <RemindSheet show={show} />
           <RevealScreen show={show} seasonId={seasonId} />
           <MorningSheet show={show} seasonId={seasonId} />
+          <GettingReadySheet seasonId={seasonId} />
         </>
       )}
       {show.header && (

@@ -87,6 +87,7 @@ scales up under load). So what matters is how often something wakes it, not how 
 | Researched trivia runs (2026-10-26; in the default schedule) | one call a day before each episode (two ChatGPT asks, ~2 min), up to 3 tries | a few minutes per episode, ~0.1 per show airing |
 | Tie-break runs (new design, step 6c; off until switched on in desk › Settings) | one call a day after a dispute, up to 3 tries | a few minutes per disputed episode |
 | Results someone asked for (2026-10-27, migration 0152: Fill in what happened on a show made a game that nobody plays) | two clock calls per asked episode (who went home, ~25-50 s; then the full research, ~2.5-4 min), back to back with the clock's minute tick between, 2 tries for the full one; each run writes its progress every few seconds (0153); the asker's card polls every 4 s while an answer is coming | a season's catch-up of 7 episodes is ~25-35 min awake once; then nothing. On the VM, Chrome stays open 10 min after a question (~300 MB of its 1 GB) |
+| Getting it ready (2026-11-01, migration 0160: every show someone adds) | up to three bot asks per show added, in a row after Add's answer (a brand-new show's how it works ~1-2 min and its cast ~1 min, else just the cast; then one recap ask for every aired episode, ~1-3 min), then that season's results one episode at a time on the clock as above (only for a show nobody plays). A run cut off by the 300 s limit, or with the bot away, is carried on by the open page or the clock (`next` counts it; tried again after 30 s, 3 min after a failure, 2 min while the bot's away; 3 tries a step) | a few minutes awake per show added, plus its results' catch-up; nothing once it's done |
 | The listings job (new design, step 11 part 2) | none of its own: it runs after a bot clock call that ran no bot job, which had woken the database already; ~10-30 s of queries once a day | ~0 (a backstop Vercel cron, if ever needed, ~0.6) |
 | Bot research clock, before (a call every 2 min) | around the clock | ~180 (over the allowance) |
 | People with the app open (classic, or a new-design show space: its Chat badge polls) | while they're on it, plus 5 minutes | the rest: ~20 in Oct 1-24 (35.4 total, less ~11 for the hourly job until it stopped and ~3 for the clock's first night) |
@@ -174,6 +175,13 @@ an episode more to the browser (a weekly show 1-2, a nightly one ~10, a streamin
 a couple of KB per open). The browser lays the week out and moves the clock on each minute without asking the server. **Hide
 from guide** is one small row per hidden show per person (`guide_hidden`, migration 0125, ~100 bytes), written when someone
 hides one.
+
+**Getting it ready (2026-11-01, `src/lib/server/season-fill.ts`, migration 0160; docs/PLAN-getting-it-ready.md)** runs the asks
+below by itself when someone adds a show: a brand-new show's Make it a game (applied when our check passes), a new season's cast
+for a show that's a game, and Fill in what happened for every aired episode (switch on Add). Our bot only, never the paid keys;
+asking ChatGPT yourself (the /b/ brief, then paste) does every step free. While one's going, the show's page and Home's poster poll
+`GET /api/seasons/[id]/fill` every 4 s (a few KB: the steps, the cast's names and photo URLs, a state per aired episode), only
+while the page is visible; nothing polls once it's done. Storage: one small `season_fills` row per season added.
 
 **Fill in what happened (2026-10-27, `src/lib/server/episode-recaps.ts`, migration 0143)** is one bot ask per season when someone
 taps it (only aired episodes with no recap, so a season is asked about again only for new ones), run after the response like Make
@@ -530,6 +538,11 @@ never handles it: the user does the reset and the pasting.
   now. Vercel's function logs have one `[listings]` line per run.
 
 ## Changelog
+
+- **2026-11-01, branch `ready`.** Getting it ready (migration 0160): adding a show asks our bot up to three things by itself (above,
+  What uses each limit), where before it asked nothing until someone tapped. At the couch's size that's a few shows a week, a few
+  minutes of the bot and of Neon awake each. At scale it's the bot's capacity that runs out first (one browser, one question at a
+  time): asking ChatGPT yourself is the free way that doesn't need it, offered on every step.
 
 - **2026-10-30, local only.** The PC's bot asks **Codex** (the Codex CLI, the user's ChatGPT plan, no API key, no cost beyond
   the plan): a `codex` provider in llm-browser-api, web search only (the shell, files, browser and computer use, apps, plugins

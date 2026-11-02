@@ -80,14 +80,18 @@ export function RecapsCard({ seasonId, show, eps }: { seasonId: string; show: Sh
     }
   };
   const shared = "Everyone on the show sees them, only for the ones they've seen.";
+  // One ask covers every episode that's out without one, seen or not (the user, 2026-11-01: with several out, say so, not just
+  // the ones you've seen): how many aired isn't a spoiler, and each shows once you've seen it.
+  const out = state.data?.missing.length ? state.data.missing : blank;
+  const outLabel = out.length > 1 ? `All ${out.length} ${w.episodes.toLowerCase()} that are out` : `${w.episode} ${out[0] ?? blank[0]}`;
   const line = busyNow
     ? going.length
       ? `ChatGPT is looking it up, one ${ep} at a time. We'll tell you as each one comes in, so you can leave this page.`
       : "ChatGPT is looking it up. It takes a minute or two; you can leave this page."
     : blank.length && missing.length
-      ? `${episodesLabel(blank, w)} only say when ${blank.length === 1 ? "it" : "they"} aired. ChatGPT can look up what happened in each, then everyone's results one ${ep} at a time, so ${people} can count their stats. ${shared}`
+      ? `${outLabel} only say when ${out.length === 1 ? "it" : "they"} aired. ChatGPT can look up what happened in every one in one go, then everyone's results one ${ep} at a time, so ${people} can count their stats. ${shared}`
       : blank.length
-        ? `${episodesLabel(blank, w)} only say when ${blank.length === 1 ? "it" : "they"} aired. ChatGPT can look up ${show.header?.show.kind === "sport" ? "the score, who won and who stood out" : "what happened"} in each. ${shared}`
+        ? `${outLabel} only say when ${out.length === 1 ? "it" : "they"} aired. ChatGPT can look up ${show.header?.show.kind === "sport" ? "the score, who won and who stood out" : "what happened"} in every one in one go. ${shared}`
         : missing.length
           ? `${episodesLabel(missing, w)} ${missing.length === 1 ? "has" : "have"} no results yet. ChatGPT can look them up one ${ep} at a time, so ${people} can count everyone's stats. ${shared}`
           : `ChatGPT couldn't find ${episodesLabel(failed, w)}'s results.`;
@@ -105,7 +109,7 @@ export function RecapsCard({ seasonId, show, eps }: { seasonId: string; show: Sh
           <div className="mt-1 flex flex-col gap-1.5">
             {state.data?.available !== false && (
               <Btn tone="must" wide data-recaps-ask disabled={busy || !state.data} onClick={ask}>
-                {busy ? "Asking…" : !blank.length && !missing.length ? "Try again" : "Ask ChatGPT for me"}
+                {busy ? "Asking…" : !blank.length && !missing.length ? "Try again" : blank.length && out.length > 1 ? `Ask ChatGPT for all ${out.length}` : "Ask ChatGPT for me"}
               </Btn>
             )}
             {blank.length > 0 && (

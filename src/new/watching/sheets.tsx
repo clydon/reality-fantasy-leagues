@@ -2,10 +2,13 @@
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ChevronLeft, Search } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
+  fill,
   useAfterWatching,
   useCatalog,
   useCurrentCouch,
+  useFill,
   useHome,
   useListingSeason,
   watching,
@@ -15,7 +18,9 @@ import {
   type ListingHit,
 } from "../data";
 import { keepToPath, PracticeFinish, PracticeNote, PracticeStrip, said, useNudge, type PracticePath } from "../tour/practice";
-import { Btn } from "../ui/parts";
+import { paths } from "../routes";
+import { CallSheet, useFillPaste, useFillSync } from "../show/getting-ready";
+import { Btn, BtnLink } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { useReducedMotion } from "../welcome/hooks";
@@ -153,12 +158,15 @@ function ListingSheet({ hit, then, onOpenChange }: { hit: ListingHit | null; the
           <ListingWhere
             hit={h}
             busy={busy}
-            onSave={async (seen, live) => {
+            lookUp
+            onSave={async (seen, live, episodes) => {
               setBusy(true);
               try {
                 const r = await watching.add({ listing: h.tvmazeId, seenThrough: seen, live });
+                // It gets ready by itself (Getting it ready); Home's poster shows it while it does.
+                await fill.start(r.seasonId, episodes).catch(() => null);
                 await refresh();
-                toast(`${r.label} added to your shows${r.ready ? "" : " · not a game yet"}`);
+                toast(`${r.label} added to your shows`);
                 close();
                 then?.(r.seasonId);
               } catch (e) {
@@ -190,6 +198,8 @@ type Step =
   // The tour's practice, where the save would have been (`demo`: one the tour added itself), and the end of its demo.
   | { kind: "practiced"; label: string; demo?: boolean }
   | { kind: "demoed"; labels: string[] }
+  // Added: Getting it ready plays (show/getting-ready.tsx) while its rules, cast and episodes come in.
+  | { kind: "ready"; seasonId: string; label: string }
   | null;
 
 /** "Harry Potter and Sunday Night Football", "A, B and C". */
@@ -215,6 +225,7 @@ function AddShowSheet({ open, practice, onOpenChange }: { open: boolean; practic
   const listed = useCatalog(asked).data?.seasons;
   const catalog = useMemo(() => listed ?? [], [listed]);
   const refresh = useAfterWatching();
+  const qc = useQueryClient();
   const [q, setQ] = useState("");
   const [step, setStep] = useState<Step>(null);
   const [busy, setBusy] = useState(false);
@@ -276,8 +287,15 @@ function AddShowSheet({ open, practice, onOpenChange }: { open: boolean; practic
     return out.slice(0, 6);
   }, [home, catalog, mine, watchers]);
 
-  const done = async (label: string, ready: boolean) => {
+  // Added: it gets ready by itself (Getting it ready: its rules, its cast, then the episodes that are out unless switched off), and
+  // the sheet plays it; with nothing to get, the toast as before.
+  const done = async (label: string, ready: boolean, seasonId: string, episodes: boolean) => {
     await refresh();
+    const f = await fill.start(seasonId, episodes).catch(() => null);
+    if (f && (f.status === "going" || f.status === "stuck")) {
+      qc.setQueryData(["new-design", "fill", seasonId], f);
+      return setStep({ kind: "ready", seasonId, label });
+    }
     toast(`${label} added to your shows${ready ? "" : " · not a game yet"}`);
     setStep(null);
   };
@@ -296,7 +314,7 @@ function AddShowSheet({ open, practice, onOpenChange }: { open: boolean; practic
     setStep({ kind: "practiced", label, demo: demoing.current });
     if (!demoing.current) practice?.onAdded?.();
   };
-  const addSeason = (s: WhereSeason, ready: boolean, seen: number, live = false) => {
+  const addSeason = (s: WhereSeason, ready: boolean, seen: number, live = false, episodes = true) => {
     // The tour's practice saves nothing: its finish stands in.
     if (practice) return addedForPractice(s.label);
     return run(async () => {
@@ -307,7 +325,7 @@ function AddShowSheet({ open, practice, onOpenChange }: { open: boolean; practic
         if ((e as { status?: number }).status !== 409) throw e;
         await watching.follow(s.seasonId, { following: true });
       }
-      await done(s.label, ready);
+      await done(s.label, ready, s.seasonId, episodes);
     });
   };
   const pickSeason = (s: WhereSeason, ready: boolean) => {
@@ -405,7 +423,9 @@ function AddShowSheet({ open, practice, onOpenChange }: { open: boolean; practic
     ? "Add a show"
     : step.kind === "demoed"
       ? "Shows you add"
-      : step.kind === "practiced"
+      : step.kind === "ready"
+        ? "Getting it ready"
+        : step.kind === "practiced"
         ? step.demo
           ? "Added"
           : "That's how you add a show"
@@ -414,7 +434,9 @@ function AddShowSheet({ open, practice, onOpenChange }: { open: boolean; practic
           : "Where are you?";
   const subtitle = !step
     ? "Everything on TV. Playing is optional."
-    : step.kind === "practiced" || step.kind === "demoed"
+    : step.kind === "ready"
+      ? `${step.label} is on your shows`
+      : step.kind === "practiced" || step.kind === "demoed"
       ? "Practice run"
       : step.kind === "name"
         ? "A show nobody here has added yet"
@@ -465,7 +487,8 @@ function AddShowSheet({ open, practice, onOpenChange }: { open: boolean; practic
             <PracticeNote>Shows you add land on your Home, and in your couch&rsquo;s TV guide when you share what you watch.</PracticeNote>
           </PracticeFinish>
         )}
-        {step && step.kind !== "practiced" && step.kind !== "demoed" && (
+        {step?.kind === "ready" && <AddedReady seasonId={step.seasonId} onDone={() => onOpenChange(false)} />}
+        {step && step.kind !== "practiced" && step.kind !== "demoed" && step.kind !== "ready" && (
           <button type="button" onClick={() => setStep(null)} className="-ml-1 mb-2 flex h-10 items-center gap-1 text-[14px] font-semibold text-muted-foreground">
             <ChevronLeft className="size-4" aria-hidden /> Back to search
           </button>
@@ -507,17 +530,20 @@ function AddShowSheet({ open, practice, onOpenChange }: { open: boolean; practic
             <ListingsCredit />
           </>
         )}
-        {step?.kind === "season" && <WhereAsk s={step.s} start={0} cta="Add to my shows" busy={busy} onSave={(seen, live) => addSeason(step.s, step.ready, seen, live)} />}
+        {step?.kind === "season" && (
+          <WhereAsk s={step.s} start={0} cta="Add to my shows" busy={busy} lookUp={!practice} onSave={(seen, live, episodes) => addSeason(step.s, step.ready, seen, live, episodes)} />
+        )}
         {step?.kind === "listing" && (
           <ListingWhere
             hit={step.hit}
             busy={busy}
-            onSave={(seen, live) =>
+            lookUp={!practice}
+            onSave={(seen, live, episodes) =>
               practice
                 ? addedForPractice(step.hit.name)
                 : run(async () => {
                     const r = await watching.add({ listing: step.hit.tvmazeId, seenThrough: seen, live });
-                    await done(r.label, r.ready);
+                    await done(r.label, r.ready, r.seasonId, episodes);
                   })
             }
           />
@@ -538,7 +564,7 @@ function AddShowSheet({ open, practice, onOpenChange }: { open: boolean; practic
                   ? addedForPractice(step.name)
                   : run(async () => {
                       const r = await watching.add({ name: step.name });
-                      await done(r.label, r.ready);
+                      await done(r.label, r.ready, r.seasonId, true);
                     })
               }
             >
@@ -552,7 +578,7 @@ function AddShowSheet({ open, practice, onOpenChange }: { open: boolean; practic
 }
 
 /** Where you are in a show from the TV listings: its season, read from the listing first (how much has aired). */
-function ListingWhere({ hit, busy, onSave }: { hit: ListingHit; busy: boolean; onSave: (seen: number, live: boolean) => void }) {
+function ListingWhere({ hit, busy, lookUp, onSave }: { hit: ListingHit; busy: boolean; lookUp?: boolean; onSave: (seen: number, live: boolean, episodes: boolean) => void }) {
   const { data, error } = useListingSeason(hit.tvmazeId);
   if (error) return <p className="text-[14px] text-live">{(error as Error).message}</p>;
   if (!data) return <div aria-busy className="h-[150px] animate-pulse rounded-[4px] bg-background" />;
@@ -570,5 +596,28 @@ function ListingWhere({ hit, busy, onSave }: { hit: ListingHit; busy: boolean; o
     // A sport's word from its titles ("Game"), as adding it will save (0142).
     episodeWord: hit.kind === "sport" ? (episodeWordFromTitles(data.episodes.map((e) => e.title)) ?? "Event") : undefined,
   };
-  return <WhereAsk s={s} start={0} cta="Add to my shows" busy={busy} onSave={onSave} />;
+  return <WhereAsk s={s} start={0} cta="Add to my shows" busy={busy} lookUp={lookUp} onSave={onSave} />;
+}
+
+/** Added, and getting ready (show/getting-ready.tsx): the call sheet as its rules, cast and episodes come in; Go to the show, or
+ *  Done (it carries on: Home's poster shows it). */
+function AddedReady({ seasonId, onDone }: { seasonId: string; onDone: () => void }) {
+  const f = useFill(seasonId).data;
+  useFillSync(seasonId, f);
+  const paste = useFillPaste(f);
+  if (!f) return <div aria-busy className="h-[220px] animate-pulse rounded-[4px] bg-background" />;
+  return (
+    <div data-added-ready={f.status}>
+      <CallSheet f={f} onPaste={paste.open} />
+      <div className="mt-5 flex flex-col gap-2">
+        <BtnLink tone="must" wide href={paths.show(seasonId)} data-added-go onClick={onDone}>
+          Go to the show
+        </BtnLink>
+        <Btn wide data-added-done onClick={onDone}>
+          {f.status === "going" ? "Done: it carries on" : "Done"}
+        </Btn>
+      </div>
+      {paste.sheet}
+    </div>
+  );
 }

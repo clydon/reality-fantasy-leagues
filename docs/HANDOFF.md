@@ -21,6 +21,18 @@ and the Neon password rotation (deferred; steps there). Fixed 2026-10-24: the ch
 end); GitHub Actions, stopped since 2026-10-19, runs again. Vercel builds production only (Preview shared
 production's database).
 
+## Getting it ready (2026-11-01; branch `ready`, lane `rfl-ready`, migration 0160)
+The user added The Challenge 42 (finished, 14 episodes) and found no cast, and a summary for Episode 1 only. Now a show someone adds
+gets ready by itself:
+- **The steps:** how it's played (a brand-new show is made a game by our bot, applied when our check passes), then who's in it,
+  then what happened in every aired episode (and their results, when nobody plays it).
+- **How it looks:** the user picked look A, the Call sheet. It plays in Add's sheet, on Home's poster (no-signal), in the
+  show's header (a chip and a line), on Contestants (the casting wall) and on Episodes (the filmstrip).
+- **The free way:** asking ChatGPT yourself (the /b/ link, then paste) is on every step, and it leads while our bot's away.
+- **Read [PLAN-getting-it-ready.md](PLAN-getting-it-ready.md)** (decisions, as built, noticed).
+- **Checks:** `check-getting-ready.js` (36 PASS at 390).
+- **After it's live:** remove The Challenge 42 from production entirely (the user's ask, so they can test the real flow).
+
 ## Where everyone is (2026-11-01; F and C pushed 31ea9286, then B; no migration, no new endpoint)
 The user: people say what episode they're on when they add a show, but the couch had no intuitive way to see it. Mocked
 with /impeccable on a private Design canvas (https://claude.ai/artifact/3EvNJC8CP7HDA3CHJuvAaB: A rail, B numbered header

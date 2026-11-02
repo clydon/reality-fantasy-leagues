@@ -29,6 +29,7 @@ import type { ListingHit } from "@/lib/game/listing";
 import type { AddedShow } from "@/lib/server/add-show";
 import type { KeepUp } from "@/lib/server/keep-up";
 import type { RecapState } from "@/lib/server/episode-recaps";
+import type { FillState } from "@/lib/server/season-fill";
 import type { ScoringPage } from "@/lib/server/maker-scoring";
 import type { Roster } from "@/lib/server/rosters";
 import type { StepEpisode } from "@/lib/server/schedule";
@@ -148,6 +149,10 @@ export interface SeasonHeader {
   dropAt?: string | null;
   /** Set up as a game (step 10): false is "Not a game yet", a show someone added to follow. */
   ready?: boolean;
+  /** Getting it ready (docs/PLAN-getting-it-ready.md): its rules, cast or episodes being got now, stopped partway, or a show
+   *  that's a game with nobody in this season's cast and nothing getting it yet (the show's page starts it for someone who
+   *  follows it); else null. */
+  filling?: "going" | "stuck" | "missing" | null;
   show: {
     id: string;
     slug: string;
@@ -1191,6 +1196,34 @@ export const recaps = {
   ask: (seasonId: string) => post<RecapState>(`/api/seasons/${seasonId}/recaps`, { action: "ask" }),
   paste: (seasonId: string, answer: string) => post<RecapState & { filled: number }>(`/api/seasons/${seasonId}/recaps`, { answer }),
   prompt: (seasonId: string) => get<{ prompt: string }>(`/api/seasons/${seasonId}/recaps?prompt=1`),
+};
+
+// ---- Getting it ready (docs/PLAN-getting-it-ready.md, season-fill.ts): a season's rules, cast and episodes, got by itself ----
+
+export type { FillState } from "@/lib/server/season-fill";
+
+/** A season getting ready: each step, its cast once it's in, each aired episode's tile. Read every 4 s while it's going (only
+ *  while the page shows: React Query pauses a hidden tab's). */
+export function useFill(seasonId: string | null, enabled = true) {
+  return useQuery({
+    queryKey: ["new-design", "fill", seasonId],
+    queryFn: () => get<FillState>(`/api/seasons/${seasonId}/fill`),
+    enabled: enabled && seasonId != null,
+    staleTime: 10_000,
+    retry: false,
+    refetchInterval: (q) => (q.state.data?.status === "going" ? 4000 : false),
+  });
+}
+
+export const fill = {
+  /** Start it (after Add; the show's page for a season missing its rules or cast). `episodes` false leaves the episodes. */
+  start: (seasonId: string, episodes = true) => post<FillState>(`/api/seasons/${seasonId}/fill`, { action: "start", episodes }),
+  retry: (seasonId: string) => post<FillState>(`/api/seasons/${seasonId}/fill`, { action: "retry" }),
+  /** The page that's open carries on a run that stopped partway. */
+  go: (seasonId: string) => post<FillState>(`/api/seasons/${seasonId}/fill`, { action: "go" }),
+  /** Copy and paste, the free way: the step it's on as a question, and its answer pasted back. */
+  prompt: (seasonId: string) => get<{ prompt: string; task: string; step: "rules" | "cast" | "episodes" }>(`/api/seasons/${seasonId}/fill?prompt=1`),
+  paste: (seasonId: string, answer: string) => post<FillState>(`/api/seasons/${seasonId}/fill`, { action: "paste", answer }),
 };
 export type { StepEpisode } from "@/lib/server/schedule";
 

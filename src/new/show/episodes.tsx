@@ -3,11 +3,11 @@
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ChevronRight, Clock, Eye, EyeOff } from "lucide-react";
-import { airTime, dayOf } from "../clock";
+import { airedAt, airTime, dayOf } from "../clock";
 import { episodeMarks, knownMark, marksLine, namesLine, type Mark } from "../couch/where";
 import { useMe } from "../session";
 import { Avatar } from "../ui/bars";
-import { useEpisodeResults, useSeasonWaivers, type EpisodeRow, type GameNight, type WaiverRunView, type WaiverWeek } from "../data";
+import { useEpisodeResults, useFill, useSeasonWaivers, type EpisodeRow, type GameNight, type WaiverRunView, type WaiverWeek } from "../data";
 import { midLine, useFinalLine } from "../final-words";
 import { gameInk, ordinal } from "../games";
 import { NavLink, useCameFrom, useNav } from "../nav";
@@ -27,6 +27,7 @@ import { ShowChangeCard } from "./show-change";
 import { EpisodeCorrections, SomethingWrong } from "./something-wrong";
 import { movesIn, playsWaivers, WaiverEpisodeRow } from "./waivers";
 import { RecapsCard } from "./recaps";
+import { EpisodesComing } from "./getting-ready";
 
 // Episodes (the mock's show.js tabEpisodes and episodePage, episode.js's locked row, waivers.js's row): this week's
 // episode and who's set for it, the next results to reveal, then every episode: one whose results are in but hidden
@@ -78,6 +79,12 @@ export function Episodes({ seasonId, show }: { seasonId: string; show: ShowData 
   const ro: ReadOnlyLine | null = show.readOnly && roGame ? { name: show.readOnly.name, from: roGame.from, to: roGame.to } : null;
   const progress = progressLine(show) ?? (ro && roGame && !roGame.over && !roGame.archived ? `${ro.name}: nothing to set before it airs` : null);
   const wv = useSeasonWaivers(seasonId, show.couch?.id ?? null, playsWaivers(show) && !show.readOnly);
+  // Getting it ready (getting-ready.tsx): while the episodes are being looked up, their filmstrip instead of Fill in what happened,
+  // and a row you've seen that's still to come says so.
+  const filling = show.readOnly ? null : (show.header?.filling ?? null);
+  const fillState = useFill(seasonId, !!filling).data;
+  const catching = fillState?.status === "going" && fillState.steps.some((s) => s.key === "episodes");
+  const looking = (n: number) => !!catching && fillState!.episodes.some((t) => t.number === n && (t.state === "waiting" || t.state === "asking"));
   const rateFor = (n: number): RateTarget => ({ seasonId, couchId: show.couch?.id ?? null, episode: n, label: rateLabel(show), solo: show.solo });
   // Each waiver week after the episode that opened it, in a newest-first list just above that episode's row: every week anyone
   // moved in (a quiet week says nothing), and the week still open while there's something for you to do in it.
@@ -141,7 +148,7 @@ export function Episodes({ seasonId, show }: { seasonId: string; show: ShowData 
           </button>
         </section>
       )}
-      {eps && <RecapsCard seasonId={seasonId} show={show} eps={eps} />}
+      {catching ? <EpisodesComing f={fillState!} /> : eps && <RecapsCard seasonId={seasonId} show={show} eps={eps} />}
       <section className="mt-[26px] px-4">
         <div className="mb-3 flex items-baseline justify-between gap-3">
           <h2 className="type-caption text-[24px]">Every {show.words.episode.toLowerCase()}</h2>
@@ -168,7 +175,7 @@ export function Episodes({ seasonId, show }: { seasonId: string; show: ShowData 
                 ) : e.status === "waiting" ? (
                   <WaitingRow e={e} who={whoAt(e.number)} />
                 ) : e.status === "aired" ? (
-                  <AiredRow e={e} who={whoAt(e.number)} solo={show.solo} streaming={show.streaming} word={show.words.episode} onRate={() => openRate(rateFor(e.number))} />
+                  <AiredRow e={e} who={whoAt(e.number)} solo={show.solo} streaming={show.streaming} word={show.words.episode} looking={looking(e.number)} onRate={() => openRate(rateFor(e.number))} />
                 ) : (
                   <SeenRow e={e} who={whoAt(e.number)} solo={show.solo} ro={ro} />
                 )}
@@ -291,7 +298,7 @@ function HiddenRow({ e, who, onReveal }: { e: EpisodeRow; who?: Mark[]; onReveal
 
 /** An episode of a show you only watch, with no results to show (step 10): when it aired, and whether you've seen it. One
  *  you've seen opens Rate it (step 12 part 1), with the couch's verdict on the row. */
-function AiredRow({ e, who, solo, streaming, word = "Episode", onRate }: { e: EpisodeRow; who?: Mark[]; solo: boolean; streaming?: boolean; word?: string; onRate: () => void }) {
+function AiredRow({ e, who, solo, streaming, word = "Episode", looking, onRate }: { e: EpisodeRow; who?: Mark[]; solo: boolean; streaming?: boolean; word?: string; looking?: boolean; onRate: () => void }) {
   const lift = mineIn(who) ? LIFT : "";
   const body = (
     <>
@@ -300,13 +307,21 @@ function AiredRow({ e, who, solo, streaming, word = "Episode", onRate }: { e: Ep
         <b className="block text-base font-semibold">{e.title ?? `${word} ${e.number}`}</b>
         <small className="mt-0.5 block text-[13px] text-muted-foreground">
           {/* A streaming season's all came out at once: when isn't news. */}
-          {e.airAt && !streaming ? `Aired ${airTime(Date.parse(e.airAt))} · ` : ""}
+          {e.airAt && !streaming ? `Aired ${airedAt(Date.parse(e.airAt))} · ` : ""}
           {e.watched ? "You've seen it" : "Not seen yet"}
         </small>
-        {e.summary && (
+        {e.summary ? (
           <small data-ep-summary className="mt-1 block text-[13.5px] leading-snug text-foreground/90">
             {e.summary}
           </small>
+        ) : (
+          e.watched &&
+          looking && (
+            <small data-ep-looking className="mt-1 flex items-center gap-1.5 text-[13px] text-muted-foreground">
+              <i className="nd-tally size-1.5 rounded-full bg-live" aria-hidden />
+              Looking up what happened…
+            </small>
+          )
         )}
         <WhoHere who={who} />
       </span>
@@ -337,7 +352,7 @@ function WaitingRow({ e, who }: { e: EpisodeRow; who?: Mark[] }) {
       <span className="min-w-0 flex-1">
         <b className="block text-base font-semibold">Waiting for results</b>
         <small className="mt-0.5 block text-[13px] text-muted-foreground">
-          {e.airAt ? `Aired ${airTime(Date.parse(e.airAt))} · ` : ""}nothing is spoiled meanwhile
+          {e.airAt ? `Aired ${airedAt(Date.parse(e.airAt))} · ` : ""}nothing is spoiled meanwhile
         </small>
         <WhoHere who={who} />
       </span>

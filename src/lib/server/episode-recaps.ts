@@ -131,7 +131,7 @@ async function saveRecaps(seasonId: string, recaps: Map<number, string>, db: Que
 }
 
 /** Someone who follows the season or plays it (anyone else has no reason to fill it in). */
-async function mayFill(userId: string, seasonId: string): Promise<void> {
+export async function mayFill(userId: string, seasonId: string): Promise<void> {
   if (!isUuid(seasonId)) throw new HttpError(404, "Season not found");
   const { rows } = await pool.query(
     `SELECT EXISTS (SELECT 1 FROM show_follows WHERE user_id = $1 AND season_id = $2 AND following)
@@ -192,24 +192,49 @@ export async function askRecaps(user: SessionUser, seasonId: string, bot?: strin
         WHERE episode_fills.asking_at IS NULL OR episode_fills.asking_at < now() - make_interval(secs => $3)`,
       [seasonId, user.id, ASK_STALE_MS / 1000]
     );
-    if (rowCount) after(() => runAsk(seasonId, bot));
+    if (rowCount) after(() => runAsk(seasonId, bot).catch(() => undefined));
   }
   if (resultsToAsk) await askResults(user.id, seasonId);
   return recapState(user, seasonId, bot);
 }
 
-async function runAsk(seasonId: string, bot?: string): Promise<void> {
+/** Our bot's ask: the recaps still missing, saved. How many it filled in; a failed ask is recorded on the card, then thrown. */
+async function runAsk(seasonId: string, bot?: string, budgetMs = BUDGET_MS): Promise<number> {
   const done = (message: string | null, filled: number | null) =>
     pool.query("UPDATE episode_fills SET asking_at = NULL, message = $2, filled = $3, updated_at = now() WHERE season_id = $1", [seasonId, message, filled]);
   try {
     const plan = await planOf(seasonId);
-    const { answer } = await askBot(recapPrompt(plan), { bot, budgetMs: BUDGET_MS });
+    const { answer } = await askBot(recapPrompt(plan), { bot, budgetMs });
     const recaps = readRecaps(answer, plan.missing.map((e) => e.number));
     if (!recaps.size) throw new Error("ChatGPT didn't find any recaps. Try again later, or paste an answer.");
-    await done(null, await saveRecaps(seasonId, recaps));
+    const filled = await saveRecaps(seasonId, recaps);
+    await done(null, filled);
+    return filled;
   } catch (e) {
     await done((e instanceof Error ? e.message : "ChatGPT didn't answer").slice(0, 300), null).catch((err) => console.error("[recaps] couldn't record", seasonId, err));
+    throw e;
   }
+}
+
+/** The aired episodes still without a recap. */
+export async function recapsMissing(seasonId: string): Promise<number[]> {
+  return (await planOf(seasonId)).missing.map((e) => e.number);
+}
+
+/**
+ * Getting it ready (season-fill.ts): the recaps still missing, asked now within `budgetMs` (the card shows it asking meanwhile,
+ * as a tap would). How many it filled in, or null when an ask is going already (someone's tap: theirs does it). A failed ask
+ * throws.
+ */
+export async function recapsByItself(seasonId: string, userId: string | null, bot: string | undefined, budgetMs: number): Promise<number | null> {
+  const { rowCount } = await pool.query(
+    `INSERT INTO episode_fills (season_id, asking_at, asked_by, message) VALUES ($1, now(), $2, NULL)
+     ON CONFLICT (season_id) DO UPDATE SET asking_at = now(), asked_by = $2, message = NULL, updated_at = now()
+      WHERE episode_fills.asking_at IS NULL OR episode_fills.asking_at < now() - make_interval(secs => $3)`,
+    [seasonId, userId, ASK_STALE_MS / 1000]
+  );
+  if (!rowCount) return null;
+  return runAsk(seasonId, bot, budgetMs);
 }
 
 /** Copy and paste: the answer to the prompt, read and saved now. */

@@ -37,6 +37,7 @@ import { usePushedPage } from "../ui/page";
 import { Btn, SectionHead } from "../ui/parts";
 import { ShowArt } from "../ui/show-bar";
 import { toast } from "../ui/toast";
+import { NoSignal } from "../show/getting-ready";
 import { openWatching } from "../watching/sheets";
 import { useOpenTogether } from "../show/watch-along";
 import { usePracticeShows } from "../tour/practice-shows";
@@ -483,6 +484,8 @@ function Poster({ show, due, places }: { show: HomeShow; due: boolean; places: P
         <div className={face} aria-hidden={flipped} inert={flipped}>
           <NavLink href={paths.show(show.seasonId)} channel className="nd-press relative isolate flex size-full flex-col justify-end p-[11px] text-white">
             <ShowArt seasonId={show.seasonId} artUrl={show.show.artUrl} name={show.show.name} className="absolute inset-0 -z-[2] size-full" />
+            {/* Getting it ready (show/getting-ready.tsx): a no-signal card until its rules, cast and episodes are in. */}
+            {show.filling === "going" && <NoSignal seasonId={show.seasonId} />}
             <span aria-hidden className="absolute inset-0 -z-[1] bg-[linear-gradient(180deg,rgba(10,8,14,0)_35%,rgba(10,8,14,.9)_100%)]" />
             {best && (
               <span data-best className="type-caption absolute left-[9px] top-[9px] bg-plate py-1 pl-[7px] pr-3 text-xs text-plate-foreground [clip-path:polygon(0_0,100%_0,calc(100%_-_7px)_100%,0_100%)]">

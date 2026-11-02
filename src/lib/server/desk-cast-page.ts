@@ -414,6 +414,37 @@ export async function askCastNow(id: string, askedBy: string | null, bot: string
   }
 }
 
+/**
+ * Getting it ready (season-fill.ts): a season of a show that's a game, with nobody in its cast, gets our bot's answer staged
+ * and sent at once, as whoever added it would send it (everyone in it joins). How many joined (0 when someone sent a cast
+ * meanwhile). A failed ask, or an answer nobody in can be read from, throws.
+ */
+export async function castByItself(id: string, user: SessionUser, bot: string | undefined, budgetMs: number, listings?: string): Promise<number> {
+  const { prompt } = await castQuestion(id);
+  const { answer } = await askBot(prompt, { bot, budgetMs });
+  return firstCast(id, user, "bot", answer, listings);
+}
+
+/** The same with an answer someone pasted (copy and paste, the free way: season-fill.ts fillPaste). Refused once there's a cast. */
+export async function castPastedByItself(id: string, user: SessionUser, raw: unknown, listings?: string): Promise<number> {
+  const answer = typeof raw === "string" ? raw.trim() : "";
+  if (!answer) throw new HttpError(400, "Paste the AI's whole answer");
+  if (answer.length > 200_000) throw new HttpError(400, "That's too long to be the answer");
+  if ((await castOf(id)).length) throw new HttpError(409, "Who's in it is in already");
+  return firstCast(id, user, "paste", answer, listings);
+}
+
+/** An answer read, staged and sent as the season's first cast. How many joined (0 when a cast came in meanwhile). */
+async function firstCast(id: string, user: SessionUser, source: "bot" | "paste", answer: string, listings?: string): Promise<number> {
+  const s = await seasonRow(id);
+  const people = await readAnswer(s, answer);
+  await stage(s, source, answer, people, user.id);
+  const r = await reviewOf(id);
+  if (!r.open || !r.pending || r.ours.length) return 0;
+  await sendCast(user, id, { answer: r.pending.id, picks: {} }, { listings });
+  return people.length;
+}
+
 /** Paste it: an answer from Ask an AI, staged as our bot's is. Answers the page. */
 export async function pasteCast(user: SessionUser, id: string, raw: unknown): Promise<{ text: string }> {
   const s = await seasonRow(id);
