@@ -5,7 +5,7 @@ import { latestIn, resultsDue, stageAcross } from "@/lib/game/results-due";
 import type { SessionUser } from "./auth-helpers";
 import { couchFillsResults } from "./community-results";
 import { pool, HttpError } from "./db";
-import { EVERYTHING } from "./guard";
+import { EVERYTHING, seenThrough } from "./guard";
 import { markRevealed } from "./reveal";
 import { seasonGifs, type EpisodeGifLine } from "./episode-gifs";
 import { DEFAULT_RUNTIME_MIN, finalAtOf, seasonSchedules } from "./schedule";
@@ -239,6 +239,15 @@ export interface SeasonReveal {
   /** The morning update: your Weekly Lineup as it stood when you revealed this episode early (show_follows.early_night),
    *  now that its final scores are in. `table`'s before is then that early table. */
   soFar: EarlyNight | null;
+  /** What happened in it, in a few sentences (Fill in what happened: season_episodes.summary, 0143), when it's been written up:
+   *  the reveal's "In this episode" beat, so a show with nobody going home still has something to reveal. */
+  summary: string | null;
+}
+
+/** One episode's write-up (season_episodes.summary), for the reveal: only ever read for someone who's seen it. */
+async function recapOf(seasonId: string, n: number): Promise<string | null> {
+  const { rows } = await pool.query("SELECT summary FROM season_episodes WHERE season_id = $1 AND number = $2", [seasonId, n]);
+  return (rows[0]?.summary as string | null | undefined) ?? null;
 }
 
 /** Your first Weekly Lineup's night at an early reveal (show_follows.early_night, migration 0118), kept until its final
@@ -279,6 +288,8 @@ export async function revealSeason(user: SessionUser, seasonId: string, couchId:
   // Where you are is yours, not a couch's (show_follows): the reveal moves every league of yours on the season, on
   // any couch. The beats are this couch's games.
   const before = await gamesHere(user, seasonId, null);
+  // A show you only watch: what happened and who went home, no games (Up next's I watched it moved where you are first).
+  if (!before.here.length) return watchedReveal(user, seasonId, couchId, n);
   if (!before.here.some((h) => !couchId || h.game.couchId === couchId)) throw new HttpError(404, "You don't play a game on this show");
   const latest = latestIn(before.here.map((h) => h.state));
   if (!Number.isInteger(n) || n < 1 || n > latest) throw new HttpError(400, "Nothing to reveal for that episode yet");
@@ -340,6 +351,38 @@ export async function revealSeason(user: SessionUser, seasonId: string, couchId:
     table,
     next: nextUp && stageAcross(states, nextUp) ? nextUp : null,
     soFar,
+    summary: await recapOf(seasonId, n),
+  };
+}
+
+/**
+ * The reveal of a show you only watch (docs/PLAN-up-next.md; the user, 2026-11-02: "Shouldn't I have gotten that full screen
+ * reveal?", and "some shows might not have an elimination but we should still expect that summary reveal including everyone's
+ * gifs"): the episode's write-up, what happened and who went home where the season's accepted results say (as the Episodes tab
+ * reads them: season-stats.ts seasonFactsFor, only through your mark), and no games; the couch's GIFs are the reveal's own slide.
+ * Always something to play, results or not. It writes nothing: Up next's I watched it moved where you are first. 403 past your mark.
+ */
+async function watchedReveal(user: SessionUser, seasonId: string, couchId: string | null, n: number): Promise<SeasonReveal> {
+  if (!Number.isInteger(n) || n < 1) throw new HttpError(400, "Nothing to reveal for that episode yet");
+  const seen = await seenThrough(user.id, seasonId);
+  if (!(n <= seen)) throw new HttpError(403, `You haven't seen Episode ${n} yet`);
+  const [facts, schedules, summary] = await Promise.all([seasonFactsFor(user, seasonId, couchId), seasonSchedules([seasonId]), recapOf(seasonId, n)]);
+  const ep = seasonEpisodesSeen(facts.facts).find((e) => e.number === n);
+  const finalAt = finalAtOf(schedules.get(seasonId))(n);
+  return {
+    episode: n,
+    stage: ep?.stage ?? "final",
+    finalAt,
+    again: false,
+    out: ep?.out ?? [],
+    happened: ep?.happened ?? [],
+    lineup: null,
+    games: [],
+    predictions: [],
+    table: null,
+    next: null,
+    soFar: null,
+    summary,
   };
 }
 

@@ -9,9 +9,10 @@
 //   In a real browser at --width (390 by default):
 //   - riley (behind on a show she only watches): the plate for Episode 3 under the heading ("Up next for you", "You're up to
 //     Episode 2"), no Plan a watch along beside it; Ask opens the sheet (nobody picked: nobody shares her spot), picking alex and
-//     Start now opens the watch along with the plan; I watched it asks first (Not yet moves nothing), Yes moves her to 3 and opens
-//     the GIF sheet with "You watched Episode 3", the toast's Undo moves her back; then caught up, no plate and "Watch Episode 4
-//     together";
+//     Start now opens the watch along with the plan; I watched it asks first (Not yet moves nothing), Yes moves her to 3 and plays
+//     the reveal of a show she only watches (In this episode, The couch reacts with Add your GIF, no games, no Share), the toast's
+//     Undo moves her back; the reveal API plays every episode she's seen (no games, never "nothing"), 403 past her mark; then
+//     caught up, no plate and "Watch Episode 4 together";
 //   - the heading over a plate is always the next airing, "On TV …" (riley's Episode 4; sam's Episode 6, the one his moves are for);
 //   - sam (behind on a show he plays): Your moves before the plate, which says "You're 2 behind" for Episode 4 (data-results-in);
 //     I watched it asks ("Its results play next"), Not yet keeps him on 3, Yes opens the reveal of Episode 4;
@@ -156,7 +157,10 @@ function check(ok, what, detail = "") {
     check(!!planRow && planRow.how === "start" && /ep=3/.test(url) && url.includes(`plan=${planRow?.id}`), "Start now: the watch along opens with the plan", url);
     await clearPlans();
 
-    // I watched it: asks first; Not yet moves nothing; Yes moves her and opens the GIF sheet; Undo moves her back.
+    // I watched it: asks first; Not yet moves nothing; Yes moves her and plays the reveal of a show she only watches (the user,
+    // 2026-11-02): its write-up, who went home if anyone did, The couch reacts with hers to add, no games, no Share; Undo moves her back.
+    const RECAP = "The Traitors recruit in the turret and the Faithful's round table turns on the wrong player.";
+    await pool.query(`INSERT INTO season_episodes (season_id, number, summary) VALUES ($1, 3, $2) ON CONFLICT (season_id, number) DO UPDATE SET summary = EXCLUDED.summary`, [tid, RECAP]);
     await rp.goto(`${BASE}/show/${tid}/tonight`, { waitUntil: "load" });
     await rplate.waitFor({ timeout: 30_000 });
     await rp.waitForTimeout(600);
@@ -170,21 +174,49 @@ function check(ok, what, detail = "") {
     check((await seenOf("riley", tid)) === 2, "Not yet: still on 2", String(await seenOf("riley", tid)));
     await rplate.locator("[data-up-next-watched]").click();
     await R.sheet().locator("[data-watched-yes]").click();
-    const pick = R.sheet().locator('[data-gif-react="pick"]');
-    await pick.waitFor({ timeout: 20_000 });
-    await rp.waitForTimeout(400);
+    await rp.waitForURL(/page=reveal/, { timeout: 15_000 }).catch(() => {});
     check((await seenOf("riley", tid)) === 3, "Yes: riley's up to 3", String(await seenOf("riley", tid)));
-    check(/You watched Episode 3/i.test(await textOf(pick)) && /How was Episode 3\?/i.test(await textOf(R.sheet())), "the GIF sheet opens: You watched Episode 3, How was Episode 3?", await textOf(R.sheet()));
+    check(/page=reveal/.test(rp.url()), "and the reveal plays", rp.url());
     const toastUndo = rp.getByRole("button", { name: /Undo/ });
     check((await toastUndo.count()) > 0, "a toast with Undo");
-    await R.shot("gif-ask");
+    const rreveal = rp.locator("[role=dialog][aria-label='The reveal']");
+    await rreveal.locator("[data-beat]").first().waitFor({ timeout: 30_000 });
+    const rbeats = [];
+    const rbeat = async () => rreveal.locator("[data-beat]").getAttribute("data-beat").catch(() => null);
+    for (let k = 0; k < 10; k++) {
+      await rp.waitForTimeout(500);
+      const b = await rbeat();
+      if (rbeats.at(-1) !== b) rbeats.push(b);
+      if (b === "recap") check((await textOf(rreveal.locator("[data-reveal-recap]"))).includes("turret"), "In this episode: its write-up", await textOf(rreveal));
+      if (b === "gifs") break;
+      await rreveal.locator("[data-stage]").click();
+    }
+    check(rbeats[0] === "open" && rbeats.includes("recap") && rbeats.at(-1) === "gifs" && !rbeats.some((b) => ["lineup", "games", "table"].includes(b)), "her beats: the opener, In this episode, … The couch reacts, no games", rbeats.join(" > "));
+    await rp.waitForFunction(() => (document.querySelector("[data-gifs-beat]")?.getAttribute("data-gifs-beat") ?? "loading") !== "loading", null, { timeout: 15_000 }).catch(() => {});
+    check((await rreveal.locator("[data-gifs-add]").count()) === 1 && /The couch reacts/i.test(await textOf(rreveal.locator("[data-gifs-beat]"))), "The couch reacts, with Add your GIF", await textOf(rreveal));
+    await R.shot("reveal-gifs");
+    await R.wide("riley's reveal");
+    await rreveal.locator("[data-gifs-add]").click();
+    const pick = R.sheet().locator('[data-gif-react="pick"]');
+    await pick.waitFor({ timeout: 20_000 });
+    check(/How was Episode 3\?/i.test(await textOf(R.sheet())), "Add your GIF: How was Episode 3?", await textOf(R.sheet()));
+    await rp.keyboard.press("Escape");
+    await R.closed();
+    check((await rreveal.getByRole("button", { name: /Share your night/ }).count()) === 0, "no Share your night (no games)");
     if (await toastUndo.count()) {
       await toastUndo.first().click({ force: true }).catch(() => {});
       await rp.waitForTimeout(1500);
       check((await seenOf("riley", tid)) === 2, "Undo: back on 2", String(await seenOf("riley", tid)));
+      check(!/page=reveal/.test(rp.url()) && (await rreveal.isVisible().catch(() => false)) === false, "and the reveal closes", rp.url());
     }
-    await rp.keyboard.press("Escape");
-    await R.closed();
+    // A watcher's reveal never says there's nothing: every aired episode she's seen plays, results or not.
+    await pool.query("UPDATE show_follows SET seen_through = 3 WHERE user_id = $1 AND season_id = $2", [U.riley, tid]);
+    for (const ep of [1, 2, 3]) {
+      const rv = await riley.call("POST", `/api/seasons/${tid}/reveal`, { episode: ep, couch: A });
+      check(rv.status === 200 && rv.body.games.length === 0 && rv.body.table === null && rv.body.lineup === null, `the reveal API, Episode ${ep}: a watcher's, no games`, `${rv.status} ${JSON.stringify(rv.body).slice(0, 160)}`);
+    }
+    const past = await riley.call("POST", `/api/seasons/${tid}/reveal`, { episode: 4, couch: A });
+    check(past.status === 403, "and nothing past her mark (403)", String(past.status));
     await pool.query("UPDATE show_follows SET seen_through = 3 WHERE user_id = $1 AND season_id = $2", [U.riley, tid]);
     await rp.goto(`${BASE}/show/${tid}/tonight`, { waitUntil: "load" });
     await rp.locator("[data-phase]").waitFor({ timeout: 30_000 });

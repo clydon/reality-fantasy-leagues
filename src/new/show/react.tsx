@@ -261,7 +261,11 @@ export function GifsBeat({ target }: { target: GifTarget }) {
   const more = (d?.people.length ?? 0) - shown.length;
   const line = !d
     ? ""
-    : d.people.length
+    : target.solo
+      ? d.mine
+        ? "Yours, just for you"
+        : "How was it? Any GIF you like, just for you"
+      : d.people.length
       ? `${d.people.length + (d.mine ? 1 : 0)} of ${d.of} on the couch${more > 0 ? ` · ${more} more on Tonight` : ""}`
       : d.mine
         ? "You're first. Theirs land here as they watch"
@@ -271,7 +275,7 @@ export function GifsBeat({ target }: { target: GifTarget }) {
       <span className="type-caption mb-3 block text-[15px] tracking-[0.06em] text-muted-foreground">
         {target.label} · Episode {target.episode}
       </span>
-      <h2 className="type-caption text-[52px] leading-[.92]">The couch reacts</h2>
+      <h2 className="type-caption text-[52px] leading-[.92]">{target.solo ? "Your reaction" : "The couch reacts"}</h2>
       {!d ? (
         <div aria-busy className="mt-4 h-[300px] animate-pulse rounded-[4px] bg-card" />
       ) : (

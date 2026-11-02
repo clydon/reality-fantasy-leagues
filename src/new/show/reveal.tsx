@@ -15,7 +15,7 @@ import { Sheet } from "../ui/sheet";
 import { ShowArt } from "../ui/show-bar";
 import { toast } from "../ui/toast";
 import { first } from "./moves";
-import { GifsAction, GifsBeat, showLabel, type GifTarget } from "./react";
+import { GifsAction, GifsBeat, openGif, showLabel, type GifTarget } from "./react";
 import { Face } from "./parts";
 
 // The one reveal (the mock's episode.js revealPlay, stages.js, share.js; docs/PLAN-new-design.md step 2): one
@@ -115,9 +115,13 @@ function Broadcast({ show, seasonId, n, onClose }: { show: ShowData; seasonId: s
   const after = useAfterReveal();
   const asked = useRef(false);
   const name = (show.header?.show.name ?? "The show").replace(/^The /, "");
-  // The couch's GIFs for it: read once the reveal has moved where you are (the server sends them only to someone who's seen it).
-  const gifTarget: GifTarget | null = show.solo ? null : { seasonId, couchId: show.couch?.id ?? null, episode: n, label: showLabel(show), solo: false };
-  useEpisodeGifs(seasonId, show.couch?.id ?? null, n, !!r && !!gifTarget);
+  // The couch's GIFs for it (yours alone, solo): every reveal offers yours (the user, 2026-11-02). Read once the reveal has moved
+  // where you are (the server sends them only to someone who's seen it).
+  const label = showLabel(show);
+  const gifTarget: GifTarget = { seasonId, couchId: show.couch?.id ?? null, episode: n, label, solo: show.solo };
+  useEpisodeGifs(seasonId, show.couch?.id ?? null, n, !!r);
+  // No games in it (a show you only watch): nothing to share or reveal next, the end goes back.
+  const games = !!r && !!(r.lineup || r.games.length || r.predictions.length || r.table);
 
   useEffect(() => {
     // Once per episode (a second ask would only say "again").
@@ -128,8 +132,13 @@ function Broadcast({ show, seasonId, n, onClose }: { show: ShowData; seasonId: s
         setR(res);
         after();
       })
-      .catch((e: Error) => setError(e.message));
-  }, [seasonId, show.couch?.id, n, after]);
+      .catch((e: Error) => {
+        // A show you only watch with nothing the reveal can read: at least your GIF.
+        if (show.plays) return setError(e.message);
+        onClose();
+        openGif({ seasonId, couchId: show.couch?.id ?? null, episode: n, label, solo: show.solo, just: true });
+      });
+  }, [seasonId, show.couch?.id, n, after, show.plays, show.solo, label, onClose]);
 
   return (
     <>
@@ -139,15 +148,17 @@ function Broadcast({ show, seasonId, n, onClose }: { show: ShowData; seasonId: s
         n={n}
         r={r}
         error={error}
-        gifs={gifTarget ? { node: <GifsBeat target={gifTarget} />, action: <GifsAction target={gifTarget} /> } : undefined}
+        gifs={{ node: <GifsBeat target={gifTarget} />, action: <GifsAction target={gifTarget} /> }}
         onClose={onClose}
         end={
           r && (
             <>
-              <Btn wide onClick={() => setSharing(true)}>
-                <Send className="size-[18px]" aria-hidden />
-                Share your night
-              </Btn>
+              {games && (
+                <Btn wide onClick={() => setSharing(true)}>
+                  <Send className="size-[18px]" aria-hidden />
+                  Share your night
+                </Btn>
+              )}
               {r.next ? (
                 <>
                   {/* The next one in the same place: back still closes the reveal. */}
@@ -202,8 +213,10 @@ function Beats({
   const beats: { key: string; node: ReactNode; action?: ReactNode }[] = r
     ? [
         { key: "open", node: <Opener r={r} name={name} season={season} replay={replay} /> },
+        ...(r.summary ? [{ key: "recap", node: <Recap r={r} /> }] : []),
         ...(r.happened.length ? [{ key: "happened", node: <Challenges r={r} /> }] : []),
-        { key: "out", node: <VoteCards r={r} /> },
+        // Who went home: always in a game's reveal ("Nobody went home" is news there); on a show you only watch, only when someone did.
+        ...(r.out.length || r.lineup || r.games.length || r.predictions.length || r.table ? [{ key: "out", node: <VoteCards r={r} /> }] : []),
         ...(gifs ? [{ key: "gifs", node: gifs.node, action: gifs.action }] : []),
         ...(r.lineup ? [{ key: "lineup", node: <LineupBeat r={r} /> }] : []),
         ...(r.games.length + r.predictions.length ? [{ key: "games", node: <OtherGames r={r} /> }] : []),
@@ -342,6 +355,18 @@ function Opener({ r, name, season, replay }: { r: SeasonReveal; name: string; se
       )}
       <p className="mt-4 text-[15px] text-muted-foreground">
         {r.stage === "early" ? `Early results: who went home. ${finalWords ? `${finalWords}.` : "Weekly Lineup's full scores come later."} ` : ""}Tap anywhere to go on
+      </p>
+    </div>
+  );
+}
+
+/** The episode's write-up (Fill in what happened), when there is one: what a show with nobody going home still has to reveal. */
+function Recap({ r }: { r: SeasonReveal }) {
+  return (
+    <div>
+      <Kicker>In this episode</Kicker>
+      <p data-reveal-recap className="line-clamp-[12] text-[18px] leading-relaxed">
+        {r.summary}
       </p>
     </div>
   );

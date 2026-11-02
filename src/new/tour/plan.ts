@@ -92,4 +92,5 @@ export const MADE_UP_REVEAL: SeasonReveal = {
   },
   next: null,
   soFar: null,
+  summary: null,
 };

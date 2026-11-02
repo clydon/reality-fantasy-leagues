@@ -7,12 +7,13 @@ import { useFinalLine } from "../final-words";
 import { useMe } from "../session";
 import type { ShowData } from "../screens/show-space";
 import { Avatar } from "../ui/bars";
+import { usePushedPage } from "../ui/page";
 import { Btn } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { openPlan } from "../couch/watch-plans";
 import { isRequired } from "./moves";
-import { closeGif, openGif, showLabel } from "./react";
+import { closeGif, showLabel } from "./react";
 import { useOpenReveal } from "./reveal";
 import { useOpenTogether, useOpenWatch } from "./watch-along";
 
@@ -214,6 +215,7 @@ function WatchedSheet({
   onReveal: () => void;
 }) {
   const after = useAfterWatching();
+  const revealPage = usePushedPage("reveal", ["ep"]);
   const [busy, setBusy] = useState(false);
   const w = show.words;
   const yes = async () => {
@@ -230,12 +232,16 @@ function WatchedSheet({
       onOpenChange(false);
       toast(`You're up to ${w.episode} ${n}`, {
         undo: async () => {
+          // Not watched after all: nothing about it stays open (its reveal, the GIF sheet over it).
           closeGif();
+          if (new URLSearchParams(window.location.search).get("page") === "reveal") revealPage.close();
           await watching.follow(seasonId, { seenThrough: n - 1 });
           await after();
         },
       });
-      openGif({ seasonId, couchId: show.couch?.id ?? null, episode: n, label: showLabel(show), solo: show.solo, just: true });
+      // The reveal plays for a show you watch too (the user, 2026-11-02): its write-up, who went home if anyone did, and the
+      // couch's GIFs with yours to add; with nothing it can read, the reveal opens the GIF sheet instead.
+      onReveal();
     } catch (e) {
       toast.quiet((e as Error).message);
     } finally {

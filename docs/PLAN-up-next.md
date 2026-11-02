@@ -29,6 +29,14 @@ its own row and the empty space under the words).
   Move back any time in Where you are." Yes moves where you are (`watching.follow`), a toast "You're up to Episode 3" with Undo
   (which also closes the GIF sheet), and the GIF sheet opens with "You watched Episode 3". Not yet moves nothing.
   A move card's own "Reveal Episode N" (a move waiting on the reveal) asks the same question (`askWatched`).
+- **The reveal plays for a show you only watch too** (the user, 2026-11-02, after watching The Challenge's Episode 2: "Shouldn't I
+  have gotten that full screen reveal?"; and "some shows might not have an elimination but we should still expect that summary
+  reveal including everyone's gifs"). Yes, I watched it moves where you are, then the reveal plays (season-episodes.ts
+  watchedReveal, from the season's accepted results as the Episodes tab reads them; it writes nothing): the opener, **In this
+  episode** (the write-up, season_episodes.summary, for every reveal now, games or not), what happened and who went home only
+  where the results say (never "Nobody went home" on a show without eliminations), then The couch reacts with Add your GIF; no
+  games, no Share your night, Back to the show. Every reveal now ends its results on the GIF slide, solo too ("Your reaction",
+  just yours). A reveal that can't be read at all opens the GIF sheet instead. Undo closes the reveal (and the GIF sheet).
 - **Ask the couch** (the plate's row, on a couch with someone else on it): "Watch Episode 3 with…": everyone else on the couch,
   those at your spot first and picked, then who's seen it ("might rewatch"), then the rest. **Start now and ask them**: a planned
   night that starts now (`plansApi.plan` with `now: true`; watch-plans.ts): their push says "riley is starting Episode 3 now", a
