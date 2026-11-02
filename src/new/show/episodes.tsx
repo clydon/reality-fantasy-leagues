@@ -19,7 +19,7 @@ import { first } from "./moves";
 import { Block, Face } from "./parts";
 import { useOpenReveal } from "./reveal";
 import { CouchMomentsCard } from "./couch-moments";
-import { openRate, rateLabel, RateRow, VerdictMark, type RateTarget } from "./rate";
+import { GifRow, GifStack, openGif, showLabel, type GifTarget } from "./react";
 import { CallResults } from "./calls";
 import { SheetResultRow } from "./questions";
 import { BingoResults } from "./bingo";
@@ -37,8 +37,8 @@ import { EpisodesComing } from "./getting-ready";
 // (waivers.js's row): open, it goes to the Waivers page; run, to its own page in picking order (step 6a). The corrections
 // the shared check made to the couch's games are on the episode's page only, closed just above the "Something wrong in
 // this episode?" it ends with (step 6b, something-wrong.tsx), never lines in this list. Each episode you've seen carries
-// the couch's verdict and your stars (step 12 part 1, rate.tsx): a show you only watch opens Rate it from the row, a show
-// you play from its page.
+// a few of its GIFs, yours first (React with a GIF, react.tsx; docs/PLAN-gif-reactions.md): a show you only watch opens the
+// GIF sheet from the row, a show you play from its page.
 // A streaming season (step 14; the mock's streaming.js wEpisodes): the drop instead of this week's episode, "All 8 out ·
 // Netflix", and a season you only watch from Episode 1 down, the way you'll watch it.
 // Where everyone is (the user's pick C of the 2026-11-01 mocks): on a couch, each row carries the faces of whoever's up to it
@@ -85,7 +85,7 @@ export function Episodes({ seasonId, show }: { seasonId: string; show: ShowData 
   const fillState = useFill(seasonId, !!filling).data;
   const catching = fillState?.status === "going" && fillState.steps.some((s) => s.key === "episodes");
   const looking = (n: number) => !!catching && fillState!.episodes.some((t) => t.number === n && (t.state === "waiting" || t.state === "asking"));
-  const rateFor = (n: number): RateTarget => ({ seasonId, couchId: show.couch?.id ?? null, episode: n, label: rateLabel(show), solo: show.solo });
+  const gifFor = (n: number): GifTarget => ({ seasonId, couchId: show.couch?.id ?? null, episode: n, label: showLabel(show), solo: show.solo });
   // Each waiver week after the episode that opened it, in a newest-first list just above that episode's row: every week anyone
   // moved in (a quiet week says nothing), and the week still open while there's something for you to do in it.
   const weeks = (n: number) =>
@@ -175,9 +175,9 @@ export function Episodes({ seasonId, show }: { seasonId: string; show: ShowData 
                 ) : e.status === "waiting" ? (
                   <WaitingRow e={e} who={whoAt(e.number)} />
                 ) : e.status === "aired" ? (
-                  <AiredRow e={e} who={whoAt(e.number)} solo={show.solo} streaming={show.streaming} word={show.words.episode} looking={looking(e.number)} onRate={() => openRate(rateFor(e.number))} />
+                  <AiredRow e={e} who={whoAt(e.number)} streaming={show.streaming} word={show.words.episode} looking={looking(e.number)} onGif={() => openGif(gifFor(e.number))} />
                 ) : (
-                  <SeenRow e={e} who={whoAt(e.number)} solo={show.solo} ro={ro} />
+                  <SeenRow e={e} who={whoAt(e.number)} ro={ro} />
                 )}
               </div>
             ))}
@@ -297,8 +297,8 @@ function HiddenRow({ e, who, onReveal }: { e: EpisodeRow; who?: Mark[]; onReveal
 }
 
 /** An episode of a show you only watch, with no results to show (step 10): when it aired, and whether you've seen it. One
- *  you've seen opens Rate it (step 12 part 1), with the couch's verdict on the row. */
-function AiredRow({ e, who, solo, streaming, word = "Episode", looking, onRate }: { e: EpisodeRow; who?: Mark[]; solo: boolean; streaming?: boolean; word?: string; looking?: boolean; onRate: () => void }) {
+ *  you've seen opens React with a GIF, with a few of its GIFs on the row. */
+function AiredRow({ e, who, streaming, word = "Episode", looking, onGif }: { e: EpisodeRow; who?: Mark[]; streaming?: boolean; word?: string; looking?: boolean; onGif: () => void }) {
   const lift = mineIn(who) ? LIFT : "";
   const body = (
     <>
@@ -335,9 +335,9 @@ function AiredRow({ e, who, solo, streaming, word = "Episode", looking, onRate }
     );
   }
   return (
-    <button type="button" data-ep-aired={e.number} data-watched="yes" onClick={onRate} className={`nd-press flex min-h-[68px] items-center gap-3 border-t border-border py-2.5 text-left ${lift || "w-full"}`}>
+    <button type="button" data-ep-aired={e.number} data-watched="yes" onClick={onGif} className={`nd-press flex min-h-[68px] items-center gap-3 border-t border-border py-2.5 text-left ${lift || "w-full"}`}>
       {body}
-      <VerdictMark v={e.verdict} solo={solo} rate />
+      <GifStack line={e.gifs} react />
     </button>
   );
 }
@@ -364,7 +364,7 @@ function WaitingRow({ e, who }: { e: EpisodeRow; who?: Mark[] }) {
 /** `from` null: a game waiting for a phase of the season (step A3 of docs/PLAN-start-a-game-gpt.md), not started yet. */
 type ReadOnlyLine = { name: string; from: number | null; to: number | null };
 
-function SeenRow({ e, who, solo, ro }: { e: EpisodeRow; who?: Mark[]; solo: boolean; ro: ReadOnlyLine | null }) {
+function SeenRow({ e, who, ro }: { e: EpisodeRow; who?: Mark[]; ro: ReadOnlyLine | null }) {
   const page = usePushedPage(`ep${e.number}`);
   const out = e.out ?? [];
   const mine = mineIn(who);
@@ -386,7 +386,7 @@ function SeenRow({ e, who, solo, ro }: { e: EpisodeRow; who?: Mark[]; solo: bool
         </small>
         <WhoHere who={who} />
       </span>
-      <VerdictMark v={e.verdict} solo={solo} />
+      <GifStack line={e.gifs} />
       <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />
     </button>
   );
@@ -416,7 +416,7 @@ function EpisodePage({ seasonId, show }: { seasonId: string; show: ShowData }) {
           couchId={show.couch?.id ?? null}
           e={e}
           seasonName={show.header ? `${show.header.show.name} ${show.header.seasonNumber}` : "this season"}
-          rate={{ seasonId, couchId: show.couch?.id ?? null, episode: e.number, label: rateLabel(show), solo: show.solo }}
+          target={{ seasonId, couchId: show.couch?.id ?? null, episode: e.number, label: showLabel(show), solo: show.solo }}
           sheets={show.games.filter((g) => g.yourRole && g.gameType === "questions" && !g.archived).map((g) => ({ leagueId: g.leagueId, name: g.name }))}
         />
       ) : (
@@ -449,14 +449,14 @@ function EpisodeBody({
   couchId,
   e,
   seasonName,
-  rate,
+  target,
   sheets,
 }: {
   seasonId: string;
   couchId: string | null;
   e: EpisodeRow;
   seasonName: string;
-  rate: RateTarget;
+  target: GifTarget;
   sheets: { leagueId: string; name: string }[];
 }) {
   const out = e.out ?? [];
@@ -522,16 +522,16 @@ function EpisodeBody({
           ))}
         </section>
       )}
-      <section className="mt-[26px]" data-episode-rate>
+      <section className="mt-[26px]" data-episode-gif>
         <h2 className="type-caption mb-1 text-[24px]">How was it?</h2>
-        <RateRow target={rate} verdict={e.verdict} />
+        <GifRow target={target} line={e.gifs} />
       </section>
-      <CallResults target={rate} />
+      <CallResults target={target} />
       {/* Each Prediction Sheet of yours here (step A4 part 2): how its questions went on this episode, at your mark. */}
       {sheets.map((g) => (
         <SheetResultRow key={g.leagueId} heading target={{ seasonId, leagueId: g.leagueId, episode: e.number, game: g.name }} />
       ))}
-      <BingoResults target={rate} />
+      <BingoResults target={target} />
       <CouchMomentsCard seasonId={seasonId} couchId={couchId} episode={e.number} />
       <ShowChangeCard seasonId={seasonId} couchId={couchId} episode={e.number} seasonName={seasonName} />
       {/* Keyed: the page keeps its body from one episode to the next, and each opens closed. */}

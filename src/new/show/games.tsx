@@ -27,7 +27,7 @@ import { useOpenMake } from "./make-game";
 import { CallRow } from "./calls";
 import { SheetRow } from "./questions";
 import { PollRow, StartPollRow } from "./polls";
-import { rateLabel } from "./rate";
+import { showLabel } from "./react";
 import { bingoEpisode, BingoRow } from "./bingo";
 import { TriviaRow } from "./trivia";
 import { latestWeek, LineupSheet, nextWeek, signed } from "./lineup-sheet";
@@ -826,12 +826,12 @@ function ThisWeek({ show }: { show: ShowData }) {
   return (
     <Block title="This week" aside="One night each">
       <div data-this-week>
-        {bingo && seasonId && <BingoRow icon target={{ seasonId, couchId, episode: bingo, label: rateLabel(show), solo: show.solo }} />}
-        {call && seasonId && !sheetAsks(show, call) && <CallRow icon target={{ seasonId, couchId, episode: call, label: rateLabel(show), solo: show.solo }} />}
+        {bingo && seasonId && <BingoRow icon target={{ seasonId, couchId, episode: bingo, label: showLabel(show), solo: show.solo }} />}
+        {call && seasonId && !sheetAsks(show, call) && <CallRow icon target={{ seasonId, couchId, episode: call, label: showLabel(show), solo: show.solo }} />}
         {seasonId && sheets.map((g) => <SheetRow key={g.leagueId} icon move={g.sheet!} target={{ seasonId, leagueId: g.leagueId, episode: null, game: g.name }} />)}
         {onCouch && (polls.data?.polls ?? []).map((p) => <PollRow key={p.id} icon p={p} couchId={couchId!} />)}
         {seasonId && <TriviaRow icon target={{ seasonId, couchId: show.solo ? null : couchId }} />}
-        {onCouch && <StartPollRow seasonId={seasonId!} couchId={couchId!} label={rateLabel(show)} />}
+        {onCouch && <StartPollRow seasonId={seasonId!} couchId={couchId!} label={showLabel(show)} />}
       </div>
     </Block>
   );

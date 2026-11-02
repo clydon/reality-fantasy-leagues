@@ -5,7 +5,7 @@
 //     started and joined, shows followed openly (jordan's private follow isn't), moves from each game's state (couch-moves.ts:
 //     pool picks, own draft picks, lineups that bring someone in; Survivor 49's, aired last year, count from when its games were
 //     made, so This year stays hidden) and from their tables; then known activity for riley (a day's 12
-//     messages count 10, 7 reactions on an episode count 5, a poll vote, a rating, trivia, a marked bingo card and not an
+//     messages count 10, 7 reactions on an episode count 5, a poll vote, an episode's GIF, trivia, a marked bingo card and not an
 //     unmarked one, a watch along plan answered, a game's answers once an episode, a Call it answer, a day opened and not one
 //     from before she joined, a follow made private) adding up exactly, all time and this week; This year hidden till the couch
 //     has something before it, then a message cap counted by Eastern day over last year's DST night (12 messages between
@@ -55,7 +55,8 @@ const args = process.argv.slice(2);
 const out = args.find((a) => !a.startsWith("--"));
 if (!out) throw new Error("usage: check-new-hub.js <outDir> [--width=390] [--keep]");
 const width = Number((args.find((a) => a.startsWith("--width=")) || "--width=390").slice(8));
-const PAGES = ["rankings", "break", "numbers", "verdicts", "previously", "trophies"];
+// Couch verdicts went with Rate it (shelved 2026-11-01 for React with a GIF: check-gif-reactions.js).
+const PAGES = ["rankings", "break", "numbers", "previously", "trophies"];
 
 let failures = 0;
 function check(ok, what, detail = "") {
@@ -240,9 +241,13 @@ const EASTERN_TODAY = "(now() AT TIME ZONE 'America/New_York')::date";
       await pool.query("INSERT INTO couch_poll_votes (poll_id, user_id, option) VALUES ($1, $2, 'Yes')", [poll, riley]);
       const free = async (table) =>
         (await pool.query(`SELECT n FROM generate_series(1, 13) n WHERE n NOT IN (SELECT episode FROM ${table} WHERE user_id = $1 AND season_id = $2) ORDER BY n LIMIT 2`, [riley, hx.seasons.s49])).rows.map((r) => r.n);
-      const [rated] = await free("episode_ratings");
-      await pool.query("INSERT INTO episode_ratings (user_id, season_id, episode, stars) VALUES ($1, $2, $3, 4)", [riley, hx.seasons.s49, rated]);
-      undo.push(["DELETE FROM episode_ratings WHERE user_id = $1 AND season_id = $2 AND episode = $3", [riley, hx.seasons.s49, rated]]);
+      // An episode's GIF (React with a GIF, 0162): Couch points' rating kind, as Rate it's stars were.
+      const [reacted] = await free("episode_gifs");
+      await pool.query(
+        `INSERT INTO episode_gifs (user_id, season_id, episode, gif) VALUES ($1, $2, $3, '{"id":"ztpoints","url":"https://static.klipy.com/zt/points.gif","w":200,"h":150,"title":"zt"}')`,
+        [riley, hx.seasons.s49, reacted]
+      );
+      undo.push(["DELETE FROM episode_gifs WHERE user_id = $1 AND season_id = $2 AND episode = $3", [riley, hx.seasons.s49, reacted]]);
       await pool.query("INSERT INTO trivia_plays (user_id, show_id, week, score, questions, answers) VALUES ($1, $2, '2000-01-03', 3, 5, '{}')", [riley, showOf]);
       undo.push(["DELETE FROM trivia_plays WHERE user_id = $1 AND week = '2000-01-03'", [riley]]);
       const [marked, blank] = await free("bingo_cards");
@@ -457,7 +462,8 @@ const EASTERN_TODAY = "(now() AT TIME ZONE 'America/New_York')::date";
 
     // ---- More on the couch: the rows ----
     const keys = await page.$$eval("[data-more]", (els) => els.map((e) => e.dataset.more));
-    check(PAGES.every((k) => keys.includes(k)), "More on the couch has all six rows (rankings: something scored; trophies: a season ended)", keys.join(","));
+    check(PAGES.every((k) => keys.includes(k)), "More on the couch has all five rows (rankings: something scored; trophies: a season ended)", keys.join(","));
+    check(!keys.includes("verdicts"), "and no Couch verdicts (Rate it is shelved)", keys.join(","));
     const nowHub = await hubOf("alex");
     const said = standing(nowHub.rankings.all, fx.users.alex);
     check((await text('[data-more="rankings"]')).includes(said) && !/this year/i.test(await text('[data-more="rankings"]')), `the rankings row says where you stand in Couch points ("${said}"), not "this year"`, await text('[data-more="rankings"]'));
@@ -561,10 +567,6 @@ const EASTERN_TODAY = "(now() AT TIME ZONE 'America/New_York')::date";
           await page.waitForURL(/page=numbers/);
           await page.waitForTimeout(600);
         }
-      } else if (key === "verdicts") {
-        // Real since step 12 part 1 (check-new-episode-games.js has the ratings): a panel for each show alex has started.
-        await page.locator(`${body} [data-verdict-show]`).first().waitFor({ timeout: 20_000 });
-        check((await page.locator(`${body} [data-verdict-show]`).count()) >= 1 && (await page.locator(`${body} [data-preview]`).count()) === 0, "Couch verdicts: a panel per show alex has started, no Preview");
       } else if (key === "previously") {
         await page.locator(`${body} [data-po-last]`).first().waitFor({ timeout: 20_000 });
         const where = await page.locator(`${body} [data-previously]`).getAttribute("data-previously");

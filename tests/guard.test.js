@@ -80,7 +80,7 @@ test("sharing: a show watched privately, not followed, or kept back by Where I a
   const sharing = new Map([["kat", S.SHARE_PRESETS.games]]);
   assert.deepEqual(G.visibleFollows("me", follows, sharing).map((f) => f.userId), ["me", "riley"], "kat's Just my games keeps what she watches back");
   assert.deepEqual(G.visibleFollows("me", follows, new Map()).map((f) => f.userId), ["me", "riley", "kat"], "nobody's settings: everything, the default");
-  assert.equal(await G.shares("jordan", "jordan", { kind: "ratings", seasonId: "s1" }, fakeDb()), true, "your own, without asking the database");
+  assert.equal(await G.shares("jordan", "jordan", { kind: "gifs", seasonId: "s1" }, fakeDb()), true, "your own, without asking the database");
   // The SQL each kind asks: games need only an open follow; the four switches each ask their own column too.
   assert.doesNotMatch(G.sharesSql("play", "r.user_id", "r.season_id"), /user_settings/);
   for (const k of S.SHARE_SWITCHES) {
@@ -92,11 +92,11 @@ test("sharing: a show watched privately, not followed, or kept back by Where I a
 
 test("sharing: the three levels, and what a save may send", () => {
   assert.equal(S.presetOf(S.SHARE_DEFAULT), "all", "everything by default");
-  assert.equal(S.presetOf({ where: false, now: false, ratings: true, reactions: true }), "games");
-  assert.equal(S.presetOf({ where: false, now: false, ratings: false, reactions: false }), "min");
-  assert.equal(S.presetOf({ where: true, now: false, ratings: true, reactions: true }), "custom", "a mix of your own");
+  assert.equal(S.presetOf({ where: false, now: false, gifs: true, reactions: true }), "games");
+  assert.equal(S.presetOf({ where: false, now: false, gifs: false, reactions: false }), "min");
+  assert.equal(S.presetOf({ where: true, now: false, gifs: true, reactions: true }), "custom", "a mix of your own");
   assert.deepEqual(S.sharingFrom({ preset: "games" }, S.SHARE_DEFAULT), S.SHARE_PRESETS.games);
-  assert.deepEqual(S.sharingFrom({ now: false }, S.SHARE_DEFAULT), { where: true, now: false, ratings: true, reactions: true }, "one switch over what's there");
+  assert.deepEqual(S.sharingFrom({ now: false }, S.SHARE_DEFAULT), { where: true, now: false, gifs: true, reactions: true }, "one switch over what's there");
   for (const bad of [null, [], {}, { preset: "some" }, { now: "no" }, { where: true, colour: 1 }]) assert.equal(S.sharingFrom(bad, S.SHARE_DEFAULT), null, JSON.stringify(bad));
 });
 

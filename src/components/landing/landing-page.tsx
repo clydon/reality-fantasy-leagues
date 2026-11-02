@@ -60,7 +60,6 @@ const Chev = () => <svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6" /></svg>;
 const Tick = () => <svg viewBox="0 0 24 24"><path d="m5 12 5 5 9-10" /></svg>;
 const Plus = () => <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>;
 const Cup = () => <svg viewBox="0 0 24 24"><path d="M7 4h10v5a5 5 0 0 1-10 0zM5 5H3v2a3 3 0 0 0 3 3M19 5h2v2a3 3 0 0 1-3 3M12 14v4M8 21h8" /></svg>;
-const Star = ({ off }: { off?: boolean }) => <svg viewBox="0 0 24 24" className={off ? "o" : undefined}><path d="m12 2 3 7h7l-5.5 4.5L18.5 21 12 16.5 5.5 21l2-7.5L2 9h7z" /></svg>;
 
 function Photo({ c, size = 240, className }: { c: Castaway; size?: number; className?: string }) {
   return c.photo ? <Image src={c.photo} alt="" width={size} height={size} sizes={`${size}px`} className={className} /> : null;
@@ -353,8 +352,8 @@ function WaysToPlay() {
             <div className="bingo">{BINGO.map((b, i) => <i key={b} className={i === 12 ? "f" : [0, 6, 18, 24, 2, 9].includes(i) ? "m" : undefined}>{b}</i>)}</div></div>
           <div className="eg reveal-up"><span className="tag cap good" style={{ alignSelf: "flex-start" }}>Every episode</span><h4 className="cap">Watch along</h4><p>Your couch&apos;s comments, in sync with where you are.</p>
             <div>{([["M", COUCH.maya, "Maya", "21:40", "Kristin is SO calm"], ["D", COUCH.dev, "Dev", "21:56", "that challenge setup is brutal"]] as const).map(([a, c, n, t, x]) => <div key={t} className="cm"><span className="a" style={{ background: c }}>{a}</span><div><small>{n} at {t}</small>{x}</div></div>)}</div></div>
-          <div className="eg reveal-up"><span className="tag cap" style={{ background: "#8f84d8", color: "var(--ink)", alignSelf: "flex-start" }}>Every episode</span><h4 className="cap">Rate it</h4><p>Two seconds after the credits. Then the couch verdict.</p>
-            <div><div className="stars"><Star /><Star /><Star /><Star /><Star off /></div><div style={{ marginTop: 8, fontSize: 13, color: "var(--muted)" }}><b style={{ color: "var(--bone)", fontSize: 22 }} className="num">4.5</b> couch verdict · you agree</div></div></div>
+          <div className="eg reveal-up"><span className="tag cap" style={{ background: "#8f84d8", color: "var(--ink)", alignSelf: "flex-start" }}>Every episode</span><h4 className="cap">React</h4><p>One GIF after the credits, any you like. Then the couch&apos;s.</p>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 4 }}>{([["Maya", COUCH.maya], ["Dev", COUCH.dev], ["You", COUCH.you]] as const).map(([n, c]) => <i key={n} style={{ position: "relative", aspectRatio: "4 / 3", borderRadius: 3, background: c }}><b className="cap" style={{ position: "absolute", left: 0, bottom: 0, background: "#fff", color: "#121018", fontSize: 11, padding: "3px 10px 3px 5px", clipPath: "polygon(0 0, 100% 0, calc(100% - 6px) 100%, 0 100%)" }}>{n}</b></i>)}</div></div>
         </div>
       </div>
     </section>

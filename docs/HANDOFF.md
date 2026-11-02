@@ -21,6 +21,14 @@ and the Neon password rotation (deferred; steps there). Fixed 2026-10-24: the ch
 end); GitHub Actions, stopped since 2026-10-19, runs again. Vercel builds production only (Preview shared
 production's database).
 
+## React with a GIF (2026-11-01; branch `reactions`, lane `rfl-reactions`, migration 0162)
+The user found Rate it's stars no fun: an episode's reaction is now **one GIF you search for** (KLIPY, the chat's picker), and
+**Rate it is shelved** (stars, couch verdict, taste twin, rating accolades, Couch verdicts; `episode_ratings` kept). The GIF
+sheet opens after you watch (a watch along's end, and soon Tonight's I watched it), Tonight and Episodes show the couch's, and
+the reveal has a new slide, The couch reacts, after who went home and before your games. **Read
+[PLAN-gif-reactions.md](PLAN-gif-reactions.md)** (decisions, as built, the three I-watched-it mocks waiting on the user's pick).
+Check: `check-gif-reactions.js`. Not merged yet.
+
 ## Getting it ready (2026-11-01; branch `ready`, lane `rfl-ready`, migration 0160)
 The user added The Challenge 42 (finished, 14 episodes) and found no cast, and a summary for Episode 1 only. Now a show someone adds
 gets ready by itself:

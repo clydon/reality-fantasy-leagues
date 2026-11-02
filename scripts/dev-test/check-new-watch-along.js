@@ -18,9 +18,10 @@
 //   In a real browser at --width (390 by default): as sam (with the stand-in's GIFs and a wake lock stand-in), Tonight's card,
 //   the start, the screen kept on, Set the time, the couch's comments 30 s late and their pins, a reaction arriving on the poll,
 //   reacting, saying something, a GIF, taking one back, pause, the bingo card, End with Reveal your scores, closing and picking up
-//   where he left off; as riley (no GIFs: no button), the Traitors (a show she only watches): End, four stars marking Episode 3
-//   seen and opening the verdict; as alex, Episode 6 on air (Live TV, Ad break, saying something), Up next's and Previously on's
-//   Watch along on the hub; as zt_so_sam (solo, on 3), the solo hub's Watch along. Nothing wider than the screen; no page errors.
+//   where he left off; as riley (no GIFs: no button), the Traitors (a show she only watches): End, React with a GIF marking
+//   Episode 3 seen and opening the GIF sheet (Rate it's stars until 2026-11-01); as alex, Episode 6 on air (Live TV, Ad break,
+//   saying something), Up next's and Previously on's Watch along on the hub; as zt_so_sam (solo, on 3), the solo hub's Watch
+//   along. Nothing wider than the screen; no page errors.
 //   Screenshots go to <outDir>.
 // Part 2 is who's on now (watch_sessions, watch-sessions.ts):
 //   API: a watch along's clock kept on the server as it starts, pauses, goes to an ad break and closes (the same session, its
@@ -750,7 +751,7 @@ const MIN = 60_000;
       // End: he plays it, so Reveal your scores first.
       await pg.locator('[data-watch-nudge="end"]').click();
       await pg.locator("[data-watch-end]").waitFor({ timeout: 5000 });
-      check((await pg.locator("[data-watch-reveal]").count()) === 1 && (await pg.locator("[data-end-star]").count()) === 0, "End: How was Episode 4? Reveal your scores first (he plays it)", await pg.locator("[data-watch-end]").innerText());
+      check((await pg.locator("[data-watch-reveal]").count()) === 1 && (await pg.locator("[data-watch-gif]").count()) === 0, "End: How was Episode 4? Reveal your scores first (he plays it), no React with a GIF yet", await pg.locator("[data-watch-end]").innerText());
       await S.shot("end-reveal");
       await pg.locator("[data-watch-keep]").click();
       await pg.locator("[data-watch-end]").waitFor({ state: "detached", timeout: 5000 });
@@ -781,15 +782,15 @@ const MIN = 60_000;
       check((await rp.locator("[data-gif-button]").count()) === 0, "no GIFs set up: no GIF button");
       await rp.locator('[data-watch-nudge="end"]').click();
       await rp.locator("[data-watch-end]").waitFor({ timeout: 5000 });
-      check(/Rating it marks Episode 3 seen/.test(await rp.locator("[data-watch-end]").innerText()), "End: her stars, and rating it marks Episode 3 seen");
-      await R.shot("end-stars");
-      await rp.locator('[data-end-star="4"]').click();
-      await rp.locator('[data-rate-sheet="3"]').waitFor({ timeout: 15_000 });
+      const endText = await rp.locator("[data-watch-end]").innerText();
+      check((await rp.locator("[data-watch-gif]").count()) === 1 && /It marks Episode 3 watched/.test(endText), "End: React with a GIF, and it marks Episode 3 watched", endText);
+      await R.shot("end-gif");
+      await rp.locator("[data-watch-gif]").click();
+      await R.sheet().locator('[data-gif-react="pick"]').waitFor({ timeout: 15_000 });
       const mark = (await pool.query("SELECT seen_through FROM show_follows WHERE user_id = $1 AND season_id = $2", [U.riley, tsid])).rows[0]?.seen_through;
-      const stars = (await pool.query("SELECT stars FROM episode_ratings WHERE user_id = $1 AND season_id = $2 AND episode = 3", [U.riley, tsid])).rows[0]?.stars;
-      check(mark === 3 && stars === 4, "four stars: Episode 3 seen, rated, and the verdict sheet opens", `${mark} ${stars}`);
+      check(mark === 3 && /How was Episode 3\?/i.test(await R.sheet().innerText()), "React with a GIF: Episode 3 seen, and the GIF sheet opens (How was Episode 3?)", `${mark} ${await R.sheet().innerText()}`);
       await rp.waitForTimeout(500);
-      await R.shot("rated");
+      await R.shot("gif-sheet");
 
       // ---------- part 2: riley and sam on Episode 4 at once ----------
       await rp.goto(`${BASE}/show/${sid}/tonight?page=watch&ep=4`, { waitUntil: "load" });

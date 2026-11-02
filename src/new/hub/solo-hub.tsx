@@ -128,7 +128,7 @@ function OnYourOwn({ home }: { home: Home }) {
             {pic(Tv, "var(--good)")}
             <span className="p-3">
               <b className="block text-[15px] font-semibold">Watch along</b>
-              <small className="block text-[13px] leading-snug text-muted-foreground">Pause, rewind, react, rate it after</small>
+              <small className="block text-[13px] leading-snug text-muted-foreground">Pause, rewind, react, a GIF for it after</small>
             </span>
           </NavLink>
         )}

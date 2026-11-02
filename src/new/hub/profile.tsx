@@ -19,20 +19,17 @@ import { Sheet } from "../ui/sheet";
 // points and place (since 2026-10-31; this year's once the couch has a year before it), seasons played, your best show,
 // predictions called, your best finish; couch-hub.ts, as far as you've seen),
 // Admin for site admins (the desk, step 6b part 2, with what needs them), then Take the tour (Home plays it as this closes:
-// tour/store.ts; the user, 2026-11-01) and Settings. Since step 12 part 1 your taste on the
-// couch from its ratings (ratings.ts): Agree with the couch in place of seasons played once there's enough to say, and your
-// taste twin. (A site admin's test couch switches went 2026-10-31 with the test couch, the user's call.)
+// tour/store.ts; the user, 2026-11-01) and Settings. (Step 12 part 1's Agree with the couch and taste twin went with Rate
+// it's stars on 2026-11-01.) (A site admin's test couch switches went 2026-10-31 with the test couch, the user's call.)
 
 /** Your numbers on the couch, or a line saying they fill in as it plays. */
 function YourNumbers({ hub }: { hub: CouchHub | undefined }) {
   if (!hub) return <div aria-busy className="h-[180px] animate-pulse rounded-[4px] bg-card" />;
   const y = hub.you;
-  const agree = hub.taste.agree;
-  const twin = hub.taste.twin;
   const stats: [string, string][] = [
     [String(y.titles), y.titles === 1 ? "Title" : "Titles"],
     [String(y.points), "Couch points"],
-    agree ? [`${agree.pct}%`, "Agree with the couch"] : [String(y.seasons), y.seasons === 1 ? "Season played" : "Seasons played"],
+    [String(y.seasons), y.seasons === 1 ? "Season played" : "Seasons played"],
   ];
   return (
     <div data-your-numbers>
@@ -67,11 +64,6 @@ function YourNumbers({ hub }: { hub: CouchHub | undefined }) {
         )}
         {y.bestFinish && <Row icon={Medal} title={`Best finish: ${ordinal(Number(y.bestFinish.rank))}`} detail={`${y.bestFinish.gameName} · ${y.bestFinish.label}`} />}
         {y.called > 0 && <Row icon={Zap} title={`Called it: ${y.called} ${y.called === 1 ? "prediction" : "predictions"} right`} detail="In every game on the couch, as far as you've seen" />}
-        {twin && (
-          <span data-taste-twin className="contents">
-            <Row icon={Star} title={`Taste twin: ${twin.name}`} detail={twin.line} />
-          </span>
-        )}
       </div>
     </div>
   );

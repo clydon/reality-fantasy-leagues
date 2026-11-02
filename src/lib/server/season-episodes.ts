@@ -7,7 +7,7 @@ import { couchFillsResults } from "./community-results";
 import { pool, HttpError } from "./db";
 import { EVERYTHING } from "./guard";
 import { markRevealed } from "./reveal";
-import { seasonVerdicts, type EpisodeVerdictLine } from "./ratings";
+import { seasonGifs, type EpisodeGifLine } from "./episode-gifs";
 import { DEFAULT_RUNTIME_MIN, finalAtOf, seasonSchedules } from "./schedule";
 import type { ReadOnly } from "./read-only";
 import { gamesHere, type GameHere } from "./season-games";
@@ -46,9 +46,9 @@ export interface EpisodeRow extends Partial<Omit<EpisodeSeen, "number" | "stage"
   title?: string | null;
   /** What happened (Fill in what happened: episode-recaps.ts, 0143), once you've seen it. */
   summary?: string | null;
-  /** Rate it (step 12 part 1): the couch's verdict and your stars, on an episode you've seen (ratings.ts seasonVerdicts; the
-   *  couch's people who share the show, or everyone on Game Your Show's with nobody else on the couch). */
-  verdict?: EpisodeVerdictLine;
+  /** React with a GIF (docs/PLAN-gif-reactions.md): how many GIFs and a few of them, on an episode you've seen (episode-gifs.ts
+   *  seasonGifs; the couch's people who share the show, or only yours with nobody else on the couch). */
+  gifs?: EpisodeGifLine;
 }
 
 export interface SeasonEpisodes {
@@ -177,9 +177,9 @@ export async function seasonEpisodes(user: SessionUser, seasonId: string, couchI
   const runs = here.some((h) => h.game.yourRole === "commissioner" || h.game.yourRole === "admin");
   const earlySeen = rows.filter((r) => r.status === "seen" && r.stage === "early").map((r) => r.number);
   const fill = couchId && here.length && !runs && !ro && earlySeen.length && (await couchFillsResults(couchId)) ? { episode: Math.max(...earlySeen) } : null;
-  // Each episode you've seen with its verdict (only through your mark: seasonVerdicts reads nothing past it).
-  const verdicts = await seasonVerdicts(user.id, seasonId, couchId, mark);
-  for (const r of rows) if (r.status === "seen" || (r.status === "aired" && r.watched)) r.verdict = verdicts.get(r.number) ?? { avg: null, n: 0, mine: null };
+  // Each episode you've seen with its GIFs (only through your mark: seasonGifs reads nothing past it).
+  const gifs = await seasonGifs(user.id, seasonId, couchId, mark);
+  for (const r of rows) if (r.status === "seen" || (r.status === "aired" && r.watched)) r.gifs = gifs.get(r.number) ?? { n: 0, mine: false, urls: [] };
   return {
     seenThrough: Number.isFinite(seen) ? seen : null,
     episodes: rows,

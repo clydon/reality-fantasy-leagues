@@ -95,7 +95,7 @@ function ranked<T>(items: T[], value: (x: T) => number): { item: T; place: numbe
  * What each thing someone does on the couch is worth in Couch points (the user, 2026-10-31), most first; the rankings page's How
  * you earn them reads it. `group` is the bar's colour and legend. couch-points.ts counts each kind: on the couch itself (joining
  * it, its games and their moves, its chats, polls, watch along plans and reactions) whenever it was, and on your own (shows you
- * follow openly, trivia, bingo, Call it, ratings, days you open the app) since you joined it.
+ * follow openly, trivia, bingo, Call it, episode GIFs (and ratings, before), days you open the app) since you joined it.
  */
 export const COUCH_POINTS = [
   { kind: "couch", points: 10, says: "Joining the couch", group: "here" },
@@ -108,7 +108,7 @@ export const COUCH_POINTS = [
   { kind: "move", points: 2, says: "Each move you set", group: "play" },
   { kind: "call", points: 2, says: "A Call it answer", group: "play" },
   { kind: "poll", points: 2, says: "A poll vote", group: "talk" },
-  { kind: "rating", points: 2, says: "Rating an episode", group: "watch" },
+  { kind: "rating", points: 2, says: "A GIF for an episode", group: "watch" },
   { kind: "chat", points: 1, says: "A chat message", cap: "10 a day", group: "talk" },
   { kind: "reaction", points: 1, says: "A watch along reaction", cap: "5 an episode", group: "watch" },
   { kind: "day", points: 1, says: "Each day you open the app", group: "here" },

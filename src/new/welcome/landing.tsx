@@ -72,11 +72,6 @@ const Cup = () => (
     <path d="M7 4h10v5a5 5 0 0 1-10 0zM5 5H3v2a3 3 0 0 0 3 3M19 5h2v2a3 3 0 0 1-3 3M12 14v4M8 21h8" />
   </svg>
 );
-const Star = ({ off }: { off?: boolean }) => (
-  <svg viewBox="0 0 24 24" className={off ? "o" : undefined} aria-hidden>
-    <path d="m12 2 3 7h7l-5.5 4.5L18.5 21 12 16.5 5.5 21l2-7.5L2 9h7z" />
-  </svg>
-);
 
 // eslint-disable-next-line @next/next/no-img-element -- small, already-sized jpgs from public/landing
 const Photo = ({ c, className }: { c: Castaway; className?: string }) => (c.photo ? <img src={c.photo} alt="" loading="lazy" decoding="async" className={className} /> : null);
@@ -551,24 +546,16 @@ function WaysToPlay() {
           </div>
           <div className="lp-egc lp-up">
             <span className="lp-tag cap" style={{ background: "#8f84d8", fontSize: 11 }}>
-              Rate it
+              React
             </span>
-            <h4 className="cap">Two seconds</h4>
-            <p>After the credits. Then the couch verdict.</p>
-            <div className="vis">
-              <div className="lp-stars">
-                <Star />
-                <Star />
-                <Star />
-                <Star />
-                <Star off />
-              </div>
-              <div style={{ marginTop: 6, fontSize: 12 }} className="text-muted-foreground">
-                <b className="num" style={{ color: "var(--foreground)", fontSize: 20 }}>
-                  4.5
-                </b>{" "}
-                couch verdict
-              </div>
+            <h4 className="cap">One GIF</h4>
+            <p>After the credits, any GIF you like. Then the couch&apos;s.</p>
+            <div className="vis lp-gifs">
+              {[COUCH[0], COUCH[1], COUCH[3]].map(([a, c, n]) => (
+                <i key={a} style={{ background: c }}>
+                  <b>{n}</b>
+                </i>
+              ))}
             </div>
           </div>
         </div>

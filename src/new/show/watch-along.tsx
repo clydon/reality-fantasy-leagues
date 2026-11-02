@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { usePathname, useSearchParams } from "next/navigation";
-import { Crown, Eye, Flame, Grid3x3, Laugh, Pause, Play, Radio, Star, Tv, Users, X, Zap, type LucideIcon } from "lucide-react";
+import { Crown, Eye, Flame, Grid3x3, Laugh, Pause, Play, Radio, Tv, Users, X, Zap, type LucideIcon } from "lucide-react";
 import {
   adoptClock,
   BEAT_MS,
@@ -38,9 +38,7 @@ import {
 } from "@/lib/game/watch-along";
 import { airTime } from "../clock";
 import {
-  ratingsApi,
   togetherApi,
-  useAfterRating,
   useAfterWatching,
   useRefreshBingo,
   useWatchCard,
@@ -64,7 +62,7 @@ import { Sheet } from "../ui/sheet";
 import { ShowArt } from "../ui/show-bar";
 import { toast } from "../ui/toast";
 import { openBingo } from "./bingo";
-import { openRate, rateLabel } from "./rate";
+import { openGif, showLabel } from "./react";
 import { useOpenReveal } from "./reveal";
 
 // Watch along (docs/PLAN-new-design.md step 13 part 1; the mock's index.html openWatch and watching.js's wrap of it): the one name
@@ -72,8 +70,8 @@ import { useOpenReveal } from "./reveal";
 // your episode starts (Streaming, or Live on TV with Ad break) and its clock follows the episode; what the couch said there, comments,
 // quick reactions and GIFs, arrives 30 s after its moment as you reach it, never before (the server sends nothing nearer, and
 // nothing about an episode past your next one: watch-along.ts). Say something and it's pinned to where your clock is, for whoever
-// watches next. The screen stays on (wake lock). Your bingo card comes with you. At the end, How was Episode N?: rate it (marking a
-// show you only watch seen), or Reveal your scores first on one you play. Polls only while its clock runs (docs/HOSTING.md).
+// watches next. The screen stays on (wake lock). Your bingo card comes with you. At the end, How was Episode N?: React with a GIF (marking
+// a show you only watch seen), or Reveal your scores first on one you play (the reveal asks for your GIF). Polls only while its clock runs (docs/HOSTING.md).
 // Who's on now (part 2): its clock is kept on the server for the couch (written when it starts, pauses, moves or closes; the running
 // poll is its heartbeat, a paused one beats every 20 s for ten minutes), so who else on the couch is watching this episode along shows
 // as a mark on the bar and "riley is watching now · 40s ahead" with Catch up, and while it's on air the start offers Join the live
@@ -143,7 +141,7 @@ export function WatchAlongCard({ seasonId, show, place }: { seasonId: string; sh
     c.status === "soon"
       ? "Opens at airtime · start it when the episode starts"
       : show.solo
-        ? "Pause, rewind, react · rate it after"
+        ? "Pause, rewind, react · a GIF for it after"
         : on.length
           ? c.status === "live"
             ? `${namesLine(on)} ${on.length === 1 ? "is" : "are"} watching · your bingo card comes with you`
@@ -300,7 +298,7 @@ function WatchAlong({ show, episode: n, planId: planAsked, onClose }: { show: Sh
   const header = show.header!;
   const seasonId = header.seasonId;
   const couchId = show.couch?.id ?? null;
-  const label = rateLabel(show);
+  const label = showLabel(show);
   const card = useWatchCard(seasonId, couchId);
   const me = useMe().id;
   const refreshBingo = useRefreshBingo();
@@ -1357,29 +1355,23 @@ function TogetherStart({ show, episode: n, night, tg, me, onStart, onClose }: { 
 function EndPanel({ show, episode: n, info, onBack, onKeepWatching }: { show: ShowData; episode: number; info: WatchRead | null; onBack: () => void; onKeepWatching: () => void }) {
   const header = show.header!;
   const couchId = show.couch?.id ?? null;
-  const afterRating = useAfterRating();
   const afterWatching = useAfterWatching();
   const openReveal = useOpenReveal();
   const [busy, setBusy] = useState(false);
-  const [tapped, setTapped] = useState(0);
   const seen = info?.you.seen ?? (show.seenThrough ?? 0) >= n;
   const toReveal = show.plays && !seen && show.episodes?.reveal?.episode === n;
   const waiting = show.plays && !seen && !toReveal;
-  const label = rateLabel(show);
-  const rate = async (stars: number) => {
+  const react = async () => {
     if (busy) return;
     setBusy(true);
-    setTapped(stars);
     try {
-      // A show you only watch: rating it is seeing it (where you are moves to it).
+      // A show you only watch: watching it along to the end and reacting is seeing it (where you are moves to it).
       if (!seen) {
         await watching.follow(header.seasonId, { seenThrough: n });
         await afterWatching();
       }
-      afterRating(await ratingsApi.rate(header.seasonId, couchId, n, { stars }), couchId);
-      openRate({ seasonId: header.seasonId, couchId, episode: n, label, solo: show.solo });
+      openGif({ seasonId: header.seasonId, couchId, episode: n, label: showLabel(show), solo: show.solo, just: !seen });
     } catch (e) {
-      setTapped(0);
       toast.quiet((e as Error).message);
     } finally {
       setBusy(false);
@@ -1394,41 +1386,28 @@ function EndPanel({ show, episode: n, info, onBack, onKeepWatching }: { show: Sh
       </h3>
       {waiting ? (
         <p data-watch-end-line className="text-[15px] leading-normal text-muted-foreground">
-          Your scores come with the results. Reveal them on Tonight once they&rsquo;re in, then rate it.
+          Your scores come with the results. Reveal them on Tonight once they&rsquo;re in, then react with a GIF.
         </p>
       ) : toReveal ? (
         <p data-watch-end-line className="text-[15px] leading-normal text-muted-foreground">
-          Results are in. Reveal your scores, then rate it.
+          Results are in. Reveal your scores, then react with a GIF.
         </p>
       ) : (
-        <>
-          <div className="flex gap-2" role="radiogroup" aria-label="Your stars">
-            {[1, 2, 3, 4, 5].map((s) => (
-              <button
-                key={s}
-                type="button"
-                role="radio"
-                aria-checked={tapped === s}
-                aria-label={`${s} ${s === 1 ? "star" : "stars"}`}
-                data-end-star={s}
-                disabled={busy}
-                onClick={() => rate(s)}
-                className={`grid size-14 place-items-center rounded-[4px] transition-transform ${s <= tapped ? "-translate-y-[3px] bg-secondary" : "bg-card"}`}
-              >
-                <Star className={`size-[30px] ${s <= tapped ? "fill-chyron stroke-chyron" : "stroke-muted-foreground"}`} strokeWidth={1.8} aria-hidden />
-              </button>
-            ))}
-          </div>
-          <p data-watch-end-line className="text-[13px] text-muted-foreground">
-            {seen ? `Tap your stars for ${show.solo ? "everyone's" : "the couch"} verdict` : `Rating it marks Episode ${n} seen`}
-          </p>
-        </>
+        <p data-watch-end-line className="text-[15px] leading-normal text-muted-foreground">
+          {seen ? (show.solo ? "Any GIF you like, just for you." : "Any GIF you like, then see the couch's.") : `Any GIF you like. It marks Episode ${n} watched.`}
+        </p>
       )}
       <div className="mt-4 flex flex-col gap-2.5">
-        {toReveal && (
+        {toReveal ? (
           <Btn tone="must" wide data-watch-reveal onClick={() => openReveal(n)}>
             Reveal your scores
           </Btn>
+        ) : (
+          !waiting && (
+            <Btn tone="must" wide data-watch-gif disabled={busy} onClick={react}>
+              React with a GIF
+            </Btn>
+          )
         )}
         <Btn wide data-watch-done onClick={onBack}>
           Back to Tonight

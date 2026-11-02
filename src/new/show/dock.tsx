@@ -17,7 +17,7 @@ import { ordinal } from "../games";
 import { closeMoves, dockWords, faceIn, first, moveCard, openMoves, sheetTabs, tabOf, useMovesSheet, type MovesTab, type SheetTab } from "./moves";
 import { openCall } from "./calls";
 import { openSheet } from "./questions";
-import { rateLabel } from "./rate";
+import { showLabel } from "./react";
 import { Face, IconBox } from "./parts";
 import { useOpenMorning, useOpenReveal } from "./reveal";
 import { askAfterSave } from "./remind";
@@ -146,7 +146,7 @@ export function Dock({ show }: { show: ShowData }) {
           ? nav.push(leadHref)
           : show.moves[0]?.kind === "calls" && show.header
             ? // Weekly Calls' calls are Call it's sheet (step 12 part 2).
-              openCall({ seasonId: show.header.seasonId, couchId: show.couch?.id ?? null, episode: show.moves[0].episode ?? up.number, label: rateLabel(show), solo: show.solo })
+              openCall({ seasonId: show.header.seasonId, couchId: show.couch?.id ?? null, episode: show.moves[0].episode ?? up.number, label: showLabel(show), solo: show.solo })
             : show.moves[0]?.kind === "questions" && show.header
               ? // A Prediction Sheet's questions are its own sheet (step A4 part 2).
                 openSheet({ seasonId: show.header.seasonId, leagueId: show.moves[0].leagueId, episode: null, game: show.moves[0].leagueName })

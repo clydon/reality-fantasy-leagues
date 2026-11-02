@@ -10,7 +10,8 @@ import { pool } from "./db";
 // kept in a game's state, pool picks, draft picks and lineups, couch-hub.ts reads with couch-moves.ts), what's said
 // in its chats (10 a day count), its polls, answering its watch along plans, reactions in its watch alongs (5 an episode count).
 // On your own since you joined it: shows you follow openly (a private follow isn't the couch's to count), trivia rounds, bingo
-// cards you've marked, Call it answers, episode ratings, days you opened the app (user_days, 0157). A day and a year are Eastern's
+// cards you've marked, Call it answers, an episode's GIF (and the ratings made before GIFs took their place: one an episode either
+// way), days you opened the app (user_days, 0157). A day and a year are Eastern's
 // (as desk-couches.ts counts a month), DST and all.
 
 const ZONE = "America/New_York";
@@ -53,7 +54,10 @@ export async function couchPointCounts(couchId: string, people: string[]): Promi
                        WHERE w.pairs <> '[]'::jsonb OR w.pickup_ids <> '[]'::jsonb OR w.add_ids <> '[]'::jsonb
             UNION ALL SELECT c.user_id, 'call', c.created_at FROM episode_calls c JOIN members m USING (user_id) WHERE c.created_at >= m.joined_at
             UNION ALL SELECT v.user_id, 'poll', v.voted_at FROM couch_poll_votes v JOIN couch_polls p ON p.id = v.poll_id JOIN members USING (user_id) WHERE p.couch_id = $1
-            UNION ALL SELECT r.user_id, 'rating', r.created_at FROM episode_ratings r JOIN members m USING (user_id) WHERE r.created_at >= m.joined_at
+            UNION ALL SELECT x.user_id, 'rating', min(x.created_at) FROM (
+                        SELECT user_id, season_id, episode, created_at FROM episode_ratings
+                        UNION ALL SELECT user_id, season_id, episode, created_at FROM episode_gifs) x JOIN members m USING (user_id)
+                       WHERE x.created_at >= m.joined_at GROUP BY x.user_id, x.season_id, x.episode
             UNION ALL SELECT user_id, 'chat', at FROM (
                         SELECT c.user_id, c.created_at AS at,
                                row_number() OVER (PARTITION BY c.user_id, (c.created_at AT TIME ZONE '${ZONE}')::date ORDER BY c.created_at) AS n

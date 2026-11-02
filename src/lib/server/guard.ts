@@ -16,7 +16,7 @@ import { advanceAuto } from "./keep-up";
 //   3. Sharing: what someone's couches see of them (shares, sharesSql). A show watched privately is never shared
 //      (show_follows.private), and on the rest What your couch sees decides (step 15 part 3; user_settings.share_*,
 //      src/lib/sharing.ts): Where I am (what you watch and how far you are), When I'm watching (who's on now), My
-//      episode ratings, My watch along reactions. Your games (picks once they lock, calls, bingo, polls) always show
+//      episode GIFs (share_gifs, 0162; My episode ratings before), My watch along reactions. Your games (picks once they lock, calls, bingo, polls) always show
 //      on a show you follow openly: the games need them ("play").
 
 /** Seen through everything: someone who turned spoiler protection off. */
@@ -152,9 +152,9 @@ export async function sharingOf(userIds: string[], db: Queryable = pool): Promis
   const out = new Map<string, Sharing>(ids.map((id) => [id, { ...SHARE_DEFAULT }]));
   if (!ids.length) return out;
   const { rows } = await db.query(
-    "SELECT user_id, share_where, share_now, share_ratings, share_reactions FROM user_settings WHERE user_id = ANY($1::text[])",
+    "SELECT user_id, share_where, share_now, share_gifs, share_reactions FROM user_settings WHERE user_id = ANY($1::text[])",
     [ids]
   );
-  for (const r of rows) out.set(r.user_id, { where: r.share_where, now: r.share_now, ratings: r.share_ratings, reactions: r.share_reactions });
+  for (const r of rows) out.set(r.user_id, { where: r.share_where, now: r.share_now, gifs: r.share_gifs, reactions: r.share_reactions });
   return out;
 }

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } fro
 import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import { ChevronRight, Eye, Send } from "lucide-react";
-import { chatCouch, postToCouch, revealEpisode, useAfterReveal, type SeasonReveal } from "../data";
+import { chatCouch, postToCouch, revealEpisode, useAfterReveal, useEpisodeGifs, type SeasonReveal } from "../data";
 import { ordinal } from "../games";
 import type { ShowData } from "../screens/show-space";
 import { Avatar } from "../ui/bars";
@@ -15,13 +15,14 @@ import { Sheet } from "../ui/sheet";
 import { ShowArt } from "../ui/show-bar";
 import { toast } from "../ui/toast";
 import { first } from "./moves";
+import { GifsAction, GifsBeat, showLabel, type GifTarget } from "./react";
 import { Face } from "./parts";
 
 // The one reveal (the mock's episode.js revealPlay, stages.js, share.js; docs/PLAN-new-design.md step 2): one
 // broadcast per episode for every game you play on the show. Tapping Reveal asks the server to reveal it in all of
 // them at once (POST /api/seasons/[id]/reveal: your progress moves, the chat hears it), and plays what comes back a
-// beat at a time: the episode, what happened, who went home, your Weekly Lineup, your other games, the table
-// moving. At the early stage (who went home only) the lineup reads "so far" and the pool's streaks move instead.
+// beat at a time: the episode, what happened, who went home, the couch's GIFs for it (React with a GIF; react.tsx GifsBeat,
+// on a couch with someone else on it), your Weekly Lineup, your other games, the table moving. At the early stage (who went home only) the lineup reads "so far" and the pool's streaks move instead.
 // The last beat offers Share your night: a post to the couch, or a card for outside it that leaves out who went home
 // unless you say so. It's in the history (?page=reveal), so back closes it.
 //
@@ -114,6 +115,9 @@ function Broadcast({ show, seasonId, n, onClose }: { show: ShowData; seasonId: s
   const after = useAfterReveal();
   const asked = useRef(false);
   const name = (show.header?.show.name ?? "The show").replace(/^The /, "");
+  // The couch's GIFs for it: read once the reveal has moved where you are (the server sends them only to someone who's seen it).
+  const gifTarget: GifTarget | null = show.solo ? null : { seasonId, couchId: show.couch?.id ?? null, episode: n, label: showLabel(show), solo: false };
+  useEpisodeGifs(seasonId, show.couch?.id ?? null, n, !!r && !!gifTarget);
 
   useEffect(() => {
     // Once per episode (a second ask would only say "again").
@@ -135,6 +139,7 @@ function Broadcast({ show, seasonId, n, onClose }: { show: ShowData; seasonId: s
         n={n}
         r={r}
         error={error}
+        gifs={gifTarget ? { node: <GifsBeat target={gifTarget} />, action: <GifsAction target={gifTarget} /> } : undefined}
         onClose={onClose}
         end={
           r && (
@@ -169,15 +174,37 @@ function Broadcast({ show, seasonId, n, onClose }: { show: ShowData; seasonId: s
 
 /**
  * A reveal's beats, a tap at a time, under its bar (the show's name; Skip, then Close) and over its progress, and what the last
- * beat offers (`end`): the show's own reveal (Broadcast) and the first-time tour's (TourReveal).
+ * beat offers (`end`): the show's own reveal (Broadcast) and the first-time tour's (TourReveal). `gifs`: the couch's GIFs slide
+ * and its action (the show's own reveal, on a couch), after who went home.
  */
-function Beats({ name, season, n, r, error, replay, end, onClose }: { name: string; season: number | null; n: number; r: SeasonReveal | null; error: string | null; replay?: boolean; end: ReactNode; onClose: () => void }) {
+function Beats({
+  name,
+  season,
+  n,
+  r,
+  error,
+  replay,
+  gifs,
+  end,
+  onClose,
+}: {
+  name: string;
+  season: number | null;
+  n: number;
+  r: SeasonReveal | null;
+  error: string | null;
+  replay?: boolean;
+  gifs?: { node: ReactNode; action: ReactNode };
+  end: ReactNode;
+  onClose: () => void;
+}) {
   const [k, setK] = useState(0);
-  const beats: { key: string; node: ReactNode }[] = r
+  const beats: { key: string; node: ReactNode; action?: ReactNode }[] = r
     ? [
         { key: "open", node: <Opener r={r} name={name} season={season} replay={replay} /> },
         ...(r.happened.length ? [{ key: "happened", node: <Challenges r={r} /> }] : []),
         { key: "out", node: <VoteCards r={r} /> },
+        ...(gifs ? [{ key: "gifs", node: gifs.node, action: gifs.action }] : []),
         ...(r.lineup ? [{ key: "lineup", node: <LineupBeat r={r} /> }] : []),
         ...(r.games.length + r.predictions.length ? [{ key: "games", node: <OtherGames r={r} /> }] : []),
         ...(r.table ? [{ key: "table", node: <TableBeat r={r} /> }] : []),
@@ -227,6 +254,7 @@ function Beats({ name, season, n, r, error, replay, end, onClose }: { name: stri
             ))}
           </div>
         )}
+        {r && beats[at]?.action}
         {last && r && end}
       </div>
     </>

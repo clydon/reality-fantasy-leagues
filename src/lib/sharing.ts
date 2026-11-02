@@ -1,20 +1,20 @@
 // What your couch sees (docs/PLAN-new-design.md step 15 part 3; the mock's share.js PRIV, PRIV_PRESETS and privHTML), the pure
-// half: the four switches (user_settings.share_*, migration 0137), the three levels over them, and their words. The server
+// half: the four switches (user_settings.share_*, migration 0137; share_gifs since 0162, in place of share_ratings), the three levels over them, and their words. The server
 // enforces them (guard.ts rule 3: shares, sharesSql); Settings shows them (src/new/settings/sharing.tsx).
 //
 // A show watched privately (its ⋯ menu) stays hidden whatever these say, and your games always show: picks once they lock,
 // calls, bingo, polls and scores are what the games need.
 
-export type ShareSwitch = "where" | "now" | "ratings" | "reactions";
+export type ShareSwitch = "where" | "now" | "gifs" | "reactions";
 export type Sharing = Record<ShareSwitch, boolean>;
 export type SharePreset = "all" | "games" | "min";
 
-export const SHARE_SWITCHES: ShareSwitch[] = ["where", "now", "ratings", "reactions"];
+export const SHARE_SWITCHES: ShareSwitch[] = ["where", "now", "gifs", "reactions"];
 
 export const SHARE_PRESETS: Record<SharePreset, Sharing> = {
-  all: { where: true, now: true, ratings: true, reactions: true },
-  games: { where: false, now: false, ratings: true, reactions: true },
-  min: { where: false, now: false, ratings: false, reactions: false },
+  all: { where: true, now: true, gifs: true, reactions: true },
+  games: { where: false, now: false, gifs: true, reactions: true },
+  min: { where: false, now: false, gifs: false, reactions: false },
 };
 
 /** Someone with no settings row shares everything: the recommended level, and the columns' default. */
@@ -36,15 +36,15 @@ export function sharingFrom(raw: unknown, now: Sharing): Sharing | null {
 }
 
 export const PRESET_WORDS: { id: SharePreset; title: string; line: string; recommended?: boolean }[] = [
-  { id: "all", title: "Everything", line: "Where you are in each show, when you're watching, your ratings and reactions", recommended: true },
-  { id: "games", title: "Just my games", line: "Your games, ratings and reactions. Not what you watch or where you are" },
+  { id: "all", title: "Everything", line: "Where you are in each show, when you're watching, your GIFs and reactions", recommended: true },
+  { id: "games", title: "Just my games", line: "Your games, GIFs and reactions. Not what you watch or where you are" },
   { id: "min", title: "Only what games need", line: "Your picks and scores once they lock. Nothing else" },
 ];
 
 export const SWITCH_WORDS: Record<ShareSwitch, { title: string; line: string }> = {
   where: { title: "Where I am in each show", line: "What you watch, and how far you are" },
   now: { title: "When I'm watching", line: "That you're watching along right now, and which episode" },
-  ratings: { title: "My episode ratings", line: "In the couch verdict and everyone's average" },
+  gifs: { title: "My episode GIFs", line: "The GIF you react to each episode with" },
   reactions: { title: "My watch along reactions", line: "For whoever watches the episode after you" },
 };
 

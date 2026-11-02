@@ -2,14 +2,15 @@
 // couch ("ZT Survivor 51": alex owns it, riley, jordan and sam on it; casey with alex on "ZT Extra"), streaming-fixture.js's
 // seasons (ZT Severed: alex on 3, riley 6, jordan 9) and hub-fixture.js's finished ZT Survivor 49 and 50.
 //   API:
-//   - migration 0137's four switches; the profile's sharing (Everything by default) and its lines ("zt_nd_alex is up to Episode 5
-//     of ..."), refusals, a level, one switch over a level;
+//   - the four switches (migration 0137; share_gifs since 0162, in place of share_ratings); the profile's sharing (Everything by
+//     default) and its lines ("zt_nd_alex is up to Episode 5 of ..."), refusals, a level, one switch over a level;
 //   - Where I am: what someone watches and how far they are on everyone's home read (members' `at`) and the space's people
 //     (`seen`), the couch's shows, the feed's "started watching", reveal lines (read, and none written while it's off), First to
 //     finish and the chat's fold by progress (and its push's words, through fake-push.js) all answer to it; a show watched
 //     privately never shows;
 //   - When I'm watching: who's on now (the hub's On now and the Watch along card);
-//   - My episode ratings: the couch verdict; My watch along reactions: the watch along's stream and its count;
+//   - My episode GIFs: an episode's GIFs (React with a GIF, through fake-gifs.js's KLIPY stand-in) and the profile's line for them;
+//     My watch along reactions: the watch along's stream and its count;
 //   - trivia's Seen it all: an earlier season of the show, over, marked seen to the end without following it (casey), so the
 //     round asks about it; refused on a season not over, another show's, one you play.
 //   In a real browser at --width (390 by default): as alex, Settings' What your couch sees (the three levels, what riley sees
@@ -32,6 +33,7 @@ const fixture = require("./new-fixture");
 const streamingFixture = require("./streaming-fixture");
 const hubFixture = require("./hub-fixture");
 const fakePush = require("./fake-push");
+const fakeGifs = require("./fake-gifs");
 
 const DB = process.env.AUTH_DATABASE_URL || "";
 if (!/@(localhost|127\.0\.0\.1|\[::1\])[:/]/.test(DB)) throw new Error("check-new-sharing runs against a local database only");
@@ -57,6 +59,8 @@ function check(ok, what, detail = "") {
   const closers = [];
   const push = await fakePush.start();
   closers.push(push.down);
+  const gifs = await fakeGifs.start();
+  closers.push(gifs.close);
   try {
     const fx = await fixture.up(pool);
     const st = await streamingFixture.up(pool, fx);
@@ -88,30 +92,35 @@ function check(ok, what, detail = "") {
     const hubOf = async (who) => (await as[who].call("GET", `/api/couches/${C}/hub`)).body;
     const chatOf = async (who, season) => (await as[who].call("GET", `/api/seasons/${season}/chat${q}`)).body;
 
-    // ---------- migration 0137 and the profile ----------
-    const cols = (await pool.query("SELECT column_name, column_default, is_nullable FROM information_schema.columns WHERE table_name = 'user_settings' AND column_name LIKE 'share_%' ORDER BY column_name")).rows;
+    // ---------- the switches' columns and the profile ----------
+    // The four switches: 0137's where, now and reactions, and 0162's share_gifs (share_ratings, Rate it's, stays but nothing reads it).
+    const cols = (
+      await pool.query(
+        "SELECT column_name, column_default, is_nullable FROM information_schema.columns WHERE table_name = 'user_settings' AND column_name IN ('share_where', 'share_now', 'share_gifs', 'share_reactions') ORDER BY column_name"
+      )
+    ).rows;
     check(
-      cols.map((c) => c.column_name).join() === "share_now,share_ratings,share_reactions,share_where" && cols.every((c) => c.column_default === "true" && c.is_nullable === "NO"),
-      "migration 0137: user_settings.share_where, share_now, share_ratings, share_reactions, on by default",
+      cols.map((c) => c.column_name).join() === "share_gifs,share_now,share_reactions,share_where" && cols.every((c) => c.column_default === "true" && c.is_nullable === "NO"),
+      "migrations 0137 and 0162: user_settings.share_where, share_now, share_gifs, share_reactions, on by default",
       JSON.stringify(cols)
     );
     let p = await profile("alex");
-    check(JSON.stringify(p.sharing?.on) === JSON.stringify({ where: true, now: true, ratings: true, reactions: true }), "alex shares everything by default (the recommended level)", JSON.stringify(p.sharing));
+    check(JSON.stringify(p.sharing?.on) === JSON.stringify({ where: true, now: true, gifs: true, reactions: true }), "alex shares everything by default (the recommended level)", JSON.stringify(p.sharing));
     check(
       /^zt_nd_alex (is up to Episode \d+ of|finished) ZT /.test(p.sharing.lines.where) && /^zt_nd_alex is watching ZT .+ now$/.test(p.sharing.lines.now),
       "what riley sees about him, from his own shows: where he is, that he's watching",
       JSON.stringify(p.sharing.lines)
     );
-    check(p.sharing.lines.ratings === "zt_nd_alex's episode ratings" && p.sharing.lines.reactions === "zt_nd_alex's watch along reactions", "no ratings or reactions of his yet: what each would share", JSON.stringify(p.sharing.lines));
+    check(p.sharing.lines.gifs === "zt_nd_alex's episode GIFs" && p.sharing.lines.reactions === "zt_nd_alex's watch along reactions", "no GIFs or reactions of his yet: what each would share", JSON.stringify(p.sharing.lines));
     for (const [bad, what] of [[{ preset: "some" }, "a level we don't have"], [{ now: "no" }, "a switch that isn't true or false"], [{}, "nothing"], [{ where: true, colour: 1 }, "something else"]]) {
       check((await share("alex", bad)).status === 400, `sharing refused: ${what}`);
     }
     let r = await share("alex", { preset: "games" });
-    const row = async (who) => (await pool.query("SELECT share_where, share_now, share_ratings, share_reactions FROM user_settings WHERE user_id = $1", [U[who]])).rows[0];
-    check(r.status === 200 && JSON.stringify(r.body.sharing.on) === JSON.stringify({ where: false, now: false, ratings: true, reactions: true }), "Just my games: where and now off", JSON.stringify(r.body.sharing));
-    check(JSON.stringify(await row("alex")) === JSON.stringify({ share_where: false, share_now: false, share_ratings: true, share_reactions: true }), "kept in user_settings");
+    const row = async (who) => (await pool.query("SELECT share_where, share_now, share_gifs, share_reactions FROM user_settings WHERE user_id = $1", [U[who]])).rows[0];
+    check(r.status === 200 && JSON.stringify(r.body.sharing.on) === JSON.stringify({ where: false, now: false, gifs: true, reactions: true }), "Just my games: where and now off", JSON.stringify(r.body.sharing));
+    check(JSON.stringify(await row("alex")) === JSON.stringify({ share_where: false, share_now: false, share_gifs: true, share_reactions: true }), "kept in user_settings");
     r = await share("alex", { now: true });
-    check(r.body.sharing.on.now === true && r.body.sharing.on.where === false && r.body.sharing.on.ratings === true, "one switch over the level: When I'm watching back on, the rest as they were");
+    check(r.body.sharing.on.now === true && r.body.sharing.on.where === false && r.body.sharing.on.gifs === true, "one switch over the level: When I'm watching back on, the rest as they were");
     r = await share("alex", { preset: "all" });
     check(Object.values(r.body.sharing.on).every(Boolean), "Everything again");
 
@@ -202,20 +211,23 @@ function check(ok, what, detail = "") {
     await share("riley", { now: true });
     await pool.query("DELETE FROM watch_sessions WHERE id = $1", [ws]);
 
-    // ---------- My episode ratings ----------
-    r = await as.riley.call("POST", `/api/seasons/${sid}/ratings/4${q}`, { stars: 4 });
-    check(r.status === 200, "riley rates Survivor's Episode 4", JSON.stringify(r.body).slice(0, 200));
-    await as.alex.call("POST", `/api/seasons/${sid}/ratings/4${q}`, { stars: 5 });
-    const verdict = async (who) => (await as[who].call("GET", `/api/seasons/${sid}/ratings/4${q}`)).body;
-    let v = await verdict("alex");
-    check(v.people.some((x) => x.userId === U.riley && x.stars === 4) && v.n === 2 && v.avg === 4.5, "alex's verdict: riley's 4 beside his 5", JSON.stringify(v));
-    await share("riley", { ratings: false });
-    v = await verdict("alex");
-    check(!v.people.some((x) => x.userId === U.riley) && v.n === 1 && v.avg === 5, "My episode ratings off: hers isn't in it, nor in the average", JSON.stringify(v));
-    check((await verdict("riley")).mine?.stars === 4, "she still sees her own");
+    // ---------- My episode GIFs (React with a GIF, 0162; check-gif-reactions.js has the rest) ----------
+    const withGifs = {};
+    for (const who of ["alex", "riley"]) withGifs[who] = await api({ user: u(who), pass: PASSWORD, headers: { "x-gys-gifs": gifs.url } });
+    const gifOf = async (word) => (await withGifs.alex.call("GET", `/api/gifs?q=${word}`)).body.gifs?.[0];
+    r = await withGifs.riley.call("POST", `/api/seasons/${sid}/gifs/4${q}`, { gif: await gifOf("clap") });
+    check(r.status === 200 && !!r.body.mine, "riley reacts to Survivor's Episode 4 with a GIF", JSON.stringify(r.body).slice(0, 200));
+    await withGifs.alex.call("POST", `/api/seasons/${sid}/gifs/4${q}`, { gif: await gifOf("omg") });
+    const gifsOf = async (who) => (await withGifs[who].call("GET", `/api/seasons/${sid}/gifs/4${q}`)).body;
+    let v = await gifsOf("alex");
+    check(v.people.some((x) => x.userId === U.riley) && !!v.mine && v.of === 4, "alex's read of Episode 4's GIFs: riley's beside his, 4 on the couch share the show", JSON.stringify(v).slice(0, 300));
+    await share("riley", { gifs: false });
+    v = await gifsOf("alex");
+    check(!v.people.some((x) => x.userId === U.riley) && v.of === 3, "My episode GIFs off: hers isn't in it, nor counted", JSON.stringify(v).slice(0, 300));
+    check(!!(await gifsOf("riley")).mine, "she still sees her own");
     p = await profile("alex");
-    check(p.sharing.lines.ratings === "zt_nd_alex rated ZT Survivor 51 Episode 4 ★5", "alex's line for ratings: his latest", p.sharing.lines.ratings);
-    await share("riley", { ratings: true });
+    check(p.sharing.lines.gifs === "zt_nd_alex's GIF for ZT Survivor 51 Episode 4", "alex's line for GIFs: his latest", p.sharing.lines.gifs);
+    await share("riley", { gifs: true });
 
     // ---------- My watch along reactions ----------
     r = await as.riley.call("POST", `/api/seasons/${sid}/watch/4${q}`, { at: 60000, kind: "text", text: "SH riley at a minute" });
@@ -324,8 +336,8 @@ function check(ok, what, detail = "") {
       check(await a.toasted(/Saved · your couch sees this from now on/), "Just my games: saved, said so");
       await pg.waitForFunction(() => document.querySelector("[data-settings-sharing]")?.getAttribute("data-level") === "games", null, { timeout: 10000 });
       ls = await lines();
-      check(ls[0] === "where:no:Hidden" && ls[1] === "now:no:Hidden" && ls[2].startsWith("ratings:yes:") && ls[3].startsWith("reactions:yes:"), "where and when he's watching: Hidden; ratings and reactions still shared", ls.join(" | "));
-      check(JSON.stringify(await row("alex")) === JSON.stringify({ share_where: false, share_now: false, share_ratings: true, share_reactions: true }), "saved on the server");
+      check(ls[0] === "where:no:Hidden" && ls[1] === "now:no:Hidden" && ls[2].startsWith("gifs:yes:") && ls[3].startsWith("reactions:yes:"), "where and when he's watching: Hidden; GIFs and reactions still shared", ls.join(" | "));
+      check(JSON.stringify(await row("alex")) === JSON.stringify({ share_where: false, share_now: false, share_gifs: true, share_reactions: true }), "saved on the server");
       const custom = sec.locator("[data-sharing-custom]");
       check(/Or choose each one/.test(await custom.innerText()), "Or choose each one: the four switches, open under the levels");
       await sec.locator('[data-setting="share-now"]').waitFor({ state: "visible" });

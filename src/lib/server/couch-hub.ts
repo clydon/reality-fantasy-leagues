@@ -4,7 +4,6 @@ import { answerStanding, asItStands, storedAnswers } from "./answer-points";
 import { foldFor, isFolded, revealedThrough } from "@/lib/game/chat-fold";
 import { accoladesOf, fieldOf, rankingsOf, trophiesOf, yourNumbers, type Accolade, type GameStanding, type Person, type Rankings, type StandingRow, type TrophyShelf, type YourNumbers } from "@/lib/game/couch-standings";
 import { tableOf } from "@/lib/game/game-view";
-import type { Taste } from "@/lib/game/ratings";
 import { showWords } from "@/lib/game/show-words";
 import { spanName } from "@/lib/game/spans";
 import type { LeagueState } from "@/lib/game/types";
@@ -21,7 +20,6 @@ import { EVERYTHING, seenThrough, sharesSql, switchOn } from "./guard";
 import { hiddenFromGroup } from "./late-join";
 import { gameName } from "./league-season";
 import { leagueStates } from "./league-states";
-import { couchTaste } from "./ratings";
 import { latestAired, seasonSchedules } from "./schedule";
 import { runItBack } from "./start-game";
 import { followsOf, games, seasonHeaders, type Game } from "./show-space";
@@ -31,8 +29,8 @@ import { plansLately, type PlanHow } from "./watch-plans";
 // /api/couches/[id]/hub): every game the couch plays, read as you may see it, turned into head to head, the trophy
 // shelf, Commercial break's "You're playing", By the numbers' couch accolades and your numbers (couch-standings.ts); power
 // rankings are Couch points since 2026-10-31, what everyone has done on the couch (couch-points.ts);
-// and On the couch, what the couch has been up to and said lately. Since step 12 part 1 also your taste on the couch (your taste
-// twin, how often you agree with the couch, how many shows have a verdict) and the accolades ratings can say (ratings.ts).
+// and On the couch, what the couch has been up to and said lately. (Step 12 part 1's taste twin, agreeing with the couch and the
+// rating accolades went with Rate it's stars on 2026-11-01: docs/PLAN-gif-reactions.md.)
 //
 // Spoiler-safe through guard.ts: each game's table is your copy of it at your mark on its season (GhostLogic.viewFor), so
 // a place, a title or a streak is never past where you are, and a season only ends for you once you've seen it end. The
@@ -95,8 +93,6 @@ export interface CouchHub {
   feed: FeedItem[];
   /** Run it back (step 10 part 2b): a finished game of yours, and the show's next season to play it again on. */
   again: { leagueId: string; seasonId: string; label: string }[];
-  /** Rate it (step 12 part 1): your taste twin, how often you agree with the couch, how many shows have a verdict. */
-  taste: Taste;
 }
 
 /** What a game's table says, for one viewer at their mark: who placed where, the streaks, predictions called. `calls`: Weekly
@@ -302,22 +298,20 @@ export async function couchHub(user: SessionUser, couchId: string): Promise<Couc
     });
 
   const finished = standings.filter((g) => g.ended && yours.some((y) => y.leagueId === g.leagueId));
-  const [accolades, feed, again, rated] = await Promise.all([
+  const [accolades, feed, again] = await Promise.all([
     accoladesFor(user, couchId, people, list, standings),
     feedFor(user, couchId, people, list, marks, schedules),
     runItBack(user, couchId, finished.map((g) => ({ leagueId: g.leagueId, seasonId: g.seasonId, gameType: g.gameType, span: g.span ?? null }))),
-    couchTaste(user.id, couchId, people),
   ]);
   return {
     couchId,
     rankings,
     trophies,
     games: yours,
-    accolades: [...accolades, ...rated.accolades],
+    accolades,
     you: yourNumbers(standings, rankings, trophies, user.id),
     feed,
     again,
-    taste: rated.taste,
   };
 }
 

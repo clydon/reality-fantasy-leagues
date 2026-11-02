@@ -13,7 +13,7 @@ export const GET = apiRoute(async (req) => {
   return withThemeCookie(NextResponse.json(profile), profile.theme, req);
 });
 
-// Body: any of { name, colour, ai, hideScores, notify: { moment, on } | { chat }, sharing: { preset } | { where?, now?, ratings?,
+// Body: any of { name, colour, ai, hideScores, notify: { moment, on } | { chat }, sharing: { preset } | { where?, now?, gifs?,
 // reactions? }, theme: night | studio | phone }; only what's sent changes (a theme is this device's cookie too). A new name is your
 // username (checked as sign-up checks it), your seat's name in every league you play and the name on your messages. Answers the
 // profile as it now is.

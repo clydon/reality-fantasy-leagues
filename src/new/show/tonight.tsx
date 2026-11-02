@@ -29,7 +29,7 @@ import { knownMark } from "../couch/where";
 import { openPlan, PlanInvite, PlanPlates } from "../couch/watch-plans";
 import { useOpenMorning, useOpenReveal } from "./reveal";
 import { StatsCard } from "./stats";
-import { rateLabel, RateRow } from "./rate";
+import { GifRow, showLabel } from "./react";
 import { CallResultRow, CallRow, openCall } from "./calls";
 import { openSheet, SheetResultRow, SheetRow } from "./questions";
 import { PollRow } from "./polls";
@@ -47,8 +47,8 @@ import { useSeasonPolls } from "../data";
 // a dot on the show's ⋯ carry it). After an episode, by the results' stage (step 2): waiting for results (the
 // stage bar), results in (the one yellow: Reveal; a move that waits on them says so), the morning update once the
 // final scores land after an early reveal, and the last episode's recap until the next one airs. All real: the stats card is
-// stats.tsx's (step 3); Rate it in Extras
-// (step 12 part 1: the latest episode you've seen, rate.tsx); Call it for the next episode and the couch's open polls in Extras
+// stats.tsx's (step 3); React with a GIF in Extras
+// (the latest episode you've seen, react.tsx; docs/PLAN-gif-reactions.md, in place of Rate it's stars); Call it for the next episode and the couch's open polls in Extras
 // (part 2: calls.tsx, polls.tsx), Weekly Calls' calls a move card; your bingo card in Extras, and in Tonight while it's on (part
 // 3: bingo.tsx), Weekly Bingo's a card in Your moves. Results from
 // everyone (step 6b): a player who has seen an episode with only its early results gets a quiet "Full scores need one
@@ -314,8 +314,8 @@ function YourMoves({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const quiet = !!show.episodes?.reveal;
   const done = show.play ? doneCards(show.play) : [];
   // Weekly Calls' cards open Call it for their episode (step 12 part 2), Weekly Bingo's its card (part 3).
-  const onCall = (episode: number) => openCall({ seasonId, couchId: show.couch?.id ?? null, episode, label: rateLabel(show), solo: show.solo });
-  const onBingo = (episode: number) => openBingo({ seasonId, couchId: show.couch?.id ?? null, episode, label: rateLabel(show), solo: show.solo });
+  const onCall = (episode: number) => openCall({ seasonId, couchId: show.couch?.id ?? null, episode, label: showLabel(show), solo: show.solo });
+  const onBingo = (episode: number) => openBingo({ seasonId, couchId: show.couch?.id ?? null, episode, label: showLabel(show), solo: show.solo });
   const due = open[0]?.deadline ? Date.parse(open[0].deadline) : t;
 
   // With no episode to come, say why: the season's last episode has aired (the show bar's "Season over"), or every game you
@@ -705,8 +705,9 @@ function ExtraRow({ title, line, state, onClick }: { title: string; line: string
   );
 }
 
-/** The episode Rate it asks about: the latest you've seen that has aired (step 12 part 1), on a show you follow or play. */
-function toRate(show: ShowData): number | null {
+/** The latest episode you've seen that has aired, on a show you follow or play: React with a GIF asks about it, and how your
+ *  calls, bingo and sheets went on it. */
+function latestSeen(show: ShowData): number | null {
   const playing = show.games.some((g) => g.yourRole);
   if (!show.header || (!show.following && !playing)) return null;
   const n = Math.min(show.seenThrough ?? show.latestAired, show.latestAired);
@@ -734,7 +735,7 @@ const asksFor = (g: ShowData["games"][number], n: number) => !g.span || n <= g.s
 function Extras({ show }: { show: ShowData }) {
   const up = show.upNext;
   const predictions = show.moves.filter((m) => m.kind === "prediction");
-  const rate = toRate(show);
+  const seen = latestSeen(show);
   const call = toCall(show);
   // Your bingo card (Weekly Bingo's is a card in Your moves), and how the latest you've seen went once you ticked it.
   const bingo = show.games.some((g) => g.yourRole && g.gameType === "weekly-bingo" && asksFor(g, up?.number ?? show.latestAired)) ? null : toBingo(show);
@@ -744,32 +745,32 @@ function Extras({ show }: { show: ShowData }) {
   const open = (polls.data?.polls ?? []).some((p) => p.open);
   // A draft's finale predictions while they're open (step A4 part 2), and how your Prediction Sheet went on the latest you've seen.
   const finales = (show.play ?? []).filter((g) => g.sheet?.finale && !g.revealFirst);
-  const sheets = rate && show.header ? show.games.filter((g) => g.yourRole && g.gameType === "questions" && !g.archived) : [];
-  if (up?.live || (!predictions.length && !call && !rate && !bingo && !open && !finales.length)) return null;
+  const sheets = seen && show.header ? show.games.filter((g) => g.yourRole && g.gameType === "questions" && !g.archived) : [];
+  if (up?.live || (!predictions.length && !call && !seen && !bingo && !open && !finales.length)) return null;
   return (
     <Block title="Extras this week" aside="Optional">
       {predictions.map((m) => (
         <ExtraRow key={m.leagueId} title={m.text} line={`Closes at airtime · ${m.leagueName}`} state="Open" onClick={() => openMoves("predict")} />
       ))}
-      {call && show.header && <CallRow target={{ seasonId: show.header.seasonId, couchId, episode: call, label: rateLabel(show), solo: show.solo }} />}
+      {call && show.header && <CallRow target={{ seasonId: show.header.seasonId, couchId, episode: call, label: showLabel(show), solo: show.solo }} />}
       {show.header &&
         finales.map((g) => <SheetRow key={g.leagueId} move={g.sheet!} target={{ seasonId: show.header!.seasonId, leagueId: g.leagueId, episode: null, game: g.name, finale: true }} />)}
       {couchId && (polls.data?.polls ?? []).filter((p) => p.open).map((p) => <PollRow key={p.id} p={p} couchId={couchId} />)}
-      {rate && show.header && (
-        <RateRow
-          target={{ seasonId: show.header.seasonId, couchId, episode: rate, label: rateLabel(show), solo: show.solo }}
-          verdict={show.episodes?.episodes.find((e) => e.number === rate)?.verdict}
+      {seen && show.header && (
+        <GifRow
+          target={{ seasonId: show.header.seasonId, couchId, episode: seen, label: showLabel(show), solo: show.solo }}
+          line={show.episodes?.episodes.find((e) => e.number === seen)?.gifs}
         />
       )}
       {/* How your calls on it went (step 12 part 2), on a show that's a game: a talk show's say what happened here. */}
-      {rate && show.header && show.ready && (
-        <CallResultRow target={{ seasonId: show.header.seasonId, couchId, episode: rate, label: rateLabel(show), solo: show.solo }} need="mine" />
+      {seen && show.header && show.ready && (
+        <CallResultRow target={{ seasonId: show.header.seasonId, couchId, episode: seen, label: showLabel(show), solo: show.solo }} need="mine" />
       )}
       {bingo && show.header && (
         <BingoRow target={bingoTarget(show, bingo)} title={up && bingo === up.number ? "Your bingo card" : undefined} />
       )}
-      {rate && show.header && show.ready && rate !== bingo && <BingoRow target={bingoTarget(show, rate)} need="mine" />}
-      {rate && show.header && sheets.map((g) => <SheetResultRow key={g.leagueId} target={{ seasonId: show.header!.seasonId, leagueId: g.leagueId, episode: rate, game: g.name }} />)}
+      {seen && show.header && show.ready && seen !== bingo && <BingoRow target={bingoTarget(show, seen)} need="mine" />}
+      {seen && show.header && sheets.map((g) => <SheetResultRow key={g.leagueId} target={{ seasonId: show.header!.seasonId, leagueId: g.leagueId, episode: seen, game: g.name }} />)}
     </Block>
   );
 }
@@ -778,7 +779,7 @@ const bingoTarget = (show: ShowData, episode: number): BingoTarget => ({
   seasonId: show.header!.seasonId,
   couchId: show.couch?.id ?? null,
   episode,
-  label: rateLabel(show),
+  label: showLabel(show),
   solo: show.solo,
 });
 

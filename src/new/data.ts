@@ -40,7 +40,7 @@ import type { DeletePreview, EndGame } from "@/lib/server/end-game";
 import type { HiddenShow, WeekEpisode } from "@/lib/server/guide";
 import type { WeekListing } from "@/lib/game/tv-listings";
 import type { PlanAnswerOut, PlanHow, PlanOptions, WatchPlan } from "@/lib/server/watch-plans";
-import type { EpisodeVerdict, ShowVerdict } from "@/lib/server/ratings";
+import type { EpisodeGifs } from "@/lib/server/episode-gifs";
 import type { EpisodeCalls } from "@/lib/server/calls";
 import type { GameQuestions } from "@/lib/server/answers";
 import type { Poll, SeasonPolls, ThisWeekShow } from "@/lib/server/polls";
@@ -91,8 +91,7 @@ export type { SheetMove } from "@/lib/game/game-view";
 export type { DeletePreview, EndGame } from "@/lib/server/end-game";
 export type { HiddenShow, WeekEpisode } from "@/lib/server/guide";
 export type { PlanAnswer, PlanEpisode, PlanHow, PlanOptions, PlanPerson, WatchPlan } from "@/lib/server/watch-plans";
-export type { EpisodeVerdict, EpisodeVerdictLine, RatingFace, ShowVerdict } from "@/lib/server/ratings";
-export type { Taste, Twin } from "@/lib/game/ratings";
+export type { EpisodeGifFace, EpisodeGifLine, EpisodeGifs } from "@/lib/server/episode-gifs";
 export type { CallPerson, CallSay, EpisodeCalls } from "@/lib/server/calls";
 export type { CallOption, CallQuestion, Verdict } from "@/lib/game/calls";
 export type { Poll, PollOption, SeasonPolls, ThisWeekShow } from "@/lib/server/polls";
@@ -1413,45 +1412,37 @@ export function useSetPlans() {
   );
 }
 
-// ---- Rate it (step 12 part 1; ratings.ts): one to five stars and a take for an episode you've seen, and the couch verdict.
-// Each episode's verdict comes with the Episodes read; the rate sheet reads its episode when it opens, Couch verdicts its
-// page when that opens. Nothing polls. ----
+// ---- React with a GIF (docs/PLAN-gif-reactions.md; episode-gifs.ts), in place of Rate it's stars: your GIF for an episode
+// you've seen, and the couch's. Each episode's come with the Episodes read; the GIF sheet and the reveal's slide read their
+// episode when they open. Nothing polls. ----
 
-/** One episode's verdict, for the rate sheet (GET .../ratings/[n]). */
-export function useEpisodeVerdict(seasonId: string | null, couchId: string | null, episode: number | null, enabled = true) {
+/** One episode's GIFs as the server answers them, and whether GIF search is set up here. */
+export type EpisodeGifsRead = EpisodeGifs & { search: boolean };
+
+/** One episode's GIFs (GET .../gifs/[n]): yours and the couch's. */
+export function useEpisodeGifs(seasonId: string | null, couchId: string | null, episode: number | null, enabled = true) {
   return useQuery({
-    queryKey: ["new-design", "verdict", seasonId, couchId, episode],
-    queryFn: () => get<EpisodeVerdict>(seasonUrl(seasonId!, `/ratings/${episode}`, couchId ? { couch: couchId } : {})),
+    queryKey: ["new-design", "episode-gifs", seasonId, couchId, episode],
+    queryFn: () => get<EpisodeGifsRead>(seasonUrl(seasonId!, `/gifs/${episode}`, couchId ? { couch: couchId } : {})),
     enabled: enabled && !!seasonId && !!episode,
     staleTime: 30_000,
   });
 }
 
-/** Couch verdicts: the latest episode you've seen of each show you've started, and how the couch rated it. */
-export function useCouchVerdicts(couchId: string | null, enabled = true) {
-  return useQuery({
-    queryKey: ["new-design", "verdicts", couchId],
-    queryFn: () => get<{ shows: ShowVerdict[] }>(`/api/couches/${couchId}/verdicts`),
-    enabled: enabled && !!couchId,
-    staleTime: 30_000,
-  });
-}
-
-export const ratingsApi = {
-  rate: (seasonId: string, couchId: string | null, episode: number, body: { stars: number; take?: string }) =>
-    post<EpisodeVerdict>(seasonUrl(seasonId, `/ratings/${episode}`, couchId ? { couch: couchId } : {}), body),
+export const episodeGifsApi = {
+  /** Your GIF for the episode (again), or null to take it back. */
+  react: (seasonId: string, couchId: string | null, episode: number, gif: GifHit | null) =>
+    post<EpisodeGifsRead>(seasonUrl(seasonId, `/gifs/${episode}`, couchId ? { couch: couchId } : {}), { gif }),
 };
 
-/** After a rating: the sheet's answer put in place, and what shows it read again (the episodes' verdicts, the hub's taste,
- *  Couch verdicts). */
-export function useAfterRating() {
+/** After your GIF: the answer put in place, and what shows it read again (Episodes' stacks and Tonight's row, the hub's points). */
+export function useAfterGif() {
   const client = useQueryClient();
   return useCallback(
-    (v: EpisodeVerdict, couchId: string | null) => {
-      client.setQueryData(["new-design", "verdict", v.seasonId, couchId, v.episode], v);
+    (v: EpisodeGifsRead, couchId: string | null) => {
+      client.setQueryData(["new-design", "episode-gifs", v.seasonId, couchId, v.episode], v);
       void client.invalidateQueries({ queryKey: ["new-design", "episodes", v.seasonId] });
       void client.invalidateQueries({ queryKey: ["new-design", "couch-hub"] });
-      void client.invalidateQueries({ queryKey: ["new-design", "verdicts"] });
     },
     [client]
   );
