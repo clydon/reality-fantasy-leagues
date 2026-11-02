@@ -163,6 +163,22 @@ before any push.
 - **The desk couldn't delete World Series** (`d014016b`): two games deleted within their 30 days still held it, by design. With
   their season gone, the refusal's one row led nowhere; it now lists each game, each opening its page with Delete it for good.
 
+- **The user's look at it live, then /impeccable delight + animate** (detector: 0 anti-patterns, five off-scale font sizes fixed;
+  migration 0161):
+  - **An estimate on every step:** the working slate's cue bar and "· about a minute" in the line, from what each step usually
+    takes (lib/season-fill.ts `EXPECT_MS`, `stepShare`, `etaWords`). It's never full until done, and says "Taking longer than
+    usual" when it overruns. The episode being looked up fills with its answer's own progress.
+  - **Up next:** steps still to come are ghosted plates.
+  - **Photos:** a photo lands with a camera flash, and a face without one is its initial in the show's colour. The cast's step
+    looks up photos before it's checked ("Finding their photos · 3 of 30"). For The Challenge 42, TMDB and TVmaze only have
+    photos for a handful of the cast (probed: TMDB 2-4 of 30, TVmaze 3), so most stay initials.
+  - **Once Episode 1 is in:** a plate says the rest come one at a time (with an estimate), to have a look around, and that we'll
+    say when they're all in.
+  - **One notification:** to whoever added it, when everything's in (`notifyReady`, the clock's `tellAllReady` sweep). The job's
+    episode asks are quiet (`research_asks.quiet`), so it's not one per episode.
+  - **Contestants:** while it's getting ready it shows the filmstrip card in place of the old results card (the user: "kinda
+    ugly"). That card's roll call no longer says "No head count before you've seen it".
+
 ## Noticed, not fixed
 
 - Each episode's **results** for a show nobody plays are bot-only (one clock run an episode). Asking ChatGPT yourself covers the

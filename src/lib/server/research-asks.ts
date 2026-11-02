@@ -162,7 +162,7 @@ export async function resultsResearch(seasonId: string, now = new Date()): Promi
  * Asks for every aired episode with no results, and again for any that failed; answers how many it asked about (0: none to
  * ask). The bot's clock is told at once (production's; a development server's check calls the cron route itself).
  */
-export async function askResults(userId: string, seasonId: string, now = new Date()): Promise<number> {
+export async function askResults(userId: string, seasonId: string, now = new Date(), o: { quiet?: boolean } = {}): Promise<number> {
   const r = await resultsResearch(seasonId, now);
   if (!r) return 0;
   const failed = r.asked.filter((a) => a.status === "failed").map((a) => a.episode);
@@ -172,11 +172,11 @@ export async function askResults(userId: string, seasonId: string, now = new Dat
   if (rows[0].n + episodes.length > ASKS_A_DAY) throw new HttpError(429, `That's more than ${ASKS_A_DAY} episodes' results in a day. Try again tomorrow.`);
   // One that failed starts over (its tries count from now); one waiting or being asked by now is left as it is.
   await pool.query(
-    `INSERT INTO research_asks (season_id, episode_number, asked_by) SELECT $1, unnest($2::int[]), $3
+    `INSERT INTO research_asks (season_id, episode_number, asked_by, quiet) SELECT $1, unnest($2::int[]), $3, $5
      ON CONFLICT (season_id, episode_number) DO UPDATE
-        SET asked_by = EXCLUDED.asked_by, asked_at = now(), done_at = NULL, ok = NULL, found = NULL, message = NULL
+        SET asked_by = EXCLUDED.asked_by, asked_at = now(), done_at = NULL, ok = NULL, found = NULL, message = NULL, quiet = EXCLUDED.quiet
       WHERE research_asks.ok IS NOT TRUE AND research_asks.episode_number = ANY($4::int[])`,
-    [seasonId, episodes, userId, failed]
+    [seasonId, episodes, userId, failed, !!o.quiet]
   );
   await tellBotClock(now);
   return episodes.length;

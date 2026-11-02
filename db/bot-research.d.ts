@@ -47,6 +47,8 @@ export interface SettledAsk {
   /** How many results reached the season (when it worked). */
   found: number | null;
   message: string | null;
+  /** Getting it ready's own ask (0161): no notification of its own. */
+  quiet: boolean;
 }
 export interface BotRunOutcome {
   ok: boolean;

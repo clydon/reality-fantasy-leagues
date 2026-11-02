@@ -236,7 +236,8 @@ function rollWords(now: ResearchNow, w: ShowData["words"], queued: boolean): { t
   const people = w.people.toLowerCase();
   if (queued) return { title: "Starting", line: "Our bot picks it up within a minute" };
   if (now.stage === "writing" && now.of != null && now.done != null) return { title: `${now.done} of ${now.of} written up`, line: `ChatGPT is writing up the ${people}` };
-  if (now.stage === "writing") return { title: "Writing it up", line: "No head count before you've seen it" };
+  // No head count for an episode you haven't seen (who's still in by then would give exits away).
+  if (now.stage === "writing") return { title: "Writing it up", line: "ChatGPT is writing up what happened" };
   if (now.stage === "asking") return { title: "Searching", line: "ChatGPT is reading the recaps" };
   if (now.stage === "waiting") return { title: "Up next", line: "Our bot is finishing another question" };
   return { title: "Starting", line: "Opening ChatGPT" };

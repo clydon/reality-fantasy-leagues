@@ -143,6 +143,8 @@ const showIn = (prompt) => Object.keys(ANSWERS).find((name) => prompt.includes(n
       check(/Reading how it's played|Finding the/.test(line0 ?? ""), "the call sheet: what's happening now", line0);
       check((await page.locator('[data-slate="rules"]').count()) === 1 && (await page.locator('[data-slate="cast"]').count()) === 1 && (await page.locator('[data-slate="episodes"]').count()) === 1, "a slate a step: how it's played, the cast, the episodes");
       check((await page.locator("[data-fill-paste]").count()) === 1, "Ask ChatGPT yourself is on the step it's on");
+      check((await page.locator('[data-slate][data-state="working"] [data-cue]').count()) === 1 && (await page.locator('[data-slate][data-state="next"]').count()) >= 1, "the working step's cue bar (an estimate), the steps to come ghosted");
+      check(/about|any moment/i.test((await page.locator("[data-call-line]").textContent()) ?? ""), "the line says roughly how long", await page.locator("[data-call-line]").textContent());
       await page.locator('[data-slate="cast"][data-state="working"]').waitFor({ timeout: 30000 });
       await page.waitForTimeout(900);
       await shot("call-sheet-cast");
@@ -169,6 +171,8 @@ const showIn = (prompt) => Object.keys(ANSWERS).find((name) => prompt.includes(n
       await page.locator("[data-getting-ready-sheet]").waitFor({ timeout: 10000 });
       await page.waitForTimeout(700);
       await shot("sheet-from-header");
+      const browse = (await page.locator("[data-browse]").count()) ? await page.locator("[data-browse]").innerText() : "";
+      check(/What happened is in|Leg 1 is in|Episode 1 is in/i.test(browse) && /let you know when they.re all in/.test(browse) && /look around/i.test(browse), "once the first is in: we'll grab the rest and let you know, look around meanwhile", browse);
       check(!(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)), "nothing wider than the screen");
       check(!A.errors.length, "no page errors", A.errors.slice(0, 3).join(" | "));
       await close();
@@ -194,8 +198,20 @@ const showIn = (prompt) => Object.keys(ANSWERS).find((name) => prompt.includes(n
     const { rows: asks } = await pool.query("SELECT episode_number FROM research_asks WHERE season_id = $1 ORDER BY 1", [shack]);
     check(asks.map((a) => a.episode_number).join() === "1,2,3" && s1.status === "going" && s1.episodes.every((e) => e.state === "half"), "each episode's results queued for the bot's clock: still going, the tiles half lit", `${asks.length} ${s1.status} ${JSON.stringify(s1.episodes)}`);
     check((await header(shack)).filling === "going", "the header says going while the results come in");
-    // The bot's clock would ask them one at a time; this check stops there.
+    check((await pool.query("SELECT bool_and(quiet) AS q FROM research_asks WHERE season_id = $1", [shack])).rows[0].q === true, "the job's own asks are quiet: no notification an episode");
+    // The bot's clock would ask them one at a time; this check stops there, and the clock's next call tells alex it's all in.
     await pool.query("DELETE FROM research_asks WHERE season_id = $1", [shack]);
+    if (process.env.CRON_SECRET) {
+      await fetch(`${require("./browser").BASE}/api/cron/bot-research`, { method: "POST", headers: { authorization: `Bearer ${process.env.CRON_SECRET}`, ...headers } });
+      let told = [];
+      for (let i = 0; i < 25 && !told.length; i++) {
+        told = (await pool.query("SELECT title, body, link FROM notifications WHERE user_id = $1 AND type = 'researchDone' AND key = $2", [fx.users.alex, `ready:${shack}`])).rows;
+        if (!told.length) await sleep(200);
+      }
+      check(told.length === 1 && /ZT Love Shack 1 is ready/.test(told[0].title) && /All 3 legs are in/.test(told[0].body) && told[0].link === `/show/${shack}/episodes`, "all in: one notification, to whoever added it", JSON.stringify(told));
+      await fetch(`${require("./browser").BASE}/api/cron/bot-research`, { method: "POST", headers: { authorization: `Bearer ${process.env.CRON_SECRET}`, ...headers } });
+      check((await pool.query("SELECT count(*)::int AS n FROM notifications WHERE user_id = $1 AND key = $2", [fx.users.alex, `ready:${shack}`])).rows[0].n === 1, "told once, not again on the next call");
+    }
     const s1b = await state(shack);
     check(s1b.status === "done" && (await header(shack)).filling === null, "with nothing more coming it's done, and the header says nothing", `${s1b.status}`);
     const stillAlex = (await pool.query("SELECT started_by FROM season_fills WHERE season_id = $1", [shack])).rows[0]?.started_by;

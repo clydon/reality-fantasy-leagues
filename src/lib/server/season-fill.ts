@@ -2,7 +2,7 @@ import { after } from "next/server";
 import { ensureSeasonRulebook } from "@db/rulebooks.js";
 import { publicMediaSrc } from "@/lib/game/selectors";
 import { showWords } from "@/lib/game/show-words";
-import { FILL_STEPS, stepAction, stepsShown, tileState, type FillFacts, type FillStep, type StepState, type TileState } from "@/lib/season-fill";
+import { EXPECT_MS, FILL_STEPS, stepAction, stepsShown, tileState, type FillFacts, type FillStep, type StepState, type TileState } from "@/lib/season-fill";
 import { askBotStatus, tellBotClock } from "./ask-bot";
 import { isUuid, type SessionUser } from "./auth-helpers";
 import { pool, HttpError } from "./db";
@@ -10,9 +10,11 @@ import { gamesOn } from "./desk-cast";
 import { castByItself, castPastedByItself, castQuestion } from "./desk-cast-page";
 import { mayFill, pasteRecaps, recapPromptFor, recapsByItself, recapsMissing } from "./episode-recaps";
 import { autoMake, makePrompt, pasteMake } from "./make-game";
+import { notifyReady } from "./push-events";
 import { askResults, resultsResearch } from "./research-asks";
 import { isTvmaze } from "./listings";
 import { latestEnded, seasonSchedules } from "./schedule";
+import { fillCastPhotos } from "./show-art";
 import { seasonHeaders } from "./show-space";
 
 // Getting it ready (docs/PLAN-getting-it-ready.md, db/migrations/0160): a season someone adds gets ready by itself, in order:
@@ -56,6 +58,10 @@ interface FillRow {
   done_at: Date | null;
   created_at: Date;
   updated_at: Date;
+  /** When the step it's on began (0161: the call sheet's estimate). */
+  step_at: Date | null;
+  /** When whoever added it was told it's all in (0161). */
+  told_at: Date | null;
 }
 
 const rowOf = async (seasonId: string): Promise<FillRow | null> => (await pool.query<FillRow>("SELECT * FROM season_fills WHERE season_id = $1", [seasonId])).rows[0] ?? null;
@@ -122,16 +128,19 @@ async function doStep(step: FillStep, row: FillRow, f: FillFacts, o: RunOpts, le
     }
     if (!by) return "needs";
     const made = await autoMake(by, row.season_id, o.base, o.bot, { ask });
+    if (made === "done") await photos(row.season_id, o.base);
     return made === "done" ? "next" : made === "needs" ? "needs" : "stop";
   }
   if (step === "cast") {
     if (!ask) return "stop";
     if (!by) return "needs";
     await castByItself(row.season_id, { id: by } as SessionUser, o.bot, left() - 5_000, o.base);
+    await photos(row.season_id, o.base);
     return "next";
   }
   // The results first (queued: the bot's clock asks them one at a time), then what happened, in one ask.
-  if (f.resultsMissing > 0 && by) await askResults(by, row.season_id).catch((e) => console.error("[season-fill] results:", row.season_id, e));
+  // Quiet: one notification when everything's in (tellReady), not one an episode.
+  if (f.resultsMissing > 0 && by) await askResults(by, row.season_id, new Date(), { quiet: true }).catch((e) => console.error("[season-fill] results:", row.season_id, e));
   if (f.recapsMissing > 0) {
     if (!ask) return "stop";
     const filled = await recapsByItself(row.season_id, by, o.bot, left() - 5_000);
@@ -141,12 +150,46 @@ async function doStep(step: FillStep, row: FillRow, f: FillFacts, o: RunOpts, le
   return "next";
 }
 
+/** The cast's photos, looked up before its step is checked (the user, 2026-11-01: a check with one photo of 30 read as done). What
+ *  the credits don't have stays the person's initial; it never holds the job up. */
+async function photos(seasonId: string, base: string): Promise<void> {
+  await fillCastPhotos(seasonId, base).catch((e) => console.error("[season-fill] photos:", seasonId, e));
+}
+
+/**
+ * Everything's in (the job's done, and no episode's results are still to come): whoever added it is told, once (notifyReady),
+ * in place of a notification an episode. Called as a run ends and as each asked episode's run ends (cron/bot-research).
+ */
+export async function tellReady(seasonId: string): Promise<void> {
+  const { rows } = await pool.query(
+    `UPDATE season_fills f SET told_at = now()
+      WHERE f.season_id = $1 AND f.done_at IS NOT NULL AND f.told_at IS NULL AND f.started_by IS NOT NULL
+        AND NOT EXISTS (SELECT 1 FROM research_asks a WHERE a.season_id = f.season_id AND a.done_at IS NULL)
+      RETURNING f.started_by, f.episodes`,
+    [seasonId]
+  );
+  if (!rows[0]) return;
+  const aired = rows[0].episodes ? latestEnded((await seasonSchedules([seasonId])).get(seasonId)) : 0;
+  notifyReady({ userId: rows[0].started_by, seasonId, episodes: aired });
+}
+
+/** Every job that's all in and nobody's been told about (an episode given up after its tries ends without its own run's call):
+ *  the bot clock's sweep, each call. */
+export async function tellAllReady(): Promise<void> {
+  const { rows } = await pool.query(
+    `SELECT f.season_id FROM season_fills f
+      WHERE f.done_at IS NOT NULL AND f.told_at IS NULL AND f.started_by IS NOT NULL
+        AND NOT EXISTS (SELECT 1 FROM research_asks a WHERE a.season_id = f.season_id AND a.done_at IS NULL)`
+  );
+  for (const r of rows) await tellReady(r.season_id);
+}
+
 /** Run the job as far as the time allows: each step in turn, skipping what's there. Never throws. */
 async function run(seasonId: string, o: RunOpts): Promise<void> {
   const t0 = Date.now();
   const left = () => (o.budgetMs ?? BUDGET_MS) - (Date.now() - t0);
   const { rows } = await pool.query<FillRow>(
-    `UPDATE season_fills SET asking_at = now(), updated_at = now()
+    `UPDATE season_fills SET asking_at = now(), step_at = COALESCE(step_at, now()), updated_at = now()
       WHERE season_id = $1 AND done_at IS NULL AND stuck_at IS NULL AND (asking_at IS NULL OR asking_at < now() - make_interval(secs => $2))
       RETURNING *`,
     [seasonId, ASK_STALE_MS / 1000]
@@ -176,7 +219,7 @@ async function run(seasonId: string, o: RunOpts): Promise<void> {
         if (outcome === "needs") return void (await set("message = $2, stuck_at = now()", [NEEDS_LOOK]));
       }
       const next = FILL_STEPS[FILL_STEPS.indexOf(step) + 1] ?? null;
-      row = (await set(`step = $2, tries = 0, message = NULL, done_at = CASE WHEN $2::text IS NULL THEN now() END`, [next])).rows[0];
+      row = (await set(`step = $2, step_at = now(), tries = 0, message = NULL, done_at = CASE WHEN $2::text IS NULL THEN now() END`, [next])).rows[0];
       if (row.done_at) return;
     }
   } catch (e) {
@@ -186,6 +229,7 @@ async function run(seasonId: string, o: RunOpts): Promise<void> {
     // Not done: the bot's clock is told when to call again (production only), so nobody needs to have the page open.
     const due = after_[0] ? dueAt(after_[0]) : null;
     if (due) await tellBotClock(due).catch(() => undefined);
+    await tellReady(seasonId).catch((e) => console.error("[season-fill] tell:", seasonId, e));
   }
 }
 
@@ -216,6 +260,15 @@ export interface FillState {
   message: string | null;
   /** A brand-new show's answer needs a person: Make it a game shows the review. */
   needsLook: boolean;
+  /** The step shown, as it's going: when it began (the call sheet's estimate, lib/season-fill.ts stepShare) and what it usually
+   *  takes; `phase` "photos" once the cast is in and its photos are being looked up. */
+  since: string | null;
+  expectMs: number | null;
+  phase: "photos" | null;
+  /** The episodes' results still to come (each on the bot's clock, RESULT_MS), and the one being looked up now with how far its
+   *  answer has got (0 to 1; null while it hasn't said). */
+  resultsLeft: number;
+  now: { episode: number; share: number | null } | null;
   /** Changes when anything here does. */
   v: string;
 }
@@ -233,7 +286,7 @@ export async function fillState(seasonId: string): Promise<FillState> {
     backdropUrl: h.show.backdropUrl,
     words: { people: w.people, episode: w.episode, episodes: w.episodes },
   };
-  const none: FillState = { seasonId, ...show, status: "none", asking: false, due: false, away: false, step: null, steps: [], cast: { count: 0, faces: [] }, episodes: [], message: null, needsLook: false, v: "none" };
+  const none: FillState = { seasonId, ...show, status: "none", asking: false, due: false, away: false, step: null, steps: [], cast: { count: 0, faces: [] }, episodes: [], message: null, needsLook: false, since: null, expectMs: null, phase: null, resultsLeft: 0, now: null, v: "none" };
   if (!row) return none;
   const [f, { rows: cast }, { rows: sums }, { rows: recapAsk }, results] = await Promise.all([
     factsOf(seasonId, row),
@@ -272,6 +325,18 @@ export async function fillState(seasonId: string): Promise<FillState> {
   const asking = askingNow(row);
   const away = status === "going" && !asking && row.message === AWAY;
   const due = dueAt(row);
+  // When the step shown began: a brand-new show's cast (Make it a game's second ask) from when its first answer came in, the
+  // photos from when the cast did, else the step's own start.
+  const phase = step === "cast" && cast.length > 0 ? "photos" : null;
+  let since = row.step_at;
+  if (phase) {
+    const { rows: s } = await pool.query("SELECT cast_approved_at FROM show_seasons WHERE id = $1", [seasonId]);
+    since = s[0]?.cast_approved_at ?? since;
+  } else if (step === "cast" && !f.setUp) {
+    const { rows: s } = await pool.query("SELECT updated_at FROM show_setups WHERE season_id = $1 AND done_at IS NULL", [seasonId]);
+    since = s[0]?.updated_at ?? since;
+  }
+  const resultsLeft = [...asks.values()].filter((x) => x === "waiting" || x === "asking").length;
   return {
     seasonId,
     ...show,
@@ -285,7 +350,12 @@ export async function fillState(seasonId: string): Promise<FillState> {
     episodes: tiles,
     message: row.stuck_at ? row.message : null,
     needsLook: !!row.stuck_at && row.message === NEEDS_LOOK,
-    v: [status, step, asking ? 1 : 0, cast.length, tiles.map((t) => t.state[0]).join(""), row.updated_at.getTime()].join(":"),
+    since: step && since ? new Date(since).toISOString() : null,
+    expectMs: step ? (phase ? 20_000 : step === "rules" && f.setUp ? 5_000 : EXPECT_MS[step]) : null,
+    phase,
+    resultsLeft,
+    now: results?.now ? { episode: results.now.episode, share: results.now.share } : null,
+    v: [status, step, phase ?? "", cast.filter((c) => c.photo_url).length, asking ? 1 : 0, cast.length, tiles.map((t) => t.state[0]).join(""), row.updated_at.getTime()].join(":"),
   };
 }
 
@@ -311,7 +381,7 @@ export async function startFill(user: SessionUser, seasonId: string, body: { epi
        started_by = COALESCE(season_fills.started_by, EXCLUDED.started_by),
        episodes = CASE WHEN $3::boolean IS NULL THEN season_fills.episodes ELSE season_fills.episodes OR $3::boolean END,
        step = CASE WHEN season_fills.asking_at IS NULL OR season_fills.asking_at < now() - make_interval(secs => $4) THEN NULL ELSE season_fills.step END,
-       tries = 0, message = NULL, stuck_at = NULL, done_at = NULL, tried_at = NULL, updated_at = now()`,
+       tries = 0, message = NULL, stuck_at = NULL, done_at = NULL, tried_at = NULL, step_at = NULL, told_at = NULL, updated_at = now()`,
     [seasonId, user.id, said, ASK_STALE_MS / 1000]
   );
   after(() => run(seasonId, o));
@@ -332,6 +402,8 @@ export async function goFill(seasonId: string, o: RunOpts): Promise<FillState> {
 async function shownStep(row: FillRow, f: FillFacts): Promise<FillStep | null> {
   if (row.done_at) return null;
   const step = row.step ?? "rules";
+  // A brand-new show made a game: its cast is in and its photos are being looked up, still the cast's step.
+  if (step === "rules" && f.setUp && f.cast > 0) return "cast";
   if (step !== "rules" || f.setUp) return step;
   const { rows } = await pool.query("SELECT stage FROM show_setups WHERE season_id = $1 AND done_at IS NULL", [row.season_id]);
   return rows[0]?.stage === "cast" ? "cast" : "rules";

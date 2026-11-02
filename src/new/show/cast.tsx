@@ -9,7 +9,7 @@ import { Flip } from "../ui/flip";
 import { EmptyState } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
-import { CastComing } from "./getting-ready";
+import { CastComing, EpisodesComing } from "./getting-ready";
 import { Face } from "./parts";
 import { RecapsCard } from "./recaps";
 import { ScoringLink } from "./scoring";
@@ -76,7 +76,8 @@ export function Cast({ seasonId, show }: { seasonId: string; show: ShowData }) {
     const w = show.words;
     return (
       <>
-        <RecapsCard seasonId={seasonId} show={show} eps={null} />
+        {/* While it's getting ready, the same filmstrip as Episodes (the user found the old card ugly here, 2026-11-01). */}
+        {fillState?.status === "going" && fillState.steps.some((s) => s.key === "episodes") ? <EpisodesComing f={fillState} /> : <RecapsCard seasonId={seasonId} show={show} eps={null} />}
         <section data-explorer data-no-stats className="mx-4 mt-5 pb-4">
           <p className="mb-1 text-[13.5px] leading-snug text-muted-foreground">
             {all.seenThrough === 0

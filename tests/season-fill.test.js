@@ -81,3 +81,22 @@ test("the call sheet's line says what's happening, in the show's words", () => {
   assert.equal(line({ status: "stuck" }), "Stopped partway. Try again.");
   assert.equal(line({ status: "done" }), "All set");
 });
+
+test("the estimate: steady to 85% by the usual time, then slower, never done; its words honest when it runs long", () => {
+  const { stepShare, etaWords, restWords } = jiti("../src/lib/season-fill.ts");
+  assert.equal(stepShare(0, 60_000), 0);
+  assert.equal(Math.round(stepShare(30_000, 60_000) * 100), 43);
+  assert.equal(Math.round(stepShare(60_000, 60_000) * 100), 85);
+  assert.ok(stepShare(600_000, 60_000) < 0.97 && stepShare(600_000, 60_000) > 0.96);
+  assert.equal(etaWords(0, 70_000), "About a minute");
+  assert.equal(etaWords(0, 180_000), "About 3 min");
+  assert.equal(etaWords(50_000, 70_000), "About 20 seconds");
+  assert.equal(etaWords(75_000, 70_000), "Any moment now");
+  assert.equal(etaWords(150_000, 70_000), "Taking longer than usual");
+  const w = { episode: "Episode", episodes: "Episodes" };
+  assert.equal(restWords(13, w), "about 39 min for the other 13 episodes");
+  assert.equal(restWords(1, w), "about 3 min for the other episode");
+  assert.equal(restWords(30, w), "about 1.5 hours for the other 30 episodes");
+  assert.equal(restWords(3, w, 3), "about 9 min for all 3 episodes");
+  assert.equal(restWords(2, w, 3), "about 6 min for the other 2 episodes");
+});

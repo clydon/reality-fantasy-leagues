@@ -99,3 +99,38 @@ export function fillLine(
   }
   return "Almost there";
 }
+
+// ---- the estimate (the user, 2026-11-01: "the first step has no progress... maybe we can have an estimate") ----
+
+/** What a step usually takes (our bot's asks, measured on production's VM: how a brand-new show works ~1 min, its cast ~1 min,
+ *  every aired episode's recap in one ask ~1.5 min), and each episode's results on the bot's clock (~3 min). */
+export const EXPECT_MS: Record<FillStep, number> = { rules: 70_000, cast: 70_000, episodes: 90_000 };
+export const RESULT_MS = 180_000;
+
+/** How far along a step looks, 0 to 1, from how long it's been going against what it usually takes: steadily to 85% by then,
+ *  then ever slower toward 97%, never done until it is (no bar that sits at 100% while it's still working). */
+export function stepShare(elapsedMs: number, expectMs: number): number {
+  const t = Math.max(0, elapsedMs);
+  if (t <= expectMs) return 0.85 * (t / expectMs);
+  return 0.85 + 0.12 * (1 - Math.exp(-(t - expectMs) / expectMs));
+}
+
+/** The estimate in words, honest when it runs long: "About a minute", "About 20 seconds", "Any moment now", "Taking longer than
+ *  usual". */
+export function etaWords(elapsedMs: number, expectMs: number): string {
+  const left = expectMs - elapsedMs;
+  if (left > 75_000) return `About ${Math.round(left / 60_000)} min`;
+  if (left > 40_000) return "About a minute";
+  if (left > 10_000) return `About ${Math.round(left / 10_000) * 10} seconds`;
+  if (elapsedMs < expectMs * 2) return "Any moment now";
+  return "Taking longer than usual";
+}
+
+/** The rest of the episodes' results, in words: "about 39 min for the other 13 episodes", or "for all 3" while none is in yet
+ *  (`of`: how many there are). */
+export function restWords(left: number, w: { episode: string; episodes: string }, of = 0): string {
+  const min = Math.max(1, Math.round((left * RESULT_MS) / 60_000));
+  const time = min >= 60 ? `about ${Math.round(min / 6) / 10} hours` : `about ${min} min`;
+  if (left === of && left > 1) return `${time} for all ${left} ${w.episodes.toLowerCase()}`;
+  return `${time} for the other ${left === 1 ? w.episode.toLowerCase() : `${left} ${w.episodes.toLowerCase()}`}`;
+}

@@ -763,3 +763,20 @@ html[data-nav="right"] .nd-dock {
     opacity: 0;
   }
 }
+
+/* A cast photo landing (getting-ready.tsx Frames): a camera flash over the headshot, gone in under half a second. Reduced motion:
+   none (the photo just appears). */
+@keyframes nd-flash {
+  from { opacity: 0.85; }
+  to { opacity: 0; }
+}
+.nd-flash {
+  opacity: 0;
+  pointer-events: none;
+  animation: nd-flash 0.45s cubic-bezier(0.16, 1, 0.3, 1) var(--d, 0s) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .nd-flash {
+    animation: none;
+  }
+}

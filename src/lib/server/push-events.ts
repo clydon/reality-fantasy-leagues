@@ -858,6 +858,32 @@ export function notifyResearched(o: { userId: string; seasonId: string; episode:
   });
 }
 
+/** Getting it ready (season-fill.ts): everything's in for a show someone added (its rules, cast and every aired episode), told
+ *  once, to whoever added it, in place of a notification an episode. */
+export function notifyReady(o: { userId: string; seasonId: string; episodes: number }) {
+  notifyAfter("researchDone", async () => {
+    const { rows } = await pool.query(
+      "SELECT s.name AS show_name, s.episode_term, ss.season_number FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id = $1",
+      [o.seasonId]
+    );
+    if (!rows[0]) return null;
+    const label = seasonLabel(rows[0].show_name, rows[0].season_number);
+    const w = showWords({ episode: rows[0].episode_term });
+    return {
+      userIds: [o.userId],
+      seasonId: o.seasonId,
+      message: {
+        title: `${label} is ready`,
+        body: o.episodes ? `All ${o.episodes} ${o.episodes === 1 ? w.episode.toLowerCase() : w.episodes.toLowerCase()} are in, each there once you've seen it.` : "Its rules and cast are in.",
+        next: `/show/${o.seasonId}/episodes`,
+        tag: `ready-${o.seasonId}`,
+        key: `ready:${o.seasonId}`,
+        seasonId: o.seasonId,
+      },
+    };
+  });
+}
+
 export function notifyFlagsSettled(flags: { id: string; userId: string; seasonId: string; episode: number; status: string; what: string | null }[]) {
   for (const f of flags) {
     notifyAfter("flagSettled", async () => {

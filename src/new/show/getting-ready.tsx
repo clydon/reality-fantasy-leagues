@@ -2,11 +2,12 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Check, Copy, User } from "lucide-react";
-import { fillLine, type FillStep, type StepState, type TileState } from "@/lib/season-fill";
+import { Bell, Check, Copy, User } from "lucide-react";
+import { etaWords, fillLine, restWords, stepShare, type FillStep, type StepState, type TileState } from "@/lib/season-fill";
 import { AskAiPasteSheet, type AnswerCheck } from "../backstage/ask-ai";
 import { fill, useFill, type FillState } from "../data";
 import { useShowColour } from "../tune-in";
+import { useNow } from "../ui/bars";
 import { Btn } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
@@ -20,8 +21,13 @@ import { Face } from "./parts";
 // show's header chip, and its pieces are the loading looks elsewhere: the Contestants tab's frames (CastComing), the Episodes
 // tab's card (EpisodesComing), Home's poster as a no-signal card (NoSignal, B's poster). Asking ChatGPT yourself is on every
 // step, the free way for everyone (the user, 2026-11-01): Ask an AI's sheet with the step's question (its short /b/ link opens
-// ChatGPT with it asked, then paste the answer back; Copy for any other AI), and it's the main button while our bot is away. Reads poll while it's going (useFill); a run that stopped partway is carried on by the page
-// that's open (useFillSync), and what lands reads the show again.
+// ChatGPT with it asked, then paste the answer back; Copy for any other AI), and it's the main button while our bot is away.
+// Reads poll while it's going (useFill); a run that stopped partway is carried on by the page that's open (useFillSync), and what
+// lands reads the show again.
+// After the user tried it (2026-11-01; /impeccable delight + animate): the working slate's cue bar, an estimate from what each
+// step usually takes (lib/season-fill.ts stepShare, etaWords), honest when it runs long; the episode being looked up fills with
+// its answer's own progress; steps to come are ghosted, not greyed; a face's photo lands with a camera flash, and a face with
+// none is its initial in the show's colour; once Episode 1 is in, a plate says the rest come one at a time and we'll tell you.
 
 const TITLE: Record<FillStep, (w: FillState["words"]) => string> = {
   rules: () => "How it's played",
@@ -79,7 +85,7 @@ export function useFillSync(seasonId: string, f: FillState | undefined) {
 function SlateMark({ state, count }: { state: StepState; count?: string | null }) {
   if (state === "working")
     return (
-      <span className="flex items-center gap-1.5 text-[12px] font-bold uppercase tracking-[0.06em] text-plate-muted">
+      <span className="flex items-center gap-1.5 text-[13px] font-bold tabular-nums text-plate-muted">
         {count}
         <i className="nd-tally size-2.5 rounded-full bg-live" aria-label="Working on it" />
       </span>
@@ -93,25 +99,63 @@ function SlateMark({ state, count }: { state: StepState; count?: string | null }
         </span>
       </span>
     );
-  if (state === "stuck") return <span className="text-[12px] font-bold uppercase tracking-[0.06em] text-live">Stopped</span>;
-  return <span className="text-[12px] font-bold uppercase tracking-[0.06em] text-plate-muted">Next</span>;
+  if (state === "stuck") return <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-live">Stopped</span>;
+  return <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground">Up next</span>;
 }
 
 /** A step's slate: the show's colour as the angled tag, its name on the white plate, its mark, and what it's found below. */
-function Slate({ step, state, index, title, count, children }: { step: FillStep; state: StepState; index: number; title: string; count?: string | null; children?: ReactNode }) {
+function Slate({
+  step,
+  state,
+  index,
+  title,
+  count,
+  progress,
+  children,
+}: {
+  step: FillStep;
+  state: StepState;
+  index: number;
+  title: string;
+  count?: string | null;
+  /** The cue bar under the plate while it works (0 to 1); it runs out to the end as the step lands, then fades. */
+  progress?: number | null;
+  children?: ReactNode;
+}) {
+  // A step still to come is a ghost of its plate (a rundown's "up next"), not a greyed-out one.
+  if (state === "next") {
+    return (
+      <section data-slate={step} data-state={state}>
+        <div className="flex items-stretch">
+          <span aria-hidden className="w-3 flex-none bg-[color-mix(in_srgb,var(--show)_45%,transparent)] [clip-path:polygon(0_0,100%_0,calc(100%_-_4px)_100%,0_100%)]" />
+          <div className="-ml-0.5 flex min-h-11 flex-1 items-center justify-between gap-2 bg-[color-mix(in_srgb,var(--plate)_9%,transparent)] py-1.5 pl-3 pr-4 text-foreground/70 [clip-path:polygon(0_0,100%_0,calc(100%_-_9px)_100%,0_100%)]">
+            <b className="type-caption text-[19px] leading-none">{title}</b>
+            <SlateMark state={state} count={count} />
+          </div>
+        </div>
+      </section>
+    );
+  }
+  const cue = state === "working" ? (progress ?? null) : state === "done" ? 1 : null;
   return (
     <section
       data-slate={step}
       data-state={state}
-      className={state === "next" ? "opacity-45" : "nd-slate-in"}
+      className="nd-slate-in"
       // Re-keyed as its turn comes, so it slams in then.
       style={{ animationDelay: `${index * 90}ms` }}
     >
       <div className="flex items-stretch">
         <span aria-hidden className="w-3 flex-none bg-[var(--show)] [clip-path:polygon(0_0,100%_0,calc(100%_-_4px)_100%,0_100%)]" />
-        <div className="-ml-0.5 flex min-h-11 flex-1 items-center justify-between gap-2 bg-plate py-1.5 pl-3 pr-4 text-plate-foreground [clip-path:polygon(0_0,100%_0,calc(100%_-_9px)_100%,0_100%)]">
+        <div className="relative -ml-0.5 flex min-h-11 flex-1 items-center justify-between gap-2 overflow-hidden bg-plate py-1.5 pl-3 pr-4 text-plate-foreground [clip-path:polygon(0_0,100%_0,calc(100%_-_9px)_100%,0_100%)]">
           <b className="type-caption text-[19px] leading-none">{title}</b>
           <SlateMark state={state} count={count} />
+          {/* The cue bar: along the plate's foot in the show's colour, an estimate while it works (never full until it's done). */}
+          {cue != null && (
+            <span aria-hidden data-cue={Math.round(cue * 100)} className={`absolute inset-x-0 bottom-0 h-[3px] transition-opacity duration-500 ${state === "done" ? "opacity-0 delay-500" : ""}`}>
+              <span className="absolute inset-0 origin-left bg-[var(--show)] transition-transform duration-1000 ease-linear" style={{ transform: `scaleX(${cue})` }} />
+            </span>
+          )}
         </div>
       </div>
       {children && <div className="mt-2 pl-3">{children}</div>}
@@ -136,11 +180,24 @@ function Frames({ faces, count, working, max = 7 }: { faces: FillState["cast"]["
       </div>
     );
   }
-  const shown = faces.slice(0, max);
+  // Those with a photo first: the strip shows faces while photos are still being found.
+  const shown = [...faces].sort((a, b) => Number(!!b.photo) - Number(!!a.photo)).slice(0, max);
   return (
     <div data-frames="in" className="flex items-center gap-1.5">
       {shown.map((p, i) => (
-        <Face key={p.name} src={p.photo} name={p.name} title={p.name} className="nd-face-in h-11 w-9 rounded-[3px] text-[15px]" style={{ "--d": `${i * 70}ms` } as CSSProperties} />
+        // Keyed by whether it has a photo, so one landing pops in with a camera flash.
+        <span key={`${p.name}:${p.photo ? 1 : 0}`} title={p.name} className="nd-face-in relative h-11 w-9 flex-none overflow-hidden rounded-[3px]" style={{ "--d": `${i * 70}ms` } as CSSProperties}>
+          {p.photo ? (
+            <>
+              <Face src={p.photo} name={p.name} className="size-full" />
+              <i aria-hidden className="nd-flash absolute inset-0 bg-white" style={{ "--d": `${i * 70 + 120}ms` } as CSSProperties} />
+            </>
+          ) : (
+            <span aria-hidden className="type-caption grid size-full place-items-center bg-[color-mix(in_srgb,var(--show)_32%,var(--card))] text-[15px] text-foreground">
+              {p.name.slice(0, 1)}
+            </span>
+          )}
+        </span>
       ))}
       {count > shown.length && <span className="nd-face-in ml-1 text-[13px] font-bold text-muted-foreground" style={{ "--d": `${shown.length * 70}ms` } as CSSProperties}>+{count - shown.length}</span>}
     </div>
@@ -156,16 +213,26 @@ const TILE: Record<TileState, string> = {
   none: "text-muted-foreground outline-1 -outline-offset-1 outline-dashed outline-border",
 };
 
-/** The episodes' filmstrip: a numbered tile each, lit as it comes in (swept as a whole while the step works). */
-export function Filmstrip({ tiles, working }: { tiles: FillState["episodes"]; working: boolean }) {
+/** The episodes' filmstrip: a numbered tile each, lit as it comes in (swept as a whole while the step works). The one being looked
+ *  up fills from the bottom as its answer comes (`now`, the bot's own progress), else pulses. */
+export function Filmstrip({ tiles, working, now }: { tiles: FillState["episodes"]; working: boolean; now?: FillState["now"] }) {
   return (
     <div data-filmstrip className={`flex flex-wrap gap-1 rounded-[3px] ${working ? "nd-sweep" : ""}`}>
-      {tiles.map((t) => (
-        // Keyed by its state too, so a tile that lights pops as it does.
-        <span key={`${t.number}-${t.state}`} data-tile={t.number} data-state={t.state} className={`grid size-[26px] place-items-center rounded-[2px] text-[12px] font-bold tabular-nums ${TILE[t.state]}`}>
-          {t.state === "none" ? "–" : t.number}
-        </span>
-      ))}
+      {tiles.map((t) => {
+        const share = t.state === "asking" && now?.episode === t.number && now.share != null ? now.share : null;
+        return (
+          // Keyed by its state too, so a tile that lights pops as it does.
+          <span
+            key={`${t.number}-${t.state}`}
+            data-tile={t.number}
+            data-state={t.state}
+            className={`grid size-[26px] place-items-center rounded-[2px] text-[11px] font-bold tabular-nums ${share != null ? "text-foreground outline-1 -outline-offset-1 outline-[var(--show)] transition-[background] duration-1000" : TILE[t.state]}`}
+            style={share != null ? { background: `linear-gradient(0deg, var(--show) 0 ${Math.round(share * 100)}%, color-mix(in srgb, var(--show) 22%, var(--card)) ${Math.round(share * 100)}%)` } : undefined}
+          >
+            {t.state === "none" ? "–" : t.number}
+          </span>
+        );
+      })}
     </div>
   );
 }
@@ -173,19 +240,55 @@ export function Filmstrip({ tiles, working }: { tiles: FillState["episodes"]; wo
 /** Episodes with everything in (a "half" one still has its results to come). */
 const litOf = (f: FillState) => f.episodes.filter((e) => e.state === "done" || e.state === "none").length;
 
+/** The episodes' results phase: what happened is in for every episode, their results still coming one at a time. */
+const resultsPhase = (f: FillState) => f.step === "episodes" && f.episodes.length > 0 && !f.episodes.some((e) => e.state === "waiting") && f.resultsLeft > 0;
+
+/**
+ * How far along it looks: the step it's on (`step`, 0 to 1: an estimate from how long it's been going against what it usually
+ * takes; in the results phase, what's in plus how far the episode being looked up has got), the whole job (`share`), and the
+ * estimate in words. Ticks each second while it's going.
+ */
+export function useFillProgress(f: FillState | undefined): { share: number; step: number; words: string | null } {
+  const going = f?.status === "going";
+  const now = useNow(!!going);
+  if (!f || !going) return { share: f?.status === "done" ? 1 : 0, step: 0, words: null };
+  const done = f.steps.filter((s) => s.state === "done").length;
+  let step = 0;
+  let words: string | null = null;
+  if (resultsPhase(f)) {
+    step = (litOf(f) + (f.now?.share ?? 0)) / f.episodes.length;
+    words = restWords(f.resultsLeft, f.words, f.episodes.length);
+  } else if (f.since && f.expectMs) {
+    const elapsed = now - Date.parse(f.since);
+    step = stepShare(elapsed, f.expectMs);
+    words = f.away ? null : etaWords(elapsed, f.expectMs);
+  }
+  return { share: Math.min(1, (done + step) / Math.max(1, f.steps.length)), step, words };
+}
+
 /** The call sheet: what's happening now on a line (the tally lit while it goes), then a slate a step. Copy and paste beneath. */
 export function CallSheet({ f, onPaste }: { f: FillState; onPaste?: () => void }) {
   const colour = useShowColour(f.seasonId, f.backdropUrl || f.artUrl);
   const tiles = f.episodes.map((e) => e.state);
-  const line = fillLine({ step: f.step, status: f.status, tiles, away: f.away }, f.words);
   const going = f.status === "going";
-  // What's being got now can be pasted instead (free, always): while our bot's away it's the way on, so it leads.
-  const pasteable = going && !!f.step && f.steps.some((s) => s.key === f.step && s.state === "working") && !(f.step === "episodes" && !f.episodes.some((e) => e.state === "waiting" || e.state === "asking"));
+  const p = useFillProgress(f);
+  const results = resultsPhase(f);
+  const line = f.phase === "photos" ? "Finding their photos" : fillLine({ step: f.step, status: f.status, tiles, away: f.away }, f.words);
+  // What's being got now can be pasted instead (free, always): while our bot's away it's the way on, so it leads. Not the photos,
+  // nor the results one at a time (those are our bot's).
+  const pasteable = going && !!f.step && !f.phase && f.steps.some((s) => s.key === f.step && s.state === "working") && !(f.step === "episodes" && !f.episodes.some((e) => e.state === "waiting"));
+  // Once Episode 1's in (what happened in it, or everything), the rest come one at a time: browse meanwhile, and we'll say when.
+  const first = f.episodes[0];
+  const browse = going && results && !!first && first.state !== "waiting" && first.state !== "asking";
+  const photos = f.cast.faces.filter((x) => x.photo).length;
   return (
     <div data-call-sheet={f.status} data-step={f.step ?? ""} style={{ "--show": colour } as CSSProperties} className="flex flex-col gap-3.5">
-      <p className="flex items-center gap-2 text-[14px] font-semibold" aria-live="polite">
+      <p className="flex items-center gap-2 text-[16px] font-semibold" aria-live="polite">
         {going && <i className="nd-tally size-2 flex-none rounded-full bg-live" aria-hidden />}
-        <span data-call-line>{line}</span>
+        <span data-call-line>
+          {line}
+          {going && p.words && !results && <span className="font-normal text-muted-foreground"> · {p.words.charAt(0).toLowerCase() + p.words.slice(1)}</span>}
+        </span>
       </p>
       {f.steps.map((s, i) => (
         <Slate
@@ -195,14 +298,37 @@ export function CallSheet({ f, onPaste }: { f: FillState; onPaste?: () => void }
           index={i}
           title={TITLE[s.key](f.words)}
           count={s.key === "cast" && f.cast.count ? String(f.cast.count) : s.key === "episodes" && f.episodes.length ? `${litOf(f)}/${f.episodes.length}` : null}
+          progress={s.state === "working" && s.key === f.step ? p.step : null}
         >
           {s.key === "cast" && s.state !== "next" ? (
-            <Frames faces={f.cast.faces} count={f.cast.count} working={s.state === "working"} />
+            <>
+              <Frames faces={f.cast.faces} count={f.cast.count} working={s.state === "working"} />
+              {f.phase === "photos" && (
+                <small data-photos className="mt-1.5 block text-[13px] text-muted-foreground">
+                  {photos ? `${photos} of ${f.cast.count} photos found` : "Looking for their photos"}
+                </small>
+              )}
+            </>
           ) : s.key === "episodes" && s.state !== "next" ? (
-            <Filmstrip tiles={f.episodes} working={s.state === "working"} />
+            <Filmstrip tiles={f.episodes} working={s.state === "working" && !results} now={f.now} />
           ) : null}
         </Slate>
       ))}
+      {browse && (
+        <section data-browse className="nd-slate-in flex gap-3 rounded-[4px] bg-card p-3.5 outline-1 -outline-offset-1 outline-border">
+          <span className="grid size-9 flex-none place-items-center rounded-[3px] bg-[color-mix(in_srgb,var(--show)_28%,var(--card))]">
+            <Bell className="size-[18px]" aria-hidden />
+          </span>
+          <span className="min-w-0">
+            <b className="type-caption block text-[19px] leading-tight">
+              {first.state === "done" ? `${f.words.episode} 1 is in` : "What happened is in"}
+            </b>
+            <small className="mt-1 block text-[13px] leading-snug text-muted-foreground">
+              We&rsquo;ll grab the rest one at a time, {restWords(f.resultsLeft, f.words, f.episodes.length)}, and let you know when they&rsquo;re all in. Have a look around meanwhile.
+            </small>
+          </span>
+        </section>
+      )}
       {f.status === "stuck" && f.message && <p className="text-[13px] font-semibold leading-snug text-live">{f.message}</p>}
       {pasteable && onPaste && (
         <Btn tone={f.away ? "must" : "optional"} wide data-fill-paste onClick={onPaste}>
@@ -333,8 +459,7 @@ export function ReadyChip({ f }: { f: FillState }) {
 /** The header's progress line in the show's colour: how many steps are in, a sheen running along it while it goes. */
 export function ReadyLine({ f }: { f: FillState }) {
   const colour = useShowColour(f.seasonId, f.backdropUrl || f.artUrl);
-  const done = f.steps.filter((s) => s.state === "done").length + (f.episodes.length ? litOf(f) / f.episodes.length : 0) * (f.steps.some((s) => s.key === "episodes" && s.state !== "done") ? 1 : 0);
-  const share = f.steps.length ? Math.min(1, Math.max(0.06, done / f.steps.length)) : 0;
+  const share = Math.max(0.06, useFillProgress(f).share);
   return (
     <span aria-hidden data-ready-line className="absolute inset-x-0 bottom-0 h-[3px] overflow-hidden bg-[rgba(255,255,255,.12)]">
       <span className="absolute inset-y-0 left-0 w-full origin-left transition-transform duration-700 ease-out" style={{ background: colour, transform: `scaleX(${share})` }} />
@@ -346,6 +471,7 @@ export function ReadyLine({ f }: { f: FillState }) {
 /** The Contestants tab while the cast is coming: a wall of empty frames swept in turn, the line, and how it's going. */
 export function CastComing({ f }: { f: FillState }) {
   const colour = useShowColour(f.seasonId, f.backdropUrl || f.artUrl);
+  const p = useFillProgress(f);
   const paste = useFillPaste(f);
   const people = f.words.people.toLowerCase();
   if (f.status === "stuck") {
@@ -362,7 +488,7 @@ export function CastComing({ f }: { f: FillState }) {
       </section>
     );
   }
-  const line = fillLine({ step: f.step, status: f.status, tiles: f.episodes.map((e) => e.state), away: f.away }, f.words);
+  const line = fillLine({ step: f.step, status: f.status, tiles: f.episodes.map((e) => e.state), away: f.away }, f.words) + (p.words ? ` · ${p.words.charAt(0).toLowerCase() + p.words.slice(1)}` : "");
   return (
     <section data-cast-coming={f.status} className="px-4 pt-6" style={{ "--show": colour } as CSSProperties}>
       <div className="flex items-stretch">
@@ -414,16 +540,16 @@ export function EpisodesComing({ f }: { f: FillState }) {
   return (
     <section className="mt-[18px] px-4" data-episodes-coming style={{ "--show": colour } as CSSProperties}>
       <div className="flex flex-col gap-2.5 rounded-[4px] bg-card p-4 outline-1 -outline-offset-1 outline-border">
-        <b className="flex items-center gap-2 text-[17px] leading-tight">
+        <b className="flex items-center gap-2 text-[16px] leading-tight">
           <i className="nd-tally size-2.5 flex-none rounded-full bg-live" aria-hidden />
           Catching up on all {f.episodes.length} {f.words.episodes.toLowerCase()}
         </b>
         <small className="text-[13.5px] leading-snug text-muted-foreground" aria-live="polite">
           {halves && !working
-            ? `What happened is in: each row shows it once you've seen it, never before. Now each ${ep}'s results, one at a time, for the ${f.words.people.toLowerCase()}' stats: ${lit} of ${f.episodes.length} so far. You can leave this page.`
-            : `${lit} of ${f.episodes.length} in. What happened in each shows on its row once you've seen it, never before; you can leave this page.`}
+            ? `What happened is in, each on its row once you've seen it. Now each ${ep}'s results, one at a time, for the ${f.words.people.toLowerCase()}' stats: ${lit} of ${f.episodes.length} so far, ${restWords(f.resultsLeft, f.words, f.episodes.length)}. We'll let you know when they're all in.`
+            : `${lit} of ${f.episodes.length} in. What happened in each shows on its row once you've seen it, never before. We'll let you know when they're all in.`}
         </small>
-        <Filmstrip tiles={f.episodes} working={working} />
+        <Filmstrip tiles={f.episodes} working={working && !resultsPhase(f)} now={f.now} />
         {f.step === "episodes" &&
           f.episodes.some((e) => e.state === "waiting") &&
           (f.away ? (
@@ -451,8 +577,7 @@ export function NoSignal({ seasonId }: { seasonId: string }) {
   useEffect(() => {
     if (status && status !== "going") qc.invalidateQueries({ queryKey: ["new-design", "home"] });
   }, [status, qc]);
-  const done = f ? f.steps.filter((s) => s.state === "done").length : 0;
-  const clear = f && f.steps.length ? done / f.steps.length : 0;
+  const clear = useFillProgress(f).share;
   return (
     <>
       <span aria-hidden data-no-signal={status ?? "going"} className="absolute inset-0 -z-[1] overflow-hidden">

@@ -8,7 +8,7 @@ import { listingsFor } from "@/lib/server/listings";
 import { listingsDue, refreshListings } from "@/lib/server/tv-listings";
 import { advanceAllAuto } from "@/lib/server/keep-up";
 import { notifyResearched } from "@/lib/server/push-events";
-import { fillsNextAt, runDueFill } from "@/lib/server/season-fill";
+import { fillsNextAt, runDueFill, tellAllReady } from "@/lib/server/season-fill";
 import { runNext, planRuns } from "@db/bot-research.js";
 
 // The bot research clock (db/bot-research.js): the ask-AI bot's VM calls this, and each call runs at most
@@ -65,9 +65,12 @@ export const POST = apiRoute(async (req) => {
   const bot = botFor(req);
   const base = listingsFor(req);
   const out = await runNext(pool, { ask: (prompt, o) => askBot(prompt, { ...o, bot }), send: botSend, now: nowFrom(req) });
-  if (out.job && out.asked?.userId) {
+  // Getting it ready's own asks are quiet: its one notification comes when everything's in (tellReady).
+  if (out.job && out.asked?.userId && !out.asked.quiet) {
     notifyResearched({ userId: out.asked.userId, seasonId: out.job.seasonId, episode: out.job.episode, askedAt: new Date(out.asked.askedAt), ok: out.asked.ok, found: out.asked.found });
   }
+  // A job whose last episode just came in (or gave up) is all in: whoever added it hears so, once.
+  await tellAllReady().catch((e) => console.error("[season-fill] tell:", e));
   const fill = out.job ? null : await runDueFill({ base, bot, budgetMs: 280_000 - (Date.now() - t0) });
   const next = earliest(out.next, await fillsNextAt());
   const listings = !out.job && (await listingsDue());
