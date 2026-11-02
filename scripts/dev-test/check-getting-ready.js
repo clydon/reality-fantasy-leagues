@@ -152,7 +152,7 @@ const showIn = (prompt) => Object.keys(ANSWERS).find((name) => prompt.includes(n
       await page.waitForTimeout(900);
       await shot("call-sheet-faces");
       shack = (await pool.query("SELECT ss.id FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE s.tvmaze_id = 990001 ORDER BY ss.season_number DESC LIMIT 1")).rows[0].id;
-      // Done: it carries on, and Home's poster says so.
+      // Continue in background, and Home's poster says so.
       await page.locator("[data-added-done]").click();
       await page.locator(`[data-poster="${shack}"] [data-no-signal]`).waitFor({ timeout: 20000 });
       await page.locator(`[data-poster="${shack}"]`).scrollIntoViewIfNeeded();

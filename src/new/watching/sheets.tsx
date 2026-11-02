@@ -608,7 +608,7 @@ function ListingWhere({ hit, busy, lookUp, onSave }: { hit: ListingHit; busy: bo
 }
 
 /** Added, and getting ready (show/getting-ready.tsx): the call sheet as its rules, cast and episodes come in; Go to the show, or
- *  Done (it carries on: Home's poster shows it). */
+ *  Continue in background (Home's poster shows it), or Done once it's all in. */
 function AddedReady({ seasonId, onDone }: { seasonId: string; onDone: () => void }) {
   const f = useFill(seasonId).data;
   useFillSync(seasonId, f);
@@ -622,7 +622,7 @@ function AddedReady({ seasonId, onDone }: { seasonId: string; onDone: () => void
           Go to the show
         </BtnLink>
         <Btn wide data-added-done onClick={onDone}>
-          {f.status === "going" ? "Done: it carries on" : "Done"}
+          {f.status === "going" ? "Continue in background" : "Done"}
         </Btn>
       </div>
       {paste.sheet}
