@@ -284,6 +284,22 @@ const showIn = (prompt) => Object.keys(ANSWERS).find((name) => prompt.includes(n
     garbage = 0;
     await post("alex", yacht, { action: "retry" });
     const s6b = await until(yacht, (s) => s.status !== "going");
+    // ---- a newer season than any here can be added (search, the user's Challenge 42 case) ----
+    if (!apiOnly) {
+      // ZT Love Shack's season 1 here, finished, while its listing runs on: the listing is offered too, as its latest season.
+      await pool.query("UPDATE show_seasons SET status = 'completed' WHERE id = $1", [shack]);
+      const C = await open({ user: "zt_nd_riley", pass: fixture.PASSWORD, width, motion: "off", headers });
+      close = C.close;
+      await C.page.goto(`${C.BASE}/home`);
+      await C.page.locator("[data-add-show-poster]").click();
+      await C.page.locator("[data-add-input]").fill("ZT Love Shack");
+      await C.page.locator('[data-hit="ZT Love Shack"][data-hit-kind="listing"]').first().waitFor({ timeout: 20000 }).catch(() => null);
+      const kinds = await C.page.locator("[data-hit]").evaluateAll((els) => els.map((e) => `${e.getAttribute("data-hit")}:${e.getAttribute("data-hit-kind")}:${/Latest season/.test(e.textContent ?? "")}`));
+      check(kinds.includes("ZT Love Shack:listing:true"), "a linked show whose seasons here are finished: its listing offered as the latest season", kinds.join(" | "));
+      await close();
+      close = async () => {};
+    }
+
     check(s6b.status === "done" && !!(await showOf(yacht)).set_up_at && (await castOf(yacht)).length > 0, "Try again: it starts over and finishes", JSON.stringify({ ...s6b, cast: s6b.cast.count, episodes: undefined, artUrl: undefined, backdropUrl: undefined }));
     if (s6b.status !== "done") console.log("   job:", JSON.stringify((await pool.query("SELECT * FROM season_fills WHERE season_id = $1", [yacht])).rows[0]), "\n   setup:", JSON.stringify((await pool.query("SELECT stage, asking_at, message, rules_answer IS NOT NULL AS rules, cast_answer IS NOT NULL AS cast FROM show_setups WHERE season_id = $1 ORDER BY created_at DESC", [yacht])).rows));
   } catch (e) {

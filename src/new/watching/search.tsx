@@ -37,16 +37,17 @@ export function listingLine(h: ListingHit) {
 const namedAs = (s: CatalogSeason, hit: ListingHit) => s.tvmazeId == null && sameShow(s.show, hit);
 
 /**
- * Does a season here stand for this listing (so it isn't shown twice)? A show made from (or linked to) this listing does.
- * A show matched by name does when its season here is on now or coming up, or the show has ended; otherwise the listing
- * is offered too, as its latest season (adding it links the show and follows that).
+ * Does a season here stand for this listing (so it isn't shown twice)? A season of the same show (made from or linked to this
+ * listing, or matched by name) does when it's on now or coming up, or the show has ended; otherwise the listing is offered
+ * too, as its latest season (adding it links the show and follows that). So a newer season than any here can be added: The
+ * Challenge's 42 once only 37 was here (the user, 2026-11-01).
  */
 function covered(hit: ListingHit, catalog: CatalogSeason[]) {
-  return catalog.some((s) => s.tvmazeId === hit.tvmazeId || (namedAs(s, hit) && (s.status !== "completed" || !hit.running)));
+  return catalog.some((s) => (s.tvmazeId === hit.tvmazeId || namedAs(s, hit)) && (s.status !== "completed" || !hit.running));
 }
 
-/** A listing whose show is here already (by name): adding it follows that show's latest season. */
-const known = (hit: ListingHit, catalog: CatalogSeason[]) => catalog.some((s) => namedAs(s, hit));
+/** A listing whose show is here already (linked to it, or by name): adding it follows that show's latest season. */
+const known = (hit: ListingHit, catalog: CatalogSeason[]) => catalog.some((s) => s.tvmazeId === hit.tvmazeId || namedAs(s, hit));
 
 export function useShowSearch(q: string, catalog: CatalogSeason[], mine: Set<string>, watchers?: (seasonId: string) => string[]) {
   const t = q.trim().toLowerCase();
