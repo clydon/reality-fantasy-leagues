@@ -364,14 +364,47 @@ function Opener({ r, name, season, replay }: { r: SeasonReveal; name: string; se
   );
 }
 
-/** The episode's write-up (Fill in what happened), when there is one: what a show with nobody going home still has to reveal. */
+/** A write-up's sentences: split where one ends and the next begins with a capital (or a number, or a quote), never after a
+ *  title or an abbreviation ("Dr. Ava", "Ep. 4"). */
+const sentencesOf = (t: string) =>
+  t
+    .replace(/\s+/g, " ")
+    .trim()
+    .split(/(?<=[.!?…])\s+(?=["“'‘(]?[A-Z0-9])/)
+    .filter(Boolean)
+    .reduce<string[]>((out, part) => {
+      const last = out[out.length - 1];
+      if (last && /\b(Dr|Mr|Mrs|Ms|Mx|St|Jr|Sr|vs|No|Ep|Vol|Pt)\.$/i.test(last)) out[out.length - 1] = `${last} ${part}`;
+      else out.push(part);
+      return out;
+    }, []);
+
+/**
+ * In this episode: the episode's write-up (Fill in what happened), what a show with nobody going home still has to reveal. Read
+ * as the show's own "previously on" (the user, 2026-11-02: bolder, a little delight, still minimal): its first sentence the lede,
+ * big and bold, then the rest landing a sentence at a time, at a voiceover's pace (new.css nd-recap-line; all at once under
+ * reduced motion). No new colour: the lede in the foreground, the rest muted.
+ */
 function Recap({ r }: { r: SeasonReveal }) {
+  const [lede = "", ...rest] = sentencesOf(r.summary ?? "");
   return (
-    <div>
+    <div data-reveal-recap>
       <Kicker>In this episode</Kicker>
-      <p data-reveal-recap className="line-clamp-[12] text-[18px] leading-relaxed">
-        {r.summary}
+      <p
+        className={`nd-recap-line line-clamp-5 font-bold leading-[1.15] tracking-[-0.01em] [text-wrap:balance] ${lede.length > 110 ? "text-[23px]" : "text-[28px]"}`}
+        style={{ ["--i" as string]: 0 }}
+      >
+        {lede}
       </p>
+      {rest.length > 0 && (
+        <div className="mt-4 line-clamp-[9] text-[17px] leading-relaxed text-muted-foreground">
+          {rest.map((t, i) => (
+            <span key={i} className="nd-recap-line mt-1.5 block" style={{ ["--i" as string]: i + 1 }}>
+              {t}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

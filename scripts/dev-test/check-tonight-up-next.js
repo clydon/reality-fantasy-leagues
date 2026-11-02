@@ -161,7 +161,7 @@ function check(ok, what, detail = "") {
 
     // I watched it: asks first; Not yet moves nothing; Yes moves her and plays the reveal of a show she only watches (the user,
     // 2026-11-02): its write-up, who went home if anyone did, The couch reacts with hers to add, no games, no Share; Undo moves her back.
-    const RECAP = "The Traitors recruit in the turret and the Faithful's round table turns on the wrong player.";
+    const RECAP = "The Traitors recruit in the turret and the Faithful's round table turns on the wrong player. Dr. Hana Kim's shield goes to the one person she suspects. By breakfast, two empty chairs.";
     await pool.query(`INSERT INTO season_episodes (season_id, number, summary) VALUES ($1, 3, $2) ON CONFLICT (season_id, number) DO UPDATE SET summary = EXCLUDED.summary`, [tid, RECAP]);
     await rp.goto(`${BASE}/show/${tid}/tonight`, { waitUntil: "load" });
     await rplate.waitFor({ timeout: 30_000 });
@@ -189,7 +189,12 @@ function check(ok, what, detail = "") {
       await rp.waitForTimeout(500);
       const b = await rbeat();
       if (rbeats.at(-1) !== b) rbeats.push(b);
-      if (b === "recap") check((await textOf(rreveal.locator("[data-reveal-recap]"))).includes("turret"), "In this episode: its write-up", await textOf(rreveal));
+      if (b === "recap") {
+        await rp.waitForTimeout(1600);
+        const lines = await rreveal.locator("[data-reveal-recap] .nd-recap-line").count();
+        check((await textOf(rreveal.locator("[data-reveal-recap]"))).includes("turret") && lines === 3, "In this episode: its write-up, the lede then a sentence at a time (3, Dr. kept whole)", `${lines} lines`);
+        await R.shot("reveal-recap");
+      }
       if (b === "gifs") break;
       await rreveal.locator("[data-stage]").click();
     }
