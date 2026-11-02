@@ -34,6 +34,10 @@ its own row and the empty space under the words).
   instead, and a watched row replays (its GIFs on the row's end are their own button, the GIF sheet). A replay asks the reveal with
   `replay` (season-episodes.ts: writes nothing, only an episode you've seen), opens on "Previously on the couch", and ends on Back to
   the show (never Reveal Episode N).
+- **The reveal, swiped** (the user, 2026-11-02): a swipe right goes back a beat, a swipe left on, like a story (a tap still goes on;
+  the tap a swipe ends in isn't a Next); ← and → on a keyboard. **In this episode** reads as a "previously on" (/impeccable
+  delight): the write-up's first sentence the lede, big and bold, the rest muted, landing a sentence at a time (new.css
+  nd-recap-line). The missing write-up's "Fill in what happened" on an episode's page: not now (the user).
 - **The reveal plays for a show you only watch too** (the user, 2026-11-02, after watching The Challenge's Episode 2: "Shouldn't I
   have gotten that full screen reveal?"; and "some shows might not have an elimination but we should still expect that summary
   reveal including everyone's gifs"). Yes, I watched it moves where you are, then the reveal plays (season-episodes.ts

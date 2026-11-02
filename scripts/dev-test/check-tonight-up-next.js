@@ -325,6 +325,24 @@ function check(ok, what, detail = "") {
     check(xbeats[0] === "open" && xbeats.includes("out") && xbeats.includes("gifs") && xbeats.at(-1) === "table", "the replay plays its beats: the opener … who went home, The couch reacts … the table", xbeats.join(" > "));
     check(/Previously/i.test(await textOf(xreveal)) || xbeats.length > 0, "as it played");
     check((await xreveal.getByRole("button", { name: /^Reveal Episode/ }).count()) === 0, "a replay ends on Back to the show, no Reveal Episode N");
+    // Swiping back (the user, 2026-11-02): a swipe right goes back a beat (the tap it ends in isn't a Next), and the arrow keys too.
+    const beatNow = async () => xreveal.locator("[data-beat]").getAttribute("data-beat").catch(() => null);
+    const stage = await xreveal.locator("[data-stage]").boundingBox();
+    await xp.mouse.move(stage.x + 50, stage.y + stage.height / 2);
+    await xp.mouse.down();
+    await xp.mouse.move(stage.x + 280, stage.y + stage.height / 2 + 10, { steps: 8 });
+    await xp.mouse.up();
+    await xp.waitForTimeout(600);
+    const swipedTo = await beatNow();
+    check(swipedTo === xbeats.at(-2) && (await xreveal.getByRole("button", { name: /^Back to / }).count()) === 0, "a swipe right goes back a beat (from the table to the one before)", `${xbeats.at(-1)} → ${swipedTo}`);
+    await xreveal.locator("[data-stage]").press("ArrowRight");
+    await xp.waitForTimeout(500);
+    const onAgain = await beatNow();
+    await xreveal.locator("[data-stage]").press("ArrowLeft");
+    await xp.waitForTimeout(500);
+    check(onAgain === xbeats.at(-1) && (await beatNow()) === xbeats.at(-2), "→ goes on, ← goes back", `${onAgain}, ${await beatNow()}`);
+    await xreveal.locator("[data-stage]").press("ArrowRight");
+    await xp.waitForTimeout(500);
     check((await marks()) === before && (await seenOf("alex", sid)) === 5, "and nothing moved (his games' marks, where he is)", `${before} → ${await marks()}`);
     await xreveal.getByRole("button", { name: /^Back to / }).click();
     await xp.waitForTimeout(600);

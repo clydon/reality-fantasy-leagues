@@ -214,6 +214,10 @@ function Beats({
   onClose: () => void;
 }) {
   const [k, setK] = useState(0);
+  // A swipe sideways (the user, 2026-11-02: "swipe backwards"): right goes back a beat, left on, like a story; a tap still goes on.
+  // The tap a swipe ends in is the swipe's, not a Next.
+  const swipe = useRef<{ x: number; y: number } | null>(null);
+  const swiped = useRef(false);
   const beats: { key: string; node: ReactNode; action?: ReactNode }[] = r
     ? [
         { key: "open", node: <Opener r={r} name={name} season={season} replay={replay} /> },
@@ -248,8 +252,41 @@ function Beats({
         type="button"
         data-stage
         aria-label={last ? "The last beat" : "Next"}
-        onClick={() => !last && setK((x) => x + 1)}
-        className="flex min-h-0 flex-1 flex-col justify-center overflow-hidden px-4 text-left"
+        aria-keyshortcuts="ArrowLeft ArrowRight"
+        onPointerDown={(e) => {
+          swipe.current = { x: e.clientX, y: e.clientY };
+          // Its end lands here even if the finger slides off the stage.
+          e.currentTarget.setPointerCapture?.(e.pointerId);
+        }}
+        onPointerUp={(e) => {
+          const from = swipe.current;
+          swipe.current = null;
+          if (!from) return;
+          const dx = e.clientX - from.x;
+          const dy = e.clientY - from.y;
+          if (Math.abs(dx) < 48 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+          swiped.current = true;
+          if (dx > 0) setK((x) => Math.max(0, Math.min(x, beats.length - 1) - 1));
+          else if (!last) setK((x) => x + 1);
+        }}
+        onPointerCancel={() => (swipe.current = null)}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowLeft") {
+            e.preventDefault();
+            setK((x) => Math.max(0, Math.min(x, beats.length - 1) - 1));
+          } else if (e.key === "ArrowRight" && !last) {
+            e.preventDefault();
+            setK((x) => x + 1);
+          }
+        }}
+        onClick={() => {
+          if (swiped.current) {
+            swiped.current = false;
+            return;
+          }
+          if (!last) setK((x) => x + 1);
+        }}
+        className="flex min-h-0 flex-1 touch-pan-y flex-col justify-center overflow-hidden px-4 text-left"
       >
         {error ? (
           <p className="text-sm text-muted-foreground">{error}</p>
