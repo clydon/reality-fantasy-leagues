@@ -107,6 +107,12 @@ before any push.
 - **"Once this is finished, make sure we completely remove challenge 42 so we can test a real user flow"**: production, after the
   merge (the desk's Delete season; The Challenge itself and its other seasons stay).
 
+- **"We are doing the future paid route. The DIY approach is the default free path"** (the user, at the go to ship). Our bot running
+  it all by itself is what a paid plan will be. Asking ChatGPT yourself is what everyone gets free. When paid plans arrive, a free
+  account's job runs as it does while our bot is away (`run`'s `ask` false): what needs no bot goes in (a game's rulebook, the
+  results' queue, anything pasted), and each step waits with Ask ChatGPT yourself leading (`away`). So the switch is one check in
+  `run` (the account's plan, before `botUp`) and the call sheet's words, never a second flow.
+
 ## As built (branch `ready`, lane `rfl-ready`, 2026-11-01)
 
 - **Migration 0160** `season_fills`: one row per season, holding the step it's on, the ask going now, tries, stuck/done.
