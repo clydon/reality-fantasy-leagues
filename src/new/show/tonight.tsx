@@ -99,7 +99,9 @@ export function Tonight({ seasonId, show }: { seasonId: string; show: ShowData }
 }
 
 /** "Episode 6 · Wed 8:05 PM · in 4 days", "On air · Episode 6 · Locked at 8:05 PM"; at your own pace (step 14), "Episode 4 ·
- *  Your own pace" or "You finished it". Before a streaming drop the drop plate says it all. */
+ *  Your own pace" or "You finished it". Before a streaming drop the drop plate says it all. While Up next's plate shows (you're
+ *  behind: docs/PLAN-up-next.md) the heading is always the next airing, "On TV Thu 8:00 PM", the one Your moves are for; the plate
+ *  is yours, so each number on Tonight has one owner. */
 function PhaseHead({ show }: { show: ShowData }) {
   const up = show.upNext;
   const t = up?.airAt ? Date.parse(up.airAt) : null;
@@ -110,7 +112,8 @@ function PhaseHead({ show }: { show: ShowData }) {
   const n = episodesOf(show);
   const w = show.words;
   if (show.dropAt != null && show.dropAt > now) return null;
-  if (!up?.live && (eps?.reveal || eps?.waiting)) {
+  const plate = !!upNextEpisode(show);
+  if (!up?.live && !plate && (eps?.reveal || eps?.waiting)) {
     // An episode's results come first: in (to reveal), or not yet.
     title = `${w.episode} ${eps.reveal?.episode ?? eps.waiting!.episode}`;
     aside = eps.reveal ? (eps.reveal.stage === "early" ? "Early results" : "Results") : justAired(eps.waiting!.airAt) ? "Just aired" : "Aired";
@@ -132,7 +135,7 @@ function PhaseHead({ show }: { show: ShowData }) {
     aside = t != null ? `Locked at ${timeOf(t)}` : null;
   } else if (up) {
     title = `${w.episode} ${up.number}`;
-    aside = t != null ? calmWhen(t, now) : null;
+    aside = t != null ? `${plate ? "On TV " : ""}${calmWhen(t, now)}` : null;
   } else if (seasonOver(show)) {
     title = "Season over";
   } else {

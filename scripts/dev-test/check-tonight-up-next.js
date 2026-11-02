@@ -12,6 +12,7 @@
 //     Start now opens the watch along with the plan; I watched it asks first (Not yet moves nothing), Yes moves her to 3 and opens
 //     the GIF sheet with "You watched Episode 3", the toast's Undo moves her back; then caught up, no plate and "Watch Episode 4
 //     together";
+//   - the heading over a plate is always the next airing, "On TV …" (riley's Episode 4; sam's Episode 6, the one his moves are for);
 //   - sam (behind on a show he plays): Your moves before the plate, which says "You're 2 behind" for Episode 4 (data-results-in);
 //     I watched it asks ("Its results play next"), Not yet keeps him on 3, Yes opens the reveal of Episode 4;
 //   - alex (caught up): no plate, "Watch Episode 6 together"; then Episode 6 on the air, his moves locked: the slim All set
@@ -129,6 +130,8 @@ function check(ok, what, detail = "") {
       return !!plate && !!phase && !!(phase.compareDocumentPosition(plate) & Node.DOCUMENT_POSITION_FOLLOWING);
     });
     check(under, "under the episode heading");
+    const rphase = await textOf(rp.locator("[data-phase]"));
+    check(/Episode 4/i.test(rphase) && /On TV/.test(rphase), "the heading is the next airing, TV's: Episode 4 · On TV …", rphase);
     check((await rp.locator("[data-plan-invite]").count()) === 0, "no Plan a watch along beside it (the plate asks)");
     check(/Watch along/.test(await textOf(rplate.locator("[data-up-next-watch]"))) && /I watched it/.test(await textOf(rplate.locator("[data-up-next-watched]"))), "Watch along, I watched it");
     await rplate.scrollIntoViewIfNeeded();
@@ -204,6 +207,8 @@ function check(ok, what, detail = "") {
       return !!plate && !!moves && !!(moves.compareDocumentPosition(plate) & Node.DOCUMENT_POSITION_FOLLOWING);
     });
     check(movesFirst, "Your moves come before the plate");
+    const sphase = await textOf(sp.locator("[data-phase]"));
+    check(/Episode 6/i.test(sphase) && /On TV/.test(sphase) && !/Results/.test(sphase), "the heading is the airing his moves are for: Episode 6 · On TV … (not Episode 4 · Results)", sphase);
     await splate.scrollIntoViewIfNeeded();
     await S.shot("plate");
     await S.wide("sam's Tonight");

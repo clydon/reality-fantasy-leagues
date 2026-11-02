@@ -46,11 +46,14 @@ its own row and the empty space under the words).
 
 ## Noticed, not fixed
 
-- Other ways into the reveal still open it straight away (Episodes' hidden row, the chat fold's Reveal Episode N, the reveal's
-  own Reveal Episode N at its end): the plate and Your moves are the prominent ones; give the rest the same question if the user
-  wants it everywhere.
-- A weekly show you're behind on shows two episode numbers on Tonight: the heading (the next airing, "Episode 4 · Tue 9:00 PM")
-  and the plate (yours, "Episode 3 · You're up to Episode 2"). Read together they're clear; a heading that says "Episode 4 airs
-  Tue" might be clearer still.
+- **On hold (the user, 2026-11-02: hold it if it's heavy; it is, mostly in the checks):** the other ways into the reveal still
+  open it straight away: the dock's reveal, Episodes' reveal plate and hidden rows, Games' "As of Episode 4", the solo pool's
+  reveal, the chat fold's Reveal Episode N, and the reveal's own Reveal Episode N at its end. The way to do it: the question as
+  one sheet any screen can open (askWatched's store moved out of UpNext into a host in the signed-in layout), those eight calls
+  through it, and a browser.js helper so the checks that tap them tap Yes too. The rule: it asks before the first time you'd see
+  results, never before what you've already seen (a watch along's own Reveal your scores, the final-results link).
+- **Done 2026-11-02:** two episode numbers on Tonight. While the plate shows, the heading is always the next airing, labelled TV's
+  ("Episode 6 · On TV Thu 8:00 PM · in 3 days", the one Your moves are for), never the episode you're catching up on (it used
+  to say "Episode 4 · Results" over moves for Episode 6); the plate is yours.
 - check-new-episode-games.js part 2 (Call it) has a timed step on talk-fixture.js that fails between midnight UTC and 11:30 PM
   Eastern (it dates the show from the database's UTC date): not this change's.

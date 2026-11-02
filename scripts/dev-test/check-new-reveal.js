@@ -132,7 +132,8 @@ function check(ok, what, detail = "") {
     // ---- 1. results in ----
     await go("tonight");
     check(await page.locator("[data-results-in='5']").isVisible(), "Tonight: Episode 5's results are in");
-    check(/Episode 5/.test(await text("[data-tab=tonight] b.type-caption")) && (await page.getByText("Results", { exact: true }).first().isVisible()), "the heading is Episode 5 · Results");
+    // Up next's plate carries Episode 5's results; the heading over it is the next airing, TV's (docs/PLAN-up-next.md).
+    check(/Episode 6/.test(await text("[data-phase]")) && /On TV/.test(await text("[data-phase]")) && /Episode 5/i.test(await text("[data-results-in='5']")), "the heading is Episode 6 · On TV, the plate Episode 5's results", await text("[data-phase]"));
     check((await page.locator("[data-tab=tonight] button.bg-chyron").count()) === 1, "one yellow: Reveal", `${await page.locator("[data-tab=tonight] button.bg-chyron").count()}`);
     const pickCard = page.locator('[data-move^="pick-"]');
     check((await pickCard.count()) > 0 && /After you reveal Episode 5/.test(await text('[data-move^="pick-"]')), "a move that waits on the results says so (noticed in step 1)", await text('[data-move^="pick-"]'));
