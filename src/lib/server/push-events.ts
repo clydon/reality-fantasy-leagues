@@ -648,7 +648,7 @@ export function notifyGameStarted(o: { userIds: string[]; seasonId: string; leag
 }
 
 /** A watch along planned (step 11 part 3): everyone invited hears, the time in their own zone, to the show where I'm in is. */
-export function notifyPlanned(o: { planId: string; userIds: string[]; seasonId: string; host: string; episode: number; live: boolean; at: number }) {
+export function notifyPlanned(o: { planId: string; userIds: string[]; seasonId: string; host: string; episode: number; live: boolean; at: number; now?: boolean }) {
   notifyAfter("planned", async () => {
     const info = await seasonInfo(o.seasonId);
     if (!info) return null;
@@ -656,8 +656,11 @@ export function notifyPlanned(o: { planId: string; userIds: string[]; seasonId: 
       userIds: o.userIds,
       seasonId: o.seasonId,
       message: (reader: PushReader) => ({
-        title: `${o.host} planned a watch along`,
-        body: `${info.label} · Episode ${o.episode} · ${o.live ? "the live airing" : "starting together"}, ${readerClock(o.at, reader, info.airTz)}. Are you in?`,
+        // Start now (Tonight's Up next): it's happening, not planned.
+        title: o.now ? `${o.host} is starting Episode ${o.episode} now` : `${o.host} planned a watch along`,
+        body: o.now
+          ? `${info.label} · Join the watch along: you start at the same moment, anyone can pause.`
+          : `${info.label} · Episode ${o.episode} · ${o.live ? "the live airing" : "starting together"}, ${readerClock(o.at, reader, info.airTz)}. Are you in?`,
         next: `/show/${o.seasonId}/tonight`,
         tag: `plan-${o.planId}`,
         key: `planned:${o.planId}`,

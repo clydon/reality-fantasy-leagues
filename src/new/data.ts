@@ -1392,7 +1392,7 @@ export function usePlanOptions(seasonId: string | null, couchId: string | null, 
 }
 
 export const plansApi = {
-  plan: (seasonId: string, couchId: string, body: { episode: number; how: PlanHow; startsAt?: string; invite: string[] }) =>
+  plan: (seasonId: string, couchId: string, body: { episode: number; how: PlanHow; startsAt?: string; invite: string[]; now?: boolean }) =>
     post<PlanAnswerOut & { told: number }>(seasonUrl(seasonId, "/plans", { couch: couchId }), body),
   answer: (planId: string, answer: "in" | "out") => post<PlanAnswerOut>(`/api/plans/${planId}`, { answer }),
   cancel: (planId: string, cancel: boolean) => post<PlanAnswerOut>(`/api/plans/${planId}`, { cancel }),

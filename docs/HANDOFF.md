@@ -27,7 +27,15 @@ The user found Rate it's stars no fun: an episode's reaction is now **one GIF yo
 sheet opens after you watch (a watch along's end, and soon Tonight's I watched it), Tonight and Episodes show the couch's, and
 the reveal has a new slide, The couch reacts, after who went home and before your games. **Read
 [PLAN-gif-reactions.md](PLAN-gif-reactions.md)** (decisions, as built, the three I-watched-it mocks waiting on the user's pick).
-Check: `check-gif-reactions.js`. Not merged yet.
+Check: `check-gif-reactions.js`. **Live 2026-11-01** (`c5ae1c06`, migration 0162; pushed with the user's go-ahead).
+
+## Up next for you (2026-11-01; branch `reactions`, no migration)
+The user's pick A of three /impeccable mocks (https://claude.ai/artifact/BcE68eG6VHXPQGy2PomGHv): on Tonight, the next episode you
+haven't watched is one plate (Watch along, I watched it, Ask the couch), under Your moves on a show you play (Your moves keep the
+yellow). I watched it always asks "Watched all of Episode N?" first: on a show you play Yes plays the reveal, on one you watch it
+moves where you are (Undo) and opens the GIF sheet. Ask the couch: Start now (a planned night that starts now: a push and a chat
+line) or Pick a time. Caught up: "Watch Episode 7 together". All set is one slim line now. **Read
+[PLAN-up-next.md](PLAN-up-next.md)**. Check: `check-tonight-up-next.js`.
 
 ## Getting it ready (2026-11-01; branch `ready`, lane `rfl-ready`, migration 0160)
 The user added The Challenge 42 (finished, 14 episodes) and found no cast, and a summary for Episode 1 only. Now a show someone adds

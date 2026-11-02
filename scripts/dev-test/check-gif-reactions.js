@@ -339,10 +339,12 @@ function check(ok, what, detail = "") {
       const V = await browse("alex");
       const vp = V.pg;
       await vp.goto(`${BASE}/show/${sid}/tonight`, { waitUntil: "load" });
-      const revealBtn = vp.locator("[data-results-in='5']").getByRole("button", { name: /Reveal Episode 5/ });
+      // Up next's plate (docs/PLAN-up-next.md): I watched it, then Yes, show me.
+      const revealBtn = vp.locator("[data-results-in='5'] [data-up-next-watched]");
       await revealBtn.waitFor({ timeout: 30_000 });
       await vp.waitForTimeout(600);
       await revealBtn.click();
+      await vp.locator("[data-watched-yes]").click();
       await vp.waitForURL(/\?page=reveal/, { timeout: 15_000 });
       const reveal = vp.locator("[role=dialog][aria-label='The reveal']");
       await reveal.locator("[data-beat]").first().waitFor({ timeout: 30_000 });

@@ -162,7 +162,9 @@ function check(ok, what, detail = "") {
 
     // ---- 2. the reveal ----
     await go("tonight");
-    await page.locator("[data-results-in='5']").getByRole("button", { name: /Reveal Episode 5/ }).click();
+    // Up next's plate (docs/PLAN-up-next.md): I watched it, then Yes, show me.
+    await page.locator("[data-results-in='5'] [data-up-next-watched]").click();
+    await page.locator("[data-watched-yes]").click();
     await page.waitForURL(/\?page=reveal/);
     const beats = await playBeats("2-beat");
     check(beats[0] === "open" && beats.includes("out") && beats.includes("lineup") && beats.includes("games") && beats.at(-1) === "table", "the beats: opener, who went home, lineup, other games, the table", beats.join(" > "));
@@ -207,7 +209,8 @@ function check(ok, what, detail = "") {
     await go("tonight");
     check(/Early results are in/.test(await text("[data-results-in='5']")) && (await page.locator("[data-stage-bar=early]").isVisible()), "early: Early results are in, with the stage bar");
     await shot("3-tonight-early");
-    await page.locator("[data-results-in='5']").getByRole("button", { name: /Reveal Episode 5/ }).click();
+    await page.locator("[data-results-in='5'] [data-up-next-watched]").click();
+    await page.locator("[data-watched-yes]").click();
     const early = await playBeats("3-beat");
     const lineupBeat = early.includes("lineup");
     check(lineupBeat, "the early reveal still shows your lineup");

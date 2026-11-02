@@ -49,6 +49,9 @@ const close = () => {
   emit();
 };
 
+/** Close the GIF sheet (Up next's Undo: the episode it asks about isn't yours to react to any more). */
+export const closeGif = close;
+
 function useGifTarget(): Store {
   return useSyncExternalStore(
     (l) => {

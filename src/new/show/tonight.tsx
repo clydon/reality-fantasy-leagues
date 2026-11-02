@@ -3,10 +3,10 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import { whereWords } from "@/lib/sharing";
-import { Check, ChevronRight, Eye, EyeOff, Grid3x3, Lock, MessageCircle, Plus } from "lucide-react";
+import { Check, ChevronRight, EyeOff, Grid3x3, Lock, Plus } from "lucide-react";
 import { airTime, calm, calmWhen, dayOf, justAired, ticks, timeOf } from "../clock";
 import { AskAiSheet, checkFull } from "../backstage/ask-ai";
-import { backstage, chatCouch, useAfterResults, useChatBadge, useWatchCard, type GameView, type PasteResult } from "../data";
+import { backstage, useAfterResults, useWatchCard, type GameView, type PasteResult } from "../data";
 import { gameColour, gameInk, ordinal } from "../games";
 import { NavLink } from "../nav";
 import { paths } from "../routes";
@@ -15,10 +15,9 @@ import { useMe } from "../session";
 import { namesOf } from "../hub/sections";
 import { PlayIt } from "./games";
 import { Avatar, useNow } from "../ui/bars";
-import { useFinalLine, useFinalWhen } from "../final-words";
+import { useFinalWhen } from "../final-words";
 import { Btn, BtnLink, GuardChip } from "../ui/parts";
 import { toast } from "../ui/toast";
-import { ShowArt } from "../ui/show-bar";
 import { doneCards, isRequired, moveCard, openMoves, type MoveCard } from "./moves";
 import { Block, Face } from "./parts";
 import { WaiversRanPlate } from "./waivers";
@@ -34,6 +33,7 @@ import { CallResultRow, CallRow, openCall } from "./calls";
 import { openSheet, SheetResultRow, SheetRow } from "./questions";
 import { PollRow } from "./polls";
 import { bingoEpisode as toBingo, BingoRow, openBingo, type BingoTarget } from "./bingo";
+import { askWatched, UpNext, upNextEpisode } from "./up-next";
 import { WatchAlongCard } from "./watch-along";
 import { RemindRow } from "./remind";
 import { SeenItCard } from "./seen-it";
@@ -59,6 +59,9 @@ import { useSeasonPolls } from "../data";
 export function Tonight({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const playing = show.games.some((g) => g.yourRole);
   const [catchUp, setCatchUp] = useState<GameView | null>(null);
+  // Up next for you (docs/PLAN-up-next.md): the episode you haven't watched yet, its watch along on the plate (so not its card too).
+  const plate = upNextEpisode(show);
+  const early = show.episodes?.reveal?.stage === "early" ? show.episodes.reveal : null;
   return (
     <>
       <BingoLink show={show} />
@@ -69,16 +72,24 @@ export function Tonight({ seasonId, show }: { seasonId: string; show: ShowData }
       {!playing && <SeenItCard show={show} />}
       <PhaseHead show={show} />
       {playing && <RemindRow seasonId={seasonId} show={show} />}
+      {!playing && <UpNext seasonId={seasonId} show={show} />}
       {!playing && <Following show={show} />}
-      {playing && <AfterEpisode seasonId={seasonId} show={show} />}
+      {playing && <AfterEpisode show={show} />}
       {playing && <FillItIn seasonId={seasonId} show={show} />}
-      <WatchAlongCard seasonId={seasonId} show={show} place="lead" />
+      {!plate && <WatchAlongCard seasonId={seasonId} show={show} place="lead" />}
       <OnTonight show={show} />
       {playing && <YourMoves seasonId={seasonId} show={show} />}
+      {playing && (
+        <UpNext
+          seasonId={seasonId}
+          show={show}
+          below={early && <StageBar episode={early.episode} stage="early" airAt={show.episodes?.episodes.find((e) => e.number === early.episode)?.airAt ?? null} finalAt={early.finalAt} />}
+        />
+      )}
       {playing && <LastTime show={show} />}
       <Extras show={show} />
-      <WatchAlongCard seasonId={seasonId} show={show} place="below" />
-      <PlannedNights seasonId={seasonId} show={show} />
+      {!plate && <WatchAlongCard seasonId={seasonId} show={show} place="below" />}
+      <PlannedNights seasonId={seasonId} show={show} plate={!!plate} />
       {!playing && <WhosWatching show={show} />}
       {!playing && (!show.solo || !show.ready) && <PlayIt show={show} />}
       {playing && <YourGames seasonId={seasonId} show={show} />}
@@ -310,8 +321,6 @@ function YourMoves({ seasonId, show }: { seasonId: string; show: ShowData }) {
     const when = m.deadline ? ` · ${c.tab === "lineup" ? "locks" : "closes"} ${airTime(Date.parse(m.deadline))}` : "";
     return { ...c, line: `After you reveal Episode ${n}${when}`, action: `Reveal Episode ${n}`, reveal: n };
   });
-  // With results to reveal, the reveal plate above is the one yellow.
-  const quiet = !!show.episodes?.reveal;
   const done = show.play ? doneCards(show.play) : [];
   // Weekly Calls' cards open Call it for their episode (step 12 part 2), Weekly Bingo's its card (part 3).
   const onCall = (episode: number) => openCall({ seasonId, couchId: show.couch?.id ?? null, episode, label: showLabel(show), solo: show.solo });
@@ -324,24 +333,23 @@ function YourMoves({ seasonId, show }: { seasonId: string; show: ShowData }) {
 
   let body: ReactNode;
   if (up?.live) {
-    body = <DoneCard icon={Lock} title="Your moves are locked" line="Scores stay hidden until you reveal" />;
-  } else if (!cards.length && !done.length) {
+    body = <AllSet icon={Lock} title="Your moves are locked" line="Scores stay hidden until you reveal" />;
+  } else if (!cards.length) {
+    // All set (the user, 2026-11-01: slim, nothing tall and empty): one line, then each move you've made as a row with its Change.
     body = (
-      <DoneCard
+      <AllSet
         icon={Check}
         title={up ? `You're set for Episode ${up.number}` : "Nothing due"}
         line={t != null ? `Change anything until ${airTime(t)}` : (ended ?? "Nothing to set until the next episode")}
-        action={up && show.play?.length ? <Btn onClick={() => openMoves("lineup")} wide className="mt-1">Change</Btn> : undefined}
+        change={up && show.play?.length && !done.length ? () => openMoves("lineup") : undefined}
+        done={done}
+        onDone={(c) => doneGo(c, onCall, onBingo, seasonId)}
       />
     );
   } else {
-    // Open moves first (the first one's button the one yellow), then what you've set, as done cards; with nothing
-    // open, one "You're set" card leads them.
+    // Open moves first (the first one's button the one yellow), then what you've set, as slim done cards.
     const items: { key: string; node: ReactNode }[] = [
-      ...(cards.length || !up
-        ? []
-        : [{ key: "set", node: <SetCard title={`You're set for Episode ${up.number}`} line={t != null ? `Change anything until ${airTime(t)}` : "Change anything until it airs"} /> }]),
-      ...cards.map((c, i) => ({ key: c.key, node: <OpenCard card={c} n={i + 1} must={i === 0 && !quiet} onCall={onCall} seasonId={seasonId} /> })),
+      ...cards.map((c, i) => ({ key: c.key, node: <OpenCard card={c} n={i + 1} must={i === 0} onCall={onCall} seasonId={seasonId} /> })),
       ...done.map((c) => ({ key: c.key, node: <DoneMove card={c} onCall={onCall} onBingo={onBingo} seasonId={seasonId} /> })),
     ];
     // A new set of cards (a save made one done) starts back at the first, so what's still due is in view.
@@ -393,7 +401,7 @@ function OpenCard({ card: c, n, must, onCall, seasonId }: { card: MoveCard & { r
       <b className="type-caption text-[26px] leading-none">{c.title}</b>
       <small className="mb-2.5 block text-sm leading-snug text-muted-foreground">{c.line}</small>
       {c.reveal ? (
-        <Btn tone={must ? "must" : "optional"} wide className="mt-auto" onClick={() => openReveal(c.reveal!)}>
+        <Btn tone={must ? "must" : "optional"} wide className="mt-auto" onClick={() => askWatched(c.reveal!) || openReveal(c.reveal!)}>
           {c.action}
         </Btn>
       ) : c.href ? (
@@ -417,62 +425,92 @@ function OpenCard({ card: c, n, must, onCall, seasonId }: { card: MoveCard & { r
   );
 }
 
-/** A move you've made that can still change; or Weekly Bingo's card, ready for the show (a card's icon, not a tick). */
+/** What a done move's button does: its bingo card, its call, its sheet, or its game's moves. */
+function doneGo(c: MoveCard, onCall: (episode: number) => void, onBingo: (episode: number) => void, seasonId: string) {
+  if (c.bingo) onBingo(c.bingo);
+  else if (c.call) onCall(c.call);
+  else if (c.sheet) openSheet({ seasonId, leagueId: c.sheet.leagueId, episode: null, game: c.sheet.game });
+  else openMoves(c.tab ?? "lineup", c.leagueId ?? null);
+}
+
+/** A done move's mark: a tick, or Weekly Bingo's card (ready for the show). */
+function DoneMark({ card: c, size = 28 }: { card?: MoveCard; size?: number }) {
+  return c?.bingo ? (
+    <span className="grid flex-none place-items-center rounded-[3px] bg-secondary" style={{ width: size, height: size }}>
+      <Grid3x3 className="size-4" aria-hidden />
+    </span>
+  ) : (
+    <span className="grid flex-none place-items-center rounded-full bg-good/20 text-good" style={{ width: size, height: size }}>
+      <Check className="size-4" strokeWidth={2.6} aria-hidden />
+    </span>
+  );
+}
+
+/** A move you've made that can still change, beside the ones still to make: its mark on its title's line, its line, its button. */
 function DoneMove({ card: c, onCall, onBingo, seasonId }: { card: MoveCard; onCall: (episode: number) => void; onBingo: (episode: number) => void; seasonId: string }) {
   return (
-    <div data-done={c.key} className="flex w-full flex-col gap-1.5 rounded-[4px] bg-background p-4 outline-1 -outline-offset-1 outline-border">
-      {c.bingo ? (
-        <span className="grid size-[30px] place-items-center rounded-[3px] bg-secondary">
-          <Grid3x3 className="size-4" aria-hidden />
-        </span>
-      ) : (
-        <span className="grid size-[30px] place-items-center rounded-full bg-good/20 text-good">
-          <Check className="size-4" strokeWidth={2.6} aria-hidden />
-        </span>
-      )}
-      <b className="type-caption text-[26px] leading-none">{c.title}</b>
-      <small className="mb-2.5 block text-sm leading-snug text-muted-foreground">{c.line}</small>
-      <Btn
-        wide
-        className="mt-auto"
-        onClick={() =>
-          c.bingo
-            ? onBingo(c.bingo)
-            : c.call
-              ? onCall(c.call)
-              : c.sheet
-                ? openSheet({ seasonId, leagueId: c.sheet.leagueId, episode: null, game: c.sheet.game })
-                : openMoves(c.tab ?? "lineup", c.leagueId ?? null)
-        }
-      >
+    <div data-done={c.key} className="flex w-full flex-col gap-2.5 rounded-[4px] bg-background p-3.5 outline-1 -outline-offset-1 outline-border">
+      <span className="flex items-center gap-2.5">
+        <DoneMark card={c} />
+        <b className="type-caption min-w-0 text-[22px] leading-none">{c.title}</b>
+      </span>
+      <small className="block text-sm leading-snug text-muted-foreground">{c.line}</small>
+      <Btn wide className="mt-auto" onClick={() => doneGo(c, onCall, onBingo, seasonId)}>
         {c.action}
       </Btn>
     </div>
   );
 }
 
-/** Nothing left to do: the first of the done cards. */
-function SetCard({ title, line }: { title: string; line: string }) {
+/** Nothing left to do (or locked): one line with its mark, then each move you've made as a hairline row with its button's word. */
+function AllSet({
+  icon: Icon,
+  title,
+  line,
+  change,
+  done = [],
+  onDone,
+}: {
+  icon: typeof Check;
+  title: string;
+  line: string;
+  change?: () => void;
+  done?: MoveCard[];
+  onDone?: (c: MoveCard) => void;
+}) {
   return (
-    <div className="flex w-full flex-col gap-1.5 rounded-[4px] bg-background p-4 outline-1 -outline-offset-1 outline-border">
-      <span className="grid size-[34px] place-items-center rounded-full bg-good/20 text-good">
-        <Check className="size-[18px]" strokeWidth={2.6} aria-hidden />
-      </span>
-      <b className="type-caption text-[26px] leading-none">{title}</b>
-      <small className="block text-sm leading-snug text-muted-foreground">{line}</small>
-    </div>
-  );
-}
-
-function DoneCard({ icon: Icon, title, line, action }: { icon: typeof Check; title: string; line: string; action?: ReactNode }) {
-  return (
-    <div className="flex flex-col gap-1.5 rounded-[4px] bg-background p-4 outline-1 -outline-offset-1 outline-border">
-      <span className="grid size-[34px] place-items-center rounded-full bg-good/20 text-good">
-        <Icon className="size-[18px]" strokeWidth={2.6} aria-hidden />
-      </span>
-      <b className="type-caption text-[26px] leading-none">{title}</b>
-      <small className="block mb-1 text-sm leading-snug text-muted-foreground">{line}</small>
-      {action}
+    <div data-all-set className="rounded-[4px] outline-1 -outline-offset-1 outline-border">
+      <div className="flex min-h-[60px] items-center gap-3 px-3.5 py-2.5">
+        <span className="grid size-7 flex-none place-items-center rounded-full bg-good/20 text-good">
+          <Icon className="size-4" strokeWidth={2.6} aria-hidden />
+        </span>
+        <span className="min-w-0 flex-1">
+          <b className="type-caption block text-[20px] leading-none">{title}</b>
+          <small className="mt-1 block text-[13px] leading-snug text-muted-foreground">{line}</small>
+        </span>
+        {change && (
+          <button type="button" data-all-set-change onClick={change} className="min-h-11 flex-none px-1 text-sm font-semibold text-muted-foreground">
+            Change
+          </button>
+        )}
+      </div>
+      {done.map((c) => (
+        <button
+          key={c.key}
+          type="button"
+          data-done={c.key}
+          onClick={() => onDone?.(c)}
+          className="nd-press flex min-h-[52px] w-full items-center gap-3 border-t border-border px-3.5 py-2 text-left"
+        >
+          <DoneMark card={c} size={22} />
+          <span className="min-w-0 flex-1">
+            <b className="block truncate text-[15px] font-semibold">{c.title}</b>
+            <small className="block truncate text-[13px] text-muted-foreground">{c.line}</small>
+          </span>
+          <span className="flex-none text-[13px] font-semibold text-muted-foreground">{c.action}</span>
+          <ChevronRight className="size-4 flex-none text-muted-foreground" aria-hidden />
+        </button>
+      ))}
     </div>
   );
 }
@@ -505,52 +543,13 @@ function StageBar({ episode, stage, airAt, finalAt }: { episode: number; stage: 
   );
 }
 
-/** "riley", "riley and sam", "riley, sam and jordan" … "have revealed". */
-const revealedWords = (who: string[]) =>
-  `${who.length <= 2 ? who.join(" and ") : `${who.slice(0, -1).join(", ")} and ${who[who.length - 1]}`} ${who.length === 1 ? "has" : "have"} revealed`;
-
-/** What an episode's results need from you now: waiting for them, revealing them, or seeing its final scores. */
-function AfterEpisode({ seasonId, show }: { seasonId: string; show: ShowData }) {
-  const openReveal = useOpenReveal();
+/** What an episode's results need from you now, before you reveal them: waiting for them, or seeing its final scores. */
+function AfterEpisode({ show }: { show: ShowData }) {
   const openMorning = useOpenMorning();
   const eps = show.episodes;
-  const finalWords = useFinalLine(eps?.reveal?.stage, eps?.reveal?.finalAt);
-  // Who the chat's reveal lines say has revealed it (the frame polls this with the Chat tab's badge).
-  const revealed = useChatBadge(seasonId, chatCouch(show), eps?.reveal?.episode ?? null).data?.revealed ?? [];
-  if (!eps || show.upNext?.live) return null;
-  // Catching up in step with it (step 9): the strip above reveals it, moving your linked games with it; one way, not two.
-  const inStep = !!eps.reveal && (show.play ?? []).some((g) => g.catchUp?.week === eps.reveal!.episode);
-  if (eps.reveal && !inStep) {
-    const n = eps.reveal.episode;
-    const early = eps.reveal.stage === "early";
-    return (
-      <section className="mt-[26px] px-4">
-        <div data-results-in={n} className="relative isolate overflow-hidden rounded-[4px] p-4 shadow-[0_14px_30px_rgba(0,0,0,.4)]">
-          {show.header && <ShowArt seasonId={show.header.seasonId} artUrl={show.header.show.artUrl} name={show.header.show.name} className="absolute inset-0 -z-[2] size-full blur-[2px] brightness-[.4]" />}
-          <span className="type-caption inline-block bg-chyron py-1 pl-2 pr-4 text-xs tracking-[0.06em] text-chyron-foreground [clip-path:polygon(0_0,100%_0,calc(100%_-_8px)_100%,0_100%)]">
-            Episode {n}
-          </span>
-          <b className="type-caption mt-3 block text-[34px] leading-none text-white">{early ? "Early results are in" : "Final results are in"}</b>
-          <small className="mt-2 block text-sm leading-snug text-white/85">
-            {early
-              ? `Who went home, Survival Pool and Outlast. ${finalWords ? `${finalWords}.` : "Weekly Lineup's full scores come later."}`
-              : "Watched it? Reveal for every game at once. Nothing shows until then."}
-          </small>
-          {revealed.length > 0 && (
-            <small data-revealed className="mt-2 flex items-start gap-1.5 text-[13px] font-semibold leading-snug text-white/85">
-              <MessageCircle className="mt-px size-3.5 flex-none" aria-hidden />
-              {revealedWords(revealed)} · chat is folded for you
-            </small>
-          )}
-          <Btn tone="must" wide className="mt-4" onClick={() => openReveal(n)}>
-            <Eye className="size-5" aria-hidden />
-            Reveal Episode {n}
-          </Btn>
-        </div>
-        {early && <StageBar episode={n} stage="early" airAt={eps.episodes.find((e) => e.number === n)?.airAt ?? null} finalAt={eps.reveal.finalAt} />}
-      </section>
-    );
-  }
+  // Results in, to reveal: Up next's plate under Your moves (up-next.tsx), or a catch-up game's strip; here, the wait for them
+  // and the morning update.
+  if (!eps || show.upNext?.live || eps.reveal) return null;
   if (eps.waiting) {
     return (
       <section className="mt-[26px] px-4">
@@ -820,7 +819,7 @@ function OnTonight({ show }: { show: ShowData }) {
 
 /** The couch's planned nights for this show (step 11 part 3; the mock's w-plan), and Plan a watch along when your next episode
  *  has none. On a couch only. */
-function PlannedNights({ seasonId, show }: { seasonId: string; show: ShowData }) {
+function PlannedNights({ seasonId, show, plate }: { seasonId: string; show: ShowData; plate: boolean }) {
   const me = useMe();
   const couchId = show.couch?.id ?? null;
   if (show.solo || !couchId || !show.header) return null;
@@ -831,12 +830,12 @@ function PlannedNights({ seasonId, show }: { seasonId: string; show: ShowData })
   return (
     <section className="mt-2.5 flex flex-col gap-2.5 px-4" data-planned-nights>
       <PlanPlates plans={plans} me={me.id} />
-      {!finished && !plans.some((p) => p.episode === next) && (
+      {!finished && !plate && !plans.some((p) => p.episode === next) && (
         <PlanInvite
-          onClick={() => openPlan({ kind: "new", seasonId, couchId })}
+          onClick={() => openPlan({ kind: "new", seasonId, couchId, episode: next })}
           // A season watched at your own pace has no live airing (step 14): a night is a shared start, the premiere's from its drop.
-          title={show.streaming && show.upNext ? "Plan a watch along for the premiere" : undefined}
-          line={show.ownPace || show.streaming ? "Pick a time, start at the same moment, anyone can pause" : undefined}
+          title={show.streaming && show.upNext ? "Plan a watch along for the premiere" : `Watch ${show.words.episode} ${next} together`}
+          line={show.ownPace || show.streaming ? "Pick a time, start at the same moment, anyone can pause" : "Ask the couch for the live airing, or pick a time"}
         />
       )}
     </section>

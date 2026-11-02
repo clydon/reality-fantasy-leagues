@@ -1000,12 +1000,14 @@ async function lookAt(n, r, o) {
     for (const [name, url, sel] of LOOK_PAGES(r.seasonId, n).filter(([x]) => !o.only || o.only.includes(x))) {
       try {
         if (name === "reveal") {
-          const btn = page.locator(`[data-results-in='${n}']`).getByRole("button", { name: new RegExp(`Reveal Episode ${n}`) });
+          // Up next's plate (docs/PLAN-up-next.md): I watched it, then Yes, show me.
+          const btn = page.locator(`[data-results-in='${n}'] [data-up-next-watched]`);
           if (!(await btn.first().waitFor({ timeout: 20000 }).then(() => true, () => false))) {
             found.push({ name, missing: "no Reveal button" });
             continue;
           }
           await btn.first().click();
+          await page.locator("[data-watched-yes]").click();
           await page.waitForURL(/\?page=reveal/, { timeout: 15000 });
           // Its beats, tapped through as check-new-reveal.js plays them, each shot; the last is the table.
           const reveal = page.locator("[role=dialog][aria-label='The reveal']");
