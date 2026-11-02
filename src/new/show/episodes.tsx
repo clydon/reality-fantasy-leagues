@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ChevronRight, Clock, Eye, EyeOff } from "lucide-react";
+import { ChevronRight, Clock, Eye, EyeOff, Play } from "lucide-react";
 import { airedAt, airTime, dayOf } from "../clock";
 import { episodeMarks, knownMark, marksLine, namesLine, type Mark } from "../couch/where";
 import { useMe } from "../session";
@@ -14,6 +14,7 @@ import { NavLink, useCameFrom, useNav } from "../nav";
 import { paths, type ShowTab } from "../routes";
 import { episodesOf, isTabOf, type ShowData } from "../screens/show-space";
 import { PushedPage, usePushedPage } from "../ui/page";
+import { Btn } from "../ui/parts";
 import { ShowArt, tabLabel } from "../ui/show-bar";
 import { first } from "./moves";
 import { Block, Face } from "./parts";
@@ -175,7 +176,7 @@ export function Episodes({ seasonId, show }: { seasonId: string; show: ShowData 
                 ) : e.status === "waiting" ? (
                   <WaitingRow e={e} who={whoAt(e.number)} />
                 ) : e.status === "aired" ? (
-                  <AiredRow e={e} who={whoAt(e.number)} streaming={show.streaming} word={show.words.episode} looking={looking(e.number)} onGif={() => openGif(gifFor(e.number))} />
+                  <AiredRow e={e} who={whoAt(e.number)} streaming={show.streaming} word={show.words.episode} looking={looking(e.number)} onGif={() => openGif(gifFor(e.number))} onReplay={() => openReveal(e.number, { replay: true })} />
                 ) : (
                   <SeenRow e={e} who={whoAt(e.number)} ro={ro} />
                 )}
@@ -297,8 +298,9 @@ function HiddenRow({ e, who, onReveal }: { e: EpisodeRow; who?: Mark[]; onReveal
 }
 
 /** An episode of a show you only watch, with no results to show (step 10): when it aired, and whether you've seen it. One
- *  you've seen opens React with a GIF, with a few of its GIFs on the row. */
-function AiredRow({ e, who, streaming, word = "Episode", looking, onGif }: { e: EpisodeRow; who?: Mark[]; streaming?: boolean; word?: string; looking?: boolean; onGif: () => void }) {
+ *  you've seen replays its reveal (the user, 2026-11-02: its write-up, who went home, the couch's GIFs), and its few GIFs on the
+ *  row's end are a button of their own (React with a GIF). */
+function AiredRow({ e, who, streaming, word = "Episode", looking, onGif, onReplay }: { e: EpisodeRow; who?: Mark[]; streaming?: boolean; word?: string; looking?: boolean; onGif: () => void; onReplay: () => void }) {
   const lift = mineIn(who) ? LIFT : "";
   const body = (
     <>
@@ -335,10 +337,14 @@ function AiredRow({ e, who, streaming, word = "Episode", looking, onGif }: { e: 
     );
   }
   return (
-    <button type="button" data-ep-aired={e.number} data-watched="yes" onClick={onGif} className={`nd-press flex min-h-[68px] items-center gap-3 border-t border-border py-2.5 text-left ${lift || "w-full"}`}>
-      {body}
-      <GifStack line={e.gifs} react />
-    </button>
+    <div data-ep-aired={e.number} data-watched="yes" className={`flex min-h-[68px] items-center gap-1 border-t border-border ${lift || "w-full"}`}>
+      <button type="button" data-ep-replay={e.number} onClick={onReplay} className="nd-press flex min-w-0 flex-1 items-center gap-3 py-2.5 text-left">
+        {body}
+      </button>
+      <button type="button" data-ep-gif={e.number} onClick={onGif} aria-label={`Your GIF for ${word} ${e.number}`} className="nd-press flex min-h-11 flex-none items-center pl-1">
+        <GifStack line={e.gifs} react />
+      </button>
+    </div>
   );
 }
 
@@ -462,8 +468,14 @@ function EpisodeBody({
   const out = e.out ?? [];
   const results = useEpisodeResults(seasonId, couchId, e.number);
   const finalWords = useFinalLine(e.stage, e.finalAt);
+  const openReveal = useOpenReveal();
   return (
     <div data-episode-page={e.number} data-results-in={results.data ? "" : undefined} className="mb-10 mt-3 px-4 pb-4 pt-4">
+      {/* Its reveal again (the user, 2026-11-02), as it played: nothing moves, nothing's written. */}
+      <Btn wide data-replay-reveal className="mb-4" onClick={() => openReveal(e.number, { replay: true })}>
+        <Play className="size-[18px]" aria-hidden />
+        Replay the reveal
+      </Btn>
       {e.stage === "early" && (
         <p className="mb-3 rounded-[3px] bg-card px-3 py-2.5 text-sm text-muted-foreground">Early results: who went home is in. {finalWords ? `${finalWords}.` : "Weekly Lineup’s full scores come later."}</p>
       )}

@@ -29,6 +29,11 @@ its own row and the empty space under the words).
   Move back any time in Where you are." Yes moves where you are (`watching.follow`), a toast "You're up to Episode 3" with Undo
   (which also closes the GIF sheet), and the GIF sheet opens with "You watched Episode 3". Not yet moves nothing.
   A move card's own "Reveal Episode N" (a move waiting on the reveal) asks the same question (`askWatched`).
+- **Replay the reveal** (the user, 2026-11-02: "a way to replay the reveal from the Episodes tab"): an episode's page has Replay the
+  reveal at its top (a show you play, or one you watch whose results are in); a show you only watch with no results has rows
+  instead, and a watched row replays (its GIFs on the row's end are their own button, the GIF sheet). A replay asks the reveal with
+  `replay` (season-episodes.ts: writes nothing, only an episode you've seen), opens on "Previously on the couch", and ends on Back to
+  the show (never Reveal Episode N).
 - **The reveal plays for a show you only watch too** (the user, 2026-11-02, after watching The Challenge's Episode 2: "Shouldn't I
   have gotten that full screen reveal?"; and "some shows might not have an elimination but we should still expect that summary
   reveal including everyone's gifs"). Yes, I watched it moves where you are, then the reveal plays (season-episodes.ts
@@ -53,6 +58,9 @@ its own row and the empty space under the words).
   season-forward.js now tap I watched it, then Yes, show me.
 
 ## Noticed, not fixed
+
+- An episode's page on a show you only watch still asks a player's reads (its results, calls, bingo results), which answer 403
+  (`useEpisodeResults` expects it). Harmless, but noise in the console: give them `enabled` only where you play.
 
 - **On hold (the user, 2026-11-02: hold it if it's heavy; it is, mostly in the checks):** the other ways into the reveal still
   open it straight away: the dock's reveal, Episodes' reveal plate and hidden rows, Games' "As of Episode 4", the solo pool's

@@ -16,8 +16,10 @@
 //   - the heading over a plate is always the next airing, "On TV …" (riley's Episode 4; sam's Episode 6, the one his moves are for);
 //   - sam (behind on a show he plays): Your moves before the plate, which says "You're 2 behind" for Episode 4 (data-results-in);
 //     I watched it asks ("Its results play next"), Not yet keeps him on 3, Yes opens the reveal of Episode 4;
-//   - alex (caught up): no plate, "Watch Episode 6 together"; then Episode 6 on the air, his moves locked: the slim All set
-//     ("Your moves are locked", one line under 72px).
+//   - alex (caught up): no plate, "Watch Episode 6 together"; Episodes' Replay the reveal on Episode 5's page plays it as it was
+//     (its beats, Back to the show, nothing moved); then Episode 6 on the air, his moves locked: the slim All set ("Your moves
+//     are locked", one line under 72px);
+//   - riley's Episodes: Episode 3's page replays its reveal (Skip: The couch reacts, nothing moved).
 //   Nothing wider than the screen; no page errors. Screenshots go to <outDir>.
 //
 //   npm run dev                                                  (in another terminal; BASE= for a lane's server)
@@ -222,7 +224,28 @@ function check(ok, what, detail = "") {
     await rp.locator("[data-phase]").waitFor({ timeout: 30_000 });
     await rp.locator("[data-plan-invite]").waitFor({ timeout: 20_000 }).catch(() => {});
     check((await rp.locator("[data-up-next]").count()) === 0 && /Watch Episode 4 together/.test(await textOf(rp.locator("[data-plan-invite]"))), "caught up: no plate, Watch Episode 4 together", await textOf(rp.locator("[data-plan-invite]")));
-    check(R.errors().length === 0, "no page errors (riley)", R.errors().join(" | "));
+
+    check(R.errors().length === 0, "no page errors (riley, Tonight and the reveal)", R.errors().join(" | "));
+    const rileyErrors = R.errors().length;
+    // Episodes (a show with results, so its episodes have pages): Episode 3's page replays its reveal, writing nothing. (A show with no
+    // results to show has rows instead: the row replays, its GIFs on the row's end open the GIF sheet: data-ep-replay, data-ep-gif.)
+    await rp.goto(`${BASE}/show/${tid}/episodes`, { waitUntil: "load" });
+    await rp.locator("[data-ep='3']").waitFor({ timeout: 30_000 });
+    await rp.waitForTimeout(500);
+    await rp.locator("[data-ep='3']").click();
+    await rp.locator("[data-episode-page='3'] [data-replay-reveal]").click();
+    await rp.waitForURL(/page=reveal/, { timeout: 15_000 }).catch(() => {});
+    await rreveal.locator("[data-beat]").first().waitFor({ timeout: 30_000 }).catch(() => {});
+    check(/page=reveal/.test(rp.url()) && (await rreveal.locator("[data-beat]").count()) === 1, "Episodes: her Episode 3's page replays its reveal", rp.url());
+    await rreveal.getByRole("button", { name: "Skip" }).click();
+    await rp.waitForTimeout(600);
+    check((await rbeat()) === "gifs" && (await rreveal.getByRole("button", { name: /^Back to / }).count()) === 1, "Skip: The couch reacts, then Back to the show", String(await rbeat()));
+    check((await seenOf("riley", tid)) === 3, "the replay moved nothing (still on 3)", String(await seenOf("riley", tid)));
+    await rreveal.getByRole("button", { name: /^Back to / }).click();
+    await rp.waitForTimeout(600);
+    // An episode's page asks a player's reads too (its results, calls, bingo), which a show she only watches answers 403: not this check's.
+    const later = R.errors().slice(rileyErrors).filter((x) => !/status of 403/.test(x));
+    check(later.length === 0, "no page errors (riley's Episodes, beside the episode page's 403s for a show she doesn't play)", later.join(" | "));
 
     // ---------- sam: behind on a show he plays ----------
     const S = await browse("sam");
@@ -270,6 +293,36 @@ function check(ok, what, detail = "") {
     check(/Watch Episode 6 together/.test(invite) && /live airing/.test(invite), "Watch Episode 6 together, the live airing or a time", invite);
     await X.shot("caught-up");
     await X.wide("alex's Tonight");
+
+    // Episodes: an episode's page replays its reveal as it played, and nothing moves (his games' marks, where he is).
+    const marks = async () => (await pool.query("SELECT array_agg(results_seen_through ORDER BY league_id) AS m FROM league_memberships WHERE user_id = $1", [U.alex])).rows[0].m.join();
+    const before = await marks();
+    await xp.goto(`${BASE}/show/${sid}/episodes`, { waitUntil: "load" });
+    await xp.locator("[data-ep='5']").waitFor({ timeout: 30_000 });
+    await xp.waitForTimeout(500);
+    await xp.locator("[data-ep='5']").click();
+    const replayBtn = xp.locator("[data-episode-page='5'] [data-replay-reveal]");
+    await replayBtn.waitFor({ timeout: 20_000 });
+    check(/Replay the reveal/.test(await replayBtn.innerText()), "the episode page: Replay the reveal");
+    await X.shot("episode-replay");
+    await replayBtn.click();
+    await xp.waitForURL(/page=reveal/, { timeout: 15_000 }).catch(() => {});
+    const xreveal = xp.locator("[role=dialog][aria-label='The reveal']");
+    await xreveal.locator("[data-beat]").first().waitFor({ timeout: 30_000 }).catch(() => {});
+    const xbeats = [];
+    for (let k = 0; k < 12; k++) {
+      await xp.waitForTimeout(450);
+      const b = await xreveal.locator("[data-beat]").getAttribute("data-beat").catch(() => null);
+      if (xbeats.at(-1) !== b) xbeats.push(b);
+      if ((await xreveal.getByRole("button", { name: /^Back to / }).count()) > 0) break;
+      await xreveal.locator("[data-stage]").click();
+    }
+    check(xbeats[0] === "open" && xbeats.includes("out") && xbeats.includes("gifs") && xbeats.at(-1) === "table", "the replay plays its beats: the opener … who went home, The couch reacts … the table", xbeats.join(" > "));
+    check(/Previously/i.test(await textOf(xreveal)) || xbeats.length > 0, "as it played");
+    check((await xreveal.getByRole("button", { name: /^Reveal Episode/ }).count()) === 0, "a replay ends on Back to the show, no Reveal Episode N");
+    check((await marks()) === before && (await seenOf("alex", sid)) === 5, "and nothing moved (his games' marks, where he is)", `${before} → ${await marks()}`);
+    await xreveal.getByRole("button", { name: /^Back to / }).click();
+    await xp.waitForTimeout(600);
     // Episode 6 on the air ten minutes ago (weekly from the premiere, so the premiere moves back with it): his moves lock.
     await pool.query(
       `UPDATE show_seasons SET premiere_date = ((now() AT TIME ZONE COALESCE(air_tz, 'America/New_York')) - interval '10 minutes')::date - 35,

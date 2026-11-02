@@ -30,20 +30,21 @@ import { Face } from "./parts";
 // revealed early has its final scores, "So far last night +14 > Final +22", who added what this morning, and the table
 // moving from where it stood that night (show_follows.early_night). Nothing new to spoil: who went home was seen already.
 
-let asked: number | null = null;
+let asked: { n: number; replay: boolean } | null = null;
 const listeners = new Set<() => void>();
 
-function ask(n: number) {
-  asked = n;
+function ask(n: number, replay = false) {
+  asked = { n, replay };
   listeners.forEach((l) => l());
 }
 
-/** Opens the reveal of episode `n`. A link opens one too: ?page=reveal&ep=N (the "Final results are in" push's Watch the
- *  final results, for an episode you've revealed: the reveal answers it as it is now). */
+/** Opens the reveal of episode `n`; `replay` (Episodes' Replay the reveal: the user, 2026-11-02) plays one you've seen again and
+ *  writes nothing. A link opens one too: ?page=reveal&ep=N (the "Final results are in" push's Watch the final results, for an
+ *  episode you've revealed: the reveal answers it as it is now). */
 export function useOpenReveal() {
   const page = usePushedPage("reveal", ["ep"]);
-  return (n: number) => {
-    ask(n);
+  return (n: number, o: { replay?: boolean } = {}) => {
+    ask(n, !!o.replay);
     page.show();
   };
 }
@@ -88,7 +89,8 @@ export function RevealScreen({ show, seasonId }: { show: ShowData; seasonId: str
   const linked = Number(useSearchParams().get("ep")) || null;
   const tapped = useAsked();
   // A link's episode first: an earlier tap's is still in `asked`.
-  const n = linked ?? tapped ?? show.episodes?.reveal?.episode ?? null;
+  const n = linked ?? tapped?.n ?? show.episodes?.reveal?.episode ?? null;
+  const replay = !linked && !!tapped?.replay;
   const mounted = useSyncExternalStore(noop, () => true, () => false);
   if (!mounted) return null;
   return createPortal(
@@ -102,13 +104,13 @@ export function RevealScreen({ show, seasonId }: { show: ShowData; seasonId: str
         page.open ? "visible opacity-100" : "invisible opacity-0"
       }`}
     >
-      {page.open && n != null && <Broadcast key={n} show={show} seasonId={seasonId} n={n} onClose={page.close} />}
+      {page.open && n != null && <Broadcast key={`${n}${replay ? "-again" : ""}`} show={show} seasonId={seasonId} n={n} replay={replay} onClose={page.close} />}
     </div>,
     document.body
   );
 }
 
-function Broadcast({ show, seasonId, n, onClose }: { show: ShowData; seasonId: string; n: number; onClose: () => void }) {
+function Broadcast({ show, seasonId, n, replay, onClose }: { show: ShowData; seasonId: string; n: number; replay: boolean; onClose: () => void }) {
   const [r, setR] = useState<SeasonReveal | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sharing, setSharing] = useState(false);
@@ -127,7 +129,7 @@ function Broadcast({ show, seasonId, n, onClose }: { show: ShowData; seasonId: s
     // Once per episode (a second ask would only say "again").
     if (asked.current) return;
     asked.current = true;
-    revealEpisode(seasonId, show.couch?.id ?? null, n)
+    revealEpisode(seasonId, show.couch?.id ?? null, n, { replay })
       .then((res) => {
         setR(res);
         after();
@@ -138,7 +140,7 @@ function Broadcast({ show, seasonId, n, onClose }: { show: ShowData; seasonId: s
         onClose();
         openGif({ seasonId, couchId: show.couch?.id ?? null, episode: n, label, solo: show.solo, just: true });
       });
-  }, [seasonId, show.couch?.id, n, after, show.plays, show.solo, label, onClose]);
+  }, [seasonId, show.couch?.id, n, replay, after, show.plays, show.solo, label, onClose]);
 
   return (
     <>
@@ -148,6 +150,7 @@ function Broadcast({ show, seasonId, n, onClose }: { show: ShowData; seasonId: s
         n={n}
         r={r}
         error={error}
+        replay={replay}
         gifs={{ node: <GifsBeat target={gifTarget} />, action: <GifsAction target={gifTarget} /> }}
         onClose={onClose}
         end={
@@ -159,7 +162,8 @@ function Broadcast({ show, seasonId, n, onClose }: { show: ShowData; seasonId: s
                   Share your night
                 </Btn>
               )}
-              {r.next ? (
+              {/* A replay goes back: the next one isn't a replay's to reveal. */}
+              {r.next && !replay ? (
                 <>
                   {/* The next one in the same place: back still closes the reveal. */}
                   <Btn tone="ink" wide onClick={() => ask(r.next!)}>
