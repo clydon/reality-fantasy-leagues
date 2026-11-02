@@ -19,29 +19,29 @@ const mixOf = (card) => {
   return out;
 };
 
-test("a card from a bank: three likely, four maybe, one long shot, wherever they fall", () => {
-  assert.deepEqual(DEFAULT_MIX, { likely: 3, maybe: 4, longshot: 1 });
+test("a card from a bank: four likely, four maybe, one long shot, wherever they fall, no free centre", () => {
+  assert.deepEqual(DEFAULT_MIX, { likely: 4, maybe: 4, longshot: 1 });
   const full = bank({ likely: 10, maybe: 14, longshot: 6 });
   for (const who of ["alex", "riley", "sam", "jordan"]) {
     const card = dealCard(full, seedOf(who, "s", 5));
-    assert.deepEqual(mixOf(card), { likely: 3, maybe: 4, longshot: 1 }, who);
-    assert.equal(card[CENTRE].key, FREE_KEY);
+    assert.deepEqual(mixOf(card), { likely: 4, maybe: 4, longshot: 1 }, who);
+    assert.equal(free(card), 0, "nothing free (the user, 2026-11-02: a free centre made lines too easy)");
     assert.ok(card.every((s) => !/\.$/.test(s.label)), "a full stop comes off");
     assert.ok(card.every((s) => Object.keys(s).sort().join() === "key,label"), "a card keeps a square's key and label, not how likely it was");
   }
   // Positions vary: the long shot isn't always in the same cell.
-  const cells = new Set(["a", "b", "c", "d", "e", "f", "g", "h"].map((w) => dealCard(full, seedOf(w, "s", 5)).findIndex((s) => s.key.startsWith("b:longshot"))));
+  const cells = new Set(["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"].map((w) => dealCard(full, seedOf(w, "s", 5)).findIndex((s) => s.key.startsWith("b:longshot"))));
   assert.ok(cells.size > 2, `the long shot lands in ${cells.size} different cells`);
 });
 
 test("a bank short of one likelihood: the nearest makes it up; a mix of your own", () => {
-  assert.deepEqual(mixOf(dealCard(bank({ likely: 12, maybe: 12 }), "a")), { likely: 3, maybe: 5, longshot: 0 }, "no long shots: a maybe");
-  assert.deepEqual(mixOf(dealCard(bank({ likely: 10, maybe: 1, longshot: 5 }), "a")), { likely: 6, maybe: 1, longshot: 1 }, "one maybe: likely ones first");
-  assert.deepEqual(mixOf(dealCard(bank({ maybe: 3, longshot: 9 }), "a")), { likely: 0, maybe: 3, longshot: 5 }, "no likely ones: maybe, then long shots");
-  assert.deepEqual(mixOf(dealCard(bank({ likely: 9, maybe: 9, longshot: 9 }), "a", { likely: 8, maybe: 0, longshot: 0 })), { likely: 8, maybe: 0, longshot: 0 });
-  assert.deepEqual(mixOf(dealCard(bank({ likely: 9, maybe: 9, longshot: 9 }), "a", { likely: 2, maybe: 2, longshot: 0 })), { likely: 2, maybe: 6, longshot: 0 }, "a mix short of eight: topped up with maybe");
+  assert.deepEqual(mixOf(dealCard(bank({ likely: 12, maybe: 12 }), "a")), { likely: 4, maybe: 5, longshot: 0 }, "no long shots: a maybe");
+  assert.deepEqual(mixOf(dealCard(bank({ likely: 10, maybe: 1, longshot: 5 }), "a")), { likely: 7, maybe: 1, longshot: 1 }, "one maybe: likely ones first");
+  assert.deepEqual(mixOf(dealCard(bank({ maybe: 3, longshot: 9 }), "a")), { likely: 0, maybe: 3, longshot: 6 }, "no likely ones: maybe, then long shots");
+  assert.deepEqual(mixOf(dealCard(bank({ likely: 9, maybe: 9, longshot: 9 }), "a", { likely: 8, maybe: 0, longshot: 0 })), { likely: 8, maybe: 1, longshot: 0 }, "a mix of eight: the ninth a maybe");
+  assert.deepEqual(mixOf(dealCard(bank({ likely: 9, maybe: 9, longshot: 9 }), "a", { likely: 2, maybe: 2, longshot: 0 })), { likely: 2, maybe: 7, longshot: 0 }, "a mix short of nine: topped up with maybe");
   // A square without a likelihood (a card's squares from before the banks) counts as maybe.
-  assert.equal(dealCard(moments(12), "a").filter((s) => s.key !== FREE_KEY).length, 8);
+  assert.equal(dealCard(moments(12), "a").filter((s) => s.key !== FREE_KEY).length, 9);
 });
 
 test("rerolls: each its own seed, the same card again on every read", () => {
@@ -56,18 +56,18 @@ test("rerolls: each its own seed, the same card again on every read", () => {
   assert.deepEqual(mixOf(third), DEFAULT_MIX);
 });
 
-test("a card: nine squares, the centre free, eight moments; the same seed deals it the same", () => {
+test("a card: nine squares, nine moments, none free (the centre too); the same seed deals it the same", () => {
   const card = dealCard(moments(12), "alex|s|5");
   assert.equal(card.length, 9);
-  assert.equal(card[CENTRE].key, FREE_KEY);
-  assert.equal(free(card), 1);
+  assert.notEqual(card[CENTRE].key, FREE_KEY);
+  assert.equal(free(card), 0);
   assert.equal(new Set(card.map((s) => s.key)).size, 9);
   assert.deepEqual(dealCard(moments(12), "alex|s|5"), card, "the same card again");
   assert.notDeepEqual(dealCard(moments(12), "riley|s|5"), card, "someone else's differs");
 });
 
 test("too few squares: free squares in the gaps, never a whole line of them; under four, no card", () => {
-  for (let n = MIN_MOMENTS; n < 8; n++) {
+  for (let n = MIN_MOMENTS; n < 9; n++) {
     for (const seed of ["a", "b", "c", "d", "e", "f"]) {
       const card = dealCard(moments(n), seed);
       assert.equal(free(card), 9 - n);
@@ -83,13 +83,14 @@ test("too few squares: free squares in the gaps, never a whole line of them; und
 });
 
 test("lines: ticked as you play; standing once every square happened; waiting; nothing once one didn't", () => {
-  const card = dealCard(moments(8), "x");
-  const row = [3, 4, 5]; // through the free centre
-  const ticked = new Set([3, 5]);
+  const card = dealCard(moments(9), "x");
+  const row = [3, 4, 5]; // through the centre, a square like any other
+  const ticked = new Set([3, 4, 5]);
   assert.deepEqual(countLines(card, ticked, null), { ticked: 1, called: 1, standing: 0, waiting: 0, off: 0 });
   const yes = (keys) => truthOf(card, (k) => (keys.includes(k) ? "yes" : null));
   assert.deepEqual(countLines(card, ticked, yes([card[3].key])), { ticked: 1, called: 1, standing: 0, waiting: 1, off: 0 });
-  assert.deepEqual(countLines(card, ticked, yes([card[3].key, card[5].key])), { ticked: 1, called: 1, standing: 1, waiting: 0, off: 0 });
+  assert.deepEqual(countLines(card, ticked, yes([card[3].key, card[5].key])), { ticked: 1, called: 1, standing: 0, waiting: 1, off: 0 }, "the centre not settled yet: waiting");
+  assert.deepEqual(countLines(card, ticked, yes([card[3].key, card[4].key, card[5].key])), { ticked: 1, called: 1, standing: 1, waiting: 0, off: 0 });
   const no = truthOf(card, (k) => (k === card[5].key ? "no" : "yes"));
   assert.deepEqual(countLines(card, ticked, no), { ticked: 1, called: 1, standing: 0, waiting: 0, off: 1 }, "a square that didn't happen: it came off");
   // Everything happened but you didn't tick it: not your line.
@@ -98,8 +99,9 @@ test("lines: ticked as you play; standing once every square happened; waiting; n
 });
 
 test("who finished a line first: the earliest line's last tick, leaving out a line that didn't happen", () => {
-  const card = dealCard(moments(8), "y");
+  const card = dealCard(moments(9), "y");
   const ticks = new Map([
+    [4, 50],
     [0, 100],
     [8, 300],
     [3, 150],
@@ -114,15 +116,15 @@ test("who finished a line first: the earliest line's last tick, leaving out a li
 // ---------- calling BINGO (docs/PLAN-bingo-bank.md step 3) ----------
 
 test("only a called line counts, and only while it's still ticked; it counts, waits or comes off", () => {
-  const card = dealCard(moments(8), "z");
-  const row = 1; // [3, 4, 5], through the free centre
+  const card = dealCard(moments(9), "z");
+  const row = 1; // [3, 4, 5]
   const col = 4; // [1, 4, 7]
-  const ticked = new Set([3, 5, 1, 7]);
+  const ticked = new Set([3, 4, 5, 1, 7]);
   assert.deepEqual(fullLines(card, ticked), [row, col]);
   const yes = truthOf(card, () => "yes");
   assert.deepEqual(countLines(card, ticked, yes, []), { ticked: 2, called: 0, standing: 0, waiting: 0, off: 0 }, "nothing called: nothing counts");
   assert.deepEqual(countLines(card, ticked, yes, [row]), { ticked: 2, called: 1, standing: 1, waiting: 0, off: 0 });
-  assert.deepEqual(countLines(card, new Set([3, 1, 7]), yes, [row, col]), { ticked: 1, called: 1, standing: 1, waiting: 0, off: 0 }, "a called line unticked: not yours");
+  assert.deepEqual(countLines(card, new Set([3, 4, 1, 7]), yes, [row, col]), { ticked: 1, called: 1, standing: 1, waiting: 0, off: 0 }, "a called line unticked: not yours");
   const waiting = truthOf(card, (k) => (k === card[5].key ? null : "yes"));
   assert.deepEqual(countLines(card, ticked, waiting, [row, col]), { ticked: 2, called: 2, standing: 1, waiting: 1, off: 0 });
   const no = truthOf(card, (k) => (k === card[7].key ? "no" : "yes"));
@@ -135,8 +137,9 @@ test("only a called line counts, and only while it's still ticked; it counts, wa
 });
 
 test("who got a line first on a bank's card: the earliest call, of a line that hasn't come off", () => {
-  const card = dealCard(moments(8), "w");
+  const card = dealCard(moments(9), "w");
   const ticks = new Map([
+    [4, 105],
     [3, 100],
     [5, 110],
     [1, 120],
