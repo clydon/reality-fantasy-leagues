@@ -149,7 +149,7 @@ async function finalResults(pool, season, leagues, now, opts) {
       );
       const sees = !!m[0]?.immediate || (Number.isInteger(m[0]?.mark) && m[0].mark >= n);
       return {
-        title: `Episode ${n} final results are in`,
+        title: `Ep ${n} final results are in`,
         body: `${label} · ${sees ? "Every point's in. Watch the final results." : "Reveal when you've watched."}`,
         url: `${sees ? "/episodes" : "/"}?league=${encodeURIComponent(gameOf.get(reader.userId) ?? leagueIds[0])}`,
         next: sees ? `/show/${season.id}/tonight?page=reveal&ep=${n}` : `/show/${season.id}/tonight`,

@@ -179,6 +179,15 @@ before any push.
   - **Contestants:** while it's getting ready it shows the filmstrip card in place of the old results card (the user: "kinda
     ugly"). That card's roll call no longer says "No head count before you've seen it".
 
+- **The wrong cast (the user's TMDB link):** The Challenge 42 is "Cutthroat" (2026), and our bot gave the cast of the 2010 season of
+  the same name. The cast question only named the season by its title. Every cast question now says "season 42 ("Cutthroat"),
+  the season that premiered in 2026" and lists who the TV listings credit in it (show-art.ts `castAnchor`: TMDB's season credits,
+  else TVmaze's). An answer where fewer than half its people are credited is refused (`notThisSeason`): the bot's is asked again,
+  and a paste says why. Probed on the real credits, the 2010 cast is refused (4 of 30) and the 2026 one accepted (13 of 14). That
+  also explains the photos: TMDB has one for nearly every real Season 42 challenger.
+- **Notification titles** lead with "Ep 12" (the show's own short word for its own research: "Game 4"), number first, because a
+  phone cuts the title after a dozen letters ("Episode 1…" hid which episode).
+
 ## Noticed, not fixed
 
 - Each episode's **results** for a show nobody plays are bot-only (one clock run an episode). Asking ChatGPT yourself covers the

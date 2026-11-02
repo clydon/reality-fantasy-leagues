@@ -209,13 +209,14 @@ export function notifyEpisodeResults(leagueId: string, state: LeagueState, epId:
       if (!kind) return null;
       const sees = (await markOf(reader.userId, ls.seasonId, leagueId)) >= n;
       const waiver = kind === "final" ? "" : await resultsLine(pool, state, n, reader.tz);
+      // "Ep 6", number first: a phone cuts a notification's title after a dozen letters or so (the user, 2026-11-01).
       const safe = {
-        title: `Episode ${n} ${kind === "final" ? "final results are" : "results are"} in`,
+        title: `Ep ${n} ${kind === "final" ? "final results are" : "results are"} in`,
         body: `${ls.label} · Reveal when you've watched.${waiver}`,
       };
       const named = kind !== "final" && sees;
       const words = named
-        ? { title: `Episode ${n}: ${names} went home`, body: `${ls.label} · ${kind === "both" ? "Final results are in." : finalNote(reader)}${waiver}` }
+        ? { title: `Ep ${n}: ${names} went home`, body: `${ls.label} · ${kind === "both" ? "Final results are in." : finalNote(reader)}${waiver}` }
         : kind === "final" && sees
           ? { title: safe.title, body: `${ls.label} · See where you stand.` }
           : safe;
@@ -841,15 +842,16 @@ export function notifyResearched(o: { userId: string; seasonId: string; episode:
     if (!rows[0]) return null;
     const label = seasonLabel(rows[0].show_name, rows[0].season_number);
     const w = showWords({ castaway: rows[0].castaway_term, people: rows[0].castaway_plural, episode: rows[0].episode_term });
-    const ep = `${w.episode} ${o.episode}`;
+    // The show's short word, number first ("Ep 12", "Game 4"): a phone cuts the title after a dozen letters or so.
+    const ep = `${w.ep} ${o.episode}`;
     const found = o.found ?? 0;
     const words = o.ok
       ? {
-          title: `${ep}'s results are in`,
+          title: `${ep} results are in`,
           body: found ? `${label} · ${found === 1 ? "1 result" : `${found} results`}. The ${w.peopleTab} tab counts them now.` : `${label} · Nothing it found was sure enough to count.`,
           next: `/show/${o.seasonId}/cast`,
         }
-      : { title: `Couldn't find ${ep}'s results`, body: `${label} · Our bot asked twice. Try again from the ${w.episodesTab} tab.`, next: `/show/${o.seasonId}/episodes` };
+      : { title: `${ep}: couldn't find its results`, body: `${label} · Our bot asked twice. Try again from the ${w.episodesTab} tab.`, next: `/show/${o.seasonId}/episodes` };
     return {
       userIds: [o.userId],
       seasonId: o.seasonId,
@@ -894,10 +896,10 @@ export function notifyFlagsSettled(flags: { id: string; userId: string; seasonId
       const what = f.what ? `${who}${kind ? ` · ${kind.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase()}` : ""}: ` : "";
       const words =
         f.status === "upheld"
-          ? { title: `You were right about Episode ${f.episode}`, body: `${info.label} · ${what}every game has it put right.` }
+          ? { title: `Ep ${f.episode}: you were right`, body: `${info.label} · ${what}every game has it put right.` }
           : f.status === "kept"
-            ? { title: `Episode ${f.episode}'s result stands`, body: `${info.label} · ${what}it was checked and stays.` }
-            : { title: `Episode ${f.episode} was checked again`, body: `${info.label} · A full answer came in after your flag; anything it found is in.` };
+            ? { title: `Ep ${f.episode}: the result stands`, body: `${info.label} · ${what}it was checked and stays.` }
+            : { title: `Ep ${f.episode} was checked again`, body: `${info.label} · A full answer came in after your flag; anything it found is in.` };
       return {
         userIds: [f.userId],
         seasonId: f.seasonId,

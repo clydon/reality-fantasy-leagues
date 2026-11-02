@@ -206,6 +206,39 @@ async function linkedSeason(seasonId: string, listingsBase?: string): Promise<Se
   return s;
 }
 
+/**
+ * What a cast question needs to be about this season and no other (the user, 2026-11-01: The Challenge 42, "Cutthroat" (2026),
+ * got the cast of the 2010 season of the same name): the season by its number and name, the year it premiered, and who the TV
+ * listings credit in it (TMDB's season credits, else TVmaze's premiere guest cast; hosts and the like left out). Never throws.
+ */
+export async function castAnchor(seasonId: string, listingsBase?: string): Promise<{ season: string | null; year: number | null; credits: Credit[] }> {
+  try {
+    const s = await linkedSeason(seasonId, listingsBase);
+    if (!s) return { season: null, year: null, credits: [] };
+    const { rows } = await pool.query("SELECT name FROM show_seasons WHERE id = $1", [seasonId]);
+    const own = (rows[0]?.name as string | null)?.trim();
+    const season = s.season_number > 1900 ? (own ?? null) : `season ${s.season_number}${own && !/^season\b/i.test(own) ? ` ("${own}")` : ""}`;
+    const year = s.premiere ? Number(s.premiere.slice(0, 4)) : null;
+    if (s.kind === "sport") return { season, year, credits: [] };
+    let credits: Credit[] = s.tmdb_id && tmdbOn() ? await tmdbSeasonCredits(s).catch(() => []) : [];
+    if (!credits.length) credits = await tvmazeSeasonCredits(s, listingsBase).catch(() => []);
+    return { season, year, credits };
+  } catch (e) {
+    console.error("[show-art] cast anchor:", seasonId, e);
+    return { season: null, year: null, credits: [] };
+  }
+}
+
+/** An answer's cast that isn't this season's: fewer than half its people are among the season's credits (when there are enough
+ *  credits to tell, six or more). Why, in a sentence, else null. */
+export function notThisSeason(names: string[], credits: Credit[]): string | null {
+  if (credits.length < 6 || names.length < 3) return null;
+  const hit = names.filter((n) => matchCredit(n, credits)).length;
+  if (hit * 2 >= names.length) return null;
+  const them = credits.slice(0, 3).map((c) => c.names[0]).join(", ");
+  return `That isn't this season's cast: only ${hit} of the ${names.length} are in its TV listing (which has ${them} and more).`;
+}
+
 /** A season's poster from TMDB, unless an admin chose it or the show's art is off. */
 export async function fillSeasonArt(seasonId: string, listingsBase?: string): Promise<boolean> {
   const s = await linkedSeason(seasonId, listingsBase);

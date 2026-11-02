@@ -30,7 +30,7 @@ import { pool, HttpError } from "./db";
 import { logDesk } from "./desk";
 import { seenThrough } from "./guard";
 import { ListingsUnavailable, showCast } from "./listings";
-import { castPhotosFor, findArtLater } from "./show-art";
+import { castAnchor, castPhotosFor, findArtLater, notThisSeason } from "./show-art";
 import { followSeason } from "./sports/season";
 import { seasonHeaders, type SeasonHeader } from "./show-space";
 import { libraryTemplates, otherSeasonRulebook } from "./templates";
@@ -428,7 +428,11 @@ export async function makePrompt(user: SessionUser, seasonId: string, part: stri
   const row = await openRow(seasonId);
   const worked = row ? workOut(row, show, await seenThrough(user.id, seasonId)) : null;
   if (!worked?.data) throw new HttpError(409, `First, how ${h.show.name} works`);
-  return { prompt: buildCastPrompt(castFormatOf(worked.data), { seasonName: cap(seasonWords(h)), showName: h.show.name }), task: `finding who's in ${labelOf(h)}` };
+  const a = await castAnchor(seasonId);
+  return {
+    prompt: buildCastPrompt(castFormatOf(worked.data), { seasonName: a.season ?? cap(seasonWords(h)), showName: h.show.name, year: a.year, known: a.credits.map((c) => c.names[0]) }),
+    task: `finding who's in ${labelOf(h)}`,
+  };
 }
 
 // ---- asking, pasting, choosing ----
@@ -501,10 +505,14 @@ async function runAsk(id: string, seasonId: string, base: string, bot?: string):
         if (!worked.data) throw new Error("ChatGPT's answer doesn't fit. Ask again.");
         // Not enough time left in this request for a second ask: the page that's open carries on.
         if (left() < CAST_NEEDS_MS) return void (await set("stage = 'cast', asking_at = NULL, seconds = $2", [Math.round((Date.now() - t0) / 1000)]));
-        const prompt = buildCastPrompt(castFormatOf(worked.data), { seasonName: cap(seasonWords(show.header)), showName: show.header.show.name });
+        // This season and no other (show-art.ts castAnchor): a season named like an older one got the older one's cast.
+        const a = await castAnchor(seasonId, base);
+        const prompt = buildCastPrompt(castFormatOf(worked.data), { seasonName: a.season ?? cap(seasonWords(show.header)), showName: show.header.show.name, year: a.year, known: a.credits.map((c) => c.names[0]) });
         const { answer } = await askBot(prompt, { bot, budgetMs: left() - 5_000 });
         const cast = parseCastImport(answer, castFormatOf(worked.data));
         if (!cast.castaways.some((c) => !c.problems.length)) throw new Error("ChatGPT didn't find who's in it. Ask again, or paste it.");
+        const wrong = notThisSeason(cast.castaways.filter((c) => !c.problems.length).map((c) => c.name), a.credits);
+        if (wrong) throw new Error(`${wrong} Ask again.`);
         await set("cast_answer = $2, cast_from = 'chat'", [answer]);
       }
     }

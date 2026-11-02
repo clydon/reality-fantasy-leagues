@@ -306,10 +306,10 @@ async function person(pool, who, role = null) {
     await expect((rs) => rs.some((x) => x.who === "riley") && rs.some((x) => x.who === "jordan"));
     await wait(2000);
     const re = got("riley");
-    check(re.length === 1 && re[0].title === `Episode 6: ${OUT6} went home` && /^ZT Survivor 51 · Final results soon\./.test(re[0].body), "riley (sees results straight away): who went home, once for three games", JSON.stringify(re));
+    check(re.length === 1 && re[0].title === `Ep 6: ${OUT6} went home` && /^ZT Survivor 51 · Final results soon\./.test(re[0].body), "riley (sees results straight away): who went home, once for three games", JSON.stringify(re));
     check(re[0]?.url.startsWith("/episodes?league="), "on classic: classic's Episodes");
     const je = got("jordan");
-    check(je.length === 1 && je[0].title === "Episode 6 results are in" && /^ZT Survivor 51 · Reveal when you've watched\./.test(je[0].body) && !JSON.stringify(je).includes("Cristian"), "jordan (seen 5): only that they're in, no name anywhere", JSON.stringify(je));
+    check(je.length === 1 && je[0].title === "Ep 6 results are in" && /^ZT Survivor 51 · Reveal when you've watched\./.test(je[0].body) && !JSON.stringify(je).includes("Cristian"), "jordan (seen 5): only that they're in, no name anywhere", JSON.stringify(je));
     check(je[0]?.url === `/show/${sid}/tonight`, "on the new design: the show's Tonight");
     const wl = /Waivers process (.+)\.$/.exec(je[0]?.body || "");
     check(!wl || /P[DS]T$/.test(wl[1]), "a waiver line, if any, in jordan's own zone (Los Angeles)", je[0]?.body);
@@ -317,8 +317,8 @@ async function person(pool, who, role = null) {
     const bellE = (who) => notes(who, `results:${sid}:6`);
     check((await bellE("sam")).length === 1 && (await bellE("jordan")).length === 1 && (await bellE("riley")).length === 1 && (await bellE("alex")).length === 0, "the bell keeps one for each of them (sam's too), none for alex");
     const rileyRow = (await bellE("riley"))[0];
-    check(rileyRow.spoils === 6 && rileyRow.safe?.title === "Episode 6 results are in" && rileyRow.link === `/show/${sid}/tonight`, "riley's names Episode 6, with its safe words beside it", JSON.stringify(rileyRow));
-    check((await bellE("sam"))[0].title === "Episode 6 results are in", "sam's is worded for where he is");
+    check(rileyRow.spoils === 6 && rileyRow.safe?.title === "Ep 6 results are in" && rileyRow.link === `/show/${sid}/tonight`, "riley's names Episode 6, with its safe words beside it", JSON.stringify(rileyRow));
+    check((await bellE("sam"))[0].title === "Ep 6 results are in", "sam's is worded for where he is");
 
     // Final scores: riley switches classic's Final scores off first.
     await as.riley.call("PUT", "/api/me/notification-prefs", { enabled: { finalScores: false } });
@@ -329,14 +329,14 @@ async function person(pool, who, role = null) {
     await expect((rs) => rs.some((x) => x.who === "jordan") && rs.some((x) => x.who === "sam"));
     const jf = got("jordan");
     const sf = got("sam");
-    check(jf.length === 1 && jf[0].title === "Episode 6 final results are in" && /Reveal when you've watched/.test(jf[0].body), "jordan: Final results are in (past its time: at once), once", JSON.stringify(jf));
-    check(sf.length === 1 && sf[0].title === "Episode 6 final results are in" && !JSON.stringify(sf).includes("Cristian"), "sam (final not switched off): Final results are in, no names", JSON.stringify(sf));
+    check(jf.length === 1 && jf[0].title === "Ep 6 final results are in" && /Reveal when you've watched/.test(jf[0].body), "jordan: Final results are in (past its time: at once), once", JSON.stringify(jf));
+    check(sf.length === 1 && sf[0].title === "Ep 6 final results are in" && !JSON.stringify(sf).includes("Cristian"), "sam (final not switched off): Final results are in, no names", JSON.stringify(sf));
     check(got("riley").length === 0 && (await notes("riley", `final:${sid}:6`)).length === 1, "riley switched it off in classic: no push, but his bell keeps it");
     // The bell, read back through the guard: riley hides scores again, on Episode 5.
     await save("riley", { hideScores: true });
     const rb = (await as.riley.call("GET", "/api/me/notifications")).body;
     const early = rb.notes.find((n) => n.moment === "early");
-    check(early?.title === "Episode 6 results are in" && !JSON.stringify(rb).includes("Cristian"), "riley's bell now: the safe words, not who went home", JSON.stringify(early));
+    check(early?.title === "Ep 6 results are in" && !JSON.stringify(rb).includes("Cristian"), "riley's bell now: the safe words, not who went home", JSON.stringify(early));
 
     // ---------- the couch's moments ----------
     for (const who of ["alex", "jordan"]) await as[who].call("POST", `/api/seasons/${sid}/reveal`, { episode: 6, couch: fx.couchId });
@@ -421,7 +421,7 @@ async function person(pool, who, role = null) {
     await expect((rs) => rs.some((x) => x.who === "jordan"));
     const fl = got("jordan");
     check(
-      fl.length === 1 && fl[0].title === "You were right about Episode 6" && fl[0].body === "ZT Survivor 51 · Danny Kilby · individual immunity: every game has it put right." && fl[0].url === `/show/${sid}/episodes`,
+      fl.length === 1 && fl[0].title === "Ep 6: you were right" && fl[0].body === "ZT Survivor 51 · Danny Kilby · individual immunity: every game has it put right." && fl[0].url === `/show/${sid}/episodes`,
       "jordan hears how his flag went",
       JSON.stringify(fl)
     );
