@@ -31,7 +31,8 @@ gets ready by itself:
 - **The free way:** asking ChatGPT yourself (the /b/ link, then paste) is on every step, and it leads while our bot's away.
 - **Read [PLAN-getting-it-ready.md](PLAN-getting-it-ready.md)** (decisions, as built, noticed).
 - **Checks:** `check-getting-ready.js` (36 PASS at 390).
-- **After it's live:** remove The Challenge 42 from production entirely (the user's ask, so they can test the real flow).
+- **Live 2026-11-01** (`3367cba4`, then three fixes from the user's re-add: `86d5ba9c`, `a567e424`, `d014016b`; the plan's "After it went
+  live"). The user deleted The Challenge on the desk to test adding it fresh.
 
 ## Where everyone is (2026-11-01; F and C pushed 31ea9286, then B; no migration, no new endpoint)
 The user: people say what episode they're on when they add a show, but the couch had no intuitive way to see it. Mocked

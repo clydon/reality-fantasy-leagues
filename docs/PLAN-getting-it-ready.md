@@ -154,6 +154,15 @@ before any push.
   - `tests/season-fill.test.js`.
   - Updated for the new flow and words: check-new-watching, check-new-listings, check-show-words.
 
+## After it went live (2026-11-01, the user re-adding The Challenge)
+
+- **A linked show's newer season** (`86d5ba9c`): search hid a show's TV listing once any season here was linked to it, so a season
+  newer than any here couldn't be added. Now the listing is offered as "Latest season" when every season here is finished.
+- **"Season not found"** (`a567e424`): the show list is kept for up to 15 minutes (5 at the edge, 10 more while it refreshes, and
+  5 on the phone), so a season deleted on the desk was still offered. Following it now falls back to adding it from its TV listing.
+- **The desk couldn't delete World Series** (`d014016b`): two games deleted within their 30 days still held it, by design. With
+  their season gone, the refusal's one row led nowhere; it now lists each game, each opening its page with Delete it for good.
+
 ## Noticed, not fixed
 
 - Each episode's **results** for a show nobody plays are bot-only (one clock run an episode). Asking ChatGPT yourself covers the
