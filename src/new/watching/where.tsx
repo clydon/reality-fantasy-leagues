@@ -15,6 +15,8 @@ import { whereCap, whereLabel } from "../way-in";
 // "Seen it?", so nothing opens until you say.
 
 export type WhereSeason = Pick<CatalogSeason, "seasonId" | "label" | "show" | "artUrl" | "artPosition" | "aired" | "status" | "premiere"> & {
+  /** Its show's TV listing, when it has one (Add a show adds from it if the season's gone since the list was read). */
+  tvmazeId?: number | null;
   /** Its aired episodes, when the caller has them (a TV listing's); else read for a season that's here. */
   episodes?: StepEpisode[];
   /** What the show calls an episode ("Game": lib/game/show-words.ts); Episode when not known. */

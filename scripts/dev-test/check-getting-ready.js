@@ -296,6 +296,14 @@ const showIn = (prompt) => Object.keys(ANSWERS).find((name) => prompt.includes(n
       await C.page.locator('[data-hit="ZT Love Shack"][data-hit-kind="listing"]').first().waitFor({ timeout: 20000 }).catch(() => null);
       const kinds = await C.page.locator("[data-hit]").evaluateAll((els) => els.map((e) => `${e.getAttribute("data-hit")}:${e.getAttribute("data-hit-kind")}:${/Latest season/.test(e.textContent ?? "")}`));
       check(kinds.includes("ZT Love Shack:listing:true"), "a linked show whose seasons here are finished: its listing offered as the latest season", kinds.join(" | "));
+      // The season's deleted (on the desk) after the list was read: picking it adds it from its TV listing instead.
+      await pool.query("DELETE FROM show_seasons WHERE id = $1", [shack]);
+      await C.page.locator('[data-hit="ZT Love Shack 1"][data-hit-kind="season"]').first().click();
+      await C.page.locator("[data-where-save]").waitFor({ timeout: 20000 });
+      await C.page.locator("[data-where-save]").click();
+      await C.page.locator("[data-added-ready]").waitFor({ timeout: 20000 }).catch(() => null);
+      const again = (await pool.query("SELECT ss.id FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE s.tvmaze_id = 990001")).rows;
+      check((await C.page.locator("[data-added-ready]").count()) === 1 && again.length === 1 && again[0].id !== shack, "a season deleted since the list was read: added from its TV listing instead, not 'Season not found'", `${again.length}`);
       await close();
       close = async () => {};
     }

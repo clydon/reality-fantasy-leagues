@@ -321,8 +321,16 @@ function AddShowSheet({ open, practice, onOpenChange }: { open: boolean; practic
       try {
         await watching.follow(s.seasonId, { following: true, seenThrough: seen, ...(live ? { keepUp: "ask" as const } : {}) });
       } catch (e) {
+        const status = (e as { status?: number }).status;
+        // Gone since the list was read (the desk deleted it; the list is kept a few minutes, at the edge and here): it's added
+        // from its TV listing instead, as if it had never been here (the user, 2026-11-01: "Season not found" on The Challenge 42).
+        if (status === 404 && s.tvmazeId) {
+          void qc.invalidateQueries({ queryKey: ["new-design", "catalog"] });
+          const r = await watching.add({ listing: s.tvmazeId, seenThrough: seen, live });
+          return done(r.label, r.ready, r.seasonId, episodes);
+        }
         // You play it: it's followed, and where you are moves with your games.
-        if ((e as { status?: number }).status !== 409) throw e;
+        if (status !== 409) throw e;
         await watching.follow(s.seasonId, { following: true });
       }
       await done(s.label, ready, s.seasonId, episodes);
