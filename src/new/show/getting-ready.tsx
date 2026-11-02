@@ -126,9 +126,9 @@ function Slate({
   if (state === "next") {
     return (
       <section data-slate={step} data-state={state}>
-        <div className="flex items-stretch">
-          <span aria-hidden className="w-3 flex-none bg-[color-mix(in_srgb,var(--show)_45%,transparent)] [clip-path:polygon(0_0,100%_0,calc(100%_-_4px)_100%,0_100%)]" />
-          <div className="-ml-0.5 flex min-h-11 flex-1 items-center justify-between gap-2 bg-[color-mix(in_srgb,var(--plate)_9%,transparent)] py-1.5 pl-3 pr-4 text-foreground/70 [clip-path:polygon(0_0,100%_0,calc(100%_-_9px)_100%,0_100%)]">
+        <div className="flex items-stretch [--tag-slant:6px]">
+          <span aria-hidden className="tag-cut w-3.5 flex-none bg-[color-mix(in_srgb,var(--show)_45%,var(--card))]" />
+          <div className="tag-tuck flex min-h-11 flex-1 items-center justify-between gap-2 bg-[color-mix(in_srgb,var(--plate)_9%,var(--card))] py-1.5 pl-3 pr-4 text-foreground/70 [clip-path:polygon(0_0,100%_0,calc(100%_-_9px)_100%,0_100%)]">
             <b className="type-caption text-[19px] leading-none">{title}</b>
             <SlateMark state={state} count={count} />
           </div>
@@ -145,9 +145,9 @@ function Slate({
       // Re-keyed as its turn comes, so it slams in then.
       style={{ animationDelay: `${index * 90}ms` }}
     >
-      <div className="flex items-stretch">
-        <span aria-hidden className="w-3 flex-none bg-[var(--show)] [clip-path:polygon(0_0,100%_0,calc(100%_-_4px)_100%,0_100%)]" />
-        <div className="relative -ml-0.5 flex min-h-11 flex-1 items-center justify-between gap-2 overflow-hidden bg-plate py-1.5 pl-3 pr-4 text-plate-foreground [clip-path:polygon(0_0,100%_0,calc(100%_-_9px)_100%,0_100%)]">
+      <div className="flex items-stretch [--tag-slant:6px]">
+        <span aria-hidden className="tag-cut w-3.5 flex-none bg-[var(--show)]" />
+        <div className="tag-tuck relative flex min-h-11 flex-1 items-center justify-between gap-2 overflow-hidden bg-plate py-1.5 pl-3 pr-4 text-plate-foreground [clip-path:polygon(0_0,100%_0,calc(100%_-_9px)_100%,0_100%)]">
           <b className="type-caption text-[19px] leading-none">{title}</b>
           <SlateMark state={state} count={count} />
           {/* The cue bar: along the plate's foot in the show's colour, an estimate while it works (never full until it's done). */}
@@ -491,9 +491,9 @@ export function CastComing({ f }: { f: FillState }) {
   const line = fillLine({ step: f.step, status: f.status, tiles: f.episodes.map((e) => e.state), away: f.away }, f.words) + (p.words ? ` · ${p.words.charAt(0).toLowerCase() + p.words.slice(1)}` : "");
   return (
     <section data-cast-coming={f.status} className="px-4 pt-6" style={{ "--show": colour } as CSSProperties}>
-      <div className="flex items-stretch">
-        <span aria-hidden className="w-3 flex-none bg-[var(--show)] [clip-path:polygon(0_0,100%_0,calc(100%_-_4px)_100%,0_100%)]" />
-        <div className="-ml-0.5 flex min-h-11 flex-1 items-center justify-between gap-2 bg-plate py-1.5 pl-3 pr-4 text-plate-foreground [clip-path:polygon(0_0,100%_0,calc(100%_-_9px)_100%,0_100%)]">
+      <div className="flex items-stretch [--tag-slant:6px]">
+        <span aria-hidden className="tag-cut w-3.5 flex-none bg-[var(--show)]" />
+        <div className="tag-tuck flex min-h-11 flex-1 items-center justify-between gap-2 bg-plate py-1.5 pl-3 pr-4 text-plate-foreground [clip-path:polygon(0_0,100%_0,calc(100%_-_9px)_100%,0_100%)]">
           <b className="type-caption text-[19px] leading-none">Finding the {people}</b>
           <i className="nd-tally size-2.5 rounded-full bg-live" aria-hidden />
         </div>
