@@ -902,16 +902,21 @@ function PointsSheet({ draft, title, onDone, onCustom, onClose }: { draft: Ruleb
         <div className="mt-2">
           {moments.map((m) => (
             <div key={m.id} data-points-row={m.id} className="border-t border-border py-1 first:border-t-0">
-              {m.custom ? (
-                <button type="button" onClick={() => onCustom(m.id)} className="flex min-h-11 w-full items-center gap-2 text-left">
-                  <span className="min-w-0 flex-1 text-[15px]">{m.label}</span>
-                  <span className="rounded-[2px] bg-secondary px-1.5 py-px text-[11px] font-bold text-muted-foreground">added</span>
-                  <ChevronRight className="size-4 text-muted-foreground" aria-hidden />
-                </button>
-              ) : null}
               <Stepper
                 data={`pts-${m.id}`}
-                label={m.custom ? "Suggested points" : m.label}
+                label={
+                  m.custom ? (
+                    <button type="button" data-edit-moment onClick={() => onCustom(m.id)} className="flex min-h-11 w-full flex-col items-start justify-center text-left">
+                      <b className="text-[15px]">{m.label}</b>
+                      <span className="mt-0.5 flex items-center gap-0.5 text-[12px] font-bold text-muted-foreground">
+                        added · edit
+                        <ChevronRight className="size-3.5" aria-hidden />
+                      </span>
+                    </button>
+                  ) : (
+                    m.label
+                  )
+                }
                 value={valueOf(m.id, m.defaultPoints)}
                 min={-20}
                 max={20}
