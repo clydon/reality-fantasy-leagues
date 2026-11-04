@@ -489,7 +489,7 @@ const RESEARCH: Record<ResearchKind, { title: string; line: string; what: string
 /** A rung's id in words: "wonAlone" -> "won alone". */
 const rungWords = (id: string) => id.replace(/([A-Z])/g, " $1").toLowerCase();
 
-const fromWords = (a: RulebookAnswerCard) => `${a.source === "bot" ? "from our bot" : `pasted${a.by ? ` by ${a.by}` : ""}`}${a.through ? ` · through Episode ${a.through}` : ""} · ${agoOf(a.at)}`;
+const fromWords = (a: RulebookAnswerCard) => `${a.source === "bot" ? "from our bot" : `pasted${a.by ? ` by ${a.by}` : ""}`}${a.through ? ` · up to Episode ${a.through}` : ""} · ${agoOf(a.at)}`;
 
 function ResearchSheet({
   page,
@@ -584,10 +584,10 @@ function ResearchSheet({
         ) : (
           <>
             <div className="mb-4 rounded-[4px] bg-background p-3">
-              <Stepper data="through" label="Through episode" value={through ?? page.research.through.max ?? 1} min={1} max={page.research.through.max ?? 99} onChange={onThrough} />
+              <Stepper data="through" label="Up to episode" value={through ?? page.research.through.max ?? 1} min={1} max={page.research.through.max ?? 99} onChange={onThrough} />
               <small className="mt-1.5 block text-[13px] leading-snug text-muted-foreground">
                 {through && (!page.research.through.max || through < page.research.through.max)
-                  ? `Research reads Episodes 1 to ${through} only, so nothing later is given away.`
+                  ? `Research reads up to Episode ${through} only, so nothing later is given away.`
                   : "The whole season: anything that happens in it can be in the answer."}
               </small>
             </div>

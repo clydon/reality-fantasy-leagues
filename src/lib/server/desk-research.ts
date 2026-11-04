@@ -621,7 +621,7 @@ export async function queueRulebook(user: SessionUser, id: string, kind: Researc
   const upTo = throughArg(through, rows[0].episode_count ?? null);
   if (!(await askBotStatus({ bot: o.bot })).available) throw new HttpError(503, "Our bot isn't answering right now. Try again in a while, or paste it.");
   const runKind = kind === "scores" ? "scores" : "rulebook";
-  const what = `${RESEARCH_NAME[kind]} on ${rows[0].name}${upTo ? ` through Episode ${upTo}` : ""}`;
+  const what = `${RESEARCH_NAME[kind]} on ${rows[0].name}${upTo ? ` up to Episode ${upTo}` : ""}`;
   // An ask the page stopped waiting on (its driver cut off long ago): failed, so this one goes in.
   await pool.query(
     "UPDATE desk_runs SET done_at = now(), ok = false, message = 'Cut off before it finished: ask again' WHERE rulebook_id = $1 AND kind = $2 AND done_at IS NULL AND asked_at < now() - interval '15 minutes'",
@@ -634,7 +634,7 @@ export async function queueRulebook(user: SessionUser, id: string, kind: Researc
     [seasonId, runKind, user.id, o.bot ?? null, id, upTo ?? 0]
   );
   if (!rowCount) return { text: `Already asking: ${what}`, waits };
-  await logDesk(pool, { entity: "rulebook", entityId: id, action: "research", text: `${RESEARCH_NAME[kind]}${upTo ? ` through Episode ${upTo}` : ""}: asked our bot`, userId: user.id });
+  await logDesk(pool, { entity: "rulebook", entityId: id, action: "research", text: `${RESEARCH_NAME[kind]}${upTo ? ` up to Episode ${upTo}` : ""}: asked our bot`, userId: user.id });
   after(() => drainDeskRuns(o.origin));
   return { text: waits ? `Queued: ${what}` : `Asking ChatGPT: ${what} · about 2 minutes`, waits };
 }

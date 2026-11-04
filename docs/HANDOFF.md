@@ -28,7 +28,7 @@ never sinks a team, weekly totals differ, and **the same moment gets the same va
 Research section (two rows, each a sheet with **Ask our bot** first and Paste it under it, the shared Ask an AI sheet); asks go
 through the desk's Run now queue (`desk_runs` kinds `rulebook` and `scores`), answers are staged in `rulebook_answers` and wait on
 the row as what they'd change (What scores' as a **pick list**: additions first, then every moment with now and new, a check per row to accept
-or decline, Use N changes puts the accepted ones in the draft; Put away). **Through an episode** (0433): the sheet's stepper, suggested from where
+or decline, Use N changes puts the accepted ones in the draft; Put away). **Up to an episode** (0433): the sheet's stepper, suggested from where
 the admin is on the season, scopes both questions so someone watching a season that's aired isn't told what's later. Scoring is a **ladder** of eleven rungs with
 fixed points (`src/lib/game/formats/rulebook-scores.js` LADDER): the AI only says which rung a moment stands on; the review takes
 the rung's points. The current episode isn't an input (the ladder judges what a moment is); how far the season has got is, for

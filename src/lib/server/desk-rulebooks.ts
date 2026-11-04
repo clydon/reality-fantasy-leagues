@@ -62,7 +62,7 @@ export interface RulebookAnswerCard {
   source: "bot" | "paste";
   by: string | null;
   at: string;
-  /** Asked through this episode only (nothing later is in it), or null for the whole season. */
+  /** Asked up to this episode only (nothing later is in it), or null for the whole season. */
   through: number | null;
   /** "4 changes", "Nothing changed", "2 things to fix before it can be used". */
   title: string;
@@ -542,7 +542,7 @@ export async function rulebookPrompt(id: string, kind: ResearchKind = "check", t
   const upTo = throughArg(through, ctx.episodeCount);
   const now = blocksAt(r.blocks, await inForceEdits(pool, id), Infinity);
   const name = [ctx.show, ctx.season].filter(Boolean).join(" ");
-  const scope = upTo ? ` through Episode ${upTo}` : "";
+  const scope = upTo ? ` up to Episode ${upTo}` : "";
   if (kind === "scores") return { prompt: buildScoresPrompt({ ...ctx, through: upTo, blocks: now }), task: `scoring the moments of ${name}${scope}`, through: upTo };
   return { prompt: buildRulebookPrompt({ show: ctx.show, season: ctx.season, airing: ctx.airing, through: upTo, template: now }), task: `describing how ${name} works${scope}`, through: upTo };
 }
@@ -577,7 +577,7 @@ async function stageAnswer(r: Rulebook, kind: ResearchKind, source: "bot" | "pas
     entity: "rulebook",
     entityId: r.id,
     action: "research",
-    text: `${RESEARCH_NAME[kind]}${through ? ` through Episode ${through}` : ""}, ${source === "bot" ? "our bot's answer" : "a pasted answer"}: ${c.title.toLowerCase()}`,
+    text: `${RESEARCH_NAME[kind]}${through ? ` up to Episode ${through}` : ""}, ${source === "bot" ? "our bot's answer" : "a pasted answer"}: ${c.title.toLowerCase()}`,
     userId: by,
   });
   return { id: rows[0].id, card: c };

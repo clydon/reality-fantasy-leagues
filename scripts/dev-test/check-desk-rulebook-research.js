@@ -13,7 +13,7 @@
 //   4. Settled: Use these changes (its blocks are the page's to draft from), Put away; settled twice refused.
 //   5. Ask our bot: What scores queued, asked (the stand-in gets the scores question), its answer staged; Check for changes the
 //      same (the rulebook question, this rulebook as its template); the bot down refused; a rulebook with no season refused;
-//      asked through Episode 3 (the run's episode, the question's scope, the answer's card).
+//      asked up to Episode 3 (the run's episode, the question's scope, the answer's card).
 //   6. In the browser at --width: the Research rows; What scores' sheet, Ask our bot, asking (the spinner), the answer's
 //      card as it lands (polling) as a pick list (added first, then every moment, two declined), Use 7 changes (the draft has
 //      the seven, Discard); Paste it opens Ask an AI's
@@ -179,9 +179,9 @@ async function main() {
     check(/as a rulebook for a fantasy game/.test(q1.prompt) && /Start from this rulebook/.test(q1.prompt) && q1.prompt.includes('"elimination"') && q1.prompt === qc.prompt && /describing how/.test(qc.task), "Check for changes' question: the rulebook prompt from this rulebook (?prompt=1 is ?prompt=check)");
     check((await as.desk.call("GET", `${P}?prompt=bingo`)).status === 400, "an unknown question refused");
     const q3 = await read(`${P}?prompt=scores&through=3`);
-    check(/Only Episodes 1 to 3 of this season have been watched/.test(q3.prompt) && /first 3 episodes/.test(q3.prompt) && q3.through === 3 && /through Episode 3/.test(q3.task), "What scores through Episode 3: only that far", q3.task);
+    check(/Only Episodes 1 to 3 of this season have been watched/.test(q3.prompt) && /first 3 episodes/.test(q3.prompt) && q3.through === 3 && /up to Episode 3/.test(q3.task), "What scores up to Episode 3: only that far", q3.task);
     const qc3 = await read(`${P}?prompt=check&through=3`);
-    check(/Only Episodes 1 to 3 of this season have been watched/.test(qc3.prompt) && /never add a segment, a twist, a way out or a phase that first appears after it/.test(qc3.prompt), "Check for changes through Episode 3: only that far");
+    check(/Only Episodes 1 to 3 of this season have been watched/.test(qc3.prompt) && /never add a segment, a twist, a way out or a phase that first appears after it/.test(qc3.prompt), "Check for changes up to Episode 3: only that far");
     check(!/have been watched/.test((await read(`${P}?prompt=scores&through=14`)).prompt), "through the last episode: the whole season, no scope");
     check((await as.desk.call("GET", `${P}?prompt=scores&through=15`)).status === 400 && (await as.desk.call("GET", `${P}?prompt=scores&through=0`)).status === 400, "past the last episode, or 0: refused");
 
@@ -201,7 +201,7 @@ async function main() {
     check(r.status === 200, "an answer pasted", JSON.stringify(r.body).slice(0, 200));
     page = r.body;
     const a = page.research.scores.answer;
-    check(!!a && a.source === "paste" && a.by === U("desk") && a.kind === "scores" && a.through === 4, "the answer waits on What scores, from the paste, through Episode 4", JSON.stringify(a && { source: a.source, by: a.by, through: a.through }));
+    check(!!a && a.source === "paste" && a.by === U("desk") && a.kind === "scores" && a.through === 4, "the answer waits on What scores, from the paste, up to Episode 4", JSON.stringify(a && { source: a.source, by: a.by, through: a.through }));
     check((await post({ action: "paste", kind: "scores", answer: paste, through: 40 })).status === 400, "a paste through an episode the season hasn't got: refused");
     const row = (id) => (a.rows || []).find((x) => x.id === id);
     check(row("eliminationWon") && row("eliminationWon").before === 3 && row("eliminationWon").after === 4 && row("eliminationWon").rung === "wonAlone" && row("eliminationWon").changed, "Won the Elimination: 3 -> 4, wonAlone", JSON.stringify(row("eliminationWon")));
@@ -209,7 +209,7 @@ async function main() {
     check(a.added.length === 1 && a.added[0].id === "calledOut" && a.added[0].points === 2, "Called out an opponent added at 2", JSON.stringify(a.added));
     check(a.skipped.length === 2 && /has it: Won the Elimination/.test(a.skipped[0].why) && /names Ava/.test(a.skipped[1].why), "a repeat and a name left out", JSON.stringify(a.skipped));
     check(/moments rescored · 1 moment added/.test(a.title) && a.blocks && a.blocks.points.eliminationWon === 4 && a.blocks.customMoments.some((m) => m.id === "calledOut") && a.problems.length === 0 && a.changes >= 2, "its title, and the blocks to draft from", a.title);
-    check(/What scores through Episode 4, a pasted answer: .*rescored/.test((await history())[0]), "History says so, with the scope", (await history())[0]);
+    check(/What scores up to Episode 4, a pasted answer: .*rescored/.test((await history())[0]), "History says so, with the scope", (await history())[0]);
     // The same question again reads the same, with the answer still waiting.
     check((await read()).research.scores.answer.id === a.id, "the answer is still there on the next read");
     // Check for changes takes a paste beside it.
@@ -271,13 +271,13 @@ async function main() {
     const { rows: runs2 } = await pool.query("SELECT ok, message FROM desk_runs WHERE season_id = $1 ORDER BY asked_at DESC LIMIT 1", [ids.season]);
     check(runs2[0].ok === false && /no JSON object/.test(runs2[0].message) && (await read()).research.scores.answer === null && /it failed/.test((await history())[0]), "an answer it can't read: a failed run, History says so, nothing staged", JSON.stringify(runs2[0]));
 
-    // Asked through Episode 3: the run's episode, the question's scope, the answer's card.
+    // Asked up to Episode 3: the run's episode, the question's scope, the answer's card.
     bot.answer = (prompt, kind) => {
       if (kind === "scores") return scoresAnswer(page.now, "along");
       throw new Error(`not asked here: ${kind}`);
     };
     r = await post({ action: "ask", kind: "scores", through: 3 });
-    check(r.status === 200 && /What scores on .* through Episode 3/.test(r.body.text), "What scores through Episode 3 asked of our bot", JSON.stringify(r.body));
+    check(r.status === 200 && /What scores on .* up to Episode 3/.test(r.body.text), "What scores up to Episode 3 asked of our bot", JSON.stringify(r.body));
     page = await until((p) => !!p.research.scores.answer);
     const b3 = page.research.scores.answer;
     const { rows: run3 } = await pool.query("SELECT episode_number FROM desk_runs WHERE season_id = $1 AND kind = 'scores' ORDER BY asked_at DESC LIMIT 1", [ids.season]);
@@ -307,16 +307,16 @@ async function main() {
     await noWider("the rulebook page");
     await web.locator('[data-desk-row="research-scores"]').click();
     await web.locator('[data-research-sheet="scores"] [data-research-ask]').waitFor({ timeout: 10_000 });
-    check((await web.locator('[data-question="through"] [data-value]').innerText()).trim() === String(aired), "the sheet asks through what's aired", await web.locator('[data-question="through"] [data-value]').innerText());
+    check((await web.locator('[data-question="through"] [data-value]').innerText()).trim() === String(aired), "the sheet asks up to what's aired", await web.locator('[data-question="through"] [data-value]').innerText());
     await web.locator('[data-question="through"] [data-step="-1"]').click();
-    check((await web.locator('[data-question="through"] [data-value]').innerText()).trim() === String(aired - 1) && /Episodes 1 to \d+ only/.test(await web.locator('[data-research-sheet="scores"]').innerText()), "one episode back: reads only that far", await web.locator('[data-research-sheet="scores"]').innerText().then((t) => t.slice(0, 160)));
+    check((await web.locator('[data-question="through"] [data-value]').innerText()).trim() === String(aired - 1) && /up to Episode \d+ only/.test(await web.locator('[data-research-sheet="scores"]').innerText()), "one episode back: reads only that far", await web.locator('[data-research-sheet="scores"]').innerText().then((t) => t.slice(0, 160)));
     await shot("2-what-scores");
     await web.locator('[data-research-ask]').click();
     await web.locator('[data-research-asking]').waitFor({ timeout: 10_000 });
     await shot("3-asking");
     await web.locator('[data-research-answer]').waitFor({ timeout: 30_000 });
     check((await web.locator('[data-score-row="eliminationWon"]').count()) === 1 && (await web.locator('[data-score-added="calledOut"]').count()) === 1, "the answer's card lands in the open sheet: the rescored row and the added moment");
-    check((await web.locator("[data-research-answer]").getAttribute("data-research-through")) === String(aired - 1), "the card carries through which episode it was asked (the sheet's subtitle says so)");
+    check((await web.locator("[data-research-answer]").getAttribute("data-research-through")) === String(aired - 1), "the card carries up to which episode it was asked (the sheet's subtitle says so)");
     // The pick list: added first, then every moment; a row that changes nothing has no pick; Use counts what's accepted.
     const order = await web.locator("[data-score-picks] [data-score-added], [data-score-picks] [data-score-row]").evaluateAll((els) => els.map((e) => e.getAttribute("data-score-added") || e.getAttribute("data-score-row")));
     check(order[0] === "calledOut" && order.length === 1 + moments.length, "added moments first, then every moment", order.join(","));

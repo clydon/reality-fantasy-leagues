@@ -62,13 +62,13 @@ fantasy team."
 - **Not scored means unchanged.** A moment the answer skipped, or put on a rung that doesn't exist, keeps its points, with a
   warning on the card. An unknown id is a warning. A split value (`{ exclusive, shared }`, The Challenge's finalist 3/5)
   takes the rung's number for both, as the editor's stepper does.
-- **Through an episode** (the user, 2026-11-04: someone watching a season that has already aired would be spoiled by the
+- **Up to an episode** (the user, 2026-11-04, "up to a specific episode": someone watching a season that has already aired would be spoiled by the
   moments it finds): both questions take `through`, an episode, and say "Only Episodes 1 to N of this season have been
   watched: search only those episodes' recaps, treat Episode N as the latest aired, never list anything that first appears
-  after it". The sheet has a Through episode stepper, suggested from where the admin is on the season (`seenThrough`), else
+  after it". The sheet has an Up to episode stepper (the app's words, as the couch's "Up to Episode 5"), suggested from where the admin is on the season (`seenThrough`), else
   what's aired, else the lot; the last episode means the whole season and no scope. The run carries it as
   `desk_runs.episode_number` (0: the whole season), the answer as `rulebook_answers.through_episode` (0433), and the card
-  and History say "through Episode N". Past the last episode is refused.
+  and History say "up to Episode N". Past the last episode is refused.
 - **The current episode isn't an input to scoring; the season so far is.** The ladder judges what a moment *is*, never how a season is
   going, so nothing about the week goes into scoring (the user asked whether it should). The prompt does carry how far the
   season has got ("5 of 14 episodes have aired", "recaps of this season's first 5 episodes") and the airing line, read from
