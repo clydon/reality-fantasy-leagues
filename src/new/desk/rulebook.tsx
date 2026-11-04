@@ -1,27 +1,31 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { BookOpen, Check, ChevronRight, Clock, Copy, Plus, X } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { BookOpen, Check, ChevronRight, Clock, ListChecks, Plus, Sparkles, X } from "lucide-react";
 import { OPT, QUESTIONS, TWIST_FIELDS, blockLabel, blocksProblems, camelId, dropMisfitRefinements, labelOf, optionsFor, type RulebookBlocks } from "@/lib/game/formats/rulebook-schema.js";
 import { momentsFor, WAY_POINTS } from "@/lib/game/formats/rulebook-moments.js";
 import { diffBlocks, opLines } from "@/lib/game/formats/rulebook-patch.js";
 import { airTime } from "../clock";
 import { useNav } from "../nav";
 import { paths } from "../routes";
+import { AskAiPasteSheet, type AnswerCheck } from "../backstage/ask-ai";
 import { HowItWorksBody } from "../show/how-it-works";
 import { Btn, Chip } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
-import { deskSend, useAfterDesk, useDesk, type DeskRulebook } from "./data";
-import { Choice, DeskHeader, History, LockRow, Multi, Section, Stepper, Tag, Text } from "./parts";
+import { deskGet, deskSend, useAfterDesk, type DeskRulebook, type ResearchKind, type RulebookAnswerCard } from "./data";
+import { Choice, DeskHeader, DeskRow, History, IconLead, LockRow, Multi, Section, Stepper, Tag, Text, agoOf } from "./parts";
 
 // A rulebook on the desk, as its editor (docs/PLAN-new-design.md step 6b part 2; rulebooks phases 4-6; the mock's
 // rulebook.js adminRulebook, with each part's Override made the part's own questions). The parts are listed as they
 // read now; tapping one opens its editor (the schema's questions and choices: rulebook-schema.js, so the editor, the
 // research prompt and the validator can't drift), changes collect as a draft with a live count of what changed, and
 // Save asks what kind of change it is: Fix a mistake (every couch rescored from the start) or The show changed (from an
-// episode on). Check for changes asks research for the rulebook again and shows what its answer would change. Lock,
-// the Timeline, History, and Save as a starting point. Step 10 part 3 adds Fits these games (rulebook-fits.js gamesFor, what
+// episode on). Research (docs/PLAN-rulebook-research.md): Check for changes asks for the rulebook again, from this one, and
+// What scores asks for every moment's rung on the ladder and what's missing; each is asked of our bot (Ask our bot: queued,
+// the page polls while it asks) or pasted from Ask an AI, and the answer waits on its row as what it would change, to put
+// in the draft or put away. Lock, the Timeline, History, and Save as a starting point. Step 10 part 3 adds Fits these games (rulebook-fits.js gamesFor, what
 // each game needs), Take it over for a rulebook a player made, and a library rulebook's own controls (offered as a starting
 // point or not, Delete while nothing's made from it). Server: src/lib/server/desk-rulebooks.ts and desk-library.ts.
 
@@ -50,7 +54,15 @@ function newId(blocks: RulebookBlocks, name: string) {
 }
 
 export function RulebookPage({ id }: { id: string }) {
-  const q = useDesk<DeskRulebook>(`/rulebooks/${id}`);
+  const path = `/rulebooks/${id}`;
+  const q = useQuery({
+    queryKey: ["new-design", "desk", path],
+    queryFn: () => deskGet<DeskRulebook>(path),
+    staleTime: 15_000,
+    // While our bot answers research: its answer as it lands.
+    refetchInterval: (x) => (x.state.data?.research.check.asking || x.state.data?.research.scores.asking ? 4000 : false),
+    retry: (n, e) => (e as { status?: number }).status !== 403 && (e as { status?: number }).status !== 404 && n < 2,
+  });
   const after = useAfterDesk();
   const nav = useNav();
   const [draft, setDraft] = useState<RulebookBlocks | null>(null);
@@ -58,7 +70,7 @@ export function RulebookPage({ id }: { id: string }) {
   const [editing, setEditing] = useState<Editing | null>(null);
   const [saving, setSaving] = useState(false);
   const [reading, setReading] = useState(false);
-  const [checking, setChecking] = useState(false);
+  const [research, setResearch] = useState<{ kind: ResearchKind; paste: boolean } | null>(null);
   const page = q.data;
   // A new version from the server (a save, an undo) starts the draft again.
   if (page && seenVersion !== page.version) {
@@ -263,9 +275,23 @@ export function RulebookPage({ id }: { id: string }) {
             </button>
           );
         })}
-        <Btn data-check-changes wide className="mt-3" onClick={() => setChecking(true)}>
-          Check for changes
-        </Btn>
+      </Section>
+
+      <Section title="Research">
+        {(["check", "scores"] as const).map((k) => {
+          const st = page.research[k];
+          return (
+            <DeskRow
+              key={k}
+              data={`research-${k}`}
+              onClick={() => setResearch({ kind: k, paste: false })}
+              lead={<IconLead icon={k === "check" ? Sparkles : ListChecks} />}
+              title={RESEARCH[k].title}
+              dot={st.answer ? "need" : undefined}
+              line={st.asking ? `${st.asking} · its answer shows here` : st.answer ? `${st.answer.title} · ${fromWords(st.answer)}` : RESEARCH[k].line}
+            />
+          );
+        })}
       </Section>
 
       {page.notices.length > 0 && (
@@ -397,7 +423,200 @@ export function RulebookPage({ id }: { id: string }) {
           </div>
         </Sheet>
       )}
-      {checking && <CheckSheet id={id} onClose={() => setChecking(false)} onUse={(blocks) => { setDraft(blocks); setChecking(false); toast("Its changes are in your draft: look them over, then save"); }} />}
+      {research && !research.paste && (
+        <ResearchSheet
+          page={page}
+          kind={research.kind}
+          onClose={() => setResearch(null)}
+          onPaste={() => setResearch({ kind: research.kind, paste: true })}
+          onAsk={async () => {
+            const r = (await post({ action: "ask", kind: research.kind }, "")) as { text: string; waits: string | null };
+            toast(r.waits ? `${r.text} · ${r.waits}` : r.text);
+          }}
+          onUse={async (a) => {
+            if (!a.blocks) return;
+            setDraft(a.blocks);
+            setResearch(null);
+            await post({ action: "answer", answer: a.id, status: "used" }, "Its changes are in your draft: look them over, then save");
+          }}
+          onPutAway={(a) => post({ action: "answer", answer: a.id, status: "dismissed" }, "Put away")}
+        />
+      )}
+      {research && (
+        <AskAiPasteSheet
+          open={research.paste}
+          onOpenChange={(o) => !o && setResearch({ kind: research.kind, paste: false })}
+          title={RESEARCH[research.kind].title}
+          subtitle="Ask an AI · about 2 minutes"
+          what={RESEARCH[research.kind].what}
+          check={RESEARCH[research.kind].check}
+          tag={`rulebook-${research.kind}`}
+          question={{ key: ["new-design", "desk-question", id, "rulebook", research.kind], load: () => deskGet<{ prompt: string | null; task: string }>(`${path}?prompt=${research.kind}`) }}
+          onUse={async (text) => {
+            await post({ action: "paste", kind: research.kind, answer: text }, "Its answer is in: look it over");
+            setResearch({ kind: research.kind, paste: false });
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ---------- research: Check for changes, What scores ----------
+
+/** A pasted answer looks whole: JSON with what each question asks for. */
+const looksLike = (key: string): AnswerCheck => (text) =>
+  text.includes("{") && text.includes(`"${key}"`) ? { ok: true, line: "Looks right" } : { ok: false, line: "That doesn't look like the whole answer. Copy all of it, from { to }." };
+
+const RESEARCH: Record<ResearchKind, { title: string; line: string; what: string; check: AnswerCheck }> = {
+  check: {
+    title: "Check for changes",
+    line: "Research describes the show again, starting from this rulebook",
+    what: "Your AI searches the web for how the show works, starting from this rulebook, and answers in a form we read. Paste it back and see what it would change.",
+    check: looksLike("segments"),
+  },
+  scores: {
+    title: "What scores",
+    line: "Every moment on one ladder, and what the show has that's missing",
+    what: "Your AI puts every moment on our ladder (the same moment lands on the same rung every time) and lists what the show has that none of them cover. Paste it back and see what it would change.",
+    check: looksLike("scores"),
+  },
+};
+
+/** A rung's id in words: "wonAlone" -> "won alone". */
+const rungWords = (id: string) => id.replace(/([A-Z])/g, " $1").toLowerCase();
+
+const fromWords = (a: RulebookAnswerCard) => `${a.source === "bot" ? "from our bot" : `pasted${a.by ? ` by ${a.by}` : ""}`} · ${agoOf(a.at)}`;
+
+function ResearchSheet({
+  page,
+  kind,
+  onClose,
+  onPaste,
+  onAsk,
+  onUse,
+  onPutAway,
+}: {
+  page: DeskRulebook;
+  kind: ResearchKind;
+  onClose: () => void;
+  onPaste: () => void;
+  onAsk: () => Promise<void>;
+  onUse: (a: RulebookAnswerCard) => Promise<void>;
+  onPutAway: (a: RulebookAnswerCard) => Promise<unknown>;
+}) {
+  const st = page.research[kind];
+  const a = st.answer;
+  const [busy, setBusy] = useState(false);
+  const run = async (f: () => Promise<unknown>) => {
+    setBusy(true);
+    try {
+      await f();
+    } catch {
+      // said by the toast
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Sheet open onOpenChange={(o) => !o && onClose()} title={RESEARCH[kind].title} subtitle={a ? `An answer ${fromWords(a)}` : RESEARCH[kind].line}>
+      <div data-research-sheet={kind}>
+        {a ? (
+          <div data-research-answer={a.id} className="rounded-[4px] bg-background p-3">
+            <b className="block text-[16px]">{a.title}</b>
+            {a.problems.map((m) => (
+              <small key={m} className="block text-[13px] text-destructive">
+                {m}
+              </small>
+            ))}
+            {kind === "scores" ? (
+              <ScoresLines a={a} />
+            ) : (
+              a.lines.map((l) => (
+                <small key={l} data-change-line className="block text-[13px]">
+                  {l}
+                </small>
+              ))
+            )}
+            {a.warnings.length > 0 && (
+              <small className="mt-1 block text-[13px] text-muted-foreground">
+                {a.warnings.slice(0, 3).join(" · ")}
+                {a.warnings.length > 3 ? ` · and ${a.warnings.length - 3} more` : ""}
+              </small>
+            )}
+            {a.leftOut.length > 0 && <small className="mt-1 block text-[13px] text-muted-foreground">Didn&apos;t fit: {a.leftOut.join(" · ")}</small>}
+            <div className="mt-3 flex gap-2">
+              <Btn data-research-put-away className="w-[34%]" disabled={busy} onClick={() => void run(() => onPutAway(a))}>
+                Put away
+              </Btn>
+              <Btn data-research-use tone="must" className="flex-1" disabled={busy || !a.blocks || !a.changes} onClick={() => void run(() => onUse(a))}>
+                Use these changes
+              </Btn>
+            </div>
+          </div>
+        ) : st.asking ? (
+          <div data-research-asking className="flex items-center gap-3 rounded-[4px] bg-background p-3" aria-live="polite">
+            <span className="size-[26px] flex-none animate-spin rounded-full border-[3px] border-border border-t-foreground motion-reduce:animate-none" aria-hidden />
+            <span className="min-w-0 flex-1">
+              <b className="block text-[15px]">{st.asking}</b>
+              <small className="block text-[13px] text-muted-foreground">You can close this: it carries on, and its answer shows here.</small>
+            </span>
+          </div>
+        ) : (
+          <>
+            {page.research.bot ? (
+              <>
+                <Btn data-research-ask tone="must" wide disabled={busy} onClick={() => void run(onAsk)}>
+                  Ask our bot
+                </Btn>
+                <small className="mt-1.5 block text-[13px] leading-snug text-muted-foreground">ChatGPT searches the web and answers in a form we read. What it would change shows here first; nothing changes until you save.</small>
+              </>
+            ) : (
+              <small className="block text-[13px] leading-snug text-muted-foreground">Our bot asks about a season&apos;s rulebook. For this one, ask an AI yourself and paste its answer.</small>
+            )}
+            <Btn data-research-paste wide className="mt-3" onClick={onPaste}>
+              Paste it
+            </Btn>
+            <small className="mt-1.5 block text-[13px] leading-snug text-muted-foreground">Ask an AI yourself, paste its answer, and look it over.</small>
+          </>
+        )}
+      </div>
+    </Sheet>
+  );
+}
+
+/** What scores' answer: each moment rescored (before, after, its rung), what it adds, and what it left out. */
+function ScoresLines({ a }: { a: RulebookAnswerCard }) {
+  const rows = a.rows ?? [];
+  const changed = rows.filter((r) => r.changed);
+  const same = rows.length - changed.length;
+  return (
+    <div className="mt-1">
+      {changed.map((r) => (
+        <small key={r.id} data-score-row={r.id} className="block text-[13px]">
+          {r.label}: {r.beforeWord} → <b>{r.after}</b>
+          {r.rung ? <span className="text-muted-foreground"> · {rungWords(r.rung)}</span> : null}
+        </small>
+      ))}
+      {same > 0 && (
+        <small className="block text-[13px] text-muted-foreground">
+          {same} {same === 1 ? "moment stays as it is" : "moments stay as they are"}
+        </small>
+      )}
+      {(a.added ?? []).map((m) => (
+        <small key={m.id} data-score-added={m.id} className="block text-[13px]">
+          + {m.label}: <b>{m.points}</b>
+          <span className="text-muted-foreground">
+            {" "}· {rungWords(m.rung)}
+            {m.why ? ` · ${m.why}` : ""}
+          </span>
+        </small>
+      ))}
+      {(a.skipped ?? []).map((x) => (
+        <small key={x.label} className="block text-[13px] text-muted-foreground">
+          Left out: {x.label} ({x.why})
+        </small>
+      ))}
     </div>
   );
 }
@@ -1019,91 +1238,6 @@ function SaveSheet({ page, lines, onClose, onSave }: { page: DeskRulebook; lines
         >
           {kind === "fix" ? "Save the fix" : "Save the change"}
         </Btn>
-      </div>
-    </Sheet>
-  );
-}
-
-// ---------- research: check for changes ----------
-
-function CheckSheet({ id, onClose, onUse }: { id: string; onClose: () => void; onUse: (blocks: RulebookBlocks) => void }) {
-  const prompt = useDesk<{ prompt: string }>(`/rulebooks/${id}?prompt=1`);
-  const [answer, setAnswer] = useState("");
-  const [review, setReview] = useState<{ blocks: RulebookBlocks; problems: { at: string; message: string }[]; warnings: { at: string; message: string }[]; leftOut: string[]; lines: string[]; changes: number } | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  return (
-    <Sheet open onOpenChange={(o) => !o && onClose()} title="Check for changes" subtitle="Research describes the show again, starting from this rulebook">
-      <div data-check-sheet>
-        <ol className="flex flex-col gap-3">
-          <li>
-            <b className="block text-[15px]">1 · Copy the question</b>
-            <small className="block text-[13px] text-muted-foreground">Paste it into any AI chat that can search the web.</small>
-            <Btn
-              data-copy-prompt
-              tone={answer ? "optional" : "must"}
-              wide
-              className="mt-2"
-              disabled={!prompt.data}
-              onClick={async () => {
-                try {
-                  await navigator.clipboard.writeText(prompt.data!.prompt);
-                  toast("Question copied");
-                } catch {
-                  toast.quiet("Couldn't copy here");
-                }
-              }}
-            >
-              <Copy className="size-4" aria-hidden />
-              Copy the question
-            </Btn>
-          </li>
-          <li>
-            <b className="block text-[15px]">2 · Paste the answer</b>
-            <textarea data-check-answer rows={4} value={answer} onChange={(e) => setAnswer(e.target.value)} placeholder="The AI's whole answer" className="mt-2 w-full rounded-[3px] bg-background p-3 text-base outline-1 -outline-offset-1 outline-input" />
-            <Btn
-              data-review
-              wide
-              className="mt-2"
-              disabled={!answer.trim()}
-              onClick={async () => {
-                setError(null);
-                try {
-                  setReview(await deskSend(`/rulebooks/${id}`, { action: "review", answer }));
-                } catch (e) {
-                  setError((e as Error).message);
-                }
-              }}
-            >
-              Review it
-            </Btn>
-          </li>
-        </ol>
-        {error && (
-          <p role="alert" className="mt-2 text-sm text-destructive">
-            {error}
-          </p>
-        )}
-        {review && (
-          <div data-review-result className="mt-4 rounded-[4px] bg-background p-3">
-            <b className="block text-[16px]">{review.problems.length ? `${review.problems.length} ${review.problems.length === 1 ? "thing" : "things"} to fix before it can be used` : review.changes ? `${review.changes} ${review.changes === 1 ? "change" : "changes"} from the rulebook now` : "Nothing changed"}</b>
-            {review.problems.map((p) => (
-              <small key={p.at + p.message} className="block text-[13px] text-destructive">
-                {p.message}
-              </small>
-            ))}
-            {review.lines.map((l) => (
-              <small key={l} data-change-line className="block text-[13px]">
-                {l}
-              </small>
-            ))}
-            {review.leftOut.length > 0 && <small className="mt-1 block text-[13px] text-muted-foreground">Didn&apos;t fit: {review.leftOut.join(" · ")}</small>}
-            {review.changes > 0 && !review.problems.length && (
-              <Btn data-use-review tone="must" wide className="mt-3" onClick={() => onUse(review.blocks)}>
-                Use these changes
-              </Btn>
-            )}
-          </div>
-        )}
       </div>
     </Sheet>
   );

@@ -14,8 +14,9 @@ const http = require("http");
 
 /** What kind of question a prompt is: the quick check, the full research, the schedule check, the rulebook prompt (step
  *  6c part 2: what a show change the couches confirmed adds), or Make it a game's two (step 10 part 2a): how a new show
- *  works ("setup", the rulebook prompt with no change) and who's in it ("cast"); bingo's squares ("bingo") and their check
- *  ("bingoCheck", docs/PLAN-bingo-bank.md step 2). */
+ *  works ("setup", the rulebook prompt with no change: Check for changes on the desk asks it too) and who's in it ("cast");
+ *  bingo's squares ("bingo") and their check ("bingoCheck", docs/PLAN-bingo-bank.md step 2); What scores ("scores",
+ *  docs/PLAN-rulebook-research.md). */
 function kindOf(prompt) {
   if (/These are bingo squares for people watching/.test(prompt)) return "bingoCheck";
   if (/Write \d+ bingo squares/.test(prompt)) return "bingo";
@@ -23,6 +24,7 @@ function kindOf(prompt) {
   if (/Answer two things/.test(prompt) && /Who left the game in this episode/.test(prompt)) return "quick";
   if (/when does episode \d+ air/i.test(prompt)) return "schedule";
   if (/as a rulebook for a fantasy game/.test(prompt)) return /changed how the game is played/.test(prompt) ? "rulebook" : "setup";
+  if (/which rung of the ladder below each moment stands on/.test(prompt)) return "scores";
   if (/List the full starting cast of/.test(prompt)) return "cast";
   return "other";
 }

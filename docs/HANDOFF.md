@@ -21,6 +21,20 @@ and the Neon password rotation (deferred; steps there). Fixed 2026-10-24: the ch
 end); GitHub Actions, stopped since 2026-10-19, runs again. Vercel builds production only (Preview shared
 production's database).
 
+## Research on a rulebook through our bot: Check for changes, What scores (2026-11-04; branch `ccr-dc484e47-2hp97o`, migration 0432)
+The user found the desk rulebook's Check for changes still copy-and-paste only, and asked for a second pass, **What scores**: find
+the moments the rulebook is missing, and score every moment so strong players score high, poor players score low, a poor player
+never sinks a team, weekly totals differ, and **the same moment gets the same value every time**. Built: the rulebook page's
+Research section (two rows, each a sheet with **Ask our bot** first and Paste it under it, the shared Ask an AI sheet); asks go
+through the desk's Run now queue (`desk_runs` kinds `rulebook` and `scores`), answers are staged in `rulebook_answers` and wait on
+the row as what they'd change (Use these changes puts them in the draft; Put away). Scoring is a **ladder** of eleven rungs with
+fixed points (`src/lib/game/formats/rulebook-scores.js` LADDER): the AI only says which rung a moment stands on; the review takes
+the rung's points. The current episode isn't an input (the ladder judges what a moment is); how far the season has got is, for
+finding what's missing. **Read [PLAN-rulebook-research.md](PLAN-rulebook-research.md).** Checks: `tests/rulebook-scores.test.js`,
+`scripts/dev-test/check-desk-rulebook-research.js` (ALL PASS at 390, the stand-in bot); `check-new-desk.js`'s Check for changes
+step moved to the new sheet. **Not asked of the real bot yet** (no bot in that session): the first real What scores pass on The
+Challenge 42 is the user's, from the desk. `browser.js` now runs off Windows too (a cloud session's container).
+
 ## React with a GIF (2026-11-01; branch `reactions`, lane `rfl-reactions`, migration 0162)
 The user found Rate it's stars no fun: an episode's reaction is now **one GIF you search for** (KLIPY, the chat's picker), and
 **Rate it is shelved** (stars, couch verdict, taste twin, rating accolades, Couch verdicts; `episode_ratings` kept). The GIF

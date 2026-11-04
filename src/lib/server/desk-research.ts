@@ -13,6 +13,7 @@ import { SEASON_NAME, logDesk, type DeskLine } from "./desk";
 import { seasonBot, usualReach } from "./desk-bot";
 import { dayGap, fmt, mdIn, plural, timeIn, ymd } from "./desk-dates";
 import { askCastNow } from "./desk-cast-page";
+import { askRulebookNow, RESEARCH_NAME, type ResearchKind } from "./desk-rulebooks";
 import { waitingEpisodes } from "./desk-episode";
 import { deskSetup, type SeasonDelete } from "./desk-setup";
 
@@ -604,6 +605,38 @@ export async function queueCast(user: SessionUser, id: string, o: { bot?: string
   return { text: waits ? `Queued: ${what}` : `Asking ChatGPT for ${what} · about a minute`, waits };
 }
 
+/**
+ * Ask our bot about a rulebook (docs/PLAN-rulebook-research.md): Check for changes (`check`, a run of kind `rulebook`) or
+ * What scores (`scores`), queued like Run now behind whatever's asking, as episode 0 of the rulebook's season; its answer
+ * is staged for the rulebook page's review (desk-rulebooks.ts askRulebookNow). A library rulebook has no season, so no
+ * queue: it takes a paste. The same ask already queued is joined. Answers what it waits behind.
+ */
+export async function queueRulebook(user: SessionUser, id: string, kind: ResearchKind, o: { bot?: string; origin: string }): Promise<{ text: string; waits: string | null }> {
+  if (!isUuid(id)) throw new HttpError(404, "Rulebook not found");
+  const { rows } = await pool.query("SELECT season_id, name FROM rulebooks WHERE id = $1 AND status <> 'archived'", [id]);
+  if (!rows.length) throw new HttpError(404, "Rulebook not found");
+  const seasonId: string | null = rows[0].season_id;
+  if (!seasonId) throw new HttpError(400, "Our bot asks about a season's rulebook. Ask an AI yourself and paste its answer here.");
+  if (!(await askBotStatus({ bot: o.bot })).available) throw new HttpError(503, "Our bot isn't answering right now. Try again in a while, or paste it.");
+  const runKind = kind === "scores" ? "scores" : "rulebook";
+  const what = `${RESEARCH_NAME[kind]} on ${rows[0].name}`;
+  // An ask the page stopped waiting on (its driver cut off long ago): failed, so this one goes in.
+  await pool.query(
+    "UPDATE desk_runs SET done_at = now(), ok = false, message = 'Cut off before it finished: ask again' WHERE rulebook_id = $1 AND kind = $2 AND done_at IS NULL AND asked_at < now() - interval '15 minutes'",
+    [id, runKind]
+  );
+  const waits = await waitLine(seasonId);
+  const { rowCount } = await pool.query(
+    `INSERT INTO desk_runs (season_id, episode_number, kind, asked_by, bot, rulebook_id) VALUES ($1, 0, $2, $3, $4, $5)
+     ON CONFLICT (season_id, kind, episode_number, for_season) WHERE done_at IS NULL DO NOTHING`,
+    [seasonId, runKind, user.id, o.bot ?? null, id]
+  );
+  if (!rowCount) return { text: `Already asking: ${what}`, waits };
+  await logDesk(pool, { entity: "rulebook", entityId: id, action: "research", text: `${RESEARCH_NAME[kind]}: asked our bot`, userId: user.id });
+  after(() => drainDeskRuns(o.origin));
+  return { text: waits ? `Queued: ${what}` : `Asking ChatGPT: ${what} · about 2 minutes`, waits };
+}
+
 /** A queue nobody's driving (its driver was cut off): a page's read takes it over, after its answer (as Research's read does). */
 export async function takeOverQueue(origin: string, now = new Date()): Promise<void> {
   const { rows } = await pool.query("SELECT driven_at FROM desk_runs WHERE done_at IS NULL ORDER BY asked_at, id LIMIT 1");
@@ -676,6 +709,12 @@ export async function drainDeskRuns(origin: string): Promise<void> {
     // The cast (part 5a): our bot's answer is staged for the Cast page's review, not filed as a run's result.
     if (head.kind === "cast") {
       const c = await askCastNow(head.season_id, head.asked_by, bot, 280_000);
+      await done(c.ok, c.message);
+      return handOn(origin);
+    }
+    // A rulebook's research (Check for changes, What scores): staged for the rulebook page's review, the same way.
+    if (head.kind === "rulebook" || head.kind === "scores") {
+      const c = head.rulebook_id ? await askRulebookNow(head.rulebook_id, head.kind === "scores" ? "scores" : "check", head.asked_by, bot, 280_000) : { ok: false, message: "The rulebook's gone" };
       await done(c.ok, c.message);
       return handOn(origin);
     }
