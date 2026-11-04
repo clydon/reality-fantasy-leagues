@@ -32,8 +32,8 @@ fixed points (`src/lib/game/formats/rulebook-scores.js` LADDER): the AI only say
 the rung's points. The current episode isn't an input (the ladder judges what a moment is); how far the season has got is, for
 finding what's missing. **Read [PLAN-rulebook-research.md](PLAN-rulebook-research.md).** Checks: `tests/rulebook-scores.test.js`,
 `scripts/dev-test/check-desk-rulebook-research.js` (ALL PASS at 390, the stand-in bot); `check-new-desk.js`'s Check for changes
-step moved to the new sheet. **Not asked of the real bot yet** (no bot in that session): the first real What scores pass on The
-Challenge 42 is the user's, from the desk. `browser.js` now runs off Windows too (a cloud session's container).
+step moved to the new sheet. **Live 2026-11-04** (`ae013ef`, master, the user's go-ahead). **Not asked of the real bot yet** (no bot in
+that session): the first real What scores pass on The Challenge 42 is the user's, from the desk. `browser.js` now runs off Windows too (a cloud session's container).
 
 ## React with a GIF (2026-11-01; branch `reactions`, lane `rfl-reactions`, migration 0162)
 The user found Rate it's stars no fun: an episode's reaction is now **one GIF you search for** (KLIPY, the chat's picker), and

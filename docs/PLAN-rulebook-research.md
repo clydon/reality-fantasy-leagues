@@ -3,7 +3,7 @@
 **Status:** built 2026-11-04 on branch `ccr-dc484e47-2hp97o`, migration 0432. Checked: `tests/rulebook-scores.test.js`,
 `scripts/dev-test/check-desk-rulebook-research.js` (ALL PASS at 390), `check-new-desk.js` (101 PASS; its Check for changes
 step moved to the new sheet, and its rulebook versions read from the database: confirming a phase and undoing it each move
-the version, so the hard-coded 2, 3 and 4 had drifted). Not yet live.
+the version, so the hard-coded 2, 3 and 4 had drifted). **Live 2026-11-04** (`ae013ef`, pushed to master as a fast-forward with the user's go-ahead).
 
 ## Why
 
