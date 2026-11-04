@@ -14,6 +14,7 @@
 //   buildScoresPrompt({ show, season, airing, aired, episodeCount, blocks })   the question
 //   parseScoresAnswer(text)                                                     the JSON object in a chat's answer
 //   reviewScores(answer, blocks, { castNames })                                 what it would change, as blocks and rows
+//   pickScores(blocks, review, declined)                                        the changes picked, as blocks
 //
 // Plain CommonJS, browser-safe, like everything in formats/.
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see index.js */
@@ -263,4 +264,30 @@ function reviewScores(answer, blocks, { castNames = [] } = {}) {
   return { blocks: b, rows, added, skipped, problems: blocksProblems(b), warnings, leftOut, lines: opLines(ops, blocks, b), changes: ops.length };
 }
 
-module.exports = { LADDER, PER_UNIT, buildScoresPrompt, parseScoresAnswer, reviewScores };
+/**
+ * The review's changes, only the ones picked (the desk's pick list: new moments first, then every moment with its value now
+ * and proposed, each accepted or declined): `declined` is the ids left out, a moment's or an added moment's. Everything
+ * else stays as `blocks` has it. `review` is reviewScores' (or the page's card: rows, added, blocks).
+ */
+function pickScores(blocks, review, declined = []) {
+  const skip = new Set(declined);
+  const b = clone(isObj(blocks) ? blocks : {});
+  const from = isObj(review && review.blocks) ? review.blocks : {};
+  const fromPoints = isObj(from.points) ? from.points : {};
+  const points = isObj(b.points) ? b.points : {};
+  for (const r of list(review && review.rows)) if (r.changed && !skip.has(r.id) && Object.prototype.hasOwnProperty.call(fromPoints, r.id)) points[r.id] = fromPoints[r.id];
+  const customs = list(b.customMoments);
+  for (const m of list(review && review.added)) {
+    if (skip.has(m.id) || customs.some((x) => x.id === m.id)) continue;
+    const made = list(from.customMoments).find((x) => x.id === m.id);
+    if (!made) continue;
+    customs.push(clone(made));
+    if (Object.prototype.hasOwnProperty.call(fromPoints, m.id)) points[m.id] = fromPoints[m.id];
+  }
+  if (customs.length) b.customMoments = customs;
+  if (Object.keys(points).length) b.points = points;
+  else delete b.points;
+  return b;
+}
+
+module.exports = { LADDER, PER_UNIT, buildScoresPrompt, parseScoresAnswer, reviewScores, pickScores };

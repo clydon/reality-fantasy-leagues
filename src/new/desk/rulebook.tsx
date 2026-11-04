@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { BookOpen, Check, ChevronRight, Clock, ListChecks, Plus, Sparkles, X } from "lucide-react";
 import { OPT, QUESTIONS, TWIST_FIELDS, blockLabel, blocksProblems, camelId, dropMisfitRefinements, labelOf, optionsFor, type RulebookBlocks } from "@/lib/game/formats/rulebook-schema.js";
 import { momentsFor, WAY_POINTS } from "@/lib/game/formats/rulebook-moments.js";
+import { pickScores } from "@/lib/game/formats/rulebook-scores.js";
 import { diffBlocks, opLines } from "@/lib/game/formats/rulebook-patch.js";
 import { airTime } from "../clock";
 import { useNav } from "../nav";
@@ -433,9 +434,8 @@ export function RulebookPage({ id }: { id: string }) {
             const r = (await post({ action: "ask", kind: research.kind }, "")) as { text: string; waits: string | null };
             toast(r.waits ? `${r.text} · ${r.waits}` : r.text);
           }}
-          onUse={async (a) => {
-            if (!a.blocks) return;
-            setDraft(a.blocks);
+          onUse={async (a, blocks) => {
+            setDraft(blocks);
             setResearch(null);
             await post({ action: "answer", answer: a.id, status: "used" }, "Its changes are in your draft: look them over, then save");
           }}
@@ -502,12 +502,23 @@ function ResearchSheet({
   onClose: () => void;
   onPaste: () => void;
   onAsk: () => Promise<void>;
-  onUse: (a: RulebookAnswerCard) => Promise<void>;
+  /** Use: the answer, and the rulebook with the changes picked from it. */
+  onUse: (a: RulebookAnswerCard, blocks: RulebookBlocks) => Promise<void>;
   onPutAway: (a: RulebookAnswerCard) => Promise<unknown>;
 }) {
   const st = page.research[kind];
   const a = st.answer;
   const [busy, setBusy] = useState(false);
+  // What scores: the rows declined (by moment id), reset with each answer. Check for changes goes in whole.
+  const [declined, setDeclined] = useState<{ answer: string; ids: string[] }>({ answer: "", ids: [] });
+  const dropped = a && declined.answer === a.id ? declined.ids : [];
+  const toggle = (id: string) => a && setDeclined({ answer: a.id, ids: dropped.includes(id) ? dropped.filter((x) => x !== id) : [...dropped, id] });
+  const picked = a && a.blocks && kind === "scores" ? (a.rows ?? []).filter((r) => r.changed && !dropped.includes(r.id)).length + (a.added ?? []).filter((m) => !dropped.includes(m.id)).length : (a?.changes ?? 0);
+  const use = async () => {
+    if (!a || !a.blocks) return;
+    const blocks = kind === "scores" ? pickScores(page.now, { rows: a.rows ?? [], added: a.added ?? [], blocks: a.blocks }, dropped) : a.blocks;
+    await onUse(a, blocks);
+  };
   const run = async (f: () => Promise<unknown>) => {
     setBusy(true);
     try {
@@ -530,7 +541,7 @@ function ResearchSheet({
               </small>
             ))}
             {kind === "scores" ? (
-              <ScoresLines a={a} />
+              <ScoresPicks a={a} declined={dropped} onToggle={toggle} />
             ) : (
               a.lines.map((l) => (
                 <small key={l} data-change-line className="block text-[13px]">
@@ -549,8 +560,8 @@ function ResearchSheet({
               <Btn data-research-put-away className="w-[34%]" disabled={busy} onClick={() => void run(() => onPutAway(a))}>
                 Put away
               </Btn>
-              <Btn data-research-use tone="must" className="flex-1" disabled={busy || !a.blocks || !a.changes} onClick={() => void run(() => onUse(a))}>
-                Use these changes
+              <Btn data-research-use tone="must" className="flex-1" disabled={busy || !a.blocks || !picked} onClick={() => void run(use)}>
+                {kind === "scores" && a.blocks ? `Use ${picked} ${picked === 1 ? "change" : "changes"}` : "Use these changes"}
               </Btn>
             </div>
           </div>
@@ -585,35 +596,78 @@ function ResearchSheet({
   );
 }
 
-/** What scores' answer: each moment rescored (before, after, its rung), what it adds, and what it left out. */
-function ScoresLines({ a }: { a: RulebookAnswerCard }) {
+/**
+ * What scores' answer as a pick list: the moments it adds first (each with its proposed value), then every moment with its
+ * value now and the proposed one; a row that changes something is accepted until tapped off. A row the answer leaves as it
+ * is has nothing to pick.
+ */
+function ScoresPicks({ a, declined, onToggle }: { a: RulebookAnswerCard; declined: string[]; onToggle: (id: string) => void }) {
   const rows = a.rows ?? [];
-  const changed = rows.filter((r) => r.changed);
-  const same = rows.length - changed.length;
+  const added = a.added ?? [];
+  const pick = (id: string, label: string) => {
+    const on = !declined.includes(id);
+    return (
+      <button
+        type="button"
+        data-pick={id}
+        data-on={on ? "" : undefined}
+        role="checkbox"
+        aria-checked={on}
+        aria-label={`${on ? "Accept" : "Declined:"} ${label}`}
+        onClick={() => onToggle(id)}
+        className={`grid size-9 flex-none place-items-center rounded-[3px] ${on ? "bg-chyron text-chyron-foreground" : "bg-background text-muted-foreground outline-1 -outline-offset-1 outline-input"}`}
+      >
+        {on ? <Check className="size-5" strokeWidth={2.6} aria-hidden /> : <X className="size-4" aria-hidden />}
+      </button>
+    );
+  };
+  const head = (left: string) => (
+    <div className="mt-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground first:mt-0">
+      <span className="min-w-0 flex-1">{left}</span>
+      <span className="w-10 text-right">Now</span>
+      <span className="w-10 text-right">New</span>
+      <span className="w-9" />
+    </div>
+  );
   return (
-    <div className="mt-1">
-      {changed.map((r) => (
-        <small key={r.id} data-score-row={r.id} className="block text-[13px]">
-          {r.label}: {r.beforeWord} → <b>{r.after}</b>
-          {r.rung ? <span className="text-muted-foreground"> · {rungWords(r.rung)}</span> : null}
-        </small>
-      ))}
-      {same > 0 && (
-        <small className="block text-[13px] text-muted-foreground">
-          {same} {same === 1 ? "moment stays as it is" : "moments stay as they are"}
-        </small>
-      )}
-      {(a.added ?? []).map((m) => (
-        <small key={m.id} data-score-added={m.id} className="block text-[13px]">
-          + {m.label}: <b>{m.points}</b>
-          <span className="text-muted-foreground">
-            {" "}· {rungWords(m.rung)}
-            {m.why ? ` · ${m.why}` : ""}
-          </span>
-        </small>
-      ))}
+    <div data-score-picks className="mt-2">
+      {added.length > 0 && head("Added")}
+      {added.map((m) => {
+        const on = !declined.includes(m.id);
+        return (
+          <div key={m.id} data-score-added={m.id} data-declined={on ? undefined : ""} className={`flex min-h-11 items-center gap-2 border-t border-border py-1.5 ${on ? "" : "opacity-60"}`}>
+            <span className="min-w-0 flex-1">
+              <b className="block text-[14px] leading-snug">{m.label}</b>
+              <small className="block text-[12px] leading-snug text-muted-foreground">
+                {rungWords(m.rung)}
+                {m.why ? ` · ${m.why}` : ""}
+              </small>
+            </span>
+            <span className="w-10 text-right text-[14px] text-muted-foreground">—</span>
+            <b className="type-num w-10 text-right text-[16px]">{m.points}</b>
+            {pick(m.id, m.label)}
+          </div>
+        );
+      })}
+      {rows.length > 0 && head("Moments")}
+      {rows.map((r) => {
+        const on = !declined.includes(r.id);
+        return (
+          <div key={r.id} data-score-row={r.id} data-same={r.changed ? undefined : ""} data-declined={r.changed && !on ? "" : undefined} className={`flex min-h-11 items-center gap-2 border-t border-border py-1.5 ${r.changed && !on ? "opacity-60" : ""}`}>
+            <span className="min-w-0 flex-1">
+              <b className={`block text-[14px] leading-snug ${r.changed ? "" : "font-normal text-muted-foreground"}`}>{r.label}</b>
+              {r.changed && r.rung && <small className="block text-[12px] leading-snug text-muted-foreground">{rungWords(r.rung)}</small>}
+            </span>
+            <span className="type-num w-10 text-right text-[14px] text-muted-foreground" title={r.beforeWord}>
+              {r.before}
+            </span>
+            <b className={`type-num w-10 text-right text-[16px] ${r.changed ? "" : "font-normal text-muted-foreground"}`}>{r.changed ? r.after : "·"}</b>
+            {r.changed ? pick(r.id, r.label) : <span className="w-9" aria-hidden />}
+          </div>
+        );
+      })}
       {(a.skipped ?? []).map((x) => (
-        <small key={x.label} className="block text-[13px] text-muted-foreground">
+        <small key={x.label} className="mt-1 block text-[13px] text-muted-foreground">
           Left out: {x.label} ({x.why})
         </small>
       ))}

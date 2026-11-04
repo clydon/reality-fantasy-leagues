@@ -31,6 +31,12 @@ fantasy team."
   driver asks the bot (`desk-rulebooks.ts askRulebookNow`), reads the answer (an answer with no JSON object is a failed run,
   History says so, nothing staged), and stages it in **`rulebook_answers`** (0432). The page polls every 4 s while a run is
   open; the sheet can be closed meanwhile ("it carries on, and its answer shows here").
+- **What scores' answer is a pick list** (the user, 2026-11-04, after the first version showed it as lines): the moments it
+  adds first, each with its proposed value, then every existing moment with its value now and the proposed one; a row that
+  changes something has a check to accept or decline (accepted to start), a row the answer leaves as it is has nothing to
+  pick, and the button counts what's accepted ("Use 7 changes"). Only the accepted rows go into the draft
+  (`rulebook-scores.js pickScores(blocks, review, declined)`: declined ids stay as the rulebook has them; tested). Check for
+  changes still goes in whole: its answer is a rulebook, not a list.
 - **The answer waits on its row.** The latest unsettled answer of each kind is reviewed on every read of the page (the
   review is pure and cheap) and shown as what it would change: the row carries the title and a dot; the sheet shows the card
   with **Use these changes** (the blocks go into the draft, to save as a fix or a show change as any edit; the answer is
@@ -80,8 +86,8 @@ fantasy team."
 - **Data:** 0432 `rulebook_answers` (rulebook, kind, source, answer, by, settled at/by/as) and `desk_runs.rulebook_id`, the
   kind check widened.
 - **Client:** `rulebook.tsx`: the page polls while asking; the Research section; `ResearchSheet` (the card, asking, or Ask
-  our bot and Paste it); `ScoresLines` (each rescored moment "3 → 4 · won alone", how many stay, "+ Called out an opponent:
-  2 · earned · why", Left out). `data.ts` re-exports the types.
+  our bot and Paste it); `ScoresPicks` (the pick list: Added, then Moments, columns Now and New, a check per changing row;
+  Left out under it). `data.ts` re-exports the types.
 - **Stand-in bot:** `fake-bot.js` knows the scores question (`kind: "scores"`); Check for changes is `setup` (the rulebook
   prompt with a template, no change).
 - **Browser helper:** `browser.js` runs off Windows too (Playwright from `require`, Chromium from `PLAYWRIGHT_CHROME` or
@@ -94,7 +100,7 @@ fantasy team."
 - `node scripts/dev-test/check-desk-rulebook-research.js <outDir> [--width=390] [--keep]`: its own fixture (zt_rr_, the ZT RR
   Show on The Challenge's rules, a library rulebook), the stand-in bot: refusals, both questions, pastes (refused, staged,
   settled), Ask our bot for both (queued, asked, landed; the bot down; a library rulebook; an unreadable answer), and the
-  browser (the rows, the sheet, asking, the card landing, Use these changes, Paste it).
+  browser (the rows, the sheet, asking, the card landing as a pick list, two rows declined, Use 7 changes, Paste it).
 - `check-new-desk.js`'s Check for changes step goes through the new sheet and Ask an AI's paste.
 
 ## Open

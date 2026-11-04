@@ -49,3 +49,5 @@ export interface ScoresReview {
 export function buildScoresPrompt(opts: { show: string; season?: string; airing?: boolean; aired?: number; episodeCount?: number | null; blocks: RulebookBlocks }): string;
 export function parseScoresAnswer(answer: string): Record<string, unknown>;
 export function reviewScores(answer: unknown, blocks: RulebookBlocks, opts?: { castNames?: string[] }): ScoresReview;
+/** The review's changes with `declined` ids (moments or added moments) left out, applied to `blocks`. */
+export function pickScores(blocks: RulebookBlocks, review: Pick<ScoresReview, "rows" | "added" | "blocks">, declined?: string[]): RulebookBlocks;

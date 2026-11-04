@@ -142,3 +142,33 @@ test("a chat's chatter around the JSON is fine, and no JSON at all is said plain
   assert.equal(r.rows.length, momentsFor(survivor()).length);
   assert.ok(r.rows.every((x) => !x.changed));
 });
+
+test("picking: declined rows and additions stay as they are, the rest go in, and nothing picked changes nothing", () => {
+  const blocks = challenge();
+  const scores = Object.fromEntries(momentsFor(blocks).map((m) => [m.id, { rung: "edge" }]));
+  scores.eliminationWon = { rung: "wonAlone" };
+  scores.eliminated = { rung: "out" };
+  const r = S.reviewScores(
+    {
+      schema: 1,
+      scores,
+      add: [
+        { id: "calledOut", label: "Called out an opponent", rung: "earned", counted: "yesNo", answeredBy: "research", reliability: "usually" },
+        { id: "threwADrink", label: "Threw a drink", rung: "slip", counted: "eachTime", answeredBy: "league" },
+      ],
+    },
+    blocks
+  );
+  const picked = S.pickScores(blocks, r, ["eliminated", "threwADrink"]);
+  assert.equal(picked.points.eliminationWon, 4, "accepted: the rung's points");
+  assert.equal(picked.points.eliminated, undefined, "declined: no override written");
+  assert.equal(momentsFor(picked).find((m) => m.id === "eliminated").defaultPoints, -3, "declined: worth what it was");
+  assert.deepEqual(picked.points.finalist, { exclusive: 1, shared: 1 }, "an accepted split value, flattened as the review has it");
+  assert.ok(picked.customMoments.some((m) => m.id === "calledOut") && picked.points.calledOut === 2, "an accepted addition joins with its points");
+  assert.ok(!picked.customMoments.some((m) => m.id === "threwADrink") && picked.points.threwADrink === undefined, "a declined addition doesn't");
+  assert.equal(picked.customMoments.length, blocks.customMoments.length + 1);
+  // Nothing declined is the review's own blocks; everything declined is the rulebook as it was.
+  assert.deepEqual(S.pickScores(blocks, r), r.blocks);
+  assert.deepEqual(S.pickScores(blocks, r, [...r.rows.map((x) => x.id), ...r.added.map((x) => x.id)]), blocks);
+  assert.deepEqual(blocks, challenge(), "the rulebook given isn't touched");
+});

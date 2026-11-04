@@ -13,7 +13,8 @@
 //   5. Ask our bot: What scores queued, asked (the stand-in gets the scores question), its answer staged; Check for changes the
 //      same (the rulebook question, this rulebook as its template); the bot down refused; a rulebook with no season refused.
 //   6. In the browser at --width: the Research rows; What scores' sheet, Ask our bot, asking (the spinner), the answer's
-//      card as it lands (polling), Use these changes (unsaved changes in the draft, Discard); Paste it opens Ask an AI's
+//      card as it lands (polling) as a pick list (added first, then every moment, two declined), Use 7 changes (the draft has
+//      the seven, Discard); Paste it opens Ask an AI's
 //      sheet. Nothing wider than the screen; no page errors.
 //   7. Nothing real moved: no real rulebook's answers or runs.
 // Screenshots go to <outDir>.
@@ -261,7 +262,8 @@ async function main() {
 
     // 6. In the browser.
     bot.answer = (prompt, kind) => {
-      if (kind === "scores") return scoresAnswer(page.now, "edge", { except: { eliminationWon: "wonAlone" }, add: [{ id: "calledOut", label: "Called out an opponent", rung: "earned", why: "rare", counted: "yesNo", answeredBy: "research", reliability: "usually" }] });
+      // Everything on edge (1) but the elimination (4) and medically removed (nothing: as it is), plus one added: 8 moments change.
+      if (kind === "scores") return scoresAnswer(page.now, "edge", { except: { eliminationWon: "wonAlone", medicallyRemoved: "nothing" }, add: [{ id: "calledOut", label: "Called out an opponent", rung: "earned", why: "rare", counted: "yesNo", answeredBy: "research", reliability: "usually" }] });
       throw new Error(`not asked here: ${kind}`);
     };
     const { page: web, errors, close } = await open({ user: U("desk"), pass: PASSWORD, width, headers });
@@ -285,12 +287,23 @@ async function main() {
     await shot("3-asking");
     await web.locator('[data-research-answer]').waitFor({ timeout: 30_000 });
     check((await web.locator('[data-score-row="eliminationWon"]').count()) === 1 && (await web.locator('[data-score-added="calledOut"]').count()) === 1, "the answer's card lands in the open sheet: the rescored row and the added moment");
+    // The pick list: added first, then every moment; a row that changes nothing has no pick; Use counts what's accepted.
+    const order = await web.locator("[data-score-picks] [data-score-added], [data-score-picks] [data-score-row]").evaluateAll((els) => els.map((e) => e.getAttribute("data-score-added") || e.getAttribute("data-score-row")));
+    check(order[0] === "calledOut" && order.length === 1 + moments.length, "added moments first, then every moment", order.join(","));
+    check((await web.locator('[data-score-row="medicallyRemoved"][data-same]').count()) === 1 && (await web.locator('[data-score-row="medicallyRemoved"] [data-pick]').count()) === 0, "a moment left as it is has nothing to pick");
+    check((await web.locator("[data-pick][data-on]").count()) === 9 && /Use 9 changes/.test(await web.locator("[data-research-use]").innerText()), "every change accepted to start: Use 9 changes", await web.locator("[data-research-use]").innerText());
+    await web.locator('[data-pick="calledOut"]').click();
+    await web.locator('[data-pick="eliminated"]').click();
+    check((await web.locator('[data-score-added="calledOut"][data-declined]').count()) === 1 && /Use 7 changes/.test(await web.locator("[data-research-use]").innerText()), "two declined: Use 7 changes", await web.locator("[data-research-use]").innerText());
     await shot("4-answer");
     await noWider("the answer's sheet");
     await web.locator('[data-research-use]').click();
     await web.locator('[data-unsaved]').waitFor({ timeout: 10_000 });
     await web.locator('[data-desk-row="research-scores"] [data-off]').waitFor({ state: "detached", timeout: 10_000 });
-    check((await web.locator('[data-research-sheet]').count()) === 0 && (await web.locator('[data-desk-row="research-scores"] [data-off]').count()) === 0, "Use these changes: the sheet closes, the draft has its changes, the row's dot is gone");
+    check((await web.locator('[data-research-sheet]').count()) === 0 && (await web.locator('[data-desk-row="research-scores"] [data-off]').count()) === 0, "Use 7 changes: the sheet closes, the draft has its changes, the row's dot is gone");
+    // The draft's footer counts edits (every point change is one), so the seven picked read as one line of seven moments.
+    const unsaved = await web.locator("[data-unsaved]").innerText();
+    check(/Suggested points: 7 moments/.test(unsaved) && !/New moment/.test(unsaved), "the draft has the 7 picked points, not the declined one or the declined addition", unsaved);
     await shot("5-draft");
     await web.locator('[data-discard]').click();
     await web.locator('[data-unsaved]').waitFor({ state: "detached", timeout: 10_000 });
