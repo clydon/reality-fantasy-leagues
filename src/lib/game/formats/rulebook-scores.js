@@ -11,7 +11,7 @@
 //   totals differ              what most of the field gets each week (along, edge) is 0.5 or 1; what one or two people
 //                              get (earned and up) is 2 or more, so weekly totals spread instead of bunching
 //
-//   buildScoresPrompt({ show, season, airing, aired, episodeCount, blocks })   the question
+//   buildScoresPrompt({ show, season, airing, aired, episodeCount, through, blocks })   the question (`through`: only that far)
 //   parseScoresAnswer(text)                                                     the JSON object in a chat's answer
 //   reviewScores(answer, blocks, { castNames })                                 what it would change, as blocks and rows
 //   pickScores(blocks, review, declined)                                        the changes picked, as blocks
@@ -70,14 +70,17 @@ const choices = (key) => OPT[key].map(([v, label, help]) => `"${v}" (${label}${h
  * The What scores question: the show, how it's played, every moment with where it comes from and what it's worth now,
  * the ladder, then the shape of the answer. `aired` and `episodeCount` point the search at the episodes so far.
  */
-function buildScoresPrompt({ show, season, airing = false, aired = 0, episodeCount = null, blocks } = {}) {
+function buildScoresPrompt({ show, season, airing = false, aired = 0, episodeCount = null, through = null, blocks } = {}) {
   const b = isObj(blocks) ? blocks : {};
+  // Through an episode: only that far is read, so nothing later is given away (someone watching a season that's aired).
+  const upTo = Number.isInteger(through) && through > 0 && !(episodeCount && through >= episodeCount) ? through : null;
+  const seen = upTo ?? aired;
   const what = [show, season].filter(Boolean).join(', ') || 'this TV show';
   const part = partWord(b).singular;
   const moments = momentsFor(b);
   const parts = [];
   parts.push(
-    `These are the moments of ${what} that score in a fantasy game people play along with at home: things one person can do in ${aPart(part)} to earn or lose points. Answer two things: what the show has that none of these moments cover, and which rung of the ladder below each moment stands on. Search the web first: the show's wiki, its network's pages, and recaps${aired ? ` of this season's ${aired === 1 ? 'first episode' : `first ${aired} episodes`}` : ''}. Then answer with ONE JSON object in the shape at the end. Nothing after the JSON.`,
+    `These are the moments of ${what} that score in a fantasy game people play along with at home: things one person can do in ${aPart(part)} to earn or lose points. Answer two things: what the show has that none of these moments cover, and which rung of the ladder below each moment stands on. Search the web first: the show's wiki, its network's pages, and recaps${seen ? ` of this season's ${seen === 1 ? 'first episode' : `first ${seen} episodes`}` : ''}. Then answer with ONE JSON object in the shape at the end. Nothing after the JSON.`,
     '',
     'Four rules:',
     "1. No names and no results, anywhere. People read this before they've watched: never name anyone in the cast, and never say what happened in a particular episode. Describe what can happen, not what happened.",
@@ -96,6 +99,7 @@ function buildScoresPrompt({ show, season, airing = false, aired = 0, episodeCou
   for (const w of list(b.waysOut)) parts.push(`- Way out: ${w.name}`);
   if (b.season && b.season.finale && b.season.finale.summary) parts.push(`- The finale: ${b.season.finale.summary}`);
   if (airing) parts.push(`This season is still airing${aired ? `: ${aired}${episodeCount ? ` of ${episodeCount}` : ''} ${aired === 1 ? 'episode has' : 'episodes have'} aired` : ''}. Describe what can happen, as the show has set it up and aired so far.`);
+  if (upTo) parts.push(`Only Episodes 1 to ${upTo} of this season have been watched. Search only those episodes' recaps, treat Episode ${upTo} as the latest aired, and never list or describe a moment, a twist or a way out that first appears after Episode ${upTo}.`);
   parts.push('', `The moments, each with its id, where it comes from, how it's counted, who answers it, and what it's worth now:`);
   for (const m of moments) {
     const how = m.ask && m.ask.type === 'integer' && !m.ask.when ? 'each time' : m.ask && m.ask.type === 'number' ? 'per unit' : 'once';

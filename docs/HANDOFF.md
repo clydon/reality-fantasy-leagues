@@ -21,14 +21,15 @@ and the Neon password rotation (deferred; steps there). Fixed 2026-10-24: the ch
 end); GitHub Actions, stopped since 2026-10-19, runs again. Vercel builds production only (Preview shared
 production's database).
 
-## Research on a rulebook through our bot: Check for changes, What scores (2026-11-04; branch `ccr-dc484e47-2hp97o`, migration 0432)
+## Research on a rulebook through our bot: Check for changes, What scores (2026-11-04; branch `ccr-dc484e47-2hp97o`, migrations 0432, 0433)
 The user found the desk rulebook's Check for changes still copy-and-paste only, and asked for a second pass, **What scores**: find
 the moments the rulebook is missing, and score every moment so strong players score high, poor players score low, a poor player
 never sinks a team, weekly totals differ, and **the same moment gets the same value every time**. Built: the rulebook page's
 Research section (two rows, each a sheet with **Ask our bot** first and Paste it under it, the shared Ask an AI sheet); asks go
 through the desk's Run now queue (`desk_runs` kinds `rulebook` and `scores`), answers are staged in `rulebook_answers` and wait on
 the row as what they'd change (What scores' as a **pick list**: additions first, then every moment with now and new, a check per row to accept
-or decline, Use N changes puts the accepted ones in the draft; Put away). Scoring is a **ladder** of eleven rungs with
+or decline, Use N changes puts the accepted ones in the draft; Put away). **Through an episode** (0433): the sheet's stepper, suggested from where
+the admin is on the season, scopes both questions so someone watching a season that's aired isn't told what's later. Scoring is a **ladder** of eleven rungs with
 fixed points (`src/lib/game/formats/rulebook-scores.js` LADDER): the AI only says which rung a moment stands on; the review takes
 the rung's points. The current episode isn't an input (the ladder judges what a moment is); how far the season has got is, for
 finding what's missing. **Read [PLAN-rulebook-research.md](PLAN-rulebook-research.md).** Checks: `tests/rulebook-scores.test.js`,

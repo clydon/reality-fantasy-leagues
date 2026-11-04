@@ -15,6 +15,7 @@ import { requireCouch } from "./couches";
 import { askBot } from "./ask-bot";
 import { pool, withLeagueLock, HttpError } from "./db";
 import { byNewest, deskLines, logDesk, type DeskLine } from "./desk";
+import { EVERYTHING, seenThrough } from "./guard";
 import { madeLine, saveTemplate } from "./desk-library";
 import { reachCopies } from "./ours";
 import { settleSeasonStarts } from "./phase-starts";
@@ -61,6 +62,8 @@ export interface RulebookAnswerCard {
   source: "bot" | "paste";
   by: string | null;
   at: string;
+  /** Asked through this episode only (nothing later is in it), or null for the whole season. */
+  through: number | null;
   /** "4 changes", "Nothing changed", "2 things to fix before it can be used". */
   title: string;
   lines: string[];
@@ -86,6 +89,8 @@ export interface RulebookResearchState {
 export interface RulebookResearch {
   /** Our bot can be asked: the rulebook is a season's (the queue is per season). The library's take a paste. */
   bot: boolean;
+  /** Through which episode to ask: where this admin is on the season (else what's aired), and the last episode there is. */
+  through: { suggested: number; max: number | null };
   check: RulebookResearchState;
   scores: RulebookResearchState;
 }
@@ -164,7 +169,8 @@ async function seasonOf(r: Rulebook) {
 }
 
 /** The rulebook's page: its parts, its edits, who it reaches, and How it works as the admin reads it (everything). */
-export async function deskRulebook(id: string): Promise<DeskRulebook> {
+/** `user`: whoever reads it, for research's suggested episode (where they are on the season). */
+export async function deskRulebook(id: string, user?: SessionUser): Promise<DeskRulebook> {
   const r = await row(id);
   const season = await seasonOf(r);
   const edits = await inForceEdits(pool, id);
@@ -229,7 +235,7 @@ export async function deskRulebook(id: string): Promise<DeskRulebook> {
     library: r.ownerKind === "library" ? await libraryOf(r) : null,
     lineage: ((await lineage(pool, id))?.parents ?? []).map((p) => p.name),
     shapes: shapesOf(now).map((s) => shapeById(s)?.name ?? s),
-    research: await researchOf(r, now, !!season),
+    research: await researchOf(r, now, season, user),
   };
 }
 
@@ -245,12 +251,21 @@ export function researchKind(v: unknown): ResearchKind {
   return v;
 }
 
+/** Through which episode: a number from the client, or nothing. An episode past the season's last is refused. */
+export function throughArg(v: unknown, max: number | null = null): number | null {
+  if (v === undefined || v === null || v === "") return null;
+  const n = Number(v);
+  if (!Number.isInteger(n) || n < 1) throw new HttpError(400, "Through which episode? A whole number from 1");
+  if (max && n > max) throw new HttpError(400, `The season has ${max} episodes`);
+  return n;
+}
+
 /** What's asking and what's waiting, per kind: the open desk run, and the latest unsettled answer reviewed. */
-async function researchOf(r: Rulebook, now: RulebookBlocks, bot: boolean): Promise<RulebookResearch> {
+async function researchOf(r: Rulebook, now: RulebookBlocks, season: Awaited<ReturnType<typeof seasonOf>>, user?: SessionUser): Promise<RulebookResearch> {
   const [{ rows: runs }, { rows: answers }] = await Promise.all([
     pool.query("SELECT kind, started_at FROM desk_runs WHERE rulebook_id = $1 AND done_at IS NULL AND asked_at > now() - make_interval(secs => $2)", [r.id, ASK_WAIT_MS / 1000]),
     pool.query(
-      `SELECT DISTINCT ON (a.kind) a.id, a.kind, a.source, a.answer, a.created_at, COALESCE(u.username, u.name) AS who
+      `SELECT DISTINCT ON (a.kind) a.id, a.kind, a.source, a.answer, a.created_at, a.through_episode, COALESCE(u.username, u.name) AS who
          FROM rulebook_answers a LEFT JOIN "user" u ON u.id = a.by_user
         WHERE a.rulebook_id = $1 AND a.settled_at IS NULL ORDER BY a.kind, a.created_at DESC`,
       [r.id]
@@ -262,14 +277,19 @@ async function researchOf(r: Rulebook, now: RulebookBlocks, bot: boolean): Promi
     const a = answers.find((x) => x.kind === kind);
     return {
       asking: run ? (run.started_at ? "Asking our bot now · about 2 minutes" : "Waiting to ask our bot") : null,
-      answer: a ? card({ id: a.id, kind, source: a.source, by: a.who ?? null, at: a.created_at.toISOString() }, a.answer, now, castNames) : null,
+      answer: a ? card({ id: a.id, kind, source: a.source, by: a.who ?? null, at: a.created_at.toISOString(), through: a.through_episode ?? null }, a.answer, now, castNames) : null,
     };
   };
-  return { bot, check: state("check"), scores: state("scores") };
+  // Suggested: where this admin is on the season (someone watching a season that's aired), else what's aired, else the lot.
+  const max = season?.episodeCount ?? null;
+  const cap = (n: number) => (max ? Math.min(n, max) : n);
+  const mark = user && r.seasonId ? await seenThrough(user.id, r.seasonId) : 0;
+  const suggested = mark > 0 && mark !== EVERYTHING ? cap(mark) : season?.aired ? cap(season.aired) : (max ?? 1);
+  return { bot: !!season, through: { suggested, max }, check: state("check"), scores: state("scores") };
 }
 
 /** An answer reviewed against the rulebook as it is now: what it would change, or why it can't be used. */
-function card(head: Pick<RulebookAnswerCard, "id" | "kind" | "source" | "by" | "at">, answer: string, now: RulebookBlocks, castNames: string[]): RulebookAnswerCard {
+function card(head: Pick<RulebookAnswerCard, "id" | "kind" | "source" | "by" | "at" | "through">, answer: string, now: RulebookBlocks, castNames: string[]): RulebookAnswerCard {
   const messages = (l: { message: string }[]) => l.map((p) => p.message);
   try {
     if (head.kind === "scores") {
@@ -516,13 +536,15 @@ async function askContext(r: Rulebook) {
  * for changes is the rulebook prompt with this rulebook, as it is now, as the starting point; What scores lists its
  * moments and the ladder (rulebook-scores.js).
  */
-export async function rulebookPrompt(id: string, kind: ResearchKind = "check"): Promise<{ prompt: string; task: string }> {
+export async function rulebookPrompt(id: string, kind: ResearchKind = "check", through: unknown = null): Promise<{ prompt: string; task: string; through: number | null }> {
   const r = await row(id);
   const ctx = await askContext(r);
+  const upTo = throughArg(through, ctx.episodeCount);
   const now = blocksAt(r.blocks, await inForceEdits(pool, id), Infinity);
   const name = [ctx.show, ctx.season].filter(Boolean).join(" ");
-  if (kind === "scores") return { prompt: buildScoresPrompt({ ...ctx, blocks: now }), task: `scoring the moments of ${name}` };
-  return { prompt: buildRulebookPrompt({ show: ctx.show, season: ctx.season, airing: ctx.airing, template: now }), task: `describing how ${name} works` };
+  const scope = upTo ? ` through Episode ${upTo}` : "";
+  if (kind === "scores") return { prompt: buildScoresPrompt({ ...ctx, through: upTo, blocks: now }), task: `scoring the moments of ${name}${scope}`, through: upTo };
+  return { prompt: buildRulebookPrompt({ show: ctx.show, season: ctx.season, airing: ctx.airing, through: upTo, template: now }), task: `describing how ${name} works${scope}`, through: upTo };
 }
 
 /** A Check for changes answer, reviewed against the blocks as they are now, and the changes it would make. */
@@ -546,30 +568,30 @@ function readable(kind: ResearchKind, answer: string): string | null {
   }
 }
 
-async function stageAnswer(r: Rulebook, kind: ResearchKind, source: "bot" | "paste", answer: string, by: string | null): Promise<{ id: string; card: RulebookAnswerCard }> {
-  const { rows } = await pool.query("INSERT INTO rulebook_answers (rulebook_id, kind, source, answer, by_user) VALUES ($1, $2, $3, $4, $5) RETURNING id, created_at", [r.id, kind, source, answer.slice(0, 200_000), by]);
+async function stageAnswer(r: Rulebook, kind: ResearchKind, source: "bot" | "paste", answer: string, by: string | null, through: number | null): Promise<{ id: string; card: RulebookAnswerCard }> {
+  const { rows } = await pool.query("INSERT INTO rulebook_answers (rulebook_id, kind, source, answer, by_user, through_episode) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, created_at", [r.id, kind, source, answer.slice(0, 200_000), by, through]);
   const now = blocksAt(r.blocks, await inForceEdits(pool, r.id), Infinity);
   const castNames = r.seasonId ? (await pool.query("SELECT name FROM season_cast WHERE season_id = $1", [r.seasonId])).rows.map((c) => c.name as string) : [];
-  const c = card({ id: rows[0].id, kind, source, by: null, at: rows[0].created_at.toISOString() }, answer, now, castNames);
+  const c = card({ id: rows[0].id, kind, source, by: null, at: rows[0].created_at.toISOString(), through }, answer, now, castNames);
   await logDesk(pool, {
     entity: "rulebook",
     entityId: r.id,
     action: "research",
-    text: `${RESEARCH_NAME[kind]}, ${source === "bot" ? "our bot's answer" : "a pasted answer"}: ${c.title.toLowerCase()}`,
+    text: `${RESEARCH_NAME[kind]}${through ? ` through Episode ${through}` : ""}, ${source === "bot" ? "our bot's answer" : "a pasted answer"}: ${c.title.toLowerCase()}`,
     userId: by,
   });
   return { id: rows[0].id, card: c };
 }
 
 /** Our bot's turn in the Run now queue (desk-research.ts drainDeskRuns): asks, reads and stages its answer. Never throws. */
-export async function askRulebookNow(id: string, kind: ResearchKind, askedBy: string | null, bot: string | undefined, budgetMs: number): Promise<{ ok: boolean; message: string }> {
+export async function askRulebookNow(id: string, kind: ResearchKind, askedBy: string | null, bot: string | undefined, budgetMs: number, through: number | null = null): Promise<{ ok: boolean; message: string }> {
   try {
     const r = await row(id);
-    const { prompt } = await rulebookPrompt(id, kind);
-    const { answer } = await askBot(prompt, { bot, budgetMs });
+    const q = await rulebookPrompt(id, kind, through);
+    const { answer } = await askBot(q.prompt, { bot, budgetMs });
     const bad = readable(kind, answer);
     if (bad) throw new Error(bad);
-    const { card: c } = await stageAnswer(r, kind, "bot", answer, askedBy);
+    const { card: c } = await stageAnswer(r, kind, "bot", answer, askedBy, q.through);
     return { ok: true, message: `${RESEARCH_NAME[kind]}: ${c.title}` };
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
@@ -579,15 +601,16 @@ export async function askRulebookNow(id: string, kind: ResearchKind, askedBy: st
 }
 
 /** Paste it: an answer from Ask an AI, staged as our bot's is. Answers the page. */
-export async function pasteRulebookAnswer(user: SessionUser, id: string, kind: ResearchKind, raw: unknown): Promise<DeskRulebook> {
+export async function pasteRulebookAnswer(user: SessionUser, id: string, kind: ResearchKind, raw: unknown, through: unknown = null): Promise<DeskRulebook> {
   const r = await row(id);
+  const upTo = throughArg(through, (await askContext(r)).episodeCount);
   const answer = typeof raw === "string" ? raw.trim() : "";
   if (!answer) throw new HttpError(400, "Paste the AI's answer first");
   if (answer.length > 200_000) throw new HttpError(400, "That's too long to be the answer");
   const bad = readable(kind, answer);
   if (bad) throw new HttpError(400, bad);
-  await stageAnswer(r, kind, "paste", answer, user.id);
-  return deskRulebook(id);
+  await stageAnswer(r, kind, "paste", answer, user.id, upTo);
+  return deskRulebook(id, user);
 }
 
 /** An answer settled: its changes went in the draft (used), or it was put away (dismissed). Either way it leaves the page. */
@@ -595,7 +618,7 @@ export async function settleRulebookAnswer(user: SessionUser, id: string, body: 
   if (body.status !== "used" && body.status !== "dismissed") throw new HttpError(400, "status is used or dismissed");
   const { rowCount } = await pool.query("UPDATE rulebook_answers SET settled_at = now(), settled_by = $3, settled_as = $4 WHERE id = $1 AND rulebook_id = $2 AND settled_at IS NULL", [String(body.answer), id, user.id, body.status]);
   if (!rowCount) throw new HttpError(404, "That answer isn't waiting");
-  return deskRulebook(id);
+  return deskRulebook(id, user);
 }
 
 /** Settles a suggested fix: done (the admin fixed it) or dismissed. */

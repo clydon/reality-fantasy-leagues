@@ -44,7 +44,7 @@ function shown(template) {
   return rest;
 }
 
-function buildRulebookPrompt({ show, season, airing = false, template, change } = {}) {
+function buildRulebookPrompt({ show, season, airing = false, through = null, template, change } = {}) {
   const what = [show, season].filter(Boolean).join(', ');
   const parts = [];
   parts.push(
@@ -71,6 +71,13 @@ function buildRulebookPrompt({ show, season, airing = false, template, change } 
   if (airing) {
     parts.push(
       'This season is still airing. Describe the game as the show has set it up and as it has aired so far. Never guess what hasn\'t happened: a phase that hasn\'t started keeps its usual condition ("remaining" or "announced"), and leave out anything not yet shown or announced.',
+      ''
+    );
+  }
+  // Through an episode (docs/PLAN-rulebook-research.md): only that far is read, so nothing later is given away.
+  if (Number.isInteger(through) && through > 0) {
+    parts.push(
+      `Only Episodes 1 to ${through} of this season have been watched. Describe the game as the show has set it up and as it has aired through Episode ${through}: search only those episodes' recaps, treat Episode ${through} as the latest aired, never add a segment, a twist, a way out or a phase that first appears after it, and give "phaseStarts" only for phases reached by then.`,
       ''
     );
   }

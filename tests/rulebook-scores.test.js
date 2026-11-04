@@ -39,6 +39,13 @@ test("the question lists every moment with its id and worth, the ladder, the sho
   assert.match(q, /recaps of this season's first 5 episodes/);
   assert.match(q, /No names and no results, anywhere/);
   assert.match(q, /"counted": one of "yesNo"/);
+  // Through an episode: only that far is read, and nothing later is to be listed; the whole season is no scope at all.
+  const upTo = S.buildScoresPrompt({ show: "The Challenge", season: "season 42", aired: 14, episodeCount: 14, through: 5, blocks });
+  assert.match(upTo, /Only Episodes 1 to 5 of this season have been watched/);
+  assert.match(upTo, /never list or describe a moment, a twist or a way out that first appears after Episode 5/);
+  assert.match(upTo, /recaps of this season's first 5 episodes/);
+  assert.doesNotMatch(S.buildScoresPrompt({ show: "The Challenge", aired: 14, episodeCount: 14, through: 14, blocks }), /have been watched/);
+  assert.doesNotMatch(S.buildScoresPrompt({ show: "The Challenge", aired: 5, episodeCount: 14, through: null, blocks }), /have been watched/);
   // A finished season: no airing line, and the search isn't pointed at particular episodes.
   const done = S.buildScoresPrompt({ show: "Survivor", season: "season 50", blocks: survivor() });
   assert.doesNotMatch(done, /still airing/);

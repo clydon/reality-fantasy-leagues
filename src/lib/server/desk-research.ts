@@ -13,7 +13,7 @@ import { SEASON_NAME, logDesk, type DeskLine } from "./desk";
 import { seasonBot, usualReach } from "./desk-bot";
 import { dayGap, fmt, mdIn, plural, timeIn, ymd } from "./desk-dates";
 import { askCastNow } from "./desk-cast-page";
-import { askRulebookNow, RESEARCH_NAME, type ResearchKind } from "./desk-rulebooks";
+import { askRulebookNow, RESEARCH_NAME, throughArg, type ResearchKind } from "./desk-rulebooks";
 import { waitingEpisodes } from "./desk-episode";
 import { deskSetup, type SeasonDelete } from "./desk-setup";
 
@@ -611,15 +611,17 @@ export async function queueCast(user: SessionUser, id: string, o: { bot?: string
  * is staged for the rulebook page's review (desk-rulebooks.ts askRulebookNow). A library rulebook has no season, so no
  * queue: it takes a paste. The same ask already queued is joined. Answers what it waits behind.
  */
-export async function queueRulebook(user: SessionUser, id: string, kind: ResearchKind, o: { bot?: string; origin: string }): Promise<{ text: string; waits: string | null }> {
+export async function queueRulebook(user: SessionUser, id: string, kind: ResearchKind, through: unknown, o: { bot?: string; origin: string }): Promise<{ text: string; waits: string | null }> {
   if (!isUuid(id)) throw new HttpError(404, "Rulebook not found");
-  const { rows } = await pool.query("SELECT season_id, name FROM rulebooks WHERE id = $1 AND status <> 'archived'", [id]);
+  const { rows } = await pool.query("SELECT r.season_id, r.name, ss.episode_count FROM rulebooks r LEFT JOIN show_seasons ss ON ss.id = r.season_id WHERE r.id = $1 AND r.status <> 'archived'", [id]);
   if (!rows.length) throw new HttpError(404, "Rulebook not found");
   const seasonId: string | null = rows[0].season_id;
   if (!seasonId) throw new HttpError(400, "Our bot asks about a season's rulebook. Ask an AI yourself and paste its answer here.");
+  // Through an episode (nothing later in the answer): the run's episode; 0 is the whole season.
+  const upTo = throughArg(through, rows[0].episode_count ?? null);
   if (!(await askBotStatus({ bot: o.bot })).available) throw new HttpError(503, "Our bot isn't answering right now. Try again in a while, or paste it.");
   const runKind = kind === "scores" ? "scores" : "rulebook";
-  const what = `${RESEARCH_NAME[kind]} on ${rows[0].name}`;
+  const what = `${RESEARCH_NAME[kind]} on ${rows[0].name}${upTo ? ` through Episode ${upTo}` : ""}`;
   // An ask the page stopped waiting on (its driver cut off long ago): failed, so this one goes in.
   await pool.query(
     "UPDATE desk_runs SET done_at = now(), ok = false, message = 'Cut off before it finished: ask again' WHERE rulebook_id = $1 AND kind = $2 AND done_at IS NULL AND asked_at < now() - interval '15 minutes'",
@@ -627,12 +629,12 @@ export async function queueRulebook(user: SessionUser, id: string, kind: Researc
   );
   const waits = await waitLine(seasonId);
   const { rowCount } = await pool.query(
-    `INSERT INTO desk_runs (season_id, episode_number, kind, asked_by, bot, rulebook_id) VALUES ($1, 0, $2, $3, $4, $5)
+    `INSERT INTO desk_runs (season_id, episode_number, kind, asked_by, bot, rulebook_id) VALUES ($1, $6, $2, $3, $4, $5)
      ON CONFLICT (season_id, kind, episode_number, for_season) WHERE done_at IS NULL DO NOTHING`,
-    [seasonId, runKind, user.id, o.bot ?? null, id]
+    [seasonId, runKind, user.id, o.bot ?? null, id, upTo ?? 0]
   );
   if (!rowCount) return { text: `Already asking: ${what}`, waits };
-  await logDesk(pool, { entity: "rulebook", entityId: id, action: "research", text: `${RESEARCH_NAME[kind]}: asked our bot`, userId: user.id });
+  await logDesk(pool, { entity: "rulebook", entityId: id, action: "research", text: `${RESEARCH_NAME[kind]}${upTo ? ` through Episode ${upTo}` : ""}: asked our bot`, userId: user.id });
   after(() => drainDeskRuns(o.origin));
   return { text: waits ? `Queued: ${what}` : `Asking ChatGPT: ${what} · about 2 minutes`, waits };
 }
@@ -714,7 +716,7 @@ export async function drainDeskRuns(origin: string): Promise<void> {
     }
     // A rulebook's research (Check for changes, What scores): staged for the rulebook page's review, the same way.
     if (head.kind === "rulebook" || head.kind === "scores") {
-      const c = head.rulebook_id ? await askRulebookNow(head.rulebook_id, head.kind === "scores" ? "scores" : "check", head.asked_by, bot, 280_000) : { ok: false, message: "The rulebook's gone" };
+      const c = head.rulebook_id ? await askRulebookNow(head.rulebook_id, head.kind === "scores" ? "scores" : "check", head.asked_by, bot, 280_000, head.episode_number || null) : { ok: false, message: "The rulebook's gone" };
       await done(c.ok, c.message);
       return handOn(origin);
     }

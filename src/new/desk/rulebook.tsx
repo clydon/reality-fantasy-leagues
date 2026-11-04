@@ -71,7 +71,8 @@ export function RulebookPage({ id }: { id: string }) {
   const [editing, setEditing] = useState<Editing | null>(null);
   const [saving, setSaving] = useState(false);
   const [reading, setReading] = useState(false);
-  const [research, setResearch] = useState<{ kind: ResearchKind; paste: boolean } | null>(null);
+  // Research open: which question, whether Ask an AI's paste sheet is up, and through which episode (null: the whole season).
+  const [research, setResearch] = useState<{ kind: ResearchKind; paste: boolean; through: number | null } | null>(null);
   const page = q.data;
   // A new version from the server (a save, an undo) starts the draft again.
   if (page && seenVersion !== page.version) {
@@ -285,7 +286,7 @@ export function RulebookPage({ id }: { id: string }) {
             <DeskRow
               key={k}
               data={`research-${k}`}
-              onClick={() => setResearch({ kind: k, paste: false })}
+              onClick={() => setResearch({ kind: k, paste: false, through: page.research.through.suggested })}
               lead={<IconLead icon={k === "check" ? Sparkles : ListChecks} />}
               title={RESEARCH[k].title}
               dot={st.answer ? "need" : undefined}
@@ -428,10 +429,12 @@ export function RulebookPage({ id }: { id: string }) {
         <ResearchSheet
           page={page}
           kind={research.kind}
+          through={research.through}
+          onThrough={(through) => setResearch({ ...research, through })}
           onClose={() => setResearch(null)}
-          onPaste={() => setResearch({ kind: research.kind, paste: true })}
+          onPaste={() => setResearch({ ...research, paste: true })}
           onAsk={async () => {
-            const r = (await post({ action: "ask", kind: research.kind }, "")) as { text: string; waits: string | null };
+            const r = (await post({ action: "ask", kind: research.kind, through: research.through }, "")) as { text: string; waits: string | null };
             toast(r.waits ? `${r.text} · ${r.waits}` : r.text);
           }}
           onUse={async (a, blocks) => {
@@ -445,16 +448,16 @@ export function RulebookPage({ id }: { id: string }) {
       {research && (
         <AskAiPasteSheet
           open={research.paste}
-          onOpenChange={(o) => !o && setResearch({ kind: research.kind, paste: false })}
+          onOpenChange={(o) => !o && setResearch({ ...research, paste: false })}
           title={RESEARCH[research.kind].title}
           subtitle="Ask an AI · about 2 minutes"
           what={RESEARCH[research.kind].what}
           check={RESEARCH[research.kind].check}
           tag={`rulebook-${research.kind}`}
-          question={{ key: ["new-design", "desk-question", id, "rulebook", research.kind], load: () => deskGet<{ prompt: string | null; task: string }>(`${path}?prompt=${research.kind}`) }}
+          question={{ key: ["new-design", "desk-question", id, "rulebook", research.kind, research.through], load: () => deskGet<{ prompt: string | null; task: string }>(`${path}?prompt=${research.kind}${research.through ? `&through=${research.through}` : ""}`) }}
           onUse={async (text) => {
-            await post({ action: "paste", kind: research.kind, answer: text }, "Its answer is in: look it over");
-            setResearch({ kind: research.kind, paste: false });
+            await post({ action: "paste", kind: research.kind, answer: text, through: research.through }, "Its answer is in: look it over");
+            setResearch({ ...research, paste: false });
           }}
         />
       )}
@@ -486,11 +489,13 @@ const RESEARCH: Record<ResearchKind, { title: string; line: string; what: string
 /** A rung's id in words: "wonAlone" -> "won alone". */
 const rungWords = (id: string) => id.replace(/([A-Z])/g, " $1").toLowerCase();
 
-const fromWords = (a: RulebookAnswerCard) => `${a.source === "bot" ? "from our bot" : `pasted${a.by ? ` by ${a.by}` : ""}`} · ${agoOf(a.at)}`;
+const fromWords = (a: RulebookAnswerCard) => `${a.source === "bot" ? "from our bot" : `pasted${a.by ? ` by ${a.by}` : ""}`}${a.through ? ` · through Episode ${a.through}` : ""} · ${agoOf(a.at)}`;
 
 function ResearchSheet({
   page,
   kind,
+  through,
+  onThrough,
   onClose,
   onPaste,
   onAsk,
@@ -499,6 +504,9 @@ function ResearchSheet({
 }: {
   page: DeskRulebook;
   kind: ResearchKind;
+  /** Through which episode to ask (null: the whole season), so someone watching a season that's aired isn't told what's later. */
+  through: number | null;
+  onThrough: (through: number) => void;
   onClose: () => void;
   onPaste: () => void;
   onAsk: () => Promise<void>;
@@ -533,7 +541,7 @@ function ResearchSheet({
     <Sheet open onOpenChange={(o) => !o && onClose()} title={RESEARCH[kind].title} subtitle={a ? `An answer ${fromWords(a)}` : RESEARCH[kind].line}>
       <div data-research-sheet={kind}>
         {a ? (
-          <div data-research-answer={a.id} className="rounded-[4px] bg-background p-3">
+          <div data-research-answer={a.id} data-research-through={a.through ?? "all"} className="rounded-[4px] bg-background p-3">
             <b className="block text-[16px]">{a.title}</b>
             {a.problems.map((m) => (
               <small key={m} className="block text-[13px] text-destructive">
@@ -575,6 +583,14 @@ function ResearchSheet({
           </div>
         ) : (
           <>
+            <div className="mb-4 rounded-[4px] bg-background p-3">
+              <Stepper data="through" label="Through episode" value={through ?? page.research.through.max ?? 1} min={1} max={page.research.through.max ?? 99} onChange={onThrough} />
+              <small className="mt-1.5 block text-[13px] leading-snug text-muted-foreground">
+                {through && (!page.research.through.max || through < page.research.through.max)
+                  ? `Research reads Episodes 1 to ${through} only, so nothing later is given away.`
+                  : "The whole season: anything that happens in it can be in the answer."}
+              </small>
+            </div>
             {page.research.bot ? (
               <>
                 <Btn data-research-ask tone="must" wide disabled={busy} onClick={() => void run(onAsk)}>
