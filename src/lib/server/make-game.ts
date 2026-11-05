@@ -354,17 +354,17 @@ function needsOf(row: SetupRow, worked: Worked | null): "rules" | "cast" | null 
 }
 
 /**
- * The faces' photos: the season's own credits' (show-art.ts castPhotosFor: TMDB's, else TVmaze's) for everyone they have, the
- * answer's own for the rest (the user, 2026-11-05: names from the wiki, photos from the listings). Shown in the review straight
- * away and saved with the cast by Looks right. Never written before that. A sport's (castPhotosFor finds none) keep theirs.
+ * The faces an answer gave no photo: the season's credits' (show-art.ts castPhotosFor), shown in the review straight away and
+ * saved with the cast by Looks right. Never written before that. The answer's own come first: the listings keep one headshot a
+ * person, however old, and the answer's are this season's, from one page, so they match (the user, 2026-11-05).
  */
 async function withPhotos(seasonId: string, worked: Worked, base?: string): Promise<void> {
-  const want = worked.cast.map((c) => c.name);
+  const want = worked.cast.filter((c) => !c.photoUrl).map((c) => c.name);
   if (!want.length) return;
   const found = await castPhotosFor(seasonId, want, base);
   if (!found.size) return;
-  worked.cast = worked.cast.map((c) => (found.has(c.name) ? { ...c, photoUrl: found.get(c.name)! } : c));
-  for (const f of worked.review.cast.faces) if (found.has(f.name)) f.photo = found.get(f.name)!;
+  worked.cast = worked.cast.map((c) => (c.photoUrl || !found.has(c.name) ? c : { ...c, photoUrl: found.get(c.name)! }));
+  for (const f of worked.review.cast.faces) if (!f.photo && found.has(f.name)) f.photo = found.get(f.name)!;
 }
 
 /** Make it a game for this season, as you see it: who's at it, how far, and the review once how it works is in. `base`: the

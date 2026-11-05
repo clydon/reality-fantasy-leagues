@@ -47,6 +47,17 @@ whole words ("Kerry Titheradge" in "Captain Kerry Titheradge"), the same last na
 ("Mo Hassan", "Mohamed Hassan"). Below Deck 13's blanks fill on the next daily sweep, or now from the desk's Art and photos
 page, Find again. Two more free calls a season at most (HOSTING.md's TMDB and TVmaze notes stand).
 
+**Then a lineup that matches (same day).** With the listings' photos first, the ten were a mix: Fraser's an old headshot (TMDB
+and TVmaze keep one photo a person, not one a season), the rest this season's from the network's cast page. The user wants
+one set, all from this season. So the answer's photos come first again, everywhere (`sendCast`, `withPhotos`), the listings'
+only for anyone the answer left blank; the prompt says the photos must match, all from ONE page of this season's official
+cast photos (the network's "meet the cast" page for the season, else the wiki's), never an earlier season's; and an answer's
+photo of someone already in the cast is now a change on the desk's Cast page (`desk-cast-diff.ts` k "photo",
+`listingPhoto`): replaced on Send when theirs is a listing's (TMDB's, TVmaze's, a wiki icon) or none, never one someone
+chose or the answer's own from before, with a row in What changed (old and new face), a line in the summary, and Undo. So
+**Below Deck 13's lineup is fixed from the desk: its Cast page, Ask our bot, then Send** (Fraser's and the other listing
+photos make way for the season's). The daily sweep still never touches a photo that isn't a listing's.
+
 ## Remind everyone from Backstage (2026-11-05; branch `ccr-12722a64-8wwo5w`, no migration)
 The user asked whether players are reminded of open to-dos before an episode and whether a commissioner can force one. They
 were already reminded on their own (`db/reminders.js`, hourly: a day and two hours before an episode airs, one push per game
