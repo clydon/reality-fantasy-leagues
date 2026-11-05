@@ -381,7 +381,8 @@ async function readAnswer(s: SeasonRow, answer: string): Promise<TheirCastaway[]
 async function stage(s: SeasonRow, source: "bot" | "paste", answer: string, people: TheirCastaway[], by: string | null): Promise<string> {
   const ours = await castOf(s.id);
   const terms = termsOf(s);
-  const changes = castChanges(ours, people, { groups: hasGroups(await castFormat(s), ours) });
+  // Photos count (the user, 2026-11-05: an answer bringing this season's photos read as "nothing changed" and was settled unseen).
+  const changes = castChanges(ours, people, { groups: hasGroups(await castFormat(s), ours), photos: true });
   const groups = new Set(people.map((p) => p.group).filter(Boolean)).size;
   const what = !ours.length
     ? `${plural(people.length, terms.person, terms.people)}${groups ? ` in ${plural(groups, terms.group, terms.groups)}` : ""}, not sent`

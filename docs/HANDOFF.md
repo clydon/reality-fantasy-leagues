@@ -56,7 +56,9 @@ photo of someone already in the cast is now a change on the desk's Cast page (`d
 `listingPhoto`): replaced on Send when theirs is a listing's (TMDB's, TVmaze's, a wiki icon) or none, never one someone
 chose or the answer's own from before, with a row in What changed (old and new face), a line in the summary, and Undo. So
 **Below Deck 13's lineup is fixed from the desk: its Cast page, Ask our bot, then Send** (Fraser's and the other listing
-photos make way for the season's). The daily sweep still never touches a photo that isn't a listing's.
+photos make way for the season's). The daily sweep still never touches a photo that isn't a listing's. **Fixed the same
+night:** `stage` (our bot's answer or a paste, staged) and `settle` (after an Override) compared without photos, so an answer
+whose only news was the photos was written as "nothing changed" and marked sent unseen; both count photos now.
 
 ## Remind everyone from Backstage (2026-11-05; branch `ccr-12722a64-8wwo5w`, no migration)
 The user asked whether players are reminded of open to-dos before an episode and whether a commissioner can force one. They

@@ -361,7 +361,7 @@ async function waitingAnswer(db: Db, seasonId: string): Promise<{ id: string; pe
 }
 
 const castNow = async (seasonId: string) =>
-  (await pool.query("SELECT id, name, tribe_name, locked_at FROM season_cast WHERE season_id = $1", [seasonId])).rows.map((r) => ({ id: r.id, name: r.name, group: r.tribe_name, locked: !!r.locked_at }));
+  (await pool.query("SELECT id, name, tribe_name, photo_url, locked_at FROM season_cast WHERE season_id = $1", [seasonId])).rows.map((r) => ({ id: r.id, name: r.name, group: r.tribe_name, photo: r.photo_url, locked: !!r.locked_at }));
 
 /**
  * Noticed bh: an Override settles that person's line in a waiting answer. The admin has said what their name (or starting
@@ -388,7 +388,8 @@ async function settle(seasonId: string, plan: { id: string; people: TheirCastawa
   const { rowCount } = await pool.query("UPDATE season_cast_answers SET people = $2::jsonb WHERE id = $1 AND sent_at IS NULL", [plan.id, JSON.stringify(plan.people)]);
   if (!rowCount) return false;
   const { rows: season } = await pool.query("SELECT cast_approved_at FROM show_seasons WHERE id = $1", [seasonId]);
-  if (!season[0]?.cast_approved_at || castChanges(await castNow(seasonId), plan.people, { groups: true }).length) return false;
+  // Photos count too: an answer still bringing this season's photos isn't settled by an override of a name or a group.
+  if (!season[0]?.cast_approved_at || castChanges(await castNow(seasonId), plan.people, { groups: true, photos: true }).length) return false;
   await pool.query("UPDATE season_cast_answers SET sent_at = now() WHERE id = $1 AND sent_at IS NULL", [plan.id]);
   return true;
 }
