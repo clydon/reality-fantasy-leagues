@@ -1144,19 +1144,21 @@ export function useListingSearch(q: string) {
   });
 }
 
-/** One listing's season: what adding it would follow, and how much of it has aired (for where you are). */
-export function useListingSeason(tvmazeId: number | null) {
+/** One listing's season: what adding it would follow (or `season`, one picked by number), how much of it has aired (for where
+ *  you are), and every season it has (the picker). A season just picked keeps the last one's answer in view while it's read. */
+export function useListingSeason(tvmazeId: number | null, season: number | null = null) {
   return useQuery({
-    queryKey: ["new-design", "listing", tvmazeId],
-    queryFn: () => get<ListingSeason>(`/api/listings/${tvmazeId}`),
+    queryKey: ["new-design", "listing", tvmazeId, season],
+    queryFn: () => get<ListingSeason>(`/api/listings/${tvmazeId}${season != null ? `?season=${season}` : ""}`),
     enabled: tvmazeId != null,
     staleTime: 3600_000,
+    placeholderData: keepPreviousData,
   });
 }
 
 export const watching = {
-  /** Add a show from its listing or by name, at where you are. */
-  add: (body: ({ listing: number } | { name: string }) & { seenThrough?: number; live?: boolean }) => post<AddedShow>("/api/me/shows", body),
+  /** Add a show from its listing (its season on now, or `season` by number) or by name, at where you are. */
+  add: (body: ({ listing: number; season?: number } | { name: string }) & { seenThrough?: number; live?: boolean }) => post<AddedShow>("/api/me/shows", body),
   /** Follow (or stop following) a season here, watch it privately, say where you are, answer the nudge, or how it keeps up. */
   follow: (seasonId: string, change: { following?: boolean; private?: boolean; seenThrough?: number; nudgeOff?: boolean; keepUp?: KeepUp; notYet?: number }) =>
     sendJson<{ seenThrough: number; following: boolean; private: boolean; keepUp: KeepUp; notYet: number | null }>(`/api/me/follows/${seasonId}`, "PUT", change),

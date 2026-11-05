@@ -49,6 +49,30 @@ test("the season someone means: on now, else the next, else the latest, else the
   assert.equal(L.seasonStatus(s(1, "2026-01-01", "2026-10-24"), NOW), "completed");
 });
 
+test("every season for the picker, latest first: its name, its status, when it aired, its poster; a number listed twice once", () => {
+  const s = (number, premiereDate, endDate, extra = {}) => ({ id: number, number, premiereDate, endDate, ...extra });
+  const all = L.seasonChoices(
+    [s(12, "2024-06-03", "2024-08-26", { episodeOrder: 18, image: { medium: "s12.jpg" } }), s(13, "2026-10-05", null, { episodeOrder: 0, name: "  " }), s(14, "2027-01-11", null, { name: "At Sea" }), s(13, "2026-10-05", null), s(11, null, null)],
+    NOW
+  );
+  assert.deepEqual(
+    all.map((c) => [c.number, c.name, c.status, c.premiere, c.episodeCount, c.art]),
+    [
+      [14, "At Sea", "upcoming", "2027-01-11", null, null],
+      [13, null, "airing", "2026-10-05", null, null],
+      [12, null, "completed", "2024-06-03", 18, "s12.jpg"],
+      [11, null, "upcoming", null, null, null],
+    ]
+  );
+  assert.deepEqual(L.seasonChoices([], NOW), []);
+  // As the picker says each: the season (its name after it), on now, coming when, or the year it aired, and how many episodes.
+  assert.equal(L.seasonChoiceLine(all[0]), "Season 14: At Sea · Coming Jan 2027");
+  assert.equal(L.seasonChoiceLine(all[1]), "Season 13 · On now");
+  assert.equal(L.seasonChoiceLine(all[2]), "Season 12 · 2024 · 18 episodes");
+  assert.equal(L.seasonChoiceLine(all[3]), "Season 11 · Coming up");
+  assert.equal(L.seasonChoiceLine({ number: 1, name: null, status: "completed", premiere: null, episodeCount: 1, art: null }), "Season 1 · Finished · 1 episode");
+});
+
 test("a season's episodes: regular ones in order, each with when it airs; specials left out", () => {
   const eps = L.episodesOf([
     { season: 1, number: 2, type: "regular", name: "Two", airstamp: "2026-10-20T01:00:00+00:00", runtime: 60 },

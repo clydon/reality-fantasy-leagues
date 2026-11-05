@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { ChevronDown } from "lucide-react";
+import { seasonChoiceLine, type SeasonChoice } from "@/lib/game/listing";
 import { useAiredEpisodes, type CatalogSeason, type KeepUp, type StepEpisode } from "../data";
 import { SwitchRow } from "../settings/controls";
 import { Btn, Stepper } from "../ui/parts";
@@ -13,10 +15,17 @@ import { whereCap, whereLabel } from "../way-in";
 // Each step says which episode it is: when it aired, and its title once you've seen it (a sport's always: its titles are the
 // matchups). I'm up to date jumps to the latest and turns on Live (keep-up.ts): when each new episode ends, Tonight asks
 // "Seen it?", so nothing opens until you say.
+// `pick` (Add a show): which season, when the show's listing has more than one (the user, 2026-11-05: Below Deck came up as
+// its 13th, with no way to an earlier one): a picker under the row, each season with its name or when it aired; the row,
+// the stepper and the rest are the season picked, read from its listing while the picker says so.
+
+export type SeasonPick = { seasons: SeasonChoice[]; number: number; onPick: (n: number) => void; reading?: boolean };
 
 export type WhereSeason = Pick<CatalogSeason, "seasonId" | "label" | "show" | "artUrl" | "artPosition" | "aired" | "status" | "premiere"> & {
   /** Its show's TV listing, when it has one (Add a show adds from it if the season's gone since the list was read). */
   tvmazeId?: number | null;
+  /** Its number, for the season picker (Add a show's) to start from. */
+  seasonNumber?: number | null;
   /** Its aired episodes, when the caller has them (a TV listing's); else read for a season that's here. */
   episodes?: StepEpisode[];
   /** What the show calls an episode ("Game": lib/game/show-words.ts); Episode when not known. */
@@ -81,6 +90,7 @@ export function WhereAsk({
   cta,
   busy,
   lookUp,
+  pick,
   onSave,
 }: {
   s: WhereSeason;
@@ -91,6 +101,8 @@ export function WhereAsk({
   busy?: boolean;
   /** Add a show's: ask whether to look up the episodes that are out (Getting it ready, docs/PLAN-getting-it-ready.md). */
   lookUp?: boolean;
+  /** Add a show's: which of the listing's seasons, when it has more than one. */
+  pick?: SeasonPick;
   /** `episodes`: look up the ones that are out (on unless switched off). */
   onSave: (seen: number, live: boolean, episodes: boolean) => void;
 }) {
@@ -112,9 +124,13 @@ export function WhereAsk({
       </div>
     );
   }
+  const reading = !!pick?.reading;
   return (
-    <div data-where-ask>
-      <WhereRow s={s} seen={seen} onChange={setSeen} episodes={episodes} />
+    <div data-where-ask aria-busy={reading || undefined}>
+      <div className={reading ? "pointer-events-none opacity-40 transition-opacity" : "transition-opacity"}>
+        <WhereRow s={s} seen={seen} onChange={setSeen} episodes={episodes} />
+      </div>
+      {pick && pick.seasons.length > 1 && <SeasonPicker pick={pick} />}
       {s.aired !== 0 && s.aired != null && seen < cap && (
         <Btn
           wide
@@ -161,9 +177,35 @@ export function WhereAsk({
         </div>
       )}
       <p className="mt-2 text-[13px] leading-normal text-muted-foreground">Nothing past where you are shows: results, stats, the couch&rsquo;s chat. Change it any time.</p>
-      <Btn tone="must" wide className="mt-4" data-where-save disabled={busy} onClick={() => onSave(seen, canLive && keepUp !== "auto" && live, !!lookUp && lookAll)}>
+      <Btn tone="must" wide className="mt-4" data-where-save disabled={busy || reading} onClick={() => onSave(seen, canLive && keepUp !== "auto" && live, !!lookUp && lookAll)}>
         {busy ? "Saving…" : cta}
       </Btn>
     </div>
+  );
+}
+
+/** Which season: the phone's own picker (a select), each season as seasonChoiceLine says it, latest first. */
+function SeasonPicker({ pick }: { pick: SeasonPick }) {
+  return (
+    <label
+      data-where-season={pick.number}
+      className="mt-2 flex min-h-12 items-center gap-2.5 rounded-[4px] bg-background px-3 outline-1 -outline-offset-1 outline-input focus-within:outline-2 focus-within:outline-chyron"
+    >
+      <span className="flex-none text-[14px] font-semibold">Season</span>
+      <select
+        data-where-season-pick
+        aria-label="Which season"
+        value={pick.number}
+        onChange={(e) => pick.onPick(Number(e.target.value))}
+        className="min-w-0 flex-1 cursor-pointer appearance-none truncate bg-transparent py-2.5 text-[15px] font-semibold outline-none"
+      >
+        {pick.seasons.map((c) => (
+          <option key={c.number} value={c.number}>
+            {seasonChoiceLine(c)}
+          </option>
+        ))}
+      </select>
+      <ChevronDown className="size-4 flex-none text-muted-foreground" aria-hidden />
+    </label>
   );
 }

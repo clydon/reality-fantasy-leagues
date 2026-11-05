@@ -21,6 +21,29 @@ and the Neon password rotation (deferred; steps there). Fixed 2026-10-24: the ch
 end); GitHub Actions, stopped since 2026-10-19, runs again. Vercel builds production only (Preview shared
 production's database).
 
+## Add a show: the sheet over the keyboard, and a season picker (2026-11-05; branch `ccr-d97da793-kyihwn`, no migration)
+The user, on an Android phone: as they typed in Add a show the results were sometimes under the keyboard and sometimes the field
+was scrolled off the top; and Below Deck came up as its 13th season with no way to an earlier one. **The keyboard:** the sheet
+(`src/new/ui/sheet.tsx`) is fixed to the layout viewport, which a phone's keyboard doesn't shrink; the browser pans the visual
+viewport to the focused field instead, so the sheet's bottom stayed under the keyboard and its top went off the screen. Now
+`useKeyboardLift` (the chat composer's way, `show/chat.tsx`) follows `window.visualViewport`: with a keyboard up (the viewport
+covered by more than 120px, its own scroll counted) the sheet's bottom sits on the keyboard and it's no taller than what's
+left (`data-keyboard` on the popup while it is). Every sheet, not only Add a show. **The season picker:** Where are you
+(`watching/where.tsx` `WhereAsk`'s `pick`, `SeasonPicker`: a native select under the row, "Season 12 · 2024 · 18 episodes",
+"Season 3: Battle of the Eras · 2024", "Season 14 · Coming Jan 2027"; the pure half `seasonChoices`/`seasonChoiceLine` in
+`lib/game/listing.ts`, tests/listing.test.js) when the show's listing has more than one season. From a listing row
+(`sheets.tsx` `ListingWhere`): the listing's answer now carries every season (`ListingSeason.seasons`) and `?season=N` on
+`/api/listings/[id]` answers that season (its aired count, episodes, poster as the row's art); the last season's row stays,
+dimmed, while the next is read (`keepPreviousData`), and the save sends `season` to `POST /api/me/shows`, which follows that
+number of the show (made from the listing beside the one there, or the row already here: `seasonHere(.., chosen)`, never an
+admin's other season when a number was picked). From a season that's here (`CatalogWhere`, a catalog row with a `tvmazeId`;
+`CatalogSeason.seasonNumber` is new for it): the picker lists the listing's seasons too; another one here is its own row (and
+"already on your list" when it is), one that isn't goes to the listing path. Not in the tour's practice. **Not run in a
+browser** (no local database here): `scripts/dev-test/check-new-watching.js` has the API cases (the list, `?season=`, add by
+number, 404/400) and a browser step on the picker (ZT Late Bloomer's two seasons); run it before shipping. The keyboard
+lift can only be seen on a phone: open Add a show, type, and the results should sit above the keyboard with the field in
+view. `npm test`, `tsc` and `eslint` clean.
+
 ## A reality series' cast: names from the wiki, photos from the listings (2026-11-05; branch `ccr-7c18a4ac-smuvdh`, no migration)
 The user added Below Deck 13 and Getting it ready gave it 40 crew, Captain Lee and Ben Robinson among them. Make it a game
 had classed it a series (reality), and a series' cast came from TVmaze's cast of the *show* (`/shows/{id}/cast`): everyone

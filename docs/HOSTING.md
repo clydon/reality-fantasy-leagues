@@ -145,7 +145,9 @@ transfer a month, and the search should move to the server). **Adding a show** n
 (the show with its seasons, then one season's episodes) and a few small writes: a `shows` row (with its listing, ~1 KB), a
 `show_seasons` row and a `season_episodes` row per episode (~100 bytes each), at most 10 new shows per person a day
 (`NEW_SHOWS_A_DAY` in add-show.ts). Adding it again a day later reads that season's episodes again (and since step 11 part 2 the
-daily listings job does whenever TVmaze says the show changed). A show's poster is TVmaze's medium image, hotlinked (~25 KB; its only other size is the upload itself, often
+daily listings job does whenever TVmaze says the show changed). Where are you's **season picker** (2026-11-05) lists the show's
+seasons from the answer it already has; each other season someone picks is one more read (`/api/listings/[id]?season=N`, the
+same two TVmaze calls, kept at the edge an hour per season), and adding that season makes its rows beside the latest's. A show's poster is TVmaze's medium image, hotlinked (~25 KB; its only other size is the upload itself, often
 over 1 MB, so it's never used). The hub's home read now also carries the couch's shows you don't follow (their headers and
 schedules: a few hundred bytes each), and the show space's read one more small query (whether you play the season).
 
