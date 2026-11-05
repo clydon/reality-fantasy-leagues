@@ -35,6 +35,18 @@ for everyone they have, the answer's own only for the rest, in Make it a game's 
 stages the season's real crew against it (the 30-odd who aren't in it show as removals), then Send. Not tested against a
 live bot from this session (no network to TVmaze, TMDB or the bot): `npm test` covers the prompt and the listing reader.
 
+**Then the photos (same day):** the ten crew came back with three photos. TMDB's season had three; the prompt had said
+photoUrl may be "" (put back: a photo of each person, "" only when there's none); and the first, wrong cast had shown a
+photo of someone the right cast then went without, so the listings had it all along. Two general fixes, `show-art.ts`:
+**photoTiers**, where a cast's photos come from in order, each read only while someone's still without one: this season's
+credits (TMDB's, then TVmaze's premiere guest cast), then the *whole show's* (TMDB's `/tv/{id}/aggregate_credits`, then
+TVmaze's `/shows/{id}/cast`), a photo of the right person being right whichever season it was taken for once the name's
+matched; used by `fillCastPhotos` (the sweep, Find again) and `castPhotosFor` (the review, Send) alike. And **matchCredit**
+(`src/lib/game/show-art.ts`) matches looser as a last step, still one credit only: the shorter name inside the longer as
+whole words ("Kerry Titheradge" in "Captain Kerry Titheradge"), the same last name with one first name starting the other
+("Mo Hassan", "Mohamed Hassan"). Below Deck 13's blanks fill on the next daily sweep, or now from the desk's Art and photos
+page, Find again. Two more free calls a season at most (HOSTING.md's TMDB and TVmaze notes stand).
+
 ## Remind everyone from Backstage (2026-11-05; branch `ccr-12722a64-8wwo5w`, no migration)
 The user asked whether players are reminded of open to-dos before an episode and whether a commissioner can force one. They
 were already reminded on their own (`db/reminders.js`, hourly: a day and two hours before an episode airs, one push per game

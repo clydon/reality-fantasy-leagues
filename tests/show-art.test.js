@@ -80,6 +80,23 @@ test("names: the same name any way it's written, a short name, a nickname, first
   assert.equal(who("Mike Pinsky"), null);
 });
 
+test("names, looser: a title in front, a shortened first name, each only when one credit fits", () => {
+  const credits = [
+    { names: ["Kerry Titheradge"], id: 1 },
+    { names: ["Mohamed Hassan"], id: 2 },
+    { names: ["Fraser Olender"], id: 3 },
+    { names: ["Sam Smith"], id: 4 },
+    { names: ["Samuel Jones"], id: 5 },
+  ];
+  const who = (n) => A.matchCredit(n, credits)?.id ?? null;
+  assert.equal(who("Captain Kerry Titheradge"), 1);
+  assert.equal(who("Mo Hassan"), 2);
+  assert.equal(who("Fraser"), 3, "a first name alone, when one credit starts with it (the rule above)");
+  assert.equal(who("Sam Jones"), 5);
+  assert.equal(who("Mo Olender"), null, "a different first name is someone else");
+  assert.equal(who("Jo Hassan"), null, "one letter isn't a shortening");
+});
+
 test("photos: only none, a wiki icon or a TVmaze one is replaced; one someone chose never is", () => {
   assert.equal(A.replaceablePhoto(null), true);
   assert.equal(A.replaceablePhoto(""), true);
