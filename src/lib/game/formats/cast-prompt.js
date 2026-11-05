@@ -53,8 +53,9 @@ function buildCastPrompt(format, { seasonName, showName, year, known } = {}) {
     '    this season\'s cast: nobody from an earlier season who isn\'t in it, however well known. Check against the official',
     '    cast announcement or the show\'s own site if you like. Name every page you actually read in sources.',
     '  - One row per person. Use their full name as the show credits them.',
-    '  - photoUrl may be "": the TV listings supply the photos. If you give one, it must be a URL that ends in an image',
-    '    file (.jpg, .png, .webp...) you actually found, never one you invented.',
+    '  - Find a photo of each person: the show\'s or its network\'s cast page, a press kit, or the wiki\'s own image of them.',
+    '    photoUrl must be a URL that ends in an image file (.jpg, .png, .webp...) you actually found. Leave it "" only',
+    '    when there\'s none, never invent one. (Where the TV listings have a photo, theirs is used instead.)',
     hasGroups ? `  - startingGroup is the ${group.toLowerCase()} they STARTED in, not where they ended up.` : null,
     roles.length
       ? `  - startingRole is a hidden role. Only give "${roles.slice(1).join('" or "')}" for someone the show or its coverage has confirmed; everyone else is "${roles[0]}".`

@@ -46,7 +46,8 @@ test("prompt: the names come from the wiki's page for this season, and the photo
   const s = C.buildCastPrompt(generic, { seasonName: "season 13", showName: "Below Deck", year: 2026 });
   assert.match(s, /Wikipedia article for this season of "Below Deck"/);
   assert.match(s, /nobody from an earlier season/);
-  assert.match(s, /photoUrl may be ""/);
+  assert.match(s, /Find a photo of each person/);
+  assert.match(s, /Leave it "" only/);
   assert.match(s, /premiered in 2026/);
 });
 
