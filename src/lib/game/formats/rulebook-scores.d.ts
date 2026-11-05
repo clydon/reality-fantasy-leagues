@@ -28,6 +28,8 @@ export interface ScoresRow {
   rarity: string | null;
   why: string;
   changed: boolean;
+  /** Added by hand and worth nothing: the review proposes dropping it (accepted: taken out; declined: kept as it is). */
+  drop: boolean;
 }
 export interface ScoresAdded {
   id: string;

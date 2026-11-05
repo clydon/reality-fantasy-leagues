@@ -9,8 +9,8 @@
 //      suggests up to it, 14 at most); the What scores question lists every moment with its id, the ladder, rarity, known from
 //      past seasons and the season so far, and reads the whole season whatever's asked; `?prompt=1` is Check for changes' (the
 //      rulebook prompt from this rulebook), which can be scoped up to an episode; past the last refused.
-//   3. Paste on What scores: an answer that isn't JSON refused; an answer staged (rescored moments with their rungs and rarity, two
-//      moments added, a repeat and a name left out, and a new-this-season moment from Episode 9 held with no trace of it), the
+//   3. Paste on What scores: an answer that isn't JSON refused; an answer staged (rescored moments with their rungs and rarity, an
+//      added-by-hand moment worth nothing dropped, two moments added, a repeat and a name left out, and a new-this-season moment from Episode 9 held with no trace of it), the
 //      row's dot, the History line; a paste on Check for changes staged beside it.
 //   4. Settled a row at a time: Use (accepted and declined rows settled, the held one keeps the answer open, unseen); past
 //      Episode 9 it shows and settles, and the answer is done; Put away; settled twice refused.
@@ -196,7 +196,7 @@ async function main() {
     check(r.status === 400 && /no JSON object/.test(r.body.error), "a paste that isn't JSON refused", JSON.stringify(r.body));
     check((await post({ action: "paste", kind: "moon", answer: "{}" })).status === 400, "a paste of an unknown kind refused");
     const paste = scoresAnswer(page.now, "edge", {
-      except: { eliminationWon: "wonAlone", quit: "ownFault" },
+      except: { eliminationWon: "wonAlone", quit: "ownFault", captain: "nothing" },
       add: [
         { id: "calledOut", label: "Called out an opponent", rung: "earned", rarity: "someEpisodes", why: "rare and telling", known: "pastSeasons", firstEpisode: 1, counted: "yesNo", answeredBy: "research", reliability: "usually", during: { segment: "elimination" } },
         { id: "openingTwist", label: "Won the opening twist", rung: "earned", rarity: "onceOrTwice", known: "thisSeason", firstEpisode: 2 },
@@ -214,12 +214,13 @@ async function main() {
     const row = (id) => (a.rows || []).find((x) => x.id === id);
     check(row("eliminationWon") && row("eliminationWon").before === 3 && row("eliminationWon").after === 4 && row("eliminationWon").rung === "wonAlone" && row("eliminationWon").changed, "Won the Elimination: 3 -> 4, wonAlone", JSON.stringify(row("eliminationWon")));
     check(row("quit") && row("quit").after === -3 && row("quit").changed, "Quit: -5 -> -3, ownFault", JSON.stringify(row("quit")));
+    check(row("captain") && row("captain").drop === true && row("captain").changed && !a.blocks.customMoments.some((m) => m.id === "captain"), "Served as team captain, added by hand and worth nothing: dropped", JSON.stringify(row("captain")));
     check(a.added.length === 2 && a.added[0].id === "calledOut" && a.added[0].points === 2.5 && a.added[0].rarity === "someEpisodes" && a.added[1].id === "openingTwist" && a.added[1].points === 3, "Called out an opponent added at 2.5 (earned, some episodes); the opening twist at 3, reached", JSON.stringify(a.added));
     const shown = JSON.stringify(page);
     check(!shown.includes("Redemption") && !shown.includes("lateTwist"), "the Redemption Arena, from Episode 9: held, with no trace of it on the page");
     check(a.skipped.length === 2 && /has it: Won the Elimination/.test(a.skipped[0].why) && /names Ava/.test(a.skipped[1].why), "a repeat and a name left out", JSON.stringify(a.skipped));
-    check(/moments rescored · 2 moments added/.test(a.title) && a.blocks && a.blocks.points.eliminationWon === 4 && a.blocks.customMoments.some((m) => m.id === "calledOut") && !a.blocks.customMoments.some((m) => m.id === "lateTwist") && a.problems.length === 0 && a.changes >= 2, "its title, and the blocks to draft from (nothing held in them)", a.title);
-    check(/What scores, a pasted answer: .*rescored · 2 moments added/.test((await history())[0]), "History says so, counting what's shown", (await history())[0]);
+    check(/moments rescored · 1 moment dropped · 2 moments added/.test(a.title) && a.blocks && a.blocks.points.eliminationWon === 4 && a.blocks.customMoments.some((m) => m.id === "calledOut") && !a.blocks.customMoments.some((m) => m.id === "lateTwist") && a.problems.length === 0 && a.changes >= 2, "its title, and the blocks to draft from (nothing held in them)", a.title);
+    check(/What scores, a pasted answer: .*rescored · 1 moment dropped · 2 moments added/.test((await history())[0]), "History says so, counting what's shown", (await history())[0]);
     // The same question again reads the same, with the answer still waiting.
     check((await read()).research.scores.answer.id === a.id, "the answer is still there on the next read");
     // Check for changes takes a paste beside it.

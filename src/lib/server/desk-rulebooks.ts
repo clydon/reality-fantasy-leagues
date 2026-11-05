@@ -321,8 +321,13 @@ function card(head: Pick<RulebookAnswerCard, "id" | "kind" | "source" | "by" | "
   try {
     if (head.kind === "scores") {
       const review = reviewScores(parseScoresAnswer(answer), now, ctx);
-      const changed = review.rows.filter((x) => x.changed).length;
-      const bits = [changed ? `${changed} ${changed === 1 ? "moment rescored" : "moments rescored"}` : "", review.added.length ? `${review.added.length} ${review.added.length === 1 ? "moment added" : "moments added"}` : ""].filter(Boolean);
+      const dropped = review.rows.filter((x) => x.drop).length;
+      const changed = review.rows.filter((x) => x.changed).length - dropped;
+      const bits = [
+        changed ? `${changed} ${changed === 1 ? "moment rescored" : "moments rescored"}` : "",
+        dropped ? `${dropped} ${dropped === 1 ? "moment dropped" : "moments dropped"}` : "",
+        review.added.length ? `${review.added.length} ${review.added.length === 1 ? "moment added" : "moments added"}` : "",
+      ].filter(Boolean);
       return {
         card: {
           ...head,

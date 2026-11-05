@@ -691,15 +691,15 @@ function ScoresPicks({ a, declined, onToggle }: { a: RulebookAnswerCard; decline
               <b className={`block text-[14px] leading-snug ${r.changed ? "" : "font-normal text-muted-foreground"}`}>{r.label}</b>
               {r.changed && r.rung && (
                 <small className="block text-[12px] leading-snug text-muted-foreground">
-                  {rungWords(r.rung)}
-                  {r.rarity ? ` · ${rungWords(r.rarity)}` : ""}
+                  {r.drop ? "not about one person · drop it" : rungWords(r.rung)}
+                  {!r.drop && r.rarity ? ` · ${rungWords(r.rarity)}` : ""}
                 </small>
               )}
             </span>
             <span className="type-num w-10 text-right text-[14px] text-muted-foreground" title={r.beforeWord}>
               {r.before}
             </span>
-            <b className={`type-num w-10 text-right text-[16px] ${r.changed ? "" : "font-normal text-muted-foreground"}`}>{r.changed ? r.after : "·"}</b>
+            <b data-drop={r.drop ? "" : undefined} className={`w-10 text-right ${r.drop ? "text-[12px] font-bold uppercase tracking-[0.04em]" : `type-num text-[16px] ${r.changed ? "" : "font-normal text-muted-foreground"}`}`}>{r.drop ? "drop" : r.changed ? r.after : "·"}</b>
             {r.changed ? pick(r.id, r.label) : <span className="w-9" aria-hidden />}
           </div>
         );

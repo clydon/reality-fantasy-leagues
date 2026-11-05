@@ -104,7 +104,8 @@ export async function settleOurScores(
   const given = body.accept && typeof body.accept === "object" ? (body.accept as Record<string, unknown>) : {};
   for (const id of decidable) {
     if (declined.includes(id)) continue;
-    const own = given[id];
+    // A drop has no value to adjust: accepted, the moment goes.
+    const own = rows.find((r) => r.id === id)?.drop ? undefined : given[id];
     const value = own === undefined ? (rows.find((r) => r.id === id)?.after ?? added.find((m) => m.id === id)?.points ?? 0) : Number(own);
     if (!Number.isFinite(value) || value < -20 || value > 20) throw new HttpError(400, "Points are -20 to 20");
     accept[id] = half(value);
@@ -117,13 +118,19 @@ export async function settleOurScores(
   const base = structuredClone(copy.blocks) as RulebookBlocks;
   const points: Record<string, number | { exclusive: number; shared: number }> = { ...((base.points ?? {}) as Record<string, number | { exclusive: number; shared: number }>) };
   const defaults = new Map(momentsFor(now).map((m) => [m.id, m.defaultPoints]));
-  const customs = [...(base.customMoments ?? [])];
+  let customs = [...(base.customMoments ?? [])];
   let rescored = 0;
   let joined = 0;
+  let dropped = 0;
   for (const id of accepted) {
     const v = accept[id];
     const made = (a.blocks.customMoments ?? []).find((m) => m.id === id);
-    if (added.some((m) => m.id === id) && made && !customs.some((m) => m.id === id)) {
+    if (rows.find((r) => r.id === id)?.drop) {
+      // Added by hand and worth nothing: taken out of the copy, so the couch isn't asked about it every episode.
+      customs = customs.filter((m) => m.id !== id);
+      delete points[id];
+      dropped++;
+    } else if (added.some((m) => m.id === id) && made && !customs.some((m) => m.id === id)) {
       // The couch answers it each episode, as the couch's own moments are (ours.ts): research isn't asked a copy's questions.
       const { reliability: _r, ...rest } = made as typeof made & { reliability?: string };
       void _r;
@@ -137,25 +144,26 @@ export async function settleOurScores(
     }
   }
   if (customs.length) base.customMoments = customs as never;
+  else delete base.customMoments;
   if (Object.keys(points).length) base.points = points as never;
   else delete base.points;
 
   const on = (await gamesOn(copy.id)).map((g) => g.id);
   if (body.preview) {
-    if (!rescored && !joined) return { lines: [] };
+    if (!rescored && !joined && !dropped) return { lines: [] };
     const compiled = compileChain(copy, base, edits, copy.phaseStarts);
     if (!compiled.data) throw new HttpError(400, compiled.problems[0] ?? "That isn't a usable rulebook");
     return { lines: await preview(on, scope.games, { id: copy.id, version: copy.version + 1, data: compiled.data, reader: copy.reader }) };
   }
   let batch: string | null = null;
-  if (rescored || joined) {
+  if (rescored || joined || dropped) {
     const saved = await saveChain(pool, copy.id, { blocks: base, userId: scope.user.id });
     if (!saved) throw new HttpError(404, "Rulebook not found");
     if ("refused" in saved) throw new HttpError(400, saved.refused[0]?.message ?? "That isn't a usable rulebook");
     const b = crypto.randomUUID();
     batch = b;
     const n = (k: number, w: string) => `${k} ${w}${k === 1 ? "" : "s"}`;
-    const text = [rescored ? `${n(rescored, "moment")} rescored` : "", joined ? `${n(joined, "moment")} added, the couch answers` : ""].filter(Boolean).join(", ");
+    const text = [rescored ? `${n(rescored, "moment")} rescored` : "", dropped ? `${n(dropped, "moment")} dropped` : "", joined ? `${n(joined, "moment")} added, the couch answers` : ""].filter(Boolean).join(", ");
     await syncGames(on, () => ({
       userId: scope.user.id,
       kind: "rules.ours",

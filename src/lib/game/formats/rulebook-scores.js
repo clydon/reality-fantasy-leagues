@@ -23,6 +23,10 @@
 // counts or the blocks, with no trace of it, until they're past that episode. A season's own "didn't fit" notes the same.
 //
 //   buildScoresPrompt({ show, season, airing, aired, episodeCount, blocks })   the question
+//
+// A moment that isn't something one person did (the tip is revealed, a guest complains: a show's first research sometimes
+// writes these) stands on nothing; when it was added by hand, the review proposes dropping it (`drop` on its row), a row
+// to accept or decline like the rest, so research isn't asked about it every episode for nothing.
 //   parseScoresAnswer(text)                                                     the JSON object in a chat's answer
 //   reviewScores(answer, blocks, { castNames, mark, episodeCount, settled })    what it would change, as blocks and rows
 //   pickScores(blocks, review, declined)                                        the changes picked, as blocks
@@ -48,7 +52,7 @@ const LADDER = [
   { id: 'earned', points: 2, test: "Earned something most people there didn't: found or won an advantage, won a reward alone, won as one of a small team, picked first, survived being the target." },
   { id: 'edge', points: 1, test: 'A small edge on the field: came 2nd, won as one of a large group, shared a reward, no votes against them, votes against them survived, a jury vote.' },
   { id: 'along', points: 0.5, test: 'Happened to most people who were there: voted with the majority, took part, was picked, came 3rd.' },
-  { id: 'nothing', points: 0, test: "Says nothing about how well they play (medically removed, arrived partway through), or can't happen on this show." },
+  { id: 'nothing', points: 0, test: "Says nothing about how well they play (medically removed, arrived partway through), isn't something one person did (a happening of the show as a whole), or can't happen on this show." },
   { id: 'slip', points: -0.5, test: 'A small slip: sat out, voted against the majority, put at risk, picked last.' },
   { id: 'lost', points: -1, test: 'Lost to someone and stayed in: lost a head-to-head, finished last, had an advantage used against them, went home holding one, a finalist with no jury votes.' },
   { id: 'out', points: -2, test: 'Left the game by losing: voted out, lost the elimination, last across the line. The usual way out.' },
@@ -104,7 +108,7 @@ function buildScoresPrompt({ show, season, airing = false, aired = 0, episodeCou
     '',
     'Four rules:',
     "1. No names and no results, anywhere. People read this before they've watched: never name anyone in the cast, and never say what happened in a particular episode. Describe what can happen, not what happened.",
-    "2. Score by the ladder, nothing else. Every moment stands on one rung, chosen by the rung's test; its points are the rung's, plus its rarity step on earned or above. Judge what the moment is and how often the show produces it, never how a season or a person is going: the same moment stands on the same rung with the same rarity today, tomorrow and next season.",
+    "2. Score by the ladder, nothing else. Every moment stands on one rung, chosen by the rung's test; its points are the rung's, plus its rarity step on earned or above. Judge what the moment is and how often the show produces it, never how a season or a person is going: the same moment stands on the same rung with the same rarity today, tomorrow and next season. A moment that isn't something one person did or had done to them (the tip is revealed, a guest complains, the weather turns) stands on nothing, and its why says so: it says nothing about anyone.",
     "3. A missing moment is something a recap reliably reports about one person as yes or no, a count or an amount, in the show's own words (\"Got in a fight\", \"Called out an opponent\", \"Eliminated in a purge\"). Never a judgement call (\"funniest moment\"), never something these moments already cover, never something that can't happen on this show. Up to 12, the most telling first. For each, say whether this kind of moment has happened in earlier seasons of the show (anyone who's watched before would expect it) or is new to this season, and the first episode of this season it could happen in under the show's rules.",
     '4. Anything that doesn\'t fit goes in "leftOut", one sentence each, with no names or results either, each with the first episode it concerns.',
     '',
@@ -236,6 +240,7 @@ function reviewScores(answer, blocks, { castNames = [], mark = null, episodeCoun
   const added = [];
   const skipped = [];
   const held = [];
+  const drops = [];
   const moments = momentsFor(b);
   const scores = isObj(a.scores) ? a.scores : {};
   const points = isObj(b.points) ? b.points : {};
@@ -243,7 +248,7 @@ function reviewScores(answer, blocks, { castNames = [], mark = null, episodeCoun
     if (done[m.id]) continue;
     const now = pointsNow(m.defaultPoints);
     const entry = scores[m.id];
-    const same = { id: m.id, label: m.label, before: now, beforeWord: pointsWord(m.defaultPoints), after: now, rung: null, rarity: null, why: '', changed: false };
+    const same = { id: m.id, label: m.label, before: now, beforeWord: pointsWord(m.defaultPoints), after: now, rung: null, rarity: null, why: '', changed: false, drop: false };
     if (entry === undefined) {
       warnings.push({ at: `scores.${m.id}`, message: `${m.label}: not scored, kept at ${pointsWord(m.defaultPoints)}` });
       rows.push(same);
@@ -256,14 +261,21 @@ function reviewScores(answer, blocks, { castNames = [], mark = null, episodeCoun
       continue;
     }
     if (got.note) warnings.push({ at: `scores.${m.id}.rarity`, message: `${m.label}: ${got.note}` });
+    // Added by hand and worth nothing: dropped, so it isn't asked about every episode for nothing.
+    if (m.custom && got.rung === 'nothing') {
+      drops.push(m.id);
+      rows.push({ id: m.id, label: m.label, before: now, beforeWord: pointsWord(m.defaultPoints), after: 0, rung: got.rung, rarity: got.rarity, why: got.why, changed: true, drop: true });
+      continue;
+    }
     const changed = got.points !== now || (isObj(m.defaultPoints) && m.defaultPoints.shared !== got.points);
     if (changed) points[m.id] = isObj(m.defaultPoints) ? { exclusive: got.points, shared: got.points } : got.points;
-    rows.push({ id: m.id, label: m.label, before: now, beforeWord: pointsWord(m.defaultPoints), after: got.points, rung: got.rung, rarity: got.rarity, why: got.why, changed });
+    rows.push({ id: m.id, label: m.label, before: now, beforeWord: pointsWord(m.defaultPoints), after: got.points, rung: got.rung, rarity: got.rarity, why: got.why, changed, drop: false });
   }
   for (const id of Object.keys(scores)) if (!moments.some((m) => m.id === id)) warnings.push({ at: `scores.${id}`, message: `"${id}" isn't one of the rulebook's moments` });
 
   const used = new Set([...moments.map((m) => m.id), ...list(b.segments).map((s) => s.id), ...list(b.twists).map((t) => t.id), ...list(b.waysOut).map((w) => w.id)]);
-  const customs = list(b.customMoments);
+  const customs = list(b.customMoments).filter((m) => !drops.includes(m.id));
+  for (const id of drops) delete points[id];
   const labels = [...moments.map((m) => m.label), ...customs.map((m) => m.label)];
   for (const [i, raw] of list(a.add).entries()) {
     const label = isObj(raw) && typeof raw.label === 'string' ? raw.label.trim().slice(0, 120) : '';
@@ -317,6 +329,7 @@ function reviewScores(answer, blocks, { castNames = [], mark = null, episodeCoun
     added.push({ id, label, points: got.points, rung: got.rung, rarity: got.rarity, why: got.why, known, firstEpisode: first, counted, answeredBy, during: m.during || null });
   }
   if (customs.length) b.customMoments = customs;
+  else delete b.customMoments;
   if (Object.keys(points).length) b.points = points;
   else delete b.points;
   // "Didn't fit", each from the episode it concerns; a bare sentence (an older answer's shape) concerns the whole season.
@@ -342,8 +355,10 @@ function pickScores(blocks, review, declined = []) {
   const from = isObj(review && review.blocks) ? review.blocks : {};
   const fromPoints = isObj(from.points) ? from.points : {};
   const points = isObj(b.points) ? b.points : {};
-  for (const r of list(review && review.rows)) if (r.changed && !skip.has(r.id) && Object.prototype.hasOwnProperty.call(fromPoints, r.id)) points[r.id] = fromPoints[r.id];
-  const customs = list(b.customMoments);
+  const dropped = new Set(list(review && review.rows).filter((r) => r.drop && !skip.has(r.id)).map((r) => r.id));
+  for (const r of list(review && review.rows)) if (r.changed && !r.drop && !skip.has(r.id) && Object.prototype.hasOwnProperty.call(fromPoints, r.id)) points[r.id] = fromPoints[r.id];
+  for (const id of dropped) delete points[id];
+  const customs = list(b.customMoments).filter((m) => !dropped.has(m.id));
   for (const m of list(review && review.added)) {
     if (skip.has(m.id) || customs.some((x) => x.id === m.id)) continue;
     const made = list(from.customMoments).find((x) => x.id === m.id);
@@ -352,6 +367,7 @@ function pickScores(blocks, review, declined = []) {
     if (Object.prototype.hasOwnProperty.call(fromPoints, m.id)) points[m.id] = fromPoints[m.id];
   }
   if (customs.length) b.customMoments = customs;
+  else delete b.customMoments;
   if (Object.keys(points).length) b.points = points;
   else delete b.points;
   return b;

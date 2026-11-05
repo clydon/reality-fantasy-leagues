@@ -238,6 +238,24 @@ test("picking: declined rows and additions stay as they are, the rest go in, and
   assert.deepEqual(blocks, challenge(), "the rulebook given isn't touched");
 });
 
+test("an added-by-hand moment worth nothing is proposed for dropping; accepted it goes, declined it stays", () => {
+  const blocks = challenge();
+  const r = S.reviewScores({ schema: 1, scores: allOn(blocks, "edge", "mostEpisodes", { captain: { rung: "nothing", why: "not about one person" }, dailyChallengeWon: { rung: "nothing" } }), add: [] }, blocks);
+  const captain = r.rows.find((x) => x.id === "captain");
+  assert.deepEqual([captain.drop, captain.changed, captain.after, captain.rung], [true, true, 0, "nothing"], "added by hand: dropped");
+  const daily = r.rows.find((x) => x.id === "dailyChallengeWon");
+  assert.deepEqual([daily.drop, daily.changed, daily.after], [false, true, 0], "built from a segment: worth 0, never dropped");
+  assert.ok(!r.blocks.customMoments.some((m) => m.id === "captain") && r.blocks.points.captain === undefined, "gone from the blocks");
+  assert.deepEqual(r.problems, []);
+  assert.ok(r.lines.some((l) => /captain/i.test(l)));
+  const kept = S.pickScores(blocks, r, ["captain"]);
+  assert.ok(kept.customMoments.some((m) => m.id === "captain") && kept.points.captain !== undefined, "declined: kept as it was");
+  const gone = S.pickScores(blocks, r, []);
+  assert.ok(!gone.customMoments.some((m) => m.id === "captain") && gone.points.captain === undefined, "accepted: dropped");
+  assert.match(S.LADDER.find((x) => x.id === "nothing").test, /isn't something one person did/);
+  assert.match(S.buildScoresPrompt({ show: "Below Deck", blocks }), /isn't something one person did or had done to them .* stands on nothing/);
+});
+
 test("a chat's chatter around the JSON is fine, and no JSON at all is said plainly", () => {
   assert.equal(S.parseScoresAnswer('Here:\n{"schema": 1, "scores": {}}\nDone.').schema, 1);
   assert.throws(() => S.parseScoresAnswer("I couldn't find anything."), /no JSON object/);

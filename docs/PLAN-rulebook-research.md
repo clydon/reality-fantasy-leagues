@@ -77,6 +77,12 @@ fantasy team."
   blocks or the lines, with no trace of it, until they're past that episode; "didn't fit" notes carry a first episode too.
   No mark (or seeing results straight away) holds nothing. The sheet carries one fixed line whatever is held, so its being
   there says nothing. The desk is the one place this applies: the admin plays too.
+- **A moment belongs to one person** (the user, 2026-11-05, Below Deck 13's first research had "the tip is revealed" and
+  "a guest complains" as moments): the rulebook prompt says every custom moment is something one cast member did or had
+  done to them, with a line for a reality series beside the talk-show and scripted ones. What scores says such a moment
+  stands on nothing, and when it was added by hand the review proposes **dropping** it (`drop` on its row: "drop" in place
+  of a value, accept or decline like the rest; in Backstage, Drop it or Keep it), so research isn't asked about it every
+  episode for nothing. A moment a segment builds is never dropped, only worth 0.
 - **Settled a row at a time.** Use marks the accepted rows used and the declined ones put away (`rulebook_answers.settled`,
   0434); an answer stays open while anything is left, seen or held, and leaves the research row for a reader once nothing
   they can see is left. A held moment surfaces later from the same answer, reviewed against the rulebook as it is then.

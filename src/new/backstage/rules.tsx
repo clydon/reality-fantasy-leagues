@@ -722,7 +722,7 @@ function OurScoresSheet({ seasonId, couchId, state, onClose, onPaste, done }: { 
       />
     );
   /** A row's three buttons. */
-  const three = (id: string, value: number) => {
+  const three = (id: string, value: number, drop = false) => {
     const c = choiceOf(id, value);
     const btn = (kind: Choice["kind"], label: string) => (
       <button
@@ -738,7 +738,7 @@ function OurScoresSheet({ seasonId, couchId, state, onClose, onPaste, done }: { 
     );
     return (
       <div className="mt-2">
-        <div className="flex gap-1.5">{[btn("accept", "Accept"), btn("adjust", "Adjust"), btn("decline", "Decline")]}</div>
+        <div className="flex gap-1.5">{drop ? [btn("accept", "Drop it"), btn("decline", "Keep it")] : [btn("accept", "Accept"), btn("adjust", "Adjust"), btn("decline", "Decline")]}</div>
         {c.kind === "adjust" && (
           <div className="mt-2">
             <Stepper title="Points" line={`The ladder says ${pts(value)}`} value={pts(c.points)} onStep={(d) => set(id, { kind: "adjust", points: Math.max(-20, Math.min(20, c.points + d * 0.5)) })} />
@@ -779,15 +779,15 @@ function OurScoresSheet({ seasonId, couchId, state, onClose, onPaste, done }: { 
                   <span className="min-w-0 flex-1">
                     <b className="block text-[14px] leading-snug">{r.label}</b>
                     <small className="block text-[12px] leading-snug text-muted-foreground">
-                      {r.rung ? words(r.rung) : ""}
-                      {r.rarity ? ` · ${words(r.rarity)}` : ""}
+                      {r.drop ? "Not about one person: drop it, so nobody is asked about it" : r.rung ? words(r.rung) : ""}
+                      {!r.drop && r.rarity ? ` · ${words(r.rarity)}` : ""}
                     </small>
                   </span>
                   <span className="flex-none text-[14px] text-muted-foreground">{pts(r.before)}</span>
                   <span className="flex-none text-[13px] text-muted-foreground">→</span>
-                  <b className="type-num flex-none text-[18px]">{pts(r.after)}</b>
+                  <b className={`flex-none ${r.drop ? "text-[12px] font-bold uppercase tracking-[0.04em]" : "type-num text-[18px]"}`}>{r.drop ? "drop" : pts(r.after)}</b>
                 </div>
-                {three(r.id, r.after)}
+                {three(r.id, r.after, r.drop)}
               </div>
             ))}
             {(a.skipped ?? []).map((x) => (
