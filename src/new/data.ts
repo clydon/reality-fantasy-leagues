@@ -19,6 +19,7 @@ import type { GameSettings, ScoringRules, WaiverAdminGame, WaiverAction } from "
 import type { CouchMoments } from "@/lib/server/couch-answers";
 import type { ShowChange } from "@/lib/server/show-changes";
 import type { Members, OutPreview } from "@/lib/server/backstage-members";
+import type { RemindPreview, RemindResult } from "@/lib/server/backstage-remind";
 import type { AskRun, Ways } from "@/lib/server/results-ways";
 import type { SeasonDraft } from "@/lib/server/season-draft";
 import type { CouchHub } from "@/lib/server/couch-hub";
@@ -73,6 +74,7 @@ export type { OurRules } from "@/lib/server/ours";
 export type { CouchMoments } from "@/lib/server/couch-answers";
 export type { ShowChange } from "@/lib/server/show-changes";
 export type { Member, MemberGame, Members, OutPreview } from "@/lib/server/backstage-members";
+export type { RemindPreview, RemindResult } from "@/lib/server/backstage-remind";
 export type { BotSeat, GameBots } from "@/lib/server/computer-players";
 export type { AskRun, Ways } from "@/lib/server/results-ways";
 export type { DraftClock, DraftFace, DraftGame, DraftPick, DraftSeat } from "@/lib/game/draft-view";
@@ -750,6 +752,8 @@ export const useWaiversAdmin = (seasonId: string, couchId: string | null) => use
 export const useGameSettings = (seasonId: string, couchId: string | null) => useBs<{ games: GameSettings[] }>("settings", seasonId, couchId);
 export const useScoringRules = (seasonId: string, couchId: string | null) => useBs<ScoringRules>("rules", seasonId, couchId);
 export const useMembers = (seasonId: string, couchId: string | null) => useBs<Members>("members", seasonId, couchId);
+/** Backstage home's Reminders card (backstage-remind.ts): who still has a move open in the games you run here, and who heard lately. */
+export const useRemindPreview = (seasonId: string, couchId: string | null, enabled = true) => useBs<RemindPreview>("remind", seasonId, couchId, enabled);
 
 async function sendJson<T>(url: string, method: "PUT" | "PATCH" | "POST", body: unknown): Promise<T> {
   const res = await fetch(url, { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
@@ -770,6 +774,8 @@ export const gameAdmin = {
   /** Its current episode's lineups or picks, locked or unlocked by hand (past its start too): backstage-games.ts lockWrite. */
   lock: (seasonId: string, couchId: string, leagueId: string, closed: boolean) =>
     sendJson<{ closed: boolean }>(seasonUrl(seasonId, "/backstage/settings", { couch: couchId }), "PATCH", { leagueId, lock: closed }),
+  /** Remind everyone (backstage-remind.ts): one push to each person with a move still open in a game you run here. */
+  remind: (seasonId: string, couchId: string) => sendJson<RemindResult>(seasonUrl(seasonId, "/backstage/remind", { couch: couchId }), "POST", {}),
   /** Lock it down (step 15 part 4): competitive mode for every game you run here, one batch. */
   lockDown: (seasonId: string, couchId: string, on: boolean) =>
     sendJson<{ batch: string | null; games: number }>(seasonUrl(seasonId, "/backstage/settings", { couch: couchId }), "PATCH", { lockDown: on }),

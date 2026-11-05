@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeftRight, CalendarClock, Check, ChevronRight, CircleQuestionMark, Eye, KeyRound, RotateCcw, SlidersHorizontal, Trophy, UserPlus, Users, X, type LucideIcon } from "lucide-react";
+import { ArrowLeftRight, BellRing, CalendarClock, Check, ChevronRight, CircleQuestionMark, Eye, KeyRound, RotateCcw, SlidersHorizontal, Trophy, UserPlus, Users, X, type LucideIcon } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { airTime } from "../clock";
 import { ChangesPage } from "../backstage/changes";
@@ -9,7 +9,8 @@ import { ResultsPage } from "../backstage/results";
 import { RulesPage } from "../backstage/rules";
 import { SettingsPage } from "../backstage/settings";
 import { WaiversAdminPage } from "../backstage/waivers";
-import { couches, useAfterCouch, useBackstage, useChanges, type Backstage, type Need } from "../data";
+import { useQueryClient } from "@tanstack/react-query";
+import { couches, gameAdmin, useAfterCouch, useBackstage, useChanges, useRemindPreview, type Backstage, type Need, type RemindPreview } from "../data";
 import { openCouchSheet } from "../couch/couch-sheets";
 import { Avatar } from "../ui/bars";
 import { NavLink, useNav } from "../nav";
@@ -137,6 +138,7 @@ function BackstageHome({ seasonId, show }: { seasonId: string; show: ShowData })
           )}
         </div>
       </section>
+      <RemindSection seasonId={seasonId} couchId={couchId} enabled={games > 0} />
       <section className="mt-8">
         <SectionHead
           title={show.header?.seasonNumber ? `${name.replace(/^The /, "")} ${show.header.seasonNumber}` : name}
@@ -156,6 +158,66 @@ function BackstageHome({ seasonId, show }: { seasonId: string; show: ShowData })
       </p>
     </div>
   );
+}
+
+/**
+ * Reminders (backstage-remind.ts): how many people still have a move open in the games you run here, and one button that
+ * pushes each of them once, listing their moves. The hourly job reminds everyone on its own a day and two hours before an
+ * episode airs (db/reminders.js); this is for in between, and it says so. Someone reminded from here in the last few hours
+ * isn't reminded from here again until they've passed.
+ */
+function RemindSection({ seasonId, couchId, enabled }: { seasonId: string; couchId: string | null; enabled: boolean }) {
+  const preview = useRemindPreview(seasonId, couchId, enabled);
+  const client = useQueryClient();
+  const [busy, setBusy] = useState(false);
+  const data = preview.data;
+  const send = async () => {
+    if (!couchId) return;
+    setBusy(true);
+    try {
+      const r = await gameAdmin.remind(seasonId, couchId);
+      client.setQueryData(["new-design", "bs2", "remind", seasonId, couchId], r);
+      toast(r.sent ? `Reminded ${r.sent} ${r.sent === 1 ? "person" : "people"}` : "Everyone's been reminded already");
+    } catch (e) {
+      toast.quiet((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="mt-8">
+      <SectionHead title="Reminders" aside={data ? (data.people ? `${data.people} ${data.people === 1 ? "person" : "people"}` : "All in") : undefined} />
+      <div className="px-4">
+        {!data ? (
+          <div aria-busy className="h-[72px] animate-pulse rounded-[4px] bg-card" />
+        ) : (
+          <div data-remind data-people={data.people} data-recent={data.recent} className="flex items-center gap-3 rounded-[4px] bg-card p-3.5">
+            <BellRing className={`size-[26px] flex-none ${data.people > data.recent ? "text-chyron-line" : "text-muted-foreground"}`} aria-hidden />
+            <span className="min-w-0 flex-1">
+              <b className="block text-[15px]">{remindTitle(data)}</b>
+              <small className="block text-[13px] text-muted-foreground">{remindLine(data)}</small>
+            </span>
+            <Btn tone={data.people > data.recent ? "must" : "optional"} className="h-11 px-3.5" disabled={busy || data.people <= data.recent} data-remind-send onClick={send}>
+              Remind them
+            </Btn>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function remindTitle(d: RemindPreview): string {
+  if (!d.people) return "Everyone's moves are in";
+  return `${d.people} ${d.people === 1 ? "person still has" : "people still have"} a move to make`;
+}
+
+function remindLine(d: RemindPreview): string {
+  const airs = d.next?.airAt ? `Episode ${d.next.number} airs ${airTime(Date.parse(d.next.airAt))}` : null;
+  if (!d.people) return airs ? `${airs} · everyone hears on their own a day and two hours before` : "Nothing's open in the games you run";
+  if (d.recent >= d.people) return `All reminded from here in the last ${d.cooldownHours} hours · again once that's passed`;
+  const who = d.recent ? `${d.recent} reminded already` : "one push each, listing their moves";
+  return airs ? `${airs} · ${who}` : who;
 }
 
 /** The Results row's line: where the latest open episode stands, naming nobody. */

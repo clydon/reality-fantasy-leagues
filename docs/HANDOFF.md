@@ -21,6 +21,19 @@ and the Neon password rotation (deferred; steps there). Fixed 2026-10-24: the ch
 end); GitHub Actions, stopped since 2026-10-19, runs again. Vercel builds production only (Preview shared
 production's database).
 
+## Remind everyone from Backstage (2026-11-05; branch `ccr-12722a64-8wwo5w`, no migration)
+The user asked whether players are reminded of open to-dos before an episode and whether a commissioner can force one. They
+were already reminded on their own (`db/reminders.js`, hourly: a day and two hours before an episode airs, one push per game
+listing what's open, each window once); nothing let whoever runs a game send one by hand. Now Backstage's home has a
+**Reminders** card between Needs you and the pages: how many people still have a move open in the games you run here (the
+app's own to-do, `due-moves.ts`, so it never says something Up next doesn't), when the next episode airs, and **Remind them**:
+one push per person listing every game's moves (`reminder` type; its Settings description says so now), never yourself.
+Once every four hours per person (`reminder_log` kind `manual`, its window the time sent); inside that the card says they've
+all been reminded and the button is off. Pure half `src/lib/server/remind-moves.js` (tests/remind-moves.test.js), the read and
+send `backstage-remind.ts`, route `/api/seasons/[seasonId]/backstage/remind` (GET the count, POST the send). **Not run in a
+browser** (the cloud session had no local database): `scripts/dev-test/check-backstage-remind.js` is written for it (API and
+the card on new-fixture.js); run it before shipping. `npm test` 1263 pass, `tsc` and `next build` clean.
+
 ## Research on a rulebook through our bot: Check for changes, What scores (2026-11-04/05; branch `ccr-dc484e47-2hp97o`, migrations 0432 to 0434)
 The user found the desk rulebook's Check for changes still copy-and-paste only, and asked for a second pass, **What scores**: find
 the moments the rulebook is missing, and score every moment so strong players score high, poor players score low, a poor player
