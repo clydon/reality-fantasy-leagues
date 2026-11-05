@@ -83,7 +83,8 @@ someEpisodes +0.5, onceOrTwice +1, on earned and above only; never from this sea
 **holds** a new-this-season moment past the admin's own Where I am mark with no trace of it (the desk's one spoiler-safe place: the
 admin plays too), settling a row at a time (0434); Check for changes keeps Up to episode (0433). **Stage two, built the same day:** the
 commissioner's own What scores in Backstage › Scoring rules on the couch's own copy (`our-scores.ts`; Accept · Adjust · Decline a row, the
-games scored again with Undo; held by their own mark). Check: `check-new-our-scores.js`. Scoring is a **ladder** of eleven rungs with
+games scored again with Undo; held by their own mark). Check: `check-new-our-scores.js`. **Also the same day:** the Cast tab's story sheet reads by episode, newest first, one line a moment
+with its own points (cast-stats.ts events carry points and units now; DESIGN.md › A castaway's story). Scoring is a **ladder** of eleven rungs with
 fixed points (`src/lib/game/formats/rulebook-scores.js` LADDER): the AI only says which rung a moment stands on; the review takes
 the rung's points. The current episode isn't an input (the ladder judges what a moment is); how far the season has got is, for
 finding what's missing. **Read [PLAN-rulebook-research.md](PLAN-rulebook-research.md).** Checks: `tests/rulebook-scores.test.js`,
