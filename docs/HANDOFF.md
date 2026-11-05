@@ -38,7 +38,9 @@ dimmed, while the next is read (`keepPreviousData`), and the save sends `season`
 number of the show (made from the listing beside the one there, or the row already here: `seasonHere(.., chosen)`, never an
 admin's other season when a number was picked). From a season that's here (`CatalogWhere`, a catalog row with a `tvmazeId`;
 `CatalogSeason.seasonNumber` is new for it): the picker lists the listing's seasons too; another one here is its own row (and
-"already on your list" when it is), one that isn't goes to the listing path. Not in the tour's practice. **Not run in a
+one that isn't goes to the listing path; a row already on your list opens Where are you all the same (the user, 2026-11-05: so
+another season can be picked from it), saying so with no save (`data-where-on-list`; `WhereAsk`'s `onList`), as does picking
+a season that's on your list from the listing path. Not in the tour's practice. **Not run in a
 browser** (no local database here): `scripts/dev-test/check-new-watching.js` has the API cases (the list, `?season=`, add by
 number, 404/400) and a browser step on the picker (ZT Late Bloomer's two seasons); run it before shipping. The keyboard
 lift can only be seen on a phone: open Add a show, type, and the results should sit above the keyboard with the field in

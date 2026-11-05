@@ -362,7 +362,13 @@ async function newcomer(pool, who, approved = true) {
       check(/ZT Two · UK/.test(await sheet(page).locator("[data-hit]").nth(1).innerText()) || /ZT Two · UK/.test(await sheet(page).locator("[data-hit]").nth(0).innerText()), "the UK one told apart by its network");
       check((await sheet(page).locator("[data-add-new]").count()) === 0, "an exact name: no Add as a new show");
       await sheet(page).locator("[data-hit*='Love Shack']").filter({ hasText: /On your list/i }).click();
-      check(/already on your list/.test(await toasted(/already on your list/, page)), "his own: already on your list");
+      await sheet(page).locator("[data-where-on-list]").waitFor();
+      check(
+        /already on your list/.test(await sheet(page).locator("[data-where-on-list]").innerText()) && (await sheet(page).locator("[data-where-save]").isDisabled()) && (await sheet(page).locator("[data-where-season-pick]").count()) === 1,
+        "his own still opens Where are you: already on your list, no save, the picker for its other season"
+      );
+      await shot("on-your-list", page);
+      await sheet(page).getByRole("button", { name: /Back to search/ }).click();
       await sheet(page).locator("[data-add-input]").fill("zt old");
       await sheet(page).locator("[data-hit-kind]").first().waitFor();
       const old = await sheet(page).locator("[data-hit]").evaluateAll((els) => els.map((e) => `${e.getAttribute("data-hit")}:${e.getAttribute("data-hit-kind")}`));

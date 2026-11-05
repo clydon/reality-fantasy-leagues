@@ -91,6 +91,7 @@ export function WhereAsk({
   busy,
   lookUp,
   pick,
+  onList,
   onSave,
 }: {
   s: WhereSeason;
@@ -103,6 +104,9 @@ export function WhereAsk({
   lookUp?: boolean;
   /** Add a show's: which of the listing's seasons, when it has more than one. */
   pick?: SeasonPick;
+  /** Add a show's: this season's on your list already (the user, 2026-11-05: the row still opens, so another season can be
+   *  picked here); nothing to set, and no save until a different one is. */
+  onList?: boolean;
   /** `episodes`: look up the ones that are out (on unless switched off). */
   onSave: (seen: number, live: boolean, episodes: boolean) => void;
 }) {
@@ -125,6 +129,22 @@ export function WhereAsk({
     );
   }
   const reading = !!pick?.reading;
+  if (onList) {
+    return (
+      <div data-where-ask data-where-on-list>
+        <div className={reading ? "pointer-events-none opacity-40 transition-opacity" : "transition-opacity"}>
+          <WhereRow s={s} seen={start} onChange={() => {}} fixed line="On your list" />
+        </div>
+        {pick && pick.seasons.length > 1 && <SeasonPicker pick={pick} />}
+        <p className="mt-3 text-[14px] leading-normal text-muted-foreground">
+          {s.label} is already on your list{pick && pick.seasons.length > 1 ? ": pick another season to add that one" : ""}. Where you are in it is on its show page.
+        </p>
+        <Btn tone="must" wide className="mt-4" data-where-save disabled>
+          Already on your list
+        </Btn>
+      </div>
+    );
+  }
   return (
     <div data-where-ask aria-busy={reading || undefined}>
       <div className={reading ? "pointer-events-none opacity-40 transition-opacity" : "transition-opacity"}>

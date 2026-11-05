@@ -337,12 +337,16 @@ function AddShowSheet({ open, practice, onOpenChange }: { open: boolean; practic
       await done(s.label, ready, s.seasonId, episodes);
     });
   };
+  // A season on your list still opens Where are you (the user, 2026-11-05): it says so there, and its show's other seasons
+  // can be picked from it.
   const pickSeason = (s: WhereSeason, ready: boolean) => {
-    if (mine.has(s.seasonId)) return toast.quiet(`${s.label} is already on your list`);
     // Nothing's aired yet: nothing to ask.
-    if (s.aired === 0) return addSeason(s, ready, 0);
+    if (s.aired === 0 && !mine.has(s.seasonId)) return addSeason(s, ready, 0);
     setStep({ kind: "season", s, ready });
   };
+  /** A season of a listed show that's on your list already, by its listing and number. */
+  const onList = (tvmazeId: number, number: number | null) =>
+    number != null && catalog.some((c) => c.tvmazeId === tvmazeId && c.seasonNumber === number && mine.has(c.seasonId));
   // Another season of a show that's here, from Where are you's picker (the user, 2026-11-05: Below Deck came up as its 13th):
   // the one here when it is (its row, its game), else its listing's by number. The listing's own is "no number".
   const pickOther = (tvmazeId: number, number: number | null, hit: ListingHit) => {
@@ -552,6 +556,7 @@ function AddShowSheet({ open, practice, onOpenChange }: { open: boolean; practic
             busy={busy}
             lookUp={!practice}
             pickable={!practice}
+            onList={mine.has(step.s.seasonId)}
             onPick={(number, hit) => pickOther(hit.tvmazeId, number, hit)}
             onSave={(seen, live, episodes) => addSeason(step.s, step.ready, seen, live, episodes)}
           />
@@ -563,6 +568,7 @@ function AddShowSheet({ open, practice, onOpenChange }: { open: boolean; practic
             busy={busy}
             lookUp={!practice}
             pickable={!practice}
+            isOnList={(number) => onList(step.hit.tvmazeId, number)}
             onPick={(number) => pickOther(step.hit.tvmazeId, number, step.hit)}
             onSave={(seen, live, episodes, season) =>
               practice
@@ -613,6 +619,7 @@ function ListingWhere({
   busy,
   lookUp,
   pickable,
+  isOnList,
   onPick,
   onSave,
 }: {
@@ -621,6 +628,8 @@ function ListingWhere({
   busy: boolean;
   lookUp?: boolean;
   pickable?: boolean;
+  /** Whether a season of this show, by number, is on your list already (then there's nothing to add). */
+  isOnList?: (number: number) => boolean;
   onPick?: (number: number | null) => void;
   onSave: (seen: number, live: boolean, episodes: boolean, season: number | null) => void;
 }) {
@@ -647,7 +656,19 @@ function ListingWhere({
     pickable && onPick && shown && data.seasons.length > 1
       ? { seasons: data.seasons, number: season ?? shown.number, reading, onPick: (n) => onPick(season == null && n === shown.number ? null : n) }
       : undefined;
-  return <WhereAsk key={shown?.number ?? "none"} s={s} start={0} cta="Add to my shows" busy={busy} lookUp={lookUp} pick={pick} onSave={(seen, live, episodes) => onSave(seen, live, episodes, season)} />;
+  return (
+    <WhereAsk
+      key={shown?.number ?? "none"}
+      s={s}
+      start={0}
+      cta="Add to my shows"
+      busy={busy}
+      lookUp={lookUp}
+      pick={pick}
+      onList={!!shown && !!isOnList?.(shown.number)}
+      onSave={(seen, live, episodes) => onSave(seen, live, episodes, season)}
+    />
+  );
 }
 
 /** Where you are in a season that's here (the catalog's), with the picker for its show's other seasons when its listing has
@@ -657,6 +678,7 @@ function CatalogWhere({
   busy,
   lookUp,
   pickable,
+  onList,
   onPick,
   onSave,
 }: {
@@ -664,6 +686,7 @@ function CatalogWhere({
   busy: boolean;
   lookUp?: boolean;
   pickable?: boolean;
+  onList?: boolean;
   onPick: (number: number, hit: ListingHit) => void;
   onSave: (seen: number, live: boolean, episodes: boolean) => void;
 }) {
@@ -673,7 +696,7 @@ function CatalogWhere({
     tv != null && data && data.seasons.length > 1 && s.seasonNumber != null
       ? { seasons: data.seasons, number: s.seasonNumber, onPick: (n) => n !== s.seasonNumber && onPick(n, data.hit) }
       : undefined;
-  return <WhereAsk s={s} start={0} cta="Add to my shows" busy={busy} lookUp={lookUp} pick={pick} onSave={onSave} />;
+  return <WhereAsk s={s} start={0} cta="Add to my shows" busy={busy} lookUp={lookUp} pick={pick} onList={onList} onSave={onSave} />;
 }
 
 /** Added, and getting ready (show/getting-ready.tsx): the call sheet as its rules, cast and episodes come in; Go to the show, or
