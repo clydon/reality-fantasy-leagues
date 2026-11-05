@@ -42,6 +42,14 @@ test("prompt: groups only for a show with groups, roles only for a show with rol
   assert.match(g, /photoUrl/);
 });
 
+test("prompt: the names come from the wiki's page for this season, and the photos may be left to the listings", () => {
+  const s = C.buildCastPrompt(generic, { seasonName: "season 13", showName: "Below Deck", year: 2026 });
+  assert.match(s, /Wikipedia article for this season of "Below Deck"/);
+  assert.match(s, /nobody from an earlier season/);
+  assert.match(s, /photoUrl may be ""/);
+  assert.match(s, /premiered in 2026/);
+});
+
 test("parse: chatter around the JSON is fine; garbage is a clear error", () => {
   const p = C.parseCastImport('Here you go:\n```json\n{"castaways":[{"name":"A","photoUrl":""}],"sources":["x"]}\n```', generic);
   assert.equal(p.castaways[0].name, "A");

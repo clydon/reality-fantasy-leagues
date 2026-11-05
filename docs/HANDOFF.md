@@ -21,6 +21,20 @@ and the Neon password rotation (deferred; steps there). Fixed 2026-10-24: the ch
 end); GitHub Actions, stopped since 2026-10-19, runs again. Vercel builds production only (Preview shared
 production's database).
 
+## A reality series' cast: names from the wiki, photos from the listings (2026-11-05; branch `ccr-7c18a4ac-smuvdh`, no migration)
+The user added Below Deck 13 and Getting it ready gave it 40 crew, Captain Lee and Ben Robinson among them. Make it a game
+had classed it a series (reality), and a series' cast came from TVmaze's cast of the *show* (`/shows/{id}/cast`): everyone
+who was ever its main cast, with no season to it. Fine for a scripted show's characters, the whole run of a reality series
+whose cast turns over, and the "not this season" check only ever ran on our bot's answers. Now (`make-game.ts listingCast`)
+only a scripted series or a talk show takes the listing's cast; a reality series is asked for like a competition, through
+the cast prompt anchored to the season. The prompt (`cast-prompt.js`) says where the names come from: the Wikipedia article
+for this season of the show (its cast or crew section), else the show's fan wiki's season page, nobody from an earlier
+season; photoUrl may be left "". Photos come from the season's credits first (TMDB's, else TVmaze's premiere guest cast)
+for everyone they have, the answer's own only for the rest, in Make it a game's review (`withPhotos`) and the desk's Send
+(`sendCast`) alike. **Below Deck 13's cast as it stands is still the wrong one:** on the desk, its Cast page's Ask our bot
+stages the season's real crew against it (the 30-odd who aren't in it show as removals), then Send. Not tested against a
+live bot from this session (no network to TVmaze, TMDB or the bot): `npm test` covers the prompt and the listing reader.
+
 ## Remind everyone from Backstage (2026-11-05; branch `ccr-12722a64-8wwo5w`, no migration)
 The user asked whether players are reminded of open to-dos before an episode and whether a commissioner can force one. They
 were already reminded on their own (`db/reminders.js`, hourly: a day and two hours before an episode airs, one push per game

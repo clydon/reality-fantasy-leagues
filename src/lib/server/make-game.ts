@@ -38,7 +38,7 @@ import { libraryTemplates, otherSeasonRulebook } from "./templates";
 // Make it a game (docs/PLAN-new-design.md step 10 part 2a; the mock's rulebook.js makeGame; GET/POST
 // /api/seasons/[id]/make). A show someone added to follow ("Not a game yet", shows.set_up_at NULL) becomes a game for
 // every couch from two answers: how it works (rulebook-research.js's prompt, starting from the nearest rulebook we have)
-// and who's in it (cast-prompt.js's, or TVmaze's cast for a series or a talk show). Anyone signed in can do it, free:
+// and who's in it (cast-prompt.js's, or TVmaze's cast for a scripted series or a talk show). Anyone signed in can do it, free:
 //
 //   Ask ChatGPT for me: our bot (ask-bot.ts) asks after the request has answered (`after`, within the route's 300 s), the
 //     how-it-works question first, then the cast; the page polls a version. Two asks that don't both fit in one request's
@@ -288,13 +288,19 @@ function workOut(row: SetupRow, show: Show, seen: number): Worked | null {
 }
 
 /**
- * A cast from a listing ([] for any other kind, with none, or with the listings down): a series' or talk show's from TVmaze, a
- * sport's from its linked games (sports/cast.ts: the provider's rosters, filled in when the sport was added, else now). ChatGPT
- * is asked only when there's none: it can't know a season's rosters as they are (the World Series, 2026-10-27).
+ * A cast from a listing ([] for any other kind, with none, or with the listings down): a scripted series' or talk show's from
+ * TVmaze, a sport's from its linked games (sports/cast.ts: the provider's rosters, filled in when the sport was added, else
+ * now). ChatGPT is asked only when there's none: it can't know a season's rosters as they are (the World Series, 2026-10-27).
+ *
+ * Never a reality series' (the user, 2026-11-05: Below Deck 13 got 40 crew, Captain Lee and Ben Robinson among them). TVmaze's
+ * cast of a show is everyone who was ever its main cast, with no season to it: right for a scripted show's characters, and the
+ * whole run of a reality series whose cast turns over. Its names come from the wiki through the cast prompt instead, anchored
+ * to this season (castAnchor), and its photos from the season's credits (withPhotos: TMDB's, else TVmaze's).
  */
 async function listingCast(show: Show, kind: RulebookKind, start: SeriesStart | null, base: string): Promise<MadeCastRow[]> {
   if (kind === "sport") return sportsCast(show.header.seasonId);
   if ((kind !== "series" && kind !== "talk") || !show.tvmazeId) return [];
+  if (kind === "series" && start !== "scripted") return [];
   try {
     return castFromListing(await showCast(show.tvmazeId, base), start);
   } catch (e) {
@@ -348,16 +354,17 @@ function needsOf(row: SetupRow, worked: Worked | null): "rules" | "cast" | null 
 }
 
 /**
- * The faces an answer gave no photo: the season's own credits' (show-art.ts castPhotosFor: TMDB's, else TVmaze's), shown in the
- * review straight away and saved with the cast by Looks right. Never written before that.
+ * The faces' photos: the season's own credits' (show-art.ts castPhotosFor: TMDB's, else TVmaze's) for everyone they have, the
+ * answer's own for the rest (the user, 2026-11-05: names from the wiki, photos from the listings). Shown in the review straight
+ * away and saved with the cast by Looks right. Never written before that. A sport's (castPhotosFor finds none) keep theirs.
  */
 async function withPhotos(seasonId: string, worked: Worked, base?: string): Promise<void> {
-  const want = worked.cast.filter((c) => !c.photoUrl).map((c) => c.name);
+  const want = worked.cast.map((c) => c.name);
   if (!want.length) return;
   const found = await castPhotosFor(seasonId, want, base);
   if (!found.size) return;
-  worked.cast = worked.cast.map((c) => (c.photoUrl || !found.has(c.name) ? c : { ...c, photoUrl: found.get(c.name)! }));
-  for (const f of worked.review.cast.faces) if (!f.photo && found.has(f.name)) f.photo = found.get(f.name)!;
+  worked.cast = worked.cast.map((c) => (found.has(c.name) ? { ...c, photoUrl: found.get(c.name)! } : c));
+  for (const f of worked.review.cast.faces) if (found.has(f.name)) f.photo = found.get(f.name)!;
 }
 
 /** Make it a game for this season, as you see it: who's at it, how far, and the review once how it works is in. `base`: the
@@ -480,7 +487,7 @@ export async function askMake(user: SessionUser, seasonId: string, couchId: stri
   return makeState(user, seasonId, couchId, bot, base);
 }
 
-/** Our bot's ask, after the response: how it works, then the cast (TVmaze's for a series or talk show), as time allows. */
+/** Our bot's ask, after the response: how it works, then the cast (TVmaze's for a scripted series or talk show), as time allows. */
 async function runAsk(id: string, seasonId: string, base: string, bot?: string): Promise<void> {
   const t0 = Date.now();
   const left = () => BUDGET_MS - (Date.now() - t0);

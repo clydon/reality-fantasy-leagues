@@ -509,8 +509,9 @@ export async function sendCast(
     ];
     return { lines, title: r.games ? `Send to its ${plural(r.games, "game")}?` : "Send it?" };
   }
-  // Photos for people joining with none: the season's credits' (TMDB's, else TVmaze's).
-  const want = plan.add.filter((a) => !a.photo).map((a) => a.name);
+  // Photos for people joining: the season's credits' first (TMDB's, else TVmaze's), the answer's own only for anyone the
+  // credits don't have (the user, 2026-11-05: names from the wiki, photos from the listings).
+  const want = plan.add.map((a) => a.name);
   const found = want.length ? await castPhotosFor(id, want, o.listings) : new Map<string, string>();
   const summary = [
     plan.rename.length && plural(plan.rename.length, "rename"),
@@ -545,7 +546,7 @@ export async function sendCast(
         const { rows } = await c.query(
           `INSERT INTO season_cast (season_id, name, tribe_name, photo_url, sort_order)
            VALUES ($1, $2, $3, $4, (SELECT COALESCE(max(sort_order), -1) + 1 FROM season_cast WHERE season_id = $1)) RETURNING id`,
-          [id, x.name, x.group, x.photo || found.get(x.name) || null]
+          [id, x.name, x.group, found.get(x.name) || x.photo || null]
         );
         added.push(rows[0].id);
         await log(rows[0].id, "added", null, x.name);
