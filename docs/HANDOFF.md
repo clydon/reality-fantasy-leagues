@@ -44,8 +44,9 @@ the row as what they'd change (What scores' as a **pick list**: additions first,
 or decline, Use N changes puts the accepted ones in the draft; Put away). **2026-11-05:** rarity on the ladder (mostEpisodes +0,
 someEpisodes +0.5, onceOrTwice +1, on earned and above only; never from this season's counts); What scores reads the whole season and
 **holds** a new-this-season moment past the admin's own Where I am mark with no trace of it (the desk's one spoiler-safe place: the
-admin plays too), settling a row at a time (0434); Check for changes keeps Up to episode (0433). **Stage two, not started:** the
-commissioner's own What scores in Backstage (the plan's Next). Scoring is a **ladder** of eleven rungs with
+admin plays too), settling a row at a time (0434); Check for changes keeps Up to episode (0433). **Stage two, built the same day:** the
+commissioner's own What scores in Backstage › Scoring rules on the couch's own copy (`our-scores.ts`; Accept · Adjust · Decline a row, the
+games scored again with Undo; held by their own mark). Check: `check-new-our-scores.js`. Scoring is a **ladder** of eleven rungs with
 fixed points (`src/lib/game/formats/rulebook-scores.js` LADDER): the AI only says which rung a moment stands on; the review takes
 the rung's points. The current episode isn't an input (the ladder judges what a moment is); how far the season has got is, for
 finding what's missing. **Read [PLAN-rulebook-research.md](PLAN-rulebook-research.md).** Checks: `tests/rulebook-scores.test.js`,

@@ -14,6 +14,7 @@ import { seasonBot, usualReach } from "./desk-bot";
 import { dayGap, fmt, mdIn, plural, timeIn, ymd } from "./desk-dates";
 import { askCastNow } from "./desk-cast-page";
 import { askRulebookNow, RESEARCH_NAME, throughArg, type ResearchKind } from "./desk-rulebooks";
+import { leagueSeason } from "./push-events";
 import { waitingEpisodes } from "./desk-episode";
 import { deskSetup, type SeasonDelete } from "./desk-setup";
 
@@ -613,12 +614,14 @@ export async function queueCast(user: SessionUser, id: string, o: { bot?: string
  */
 export async function queueRulebook(user: SessionUser, id: string, kind: ResearchKind, through: unknown, o: { bot?: string; origin: string }): Promise<{ text: string; waits: string | null }> {
   if (!isUuid(id)) throw new HttpError(404, "Rulebook not found");
-  const { rows } = await pool.query("SELECT r.season_id, r.name, ss.episode_count FROM rulebooks r LEFT JOIN show_seasons ss ON ss.id = r.season_id WHERE r.id = $1 AND r.status <> 'archived'", [id]);
+  const { rows } = await pool.query("SELECT season_id, league_id, name FROM rulebooks WHERE id = $1 AND status <> 'archived'", [id]);
   if (!rows.length) throw new HttpError(404, "Rulebook not found");
-  const seasonId: string | null = rows[0].season_id;
+  // A season's rulebook, or a couch's own copy (its league's season).
+  const seasonId: string | null = rows[0].season_id ?? (rows[0].league_id ? (await leagueSeason(rows[0].league_id)).seasonId : null);
   if (!seasonId) throw new HttpError(400, "Our bot asks about a season's rulebook. Ask an AI yourself and paste its answer here.");
+  const { rows: ss } = await pool.query("SELECT episode_count FROM show_seasons WHERE id = $1", [seasonId]);
   // Through an episode (nothing later in the answer): the run's episode; 0 is the whole season.
-  const upTo = throughArg(through, rows[0].episode_count ?? null);
+  const upTo = throughArg(through, ss[0]?.episode_count ?? null);
   if (!(await askBotStatus({ bot: o.bot })).available) throw new HttpError(503, "Our bot isn't answering right now. Try again in a while, or paste it.");
   const runKind = kind === "scores" ? "scores" : "rulebook";
   const what = `${RESEARCH_NAME[kind]} on ${rows[0].name}${upTo ? ` up to Episode ${upTo}` : ""}`;

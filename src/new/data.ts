@@ -806,6 +806,31 @@ export const ourRules = {
     post<Moved & Batch>(rulesUrl(seasonId, couchId), { action: "points", leagueId, points, preview }),
 };
 
+// ---- What scores on the couch's own copy (docs/PLAN-rulebook-research.md, stage two; src/lib/server/our-scores.ts) ----
+import type { OurScores } from "@/lib/server/our-scores";
+export type { OurScores };
+export type { RulebookAnswerCard } from "@/lib/server/desk-rulebooks";
+const scoresUrl = (seasonId: string, couchId: string) => seasonUrl(seasonId, "/backstage/rules/scores", { couch: couchId });
+export const ourScores = {
+  prompt: (seasonId: string, couchId: string) => get<{ prompt: string | null; task: string }>(seasonUrl(seasonId, "/backstage/rules/scores", { couch: couchId, prompt: "1" })),
+  ask: (seasonId: string, couchId: string) => post<{ text: string; waits: string | null }>(scoresUrl(seasonId, couchId), { action: "ask" }),
+  paste: (seasonId: string, couchId: string, answer: string) => post<OurScores>(scoresUrl(seasonId, couchId), { action: "paste", answer }),
+  settle: (seasonId: string, couchId: string, answer: string, accept: Record<string, number>, declined: string[], preview = false) =>
+    post<Moved & Batch & { saved?: number; declined?: number }>(scoresUrl(seasonId, couchId), { action: "settle", answer, accept, declined, preview }),
+  putAway: (seasonId: string, couchId: string, answer: string) => post<OurScores>(scoresUrl(seasonId, couchId), { action: "putAway", answer }),
+};
+/** Polls (every 4 s) while our bot is asking, so the answer lands in the open sheet. */
+export function useOurScores(seasonId: string, couchId: string | null, enabled = true) {
+  return useQuery({
+    queryKey: ["new-design", "our-scores", seasonId, couchId],
+    queryFn: () => get<OurScores>(scoresUrl(seasonId, couchId!)),
+    enabled: !!couchId && enabled,
+    staleTime: 15_000,
+    refetchInterval: (q) => (q.state.data?.asking ? 4000 : false),
+    retry: (n, e) => (e as { status?: number }).status !== 403 && n < 2,
+  });
+}
+
 /** The couch's own moments in an episode you've seen, with your answer and what's settled (none: the couch has none). */
 export function useCouchMoments(seasonId: string, couchId: string | null, episode: number, enabled = true) {
   return useQuery({

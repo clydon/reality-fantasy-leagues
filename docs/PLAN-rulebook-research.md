@@ -133,10 +133,22 @@ fantasy team."
   changes and save as a fix.
 - `check-new-desk.js` still has no bot step for rulebooks (the rulebook research check has it).
 
-## Next: the commissioner's own What scores (stage two, not started)
+## Stage two: the commissioner's own What scores (built 2026-11-05)
 
-The user, 2026-11-05: commissioners shouldn't rely on the admin. The same question, the same ladder and rarity, the same
-holding by their own mark, in Backstage on the league's own copy of the rulebook (Make it ours), writing only the league's
-points and added moments; a three-button card for the commissioner (Accept, the default and applied without a tap; Adjust;
-Decline), nothing for players. One setting at most: whether moments the season's rulebook adds mid-season join the league
-by themselves (the default) or wait to be accepted. Values move only by a save from an episode, never from counts.
+The user: commissioners shouldn't rely on the admin. The same question, ladder, rarity and holding, on the couch's own copy
+of the rulebook (Make it ours), from Backstage › Scoring rules.
+- **Server:** `src/lib/server/our-scores.ts`: `ourScores` (the state: copy, mark, asking, the answer as this commissioner may
+  see it), `ourScoresPrompt`, `askOurScores` (desk-research.ts `queueRulebook` with the copy as the rulebook, a commissioner's
+  Ask ChatGPT for me), `pasteOurScores`, `settleOurScores` (Accept, the default for any row not named; Adjust, a value;
+  Decline: what's accepted goes into the copy's base, a changed moment's points and an added moment as one the couch
+  answers each episode, as the couch's own are; the games scored again, previewed first; one batch with Undo; the rows
+  settled), `putAwayOurScores`. Route `api/seasons/[seasonId]/backstage/rules/scores`. The shared pieces work on any
+  rulebook now: `seasonOf` resolves a league copy's season, and `researchFor`, `stagePaste`, `settleRows` are exported
+  (desk-rulebooks.ts); `ruleGames`, `preview`, `syncGames` are exported (ours.ts).
+- **Client:** Backstage › Scoring rules, under What counts (only with a copy, for a Commissioner): the What scores row (a dot
+  while an answer waits) and `OurScoresSheet`: Ask our bot or Paste it, the fixed line about where you are; an answer as
+  rows (added, then changed) each with Accept · Adjust (a stepper) · Decline, Save N through the preview guard, Put away.
+  Players see nothing.
+- **Not built, on purpose:** a setting for whether moments the season's rulebook adds mid-season join the league by
+  themselves (today the copy asks Add it or Skip, as before). One toggle at most, if it's ever wanted.
+- **Check:** `node scripts/dev-test/check-new-our-scores.js <outDir> [--width=390] [--keep]` (new-fixture.js; the stand-in bot).

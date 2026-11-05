@@ -146,16 +146,18 @@ async function row(id: string): Promise<Rulebook> {
   return r;
 }
 
+/** The season a rulebook is about: its own, or its league's for a couch's own copy (ours.ts). */
 async function seasonOf(r: Rulebook) {
-  if (!r.seasonId) return null;
+  const seasonId = r.seasonId ?? (r.leagueId ? (await leagueSeason(r.leagueId)).seasonId : null);
+  if (!seasonId) return null;
   const { rows } = await pool.query(
     `SELECT ss.id, COALESCE(ss.name, s.name || ' ' || ss.season_number) AS name, s.name AS show, ${cardArtSql()} AS art_url, ss.episode_count, ss.rulebook_live, ss.status, ss.season_number
        FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id = $1`,
-    [r.seasonId]
+    [seasonId]
   );
   if (!rows.length) return null;
   const { rows: flag } = await pool.query("SELECT value FROM app_settings WHERE key = 'rulebooks'");
-  const schedule = (await seasonSchedules([r.seasonId])).get(r.seasonId);
+  const schedule = (await seasonSchedules([seasonId])).get(seasonId);
   const s = rows[0];
   return {
     id: s.id as string,
@@ -263,6 +265,13 @@ export function throughArg(v: unknown, max: number | null = null): number | null
   return n;
 }
 
+/** Research on any rulebook as `user` reads it: the desk's, or a couch's own copy (our-scores.ts). */
+export async function researchFor(id: string, user: SessionUser): Promise<RulebookResearch> {
+  const r = await row(id);
+  const now = blocksAt(r.blocks, await inForceEdits(pool, id), Infinity);
+  return researchOf(r, now, await seasonOf(r), user);
+}
+
 /** What's asking and what's waiting, per kind: the open desk run, and the latest unsettled answer reviewed. */
 async function researchOf(r: Rulebook, now: RulebookBlocks, season: Awaited<ReturnType<typeof seasonOf>>, user?: SessionUser): Promise<RulebookResearch> {
   const [{ rows: runs }, { rows: answers }] = await Promise.all([
@@ -274,10 +283,10 @@ async function researchOf(r: Rulebook, now: RulebookBlocks, season: Awaited<Retu
       [r.id]
     ),
   ]);
-  const castNames = r.seasonId ? (await pool.query("SELECT name FROM season_cast WHERE season_id = $1", [r.seasonId])).rows.map((c) => c.name as string) : [];
+  const castNames = season ? (await pool.query("SELECT name FROM season_cast WHERE season_id = $1", [season.id])).rows.map((c) => c.name as string) : [];
   const max = season?.episodeCount ?? null;
-  // Where this admin is on the season: What scores holds this season's moments past it (nothing, with no mark or everything).
-  const raw = user && r.seasonId ? await seenThrough(user.id, r.seasonId) : 0;
+  // Where this reader is on the season: What scores holds this season's moments past it (nothing, with no mark or everything).
+  const raw = user && season ? await seenThrough(user.id, season.id) : 0;
   const mark = raw > 0 && raw !== EVERYTHING ? raw : null;
   const state = (kind: ResearchKind): RulebookResearchState => {
     const run = runs.find((x) => x.kind === RUN_KIND[kind]);
@@ -598,10 +607,11 @@ function readable(kind: ResearchKind, answer: string): string | null {
 async function stageAnswer(r: Rulebook, kind: ResearchKind, source: "bot" | "paste", answer: string, by: string | null, through: number | null): Promise<{ id: string; card: RulebookAnswerCard }> {
   const { rows } = await pool.query("INSERT INTO rulebook_answers (rulebook_id, kind, source, answer, by_user, through_episode) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, created_at", [r.id, kind, source, answer.slice(0, 200_000), by, through]);
   const now = blocksAt(r.blocks, await inForceEdits(pool, r.id), Infinity);
-  const castNames = r.seasonId ? (await pool.query("SELECT name FROM season_cast WHERE season_id = $1", [r.seasonId])).rows.map((c) => c.name as string) : [];
+  const season = await seasonOf(r);
+  const castNames = season ? (await pool.query("SELECT name FROM season_cast WHERE season_id = $1", [season.id])).rows.map((c) => c.name as string) : [];
   // History's line counts what whoever asked may see: their mark, as the page will show it to them.
-  const raw = by && r.seasonId ? await seenThrough(by, r.seasonId) : 0;
-  const { card: c } = card({ id: rows[0].id, kind, source, by: null, at: rows[0].created_at.toISOString(), through }, answer, now, { castNames, mark: raw > 0 && raw !== EVERYTHING ? raw : null, episodeCount: (await seasonOf(r))?.episodeCount ?? null, settled: {} });
+  const raw = by && season ? await seenThrough(by, season.id) : 0;
+  const { card: c } = card({ id: rows[0].id, kind, source, by: null, at: rows[0].created_at.toISOString(), through }, answer, now, { castNames, mark: raw > 0 && raw !== EVERYTHING ? raw : null, episodeCount: season?.episodeCount ?? null, settled: {} });
   await logDesk(pool, {
     entity: "rulebook",
     entityId: r.id,
@@ -629,8 +639,8 @@ export async function askRulebookNow(id: string, kind: ResearchKind, askedBy: st
   }
 }
 
-/** Paste it: an answer from Ask an AI, staged as our bot's is. Answers the page. */
-export async function pasteRulebookAnswer(user: SessionUser, id: string, kind: ResearchKind, raw: unknown, through: unknown = null): Promise<DeskRulebook> {
+/** Paste it: an answer from Ask an AI, staged as our bot's is (the desk's rulebook, or a couch's own copy). */
+export async function stagePaste(user: SessionUser, id: string, kind: ResearchKind, raw: unknown, through: unknown = null): Promise<void> {
   const r = await row(id);
   const upTo = kind === "scores" ? null : throughArg(through, (await askContext(r)).episodeCount);
   const answer = typeof raw === "string" ? raw.trim() : "";
@@ -639,6 +649,11 @@ export async function pasteRulebookAnswer(user: SessionUser, id: string, kind: R
   const bad = readable(kind, answer);
   if (bad) throw new HttpError(400, bad);
   await stageAnswer(r, kind, "paste", answer, user.id, upTo);
+}
+
+/** Paste it on the desk. Answers the page. */
+export async function pasteRulebookAnswer(user: SessionUser, id: string, kind: ResearchKind, raw: unknown, through: unknown = null): Promise<DeskRulebook> {
+  await stagePaste(user, id, kind, raw, through);
   return deskRulebook(id, user);
 }
 
@@ -648,6 +663,12 @@ export async function pasteRulebookAnswer(user: SessionUser, id: string, kind: R
  * left, seen or held for later, and leaves the page for this reader once nothing they can see is left.
  */
 export async function settleRulebookAnswer(user: SessionUser, id: string, body: { answer?: unknown; status?: unknown; ids?: unknown; declined?: unknown }): Promise<DeskRulebook> {
+  await settleRows(user, id, body);
+  return deskRulebook(id, user);
+}
+
+/** The settling itself, for the desk's rulebook or a couch's own copy (our-scores.ts). */
+export async function settleRows(user: SessionUser, id: string, body: { answer?: unknown; status?: unknown; ids?: unknown; declined?: unknown }): Promise<void> {
   if (body.status !== "used" && body.status !== "dismissed") throw new HttpError(400, "status is used or dismissed");
   const { rows } = await pool.query("SELECT id, kind, answer, settled FROM rulebook_answers WHERE id = $1 AND rulebook_id = $2 AND settled_at IS NULL", [String(body.answer), id]);
   if (!rows.length) throw new HttpError(404, "That answer isn't waiting");
@@ -662,10 +683,11 @@ export async function settleRulebookAnswer(user: SessionUser, id: string, body: 
     // hidden from the count.
     const r = await row(id);
     const now = blocksAt(r.blocks, await inForceEdits(pool, id), Infinity);
-    const castNames = r.seasonId ? (await pool.query("SELECT name FROM season_cast WHERE season_id = $1", [r.seasonId])).rows.map((c) => c.name as string) : [];
+    const season = await seasonOf(r);
+    const castNames = season ? (await pool.query("SELECT name FROM season_cast WHERE season_id = $1", [season.id])).rows.map((c) => c.name as string) : [];
     let open = 0;
     try {
-      const review = reviewScores(parseScoresAnswer(a.answer), now, { castNames, episodeCount: (await seasonOf(r))?.episodeCount ?? null, settled });
+      const review = reviewScores(parseScoresAnswer(a.answer), now, { castNames, episodeCount: season?.episodeCount ?? null, settled });
       open = review.rows.filter((x) => x.changed).length + review.added.length + review.held.length;
     } catch {
       open = 0;
@@ -676,10 +698,9 @@ export async function settleRulebookAnswer(user: SessionUser, id: string, body: 
         : "UPDATE rulebook_answers SET settled = $3::jsonb, settled_at = now(), settled_by = $4, settled_as = $5 WHERE id = $1 AND rulebook_id = $2",
       open ? [a.id, id, JSON.stringify(settled)] : [a.id, id, JSON.stringify(settled), user.id, body.status]
     );
-    return deskRulebook(id, user);
+    return;
   }
   await pool.query("UPDATE rulebook_answers SET settled_at = now(), settled_by = $3, settled_as = $4 WHERE id = $1 AND rulebook_id = $2", [a.id, id, user.id, body.status]);
-  return deskRulebook(id, user);
 }
 
 /** Settles a suggested fix: done (the admin fixed it) or dismissed. */

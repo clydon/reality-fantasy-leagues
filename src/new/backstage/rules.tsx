@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Bell, BookOpen, Check, Eye, Plus, ShieldCheck, Trophy, Users, X } from "lucide-react";
-import { backstage, ourRules, useAfterResults, useScoringRules, type GameRules, type OurRules, type PreviewLine } from "../data";
+import { Bell, BookOpen, Check, Eye, ListChecks, Plus, ShieldCheck, Trophy, Users, X } from "lucide-react";
+import { backstage, ourRules, ourScores, useAfterResults, useOurScores, useScoringRules, type GameRules, type OurRules, type OurScores, type PreviewLine } from "../data";
+import { AskAiPasteSheet } from "./ask-ai";
 import { gameColour } from "../games";
 import type { ShowData } from "../screens/show-space";
 import { HowItWorksPage } from "../show/how-it-works";
@@ -27,7 +28,9 @@ export function RulesPage({ seasonId, show }: { seasonId: string; show: ShowData
   const data = useScoringRules(seasonId, couchId);
   const how = usePushedPage("how-it-works");
   const after = useAfterResults();
-  const [sheet, setSheet] = useState<"ours" | "follow" | "counts" | "add" | null>(null);
+  const [sheet, setSheet] = useState<"ours" | "follow" | "counts" | "add" | "scores" | "scoresPaste" | null>(null);
+  // What scores on the couch's copy (stage two): research's answer, as far as you've seen; polls while our bot asks.
+  const scores = useOurScores(seasonId, couchId, !!data.data?.ours.copy && data.data.ours.canChange && !frozenOf(data.data));
   if (data.error) return <EmptyState icon={Trophy} title="Scoring rules aren't yours to see here" line={(data.error as Error).message} />;
   if (!data.data || !couchId) return <div aria-busy className="mx-4 mt-6 h-64 animate-pulse rounded-[4px] bg-card" />;
   const { rulebook, games, frozen } = data.data;
@@ -124,6 +127,22 @@ export function RulesPage({ seasonId, show }: { seasonId: string; show: ShowData
             <OwnMoment key={m.id} seasonId={seasonId} couchId={couchId} m={m} canChange={ours.canChange} done={done} />
           ))}
           {ours.canChange && (
+            <button type="button" data-our-scores onClick={() => setSheet("scores")} className="nd-press flex min-h-[60px] w-full items-center gap-3 border-b border-border py-2 text-left">
+              <span className="grid size-9 flex-none place-items-center rounded-[3px] bg-secondary">
+                <ListChecks className="size-[18px]" aria-hidden />
+              </span>
+              <span className="min-w-0 flex-1">
+                <b className="block text-[15px]">
+                  What scores
+                  {scores.data?.answer && <i data-scores-dot className="ml-2 inline-block size-2 rounded-full bg-chyron align-[2px]" aria-label="An answer waits" />}
+                </b>
+                <small className="block text-[13px] leading-snug text-muted-foreground">
+                  {scores.data?.asking ? `${scores.data.asking} · its answer shows here` : scores.data?.answer ? `${scores.data.answer.title} · accept, adjust or decline each` : "Research puts every moment on one ladder and finds what's missing"}
+                </small>
+              </span>
+            </button>
+          )}
+          {ours.canChange && (
             <button type="button" data-add-moment onClick={() => setSheet("add")} className="nd-press mt-3 flex w-full items-center gap-3 rounded-[3px] p-3 text-left outline-1 -outline-offset-1 outline-input">
               <Plus className="size-5 flex-none" aria-hidden />
               <span className="min-w-0">
@@ -147,12 +166,33 @@ export function RulesPage({ seasonId, show }: { seasonId: string; show: ShowData
       {sheet === "follow" && copy && <FollowSheet seasonId={seasonId} couchId={couchId} from={copy.from} onClose={() => setSheet(null)} done={done} />}
       {sheet === "counts" && <CountsSheet seasonId={seasonId} couchId={couchId} ours={ours} onClose={() => setSheet(null)} done={done} />}
       {sheet === "add" && <AddMomentSheet seasonId={seasonId} couchId={couchId} onClose={() => setSheet(null)} done={done} />}
+      {sheet === "scores" && scores.data && <OurScoresSheet seasonId={seasonId} couchId={couchId} state={scores.data} onClose={() => setSheet(null)} onPaste={() => setSheet("scoresPaste")} done={done} />}
+      {(sheet === "scores" || sheet === "scoresPaste") && (
+        <AskAiPasteSheet
+          open={sheet === "scoresPaste"}
+          onOpenChange={(o) => !o && setSheet("scores")}
+          title="What scores"
+          subtitle="Ask an AI · about 2 minutes"
+          what="Your AI puts every moment on our ladder (the same moment lands on the same rung every time) and lists what the show has that none of them cover. Paste it back and say yes or no to each."
+          check={(text) => (text.includes("{") && text.includes('"scores"') ? { ok: true, line: "Looks right" } : { ok: false, line: "That doesn't look like the whole answer. Copy all of it, from { to }." })}
+          tag="our-scores"
+          question={{ key: ["new-design", "our-scores-question", seasonId, couchId], load: () => ourScores.prompt(seasonId, couchId) }}
+          onUse={async (text) => {
+            await ourScores.paste(seasonId, couchId, text);
+            await after();
+            setSheet("scores");
+            toast("Its answer is in: say yes or no to each");
+          }}
+        />
+      )}
       {show.header && <HowItWorksPage seasonId={seasonId} couchId={couchId} name={show.header.show.name} seasonNumber={show.header.seasonNumber} artUrl={show.header.show.artUrl} />}
     </div>
   );
 }
 
 type Done = (batch: string | null | undefined, said: string) => Promise<void>;
+/** Locked down for the season (Game settings' Lock it down): the rules are frozen, What scores too. */
+const frozenOf = (d: { frozen: boolean }) => d.frozen;
 
 function OursSheet({ seasonId, couchId, name, onClose, done }: { seasonId: string; couchId: string; name: string; onClose: () => void; done: Done }) {
   const [busy, setBusy] = useState(false);
@@ -616,5 +656,180 @@ function GamePoints({ g, seasonId, couchId, canChange, done }: { g: GameRules; s
         </ul>
       )}
     </section>
+  );
+}
+
+// ---------- What scores on the couch's copy (stage two) ----------
+
+const words = (id: string) => id.replace(/([A-Z])/g, " $1").toLowerCase();
+type Choice = { kind: "accept" | "adjust" | "decline"; points: number };
+
+/**
+ * Research's answer for the commissioner: each moment it would change or add, with the ladder's value, and three buttons a
+ * row (Accept, the default; Adjust, a stepper; Decline, left as it is). Save scores the games again (previewed first), one
+ * batch with Undo. Before an answer: Ask our bot, or Paste it. A moment new to this season past where you are isn't here:
+ * it shows up as you get there.
+ */
+function OurScoresSheet({ seasonId, couchId, state, onClose, onPaste, done }: { seasonId: string; couchId: string; state: OurScores; onClose: () => void; onPaste: () => void; done: Done }) {
+  const a = state.answer;
+  const after = useAfterResults();
+  const [busy, setBusy] = useState(false);
+  const [choices, setChoices] = useState<{ answer: string; by: Record<string, Choice> }>({ answer: "", by: {} });
+  const [confirming, setConfirming] = useState(false);
+  const by = a && choices.answer === a.id ? choices.by : {};
+  const rows = a ? (a.rows ?? []).filter((r) => r.changed) : [];
+  const added = a?.added ?? [];
+  const choiceOf = (id: string, value: number): Choice => by[id] ?? { kind: "accept", points: value };
+  const set = (id: string, c: Choice) => a && setChoices({ answer: a.id, by: { ...by, [id]: c } });
+  const accept: Record<string, number> = {};
+  const declined: string[] = [];
+  for (const r of rows) {
+    const c = choiceOf(r.id, r.after);
+    if (c.kind === "decline") declined.push(r.id);
+    else accept[r.id] = c.points;
+  }
+  for (const m of added) {
+    const c = choiceOf(m.id, m.points);
+    if (c.kind === "decline") declined.push(m.id);
+    else accept[m.id] = c.points;
+  }
+  const saving = Object.keys(accept).length;
+  const run = async (f: () => Promise<unknown>) => {
+    setBusy(true);
+    try {
+      await f();
+    } catch (e) {
+      toast.quiet((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const save = async () => {
+    if (!a) return;
+    const r = await ourScores.settle(seasonId, couchId, a.id, accept, declined);
+    await done("batch" in r ? r.batch : null, saving ? `Saved: ${saving} ${saving === 1 ? "moment" : "moments"} scored your way` : "Put away");
+    onClose();
+  };
+  if (confirming && a)
+    return (
+      <PreviewGuard
+        title="Score it this way?"
+        subtitle={`${saving} ${saving === 1 ? "moment" : "moments"} for the whole season: every episode is scored again.`}
+        load={() => ourScores.settle(seasonId, couchId, a.id, accept, declined, true)}
+        cta="Save"
+        onClose={() => setConfirming(false)}
+        onConfirm={save}
+      />
+    );
+  /** A row's three buttons. */
+  const three = (id: string, value: number) => {
+    const c = choiceOf(id, value);
+    const btn = (kind: Choice["kind"], label: string) => (
+      <button
+        key={kind}
+        type="button"
+        data-choice={kind}
+        aria-pressed={c.kind === kind}
+        onClick={() => set(id, { kind, points: kind === "adjust" ? c.points : value })}
+        className={`h-9 flex-1 rounded-[3px] text-[13px] font-bold ${c.kind === kind ? (kind === "decline" ? "bg-secondary text-foreground outline-1 -outline-offset-1 outline-foreground" : "bg-chyron text-chyron-foreground") : "bg-secondary text-muted-foreground"}`}
+      >
+        {label}
+      </button>
+    );
+    return (
+      <div className="mt-2">
+        <div className="flex gap-1.5">{[btn("accept", "Accept"), btn("adjust", "Adjust"), btn("decline", "Decline")]}</div>
+        {c.kind === "adjust" && (
+          <div className="mt-2">
+            <Stepper title="Points" line={`The ladder says ${pts(value)}`} value={pts(c.points)} onStep={(d) => set(id, { kind: "adjust", points: Math.max(-20, Math.min(20, c.points + d * 0.5)) })} />
+          </div>
+        )}
+      </div>
+    );
+  };
+  return (
+    <Sheet open onOpenChange={(o) => !o && onClose()} title="What scores" subtitle={a ? `An answer ${a.source === "bot" ? "from our bot" : "pasted"} · say yes or no to each` : "Every moment on one ladder, and what the show has that's missing"}>
+      <div data-our-scores-sheet>
+        {a ? (
+          <div data-our-scores-answer={a.id}>
+            <b className="block text-[16px]">{a.title}</b>
+            {a.problems.map((m) => (
+              <small key={m} className="block text-[13px] text-destructive">
+                {m}
+              </small>
+            ))}
+            {added.map((m) => (
+              <div key={m.id} data-our-added={m.id} data-choice-made={choiceOf(m.id, m.points).kind} className="border-t border-border py-2.5 first:border-t-0">
+                <div className="flex items-center gap-2">
+                  <span className="min-w-0 flex-1">
+                    <b className="block text-[14px] leading-snug">{m.label}</b>
+                    <small className="block text-[12px] leading-snug text-muted-foreground">
+                      New, the couch answers it · {words(m.rung)}
+                      {m.rarity ? ` · ${words(m.rarity)}` : ""}
+                    </small>
+                  </span>
+                  <b className="type-num flex-none text-[18px]">{pts(m.points)}</b>
+                </div>
+                {three(m.id, m.points)}
+              </div>
+            ))}
+            {rows.map((r) => (
+              <div key={r.id} data-our-row={r.id} data-choice-made={choiceOf(r.id, r.after).kind} className="border-t border-border py-2.5 first:border-t-0">
+                <div className="flex items-center gap-2">
+                  <span className="min-w-0 flex-1">
+                    <b className="block text-[14px] leading-snug">{r.label}</b>
+                    <small className="block text-[12px] leading-snug text-muted-foreground">
+                      {r.rung ? words(r.rung) : ""}
+                      {r.rarity ? ` · ${words(r.rarity)}` : ""}
+                    </small>
+                  </span>
+                  <span className="flex-none text-[14px] text-muted-foreground">{pts(r.before)}</span>
+                  <span className="flex-none text-[13px] text-muted-foreground">→</span>
+                  <b className="type-num flex-none text-[18px]">{pts(r.after)}</b>
+                </div>
+                {three(r.id, r.after)}
+              </div>
+            ))}
+            {(a.skipped ?? []).map((x) => (
+              <small key={x.label} className="mt-1 block text-[13px] text-muted-foreground">
+                Left out: {x.label} ({x.why})
+              </small>
+            ))}
+            <div className="mt-3 flex gap-2">
+              <Btn data-our-scores-put-away className="w-[34%]" disabled={busy} onClick={() => void run(async () => { await ourScores.putAway(seasonId, couchId, a.id); await after(); toast("Put away"); onClose(); })}>
+                Put away
+              </Btn>
+              <Btn data-our-scores-save tone="must" className="flex-1" disabled={busy || !a.blocks || (!saving && !declined.length)} onClick={() => (saving ? setConfirming(true) : void run(save))}>
+                {saving ? `Save ${saving}` : "Decline all"}
+              </Btn>
+            </div>
+          </div>
+        ) : state.asking ? (
+          <div data-our-scores-asking className="flex items-center gap-3 rounded-[4px] bg-background p-3" aria-live="polite">
+            <span className="size-[26px] flex-none animate-spin rounded-full border-[3px] border-border border-t-foreground motion-reduce:animate-none" aria-hidden />
+            <span className="min-w-0 flex-1">
+              <b className="block text-[15px]">{state.asking}</b>
+              <small className="block text-[13px] text-muted-foreground">You can close this: it carries on, and its answer shows here.</small>
+            </span>
+          </div>
+        ) : (
+          <>
+            <Btn data-our-scores-ask tone="must" wide disabled={busy} onClick={() => void run(async () => { const r = await ourScores.ask(seasonId, couchId); await after(); toast(r.waits ? `${r.text} · ${r.waits}` : r.text); })}>
+              Ask our bot
+            </Btn>
+            <small className="mt-1.5 block text-[13px] leading-snug text-muted-foreground">ChatGPT reads how the show is played and scores every moment on our ladder. Nothing changes until you say yes.</small>
+            <Btn data-our-scores-paste wide className="mt-3" onClick={onPaste}>
+              Paste it
+            </Btn>
+            <small className="mt-1.5 block text-[13px] leading-snug text-muted-foreground">Ask an AI yourself, paste its answer, and say yes or no to each.</small>
+          </>
+        )}
+        <small data-our-scores-held-line className="mt-4 block text-[13px] leading-snug text-muted-foreground">
+          {state.mark
+            ? `Research reads the whole season. Anything the show introduces after Episode ${state.mark}, where you are, shows up here as you get there.`
+            : "Research reads the whole season, and you've no Where I am mark on it, so nothing is held back."}
+        </small>
+      </div>
+    </Sheet>
   );
 }
