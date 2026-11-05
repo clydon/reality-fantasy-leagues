@@ -1,6 +1,6 @@
 # Plan: research on a rulebook, through our bot (Check for changes, What scores)
 
-**Status:** built 2026-11-04 on branch `ccr-dc484e47-2hp97o`, migrations 0432 and 0433. Checked: `tests/rulebook-scores.test.js`,
+**Status:** built 2026-11-04 and 2026-11-05 on branch `ccr-dc484e47-2hp97o`, migrations 0432 to 0434. Checked: `tests/rulebook-scores.test.js`,
 `scripts/dev-test/check-desk-rulebook-research.js` (ALL PASS at 390), `check-new-desk.js` (101 PASS; its Check for changes
 step moved to the new sheet, and its rulebook versions read from the database: confirming a phase and undoing it each move
 the version, so the hard-coded 2, 3 and 4 had drifted). **Live 2026-11-04** (`ae013ef`, pushed to master as a fast-forward with the user's go-ahead).
@@ -62,13 +62,27 @@ fantasy team."
 - **Not scored means unchanged.** A moment the answer skipped, or put on a rung that doesn't exist, keeps its points, with a
   warning on the card. An unknown id is a warning. A split value (`{ exclusive, shared }`, The Challenge's finalist 3/5)
   takes the rung's number for both, as the editor's stepper does.
-- **Up to an episode** (the user, 2026-11-04, "up to a specific episode": someone watching a season that has already aired would be spoiled by the
-  moments it finds): both questions take `through`, an episode, and say "Only Episodes 1 to N of this season have been
-  watched: search only those episodes' recaps, treat Episode N as the latest aired, never list anything that first appears
-  after it". The sheet has an Up to episode stepper (the app's words, as the couch's "Up to Episode 5"), suggested from where the admin is on the season (`seenThrough`), else
-  what's aired, else the lot; the last episode means the whole season and no scope. The run carries it as
-  `desk_runs.episode_number` (0: the whole season), the answer as `rulebook_answers.through_episode` (0433), and the card
-  and History say "up to Episode N". Past the last episode is refused.
+- **Rarity, a second axis, fixed like the ladder** (the user, 2026-11-05: a rare advantage scores a smidge higher than a
+  common one): research says for every moment how often the show produces it, mostEpisodes (+0), someEpisodes (+0.5) or
+  onceOrTwice (+1), on top of the rung for moments on earned and above. A small edge gains nothing (it's still a small
+  edge) and a negative moment gains nothing (a rare disaster is no worse than a common one), so the ladder's promises hold
+  at every rarity (tested). **Never fluid:** a value is set once, from the show's history, when the moment is scored; what
+  actually happened this season never moves a value in play. Real counts are for a note at the season's end, when saving the
+  rulebook as next season's starting point, for a person to act on.
+- **Spoilers: held, not scoped** (the user, 2026-11-05, after "up to an episode": a row saying "sealed until Episode 9" is
+  itself a tell). What scores reads the whole season, so nothing is missed, and what it adds carries `known`
+  (pastSeasons: the show's own repertoire, which anyone who's watched before expects, never a spoiler; thisSeason) and
+  `firstEpisode` (the first episode it could apply from under the show's rules, never when it first happened). A
+  new-this-season moment past the reader's Where I am mark is held: not a row, not in the counts, the title, History, the
+  blocks or the lines, with no trace of it, until they're past that episode; "didn't fit" notes carry a first episode too.
+  No mark (or seeing results straight away) holds nothing. The sheet carries one fixed line whatever is held, so its being
+  there says nothing. The desk is the one place this applies: the admin plays too.
+- **Settled a row at a time.** Use marks the accepted rows used and the declined ones put away (`rulebook_answers.settled`,
+  0434); an answer stays open while anything is left, seen or held, and leaves the research row for a reader once nothing
+  they can see is left. A held moment surfaces later from the same answer, reviewed against the rulebook as it is then.
+- **Check for changes keeps Up to episode** (0433): its answer is a whole rulebook, not rows, so scoping the question is
+  still the way to keep it spoiler-free; the stepper suggests where the admin is on the season. What scores ignores
+  `through`.
 - **The current episode isn't an input to scoring; the season so far is.** The ladder judges what a moment *is*, never how a season is
   going, so nothing about the week goes into scoring (the user asked whether it should). The prompt does carry how far the
   season has got ("5 of 14 episodes have aired", "recaps of this season's first 5 episodes") and the airing line, read from
@@ -81,9 +95,9 @@ fantasy team."
 
 ## As built
 
-- **Pure:** `rulebook-scores.js` (+ `.d.ts`): `LADDER`, `PER_UNIT`, `buildScoresPrompt({ show, season, airing, aired,
-  episodeCount, blocks })`, `parseScoresAnswer`, `reviewScores(answer, blocks, { castNames })` → `{ blocks, rows, added,
-  skipped, problems, warnings, leftOut, lines, changes }`.
+- **Pure:** `rulebook-scores.js` (+ `.d.ts`): `LADDER`, `RARITY`, `RARITY_FROM`, `PER_UNIT`, `KNOWN`, `buildScoresPrompt({ show, season,
+  airing, aired, episodeCount, blocks })`, `parseScoresAnswer`, `reviewScores(answer, blocks, { castNames, mark, episodeCount,
+  settled })` → `{ blocks, rows, added, skipped, held, problems, warnings, leftOut, lines, changes }`, `pickScores`.
 - **Server:** `desk-rulebooks.ts`: `DeskRulebook.research` (`bot`, and per kind `asking` and `answer`, a `RulebookAnswerCard`:
   title, lines, problems, warnings, leftOut, changes, blocks or null, and for scores rows/added/skipped);
   `rulebookPrompt(id, kind)` (`{ prompt, task }`), `askRulebookNow`, `pasteRulebookAnswer`, `settleRulebookAnswer`,
@@ -118,3 +132,11 @@ fantasy team."
 - The first real pass on The Challenge 42 is the user's to run from the desk (What scores → Ask our bot), then Use these
   changes and save as a fix.
 - `check-new-desk.js` still has no bot step for rulebooks (the rulebook research check has it).
+
+## Next: the commissioner's own What scores (stage two, not started)
+
+The user, 2026-11-05: commissioners shouldn't rely on the admin. The same question, the same ladder and rarity, the same
+holding by their own mark, in Backstage on the league's own copy of the rulebook (Make it ours), writing only the league's
+points and added moments; a three-button card for the commissioner (Accept, the default and applied without a tap; Adjust;
+Decline), nothing for players. One setting at most: whether moments the season's rulebook adds mid-season join the league
+by themselves (the default) or wait to be accepted. Values move only by a save from an episode, never from counts.

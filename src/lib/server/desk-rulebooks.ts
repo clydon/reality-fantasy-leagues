@@ -89,6 +89,9 @@ export interface RulebookResearchState {
 export interface RulebookResearch {
   /** Our bot can be asked: the rulebook is a season's (the queue is per season). The library's take a paste. */
   bot: boolean;
+  /** Where this admin is on the season (their Where I am mark): What scores holds back this season's moments past it. Null: no
+   *  mark, nothing held. */
+  mark: number | null;
   /** Through which episode to ask: where this admin is on the season (else what's aired), and the last episode there is. */
   through: { suggested: number; max: number | null };
   check: RulebookResearchState;
@@ -265,64 +268,87 @@ async function researchOf(r: Rulebook, now: RulebookBlocks, season: Awaited<Retu
   const [{ rows: runs }, { rows: answers }] = await Promise.all([
     pool.query("SELECT kind, started_at FROM desk_runs WHERE rulebook_id = $1 AND done_at IS NULL AND asked_at > now() - make_interval(secs => $2)", [r.id, ASK_WAIT_MS / 1000]),
     pool.query(
-      `SELECT DISTINCT ON (a.kind) a.id, a.kind, a.source, a.answer, a.created_at, a.through_episode, COALESCE(u.username, u.name) AS who
+      `SELECT DISTINCT ON (a.kind) a.id, a.kind, a.source, a.answer, a.created_at, a.through_episode, a.settled, COALESCE(u.username, u.name) AS who
          FROM rulebook_answers a LEFT JOIN "user" u ON u.id = a.by_user
         WHERE a.rulebook_id = $1 AND a.settled_at IS NULL ORDER BY a.kind, a.created_at DESC`,
       [r.id]
     ),
   ]);
   const castNames = r.seasonId ? (await pool.query("SELECT name FROM season_cast WHERE season_id = $1", [r.seasonId])).rows.map((c) => c.name as string) : [];
+  const max = season?.episodeCount ?? null;
+  // Where this admin is on the season: What scores holds this season's moments past it (nothing, with no mark or everything).
+  const raw = user && r.seasonId ? await seenThrough(user.id, r.seasonId) : 0;
+  const mark = raw > 0 && raw !== EVERYTHING ? raw : null;
   const state = (kind: ResearchKind): RulebookResearchState => {
     const run = runs.find((x) => x.kind === RUN_KIND[kind]);
     const a = answers.find((x) => x.kind === kind);
+    const made = a ? card({ id: a.id, kind, source: a.source, by: a.who ?? null, at: a.created_at.toISOString(), through: a.through_episode ?? null }, a.answer, now, { castNames, mark, episodeCount: max, settled: a.settled ?? {} }) : null;
     return {
       asking: run ? (run.started_at ? "Asking our bot now · about 2 minutes" : "Waiting to ask our bot") : null,
-      answer: a ? card({ id: a.id, kind, source: a.source, by: a.who ?? null, at: a.created_at.toISOString(), through: a.through_episode ?? null }, a.answer, now, castNames) : null,
+      // An answer with nothing left to see, only what's held for later: nothing, and no sign of it.
+      answer: made && !(made.quiet && made.held) ? made.card : null,
     };
   };
-  // Suggested: where this admin is on the season (someone watching a season that's aired), else what's aired, else the lot.
-  const max = season?.episodeCount ?? null;
+  // Suggested for Check for changes' Up to episode: the mark, else what's aired, else the lot.
   const cap = (n: number) => (max ? Math.min(n, max) : n);
-  const mark = user && r.seasonId ? await seenThrough(user.id, r.seasonId) : 0;
-  const suggested = mark > 0 && mark !== EVERYTHING ? cap(mark) : season?.aired ? cap(season.aired) : (max ?? 1);
-  return { bot: !!season, through: { suggested, max }, check: state("check"), scores: state("scores") };
+  const suggested = mark ? cap(mark) : season?.aired ? cap(season.aired) : (max ?? 1);
+  return { bot: !!season, mark, through: { suggested, max }, check: state("check"), scores: state("scores") };
 }
 
-/** An answer reviewed against the rulebook as it is now: what it would change, or why it can't be used. */
-function card(head: Pick<RulebookAnswerCard, "id" | "kind" | "source" | "by" | "at" | "through">, answer: string, now: RulebookBlocks, castNames: string[]): RulebookAnswerCard {
+interface ReviewContext {
+  castNames: string[];
+  mark: number | null;
+  episodeCount: number | null;
+  settled: Record<string, string>;
+}
+
+/**
+ * An answer reviewed against the rulebook as it is now: what it would change, or why it can't be used. For What scores, only
+ * what the reader may see (their mark) and what isn't settled; `held` says whether anything waits unseen, `quiet` that
+ * nothing visible is left to decide. Neither reaches the page.
+ */
+function card(head: Pick<RulebookAnswerCard, "id" | "kind" | "source" | "by" | "at" | "through">, answer: string, now: RulebookBlocks, ctx: ReviewContext): { card: RulebookAnswerCard; held: boolean; quiet: boolean } {
   const messages = (l: { message: string }[]) => l.map((p) => p.message);
   try {
     if (head.kind === "scores") {
-      const review = reviewScores(parseScoresAnswer(answer), now, { castNames });
+      const review = reviewScores(parseScoresAnswer(answer), now, ctx);
       const changed = review.rows.filter((x) => x.changed).length;
       const bits = [changed ? `${changed} ${changed === 1 ? "moment rescored" : "moments rescored"}` : "", review.added.length ? `${review.added.length} ${review.added.length === 1 ? "moment added" : "moments added"}` : ""].filter(Boolean);
       return {
+        card: {
+          ...head,
+          title: review.problems.length ? fixTitle(review.problems.length) : bits.length ? bits.join(" · ") : "Nothing to change",
+          lines: review.lines,
+          problems: messages(review.problems),
+          warnings: messages(review.warnings),
+          leftOut: review.leftOut,
+          changes: review.changes,
+          blocks: review.problems.length ? null : review.blocks,
+          rows: review.rows,
+          added: review.added,
+          skipped: review.skipped,
+        },
+        held: review.held.length > 0,
+        quiet: !changed && !review.added.length && !review.problems.length,
+      };
+    }
+    const review = reviewCheck(answer, now, ctx.castNames);
+    return {
+      card: {
         ...head,
-        title: review.problems.length ? fixTitle(review.problems.length) : bits.length ? bits.join(" · ") : "Nothing to change",
+        title: review.problems.length ? fixTitle(review.problems.length) : review.changes ? `${review.changes} ${review.changes === 1 ? "change" : "changes"} from the rulebook now` : "Nothing changed",
         lines: review.lines,
         problems: messages(review.problems),
         warnings: messages(review.warnings),
         leftOut: review.leftOut,
         changes: review.changes,
         blocks: review.problems.length ? null : review.blocks,
-        rows: review.rows,
-        added: review.added,
-        skipped: review.skipped,
-      };
-    }
-    const review = reviewCheck(answer, now, castNames);
-    return {
-      ...head,
-      title: review.problems.length ? fixTitle(review.problems.length) : review.changes ? `${review.changes} ${review.changes === 1 ? "change" : "changes"} from the rulebook now` : "Nothing changed",
-      lines: review.lines,
-      problems: messages(review.problems),
-      warnings: messages(review.warnings),
-      leftOut: review.leftOut,
-      changes: review.changes,
-      blocks: review.problems.length ? null : review.blocks,
+      },
+      held: false,
+      quiet: false,
     };
   } catch (e) {
-    return { ...head, title: "It couldn't be read", lines: [], problems: [e instanceof Error ? e.message : "That answer couldn't be read"], warnings: [], leftOut: [], changes: 0, blocks: null };
+    return { card: { ...head, title: "It couldn't be read", lines: [], problems: [e instanceof Error ? e.message : "That answer couldn't be read"], warnings: [], leftOut: [], changes: 0, blocks: null }, held: false, quiet: false };
   }
 }
 const fixTitle = (n: number) => `${n} ${n === 1 ? "thing" : "things"} to fix before it can be used`;
@@ -539,11 +565,12 @@ async function askContext(r: Rulebook) {
 export async function rulebookPrompt(id: string, kind: ResearchKind = "check", through: unknown = null): Promise<{ prompt: string; task: string; through: number | null }> {
   const r = await row(id);
   const ctx = await askContext(r);
-  const upTo = throughArg(through, ctx.episodeCount);
+  // What scores reads the whole season (what's past the reader is held back on our side); Check for changes can be scoped.
+  const upTo = kind === "scores" ? null : throughArg(through, ctx.episodeCount);
   const now = blocksAt(r.blocks, await inForceEdits(pool, id), Infinity);
   const name = [ctx.show, ctx.season].filter(Boolean).join(" ");
   const scope = upTo ? ` up to Episode ${upTo}` : "";
-  if (kind === "scores") return { prompt: buildScoresPrompt({ ...ctx, through: upTo, blocks: now }), task: `scoring the moments of ${name}${scope}`, through: upTo };
+  if (kind === "scores") return { prompt: buildScoresPrompt({ ...ctx, blocks: now }), task: `scoring the moments of ${name}`, through: null };
   return { prompt: buildRulebookPrompt({ show: ctx.show, season: ctx.season, airing: ctx.airing, through: upTo, template: now }), task: `describing how ${name} works${scope}`, through: upTo };
 }
 
@@ -572,7 +599,9 @@ async function stageAnswer(r: Rulebook, kind: ResearchKind, source: "bot" | "pas
   const { rows } = await pool.query("INSERT INTO rulebook_answers (rulebook_id, kind, source, answer, by_user, through_episode) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, created_at", [r.id, kind, source, answer.slice(0, 200_000), by, through]);
   const now = blocksAt(r.blocks, await inForceEdits(pool, r.id), Infinity);
   const castNames = r.seasonId ? (await pool.query("SELECT name FROM season_cast WHERE season_id = $1", [r.seasonId])).rows.map((c) => c.name as string) : [];
-  const c = card({ id: rows[0].id, kind, source, by: null, at: rows[0].created_at.toISOString(), through }, answer, now, castNames);
+  // History's line counts what whoever asked may see: their mark, as the page will show it to them.
+  const raw = by && r.seasonId ? await seenThrough(by, r.seasonId) : 0;
+  const { card: c } = card({ id: rows[0].id, kind, source, by: null, at: rows[0].created_at.toISOString(), through }, answer, now, { castNames, mark: raw > 0 && raw !== EVERYTHING ? raw : null, episodeCount: (await seasonOf(r))?.episodeCount ?? null, settled: {} });
   await logDesk(pool, {
     entity: "rulebook",
     entityId: r.id,
@@ -603,7 +632,7 @@ export async function askRulebookNow(id: string, kind: ResearchKind, askedBy: st
 /** Paste it: an answer from Ask an AI, staged as our bot's is. Answers the page. */
 export async function pasteRulebookAnswer(user: SessionUser, id: string, kind: ResearchKind, raw: unknown, through: unknown = null): Promise<DeskRulebook> {
   const r = await row(id);
-  const upTo = throughArg(through, (await askContext(r)).episodeCount);
+  const upTo = kind === "scores" ? null : throughArg(through, (await askContext(r)).episodeCount);
   const answer = typeof raw === "string" ? raw.trim() : "";
   if (!answer) throw new HttpError(400, "Paste the AI's answer first");
   if (answer.length > 200_000) throw new HttpError(400, "That's too long to be the answer");
@@ -613,11 +642,43 @@ export async function pasteRulebookAnswer(user: SessionUser, id: string, kind: R
   return deskRulebook(id, user);
 }
 
-/** An answer settled: its changes went in the draft (used), or it was put away (dismissed). Either way it leaves the page. */
-export async function settleRulebookAnswer(user: SessionUser, id: string, body: { answer?: unknown; status?: unknown }): Promise<DeskRulebook> {
+/**
+ * An answer settled: its changes went in the draft (used), or it was put away (dismissed). Check for changes settles whole.
+ * What scores settles a row at a time (`ids` as `status`, `declined` as put away): the answer stays open while anything is
+ * left, seen or held for later, and leaves the page for this reader once nothing they can see is left.
+ */
+export async function settleRulebookAnswer(user: SessionUser, id: string, body: { answer?: unknown; status?: unknown; ids?: unknown; declined?: unknown }): Promise<DeskRulebook> {
   if (body.status !== "used" && body.status !== "dismissed") throw new HttpError(400, "status is used or dismissed");
-  const { rowCount } = await pool.query("UPDATE rulebook_answers SET settled_at = now(), settled_by = $3, settled_as = $4 WHERE id = $1 AND rulebook_id = $2 AND settled_at IS NULL", [String(body.answer), id, user.id, body.status]);
-  if (!rowCount) throw new HttpError(404, "That answer isn't waiting");
+  const { rows } = await pool.query("SELECT id, kind, answer, settled FROM rulebook_answers WHERE id = $1 AND rulebook_id = $2 AND settled_at IS NULL", [String(body.answer), id]);
+  if (!rows.length) throw new HttpError(404, "That answer isn't waiting");
+  const a = rows[0];
+  const ids = Array.isArray(body.ids) ? body.ids.filter((x): x is string => typeof x === "string") : null;
+  const declined = Array.isArray(body.declined) ? body.declined.filter((x): x is string => typeof x === "string") : [];
+  if (a.kind === "scores" && ids) {
+    const settled: Record<string, string> = { ...(a.settled ?? {}) };
+    for (const x of ids) settled[x] = body.status;
+    for (const x of declined) settled[x] = "dismissed";
+    // Anything left, seen by anyone or held for later? Reviewed as the page reviews it, but with no mark, so nothing is
+    // hidden from the count.
+    const r = await row(id);
+    const now = blocksAt(r.blocks, await inForceEdits(pool, id), Infinity);
+    const castNames = r.seasonId ? (await pool.query("SELECT name FROM season_cast WHERE season_id = $1", [r.seasonId])).rows.map((c) => c.name as string) : [];
+    let open = 0;
+    try {
+      const review = reviewScores(parseScoresAnswer(a.answer), now, { castNames, episodeCount: (await seasonOf(r))?.episodeCount ?? null, settled });
+      open = review.rows.filter((x) => x.changed).length + review.added.length + review.held.length;
+    } catch {
+      open = 0;
+    }
+    await pool.query(
+      open
+        ? "UPDATE rulebook_answers SET settled = $3::jsonb WHERE id = $1 AND rulebook_id = $2"
+        : "UPDATE rulebook_answers SET settled = $3::jsonb, settled_at = now(), settled_by = $4, settled_as = $5 WHERE id = $1 AND rulebook_id = $2",
+      open ? [a.id, id, JSON.stringify(settled)] : [a.id, id, JSON.stringify(settled), user.id, body.status]
+    );
+    return deskRulebook(id, user);
+  }
+  await pool.query("UPDATE rulebook_answers SET settled_at = now(), settled_by = $3, settled_as = $4 WHERE id = $1 AND rulebook_id = $2", [a.id, id, user.id, body.status]);
   return deskRulebook(id, user);
 }
 

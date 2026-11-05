@@ -434,15 +434,15 @@ export function RulebookPage({ id }: { id: string }) {
           onClose={() => setResearch(null)}
           onPaste={() => setResearch({ ...research, paste: true })}
           onAsk={async () => {
-            const r = (await post({ action: "ask", kind: research.kind, through: research.through }, "")) as { text: string; waits: string | null };
+            const r = (await post({ action: "ask", kind: research.kind, through: research.kind === "check" ? research.through : null }, "")) as { text: string; waits: string | null };
             toast(r.waits ? `${r.text} · ${r.waits}` : r.text);
           }}
-          onUse={async (a, blocks) => {
+          onUse={async (a, blocks, picks) => {
             setDraft(blocks);
             setResearch(null);
-            await post({ action: "answer", answer: a.id, status: "used" }, "Its changes are in your draft: look them over, then save");
+            await post({ action: "answer", answer: a.id, status: "used", ...picks }, "Its changes are in your draft: look them over, then save");
           }}
-          onPutAway={(a) => post({ action: "answer", answer: a.id, status: "dismissed" }, "Put away")}
+          onPutAway={(a, picks) => post({ action: "answer", answer: a.id, status: "dismissed", ...picks }, "Put away")}
         />
       )}
       {research && (
@@ -454,9 +454,9 @@ export function RulebookPage({ id }: { id: string }) {
           what={RESEARCH[research.kind].what}
           check={RESEARCH[research.kind].check}
           tag={`rulebook-${research.kind}`}
-          question={{ key: ["new-design", "desk-question", id, "rulebook", research.kind, research.through], load: () => deskGet<{ prompt: string | null; task: string }>(`${path}?prompt=${research.kind}${research.through ? `&through=${research.through}` : ""}`) }}
+          question={{ key: ["new-design", "desk-question", id, "rulebook", research.kind, research.kind === "check" ? research.through : null], load: () => deskGet<{ prompt: string | null; task: string }>(`${path}?prompt=${research.kind}${research.kind === "check" && research.through ? `&through=${research.through}` : ""}`) }}
           onUse={async (text) => {
-            await post({ action: "paste", kind: research.kind, answer: text, through: research.through }, "Its answer is in: look it over");
+            await post({ action: "paste", kind: research.kind, answer: text, through: research.kind === "check" ? research.through : null }, "Its answer is in: look it over");
             setResearch({ ...research, paste: false });
           }}
         />
@@ -486,8 +486,10 @@ const RESEARCH: Record<ResearchKind, { title: string; line: string; what: string
   },
 };
 
-/** A rung's id in words: "wonAlone" -> "won alone". */
+/** A rung's or a rarity's id in words: "wonAlone" -> "won alone", "onceOrTwice" -> "once or twice". */
 const rungWords = (id: string) => id.replace(/([A-Z])/g, " $1").toLowerCase();
+/** What scores' settlement: the rows accepted (`ids`) and declined, of what's shown; Check for changes settles whole. */
+type Picks = { ids?: string[]; declined?: string[] };
 
 const fromWords = (a: RulebookAnswerCard) => `${a.source === "bot" ? "from our bot" : `pasted${a.by ? ` by ${a.by}` : ""}`}${a.through ? ` · up to Episode ${a.through}` : ""} · ${agoOf(a.at)}`;
 
@@ -510,9 +512,9 @@ function ResearchSheet({
   onClose: () => void;
   onPaste: () => void;
   onAsk: () => Promise<void>;
-  /** Use: the answer, and the rulebook with the changes picked from it. */
-  onUse: (a: RulebookAnswerCard, blocks: RulebookBlocks) => Promise<void>;
-  onPutAway: (a: RulebookAnswerCard) => Promise<unknown>;
+  /** Use: the answer, the rulebook with the changes picked from it, and which rows were picked (What scores settles by row). */
+  onUse: (a: RulebookAnswerCard, blocks: RulebookBlocks, picks: Picks) => Promise<void>;
+  onPutAway: (a: RulebookAnswerCard, picks: Picks) => Promise<unknown>;
 }) {
   const st = page.research[kind];
   const a = st.answer;
@@ -522,10 +524,13 @@ function ResearchSheet({
   const dropped = a && declined.answer === a.id ? declined.ids : [];
   const toggle = (id: string) => a && setDeclined({ answer: a.id, ids: dropped.includes(id) ? dropped.filter((x) => x !== id) : [...dropped, id] });
   const picked = a && a.blocks && kind === "scores" ? (a.rows ?? []).filter((r) => r.changed && !dropped.includes(r.id)).length + (a.added ?? []).filter((m) => !dropped.includes(m.id)).length : (a?.changes ?? 0);
+  // What scores' rows that can be decided: the moments it changes and the moments it adds, as shown to this reader.
+  const decidable = kind === "scores" && a ? [...(a.rows ?? []).filter((r) => r.changed).map((r) => r.id), ...(a.added ?? []).map((m) => m.id)] : [];
+  const picksOf = (all: boolean): Picks => (kind === "scores" ? { ids: all ? decidable : decidable.filter((x) => !dropped.includes(x)), declined: all ? [] : dropped.filter((x) => decidable.includes(x)) } : {});
   const use = async () => {
     if (!a || !a.blocks) return;
     const blocks = kind === "scores" ? pickScores(page.now, { rows: a.rows ?? [], added: a.added ?? [], blocks: a.blocks }, dropped) : a.blocks;
-    await onUse(a, blocks);
+    await onUse(a, blocks, picksOf(false));
   };
   const run = async (f: () => Promise<unknown>) => {
     setBusy(true);
@@ -565,7 +570,7 @@ function ResearchSheet({
             )}
             {a.leftOut.length > 0 && <small className="mt-1 block text-[13px] text-muted-foreground">Didn&apos;t fit: {a.leftOut.join(" · ")}</small>}
             <div className="mt-3 flex gap-2">
-              <Btn data-research-put-away className="w-[34%]" disabled={busy} onClick={() => void run(() => onPutAway(a))}>
+              <Btn data-research-put-away className="w-[34%]" disabled={busy} onClick={() => void run(() => onPutAway(a, picksOf(true)))}>
                 Put away
               </Btn>
               <Btn data-research-use tone="must" className="flex-1" disabled={busy || !a.blocks || !picked} onClick={() => void run(use)}>
@@ -583,14 +588,16 @@ function ResearchSheet({
           </div>
         ) : (
           <>
-            <div className="mb-4 rounded-[4px] bg-background p-3">
-              <Stepper data="through" label="Up to episode" value={through ?? page.research.through.max ?? 1} min={1} max={page.research.through.max ?? 99} onChange={onThrough} />
-              <small className="mt-1.5 block text-[13px] leading-snug text-muted-foreground">
-                {through && (!page.research.through.max || through < page.research.through.max)
-                  ? `Research reads up to Episode ${through} only, so nothing later is given away.`
-                  : "The whole season: anything that happens in it can be in the answer."}
-              </small>
-            </div>
+            {kind === "check" && (
+              <div className="mb-4 rounded-[4px] bg-background p-3">
+                <Stepper data="through" label="Up to episode" value={through ?? page.research.through.max ?? 1} min={1} max={page.research.through.max ?? 99} onChange={onThrough} />
+                <small className="mt-1.5 block text-[13px] leading-snug text-muted-foreground">
+                  {through && (!page.research.through.max || through < page.research.through.max)
+                    ? `Research reads up to Episode ${through} only, so nothing later is given away.`
+                    : "The whole season: anything that happens in it can be in the answer."}
+                </small>
+              </div>
+            )}
             {page.research.bot ? (
               <>
                 <Btn data-research-ask tone="must" wide disabled={busy} onClick={() => void run(onAsk)}>
@@ -606,6 +613,14 @@ function ResearchSheet({
             </Btn>
             <small className="mt-1.5 block text-[13px] leading-snug text-muted-foreground">Ask an AI yourself, paste its answer, and look it over.</small>
           </>
+        )}
+        {kind === "scores" && (
+          // The same line whatever is or isn't held, so its being here says nothing (docs/PLAN-rulebook-research.md, spoilers).
+          <small data-research-held-line className="mt-4 block text-[13px] leading-snug text-muted-foreground">
+            {page.research.mark
+              ? `Research reads the whole season. Anything the show introduces after Episode ${page.research.mark}, where you are, shows up here as you get there.`
+              : "Research reads the whole season, and you've no Where I am mark on it, so nothing is held back."}
+          </small>
         )}
       </div>
     </Sheet>
@@ -656,6 +671,8 @@ function ScoresPicks({ a, declined, onToggle }: { a: RulebookAnswerCard; decline
               <b className="block text-[14px] leading-snug">{m.label}</b>
               <small className="block text-[12px] leading-snug text-muted-foreground">
                 {rungWords(m.rung)}
+                {m.rarity ? ` · ${rungWords(m.rarity)}` : ""}
+                {m.known === "thisSeason" && m.firstEpisode > 1 ? ` · new from Episode ${m.firstEpisode}` : ""}
                 {m.why ? ` · ${m.why}` : ""}
               </small>
             </span>
@@ -672,7 +689,12 @@ function ScoresPicks({ a, declined, onToggle }: { a: RulebookAnswerCard; decline
           <div key={r.id} data-score-row={r.id} data-same={r.changed ? undefined : ""} data-declined={r.changed && !on ? "" : undefined} className={`flex min-h-11 items-center gap-2 border-t border-border py-1.5 ${r.changed && !on ? "opacity-60" : ""}`}>
             <span className="min-w-0 flex-1">
               <b className={`block text-[14px] leading-snug ${r.changed ? "" : "font-normal text-muted-foreground"}`}>{r.label}</b>
-              {r.changed && r.rung && <small className="block text-[12px] leading-snug text-muted-foreground">{rungWords(r.rung)}</small>}
+              {r.changed && r.rung && (
+                <small className="block text-[12px] leading-snug text-muted-foreground">
+                  {rungWords(r.rung)}
+                  {r.rarity ? ` · ${rungWords(r.rarity)}` : ""}
+                </small>
+              )}
             </span>
             <span className="type-num w-10 text-right text-[14px] text-muted-foreground" title={r.beforeWord}>
               {r.before}
