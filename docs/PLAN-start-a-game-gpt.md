@@ -6608,6 +6608,13 @@ A14 part 2 and before A14's other parts; every part keeps every golden and blind
     "comes out 12 hours before" though the AI's pick shows sooner ("It's out by"); one rotation for the draw and the ranking
     (`turnOf`); CARD's type. Noted (Noticed): a waiting line on the screens; the stamp's extra queries on every read; the planner's
     scan of every league each tick; the desk's Run now and labels for a card run.
+  - **The long checks, once for C7 part 2, on `9abce6ad`:** the golden replays (`--before=master`): seven seasons, 160 games, 19,361
+    reads, every one the same; the Survivor 51 rehearsal (`--scenario=realistic,rough,dst --before=master`): every invariant holds in
+    all three scenarios, flag off and on the same, master's engine against this tree's the same (2,856 reads each); the blind replays
+    (`blind.js run`): every game played through and over on all five seasons, the same counts as part 1 (Survivor 49 156, The
+    Challenge 39 123, 40 115, 41 121, The Traitors 4 110), p10 drawing the stand-in's card on all 13 of Survivor 49's episodes with
+    nothing refused, the seven games of questions on The Challenge's seasons still noting their wait on early results (playtest
+    finding 20), none of them C7's.
 
 The three games (the user, 2026-11-05), each a request in the tracker:
 1. "For show X, have a starting bank of 500 units, have a prediction sheet generated each week that players can wager on,
