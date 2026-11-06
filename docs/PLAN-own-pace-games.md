@@ -49,6 +49,31 @@ below.
   at airtime today, meaningless when people are on different episodes): part 3b.
 - Words: "at your own pace" to people (the app's existing words for a finished season); "catching up" stays the engine's.
 
+## The UI, mocked (2026-11-05; the user's picks)
+
+Mocked with /impeccable: `.impeccable/mocks/own-pace/index.html` (gitignored), published privately at
+https://claude.ai/artifact/3E6rgiMSJcP3MYJaQkS3rh. Seven flows; part 1's built screens get tightened to match.
+
+- **Tonight = one plate per own-pace game (the user picked it).** "Episode 3 of 14 · Survival Pool", a Pick · Watch · Reveal
+  steps bar, your pick with Change, and one button that's always the next step (Pick who survives → I've watched it · Reveal,
+  the gap words small inside it past one ahead). Revealing without a pick asks once on the plate ("No pick for Episode 3 · Pick
+  first / Reveal anyway"). It replaces the catch-up strip, the episode heading and the Your moves card for that game. One quiet
+  line under it only when someone's behind or on the same one. Watch it together and the episode's bingo card sit under it. The
+  reveal sheet ends with "Pick for Episode 4" (primary) and "Done for now". "Catching up" never shows in an own-pace game.
+  Live late joiners keep today's strip (not asked to change).
+- **Start a game:** no banner, no "for now" line, no AI card, no How long at your own pace; subtitle "all 14 episodes are out";
+  starts read number first ("Episode 3 · where you are" / "Episode 1 · from the top", sub lines "You've seen 1 and 2" /
+  "A rewatch"); the pace sentence sits under them. Games that can't play at your own pace yet aren't listed.
+- **Join:** "You start at Episode N" on a plate, who's playing and where (computer players "Keeps pace"), one Join button.
+- **Finish:** a "You finished it" plate (your place; anyone behind still has it hidden) and Start another.
+- **Part 2:** the Games tab's "This week" becomes "Your Episode N" (bingo, Who goes home?, trivia on what you've seen, Watch it
+  together); calls close when you reveal that episode.
+- **Part 4:** the Prediction Sheet uses the same plate, first step "Answer N questions" (the questions listed on it).
+- **Exclusive teams, replacements (the user, 2026-11-05):** replace on reveal: when you reveal an episode and lose someone, you
+  pick a replacement right there from who's still in and on nobody's team; first to get there picks first. **But people on the
+  same pace use the standard way**: those who reveal that episode together (on the same episode at once) put in claims as a
+  normal waiver week and the usual priority settles them, among whoever's on pace. Part 3b designs when "together" closes.
+
 ## How it reuses the engine
 
 | Need | What exists | What's new |
