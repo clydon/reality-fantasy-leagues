@@ -60,6 +60,12 @@
 // dispatches through DraftLogic crashes) plus its own top-level state branch (PickEmLogic,
 // `episode.picks`) instead of a real third DraftStrategy pretending to be turn-based.
 //
+// The scoring sequence (track C, step C2: ./sequence/): every game scores as one sequence of six steps -- hold, score each
+// line, multipliers, combine, the week's result, rank -- each a pure step there that the scorers below hand their data to (who
+// held whom when, the episode's moments at the game's points, the results). C2 part 1 has the drafts score through it
+// (Outlast, a lineup, best ball, group slots, side bets, finale predictions, a handicap, a market's worth, and the knockouts'
+// series); the rounding is the sequence's, where each game has always done it (see its header).
+//
 // Show formats: a league's game vocabulary -- exit methods, the scoring-event catalog, what ends the
 // season -- comes from its show's format (./formats/, docs/PLAN-show-formats.md) via formatOf(state),
 // never from a constant in here. The format id is cached on the league as settings.showFormat when its
@@ -67,9 +73,9 @@
 // the database.
 (function(root, factory){
   // eslint-disable-next-line @typescript-eslint/no-require-imports -- CommonJS on purpose, see above
-  if(typeof module === 'object' && module.exports) module.exports = factory(require('./formats/index.js'), require('./game-spec/index.js'));
-  else root.StateLogic = factory(root.GameFormats, root.GameSpec);
-})(typeof self !== 'undefined' ? self : this, function(Formats, Spec){
+  if(typeof module === 'object' && module.exports) module.exports = factory(require('./formats/index.js'), require('./game-spec/index.js'), require('./sequence/index.js'));
+  else root.StateLogic = factory(root.GameFormats, root.GameSpec, root.GameSequence);
+})(typeof self !== 'undefined' ? self : this, function(Formats, Spec, Seq){
 
 const PALETTE = ['#45a89a','#d9704a','#a76bb0','#5089c4','#86a34c','#c99a3e','#b0563f','#6b8fc9'];
 // No longer seeded into new leagues (see Migrations.defaultState) -- a fresh league starts with an
@@ -437,25 +443,29 @@ class Core {
 class EliminationOrderScoringStrategy {
   /** Whether the game scores the boot order in reverse (A9 part 2). */
   static reversed(state){ const score = gameOf(state).score; return score.by === 'place' && score.reverse === true; }
+  /** The season as this copy sees it, for a place (the sequence's mark): the cast's size, the boots so far, and the reverse. */
+  static mark(state){
+    const out = state.castaways.filter(x=>x.status==='eliminated' && typeof x.placementOrder==='number').length;
+    return { size: state.castaways.length, out, reverse: EliminationOrderScoringStrategy.reversed(state) };
+  }
   /** One castaway's Classic points so far, on whatever (spoiler-trimmed) state the viewer sees. */
   static castawayPoints(state, c){
     if(c.status==='eliminated'){
       if(typeof c.placementOrder!=='number') return 0;
-      return EliminationOrderScoringStrategy.reversed(state) ? state.castaways.length + 1 - c.placementOrder : c.placementOrder;
+      return Seq.placed(c.placementOrder, { size: state.castaways.length, reverse: EliminationOrderScoringStrategy.reversed(state) });
     }
     return EliminationOrderScoringStrategy.stillInPoints(state);
   }
   /** What every castaway still in has earned so far: 1 + the eliminations they've outlasted (in reverse: the cast less them). */
-  static stillInPoints(state){
-    const out = state.castaways.filter(x=>x.status==='eliminated' && typeof x.placementOrder==='number').length;
-    return EliminationOrderScoringStrategy.reversed(state) ? state.castaways.length - out : out + 1;
-  }
+  static stillInPoints(state){ return Seq.stillIn(EliminationOrderScoringStrategy.mark(state)); }
+  // The scoring sequence for an Outlast (C2 part 1): (1) who each seat holds now; (2) each holding's line, its place as a value as
+  // this copy sees it (a pickup brings its whole place, someone dropped counts for nobody); (4) their sum, never rounded;
+  // side bets and finale predictions beside it (addSideLayers); (6) the total, ranked.
   static compute(state){
     const results = {};
     state.players.forEach(p=> results[p.id] = {playerId:p.id, name:p.name, color:p.color, locked:0, banked:0, bonus:0, finale:0, total:0, roster:[], formerRoster:[]});
-    const stillInPoints = EliminationOrderScoringStrategy.stillInPoints(state);
-    // In reverse, a castaway out at place p earns the cast's size + 1 - p.
-    const reverse = EliminationOrderScoringStrategy.reversed(state) ? state.castaways.length + 1 : 0;
+    const mark = EliminationOrderScoringStrategy.mark(state);
+    const stillIn = Seq.stillIn(mark);
     // Per-player, via Core.ownedCastawayIds rather than a single scalar owner per castaway, so a
     // castaway with several owners (shared-ownership league types) contributes its placement to
     // each of them. In exclusive-ownership leagues every castaway has at most one owner, so this
@@ -465,12 +475,13 @@ class EliminationOrderScoringStrategy {
         const c = Core.getCastaway(state, cid);
         results[p.id].roster.push(c);
         if(c.status==='eliminated'){
+          // Out with no place recorded: nothing.
           if(typeof c.placementOrder==='number'){
-            const pts = reverse ? reverse - c.placementOrder : c.placementOrder;
+            const pts = Seq.placed(c.placementOrder, mark);
             results[p.id].locked += pts; results[p.id].banked += pts;
           }
         } else {
-          results[p.id].locked += stillInPoints;
+          results[p.id].locked += stillIn;
         }
       });
     });
@@ -481,8 +492,8 @@ class EliminationOrderScoringStrategy {
       }
     });
     const bets = addSideLayers(state, results);
-    Object.values(results).forEach(r=> r.total = r.locked + (bets? r.bonus:0) + r.finale);
-    return Object.values(results).sort((a,b)=>b.total-a.total);
+    Object.values(results).forEach(r=> r.total = Seq.total(r, bets, false));
+    return Seq.byTotal(Object.values(results));
   }
 }
 // The layers both drafts carry over how they score, as the spec says them: side bets while they're on (extras.bets: a bet
@@ -496,14 +507,8 @@ function addSideLayers(state, results){
       // Only the game's own episodes: nothing before its start scores (a bet made there before the start moved later), and
       // one past a span's end has had its results taken out (spanView).
       if(!inPlay(state, ep.number)) return;
-      (ep.bets||[]).forEach(bet=>{
-        if((bet.predictions||[]).length < 2) return; // needs company: won't pay out if nobody else guessed
-        (bet.predictions||[]).forEach(pred=>{
-          if(pred.correct===true && results[pred.playerId]){
-            results[pred.playerId].bonus += (bet.points||0);
-          }
-        });
-      });
+      // Its side bets' lines (a bet needs company: it won't pay out if nobody else guessed).
+      Seq.betLines(ep.bets).forEach(l => { if(results[l.playerId]) results[l.playerId].bonus += l.points; });
     });
   }
   AnswerLogic.finalePoints(state).forEach((pts, playerId) => { if(results[playerId]) results[playerId].finale += pts; });
@@ -550,13 +555,7 @@ class PickEmScoringStrategy {
     const out = Number.isInteger(r.out) ? r.out : null;
     return out === null ? [1, r.total, r.lives || 0] : [0, out, r.shared ? 0 : r.total];
   }
-  static compareKeys(a, b){
-    for(let i = 0; i < Math.max(a.length, b.length); i++){
-      const d = (a[i] || 0) - (b[i] || 0);
-      if(d) return d;
-    }
-    return 0;
-  }
+  static compareKeys(a, b){ return Seq.compareKeys(a, b); }
 }
 // The order a game's table ranks a score row in, as a key compared from its first number on (higher first, compareKeys): a
 // pool's last one standing (standingKey) or longest streak, then its points; a stock market ranked by worth (A10 part 3c), its
@@ -686,17 +685,8 @@ class KnockoutLogic {
     const numberOf = new Map((state.episodes || []).map(e => [e.id, e.number]));
     const log = (state.midSeason && state.midSeason.log) || [];
     // Who a player held for episode n (Outlast): who they hold now, with every move from that episode on taken back, newest
-    // first (a move made after episode k counts from k + 1, as best ball's teamFor reads it).
-    const heldAt = (playerId, n) => {
-      const held = new Set(Core.ownedCastawayIds(state, playerId));
-      for(let i = log.length - 1; i >= 0; i--){
-        const tx = log[i];
-        if(tx.playerId !== playerId || !Number.isInteger(tx.episode) || tx.episode < n) continue;
-        if(tx.addedCastawayId) held.delete(tx.addedCastawayId);
-        if(tx.droppedCastawayId) held.add(tx.droppedCastawayId);
-      }
-      return [...held].map(id => Core.getCastaway(state, id)).filter(Boolean);
-    };
+    // first (a move made after episode k counts from k + 1, as best ball's teamFor reads it): the scoring sequence's hold.
+    const heldAt = (playerId, n) => [...Seq.heldAt(Core.ownedCastawayIds(state, playerId), log, playerId, n)].map(id => Core.getCastaway(state, id)).filter(Boolean);
     const finaleEp = finaleEpisodeOf(state);
     const finale = finaleEp ? AnswerLogic.finalePoints(state) : new Map();
     const slots = !outlast && GroupSlotLogic.config(state) ? GroupSlotLogic.index(state) : undefined;
@@ -710,38 +700,35 @@ class KnockoutLogic {
     for(const ep of episodes){
       if(EpisodeLogic.resultsStage(ep) === 'early' && ep.number === newest) break;
       // Side bets settled in it (addSideLayers' rule: a bet needs company).
-      if(game.extras.bets) (ep.bets || []).forEach(bet => {
-        if((bet.predictions || []).length < 2) return;
-        bet.predictions.forEach(pred => { if(pred.correct === true && bets.has(pred.playerId)) bets.set(pred.playerId, bets.get(pred.playerId) + (bet.points || 0)); });
-      });
+      if(game.extras.bets) Seq.betLines(ep.bets).forEach(l => { if(bets.has(l.playerId)) bets.set(l.playerId, bets.get(l.playerId) + l.points); });
       if(finaleEp && finaleEp.id === ep.id) finaleIn = true;
       const totals = new Map();
       const rows = new Map();
       // Outlast: a castaway out by then counts their place (one with no episode recorded, from the start), anyone still in 1 + the
       // boots so far.
       const outBy = c => c.status === 'eliminated' && typeof c.placementOrder === 'number' && (numberOf.has(c.exitEpisodeId) ? numberOf.get(c.exitEpisodeId) : 0) <= ep.number;
-      const size = (state.castaways || []).length;
-      const boots = outlast ? (state.castaways || []).filter(outBy).length : 0;
-      const stillIn = reverse ? size - boots : boots + 1;
-      const pre = outlast ? null : { events: ActiveRosterLogic.episodeEvents(state, ep), times: ActiveRosterLogic.timesFor(state, ep.number), slots };
+      // The scoring sequence's mark for a place: the cast, and the boots by then.
+      const mark = { size: (state.castaways || []).length, out: outlast ? (state.castaways || []).filter(outBy).length : 0, reverse };
+      const stillIn = Seq.stillIn(mark);
+      const pre = outlast ? null : { times: ActiveRosterLogic.timesFor(state, ep.number), slots, scored: ActiveRosterLogic.scoredEvents(state, ActiveRosterLogic.episodeEvents(state, ep)) };
       const handicaps = tally ? tally(ep.number) : null;
       players.forEach(p => {
         let locked = 0, banked = 0;
         if(outlast){
           heldAt(p.id, ep.number).forEach(c => {
-            const placed = outBy(c) ? (reverse ? size + 1 - c.placementOrder : c.placementOrder) : null;
+            const placed = outBy(c) ? Seq.placed(c.placementOrder, mark) : null;
             locked += placed === null ? stillIn : placed;
             if(placed !== null) banked += placed;
           });
         } else {
-          running.set(p.id, roundPoints(running.get(p.id) + ActiveRosterLogic.episodeScore(state, ep, p.id, pre).total));
+          running.set(p.id, Seq.add(running.get(p.id), ActiveRosterLogic.episodeScore(state, ep, p.id, pre).total));
           locked = running.get(p.id);
         }
         const bonus = game.extras.bets ? bets.get(p.id) : 0;
         const fin = finaleIn ? (finale.get(p.id) || 0) : 0;
         const handicap = handicaps ? (handicaps.get(p.id) || 0) : 0;
         rows.set(p.id, tally ? { locked, banked, bonus, finale: fin, handicap } : { locked, banked, bonus, finale: fin });
-        totals.set(p.id, roundPoints(locked + bonus + fin + handicap));
+        totals.set(p.id, Seq.round(locked + bonus + fin + handicap));
       });
       out.push({ number: ep.number, quiet: !!ep.noExit, totals, rows });
     }
@@ -1767,9 +1754,9 @@ class HandicapLogic {
     rows.forEach(r => {
       const n = all.get(r.playerId) || 0;
       r.handicap = n;
-      r.total = roundPoints(r.total + n);
+      r.total = Seq.add(r.total, n);
     });
-    return rows.sort((a,b) => b.total - a.total);
+    return Seq.byTotal(rows);
   }
   // What a game's handicap is, for its screens (U1's to show): its points an episode, what newcomers are new to, the seats it pays
   // (as the copy has them: `named`), whether `playerId` is one, and whether who's new is kept yet (once the game has started); null
@@ -2402,7 +2389,7 @@ class BudgetLogic {
   static cap(state){ return PriceLogic.capOn(state) ? PriceLogic.config(state).total : null; }
   // Whether a change to a team is checked against prices: a salary cap's, or a stock market's cash (part 3c).
   static priced(state){ return BudgetLogic.cap(state) !== null || MarketLogic.on(state); }
-  static cost(ids, prices){ return roundPoints(ids.reduce((n, id) => n + (prices.get(id) || 0), 0)); }
+  static cost(ids, prices){ return Seq.sum(ids.map(id => prices.get(id) || 0)); }
   // `candidates` (castaway ids that could be taken now) that keep a team with `picked` within the cap, with room left to fill its
   // other places at the cheapest of the rest, in their order: all of them without a cap, or when none does (the cap never blocks
   // a draft: the team goes over, and its changes after can't take it further over).
@@ -2556,7 +2543,7 @@ class MarketLogic {
   // Cash plus the team at today's prices (someone gone home by the budget's gone rule). `prices` and `cash`, when read once a pass.
   static worth(state, playerId, prices, cash){
     const p = prices || PriceLogic.prices(state);
-    return roundPoints((cash == null ? MarketLogic.cash(state, playerId) : cash) + BudgetLogic.cost(Core.ownedCastawayIds(state, playerId), p));
+    return Seq.add(cash == null ? MarketLogic.cash(state, playerId) : cash, BudgetLogic.cost(Core.ownedCastawayIds(state, playerId), p));
   }
   // The market as it stands, for the screens and the checks: { prices: { castawayId: price }, cash and worth: { playerId: n } },
   // or null without one. On a viewer's copy (GhostLogic.viewFor) it's as of their mark.
@@ -2981,8 +2968,8 @@ function defaultEventPoints(state, mode){
   return out;
 }
 // Points are decimals now (0.5 steps and the like); sums of them pick up float noise, so every total
-// is rounded to hundredths where it's made.
-function roundPoints(n){ return Math.round((Number(n) || 0) * 100) / 100; }
+// is rounded to hundredths where it's made: the scoring sequence's one rounding (Seq.round).
+function roundPoints(n){ return Seq.round(n); }
 
 class ActiveRosterLogic {
   // Points for one event type: the league's own value if set (the spec's points: settings.eventPoints, in a game that
@@ -3013,6 +3000,11 @@ class ActiveRosterLogic {
     const units = ev && Number.isFinite(ev.units) && ev.units > 0 ? ev.units : 1;
     const points = ActiveRosterLogic.pointsFor(state, ev.type);
     return units === 1 ? points : points * units;
+  }
+  // An episode's moments (episodeEvents) as the scoring sequence reads them: each { castawayId, points } at the game's points, in
+  // order. Worked out once an episode for every seat (compute's `pre.scored`).
+  static scoredEvents(state, events){
+    return events.map(ev => ({ castawayId: ev.castawayId, points: ActiveRosterLogic.eventPoints(state, ev) }));
   }
   // A lineup's starters (the spec's count.start) and its bench (the rest of the team); none outside a Weekly Lineup.
   static activeSlots(state){
@@ -3077,14 +3069,7 @@ class ActiveRosterLogic {
   // from that episode on taken back, newest first (the mid-season log: a move made after episode k counts from k + 1, as the
   // spoiler view and the waiver weeks have it), less anyone out before it. In the cast's order.
   static teamFor(state, ep, playerId){
-    const team = new Set(Core.ownedCastawayIds(state, playerId));
-    const log = (state.midSeason && state.midSeason.log) || [];
-    for(let i = log.length - 1; i >= 0; i--){
-      const tx = log[i];
-      if(tx.playerId !== playerId || !Number.isInteger(tx.episode) || tx.episode < ep.number) continue;
-      if(tx.addedCastawayId) team.delete(tx.addedCastawayId);
-      if(tx.droppedCastawayId) team.add(tx.droppedCastawayId);
-    }
+    const team = Seq.heldAt(Core.ownedCastawayIds(state, playerId), state.midSeason && state.midSeason.log, playerId, ep.number);
     return state.castaways.filter(c => {
       if(!team.has(c.id)) return false;
       if(c.status !== 'eliminated') return true;
@@ -3095,23 +3080,24 @@ class ActiveRosterLogic {
   // One player's points for one episode, as the game counts them: { total, lines: [{ castawayId, points, counted, captain }],
   // captain, times, slots }. A lineup's starters, a captain's points times its multiplier; best ball's whole team, its best n
   // counted; a game's group slots (A10 part 1: GroupSlotLogic.episodeLines, each slot's group's points); and the episode's own
-  // multiplier (timesFor) on all of it. `pre`: the episode's events and multiplier, when the caller has them already (compute,
-  // every player).
+  // multiplier (timesFor) on all of it. `pre`: what the caller has worked out already for the episode (compute, every player):
+  // its multiplier, its moments at the game's points (`scored`: scoredEvents; else its `events`, scored here), group slots' index.
+  // The scoring sequence's steps 1 to 4 for one seat and one episode (C2 part 1): what counts (the starters, or best ball's whole
+  // team), each holding's moments, times its captain's and the episode's multiplier, then best ball's best n with the group
+  // slots' lines beside them.
   static episodeScore(state, ep, playerId, pre){
     const best = ActiveRosterLogic.bestOf(state);
     const ids = best ? ActiveRosterLogic.teamFor(state, ep, playerId) : ActiveRosterLogic.lineupFor(state, ep.id, playerId);
     const captain = best ? null : ActiveRosterLogic.captainFor(state, ep.id, playerId);
     const times = pre && pre.times !== undefined ? pre.times : ActiveRosterLogic.timesFor(state, ep.number);
-    const raw = new Map(ids.map(id => [id, 0]));
-    ((pre && pre.events) || ActiveRosterLogic.episodeEvents(state, ep)).forEach(ev => {
-      if(raw.has(ev.castawayId)) raw.set(ev.castawayId, roundPoints(raw.get(ev.castawayId) + ActiveRosterLogic.eventPoints(state, ev)));
-    });
+    const scored = (pre && pre.scored) || ActiveRosterLogic.scoredEvents(state, (pre && pre.events) || ActiveRosterLogic.episodeEvents(state, ep));
+    const raw = Seq.momentRaw(ids, scored);
     const cap = captain ? ActiveRosterLogic.captainTimes(state) : 1;
-    const lines = ids.map(id => ({ castawayId: id, points: roundPoints(raw.get(id) * (id === captain ? cap : 1) * times), counted: !best, captain: id === captain }));
-    // Best ball: the n highest count (a tie can't change the total; the cast's order breaks it).
-    if(best) [...lines].sort((a,b) => b.points - a.points).slice(0, best).forEach(l => { l.counted = true; });
-    const slots = GroupSlotLogic.episodeLines(state, ep, playerId, (pre && pre.events) || undefined, times, pre && pre.slots);
-    const total = roundPoints(lines.reduce((t, l) => t + (l.counted ? l.points : 0), 0) + slots.reduce((t, l) => t + l.points, 0));
+    const lines = ids.map(id => ({ castawayId: id, points: Seq.multiply(raw.get(id), [id === captain ? cap : 1, times]), counted: false, captain: id === captain }));
+    // Best ball: the n highest count (a tie can't change the total; the cast's order breaks it). A lineup: every starter.
+    Seq.best(lines, best);
+    const slots = GroupSlotLogic.scoredLines(state, ep, playerId, scored, times, pre && pre.slots);
+    const total = Seq.episodeTotal(lines, slots);
     return { total, lines, captain, times, slots };
   }
 
@@ -3466,20 +3452,22 @@ class GroupSlotLogic {
    * still counts in the mean), times the episode's multiplier (`times`). `ix`: index(), when the caller has it.
    */
   static episodeLines(state, ep, playerId, events, times, ix){
+    if(!GroupSlotLogic.config(state)) return [];
+    return GroupSlotLogic.scoredLines(state, ep, playerId, ActiveRosterLogic.scoredEvents(state, events || ActiveRosterLogic.episodeEvents(state, ep)), times, ix);
+  }
+  /** episodeLines on the episode's moments already at the game's points (`scored`: ActiveRosterLogic.scoredEvents), as
+   *  episodeScore has them: the scoring sequence's steps 2 and 3 for a slot (C2 part 1), its group's raw points times the
+   *  episode's multiplier. */
+  static scoredLines(state, ep, playerId, scored, times, ix){
     const cfg = GroupSlotLogic.config(state);
     if(!cfg) return [];
-    const evs = events || ActiveRosterLogic.episodeEvents(state, ep);
     const x = times === undefined ? ActiveRosterLogic.timesFor(state, ep.number) : times;
     const at = ix || GroupSlotLogic.index(state);
     const out = [];
     for(let i = 0; i < cfg.slots; i++){
       const st = GroupSlotLogic.standing(state, playerId, i, ep.number, at);
       let points = 0;
-      if(st.status === 'held' && st.members.length){
-        const mine = new Set(st.members);
-        const sum = evs.filter(ev => mine.has(ev.castawayId)).reduce((t, ev) => t + ActiveRosterLogic.eventPoints(state, ev), 0);
-        points = roundPoints((cfg.points === 'sum' ? sum : sum / Math.max(st.size, st.members.length)) * x);
-      }
+      if(st.status === 'held' && st.members.length) points = Seq.multiply(Seq.groupRaw(st.members, st.size, scored, cfg.points), [x]);
       out.push({ slot: i, ...st, points });
     }
     return out;
@@ -3663,8 +3651,9 @@ class ActiveRosterEventScoringStrategy {
     state.castaways.forEach(c=>{
       if(c.formerOwnerId && results[c.formerOwnerId]) results[c.formerOwnerId].formerRoster.push(c);
     });
-    // A9 part 2: a captain, best ball or points that multiply by when, each episode as ActiveRosterLogic.episodeScore counts it.
-    // A plain lineup scores below, event by event, as it always has.
+    // The scoring sequence (C2 part 1). A9 part 2: a captain, best ball or points that multiply by when, each episode as
+    // ActiveRosterLogic.episodeScore counts it (steps 1 to 4), its total added to the running total (step 5). A plain lineup
+    // scores below, each of its starters' moments a line of its own, the running total rounded after each, as it always has.
     if(ActiveRosterLogic.combines(state)){
       // Group slots (A10 part 1): what their readers look up, once for the whole pass.
       const slots = GroupSlotLogic.config(state) ? GroupSlotLogic.index(state) : undefined;
@@ -3672,35 +3661,33 @@ class ActiveRosterEventScoringStrategy {
         if(!inPlay(state, ep.number)) return;
         const events = ActiveRosterLogic.episodeEvents(state, ep);
         if(!events.length) return;
-        const pre = { events, times: ActiveRosterLogic.timesFor(state, ep.number), slots };
+        const pre = { times: ActiveRosterLogic.timesFor(state, ep.number), slots, scored: ActiveRosterLogic.scoredEvents(state, events) };
         state.players.forEach(p=>{
-          results[p.id].locked = roundPoints(results[p.id].locked + ActiveRosterLogic.episodeScore(state, ep, p.id, pre).total);
+          results[p.id].locked = Seq.add(results[p.id].locked, ActiveRosterLogic.episodeScore(state, ep, p.id, pre).total);
         });
       });
     } else state.episodes.forEach(ep=>{
       if(!inPlay(state, ep.number)) return; // before this league started (settings.startEpisode)
-      ActiveRosterLogic.episodeEvents(state, ep).forEach(ev=>{
-        const points = ActiveRosterLogic.eventPoints(state, ev);
-        state.players.forEach(p=>{
-          const lineup = ActiveRosterLogic.lineupFor(state, ep.id, p.id);
-          if(lineup.includes(ev.castawayId)){
-            results[p.id].locked = roundPoints(results[p.id].locked + points);
-          }
-        });
+      const events = ActiveRosterLogic.episodeEvents(state, ep);
+      if(!events.length) return;
+      const scored = ActiveRosterLogic.scoredEvents(state, events);
+      state.players.forEach(p=>{
+        const lineup = new Set(ActiveRosterLogic.lineupFor(state, ep.id, p.id));
+        scored.forEach(ev => { if(lineup.has(ev.castawayId)) results[p.id].locked = Seq.add(results[p.id].locked, ev.points); });
       });
     });
     // The same optional layers classic-draft carries: side bets and finale predictions are orthogonal
     // to how the main score is earned, so an Active Roster league can still use them.
     const bets = addSideLayers(state, results);
-    Object.values(results).forEach(r=> r.total = roundPoints(r.locked + (bets? r.bonus:0) + r.finale));
+    Object.values(results).forEach(r=> r.total = Seq.total(r, bets, true));
     // A10 part 3c: a stock market's cash and worth beside each row, ranked by worth when the game ranks by it (ties to the points).
     if(MarketLogic.on(state)){
       const prices = PriceLogic.prices(state);
       const cash = MarketLogic.cashAll(state);
       Object.values(results).forEach(r => { r.cash = cash.get(r.playerId); r.worth = MarketLogic.worth(state, r.playerId, prices, r.cash); });
-      if(gameOf(state).rank.by === 'worth') return Object.values(results).sort((a,b) => PickEmScoringStrategy.compareKeys(rankKey(state, b), rankKey(state, a)));
+      if(gameOf(state).rank.by === 'worth') return Seq.byKey(Object.values(results), r => rankKey(state, r));
     }
-    return Object.values(results).sort((a,b)=>b.total-a.total);
+    return Seq.byTotal(Object.values(results));
   }
 }
 

@@ -49,8 +49,8 @@ Three things decide whether a spec is a game (`src/lib/game/game-spec/schema.js`
   "No game plays this way yet" when every part is built but the engine has no game that puts them together.
 - **`typeOf(spec)`**: the shape the engine plays it as. Today that's one of seven (`playsAs`): an Outlast-style draft
   (`classic-draft`), a draft scored by moments (`active-roster`), a pool (`pickem`), Weekly Calls, Weekly Bingo, a game of
-  questions (`questions`) and a game in stages (`stages`). Track C replaces this list with one scoring sequence (C2): see
-  "Where it's still a menu".
+  questions (`questions`) and a game in stages (`stages`). Track C replaces this list with one scoring sequence (C2, under
+  way: see "How a game is scored: the sequence" and "Where it's still a menu").
 
 `describeSpec(spec, ctx)` then says the game in plain words: a sentence, How it works (a rule a line) and the details nobody
 asked about.
@@ -591,6 +591,34 @@ page + words ──(bot + the engine's manual)──▶ a draft spec ──(our 
 
 ---
 
+## How a game is scored: the sequence
+
+Every game scores as one sequence of six steps, for each of you and each episode (or window) it plays
+(`src/lib/game/sequence/`, track C's C2):
+
+1. **Hold**: what of yours counts for that episode. A draft's team as it stood then (a pickup counts from the episode after
+   it's made; `heldAt`), a lineup's starters, best ball's whole team, a group slot's group.
+2. **Score each line**: a line is one holding's points in one episode, from one source. An Outlast's line is a **place**, a
+   value rather than points earned while held (whoever holds someone now has their whole place: `placed`, `stillIn`); a
+   lineup's are its people's **moments** at the game's points (`momentRaw`), a group slot's its group's (`groupRaw`), a side
+   bet's a right guess on a bet with company (`betLines`); finale predictions and a handicap are lines settled on their own.
+3. **Multipliers**: each line times whatever applies to it, in order (`multiply`): a captain's, then the episode's own
+   (`score.times`).
+4. **Combine**: the lines into your total for the episode, all of them or your best n (`best`, `episodeTotal`).
+5. **The week's result**: what each episode's totals make: a running total (`add`); a streak, a life, a matchup or a cut are
+   the next part's (C2 part 2).
+6. **Rank**: the table in its order (`byTotal`, `byKey`), each row's total from its parts (`total`).
+
+Rounding (to the cent) is part of the sequence, where each game has always done it: an Outlast's places are whole and never
+rounded; a plain lineup rounds its running total after each moment; a lineup that combines (a captain, a multiplier, best
+ball, group slots) rounds each person's points as they add up, each line, each episode's total and the running total.
+
+What scores through it now (C2 part 1): every draft (an Outlast, a lineup, best ball, group slots, side bets, finale
+predictions, a handicap, a stock market's worth, and the knockouts' episode-by-episode totals). Still to come: the week's
+results (a pool's walk, knockouts, head to head, teams, co-op: part 2), what the server scores outside the league's state (a
+game of questions, Weekly Calls, bingo, a stage's table: part 3), and a spec playing by each piece's place in the sequence
+instead of by one of seven shapes (part 4). Each part keeps every game scoring exactly as before unless it says otherwise.
+
 ## Where it's still a menu
 
 Questions compose (answer × settle × window × combiner × fallback), and so do stages and the ways to win. What doesn't yet, found
@@ -598,7 +626,8 @@ by three of the user's games tested on 2026-11-05:
 
 - **Seven shapes** (`playsAs`): a spec plays only when its parts match one of them. So a draft can't carry its own questions
   beyond finale predictions ("No game plays this way yet"), a pool can't play head to head or in teams, and a captain or a
-  multiplier by when lives only on a draft scored by moments.
+  multiplier by when lives only on a draft scored by moments. The sequence above is built under the drafts (C2 part 1); the
+  shapes give way to it in C2 part 4.
 - **Combiners that exclude each other**: a wager plays alone; a parlay's legs are plain; a shrinking call has no share.
 - **One feature per multiplier**: captain, by when, parlay and the wager's double are four separate pieces.
 - **Ownership per game**: the draft and its pickups share one `own`.
@@ -607,13 +636,14 @@ by three of the user's games tested on 2026-11-05:
 - **Each episode's questions are the spec's**: nothing writes a new card of questions each week (Weekly Calls' calls and bingo's
   squares are their own games' generators).
 
-The study of how one scoring sequence replaces the seven shapes is in the plan (track C, C1's As built).
+The study of how one scoring sequence replaces the seven shapes is in the plan (track C, C1's As built); what's built so far
+is under C2's.
 
 ## Planned: what track C adds
 
 | Step | The piece | What it opens |
 |---|---|---|
-| C2 | **One scoring sequence**: hold → score each line → multipliers → combine → the week's result → rank. A spec plays when each piece it names has its place in the sequence | combiners that exclude each other today combine wherever the sequence allows; no seven shapes |
+| C2 | **One scoring sequence**: hold → score each line → multipliers → combine → the week's result → rank (above: part 1, the drafts, built). A spec plays when each piece it names has its place in the sequence | combiners that exclude each other today combine wherever the sequence allows; no seven shapes |
 | C3 | **Multipliers on any condition**: one piece keyed by how a holding joined (drafted, a pickup, the Nth replacement), when it was picked, a captain, a streak, a parlay's legs | captain, by when, parlay and confidence become uses of it; the user's 1x, 0.5x, 0.25x |
 | C4 | **Ownership per holding**: exclusive or shared for the draft, the pickups and the group slots each, and where a replacement comes from | an exclusive draft with shared replacements |
 | C5 | **The week as a result**: pick N each episode without a draft; a week's winner and ranking by weeks won; "only these moments count"; hits counted per objective or per pick; more than six stages, or each episode a round | the user's third game |

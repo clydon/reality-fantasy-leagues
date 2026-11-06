@@ -1,5 +1,6 @@
 import type { Castaway, Episode, LeagueState, Player } from "./types";
 import StateLogic from "./state-logic.js";
+import * as Seq from "./sequence/index.js";
 
 // What Classic's screens (Overview's Standings and Your Team, the Episodes list, an episode's page)
 // read about a team and the boot order, so they agree with each other and with the scoring
@@ -91,15 +92,13 @@ export function keepsLine(state: LeagueState, c: Castaway, me: string | null): s
   return `${who} ${names.length === 1 && who !== "You" ? "keeps" : "keep"} ${c.placementOrder}`;
 }
 
-/** This player's predictions on this episode that were right and paid (the scoring's own rule). */
+/** This player's predictions on this episode that were right and paid: the scoring's own lines (the scoring sequence's side
+ *  bets, a right guess on a bet with company). */
 export function predictionsRight(state: LeagueState, ep: Episode, playerId: string | null) {
   const right: { label: string; points: number }[] = [];
   if (playerId && StateLogic.betsOn(state)) {
-    (ep.bets || []).forEach((bet) => {
-      if ((bet.predictions || []).length < 2) return;
-      if ((bet.predictions || []).some((p) => p.playerId === playerId && p.correct === true)) {
-        right.push({ label: bet.label, points: bet.points || 0 });
-      }
+    Seq.betLines(ep.bets).forEach((l) => {
+      if (l.playerId === playerId) right.push({ label: l.bet.label, points: l.points });
     });
   }
   return { right, points: right.reduce((n, r) => n + r.points, 0) };

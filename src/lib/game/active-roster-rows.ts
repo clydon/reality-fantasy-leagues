@@ -161,23 +161,20 @@ export function rosterAtEpisode(state: LeagueState, playerId: string, epId: stri
   });
 }
 
-/** Each player's points for one episode: events by castaways in their lineup for it. Highest first. */
+/** Each player's points for one episode: events by castaways in their lineup for it. Highest first. The engine's own count of
+ *  the episode (the scoring sequence's, C2 part 1: a captain, best ball, points that multiply by when, group slots, or plainly its
+ *  starters' moments), worked out once for the episode and read for each player. */
 export function episodePlayerPoints(state: LeagueState, epId: string) {
   const ep = state.episodes.find((e) => e.id === epId);
   if (!ep || !StateLogic.inPlay(state, ep.number)) return [];
-  const evs = StateLogic.ActiveRosterLogic.episodeEvents(state, ep);
-  // A captain, best ball or points that multiply by when (step A9 part 2): the engine's own count of the episode.
-  const combines = StateLogic.ActiveRosterLogic.combines(state);
-  const times = combines ? StateLogic.ActiveRosterLogic.timesFor(state, ep.number) : 1;
+  const A = StateLogic.ActiveRosterLogic;
+  const pre = {
+    times: A.timesFor(state, ep.number),
+    scored: A.scoredEvents(state, A.episodeEvents(state, ep)),
+    slots: StateLogic.GroupSlotLogic.config(state) ? StateLogic.GroupSlotLogic.index(state) : undefined,
+  };
   return state.players
     .filter((p) => p.active !== false)
-    .map((p) => {
-      if (combines) return { player: p, points: StateLogic.ActiveRosterLogic.episodeScore(state, ep, p.id, { events: evs, times }).total };
-      const lineup = StateLogic.activeRosterLineupFor(state, ep.id, p.id);
-      const points = StateLogic.roundPoints(
-        evs.filter((e) => lineup.includes(e.castawayId)).reduce((t, e) => t + StateLogic.ActiveRosterLogic.eventPoints(state, e), 0)
-      );
-      return { player: p, points };
-    })
+    .map((p) => ({ player: p, points: A.episodeScore(state, ep, p.id, pre).total }))
     .sort((a, b) => b.points - a.points || a.player.name.localeCompare(b.player.name));
 }

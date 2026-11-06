@@ -88,7 +88,7 @@ settled by it only where research says it reliably on the show, void when it can
 `episode-facts.js`), and so is part 2b, episode facts' own short run (2026-10-31: what an episode's stored research isn't sure of, asked
 on its own after the morning's full run and filed into it, a fact game waiting for it until the episode's final results; on the tapes
 Survivor now says it for sure on 10 of 10 weeks, The Challenge and The Traitors on almost none; `db/facts-research.js`, the bot's
-'facts' run, migration 0204), so **A13 is done**. A14 (the players' own mechanics) is under way, in parts: part 1, what the players answer
+'facts' run, migration 0204), so **A13 is done** (merged and live 2026-11-05, `1d4b20a0`). A14 (the players' own mechanics) is under way, in parts: part 1, what the players answer
 that depends on each other (2026-10-31: a question the players' own answers settle, the answer most (or fewest) of you give, every answer
 hidden until the lock; the players' vote on a format change, decided once more than half of the seats say the same, else by the votes cast at
 the lock; `settle.by 'players'`, `StageLogic.vote`, `stage_change_votes`, migration 0205), is built, and so is part 2, the bot's call as an
@@ -97,8 +97,10 @@ isn't right, the bot's call kept apart and hidden until the lock, a week it made
 each of you did against it; proven with stand-in calls: `bot_calls`, migration 0206, `db/bot-calls.js`); part 2b, the bot's own run that
 makes the call before each lock (a prompt change), comes after track C. **Track C** (pieces that compose, the user's, 2026-11-05)
 runs first: C1, the pieces guide ([GAME-PIECES.md](GAME-PIECES.md), every piece of a game for someone thinking up games, kept
-current by every engine step) and the study of one scoring sequence, is done (2026-11-05); C2, one scoring sequence, next; then
-C3 to C7, A14's later parts, and a stop before A15. The live-sports plan is
+current by every engine step) and the study of one scoring sequence, is done (2026-11-05); C2, one scoring sequence, is under way, in
+parts: part 1, the sequence and the drafts (2026-11-05: the six steps as a pure module, `src/lib/game/sequence/`, every draft scoring
+through it under `ScoringLogic.compute` with every read the same, proven against the scorers before it shape by shape and episode by
+episode), is built; part 2, the week's results, next; then C3 to C7, A14's later parts, and a stop before A15. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5, at
 high since 2026-11-05; C2 at xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: folded in here as track L; its file keeps the details)
 and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track S here).
@@ -5356,6 +5358,78 @@ A14 part 2 and before A14's other parts; every part keeps every golden and blind
 - **C2. One scoring sequence** (xhigh: it touches every game). The study's sequence built under today's games with every read
   the same (golden, blind, the Survivor 51 rehearsal). A spec plays when each piece it names has its place in the sequence,
   not when it matches one of seven shapes; combiners that exclude each other today combine wherever the sequence allows.
+
+  **As built (C2 part 1, the sequence and the drafts, 2026-11-05; on `engine`, not merged; no migration).** One session (xhigh),
+  after `lane.js sync engine` (up to date) and `npm run migrate`.
+  - **The sequence** (`src/lib/game/sequence/index.js`, types in `index.d.ts`): a pure CommonJS module beside game-spec, which
+    `state-logic.js` requires (`Seq`) and the server and the screens can import; the six steps as functions with data in and
+    out, nothing in it reading a league. 1, hold: `heldAt` (what a seat held for an episode: what it holds now, each of its
+    moves from then on taken back, newest first: one copy where Outlast's series and best ball's `teamFor` each had their own).
+    2, the lines: `placed` and `stillIn` (an Outlast's place as a value, as a mark sees the season: `{ size, out, reverse }`),
+    `momentRaw` (each holding's moments, rounded as they add up), `groupRaw` (a group slot's sum or mean), `betLines` (each right
+    guess on a bet with company, with its bet). 3, `multiply` (each factor in order, left to right, then rounded: a captain's,
+    then the episode's). 4, `best` (best ball's n, a tie to the earlier line), `episodeTotal` (the counted lines and the slots'),
+    `sum`. 5, `add` (a running total, rounded each step). 6, `total` (a row's total from its parts, rounded where the game
+    rounds), `compareKeys`, `byTotal`, `byKey`. `round` is the one rounding (`roundPoints` is it), and the module's header says
+    where each game rounds: exactly the study's "What C2 has to keep exactly". Its global (`GameSequence`) for a plain script.
+  - **What scores through it** (under `ScoringLogic.compute`): an Outlast (`EliminationOrderScoringStrategy`'s `mark`,
+    `castawayPoints`, `stillInPoints` and `compute`: who each seat holds now, each holding's place, their sum, never rounded); a
+    lineup, plain or combining (`ActiveRosterEventScoringStrategy.compute`: a plain lineup's starters' moments each a line, its
+    running total rounded after each; `ActiveRosterLogic.episodeScore`, steps 1 to 4 for a seat and an episode: the starters or
+    best ball's team, their moments, times a captain's and the episode's multiplier, best ball's best n, the slots beside them);
+    best ball (`teamFor`); group slots (`GroupSlotLogic.scoredLines` on moments at the game's points, `episodeLines` its form
+    for a caller with the episode's own events, the group slots' route); side bets (`addSideLayers`); finale predictions (added
+    as before: their grading is `AnswerLogic`'s, part 3's); a handicap (`HandicapLogic.apply`); a stock market's worth
+    (`MarketLogic.worth`, `BudgetLogic.cost`); and the knockouts' series episode by episode (`KnockoutLogic.series`: its hold,
+    places, lines, bets and totals; the walk itself stays, part 2's). An episode's moments are worked out at the game's points
+    once for every seat (`ActiveRosterLogic.scoredEvents`, `pre.scored`), where a plain lineup read each seat's lineup once a
+    moment and a combining one each moment's points once a seat.
+  - **Two screens read it now:** an episode's points (`active-roster-rows.ts episodePlayerPoints`: Weekly Lineup's episode lines
+    and the reveal) is the engine's episode total for every lineup (a plain one added its starters' moments its own way),
+    worked out once for the episode; and classic's right predictions (`classic-view.ts predictionsRight`) are the sequence's bet
+    lines (it had its own copy of the rule).
+  - **What reads differently:** nothing the golden replays, the blind replays or the Survivor 51 rehearsal read (below), and
+    nothing on any show's points. Two screens, in edge cases no show reaches: a plain lineup's episode points where its moments
+    carry sub-cent units (two of 1.004 points: 2 now, as the engine's episode total rounds, was 2.01), which only a sport's counts
+    can; and classic's side bets on a night one seat made two right guesses on one bet (each pays now, as the table always
+    counted it; was once).
+  - **Proof:** `tests/sequence.test.js` (8, a test per step); `tests/sequence-agree.test.js` (25): every draft's shape on one
+    made-up season (`tests/fixtures/scoring-shapes.js`: fifteen castaways, four seats, seven episodes with a double boot, a
+    medevac, a quit, a night nobody went home and a finale with a fire-making loss, two losing finalists and the winner; moments in
+    units that leave float noise; lineups set, carried and unset; captains named and carried; two pickups, one after the last
+    episode but one; side bets paying, alone and shared; finale predictions; group slots on the format's pairs; a handicap; a
+    market's cash). 22 shapes (an Outlast exclusive, shared, in reverse, with early results at the finale and with a cut; a lineup,
+    shared and with early results; a captain; points that multiply by when; both; best ball and shared; group slots by the mean and
+    by the sum; a handicap on a lineup and on an Outlast; a race; the guillotine; head to head; a market by worth and by points), each
+    read as nobody and as a seat at nine marks: 396 reads (the table's rows, every field in its order; the series; each seat's
+    episode scores, also as a caller with only the episode's events; the group slots as their route reads them; each castaway's
+    place; the market; the finale's points; who's out; where it ends), **every one the scorers' before C2** (recorded from
+    d5222e68's engine, `scoring-shapes.json`; `--diff [--ref=]` prints where this tree's reads part from any ref's), and the two
+    screens reading the sequence. Each step changed in turn (the multipliers' order, best ball's tie, a place, a bet alone, a
+    row's rounding, the hold, each line's, the episode's and the running total's rounding, a slot's mean) is caught. `npm test`
+    1339 of 1339; `tsc` clean (its only two errors the stale generated `.next/dev/types/validator.ts`'s); eslint clean on the changed
+    files (the `require()` style aside). `engine-capabilities.js --check`: up to date (no row moves: 200 ✅). `game-specs-flag.js
+    check`: PASS (6 of 6 leagues, this lane's database). Through the app (this lane's server, the zt_nd_ fixture):
+    `check-lineup-scoring.js` (the server scoring a captain, points that multiply by when, best ball and a reverse Outlast through
+    the API), ALL PASS; `check-new-reveal.js` (the reveal, which reads an episode's points), 49 of 49 (one step timed out on a
+    first run beside the blind replays, and passed on the two after); classic's Episodes and an episode's page on
+    `results-fixture.js` (`check-episodes.js`, the page that reads the side bets that paid), no page errors.
+  - **Golden replays:** `golden.js` (HEAD, C1, against the working tree): 7 seasons, 160 games, **19,361 reads, every one the same**; against
+    master's (`--before=master`, production's engine): every one the same.
+  - **Blind replays:** (`blind.js run`, the five seasons, on the final code): **every game played through and over on all five**, as after A14
+    part 2: Survivor 49 140 of 140, The Challenge 41 110, 40 104, 39 112, The Traitors 4 99; every stand-in call filed, none refused;
+    nothing refused that the app offered, no score that isn't a number.
+  - **The Survivor 51 rehearsal:** (`season-forward.js rehearse --from=backups/prod-2026-10-30 --scenario=realistic,rough,dst
+    --before=master`, this lane's tree): every invariant holds in all three scenarios, flag off and on read the same (2,856 reads
+    each), and master's engine against this tree's reads the same in every one (2,856 reads, flag off and on).
+  - **The code review** (`/code-review` at high, before the long runs): nine findings, all taken: group slots' lines took a
+    positional flag that changed what its events meant (a caller passing the wrong kind scored every slot 0: now two methods,
+    `episodeLines` and `scoredLines`); `castawayPoints` counted the cast for every castaway out (a place reads only its size and
+    the reverse); the episode's events passed beside its scored moments, unread (only the scored now); the episode lines and the
+    reveal adding a plain lineup's moments their own way and scoring every seat's moments again (the engine's total, worked out
+    once); classic's right predictions a second copy of the bet rule (the sequence's lines); the record only hashes (now `--diff`
+    against any ref, the scorers before C2 by default); two call shapes untested (now in each read); the module's global for a
+    plain script missing (defined).
 - **C3. Multipliers on any condition.** One multiplier piece keyed by a condition: how a holding joined (drafted, a pickup,
   the Nth replacement), when it was picked, a captain, a streak, the legs of a parlay. Captain, by when, parlay and confidence
   become uses of it. Game 2's 1x, 0.5x, 0.25x, configurable.
@@ -6312,6 +6386,33 @@ From R1 part 2 (2026-10-30):
   (R3, or whoever next works in Game settings.)
 - **For the hosting notes, at the merge:** `/api/me` (classic's sign-in and every classic load) now sends each league's settings, not its
   whole state (20-40 KB each): less Neon transfer than before. (The main folder: docs/HOSTING.md, with the merge.)
+
+From C2 part 1 (2026-11-05):
+- **The table and the series read a draft two ways, kept as they were (every read the same), for part 2's one walk to settle:**
+  1. **A plain lineup's rounding.** Its table rounds the running total after each moment; its episode totals (the knockouts'
+     series, head to head, now the episode lines and the reveal) round each person's points as they add up. On sub-cent units
+     (a sport's innings) the two can part by a cent; on a show's halves never (golden, every read the same). Recommended for
+     part 2: the episode total everywhere (the line's rule, one rule), proven by golden still reading the same on every show.
+  2. **Who an Outlast counts.** The table credits whoever holds someone now (a pickup made after the latest results counts at
+     once); the series, who held them for each episode (from the episode after the move). Both are the study's ("Outlast's place
+     is a value"), and both stay: the table is the sequence at now, the series at each episode.
+  3. **What the table counts that the series doesn't:** side bets marked right on an episode without results yet, finale
+     predictions graded at early results, and an Outlast's castaway out with no place recorded (the table 0, the series still
+     in). Edge cases (a bet graded early, a finale's early results, a data error); part 2's walk keeps or settles each, saying so.
+  (C2 part 2.)
+- **For C3 (multipliers on any condition):** step 3 takes a list of factors already (`Seq.multiply(raw, [captain, episode])`),
+  and step 1's log says how each holding joined (each move's episode, what it added and what it let go: `heldAt`'s input). C3
+  adds the holding's provenance (drafted, the Nth replacement, a keeper, a group slot) to the lines and a condition to each
+  factor; an Outlast's line is still a place as a value (C1's question for the user stands: its whole place, or what it earns
+  while yours, recommended).
+- **The wrapper's plain-script branch** (`state-logic.js`'s `root.GameFormats`, `root.GameSpec`): nothing defines those globals
+  (formats and game-spec are CommonJS only), so a plain `<script>` load of state-logic.js couldn't work; nothing loads it that
+  way. The sequence defines `GameSequence` for it. (R3, when the wrapper's comment and branch can go, or whoever next touches it.)
+- **A lineup's per-castaway stats** (`active-roster-rows.ts` `castawayEventStats`, `playerEventRows`) add moments their own way
+  (rounded after each): a castaway's season stats, not a seat's score, so they're left; once part 3 has the server's lines
+  through the sequence, they can read a castaway's lines. (U1, with the screens.)
+- **No prompt changed and no migration** in this part; nothing for the hosting notes (no storage, no new reads: a scoring pass
+  works out each episode's moments once instead of once a seat).
 
 From C1 (2026-11-05):
 - **For the user, with game 2's open questions (C3 builds it): a multiplier on a replacement in an Outlast.** An Outlast credits a

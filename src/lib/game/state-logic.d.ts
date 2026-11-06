@@ -259,6 +259,8 @@ declare const StateLogic: {
   EliminationOrderScoringStrategy: {
     /** In reverse (step A9 part 2): the earlier they go home, the more. */
     reversed(state: LeagueState): boolean;
+    /** The season as this copy sees it, for a place (the scoring sequence's mark, C2 part 1). */
+    mark(state: LeagueState): { size: number; out: number; reverse: boolean };
     castawayPoints(state: LeagueState, c: Castaway): number;
     stillInPoints(state: LeagueState): number;
     compute(state: LeagueState): ScoreRow[];
@@ -490,6 +492,8 @@ declare const StateLogic: {
     pointsFor(state: LeagueState, type: string): number;
     /** One event's points: its type's, times its units (a count research reported). */
     eventPoints(state: LeagueState, ev: Pick<ScoringEvent, "type" | "units">): number;
+    /** An episode's moments at the game's points, in order: what the scoring sequence reads (C2 part 1). */
+    scoredEvents(state: LeagueState, events: ScoringEvent[]): { castawayId: string; points: number }[];
     activeSlots(state: LeagueState): number;
     benchSlots(state: LeagueState): number;
     /** This episode's lineup, or (if never set for it) the most recent earlier one, still-owned and capped. */
@@ -516,7 +520,7 @@ declare const StateLogic: {
       state: LeagueState,
       ep: Episode,
       playerId: string,
-      pre?: { events?: ScoringEvent[]; times?: number }
+      pre?: { events?: ScoringEvent[]; times?: number; scored?: { castawayId: string; points: number }[]; slots?: GroupSlotIndex }
     ): { total: number; lines: { castawayId: string; points: number; counted: boolean; captain: boolean }[]; captain: string | null; times: number; slots: GroupSlotLine[] };
     lockLineups(state: LeagueState, epId: string): boolean;
     unlockLineups(state: LeagueState, epId: string): boolean;
@@ -539,6 +543,8 @@ declare const StateLogic: {
     latestPick(state: LeagueState, playerId: string, slot: number, n: number): { pick: GroupSlotPick | null; from: number } | null;
     standing(state: LeagueState, playerId: string, slot: number, n: number, ix?: GroupSlotIndex): GroupSlotStanding;
     episodeLines(state: LeagueState, ep: Episode, playerId: string, events?: ScoringEvent[], times?: number, ix?: GroupSlotIndex): GroupSlotLine[];
+    /** episodeLines on the episode's moments already at the game's points (ActiveRosterLogic.scoredEvents): C2 part 1. */
+    scoredLines(state: LeagueState, ep: Episode, playerId: string, scored: { castawayId: string; points: number }[], times?: number, ix?: GroupSlotIndex): GroupSlotLine[];
     validatePick(state: LeagueState, epId: string, playerId: string, slot: number, groupId: string | null): string | null;
     setPick(state: LeagueState, epId: string, playerId: string, slot: number, groupId: string | null): boolean;
     settle(state: LeagueState, records: Map<number, EpisodeFormatGroups> | Record<number, EpisodeFormatGroups>): boolean;
