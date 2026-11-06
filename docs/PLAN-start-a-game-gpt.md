@@ -6421,6 +6421,13 @@ A14 part 2 and before A14's other parts; every part keeps every golden and blind
     legs and pays"); the fix-it messages for an answer and a settle now name ticket and legs; the blind replays' stakes from one bank
     could add up past it in one request (now fitted: `fitStakes`); the grade's first pass graded a ticket for nothing (now skipped);
     one payouts list (`ticketOf`'s `payouts`) and one stake clamp (`stakeOf`).
+  - **The long checks, once for C6, on `dfe52bf5`** (parts 1 and 2 together): the golden replays (`--before=master`): seven seasons,
+    160 games, 19,361 reads, every one the same; the blind replays (`blind.js run`): every game played through and over on all five
+    seasons, Survivor 49 155 (two more: p24 and p26), The Challenge 39 123, 40 115, 41 121 and The Traitors 4 110 (one more each: p24),
+    the seven games of questions on The Challenge's seasons still noting their wait on early results (playtest finding 20), none of
+    them C6's; the Survivor 51 rehearsal (`--scenario=realistic,rough,dst --before=master`): every invariant holds in all three
+    scenarios, flag off and on the same, master's engine against this tree's the same (2,856 reads each). `game-specs-flag.js check`:
+    PASS.
 - **C7. A new card each week.** One generator for each episode's set of questions or objectives: from the show's own data (as
   Weekly Calls rotate the show's moments) or written by the bot and checked (as trivia and bingo squares are), data-settled
   only. Calls, trivia, bingo squares, a weekly prediction sheet and weekly objectives all come from it. Games 1 and 3.
