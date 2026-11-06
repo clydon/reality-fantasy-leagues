@@ -116,6 +116,22 @@ const tbd = (c: EspnBoutCompetitor) => (num(c.id) ?? 0) < 0 || str(c.athlete?.di
  * (a finished match's every set, a retirement's all but its last, a live one's before the set on), so an unflagged set's winner
  * is its games' or its points'. A match tiebreak written as points ("10-8") is a set of one game; "0-0 (10-6)" too, once done.
  */
+/** A board's matches, each once (a combined event's are on both tours' draws), in ESPN's order, with its draw's slug; one called
+ *  off too (the reader leaves it out). */
+export function boardMatches(answer: BoutAnswer): { c: EspnBoutCompetition; draw: string }[] {
+  const seen = new Set<string>();
+  const out: { c: EspnBoutCompetition; draw: string }[] = [];
+  for (const g of answer.board?.groupings ?? []) {
+    for (const c of g.competitions ?? []) {
+      const id = idOf(c.id);
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      out.push({ c, draw: str(g.grouping?.slug) ?? "" });
+    }
+  }
+  return out;
+}
+
 /** ESPN's live board calls a match STATUS_SUSPENDED ("post", `completed` false) when its feed stalls, its last set's games behind
  *  and its note already "bt", then has it on again or final (Basel 2026, recorded live: three of 11 matches, 10 to 15 minutes; no
  *  finished board of 2025-26 has one): a match on, not one over. Any other "post" is over (a called-off one too). */
@@ -254,21 +270,11 @@ export class Tennis extends BoutSport {
   /** Every match of the event (each once: a combined event's on both tours' boards; one called off before it was played left
    *  out, as a card's bout called off is), in ESPN's order, with its draw. */
   private matches(answer: BoutAnswer, issues: string[]): { c: EspnBoutCompetition; draw: string }[] {
-    const seen = new Set<string>();
-    const out: { c: EspnBoutCompetition; draw: string }[] = [];
-    for (const g of answer.board?.groupings ?? []) {
-      for (const c of g.competitions ?? []) {
-        const id = idOf(c.id);
-        if (!id || seen.has(id)) continue;
-        seen.add(id);
-        if (c.status?.type?.name === "STATUS_CANCELED") {
-          if ((c.competitors ?? []).some((x) => !tbd(x))) issues.push(`match ${id} was called off`);
-          continue;
-        }
-        out.push({ c, draw: str(g.grouping?.slug) ?? "" });
-      }
-    }
-    return out;
+    return boardMatches(answer).filter(({ c }) => {
+      if (c.status?.type?.name !== "STATUS_CANCELED") return true;
+      if ((c.competitors ?? []).some((x) => !tbd(x))) issues.push(`match ${idOf(c.id)} was called off`);
+      return false;
+    });
   }
 
   /** The event's matches as read, in the order played (their starts; ESPN's order among equals). */

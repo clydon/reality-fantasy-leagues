@@ -250,6 +250,15 @@ answering phones**, the fallback (not built; its shape in the plan's L2 As built
 region; every phone's ask a CDN request (240 an hour a phone: 10 phones for 3 hours is 7,200 of Hobby's 1M a month); and its
 bytes Vercel's Fast Data Transfer (trimmed to what the readers read, ~5x smaller: a few MB a phone a game; check Hobby's
 allowance on vercel.com/pricing). Still nothing in Neon.
+**Measured live, the weekend of 2026-10-30** (every answer every 30 s; compared 2026-11-05): college football 30-31 KB an answer
+over the wire (7 MB an hour at 15 s), the NFL 38 KB (9 MB), the WNBA 35 KB (8 MB). **Fields and draws** (L2 part 2: the phone's
+poller for an event, `src/lib/sports/live-event.ts`, as untimed as ESPN's answers; no screen uses it yet, U1): **golf** asks the
+event's board and leaderboard every minute while a round's on (33 KB over the wire together, 576 KB unzipped: 2 MB an hour; 120
+calls an hour a phone), until the next tee time between rounds; **tennis** the event's board every 30 s while a match is on (12
+KB, ~150 KB unzipped: 1.5 MB an hour; 120 calls an hour), until the next listed start between, every 10 minutes at most. Nothing
+on Vercel or Neon either, the same fallback if ESPN stops answering phones. Measured for part 2b's pollers, not built yet: a UFC
+card's board and FightCenter 23 KB an answer (2.7 MB an hour at 30 s, over a 6-hour card), racing's board 2 KB (its core API
+5-6 calls and 23-39 KB unzipped an ask).
 
 **All of TV and the daily listings job (new design, step 11 part 2)** poll nothing and wake nothing of their own. **The job**
 (`src/lib/server/tv-listings.ts`) runs at most once an Eastern day, after the answer of a bot clock call
@@ -604,6 +613,12 @@ never handles it: the user does the reset and the pasting.
   for the couch's three Survivor 51 games, three more league rows (~the real ones' state each) and a handful of users, and every
   result accepted for the season syncs three more leagues (a few more writes on an episode night). Researched rules ask our bot
   once (the answer is kept). Remove it when done.
+- **2026-11-05, `sports` branch (not merged).** The weekend's live recordings compared, and L2 part 2a (docs/PLAN-start-a-game-gpt.md
+  track L): the phone's poller for golf's and tennis's events (`src/lib/sports/live-event.ts`): phones ask ESPN themselves, golf's
+  two answers every minute while a round's on (2 MB an hour), a tennis board every 30 s while a match is on (1.5 MB an hour).
+  Nothing new on Vercel or Neon (no route, no table, no writes); no screen uses it yet (U1). A phone's data measured live on
+  college football, the NFL, the WNBA, golf, racing, a UFC card and two tennis events (Live games). The server's scoreboard reader
+  reads the same answer as before (an F1 weekend no longer final after FP1): no new call.
 - **2026-10-30, `sports` branch (not merged).** L5 part 2b (docs/PLAN-start-a-game-gpt.md track L): college football read from
   ESPN's answers. No new ESPN call from the app, no table, nothing stored. A phone's data measured on three live games (Live games):
   MLB's answers are the biggest, ~40 MB for a three-hour game watched live at 15 s; the NBA's and NHL's 6-7 MB an hour.

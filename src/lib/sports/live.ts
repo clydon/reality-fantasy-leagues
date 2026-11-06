@@ -33,7 +33,20 @@ export interface Answer {
   json(): Promise<unknown>;
 }
 
-export interface LiveOptions {
+/** What a poller is given: the phone's own fetch, time, timers and screen, or a check's or a test's. */
+export interface PollerOptions {
+  every?: number;
+  fetch?: (url: string) => Promise<Answer>;
+  now?: () => number;
+  setTimer?: (run: () => void, ms: number) => unknown;
+  clearTimer?: (timer: unknown) => void;
+  /** Whether the screen is visible (`document.visibilityState === "visible"`); call `visibilityChanged()` when it changes. */
+  visible?: () => boolean;
+  /** For the jitter (±10%, so a couch's phones don't all ask at once). */
+  random?: () => number;
+}
+
+export interface LiveOptions extends PollerOptions {
   sport: TeamSport;
   /** ESPN's league path: "basketball/nba". */
   league: string;
@@ -44,30 +57,170 @@ export interface LiveOptions {
   base?: string;
   /** When the game starts, if the page knows (the episode's air time, sports_events.starts_at); else the summary's. */
   startsAt?: string | number | null;
-  every?: number;
-  fetch?: (url: string) => Promise<Answer>;
-  now?: () => number;
-  setTimer?: (run: () => void, ms: number) => unknown;
-  clearTimer?: (timer: unknown) => void;
-  /** Whether the screen is visible (`document.visibilityState === "visible"`); call `visibilityChanged()` when it changes. */
-  visible?: () => boolean;
-  /** For the jitter (±10%, so a couch's phones don't all ask at once). */
-  random?: () => number;
   /** After every ask, whether or not anything changed. */
   onChange?: (game: LiveGame) => void;
+}
+
+/**
+ * Asking ESPN on the phone's rhythm, shared by a game's poller (LiveGame) and a field's, card's or draw's (live-event.ts): one
+ * ask at a time, on its own while the screen is visible (none while it's hidden, the next when it's due once it's back), a
+ * backoff while ESPN fails, until there's nothing more to ask. A subclass says how to ask and take an answer
+ * (`fetchAndTake`), when the next ask is (`nextDelay`), and tells its page (`notify`).
+ */
+export abstract class Poller {
+  readonly every: number;
+  /** When the last answer was taken, and when the last ask went out (this poller's `now`). */
+  asOf: number | null = null;
+  askedAt: number | null = null;
+  /** Asks made, and failed in a row (the backoff's). */
+  asks = 0;
+  failures = 0;
+  lastError: string | null = null;
+
+  protected readonly fetcher: (url: string) => Promise<Answer>;
+  readonly now: () => number;
+  protected readonly random: () => number;
+  private readonly setTimer: (run: () => void, ms: number) => unknown;
+  private readonly clearTimer: (timer: unknown) => void;
+  private readonly visible: () => boolean;
+  private timer: unknown = null;
+  private running = false;
+  private asking: Promise<boolean> | null = null;
+
+  constructor(o: PollerOptions, every: number) {
+    this.every = o.every ?? every;
+    this.fetcher = o.fetch ?? ((url) => fetch(url, typeof AbortSignal !== "undefined" && AbortSignal.timeout ? { signal: AbortSignal.timeout(10_000) } : {}));
+    this.now = o.now ?? Date.now;
+    this.setTimer = o.setTimer ?? ((run, ms) => setTimeout(run, ms));
+    this.clearTimer = o.clearTimer ?? ((t) => clearTimeout(t as ReturnType<typeof setTimeout>));
+    this.visible = o.visible ?? (() => true);
+    this.random = o.random ?? Math.random;
+  }
+
+  /** Nothing more to ask. */
+  abstract get done(): boolean;
+  /** How long until the next ask, in ms; null when there's none. */
+  abstract nextDelay(): number | null;
+  /** Ask once and take the answer; throws when the ask fails. True when anything changed. */
+  protected abstract fetchAndTake(): Promise<boolean>;
+  /** The page's callback, after every ask. */
+  protected abstract notify(): void;
+
+  /** While ESPN fails, doubling from `every` to MAX_BACKOFF_MS; null when it isn't failing. */
+  protected backoff(): number | null {
+    return this.failures ? Math.min(this.every * 2 ** this.failures, MAX_BACKOFF_MS) : null;
+  }
+
+  /** `every` ±10%. */
+  protected jittered(): number {
+    return Math.round(this.every * (0.9 + 0.2 * this.random()));
+  }
+
+  /** Until a start (asking again at least every PRE_WAIT_MS), then 0-20% of `every` more, so a couch's phones don't all ask at
+   *  the start's second; null when it's within `every`. */
+  protected untilStart(at: number | null): number | null {
+    if (at == null) return null;
+    const until = at - this.now();
+    return until > this.every ? Math.min(until, PRE_WAIT_MS) + Math.round(this.every * 0.2 * this.random()) : null;
+  }
+
+  /**
+   * Ask once and take the answer (one ask at a time: a second call while one's out shares it). True when anything changed. A
+   * failed ask (no answer, not JSON, ESPN's error, an answer the reader can't read) counts toward the backoff and changes
+   * nothing.
+   */
+  poll(): Promise<boolean> {
+    if (!this.asking) this.asking = this.ask().finally(() => (this.asking = null));
+    return this.asking;
+  }
+
+  private async ask(): Promise<boolean> {
+    this.asks++;
+    this.askedAt = this.now();
+    let changed = false;
+    try {
+      changed = await this.fetchAndTake();
+      this.failures = 0;
+      this.lastError = null;
+    } catch (e) {
+      this.failures++;
+      this.lastError = (e as Error).message;
+    }
+    // The page's callback: its error is the page's, and never stops the asking.
+    try {
+      this.notify();
+    } catch (e) {
+      console.error("[live] onChange:", e);
+    }
+    return changed;
+  }
+
+  /** Start asking: now, then on its own while the screen is visible, until there's nothing more to ask. */
+  start(): void {
+    if (this.running) return;
+    this.running = true;
+    this.cycle();
+  }
+
+  /** Stop asking (the page closed, or someone left the game). */
+  stop(): void {
+    this.running = false;
+    this.cancel();
+  }
+
+  /**
+   * The phone calls this when the screen's visibility changes: hidden, no asks; visible again, the next ask when it's due (at
+   * once if it already is), by the same rhythm.
+   */
+  visibilityChanged(): void {
+    if (!this.running) return;
+    if (!this.visible()) return this.cancel();
+    if (this.timer || this.asking) return;
+    if (this.askedAt == null) return this.cycle();
+    const next = this.nextDelay();
+    if (next == null) return;
+    const wait = next - (this.now() - this.askedAt);
+    if (wait <= 0) this.cycle();
+    else this.schedule(wait);
+  }
+
+  private cancel(): void {
+    if (this.timer != null) this.clearTimer(this.timer);
+    this.timer = null;
+  }
+
+  private schedule(ms: number): void {
+    this.cancel();
+    if (!this.running || !this.visible()) return;
+    this.timer = this.setTimer(() => {
+      this.timer = null;
+      this.cycle();
+    }, Math.max(0, ms));
+  }
+
+  private cycle(): void {
+    if (!this.running || !this.visible()) return;
+    void this.poll()
+      .catch(() => false)
+      .then(() => {
+        const next = this.nextDelay();
+        if (next == null) this.running = false;
+        else this.schedule(next);
+      });
+  }
 }
 
 const STATUS_ORDER: Record<LiveStatus, number> = { pre: 0, in: 1, post: 2 };
 
 /** An answer missing more of the plays had than this is cut short, not ESPN changing its mind, which drops a play at a time (a
  *  goal or basket wiped on review, a challenged pitch filed again): every sport's, since any answer could come cut. */
-const CUT = 3;
+export const CUT_SHORT = 3;
 
 /**
  * The timeline after an answer. Each answer holds every play so far, read in its context, so the answer's own plays win: a
  * scoring change, a call changed on review or a play ESPN dropped reads as ESPN has it now. Unless the answer is behind what's
  * already had (one from a cache edge a few seconds older): the newest play had isn't in it and its own newest is one had
- * before, or is earlier. Or it's cut short: it has the newest play but lacks more than CUT of the others (ESPN's live soccer
+ * before, or is earlier. Or it's cut short: it has the newest play but lacks more than CUT_SHORT of the others (ESPN's live soccer
  * answer once came with its commentary cut to its first 40 entries, its key events whole: Liverpool–Chelsea, 2026-10-28, an
  * answer between two whole ones). Then the timeline stays, so times never go back (the plays' are in order: inOrder).
  */
@@ -77,7 +230,7 @@ export function mergeTimeline(have: Play[], fresh: Play[]): Play[] {
   const newest = have[have.length - 1];
   if (fresh.some((p) => p.id === newest.id)) {
     const ids = new Set(fresh.map((p) => p.id));
-    return have.filter((p) => !p.final && !ids.has(p.id)).length > CUT ? have : fresh;
+    return have.filter((p) => !p.final && !ids.has(p.id)).length > CUT_SHORT ? have : fresh;
   }
   const theirs = fresh[fresh.length - 1];
   if (have.some((p) => p.id === theirs.id)) return have;
@@ -99,11 +252,10 @@ export type Person = Omit<BoxPerson, "stats">;
  * game's now, for asking and for someone watching live; anyone else is shown only `state(clock)` (and `sport.where` of its
  * last play), since everything else here can be ahead of their clock.
  */
-export class LiveGame {
+export class LiveGame extends Poller {
   readonly sport: TeamSport;
   readonly league: string;
   readonly event: string;
-  readonly every: number;
   /** The plays so far, the final's correction last once it's final (TeamSport.timeline). */
   plays: Play[] = [];
   /** The two sides (their ids, names and home or away), from the summary's header, without its score or winner. */
@@ -119,41 +271,19 @@ export class LiveGame {
   /** The sportsbook's line as of the last answer (ESPN's pickcenter), and the last one read before the game began. */
   line: Odds | null = null;
   lineAtStart: Odds | null = null;
-  /** When the last answer was taken, and when the last ask went out (this game's `now`). */
-  asOf: number | null = null;
-  askedAt: number | null = null;
-  /** Asks made, and failed in a row (the backoff's). */
-  asks = 0;
-  failures = 0;
-  lastError: string | null = null;
 
   private readonly base: string;
-  private readonly fetcher: (url: string) => Promise<Answer>;
-  readonly now: () => number;
-  private readonly setTimer: (run: () => void, ms: number) => unknown;
-  private readonly clearTimer: (timer: unknown) => void;
-  private readonly visible: () => boolean;
-  private readonly random: () => number;
   private readonly onChange?: (game: LiveGame) => void;
-  private timer: unknown = null;
-  private running = false;
-  private asking: Promise<boolean> | null = null;
   /** Answers in a row that looked behind what's had (take). */
   private behind = 0;
 
   constructor(o: LiveOptions) {
+    super(o, EVERY_MS);
     this.sport = o.sport;
     this.league = o.league;
     this.event = o.event;
-    this.every = o.every ?? EVERY_MS;
     this.base = (o.base ?? ESPN_SITE).replace(/\/$/, "");
     this.startsAt = msOf(o.startsAt ?? null);
-    this.fetcher = o.fetch ?? ((url) => fetch(url, typeof AbortSignal !== "undefined" && AbortSignal.timeout ? { signal: AbortSignal.timeout(10_000) } : {}));
-    this.now = o.now ?? Date.now;
-    this.setTimer = o.setTimer ?? ((run, ms) => setTimeout(run, ms));
-    this.clearTimer = o.clearTimer ?? ((t) => clearTimeout(t as ReturnType<typeof setTimeout>));
-    this.visible = o.visible ?? (() => true);
-    this.random = o.random ?? Math.random;
     this.onChange = o.onChange;
   }
 
@@ -183,43 +313,20 @@ export class LiveGame {
     return stateOn(this.sport, this.plays, clock, this.now(), this.sides);
   }
 
-  /**
-   * Ask once and take the answer (one ask at a time: a second call while one's out shares it). True when anything changed. A
-   * failed ask (no answer, not JSON, ESPN's error, an answer the reader can't read) counts toward the backoff and changes
-   * nothing.
-   */
-  poll(): Promise<boolean> {
-    if (!this.asking) this.asking = this.ask().finally(() => (this.asking = null));
-    return this.asking;
+  protected async fetchAndTake(): Promise<boolean> {
+    const res = await this.fetcher(this.url);
+    if (!res.ok) throw new Error(`ESPN answered ${res.status}`);
+    const summary = (await res.json()) as EspnSummary;
+    if (!summary?.header) throw new Error("ESPN's answer has no game");
+    try {
+      return this.take(summary);
+    } catch (e) {
+      throw new Error(`couldn't read ESPN's answer: ${(e as Error).message}`);
+    }
   }
 
-  private async ask(): Promise<boolean> {
-    this.asks++;
-    this.askedAt = this.now();
-    let changed = false;
-    try {
-      const res = await this.fetcher(this.url);
-      if (!res.ok) throw new Error(`ESPN answered ${res.status}`);
-      const summary = (await res.json()) as EspnSummary;
-      if (!summary?.header) throw new Error("ESPN's answer has no game");
-      try {
-        changed = this.take(summary);
-      } catch (e) {
-        throw new Error(`couldn't read ESPN's answer: ${(e as Error).message}`);
-      }
-      this.failures = 0;
-      this.lastError = null;
-    } catch (e) {
-      this.failures++;
-      this.lastError = (e as Error).message;
-    }
-    // The page's callback: its error is the page's, and never stops the asking.
-    try {
-      this.onChange?.(this);
-    } catch (e) {
-      console.error("[live] onChange:", e);
-    }
-    return changed;
+  protected notify(): void {
+    this.onChange?.(this);
   }
 
   /**
@@ -262,65 +369,7 @@ export class LiveGame {
    */
   nextDelay(): number | null {
     if (this.done) return null;
-    if (this.failures) return Math.min(this.every * 2 ** this.failures, MAX_BACKOFF_MS);
-    if (this.status === "pre" && this.startsAt != null) {
-      const until = this.startsAt - this.now();
-      if (until > this.every) return Math.min(until, PRE_WAIT_MS) + Math.round(this.every * 0.2 * this.random());
-    }
-    return Math.round(this.every * (0.9 + 0.2 * this.random()));
-  }
-
-  /** Start asking: now, then on its own while the screen is visible, until it's final. */
-  start(): void {
-    if (this.running) return;
-    this.running = true;
-    this.cycle();
-  }
-
-  /** Stop asking (the page closed, or someone left the game). */
-  stop(): void {
-    this.running = false;
-    this.cancel();
-  }
-
-  /**
-   * The phone calls this when the screen's visibility changes: hidden, no asks; visible again, the next ask when it's due (at
-   * once if it already is), by the same rhythm: every 15 s while it's on, the start before it, the backoff while ESPN fails.
-   */
-  visibilityChanged(): void {
-    if (!this.running) return;
-    if (!this.visible()) return this.cancel();
-    if (this.timer || this.asking) return;
-    if (this.askedAt == null) return this.cycle();
-    const next = this.nextDelay();
-    if (next == null) return;
-    const wait = next - (this.now() - this.askedAt);
-    if (wait <= 0) this.cycle();
-    else this.schedule(wait);
-  }
-
-  private cancel(): void {
-    if (this.timer != null) this.clearTimer(this.timer);
-    this.timer = null;
-  }
-
-  private schedule(ms: number): void {
-    this.cancel();
-    if (!this.running || !this.visible()) return;
-    this.timer = this.setTimer(() => {
-      this.timer = null;
-      this.cycle();
-    }, Math.max(0, ms));
-  }
-
-  private cycle(): void {
-    if (!this.running || !this.visible()) return;
-    void this.poll()
-      .catch(() => false)
-      .then(() => {
-        const next = this.nextDelay();
-        if (next == null) this.running = false;
-        else this.schedule(next);
-      });
+    const wait = this.backoff() ?? (this.status === "pre" ? this.untilStart(this.startsAt) : null);
+    return wait ?? this.jittered();
   }
 }

@@ -14,6 +14,7 @@ const L = jiti("../src/lib/sports/index.ts");
 const { asOf, bounds, known, differences, settles, FINAL_AFTER_MS } = require("../scripts/dev-test/espn-replay.js");
 
 const { sportOf, LiveGame, mergeTimeline } = L;
+const { virtual } = require("./harness/virtual-time");
 const FIXTURES = path.join(__dirname, "fixtures", "espn");
 // The team sports' recorded games: a field's (golf's board and leaderboard) has no plays in time to replay (tests/sports-golf.test.js).
 const games = fs
@@ -26,37 +27,6 @@ const sportFor = (s) => sportOf(s._recorded.league);
 const sidesOf = (s) => s.header.competitions[0].competitors.map((c) => String(c.team.id));
 const MIN = 60_000;
 const T0 = Date.parse("2026-10-22T23:00:00Z");
-
-/** Timers on a virtual clock: `advance()` runs the next one, the time jumping to it, and lets its promises settle. */
-function virtual(start) {
-  let now = start;
-  const timers = [];
-  const settle = () => new Promise((r) => setImmediate(r));
-  return {
-    now: () => now,
-    set: (t) => (now = t),
-    timers,
-    setTimer: (run, ms) => {
-      const t = { at: now + ms, ms, run };
-      timers.push(t);
-      return t;
-    },
-    clearTimer: (t) => {
-      const i = timers.indexOf(t);
-      if (i >= 0) timers.splice(i, 1);
-    },
-    async advance() {
-      timers.sort((a, b) => a.at - b.at);
-      const t = timers.shift();
-      if (!t) return false;
-      now = Math.max(now, t.at);
-      t.run();
-      await settle();
-      return true;
-    },
-    settle,
-  };
-}
 
 /** A fetch answering a recorded game as of the virtual time (`down`: ESPN failing), logging each ask's moment. */
 function replayFetch(summary, vt, sport) {
@@ -435,7 +405,7 @@ test("every recorded game through the poller, in virtual time: each answer's sta
     const truth = known(sport, summary);
     const log = [];
     const behind = [];
-    const g = new LiveGame({ sport, league: summary._recorded.league, event: summary._recorded.event, every: 30_000, fetch, now: vt.now, setTimer: vt.setTimer, clearTimer: vt.clearTimer });
+    const g = new LiveGame({ sport, league: summary._recorded.league, event: summary._recorded.event, every: 30_000, fetch, now: vt.now, setTimer: vt.setTimer, clearTimer: vt.clearTimer, random: () => 0.5 });
     g.start();
     await vt.settle();
     for (let i = 0; i < 5000 && (await vt.advance()); i++) {

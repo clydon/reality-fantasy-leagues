@@ -36,6 +36,7 @@ import type { BoutSport, FieldSport, LockCadence, TeamSport } from "./sport";
 export * from "./sport";
 export * from "./clock";
 export * from "./live";
+export * from "./live-event";
 export { Baseball } from "./baseball";
 export { CollegeBaseball } from "./college-baseball";
 export { Basketball, CollegeBasketball } from "./basketball";
@@ -46,7 +47,7 @@ export { Soccer, plainName } from "./soccer";
 export { Golf, GOLF_LEAGUES, boardCounts, holeKind, roundStats, toParOf } from "./golf";
 export { Racing, RACING_SERIES, coreStats, weekendOver, type Series } from "./racing";
 export { MMA, methodOf, coreFighterStats, mmaCoreStats, mmaCenterStats } from "./mma";
-export { Tennis, matchOver, matchSuspended, noteWinner, setComplete, setOf, type DrawEntry, type DrawStanding } from "./tennis";
+export { Tennis, boardMatches, matchOver, matchSuspended, noteWinner, setComplete, setOf, type DrawEntry, type DrawStanding } from "./tennis";
 
 /** A sport of any shape: a team sport's box score and plays, a field's standings, or a card's bouts. */
 export type AnySport = TeamSport | FieldSport | BoutSport;

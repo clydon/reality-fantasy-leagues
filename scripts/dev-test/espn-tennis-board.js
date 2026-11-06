@@ -15,18 +15,15 @@ const path = require("path");
 const SITE = "https://site.api.espn.com/apis/site/v2/sports/tennis";
 const CORE = "https://sports.core.api.espn.com/v2/sports/tennis/leagues";
 
-/** Every match of a board, each once. */
-const drawMatches = (board) => {
-  const seen = new Set();
-  return (board?.groupings ?? []).flatMap((g) => g.competitions ?? []).filter((c) => !seen.has(String(c.id)) && seen.add(String(c.id)));
-};
-
-/** A match over: tennis.ts's own (a live board's STATUS_SUSPENDED is "post", a stall it comes back from), loaded once needed. */
+/** tennis.ts, loaded once it's needed: the board's matches and when one's over are the reader's own. */
 let tennis = null;
-const matchOver = (c) => {
-  tennis ??= require("jiti")(__filename, { alias: { "@": path.join(__dirname, "..", "..", "src") } })("../../src/lib/sports/tennis.ts");
-  return tennis.matchOver(c);
-};
+const tennisTs = () => (tennis ??= require("jiti")(__filename, { alias: { "@": path.join(__dirname, "..", "..", "src") } })("../../src/lib/sports/tennis.ts"));
+
+/** Every match of a board, each once. */
+const drawMatches = (board) => tennisTs().boardMatches({ board }).map((x) => x.c);
+
+/** A match over: tennis.ts's own (a live board's STATUS_SUSPENDED is "post", a stall it comes back from). */
+const matchOver = (c) => tennisTs().matchOver(c);
 
 /** An event over for good: every match over or called off, none to come (ESPN's own status for the event says final all week),
  *  and its last day gone. */

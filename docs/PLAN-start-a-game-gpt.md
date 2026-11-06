@@ -1041,6 +1041,10 @@ engine track; L brings each sport's data to it. Its screens wait for the UI trac
 - **L2. The live clock.** The phone's poller and `GameClock` (live, synced, snapped), shared with A15; fake-espn replaying a
   recorded game in real time or 60x; HOSTING.md. (Built 2026-10-28, in one session: As built below. Its one open check, a
   real game recorded in progress against its final, is a script waiting for a game: L2's Noticed.)
+  - **Part 2 (2026-11-05): the pollers for fields, fight cards and tennis draws**, on the live recordings' numbers, keeping the
+    moment each result was first seen (the main session's order). Split in two: 2a, the shared poller and golf's and tennis's
+    feeds (one or two plain calls: built 2026-11-05, As built below); 2b, racing's and MMA's (their core API's calls, brought from
+    the dev scripts into the app).
 - **L3. Live scoring through the spec.** Points per stat from box scores and plays (`score.by: stats`), live on the phone and
   saved once when final, replacing today's ChatGPT research of sports moments.
 - **L4. The formats, as the engine's pieces with sports data:** head-to-head, categories and roto (A11), best ball (A9),
@@ -2331,10 +2335,8 @@ for it is below, looked at in this session).
   nascar-secondary (O'Reilly), nascar-truck. Recording live now (below): F1's Mexico City weekend and NASCAR's Cup at Martinsville.
 
 **L5 part 3a (golf) noticed, not fixed:**
-- **A field has no live poller yet**: `LiveGame` takes a TeamSport (one summary, plays with times). A field's needs its two answers
-  each ask (golf's board and leaderboard: 27 KB over the wire together after round 1, ~60 KB by the end, ESPN's `max-age` 1-4 s,
-  CORS `*`), every 60 s is plenty (a group plays a hole in ~13 minutes), and the holes it sees for the first time stamped with
-  the ask's moment (`_asked`). (L3 or U1, with the recording's compare.)
+- **Golf's live poller is built** (L2 part 2a: `golfFeed` on `LiveEvent`, the board and leaderboard every minute, each hole at
+  its first sight).
 - **What a live golf answer has**, from the Mexico Open's round 2 (`golf/pga` 401850978, recorded 10-30 13:10 to 00:20 UTC, 616
   answers a minute apart, compared 2026-11-05 against the event's final): **the board lists each hole as it's played** (2,142
   holes in the first answer, round 1's, 4,283 in the last: ~3 a minute; 43 answers added none, none lost any); **`thru` moves a
@@ -2486,8 +2488,9 @@ Master still hadn't A1-A4 (the main session's order).
     core 5 calls and 39 KB unpacked.
   - No lap has a time, so ESPN's lag can't be measured; a session's first order showed 6 (FP1) and 11 minutes (the race) after
     its listed start.
-- **A field has no live poller yet** (3a's, still): racing's would ask the board every 15-60 s and maybe the core's list, the
-  statistics once at a session's end (or the server's, L3). With the recordings' numbers.
+- **Racing's live poller is L2 part 2b's**, on 2a's `LiveEvent`: the board every 30 s while a session's on (2 KB; it's the running
+  order in a race, not in practice: above), the core's list at a session's start for the grid, its statistics after the end
+  (filled in later: above), F1's statuses.
 - **NASCAR's and IndyCar's retirements aren't in ESPN's data** (no status): a car out isn't told from one laps down, so a game
   scores laps completed or the lead lap instead; nor NASCAR's stage results (one `bonus`), DraftKings' fastest laps, or F1's laps
   led (its `lapsLead` counts something else). The wizard should say what a series can't score. (G3, U0.)
@@ -2650,8 +2653,9 @@ still hadn't A1-A4 (the main session's order). Part 4 is split in two: 4a MMA (t
   live is in the final, read the same. `check-bout-reduce.js --events=600061420`: every number but one of ESPN's own (a bout
   whose plays go to round 3 and whose status ended it in round 2, 401928106). **A phone's data**: 23 KB an answer for the board
   and the FightCenter (248 KB unpacked), 2.7 MB an hour at 30 s; the core 6 calls and 24 KB unpacked an ask.
-- **A card has no live poller yet** (as a field hasn't): the board and the FightCenter every 30 s while a bout's on, the core's
-  plays of the bout on for its times, nothing between cards. With the recording's numbers. (L3 or U1.)
+- **A card's live poller is L2 part 2b's**, on 2a's `LiveEvent`: the board and the FightCenter every 30 s while a bout's on (23 KB),
+  the core's status and plays of the bout on for their times (about a minute behind), its statistics at the bout's end (the live
+  totals run ahead: above), nothing between cards.
 - **No play says whose it is, and nothing is by round per fighter**: a game can't score "a knockdown in round 1" for a fighter, nor
   live points round by round; a bout's own rounds (its knockdowns and takedowns, timed) can settle a live call about the bout ("a
   takedown this round"). (A15, L4.)
@@ -2829,10 +2833,8 @@ still hadn't A1-A4 (the main session's order). With it, L5 is done: soccer, coll
 - **ESPN's start is on the five minutes, the same court's matches as little as 0-5 minutes apart**: a scheduled time, not when one
   began. ESPN moves it once a match begins, to about its real start (above): a match's start read after it began is about
   when it began; before, a listing.
-- **A tennis event has no live poller yet** (a field's and a card's haven't either): the board every 30 s while a match is on (12 KB,
-  1.4 MB an hour), nothing between days. A live answer stamps a match nothing later lists at its `_asked`, so each poll moves a
-  just-finished match's moment on: the poller's merge keeps the moment it first saw each one (golf's holes and MMA's untimed bouts
-  the same). (L3 or U1, with the recordings' numbers.)
+- **A tennis event's live poller is built** (L2 part 2a: `drawFeed` on `LiveEvent`, the board every 30 s while a match is on,
+  each result at the moment a phone first saw it, not each poll's).
 - **A short set (to 4 games: the Next Gen ATP Finals', the US Open's mixed doubles) isn't told complete by its games**, so a
   retirement between short sets would read its last set as unfinished: never seen. And a live match tiebreak ESPN writes as points
   ("7-5" while under way) would read as a set's games until it reaches 8 or ends: ESPN writes one under way as 0-0 with its
@@ -2890,6 +2892,60 @@ them (ESPN's data read first each time):
   compare's pauses each timed; a test for the core's rule).
 - No HOSTING.md change: no new ESPN call from the app (the server's scoreboard reader reads the same answer), no table, nothing
   stored.
+
+**L2 part 2a as built: the pollers for golf and tennis (2026-11-05, `sports`, not merged; no migration, nothing stored; HOSTING.md
+updated).**
+- **`Poller`** (`live.ts`): the asking rhythm, now shared: one ask at a time, on its own while the screen's visible, the next when
+  due once it's back, doubling to 5 minutes while ESPN fails, until there's nothing more to ask; a subclass says how to ask and
+  take an answer (`fetchAndTake`), when the next ask is (`nextDelay`), and tells its page (`notify`). `LiveGame` is one, unchanged
+  (its 14 tests; `check-live-clock.js` at 30x).
+- **`LiveEvent`** (`src/lib/sports/live-event.ts`, new): a field's, a card's or a draw's event on the phone, one class for any
+  `EventFeed` (the calls asked together, the answer they make, the sport's timeline and reduce, and where the event is: on,
+  between with the next start, over). **Each play at its first sight** (`firstSeen`): a play an answer has again as it is (its
+  id, kind, words and numbers; not its moment, nor a running score or standings, which a rescore before it moves) keeps its
+  earliest moment; one ESPN changes (a hole rescored, the set on's games) counts from the answer that first had it that way; one
+  an answer lacked keeps its moment when it's back; the plays in time order. So a later watch never sees a result before a phone
+  could have, and a poll never moves one on. An answer with no plays once some are had changes nothing; one lacking more than 3
+  plays had (`CUT_SHORT`, `live.ts`'s) is taken only the second time in a row (cut short, or an older cache edge's).
+  `stateAt(t)` and `state(clock)` as `LiveGame`'s.
+- **Golf's feed** (`golfFeed`): the event's board and the leaderboard together every minute while the leaderboard's competition is
+  in play, or while a tee time has gone in the last hour with ESPN not in play yet; between rounds, until the next tee time
+  listed (asking at least every 10 minutes); over at the event's final. **Tennis's** (`drawFeed`): the event's board every 30 s
+  while a match is on (a suspended one too, for six hours from its start), or while a listed start has gone in the last three
+  hours with its match not on yet (the court's match before it running long); between, until the next listed start (not ESPN's
+  placeholder for one not yet scheduled); over once every match is (a suspended one too once the event's last day is gone) and
+  that day's gone. A board's matches are `tennis.ts`'s own (`boardMatches`, exported, and the dev scripts' too).
+- **Checks.** `tests/sports-live-event.test.js` (4): first sight (kept, changed, lacked and back, a reader's earlier known-by, in
+  order); a draw live in virtual time (Båstad's final put back to its 2nd set, then suspended, then over: its 1st set at its first
+  sight throughout, no result while suspended, the result at the ask that first had it and not moved by the next; every 30 s,
+  then every 10 minutes to the event's last day, then done); a draw's where between matches; golf's where in play, between
+  rounds and final, the final asked twice at its first moment, an answer cut short once and then twice. The virtual clock moved to
+  `tests/harness/virtual-time.js`, shared with `sports-live.test.js`. **`scripts/dev-test/check-live-event.js`** (new, reusable:
+  `--league --event`, or every tennis and golf recording in `rfl-espn-live/`): each live recording replayed through the poller in
+  virtual time, a stand-in answering each ask with the recording as of then; every play no earlier than its first recorded answer
+  as it is and no later than two asks after it, none moved on by a later poll and no result re-stamped at all, no ask after the
+  poller's done, the end the recording's last answer's, line by line. **Basel** (2,304 asks, 2,079 of them 30 s apart; 281 plays), **Guangzhou** (1,759 asks; 302 plays) and **the Mexico
+  Open's round 2** (677 asks, 671 of them a minute apart; 4,285 plays, 2,142 holes first seen after its first answer) pass.
+  1,427 unit tests; `tsc` clean; eslint clean on `src/lib/sports`; `check-live-clock.js` at 30x as before. `sports-live.test.js`'s
+  replay of every recorded game now asks with a fixed jitter (`random`), so it's the same each run: once in the full suite an NHL
+  goalie's count settled 2.9 s past its 6-minute limit on a random jitter.
+- `/code-review` on the diff (its fixes: an empty answer twice in a row would have wiped the plays; a suspended match held the draw
+  on and open for good, now six hours from its start and not past the event's last day; golf's first tee time gone before ESPN
+  has the round in play waited up to 10 minutes; the check couldn't see a result re-stamped, nor asks after the end; each poll
+  built two signatures of every play, now a first sight says it; the check's own copies of the virtual clock and the play key,
+  the poller's cut-short threshold and a board's matches, now shared; `nextDelay`'s sentinel for no start known, now said).
+
+**L2 part 2a noticed, not fixed:**
+- **A phone joining mid-event sees what's been played at its first ask** (nothing in ESPN's answers for golf or tennis is timed):
+  its moments are a live phone's own. A later watch is better served by the stored final's known-by moments (each match by the
+  next start of either side's next match, each round by the next round's first tee: L5 parts 3a and 4b), so L3's store keeps
+  those, and the poller's only for live points.
+- **A hole rescored counts from its rescore** (its first sight as it is): a later watch synced between the two sees no score for
+  that hole (47 of the Mexico Open's 4,283 live holes, settled in a median 5 minutes, most 4.2 hours). Keeping the first version
+  until the second arrives would need the poller to keep both; fine as is.
+- **Between rounds and between days the poller asks every 10 minutes** while the screen is on, though nothing's to come until
+  the next tee time or the next day's order of play (tennis's placeholder starts): U1 could stop at a day's end and say when it's
+  back. (U1.)
 
 **Open, from the sports plan:** head-to-head's schedule over a span, and playoffs; whether a sport's moves follow Weekly
 Lineup's waivers or need their own rhythm for daily sports; what a live call is worth, and how fast they open and close;
