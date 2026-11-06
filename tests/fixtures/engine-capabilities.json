@@ -2540,7 +2540,7 @@
         "score",
         "win"
       ],
-      "note": "the user's first game (2026-11-05, track C): a bank of 500 that stakes are drawn from and payouts go into (built, C6 part 1: score.bank { start: 500 }, wager 'total' on each line), a prediction sheet written each week (C7: a new card each week; today a game's questions are its spec's), and more wagers multiplying the week (C6 part 2: a ticket a player builds from the sheet's lines, its payout growing with its legs; the spec's own parlays take a staked leg since C6). Open (settings with the lane's defaults, the user's to overrule): a ticket (the default) or the number of wagers placed multiplying the week; even money (the default) or the pool's odds; a bank at zero plays on (the default) or is out."
+      "note": "the user's first game (2026-11-05, track C): a bank of 500 that stakes are drawn from and payouts go into (built, C6 part 1: score.bank { start: 500 }, wager 'total' on each line), a prediction sheet written each week (C7: a new card each week; today a game's questions are its spec's), and more wagers multiplying the week (built, C6 part 2: a ticket a player builds from the sheet's lines, its payout growing with its legs; the spec's own parlays take a staked leg since C6; p26 is this game with a fixed sheet). Open (settings with the lane's defaults, the user's to overrule): a ticket (the default) or the number of wagers placed multiplying the week; even money (the default) or the pool's odds; a bank at zero plays on (the default) or is out."
     },
     {
       "id": "p11",
@@ -3021,6 +3021,32 @@
         "score"
       ],
       "note": "A parlay on a split pot (C2 part 3's Noticed, part 4: a rule for the user): today a parlay multiplies after a window's share; the scoring sequence's order for new combinations puts multipliers before the share. Recommended: the share, then the parlay (a parlay multiplies what each leg gave you; the other way round it would grow your share of a pot everyone else shares too), as a setting if the user wants both."
+    },
+    {
+      "id": "p26",
+      "page": {
+        "show": "Survivor",
+        "season": 51,
+        "rulebook": "survivor"
+      },
+      "words": "Everyone starts with 500 units. Each episode, stake on who goes home, who wins immunity and whether an idol is found, and build a parlay ticket from your calls: the more legs, the bigger the payout.",
+      "spec": {
+        "get": { "by": "none" },
+        "count": null,
+        "score": { "by": "answers", "bank": { "start": 500 } },
+        "rank": { "by": "total" },
+        "ask": [
+          { "id": "boot", "ask": "Who goes home?", "answer": "person", "points": 0, "asked": "each", "wager": "total", "settle": { "by": "results", "take": "out" } },
+          { "id": "imm", "ask": "Who wins immunity?", "answer": "person", "points": 0, "asked": "each", "wager": "total", "settle": { "by": "moment", "moment": "individualImmunity", "take": "who" } },
+          { "id": "idol", "ask": "Is an idol found?", "answer": "yesNo", "points": 0, "asked": "each", "wager": "total", "settle": { "by": "moment", "moment": "idolFound", "take": "happened" } },
+          { "id": "ticket", "ask": "Build a ticket", "answer": "ticket", "points": 0, "asked": "each", "wager": "total", "settle": { "by": "legs", "of": ["boot", "imm", "idol"] } }
+        ]
+      },
+      "dials": [
+        "answer",
+        "score"
+      ],
+      "note": "the user's first game with a fixed sheet (C6: a bank of 500, a stake of any of it on each line, and a ticket a player builds from the sheet's lines, each leg doubling what rides on it); its sheet written fresh each week is C7's (p10)."
     }
   ],
   "stretch": [

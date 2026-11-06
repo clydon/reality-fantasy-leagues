@@ -35,9 +35,9 @@
 // castaway two teams hold in an exclusive draft) likewise, from C4's engine, proven by hand in tests/ownership.test.js, and each
 // read the same as the engine before C4 gives on the same holdings with no `own` (which nothing scored reads); the 2,088 before
 // them stay. C5's (weekWonShapes: a pick each episode scored by what they do, only some moments and hits, weeks won) likewise, from
-// C5's engine, proven by hand in tests/weeks.test.js; the 2,124 before them stay. C6's (moneyShapes in outsideShapes: a stake beside
-// a split pot, a parlay's staked leg, a bank at the pool's odds, a bank that runs out) likewise, from C6's engine, proven by hand
-// below and in tests/money.test.js; the 2,250 before them stay:
+// C5's engine, proven by hand in tests/weeks.test.js; the 2,124 before them stay. C6's (in outsideShapes: a stake beside a split
+// pot, a parlay's staked leg, a bank at the pool's odds, a bank that runs out; part 2, a ticket) likewise, from C6's engine, proven
+// by hand below and in tests/money.test.js; the 2,250 before them stay:
 //   node tests/fixtures/scoring-shapes.js --write [--ref=<git ref>]      the record, from this tree's engine (or the ref's)
 //   node tests/fixtures/scoring-shapes.js --print <shape> <seat|-> <mark|-|all> [--ref=<git ref>]   one read, in full
 //   node tests/fixtures/scoring-shapes.js --diff [<shape>] [--ref=d5222e68]   where this tree's reads part from the ref's (the
@@ -315,11 +315,17 @@ const STAKE = {
   LEG: { ...BOOT, id: "stakeleg", ask: "Who goes home? Stake up to 3", wager: 3 },
   POOL: { ...BOOT, id: "bankpool", ask: "Who goes home? Stake any of your bank, the pool's odds", wager: "total", odds: "pool" },
   BROKE: { ...BOOT, id: "broke", ask: "Who goes home? Stake any of your bank", wager: "total" },
+  TICKET: { id: "ticket", ask: "Build a ticket", answer: "ticket", points: 0, asked: "each", wager: "total", settle: { by: "legs", of: ["boot", "immune", "idol"] } },
   SAID: {
     stakepot: { 1: { ann: bet("c13", 5), bo: bet("c13", 2), cy: bet("c5", 4), di: bet("c13", 0) }, 3: { ann: bet("c2", 5) }, 4: { ann: bet("c6", 3), bo: bet("c0", 1), cy: bet("c9", 5) } },
     stakeleg: { 1: { ann: bet("c13", 3), bo: bet("c13", 3), cy: bet("c5", 2) }, 2: { ann: bet("c4", 1), bo: bet("c3", 3) }, 5: { bo: bet("c1", 3), cy: bet("c2", 2), di: bet("c10", 1) } },
     bankpool: { 1: { ann: bet("c13", 10), bo: bet("c5", 5), cy: bet("c13", 5), di: bet("c2", 20) }, 2: { ann: bet("c3", 20), bo: bet("c4", 10), cy: bet("c0", 9) }, 4: { ann: bet("c6", 30), bo: bet("c6", 5), cy: bet("c2", 4) } },
     broke: { 1: { ann: bet("c5", 5), bo: bet("c13", 2), cy: bet("c13", 0), di: bet("c2", 5) }, 2: { bo: bet("c3", 8), cy: bet("c4", 6) } },
+    ticket: {
+      1: { ann: { legs: ["boot", "immune", "idol"], stake: 5 }, bo: { legs: ["boot", "immune"], stake: 4 }, cy: { legs: ["immune", "idol"], stake: 3 }, di: { legs: ["boot", "immune"], stake: 2 } },
+      2: { ann: { legs: ["boot", "idol"], stake: 3 }, bo: { legs: ["boot", "idol"], stake: 2 }, di: { legs: ["boot", "idol"], stake: 1 } },
+      4: { ann: { legs: ["boot", "idol"], stake: 2 }, bo: { legs: ["boot", "idol"], stake: 2 } },
+    },
   },
 };
 // The answers, as game_answers holds them: { question: { episode (0: the game's): { seat: answer } } }.
@@ -474,6 +480,11 @@ function outsideShapes() {
     shape("q-wager-parlay", game([STAKE.LEG, IMMUNE], { parlays: [{ of: ["stakeleg", "immune"], times: 2 }] }), [STAKE.LEG, IMMUNE], { over: STAKE.SAID }),
     shape("q-bank-pool", game([STAKE.POOL], { bank: { start: 20 } }), [STAKE.POOL], { over: STAKE.SAID }),
     shape("q-bank-out", game([STAKE.BROKE], { bank: { start: 5, out: true } }, { by: "standing" }), [STAKE.BROKE], { over: STAKE.SAID }),
+    // C6 part 2, a ticket built from who goes home, immunity and an idol played, from a bank of 50. Episode 1: ann's three all right
+    // (7 x 5 = 35); bo's immunity wrong (4 lost); cy's immunity and idol right (3 x 3 = 9); di's immunity wrong (2 lost). Episode 2:
+    // bo's boot and idol right (3 x 2 = 6), ann's boot wrong (3 lost), di's boot left blank (1 lost). Episode 4: ann's boot and idol
+    // right (3 x 2 = 6), bo's idol left blank (2 lost).
+    shape("q-ticket", game([BOOT, IMMUNE, IDOL, STAKE.TICKET], { bank: { start: 50 } }), [BOOT, IMMUNE, IDOL, STAKE.TICKET], { over: STAKE.SAID }),
     ["calls", { preset: "weekly-calls" }, null, { none: true, outside: { each: 1 } }],
     ["bingo", { preset: "weekly-bingo", score: { by: "lines", points: 2 } }, null, { none: true, outside: { each: 2 } }],
     ["stages-points", stages("points"), null, { none: true, stages: true }],

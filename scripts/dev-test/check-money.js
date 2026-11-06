@@ -5,15 +5,17 @@
 //   - The user's first game with a fixed sheet: jordan starts a Survival Pool for Episode 6 on, riley and sam join it, and it's made a
 //     game of questions through RosterLogic.setGame with the show's ctx: a bank of 100 everyone starts with, who goes home (any of
 //     your bank, at the pool's odds, no points of its own), who wins immunity (up to 20 of your bank, even money, 1 point) and p24's
-//     who goes home (up to 5, a 10-point pot split between everyone right).
+//     who goes home (up to 5, a 10-point pot split between everyone right), and (part 2) a ticket built from those three, up to 10.
+//     The read carries the ticket (what it's built from, its legs, what it pays).
 //   - Before Episode 6: the read says each one's odds and the most you can stake (100, 20, 5); 101 refused; jordan stakes 90 on the
 //     boot, and then 10 is all he has left for immunity (20 refused); then 85, 10 and 5 in one go, the whole bank; riley stakes hers;
 //     sam stakes 95 on the boot, then takes it back and stakes 20 on immunity in one go (what it held is free again), then settles
-//     on 15 on the boot.
+//     on 15 on the boot, and builds a ticket of the boot and the pot for 5 (one naming immunity, which she took back, refused); riley
+//     a ticket of the same two for 10.
 //   - Episode 6's results: the boot's pool, riley's 40 wrong split between jordan's 85 and sam's 15 right (34 and 6); jordan's
 //     immunity stake of 10 won with its point; the pot: jordan's 5 and sam's 5 shares of 10, jordan's stake of 5 won, riley's 2 lost.
-//     jordan 100 + 34 + 11 + 10 = 155, sam 100 + 6 + 5 = 111, riley 100 - 40 - 2 = 58. The Games tab ranks them; riley's next stakes
-//     are held to her 58; the flag's check.
+//     sam's ticket, both legs right, 3 times her 5; riley's, both wrong, 10 lost. jordan 100 + 34 + 11 + 10 = 155, sam 100 + 6 + 5 +
+//     15 = 126, riley 100 - 40 - 2 - 10 = 48. The Games tab ranks them; riley's next stakes are held to her 48; the flag's check.
 //
 //   node scripts/lane.js dev   (or npm run dev; in another terminal)
 //   node scripts/dev-test/check-money.js [--keep]
@@ -47,6 +49,7 @@ const SHEET = [
   { id: "boot", ask: "Who goes home? Stake any of your bank, the pool's odds", answer: "person", points: 0, asked: "each", wager: "total", odds: "pool", settle: OUT },
   { id: "imm", ask: "Who wins immunity? Stake up to 20", answer: "person", points: 1, asked: "each", wager: 20, settle: { by: "moment", moment: "individualImmunity", take: "who" } },
   { id: "pot", ask: "Who goes home? Stake up to 5, the pot split", answer: "person", points: 10, asked: "each", wager: 5, share: "split", settle: OUT },
+  { id: "ticket", ask: "Build a ticket", answer: "ticket", points: 0, asked: "each", wager: 10, settle: { by: "legs", of: ["boot", "imm", "pot"] } },
 ];
 const BANK = { start: 100 };
 
@@ -89,7 +92,8 @@ const BANK = { start: 100 };
     const byId = (x, id) => x.questions?.find((y) => y.id === id);
     const ways = (g) => Object.fromEntries(SHEET.map(({ id }) => [id, [byId(g, id)?.odds, byId(g, id)?.stakeMost]]));
     let g = await read("jordan");
-    check(g.episode === 6 && G.sameValue(ways(g), { boot: ["pool", 100], imm: ["even", 20], pot: ["even", 5] }) && g.points === 100, "jordan reads Episode 6's: the pool's odds on the boot, even money on the rest; up to 100, 20 and 5 of his bank of 100", JSON.stringify([g.episode, g.points, ways(g)]));
+    check(g.episode === 6 && G.sameValue(ways(g), { boot: ["pool", 100], imm: ["even", 20], pot: ["even", 5], ticket: [null, 10] }) && g.points === 100, "jordan reads Episode 6's: the pool's odds on the boot, even money on the rest; up to 100, 20, 5 and 10 (the ticket) of his bank of 100", JSON.stringify([g.episode, g.points, ways(g)]));
+    check(G.sameValue(byId(g, "ticket")?.ticket, { of: ["boot", "imm", "pot"], min: 2, max: 3, pays: [3, 7] }), "  the ticket: built from the three, two or three legs, 3 times the stake for two, 7 for three", JSON.stringify(byId(g, "ticket")?.ticket));
     const still = (await league(QG)).state.castaways.filter((c) => c.status !== "eliminated");
     const [gone6, immune, other] = still;
     r = await ask("jordan", { answers: { boot: { answer: gone6.id, stake: 101 } } });
@@ -97,7 +101,7 @@ const BANK = { start: 100 };
     r = await ask("jordan", { answers: { boot: { answer: gone6.id, stake: 90 } } });
     check(r.status === 200, "  jordan stakes 90 on the boot", `${r.status} ${JSON.stringify(r.body).slice(0, 300)}`);
     g = await read("jordan");
-    check(G.sameValue(ways(g), { boot: ["pool", 100], imm: ["even", 10], pot: ["even", 5] }), "  with 90 on the line, 10 is all he has left for immunity (the boot's own is his to change: 100)", JSON.stringify(ways(g)));
+    check(G.sameValue(ways(g), { boot: ["pool", 100], imm: ["even", 10], pot: ["even", 5], ticket: [null, 10] }), "  with 90 on the line, 10 is all he has left for immunity (the boot's own is his to change: 100)", JSON.stringify(ways(g)));
     r = await ask("jordan", { answers: { imm: { answer: immune.id, stake: 20 } } });
     check(r.status === 400 && /Stake 0 to 10 points/.test(JSON.stringify(r.body)), "  20 on immunity refused: a fixed stake is held to what's left of the bank (400)", `${r.status} ${JSON.stringify(r.body)}`);
     r = await ask("jordan", { answers: { boot: { answer: gone6.id, stake: 85 }, imm: { answer: immune.id, stake: 10 }, pot: { answer: gone6.id, stake: 5 } } });
@@ -110,6 +114,14 @@ const BANK = { start: 100 };
     check(r.status === 200, "  then takes it back and stakes 20 on immunity in one go: what the boot held is free again", `${r.status} ${JSON.stringify(r.body).slice(0, 300)}`);
     r = await ask("sam", { answers: { imm: null, boot: { answer: gone6.id, stake: 15 }, pot: { answer: gone6.id, stake: 0 } } });
     check(r.status === 200, "  and settles on 15 on the boot, nothing on the pot, immunity taken back", `${r.status} ${JSON.stringify(r.body).slice(0, 300)}`);
+    r = await ask("sam", { answers: { ticket: { legs: ["boot", "imm"], stake: 5 } } });
+    check(r.status === 400 && /a ticket's legs are your own answers/.test(JSON.stringify(r.body)), "  a ticket naming immunity, which she took back, refused (400)", `${r.status} ${JSON.stringify(r.body)}`);
+    r = await ask("sam", { answers: { ticket: { legs: ["boot", "pot"], stake: 5 } } });
+    check(r.status === 200, "  sam builds a ticket of the boot and the pot for 5", `${r.status} ${JSON.stringify(r.body).slice(0, 300)}`);
+    r = await ask("sam", { answers: { pot: null } });
+    check(r.status === 409 && /Your ticket stands on/.test(JSON.stringify(r.body)), "  taking back the pot, a leg her ticket stands on, refused (409)", `${r.status} ${JSON.stringify(r.body)}`);
+    r = await ask("riley", { answers: { ticket: { legs: ["boot", "pot"], stake: 10 } } });
+    check(r.status === 200, "riley builds the same ticket for 10", `${r.status} ${JSON.stringify(r.body).slice(0, 300)}`);
 
     // ---------- Episode 6's results ----------
     await pool.query("UPDATE show_seasons SET premiere_date = premiere_date - 4 WHERE id = $1", [sid]);
@@ -122,19 +134,21 @@ const BANK = { start: 100 };
     for (const who of ["riley", "jordan", "sam"]) await seen(who, 6);
     // The boot's pool: riley's 40 split between jordan's 85 and sam's 15 (of 100): 34 and 6. Immunity: jordan's stake of 10 and its
     // point. The pot: jordan and sam right, 5 each, jordan's stake of 5 won, riley's 2 lost.
-    // jordan 100 + 34 + 11 + 10 = 155, sam 100 + 6 + 5 = 111, riley 100 - 40 - 2 = 58.
+    // sam's ticket, both legs right: 3 x 5 = 15; riley's, both wrong: 10 lost.
+    // jordan 100 + 34 + 11 + 10 = 155, sam 100 + 6 + 5 + 15 = 126, riley 100 - 40 - 2 - 10 = 48.
     g = await read("jordan", 6);
     const me = (x) => x?.people.find((p) => p.you);
     const earned = (x, who) => Object.fromEntries(SHEET.map(({ id }) => [id, (who ? byId(x, id)?.people.find((p) => p.name === who) : me(byId(x, id)))?.earned ?? null]));
-    check(G.sameValue(earned(g), { boot: 34, imm: 11, pot: 10 }) && g.points === 155, "jordan at 6: the pool's 34, immunity's 11 (10 staked and a point), the pot's 10 (5 and his 5): 155", JSON.stringify([earned(g), g.points]));
+    check(G.sameValue(earned(g), { boot: 34, imm: 11, pot: 10, ticket: null }) && g.points === 155, "jordan at 6: the pool's 34, immunity's 11 (10 staked and a point), the pot's 10 (5 and his 5): 155", JSON.stringify([earned(g), g.points]));
     const theirs = (id, name) => byId(g, id).people.find((p) => !p.you && p.name.includes(name))?.earned;
     check(theirs("boot", "sam") === 6 && theirs("boot", "riley") === -40 && theirs("pot", "riley") === -2 && theirs("pot", "sam") === 5, "  sam's share of the pool (6) and of the pot (5); riley's stakes lost (-40, -2)", JSON.stringify(byId(g, "boot").people.map((p) => [p.name, p.earned])));
+    check(theirs("ticket", "sam") === 15 && theirs("ticket", "riley") === -10, "  sam's ticket won (15), riley's lost (-10)", JSON.stringify(byId(g, "ticket").people.map((p) => [p.name, p.earned, p.right])));
     g = await read("riley", 6);
-    check(g.points === 58, "riley at 6: 58 of her bank", String(g.points));
+    check(g.points === 48, "riley at 6: 48 of her bank", String(g.points));
     const table = ((await as.jordan.call("GET", `/api/seasons/${sid}/games${q}`)).body.games ?? []).find((x) => x.leagueId === QG)?.table ?? [];
-    check(G.sameValue(table.map((t) => t.total), [155, 111, 58]) && table[0].userId === fx.users.jordan, "the Games tab ranks them by what's in the bank: jordan 155, sam 111, riley 58", JSON.stringify(table.map((t) => [t.name, t.total])));
+    check(G.sameValue(table.map((t) => t.total), [155, 126, 48]) && table[0].userId === fx.users.jordan, "the Games tab ranks them by what's in the bank: jordan 155, sam 126, riley 48", JSON.stringify(table.map((t) => [t.name, t.total])));
     g = await read("riley");
-    check(g.episode === 7 && byId(g, "boot").stakeMost === 58 && byId(g, "imm").stakeMost === 20, "riley's Episode 7: up to 58 on the boot, 20 on immunity", JSON.stringify([g.episode, byId(g, "boot")?.stakeMost, byId(g, "imm")?.stakeMost]));
+    check(g.episode === 7 && byId(g, "boot").stakeMost === 48 && byId(g, "imm").stakeMost === 20, "riley's Episode 7: up to 48 on the boot, 20 on immunity", JSON.stringify([g.episode, byId(g, "boot")?.stakeMost, byId(g, "imm")?.stakeMost]));
 
     // ---------- The flag ----------
     const flagged = checkLeague((await league(QG)).state);

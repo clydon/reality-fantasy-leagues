@@ -18,7 +18,7 @@
 //
 // Pure CommonJS, like ./schema.js.
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
-const { PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, spanEnd, spanEndPhase, playsAs, callsAsk, finaleIn, draftQuestions, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion, matchupParts, questionsGame, poolByPoints, teamParts, handicapParts, stageOn, ON_CHANGE, nextStageAts, fallsTo, stageSide, mainCount, stageAlongside, stageSeason, seasonKey, isPlayers, isBeat, waiverOwnOf, waiverMoves, weekParts, momentsPick, bankOf } = require('./schema.js');
+const { PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, spanEnd, spanEndPhase, playsAs, callsAsk, finaleIn, draftQuestions, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion, matchupParts, questionsGame, poolByPoints, teamParts, handicapParts, stageOn, ON_CHANGE, nextStageAts, fallsTo, stageSide, mainCount, stageAlongside, stageSeason, seasonKey, isPlayers, isBeat, waiverOwnOf, waiverMoves, weekParts, momentsPick, bankOf, isTicket, ticketOf } = require('./schema.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const NUMBER_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
@@ -287,9 +287,11 @@ function sentenceParts(s, w) {
   } else if (s.score.by === 'answers' && callsAsk(s.ask)) {
     put(`two calls before every ${w.part}`, 'get');
   } else if (s.score.by === 'answers') {
-    const n = s.ask.length;
-    put(`everyone answers ${say(n)} ${n === 1 ? 'question' : 'questions'} before ${one ? `${w.Part} ${first}` : askWhen(s.ask, w)}`, 'ask');
-    if (n) put(`: ${listOf(s.ask.map(questionPhrase))}`, 'ask');
+    // C6 part 2: a ticket is built from the questions, said with the points (answersPhrases), not as one of them.
+    const asks = s.ask.filter((q) => !isTicket(q));
+    const n = asks.length;
+    put(`everyone answers ${say(n)} ${n === 1 ? 'question' : 'questions'} before ${one ? `${w.Part} ${first}` : askWhen(asks, w)}`, 'ask');
+    if (n) put(`: ${listOf(asks.map(questionPhrase))}`, 'ask');
     spanSaid = one;
   } else {
     put('nothing to pick', 'get');
@@ -376,10 +378,35 @@ function stakeWords(ask, bank) {
   const pays = !pool ? 'double or nothing' : pool === ask.length ? 'right, a share of the wrong stakes; wrong, you lose it' : 'double or nothing, or a share of the wrong stakes';
   return `Stake ${stake} on ${ask.length === 1 ? 'it' : 'each'}: ${pays}.`;
 }
+/** C6 part 2: a ticket's stake ("any of your bank", "up to 20 points") and what it pays for each number of legs right ("3 times your
+ *  stake for two, 7 for three"). */
+function ticketStake(q, bank) {
+  return Number.isInteger(q.wager) ? `up to ${pointsWord(q.wager)}${bank ? ' of your bank' : ''}` : `any of your ${bank ? 'bank' : 'points'}`;
+}
+function ticketPays(t) {
+  return t.payouts.map((x, i) => `${x} ${i === 0 ? `times your stake for ${say(t.min + i)}` : `for ${say(t.min + i)}`}`).join(', ');
+}
+/** C6 part 2: a ticket as the sentence says it: what it's built from, how many legs, the stake and what it pays. */
+function ticketWords(q, all, bank) {
+  const t = ticketOf(q);
+  const legs = t.of.map((id) => all.find((x) => x.id === id)).filter(Boolean).map(questionPhrase);
+  const many = t.min === t.max ? say(t.min) : `${say(t.min)} to ${say(t.max)}`;
+  return `Build a ticket from ${listOf(legs)}: put ${many} of your calls on it and stake ${ticketStake(q, bank)}; all of them right wins ${ticketPays(t)}.`;
+}
+/** C6 part 2: a ticket as How it works says it, with its fallbacks. */
+function ticketRule(q, all, bank) {
+  const t = ticketOf(q);
+  const legs = t.of.map((id) => all.find((x) => x.id === id)).filter(Boolean).map((x) => `"${askOf(x)}"`);
+  const many = t.min === t.max ? say(t.min) : `${say(t.min)} to ${say(t.max)}`;
+  return `Build a ticket: from ${listOf(legs)}, put ${many} of your answers on it and stake ${ticketStake(q, bank)} on all of them being right. All right, you win ${ticketPays(t)}; one wrong, or left blank, you lose your stake. A leg that doesn't count drops out and the ticket rides on the rest (none left: your stake back).`;
+}
 /** What a game's questions earn, as its sentence says it (`ask`: a game of questions', or a draft's own, C2 part 4c), each phrase
  *  through `put`: their points, A9's ways of combining as far as they're all of them's, the bot's call, a rollover, a shrinking call
  *  and the parlays. C6: every stake (stakeWords), said after a share it goes beside, and a bank (`bank`: bankOf's, or null). */
-function answersPhrases(ask, parlays, put, bank) {
+function answersPhrases(given, parlays, put, bank) {
+  // C6 part 2: a ticket is said on its own, after the questions' points and stakes.
+  const ask = given.filter((q) => !isTicket(q));
+  const tickets = given.filter(isTicket);
   const pts = [...new Set(ask.map((q) => q.points))];
   const all = (f) => ask.length > 0 && ask.every(f);
   const some = (f) => ask.some(f);
@@ -400,6 +427,7 @@ function answersPhrases(ask, parlays, put, bank) {
   put(said, 'score');
   // C6: a stake beside a share, its own after it; a bank everyone starts with.
   if (staked && !stakeSaid) put(` ${stakeWords(ask, bank)}`, 'score');
+  for (const t of tickets) put(` ${ticketWords(t, given, bank)}`, 'score');
   if (bank) put(` Everyone starts with a bank of ${pointsWord(bank.start)}.${bank.out ? " Run out and you're out." : ''}`, 'score');
   // A14 part 2: some of them played against the bot (or all, sharing their points): the bot makes its call too.
   if (some(isBeat) && !all((q) => isBeat(q) && q.share === undefined)) {
@@ -421,6 +449,8 @@ function whenWords(q, w, each) {
 }
 /** One question as How it works says it: when it's asked, what it is, and what a right answer earns. */
 function questionRule(q, w, each, ask, bank) {
+  // C6 part 2: a ticket, its own rule.
+  if (isTicket(q)) return `${whenWords(q, w, each)}${ticketRule(q, ask, bank)}`;
   const when = whenWords(q, w, each);
   const pts = typeof q.points === 'number' ? q.points : null;
   let earn = pts === null ? '' : ` ${cap(pointsWord(pts))} if you're right.`;
@@ -1075,7 +1105,9 @@ function rulesOf(s, w) {
   }
   if (s.score.by === 'answers' && !callsAsk(s.ask)) {
     const each = s.ask.some((q) => q.asked !== 'once');
-    rules.push(`${teamParts(s) ? 'No draft.' : 'No draft, no team.'} Answer ${say(s.ask.length)} ${s.ask.length === 1 ? 'question' : 'questions'}${each ? '' : ' before it starts'}:`);
+    // C6 part 2: a ticket is built from the questions, not one of them (its rule says so).
+    const asked = s.ask.filter((q) => !isTicket(q)).length;
+    rules.push(`${teamParts(s) ? 'No draft.' : 'No draft, no team.'} Answer ${say(asked)} ${asked === 1 ? 'question' : 'questions'}${each ? '' : ' before it starts'}:`);
     const bank = bankOf(s);
     for (const q of s.ask) rules.push(questionRule(q, w, each, s.ask, bank));
     // A9's parlays.

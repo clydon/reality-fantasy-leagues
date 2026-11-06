@@ -88,6 +88,9 @@ export interface QuestionView {
   wager: number | "total" | null;
   /** Step C6: what a right stake pays: even money, or a share of the pool (the window's wrong stakes); null without a wager. */
   odds: "even" | "pool" | null;
+  /** Step C6 part 2, a ticket: the questions it's built from, how many legs it takes, and its stake's winnings for each number of
+   *  legs right from its least (answered { legs: [question ids], stake }, each leg your own answer to it there); null for any other. */
+  ticket: { of: string[]; min: number; max: number; pays: number[] } | null;
   pairs: { key: string; faces: [QuestionFace, QuestionFace] }[] | null;
   /** A9: how its points combine. share: split (a pot split between everyone right) or only (only the only right one scores);
    *  rollover: a window nobody earns anything on carries its points into the next (`jackpot`: what's carried into this one, once
@@ -271,6 +274,13 @@ function isClosed(r: Read, q: Question, episode: number): boolean {
 const startedNow = (r: Read) =>
   StateLogic.AnswerLogic.started(r.h.state, { now: r.now.getTime(), airAtOf: (n) => r.schedule?.episodes.find((e) => e.number === n)?.airAt ?? null });
 
+/** Step C6 part 2: a ticket's read: what it's built from, its legs, what it pays for each number right from its least; else null. */
+function ticketView(q: Question): QuestionView["ticket"] {
+  const t = Spec.ticketOf(q);
+  if (!t) return null;
+  return { of: t.of, min: t.min, max: t.max, pays: t.payouts };
+}
+
 /** The game's bank (step C6: score.bank), or null: beside one, every stake is drawn from it (Spec.drawsOnBank). */
 const bankOf = (state: LeagueState) => Spec.bankOf(StateLogic.gameOf(state));
 
@@ -420,7 +430,8 @@ async function readQuestions(r: Read, episodeIn?: unknown): Promise<GameQuestion
       within: q.answer === "order" ? (q.within ?? 0) : null,
       chips: q.answer === "chips" ? (q.chips ?? null) : null,
       wager: q.wager ?? null,
-      odds: q.wager !== undefined ? (q.odds ?? Spec.ODDS) : null,
+      odds: q.wager !== undefined && !Spec.isTicket(q) ? (q.odds ?? Spec.ODDS) : null,
+      ticket: ticketView(q),
       share: q.share ?? null,
       rollover: !!q.rollover,
       jackpot: q.rollover && graded.worth.has(`${q.id}|${ep}`) ? (graded.worth.get(`${q.id}|${ep}`) ?? q.points) - q.points : null,
@@ -534,6 +545,17 @@ export async function answerQuestions(user: SessionUser, seasonId: string, leagu
     }
   }
   const writes: { q: Question; ep: number; value: unknown }[] = [];
+  // Step C6 part 2: whether a ticket of yours at a window puts question `id` on it (this answer's ticket, else the one stored).
+  const ticketOn = (id: string, ep: number) =>
+    qs.some((t) => {
+      if (!Spec.isTicket(t)) return false;
+      const said = body.answers as Record<string, unknown>;
+      const given = Object.prototype.hasOwnProperty.call(said, t.id)
+        ? said[t.id]
+        : r.rows.find((a) => a.playerId === h.playerId && a.question === t.id && a.episode === ep)?.answer;
+      const legs = (given as { legs?: unknown } | null | undefined)?.legs;
+      return Array.isArray(legs) && legs.includes(id);
+    });
   for (const [key, value] of Object.entries(body.answers)) {
     const q = qs.find((x) => x.id === key);
     if (!q) throw new HttpError(400, `"${key}" isn't one of this game's questions`);
@@ -575,6 +597,16 @@ export async function answerQuestions(user: SessionUser, seasonId: string, leagu
       }
       const problem = Spec.answerProblem(q, value, faces, most === undefined ? undefined : { most });
       if (problem) throw new HttpError(400, problem);
+      // Step C6 part 2: a ticket's legs are your own answers there (stored, or given with it), never one taken back with it.
+      if (Spec.isTicket(q)) {
+        const mine = new Set(r.rows.filter((a) => a.playerId === h.playerId && a.episode === ep).map((a) => a.question));
+        for (const [k, v] of Object.entries(body.answers)) {
+          if (v === null) mine.delete(k);
+          else mine.add(k);
+        }
+        const blank = (value as { legs: string[] }).legs.filter((id) => !mine.has(id));
+        if (blank.length) throw new HttpError(400, `Answer ${blank.map((id) => `"${qs.find((x) => x.id === id)?.ask ?? id}"`).join(" and ")} first: a ticket's legs are your own answers`);
+      }
       // A13: a trivia question you've played in the trivia sheet, where you saw its answer: yours here can't be given or changed after
       // it, and what you'd said before stands (kept when this answer leaves it out).
       if (Spec.isTrivia(q)) {
@@ -586,6 +618,9 @@ export async function answerQuestions(user: SessionUser, seasonId: string, leagu
         for (const id of sheet) if (id in before && !(id in given) && inRound.has(id)) given[id] = before[id] as string;
       }
       if (Spec.drawsOnBank(q, bank)) staking.set(`${q.id}|${ep}`, (value as { stake: number }).stake);
+    } else if (ticketOn(q.id, ep)) {
+      // Step C6 part 2: a leg a ticket of yours stands on (stored, or given with this answer) isn't taken back while it does.
+      throw new HttpError(409, `Your ticket stands on "${q.ask}": take it off your ticket first`);
     } else if (Spec.isTrivia(q)) {
       // A13: nor taken back once one of its questions has been played in the trivia sheet.
       const before = triviaBefore(r, q, ep);

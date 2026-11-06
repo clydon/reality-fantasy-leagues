@@ -222,6 +222,8 @@ export type SpecSettle =
   /** A14 part 1: the players' own answers in its window (its own, or `of` the game's question it names): the answer most of you gave
    *  (majority) or fewest (minority); on a tie, nobody's right ('none', the default) or each tied one is ('all'). */
   | { by: "players"; take: "majority" | "minority"; of?: string; tie?: "none" | "all" }
+  /** C6 part 2: a ticket's legs, the game's questions it's built from. */
+  | { by: "legs"; of: string[] }
   /** sports */
   | { by: "final"; take: "winner" | "total" | "margin" }
   /** sports */
@@ -234,7 +236,7 @@ export interface SpecQuestion {
   ask: string;
   /** group: a tribe or team (A6). order, confidence, chips, split, pairs (A8). side: sports. calls: the show's calls (Weekly
    *  Calls'). trivia (A13): the round before each episode, from its trivia key, answered { [trivia question id]: option }. */
-  answer: "person" | "group" | "side" | "yesNo" | "number" | "overUnder" | "choice" | "calls" | "order" | "confidence" | "chips" | "split" | "pairs" | "trivia";
+  answer: "person" | "group" | "side" | "yesNo" | "number" | "overUnder" | "choice" | "calls" | "order" | "confidence" | "chips" | "split" | "pairs" | "trivia" | "ticket";
   /** A8: an order scores each one within this many places of right (0: exactly). */
   within?: number;
   /** A8: a chips answer's chips to spread. */
@@ -247,6 +249,9 @@ export interface SpecQuestion {
   /** C6: what a right stake pays: even money (the default: the stake), or the pool (the window's wrong stakes split between its right
    *  ones by their stakes; nobody right, every stake back). */
   odds?: "even" | "pool";
+  /** C6 part 2, a ticket: the legs it takes (2 to the most it's built from), and its stake's winnings for each number of legs from 2. */
+  legs?: { min?: number; max?: number };
+  pays?: number[];
   /** A9: split, a pot for each window split between everyone right (by what each would have earned); only, a right answer scores
    *  only when nobody else's does. */
   share?: "split" | "only";
@@ -389,6 +394,8 @@ export type Verdict =
       /** F3 part 2, a group answer on the timeline's groups: the offered groups that played the episode as offered (a pick of
        *  any other is void). */
       held?: string[];
+      /** C6 part 2, a ticket: each one's, won, lost or none of its legs counted (null), and how many legs were right. */
+      tickets?: Record<string, { right: boolean | null; legs: number }>;
     };
 
 export interface SpecWaivers {
@@ -672,6 +679,14 @@ export function wagerParts(
   o?: { worth?: number; bot?: unknown }
 ): { points: Map<string, number>; stakes: Map<string, number> };
 export function unwagered(q: Question): Question;
+/** C6 part 2: how a ticket stands in one window, from its legs there. */
+export function ticketVerdict(q: Question, legs: { q: Question; v: Verdict | undefined; answers: { playerId: string; answer: unknown }[] }[], answers: { playerId: string; answer: unknown }[], facts?: AnswerFacts): Verdict;
+/** C6 part 2: a ticket a player builds from the game's other questions; its parts; its limits and defaults. */
+export function isTicket(q: unknown): boolean;
+export function ticketOf(q: Question): { of: string[]; min: number; max: number; pays: (n: number) => number; payouts: number[] } | null;
+export const MAX_TICKET_LEGS: number;
+export const MAX_PAYS: number;
+export const TICKET: { min: number };
 /** A14 part 2: a window's key ("question|episode", 0 asked once), as the grade and the bot's calls have it. */
 export function botKey(q: Question, episode: number): string;
 /** A14 part 2: the bot's call on a question's window (facts.bot), or undefined. */

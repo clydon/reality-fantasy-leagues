@@ -332,6 +332,7 @@ Limits: up to 12 questions a game; an `id` is letters, digits, `.`, `_` or `-`, 
 | `pairs` | for each pair, who outlasts whom | `pairs` 1 to 12, drawn from who's in at the start; asked once |
 | `trivia` | the round's trivia questions (the episode before) | asked each episode |
 | `calls` | the show's two calls (Weekly Calls) | a game of its own |
+| `ticket` | a ticket (C6): the questions you put on it and a stake, `{ legs: [ids], stake }`, each leg your own answer to it | settled by its `legs` (below); `legs: { min, max }`, `pays`; a stake (`wager`) |
 | `side` | a team (sports) | the sports branch |
 
 **One question about each person still in:** `each: "person"` with a `yesNo`, `number`, `overUnder` or `choice` answer, answered
@@ -354,6 +355,7 @@ players' own mechanics below, which settle the game, never a fact about the show
 | `trivia` | none | the episode's trivia key (the bot writes a round after each episode) |
 | `calls` | none | the show's calls (Weekly Calls) |
 | `players` | `majority`, `minority` | the players' own answers: see "The players' own mechanics" |
+| `legs` | none | a ticket's legs (C6): `{ by: "legs", of: [the game's question ids] }`, your own answers to them in the window |
 | `final`, `stat` | | a sport's finals and stats (the sports branch) |
 
 Which answers each settle can grade (`SETTLES_FOR` in the schema): a `person` by anything that names people (`results` out,
@@ -447,7 +449,19 @@ Still refused, in our check's words:
   your call before the split?)", a rule question for the user (the plan's Noticed; recommended: your share).
 - "A wager is on your own call: not with the bot's."
 
-A ticket a player builds (a staked parlay of the legs they choose, the payout growing with the legs) is **planned** (C6 part 2).
+**A ticket** (C6 part 2, money): a question that's a staked parlay a player builds from the game's other questions, its legs.
+`{ "id": "ticket", "answer": "ticket", "points": 0, "asked": "each", "wager": "total", "settle": { "by": "legs", "of": ["boot",
+"imm", "idol"] } }`, answered `{ "legs": ["boot", "idol"], "stake": 20 }`: the legs are your own answers to those questions in the
+same window (the server refuses a ticket naming one you haven't answered). Every leg you put on it right: your stake won `pays`
+times for that many legs (by default each leg doubles what rides on it, even money on each: 3 times for two, 7 for three, 15 for
+four); one wrong, or left blank, the stake lost; a leg that doesn't count (off, a void pick) drops out and the ticket rides on the
+rest (one left pays once the stake; none left, the stake back). `legs: { min, max }`: how many it takes (2 to as many as it's built
+from, up to 6; at least 2 by default); `pays: [for 2, for 3, ...]`, each more than 0 and up to 1,000, never less for more legs. Its
+legs: 2 or more of the game's questions, each one answer that's right or wrong (as a parlay's), asked when the ticket is; never
+another ticket. Its stake is a wager's (up to a number, or any of your points or bank), at its own payout (no odds), with no points
+of its own, nothing shared, carried, shrunk or against the bot; a game of questions' only, never a life's question. "Build a ticket
+from who goes home, who wins immunity and an idol found: put two to three of your calls on it and stake any of your bank; all of
+them right wins 3 times your stake for two, 7 for three."
 
 ### Finale predictions
 
@@ -628,6 +642,7 @@ carries from the start, and no game waits for a person:
 | A pick of several when fewer can be picked (a cycle's blocks, few left) | (by itself) | fewer picks; the rest score nothing |
 | A stake on a question that doesn't count (nobody went home, a void pick, a question voided by a change) | (by itself) | every stake back |
 | A stake at the pool's odds nobody got right | (by itself) | every stake back |
+| A ticket's leg that doesn't count | (by itself) | drops out; the ticket rides on the rest (none left: the stake back) |
 
 (`next-stage` is only for a stage with another after it.) The research behind it: each episode's research says the format's
 state at its end (who is with whom, the phase) as data (F2), the engine works out what changed by comparing episodes (F3), and
@@ -871,6 +886,8 @@ tracker row (`docs/ENGINE-CAPABILITIES.md`, p13 to p25) with the step that bring
   one piece since C3 (above, "Multipliers"); a streak and when a holding was picked are later, a draft's own questions have no
   parlays, and a stake's odds are its own (C6: even money or the pool's).
 - **Six stages at most**: each week its own round is weeks won (C5), so only a game of seven real stages waits.
+- **A ticket's legs are one window's**: a ticket is built from questions asked when it is, each window its own (a ticket across
+  episodes, or a leg that's a pot split, a ranking or a question about each person, isn't built).
 - **Each episode's questions are the spec's**: nothing writes a new card of questions each week (Weekly Calls' calls and bingo's
   squares are their own games' generators: C7).
 - **Refused for their own reasons** (not a menu: the sequence wouldn't make them sensible): co-op on a draft (a night needs a
@@ -894,7 +911,7 @@ The study of the sequence is in the plan (track C, C1's As built); what's built 
 | C3 | **Multipliers on any condition** (built): one piece keyed by a condition, a captain, when, how a holding joined (drafted, a pickup, a replacement or a swap, the Nth per team or per slot), a parlay's legs, a confidence ranking's place | captain, by when, parlay and confidence are uses of it; the user's 1x, 0.5x, 0.25x; an Outlast's pickups counting double while they're yours. A streak and when a holding was picked: later |
 | C4 | **Ownership per holding** (built): exclusive or shared for the draft, its group slots and each waiver move (a replacement, a swap), so where a replacement comes from: someone on nobody's team, or anyone still in | an exclusive draft with shared replacements (the user's second game, whole); someone two teams hold, each owed a replacement once they're gone home |
 | C5 | **The week as a result** (built): pick 1 to 8 each episode without a draft, scored by what they do; weeks won (each episode a round); only these moments count; hits counted every time, per pick or per objective | the user's third game, whole (tracker row p12, a fixed list of objectives until C7) |
-| C6 | **Money** (part 1 built): a bank everyone starts with, every stake drawn from it, one that can run out (`score.bank`); a stake's odds, even money or the pool's (`ask[].odds`); a stake as a line of its own, beside a share, a rollover, a shrink or a parlay. Part 2: tickets a player builds, a staked parlay of the legs they choose, the payout growing with the legs | the user's first game (its bank and stakes; its weekly sheet is C7's); p24 |
+| C6 | **Money** (built): a bank everyone starts with, every stake drawn from it, one that can run out (`score.bank`); a stake's odds, even money or the pool's (`ask[].odds`); a stake as a line of its own, beside a share, a rollover, a shrink or a parlay (part 1); a ticket a player builds, a staked parlay of the legs they choose, the payout growing with the legs (part 2) | the user's first game (its bank, stakes and tickets; its weekly sheet is C7's); p24 |
 | C7 | **A new card each week**: one generator for each episode's questions or objectives, from the show's own data or written by the bot and checked, data-settled only | calls, trivia, bingo squares, a weekly prediction sheet and weekly objectives from one piece |
 
 ---
@@ -926,8 +943,9 @@ that players can wager on, more wagers multiply scored earnings."*
 - Act: before each episode. Hold: nothing (`get: none`). Settle: each line of the sheet by data.
 - Points: a stake from a bank of 500: built (C6), `"bank": { "start": 500 }` with `"wager": "total"` on each line of the sheet
   ("Stake any of your bank on each: double or nothing. Everyone starts with a bank of 500 points."). "More wagers multiply": a
-  ticket a player builds from the sheet's lines, its payout growing with its legs (C6 part 2; the spec's own `parlays` take a
-  staked leg since C6), or the number of wagers multiplying the week (the other reading: the lane's default is the ticket). A sheet
+  ticket a player builds from the sheet's lines, its payout growing with its legs: built (C6 part 2), a `ticket` question built
+  from the sheet's (the spec's own `parlays` take a staked leg too), or the number of wagers multiplying the week (the other
+  reading: the lane's default is the ticket). A sheet
   generated each week: C7 (today's questions are the spec's, the same every week).
 - Win: the most units (`total`), or the bank's own end: `out: true`, whoever runs out is out, last one standing (the lane's default:
   a bank at zero plays on).
@@ -1001,6 +1019,7 @@ picks x cast members that they think will achieve as many objectives as possible
 | Side bets | 1 to 3 points |
 | A race | 1 to 1,000 points |
 | A bank | 1 to 10,000 to start |
+| A ticket | 2 to 6 legs; pays up to 1,000 times its stake |
 
 (`tests/game-pieces-doc.test.js` checks this table against the schema's limits, and that every value the schema plays now is
 named in this guide.)

@@ -7489,6 +7489,8 @@ class AnswerLogic {
     // A14 part 2: the bot's call on a window of a question played against it (the server's: facts.bot), for its points.
     const botOf = key => (f.bot instanceof Map && f.bot.has(key) ? { bot: f.bot.get(key) } : {});
     groups.forEach(({ q, ep, list }, key) => {
+      // C6 part 2: a ticket is graded from its legs, below.
+      if(Spec.isTicket(q)) return;
       const v = Spec.verdictOf(q, ep, f, tallyOf(q, ep));
       verdicts.set(key, v);
       if(!q.rollover) earned.set(key, Spec.windowPoints(q, v, list, f, botOf(key)));
@@ -7520,6 +7522,17 @@ class AnswerLogic {
         if(groups.has(key)) earned.set(key, got);
         carry = Seq.carry(w, parts ? parts.points : got);
       }
+    });
+    // C6 part 2: each ticket, window by window, from its legs there (each its verdict and its answers): won, lost or none counted.
+    groups.forEach(({ q, ep, list }, key) => {
+      if(!Spec.isTicket(q)) return;
+      const legs = q.settle.of.map(id => qs.get(id)).filter(Boolean).map(lq => {
+        const k = lq.id + '|' + ep;
+        return { q: lq, v: verdicts.get(k) || Spec.verdictOf(lq, ep, f, tallyOf(lq, ep)), answers: groups.has(k) ? groups.get(k).list : [] };
+      });
+      const v = Spec.ticketVerdict(q, legs, list, f);
+      verdicts.set(key, v);
+      earned.set(key, Spec.windowPoints(q, v, list, f));
     });
     // A9: the parlays, each window their questions share.
     // C3: each a factor of the one multiplier piece, on 'legs' (Spec.multipliersOf), its times when every leg is right.

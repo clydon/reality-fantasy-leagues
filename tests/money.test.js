@@ -243,3 +243,137 @@ test("a bank that runs out: out at nothing, their answers after it counting for 
   assert.equal(A.walk(on, first, A.facts(on)), null);
   assert.deepEqual(obj(A.grade(on, first).points), { ann: 0, bo: 24, cy: 10 });
 });
+
+// ---------- C6 part 2: a ticket a player builds ----------
+const IMM = { id: "imm", ask: "Who wins immunity?", answer: "person", points: 1, asked: "each", settle: { by: "moment", moment: "individualImmunity", take: "who" } };
+const LEG_BOOT = { ...BOOT, points: 1 };
+const LEG_IDOL = { ...IDOL, points: 1 };
+const TICKET = { id: "ticket", ask: "Build a ticket", answer: "ticket", points: 0, asked: "each", wager: "total", settle: { by: "legs", of: ["boot", "imm", "idol"] } };
+const T_CTX = { ...CTX, moments: [...CTX.moments, { id: "individualImmunity", label: "Won immunity", defaultPoints: 3, answeredBy: "research" }] };
+const sheet = (ticket = TICKET, score = { bank: { start: 100 } }) => game([LEG_BOOT, IMM, LEG_IDOL, ticket], score);
+const tProblems = (s) => G.specProblems(s, T_CTX).map((p) => `${p.at}: ${p.problem}`);
+
+test("a ticket: its shape, its defaults, what's refused, its words", () => {
+  assert.deepEqual(tProblems(sheet()), []);
+  assert.equal(G.typeOf(sheet()), "questions");
+  assert.deepEqual(tProblems(sheet({ ...TICKET, wager: 20, legs: { min: 2, max: 2 }, pays: [4] })), []);
+  assert.deepEqual(tProblems(sheet({ ...TICKET, legs: { min: 3 }, pays: [2, 5] })), []);
+  assert.deepEqual(tProblems(sheet(TICKET, {})), [], "staking your points, no bank");
+  // Read the one way: two legs at least, as many as it's built from, each leg doubling what rides on it (3 for two, 7 for three).
+  const t = G.ticketOf(G.fullQuestion(TICKET));
+  assert.deepEqual([t.of, t.min, t.max, t.pays(2), t.pays(3), t.pays(1)], [["boot", "imm", "idol"], 2, 3, 3, 7, 1]);
+  assert.deepEqual([G.ticketOf({ ...TICKET, pays: [2, 5] }).pays(2), G.ticketOf({ ...TICKET, pays: [2, 5] }).pays(3)], [2, 5]);
+  assert.equal(G.ticketOf(BOOT), null);
+  // Refused, each with why.
+  const bad = (t, at) => assert.ok(tProblems(sheet(t)).some((p) => p.startsWith(`ask[3].${at}`)), `${at}: ${tProblems(sheet(t)).join(" | ")}`);
+  bad({ ...TICKET, settle: { by: "legs", of: ["boot"] } }, "settle.of");
+  bad({ ...TICKET, settle: { by: "legs", of: ["boot", "nope"] } }, "settle.of");
+  bad({ ...TICKET, settle: { by: "legs", of: ["boot", "boot"] } }, "settle.of");
+  bad({ ...TICKET, settle: { by: "legs", of: ["boot", "ticket"] } }, "settle.of");
+  bad({ ...TICKET, settle: { by: "results", take: "out" } }, "settle");
+  bad({ ...TICKET, wager: undefined }, "wager");
+  bad({ ...TICKET, odds: "pool" }, "odds");
+  bad({ ...TICKET, points: 5 }, "points");
+  bad({ ...TICKET, share: "split" }, "share");
+  bad({ ...TICKET, legs: { min: 4 } }, "legs.min");
+  bad({ ...TICKET, legs: { min: 3, max: 2 } }, "legs.max");
+  bad({ ...TICKET, pays: [3] }, "pays");
+  bad({ ...TICKET, pays: [5, 2] }, "pays");
+  bad({ ...TICKET, legs: { minimum: 2 } }, "legs.minimum");
+  // A leg asked another way, or one that isn't one right-or-wrong answer.
+  assert.ok(tProblems(game([LEG_BOOT, { ...IMM, asked: "every", every: 2 }, TICKET], { bank: { start: 100 } })).some((p) => p.includes('"imm" is asked another way')));
+  assert.ok(tProblems(game([LEG_BOOT, { ...IMM, pick: 2 }, LEG_IDOL, TICKET], {})).some((p) => p.includes(`"imm" isn't one answer that's right or wrong`)));
+  // Only a ticket is settled by its legs; a ticket is a game of questions'; it's never a life's question.
+  assert.ok(tProblems(game([LEG_BOOT, LEG_IDOL, { ...LEG_IDOL, id: "x", settle: { by: "legs", of: ["boot", "idol"] } }])).some((p) => p.endsWith("Only a ticket is settled by its legs")));
+  assert.ok(tProblems(game([{ ...LEG_BOOT, asked: "once", closes: "start", settle: { by: "results", take: "out" } }, { ...LEG_IDOL, asked: "once" }, { ...TICKET, asked: "once", closes: "finale", settle: { by: "legs", of: ["boot", "idol"] } }], {})).some((p) => p.includes('"boot" is asked another way')), "a ticket closing after its legs");
+  assert.ok(tProblems(game([{ ...LEG_IDOL, wager: 5, pays: [5] }])).includes("ask[0].pays: Only a ticket has legs and pays"));
+  assert.equal(G.livesQuestion(TICKET), false);
+  assert.equal(G.draftPlayable(TICKET), false);
+  // Its words.
+  const d = G.describeSpec(G.fullSpec(sheet()), { ...WORDS, moments: T_CTX.moments });
+  assert.match(d.sentence, /everyone answers three questions before each episode: who goes home, who wins immunity and an idol found, all season\. A point for each right answer\. Build a ticket from who goes home, who wins immunity and an idol found: put two to three of your calls on it and stake any of your bank; all of them right wins 3 times your stake for two, 7 for three\. Everyone starts with a bank of 100 points\.$/);
+  assert.ok(d.rules.includes(`Before each episode: Build a ticket: from "Who goes home?", "Who wins immunity?" and "An idol found?", put two to three of your answers on it and stake any of your bank on all of them being right. All right, you win 3 times your stake for two, 7 for three; one wrong, or left blank, you lose your stake. A leg that doesn't count drops out and the ticket rides on the rest (none left: your stake back).`), d.rules.join("\n"));
+  // Answered as { legs, stake }.
+  const q = G.fullQuestion(TICKET);
+  assert.equal(G.answerProblem(q, { legs: ["boot", "idol"], stake: 10 }, null, { most: 100 }), null);
+  assert.equal(G.answerProblem(q, { legs: ["boot"], stake: 10 }, null, { most: 100 }), "Put 2 to 3 on it");
+  assert.equal(G.answerProblem(q, { legs: ["boot", "boot"], stake: 10 }, null, { most: 100 }), "Put each question on it once");
+  assert.equal(G.answerProblem(q, { legs: ["boot", "nope"], stake: 10 }, null, { most: 100 }), "Put only this ticket's questions on it");
+  assert.equal(G.answerProblem(q, { legs: ["boot", "idol"], stake: 101 }, null, { most: 100 }), "Stake 0 to 100 points");
+  assert.equal(G.answerProblem(q, "boot", null, { most: 100 }), "Your ticket and your stake: { legs: [questions], stake }");
+});
+
+test("a ticket graded: every leg right pays by the legs, one wrong or blank loses, a leg that doesn't count drops out", () => {
+  const s = S.defaultState();
+  S.ensureNextEpisode(s);
+  S.updateSettings(s, "showId", "survivor");
+  S.updateSettings(s, "leagueTypeId", "questions");
+  for (let i = 0; i < 10; i++) S.addCastaway(s, `Castaway ${i}`);
+  s.players = ["ann", "bo", "cy", "di"].map((id) => ({ id, name: id, color: "#000" }));
+  S.updateSettings(s, "setupComplete", true);
+  assert.deepEqual(S.setGame(s, sheet(), { ctx: T_CTX }), []);
+  const e1 = S.ensureEpisodeNumber(s, 1, false);
+  S.addElimination(s, e1.id, cid(s, 9), "Voted Out");
+  S.addScoringEvent(s, e1.id, "individualImmunity", cid(s, 0));
+  S.addScoringEvent(s, e1.id, "idolFound", cid(s, 1));
+  results(s, 2, []);
+  S.ensureEpisodeNumber(s, 3, false);
+  const say = (n, by) => Object.entries(by).flatMap(([playerId, a]) => Object.entries(a).map(([question, answer]) => ({ playerId, question, episode: n, answer: question === "ticket" ? answer : typeof answer === "number" ? cid(s, answer) : answer })));
+  const rows = [
+    // Episode 1 (Castaway 9 out, Castaway 0 immune, an idol found): ann right on all three, a ticket of all three for 10: 7 x 10 = 70.
+    // bo wrong on immunity, his ticket of the boot and immunity for 20 lost. cy right on the boot and the idol, a ticket of the two for
+    // 5: 3 x 5 = 15. di right on the boot, immunity left blank, a ticket of the two for 10 lost.
+    ...say(1, {
+      ann: { boot: 9, imm: 0, idol: "yes", ticket: { legs: ["boot", "imm", "idol"], stake: 10 } },
+      bo: { boot: 9, imm: 2, ticket: { legs: ["boot", "imm"], stake: 20 } },
+      cy: { boot: 9, idol: "yes", ticket: { legs: ["boot", "idol"], stake: 5 } },
+      di: { boot: 9, ticket: { legs: ["boot", "imm"], stake: 10 } },
+    }),
+    // Episode 2, a quiet night (nobody home: the boot doesn't count; no idol found): ann's ticket of the boot and the idol rides on the
+    // idol alone, right: once her stake, 10. bo's the same way, wrong on the idol: 5 lost.
+    ...say(2, {
+      ann: { boot: 1, idol: "no", ticket: { legs: ["boot", "idol"], stake: 10 } },
+      bo: { boot: 2, idol: "yes", ticket: { legs: ["boot", "idol"], stake: 5 } },
+    }),
+    // Episode 3, no results yet: nothing either way.
+    ...say(3, { ann: { boot: 1, idol: "no", ticket: { legs: ["boot", "idol"], stake: 10 } } }),
+  ];
+  const g = A.grade(s, rows);
+  assert.deepEqual(obj(g.earned.get("ticket|1")), { ann: 70, bo: -20, cy: 15, di: -10 });
+  assert.deepEqual(g.verdicts.get("ticket|1").tickets, { ann: { right: true, legs: 3 }, bo: { right: false, legs: 1 }, cy: { right: true, legs: 2 }, di: { right: false, legs: 1 } });
+  assert.deepEqual(obj(g.earned.get("ticket|2")), { ann: 10, bo: -5 });
+  assert.equal(g.verdicts.get("ticket|3").state, "waiting");
+  assert.deepEqual(obj(g.earned.get("ticket|3")), {});
+  // The bank, the legs' own points and the tickets: ann 100 + 3 + 70 + 1 (the idol, Episode 2) + 10 = 184; bo 100 + 1 - 20 - 5 = 76;
+  // cy 100 + 2 + 15 = 117; di 100 + 1 - 10 = 91.
+  assert.deepEqual(obj(g.points), { ann: 184, bo: 76, cy: 117, di: 91 });
+  // Right as the reads have it: won, lost, or none of its legs counted.
+  assert.equal(G.isRight(G.fullQuestion(TICKET), g.verdicts.get("ticket|1"), { playerId: "ann" }, []), true);
+  assert.equal(G.isRight(G.fullQuestion(TICKET), g.verdicts.get("ticket|1"), { playerId: "bo" }, []), false);
+  // Every leg that doesn't count: the stake back. A pays list of its own: 2 for two right.
+  const q = G.fullQuestion({ ...TICKET, pays: [2, 5] });
+  const off = { state: "off", why: "Nobody went home" };
+  const v = G.ticketVerdict(q, [{ q: G.fullQuestion(LEG_BOOT), v: off, answers: [] }, { q: G.fullQuestion(LEG_IDOL), v: off, answers: [] }], [{ playerId: "ann", answer: { legs: ["boot", "idol"], stake: 10 } }]);
+  assert.deepEqual(v.tickets, { ann: { right: null, legs: 0 } });
+  assert.deepEqual(obj(G.windowPoints(q, v, [{ playerId: "ann", answer: { legs: ["boot", "idol"], stake: 10 } }])), {});
+  // A push (an over/under right on its line) drops out, as a leg that's off.
+  const OU = G.fullQuestion({ id: "ou", ask: "Idols found: over or under 1?", answer: "overUnder", line: 1, points: 1, asked: "each", settle: { by: "moment", moment: "idolFound", take: "count" } });
+  const push = { state: "known", right: [], value: 1 };
+  const idolRight = { state: "known", right: ["yes"] };
+  const pv = G.ticketVerdict(G.fullQuestion({ ...TICKET, settle: { by: "legs", of: ["ou", "idol"] } }), [{ q: OU, v: push, answers: [{ playerId: "ann", answer: "over" }] }, { q: G.fullQuestion(LEG_IDOL), v: idolRight, answers: [{ playerId: "ann", answer: "yes" }] }], [{ playerId: "ann", answer: { legs: ["ou", "idol"], stake: 10 } }]);
+  assert.deepEqual(pv.tickets, { ann: { right: true, legs: 1 } });
+  const won = { state: "known", right: [], tickets: { ann: { right: true, legs: 2 } } };
+  assert.deepEqual(obj(G.windowPoints(q, won, [{ playerId: "ann", answer: { legs: ["boot", "idol"], stake: 10 } }])), { ann: 20 });
+});
+
+test("the blind replays build a ticket from the answers a seat gives with it", () => {
+  const B = require("../scripts/dev-test/blind.js");
+  const q = { id: "ticket", answer: "ticket", wager: "total", stakeMost: 50, ticket: { of: ["boot", "imm", "idol"], min: 2, max: 3, pays: [3, 7] } };
+  assert.deepEqual(B.ticketFor(q, { boot: "c1", idol: { answer: "yes", stake: 2 } }), { legs: ["boot", "idol"], stake: 2 });
+  assert.equal(B.ticketFor(q, { boot: "c1" }), undefined, "fewer than it takes: none");
+  assert.deepEqual(B.ticketFor({ ...q, stakeMost: 0 }, { boot: "c1", imm: "c2", idol: "no" }), { legs: ["boot", "imm", "idol"], stake: 0 });
+  // Stakes drawn from one bank fit what's left of it together: 3 left, 2 on each of three, so 2, 1 and 0.
+  const body = { boot: { answer: "c1", stake: 2 }, idol: { answer: "no", stake: 2 }, ticket: { legs: ["boot", "idol"], stake: 2 }, imm: "c2" };
+  B.fitStakes([{ id: "boot", stakeMost: 3 }, { id: "idol", stakeMost: 3 }, { id: "ticket", stakeMost: 3 }, { id: "imm", stakeMost: null }], body);
+  assert.deepEqual([body.boot.stake, body.idol.stake, body.ticket.stake, body.imm], [2, 1, 0, "c2"]);
+});

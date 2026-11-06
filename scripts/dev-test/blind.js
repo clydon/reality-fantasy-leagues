@@ -261,11 +261,32 @@ function answerFor(seat, q, n) {
     value = Object.keys(out).length ? out : undefined;
   } else value = base(q.answer);
   if (value === undefined) return undefined;
-  if (q.wager) {
-    const most = q.wager === "total" ? q.stakeMost ?? 0 : q.wager;
-    return { answer: value, stake: Math.max(0, Math.min(2, Number(most) || 0)) };
-  }
+  if (q.wager) return { answer: value, stake: stakeFor(q) };
   return value;
+}
+/** A little of what a seat can stake on a question (2 at most): its most now when the read says it (any of your points, or a bank's:
+ *  C6), else the wager. */
+const stakeFor = (q) => Math.max(0, Math.min(2, Number(q.stakeMost != null ? q.stakeMost : q.wager === "total" ? 0 : q.wager) || 0));
+/** C6 part 2: a seat's ticket, built from the answers it's giving (`body`): the ticket's questions it answered, as many as it takes,
+ *  with a little staked; undefined when it answered fewer than the ticket's least. Pure. */
+function ticketFor(q, body) {
+  const t = q.ticket;
+  if (!t) return undefined;
+  const legs = t.of.filter((id) => id in body).slice(0, t.max);
+  return legs.length >= t.min ? { legs, stake: stakeFor(q) } : undefined;
+}
+/** C6: a body's stakes drawn from one bank (each read's most, `stakeMost`), cut so together they fit the least of them, in the order
+ *  they come (each read's most is the bank as it stands less what's riding elsewhere, so the least is what's left for all of them).
+ *  In place. Pure. */
+function fitStakes(open, body) {
+  const drawn = open.filter((q) => q.stakeMost != null && body[q.id] && typeof body[q.id] === "object" && "stake" in body[q.id]);
+  if (!drawn.length) return;
+  let room = Math.min(...drawn.map((q) => Number(q.stakeMost) || 0));
+  for (const q of drawn) {
+    const stake = Math.max(0, Math.min(body[q.id].stake, room));
+    body[q.id] = { ...body[q.id], stake };
+    room -= stake;
+  }
 }
 
 /** Whether a seat answers this week (its habit's share of weeks, as playtest.js's lineups and picks; the runner always). */
@@ -562,6 +583,12 @@ async function answerAll(r, n) {
       const v = answerFor(seat, q, n);
       if (v !== undefined) body[q.id] = v;
     }
+    // C6 part 2: a ticket, from the answers given with it.
+    for (const q of open) {
+      const v = q.answer === "ticket" ? ticketFor(q, body) : undefined;
+      if (v !== undefined) body[q.id] = v;
+    }
+    fitStakes(open, body);
     if (!Object.keys(body).length) continue;
     try {
       await answers.answerQuestions(user, r.seasonId, r.leagueId, { episode: n, answers: body });
@@ -1238,7 +1265,7 @@ async function main() {
   console.log("Usage: node scripts/dev-test/blind.js run|games|sections|summary|down [<show> <season>] (see the header comment)");
 }
 
-module.exports = { SEASONS, howIn, standIn, sectionFor, fixtureQuick, blindFull, answerFor, answersThisWeek, problemsOf, didLine, markdown };
+module.exports = { SEASONS, howIn, standIn, sectionFor, fixtureQuick, blindFull, answerFor, ticketFor, fitStakes, answersThisWeek, problemsOf, didLine, markdown };
 
 if (require.main === module) {
   main()
