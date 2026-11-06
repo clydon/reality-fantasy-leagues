@@ -6517,6 +6517,12 @@ A14 part 2 and before A14's other parts; every part keeps every golden and blind
     every line the same words (now each says its moment); the card's lines were worked out for every moment of every seat (now once
     an episode); one count of a card question's lines (`questionLines`) where four copies differed; one moment-words helper; an
     unused parameter.
+  - **The long checks, once for C7 part 1, on `f434ea44`:** the golden replays (`--before=master`): seven seasons, 160 games, 19,361
+    reads, every one the same; the blind replays (`blind.js run`): every game played through and over on all five seasons, Survivor
+    49 156 (one more: p10), The Challenge 39 123, 40 115, 41 121 and The Traitors 4 110 (p12's game now draws its card), nothing
+    refused, the seven games of questions on The Challenge's seasons still noting their wait on early results (playtest finding 20),
+    none of them C7's; the Survivor 51 rehearsal (`--scenario=realistic,rough,dst --before=master`): every invariant holds in all
+    three scenarios, flag off and on the same, master's engine against this tree's the same (2,856 reads each).
 
 The three games (the user, 2026-11-05), each a request in the tracker:
 1. "For show X, have a starting bank of 500 units, have a prediction sheet generated each week that players can wager on,
