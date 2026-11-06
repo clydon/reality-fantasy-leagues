@@ -1,22 +1,28 @@
 import { allSports, sportOf, TeamSport } from "@/lib/sports";
 import { MAX_GAMES, MAX_SEASON, leagueName, matchupKey, matchupName, seasonKey } from "@/lib/sports/matchup";
-import { FITS, findTeams, scheduleOf, seasonName, teamHit, type MatchupHit, type ScheduleGame, type Series, type TeamHit, type TeamList } from "@/lib/sports/teams";
+import type { Cadence, SlateStage } from "@/lib/sports/slate";
+import { FITS, findLeagues, findTeams, scheduleOf, seasonName, teamHit, teamScore, wordsOf, type LeagueHit, type MatchupHit, type ScheduleGame, type Series, type TeamHit, type TeamList } from "@/lib/sports/teams";
 import { NEW_SHOWS_A_DAY } from "../add-show";
 import { HttpError, pool } from "../db";
 import { setFollow } from "../follows";
 import { sportsProviders } from "./index";
 import { matchupSeason } from "./matchup";
+import { makeSlate, SlateRefused, type Slate } from "./slate";
 import { SportsUnavailable, type SportsEvent, type SportsProvider } from "./types";
 
 // Finding a game (docs/PLAN-start-a-game-gpt.md track L, L7; docs/PLAN-sports-add.md): the data the screens read to add sports by
-// team (U0, U1 build them; no screen here), through /api/sports/search, /api/sports/schedule and /api/sports/add.
+// team or by league (U0, U1 build them; no screen here), through /api/sports/search, /api/sports/schedule, /api/sports/league
+// and /api/sports/add.
 //   searchTeams    the teams some words name, matched here against each league's team list (the provider's, a week in the
 //                  cache: names, nicknames, cities, abbreviations, logos, colours), and two teams of one league in any order as a
-//                  matchup; ESPN's own search when the lists find no one ("sixers"); each of the first few with its next game.
+//                  matchup, and the leagues they name (L8 part 2: by the lists' names for them); ESPN's own search when the lists
+//                  find no one ("sixers", "Premier League"); each of the first few teams with its next game.
 //   teamSchedule   a team's season, past and coming (its regular season and its postseason, as the provider lists them), its
 //                  series, its meetings with one opponent, and what adding each makes, with the season already made for it.
 //   addGames       one game, a few (a series, their meetings: up to 30) or a team's regular season (up to 200), made (or found)
 //                  as their matchup's season (matchup.ts matchupSeason: shared by everyone who adds the same games) and followed.
+//   addSlate       a league's slate (L8 part 2: slate.ts makeSlate; what it can be is slate.ts leagueSlates), made or found and
+//                  followed, under the same day's cap.
 // Nothing here knows a league: the leagues searched are the ones the app's sports read (each sport's own leagues), and any
 // league a matchup's been made for (a soccer league found through ESPN's search, say).
 
@@ -65,46 +71,75 @@ async function listsOf(p: SportsProvider, leagues: string[], share: boolean): Pr
 /** A game coming up, as a search row shows it ("Next: Fri vs Red Sox"). */
 export type NextGame = Pick<ScheduleGame, "id" | "at" | "home" | "opponent" | "state">;
 
+/** A league found (L8 part 2): `slate` when a season of its whole league's games can be made of it (a team sport's: GET
+ *  /api/sports/league says how); a tour's or a promotion's (golf's, F1's, the UFC's) is an event an episode, not a slate. */
+export type FoundLeague = LeagueHit & { slate: boolean };
+
 export interface FoundTeams {
   teams: (TeamHit & { next: NextGame | null })[];
   matchup: (MatchupHit & { next: NextGame | null }) | null;
+  leagues: FoundLeague[];
 }
 
+const foundLeague = (h: LeagueHit): FoundLeague => ({ ...h, slate: sportOf(h.league) instanceof TeamSport });
+
 /**
- * The teams `text` names (findTeams on every league's list), and their matchup when it names two; ESPN's own search when the lists
- * find no one, for a team sport's league (ESPN's names the lists don't have: "sixers"; a soccer club). The first `next` teams (3)
- * and the matchup each with their next game (their next meeting), from their schedules (each cached half a day). `leagues` and
- * `providers` are for checks (a check's stand-in ESPN, its leagues); `prefix` reads a check's own matchups' leagues.
+ * The teams `text` names (findTeams on every league's list), and their matchup when it names two, and the leagues it names (by the
+ * lists' names for them: "NFL", "national football"); ESPN's own search when the lists find no team and no league, for a team
+ * sport's teams (ESPN's names the lists don't have: "sixers"; a soccer club) and any sport's leagues ("Premier League", "MLS",
+ * "Formula 1"). The first `next` teams (3) and the matchup each with their next game (their next meeting), from their schedules
+ * (each cached half a day). `leagues` and `providers` are for checks (a check's stand-in ESPN, its leagues); `prefix` reads a
+ * check's own matchups' and slates' leagues.
  */
 export async function searchTeams(text: string, opts: { providers?: SportsProvider[]; leagues?: string[]; next?: number; prefix?: string } = {}): Promise<FoundTeams> {
   const p = (opts.providers ?? sportsProviders())[0];
-  if (!p) return { teams: [], matchup: null };
+  if (!p) return { teams: [], matchup: null, leagues: [] };
   const leagues = opts.leagues ?? [...new Set([...teamLeagues(), ...(await madeLeagues(p.id, opts.prefix ?? ""))])];
   const lists = await listsOf(p, leagues, !opts.providers);
   const found = findTeams(lists, text);
-  const teams = found.teams.length || found.matchup ? found.teams : await searched(p, text, lists);
+  const named = findLeagues(lists, text);
+  const espn = found.teams.length || found.matchup || named.length ? null : await searched(p, text, lists);
+  const teams = espn?.teams ?? found.teams;
   const n = opts.next ?? 3;
   return {
     teams: await Promise.all(teams.map(async (t, i) => ({ ...t, next: i < n ? await nextGame(p, t.league, t.id) : null }))),
     matchup: found.matchup ? { ...found.matchup, next: await nextGame(p, found.matchup.league, found.matchup.teams[0].id, found.matchup.teams[1].id) } : null,
+    leagues: (espn?.leagues ?? named).map(foundLeague),
   };
 }
 
-/** ESPN's search's teams, in a team sport's league, each from its league's list when there is one (its logo and colour). */
-async function searched(p: SportsProvider, text: string, lists: TeamList[]): Promise<TeamHit[]> {
+/**
+ * ESPN's search's teams, in a team sport's league, each from its league's list when there is one (its logo and colour), and its
+ * leagues of a sport the app reads (5 of each at most), a team sport's named as its list names it ("Premier League", "MLS"). A team
+ * of a league it found is left out unless the words fit it (ESPN's "premier league" lists the league's clubs besides; "mls" the
+ * Whitecaps); a name only ESPN knows ("sixers") is kept whatever leagues it finds besides.
+ */
+async function searched(p: SportsProvider, text: string, lists: TeamList[]): Promise<{ teams: TeamHit[]; leagues: LeagueHit[] }> {
   let found: Awaited<ReturnType<SportsProvider["find"]>> = [];
   try {
     found = await p.find(text);
   } catch (e) {
     if (!(e instanceof SportsUnavailable)) throw e;
   }
-  const out: TeamHit[] = [];
-  for (const f of found.filter((x) => x.kind === "team" && sportOf(x.league) instanceof TeamSport).slice(0, 5)) {
-    const list = lists.find((l) => l.league === f.league) ?? (await listOf(p, f.league));
-    const t = list?.teams.find((x) => x.id === f.id);
-    out.push(teamHit(list ?? { league: f.league, name: null, teams: [] }, t ?? { id: f.id, name: f.name }, FITS));
+  const leagueHits = found.filter((x, i) => x.kind === "league" && sportOf(x.league) && found.findIndex((y) => y.kind === "league" && y.league === x.league) === i).slice(0, 5);
+  const teamHits = found.filter((x) => x.kind === "team" && sportOf(x.league) instanceof TeamSport).slice(0, 5);
+  // Each league's list read once, at once (a team sport's: a week in the cache).
+  const wanted = [...new Set([...leagueHits, ...teamHits].map((f) => f.league))].filter((l) => !lists.some((x) => x.league === l) && sportOf(l) instanceof TeamSport);
+  const read = new Map(await Promise.all(wanted.map(async (l) => [l, await listOf(p, l)] as const)));
+  const listFor = (league: string) => lists.find((l) => l.league === league) ?? read.get(league) ?? null;
+  const leagues: LeagueHit[] = leagueHits.map((f) => {
+    const list = listFor(f.league);
+    return { league: f.league, leagueName: leagueName(f.league, list?.name ?? { name: f.name, short: null }), name: list?.name?.name ?? f.name, score: FITS };
+  });
+  const typed = wordsOf(text);
+  const teams: TeamHit[] = [];
+  for (const f of teamHits) {
+    const list = listFor(f.league);
+    const t = list?.teams.find((x) => x.id === f.id) ?? { id: f.id, name: f.name };
+    if (leagues.some((l) => l.league === f.league) && teamScore(typed, t) < FITS) continue;
+    teams.push(teamHit(list ?? { league: f.league, name: null, teams: [] }, t, FITS));
   }
-  return out;
+  return { teams, leagues };
 }
 
 /** A team's next game (against `against`, if given), or null: none listed, or the provider not answering. */
@@ -264,8 +299,18 @@ export interface Added {
   games: string[];
 }
 
-/** Matchups one person can make a day (finding one already made is free), as many as new shows (add-show.ts). */
+/** Matchups and slates one person can make a day (finding one already made is free), as many as new shows (add-show.ts). */
 export const MATCHUPS_A_DAY = NEW_SHOWS_A_DAY;
+
+/** 429 once `userId` has made the day's matchups and slates (one count for both: each is a season made). */
+async function underCap(userId: string): Promise<void> {
+  const { rows } = await pool.query(
+    `SELECT (SELECT count(*) FROM sports_matchups WHERE made_by = $1 AND made_at > now() - interval '1 day')
+          + (SELECT count(*) FROM sports_slates WHERE made_by = $1 AND made_at > now() - interval '1 day') AS n`,
+    [userId]
+  );
+  if (Number(rows[0].n) >= MATCHUPS_A_DAY) throw new HttpError(429, `You've added ${MATCHUPS_A_DAY} new games today. Try again tomorrow.`);
+}
 
 /**
  * Add a team's games: made (or found) as their matchup's season, and followed by `userId` (no one in a check that says null).
@@ -314,11 +359,63 @@ export async function addGames(
   if (!picked.length) throw new HttpError(404, "No games to add");
   const prefix = opts.prefix ?? "";
   const found = await pool.query("SELECT 1 FROM sports_matchups WHERE key = $1", [`${prefix}${key ?? matchupKey(p.id, ask.league, picked.map((g) => g.id))}`]);
-  if (!found.rows.length && userId) {
-    const { rows } = await pool.query("SELECT count(*)::int AS n FROM sports_matchups WHERE made_by = $1 AND made_at > now() - interval '1 day'", [userId]);
-    if (rows[0].n >= MATCHUPS_A_DAY) throw new HttpError(429, `You've added ${MATCHUPS_A_DAY} new games today. Try again tomorrow.`);
-  }
+  if (!found.rows.length && userId) await underCap(userId);
   const m = await matchupSeason(p, ask.league, picked, { name, key, pastLines: false, userId, providers: opts.providers, now: opts.now, prefix, cast: opts.cast });
   if (userId) await setFollow(userId, m.seasonId, { following: true });
   return { seasonId: m.seasonId, made: m.made, name: m.name, games: m.games };
+}
+
+/** A league's path as asked ("football/nfl"; ESPN's are lower case, so "Football/NFL" is the same), or null for one that isn't. */
+export function leaguePath(raw: unknown): string | null {
+  if (typeof raw !== "string" || raw.length > 80) return null;
+  const league = raw.toLowerCase();
+  return /^[a-z0-9-]+\/[a-z0-9.-]+$/.test(league) ? league : null;
+}
+
+/** A league's slate to add (L8 part 2): `stage` the regular season unless its calendar's in the playoffs, `cadence` its usual
+ *  (GET /api/sports/league says which it can be). */
+export interface SlateAsk {
+  league: string;
+  slate: { stage?: SlateStage; cadence?: Cadence };
+}
+
+export type AddedSlate = Pick<Slate, "seasonId" | "made" | "name" | "league" | "stage" | "cadence" | "episodes" | "games">;
+
+/**
+ * Add a league's slate: made (or found: everyone who asks for the same league, season, stage and cadence shares one; slate.ts
+ * makeSlate) and followed by `userId` (no one in a check that says null). 400 for an ask that isn't one, a tour's league (an event
+ * an episode, not a slate) or a slate it can't be (a cadence the league isn't cut by, a stage not listed yet: SlateRefused's
+ * words); 404 for a league the provider has no season for; 429 past the day's cap, counted with matchups (finding one is free);
+ * 503 when the provider doesn't answer.
+ */
+export async function addSlate(userId: string | null, ask: SlateAsk, opts: { providers?: SportsProvider[]; prefix?: string; now?: Date; cast?: boolean } = {}): Promise<AddedSlate> {
+  const slate = ask && typeof ask === "object" ? ask.slate : undefined;
+  const league = ask && typeof ask === "object" ? leaguePath(ask.league) : null;
+  if (!league || !slate || typeof slate !== "object" || Array.isArray(slate)) throw new HttpError(400, "Say which league: { league, slate: {} }");
+  if (slate.stage !== undefined && slate.stage !== "regular" && slate.stage !== "post") throw new HttpError(400, "stage is regular or post");
+  if (slate.cadence !== undefined && slate.cadence !== "day" && slate.cadence !== "week" && slate.cadence !== "round") throw new HttpError(400, "cadence is day, week or round");
+  const sport = sportOf(league);
+  if (sport && !(sport instanceof TeamSport)) throw new HttpError(400, "Its season is an event an episode, not a slate");
+  let made: Slate | null;
+  try {
+    made = await makeSlate({
+      league,
+      stage: slate.stage,
+      cadence: slate.cadence,
+      userId,
+      providers: opts.providers,
+      now: opts.now,
+      prefix: opts.prefix,
+      cast: opts.cast,
+      beforeMake: userId ? () => underCap(userId) : undefined,
+    });
+  } catch (e) {
+    if (e instanceof SlateRefused) throw new HttpError(400, e.message);
+    if (e instanceof SportsUnavailable) throw new HttpError(503, "Sports aren't available right now");
+    throw e;
+  }
+  if (!made) throw new HttpError(404, "No such league");
+  if (userId) await setFollow(userId, made.seasonId, { following: true });
+  const { seasonId, name, stage, cadence, episodes, games } = made;
+  return { seasonId, made: made.made, name, league: made.league, stage, cadence, episodes, games };
 }

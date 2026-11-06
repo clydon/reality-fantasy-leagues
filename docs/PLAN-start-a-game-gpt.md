@@ -1164,8 +1164,9 @@ engine track; L brings each sport's data to it. Its screens wait for the UI trac
     the cast reading several an episode; `leagueGames` keeping each game apart: built 2026-11-06, As built below); part 2, finding one
     by the league's name beside L7's teams (ESPN's search's leagues and the team sports' own), what each league's slate can be (its
     stages and cadences, each named, with the season already made for it) and adding one, as routes the screens can read
-    (`/api/sports/search`'s leagues, a league's slates, `/api/sports/add`'s slate), with check-find-game.js's cases. A tour's season
-    (golf's, F1's: an event an episode) is its Noticed, not a part.
+    (`/api/sports/search`'s leagues, a league's slates, `/api/sports/add`'s slate), with check-find-game.js's cases (built
+    2026-11-06, As built below: the cases went into check-slate.js). A tour's season (golf's, F1's: an event an episode) is its
+    Noticed, not a part.
 - **L6. Release:** `sports` merges into master at once (migrations checked against a production backup first), then G3
   teaches the GPT these formats.
 - Its screens (the scorebug, the live box score, the couch's play feed, players organised, the matchup, sync, each format's
@@ -3863,6 +3864,64 @@ A season made of a whole league's games, several an episode, shared by everyone 
   lines go to nobody. Matched by name already (L3 part 1's Noticed); a slate's whole league makes it likelier. (When the cast carries
   the provider's id: R2 or U1.)
 - **The NBA's play-in** (its own stage, 5) is in neither slate: a playoffs slate starts at the first round.
+
+**L8 part 2 as built: finding and adding a league's slate (2026-11-06, `sports`, not merged; no migration; a new route, no new kind
+of ESPN call: HOSTING.md).** The data side of adding a whole league by its name, as routes the screens can read (U0, U1: no screen).
+- **A league by its name** (`src/lib/sports/teams.ts` findLeagues, pure): the leagues some words name, by the names their team lists
+  already give (ESPN's full name, its short one, its show's name and its path's words), on teamScore's rules: "nfl" and "NBA" (their
+  abbreviations, 100), "premier league" (its short name, 96: once a list of it is searched), "national football" (85), "football"
+  (the NFL and college football, 70), "ncaaf", "mens college basketball"; a team's name names none ("eagles", "yankees red sox").
+- **The search** (`find.ts` searchTeams; `/api/sports/search` answers `{ teams, matchup, leagues }`): the lists' leagues beside their
+  teams, at no cost (the lists are read anyway); ESPN's own search when the lists find no team and no league, now for its leagues
+  too (of a sport the app reads: a cricket league is left out), a team sport's named as its list names it (a `/teams` call a league
+  found, a week in the cache; the lists read at once): "premier league" is the Premier League (`soccer/eng.1`, "Premier League"), the
+  Premier League Asia Trophy, the Welsh Premier League, the Scottish Premiership and the Jamaican; "mls" MLS; "f1" Formula 1. Each
+  says `slate`: a team sport's league can be one, a tour's or a promotion's (Formula 1, the PGA Tour, the UFC) can't. ESPN's
+  search lists a league's clubs beside it ("premier league": Manchester United, Liverpool ...; "mls": the Whitecaps): a team of a
+  league it found is left out unless the words fit it, so a name only ESPN knows ("sixers") is kept whatever leagues it finds.
+- **What a league's slate can be** (`slate.ts` leagueSlates; `GET /api/sports/league?league=`, new, open signed out, edge-cached ten
+  minutes, a minute when a count is missing): its season now (ESPN's year and as people say it, "2026-27"), what an add that names
+  nothing makes (`usual`: the playoffs while the calendar's in them, else the regular season, by its usual cadence), and its stages
+  (the regular season or a soccer league's whole season, the playoffs), each with its days, whether they're past, now or coming, and
+  each way it's cut (`cadencesOf`, the usual first), named as its season would be (or is), with its episodes (as many as it has,
+  made; else as many as it would have: 0 when the stage lists none yet, so an add is refused; null when the provider didn't answer
+  for a round's fixtures) and the season made for it. A soccer league's rounds are counted from its fixtures (the month scoreboards a
+  round slate reads anyway, at once), only while its round slate isn't made. A tour's or a promotion's league: `slate: false`, no
+  stages; no such league 404, a path that isn't one 400, the provider down 503. On the real ESPN (2026-11-06): the NFL's 2026 by week,
+  18, and its playoffs' 4; the NBA's 2026-27, 25 weeks or 160 days, its playoffs 0 yet (ESPN's days don't list them in November); the
+  Premier League's 2026-27, 38 rounds or 77 days.
+- **Adding one** (`find.ts` addSlate; `POST /api/sports/add` with `{ league, slate: { stage?, cadence? } }`, signed in): made or found
+  through makeSlate (its new `beforeMake`, run only when it isn't made: the day's cap, so finding one is free) and followed; answers `{
+  seasonId, made, name, league, stage, cadence, episodes, games }` (`games` linked so far). The day's cap is one count for matchups and
+  slates (`underCap`: ten a person a day, `sports_matchups.made_by` and `sports_slates.made_by` both). 400 for an ask that isn't one, a
+  stage or cadence that isn't one, a tour's league ("Its season is an event an episode, not a slate"), and SlateRefused's words (a
+  cadence the league isn't cut by, a stage not listed yet, none listed); 404 for no such league; 429 past the cap; 503 for the
+  provider down. A league spelled in capitals is the same league (`leaguePath`, shared by the route and the add).
+- **Checks:** `tests/sports-find.test.js` (11: findLeagues on the real lists and the Premier League's; ESPN's search's leagues and
+  teams as its answers read on 2026-11-06, a stand-in provider); `scripts/dev-test/check-slate.js` (now 55; its user `zt-slate-user`):
+  what a league's slate can be before any's made (its season, its stages and days, each cut each way with its episodes, the playoffs'
+  from ESPN's days, a soccer league's rounds from its fixtures read a month at a time), a tour's league no slate, no such league none;
+  a league by its list's names (ESPN's search not asked), through ESPN's search named as its list names it, a promotion's no slate;
+  once made, the seasons made for them and the playoffs' grown; adding (one made found and followed, a new one made by them and
+  followed, a league in capitals, the asks refused, the day's cap counted with matchups, one made still free past it).
+  `/code-review` on the diff (its fixes: a found league's own clubs left out, never a nickname's team; a degraded answer kept a minute
+  at the edge; a made slate's own name, and a league named from its fixtures as makeSlate names it; the months and the lists read at
+  once; 503, not 404, with no sports; one league-path check; the add route's body read as unknown). `check-find-game.js`,
+  `check-matchup.js`, `check-finals.js`, `check-sports-links.js` and `check-live-event.js` (6 of 6) pass. 1,798 unit tests, the one
+  round-trip failure aside (master's, as before); `tsc` clean; eslint clean on src/lib/sports, src/lib/server/sports,
+  src/lib/game/sequence and src/app/api/sports. The routes read right on this lane's dev server against the real ESPN.
+
+**L8 part 2 noticed, not fixed:**
+- **The day's cap is soft**: counted before a slate is made, outside the transaction that makes it (as add-show's and the matchups'
+  are), so a person's adds sent at the same moment can each pass it. A lock per person if it's ever abused.
+- **A promotion's league isn't checked to exist**: mixed martial arts reads every league, so `/api/sports/league?league=mma/anything`
+  answers `slate: false` (200), where a team sport's unknown league is a 404. Harmless (nothing to add); a call to know would cost
+  ESPN one for nothing.
+- **ESPN's search's leagues include cups, preseason tournaments and lower leagues** (the Premier League Asia Trophy, the Jamaican
+  Premier League): each a team sport's, so `slate: true`, their calendars untried. A cup's knockout rounds by "round" would read
+  each team once a round as a league's do; a cup made of groups and knockouts may want its stages (U1, if a couch asks).
+- **The NBA's playoffs list 0 episodes until ESPN's day calendar has them** (in November it doesn't): an add is refused ("It has no
+  games listed yet") until it does. The screens can say "Playoffs: coming" from `episodes: 0`.
 
 **Open, from the sports plan:** head-to-head's schedule over a span, and playoffs; whether a sport's moves follow Weekly
 Lineup's waivers or need their own rhythm for daily sports; what a live call is worth, and how fast they open and close;

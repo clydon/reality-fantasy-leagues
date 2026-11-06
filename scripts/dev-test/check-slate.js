@@ -15,8 +15,14 @@
 //   leagueGames on an episode of two final games: each game's facts and lines apart, the episode's added up, every episode of a
 //   slate in its shape (one of one game too);
 //   a soccer league ("soccer/zt-slate") by round: its fixtures read month by month, each team once a round, all linked at once.
+// And finding and adding one (L8 part 2: slate.ts leagueSlates, find.ts searchTeams' leagues and addSlate): what a league's slate
+// can be (its season, its stages, each cut each way with its episodes; a soccer league's rounds from its fixtures; the seasons made
+// for them once made, the playoffs' grown); a tour's league no slate; no such league none; a league found by its list's names
+// ("nba"), and through ESPN's search ("zt slate league"), a promotion's with no slate; adding one through addSlate (one made found
+// and followed, a new one made and followed, a league in capitals, the asks refused: a cadence it isn't cut by, a stage or cadence
+// that isn't one, no slate, a tour's, no such league), the day's cap counted with matchups (the next refused, one made still free).
 // Every row it makes is keyed "zt-slate-" (the shows' slugs and sports_league; seasons, episodes, links and slates go with the
-// shows), its events "zt-sl-*", its cache rows "zt-slate-standin:"; it removes them at the end (--keep leaves them; the next run
+// shows), its events "zt-sl-*", its cache rows "zt-slate-standin:", its user "zt-slate-user"; it removes them at the end (--keep leaves them; the next run
 // removes them first). Refuses a non-local database. Prints PASS/FAIL. Don't run it beside check-matchup.js (that one clears
 // every "zt-" league show).
 //
@@ -33,9 +39,12 @@ const DAY = 24 * 3600_000;
 const NBA = "basketball/nba";
 const SOCCER = "soccer/zt-slate";
 const PREFIX = "zt-slate-";
+const USER = "zt-slate-user";
+const CARD = "mma/zt-slate-card";
 
 const { pool } = jiti("../../src/lib/server/db.ts");
-const { makeSlate, syncSlate, SlateRefused } = jiti("../../src/lib/server/sports/slate.ts");
+const { makeSlate, syncSlate, leagueSlates, SlateRefused } = jiti("../../src/lib/server/sports/slate.ts");
+const { searchTeams, addSlate, MATCHUPS_A_DAY } = jiti("../../src/lib/server/sports/find.ts");
 const { refreshSportsEvents } = jiti("../../src/lib/server/sports/matchup.ts");
 const { linkSeason } = jiti("../../src/lib/server/sports/link.ts");
 const { statsFromEvents } = jiti("../../src/lib/server/sports/stats.ts");
@@ -49,13 +58,16 @@ function check(ok, what, detail = "") {
   console.log(`${ok ? "PASS" : "FAIL"}  ${what}${!ok && detail ? `  (${detail})` : ""}`);
   if (!ok) failures++;
 }
+/** The HTTP status an add is refused with, or "ok". */
+const status = (p) => p.then(() => "ok", (e) => e.status ?? e.message);
 const refusedWith = (p) => p.then(() => "ok", (e) => (e instanceof SlateRefused ? `refused: ${e.message}` : `threw: ${e.message}`));
 
 async function down() {
   const shows = await pool.query("DELETE FROM shows WHERE sports_league LIKE $1 OR slug LIKE $1", [`${PREFIX}%`]);
   const events = await pool.query("DELETE FROM sports_events WHERE event_id LIKE 'zt-sl-%'");
   const cache = await pool.query("DELETE FROM sports_cache WHERE key LIKE $1", [`${PREFIX}standin:%`]);
-  return shows.rowCount + events.rowCount + cache.rowCount;
+  const user = await pool.query(`DELETE FROM "user" WHERE id = $1`, [USER]);
+  return shows.rowCount + events.rowCount + cache.rowCount + user.rowCount;
 }
 /** The stand-in's answers asked again (the cache keeps a day's scoreboard an hour). */
 const forget = () => pool.query("DELETE FROM sports_cache WHERE key LIKE $1", [`${PREFIX}standin:%`]);
@@ -63,6 +75,7 @@ const forget = () => pool.query("DELETE FROM sports_cache WHERE key LIKE $1", [`
 (async () => {
   const gone = await down();
   if (gone) console.log(`(removed ${gone} rows a run before left)`);
+  await pool.query(`INSERT INTO "user" (id, name, email, "emailVerified", username, "displayUsername", role, "createdAt", "updatedAt") VALUES ($1, $1, $2, true, $1, $1, 'user', now(), now())`, [USER, `${USER}@example.invalid`]);
   const now = new Date();
   const today = easternDay(now);
   const day = (n) => easternDay(now, n);
@@ -106,13 +119,48 @@ const forget = () => pool.query("DELETE FROM sports_cache WHERE key LIKE $1", [`
   // The soccer league: two rounds of two, then a third with a match moved a day.
   const fixture = (id, n, h, a) => ({ league: SOCCER, id: `zt-sl-${id}`, at: at(n), home: `zt-sl-f${h}`, away: `zt-sl-f${a}`, state: n < 0 ? "post" : "pre", season: 2026, ...(n < 0 ? { score: [1, 0] } : {}) });
   events.push(fixture("s1", -6, 1, 2), fixture("s2", -6, 3, 4), fixture("s3", 1, 1, 3), fixture("s4", 2, 2, 4), fixture("s5", 9, 1, 4), fixture("s6", 9, 2, 3));
-  const espn = await fakeEspn.start({ teams: [...teams, ...fc], leagues: [{ league: SOCCER, name: "ZT Slate League", short: "ZT Slate" }], events, calendars });
+  const espn = await fakeEspn.start({ teams: [...teams, ...fc], leagues: [{ league: SOCCER, name: "ZT Slate League", short: "ZT Slate" }, { league: CARD, name: "ZT Slate Fight Night" }], events, calendars });
   const providers = sportsProviders({ base: espn.url, prefix: `${PREFIX}standin:` });
   const opts = { providers, prefix: PREFIX, now };
   const links = async (id) => (await pool.query("SELECT episode, event_id, starts_at FROM season_events WHERE season_id = $1 ORDER BY episode, event_id", [id])).rows;
   const epOf = async (id, event) => (await pool.query("SELECT episode FROM season_events WHERE season_id = $1 AND event_id = $2", [id, event])).rows[0]?.episode ?? null;
+  const monday = (n) => {
+    const d = new Date(`${day(n)}T12:00:00Z`).getUTCDay();
+    return easternDay(new Date(Date.parse(`${day(n)}T12:00:00Z`) - ((d + 6) % 7) * DAY));
+  };
   const ep = async (id, n) => (await pool.query("SELECT number, air_at, title FROM season_episodes WHERE season_id = $1 AND number = $2", [id, n])).rows[0];
   try {
+    // What a league's slate can be, before any's made.
+    const mondays = new Set(regularDays.map((n) => monday(n))).size;
+    const nba = await leagueSlates(NBA, opts);
+    const reg = nba?.stages.find((x) => x.stage === "regular");
+    const po = nba?.stages.find((x) => x.stage === "post");
+    check(nba?.slate === true && nba.leagueName === "NBA" && nba.season?.year === 2027 && nba.season.words === "2026-27" && nba.usual?.stage === "regular" && nba.usual.cadence === "week", "a league's slates: its season now and what an add makes unless it says", JSON.stringify(nba && { ...nba, stages: undefined }));
+    check(reg?.state === "now" && reg.from === day(-10) && reg.to === day(30) && po?.state === "coming" && po.from === day(31), "its stages, their days, past, now or coming", JSON.stringify([reg && { ...reg, slates: undefined }, po && { ...po, slates: undefined }]));
+    check(
+      JSON.stringify(reg?.slates) === JSON.stringify([{ stage: "regular", cadence: "week", usual: true, name: "NBA 2026-27", episodes: mondays, seasonId: null }, { stage: "regular", cadence: "day", usual: false, name: "NBA 2026-27, day by day", episodes: regularDays.length, seasonId: null }]),
+      "each cut each way, named, its episodes, none made yet",
+      JSON.stringify(reg?.slates)
+    );
+    check(po?.slates.find((x) => x.cadence === "day")?.episodes === 5 && po.slates[0].name === "NBA 2026-27 playoffs", "the playoffs' from ESPN's days", JSON.stringify(po?.slates));
+    const before = espn.asked.length;
+    const soccer = await leagueSlates(SOCCER, opts);
+    check(soccer?.usual?.cadence === "round" && soccer.stages[0]?.slates[0]?.episodes === 3 && soccer.leagueName === "ZT Slate", "a soccer league's rounds counted from its fixtures", JSON.stringify(soccer));
+    check(espn.asked.slice(before).some((a) => /scoreboard\?dates=\d{6}&/.test(a)), "its fixtures read a month at a time");
+    const tour = await leagueSlates("golf/pga", opts);
+    check(tour?.slate === false && tour.stages.length === 0 && tour.usual === null, "a tour's league: no slate", JSON.stringify(tour));
+    check((await leagueSlates("basketball/zt-nothing", opts)) === null && (await leagueSlates("curling/zt-none", opts)) === null, "no such league: none");
+
+    // Found by name.
+    const asked = espn.asked.length;
+    const byList = await searchTeams("nba", { ...opts, leagues: [NBA] });
+    check(byList.leagues.length === 1 && byList.leagues[0].league === NBA && byList.leagues[0].leagueName === "NBA" && byList.leagues[0].slate === true && byList.leagues[0].score === 100, "a league by its list's names", JSON.stringify(byList.leagues));
+    check(!espn.asked.slice(asked).some((a) => a.startsWith("/apis/search/v2")), "ESPN's search not asked when a list names it");
+    const bySearch = await searchTeams("zt slate league", { ...opts, leagues: [NBA] });
+    check(bySearch.leagues.length === 1 && bySearch.leagues[0].league === SOCCER && bySearch.leagues[0].leagueName === "ZT Slate" && bySearch.leagues[0].name === "ZT Slate League" && bySearch.leagues[0].slate && bySearch.teams.length === 0, "a league through ESPN's search, named as its list names it", JSON.stringify(bySearch));
+    const card = await searchTeams("zt slate fight", { ...opts, leagues: [NBA] });
+    check(card.leagues.length === 1 && card.leagues[0].league === CARD && card.leagues[0].slate === false && card.leagues[0].leagueName === "ZT Slate Fight Night", "a promotion's league: found, no slate", JSON.stringify(card.leagues));
+
     // Made by day.
     const s = await makeSlate({ ...opts, league: NBA, cadence: "day" });
     const stageDays = regularDays.length;
@@ -141,10 +189,6 @@ const forget = () => pool.query("DELETE FROM sports_cache WHERE key LIKE $1", [`
 
     // By week, by round, the playoffs.
     const w = await makeSlate({ ...opts, league: NBA });
-    const monday = (n) => {
-      const d = new Date(`${day(n)}T12:00:00Z`).getUTCDay();
-      return easternDay(new Date(Date.parse(`${day(n)}T12:00:00Z`) - ((d + 6) % 7) * DAY));
-    };
     const wk = (await pool.query("SELECT windows FROM sports_slates WHERE season_id = $1", [w?.seasonId])).rows[0]?.windows ?? [];
     check(w?.made && w.cadence === "week" && w.name === "NBA 2026-27" && wk[0]?.[0] === monday(-10) && wk.every(([f, t]) => new Date(`${f}T12:00:00Z`).getUTCDay() === 1 && new Date(`${t}T12:00:00Z`).getUTCDay() === 0), "by week (its usual): its own season, Monday to Sunday", JSON.stringify({ w, first: wk[0] }));
     check((await epOf(w.seasonId, "zt-sl-g1")) === (await epOf(w.seasonId, "zt-sl-g3a")) || monday(-1) !== monday(-2), "a week's games in one episode");
@@ -194,6 +238,33 @@ const forget = () => pool.query("DELETE FROM sports_cache WHERE key LIKE $1", [`
     check(Object.keys(lg?.lines.get(10) ?? {}).length === 4 && lg.lines.get(10)[one]?.PTS === 20, "the episode's lines: its final games' added up", JSON.stringify(lg?.lines.get(10)));
     check(lg?.games.size === 0 && lg.sides.size === 0 && lg.slate.get(14)?.size === 1, "a slate's every episode in `slate` (day 3's one game too: its shape never changes as more are linked); `games` and `sides` none", JSON.stringify({ games: lg?.games.size, g14: lg?.slate.get(14)?.size }));
 
+    // What it can be once made: the seasons made for it, the playoffs' grown.
+    const madeNow = await leagueSlates(NBA, opts);
+    const opt = (stage, cadence) => madeNow?.stages.find((x) => x.stage === stage)?.slates.find((x) => x.cadence === cadence);
+    check(opt("regular", "day")?.seasonId === s.seasonId && opt("regular", "week")?.seasonId === w.seasonId && opt("post", "day")?.seasonId === post.seasonId && opt("post", "day").episodes === 6 && opt("post", "week")?.seasonId === null, "the seasons made for them, the playoffs' grown", JSON.stringify(madeNow?.stages));
+
+    // Added (POST /api/sports/add's slate).
+    const followed = async (id) => (await pool.query("SELECT following FROM show_follows WHERE season_id = $1 AND user_id = $2", [id, USER])).rows[0]?.following === true;
+    const add = (slate, league = NBA) => addSlate(USER, { league, slate }, { providers, prefix: PREFIX, now, cast: false });
+    const found = await add({ cadence: "day" });
+    check(found.made === false && found.seasonId === s.seasonId && found.episodes === stageDays && (await followed(s.seasonId)), "one made: found, and followed", JSON.stringify(found));
+    const pw = await add({ stage: "post", cadence: "week" }, "BASKETBALL/NBA");
+    const by = (await pool.query("SELECT made_by, league FROM sports_slates WHERE season_id = $1", [pw.seasonId])).rows[0];
+    check(pw.made && pw.name === "NBA 2026-27 playoffs" && pw.stage === "post" && pw.cadence === "week" && pw.league === NBA && by?.made_by === USER && by.league === NBA && (await followed(pw.seasonId)), "a new one (a league in capitals): made by them, and followed", JSON.stringify({ pw, by }));
+    check((await status(add({ cadence: "round" }))) === 400, "a cadence it isn't cut by: 400");
+    check((await status(add({ stage: "pre" }))) === 400 && (await status(add({ cadence: "month" }))) === 400, "a stage or cadence that isn't one: 400");
+    check((await status(addSlate(USER, { league: NBA }, opts))) === 400 && (await status(addSlate(USER, null, opts))) === 400 && (await status(add({}, "not a league"))) === 400, "no slate, no ask, no league: 400");
+    check((await status(add({}, "golf/pga"))) === 400, "a tour's league: 400");
+    check((await status(add({}, "basketball/zt-nothing"))) === 404, "no such league: 404");
+    // The day's cap, counted with matchups: theirs so far one slate; matchups made up to the cap.
+    const showId = (await pool.query("SELECT show_id FROM show_seasons WHERE id = $1", [s.seasonId])).rows[0].show_id;
+    await pool.query(
+      `WITH ss AS (INSERT INTO show_seasons (show_id, season_number, name, status) SELECT $1, 900 + g, 'zt cap', 'upcoming' FROM generate_series(1, $2::int) g RETURNING id, season_number)
+       INSERT INTO sports_matchups (season_id, provider, league, events, key, made_by) SELECT id, 'espn', $3, ARRAY['zt-sl-cap'], $4 || season_number, $5 FROM ss`,
+      [showId, MATCHUPS_A_DAY - 1, NBA, `${PREFIX}cap-`, USER]
+    );
+    check((await status(add({}, SOCCER))) === 429, `the day's cap: ${MATCHUPS_A_DAY} made (a slate and matchups), the next refused`);
+
     // A soccer league by round.
     const r = await makeSlate({ ...opts, league: SOCCER });
     const rl = await links(r?.seasonId);
@@ -203,6 +274,8 @@ const forget = () => pool.query("DELETE FROM sports_cache WHERE key LIKE $1", [`
     check([...rounds.values()].map((x) => x.sort().join("+")).join() === "s1+s2,s3+s4,s5+s6", "each team once a round", JSON.stringify([...rounds]));
     check(espn.asked.some((a) => /scoreboard\?dates=\d{6}&/.test(a)), "read a month at a time");
     check(/^refused: It goes by round or day/.test(await refusedWith(makeSlate({ ...opts, league: SOCCER, cadence: "week" }))), "a soccer league by week: refused");
+    const free = await add({}, SOCCER);
+    check(free.made === false && free.seasonId === r.seasonId && (await followed(r.seasonId)), "one made is still added past the cap", JSON.stringify(free));
     check((await makeSlate({ ...opts, league: "basketball/zt-nothing" })) === null, "no such league: none");
   } finally {
     await espn.close();

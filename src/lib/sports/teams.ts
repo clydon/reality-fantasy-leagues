@@ -194,6 +194,38 @@ export function findTeams(lists: TeamList[], text: string, opts: { limit?: numbe
   return { teams: (teams.length ? teams : matchup ? [...matchup.teams] : []).slice(0, limit), matchup };
 }
 
+/** A league found by its names (L8 part 2: a league's slate is added by finding the league). */
+export interface LeagueHit {
+  league: string;
+  /** As its show is named ("NFL", "Premier League", "NCAA Football"). */
+  leagueName: string;
+  /** As the provider names it in full ("National Football League", "English Premier League"), when it said. */
+  name: string | null;
+  score: number;
+}
+
+/** A league's names as a team's are compared: the provider's full name, its short one, its show's and its path's words. */
+function leagueAsTeam(l: TeamList): ListedTeam {
+  const short = l.name?.short ?? null;
+  const also = [leagueName(l.league, l.name), leagueName(l.league), short].filter((x): x is string => !!x);
+  // Its short name is an abbreviation when it's one word ("NFL", "NCAAF"; never "Premier League").
+  return { id: l.league, name: l.name?.name ?? leagueName(l.league), also, abbreviation: short && !/\s/.test(short) ? short : null };
+}
+
+/**
+ * The leagues some words name, by the lists' own names for them (teamScore's rules: "nfl", "premier league", "national football",
+ * "football" fits the NFL and college football both), best first, then the lists' order; `limit` at most (5).
+ */
+export function findLeagues(lists: TeamList[], text: string, opts: { limit?: number } = {}): LeagueHit[] {
+  const typed = wordsOf(text);
+  return lists
+    .map((l, order) => ({ l, order, score: teamScore(typed, leagueAsTeam(l)) }))
+    .filter((x) => x.score >= FITS)
+    .sort((a, b) => b.score - a.score || a.order - b.order)
+    .slice(0, opts.limit ?? 5)
+    .map(({ l, score }) => ({ league: l.league, leagueName: leagueName(l.league, l.name), name: l.name?.name ?? null, score }));
+}
+
 /** One of a team's games, as its schedule shows it: whom against, home or away, and how it went. */
 export interface ScheduleGame {
   id: string;

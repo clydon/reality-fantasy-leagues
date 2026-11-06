@@ -1,7 +1,7 @@
 import { easternDay } from "@/lib/game/tv-listings";
 import * as Air from "@/lib/game/air-schedule.js";
 import { leagueName } from "@/lib/sports/matchup";
-import { cadencesOf, dayOf, episodeFor, episodeLabel, mondayOf, monthsOf, spanWords, slateEpisodes, slateKey, slateName, slateStageOf, stageDays, ZONE, type Cadence, type LeagueCalendar, type SlateEpisode, type SlateGame, type SlateStage } from "@/lib/sports/slate";
+import { cadencesOf, dayOf, episodeFor, episodeLabel, mondayOf, monthsOf, seasonWords, spanWords, slateEpisodes, slateKey, slateName, slateStageOf, stageDays, ZONE, type Cadence, type LeagueCalendar, type SlateEpisode, type SlateGame, type SlateStage } from "@/lib/sports/slate";
 import { TeamSport, sportOf } from "@/lib/sports";
 import { pool } from "../db";
 import { castFromEvents } from "./cast";
@@ -58,11 +58,25 @@ export async function slateChoices(league: string, opts: { providers?: SportsPro
   return null;
 }
 
+/** The stage a slate is unless asked: the playoffs while the calendar's in them, else the regular season. */
+function usualStage(calendar: LeagueCalendar): SlateStage {
+  const now = calendar.stages.find((s) => s.type === calendar.now);
+  return now && slateStageOf(now) === "post" ? "post" : "regular";
+}
+
+/** A stage's fixtures, month by month (a round needs every one): its own, between two teams. */
+async function fixturesOf(p: SportsProvider, league: string, calendar: LeagueCalendar, stage: SlateStage): Promise<SportsEvent[]> {
+  const bounds = stageDays(calendar, stage)!;
+  const months = await Promise.all(monthsOf(bounds.from, bounds.to).map((m) => p.eventsIn(league, m)));
+  return months.flat().filter((e) => inStage(e, stage) && teamsOf(e).length >= 2);
+}
+
 /**
  * A league's slate, made (or found) as a season of its league's show: `stage` (the regular season unless the calendar's in the
  * playoffs now) and `cadence` (the league's usual unless said). Null for a league with no slate (no such league, not a team sport).
- * SlateRefused for one it can't be cut into. `prefix` keeps a check's rows apart ("zt-"); `cast: false` leaves the people for
- * later; `providers` and `now` are for checks.
+ * SlateRefused for one it can't be cut into. `beforeMake` runs when it isn't made yet, before it's made (a person's day's cap:
+ * finding one is free). `prefix` keeps a check's rows apart ("zt-"); `cast: false` leaves the people for later; `providers` and
+ * `now` are for checks.
  */
 export async function makeSlate(opts: {
   league: string;
@@ -73,13 +87,13 @@ export async function makeSlate(opts: {
   now?: Date;
   prefix?: string;
   cast?: boolean;
+  beforeMake?: () => Promise<void>;
 }): Promise<Slate | null> {
   const now = opts.now ?? new Date();
   const choices = await slateChoices(opts.league, opts);
   if (!choices) return null;
   const { provider: p, calendar } = choices;
-  const nowStage = slateStageOf(calendar.stages.find((s) => s.type === calendar.now) ?? { stage: null, type: 0, name: "", from: "", to: "" });
-  const stage = opts.stage ?? (nowStage === "post" ? "post" : "regular");
+  const stage = opts.stage ?? usualStage(calendar);
   const choice = choices.stages.find((s) => s.stage === stage);
   if (!choice) throw new SlateRefused(stage === "post" ? "Its playoffs aren't listed yet" : "Its season isn't listed yet");
   const cadence = opts.cadence ?? choice.cadences[0];
@@ -87,14 +101,10 @@ export async function makeSlate(opts: {
   const key = `${opts.prefix ?? ""}${slateKey(p.id, opts.league, calendar.season, stage, cadence)}`;
   const found = await foundSlate(key);
   if (found) return found;
+  await opts.beforeMake?.();
 
   // A round needs every fixture (a month's scoreboard each); a day's or a week's games are linked as they near.
-  const bounds = stageDays(calendar, stage)!;
-  let fixtures: SportsEvent[] = [];
-  if (cadence === "round") {
-    for (const m of monthsOf(bounds.from, bounds.to)) fixtures.push(...(await p.eventsIn(opts.league, m)));
-    fixtures = fixtures.filter((e) => inStage(e, stage) && teamsOf(e).length >= 2);
-  }
+  const fixtures = cadence === "round" ? await fixturesOf(p, opts.league, calendar, stage) : [];
   const eps = slateEpisodes(calendar, stage, cadence, fixtures.map(slateGame));
   if (!eps.length) throw new SlateRefused("It has no games listed yet");
   if (fixtures.length) await storeEvents(p.id, opts.league, fixtures);
@@ -168,6 +178,95 @@ async function foundSlate(key: string): Promise<Slate | null> {
   );
   const r = rows[0];
   return r ? { seasonId: r.season_id, made: false, name: r.name ?? "", league: r.league, stage: r.stage, cadence: r.cadence, episodes: r.episode_count, games: r.games } : null;
+}
+
+/** One of a league's slates: a stage cut one way, as it would be made (or as it was made). */
+export interface SlateOption {
+  stage: SlateStage;
+  cadence: Cadence;
+  /** What an add that names no cadence makes for its stage (the league's usual: football's weeks, a daily sport's Monday-to-Sunday
+   *  weeks, soccer's rounds). */
+  usual: boolean;
+  /** Its season's name as made, else as it would be ("NFL 2026", "NBA 2026-27, day by day", "NBA 2026-27 playoffs"). */
+  name: string;
+  /** Its episodes: made, as many as it has now (the playoffs' grow as they're listed); else as many as it would have, 0 when its
+   *  stage lists none yet (an add is refused); null when they can't be worked out now (a round's fixtures, the provider not
+   *  answering). */
+  episodes: number | null;
+  /** The season made for it, if one is (adding it is then free, and follows it). */
+  seasonId: string | null;
+}
+
+/** What a league's slate can be (GET /api/sports/league): its season now, its stages, each cut each way it can be. */
+export interface LeagueSlates {
+  league: string;
+  /** As its show is named ("NFL", "Premier League"). */
+  leagueName: string;
+  /** A slate can be made of it: a team sport's league. A tour's or a promotion's season (golf's, F1's, the UFC's) is an event an
+   *  episode, not a slate: none, and no stages. */
+  slate: boolean;
+  /** Its season now: ESPN's year ("2027" for the NBA's 2026-27) and as people say it ("2026-27"). */
+  season: { year: number; words: string } | null;
+  /** What an add that names no stage or cadence makes; null when that stage isn't listed yet. */
+  usual: { stage: SlateStage; cadence: Cadence } | null;
+  /** Its stages (the regular season, a soccer league's whole season; the playoffs), each with its days (the East's) and whether
+   *  they're past, now or coming. */
+  stages: { stage: SlateStage; from: string; to: string; state: "past" | "now" | "coming"; slates: SlateOption[] }[];
+}
+
+/**
+ * What a league's slate can be: its season now (ESPN's calendar: cached a day), its stages and the ways each is cut, each named,
+ * with its episodes and the season already made for it. Null for a league the app doesn't read, or one the provider has no season
+ * for. A round's episodes need its fixtures (a month's scoreboard each, cached), read only for a slate not made yet. `prefix`
+ * reads a check's own slates; `providers` and `now` are for checks.
+ */
+export async function leagueSlates(league: string, opts: { providers?: SportsProvider[]; now?: Date; prefix?: string } = {}): Promise<LeagueSlates | null> {
+  const sport = sportOf(league);
+  if (!sport) return null;
+  if (!(sport instanceof TeamSport)) return { league, leagueName: leagueName(league), slate: false, season: null, usual: null, stages: [] };
+  const choices = await slateChoices(league, opts);
+  if (!choices) return null;
+  const { provider: p, calendar } = choices;
+  const prefix = opts.prefix ?? "";
+  const keyOf = (stage: SlateStage, cadence: Cadence) => `${prefix}${slateKey(p.id, league, calendar.season, stage, cadence)}`;
+  const keys = choices.stages.flatMap((s) => s.cadences.map((c) => keyOf(s.stage, c)));
+  const { rows } = await pool.query("SELECT x.key, x.season_id, ss.episode_count, ss.name FROM sports_slates x JOIN show_seasons ss ON ss.id = x.season_id WHERE x.key = ANY($1::text[])", [keys]);
+  const made = new Map(rows.map((r) => [r.key as string, { seasonId: r.season_id as string, episodes: r.episode_count as number, name: r.name as string | null }]));
+  // A round's fixtures, each stage's at once, for a round slate not made yet (null: the provider didn't answer).
+  const fixtures = await Promise.all(
+    choices.stages.map(async ({ stage, cadences }) => {
+      if (!cadences.includes("round") || made.has(keyOf(stage, "round"))) return [];
+      try {
+        return await fixturesOf(p, league, calendar, stage);
+      } catch (e) {
+        if (!(e instanceof SportsUnavailable)) throw e;
+        return null;
+      }
+    })
+  );
+  // As makeSlate names it: the calendar's name for the league, else its fixtures'.
+  const named = leagueName(league, calendar.leagueName ?? fixtures.flatMap((f) => f ?? []).map((e) => e.leagueName).find(Boolean) ?? null);
+  const today = easternDay(opts.now ?? new Date());
+  const stages: LeagueSlates["stages"] = choices.stages.map(({ stage, cadences }, s) => {
+    const bounds = stageDays(calendar, stage)!;
+    const games = fixtures[s];
+    const slates = cadences.map((cadence, i): SlateOption => {
+      const was = made.get(keyOf(stage, cadence));
+      const episodes = was ? was.episodes : cadence === "round" && !games ? null : slateEpisodes(calendar, stage, cadence, cadence === "round" ? games!.map(slateGame) : []).length;
+      return { stage, cadence, usual: i === 0, name: was?.name || slateName(named, calendar, stage, cadence, cadences[0]).slice(0, 120), episodes, seasonId: was?.seasonId ?? null };
+    });
+    return { stage, from: bounds.from, to: bounds.to, state: today > bounds.to ? "past" : today < bounds.from ? "coming" : "now", slates };
+  });
+  const usual = usualStage(calendar);
+  const usualCadence = choices.stages.find((s) => s.stage === usual)?.cadences[0];
+  return {
+    league,
+    leagueName: named,
+    slate: true,
+    season: { year: calendar.season, words: seasonWords(calendar) },
+    usual: usualCadence ? { stage: usual, cadence: usualCadence } : null,
+    stages,
+  };
 }
 
 /** An event in the slate's stage (a soccer league's events say none: its whole season; so does the NBA's play-in, on days past its

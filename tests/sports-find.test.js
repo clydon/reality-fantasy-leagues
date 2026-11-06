@@ -9,10 +9,10 @@ const assert = require("node:assert/strict");
 const path = require("path");
 const jiti = require("jiti")(__filename, { alias: { "@": path.join(__dirname, "..", "src") } });
 const { readTeams, readScoreboard } = jiti("../src/lib/server/sports/espn.ts");
-const { findTeams, teamScore, wordsOf, scheduleOf, seasonName, FITS } = jiti("../src/lib/sports/teams.ts");
+const { findTeams, findLeagues, teamScore, wordsOf, scheduleOf, seasonName, FITS } = jiti("../src/lib/sports/teams.ts");
 const { seasonKey, matchupKey, MAX_SEASON } = jiti("../src/lib/sports/matchup.ts");
 const { allSports } = jiti("../src/lib/sports/index.ts");
-const { teamLeagues } = jiti("../src/lib/server/sports/find.ts");
+const { teamLeagues, searchTeams } = jiti("../src/lib/server/sports/find.ts");
 
 const LEAGUES = [
   ["football/nfl", "nfl"],
@@ -169,4 +169,77 @@ test("every team sport says how long its games' broadcasts run", () => {
   assert.equal(runtimes["baseball/mlb"], 180);
   assert.equal(runtimes["hockey/nhl"], 150);
   assert.equal(runtimes["soccer/*"], 120);
+});
+
+test("a league by its list's names (L8 part 2): its abbreviation, its show's name, a word of its name in more than one", () => {
+  const all = [...lists, readTeams("soccer/eng.1", require("./fixtures/espn/eng.1-teams.json"))];
+  const leagues = (q) => findLeagues(all, q).map((l) => `${l.leagueName} ${l.score}`);
+  assert.deepEqual(leagues("nfl"), ["NFL 100"]);
+  assert.deepEqual(leagues("NBA"), ["NBA 100"]);
+  assert.deepEqual(leagues("premier league"), ["Premier League 96"]);
+  assert.deepEqual(leagues("English Premier League"), ["Premier League 100"]);
+  assert.deepEqual(leagues("national football"), ["NFL 85"]);
+  assert.deepEqual(leagues("football"), ["NFL 70", "NCAA Football 70"]);
+  assert.deepEqual(leagues("ncaaf"), ["NCAA Football 100"]);
+  assert.deepEqual(leagues("mens college basketball"), ["NCAA Men's Basketball 96"]);
+  assert.deepEqual(findLeagues(all, "nfl")[0], { league: "football/nfl", leagueName: "NFL", name: "National Football League", score: 100 });
+  // A team's name names no league.
+  assert.deepEqual(leagues("eagles"), []);
+  assert.deepEqual(leagues("yankees red sox"), []);
+});
+
+test("a search through ESPN's: its leagues of a sport the app reads, named as their lists name them, and only the teams the words fit", async () => {
+  const eng = readTeams("soccer/eng.1", require("./fixtures/espn/eng.1-teams.json"));
+  // ESPN's search's answers as read (2026-11-06): "premier league" lists the league's clubs besides its leagues; "mls" the
+  // Whitecaps; "sixers" the 76ers and a cricket tour; "f1" Formula 1.
+  const answers = {
+    "premier league": [
+      { kind: "team", id: "360", name: "Manchester United", league: "soccer/eng.1" },
+      { kind: "team", id: "364", name: "Liverpool", league: "soccer/eng.1" },
+      { kind: "league", id: "soccer/eng.1", name: "English Premier League", league: "soccer/eng.1" },
+      { kind: "league", id: "soccer/wal.1", name: "Welsh Premier League", league: "soccer/wal.1" },
+      { kind: "league", id: "cricket/8048", name: "Indian Premier League", league: "cricket/8048" },
+    ],
+    mls: [
+      { kind: "team", id: "9727", name: "Vancouver Whitecaps", league: "soccer/usa.1" },
+      { kind: "league", id: "soccer/usa.1", name: "MLS", league: "soccer/usa.1" },
+    ],
+    sixers: [
+      { kind: "team", id: "20", name: "Philadelphia 76ers", league: "basketball/nba" },
+      { kind: "league", id: "cricket/12298", name: "Sydney Sixers tour of South Africa 2012/13", league: "cricket/12298" },
+    ],
+    // Made up: a nickname's answer with a league of a sport the app reads besides.
+    "sixers soccer": [
+      { kind: "team", id: "20", name: "Philadelphia 76ers", league: "basketball/nba" },
+      { kind: "league", id: "soccer/aus.1", name: "A-League Men", league: "soccer/aus.1" },
+    ],
+    f1: [{ kind: "league", id: "racing/f1", name: "Formula 1", league: "racing/f1" }],
+  };
+  const provider = {
+    id: "espn",
+    find: async (q) => answers[q] ?? [],
+    teams: async (league) => (league === "soccer/eng.1" ? eng : league === "basketball/nba" ? lists[2] : null),
+    schedule: async () => null,
+  };
+  const search = (q) => searchTeams(q, { providers: [provider], leagues: ["basketball/nba"] });
+  const pl = await search("premier league");
+  assert.deepEqual(pl.leagues.map((l) => [l.league, l.leagueName, l.name, l.slate]), [
+    ["soccer/eng.1", "Premier League", "English Premier League", true],
+    ["soccer/wal.1", "Welsh Premier League", "Welsh Premier League", true],
+  ]);
+  assert.deepEqual(pl.teams, []);
+  const mls = await search("mls");
+  assert.deepEqual([mls.leagues.map((l) => l.leagueName), mls.teams.length], [["MLS"], 0]);
+  // No league of a sport the app reads: ESPN's teams as found (a name the lists don't have); with one, a team of another league
+  // still kept (only a found league's own clubs are left out when the words don't fit them).
+  const sixers = await search("sixers");
+  assert.deepEqual([sixers.leagues, sixers.teams.map((t) => t.name)], [[], ["Philadelphia 76ers"]]);
+  const besides = await search("sixers soccer");
+  assert.deepEqual([besides.leagues.map((l) => l.leagueName), besides.teams.map((t) => t.name)], [["A-League Men"], ["Philadelphia 76ers"]]);
+  const f1 = await search("f1");
+  assert.deepEqual(f1.leagues.map((l) => [l.leagueName, l.slate]), [["Formula 1", false]]);
+  // A league a list names: no ESPN search, and a team's name finds no league.
+  const nba = await search("nba");
+  assert.deepEqual([nba.leagues.map((l) => [l.leagueName, l.slate, l.score]), nba.teams.length], [[["NBA", true, 100]], 0]);
+  assert.deepEqual((await search("celtics")).leagues, []);
 });
