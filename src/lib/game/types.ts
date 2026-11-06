@@ -217,6 +217,9 @@ export interface Episode {
   /** Step A10 part 1: the format's groups as this episode had them (the season's format state over time, written by the season
    *  sync for a game with group slots, only on an episode with results: GroupSlotLogic.settle). */
   formatGroups?: EpisodeFormatGroups;
+  /** Step C7 part 2: a card the bot chooses, its choice for this episode as it stood when the card came out (stamped with the air
+   *  times from card_choices: card-choices.ts), or { fallback: true } once it came out without one; none while it isn't out. */
+  cardChoice?: { moments?: string[]; cannot?: string[]; fallback?: true };
   /** Kept open past its start by whoever runs the game (Backstage › Settings' lock; StateLogic.closedForPlay). */
   openPastAir?: boolean;
 }

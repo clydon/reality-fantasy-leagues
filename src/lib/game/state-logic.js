@@ -121,6 +121,20 @@ function formatOf(state){
 // through here. Read only: RosterLogic.setGame is how a game changes.
 function gameOf(state){ return Spec.gameOf(state && state.settings); }
 
+// C7 part 2 (docs/PLAN-start-a-game-gpt.md step C7): a card the bot chooses reads each episode's choice as the server stamps it on
+// the league's episode (`episode.cardChoice`, with the air times: src/lib/server/card-choices.ts), so everything that scores it, on
+// the server or in the browser, reads it from the league's state. An episode with results and nothing stamped came out without the
+// bot's choice (Spec.CARD_FALLBACK); one without results and nothing stamped isn't out yet (undefined). Asked only of a game whose card
+// the bot chooses.
+function cardChoiceAt(state, n){
+  const eps = state && state.episodes;
+  if(!Array.isArray(eps) || !Number.isInteger(n)) return undefined;
+  const ep = eps.find(e => e.number === n);
+  if(!ep) return undefined;
+  if(ep.cardChoice && typeof ep.cardChoice === 'object') return ep.cardChoice;
+  return EpisodeLogic.hasResults(ep) ? Spec.CARD_FALLBACK : undefined;
+}
+
 // The episode this league starts playing at (the spec's span.from; settings.startEpisode, default 1). A league formed
 // mid-season -- "we've all watched episode 1, we'll draft before episode 2" -- starts at 2: earlier
 // episodes are history everyone has seen, so they're shown but nothing in them scores, and no picks
@@ -3084,7 +3098,9 @@ class ActiveRosterLogic {
     const score = game.score;
     // C5: only these moments count (score.only), and hits counted (score.hits): each moment's worth (Spec.momentWorth).
     if(score.by === 'moments' && (score.only !== undefined || score.hits !== undefined)){
-      return Spec.momentWorth(score, type, defaultPointsFor(formatOf(state).events.find(e => e.id === type), ownershipModeOf(state)), Spec.onlyAt(game, episode));
+      // C7 part 2: a card the bot chooses reads the episode's choice (cardChoiceAt).
+      const choice = score.only === 'card' && Spec.botCard(game.card) ? cardChoiceAt(state, episode) : undefined;
+      return Spec.momentWorth(score, type, defaultPointsFor(formatOf(state).events.find(e => e.id === type), ownershipModeOf(state)), Spec.onlyAt(game, episode, choice));
     }
     const configured = score.by === 'moments' && score.points ? score.points[type] : undefined;
     if(typeof configured === 'number' && Number.isFinite(configured)) return configured;
@@ -7308,6 +7324,8 @@ class AnswerLogic {
       groupNames: new Map((state.tribes || []).map(t => [t.id, t.name])),
       phases, windows, seen,
       startIn: AnswerLogic.startIn(state),
+      // C7 part 2: a card the bot chooses, each episode's choice (none for any other game).
+      ...(Spec.botCard(Spec.cardOf(gameOf(state))) ? { cardChoices: AnswerLogic.cardChoices(state) } : {}),
       // The finalists' jury votes (A8: the split), once the season is over.
       jury: ended ? new Map(eps.flatMap(e => (e.events || []).filter(ev => Number.isInteger(ev.juryVotes)).map(ev => [ev.castawayId, ev.juryVotes]))) : null,
     };
@@ -7327,6 +7345,17 @@ class AnswerLogic {
       .map(c => ({ id: c.id, k: key(c) }))
       .sort((a, b) => { for(let i = 0; i < a.k.length; i++){ if(a.k[i] !== b.k[i]) return b.k[i] - a.k[i]; } return 0; })
       .map(x => x.id);
+  }
+  // C7 part 2: a card the bot chooses, each episode's choice as the league's stamp has it (cardChoiceAt), for the grader.
+  static cardChoices(state){
+    const card = Spec.cardOf(gameOf(state));
+    if(!Spec.botCard(card)) return undefined;
+    const out = new Map();
+    (state.episodes || []).forEach(ep => {
+      const c = cardChoiceAt(state, ep.number);
+      if(c) out.set(ep.number, c);
+    });
+    return out;
   }
   // The spec's questions, whole (each with its defaults).
   // C7: each question on the card one for each of its lines (Spec.askOf), so everything that answers, grades or reads them sees the

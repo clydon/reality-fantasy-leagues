@@ -36,7 +36,10 @@
 //     measure of each fact (carryMeasure), as live the show has the season tapes', so our check rates it as it would live; a game
 //     played against the bot (A14 part 2), a stand-in's call on each window before its lock, by a habit of its own from what the app
 //     offers at that lock (as a seat answers), filed as the bot's run will file its own (db/bot-calls.js fileCalls, made_by
-//     'stand-in'), recorded per episode in `bot`.
+//     'stand-in'), recorded per episode in `bot`. C7 part 2: a game whose card the bot chooses, a stand-in's choice for each
+//     episode before its card is out (the moments the season's cards are drawn from, from the list's end: a habit of its own, so it
+//     isn't the fallback's order), filed as the card run files its own (db/card-research.js storeChoice, made_by 'stand-in', made
+//     an hour before the card was out by the season's clock), recorded per episode in `card`.
 // Nothing asks a bot. The local bot's answers are F2's, kept beside the tapes; the stand-ins are marked as such in the record.
 //
 //   node scripts/dev-test/blind.js run [<show> <season>] [--only=3,7] [--through=N] [--keep]
@@ -340,6 +343,7 @@ function app() {
     Research: require("../../db/episode-research.js"),
     Trivia: require("../../db/trivia-research.js"),
     BotCalls: require("../../db/bot-calls.js"),
+    CardResearch: require("../../db/card-research.js"),
     DBT: require("../../db/format-timeline.js"),
     C: require("../../src/lib/game/game-spec/capabilities.js"),
     rows: H.tsApp("lib/game/capability-rows"),
@@ -618,6 +622,29 @@ async function standInCalls(r, n, gq) {
     r.problems.push(`episode ${n}: the stand-in's call on ${x.question} was refused: ${x.why}`);
   }
   return out;
+}
+
+/**
+ * C7 part 2: a stand-in's choice of episode n's card, for a game whose card the bot chooses (none for any other): the moments the
+ * season's cards are drawn from, from the list's end, filed as the card run files its own (made_by 'stand-in') an hour before the
+ * card was out by the season's clock, once for the season's episode (a choice is never replaced: the first stands). The moments it
+ * ranked, or null.
+ */
+async function standInCard(s, r, n) {
+  const { CardResearch, pool, S } = app();
+  const Spec = require("../../src/lib/game/game-spec/index.js");
+  if (!Spec.botCard(Spec.cardOf(S.gameOf(s)))) return null;
+  // A fallback a read filed for it already (its card was out by the season's clock: a taped season's always is) is newer than the
+  // stand-in's, made an hour before it was out, so the stand-in's stands: decided rows are read oldest first.
+  const live = (await CardResearch.liveChoices(pool, r.seasonId)).find((c) => c.episode === n && c.status === "live");
+  if (live) return live.moments;
+  const asked = (await CardResearch.momentsAsked(pool, r.seasonId)).map((m) => m.id);
+  if (!asked.length) return null;
+  const clock = await CardResearch.seasonClock(pool, s.settings.showId, s.settings.wikiSeason);
+  const out = clock ? CardResearch.outAt(clock.airAtOf(n)) : null;
+  const moments = asked.slice().reverse();
+  await CardResearch.storeChoice(pool, r.seasonId, n, asked, { status: "live", moments, cannot: [] }, { madeBy: "stand-in", at: out === null ? null : new Date(out - 3600 * 1000).toISOString() });
+  return moments;
 }
 
 /** The league as it stands (A11 part 2b: a game of questions that races or knocks players out walked over its answers, as the
@@ -965,6 +992,15 @@ async function run(show, season, opts = {}) {
         }
       } catch (err) {
         r.problems.push(`episode ${ep}: the stage's draft failed: ${err.message}`);
+      }
+      // C7 part 2: a card the bot chooses, the stand-in's choice for this episode before anything is answered or picked for it.
+      try {
+        if (S.inPlay(s, ep)) {
+          const card = await standInCard(s, r, ep);
+          if (card) e.card = card;
+        }
+      } catch (err) {
+        r.problems.push(`episode ${ep}: the stand-in's card failed: ${err.message}`);
       }
       try {
         if (S.inPlay(s, ep)) r.weeks[ep] = await H.moves(r, ep);
