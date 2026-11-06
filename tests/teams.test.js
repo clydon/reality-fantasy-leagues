@@ -68,13 +68,24 @@ test("teams of players: their shape, defaults, words and settings; what's refuse
   assert.equal(G.teamParts(G.fullSpec(group)), null);
   assert.equal(G.answerParts(G.fullSpec({ ...questions, rank: { by: "total", teams: { of: 2, made: "group" } } })), null);
   // Beside the wrong game, or out of range.
-  assert.deepEqual(at({ preset: "survival-pool", rank: { teams: { of: 2 } } }), ["rank.teams"], "a pool's streak is one person's");
+  assert.deepEqual(at({ preset: "survival-pool", rank: { by: "streak", teams: { of: 2 } } }), ["rank.teams"], "a pool's streak is one person's");
+  // C2 part 4b: a pool's rank that says only its teams ranks by its points, the only way they play on a pool.
+  assert.equal(G.fullSpec({ preset: "survival-pool", rank: { teams: { of: 2 } } }).rank.by, "total");
+  assert.deepEqual(at({ preset: "survival-pool", rank: { teams: { of: 2 } } }), []);
+  // C2 part 4b: a pool's by its points or head to head (tests/pool-series.test.js), but not with lives (they knock players out).
+  assert.deepEqual(at({ preset: "survival-pool", rank: { by: "total", teams: { of: 2 } } }), [], "a pool by its points");
+  assert.deepEqual(at({ preset: "survival-pool", score: { by: "survive", means: "staysIn", points: 1, lives: 2 }, rank: { by: "total", teams: { of: 2 } } }), ["rank.teams"], "a pool with lives");
   assert.deepEqual(at({ preset: "weekly-calls", rank: { teams: { of: 2 } } }), ["rank.teams"], "Weekly Calls' calls are counted outside the game");
   assert.deepEqual(at({ preset: "weekly-bingo", rank: { teams: { of: 2 } } }), ["rank.teams"], "bingo lines too");
   const coop = { get: { by: "none" }, score: { by: "answers", lives: 3 }, ask: [BOOT], rank: { by: "coop", teams: { of: 2 } } };
   assert.deepEqual(at(coop), ["rank.teams"], "co-op is the whole couch on one side");
-  assert.deepEqual(at(best({ of: 2 }, { by: "standing", cut: [{ at: { every: 1 } }] })), ["rank.teams"], "a team knocked out isn't built");
-  assert.deepEqual(at(best({ of: 2 }, { by: "total", race: { to: 20 } })), ["rank.teams"], "nor a race between teams");
+  // C2 part 4b: a draft's teams knocked out by its cuts, or racing (tests/team-knockouts.test.js); a game of questions' aren't (its walk
+  // works each night's points out from who's out so far, seat by seat); last team standing needs its cuts.
+  assert.deepEqual(at(best({ of: 2 }, { by: "standing", cut: [{ at: { every: 1 } }] })), [], "a draft's team knocked out");
+  assert.deepEqual(at(best({ of: 2 }, { by: "total", race: { to: 20 } })), [], "a race between a draft's teams");
+  assert.deepEqual(at({ ...questions, rank: { by: "standing", cut: [{ at: { every: 1 } }], teams: { of: 2 } } }), ["rank.teams"], "a game of questions' team knocked out");
+  assert.match(G.specProblems({ ...questions, rank: { by: "standing", cut: [{ at: { every: 1 } }], teams: { of: 2 } } }, CTX).find((p) => p.at === "rank.teams").problem, /seat by seat/);
+  assert.deepEqual(at({ ...questions, rank: { by: "total", race: { to: 20 }, teams: { of: 2 } } }), ["rank.teams"], "a race between a game of questions' teams");
   for (const of of [1, 7, 2.5, "two"]) assert.deepEqual(at(best({ of })), ["rank.teams.of"], `of ${of}`);
   assert.deepEqual(at(best({ of: 2, made: "coin" })), ["rank.teams.made"]);
   assert.deepEqual(at(best({ of: 2, score: "max" })), ["rank.teams.score"]);

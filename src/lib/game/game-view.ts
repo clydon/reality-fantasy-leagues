@@ -1,6 +1,6 @@
 import type { Castaway, LeagueState, ScoreRow } from "./types";
 import StateLogic from "./state-logic.js";
-import type { AnswerWalk, CoopWalk, HandicapView, MatchupView, TeamView } from "./state-logic.js";
+import type { AnswerLines, AnswerWalk, CoopWalk, HandicapView, MatchupView, TeamView } from "./state-logic.js";
 import { castawayEventStats } from "./active-roster-rows";
 import { castawayPoints, teamOrder } from "./classic-view";
 import { latestScoredEpisode } from "./episode-team-summary";
@@ -63,7 +63,7 @@ export interface TableRow {
   record: { wins: number; losses: number; ties: number; for: number; against: number; seed: number | null; alive: boolean; champion: boolean } | null;
   /** Step A11 part 5: teams of players, the team the seat plays for (its points and place: every member shares it; `now`, whether
    *  the seat is on it now); null for any other game, or a seat on no team. */
-  side: { id: string; name: string | null; points: number; place: number; rank: string; now: boolean } | null;
+  side: { id: string; name: string | null; points: number; place: number; rank: string; now: boolean; out?: number | null } | null;
   /** Step A11 part 5b: a handicap's points so far (in `total` already), 0 for someone it doesn't name; null without one. */
   handicap: number | null;
   /** Weekly Lineup (and best ball): each scored episode as far as you've seen, oldest first (weeksOf); [] for any other game. */
@@ -155,7 +155,7 @@ export interface SheetMove {
   closesAt: string | null;
   /** A question waits until you've seen this episode (it says who's still in), or null. */
   behind: number | null;
-  /** A draft's finale predictions, not a game of questions. */
+  /** A draft's finale predictions, not a game of questions (nor, step C2 part 4c, a draft's own questions beside them). */
   finale: boolean;
 }
 
@@ -169,6 +169,19 @@ export interface GameCalls {
   ended?: boolean;
   /** Step A11 part 2b: a game of questions' walk on this viewer's own copy (answer-points.ts walked): who's out, where it ended. */
   walk?: AnswerWalk | null;
+  /** Step C2 part 4c: a draft's own questions' lines on this viewer's own copy (answer-points.ts walked): its table and series add them. */
+  lines?: AnswerLines | null;
+  /** Step A14 part 2: how the couch did against the bot, on a game whose questions are played against it (answer-points.ts botLine). */
+  bot?: BotLine | null;
+}
+
+/** Step A14 part 2: a game of questions played against the bot's own call, as far as you've seen: the windows its call is settled on,
+ *  how many it got right, and each seat's record against it (beat: windows you scored on, right where it wasn't; beaten: windows it
+ *  was right on and you scored nothing, of those you answered). Never a seat on the table, nor a place on it. */
+export interface BotLine {
+  called: number;
+  right: number;
+  vs: Record<string, { beat: number; beaten: number }>;
 }
 
 export interface PredictionMove {
@@ -262,7 +275,18 @@ export interface GameView extends GameRefIn {
   catchUp: { week: number; latest: number } | null;
   /** A game at your own pace (docs/PLAN-own-pace-games.md): everyone else in it (not its computer players) and the episode
    *  they're on, null once they've finished; the season's last episode. The server fills it (season-games.ts); null otherwise. */
-  pace: { others: { name: string; week: number | null }[]; last: number } | null;
+  pace: {
+    others: { name: string; week: number | null }[];
+    last: number;
+    /** A game with teams where yours isn't picked yet (part 3a): how many, from whom (castaway ids of `cast`, who was in before
+     *  your start). */
+    team: { need: number; pool: string[] } | null;
+    /** Exclusive teams, drafted together at the start (sync point 1), while that draft isn't done: waiting, or on. */
+    draft: "waiting" | "live" | null;
+    /** A waiver moment you've reached (sync point 2): an episode where someone's team lost a person, in a game with waivers.
+     *  `waiting`: who isn't there yet; `open`: everyone is, and its waiver week is on. Null otherwise. */
+    gather: { episode: number; lost: { name: string; team: string; yours: boolean }[]; waiting: string[]; open: boolean } | null;
+  } | null;
   /** Step A11 part 3: a co-op game's lives (the couch's together) and its result, won or lost by all, as far as you've seen (its
    *  walk on your copy); null for any other game. What it shows is U1's. */
   coop: CoopWalk | null;
@@ -275,6 +299,9 @@ export interface GameView extends GameRefIn {
   /** Step A11 part 5b: a handicap, as far as you've seen: its points an episode, what newcomers are new to, who it names, whether
    *  you're one and whether that's kept yet; null for any other game. What it shows is U1's. */
   handicap: HandicapView | null;
+  /** Step A14 part 2: a game played against the bot, how the couch did against it as far as you've seen; null (or left out) for any
+   *  other game. What it shows is U1's. */
+  bot?: BotLine | null;
 }
 
 /** Whose user a seat is, for faces. */
@@ -288,9 +315,11 @@ export type UserOf = (playerId: string) => string | null;
  */
 export function gameView(game: GameRefIn, full: LeagueState, playerId: string | null, seen: number | null, userOf: UserOf, calls?: GameCalls): GameView {
   // A game over a span (settings.endEpisode) as it stood at its last episode, however far past it you are. Step A11 part 2b: a game
-  // of questions' walk on your copy (answer-points.ts), so it ends, and knocks anyone out, only as far as you've seen.
+  // of questions' walk on your copy (answer-points.ts), so it ends, and knocks anyone out, only as far as you've seen; step C2 part
+  // 4c, a draft's own questions' lines on it, so its table counts them as far as you've seen.
   const seenView = StateLogic.GhostLogic.viewFor(full, playerId, seen);
-  const view = StateLogic.spanView(calls?.walk ? StateLogic.AnswerLogic.withWalk(seenView, calls.walk) : seenView);
+  const carried = calls?.walk ? StateLogic.AnswerLogic.withWalk(seenView, calls.walk) : calls?.lines ? StateLogic.AnswerLogic.withLines(seenView, calls.lines) : seenView;
+  const view = StateLogic.spanView(carried);
   const pieces = StateLogic.piecesOf(view);
   const me = playerId ?? "";
   const seat = playerId !== null;
@@ -335,6 +364,7 @@ export function gameView(game: GameRefIn, full: LeagueState, playerId: string | 
     // The teams as the table ranked them (each row's side), not worked out again.
     teams: StateLogic.TeamLogic.view(view, seat ? me : null, everyone.map((r) => ({ playerId: r.playerId, total: r.points, team: r.side }))),
     handicap: StateLogic.HandicapLogic.view(view, seat ? me : null),
+    bot: calls?.bot ?? null,
   };
 }
 
@@ -356,6 +386,9 @@ export function tableOf(view: LeagueState, me: string, userOf: UserOf, right: (p
   // The engine's own order (StateLogic.rankKey): a pool with lives by who's still standing (step A10 part 2), else its streak; a
   // stock market ranked by worth (part 3c), cash plus the team at today's prices; else the points.
   const worth = !pool && !callsGame && StateLogic.gameOf(view).rank.by === "worth";
+  // C2 part 4b: a pool ranked by its points (or head to head on them) shows its points, not its streak.
+  const rankBy = StateLogic.gameOf(view).rank.by;
+  const streak = pool && (rankBy === "streak" || rankBy === "standing");
   // Step A11 part 2b: a game of questions that races or knocks players out ranks as the engine does, its rows carrying its walk
   // (who's out, their points frozen there).
   const walked = !!StateLogic.AnswerLogic.walkOf(view);
@@ -363,6 +396,12 @@ export function tableOf(view: LeagueState, me: string, userOf: UserOf, right: (p
   const rows = [...StateLogic.computeScores(view)].sort((a, b) => StateLogic.PickEmScoringStrategy.compareKeys(key(b), key(a)));
   // A pool's seasons, read once (step A11 part 2: a pool that walks everyone together walks once for the table).
   const histories = pool ? StateLogic.PickEmLogic.histories(view) : null;
+  // C2 part 4b: a pool ranked by its points, its week the latest episode it decided: that pick's points (a second's that counted, less
+  // what a buyback cost).
+  const poolWeek = (playerId: string): number => {
+    const row = [...(histories?.get(playerId)?.rows ?? [])].reverse().find((x) => x.correct !== null || x.skipped);
+    return row ? row.points + (row.second?.points ?? 0) - (row.boughtBack ?? 0) : 0;
+  };
   const keys = rows.map((r) => key(r).join(","));
   // Step A11 part 5b: a handicap's points on each row (read once a table).
   const handicapOn = StateLogic.HandicapLogic.on(view);
@@ -385,8 +424,8 @@ export function tableOf(view: LeagueState, me: string, userOf: UserOf, right: (p
       you,
       rank: `${tied ? "T" : ""}${first + 1}`,
       place: first + 1,
-      total: callsGame ? right(r.playerId) : pool ? (r.longestStreak ?? 0) : worth ? (r.worth ?? 0) : r.total,
-      week: pool ? (r.currentStreak ?? 0) : lastEp ? teamEpisodeBreakdown(view, lastEp.id, r.playerId).total : null,
+      total: callsGame ? right(r.playerId) : streak ? (r.longestStreak ?? 0) : worth ? (r.worth ?? 0) : r.total,
+      week: streak ? (r.currentStreak ?? 0) : pool ? poolWeek(r.playerId) : lastEp ? teamEpisodeBreakdown(view, lastEp.id, r.playerId).total : null,
       points: r.total,
       team: pieces.hasRoster ? teamOrder(r.roster).map((c) => c.id) : [],
       last: lastOf(r.playerId),

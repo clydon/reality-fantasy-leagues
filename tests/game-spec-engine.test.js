@@ -161,7 +161,7 @@ test("setGame writes a whole spec: Start a game's presets, its span, and nothing
   assert.deepEqual(s.settings.game, G.fullSpec(want));
   const was = clone(s.settings);
   assert.deepEqual(ats(S.setGame(s, { ...G.PRESETS.outlast, get: { ...G.PRESETS.outlast.get, each: 30 } })), ["get.each"]);
-  assert.deepEqual(ats(S.setGame(s, { ...G.PRESETS["weekly-lineup"], count: { all: true } })), [""], "no game plays a draft where all score moments yet");
+  assert.deepEqual(ats(S.setGame(s, { ...G.PRESETS["weekly-lineup"], count: { all: true } })), ["count"], "no game plays a draft where all score moments yet (C2 part 4: the piece without a place)");
   assert.deepEqual(ats(S.setGame(s, { ...G.PRESETS.outlast, span: { from: { phase: "" }, to: null } })), ["span.from.phase"]);
   assert.deepEqual(s.settings, was, "nothing written");
   // A phase start (A3 part 2): it waits for the phase (startPhase, no episode), and the fields say it whole.

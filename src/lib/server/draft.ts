@@ -71,6 +71,10 @@ export async function pickInDraft(a: DraftActor, leagueId: string, castawayId: s
       if (forOther && !runs(a)) throw new HttpError(403, "It's not your turn");
       // Their own pick, on a team two people share (step A10 part 4b): who made it is recorded (withLeagueLock reads it after).
       if (!forOther) Object.assign(change, { seatMove: { userId: a.user.id, playerId: turn.playerId, kind: "draft" } });
+      // A game at your own pace drafts on the cast as it stood before its start (docs/PLAN-own-pace-games.md, sync point 1).
+      if (StateLogic.GhostLogic.ownPace(s) && !StateLogic.GhostLogic.draftPool(s, StateLogic.startEpisode(s) ?? 1, true).includes(castawayId)) {
+        throw new HttpError(400, "Pick from who was still in before the start, and on nobody's team");
+      }
       // A draft spread across the cast's groups (step A10 part 3): a pick that doesn't keep the team spread, and why.
       const spread = StateLogic.SpreadLogic.pickProblem(s, turn.playerId, castawayId);
       if (spread) throw new HttpError(400, spread);
@@ -113,7 +117,9 @@ export async function startDraft(a: DraftActor, leagueId: string): Promise<Leagu
     leagueId,
     (s) => {
       if (!draftKind(s)) throw new HttpError(400, "This game has no draft");
-      if (!s.castaways.some((c) => c.status === "active")) throw new HttpError(409, "Add the cast first");
+      // At your own pace, the cast as it stood before the game's start (sync point 1); else the league's.
+      const on = StateLogic.GhostLogic.ownPace(s) ? StateLogic.SpoilerLogic.viewThrough(s, Math.max(0, (StateLogic.startEpisode(s) ?? 1) - 1)) : s;
+      if (!on.castaways.some((c) => c.status === "active")) throw new HttpError(409, "Add the cast first");
       // Step A12 part 1: a draft that opens at its game's start (a later stage's) says why it isn't open yet.
       const waits = StateLogic.DraftLogic.waits(s);
       if (waits) throw new HttpError(409, waits);

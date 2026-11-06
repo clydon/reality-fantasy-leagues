@@ -33,7 +33,10 @@
 //     settles (A13 part 2), each episode's facts in its research as the local bot said them where A13 part 2's proof asked it again
 //     (facts-asks.js), with the facts run's answer filled in where part 2b's proof asked it (the run's own prompt, filed as the run
 //     files it: facts-asks.js heldOf), else none (the question void), recorded per episode in `facts`; the copy carrying its show's
-//     measure of each fact (carryMeasure), as live the show has the season tapes', so our check rates it as it would live.
+//     measure of each fact (carryMeasure), as live the show has the season tapes', so our check rates it as it would live; a game
+//     played against the bot (A14 part 2), a stand-in's call on each window before its lock, by a habit of its own from what the app
+//     offers at that lock (as a seat answers), filed as the bot's run will file its own (db/bot-calls.js fileCalls, made_by
+//     'stand-in'), recorded per episode in `bot`.
 // Nothing asks a bot. The local bot's answers are F2's, kept beside the tapes; the stand-ins are marked as such in the record.
 //
 //   node scripts/dev-test/blind.js run [<show> <season>] [--only=3,7] [--through=N] [--keep]
@@ -315,6 +318,7 @@ function app() {
     points: H.tsApp("lib/server/answer-points"),
     Research: require("../../db/episode-research.js"),
     Trivia: require("../../db/trivia-research.js"),
+    BotCalls: require("../../db/bot-calls.js"),
     DBT: require("../../db/format-timeline.js"),
     C: require("../../src/lib/game/game-spec/capabilities.js"),
     rows: H.tsApp("lib/game/capability-rows"),
@@ -531,6 +535,9 @@ async function answerAll(r, n) {
   const offered = {};
   const answered = {};
   const refused = [];
+  // A14 part 2: the questions as the app offers them at this lock (the first seat's read), for a stand-in's call on those played
+  // against the bot.
+  let first = null;
   // A11 part 2b: as the app offers nothing after a game ended early, nor to a seat that's out (as playtest.js's moves skip them),
   // nothing is answered then: the league as it stands, a game of questions walked over its answers.
   const s = await standing(r);
@@ -544,6 +551,7 @@ async function answerAll(r, n) {
       r.problems.push(`episode ${n}: ${seat.label} couldn't read its questions: ${e.message}`);
       continue;
     }
+    if (!first) first = gq;
     const open = gq.questions.filter((q) => q.status === "open" && (q.episode === n || q.episode === null) && q.mine == null);
     for (const q of gq.questions) {
       if (q.answer === "group" && seat === r.seats[0]) offered[q.id] = { faces: (q.faces || []).map((f) => f.name), offWhy: q.offWhy || null, status: q.status };
@@ -562,11 +570,31 @@ async function answerAll(r, n) {
       refused.push(`${seat.label}: ${e.message} (${JSON.stringify(body).slice(0, 160)})`);
     }
   }
-  return { offered, answered, refused };
+  const bot = first ? await standInCalls(r, n, first) : null;
+  return { offered, answered, refused, ...(bot ? { bot } : {}) };
+}
+
+/** A14 part 2: a stand-in's call on each window of a question played against the bot that's open at this lock (the bot's run comes
+ *  with part 2b), by a habit of its own (answerFor's, as a seat answers) from what the app offers at it, filed as the run will file
+ *  its own. { question: what it called (a name), or why it was refused }, or null for a game with none. */
+async function standInCalls(r, n, gq) {
+  const { BotCalls, pool } = app();
+  const open = gq.questions.filter((q) => q.bot && !q.bot.called && q.status === "open" && (q.episode === n || q.episode === null));
+  if (!open.length) return null;
+  const calls = open.map((q) => ({ question: q.id, episode: q.episode ?? 0, answer: answerFor({ role: "bot" }, q, n) })).filter((c) => c.answer !== undefined);
+  const { filed, refused } = await BotCalls.fileCalls(pool, r.leagueId, calls, { madeBy: "stand-in" });
+  const name = (a) => (Array.isArray(a) ? a : [a]).map((x) => (gq.cast.find((c) => c.id === x) || gq.groups.find((g) => g.id === x) || {}).name || String(x)).join(" & ");
+  const out = {};
+  for (const f of filed) out[f.question] = name(calls.find((c) => c.question === f.question).answer);
+  for (const x of refused) {
+    out[x.question] = `refused: ${x.why}`;
+    r.problems.push(`episode ${n}: the stand-in's call on ${x.question} was refused: ${x.why}`);
+  }
+  return out;
 }
 
 /** The league as it stands (A11 part 2b: a game of questions that races or knocks players out walked over its answers, as the
- *  app reads it: answer-points.ts asItStands). */
+ *  app reads it: answer-points.ts asItStands; C2 part 4c, a draft's own questions' lines on it). */
 async function standing(r) {
   return (await app().points.asItStands(r.leagueId, await H.stateOf(r.leagueId))).state;
 }
@@ -575,9 +603,10 @@ async function standing(r) {
  *  earned what, whose pick was void), its table, whether it's over. */
 async function lookAt(r, n) {
   const { answers, points, S } = app();
-  // A12 part 1: a game in stages read as it stands, its stages' tables handed over (its own table the overall).
+  // A12 part 1: a game in stages read as it stands, its stages' tables handed over (its own table the overall); C2 part 4c, a draft
+  // with its own questions, their lines carried (its table counts them).
   const raw = await H.stateOf(r.leagueId);
-  const s = S.StageLogic.on(raw) ? await standing(r) : raw;
+  const s = S.StageLogic.on(raw) || S.piecesOf(raw).hasDraftQuestions ? await standing(r) : raw;
   const out = { episode: n, table: {}, verdicts: {}, over: S.gameOver(s) };
   if (S.StageLogic.on(s)) out.stages = S.StageLogic.standings(s).map((x) => ({ key: x.key, started: x.started, over: x.over, first: x.rows.filter((y) => y.place === 1).map((y) => (r.seats.find((z) => H.pidOf(r, z) === y.playerId) || {}).label || y.playerId) }));
   const type = S.getLeagueType(s);

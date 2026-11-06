@@ -22,6 +22,8 @@ export function saveClaim(
   input: unknown,
   userId: string | null
 ): Promise<{ claim: WaiverClaim; error?: undefined } | { error: string; claim?: undefined }>;
+/** A game at your own pace with exclusive teams: the league as it stood at the episode everyone has reached; null otherwise. */
+export function pacedCopy(state: LeagueState): LeagueState | null;
 /** Runs every waiver step due at `now` (ms; default the clock). */
 export function syncWaivers(client: PoolClient, leagueId: string, state: LeagueState, now?: number): Promise<WaiverEvent[]>;
 /** The commissioner's Process now: a reason on refusal, else null. */

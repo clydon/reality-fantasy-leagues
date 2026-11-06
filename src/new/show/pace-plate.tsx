@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { couches, useAfterCouch, type CatchUpReveal, type GameView } from "../data";
+import { Check } from "lucide-react";
+import { couches, draftAct, gamesApi, useAfterCouch, type CatchUpReveal, type GameView } from "../data";
 import { CatchUpResult } from "../couch/join-game";
 import { aheadWords, allHere } from "../couch/pace";
 import { namesLine } from "../couch/where";
@@ -47,7 +48,19 @@ export function OwnPacePlates({ show }: { show: ShowData }) {
   if (!games.length && !done) return null;
   return (
     <section className="mt-4 flex flex-col gap-3 px-4">
-      {games.map((g) => (g.catchUp ? <PacePlate key={g.leagueId} show={show} g={g} onRevealed={(reveal) => setDone({ game: g, reveal })} /> : <FinishPlate key={g.leagueId} show={show} g={g} />))}
+      {games.map((g) =>
+        g.pace?.draft ? (
+          <DraftPlate key={g.leagueId} show={show} g={g} />
+        ) : g.pace?.team ? (
+          <TeamPlate key={g.leagueId} g={g} />
+        ) : g.pace?.gather ? (
+          <GatherPlate key={g.leagueId} show={show} g={g} onRevealed={(reveal) => setDone({ game: g, reveal })} />
+        ) : g.catchUp ? (
+          <PacePlate key={g.leagueId} show={show} g={g} onRevealed={(reveal) => setDone({ game: g, reveal })} />
+        ) : (
+          <FinishPlate key={g.leagueId} show={show} g={g} />
+        )
+      )}
       <RevealedSheet show={show} done={done} onClose={() => setDone(null)} />
     </section>
   );
@@ -154,6 +167,189 @@ function PacePlate({ show, g, onRevealed }: { show: ShowData; g: GameView; onRev
         </small>
       )}
     </div>
+  );
+}
+
+/** Exclusive teams at your own pace (sync point 1): before anyone plays, everyone drafts together in the usual draft room, on the
+ *  cast as it stood before the start. Whoever runs the game starts it; then it's the draft room for everyone. */
+function DraftPlate({ show, g }: { show: ShowData; g: GameView }) {
+  const nav = useNav();
+  const after = useAfterCouch();
+  const [busy, setBusy] = useState(false);
+  const week = g.catchUp?.week ?? 1;
+  const runs = g.yourRole === "commissioner" || g.yourRole === "admin";
+  const live = g.pace!.draft === "live";
+  const seasonId = show.header?.seasonId ?? "";
+  const go = () => nav.push(paths.showPage(seasonId, "draft"));
+  const start = async () => {
+    setBusy(true);
+    try {
+      await draftAct(seasonId, g.leagueId, { action: "start" });
+      await after();
+      go();
+    } catch (e) {
+      toast.quiet((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const people = [{ name: "You", bot: false }, ...g.pace!.others.map((o) => ({ name: o.name, bot: false }))];
+  const bots = g.table.filter((r) => r.bot).map((r) => r.name);
+  return (
+    <div data-pace-draft-plate={g.leagueId} data-pace-draft={g.pace!.draft} className="flex flex-col gap-2.5 rounded-[4px] bg-plate p-3.5 text-plate-foreground shadow-plate">
+      <span className={TAG}>
+        Before Episode {week} · {g.gameName}
+      </span>
+      <b className="type-caption text-[28px] leading-none">{live ? "The draft's on" : "Draft together"}</b>
+      <p className="text-[14px] leading-snug text-plate-muted">
+        Take turns picking from who was still in before Episode {week}. Each person on one team. Then everyone plays at their own pace.
+      </p>
+      <p className="text-[13px] leading-snug text-plate-muted">
+        {namesLine([...people.map((p) => p.name), ...bots.map((b) => `${b} (computer)`)], 5)}
+      </p>
+      {live || !runs ? (
+        <Btn tone={live ? "must" : "ink"} wide data-pace-draft-go onClick={go}>
+          {live ? "Go to the draft" : "See the draft room"}
+        </Btn>
+      ) : (
+        <Btn tone="must" wide data-pace-draft-start disabled={busy} onClick={start}>
+          {busy ? "Starting…" : "Start the draft"}
+        </Btn>
+      )}
+      {!live && !runs && <small className="text-[13px] text-plate-muted">Whoever started the game starts the draft, once you&rsquo;re all here.</small>}
+    </div>
+  );
+}
+
+/**
+ * A waiver moment (sync point 2): someone's team lost a person in an episode you've reached. Until everyone's there, it asks you
+ * to wait, in words only (the user's pick): "OK, I'll wait", and the next episode's plate stays a tap away under Go on. Once
+ * everyone's there, its waiver week is on: the usual waivers page.
+ */
+function GatherPlate({ show, g, onRevealed }: { show: ShowData; g: GameView; onRevealed: (r: CatchUpReveal) => void }) {
+  const nav = useNav();
+  const [goOn, setGoOn] = useState(false);
+  const [waits, setWaits] = useState(false);
+  const gather = g.pace!.gather!;
+  const lost = gather.lost.map((l) => `${first(l.name)} went home from ${l.yours ? "your" : `${l.team}'s`} team`).join(" · ");
+  if (gather.open) {
+    return (
+      <div data-pace-waivers={g.leagueId} className="flex flex-col gap-2.5 rounded-[4px] bg-plate p-3.5 text-plate-foreground shadow-plate">
+        <span className={TAG}>
+          After Episode {gather.episode} · {g.gameName}
+        </span>
+        <b className="type-caption text-[28px] leading-none">Everyone&rsquo;s here: waivers</b>
+        <p className="text-[14px] leading-snug text-plate-muted">{lost}. Claims settle once everyone owed a replacement has put theirs in.</p>
+        {show.header && (
+          <Btn tone="must" wide data-pace-waivers-go onClick={() => nav.push(paths.showPage(show.header!.seasonId, "waivers"))}>
+            Go to waivers
+          </Btn>
+        )}
+      </div>
+    );
+  }
+  if (goOn && g.catchUp) return <PacePlate show={show} g={g} onRevealed={onRevealed} />;
+  return (
+    <div data-pace-gather={g.leagueId} data-pace-gather-episode={gather.episode} className="flex flex-col gap-2.5 rounded-[4px] bg-plate p-3.5 text-plate-foreground shadow-plate">
+      <span className={TAG}>
+        After Episode {gather.episode} · {g.gameName}
+      </span>
+      <b className="type-caption text-[28px] leading-none">Waivers after Episode {gather.episode}</b>
+      <p className="text-[14px] leading-snug text-plate-muted">
+        {lost}. Wait for everyone else before watching more episodes, so the waivers are fair.
+      </p>
+      <p className="text-[13px] leading-snug text-plate-muted">
+        Waiting on {namesLine(gather.waiting)}.
+      </p>
+      {waits ? (
+        <small className="text-[13px] text-plate-muted">Thanks: the waivers open once everyone&rsquo;s on Episode {gather.episode}.</small>
+      ) : (
+        <Btn tone="ink" wide data-pace-gather-wait onClick={() => setWaits(true)}>
+          OK, I&rsquo;ll wait
+        </Btn>
+      )}
+      {g.catchUp && (
+        <button type="button" data-pace-gather-go onClick={() => setGoOn(true)} className="min-h-11 text-[14px] font-semibold text-plate-muted">
+          Go on to Episode {g.catchUp.week} anyway
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** A game with teams where yours isn't picked yet (part 3a): the plate's first step, before Pick · Watch · Reveal. */
+function TeamPlate({ g }: { g: GameView }) {
+  const [open, setOpen] = useState(false);
+  const team = g.pace!.team!;
+  const week = g.catchUp?.week ?? 1;
+  return (
+    <div data-pace-team-plate={g.leagueId} className="flex flex-col gap-2.5 rounded-[4px] bg-plate p-3.5 text-plate-foreground shadow-plate">
+      <span className={TAG}>
+        Before Episode {week} · {g.gameName}
+      </span>
+      <b className="type-caption text-[28px] leading-none">Pick your team</b>
+      <p className="text-[14px] leading-snug text-plate-muted">
+        {team.need} from who was still in before Episode {week}. They&rsquo;re yours for the whole game.
+      </p>
+      <Btn tone="must" wide data-pace-team-open onClick={() => setOpen(true)}>
+        Pick your team
+      </Btn>
+      <TeamSheet g={g} open={open} onOpenChange={setOpen} />
+    </div>
+  );
+}
+
+/** Who you can have, as faces: tap to take, tap again to put back; the button counts down to your team. */
+function TeamSheet({ g, open, onOpenChange }: { g: GameView; open: boolean; onOpenChange: (o: boolean) => void }) {
+  const after = useAfterCouch();
+  const [team, setTeam] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const { need, pool } = g.pace!.team!;
+  const save = async () => {
+    setBusy(true);
+    try {
+      await gamesApi.team(g.leagueId, team);
+      await after();
+      onOpenChange(false);
+      toast("Your team's in");
+    } catch (e) {
+      toast.quiet((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange} title="Pick your team" subtitle={`${need} · from who was still in before Episode ${g.catchUp?.week ?? 1}`}>
+      <div data-pace-team-pick className="grid grid-cols-4 gap-2">
+        {pool.map((id) => {
+          const c = faceIn(g, id);
+          const on = team.includes(id);
+          return (
+            <button
+              key={id}
+              type="button"
+              data-castaway={id}
+              aria-pressed={on}
+              onClick={() => setTeam(on ? team.filter((x) => x !== id) : team.length < need ? [...team, id] : team)}
+              className={`relative overflow-hidden rounded-[3px] bg-plate text-left text-plate-foreground ${on ? "shadow-[0_0_0_3px_var(--good)]" : ""}`}
+            >
+              <Face src={c?.photo ?? null} name={c?.name ?? "?"} className="aspect-[4/4.2] w-full text-[28px]" />
+              {on && (
+                <span className="absolute right-1 top-1 grid size-6 place-items-center rounded-full bg-good text-good-foreground">
+                  <Check className="size-3.5" strokeWidth={3} aria-hidden />
+                </span>
+              )}
+              <span className="block px-1.5 pb-1.5 pt-1">
+                <b className="type-caption block truncate text-[14px]">{first(c?.name ?? "?")}</b>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      <Btn tone="must" wide className="sticky bottom-0 mt-4" data-pace-team-save disabled={busy || team.length !== need} onClick={save}>
+        {busy ? "Saving…" : team.length === need ? `This is my team` : `Pick ${need - team.length} more`}
+      </Btn>
+    </Sheet>
   );
 }
 

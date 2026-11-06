@@ -97,6 +97,12 @@ They can pause you at any moment and resume this same session later.
   natural boundary instead: the next step needs other context; your context is getting full (well before it would be
   compacted: past about two thirds); the order changes effort or waits for the main session's merge; or you'd stop for
   the user anyway.
+- Run the quick checks as you go: the unit tests, the type check, and the step's own fast fixtures. Save the long ones
+  (golden.js, blind.js and season-forward.js's rehearsal, 30 to 40 minutes together) for when a step is done or a big
+  piece of logic has changed (the user, 2026-11-06: "we want efficient development"). Run each of them once, as the last
+  work before you hand off, while there's still room in the context to fix what they find. Don't run them after every
+  part, don't run one twice where one comparison answers the question, and don't run them again after a change that only
+  touches docs or tests. Say in your final message which long checks ran, on which commit.
 - Decide what you'd normally decide yourself, with sensible defaults, and say what you decided in your final message.
   Stop for the user only where you'd normally pause to ask them: a decision that's genuinely theirs, anything
   outward-facing or hard to reverse (pushing, merging, deploying, production data), a permission you were refused, or

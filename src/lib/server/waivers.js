@@ -15,6 +15,51 @@ const StateLogic = require("../game/state-logic.js");
 const Bots = require("../game/bot-logic.js");
 
 const W = StateLogic.WaiverLogic;
+const G = StateLogic.GhostLogic;
+
+// ---- A game at your own pace with exclusive teams (docs/PLAN-own-pace-games.md, sync point 2) ----
+// Everyone plays at their own pace, so the league's state holds results past most people's episode (a whole finished season). Its
+// waivers run on a copy of the league as it stood at the episode every person has reached (the lowest mark of its people:
+// computer players keep pace), never the season's later statuses: a week opens there only when someone's team lost a person in
+// that episode (a waiver moment), settles once everyone owed a replacement has a claim in (or its time runs out), and closes when
+// everyone has moved past it. What the week did is folded back onto the league.
+
+/** The episode every person in the game has reached, or null for any other game. */
+function pacedMark(state) {
+  if (!G.draftsTogether(state)) return null;
+  const people = state.players.filter((p) => !p.automated && !p.disabled && p.lateJoin);
+  if (!people.length) return null;
+  return Math.min(...people.map((p) => (Number.isInteger(p.lateJoin.seenThrough) ? p.lateJoin.seenThrough : (p.lateJoin.startEpisode || 1) - 1)));
+}
+/** The league as it stood at that episode, for its waivers; null for any other game. */
+function pacedCopy(state) {
+  const n = pacedMark(state);
+  return n === null ? null : StateLogic.SpoilerLogic.viewThrough(state, n);
+}
+const OWNED_KEYS = ["ownerIds", "acquiredVia", "replenishClaimed", "formerOwnerId", "departedVia"];
+/** A week run on the copy, back onto the league: its waiver weeks, its log and who owns whom. */
+function foldBack(state, copy) {
+  state.midSeason = copy.midSeason;
+  copy.castaways.forEach((c) => {
+    const f = state.castaways.find((x) => x.id === c.id);
+    if (!f) return;
+    OWNED_KEYS.forEach((k) => {
+      if (c[k] === undefined) delete f[k];
+      else f[k] = c[k];
+    });
+  });
+}
+/** A waiver moment at the copy's episode: someone on a team went home in it, not replaced yet. */
+function lossAt(copy) {
+  const n = StateLogic.SpoilerLogic.latestWithResults(copy);
+  const ep = copy.episodes.find((e) => e.number === n);
+  return !!ep && copy.castaways.some((c) => c.exitEpisodeId === ep.id && (c.ownerIds || []).length && !c.replenishClaimed);
+}
+/** Everyone in the game who's owed a replacement this week has a claim in. */
+function owedIn(copy, period) {
+  const owed = copy.players.filter((p) => !p.automated && !p.disabled && W.replacementsOwed(copy, p.id, period).count > 0).map((p) => p.id);
+  return owed.length > 0 && owed.every((id) => (period.claimsIn || []).includes(id));
+}
 
 // A row as a claim: its ranked pairs (v2, db/migrations/0063) and, for one release, the pre-v2 view the
 // phase-2 screens read (pickupIds, dropId, addIds). A row saved by the old code has no pairs: with the
@@ -90,7 +135,20 @@ async function republish(client, leagueId, state, period) {
  * `dropId` and no `addIds` key) keeps what's saved for it. That's what lets the commissioner claim a
  * pickup for someone without wiping an add/drop they can't see.
  */
-async function saveClaim(client, leagueId, state, playerId, input, userId) {
+async function saveClaim(client, leagueId, league, playerId, input, userId) {
+  // At your own pace with exclusive teams, a claim is checked on the league as it stood at everyone's episode (sync point 2).
+  const copy = pacedCopy(league);
+  const state = copy || league;
+  const out = await saveClaimOn(client, leagueId, state, playerId, input, userId);
+  if (copy && !out.error) {
+    foldBack(league, copy);
+    // Everyone owed a replacement has a claim in: it settles now.
+    await syncPaced(client, leagueId, league, Date.now());
+  }
+  return out;
+}
+
+async function saveClaimOn(client, leagueId, state, playerId, input, userId) {
   const period = W.current(state);
   const has = (k) => !!input && Object.prototype.hasOwnProperty.call(input, k);
   // `{ spot: { dropId, addIds } }`: one spot's ranked choices, the rest of the saved claim kept
@@ -127,7 +185,9 @@ async function processPeriod(client, leagueId, state, now, by) {
   const period = W.current(state);
   if (!period || period.phase !== "open") return null;
   const claims = await readClaims(client, leagueId, state, period);
-  Bots.botIds(state).forEach((pid) => {
+  // At your own pace its computer players are catching up (botIds leaves them out): on the copy, they claim like anyone.
+  const bots = G.ownPace(state) ? state.players.filter((p) => Bots.isBot(p)).map((p) => p.id) : Bots.botIds(state);
+  bots.forEach((pid) => {
     if (!claims[pid]) claims[pid] = Bots.waiverClaim(state, pid, period);
   });
   return W.process(state, claims, { now, by });
@@ -141,6 +201,7 @@ async function processPeriod(client, leagueId, state, now, by) {
  */
 async function syncWaivers(client, leagueId, state, now) {
   const at = now === undefined ? Date.now() : now;
+  if (G.draftsTogether(state)) return syncPaced(client, leagueId, state, at);
   const events = [];
   // A league still on the suggestion for the team count given at creation is fitted to the teams it has
   // once the draft starts (WaiverLogic.refit), before anything is opened on those settings.
@@ -169,6 +230,40 @@ async function syncWaivers(client, leagueId, state, now) {
     }
   }
   W.refresh(state);
+  return events;
+}
+
+/** syncWaivers for a game at your own pace with exclusive teams: the same steps, on the copy at everyone's episode. */
+async function syncPaced(client, leagueId, state, at) {
+  const copy = pacedCopy(state);
+  if (!copy) return [];
+  const events = [];
+  W.refresh(copy);
+  for (let i = 0; i < 8; i++) {
+    let step = W.due(copy, at);
+    const period = W.current(copy);
+    // A week opens only at a waiver moment; and settles as soon as everyone owed a replacement has a claim in.
+    if (step === "open" && !lossAt(copy)) break;
+    if (!step && period && period.phase === "open" && owedIn(copy, period)) step = "process";
+    if (!step) break;
+    if (step === "open") {
+      const p = W.open(copy, at);
+      events.push({ type: "opened", periodId: p.id, episode: p.episode });
+    } else if (step === "cancel") {
+      W.cancel(copy);
+      await dropClaims(client, leagueId, period.id);
+      events.push({ type: "cancelled", periodId: period.id, episode: period.episode });
+    } else if (step === "process") {
+      await processPeriod(client, leagueId, copy, at, "schedule");
+      events.push({ type: "processed", periodId: period.id, episode: period.episode });
+    } else {
+      W.close(copy, at);
+      await dropClaims(client, leagueId, period.id);
+      events.push({ type: "closed", periodId: period.id, episode: period.episode });
+    }
+  }
+  W.refresh(copy);
+  if (events.length) foldBack(state, copy);
   return events;
 }
 
@@ -208,4 +303,4 @@ async function openWindow(client, leagueId, state, swaps, now, opts) {
   return { period, trimmed };
 }
 
-module.exports = { readOwnClaim, saveClaim, syncWaivers, processNow, openWindow };
+module.exports = { readOwnClaim, saveClaim, syncWaivers, processNow, openWindow, pacedCopy };

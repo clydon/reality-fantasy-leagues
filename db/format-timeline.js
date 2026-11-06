@@ -70,6 +70,26 @@ async function timelineForShow(pool, showSlug, season, cast = []) {
 }
 
 /**
+ * The groups a league's group questions read from its season's format state over time (F3 part 2: format-timeline.js groupFacts), by
+ * episode: those offered at each lock, each person's, whether that was sure, and once it has a report how it was played. Members are
+ * matched to `view`'s castaways the forgiving way (Core.findCastawayByName: a viewer's copy, else the league's), and every lock up to
+ * the league's latest episode is covered. Undefined when the league's season has no timeline or nothing on it. One read of the
+ * season's reports, never stored. Shared by a seat's answers (src/lib/server/answer-points.ts formatGroupsFor) and the bot's calls
+ * (db/bot-calls.js), so both offer the same groups at a lock.
+ */
+async function leagueGroupFacts(pool, state, view = state) {
+  const s = state.settings || {};
+  const tl = await timelineForShow(pool, s.showId, s.wikiSeason);
+  if (!tl) return undefined;
+  // Loaded here, not at the top: this module is read by the research context, which state-logic.js needn't come with.
+  const StateLogic = require("../src/lib/game/state-logic.js");
+  const resolve = (name) => (StateLogic.Core.findCastawayByName(view, name).castaway || {}).id || null;
+  const through = Math.max(0, ...state.episodes.map((e) => e.number));
+  const map = Timeline.groupFacts(tl, { cast: view.castaways, tribes: (view.tribes || []).map((t) => t.name), resolve, through });
+  return map.size ? map : undefined;
+}
+
+/**
  * The desk's cue (F3 part 2): who research says came in that the season's cast doesn't have yet (format-timeline.js
  * newcomerCues: name, the episode they came in, who for, the group they joined, the episode they left), for a person to add
  * to the cast every league sees. Research already asks about them, and stages their results and exit at the season level;
@@ -80,4 +100,4 @@ async function seasonNewcomerCues(pool, seasonId) {
   return got ? Timeline.newcomerCues(got.timeline, got.cast) : [];
 }
 
-module.exports = { REPORTS, REPORTS_BY_SLUG, reportOf, seasonReports, seasonFormatTimeline, timelineForSeason, timelineForShow, seasonNewcomerCues };
+module.exports = { REPORTS, REPORTS_BY_SLUG, reportOf, seasonReports, seasonFormatTimeline, timelineForSeason, timelineForShow, leagueGroupFacts, seasonNewcomerCues };

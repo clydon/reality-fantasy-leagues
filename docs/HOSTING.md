@@ -1091,3 +1091,8 @@ never handles it: the user does the reset and the pasting.
   and it asks the bot (ChatGPT on the VM) only when the episode's stored research wasn't sure of a fact; the answer is
   filed into that stored research (a few hundred bytes). The trivia sheet's read also checks the player's trivia games (one
   small query). 0204 and 0436 widen two kind checks; no data moves.
+- **2026-11-06, pushed to master (`e450fcd4`, migrations 0205 and 0206).** The engine's A14 parts 1-2, C1 and C2. **Two new
+  small tables, empty until a game uses them; no new service, job or poll.** `stage_change_votes` (a seat's vote on a
+  format change) and `bot_calls` (the bot's call on a beat-the-bot question), each read a game at a time; nothing can
+  make such a game yet. C2 runs every game's scoring through one sequence in the same request, at the same cost as
+  before (`playsAs` 0.29 µs a call, was 0.21).

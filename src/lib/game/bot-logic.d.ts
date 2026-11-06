@@ -29,6 +29,8 @@ export function hasWork(state: LeagueState): boolean;
 /** A game at your own pace: every catching-up bot plays each week up to episode `n` on its own copy, then its mark is `n`.
  *  Returns how many moves were made. */
 export function catchUpTo(state: LeagueState, n: number): number;
+/** A game at your own pace with teams: each computer player with none picks its own from who was in before its start. */
+export function paceTeams(state: LeagueState): number;
 /** What each bot would lock in for an open blind draft that's waiting on it. */
 export function blindSubmissions(state: LeagueState): { playerId: string; castawayIds: string[] }[];
 /** What each bot would bid in an open auction that's waiting on it (step A10 part 3b). */

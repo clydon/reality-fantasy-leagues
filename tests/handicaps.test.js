@@ -65,8 +65,11 @@ test("a handicap: its shape, defaults, words and settings; what's refused", () =
   assert.deepEqual(G.withSpec(S.defaultState().settings, WHO_HANDICAP).rankHandicap, { points: 5 });
   assert.equal(G.withSpec(S.defaultState().settings, { preset: "weekly-lineup" }).rankHandicap, undefined);
   // Beside the wrong game, or out of range.
-  assert.deepEqual(at({ preset: "survival-pool", rank: { handicap: FIVE } }), ["rank.handicap"], "a pool ranks by its streak");
-  assert.match(G.specProblems({ preset: "survival-pool", rank: { handicap: FIVE } }, CTX)[0].problem, /would only break ties/);
+  assert.deepEqual(at({ preset: "survival-pool", rank: { by: "streak", handicap: FIVE } }), ["rank.handicap"], "a pool ranked by its streak");
+  assert.match(G.specProblems({ preset: "survival-pool", rank: { by: "streak", handicap: FIVE } }, CTX)[0].problem, /would only break ties/);
+  // C2 part 4b: a pool's rank that says only its handicap ranks by its points (tests/pool-series.test.js), the only way it plays there.
+  assert.equal(G.fullSpec({ preset: "survival-pool", rank: { handicap: FIVE } }).rank.by, "total");
+  assert.deepEqual(at({ preset: "survival-pool", rank: { handicap: FIVE } }), []);
   assert.deepEqual(at({ preset: "weekly-calls", rank: { handicap: FIVE } }), ["rank.handicap"], "Weekly Calls' calls are counted outside the game");
   assert.deepEqual(at({ preset: "weekly-bingo", rank: { handicap: FIVE } }), ["rank.handicap"], "bingo lines too");
   const coop = { get: { by: "none" }, score: { by: "answers", lives: 3 }, ask: [BOOT], rank: { by: "coop", handicap: FIVE } };

@@ -1120,7 +1120,16 @@
         {
           "id": "answer.vote",
           "what": "Vote among the players",
-          "step": "A14"
+          "step": "A14",
+          "spec": {
+            "stages": [
+              { "id": "draft", "name": "Draft", "game": { "preset": "outlast", "get": { "by": "draft", "each": 3, "order": "snake", "own": "exclusive" }, "span": { "from": 1 } } },
+              { "id": "redraft", "name": "New draft", "on": { "again": true }, "game": { "preset": "outlast", "get": { "by": "draft", "each": 3, "order": "snake", "own": "exclusive" } } }
+            ],
+            "extras": { "changes": { "ok": "vote", "unanswered": "carry-on" } }
+          },
+          "page": { "show": "The Challenge", "season": 42, "rulebook": "challenge" },
+          "note": "the players' vote (A14 part 1): a format change waits for the game's seats to vote on the new stage until the lock of its first episode, decided once more than half say the same, else by the votes cast, a tie or none the game's default; the maker can still call it off"
         }
       ]
     },
@@ -1282,12 +1291,31 @@
         {
           "id": "settle.majority",
           "what": "The group's own answers (match the majority)",
-          "step": "A14"
+          "step": "A14",
+          "spec": {
+            "get": { "by": "none" },
+            "score": { "by": "answers" },
+            "rank": { "by": "total" },
+            "ask": [
+              { "id": "boot", "ask": "Who goes home?", "answer": "person", "points": 1, "asked": "each", "settle": { "by": "results", "take": "out" } },
+              { "id": "most", "ask": "Who will most of us say goes home?", "answer": "person", "points": 2, "asked": "each", "settle": { "by": "players", "take": "majority", "of": "boot" } }
+            ]
+          },
+          "page": { "show": "Survivor", "season": 51, "rulebook": "survivor" },
+          "note": "the players' own answers settling a question (A14 part 1): what most of you answered to the boot question, each answer hidden until the lock; a tie, or fewer than two answers, doesn't count either way"
         },
         {
           "id": "settle.bot",
           "what": "The bot's own call, as an opponent",
-          "step": "A14"
+          "step": "A14",
+          "spec": {
+            "get": { "by": "none" },
+            "score": { "by": "answers" },
+            "rank": { "by": "total" },
+            "ask": [ { "id": "idol", "ask": "Will an idol be played?", "answer": "yesNo", "points": 2, "asked": "each", "settle": { "by": "moment", "moment": "idolPlayed", "take": "happened" }, "beat": { "by": "bot" } } ]
+          },
+          "page": { "show": "Survivor", "season": 51, "rulebook": "survivor" },
+          "note": "the bot's own call on each episode's question, made before it locks and hidden until then, graded by the same data as everyone's (A14 part 2): you score when you're right and it isn't; a week the bot made no call plays as usual (a setting: or doesn't count)"
         },
         {
           "id": "settle.outside",
@@ -1942,7 +1970,18 @@
         {
           "id": "win.bot",
           "what": "Beat the bot",
-          "step": "A14"
+          "step": "A14",
+          "spec": {
+            "get": { "by": "none" },
+            "score": { "by": "answers" },
+            "rank": { "by": "total" },
+            "ask": [
+              { "id": "boot", "ask": "Who goes home?", "answer": "person", "points": 2, "asked": "each", "settle": { "by": "results", "take": "out" }, "beat": { "by": "bot" } },
+              { "id": "immunity", "ask": "Who wins immunity?", "answer": "person", "points": 1, "asked": "each", "settle": { "by": "moment", "moment": "individualImmunity", "take": "who" }, "beat": { "by": "bot" } }
+            ]
+          },
+          "page": { "show": "Survivor", "season": 51, "rulebook": "survivor" },
+          "note": "every question played against the bot's call (A14 part 2): points only for beating it, and the table's line beside it says how each of you did against it (answer-points.ts botLine: the bot's calls right, and each seat's windows beat and beaten); the bot is never a seat on the table nor a place on it"
         }
       ]
     },
@@ -2486,6 +2525,486 @@
         "who"
       ],
       "note": "group slots (A10 part 1, on F3's grouping lifetimes): shared, no swaps while a group lasts, void when the groups aren't sure, a group's points its members' mean (the defaults, the user's to set)"
+    },
+    {
+      "id": "p10",
+      "page": {
+        "show": "Survivor",
+        "season": 51,
+        "rulebook": "survivor"
+      },
+      "words": "For show X, have a starting bank of 500 units, have a prediction sheet generated each week that players can wager on, more wagers multiply scored earnings.",
+      "step": "C7",
+      "dials": [
+        "answer",
+        "score",
+        "win"
+      ],
+      "note": "the user's first game (2026-11-05, track C): a bank of 500 that stakes are drawn from and payouts go into (C6: money; today's wager stakes your points, with no starting balance), a prediction sheet written each week (C7: a new card each week; today a game's questions are its spec's), and more wagers multiplying the week (C6's staked parlays, or the count of wagers). Nearest today: a game of questions with wager 'total' on each question. Open (the user's): does 'more wagers multiply' mean a parlay (picks combined pay more) or that the number of wagers placed multiplies the week; even money or odds; a bank at zero, out?"
+    },
+    {
+      "id": "p11",
+      "page": {
+        "show": "Survivor",
+        "season": 51,
+        "rulebook": "survivor"
+      },
+      "words": "Have an exclusive draft initially, these players score 1x points. If you need to replace one you can pick as if the cast was open and shared but the new player who replaces your lost one scores 0.5x, if you need to replace another it scores 0.25x. Those multiplications are configurable.",
+      "step": "C4",
+      "dials": [
+        "score",
+        "who"
+      ],
+      "note": "the user's second game (2026-11-05, track C): an exclusive draft whose replacements are shared (C4: ownership per holding, and where a replacement comes from; today one own for the draft and its pickups, so a replacement comes only from who's free) and score less the later they joined, 1x, 0.5x, 0.25x, configurable (C3: multipliers on any condition, here how a holding joined; today's multipliers are a captain or by when, on a draft scored by moments). Nearest today: an exclusive Outlast or lineup with waivers replacing someone gone (replace 'always'), replacements scoring in full. Open (the user's): after the list, does the last repeat or keep halving; per roster slot or per team; do voluntary swaps count, or only replacing someone gone?"
+    },
+    {
+      "id": "p12",
+      "page": {
+        "show": "Survivor",
+        "season": 51,
+        "rulebook": "survivor"
+      },
+      "words": "Each week everyone has a shared set of objectives (several individual moments). Each player picks x cast members that they think will achieve as many objectives as possible. Player with most objectives hit wins the week.",
+      "step": "C7",
+      "dials": [
+        "what",
+        "score",
+        "win"
+      ],
+      "note": "the user's third game (2026-11-05, track C): x cast members picked fresh each episode without a draft, only the week's objectives counting, the week's winner and the season ranked by weeks won (C5: the week as a result; today a pick is one person and stages stop at six), each week's objectives from one generator (C7: a new card each week, or a fixed list). Nearest today: a game of questions with a 'name x' question per objective, each settled by its moment (each question's picks separate), or up to six one-week stages with overall 'wins'. Open (the user's): distinct objectives your picks hit, or every hit counted; who writes each week's objectives (the bot from research, the maker, a fixed list)?"
+    },
+    {
+      "id": "p13",
+      "page": {
+        "show": "Survivor",
+        "season": 51,
+        "rulebook": "survivor"
+      },
+      "words": "Who wins, called once: the earlier you call it the more it's worth, and it's split between everyone who gets it right.",
+      "spec": {
+        "get": {
+          "by": "none"
+        },
+        "score": {
+          "by": "answers"
+        },
+        "rank": {
+          "by": "total"
+        },
+        "ask": [
+          {
+            "id": "winner",
+            "ask": "Who wins?",
+            "answer": "person",
+            "points": 10,
+            "closes": "finale",
+            "shrink": {
+              "points": 1,
+              "per": "episode"
+            },
+            "settle": {
+              "by": "results",
+              "take": "winner"
+            },
+            "share": "split"
+          }
+        ]
+      },
+      "step": "C2",
+      "dials": [
+        "score"
+      ],
+      "note": "C2 part 4a: a shrinking call that's shared, each right call at what it was worth when it was made, then shared (refused before: \"A shrinking call is its own\")."
+    },
+    {
+      "id": "p14",
+      "page": {
+        "show": "Survivor",
+        "season": 51,
+        "rulebook": "survivor"
+      },
+      "words": "Who wins, worth a point less every episode you wait, and it only scores if nobody else called it.",
+      "spec": {
+        "get": {
+          "by": "none"
+        },
+        "score": {
+          "by": "answers"
+        },
+        "rank": {
+          "by": "total"
+        },
+        "ask": [
+          {
+            "id": "winner",
+            "ask": "Who wins?",
+            "answer": "person",
+            "points": 10,
+            "closes": "finale",
+            "shrink": {
+              "points": 1,
+              "per": "episode"
+            },
+            "settle": {
+              "by": "results",
+              "take": "winner"
+            },
+            "share": "only"
+          }
+        ]
+      },
+      "step": "C2",
+      "dials": [
+        "score"
+      ],
+      "note": "C2 part 4a: a shrinking call paying only the only one right, at what their call is worth."
+    },
+    {
+      "id": "p15",
+      "page": {
+        "show": "Survivor",
+        "season": 51,
+        "rulebook": "survivor"
+      },
+      "words": "Who goes home and who wins immunity: triple if you get both, and who goes home rolls over when nobody gets it.",
+      "spec": {
+        "get": {
+          "by": "none"
+        },
+        "score": {
+          "by": "answers",
+          "parlays": [
+            {
+              "of": [
+                "boot",
+                "imm"
+              ],
+              "times": 3
+            }
+          ]
+        },
+        "rank": {
+          "by": "total"
+        },
+        "ask": [
+          {
+            "id": "boot",
+            "ask": "Who goes home?",
+            "answer": "person",
+            "points": 2,
+            "asked": "each",
+            "settle": {
+              "by": "results",
+              "take": "out"
+            },
+            "rollover": true
+          },
+          {
+            "id": "imm",
+            "ask": "Who wins immunity?",
+            "answer": "person",
+            "points": 2,
+            "asked": "each",
+            "settle": {
+              "by": "moment",
+              "take": "who",
+              "moment": "individualImmunity"
+            }
+          }
+        ]
+      },
+      "step": "C2",
+      "dials": [
+        "score"
+      ],
+      "note": "C2 part 4a: a parlay whose leg rolls over, its jackpot then the parlay (refused before: a parlay's legs were plain)."
+    },
+    {
+      "id": "p16",
+      "page": {
+        "show": "Survivor",
+        "season": 51,
+        "rulebook": "survivor"
+      },
+      "words": "Who goes home and who wins immunity, double if you get both, but who goes home only pays if you're the only one who called it.",
+      "spec": {
+        "get": {
+          "by": "none"
+        },
+        "score": {
+          "by": "answers",
+          "parlays": [
+            {
+              "of": [
+                "boot",
+                "imm"
+              ],
+              "times": 2
+            }
+          ]
+        },
+        "rank": {
+          "by": "total"
+        },
+        "ask": [
+          {
+            "id": "boot",
+            "ask": "Who goes home?",
+            "answer": "person",
+            "points": 2,
+            "asked": "each",
+            "settle": {
+              "by": "results",
+              "take": "out"
+            },
+            "share": "only"
+          },
+          {
+            "id": "imm",
+            "ask": "Who wins immunity?",
+            "answer": "person",
+            "points": 2,
+            "asked": "each",
+            "settle": {
+              "by": "moment",
+              "take": "who",
+              "moment": "individualImmunity"
+            }
+          }
+        ]
+      },
+      "step": "C2",
+      "dials": [
+        "score"
+      ],
+      "note": "C2 part 4a: a parlay whose leg pays only the only one right (its share then the parlay: the same either way round)."
+    },
+    {
+      "id": "p17",
+      "page": {
+        "show": "Survivor",
+        "season": 51,
+        "rulebook": "survivor"
+      },
+      "words": "Our Outlast, plus a question every week: who goes home, 2 points.",
+      "spec": {
+        "preset": "outlast",
+        "ask": [
+          {
+            "id": "boot",
+            "ask": "Who goes home?",
+            "answer": "person",
+            "points": 2,
+            "asked": "each",
+            "settle": {
+              "by": "results",
+              "take": "out"
+            }
+          }
+        ]
+      },
+      "step": "C2",
+      "dials": [
+        "what",
+        "score"
+      ],
+      "note": "part 4c: a draft's own questions beyond its finale predictions, their answers graded as a game of questions' and their points a line of the draft's, through each episode and at now (no stage alongside)."
+    },
+    {
+      "id": "p18",
+      "page": {
+        "show": "Survivor",
+        "season": 51,
+        "rulebook": "survivor"
+      },
+      "words": "A Survival Pool, but head to head each week: whoever's pick stays in beats whoever's doesn't.",
+      "spec": {
+        "preset": "survival-pool",
+        "rank": {
+          "by": "matchups"
+        }
+      },
+      "step": "C2",
+      "dials": [
+        "win"
+      ],
+      "note": "part 4b: a pool's series of totals from its picks (head to head on what each episode's pick earned)."
+    },
+    {
+      "id": "p19",
+      "page": {
+        "show": "Survivor",
+        "season": 51,
+        "rulebook": "survivor"
+      },
+      "words": "A Survival Pool in two teams: each team's right picks add up.",
+      "spec": {
+        "preset": "survival-pool",
+        "rank": {
+          "by": "total",
+          "teams": {
+            "of": 2,
+            "score": "sum"
+          }
+        }
+      },
+      "step": "C2",
+      "dials": [
+        "who"
+      ],
+      "note": "part 4b: teams of players on a pool's points (ranked by the team's total)."
+    },
+    {
+      "id": "p20",
+      "page": {
+        "show": "Survivor",
+        "season": 51,
+        "rulebook": "survivor"
+      },
+      "words": "Most right picks wins our Survival Pool, and newcomers get a point a week head start.",
+      "spec": {
+        "preset": "survival-pool",
+        "rank": {
+          "by": "total",
+          "handicap": {
+            "points": 1
+          }
+        }
+      },
+      "step": "C2",
+      "dials": [
+        "who",
+        "win"
+      ],
+      "note": "part 4b: a pool ranked by its points (a right pick's), and a handicap on them."
+    },
+    {
+      "id": "p21",
+      "page": {
+        "show": "Survivor",
+        "season": 51,
+        "rulebook": "survivor"
+      },
+      "words": "Weekly Lineup in two teams, and the team lowest after Episode 6 is out.",
+      "spec": {
+        "preset": "weekly-lineup",
+        "rank": {
+          "by": "standing",
+          "teams": {
+            "of": 2
+          },
+          "cut": [
+            {
+              "at": {
+                "episode": 6
+              },
+              "out": 1
+            }
+          ]
+        }
+      },
+      "step": "C2",
+      "dials": [
+        "who",
+        "win"
+      ],
+      "note": "part 4b: teams knocked out, the week's result on a team's totals (today: \"A team knocked out isn't built\")."
+    },
+    {
+      "id": "p22",
+      "page": {
+        "show": "Survivor",
+        "season": 51,
+        "rulebook": "survivor"
+      },
+      "words": "Weekly Lineup in two teams: the first team to 60 points wins.",
+      "spec": {
+        "preset": "weekly-lineup",
+        "rank": {
+          "by": "total",
+          "teams": {
+            "of": 2
+          },
+          "race": {
+            "to": 60
+          }
+        }
+      },
+      "step": "C2",
+      "dials": [
+        "who",
+        "win"
+      ],
+      "note": "part 4b: a race between teams, on a team's totals (today: \"A race between teams isn't built\")."
+    },
+    {
+      "id": "p23",
+      "page": {
+        "show": "Survivor",
+        "season": 51,
+        "rulebook": "survivor"
+      },
+      "words": "In our Outlast, anyone you pick up mid-season counts double while they're yours.",
+      "step": "C3",
+      "dials": [
+        "score"
+      ],
+      "note": "a multiplier on how a holding joined, on an Outlast's lines too (decided 2026-11-05: what the replacement earns while it's yours, never their whole place times it). C2 part 4 leaves it to C3, which builds the multiplier piece."
+    },
+    {
+      "id": "p24",
+      "page": {
+        "show": "Survivor",
+        "season": 51,
+        "rulebook": "survivor"
+      },
+      "words": "Stake up to 5 points on who goes home, and the pot's split between everyone who gets it right.",
+      "spec": {
+        "get": {
+          "by": "none"
+        },
+        "score": {
+          "by": "answers"
+        },
+        "rank": {
+          "by": "total"
+        },
+        "ask": [
+          {
+            "id": "boot",
+            "ask": "Who goes home?",
+            "answer": "person",
+            "points": 10,
+            "asked": "each",
+            "settle": {
+              "by": "results",
+              "take": "out"
+            },
+            "wager": 5,
+            "share": "split"
+          }
+        ]
+      },
+      "step": "C6",
+      "dials": [
+        "answer",
+        "score"
+      ],
+      "note": "money (stakes): a wager with a share, rollover or shrink, and a parlay with a staked leg (the scoring sequence's order: the stake, then the multipliers, then the share)."
+    },
+    {
+      "id": "p25",
+      "page": {
+        "show": "Survivor",
+        "season": 51,
+        "rulebook": "survivor"
+      },
+      "words": "Who goes home is a 10-point pot split between everyone right, and if you also get immunity your share doubles.",
+      "decide": "A parlay on a split pot: does it multiply your share, or your call before the split? (Recommended: your share.)",
+      "dials": [
+        "score"
+      ],
+      "note": "A parlay on a split pot (C2 part 3's Noticed, part 4: a rule for the user): today a parlay multiplies after a window's share; the scoring sequence's order for new combinations puts multipliers before the share. Recommended: the share, then the parlay (a parlay multiplies what each leg gave you; the other way round it would grow your share of a pot everyone else shares too), as a setting if the user wants both."
     }
   ],
   "stretch": [
@@ -3313,7 +3832,13 @@
       "step": "A14",
       "dials": [
         "settle"
-      ]
+      ],
+      "spec": {
+        "get": { "by": "none" },
+        "score": { "by": "answers" },
+        "rank": { "by": "total" },
+        "ask": [ { "id": "herd", "ask": "Who goes home? Pick who most of us will", "answer": "person", "points": 1, "asked": "each", "settle": { "by": "players", "take": "majority" } } ]
+      }
     },
     {
       "id": "s32",
@@ -3441,7 +3966,13 @@
       "step": "A14",
       "dials": [
         "win"
-      ]
+      ],
+      "spec": {
+        "get": { "by": "none" },
+        "score": { "by": "answers" },
+        "rank": { "by": "total" },
+        "ask": [ { "id": "boot", "ask": "Who goes home?", "answer": "person", "points": 2, "asked": "each", "settle": { "by": "results", "take": "out" }, "beat": { "by": "bot" } } ]
+      }
     },
     {
       "id": "s36",

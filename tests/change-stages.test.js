@@ -97,8 +97,8 @@ test("a stage a format change starts: its spec whole, its problems, its waits, i
   assert.deepEqual(problems({ ...P7, extras: { changes: { ok: "never", unanswered: "maybe", by: 1 } } }), ["extras.changes.by", "extras.changes.ok", "extras.changes.unanswered"]);
   assert.deepEqual(problems({ stages: [SOLO, { ...SOLO, id: "two", game: { ...SOLO.game, span: { from: 7 } } }], extras: { changes: { ok: "auto" } } }), ["extras.changes"], "only a game a change moves");
   assert.deepEqual(problems({ preset: "outlast", extras: { changes: { ok: "auto" } } }), ["extras.changes"]);
-  // What waits: the players' vote (A14), a stage at a phase after one a change starts (later parts).
-  assert.deepEqual(G.specWaitsFor({ ...P7, extras: { changes: { ok: "vote" } } }).map((w) => [w.at, w.step]), [["extras.changes.ok", "later"]]);
+  // What waits: a stage at a phase after one a change starts (later parts). The players' vote plays since A14 part 1 (players-vote.test.js).
+  assert.deepEqual(G.specWaitsFor({ ...P7, extras: { changes: { ok: "vote" } } }), []);
   const after = { stages: [SOLO, REDRAFT, { id: "fin", name: "Final", game: { preset: "outlast", get: DRAFT, span: { from: { phase: "final" } } } }] };
   assert.deepEqual(G.specWaitsFor(after).map((w) => [w.at, w.step]), [["stages[2].game.span.from", "later"]]);
   // A stage a change starts after another (pairs, then on their own again) plays.

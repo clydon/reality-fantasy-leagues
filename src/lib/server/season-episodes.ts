@@ -12,7 +12,7 @@ import { DEFAULT_RUNTIME_MIN, finalAtOf, seasonSchedules } from "./schedule";
 import type { ReadOnly } from "./read-only";
 import { gamesHere, type GameHere } from "./season-games";
 import { seasonFactsFor } from "./season-stats";
-import { leagueAnswers, sheetNights, storedAnswers } from "./answer-points";
+import { keepsAnswers, leagueAnswers, sheetNights, storedAnswers } from "./answer-points";
 
 // A season's episodes and its one reveal, for the new design's show space (docs/PLAN-new-design.md step 2):
 //   GET  /api/seasons/[id]/episodes   every episode as far as you've seen (who went home, what happened, the top
@@ -71,12 +71,15 @@ export interface SeasonEpisodes {
 /** A game you joined late and are still catching up in (StateLogic.GhostLogic). */
 const catchingUpIn = (h: GameHere) => StateLogic.GhostLogic.isCatchingUp(h.state, h.playerId);
 
-/** A Prediction Sheet's points around episode n and its nights, for the reveal (step A4 part 2); undefined for any other game. */
+/** A Prediction Sheet's points around episode n and its nights, for the reveal (step A4 part 2); step C2 part 4c, a draft's own
+ *  questions' lines around it (its table adds them); undefined for any other game. */
 async function revealSheet(h: GameHere, n: number): Promise<RevealSheet | undefined> {
-  if (!StateLogic.piecesOf(h.state).hasQuestions) return undefined;
+  if (!keepsAnswers(h.state)) return undefined;
   try {
     const o = { leagueId: h.game.leagueId, state: h.state, playerId: h.playerId, rows: h.answers ?? (await storedAnswers(h.game.leagueId)) };
-    const [was, now, nights] = await Promise.all([leagueAnswers({ ...o, mark: n - 1 }), leagueAnswers({ ...o, mark: n }), sheetNights({ ...o, mark: n })]);
+    // A draft's own questions: their lines only (the reveal's night line is a Prediction Sheet's).
+    const sheet = StateLogic.piecesOf(h.state).hasQuestions;
+    const [was, now, nights] = await Promise.all([leagueAnswers({ ...o, mark: n - 1 }), leagueAnswers({ ...o, mark: n }), sheet ? sheetNights({ ...o, mark: n }) : new Map()]);
     return { was, now, nights };
   } catch (e) {
     // The mark has moved already: the reveal goes on without the sheet's points rather than failing.
