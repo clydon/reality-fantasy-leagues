@@ -1,0 +1,21 @@
+{
+  "about": "Who says each episode's title quote, for A13 part 2's proof (scripts/dev-test/facts-asks.js score): the truth a re-asked episode's episodeFacts.titleQuote is scored against. Names as the source gives them; matched to the cast the forgiving way (episode-facts.js personIn). An episode not listed has no truth on file (its answer counts for how often research says it, not whether it's right).",
+  "seasons": {
+    "survivor/49": {
+      "source": "Inside Survivor's weekly stats pages (insidesurvivor.com, 'Survivor 49 - Episode N Stats': \"The episode title ... was said by ...\"), read 2026-10-31; episodes 1 and 7 have no page found",
+      "episodes": {
+        "2": "Nate",
+        "3": "Alex",
+        "4": "Nate",
+        "5": "Sage",
+        "6": "Rizo",
+        "8": "Savannah",
+        "9": "Rizo",
+        "10": "Steven",
+        "11": "Rizo",
+        "12": "Steven",
+        "13": "Sophi"
+      }
+    }
+  }
+}

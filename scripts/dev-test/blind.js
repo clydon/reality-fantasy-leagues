@@ -27,7 +27,13 @@
 //     earlier game on its couch for the tinkerer and the fan first (earlierGame), so the drive-by and the forgetter are its
 //     newcomers, and each episode's record says who it names and what it has given each so far; a game in stages (A12), each
 //     stage played as a game of its own beside it, and a stage a format change starts (A12 part 2) found as the season sync makes
-//     each copy mid-season (its draft at its start, from who's left), its record ended where a corrected report takes it away.
+//     each copy mid-season (its draft at its start, from who's left), its record ended where a corrected report takes it away; a
+//     game that asks trivia (A13), each episode's trivia as its tape has it (written and checked then) filed after its results,
+//     the key of the round before the next episode, every question of a round answered by each seat's habit; a game an episode fact
+//     settles (A13 part 2), each episode's facts in its research as the local bot said them where A13 part 2's proof asked it again
+//     (facts-asks.js), with the facts run's answer filled in where part 2b's proof asked it (the run's own prompt, filed as the run
+//     files it: facts-asks.js heldOf), else none (the question void), recorded per episode in `facts`; the copy carrying its show's
+//     measure of each fact (carryMeasure), as live the show has the season tapes', so our check rates it as it would live.
 // Nothing asks a bot. The local bot's answers are F2's, kept beside the tapes; the stand-ins are marked as such in the record.
 //
 //   node scripts/dev-test/blind.js run [<show> <season>] [--only=3,7] [--through=N] [--keep]
@@ -165,7 +171,7 @@ function fixtureQuick(t, n, format, tapeText) {
  * asks about them), then the format section and `merged` put in. { text, changes } (quickExits' changes: who it made leave
  * or stay). Pure.
  */
-function blindFull(text, { quick, asked, format, section, merged }) {
+function blindFull(text, { quick, asked, format, section, merged, facts }) {
   // The quick check's wording for an exit both name (so the two agree: the app holds an exit they word differently, the
   // playtest report's finding 2), and a leaver's entry as sure as the fixture is (a medium one never reaches a game: finding
   // 3), so who went home reaches every game as the fixture has it.
@@ -180,6 +186,8 @@ function blindFull(text, { quick, asked, format, section, merged }) {
     }
   }
   if (section !== undefined) raw.formatState = section;
+  // A13 part 2: the episode's facts as the local bot said them where A13 part 2's proof asked it again (facts-asks.js); else none.
+  if (facts !== undefined) raw.episodeFacts = facts;
   if (merged != null && ("merged" in raw || (format && format.hasMerge))) raw.merged = merged;
   return { text: JSON.stringify(raw), changes: got.changes };
 }
@@ -229,6 +237,11 @@ function answerFor(seat, q, n) {
         return h("s") < 0.5 ? [5, 3] : [4, 3, 1];
       case "pairs":
         return q.pairs && q.pairs.length ? Object.fromEntries(q.pairs.map((p) => [p.key, p.faces[h(p.key) < 0.5 ? 0 : 1].id])) : undefined;
+      // A13: each of the round's questions (but one played in the trivia sheet), an option by habit.
+      case "trivia": {
+        const open = (q.trivia || []).filter((t) => !t.played);
+        return open.length ? Object.fromEntries(open.map((t) => [t.id, orderFor(seat, q, n, t.options, (o) => `${t.id}|${o}`)[0]])) : undefined;
+      }
       default:
         return undefined;
     }
@@ -301,6 +314,7 @@ function app() {
     answers: H.tsApp("lib/server/answers"),
     points: H.tsApp("lib/server/answer-points"),
     Research: require("../../db/episode-research.js"),
+    Trivia: require("../../db/trivia-research.js"),
     DBT: require("../../db/format-timeline.js"),
     C: require("../../src/lib/game/game-spec/capabilities.js"),
     rows: H.tsApp("lib/game/capability-rows"),
@@ -594,6 +608,8 @@ async function lookAt(r, n) {
         const v = q.verdict || {};
         if (q.answer !== "group") {
           out.verdicts[q.id] = { state: v.state || null, right: (v.right || []).slice(0, 6).map((id) => (gq.cast.find((c) => c.id === id) || {}).name || id), earned: Object.fromEntries(q.people.filter((p) => p.earned).map((p) => [label(p.playerId), p.earned])), answered: q.people.filter((p) => p.answer != null).length };
+          // A13: how many questions its round's key had (none: void).
+          if (q.answer === "trivia") out.verdicts[q.id].key = (q.trivia || []).length;
           continue;
         }
         out.verdicts[q.id] = {
@@ -811,6 +827,34 @@ async function premiere(r) {
   }
 }
 
+/**
+ * A13 part 2b: the copy carries its show's measure of each episode fact, as live the show has the season tapes' (fact-measures.json:
+ * Survivor's 10 of 10). Our check reads a show's measure by its slug, and the copy's is zt-pt-<show>, so the tapes' counts go in as
+ * stored answers of an earlier season of the copy (999, its one cast name), each sure of that name or not, as many as the tapes say:
+ * the copy's own stored research, as the show's would be live. H.down takes them with the copy. The entries carried, by fact.
+ */
+async function carryMeasure(show, seasonId) {
+  const { pool } = app();
+  const Facts = require("../../src/lib/game/formats/episode-facts.js");
+  const entries = Object.fromEntries(Facts.FACT_IDS.map((id) => [id, Facts.entryFor(show, id, {})]));
+  const n = Math.max(0, ...Object.values(entries).map((e) => e.asked));
+  if (!n) return entries;
+  const showId = (await pool.query("SELECT show_id FROM show_seasons WHERE id = $1", [seasonId])).rows[0].show_id;
+  const earlier = (await pool.query("INSERT INTO show_seasons (show_id, season_number, status) VALUES ($1, 999, 'completed') RETURNING id", [showId])).rows[0].id;
+  await pool.query("INSERT INTO season_cast (season_id, name) VALUES ($1, 'Tape Measure')", [earlier]);
+  const said = { isQuote: "yes", line: null, by: "Tape Measure", sure: "high" };
+  const unsure = { isQuote: "unknown", line: null, by: null, sure: "low" };
+  for (let k = 1; k <= n; k++) {
+    const episodeFacts = Object.fromEntries(Facts.FACT_IDS.map((id) => [id, k > entries[id].asked ? null : k <= entries[id].settled ? said : unsure]));
+    await pool.query(
+      `INSERT INTO episode_research (show_id, season_number, episode_number, payload, provenance, source)
+       VALUES ($1, 999, $2, $3::jsonb, $4::jsonb, 'combined')`,
+      [showId, k, JSON.stringify({ episodeTitle: null, castaways: [], episodeFacts }), JSON.stringify({ provider: "blind: the season tapes' measure" })]
+    );
+  }
+  return entries;
+}
+
 async function run(show, season, opts = {}) {
   const { S, pool } = app();
   const Tapes = require("./tapes");
@@ -822,6 +866,7 @@ async function run(show, season, opts = {}) {
   const through = Math.min(E, Number(opts.through) || E);
   const format = (await app().Research.resolveSeasonResearchContext(pool, H.SLUG(show), season, 1)).format;
   const f2 = FA.answersOf(show, season);
+  const measure = await carryMeasure(show, copy.seasonId);
   const all = await gamesFor(copy.seasonId, show);
   const only = opts.only ? String(opts.only).split(",").map(Number) : null;
   const games = all.filter((g) => g.plays && (!only || only.includes(g.n)));
@@ -838,7 +883,12 @@ async function run(show, season, opts = {}) {
     if (r.problems.length) console.log(`  ${g.n}. ${g.label}: ${r.problems[0]}`);
   }
   const live = () => replays.filter((r) => r.leagueId && !r.dead);
-  const record = { show, season, title: t.title, episodes: E, at: new Date().toISOString(), games: all.map(({ spec, ...g }) => ({ ...g, spec })), premiere: {}, format: [], sources: {}, exits: {}, replays: [] };
+  const record = { show, season, title: t.title, episodes: E, at: new Date().toISOString(), games: all.map(({ spec, ...g }) => ({ ...g, spec })), premiere: {}, format: [], sources: {}, exits: {}, trivia: {}, facts: {}, measure, replays: [] };
+  // A13 part 2: each episode's facts as A13 part 2's proof asked it again at the local bot (facts-asks.js), where it did; part 2b:
+  // with the facts run's answer filled in where its proof asked it (heldOf, as the run files it).
+  const factsAsked = require("./facts-asks.js").heldOf(show, season);
+  // A13: each episode's trivia as the tape has it, written and checked then (bot research's 'trivia' run: db/trivia-research.js).
+  const triviaTapes = Tapes.readTape(show, season).files.filter((f) => f.kind === "trivia" && f.ok && f.result && Array.isArray(f.result.questions));
   for (const r of live()) {
     const p = await premiere(r);
     if (p.length) record.premiere[r.game.n] = p;
@@ -887,12 +937,18 @@ async function run(show, season, opts = {}) {
       full: (text, { ctx }) => {
         const fq = fixtureQuick(t, ep, format, null);
         const asked = ctx ? app().Research.pasteSkeleton(ctx, []).castaways : [];
-        const got = blindFull(text, { quick: fq.quick, asked, format, section: src.section, merged: src.merged });
+        const fa = factsAsked[ep] && factsAsked[ep].ok && factsAsked[ep].read ? factsAsked[ep].read.episodeFacts : null;
+        if (fa) record.facts[ep] = fa.titleQuote ? `${fa.titleQuote.isQuote}, ${fa.titleQuote.by || "nobody"} (${fa.titleQuote.sure}${factsAsked[ep].via === "run" ? ", the facts run's" : ""})` : "none";
+        const got = blindFull(text, { quick: fq.quick, asked, format, section: src.section, merged: src.merged, facts: fa || null });
         reshaped = got.changes;
         return got.text;
       },
     };
     const filed = await H.fileResults(copy, ep, tapeAnswer, "placed", hooks);
+    // A13: the trivia the bot's research wrote after this episode, filed as its run files it (storeTrivia), in before the next
+    // episode's answers, as it lands a day before that one airs: the key of the round before it. None on tape: that round is void.
+    const tt = triviaTapes.find((f) => f.episode === ep);
+    if (tt) record.trivia[ep] = { live: await app().Trivia.storeTrivia(pool, copy.seasonId, ep, tt.result.questions, null), of: tt.result.questions.length };
     await pool.query("UPDATE season_episodes SET air_at = air_at + make_interval(days => $2::int) WHERE season_id = $1 AND air_at < now()", [copy.seasonId, copy.shiftDays]);
     if (reshaped && (reshaped.left.length || reshaped.stayed.length || reshaped.added.length)) record.exits[ep] = { left: reshaped.left, stayed: reshaped.stayed, added: reshaped.added };
     const fmt = await formatAfter(copy, ep, E);

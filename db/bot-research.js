@@ -7,6 +7,10 @@
 //   full  @  60 min -- the whole research checklist, staged for review like a pasted answer
 //   full  @ 720 min -- the checklist again once the morning's recaps are up, merged into the first, before players'
 //                      final results at 12:00 noon (src/lib/game/final-results.js)
+//   facts @ 750 min -- the episode's facts its stored answer still isn't sure of (who says the title quote), asked on their own
+//                      in a short prompt (db/facts-research.js, A13 part 2b), filed into that answer as a second pass fills
+//                      in; nothing is asked when research was sure of them. Before the final results, which a game's question
+//                      a fact settles waits for while research isn't sure (formats/episode-facts.js pendingUntil)
 //   trivia  1440 min -- trivia questions about it and the season so far (db/trivia-research.js), checked by a second
 //                       prompt. Its minutes count BACK from when the NEXT episode airs, so it lands a day before that
 //                       one whether the show airs weekly or most nights (and never sooner than TRIVIA_AFTER_END after
@@ -54,8 +58,10 @@ const SeasonClock = require("./season-clock.js");
 const Research = require("./episode-research.js");
 const Trivia = require("./trivia-research.js");
 const Bingo = require("./bingo-research.js");
+const FactsRun = require("./facts-research.js");
+const FinalResults = require("../src/lib/game/final-results.js");
 
-const KINDS = ["quick", "full", "schedule", "trivia", "bingo"];
+const KINDS = ["quick", "full", "schedule", "trivia", "bingo", "facts"];
 // A tie-break's run rows (kind 'tiebreak', 0116) carry this slot.
 const TIEBREAK_SLOT = "tiebreak";
 // The season's own bingo bank, written once, in the window of an episode's bingo run (dueAt).
@@ -68,6 +74,7 @@ const DEFAULT_SCHEDULE = [
   { kind: "quick", after: 0, on: true },
   { kind: "full", after: 60, on: true },
   { kind: "full", after: 720, on: true },
+  { kind: "facts", after: 750, on: true },
   { kind: "trivia", after: 1440, on: true },
   { kind: "bingo", after: 1440, on: true },
 ];
@@ -77,7 +84,7 @@ const SLOT_WAS = { "quick@0": ["quick@5"], "full@720": ["full@540"] };
 // Our usual as the desk set it (app_settings), and how many earlier slots a moved run remembers.
 const USUAL_KEY = "bot_usual";
 const MAX_WAS = 6;
-const SLOT_RE = /^(quick|full|schedule|trivia|bingo)@\d{1,5}$/;
+const SLOT_RE = new RegExp(`^(${KINDS.join("|")})@\\d{1,5}$`);
 // A bingo run's two asks share the route's 300s as trivia's do.
 const BINGO_WRITE_MS = 160_000;
 const BINGO_TOTAL_MS = 280_000;
@@ -107,8 +114,9 @@ const FULL_RETRY_MS = 20 * MIN;
 const QUICK = { fastMs: 5 * MIN, fastForMs: 30 * MIN, slowMs: 15 * MIN, windowMs: 3 * 60 * MIN, maxTries: 20 };
 // How late a run is still worth doing at all (the VM was down, say). A quick check is news for hours; a
 // full one is useful for days, and so is a tie-break.
-// Bingo's squares are worth writing until the episode airs (slots cuts a try off there), however early its run was set.
-const STALE_MS = { quick: 12 * 60 * MIN, full: 3 * 24 * 60 * MIN, schedule: 3 * 24 * 60 * MIN, tiebreak: 3 * 24 * 60 * MIN, trivia: 2 * 24 * 60 * MIN, bingo: MAX_AFTER * MIN };
+// Bingo's squares are worth writing until the episode airs (slots cuts a try off there), however early its run was set. An
+// episode's facts, for a day: a game's question waits for them only until the episode's final results.
+const STALE_MS = { quick: 12 * 60 * MIN, full: 3 * 24 * 60 * MIN, schedule: 3 * 24 * 60 * MIN, tiebreak: 3 * 24 * 60 * MIN, trivia: 2 * 24 * 60 * MIN, bingo: MAX_AFTER * MIN, facts: 24 * 60 * MIN };
 // A result disputed this long gets its tie-break run.
 const TIEBREAK_AFTER_MS = 24 * 60 * MIN;
 // An asked episode's run rows (kind 'full') carry this slot: two tries, the second two minutes after the first failed.
@@ -148,7 +156,7 @@ function nextTryAt(kind, due, tries) {
       next = last + (last - at < QUICK.fastForMs ? QUICK.fastMs : QUICK.slowMs);
       if (tries.length >= MAX_ATTEMPTS && next - at > QUICK.windowMs) return null;
     } else {
-      // A full run, a schedule check, a tie-break and trivia: three tries, 20 minutes apart.
+      // A full run, a schedule check, a tie-break, trivia and the facts run: three tries, 20 minutes apart.
       if (tries.length >= MAX_ATTEMPTS) return null;
       next = last + FULL_RETRY_MS;
     }
@@ -173,14 +181,36 @@ function dueAt(run, ends, nextAt, starts = null) {
   return due < nextAt.getTime() ? new Date(due) : null;
 }
 
+// The facts run lands at least this long (minutes) before the episode's final results, for its retries: a game's question waits
+// for it only until then.
+const FACTS_BEFORE_FINAL = 60;
+
 /**
- * Every scheduled slot of every episode, with when it's due (dueAt): the episode's end (its own length when research
+ * When one run of an episode is due on the schedule (the planner's and the desk's rail): dueAt's time, but the facts run's no later
+ * than FACTS_BEFORE_FINAL before the episode's final results (final-results.js, in the season's zone `tz`) and no sooner than its end,
+ * so it lands before them however late the episode ends (a two-hour show ending at midnight, a 3 AM drop whose final results are
+ * that noon); none when the episode ends after that. Pure.
+ */
+function dueFor(run, ends, nextAt, starts, tz = null) {
+  const due = dueAt(run, ends, nextAt, starts);
+  if (!due || run.kind !== "facts" || starts == null) return due;
+  const final = FinalResults.finalResultsAt(new Date(starts), tz);
+  if (!final) return due;
+  const latest = final.getTime() - FACTS_BEFORE_FINAL * MIN;
+  if (latest < ends) return null;
+  return new Date(Math.min(due.getTime(), latest));
+}
+
+/**
+ * Every scheduled slot of every episode, with when it's due (dueAt; the facts run's, dueFor): the episode's end (its own length when research
  * confirmed one, else the season's) plus the run's minutes; trivia's, a day (by default) before the next one; bingo's, a day
- * (by default) before this one, no try once it airs (`until`, which dueRuns and nextRunAt both keep to). `seasonBank` false: the
+ * (by default) before this one, no try once it airs (`until`, which dueRuns and nextRunAt both keep to); the facts run's, no try
+ * once the episode's final results are in (in the season's zone, `tz`): a game's question waits for it only until then, so a later
+ * answer would change a week players were told is final (Run now still can). `seasonBank` false: the
  * season has no bingo bank of its own yet, so each bingo slot has a twin (forSeason) for it, due with it and listed after it,
  * with tries of its own. `episodes`: { [n]: runs } for the episodes with runs of their own, read in place of `schedule`.
  */
-function slots({ schedule, episodes = {}, since, airTimes, episodeMinutes = 0, history, seasonBank = true }) {
+function slots({ schedule, episodes = {}, since, airTimes, episodeMinutes = 0, history, seasonBank = true, tz = null }) {
   const out = [];
   for (const { episode, at: airedAt, minutes } of airTimes) {
     const ends = airedAt.getTime() + (minutes ?? episodeMinutes) * MIN;
@@ -189,13 +219,13 @@ function slots({ schedule, episodes = {}, since, airTimes, episodeMinutes = 0, h
     const list = episodes[episode] || schedule;
     for (const run of list) {
       if (!run.on) continue;
-      const due = dueAt(run, ends, next ? next.at : null, airedAt.getTime());
+      const due = dueFor(run, ends, next ? next.at : null, airedAt.getTime(), tz);
       if (!due || (since && due < since)) continue;
       const slot = slotOf(run);
       // A run's tries are its slot's, and those of the slots it was before it moved (triedAs).
       const was = triedAs(run, list);
       const at = (s) => nextTryAt(run.kind, due, history.filter((h) => h.episode_number === episode && (s === slot ? was.includes(h.slot) : h.slot === s)));
-      const until = run.kind === "bingo" ? airedAt : null;
+      const until = run.kind === "bingo" ? airedAt : run.kind === "facts" ? FinalResults.finalResultsAt(airedAt, tz) : null;
       out.push({ episode, slot, kind: run.kind, after: run.after, at: due, next: at(slot), until });
       if (run.kind === "bingo" && !seasonBank) out.push({ episode, slot: SEASON_BINGO_SLOT, kind: "bingo", after: run.after, at: due, next: at(SEASON_BINGO_SLOT), until, forSeason: true });
     }
@@ -492,11 +522,12 @@ function normalizeEpisodes(input) {
  *   episodeMinutes  -- how long an episode runs when it has no length of its own: a run's minutes count from its end
  *   history         -- bot_research_runs rows for the season: { episode_number, slot, started_at, ok }
  *   seasonBank      -- the season has a bingo bank of its own (false: its bingo runs write one too); true by default
+ *   tz              -- the season's time zone, for each episode's final results (the facts run stops at them); Eastern by default
  * A job for the season's own bingo bank carries `forSeason`.
  */
-function dueRuns({ schedule, episodes = {}, since, airTimes, episodeMinutes = 0, history, now, seasonBank = true }) {
+function dueRuns({ schedule, episodes = {}, since, airTimes, episodeMinutes = 0, history, now, seasonBank = true, tz = null }) {
   const t = now.getTime();
-  return slots({ schedule, episodes, since, airTimes, episodeMinutes, history, seasonBank })
+  return slots({ schedule, episodes, since, airTimes, episodeMinutes, history, seasonBank, tz })
     .filter((s) => s.next && s.next.getTime() <= t && t - s.at.getTime() <= STALE_MS[s.kind] && (!s.until || t < s.until.getTime()))
     .map(({ episode, slot, kind, after, at, forSeason }) => ({ episode, slot, kind, after, at, ...(forSeason ? { forSeason } : {}) }))
     .sort((a, b) => a.at - b.at);
@@ -507,10 +538,10 @@ function dueRuns({ schedule, episodes = {}, since, airTimes, episodeMinutes = 0,
  * episode's air time, aired or not. Pure; the same rules as dueRuns, so the VM is never told to come back
  * for a run that then isn't due.
  */
-function nextRunAt({ schedule, episodes = {}, since, airTimes, episodeMinutes = 0, history, now, seasonBank = true }) {
+function nextRunAt({ schedule, episodes = {}, since, airTimes, episodeMinutes = 0, history, now, seasonBank = true, tz = null }) {
   const t = now.getTime();
   let best = null;
-  for (const s of slots({ schedule, episodes, since, airTimes, episodeMinutes, history, seasonBank })) {
+  for (const s of slots({ schedule, episodes, since, airTimes, episodeMinutes, history, seasonBank, tz })) {
     if (!s.next) continue;
     const when = Math.max(s.next.getTime(), t);
     if (when - s.at.getTime() > STALE_MS[s.kind] || (s.until && when >= s.until.getTime())) continue;
@@ -672,6 +703,7 @@ async function planRuns(pool, { now = new Date(), seasonId } = {}) {
       now,
       // Asked only of a season whose schedule has bingo on: its own bank yet?
       seasonBank: [schedule, ...Object.values(episodes)].some((l) => l.some((r) => r.kind === "bingo" && r.on)) ? await Bingo.hasBank(pool, season.id, null) : true,
+      tz: season.air_tz,
     };
     if (SeasonClock.isSeasonLive(season, now)) due.push(...dueRuns(input).map((r) => ({ ...r, season })));
     const when = nextRunAt(input);
@@ -780,11 +812,15 @@ async function runJob(pool, job, { ask, send = null, dry = false } = {}) {
       const result = { live, questions, dropped: parsed.dropped };
       const line = `${live} of ${questions.length + parsed.dropped.length} trivia question(s) passed their checks`;
       if (dry) return finish(live > 0, `${line} (dry run: not filed)`, result);
-      await Trivia.storeTrivia(pool, season.id, episode, questions, runId);
+      // A13: once the episode after it has aired, the batch is the key of a game's trivia round that has locked: added to, never
+      // replaced, so that round keeps what it was graded on.
+      const next = episodeAirTimes(season).find((e) => e.episode === episode + 1);
+      await Trivia.storeTrivia(pool, season.id, episode, questions, runId, { keep: !!next && next.at.getTime() <= Date.now() });
       // None passing is a failed try, asked again (a new batch replaces this one).
       return finish(live > 0, line, result);
     }
     if (kind === "bingo") return await bingoJob(pool, job, { ask, dry, runId, started, finish });
+    if (kind === "facts") return await factsJob(pool, job, { ask, dry, runId, finish });
     if (kind === "quick") {
       const ctx = await Research.resolveSeasonResearchContext(pool, season.slug, season.season_number, episode);
       const airedAt = Air.episodeAirTime(season.schedule, episode, season.wikiAirDates);
@@ -883,6 +919,34 @@ async function bingoJob(pool, job, { ask, dry, runId, started, finish }) {
   return finish(true, line, result);
 }
 
+/**
+ * A facts run (runJob's, A13 part 2b: db/facts-research.js): the facts the episode's stored answer isn't sure of, asked on their
+ * own, filed into that answer (fillFacts: never a sure answer replaced by an unsure one). No stored answer yet (its full run hasn't
+ * landed) is a failed try, asked again; nothing unsure is nothing asked. An answer that's still unsure is filed and done (asking
+ * again a few minutes later seldom says more); one without the facts in it is a failed try.
+ */
+async function factsJob(pool, job, { ask, dry, runId, finish }) {
+  const { season, episode } = job;
+  const about = await FactsRun.factsFor(pool, season.id, episode);
+  if (!about.stored) return finish(false, `Episode ${episode}'s research isn't in yet: its facts are asked once it is`, null);
+  if (!about.ask.length) return finish(true, "Nothing to ask: research was sure of its facts", { asked: [] });
+  const { answer } = await ask(FactsRun.buildFactsPrompt({ ...about, facts: about.ask }));
+  const parsed = FactsRun.parseFactsAnswer(answer, about.ask);
+  const result = { asked: about.ask, episodeFacts: parsed.episodeFacts, episodeTitle: parsed.episodeTitle, repairs: parsed.repairs };
+  if (!parsed.found) return finish(false, `No episode facts in the answer about Episode ${episode}`, result);
+  // The bot's chat can carry an earlier question over (the full run's checkEpisode): an answer about another title is a failed try.
+  if (!FactsRun.sameTitle(about.title, parsed.episodeTitle)) return finish(false, `The answer was about "${parsed.episodeTitle}", not Episode ${episode} ("${about.title}")`, result);
+  const line = FactsRun.factsLine(parsed.episodeFacts);
+  if (dry) return finish(true, `${line} (dry run: not filed)`, result);
+  const filed = await FactsRun.storeFacts(pool, { showId: season.show_id, season: season.season_number, episode }, parsed.episodeFacts, {
+    at: new Date().toISOString(),
+    runId,
+    asked: about.ask,
+  });
+  if (!filed) return finish(false, `Episode ${episode}'s research went before its facts could be filed`, result);
+  return finish(true, `${line}${filed.changed ? "" : " (nothing new: research was already sure)"}`, { ...result, filed: filed.episodeFacts, changed: filed.changed });
+}
+
 /** What the VM's timer calls: runs the earliest due job, if any. */
 async function runNext(pool, { ask, send = null, now = new Date(), dry = false, seasonId } = {}) {
   const startedAt = Date.now();
@@ -904,7 +968,11 @@ async function runNext(pool, { ask, send = null, now = new Date(), dry = false, 
 }
 
 module.exports = {
+  KINDS,
+  SLOT_RE,
   DEFAULT_SCHEDULE,
+  FACTS_BEFORE_FINAL,
+  dueFor,
   triedAs,
   USUAL_KEY,
   usualSchedule,

@@ -33,7 +33,7 @@ test("a schedule change's line", () => {
   assert.strictEqual(W.changeLine(base, { ...base, runs: usual.filter((r) => r.kind !== "bingo") }), "Bingo squares (a day before it airs) taken off");
   assert.strictEqual(W.changeLine(base, { ...base, on: false }), "Autopilot off");
   assert.strictEqual(W.changeLine(base, { ...base, minutes: 90 }), "Episode length: 1 hr 30 min (was 1 hr)");
-  assert.strictEqual(W.changeLine({ ...base, runs: [{ kind: "schedule", after: 30, on: true }] }, base), "Schedule reset to our usual five");
+  assert.strictEqual(W.changeLine({ ...base, runs: [{ kind: "schedule", after: 30, on: true }] }, base), "Schedule reset to our usual six");
 });
 
 test("Autopilot's line and the season page's", () => {
@@ -67,10 +67,12 @@ test("our usual as data: the words take it", () => {
   const ours = [{ kind: "quick", after: 0, on: true }, { kind: "full", after: 900, on: true }];
   assert.deepStrictEqual(W.missing([{ kind: "quick", after: 0, on: true }], ours), [ours[1]]);
   assert.ok(W.isUsual(ours, ours) && !W.isUsual(W.USUAL, ours));
-  assert.deepStrictEqual(W.lackingKinds([{ kind: "schedule", after: 30, on: true }, { kind: "full", after: 60, on: false }]), ["quick", "trivia", "bingo"]);
+  assert.deepStrictEqual(W.lackingKinds([{ kind: "schedule", after: 30, on: true }, { kind: "full", after: 60, on: false }]), ["quick", "facts", "trivia", "bingo"]);
   assert.strictEqual(W.usualAfter("full", ours), 900);
   assert.strictEqual(W.usualWords("full"), "Usually 1 hr after it ends, and again 12 hr after it ends.");
   assert.strictEqual(W.usualWords("schedule"), "Not one of our usual runs.");
+  // A13 part 2b: the facts run, half an hour after the morning's full run.
+  assert.strictEqual(W.usualWords("facts"), "Usually 12 hr 30 min after it ends.");
   const base = { on: true, runs: [{ kind: "quick", after: 0, on: false }], minutes: 60 };
   assert.strictEqual(W.changeLine(base, { ...base, runs: ours }, ours), "Schedule reset to our usual two");
 });

@@ -221,12 +221,16 @@ async function castFor(pool, seasonId, n) {
   return { showName: head[0].name, season: head[0].season_number, term, cast: names.map((name) => ({ name, out: out.get(name) ?? null })) };
 }
 
-/** Files a run's questions for the season after episode `n`, replacing any earlier batch for it. Returns how many went live. */
-async function storeTrivia(pool, seasonId, n, questions, runId) {
+/**
+ * Files a run's questions for the season after episode `n`, replacing any earlier batch for it; with `keep` (A13: the episode after
+ * it has aired, so the batch is the key of a game's trivia round that has locked, maybe graded), adding to it instead, so that round
+ * keeps its key (a game reads only what was written before its lock: src/lib/server/trivia-key.ts). Returns how many went live.
+ */
+async function storeTrivia(pool, seasonId, n, questions, runId, { keep = false } = {}) {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    await client.query("DELETE FROM trivia_questions WHERE season_id = $1 AND made_after = $2", [seasonId, n]);
+    if (!keep) await client.query("DELETE FROM trivia_questions WHERE season_id = $1 AND made_after = $2", [seasonId, n]);
     for (const q of questions) {
       await client.query(
         `INSERT INTO trivia_questions (season_id, made_after, episode, kind, question, options, answer, why, source, status, note, run_id)

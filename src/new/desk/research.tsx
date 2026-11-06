@@ -2,7 +2,7 @@
 
 import { useState, type ComponentType } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Zap, Check, CircleHelp, Clock, Copy, DoorOpen, Grid3x3, Lock, Minus, Plus, RotateCcw, Tv, Users, X } from "lucide-react";
+import { Zap, Check, CircleHelp, Clock, Copy, DoorOpen, Grid3x3, Lock, Minus, Plus, Quote, RotateCcw, Tv, Users, X } from "lucide-react";
 import { BINGO_BANK_LACK, KINDS, LADDER, MAX_RUNS, NOW_ORDER, TRIVIA_AFTER_END, and, cap, countWord, dur, endLadder, lackingKinds, missing, runTime, usualAfter, usualWords, when, type Run, type RunKind } from "@/lib/desk-bot-words";
 import { paths } from "../routes";
 import { Btn, EmptyState } from "../ui/parts";
@@ -26,7 +26,7 @@ import { SeasonDeleteRow } from "./setup";
 // this our usual (tier 2) makes its runs ours; a usual kind it has no run of says what that costs.
 
 type Kind = RunKind;
-const ICON: Record<Kind, ComponentType<{ className?: string; "aria-hidden"?: boolean }>> = { full: Check, quick: DoorOpen, schedule: Clock, trivia: CircleHelp, bingo: Grid3x3 };
+const ICON: Record<Kind, ComponentType<{ className?: string; "aria-hidden"?: boolean }>> = { full: Check, quick: DoorOpen, schedule: Clock, trivia: CircleHelp, bingo: Grid3x3, facts: Quote };
 const NOTE = "mt-3 text-[13px] leading-snug text-muted-foreground";
 const LINK = "inline-flex min-h-11 items-center text-[14px] font-bold underline decoration-input underline-offset-[3px]";
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
@@ -573,6 +573,11 @@ function whatItDoes(r: DeskResearch, kind: Kind, e: number | "season", ep: NowEp
       [CircleHelp, `Writes 6 questions, 3 about Episode ${e} and 3 about the season so far. A second ask checks each: right, only one answer, nothing past it.`],
       [Check, `What passes is asked first in trivia, once someone has seen Episode ${e}. Asking again replaces that batch.`],
     ];
+  if (kind === "facts")
+    return [
+      [Quote, `Asks who says Episode ${e}'s title quote, on its own, if its research wasn't sure. Nothing is asked when it was.`],
+      [Check, "What it finds fills in the episode's research: a sure answer there is never replaced by an unsure one."],
+    ];
   const kept = e === "season" ? r.now.seasonSquares : (ep?.squares ?? null);
   const nm = e === "season" ? "the season's" : `Episode ${e}'s`;
   return [
@@ -705,7 +710,9 @@ function RunSheet({ run, onClose, r, onAgain }: { run: ResearchRun | null; onClo
                           ? [[Grid3x3, "It wrote 30, and a second ask checked each one."]]
                           : live.kind === "trivia"
                             ? [[CircleHelp, "It wrote 6, and a second ask checked each one."]]
-                            : [[Users, "Sure of it, it's a source like a couch's answer; not sure, it waits in each couch's Backstage."]]
+                            : live.kind === "facts"
+                              ? [[Quote, "Filed into the episode's research: a sure answer there is never replaced by an unsure one."]]
+                              : [[Users, "Sure of it, it's a source like a couch's answer; not sure, it waits in each couch's Backstage."]]
                     : [
                         [RotateCcw, live.tries],
                         [Users, "Nothing changed: a failed run files nothing."],
@@ -725,7 +732,7 @@ function RunSheet({ run, onClose, r, onAgain }: { run: ResearchRun | null; onClo
               />
             </div>
           ) : (
-            (live.kind === "full" || live.kind === "quick" || live.kind === "tiebreak" || live.kind === "trivia") &&
+            (live.kind === "full" || live.kind === "quick" || live.kind === "tiebreak" || live.kind === "trivia" || live.kind === "facts") &&
             live.episode > 0 && (
               <div className="mt-4 border-y border-border">
                 <DeskRow data="run-episode" href={paths.deskEpisode(r.id, live.episode)} lead={<EpisodeNumber n={live.episode} />} title={`Episode ${live.episode}'s results`} line="Its answers, and what's in the games" />

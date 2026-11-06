@@ -25,5 +25,8 @@ CREATE TABLE season_cast_answers (
 );
 CREATE INDEX season_cast_answers_season ON season_cast_answers (season_id, created_at DESC);
 
+-- 'facts' (the engine's A13 part 2b, 0204) is listed here too: 0204 sorts before this file, so on a database built from empty it
+-- can't widen this check, and this is the check such a database ends with. A database that ran this file before then got 'facts'
+-- from 0204.
 ALTER TABLE desk_runs DROP CONSTRAINT desk_runs_kind_check;
-ALTER TABLE desk_runs ADD CONSTRAINT desk_runs_kind_check CHECK (kind IN ('quick', 'full', 'schedule', 'trivia', 'bingo', 'cast'));
+ALTER TABLE desk_runs ADD CONSTRAINT desk_runs_kind_check CHECK (kind IN ('quick', 'full', 'schedule', 'trivia', 'bingo', 'cast', 'facts'));
