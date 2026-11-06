@@ -58,7 +58,9 @@ test("head to head: its shape, defaults, words and settings; what's refused", ()
   assert.deepEqual(st.rankMatchups, { playoffs: { teams: 3 }, odd: "bye", quiet: "tie" });
   assert.equal(G.withSpec(S.defaultState().settings, h2h()).rankMatchups, undefined);
   // Beside the wrong game, out of range, or beside a race or cuts.
-  assert.deepEqual(at({ preset: "survival-pool", rank: { by: "matchups" } }), ["rank.by"], "a pool's picks don't score an episode against someone");
+  // C2 part 4b: a pool's, on what each episode's pick earned (tests/pool-series.test.js), but not with lives (they knock players out).
+  assert.deepEqual(at({ preset: "survival-pool", rank: { by: "matchups" } }), [], "a pool's picks, each episode");
+  assert.deepEqual(at({ preset: "survival-pool", score: { by: "survive", means: "staysIn", points: 1, lives: 2 }, rank: { by: "matchups" } }), ["rank.by"], "a pool with lives knocks players out");
   // A game of questions' is part 4b's (tests/answer-matchups.test.js); Weekly Calls' calls are counted outside the game.
   const questions = { get: { by: "none" }, score: { by: "answers" }, rank: { by: "matchups" }, ask: [{ id: "boot", ask: "Who goes home?", answer: "person", points: 1, asked: "each", settle: { by: "results", take: "out" } }] };
   assert.deepEqual(at(questions), []);

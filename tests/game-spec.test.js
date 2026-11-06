@@ -54,7 +54,8 @@ const WAIVER_FIELDS = ["replaceRule", "replenishAt", "waiverWindows", "waiverFee
 // A11 part 1: a draft's rank (a stock market's worth, or last one standing), its race and its cuts; part 2, whether one left ends it;
 // part 4, head to head's playoffs and fallbacks.
 // A12 part 1: when the draft room opens.
-const DRAFT_FIELDS = ["ownershipMode", "draftScheduledAt", "draftTimer", "draftAway", "draftOpens", "finalePredictionsEnabled", "finaleTop3Points", "finaleWinnerPoints", "finalePredictionScope", "draftDraw", "draftAcross", "draftAuction", "draftBudget", "draftKeep", "draftRank", "draftRace", "draftCut", "rankOneLeft", "rankMatchups", "rankTeams", "rankHandicap"];
+// C2 part 4c: a draft's own questions (draftQuestions).
+const DRAFT_FIELDS = ["ownershipMode", "draftScheduledAt", "draftTimer", "draftAway", "draftOpens", "finalePredictionsEnabled", "finaleTop3Points", "finaleWinnerPoints", "finalePredictionScope", "draftQuestions", "draftDraw", "draftAcross", "draftAuction", "draftBudget", "draftKeep", "draftRank", "draftRace", "draftCut", "rankOneLeft", "rankMatchups", "rankTeams", "rankHandicap"];
 const GAME_FIELDS = {
   // A12 part 1: an end at a phase.
   every: ["leagueTypeId", "startEpisode", "startPhase", "endEpisode", "endPhase", "allowLateJoiners", "joinMode", "lockedDown", "bonusEnabled", "defaultBetPoints"],
@@ -439,8 +440,10 @@ test("specWaitsFor: what a spec needs that isn't built, and the step that builds
   assert.deepEqual(waits({ ...P["weekly-lineup"], rank: { by: "categories" }, closes: "daily" }), ["rank.by:sports", "closes:sports"]);
   assert.deepEqual(waits({ spec: 1, get: { by: "squares" }, score: { by: "stats", points: { PTS: 1 } } }), ["get.by:sports", "score.by:sports"]);
   assert.deepEqual(waits({ ...P.outlast, pool: { of: "cast", where: { group: "tribe-1" } } }), ["pool.where:later"]);
-  // Every part built, but no game plays a draft where everyone scores moments without a lineup.
-  assert.deepEqual(waits({ ...P["weekly-lineup"], count: { all: true } }), [":null"]);
+  // Every part built, but no game plays a draft where everyone scores moments without a lineup: C2 part 4 says which piece has no
+  // place in the scoring sequence, and why.
+  assert.deepEqual(waits({ ...P["weekly-lineup"], count: { all: true } }), ["count:null"]);
+  assert.match(G.specWaitsFor({ ...P["weekly-lineup"], count: { all: true } })[0].problem, /^No game plays this way yet: scoring by moments counts a lineup/);
   assert.equal(G.typeOf({ ...P["weekly-lineup"], count: { all: true } }), null);
   assert.equal(G.settingsOf({ ...P["weekly-lineup"], count: { all: true } }), null);
 });

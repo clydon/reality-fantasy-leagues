@@ -351,7 +351,7 @@ export interface LeagueSettings {
   poolBuyback?: import("./game-spec/index.js").PoolBuyback;
   poolMulligans?: number;
   poolSecond?: { fallback: "void" | "counts" };
-  poolRank?: "standing";
+  poolRank?: "standing" | "total" | "matchups";
   /**
    * The episode this league starts playing at (default 1): a league formed mid-season drafts and picks
    * from here, and nothing in earlier episodes scores. Read it through StateLogic.startEpisode. A game that starts when a
@@ -1125,6 +1125,9 @@ export interface LeagueState {
   /** A11 part 2b: a game of questions' race, cuts and lives as the server walked them over its answers on exactly this copy
    *  (StateLogic.AnswerLogic.withWalk): never stored; a copy that hides anything drops it. */
   answerWalk?: { ends: number | null; out: Record<string, number>; lives: Record<string, number>; shared: string[]; totals: Record<string, number> };
+  /** C2 part 4c: a draft's own questions' points as the server graded them on exactly this copy (StateLogic.AnswerLogic.withLines):
+   *  never stored; a copy that hides anything drops them. */
+  answerLines?: import("./state-logic.js").AnswerLines;
   /** Step A12 part 1: a game in stages' stages' tables as the server read them (stages.ts stageWalk, StateLogic.StageLogic.withWalk):
    *  never stored; a copy cut at a mark cuts it too. */
   stageWalk?: import("./state-logic.js").StageWalk;
@@ -1212,6 +1215,8 @@ export interface ScoreRow {
   banked?: number;
   bonus: number;
   finale: number;
+  /** C2 part 4c: a draft's own questions' points (beyond its finale predictions), only where the game has them. */
+  questions?: number;
   total: number;
   roster: Castaway[];
   formerRoster: Castaway[];
@@ -1235,8 +1240,9 @@ export interface ScoreRow {
    *  in the playoffs, the champion. */
   matchups?: MatchupRecord & { seed: number | null; tier: number; alive: boolean; champion: boolean };
   /** Teams of players (step A11 part 5: TeamLogic.label): the team the seat plays for (its last), the team's points and place (a
-   *  tie "T1"), and whether the seat is on it now; null on none. */
-  team?: { id: string; name: string | null; points: number; place: number; rank: string; now: boolean } | null;
+   *  tie "T1"), and whether the seat is on it now; null on none. C2 part 4b: teams knocked out or racing, `out` (the last episode that
+   *  counts for the team, null while it's in). */
+  team?: { id: string; name: string | null; points: number; place: number; rank: string; now: boolean; out?: number | null } | null;
   /** A handicap (step A11 part 5b: HandicapLogic): the points it has given the seat so far, in `total` already (0 for someone it
    *  doesn't name); absent in a game without one. */
   handicap?: number;

@@ -189,6 +189,9 @@ export type SpecSettle =
   | { by: "trivia" }
   /** A13 part 2: an episode fact research answers after each episode (formats/episode-facts.js FACTS): who it names. */
   | { by: "fact"; fact: string; take: "who" }
+  /** A14 part 1: the players' own answers in its window (its own, or `of` the game's question it names): the answer most of you gave
+   *  (majority) or fewest (minority); on a tie, nobody's right ('none', the default) or each tied one is ('all'). */
+  | { by: "players"; take: "majority" | "minority"; of?: string; tie?: "none" | "all" }
   /** sports */
   | { by: "final"; take: "winner" | "total" | "margin" }
   /** sports */
@@ -247,6 +250,10 @@ export interface SpecQuestion {
    *  state over time): void (the default) when its groups aren't sure, no points either way; carry-on follows the people;
    *  next-stage is A12's. */
   fallback?: "void" | "carry-on" | "next-stage";
+  /** A14 part 2: played against the bot's own call (beat the bot): a right answer scores only where the bot's call isn't right
+   *  (a person or group answer, each right pick it didn't name; a number, the closest only when closer than the bot). `none`:
+   *  a window the bot made no call for plays as usual (the default) or doesn't count either way. */
+  beat?: { by: "bot"; none?: "plays" | "void" };
 }
 /** A question as a spec holds it once it's whole (fullSpec): asked and closes always said. */
 export type Question = SpecQuestion & { asked: "once" | "each" | "every" | "phase"; closes: "start" | "finale" };
@@ -295,6 +302,12 @@ export interface AnswerFacts {
   /** A13 part 2: what research said of each episode fact, by episode, for each episode whose stored research has the section: the
    *  server's (episode-facts.ts episodeFactsFor). No map at all, a fact question waits. */
   episodeFacts?: Map<number, Record<string, FactOutcome>>;
+  /** A14 part 2: the bot's own call on each window of a question played against it ("question|episode", the window's key: 0 asked
+   *  once), each once its window's lock has passed (bot_calls): the server's (answer-points.ts botCallsFor). A window with none has
+   *  no entry; no map at all, a question played against the bot waits. */
+  bot?: Map<string, unknown>;
+  /** A14 part 2: every window the bot has made its call on that the game still asks, locked or not (nothing of what it said). */
+  botCalled?: Set<string>;
 }
 /** A13: one question of a round's trivia key (trivia_questions, live and not pulled): what the grader reads (id, answer) and what
  *  the round shows (the rest). */
@@ -323,13 +336,17 @@ export interface FormatGroups {
    *  going in), 'apart' (played without groups, or nobody in one going in); null on the timeline's own. */
   off?: "unknown" | "apart" | null;
 }
+/** A14 part 1: each answer given to a question the players settle (as it was given) and how many gave it, most first. */
+export type PlayersTally = { answer: string; n: number }[];
 /** How a question stands: still to settle, off (nobody went home, right on the line), or what was right (and a count; the
  *  groups the right people were on; a question about each person, each one's verdict by castaway id). */
 export type Verdict =
   | { state: "waiting" }
-  | { state: "off"; why: string }
+  | { state: "off"; why: string; tally?: PlayersTally }
   | {
       state: "known";
+      /** A14 part 1, a question the players settle: what each of you said and how many, most first. */
+      tally?: PlayersTally;
       right: string[];
       value?: number;
       groups?: string[];
@@ -551,6 +568,11 @@ export function betsFit(spec: Partial<GameSpec>): boolean;
 export const CALLS: Question;
 export function finaleQuestions(f: { top3: number; winner: number; from: "any" | "own" }): Question[];
 export function finaleOf(ask: SpecQuestion[] | null | undefined): { top3: number; winner: number; from: "any" | "own" } | null;
+/** C2 part 4c: a draft's finale predictions at the head of its questions, or null; its own questions beyond them ([] for any other
+ *  game); and whether a question is one a draft plays. */
+export function finaleIn(ask: SpecQuestion[] | null | undefined): { top3: number; winner: number; from: "any" | "own" } | null;
+export function draftQuestions(spec: Partial<GameSpec> | null | undefined): Question[];
+export function draftPlayable(q: SpecQuestion): boolean;
 /** The answers that name someone (a person) or something (a group), `pick` of them (A6). */
 export const NAMES: readonly SpecQuestion["answer"][];
 /** The settles a number answer is graded by ("by:take"). */
@@ -562,6 +584,16 @@ export function isCalls(q: unknown): boolean;
 export function isTrivia(q: unknown): boolean;
 /** A13 part 2: a question an episode fact settles. */
 export function isFact(q: unknown): boolean;
+/** A14 part 1: a question the players' own answers settle. */
+export function isPlayers(q: unknown): boolean;
+/** A14 part 1: a question the players settle, its default on a tie. */
+export const PLAYERS: { tie: "none" | "all" };
+/** A14 part 2: a question played against the bot's own call. */
+export function isBeat(q: unknown): boolean;
+/** A14 part 2: a question played against the bot, its default for a window the bot made no call for. */
+export const BEAT: { none: "plays" | "void" };
+/** A14 part 2: the answers the bot makes its call on. */
+export const BEATS: readonly SpecQuestion["answer"][];
 export function callsAsk(ask: unknown): boolean;
 export function fullQuestion(q: SpecQuestion): Question;
 /** A choice option as the range a count falls in ("2", "3+", "0-1"), else null. */
@@ -570,7 +602,8 @@ export const MAX_QUESTIONS: number;
 export const MAX_PICK: number;
 export const MAX_QUESTION_POINTS: number;
 /** Grading (answers.js): how a question stands, what each answer earns, whether one was right, why one can't be given. */
-export function verdictOf(q: Question, episode: number, facts: AnswerFacts): Verdict;
+/** `answers` (A14 part 1): the window's answers that settle a question the players settle (its own, or its `of` question's). */
+export function verdictOf(q: Question, episode: number, facts: AnswerFacts, answers?: { playerId: string; answer: unknown }[]): Verdict;
 /** F3 part 2: whether a group question reads its groups from the format's state over time where the season has them (asked
  *  each episode, about the one episode). */
 export function readsTimeline(q: Question): boolean;
@@ -586,8 +619,15 @@ export function windowPoints(
   v: Verdict,
   answers: { playerId: string; answer: unknown; late?: number; changes?: number }[],
   facts?: AnswerFacts,
-  o?: { worth?: number }
+  o?: { worth?: number; bot?: unknown }
 ): Map<string, number>;
+/** A14 part 2: a window's key ("question|episode", 0 asked once), as the grade and the bot's calls have it. */
+export function botKey(q: Question, episode: number): string;
+/** A14 part 2: the bot's call on a question's window (facts.bot), or undefined. */
+export function botCall(q: Question, episode: number, facts: AnswerFacts): unknown;
+/** A14 part 2: whether the bot's call on a window was right (null: not settled, no call, or a void one); a number, among the
+ *  window's answers. */
+export function botRight(q: Question, v: Verdict, call: unknown, answers: { playerId: string; answer: unknown }[], facts?: AnswerFacts): boolean | null;
 /** A9: who's right on every leg of a parlay in one window. */
 export function allRight(legs: { q: Question; v: Verdict | undefined; answers: { playerId: string; answer: unknown }[] }[], facts?: AnswerFacts): Set<string>;
 /** A11 part 2b: the facts as they stood once episode `k` was in (the walk's totals through it). */
@@ -748,6 +788,11 @@ export interface MatchupParts {
 export function matchupParts(spec: GameSpec | SpecInput | null | undefined): MatchupParts | null;
 /** A game of questions: nothing held, scored by its own questions (not Weekly Calls' calls). */
 export function questionsGame(spec: unknown): boolean;
+/** A pool: a pick each episode, scored by whether it stays in (or scores). */
+export function isPool(spec: unknown): boolean;
+/** C2 part 4b: a pool ranked by its points or head to head on them, with nobody knocked out (no lives, race or cuts): its series of
+ *  totals is its picks', so teams of players and a handicap play on it too. */
+export function poolByPoints(spec: unknown): boolean;
 /** A question a life can ride on: asked each episode, about that episode alone. */
 export function livesQuestion(q: unknown): boolean;
 /** A10 part 2: a pool's lives (null: none, nobody's out), mulligans (0: none), buyback (with lives, its defaults filled), second
@@ -814,7 +859,7 @@ export function typeOf(spec: SpecInput | GameSpec): LeagueTypeId | null;
 export function playsAs(spec: GameSpec): LeagueTypeId | null;
 /** The league type's flags, worked out from a whole spec. */
 export function flagsOf(spec: GameSpec): {
-  hasRoster: boolean; hasActiveRoster: boolean; hasBestBall: boolean; hasGroupSlots: boolean; hasKeepers: boolean; hasWeeklyPicks: boolean; hasCalls: boolean; hasQuestions: boolean; hasBingo: boolean;
+  hasRoster: boolean; hasActiveRoster: boolean; hasBestBall: boolean; hasGroupSlots: boolean; hasKeepers: boolean; hasWeeklyPicks: boolean; hasCalls: boolean; hasQuestions: boolean; hasDraftQuestions: boolean; hasBingo: boolean;
   hasRace: boolean; hasCuts: boolean; hasAnswerLives: boolean; hasCoop: boolean; hasMatchups: boolean; hasTeams: boolean; hasHandicap: boolean; hasStages: boolean;
   supportsReplenish: boolean; supportsTrade: boolean; supportsFinalePredictions: boolean;
 };

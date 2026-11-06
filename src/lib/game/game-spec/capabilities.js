@@ -15,9 +15,11 @@
 const schema = require('./schema.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
-/** The steps a row can wait on, in the plan's order. */
+/** The steps a row can wait on, in the order they run (track C, 2026-11-05, before A14's later parts). */
 const STEPS = [
-  'A6', 'A7', 'A8', 'A9', 'A10', 'A11', 'A12', 'A13', 'A14', 'A15',
+  'A6', 'A7', 'A8', 'A9', 'A10', 'A11', 'A12', 'A13',
+  'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7',
+  'A14', 'A15',
   'L1', 'L2', 'L3', 'L4', 'L5', 'L6',
   'G1', 'G3', 'R1', 'R2', 'R3', 'U0', 'U1',
 ];

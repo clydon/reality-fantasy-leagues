@@ -146,9 +146,12 @@ const BOOT = { id: "boot", ask: "Who goes home?", answer: "person", points: 1, a
     const plaque = (hub.trophies?.plaques ?? []).find((x) => x.leagueId === QG);
     check(mine?.ended === true && !!plaque && plaque.winners.length === 0 && same(plaque.coop, { result: "lost" }),
       "the hub as jordan reads it: the game over, its plaque with no winners (the show won), its result lost", JSON.stringify({ mine, plaque }));
-    // The fixture's other games are all four people's: the power rankings count those that have scored, never the co-op one.
+    // The fixture's other games are all four people's. Power rankings are couch points since 2026-10-31 (couch-points.ts: what
+    // everyone has done on the couch, no game's result); head to head counts the games' results, never the co-op one (the couch
+    // played it together): nobody has more games against anyone than the others that have scored.
     const others = (hub.games ?? []).filter((x) => x.leagueId !== QG && x.through > 0).length;
-    check((hub.rankings?.counted?.all ?? 0) === others, `  and the power rankings leave it out (${others} games counted, not ${others + 1})`, JSON.stringify(hub.rankings?.counted));
+    const h2h = hub.rankings?.h2h;
+    check(Array.isArray(h2h) && h2h.every((h) => h.games <= others), `  and head to head leaves it out (at most ${others} games against anyone, not ${others + 1})`, JSON.stringify(h2h));
 
     // ---------- A corrected result ----------
     await pool.query("UPDATE season_decisions SET castaway_name = $3, decided_at = now() WHERE season_id = $1 AND episode_number = 8 AND castaway_name = $2", [sid, T.name, R.name]);

@@ -1,6 +1,7 @@
 import StateLogic from "@/lib/game/state-logic.js";
-import type { AnswerWalk } from "@/lib/game/state-logic.js";
-import { answerStanding, asItStands, storedAnswers } from "./answer-points";
+import * as Seq from "@/lib/game/sequence/index.js";
+import type { AnswerLines, AnswerWalk } from "@/lib/game/state-logic.js";
+import { answerStanding, asItStands, draftLines, keepsAnswers, storedAnswers } from "./answer-points";
 import { foldFor, isFolded, revealedThrough } from "@/lib/game/chat-fold";
 import { accoladesOf, fieldOf, rankingsOf, trophiesOf, yourNumbers, type Accolade, type GameStanding, type Person, type Rankings, type StandingRow, type TrophyShelf, type YourNumbers } from "@/lib/game/couch-standings";
 import { tableOf } from "@/lib/game/game-view";
@@ -100,18 +101,20 @@ export interface CouchHub {
 /** What a game's table says, for one viewer at their mark: who placed where, the streaks, predictions called. `calls`: Weekly
  *  Calls' or Weekly Bingo's (step 12), each player's right calls or lines, the episode they're through and whether the season's
  *  over (neither is in the state). `usersOf`: every account on a seat; a team two people share (step A10 part 4b) is a row for
- *  each of them, each credited with its place, and one team in the field (couch-standings.ts fieldOf: the rows' `seat`). */
+ *  each of them, each credited with its place, and one team in the field (couch-standings.ts fieldOf: the rows' `seat`). `lines`:
+ *  a draft's own questions' (step C2 part 4c: answer-points.ts draftLines, on the same copy), which its table adds. */
 function standingOf(
   state: LeagueState,
   playerId: string | null,
   mark: number | null,
   userOf: (p: string) => string | null,
   calls?: { right: (p: string) => number; through: number; ended: boolean; walk?: AnswerWalk | null },
-  usersOf: (p: string) => string[] = () => []
+  usersOf: (p: string) => string[] = () => [],
+  lines: AnswerLines | null = null
 ): { rows: StandingRow[]; through: number; ended: boolean; coop: GameStanding["coop"]; matchups: boolean; teams: boolean; pool: boolean } {
   // Step A11 part 2b: a game of questions' walk on your copy (answer-points.ts answerStanding): who's out, ranked as it ranks.
   const seenView = StateLogic.GhostLogic.viewFor(state, playerId, mark);
-  const view = calls?.walk ? StateLogic.AnswerLogic.withWalk(seenView, calls.walk) : seenView;
+  const view = calls?.walk ? StateLogic.AnswerLogic.withWalk(seenView, calls.walk) : lines ? StateLogic.AnswerLogic.withLines(seenView, lines) : seenView;
   const pool = StateLogic.piecesOf(view).hasWeeklyPicks;
   const called = new Map<string, number>();
   // Side bets called right, where they count (beside a draft: a pool's or Weekly Calls' never scored).
@@ -171,9 +174,9 @@ async function callsThrough(state: LeagueState, g: Game & { seasonId: string }, 
   const opts = { from: from ?? 0, through: upTo, couchId: g.couchId };
   const bingo = StateLogic.piecesOf(state).hasBingo;
   const rights = from === null ? new Map<string, number>() : bingo ? await bingoLines(g.seasonId, userIds, opts) : await callRights(g.seasonId, userIds, opts);
-  // A bingo line's points (step A9), as its table counts them.
+  // A bingo line's points (step A9), as its table counts them (the scoring sequence's count at a line's points).
   const each = bingo ? pointsPerLine(state) : 1;
-  return { right: (p: string) => (rights.get(who(p) ?? "") ?? 0) * each, through: upTo, ended: endedThrough(schedule, through, end) };
+  return { right: (p: string) => Seq.counted(rights.get(who(p) ?? "") ?? 0, each), through: upTo, ended: endedThrough(schedule, through, end) };
 }
 
 export async function couchHub(user: SessionUser, couchId: string): Promise<CouchHub> {
@@ -224,13 +227,15 @@ export async function couchHub(user: SessionUser, couchId: string): Promise<Couc
       const pieces = StateLogic.piecesOf(state);
       const schedule = schedules.get(g.seasonId);
       const me = mine.get(g.leagueId) ?? null;
-      // A game of questions (step A4) by its answers' points, graded at the mark, as its own table is.
-      const rows = pieces.hasQuestions ? await storedAnswers(g.leagueId) : [];
+      // A game of questions (step A4) by its answers' points, graded at the mark, as its own table is; step C2 part 4c, a draft's
+      // own questions as its lines.
+      const rows = keepsAnswers(state) ? await storedAnswers(g.leagueId) : [];
       const answers = (m: number | null) => answerStanding({ leagueId: g.leagueId, state, playerId: me, mark: m, rows });
+      const lined = (m: number | null) => draftLines({ leagueId: g.leagueId, state, playerId: me, mark: m, rows });
       const calls = pieces.hasQuestions ? await answers(mark) : pieces.hasCalls || pieces.hasBingo ? await callsThrough(state, g, who, Math.min(seen, latestAired(schedule)), schedule) : undefined;
-      const now = standingOf(state, me, mark, who, calls, onSeat);
+      const now = standingOf(state, me, mark, who, calls, onSeat, await lined(mark));
       const back = calls && now.through >= 2 ? (pieces.hasQuestions ? await answers(now.through - 1) : await callsThrough(state, g, who, now.through - 1, schedule)) : undefined;
-      const before = now.through >= 2 ? standingOf(state, mine.get(g.leagueId) ?? null, now.through - 1, who, back, onSeat).rows : null;
+      const before = now.through >= 2 ? standingOf(state, mine.get(g.leagueId) ?? null, now.through - 1, who, back, onSeat, await lined(now.through - 1)).rows : null;
       standings.push({
         leagueId: g.leagueId,
         name: g.name,

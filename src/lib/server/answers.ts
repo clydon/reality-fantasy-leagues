@@ -10,8 +10,8 @@ import { publicMediaSrc } from "@/lib/game/selectors";
 import { isUuid, type SessionUser } from "./auth-helpers";
 import { HttpError, pool, withLeagueLock } from "./db";
 import { seasonSchedules, type SeasonSchedule } from "./schedule";
-import { finaleEpisode, readsTimeline, walked, type AnswerRow } from "./answer-points";
-import type { AnswerWalk, CoopWalk } from "@/lib/game/state-logic.js";
+import { finaleEpisode, keepsAnswers, readsTimeline, walked, type AnswerRow } from "./answer-points";
+import type { AnswerLines, AnswerWalk, CoopWalk } from "@/lib/game/state-logic.js";
 import { seasonBook } from "./calls";
 import { gamesHere, type GameHere } from "./season-games";
 import { playedInSheet, triviaWritten } from "./trivia-key";
@@ -26,7 +26,8 @@ import { factContextForSeason } from "./episode-facts";
 //
 // The questions are the game's spec's `ask` (StateLogic.AnswerLogic): a game of questions' own, whose answers live in
 // game_answers, and a draft's finale predictions, whose answers stay in its state (state.finalePredictions, where classic's
-// finale panel writes them). Weekly Calls' are Call it's (calls.ts). A question locks as a lineup does, at the start of the
+// finale panel writes them), and (step C2 part 4c) a draft's own questions after them, in game_answers as a game of questions'
+// are. Weekly Calls' are Call it's (calls.ts). A question locks as a lineup does, at the start of the
 // episode that closes it (closedForPlay: whoever runs the game can keep it open or lock it early), once it has results or
 // data has settled it; finale predictions when the season's last episode starts. Nobody else's answer leaves the server
 // before then, only how many have answered. Graded on read from the league's results at your mark (the spoiler guard's view
@@ -122,6 +123,10 @@ export interface QuestionView {
   verdict: Verdict | null;
   /** Once it's closed: everyone's answers, you first, and how each did as far as you've seen. */
   people: QuestionPerson[];
+  /** Step A14 part 2: a question played against the bot's own call: whether the bot has made its call on this window (before it
+   *  locks for you, nothing of what it is), and once it's closed for you, its call and whether it was right as far as you've seen
+   *  (null: still to settle, or void); null for any other question. The bot is never one of `people`. */
+  bot: { called: boolean; answer: unknown; right: boolean | null } | null;
 }
 
 export interface GameQuestions {
@@ -150,8 +155,8 @@ export interface GameQuestions {
 }
 
 
-/** Whether a question's answers are a draft's finale predictions (kept in its state), not game_answers'. A game has one
- *  kind or the other, never both: finale predictions are a draft's, a game of questions holds nothing. */
+/** Whether a question's answers are a draft's finale predictions (kept in its state), not game_answers'. A draft's own questions
+ *  (step C2 part 4c) take other ids (schema.js), so they're game_answers', as a game of questions' are. */
 const inState = (state: LeagueState, q: Question) => !!StateLogic.finaleOfGame(state) && (q.id === "top3" || q.id === "winner");
 
 /** The questions answered here: the spec's, less Weekly Calls' (Call it's, calls.ts). */
@@ -171,16 +176,10 @@ function pairsOf(state: LeagueState, q: Question): { key: string; ids: [string, 
  *  groups someone still in is on (after any swap you've seen, never one you haven't; `fg`, F3 part 2: on a season played in
  *  pairs, the format's state over time's groups going into the episode); for a question about each person, each of those still in. */
 function facesFor(view: LeagueState, q: Question, playerId: string, fg?: FormatGroups | null): QuestionFace[] {
-  const stillIn = view.castaways.filter((c) => c.status !== "eliminated");
   // F3 part 2: on a season played in groups the league doesn't hold (pairs), the groups going into the lock, from the format's
-  // state over time ("Ann & Bea"); none when that isn't sure, unless the question follows the people (carry-on).
-  if (fg && readsTimeline(q)) return fg.lockSure || q.fallback === "carry-on" ? fg.offered.map((g) => ({ id: g.id, name: g.name, photo: null })) : [];
-  if (q.answer === "group" && !q.each) {
-    const on = new Set(stillIn.map((c) => c.tribeId).filter((t): t is string => !!t));
-    return (view.tribes ?? []).filter((t) => on.has(t.id)).map((t) => ({ id: t.id, name: t.name, photo: null }));
-  }
-  const team = q.from === "team" && !q.each ? new Set(StateLogic.Core.ownedCastawayIds(view, playerId)) : null;
-  return stillIn.filter((c) => !team || team.has(c.id)).map((c) => ({ id: c.id, name: c.name, photo: publicMediaSrc(c.photoUrl) }));
+  // state over time ("Ann & Bea"); none when that isn't sure, unless the question follows the people (carry-on). A14 part 2: the
+  // engine's (AnswerLogic.faces), which the bot's calls are checked against too.
+  return StateLogic.AnswerLogic.faces(view, q, { playerId, groups: fg ?? null }).map((f) => ({ id: f.id, name: f.name, photo: publicMediaSrc(f.photoUrl) }));
 }
 
 /** Why a group question on the timeline's groups (F3 part 2) has nothing to pick at an episode's lock, or null. */
@@ -218,6 +217,8 @@ interface Read {
   facts: AnswerFacts;
   rows: AnswerRow[];
   walk: AnswerWalk | null;
+  /** Step C2 part 4c: a draft's own questions' lines on `view` (answer-points.ts walked), else none. */
+  lines: AnswerLines | null;
   schedule: SeasonSchedule | undefined;
   finale: { number: number; airAt: string | null } | null;
   now: Date;
@@ -235,7 +236,7 @@ async function readOf(user: SessionUser, seasonId: string, leagueId: unknown, no
 async function readFrom(h: GameHere, seasonId: string, now: Date, rows?: AnswerRow[], userId: string | null = null): Promise<Read> {
   const schedule = (await seasonSchedules([seasonId], now)).get(seasonId);
   const w = await walked({ leagueId: h.game.leagueId, state: h.state, playerId: h.playerId, mark: h.mark, rows: rows ?? h.answers });
-  return { h, view: w.view, facts: w.facts, rows: w.rows, walk: w.walk, schedule, finale: finaleEpisode(schedule), now, userId, seasonId };
+  return { h, view: w.view, facts: w.facts, rows: w.rows, walk: w.walk, lines: w.lines ?? null, schedule, finale: finaleEpisode(schedule), now, userId, seasonId };
 }
 
 /** A13: a trivia round's key at a window (facts.trivia: the batch written after the episode before it), [] when there's none. */
@@ -292,7 +293,7 @@ function stakeMost(points: number, held: Map<string, number>, key: string, staki
 }
 /** Your points as they stand for you (at your mark) and your stakes still on the line: what a wager of any of them (A9) can stake. */
 async function stakeRoom(r: Read): Promise<{ points: number; held: Map<string, number> }> {
-  const all = StateLogic.piecesOf(r.h.state).hasQuestions ? r.rows : [];
+  const all = keepsAnswers(r.h.state) ? r.rows : [];
   const graded = StateLogic.AnswerLogic.grade(r.view, all, r.facts);
   return { points: yourPoints(r, graded.points), held: heldStakes(questionsOf(r.h.state), all, graded.verdicts, r.h.playerId) };
 }
@@ -355,9 +356,9 @@ async function readQuestions(r: Read, episodeIn?: unknown): Promise<GameQuestion
   // Only the players your copy of the league has: a late joiner you can't see (viewFor takes them out) isn't counted,
   // listed or graded.
   const names = new Map(view.players.map((p) => [p.id, p.name]));
-  // A draft's finale predictions are in its state; only a game of questions keeps its answers in game_answers (those that count:
-  // step A11 part 2b, none of someone's for an episode after they went out).
-  const stored = StateLogic.piecesOf(h.state).hasQuestions ? r.rows : [];
+  // A draft's finale predictions are in its state; a game of questions keeps its answers in game_answers (those that count: step A11
+  // part 2b, none of someone's for an episode after they went out), and so does a draft's own questions (step C2 part 4c).
+  const stored = keepsAnswers(h.state) ? r.rows : [];
   const all = [...stored, ...StateLogic.AnswerLogic.finaleAnswers(h.state)].filter((a) => names.has(a.playerId));
   // A late joiner catching up answers nothing until they're on the live episode (answerQuestions refuses it): each open
   // question waits for them, with no episode to see (catchUp null).
@@ -369,6 +370,8 @@ async function readQuestions(r: Read, episodeIn?: unknown): Promise<GameQuestion
   // A9: your stakes still on the line, and how many of the game's episodes have started (a shrinking call made now).
   const held = heldStakes(qs, stored, graded.verdicts, me);
   const lateNow = startedNow(r);
+  // A14 part 2: the windows the bot has made its call on (whether it has, before the lock: nothing of what it is), as the facts read them.
+  const made = facts.botCalled ?? null;
   for (const q of qs) {
     // Its window this week (A7: asked each, its episode; every few or by phase, the run it's in), or the game's own (0).
     const each = q.asked !== "once";
@@ -432,6 +435,7 @@ async function readQuestions(r: Read, episodeIn?: unknown): Promise<GameQuestion
       answered: new Set(theirs.map((a) => a.playerId)).size,
       verdict: null,
       people: [],
+      bot: made && Spec.isBeat(q) ? { called: made.has(Spec.botKey(q, ep)), answer: null, right: null } : null,
     };
     if (closed) {
       // Locked: everyone's answers, and how each stands as far as you've seen (the view is cut at your mark).
@@ -450,6 +454,9 @@ async function readQuestions(r: Read, episodeIn?: unknown): Promise<GameQuestion
           earned: earned.get(a.playerId) ?? 0,
         }))
         .sort((x, y) => Number(y.you) - Number(x.you) || y.earned - x.earned || x.name.localeCompare(y.name));
+      // A14 part 2: the bot's call, once it's closed for you (the grade's facts carry it from the game's lock: botCallsFor).
+      const call = Spec.isBeat(q) ? Spec.botCall(q, ep, facts) : undefined;
+      if (view1.bot && call !== undefined) view1.bot = { called: true, answer: call, right: Spec.botRight(q, v as Verdict, call, list, facts) };
     }
     out.push(view1);
   }
@@ -476,7 +483,8 @@ async function readQuestions(r: Read, episodeIn?: unknown): Promise<GameQuestion
     groups,
     mark: h.mark,
     out: StateLogic.KnockoutLogic.outOf(view, me),
-    ended: r.walk ? endedAt(view) : null,
+    // Step C2 part 4c: a draft's own questions, where its knockouts or head to head ended it.
+    ended: r.walk || r.lines ? endedAt(view) : null,
     coop: r.walk?.coop ?? null,
   };
 }
@@ -664,15 +672,21 @@ export async function sheetOf(user: SessionUser, seasonId: string, h: GameHere, 
   const qs = questionsOf(h.state);
   if (!qs.length) return null;
   const g = await readQuestions(await readFrom(h, seasonId, now, rows, user.id));
-  return summaryOf(g, !!StateLogic.finaleOfGame(h.state));
+  // Step C2 part 4c: a draft with its own questions has a sheet of them (its finale predictions an extra beside it, never a move).
+  return StateLogic.piecesOf(h.state).hasDraftQuestions ? summaryOf(g, false, finaleIds(h.state)) : summaryOf(g, !!StateLogic.finaleOfGame(h.state));
 }
 
-/** A read's questions as a move: none once you're out (step A11 part 2b: you answer nothing more). */
-function summaryOf(g: GameQuestions, finale: boolean): SheetMove | null {
+/** A draft's finale predictions' ids while they're on (step C2 part 4c: what a draft's sheet of its own questions doesn't count). */
+const finaleIds = (state: LeagueState): Set<string> => new Set(StateLogic.finaleOfGame(state) ? ["top3", "winner"] : []);
+
+/** A read's questions as a move: none once you're out (step A11 part 2b: you answer nothing more). `skip`: the questions it doesn't
+ *  count (step C2 part 4c: a draft's finale predictions beside its own questions). */
+function summaryOf(g: GameQuestions, finale: boolean, skip: Set<string> = new Set()): SheetMove | null {
   if (g.out !== null) return null;
+  const questions = g.questions.filter((q) => !skip.has(q.id));
   // A13: a trivia round with nothing you can answer yet (no questions, or every one played in the trivia sheet) asks nothing of you.
-  const open = g.questions.filter((q) => q.status === "open" && !(q.trivia && !q.trivia.some((t) => !t.played)));
-  const behind = g.questions.find((q) => q.status === "behind")?.catchUp ?? null;
+  const open = questions.filter((q) => q.status === "open" && !(q.trivia && !q.trivia.some((t) => !t.played)));
+  const behind = questions.find((q) => q.status === "behind")?.catchUp ?? null;
   if (!open.length && behind === null) return null;
   const locks = open.map((q) => (q.closesAt ? Date.parse(q.closesAt) : Infinity));
   const first = Math.min(...locks);
@@ -691,7 +705,8 @@ const answered = (v: unknown) => v !== null && v !== undefined && !(Array.isArra
 
 /**
  * A game of questions' move on the home (/api/me/home), beside actionItems' (whose league states don't hold the answers): this
- * week's sheet while some of it you could answer now is still blank. A draft's finale predictions are an extra, never a move.
+ * week's sheet while some of it you could answer now is still blank. A draft's finale predictions are an extra, never a move; its own
+ * questions (step C2 part 4c) are a sheet, as a game of questions' are.
  * Step R1 part 2: a game of questions by its pieces (`states`: each game's, as the home read them), never by its stored type.
  */
 export async function questionMoves(
@@ -702,13 +717,13 @@ export async function questionMoves(
 ): Promise<{ kind: "questions"; text: string; href: string; leagueId: string; leagueName: string; episode?: number; deadline: string | null; who: "you" }[]> {
   const sheets = games.filter((g) => {
     const state = states.get(g.leagueId);
-    return !!state && !!StateLogic.piecesOf(state).hasQuestions && !!g.seasonId && !g.archived;
+    return !!state && keepsAnswers(state) && !!g.seasonId && !g.archived;
   });
   // Each read at once: a Prediction Sheet is rare, and these are the home's only per-game reads of answers.
   const reads = await Promise.all(
     sheets.map((g) =>
       gameQuestions(user, g.seasonId!, g.leagueId, undefined, now)
-        .then((q) => summaryOf(q, false))
+        .then((q) => summaryOf(q, false, finaleIds(states.get(g.leagueId) as LeagueState)))
         .catch((e) => {
           console.error(`[answers] home move ${g.leagueId}:`, e);
           return null;

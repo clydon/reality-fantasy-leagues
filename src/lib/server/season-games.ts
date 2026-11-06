@@ -1,5 +1,5 @@
 import StateLogic from "@/lib/game/state-logic.js";
-import { asItStands, leagueAnswers, storedAnswers, type AnswerRow } from "./answer-points";
+import { asItStands, keepsAnswers, leagueAnswers, storedAnswers, type AnswerRow } from "./answer-points";
 import { sheetOf } from "./answers";
 import { gameView, weekProgress, type GameRefIn, type GameView, type UserOf, type WeekProgress } from "@/lib/game/game-view";
 import type { LeagueState } from "@/lib/game/types";
@@ -120,7 +120,8 @@ export interface GameHere {
   /** Every seat's mark, by player (seatsIn): a game at your own pace says where the others are. */
   marks?: Map<string, number | null>;
   /** Step A11 part 2b: a game of questions that races or knocks players out, its answers, read once for its walk (answer-points.ts
-   *  asItStands: `state` carries the league's as it stands) and reused by what reads it next. */
+   *  asItStands: `state` carries the league's as it stands) and reused by what reads it next; step C2 part 4c, a draft's own
+   *  questions', for their lines. */
   answers?: AnswerRow[];
 }
 
@@ -218,9 +219,10 @@ export async function viewWithCalls(user: SessionUser, seasonId: string, h: Game
   // Step R1 part 2: which it reads is in the game's pieces (how it scores: its answers, bingo lines or the show's calls).
   const pieces = StateLogic.piecesOf(h.state);
   // A game of questions (step A4) ranks by its answers' points, graded at your mark (answer-points.ts); its answers are
-  // read once for its table and its sheet.
-  const rows = pieces.hasQuestions ? (h.answers ?? (await storedAnswers(h.game.leagueId).catch(() => undefined))) : undefined;
-  const calls = await (pieces.hasQuestions ? leagueAnswers({ ...o, leagueId: h.game.leagueId, rows }) : pieces.hasBingo ? leagueBingo(o) : leagueCalls(o)).catch((e) => {
+  // read once for its table and its sheet. Step C2 part 4c: a draft's own questions, graded the same way, a line of its table.
+  const asks = keepsAnswers(h.state);
+  const rows = asks ? (h.answers ?? (await storedAnswers(h.game.leagueId).catch(() => undefined))) : undefined;
+  const calls = await (asks ? leagueAnswers({ ...o, leagueId: h.game.leagueId, rows }) : pieces.hasBingo ? leagueBingo(o) : leagueCalls(o)).catch((e) => {
     console.error(`[season-games] calls ${h.game.leagueId}:`, e);
     return null;
   });
@@ -242,8 +244,9 @@ export async function viewWithCalls(user: SessionUser, seasonId: string, h: Game
   // A game that starts when a phase does (step A3 of docs/PLAN-start-a-game-gpt.md): the phase by name, from its rulebook.
   const phase = StateLogic.startPhase(h.state);
   if (phase) view.phase = (await leaguePhases(pool, h.game.leagueId, seasonId)).find((p) => p.id === phase)?.name ?? phase;
-  // A sheet of questions to answer now (step A4 part 2): a game of questions', or a draft's finale predictions (answers.ts).
-  if (!h.readOnly && (pieces.hasQuestions || StateLogic.finaleOfGame(h.state))) {
+  // A sheet of questions to answer now (step A4 part 2): a game of questions', or a draft's finale predictions (answers.ts), or
+  // (step C2 part 4c) its own questions.
+  if (!h.readOnly && (asks || StateLogic.finaleOfGame(h.state))) {
     view.sheet = await sheetOf(user, seasonId, h, undefined, rows).catch((e) => {
       console.error(`[season-games] sheet ${h.game.leagueId}:`, e);
       return null;

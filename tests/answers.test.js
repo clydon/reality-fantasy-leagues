@@ -351,7 +351,10 @@ test("Weekly Calls is the show's calls, an ask preset scored by its answers, as 
   const o = league("classic-draft", 4, (x) => { S.updateSettings(x, "finalePredictionsEnabled", true); S.updateSettings(x, "finalePredictionScope", "ownPicksOnly"); });
   assert.deepEqual(S.gameOf(o).ask, G.finaleQuestions({ top3: 1, winner: 3, from: "own" }));
   assert.deepEqual(S.gameOf(o).ask.map((q) => [q.id, q.from, q.closes, q.pick]), [["top3", "team", "finale", 3], ["winner", "team", "finale", 1]]);
-  assert.equal(G.typeOf({ ...S.gameOf(o), ask: [S.gameOf(o).ask[1]] }), null, "half of them isn't a game today");
+  // C2 part 4c: half of them isn't finale predictions: it's a draft's own question (who wins, from your own team), its answers kept
+  // as a game of questions' are.
+  const half = { ...S.gameOf(o), ask: [S.gameOf(o).ask[1]] };
+  assert.deepEqual([G.typeOf(half), G.finaleIn(half.ask), G.draftQuestions(G.fullSpec(half)).map((q) => q.id)], ["classic-draft", null, ["winner"]], "half of them is a draft's own question");
 });
 
 test("a Prediction Sheet's questions from the show's moments: only what data settles, the recommended ones on (A4 part 2)", () => {

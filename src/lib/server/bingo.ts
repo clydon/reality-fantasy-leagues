@@ -1,4 +1,5 @@
 import StateLogic from "@/lib/game/state-logic.js";
+import * as Seq from "@/lib/game/sequence/index.js";
 import { countLines, dealCard, firstLineAt, fullLines, pointsPerLine, seedOf, truthOf, FREE_KEY, LINES, MIN_MOMENTS, SQUARES, type BankSquare, type BingoSquare, type CalledLine, type Likelihood, type LineCount, type Truth } from "@/lib/game/bingo";
 import { settleSays, type CallBook, type EpisodeFacts } from "@/lib/game/calls";
 import { PRESENT_MS } from "@/lib/game/watch-along";
@@ -6,7 +7,7 @@ import { kindOf } from "@/lib/game/formats/rulebook-schema.js";
 import type { BingoMove, GameCalls } from "@/lib/game/game-view";
 import type { LeagueState } from "@/lib/game/types";
 import { isUuid, type SessionUser } from "./auth-helpers";
-import { addAt, endedThrough, episodeFacts, openEpisode, OPEN, othersSharing, saysOn, scopeOf, seasonBook, settledSays, SHARED, type SayRow } from "./calls";
+import { endedThrough, episodeFacts, openEpisode, OPEN, othersSharing, saysOn, scopeOf, seasonBook, settledSays, SHARED, type SayRow } from "./calls";
 import { HttpError, pool } from "./db";
 import { refuseTestPlayer } from "./test-players";
 import { EVERYTHING, seenThrough } from "./guard";
@@ -671,7 +672,9 @@ export async function bingoLinesOn(seasonId: string, n: number, only?: string[],
 /**
  * Each of these people's lines that count on a season, from episode `from` through `through` (a viewer's mark): every square of
  * the line ticked and settled as happened, by the season's results or (a talk show) the couch's says (`couchId`'s people who
- * share the show; with no couch, each person's own).
+ * share the show; with no couch, each person's own). `byEpisode`: each episode's too (step A12 part 4a of
+ * docs/PLAN-start-a-game-gpt.md: a stage's table at each episode). C2 part 3: each card's lines that count, counted by the scoring
+ * sequence (Seq.tally).
  */
 export async function bingoLines(
   seasonId: string,
@@ -710,18 +713,14 @@ export async function bingoLines(
     const events = facts?.get(e)?.events;
     return events ? (events.has(k.slice(2)) ? "yes" : "no") : null;
   };
-  for (const r of rows) {
+  const lines = rows.map((r) => {
     const squares = r.squares as BingoSquare[];
     const t = truthOf(squares, (k) => truthAt(r.user_id, r.episode, k));
     // A bank's card counts its called lines (step 3); one from before the banks, every ticked line.
     const called = callsOn(squares) ? calledOf(r.called_lines).map((c) => c.line) : null;
-    const lines = countLines(squares, new Set((r.ticked as number[]).map(Number)), t, called).standing;
-    if (!lines) continue;
-    out.set(r.user_id, (out.get(r.user_id) ?? 0) + lines);
-    // Step A12 part 4a of docs/PLAN-start-a-game-gpt.md: each episode's lines too, for a stage's table at each episode (stageWalk).
-    if (opts.byEpisode) addAt(opts.byEpisode, r.episode, r.user_id, lines);
-  }
-  return out;
+    return { id: r.user_id as string, episode: r.episode as number, n: countLines(squares, new Set((r.ticked as number[]).map(Number)), t, called).standing };
+  });
+  return Seq.tally(lines, opts.byEpisode);
 }
 
 /**
@@ -781,10 +780,10 @@ export async function leagueBingo(o: {
     from === null ? new Map<string, number>() : bingoLines(o.seasonId, userIds, { from, through, couchId: o.couchId, book: o.book }),
     o.playerId && from !== null ? bingoMove(o.userId, o.seasonId, mark, from, schedule, now) : Promise.resolve(null),
   ]);
-  // Points per line (step A9 of docs/PLAN-start-a-game-gpt.md), 1 when the game says none.
+  // Points per line (step A9 of docs/PLAN-start-a-game-gpt.md), 1 when the game says none: the sequence's count at a line's points.
   const each = pointsPerLine(o.state);
   return {
-    right: (p) => (lines.get(o.userOf(p) ?? "") ?? 0) * each,
+    right: (p) => Seq.counted(lines.get(o.userOf(p) ?? "") ?? 0, each),
     move: null,
     bingo: move && (end === null || move.episode <= end) ? move : null,
     through,

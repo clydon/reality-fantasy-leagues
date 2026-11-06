@@ -35,6 +35,9 @@
 //                   { state: 'who', who } | 'outside' | 'none' | 'unsure'), for each episode research has stored its answer for
 //                   (one without the facts section: 'unsure', research didn't say); the server's (episode-facts.ts
 //                   episodeFactsFor), never the state's: without it, a fact question waits
+//     bot           (A14 part 2) Map 'question|episode' (the window's key: 0 asked once) -> the bot's own call on a question played
+//                   against it (q.beat), for each window whose lock has passed and the bot called (bot_calls); the server's
+//                   (answer-points.ts botCallsFor), never the state's: without it, a question played against the bot waits
 //   }
 //   and each episode's `points` (A8): each person's points in it by the game's rules, once its full results are in
 //
@@ -43,19 +46,26 @@
 // has seen that phase begin). Its answers' key is the episode it opens at (0 asked once). It settles once every episode of it
 // has its results (and its end is known).
 //
-//   verdictOf(q, episode, facts)  { state: 'waiting' } | { state: 'off', why } | { state: 'known', right, value?, groups?, each? }
-//                                 (right: the right answers: castaway ids, 'yes'/'no', 'over'/'under', options; value: a count;
-//                                 groups: the groups the right people were on, for a group answer; each: a question about each
-//                                 person's own verdicts, by castaway id)
+//   verdictOf(q, episode, facts, answers)  { state: 'waiting' } | { state: 'off', why } | { state: 'known', right, value?, groups?,
+//                                 each? } (right: the right answers: castaway ids, 'yes'/'no', 'over'/'under', options; value: a
+//                                 count; groups: the groups the right people were on, for a group answer; each: a question about
+//                                 each person's own verdicts, by castaway id). `answers` (A14 part 1): the window's answers that
+//                                 settle a question the players settle ([{ playerId, answer }]: its own, or its `of` question's;
+//                                 left out, none), with what each said and how many (`tally`); every other question ignores them
 //   pointsFor(q, verdict, answers) Map playerId -> points, for one question's answers ([{ playerId, answer }]) on one
 //                                 episode (a number answer is the closest's, so they're graded together)
-//   windowPoints(q, v, answers, facts, { worth })  the same with A9's ways of combining: a pot split between everyone right, only
-//                                 the only right one, a rollover's jackpot (worth), a shrinking call (each answer's late, changes)
+//   windowPoints(q, v, answers, facts, { worth, bot })  the same with A9's ways of combining: a pot split between everyone right,
+//                                 only the only right one, a rollover's jackpot (worth), a shrinking call (each answer's late,
+//                                 changes); A14 part 2, a question played against the bot: `bot`, its call on the window (beatUnits)
+//   botRight(q, v, call, answers, facts)  whether the bot's call on a window was right (A14 part 2; null: not settled, void, none)
 //   allRight(legs, facts)         who's right on every leg of a parlay in one window (A9)
 //   factsThrough(facts, k)        the facts as they stood once episode k was in (A11 part 2b's walk)
 //   answerProblem(q, value, faces) why an answer can't be given (null: it can), faces: who (or which groups) it can name
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
-const { YES_NO, NAMES, NUMBERS, optionRange } = require('./schema.js');
+const { YES_NO, NAMES, NUMBERS, optionRange, isBeat } = require('./schema.js');
+// C2 part 3 (docs/PLAN-start-a-game-gpt.md track C): a window's points are the scoring sequence's lines and combines; the grading
+// (which answers are right, and how many right ones each has) is here.
+const Seq = require('../sequence/index.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const WAITING = Object.freeze({ state: 'waiting' });
@@ -351,10 +361,113 @@ function factVerdict(q, episode, facts) {
   return known([o.who], undefined, groupsIn([o.who], e));
 }
 
+/**
+ * A14 part 1: a question the players' own answers settle (settle.by 'players'), from `answers`, the window's answers that settle it
+ * (its own, or with `of` the game's question it names: the grader's, [{ playerId, answer }]): the answer most of them gave is right
+ * (majority), or the one fewest did (minority). Data settles it, the couch's answers, never what happened on the show. Known once its
+ * window's first episode (the game's, asked once) has results as far as the viewer has seen: every answer is in by its lock, which is
+ * that episode's start, and its points come with the episode, as every question's do. Its fallbacks, from the start: fewer than two
+ * answers, or a minority everyone answered the same way, is off (void: no points either way); a tie for the most (or the fewest) is
+ * off with `tie` 'none' (the default), or each tied answer right with 'all'. `tally`: each answer given and how many gave it, most
+ * first.
+ */
+function playersVerdict(q, episode, facts, answers) {
+  const at = q.asked === 'once' ? facts.from : episode;
+  if (!Number.isInteger(at) || !facts.episodes.has(at)) return WAITING;
+  const st = q.settle;
+  const counts = new Map();
+  for (const a of answers || []) {
+    // A wagered answer counts by what it says, not its stake.
+    const raw = isObj(a.answer) && 'answer' in a.answer ? a.answer.answer : a.answer;
+    const x = picks(q, raw)[0];
+    if (x === undefined || x === null || x === '') continue;
+    const k = key(q, x);
+    if (!counts.has(k)) counts.set(k, { answer: x, n: 0 });
+    counts.get(k).n++;
+  }
+  const tally = [...counts.values()].sort((a, b) => b.n - a.n);
+  const given = tally.reduce((n, t) => n + t.n, 0);
+  const said = (v) => ({ ...v, tally });
+  if (given < 2) return said(off("Fewer than two of you answered: it doesn't count either way"));
+  if (st.take === 'minority' && tally.length < 2) return said(off("You all said the same, so nobody's in the minority: it doesn't count either way"));
+  const best = st.take === 'minority' ? tally[tally.length - 1].n : tally[0].n;
+  const top = tally.filter((t) => t.n === best);
+  if (top.length > 1 && st.tie !== 'all') return said(off("It was a tie: it doesn't count either way"));
+  return said(known(top.map((t) => t.answer)));
+}
+
 /** How a question stands for the window it opens at `episode` (asked each, every N or by phase) or the game (asked once;
- *  `episode` ignored). */
-function verdictOf(q, episode, facts) {
+ *  `episode` ignored). A14 part 1: `answers`, what settles a question the players settle (playersVerdict). */
+function verdictOf(q, episode, facts, answers) {
+  const v = plainVerdict(q, episode, facts, answers);
+  return isBeat(q) ? beatVerdict(q, episode, facts, v) : v;
+}
+
+// ---------- A14 part 2: a question played against the bot's own call ----------
+// The bot isn't anyone's seat: its call stands for an answer only here, under a key no player's id can be.
+const BOT = Symbol('bot');
+/** A window's key ('question|episode', 0 asked once), as the grade and the bot's calls (facts.bot) have it. */
+const botKey = (q, episode) => `${q.id}|${q.asked === 'once' ? 0 : episode}`;
+/** The bot's call on a question's window, or undefined (no call, or no map). */
+function botCall(q, episode, facts) {
+  const m = facts && facts.bot;
+  if (!(m instanceof Map)) return undefined;
+  const c = m.get(botKey(q, episode));
+  return c === null ? undefined : c;
+}
+/**
+ * How a question played against the bot stands: waiting until the server has said the bot's calls (facts.bot: no map, no grade, as
+ * trivia without its key); then as its own settle says, but with `beat.none` 'void' a window the bot made no call for, or whose
+ * call is void (a group that didn't play as offered), doesn't count either way. 'plays' (the default) leaves it as it is: every
+ * right answer scores (windowPoints, with no call to beat).
+ */
+function beatVerdict(q, episode, facts, v) {
+  if (!(facts && facts.bot instanceof Map)) return WAITING;
+  if (v.state !== 'known' || q.beat.none !== 'void') return v;
+  const call = botCall(q, episode, facts);
+  return call === undefined || voided(q, v, call) ? off("The bot made no call: it doesn't count either way") : v;
+}
+/** Whether the bot's call on a window was right: null while it isn't settled, for no call or a void one; a number, whether it was
+ *  among the closest of the window's answers with it. */
+function botRight(q, v, call, answers, facts) {
+  if (call === undefined || call === null || !v || v.state !== 'known' || voided(q, v, call)) return null;
+  if (q.answer === 'number') return pointsFor({ ...q, points: 1 }, v, [...(answers || []), { playerId: BOT, answer: call }], facts).has(BOT);
+  return !!isRight(q, v, { playerId: BOT, answer: call }, [], facts);
+}
+/**
+ * What each answer to a window earns against the bot's call, a right pick each (windowPoints multiplies them): a person or group
+ * answer, each right pick the bot didn't name; a number, the closest with the bot's among them, only when the bot's isn't; a yes or
+ * no, a choice or an over/under, only when the bot's call was wrong.
+ */
+function beatUnits(q, v, answers, facts, call) {
+  const out = new Map();
+  if (!v || v.state !== 'known') return out;
+  const one = { ...q, points: 1 };
+  if (NAMES.includes(q.answer)) {
+    const right = rightAnswers(q, v, facts);
+    if (!right) return out;
+    const theirs = new Set(picks(q, call).map((x) => key(q, x)));
+    const left = new Set(right.map((r) => key(q, r)).filter((k) => !theirs.has(k)));
+    for (const a of answers) {
+      const n = [...new Set(picks(q, a.answer))].filter((x) => left.has(key(q, x))).length;
+      if (n) out.set(a.playerId, (out.get(a.playerId) || 0) + n);
+    }
+    return out;
+  }
+  if (q.answer === 'number') {
+    const all = pointsFor(one, v, [...answers, { playerId: BOT, answer: call }], facts);
+    return all.has(BOT) ? out : all;
+  }
+  return botRight(q, v, call, answers, facts) ? out : pointsFor(one, v, answers, facts);
+}
+/** The bot's call windowPoints plays against: a question played against it with a call on the window that isn't void, else
+ *  undefined (it plays as usual). */
+const beatCall = (q, v, o) =>
+  isBeat(q) && o && o.bot !== undefined && o.bot !== null && !(v && v.state === 'known' && voided(q, v, o.bot)) ? o.bot : undefined;
+
+function plainVerdict(q, episode, facts, answers) {
   const st = q && q.settle;
+  if (st && st.by === 'players') return playersVerdict(q, episode, facts, answers);
   if (st && st.by === 'trivia') return triviaVerdict(episode, facts);
   if (st && st.by === 'fact') {
     const fg = timelineGroups(q, episode, facts);
@@ -535,6 +648,8 @@ const valueOf = (v) => (v && v.state === 'known' && isNum(v.value) ? v.value : n
  *  line). Null when nothing is right (still to settle, off, or right on the line). */
 function rightAnswers(q, v, facts) {
   if (!v || v.state !== 'known') return null;
+  // A14 part 1: the players' own answers are right as they were given (a choice's option, a person's or group's id, yes or no).
+  if (q.settle && q.settle.by === 'players') return v.right.length ? v.right : null;
   const value = valueOf(v);
   if (q.answer === 'overUnder') {
     if (value === null || !isNum(q.line) || value === q.line) return null;
@@ -707,15 +822,14 @@ function isRight(q, v, mine, answers, facts) {
   return picks(q, mine.answer).some((x) => set.has(key(q, x)));
 }
 
-/** Two decimal places: a pot split three ways is 3.33 each. */
-const cents = (n) => Math.round(n * 100) / 100;
 /** What a shrinking call (A9) is worth: its points less `shrink.points` for each episode of the game that had started when it was
- *  made (`late`), or each change made once the game had started (`changes`: a first answer made then is one), never below 0. */
+ *  made (`late`), or each change made once the game had started (`changes`: a first answer made then is one), never below 0 (the
+ *  sequence's shrink). */
 function shrunk(q, worth, a) {
   const sh = q.shrink;
   if (!isObj(sh) || !isNum(sh.points)) return worth;
   const n = sh.per === 'change' ? (a && Number.isInteger(a.changes) ? a.changes : 0) : a && Number.isInteger(a.late) ? a.late : 0;
-  return Math.max(0, worth - sh.points * n);
+  return Seq.shrink(worth, sh.points, n);
 }
 
 /**
@@ -723,25 +837,29 @@ function shrunk(q, worth, a) {
  * jackpot added; its points by default); a share (split: the worth is a pot split between everyone right, by what each would have
  * earned; only: a right answer scores only when nobody else's does); a shrinking call (each answer's `late` or `changes`). Answers:
  * [{ playerId, answer, late?, changes? }]. A wager plays alone, as A8 has it. A question with none of these earns exactly
- * pointsFor's.
+ * pointsFor's. C2 part 3: the grading here (each answer's right ones, a unit each: `units`; which right pick who named), the lines
+ * and their combining the scoring sequence's (Seq.windowLines at each answer's worth, Seq.split, Seq.only, Seq.onlyEach). C2 part 4:
+ * a shrinking call that's shared, each answer's units at what its call is worth, then the share (a split, each divided between
+ * everyone right by their units; only, the only one right keeping theirs).
  */
 function windowPoints(q, v, answers, facts, o) {
   const worth = o && isNum(o.worth) ? o.worth : q.points;
-  if (q.wager || (!q.share && !q.shrink && worth === q.points)) return pointsFor(q, v, answers, facts);
-  // Each answer's right ones, at a point each (every kind's points are its points times these).
-  const units = pointsFor({ ...q, points: 1 }, v, answers, facts);
-  const out = new Map();
-  const right = [...units].filter(([, u]) => u > 0);
-  if (q.share === 'split') {
-    const total = right.reduce((n, [, u]) => n + u, 0);
-    for (const [pid, u] of right) out.set(pid, cents((worth * u) / total));
-    return out;
-  }
+  // A14 part 2: the bot's call on the window, for a question played against it.
+  const call = beatCall(q, v, o);
+  if (q.wager || (call === undefined && !q.share && !q.shrink && worth === q.points)) return pointsFor(q, v, answers, facts);
+  // Each answer's right ones, at a point each (every kind's points are its points times these); against the bot, those it didn't get.
+  const units = call === undefined ? pointsFor({ ...q, points: 1 }, v, answers, facts) : beatUnits(q, v, answers, facts, call);
+  const mine = new Map(answers.map((a) => [a.playerId, a]));
+  // C2 part 4: a shrinking call that's shared, each answer at what its call is worth (step 2), then shared (step 4).
+  const at = q.shrink ? (pid) => shrunk(q, worth, mine.get(pid)) : worth;
+  if (q.share === 'split') return Seq.split(at, units);
   if (q.share === 'only') {
     // A person or group answer (A9 part 2, part 1's open item, decided): each right pick nobody else named scores, so two players
     // each alone on a different right one (the final three, a double boot) both do. Anything else: the only player right.
     if (NAMES.includes(q.answer) && !q.each) {
       const rightSet = new Set((rightAnswers(q, v, facts) || []).map((r) => key(q, r)));
+      // A14 part 2: against the bot, a right pick it named too is nobody's.
+      if (call !== undefined) for (const x of picks(q, call)) rightSet.delete(key(q, x));
       const by = new Map();
       for (const a of answers) {
         for (const x of new Set(picks(q, a.answer))) {
@@ -749,18 +867,11 @@ function windowPoints(q, v, answers, facts, o) {
           if (rightSet.has(k)) by.set(k, [...(by.get(k) || []), a.playerId]);
         }
       }
-      for (const [, pids] of by) if (pids.length === 1) out.set(pids[0], (out.get(pids[0]) || 0) + worth);
-      return out;
+      return Seq.onlyEach(at, by);
     }
-    if (right.length === 1) out.set(right[0][0], right[0][1] * worth);
-    return out;
+    return Seq.only(at, units);
   }
-  const mine = new Map(answers.map((a) => [a.playerId, a]));
-  for (const [pid, u] of right) {
-    const n = u * shrunk(q, worth, mine.get(pid));
-    if (n) out.set(pid, n);
-  }
-  return out;
+  return Seq.windowLines(units, (pid) => shrunk(q, worth, mine.get(pid)));
 }
 
 /**
@@ -889,4 +1000,4 @@ function factsThrough(facts, k) {
   };
 }
 
-module.exports = { WAITING, readsTimeline, verdictOf, rightAnswers, pointsFor, windowPoints, allRight, shrunk, isRight, answerProblem, spanEpisodes, pairsFrom, pairKey, windowOf, factsThrough };
+module.exports = { WAITING, readsTimeline, verdictOf, rightAnswers, pointsFor, windowPoints, allRight, shrunk, isRight, answerProblem, spanEpisodes, pairsFrom, pairKey, windowOf, factsThrough, botKey, botCall, botRight };

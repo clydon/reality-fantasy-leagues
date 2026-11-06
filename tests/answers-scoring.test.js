@@ -50,7 +50,8 @@ test("A9's ways of combining: their shape, and where each goes", () => {
   assert.deepEqual(at([{ ...WIN, shrink: { points: 0, per: "episode" } }], CTX), ["ask[0].shrink"]);
   assert.deepEqual(at([{ ...WIN, shrink: { points: 1, per: "day" } }], CTX), ["ask[0].shrink"]);
   assert.deepEqual(at([{ ...WIN, shrink: { points: 1, per: "episode", by: 2 } }], CTX), ["ask[0].shrink.by"]);
-  assert.deepEqual(at([{ ...WIN, share: "only" }], CTX), ["ask[0].shrink"], "a shrinking call is its own");
+  // C2 part 4: a shrinking call that's shared plays (tests/shared-shrink.test.js).
+  assert.deepEqual(at([{ ...WIN, share: "only" }], CTX), [], "a shrinking call that's shared");
   // A wager plays alone; 'total' is any of your points.
   assert.deepEqual(at([{ ...ALL_IN, wager: "all" }], CTX), ["ask[0].wager"]);
   assert.deepEqual(at([{ ...ALL_IN, share: "split" }], CTX), ["ask[0].wager"]);
@@ -63,7 +64,7 @@ test("A9's ways of combining: their shape, and where each goes", () => {
   assert.deepEqual(parlay([{ of: ["out", "imm"], times: 11 }]), ["score.parlays[0].times"]);
   assert.deepEqual(parlay([PARLAY, PARLAY]), ["score.parlays[1].of", "score.parlays[1].of"], "a question in two parlays");
   assert.deepEqual(parlay([PARLAY], [OUT, { ...IMM, asked: "once" }]), ["score.parlays[0].of"], "asked the same way");
-  assert.deepEqual(parlay([PARLAY], [{ ...OUT, share: "split" }, IMM]), ["score.parlays[0].of"], "plain legs");
+  assert.deepEqual(parlay([PARLAY], [{ ...OUT, share: "split" }, IMM]), ["score.parlays[0].of"], "not a split pot (C2 part 4: a leg that rolls over, shrinks or pays only the only one right plays: tests/parlay-legs.test.js)");
   assert.deepEqual(parlay([PARLAY], [{ ...OUT, pick: 2 }, IMM]), ["score.parlays[0].of"], "one answer each");
   assert.deepEqual(parlay([{ ...PARLAY, also: 1 }]), ["score.parlays[0].also"]);
   assert.deepEqual(parlay([]), ["score.parlays"]);

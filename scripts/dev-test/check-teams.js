@@ -217,7 +217,8 @@ const BOOT = { id: "boot", ask: "Who goes home?", answer: "person", points: 1, a
     const plaque = (hub.trophies?.plaques ?? []).find((x) => x.leagueId === L);
     check(!!plaque && same(plaque.winners.map((x) => whoIs(x.userId)).sort(), [...winners].sort()) && plaque.by === null,
       `the hub as jordan reads it: the plaque is the winning team's (${winners.join(", ")}), with no margin in anyone's points`, JSON.stringify(plaque));
-    check(!!hub.rankings && (hub.rankings.counted?.all ?? 0) > 0, "  the hub's power rankings and head to head read with the teams game in them", JSON.stringify(hub.rankings?.counted));
+    // Power rankings are couch points since 2026-10-31 (couch-points.ts: `all`, `year`), head to head the games' results.
+    check(!!hub.rankings && (hub.rankings.all?.length ?? 0) > 0 && Array.isArray(hub.rankings.h2h), "  the hub's power rankings and head to head read with the teams game in them", JSON.stringify({ all: hub.rankings?.all?.length, h2h: hub.rankings?.h2h?.length }));
 
     // ---------- a corrected result ----------
     const alexs7 = S.getCastaway(st, starters(st, ep7.id, "alex").find((id) => !starters(st, ep7.id, "riley").includes(id) && !starters(st, ep7.id, "jordan").includes(id) && !starters(st, ep7.id, "sam").includes(id)) ?? starters(st, ep7.id, "alex")[0]);

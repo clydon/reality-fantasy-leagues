@@ -1,5 +1,5 @@
 import StateLogic from "@/lib/game/state-logic.js";
-import type { ChangePlan, ChangePlanEntry, ChangePlanInput, StageTrigger } from "@/lib/game/state-logic.js";
+import type { Ballots, ChangePlan, ChangePlanEntry, ChangePlanInput, StageTrigger } from "@/lib/game/state-logic.js";
 import * as Spec from "@/lib/game/game-spec/index.js";
 import type { GameSpec, SpecStage } from "@/lib/game/game-spec/index.js";
 import { at, groupsGone, sideTriggers, stageTriggers, withGone } from "@/lib/game/formats/format-timeline.js";
@@ -27,7 +27,9 @@ import { seatIn, seatsToMirror, takeStageAway } from "./stages";
 // the first episode still open. Research missing for a while (an episode's answer withdrawn or being asked again) takes nothing away:
 // a copy whose change came from an episode with no report now stands as it was. A change research isn't sure of is held and said,
 // never acted on. With the maker's OK (extras.changes.ok 'maker') a change waits for it until the lock of the episode it would start
-// with, then the game's default (unanswered); the maker's 'skip' takes a started copy away.
+// with, then the game's default (unanswered); the maker's 'skip' takes a started copy away. A14 part 1, the players' vote
+// (extras.changes.ok 'vote'): the change waits the same way for the game's seats to vote (voteChange), decided once more than half of
+// them say the same, else at that lock by the votes cast (a tie or none: the default); the maker's own answer still stands over it.
 //
 // Where it's noticed: the season sync (season-decisions.ts syncSeasonLeagues), after every result and every research answer goes
 // in, so a change acts as soon as research that says it is stored and its episode's results are in (the full research lands about
@@ -197,6 +199,14 @@ async function readGame(parentId: string, now: Date, reads?: SeasonReads): Promi
   }
   // A12 part 3: the game's own end once it's known (a side copy never plays past it).
   const input: ChangePlanInput = { triggers: triggersFor(parent, tl, live), starts, copies, open: openEpisode(parent, schedule, now), last: schedule?.episodeCount ?? null, end: StateLogic.endEpisode(parent) };
+  // A14 part 1: the players' votes cast on each change (every one: a vote the lock decides is counted from them), for a game that votes.
+  if (StateLogic.StageLogic.changesOf(parent)?.ok === "vote") {
+    input.votes = {};
+    for (const [key, ballots] of await ballotsFor(parentId)) {
+      const n = StateLogic.StageLogic.tally(parent, ballots);
+      input.votes[key] = { start: n.start, skip: n.skip };
+    }
+  }
   return {
     parentId,
     parent,
@@ -244,12 +254,24 @@ function linesFor(g: Read, state: LeagueState, plan: ChangePlan, gone: string[])
     }
     say(`start:${e.key}@${e.from}`, t, `The format changed (${changeWords(t)}, from ${ep} ${t.from}): ${stageName(state, e.stage)} starts with ${ep} ${e.from}`);
   }
+  // A14 part 1: or the players' vote.
+  const vote = StateLogic.StageLogic.changesOf(state)?.ok === "vote";
   for (const x of plan.pending) {
-    const tail = unanswered === "start" ? `else it ${x.trigger.kind === "lasted" ? "opens" : "starts"} by itself` : "else the game carries on as it is";
-    if (x.trigger.kind === "lasted") say(`ask:${x.key}`, x.trigger, `${lasted(x.trigger)}: open ${stageName(state, x.stage)}? Say so before ${ep} ${x.until} starts, ${tail}`);
-    else say(`ask:${x.key}`, x.trigger, `The format changed (${changeWords(x.trigger)}, from ${ep} ${x.trigger.from}): start ${stageName(state, x.stage)}? Say so before ${ep} ${x.until} starts, ${tail}`);
+    const opens = x.trigger.kind === "lasted" ? "opens" : "starts";
+    const tail = vote
+      ? unanswered === "start" ? `a tie or no votes and it ${opens} anyway` : "a tie or no votes and the game carries on as it is"
+      : unanswered === "start" ? `else it ${opens} by itself` : "else the game carries on as it is";
+    const ask = vote ? `Vote before ${ep} ${x.until} starts (more than half of you saying the same decides it), ${tail}` : `Say so before ${ep} ${x.until} starts, ${tail}`;
+    if (x.trigger.kind === "lasted") say(`ask:${x.key}`, x.trigger, `${lasted(x.trigger)}: open ${stageName(state, x.stage)}? ${ask}`);
+    else say(`ask:${x.key}`, x.trigger, `The format changed (${changeWords(x.trigger)}, from ${ep} ${x.trigger.from}): start ${stageName(state, x.stage)}? ${ask}`);
   }
-  for (const x of plan.lapsed) say(`lapsed:${x.key}`, x.trigger, `Nobody said whether to ${x.trigger.kind === "lasted" ? "open" : "start"} ${stageName(state, x.stage)} for ${changeWords(x.trigger)} at ${ep} ${x.trigger.from}: the game carries on as it is`);
+  const nobody = vote ? "The vote on whether" : "Nobody said whether";
+  for (const x of plan.lapsed) say(`lapsed:${x.key}`, x.trigger, `${nobody} to ${x.trigger.kind === "lasted" ? "open" : "start"} ${stageName(state, x.stage)} for ${changeWords(x.trigger)} at ${ep} ${x.trigger.from}${vote ? " tied, or nobody voted" : ""}: the game carries on as it is`);
+  // A14 part 1: a vote the lock decided against it (one decided before then has its own line, voteChange's).
+  if (vote) {
+    const rec = StateLogic.StageLogic.changeRecord(state);
+    for (const x of plan.skipped) if (x.key && !rec.decided[x.key]) say(`voted:${x.key}`, x.trigger, `The players voted not to ${x.trigger.kind === "lasted" ? "open" : "start"} ${stageName(state, x.stage)} for ${changeWords(x.trigger)} at ${ep} ${x.trigger.from}: the game carries on as it is`);
+  }
   for (const x of plan.held) {
     const t = x.trigger;
     if (t.kind === "lasted" && x.key && t.closing) say(`held:${x.key}:close`, t, `Research isn't sure the ${group}s changed at ${ep} ${t.closing.episode}, so ${stageName(state, x.stage)} plays on`);
@@ -516,4 +538,60 @@ export async function answerChange(parentId: string, key: string, what: string, 
     await recordChange(client, parentId, s, { userId: user.id, kind: "game.settled", tier: 1, episode: t.episode, text: `${user.name} said ${what === "start" ? (t.kind === "lasted" ? "open" : "start") : "no to"} ${name} for ${wordsOfChange(t, groupOf(s))} at ${t.from}` });
   });
   return settleChanges(parentId, now);
+}
+
+/** A14 part 1: the seat someone has in a game (league_memberships: a team two share is either's), or null. */
+export async function seatInGame(leagueId: string, userId: string): Promise<string | null> {
+  const { rows } = await pool.query("SELECT player_id FROM league_memberships WHERE league_id = $1 AND user_id = $2 AND player_id IS NOT NULL LIMIT 1", [leagueId, userId]);
+  return (rows[0]?.player_id as string | undefined) ?? null;
+}
+
+type Queryable = { query: typeof pool.query };
+/** A14 part 1: a game's votes on its format changes (stage_change_votes, migration 0205: never in the state, which every route
+ *  returns whole), by change: { key: { playerId: 'start' | 'skip' } }. */
+export async function ballotsFor(leagueId: string, db: Queryable = pool): Promise<Map<string, Ballots>> {
+  const { rows } = await db.query("SELECT change_key, player_id, vote FROM stage_change_votes WHERE league_id = $1", [leagueId]);
+  const out = new Map<string, Ballots>();
+  for (const r of rows) out.set(r.change_key, { ...(out.get(r.change_key) ?? {}), [r.player_id]: r.vote });
+  return out;
+}
+
+/**
+ * A14 part 1, the players' vote (extras.changes.ok 'vote'; the stage-changes route): a seat's vote, 'start' or 'skip', on a change
+ * that waits for it (until the lock of the episode it would start with: checked again inside the game's lock, so a vote that waited
+ * on it past the episode's start is refused), from someone with a seat in the game who has reached the change (`markOf`: their
+ * spoiler mark on the season), kept in stage_change_votes (changeable until it's decided: StateLogic.StageLogic.vote). Once more than
+ * half of the game's players say the same it's decided, recorded on the game with a line in Recent changes; then the game settled.
+ * Returns the settle (its plan) and the voter's seat. A problem in words is a 400 (409 once the vote has closed).
+ */
+export async function voteChange(parentId: string, key: string, what: string, user: { id: string }, opts: { now?: Date; markOf?: (seasonId: string) => Promise<number> } = {}): Promise<{ settled: ChangeSettled | null; seat: string }> {
+  const now = opts.now ?? new Date();
+  const got = await changePlanFor(parentId, now);
+  const item = got?.plan.pending.find((x) => x.key === key);
+  if (!got || !item || !item.trigger) throw new HttpError(400, "That change isn't waiting for your vote");
+  // A change is as much a spoiler as the result of the episode whose research said it: nobody votes on one they haven't reached.
+  if (opts.markOf && item.trigger.episode > (await opts.markOf(got.seasonId))) throw new HttpError(400, "That change isn't waiting for your vote");
+  const seat = await seatInGame(parentId, user.id);
+  if (!seat) throw new HttpError(403, "Only someone with a seat in the game votes");
+  const t = item.trigger;
+  const until = item.until ?? t.from;
+  const schedule = await scheduleOf(got.seasonId, now);
+  await withLeagueLock(parentId, async (s, client) => {
+    if (openEpisode(s, schedule, new Date()) > until) throw new HttpError(409, "The vote closed as its episode started");
+    const S = StateLogic.StageLogic;
+    const was = S.changeRecord(s).decided[key];
+    const problem = S.vote(s, key, what, seat, (await ballotsFor(parentId, client)).get(key) ?? {}, now.toISOString());
+    if (problem) throw new HttpError(400, problem);
+    await client.query(
+      `INSERT INTO stage_change_votes (league_id, change_key, player_id, vote, user_id) VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (league_id, change_key, player_id) DO UPDATE SET vote = EXCLUDED.vote, user_id = EXCLUDED.user_id, voted_at = now()`,
+      [parentId, key, seat, what, user.id]
+    );
+    const d = S.changeRecord(s).decided[key];
+    if (was || !d) return;
+    const name = stageName(s, S.copyOf(key) ?? "");
+    const open = t.kind === "lasted" ? "open" : "start";
+    await recordChange(client, parentId, s, { userId: user.id, kind: "game.settled", tier: 1, episode: t.episode, text: `The players voted ${d.do === "start" ? "" : "not "}to ${open} ${name} for ${wordsOfChange(t, groupOf(s))} at ${t.from}` });
+  });
+  return { settled: await settleChanges(parentId, now), seat };
 }

@@ -1,4 +1,5 @@
 import StateLogic from "@/lib/game/state-logic.js";
+import * as Seq from "@/lib/game/sequence/index.js";
 import { callKeys, callQuestions, isRight, settleSays, verdictOf, type CallBook, type CallFace, type CallQuestion, type EpisodeFacts, type MadeCall, type Verdict } from "@/lib/game/calls";
 import { poolCallOf, type GameCalls } from "@/lib/game/game-view";
 import { pickWindow } from "@/lib/game/pool-view";
@@ -440,17 +441,12 @@ export async function callEpisode(
 
 // ---------- what the season games read ----------
 
-/** `n` more for `userId` at `episode`, in a count by episode (callRights' and bingo.ts bingoLines' byEpisode: step A12 part 4a). */
-export function addAt(byEpisode: Map<number, Map<string, number>>, episode: number, userId: string, n: number): void {
-  const at = byEpisode.get(episode) ?? new Map<string, number>();
-  at.set(userId, (at.get(userId) ?? 0) + n);
-  byEpisode.set(episode, at);
-}
-
 /**
  * How many calls each of these people got right on a season, from episode `from` through `through` (a viewer's mark), as the
  * season's results (or, a talk show's, the couch's says: `couchId`'s people who share the show) settle them. `only`: some
- * questions ('out' for a public pool's Who goes home?).
+ * questions ('out' for a public pool's Who goes home?). `byEpisode`: each episode's too (step A12 part 4a of
+ * docs/PLAN-start-a-game-gpt.md: a stage's table at each episode). C2 part 3: each right call a line, counted by the scoring
+ * sequence (Seq.tally).
  */
 export async function callRights(
   seasonId: string,
@@ -481,13 +477,8 @@ export async function callRights(
   const verdictFor = (c: MadeCall) =>
     verdictOf(c.key, talk && c.key.startsWith("m:") ? "couch" : "results", facts.get(c.episode) ?? null, said.get(opts.couchId ? `${c.episode}|${c.key}` : `${c.userId}|${c.episode}|${c.key}`) ?? null);
   // Each call against its own verdict (a talk show with no couch settles each person's by their own say).
-  for (const c of calls) {
-    if ((opts.only && !opts.only(c.key)) || !isRight(verdictFor(c), c.answer)) continue;
-    out.set(c.userId, (out.get(c.userId) ?? 0) + 1);
-    // Step A12 part 4a of docs/PLAN-start-a-game-gpt.md: each episode's right calls too, for a stage's table at each episode.
-    if (opts.byEpisode) addAt(opts.byEpisode, c.episode, c.userId, 1);
-  }
-  return out;
+  const right = calls.filter((c) => !(opts.only && !opts.only(c.key)) && isRight(verdictFor(c), c.answer));
+  return Seq.tally(right.map((c) => ({ id: c.userId, episode: c.episode, n: 1 })), opts.byEpisode);
 }
 
 /** Your calls on the open episode (how many of its questions you've called, of how many), for a Weekly Calls move. */

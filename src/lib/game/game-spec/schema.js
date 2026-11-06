@@ -125,8 +125,10 @@
 // sure of moves the game (format-timeline.js stageTriggers' act; the unsure ones are held and flagged), from the episode it takes
 // effect or the first still open, whichever is later. Every stage after one a change starts is one too (a stage at an episode or a
 // phase after it comes with A12's later parts). The game's extras.changes { ok: 'auto' (the stage starts by itself, with an undo)
-// | 'maker' (it waits for the maker's OK), unanswered: 'start' | 'carry-on' (what happens with 'maker' when nobody answers by the
-// lock the stage would start with) }, CHANGES its defaults (the user's: Noticed). StageLogic.changePlan, change-stages.ts.
+// | 'maker' (it waits for the maker's OK) | 'vote' (A14 part 1: it waits for the players' vote, decided once more than half of them
+// say the same, else at the lock by the votes cast), unanswered: 'start' | 'carry-on' (what happens with 'maker' or 'vote' when
+// nobody answers, or a vote ties, by the lock the stage would start with) }, CHANGES its defaults (the user's: Noticed).
+// StageLogic.changePlan, change-stages.ts.
 // A12 part 2b, the 'next-stage' fallback (a group question asked each episode's `fallback`, group slots' `get.groups.fallback`):
 // only in a stage with a stage after it (alone, or in the last stage, it's refused: nothing to start; a stage's own league plays
 // it as void, stageLeagueGame, the game in stages' plan saying where the stage ends). That stage ends where it
@@ -196,7 +198,15 @@ const VOCAB = {
     // A13: the episode's trivia, settled by its key (the bot's trivia research).
     trivia: 'now',
   },
-  'ask.settle': { results: 'now', moment: 'now', role: 'now', phase: 'now', points: 'now', calls: 'now', trivia: 'now', fact: 'now', final: 'sports', stat: 'sports' },
+  // A14 part 1: the players' own answers (the answer most of you give, or fewest), as data: the couch never decides what happened.
+  'ask.settle': { results: 'now', moment: 'now', role: 'now', phase: 'now', points: 'now', calls: 'now', trivia: 'now', fact: 'now', players: 'now', final: 'sports', stat: 'sports' },
+  // A14 part 1: a question the players' own answers settle, on a tie for the most (or the fewest): nobody's right (void, no points
+  // either way), or each of the tied answers is.
+  'ask.settle.tie': { none: 'now', all: 'now' },
+  // A14 part 2: a question played against the bot's own call ("beat the bot": you score when you're right and it isn't), and what
+  // a window the bot made no call for does: it plays as usual (every right answer scores), or doesn't count either way.
+  'ask.beat.by': { bot: 'now' },
+  'ask.beat.none': { plays: 'now', void: 'now' },
   'ask.asked': { once: 'now', each: 'now', every: 'now', phase: 'now' },
   'ask.closes': { start: 'now', finale: 'now' },
   'ask.from': { cast: 'now', team: 'now' },
@@ -276,9 +286,10 @@ const VOCAB = {
   'extras.draft.opens': { any: 'now', start: 'now' },
   // A12 part 2: a stage a format change starts (a stage's `on`): which kinds of change count (format-timeline.js TRIGGER_KINDS:
   // 'swap-all' a swap that left no group as it was), and how the game takes it: by itself with an undo, or once the maker says
-  // so (the players' vote is A14's), and with the maker's OK, what happens when nobody answers by the stage's first lock.
+  // so, or (A14 part 1) once the players vote for it, and with the maker's OK or the vote, what happens when nobody answers by the
+  // stage's first lock.
   'on.change': Object.fromEntries(TRIGGER_KINDS.map((k) => [k, 'now'])),
-  'extras.changes.ok': { auto: 'now', maker: 'now', vote: 'later' },
+  'extras.changes.ok': { auto: 'now', maker: 'now', vote: 'now' },
   'extras.changes.unanswered': { start: 'now', 'carry-on': 'now' },
 };
 
@@ -372,7 +383,30 @@ const VOCAB = {
 //               group they were on); asked each episode, about that one. Void when research isn't sure, the title isn't a
 //               line, or whoever said it couldn't be picked (the host, someone already out): no points either way. Our check
 //               takes it only where research says it reliably on the show (ctx.facts, what it returned there: ratingOf, BAR)
+//             { by: 'players', take: majority | minority, of?, tie? } (A14 part 1) the players' own answers, as data (the
+//               couch never decides what happened on the show: what's right is what you said, not what happened): the answer
+//               most of you gave in its window (majority: "guess what most of us will pick; you score if you match the
+//               majority"), or the one fewest did (minority), among the game's answers to it or, with `of`, to the game's
+//               question it names (the same answer, asked the same way: "what will most of us say?"). One answer each: a
+//               person or group (one of them), a yes or no, a choice or an over/under. Known once its window's first episode
+//               has results as far as the viewer has seen (every answer is in by the lock; nobody sees another's before it:
+//               answers.ts). Its fallbacks, from the start: fewer than two answers, or everyone saying the same on a
+//               minority, void it (no points either way); a tie, `tie`: none (the default, void) or all (each tied one is
+//               right). A game of questions only, with one lock for everyone (no late lock)
 //           sports: { by: 'final', take: winner | total | margin } | { by: 'stat', stat, take: most | least | value }
+//   beat    (A14 part 2) { by: 'bot', none? }: played against the bot's own call ("beat the bot: the AI makes its call too; you
+//           score when you're right and it's wrong"). The bot makes its call before each window's first lock (asked once, before
+//           the game's first episode), from only what anyone could know then, and it's kept apart from everyone's answers and
+//           hidden until that lock (bot_calls, migration 0206; the server hands it to the grade as a fact: facts.bot); it's
+//           graded by the same data as everyone's. A right answer scores only where the bot's call isn't right: a person or group
+//           answer, each right pick the bot didn't name; a number, the closest only when it's closer than the bot's; a yes or no,
+//           a choice or an over/under, only when the bot's call was wrong. It's never a seat on the couch nor a place on its table.
+//           Its fallback, from the start: a window the bot made no call for (it was away, the game was made after it called) or
+//           whose call is void (a group that didn't play as offered), `none`: plays (the default, BEAT: as if there were no bot,
+//           every right answer scores) | void (that window doesn't count either way). One answer each: a person or group, a
+//           yes or no, a number, an over/under or a choice (BEATS), settled by data (not by your own answers, the calls or
+//           trivia), in a game of questions, never with a wager. Rightness is still your own call's (a life, co-op's saves, a
+//           parlay's legs read whether you were right); only the points are the bot's to take
 const TAKES = {
   results: ['winner', 'out', 'placed', 'top', 'stays', 'order', 'split', 'outlast'],
   moment: ['happened', 'count', 'who', 'most', 'first', 'order'],
@@ -382,6 +416,7 @@ const TAKES = {
   calls: [],
   trivia: [],
   fact: ['who'],
+  players: ['majority', 'minority'],
   final: ['winner', 'total', 'margin'],
   stat: ['most', 'least', 'value'],
 };
@@ -392,19 +427,21 @@ const SEASON_TAKES = ['results:winner', 'results:placed', 'results:top', 'result
 const NUMBERS = ['moment:count', 'role:count', 'phase:starts', 'final:total', 'final:margin', 'stat:value'];
 /** Who's right, as people (A8's confidence and chips are graded by any of them). */
 const PEOPLE = ['results:winner', 'results:out', 'results:placed', 'results:top', 'results:stays', 'moment:who', 'moment:most', 'moment:first', 'role:who', 'role:end', 'points:most'];
+/** A14 part 1: the players' own answers, as a settle ('by:take'). A choice takes them too (it takes anything). */
+const PLAYERS_TAKES = ['players:majority', 'players:minority'];
 const SETTLES_FOR = {
-  person: [...PEOPLE, 'stat:most', 'stat:least', 'fact:who'],
-  group: ['results:out', 'moment:who', 'fact:who'],
+  person: [...PEOPLE, 'stat:most', 'stat:least', 'fact:who', ...PLAYERS_TAKES],
+  group: ['results:out', 'moment:who', 'fact:who', ...PLAYERS_TAKES],
   order: ['results:order', 'moment:order', 'points:order'],
   confidence: PEOPLE,
   chips: PEOPLE,
   split: ['results:split'],
   pairs: ['results:outlast'],
   side: ['final:winner'],
-  yesNo: ['moment:happened', 'phase:happened'],
+  yesNo: ['moment:happened', 'phase:happened', ...PLAYERS_TAKES],
   // A number is a count, or an episode (which one a phase starts in, or a moment first happens in).
   number: [...NUMBERS, 'moment:first'],
-  overUnder: [...NUMBERS, 'moment:first'],
+  overUnder: [...NUMBERS, 'moment:first', ...PLAYERS_TAKES],
   choice: null,
   calls: ['calls:'],
   trivia: ['trivia:'],
@@ -662,11 +699,11 @@ const playoffRounds = (teams) => Math.ceil(Math.log2(teams));
 /**
  * Head to head (A11 part 4: rank.by 'matchups'), read the one way from a whole spec: { odd: median | bye, quiet: skip | tie, playoffs:
  * { teams, rounds, from (its first round, when the spec says it; else null: the game's last `rounds` episodes) } | null }, the
- * defaults MATCHUPS; null for a game that isn't head to head, or one the engine doesn't play it on: a draft's (part 4) and a game of
- * questions' (part 4b, its episodes' points from its answers' walk).
+ * defaults MATCHUPS; null for a game that isn't head to head, or one the engine doesn't play it on: a draft's (part 4), a game of
+ * questions' (part 4b, its episodes' points from its answers' walk) and (C2 part 4b) a pool's, on what each episode's pick earned.
  */
 function matchupParts(s) {
-  if (!isObj(s) || !isObj(s.rank) || s.rank.by !== 'matchups' || !isObj(s.get) || !(s.get.by === 'draft' || questionsGame(s))) return null;
+  if (!isObj(s) || !isObj(s.rank) || s.rank.by !== 'matchups' || !isObj(s.get) || !(s.get.by === 'draft' || questionsGame(s) || poolByPoints(s))) return null;
   const r = s.rank;
   const p = isObj(r.playoffs) && isInt(r.playoffs.teams, 2) && r.playoffs.teams <= MAX_PLAYOFF_TEAMS ? r.playoffs : null;
   return {
@@ -687,6 +724,14 @@ function knockoutParts(s) {
 }
 /** A game of questions: nothing held, scored by its own questions (not Weekly Calls' calls). */
 const questionsGame = (s) => isObj(s) && isObj(s.get) && s.get.by === 'none' && isObj(s.score) && s.score.by === 'answers' && Array.isArray(s.ask) && s.ask.length > 0 && !callsAsk(s.ask);
+/** A pool: a pick each episode, scored by whether it stays in (or scores). */
+const isPool = (s) => isObj(s) && isObj(s.get) && s.get.by === 'pick' && isObj(s.score) && s.score.by === 'survive';
+/** C2 part 4b: a pool ranked by its points (a right pick's: rank 'total') or head to head on them ('matchups'), with nobody knocked
+ *  out: no lives (they knock players out, and rank by the streak or last one standing), no race, no cuts. Its series of totals is
+ *  its picks' (state-logic.js PickEmLogic.series), so teams of players and a handicap play on it too. */
+const poolByPoints = (s) => isPool(s) && isObj(s.rank) && (s.rank.by === 'total' || s.rank.by === 'matchups') && s.score.lives === undefined && s.rank.race === undefined && s.rank.cut === undefined;
+/** Why a pool with lives can't rank by its points or head to head: the one sentence every check says it in. */
+const POOL_LIVES = "A pool with lives knocks players out, so it ranks by its streak or last one standing: head to head plays everyone each week, and ranked by points someone out would just stop scoring";
 /** A question a life can ride on (A11 part 2b): asked each episode, about that episode alone, so it's right or wrong once that
  *  episode's results are in. */
 const livesQuestion = (q) => isObj(q) && q.asked === 'each' && !(Number.isInteger(q.over) && q.over > 1);
@@ -733,15 +778,14 @@ const MAX_PLAYER_TEAMS = 6;
 const MAX_TEAM_NAME = 24;
 /**
  * Teams of players (A11 part 5: rank.teams), read the one way from a whole spec: { of, made, score, unplaced, names (one a team: the
- * spec's, else null) }, the defaults TEAMS; null for a game that isn't played in teams, or one the engine doesn't play them on: a
- * draft or a game of questions, ranked by its total or head to head, with no race (a pool, Weekly Calls, Weekly Bingo, last one
- * standing, co-op and a stock market's worth aren't: teamProblems says why), made a way that plays now.
+ * spec's, else null) }, the defaults TEAMS; null for a game that isn't played in teams, or one the engine doesn't play them on
+ * (teamsFit), made a way that plays now.
  */
 function teamParts(s) {
   if (!isObj(s) || !isObj(s.rank) || !isObj(s.rank.teams) || !isObj(s.get)) return null;
   const t = s.rank.teams;
   if (!(isInt(t.of, 2) && t.of <= MAX_PLAYER_TEAMS)) return null;
-  if (!(s.get.by === 'draft' || questionsGame(s)) || !(s.rank.by === 'total' || s.rank.by === 'matchups') || s.rank.race !== undefined) return null;
+  if (!teamsFit(s)) return null;
   // Made a way that isn't one (part 5c: the show's own groups, refused) plays no teams, never the default's draw.
   if (t.made !== undefined && own(VOCAB['rank.teams.made'], t.made) !== 'now') return null;
   const made = t.made === undefined ? TEAMS.made : t.made;
@@ -753,6 +797,20 @@ function teamParts(s) {
     unplaced: own(VOCAB['rank.teams.unplaced'], t.unplaced) ? t.unplaced : TEAMS.unplaced,
     names,
   };
+}
+/**
+ * Whether the engine plays teams of players on a whole spec's game and rank: a draft ranked by the teams' points (C2 part 4b: a race
+ * between them too), head to head between them with nobody racing, or last team standing (C2 part 4b: its cuts on the teams'
+ * totals, a race beside them or not); a game of questions by their points or head to head, with no race (its walk works each
+ * night's points out from who's out so far, seat by seat: teams knocked out or racing aren't built on it); a pool by its points or
+ * head to head (C2 part 4b: poolByPoints). Weekly Calls, Weekly Bingo, co-op and a stock market's worth aren't (teamProblems says
+ * why).
+ */
+function teamsFit(s) {
+  const r = s.rank;
+  if (s.get.by === 'draft') return r.by === 'total' || (r.by === 'matchups' && r.race === undefined) || (r.by === 'standing' && Array.isArray(r.cut) && r.cut.length > 0);
+  if (questionsGame(s)) return (r.by === 'total' || r.by === 'matchups') && r.race === undefined;
+  return poolByPoints(s);
 }
 // A11 part 5b: a handicap's defaults when the spec leaves them out (the user's to set: Noticed): for newcomers, new to the couch. Read
 // by handicapParts, never filled in. Up to MAX_HANDICAP points an episode.
@@ -876,14 +934,15 @@ function stageGame(st, from = 1) {
 /**
  * A handicap (A11 part 5b: rank.handicap), read the one way from a whole spec: { points, who, newTo }, the defaults HANDICAP; null for
  * a game without one, or one the engine doesn't play it on: a draft (Outlast, a lineup, best ball, an auction) or a game of
- * questions, ranked by its total, last one standing, head to head or in teams (a pool, Weekly Calls, Weekly Bingo, co-op and a
- * stock market ranked by worth aren't: handicapProblems says why).
+ * questions, ranked by its total, last one standing, head to head or in teams, and (C2 part 4b) a pool ranked by its points or head
+ * to head (poolByPoints: on its streak or who's still standing it would only break ties); Weekly Calls, Weekly Bingo, co-op and a
+ * stock market ranked by worth aren't (handicapProblems says why).
  */
 function handicapParts(s) {
   if (!isObj(s) || !isObj(s.rank) || !isObj(s.rank.handicap) || !isObj(s.get)) return null;
   const h = s.rank.handicap;
   if (!(isInt(h.points, 1) && h.points <= MAX_HANDICAP)) return null;
-  if (!(s.get.by === 'draft' || questionsGame(s)) || s.rank.by === 'coop' || s.rank.by === 'worth') return null;
+  if (!(s.get.by === 'draft' || questionsGame(s) || poolByPoints(s)) || s.rank.by === 'coop' || s.rank.by === 'worth') return null;
   const who = own(VOCAB['rank.handicap.who'], h.who) ? h.who : HANDICAP.who;
   const newTo = own(VOCAB['rank.handicap.newTo'], h.newTo) ? h.newTo : HANDICAP.newTo;
   return { points: h.points, who, newTo };
@@ -924,12 +983,34 @@ function finaleOf(ask) {
   const want = finaleQuestions(f);
   return sameValue(ask, want) ? f : null;
 }
+/** C2 part 4c: a draft's finale predictions at the head of its questions (its first two, exactly as finaleQuestions makes them), or
+ *  null: the questions after them are its own (every id unique, so while its finale predictions are on, "top3" and "winner" are
+ *  theirs, their answers kept in the league's state; with them off, any of its own can take those ids). */
+function finaleIn(ask) {
+  return Array.isArray(ask) && ask.length >= 2 ? finaleOf(ask.slice(0, 2)) : null;
+}
+/** C2 part 4c: a draft's own questions beyond its finale predictions (its ask less them), in their order; [] for any other game. */
+function draftQuestions(s) {
+  if (!isObj(s) || !isObj(s.get) || s.get.by !== 'draft' || !Array.isArray(s.ask) || !s.ask.length) return [];
+  return finaleIn(s.ask) ? s.ask.slice(2) : s.ask.slice();
+}
 /** Weekly Calls' question (the show's calls). */
 const isCalls = (q) => isObj(q) && q.answer === 'calls';
 /** A13: a question answered from the episode's trivia key. */
 const isTrivia = (q) => isObj(q) && q.answer === 'trivia';
 /** A13 part 2: a question an episode fact settles (who says the title quote). */
 const isFact = (q) => isObj(q) && isObj(q.settle) && q.settle.by === 'fact';
+/** A14 part 1: a question the players' own answers settle (the answer most of you give, or fewest). */
+const isPlayers = (q) => isObj(q) && isObj(q.settle) && q.settle.by === 'players';
+/** A14 part 1: a question the players settle, on a tie: nobody's right by default (void). The default is the user's (Noticed). */
+const PLAYERS = { tie: 'none' };
+/** A14 part 2: a question played against the bot's own call. */
+const isBeat = (q) => isObj(q) && isObj(q.beat) && q.beat.by === 'bot';
+/** A14 part 2: a window the bot made no call for plays as usual by default (every right answer scores). The default is the
+ *  user's (Noticed). */
+const BEAT = { none: 'plays' };
+/** A14 part 2: the answers the bot makes its call on (one call, right or wrong; a number the closest). */
+const BEATS = ['person', 'group', 'yesNo', 'number', 'overUnder', 'choice'];
 /** The settles that settle themselves, with no take: the show's calls, the episode's trivia key (A13). */
 const NO_TAKE = ['calls', 'trivia'];
 /** An ask that's exactly the show's calls (Weekly Calls). */
@@ -944,6 +1025,8 @@ function fullQuestion(q) {
   if (out.closes === undefined) out.closes = 'start';
   if (NAMES.includes(out.answer) && out.pick === undefined) out.pick = 1;
   if (out.answer === 'person' && out.from === undefined) out.from = 'cast';
+  if (isPlayers(out) && out.settle.tie === undefined) out.settle = { ...out.settle, tie: PLAYERS.tie };
+  if (isBeat(out) && out.beat.none === undefined) out.beat = { ...out.beat, none: BEAT.none };
   return out;
 }
 
@@ -1170,7 +1253,9 @@ function fullSpec(spec) {
     if (s.rank.by === undefined) {
       // A11 part 4: a rank that says only its playoffs (or head to head's other parts) is head to head.
       const h2h = MATCHUP_KEYS.some((k) => s.rank[k] !== undefined);
-      s.rank.by = (Array.isArray(s.rank.cut) && s.rank.cut.length) || answerLives ? 'standing' : h2h ? 'matchups' : fits ? p.rank.by : isObj(s.score) && s.score.by === 'survive' ? 'streak' : 'total';
+      // C2 part 4b: a pool's that says only its teams or a handicap (and has no lives) ranks by its points: the only way they play.
+      const byPoints = isObj(s.score) && s.score.by === 'survive' && s.score.lives === undefined && (s.rank.teams !== undefined || s.rank.handicap !== undefined);
+      s.rank.by = (Array.isArray(s.rank.cut) && s.rank.cut.length) || answerLives ? 'standing' : h2h ? 'matchups' : byPoints ? 'total' : fits ? p.rank.by : isObj(s.score) && s.score.by === 'survive' ? 'streak' : 'total';
     }
     if (Array.isArray(s.rank.cut)) s.rank.cut.forEach((c) => { if (isObj(c)) for (const [k, v] of Object.entries(CUT)) if (c[k] === undefined) c[k] = v; });
   }
@@ -1299,51 +1384,190 @@ function typeOf(spec) {
   return playsAs(fullSpec(spec));
 }
 /** typeOf on a spec that's already whole (fullSpec's, specOf's, a stored settings.game), without copying it: the engine's
- *  getLeagueType asks this on nearly every read. */
+ *  getLeagueType asks this on nearly every read. C2 part 4: it plays when every piece it names has its place in the scoring
+ *  sequence (noPlace), and plays as the shape its lines make (shapeOf). */
 function playsAs(s) {
-  if (!isObj(s)) return null;
-  // A12 part 1: a game in stages, each stage a game a stage can be today, the game's own one after another (part 4a: the stages
-  // alongside them at the same time).
-  if (s.stages !== undefined) {
-    const list = s.stages;
-    const mains = mainCount(list);
-    const ok = Array.isArray(list) && list.length >= 2 && list.length <= MAX_STAGES && isObj(s.get) && s.get.by === 'none' && isObj(s.score) && s.score.by === 'stages'
-      && list.every((st) => isObj(st) && isObj(st.game) && STAGE_KINDS.includes(playsAs(stageGame(st))))
-      && list.every((st, i) => i === 0 || i >= mains || prevOnSeason(list, i) < 0 || !stagesOverlap(list[prevOnSeason(list, i)], st));
-    return ok ? 'stages' : null;
-  }
-  const by = (k) => (isObj(s[k]) ? s[k].by : undefined);
+  if (!isObj(s) || noPlace(s).length) return null;
+  return shapeOf(s);
+}
+
+// ---------- Playing by placement (docs/PLAN-start-a-game-gpt.md track C, C2 part 4) ----------
+// A spec plays when each piece it names has its place in the scoring sequence (src/lib/game/sequence/; GAME-PIECES.md "How a game
+// is scored: the sequence"), not when it matches one of seven shapes. Each step's pieces, and what each needs from the steps before
+// it (the multipliers and the combiners, steps 3 and 4, are checked where they're said: specProblems):
+//   1. Hold: a draft (its order going with its ownership, or a draw, or an auction for castaways nobody else can have: A10 part 3)
+//      counting its whole team, a lineup or its best few; a pick each episode (one, cycling or never repeating) counting the pick;
+//      nothing; a card. (holdOf)
+//   2. Lines: a place (an Outlast's), the whole team held; moments (a lineup's, best ball's), a lineup or its best few held; a pick
+//      staying in (or scoring), a pick held; answers, nothing held, every question one a game of questions plays (or the show's
+//      calls alone); bingo lines, a card held. Beside them: a draft's finale predictions and (C2 part 4c) its own questions, their
+//      answers' lines joining the draft's. (LINES, askPlace, draftAskPlace)
+//   5 and 6. The week's result and the rank, on what the lines make: a running total, on any game's (but a pool's, ranked by its
+//      streak or who's still standing); last one standing on a draft's or a game of questions' cuts (A11 part 1, 2b), or a pool's or
+//      a game of questions' lives (A10 part 2, A11 part 2b); head to head on a draft's or a game of questions' series of totals, with
+//      nobody racing, cut or losing a life (A11 part 4, 4b); a streak, a pool's; worth, a stock market's on a lineup (A10 part 3c);
+//      co-op, a game of questions' lives together (A11 part 3). The show's calls and bingo lines are counted outside the state:
+//      a running total only. (rankPlace)
+// The shape it plays as (shapeOf) is what the screens still read (typeOf, getLeagueType's words and flags, until R3), from its lines.
+
+/** C2 part 4: what a whole spec holds (step 1): 'draft', 'pick', 'none' or 'card'; null when it isn't a holding a game has, or
+ *  'count' when it is and what counts of it doesn't fit (a draft counts its whole team, a lineup or its best few; a pick the pick;
+ *  nothing held or a card, nothing). */
+function holdOf(s) {
+  const get = isObj(s.get) ? s.get : {};
   const count = countKind(s.count);
-  if (!plainParts(s)) return null;
-  const none = s.ask.length === 0;
-  // A10 part 3: a draw deals either ownership's teams (DrawLogic), so it plays the game a snake or blind draft would; part 3b: an
-  // auction (AuctionLogic) an exclusive draft's.
-  const drafted = by('get') === 'draft' && (own(ORDER_OF, s.get.own) === s.get.order || (s.get.order === 'draw' && own(ORDER_OF, s.get.own) !== undefined) || (s.get.order === 'auction' && s.get.own === 'exclusive'));
-  if (drafted && (none || finaleOf(s.ask))) {
-    // A11 part 1: a draft that knocks players out ranks last one standing (its race and cuts are KnockoutLogic's). Part 4: head to
-    // head (MatchupLogic's), with nobody racing or cut beside it.
-    const ranks = by('rank') === 'total' || (by('rank') === 'standing' && Array.isArray(s.rank.cut) && s.rank.cut.length > 0)
-      || (by('rank') === 'matchups' && s.rank.race === undefined && s.rank.cut === undefined);
-    if (count === 'all' && by('score') === 'place' && ranks) return 'classic-draft';
-    // Best ball (A9 part 2) is Weekly Lineup's game with no lineups: its best n count (state-logic.js's best ball variant).
-    // A10 part 3c: a stock market can rank by worth.
-    if ((count === 'start' || count === 'best') && by('score') === 'moments' && (ranks || (by('rank') === 'worth' && marketOf(s)))) return 'active-roster';
+  if (get.by === 'draft') {
+    const drafted = own(ORDER_OF, get.own) === get.order || (get.order === 'draw' && own(ORDER_OF, get.own) !== undefined) || (get.order === 'auction' && get.own === 'exclusive');
+    if (!drafted) return null;
+    return count === 'all' || count === 'start' || count === 'best' ? 'draft' : 'count';
   }
-  // A10 part 2: a pool with lives can rank by who's still standing. A11 part 2: a pick that never repeats.
-  if (by('get') === 'pick' && s.get.each === 1 && (s.get.repeat === 'cycle' || s.get.repeat === 'never') && count === 'pick' && by('score') === 'survive' && (by('rank') === 'streak' || by('rank') === 'standing') && none) {
-    return 'pickem';
+  if (get.by === 'pick') {
+    if (!(get.each === 1 && (get.repeat === 'cycle' || get.repeat === 'never'))) return null;
+    return count === 'pick' ? 'pick' : 'count';
   }
-  if (by('get') === 'none' && !count && by('score') === 'answers') {
-    if (callsAsk(s.ask)) return by('rank') === 'total' ? 'weekly-calls' : null;
-    // A11 part 2b: a game of questions that knocks players out (lives, cuts) ranks last one standing.
-    const knocks = isInt(s.score.lives, 1) || (isObj(s.rank) && Array.isArray(s.rank.cut) && s.rank.cut.length > 0);
-    // A11 part 3: co-op, the couch's lives together. Part 4b: head to head, with nobody racing, cut or losing a life beside it.
-    const h2h = by('rank') === 'matchups' && !knocks && s.rank.race === undefined;
-    const ranks = by('rank') === 'total' || (by('rank') === 'standing' && knocks) || (by('rank') === 'coop' && isInt(s.score.lives, 1)) || h2h;
-    if (ranks && !none && s.ask.length <= MAX_QUESTIONS && s.ask.every(playable)) return 'questions';
-  }
-  if (by('get') === 'card' && !count && by('score') === 'lines' && by('rank') === 'total' && none) return 'weekly-bingo';
+  if (get.by === 'none' || get.by === 'card') return !count ? get.by : 'count';
   return null;
+}
+/** C2 part 4: step 2's lines (score.by), each with what it needs held: [at, why] when it has no place, else null. `s` whole, `held`
+ *  holdOf's. */
+const LINES = {
+  place: (s, held) => (held === 'draft' && countKind(s.count) === 'all' ? null : ['score.by', 'an Outlast scores places, counting the whole team drafted']),
+  moments: (s, held) => {
+    if (held === 'draft' && (countKind(s.count) === 'start' || countKind(s.count) === 'best')) return null;
+    if (held === 'draft') return ['count', 'scoring by moments counts a lineup ({ start: n }) or your best few ({ best: n }): to count the whole team, best ball with all of it'];
+    return ['score.by', held === 'pick' ? 'a pick each episode scores by staying in (or scoring): picks scored by what they do come with C5 (pick N each episode)' : 'scoring by moments needs someone of yours: a draft'];
+  },
+  survive: (s, held) => (held === 'pick' ? null : ['score.by', 'surviving scores a pick each episode']),
+  answers: (s, held) => (held === 'none' ? null : ['score.by', 'a game of questions holds nothing']),
+  lines: (s, held) => (held === 'card' ? null : ['score.by', "bingo lines are a card's"]),
+};
+/** C2 part 4: the questions beside a game's lines, [at, why] when they have no place (null when they do). */
+function askPlace(s) {
+  const none = s.ask.length === 0;
+  const by = s.score.by;
+  if (by === 'place' || by === 'moments') return draftAskPlace(s);
+  if (by === 'survive') return none ? null : ['ask', "a pool's picks are its game: questions beside them play in a stage alongside it"];
+  if (by === 'lines') return none ? null : ['ask', 'a bingo card is its game: questions beside it play in a stage alongside it'];
+  if (by === 'answers') {
+    if (none) return ['ask', 'a game of questions asks at least one'];
+    if (callsAsk(s.ask)) return null;
+    return s.ask.length <= MAX_QUESTIONS && s.ask.every(playable) ? null : ['ask', 'every one of its questions has to be one a game of questions plays'];
+  }
+  return null;
+}
+/**
+ * C2 part 4c: a draft's own questions (beyond its finale predictions), [at, why] when they have no place (null when they do). Their
+ * answers' lines join the draft's at step 2 (the server grades them as a game of questions' and hands the draft's walk their points
+ * through each episode), so each is one a draft plays (draftPlayable), up to the game's limit with its finale predictions. Not beside
+ * its cuts or a race: who's out, and where the game ends, decide which moves the league's own writes take (lineups, captains, group
+ * slots, waivers, an exclusive draft's castaways back in the pool), and those read the league as it's stored, which holds no answers'
+ * points (only the server's copies do). Not beside a stock market ranked by its worth (its rank is cash plus the team, so they'd only
+ * break ties); not a stake of any of your points (a draft's points are its team's and its questions' together: money, C6); not the
+ * answer most of you give to a finale prediction (those answers are the state's, apart from its own questions').
+ */
+function draftAskPlace(s) {
+  const own = draftQuestions(s);
+  if (!own.length) return null;
+  const off = s.ask.length - own.length;
+  if (s.ask.length > MAX_QUESTIONS) return ['ask', `a game asks at most ${MAX_QUESTIONS} questions, a draft's finale predictions among them`];
+  if (!own.every(draftPlayable)) return ['ask', "every one of a draft's own questions has to be one a draft plays: a show's question (a person from the cast or your own team), its line set"];
+  const rank = isObj(s.rank) ? s.rank : {};
+  if ((Array.isArray(rank.cut) && rank.cut.length > 0) || rank.race !== undefined) {
+    return ['ask', "a draft's own questions can't go beside its cuts or a race yet: who's out decides the moves you can make, and those are checked without the questions' points"];
+  }
+  if (rank.by === 'worth') return ['ask', "a stock market ranks by its worth (cash plus the team at today's prices): questions beside it would only break ties"];
+  const finale = off > 0 ? FINALE_IDS : [];
+  for (let j = 0; j < own.length; j++) {
+    const q = own[j];
+    if (q.wager === WAGER_TOTAL) return [`ask[${off + j}].wager`, "staking any of your points beside a draft comes with money (C6): a draft's points are its team's and its questions' together"];
+    if (isPlayers(q) && finale.includes(q.settle.of)) return [`ask[${off + j}].settle.of`, "what most of you answer to a finale prediction can't settle a draft's own question yet: those answers are kept apart, in the league itself"];
+  }
+  return null;
+}
+/** C2 part 4c: the ids of a draft's finale predictions (their answers kept in the league's state). */
+const FINALE_IDS = ['top3', 'winner'];
+/** C2 part 4c: a question a draft plays beside its team: one a game of questions plays, or a person from your own team (a draft has
+ *  teams). */
+const draftPlayable = (q) => playable(q) || (isObj(q) && q.answer === 'person' && q.from === 'team' && playable({ ...q, from: 'cast' }));
+/** C2 part 4: steps 5 and 6, how the table ranks on what the lines make, [at, why] when it has no place (null when it does). */
+function rankPlace(s) {
+  const rank = isObj(s.rank) ? s.rank : {};
+  const by = rank.by;
+  const lines = s.score.by;
+  const cuts = Array.isArray(rank.cut) && rank.cut.length > 0;
+  if (lines === 'place' || lines === 'moments') {
+    if (by === 'total' || (by === 'standing' && cuts) || (by === 'matchups' && rank.race === undefined && rank.cut === undefined)) return null;
+    if (by === 'worth') return lines === 'moments' && marketOf(s) ? null : ['rank.by', "ranking by worth is a stock market's on a lineup (a draft scored by moments): an Outlast's places aren't priced each week"];
+    return ['rank.by', "a draft ranks by its points, last one standing when it cuts, or head to head with nobody racing or cut"];
+  }
+  // C2 part 4b: a pool by its points or head to head too (its series of totals, from its picks), with nobody knocked out.
+  if (lines === 'survive') {
+    if (by === 'streak' || by === 'standing') return null;
+    if (by === 'total' || by === 'matchups') {
+      if (s.score.lives !== undefined) return ['rank.by', `${POOL_LIVES[0].toLowerCase()}${POOL_LIVES.slice(1)}`];
+      return rank.race === undefined && rank.cut === undefined ? null : ['rank.by', 'a pool ranks by its points or head to head with nobody racing or cut: it knocks players out with its lives'];
+    }
+    return ['rank.by', 'a pool ranks by its streak, its points, last one standing or head to head'];
+  }
+  if (lines === 'answers' && callsAsk(s.ask)) return by === 'total' ? null : ['rank.by', "the show's calls are counted outside the game: most right wins"];
+  if (lines === 'answers') {
+    const knocks = isInt(s.score.lives, 1) || cuts;
+    if (by === 'total' || (by === 'standing' && knocks) || (by === 'coop' && isInt(s.score.lives, 1)) || (by === 'matchups' && !knocks && rank.race === undefined)) return null;
+    return ['rank.by', 'a game of questions ranks by its points, last one standing when it knocks players out, co-op on its lives, or head to head with nobody racing, cut or losing a life'];
+  }
+  if (lines === 'lines') return by === 'total' ? null : ['rank.by', 'bingo lines are counted outside the game: most lines wins'];
+  return null;
+}
+/**
+ * C2 part 4: the pieces of a whole spec with no place in the scoring sequence, as [{ at, why }] in the sequence's order (empty: each
+ * piece has its place, and it plays). The places are above (holdOf, LINES, askPlace, rankPlace); a game in stages' are each stage's
+ * own game's. On getLeagueType's path (playsAs): a whole spec that plays allocates nothing but its empty list.
+ */
+function noPlace(s) {
+  if (!isObj(s)) return [{ at: '', why: 'a game spec is an object' }];
+  if (s.stages !== undefined) return noPlaceStages(s);
+  // What every game shares: a span, the cast still in, a list of questions, moves locking at the start.
+  if (!plainParts(s)) return [{ at: '', why: 'every game plays a span of episodes, from the cast still in, its moves locking as each starts' }];
+  const held = holdOf(s);
+  if (!held) return [{ at: 'get', why: 'a game holds a draft (its whole team, a lineup or its best few counting), a pick each episode, nothing or a bingo card' }];
+  if (held === 'count') return [{ at: 'count', why: 'a draft counts its whole team, a lineup or its best few; a pick, the pick; nothing held or a card, nothing' }];
+  const by = isObj(s.score) ? s.score.by : undefined;
+  const line = Object.prototype.hasOwnProperty.call(LINES, by) ? LINES[by](s, held) : ['score.by', 'what it scores by has no lines yet'];
+  if (line) return [{ at: line[0], why: line[1] }];
+  const out = [];
+  const a = askPlace(s);
+  if (a) out.push({ at: a[0], why: a[1] });
+  const r = rankPlace(s);
+  if (r) out.push({ at: r[0], why: r[1] });
+  return out;
+}
+/** C2 part 4: a game in stages' pieces with no place: 2 to MAX_STAGES of them, nothing of its own beyond its stages and the overall,
+ *  each stage's game a game that plays (never a game in stages), the game's own one after another (A12 part 4a: the stages beside
+ *  them at the same time). */
+function noPlaceStages(s) {
+  const list = s.stages;
+  if (!(Array.isArray(list) && list.length >= 2 && list.length <= MAX_STAGES && isObj(s.get) && s.get.by === 'none' && isObj(s.score) && s.score.by === 'stages')) {
+    return [{ at: 'stages', why: `a game in stages is 2 to ${MAX_STAGES} games, with its rules in each` }];
+  }
+  const out = [];
+  const mains = mainCount(list);
+  list.forEach((st, i) => {
+    const at = `stages[${i}]`;
+    if (!(isObj(st) && isObj(st.game))) return out.push({ at, why: 'each stage is a game' });
+    const g = stageGame(st);
+    if (isObj(g) && g.stages !== undefined) return out.push({ at: `${at}.game.stages`, why: "a stage is one game: stages don't nest" });
+    noPlace(g).forEach((x) => out.push({ at: `${at}.game${x.at ? `.${x.at}` : ''}`, why: x.why }));
+    const k = i === 0 || i >= mains ? -1 : prevOnSeason(list, i);
+    if (k >= 0 && stagesOverlap(list[k], st)) out.push({ at: `${at}.game.span.from`, why: "the game's own stages play one after another" });
+  });
+  return out;
+}
+/** C2 part 4: the shape a spec that plays plays as, for the screens (typeOf; getLeagueType's words and flags until R3): its lines'. */
+function shapeOf(s) {
+  if (s.stages !== undefined) return 'stages';
+  const by = isObj(s.score) ? s.score.by : undefined;
+  if (by === 'answers') return callsAsk(s.ask) ? 'weekly-calls' : 'questions';
+  return { place: 'classic-draft', moments: 'active-roster', survive: 'pickem', lines: 'weekly-bingo' }[by] || null;
 }
 /** The parts every game today shares: a span (from an episode, or a phase), the cast still in, a list of questions (each
  *  game says which it plays), moves locking at the start. */
@@ -1463,6 +1687,8 @@ function flagsOf(s) {
     hasCalls: score.by === 'answers' && callsAsk(s && s.ask),
     // A game of questions (A4): scored by its answers, not the show's calls.
     hasQuestions: score.by === 'answers' && !callsAsk(s && s.ask),
+    // C2 part 4c: a draft's own questions beyond its finale predictions (their answers kept as a game of questions' are).
+    hasDraftQuestions: get.by === 'draft' && draftQuestions(s).length > 0,
     hasBingo: score.by === 'lines',
     supportsReplenish: waivers,
     supportsTrade: waivers,
@@ -1705,7 +1931,7 @@ function specProblems(spec, ctx, opts) {
     if (typeof e.lockedDown !== 'boolean') add('extras.lockedDown', 'lockedDown is true or false');
     if (e.lateLock !== null) {
       if (!(isObj(e.lateLock) && LATE_HOURS.includes(e.lateLock.hours))) add('extras.lateLock', `A late lock is { hours: ${LATE_HOURS.join(', ')} }, or null`);
-      else if (!(score.by === 'answers' && !callsAsk(s.ask))) add('extras.lateLock', "A late lock is for a game's own questions (Weekly Calls' calls are Call it's)");
+      else if (!(score.by === 'answers' && !callsAsk(s.ask))) add('extras.lateLock', "A late lock is a game of questions' (a draft's moves lock as each episode starts; Weekly Calls' calls are Call it's)");
     }
     // A10 part 4b: a team two people share. A call and a bingo card are each person's own (Call it's calls, made once for every
     // game that counts them; a card dealt to a person), so a seat in those games has nothing to share.
@@ -1755,7 +1981,7 @@ function questionProblems(q, at, s, ids, league) {
   else if (q.closes === 'finale' && q.asked !== 'once') add('closes', 'Only a question asked once waits for the finale: one asked each episode closes as it starts');
   const st = isObj(q.settle) ? q.settle : {};
   let settled = false;
-  if (!one('ask.settle', st.by)) add('settle', 'Data settles every question: results, moment, role, phase, points, calls, trivia, fact, final or stat');
+  if (!one('ask.settle', st.by)) add('settle', 'Data settles every question: results, moment, role, phase, points, calls, trivia, fact, players (your own answers), final or stat');
   else if (NO_TAKE.includes(st.by)) {
     if (st.take !== undefined) add('settle.take', st.by === 'calls' ? 'The calls settle themselves: no take' : 'The trivia key settles it: no take');
     else settled = true;
@@ -1782,6 +2008,41 @@ function questionProblems(q, at, s, ids, league) {
     if (q.asked !== 'each' || q.over !== undefined) add('asked', "An episode fact is that episode's: ask it each episode");
   }
   if (st.fact !== undefined && st.by !== 'fact') add('settle.fact', 'Only an episode fact settles by a fact');
+  // A14 part 1: the players' own answers, one each, in a game of questions with one lock for everyone (each answer is hidden until
+  // it; a late lock would show some of you the answers while others can still give theirs).
+  if (st.by === 'players') {
+    if (NAMES.includes(q.answer) && q.pick !== undefined && q.pick !== 1) add('pick', 'The answer most of you give is one: name one');
+    // C2 part 4c: or a draft's own questions.
+    if (!(isObj(s.score) && (s.score.by === 'answers' || s.score.by === 'place' || s.score.by === 'moments'))) add('settle', "Your own answers settle a question in a game of questions, or a draft's own");
+    if (isObj(s.extras) && s.extras.lateLock !== undefined && s.extras.lateLock !== null && s.extras.lateLock !== false) add('settle', 'Your own answers lock at one time for everyone: no late lock with it');
+    if (st.tie !== undefined && !one('ask.settle.tie', st.tie)) add('settle.tie', "On a tie, nobody's right or each of them is: none or all");
+    if (st.of !== undefined) {
+      const of = Array.isArray(s.ask) ? s.ask.find((x) => isObj(x) && x.id === st.of) : undefined;
+      // Compared with their defaults in (a person picks from the cast unless it says otherwise; a question is asked once).
+      const [a, b] = of ? [fullQuestion(of), fullQuestion(q)] : [];
+      const same = (k) => JSON.stringify(a[k] === undefined ? null : a[k]) === JSON.stringify(b[k] === undefined ? null : b[k]);
+      if (typeof st.of !== 'string' || !st.of || st.of === q.id) add('settle.of', "Which of the game's other questions: its id");
+      else if (!of) add('settle.of', `The game has no question "${st.of}"`);
+      else if (isPlayers(of) || isCalls(of) || isTrivia(of) || of.each !== undefined) add('settle.of', "It's what most of you answer to a question of the game's own, one answer each");
+      else if (of.answer !== q.answer || !['options', 'line', 'from'].every(same)) add('settle.of', "It's answered the same way as the question it's about: the same kind of answer, options, line and from");
+      else if (!['asked', 'every', 'over'].every(same)) add('settle.of', 'It is asked when the question it\'s about is: the same asked, every and over');
+      else if (NAMES.includes(of.answer) && (of.pick === undefined ? 1 : of.pick) !== 1) add('settle.of', 'The question it\'s about names one');
+    }
+  }
+  // A14 part 2: a question played against the bot's own call: one call it can make, settled by data, a game of questions' own.
+  if (q.beat !== undefined) {
+    const b = q.beat;
+    if (!(isObj(b) && one('ask.beat.by', b.by))) add('beat', "It's played against the bot's own call: { by: 'bot' }");
+    else if (b.none !== undefined && !one('ask.beat.none', b.none)) add('beat.none', "A window the bot made no call for plays as usual, or doesn't count either way: plays or void");
+    if (!BEATS.includes(q.answer) || each) add('beat', 'The bot makes one call: a person or group, a yes or no, a number, an over/under or a choice');
+    else if (st.by === 'players' || NO_TAKE.includes(st.by)) add('beat', "The bot's call is graded by what happened: not by your own answers, the calls or trivia");
+    // C2 part 4c: or a draft's own.
+    if (!(isObj(s.score) && (s.score.by === 'answers' || s.score.by === 'place' || s.score.by === 'moments'))) add('beat', "The bot plays a game of questions' own questions, or a draft's own");
+    if (q.wager !== undefined) add('beat', "A wager is on your own call: not with the bot's");
+    if (q.from === 'team') add('beat', 'The bot has no team: it names from the cast, so ask from the cast');
+  }
+  if (st.of !== undefined && st.by !== 'players') add('settle.of', "Only your own answers settle by another question's");
+  if (st.tie !== undefined && st.by !== 'players') add('settle.tie', 'Only your own answers settle on a tie');
   // Where a phase starts is one episode for the whole game.
   if (how === 'phase:starts' && q.asked !== 'once') add('asked', 'Which episode a phase starts in is the game\'s: ask it once');
   if (st.by === 'stat' && (typeof st.stat !== 'string' || !st.stat)) add('settle.stat', 'Which stat settles it');
@@ -1847,7 +2108,8 @@ function questionProblems(q, at, s, ids, league) {
     const sh = q.shrink;
     if (!(isObj(sh) && SHRINK_PER.includes(sh.per) && isInt(sh.points, 1) && sh.points <= MAX_QUESTION_POINTS)) add('shrink', `Points shrink by 1 to ${MAX_QUESTION_POINTS} per episode or per change: { points, per: episode | change }`);
     else if (!(q.asked === 'once' && q.closes === 'finale')) add('shrink', "Only a call that stays open once the game is on shrinks: asked once, closing at the finale");
-    else if (q.share !== undefined) add('shrink', 'A shrinking call is its own: no share with it');
+    // C2 part 4: a shrinking call that's shared is each right call at what it's worth when it was made, then shared (the scoring
+    // sequence's order: a line's worth, then the share).
   }
   // F3 part 2: a group question asked each episode about one episode reads its groups from the format's state over time on a
   // season played in groups the league doesn't hold (pairs); `fallback` says what it does when they aren't sure.
@@ -1936,8 +2198,9 @@ const KEYS = {
   windows: ['schedule', 'every', 'swaps'],
   draft: ['at', 'timer', 'away', 'opens'],
   bets: ['points'],
-  question: ['id', 'ask', 'answer', 'points', 'settle', 'asked', 'closes', 'pick', 'from', 'line', 'options', 'each', 'every', 'over', 'within', 'chips', 'pairs', 'wager', 'share', 'rollover', 'shrink', 'fallback'],
-  settle: ['by', 'take', 'moment', 'role', 'phase', 'stat', 'place', 'fact'],
+  question: ['id', 'ask', 'answer', 'points', 'settle', 'asked', 'closes', 'pick', 'from', 'line', 'options', 'each', 'every', 'over', 'within', 'chips', 'pairs', 'wager', 'share', 'rollover', 'shrink', 'fallback', 'beat'],
+  settle: ['by', 'take', 'moment', 'role', 'phase', 'stat', 'place', 'fact', 'of', 'tie'],
+  beat: ['by', 'none'],
 };
 /** The paths of keys a spec has that no game spec does. */
 function unknownKeys(s) {
@@ -1991,6 +2254,7 @@ function unknownKeys(s) {
     if (isObj(q)) {
       check(q.settle, KEYS.settle, `ask[${i}].settle`);
       check(q.shrink, KEYS.shrink, `ask[${i}].shrink`);
+      check(q.beat, KEYS.beat, `ask[${i}].beat`);
     }
   });
   const e = s.extras;
@@ -2123,6 +2387,12 @@ function poolProblems(score, s, league) {
   const out = [];
   if (score.lives !== undefined && !(isInt(score.lives, 1) && score.lives <= MAX_LIVES)) out.push(['.lives', `A pool has 1 to ${MAX_LIVES} lives`]);
   if (score.mulligans !== undefined && !(isInt(score.mulligans, 1) && score.mulligans <= MAX_MULLIGANS)) out.push(['.mulligans', `A pool forgives 1 to ${MAX_MULLIGANS} wrong picks`]);
+  // C2 part 4b: ranked by its points (or head to head on them), a wrong pick costs nothing a mulligan could forgive (no streak
+  // counts, no life is lost), and a right pick worth nothing would score nobody anything.
+  if (isObj(s.rank) && (s.rank.by === 'total' || s.rank.by === 'matchups')) {
+    if (score.mulligans !== undefined) out.push(['.mulligans', 'Ranked by its points, a wrong pick costs nothing to forgive: mulligans are for a pool ranked by its streak or last one standing']);
+    if (isNum(score.points) && score.points === 0) out.push(['.points', 'Ranked by its points, a right pick is worth more than 0']);
+  }
   const b = score.buyback;
   if (b === undefined) return out;
   if (!isObj(b)) return [...out, ['.buyback', 'A buyback is { times, before, cost }']];
@@ -2269,12 +2539,13 @@ function coopProblems(score, rank, s) {
 function matchupProblems(rank, s, league) {
   const out = [];
   const on = rank.by === 'matchups';
-  if (on && !(isObj(s.get) && s.get.by === 'draft') && !questionsGame(s)) {
-    const why = isObj(s.get) && s.get.by === 'pick'
-      ? "A pool's picks don't score an episode's points against someone: head to head is a draft's or a game of questions'"
+  // C2 part 4b: a pool's too, on what each episode's pick earned, with no lives (they knock players out).
+  if (on && !(isObj(s.get) && s.get.by === 'draft') && !questionsGame(s) && !(isPool(s) && s.score.lives === undefined)) {
+    const why = isPool(s)
+      ? POOL_LIVES
       : Array.isArray(s.ask) && callsAsk(s.ask)
-        ? "Weekly Calls' calls are counted outside the game: head to head is a draft's or a game of questions'"
-        : "Head to head plays each episode's points against someone's: a draft's (Outlast, a lineup, best ball) or a game of questions'";
+        ? "Weekly Calls' calls are counted outside the game: head to head is a draft's, a game of questions' or a pool's"
+        : "Head to head plays each episode's points against someone's: a draft's (Outlast, a lineup, best ball), a game of questions' or a pool's";
     out.push(['rank.by', why]);
   }
   const p = rank.playoffs;
@@ -2339,23 +2610,30 @@ function teamProblems(rank, s) {
     else if (new Set(names.map((x) => x.trim().toLowerCase())).size !== names.length) out.push(['rank.teams.names', 'Two teams have the same name']);
   }
   const get = isObj(s.get) ? s.get : {};
-  if (!(get.by === 'draft' || questionsGame(s))) {
-    const why = get.by === 'pick'
-      ? "A pool's streak is one person's run of right picks: teams of players play a draft or a game of questions"
-      : Array.isArray(s.ask) && callsAsk(s.ask)
-        ? "Weekly Calls' calls are counted outside the game: teams of players play a draft or a game of questions"
-        : get.by === 'card'
-          ? "Bingo lines are counted outside the game: teams of players play a draft or a game of questions"
-          : 'Teams of players score what each of you scores: a draft or a game of questions';
+  const draft = get.by === 'draft';
+  const cuts = Array.isArray(rank.cut) && rank.cut.length > 0;
+  if (isPool(s)) {
+    // C2 part 4b: a pool's teams, on its points or head to head (its series of totals, from its picks).
+    if (s.score.lives !== undefined && (rank.by === 'total' || rank.by === 'matchups')) out.push(['rank.teams', POOL_LIVES]);
+    else if (rank.by !== 'total' && rank.by !== 'matchups') out.push(['rank.teams', "A pool's streak, and who's still standing, are each of you's own: teams of players rank a pool by its points (total) or head to head (matchups)"]);
+  } else if (!(draft || questionsGame(s))) {
+    const why = Array.isArray(s.ask) && callsAsk(s.ask)
+      ? "Weekly Calls' calls are counted outside the game: teams of players play a draft, a game of questions or a pool"
+      : get.by === 'card'
+        ? "Bingo lines are counted outside the game: teams of players play a draft, a game of questions or a pool"
+        : 'Teams of players score what each of you scores: a draft, a game of questions or a pool';
     out.push(['rank.teams', why]);
-  } else if (rank.by !== 'total' && rank.by !== 'matchups') {
-    const why = rank.by === 'coop'
-      ? 'Co-op is the whole couch on one side already: teams of players play against each other'
-      : rank.by === 'standing'
-        ? "A team knocked out isn't built: teams of players rank by their points (total) or head to head (matchups)"
-        : 'Teams of players rank by their points (total) or head to head between the teams (matchups)';
-    out.push(['rank.teams', why]);
-  } else if (rank.race !== undefined) out.push(['rank.teams', "A race between teams isn't built: teams of players rank by their points or head to head"]);
+  } else if (rank.by === 'coop') {
+    out.push(['rank.teams', 'Co-op is the whole couch on one side already: teams of players play against each other']);
+  } else if (rank.by === 'standing' && !draft) {
+    out.push(['rank.teams', "Teams knocked out are a draft's for now: a game of questions works each night's points out from who's out so far, seat by seat, so its teams rank by their points (total) or head to head (matchups)"]);
+  } else if (rank.by === 'standing' && !cuts) {
+    out.push(['rank.teams', 'Last team standing is knocked out by its cuts: rank.cut, on the teams\' points']);
+  } else if (rank.by !== 'total' && rank.by !== 'matchups' && rank.by !== 'standing') {
+    out.push(['rank.teams', 'Teams of players rank by their points (total), head to head between the teams (matchups) or last team standing (a draft\'s cuts)']);
+  } else if (rank.race !== undefined && !draft) {
+    out.push(['rank.teams', "A race between teams is a draft's for now: a game of questions works each night's points out from who's out so far, seat by seat"]);
+  }
   // The playoffs take teams of players, not seats.
   const po = rank.by === 'matchups' && isObj(rank.playoffs) && isInt(rank.playoffs.teams, 2) ? rank.playoffs.teams : null;
   if (po !== null && isInt(t.of, 2) && po > t.of) out.push(['rank.playoffs.teams', `The playoffs take the top ${po}, and there are ${t.of} teams of players`]);
@@ -2378,14 +2656,16 @@ function handicapProblems(rank, s) {
   if (h.who !== undefined && !one('rank.handicap.who', h.who)) out.push(['rank.handicap.who', "Who it's for: new (newcomers, by the couch's history)"]);
   if (h.newTo !== undefined && !one('rank.handicap.newTo', h.newTo)) out.push(['rank.handicap.newTo', 'New to what: the couch (no game on it before this season) or the show (no game of it on the couch before this season)']);
   const get = isObj(s.get) ? s.get : {};
-  if (!(get.by === 'draft' || questionsGame(s))) {
-    const why = get.by === 'pick'
-      ? "A pool ranks by its streak (or who's still standing), not its points: a handicap would only break ties"
-      : Array.isArray(s.ask) && callsAsk(s.ask)
-        ? "Weekly Calls' calls are counted outside the game: a handicap plays a draft or a game of questions"
-        : get.by === 'card'
-          ? 'Bingo lines are counted outside the game: a handicap plays a draft or a game of questions'
-          : 'A handicap adds to what each of you scores: a draft or a game of questions';
+  if (isPool(s)) {
+    // C2 part 4b: a pool's, ranked by its points or head to head (its series of totals).
+    if (rank.by !== 'total' && rank.by !== 'matchups') out.push(['rank.handicap', "A pool ranked by its streak (or who's still standing) isn't ranked by points: a handicap would only break ties. Rank it by its points (total) or head to head (matchups)"]);
+    else if (s.score.lives !== undefined) out.push(['rank.handicap', POOL_LIVES]);
+  } else if (!(get.by === 'draft' || questionsGame(s))) {
+    const why = Array.isArray(s.ask) && callsAsk(s.ask)
+      ? "Weekly Calls' calls are counted outside the game: a handicap plays a draft, a game of questions or a pool ranked by its points"
+      : get.by === 'card'
+        ? 'Bingo lines are counted outside the game: a handicap plays a draft, a game of questions or a pool ranked by its points'
+        : 'A handicap adds to what each of you scores: a draft, a game of questions or a pool ranked by its points';
     out.push(['rank.handicap', why]);
   } else if (rank.by === 'coop') out.push(['rank.handicap', "Co-op's lives are everyone's together: nobody's ahead to even out"]);
   else if (rank.by === 'worth') out.push(['rank.handicap', "A stock market ranked by worth counts cash and your team, not points: a handicap's points wouldn't count"]);
@@ -2429,8 +2709,8 @@ function waiverProblems(w, s) {
 /**
  * A game of questions' parlays (A9), as [[at, problem]]: each { of: 2 to MAX_LEGS of its question ids, times: more than 1,
  * up to MAX_TIMES }. A leg is one answer that's right or wrong (one person or group, a yes or no, a choice, a number, an
- * over/under), plain (no share, rollover, shrink or wager: the parlay is how it combines), and every leg is asked the same way,
- * so they share their windows; a question is in one parlay at most.
+ * over/under), unstaked and not a split pot (C2 part 4: one that rolls over, shrinks or pays only the only one right is multiplied
+ * as it stands), and every leg is asked the same way, so they share their windows; a question is in one parlay at most.
  */
 function parlayProblems(list, s) {
   if (!Array.isArray(list) || !list.length || list.length > MAX_PARLAYS) return [['', `Parlays are a list of 1 to ${MAX_PARLAYS}`]];
@@ -2457,7 +2737,11 @@ function parlayProblems(list, s) {
     for (const q of legs) {
       const single = LEGS.includes(q.answer) && !(NAMES.includes(q.answer) && q.pick !== 1) && q.each === undefined;
       if (!single) out.push([`${at}.of`, `"${q.id}" isn't one answer that's right or wrong: a parlay's legs are one person or group, a yes or no, a choice, a number or an over/under`]);
-      else if (q.share !== undefined || q.rollover !== undefined || q.shrink !== undefined || q.wager !== undefined) out.push([`${at}.of`, `"${q.id}" combines its own way: a parlay's legs are plain`]);
+      // C2 part 4: a leg that rolls over, shrinks or pays only the only one right is multiplied as it stands (its window's worth and
+      // its share, then the parlay: the scoring sequence's order). A stake is C6's (money); a split pot waits on a rule (the plan's
+      // Noticed: does a parlay multiply your share, or your call before the split?).
+      else if (q.wager !== undefined) out.push([`${at}.of`, `"${q.id}" has a stake: a parlay's legs aren't staked (a staked parlay comes with money, C6)`]);
+      else if (q.share === 'split') out.push([`${at}.of`, `"${q.id}" splits a pot: a parlay on a split pot waits on a rule (does it multiply your share, or your call before the split?)`]);
     }
     const way = (q) => `${q.asked}|${q.every || ''}|${q.over || ''}`;
     if (legs.length > 1 && legs.some((q) => way(q) !== way(legs[0]))) out.push([`${at}.of`, "A parlay's questions are asked the same way, so they're answered together"]);
@@ -2735,7 +3019,8 @@ function specWaitsFor(spec) {
   const steps = out.filter((x) => !seen.has(`${x.at}|${x.step}`) && seen.add(`${x.at}|${x.step}`));
   steps.sort((a, b) => STEP_ORDER.indexOf(a.step) - STEP_ORDER.indexOf(b.step));
   if (!steps.length) for (const [q, i] of lines) steps.push({ at: `ask[${i}].line`, step: null, problem: `"${q.ask || q.id}" needs its line` });
-  if (!steps.length && !typeOf(s)) steps.push({ at: '', step: null, problem: 'No game plays this way yet' });
+  // C2 part 4: a piece with no place in the scoring sequence, saying which and why.
+  if (!steps.length) for (const x of noPlace(s)) steps.push({ at: x.at, step: null, problem: `No game plays this way yet: ${x.why}` });
   return steps;
 }
 
@@ -2768,10 +3053,10 @@ function stagedProblems(spec, s, ctx, opts, add) {
       // A12 part 2: how the game takes a format change, only where one starts a stage.
       const c = e.changes;
       if (!list.some((x) => isObj(x) && (isObj(x.on) || isObj(x.side)))) add('extras.changes', 'How a format change is taken is a game whose stage a change starts (or a side stage)');
-      else if (!isObj(c)) add('extras.changes', "How a format change is taken: { ok: 'auto' | 'maker', unanswered: 'start' | 'carry-on' }");
+      else if (!isObj(c)) add('extras.changes', "How a format change is taken: { ok: 'auto' | 'maker' | 'vote', unanswered: 'start' | 'carry-on' }");
       else {
         for (const x of Object.keys(c)) if (!KEYS.changes.includes(x)) add(`extras.changes.${x}`, `"${x}" isn't part of how a format change is taken`);
-        if (own(VOCAB['extras.changes.ok'], c.ok) === undefined) add('extras.changes.ok', "Who starts a stage on a format change: 'auto' (it starts by itself, with an undo) or 'maker' (once the maker says so)");
+        if (own(VOCAB['extras.changes.ok'], c.ok) === undefined) add('extras.changes.ok', "Who starts a stage on a format change: 'auto' (it starts by itself, with an undo), 'maker' (once the maker says so) or 'vote' (once the players vote for it)");
         if (own(VOCAB['extras.changes.unanswered'], c.unanswered) === undefined) add('extras.changes.unanswered', "What happens when the maker hasn't answered by the stage's first lock: 'start' or 'carry-on'");
       }
     } else if (!(k in plain) || !sameValue(e[k], plain[k])) add(`extras.${k}`, `A game in stages' ${k} is each stage's`);
@@ -2976,9 +3261,7 @@ function stagedWaits(s) {
     // stage beside the game's own isn't one of them).
     if (!isObj(st.on) && !isBeside(st) && list.slice(0, i).some((x) => isObj(x) && isObj(x.on))) out.push({ at: `stages[${i}].game.span.from`, step: 'later', problem: "A stage at an episode or a phase after one a format change starts comes with A12's later parts" });
   });
-  const ch = isObj(s.extras) && isObj(s.extras.changes) ? s.extras.changes : null;
-  if (ch && own(VOCAB['extras.changes.ok'], ch.ok) === 'later') out.push({ at: 'extras.changes.ok', step: 'later', problem: "The players' vote on a format change comes with A14" });
-  if (!out.length && !playsAs(s)) out.push({ at: '', step: null, problem: 'No game plays this way yet' });
+  if (!out.length) for (const x of noPlace(s)) out.push({ at: x.at, step: null, problem: `No game plays this way yet: ${x.why}` });
   return out;
 }
 
@@ -2988,12 +3271,12 @@ module.exports = {
   MAX_GROUP_SLOTS, GROUP_SLOTS, covers, MAX_LIVES, MAX_BUYBACKS, MAX_MULLIGANS, MAX_BUYBACK_COST, BUYBACK, SECOND_PICK, NEVER, poolParts,
   DRAFT_ACROSS, DRAW_OWN, spreadBounds, MAX_BUDGET, BUDGET, CAP, AUCTION, MAX_BIDS, ceilingFor, budgetParts, TRADE, MARKET_LEFT,
   marketWaivers, marketOf, KEEP, keepParts, SEATS, MAX_SEAT_PEOPLE, seatPeople, teamsOf,
-  MAX_RACE, MAX_CUTS, MAX_CUT_OUT, CUT, CUT_AT, knockoutParts, DRAFT_END, POOL_END, ANSWERS_END, COOP, answerParts, livesQuestion, questionsGame,
+  MAX_RACE, MAX_CUTS, MAX_CUT_OUT, CUT, CUT_AT, knockoutParts, DRAFT_END, POOL_END, ANSWERS_END, COOP, answerParts, livesQuestion, questionsGame, isPool, poolByPoints,
   MATCHUPS, MATCHUP_KEYS, MAX_PLAYOFF_TEAMS, playoffRounds, matchupParts, TEAMS, MAX_PLAYER_TEAMS, MAX_TEAM_NAME, teamParts,
   HANDICAP, MAX_HANDICAP, handicapParts,
   REPLACE_RULES, WINDOW_SCHEDULES, WAIVER_FEELS, WAIVER_ORDERS, WAIVER_HOURS, DRAFT_TIMERS, MAX_BET_POINTS, JOINS, ORDER_OF,
   MAX_TEAM, MAX_STARTERS, MAX_BENCH, MAX_LINEUP_TEAM, MAX_QUESTIONS, MAX_PICK, MAX_QUESTION_POINTS, MAX_OPTIONS, YES_NO,
-  CALLS, finaleQuestions, finaleOf, isCalls, isTrivia, isFact, callsAsk, fullQuestion, optionRange, playable,
+  CALLS, finaleQuestions, finaleOf, finaleIn, draftQuestions, draftPlayable, isCalls, isTrivia, isFact, isPlayers, PLAYERS, isBeat, BEAT, BEATS, callsAsk, fullQuestion, optionRange, playable,
   fullSpec, typeOf, playsAs, flagsOf, sizesOf, specProblems, specWaitsFor, waiversFit, finaleFits, betsFit, countKind, presetOf, sameValue, own,
   spanStart, spanPhase, spanEnd, spanEndPhase, phaseTo,
   MAX_STAGES, MAX_STAGE_NAME, MAX_PLACES, OVERALL, STAGE_KINDS, stageGames, stagesOverlap,
