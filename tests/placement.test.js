@@ -9,11 +9,17 @@ const assert = require("node:assert/strict");
 const G = require("../src/lib/game/game-spec/index.js");
 const C = require("./fixtures/placement-corpus.js");
 
+/** A corpus spec by its name (read once, when an opening needs its twin's spec rather than its name). */
+let SPECS = null;
+const specNamed = (name) => (SPECS || (SPECS = new Map(C.corpus()))).get(name);
 /** A moved verdict that loses only its problem: the same shape, the same waits. */
 const only = (was) => `${was[0]}-${was[2]}`;
 /** The combinations C2 part 4 opens, by the corpus' names (hold|score|rank|ask), each with the verdict a spec it moves has now
  *  (`to`: from its verdict before, its name, and any spec's verdict now by name). */
 const OPENED = [
+  // L3 part 2b: a day's or a week's lock (closes daily or weekly: the engine's lock reads its first start, ep.locksAt) plays as the
+  // same game locking at each start, a show's too (nothing stamps a show's day, so it locks at each episode's start).
+  { why: "a day's or a week's lock", test: (n) => /^parts\|[^|]+\|(daily|weekly)$/.test(n), to: (was, n) => C.verdictOf(G, { ...specNamed(n), closes: "start" }) },
   // L3 part 2 (the engine's hook): a draft scored by a sport's stats plays as its twin scored by moments with a lineup does (each
   // holding's stat line its moments: the same places in the sequence; everyone drafted counting as best ball with all of them), but
   // a stock market, whose prices are moments' (a problem). Ranked roto, squares and a pick each episode by its stats are track L's
@@ -104,8 +110,9 @@ test("the placement corpus: every verdict as the seven shapes gave it, but the c
   // beside a pool); 66 more here, the other 7 ranked roto, which L4 part 1b's 354 had moved already (they keep its refusal). L3
   // part 2's 500: a draft scored by a sport's stats, 600 in all (100 of them moved already by the teams' openings), 450 playing
   // now (a lineup, best ball or everyone drafted, by points per stat), 90 a stock market's keeping its problem (its prices are
-  // moments'), 60 waiting only for their questions beside a draft's cuts.
-  assert.equal(moved.length, 169 + 770 + 819 + 215 + 354 + 15 + 66 + 500);
+  // moments'), 60 waiting only for their questions beside a draft's cuts. L3 part 2b's 14: each kind of game locking daily or weekly,
+  // every one playing now.
+  assert.equal(moved.length, 169 + 770 + 819 + 215 + 354 + 15 + 66 + 500 + 14);
   // What plays: 933 before part 4, and every opening that plays now (none played before: each had a problem or a wait).
   assert.ok(moved.every((i) => !C.plays(was[i])));
   assert.equal(now.filter(C.plays).length, 933 + moved.filter((i) => C.plays(now[i])).length);
@@ -144,7 +151,7 @@ test("a piece with no place says which, and why", () => {
     stages: [{ id: "a", name: null, game: { ...P.outlast, span: { from: 1, to: 5 } } }, { id: "b", name: null, game: { ...P.outlast, span: { from: 6, to: null }, ask: [{ ...boot, wager: "total" }] } }] };
   one(staged, "stages[1].game.ask[0].wager", "staking any of your points is a game of questions'");
   // A piece still to build is its step's, never "no game plays this way".
-  assert.deepEqual(waits({ ...P.outlast, closes: "daily" }).map(([at, step]) => `${at}:${step}`), ["closes:sports"]);
+  assert.deepEqual(waits({ ...P.outlast, rank: { by: "roto" } }).map(([at, step]) => `${at}:${step}`), ["rank.by:sports"]);
 });
 
 test("each shape is still named for the screens, from its lines", () => {

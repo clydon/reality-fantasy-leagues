@@ -227,10 +227,14 @@ function hasAired(ep, now){ return !!(ep && ep.airsAt) && (now || Date.now()) >=
 // Settings' lock, 2026-10-27): ep.lineupsLocked locks it early, ep.openPastAir keeps it open past its start (the honour
 // system: a couch that sat down after it began, or Start a game's Include it). Results close it whatever the lock says
 // (isLineupLocked, PickEmLogic.decided).
+// L3 part 2b: a sport's game that closes daily or weekly locks each episode at its day's or week's first start (ep.locksAt, the
+// server's: air-times.ts stampSportLocks) when that's earlier than its own start (or it has none), so a day's or a week's episodes
+// lock together; the hand overrides as they are.
 function closedForPlay(ep, now){
   if(!ep) return false;
   if(ep.lineupsLocked) return true;
-  return hasAired(ep, now) && !ep.openPastAir;
+  const locks = !!ep.locksAt && (!ep.airsAt || Date.parse(ep.locksAt) < Date.parse(ep.airsAt));
+  return (locks ? (now || Date.now()) >= Date.parse(ep.locksAt) : hasAired(ep, now)) && !ep.openPastAir;
 }
 
 // The most recent in-play episode that has actually aired/been logged (EpisodeLogic.hasResults) --

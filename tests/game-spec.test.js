@@ -58,7 +58,8 @@ const WAIVER_FIELDS = ["replaceRule", "replenishAt", "waiverWindows", "waiverFee
 const DRAFT_FIELDS = ["ownershipMode", "draftScheduledAt", "draftTimer", "draftAway", "draftOpens", "finalePredictionsEnabled", "finaleTop3Points", "finaleWinnerPoints", "finalePredictionScope", "draftQuestions", "draftDraw", "draftAcross", "draftAuction", "draftBudget", "draftKeep", "draftRank", "draftRace", "draftCut", "rankOneLeft", "rankMatchups", "rankTeams", "rankHandicap", "rankTies"];
 const GAME_FIELDS = {
   // A12 part 1: an end at a phase.
-  every: ["leagueTypeId", "startEpisode", "startPhase", "endEpisode", "endPhase", "allowLateJoiners", "joinMode", "lockedDown", "bonusEnabled", "defaultBetPoints"],
+  // L3 part 2b: a sport's day's or week's lock (lockCloses).
+  every: ["leagueTypeId", "startEpisode", "startPhase", "endEpisode", "endPhase", "allowLateJoiners", "joinMode", "lockedDown", "bonusEnabled", "defaultBetPoints", "lockCloses"],
   // A9 part 2: Outlast in reverse; best ball, a lineup's captain, points that multiply by when. A10 part 3c: a stock market
   // ranked by worth.
   // C3: a multiplier on how a holding joined (joinedTimes), an Outlast's or a lineup's.
@@ -448,9 +449,10 @@ test("specWaitsFor: what a spec needs that isn't built, and the step that builds
   // Best ball plays (A9 part 2): Weekly Lineup's game, with no lineups.
   assert.deepEqual(waits({ ...P["weekly-lineup"], count: { best: 3 } }), []);
   assert.equal(G.typeOf({ ...P["weekly-lineup"], count: { best: 3 } }), "active-roster");
-  // A11 part 4: head to head plays on a show's draft; a sports spec's daily lock is still the sports branch's.
-  assert.deepEqual(waits({ ...P["weekly-lineup"], rank: { by: "matchups" }, closes: "daily" }), ["closes:sports"]);
-  assert.deepEqual(waits({ ...P["weekly-lineup"], rank: { by: "categories" }, closes: "daily" }), ["rank.by:sports", "closes:sports"]);
+  // A11 part 4: head to head plays on a show's draft; L3 part 2b, a sports spec's daily lock too (the engine's lock reads the day's
+  // first start: ep.locksAt).
+  assert.deepEqual(waits({ ...P["weekly-lineup"], rank: { by: "matchups" }, closes: "daily" }), []);
+  assert.deepEqual(waits({ ...P["weekly-lineup"], rank: { by: "categories" }, closes: "daily" }), ["rank.by:sports"]);
   // L3 part 2: the engine scores a sport's stats; squares are still the sports branch's.
   assert.deepEqual(waits({ spec: 1, get: { by: "squares" }, score: { by: "stats", points: { PTS: 1 } } }), ["get.by:sports"]);
   assert.deepEqual(waits({ ...P.outlast, pool: { of: "cast", where: { group: "tribe-1" } } }), ["pool.where:later"]);

@@ -30,7 +30,7 @@ settings are all read from it. A league carries its spec as `settings.game`.
   "score":  { ... },   // how what counts earns points                 → How it scores
   "rank":   { ... },   // how the table is ordered and who wins        → How you win
   "ask":    [ ... ],   // questions answered before their lock         → Questions
-  "closes": "start",   // moves lock when each episode starts
+  "closes": "start",   // moves lock when each episode starts; a sport's `daily` or `weekly`: at the day's or week's first start
   "extras": { ... },   // the details nobody asked about               → The extras
   "stages": [ ... ],   // a game in stages instead: 2 to 6 games       → Stages
   "overall": { ... },  //   and how their tables add up

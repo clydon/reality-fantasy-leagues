@@ -139,6 +139,16 @@ const nth = (n) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', '
  * L1 part 4a: a stats score in words: each stat's points, a position's own beside it ("6 a goal (10 for goalkeepers)"), each
  * place's ("by place: 25 for 1st and 8 for 4th–10th") and a bout's format's ("scheduled for 5 sets: 2 a game won").
  */
+/** When lineups or picks lock (`what`): at each part's start, or (L3 part 2b, a sport's daily or weekly lock) at the day's or week's
+ *  first start, for everything that day or week (impeccable clarify, 2026-11-06: a later game's lineup locks early with the rest). A
+ *  part that's itself a calendar word (a slate's day, week or round) is its games. */
+function lockRule(what, s, w) {
+  const tail = 'Change yours as often as you like until then.';
+  if (s.closes !== 'daily' && s.closes !== 'weekly') return `${what} lock when the ${w.part} starts. ${tail}`;
+  const span = s.closes === 'daily' ? 'day' : 'week';
+  const one = ['day', 'week', 'round', 'gameweek', 'matchday'].includes(w.part) ? 'game' : w.part;
+  return `${what} lock when the ${span}'s first ${one} starts, for every ${one} that ${span}. ${tail}`;
+}
 function statScoreWords(sc, w) {
   const flat = isObj(sc.points) ? sc.points : {};
   const pos = isObj(sc.byPosition) ? sc.byPosition : {};
@@ -1187,7 +1197,7 @@ function rulesOf(s, w) {
     // C3: a multiplier on how a holding joined.
     const joinedSaid = s.score.by === 'moments' || s.score.by === 'place' ? joinedRules(s.score) : [];
     if (joinedSaid.length && s.score.by === 'moments') rules.push(...joinedSaid, joinedHow(s.score));
-    if (count === 'start') rules.push(`Lineups lock when the ${w.part} starts. Change yours as often as you like until then.`);
+    if (count === 'start') rules.push(lockRule('Lineups', s, w));
     rules.push(...groupSlotRules(s, w));
     if (s.score.by === 'place' && s.score.reverse === true) {
       rules.push(`Each ${w.castaway} earns 1 point, plus 1 for everyone who outlasts them.`);
@@ -1239,7 +1249,7 @@ function rulesOf(s, w) {
     if (s.get.repeat === 'never') rules.push(`You can't pick the same ${w.castaway} twice, all season.`);
     else if (s.get.repeat === 'cycle') rules.push(`You can't pick the same ${w.castaway} again until you've used everyone still in, and never two ${w.parts} in a row.`);
     else rules.push(`Pick anyone still in, every ${w.part}: the same ${n === 1 ? w.castaway : w.castaways} as last time too.`);
-    rules.push(`Picks lock when the ${w.part} starts. Change yours as often as you like until then.`);
+    rules.push(lockRule('Picks', s, w));
     rules.push(...handicapRules(s, w));
     rules.push(...teamRules(s, w, !!matchupParts(s) || !!weekParts(s)));
     rules.push(...matchupRules(s, w));

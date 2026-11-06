@@ -1128,13 +1128,13 @@ engine track; L brings each sport's data to it. Its screens wait for the UI trac
     which line a game plays by: 3a's Noticed).
   - **Part 2, the engine's hooks, in parts (2026-11-06, once track C was merged in: the main session's note of 3:45 PM; every "For
     the engine lane" item of L3, L4 and L8 with it):** 2a, points per stat in the engine (a lineup, best ball or everyone drafted
-    scored by a sport's stats; a card's bouts at their formats: built 2026-11-06, As built below); 2b, a game of questions on the
-    sports settles (pick'em and pick a few: `final`, `stat`, the `side` answer to 'now', an episode's game final as its results)
-    and the daily and weekly locks (`closedForPlay` reading `locksAt`, `closes` daily and weekly to 'now'); 2c, categories and roto
-    (`MatchupLogic` on `categoryParts`, the server handing `statDefs` over, `rank.by` categories and roto to 'now'); 2d, squares
-    and a bracket question (the squares themselves, their pays from the facts, a bracket's faces on the server); 2e, a week's slate
-    (a per-game bonus summed per game, a question per game of an episode). Each part's proof a sports game played end to end on the
-    recorded fixtures.
+    scored by a sport's stats; a card's bouts at their formats: built 2026-11-06, As built below); 2b, the daily and weekly locks
+    (`closedForPlay` reading `locksAt`, `closes` daily and weekly to 'now', their words: built 2026-11-06, As built below); 2c, a
+    game of questions on the sports settles (pick'em and pick a few: `final`, `stat`, the `side` answer to 'now', an episode's game
+    final as its results); 2d, categories and roto (`MatchupLogic` on `categoryParts`, the server handing `statDefs` over, `rank.by`
+    categories and roto to 'now'); 2e, squares and a bracket question (the squares themselves, their pays from the facts, a
+    bracket's faces on the server); 2f, a week's slate (a per-game bonus summed per game, a question per game of an episode). Each
+    part's proof a sports game played end to end on the recorded fixtures.
 - **L4. The formats, as the engine's pieces with sports data:** head-to-head, categories and roto (A11), best ball (A9),
   pick'em and pick a few (A4's questions with the sports settles), brackets (A8), squares (a sports way to `get`), live calls
   (A15); lineup locks per sport.
@@ -3360,8 +3360,31 @@ in the placement corpus with the roto refusal kept on the 7 of them ranked roto)
   the viewer's copy at their mark has none; a write hands back the stamp and saves none of it; a show's league untouched).
   `check-finals.js` still passes. The placement corpus' 500 more moved (a draft by stats as its moments twin with a lineup, but a
   stock market's: tests/placement.test.js). 1,830 unit tests pass; `tsc` clean; eslint clean on the files changed.
-- **For the next parts (2b to 2e):** as in the "Part 2" line above and the L3, L4 and L8 lists "For the engine lane", which stand
-  but for what 2a did (L3 part 2's hook and a card's bouts to `statMoments`, both done here).
+- **For the next parts (2b to 2f):** as in the "Part 2" line above and the L3, L4 and L8 lists "For the engine lane", which stand
+  but for what's done (L3 part 2's hook and a card's bouts to `statMoments`, 2a; L4 part 1a's `closedForPlay` on `locksAt` and the
+  daily and weekly lock words, 2b).
+
+**L3 part 2b as built: the daily and weekly locks (2026-11-06, `sports`, not merged; no migration).**
+- **The engine's lock** (`state-logic.js` `closedForPlay`): an episode locks at `ep.locksAt` (the server's: air-times.ts
+  stampSportLocks, L4 part 1a and L8 part 3's day or week) when it's earlier than its own start or it has none, so a day's or a
+  week's episodes lock together; a later lock is never read (its start locks it); `lineupsLocked` and `openPastAir` as before.
+  Everything that asks whether a move is still open reads it (lineups, captains, picks, side bets: `isLineupLocked`, the pickers).
+- **The spec** (`schema.js`): `closes` `daily` and `weekly` to 'now', and `plainParts` takes them, so the sports defaults that lock
+  daily or weekly play (the NBA's, NHL's and MLB's season by the day; the NFL's by the week). A show's game may say them too: no
+  show's season has a `locksAt`, so it locks at each episode's start (universal, harmless; a show airing two episodes a night
+  could lock both at the first, when a show's schedule says so). The settings say it (`settings.js` `lockCloses`).
+- **The words** (`describe.js` lockRule; impeccable clarify: the one fact is when it locks, the consequence a later game's lineup
+  locking early with the rest): "Lineups lock when the week's first game starts, for every game that week. Change yours as often as
+  you like until then." (and the day's; "Picks" the same); a part that's itself a calendar word (a slate's day, week or round) is
+  its games.
+- **Checks.** `tests/sports-hook.test.js` (8 now): the lock at the week's first start, a later one never read, no start, the hand's
+  overrides, the words each way. The placement corpus' 14 more (each kind of game locking daily or weekly, all playing as the same
+  game locking at each start). 1,831 unit tests pass.
+
+**L3 part 2b noticed, not fixed:**
+- **The screens' lock badges and times read the episode's own start** (`week.tsx`'s locked badge `hasAired`, `status-plate.ts`'s
+  times, `episode-status.ts`), so a weekly game's Sunday episode shows open until Sunday though it locked on Thursday (the server
+  refuses the move, as it should). The screens' (U1, through impeccable): read `closedForPlay` and `locksAt`.
 
 **L3 part 2a noticed, not fixed:**
 - **A stats game's episode breakdown lists no stats** (`team-episode-breakdown.ts`): its points are the engine's (`combines` is

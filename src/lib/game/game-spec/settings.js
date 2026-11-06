@@ -371,7 +371,8 @@ function readSpec(st, copy) {
   } else spec.ask = [];
   // C7: a new card each week (settings.gameCard, as its spec says it), only when it's set.
   if (isObj(st.gameCard)) spec.card = copy ? clone(st.gameCard) : st.gameCard;
-  spec.closes = 'start';
+  // L3 part 2b: a sport's day's or week's lock (lockCloses), only when it's set.
+  spec.closes = st.lockCloses === 'daily' || st.lockCloses === 'weekly' ? st.lockCloses : 'start';
 
   // Who can join (GhostLogic.joinMode): classic's late-joiner switch off locks it; open only where castaways can be on
   // several teams (else it reads as ask); anything else is the recommendation.
@@ -582,6 +583,8 @@ function settingsOf(spec) {
   out.scoreOnly = (lineup || pickMoments) && (Array.isArray(s.score.only) || s.score.only === 'card') ? clone(s.score.only) : undefined;
   // C7: a new card each week.
   out.gameCard = isObj(s.card) ? clone(s.card) : undefined;
+  // L3 part 2b: a sport's day's or week's lock.
+  out.lockCloses = s.closes === 'daily' || s.closes === 'weekly' ? s.closes : undefined;
   out.scoreHits = (lineup || pickMoments) && s.score.hits !== undefined ? s.score.hits : undefined;
   out.reverseOrder = type === 'classic-draft' && s.score.reverse === true ? true : undefined;
   // C3: a draft's multiplier on how a holding joined (an Outlast's or a lineup's).
@@ -671,6 +674,7 @@ const PARTS = [
   { fields: ['lateLockHours'], read: (s) => s.extras.lateLock },
   // C7: a new card each week.
   { fields: ['gameCard'], read: (s) => s.card || null },
+  { fields: ['lockCloses'], read: (s) => s.closes },
   { fields: ['hideStartersUntilLock'], read: (s) => s.extras.hideStarters },
   { fields: ['calls'], read: (s) => s.extras.calls },
   { fields: WAIVER_FIELDS, read: (s) => s.extras.waivers, written: (out) => delete out.waiverFit },

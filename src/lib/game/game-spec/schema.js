@@ -221,7 +221,8 @@ const VOCAB = {
   'score.hits': { every: 'now', pick: 'now', objective: 'now' },
   // C7: a new card each week, drawn from the show's moments in turn (the bot writing one is a later part).
   'card.from': { moments: 'now' },
-  closes: { start: 'now', daily: 'sports', weekly: 'sports' },
+  // L3 part 2b: a sport's day's or week's lock (each episode's own first start: the server's ep.locksAt), the engine's lock reading it.
+  closes: { start: 'now', daily: 'now', weekly: 'now' },
   'pool.where': { stillIn: 'now', teams: 'sports', group: 'later' },
   'ask.answer': {
     person: 'now', group: 'now', yesNo: 'now', number: 'now', overUnder: 'now', choice: 'now', calls: 'now',
@@ -2041,7 +2042,7 @@ function plainParts(s) {
     isObj(s.span) && (isInt(s.span.from, 1) || phaseFrom(s.span.from)) &&
     isObj(s.pool) && s.pool.of === 'cast' && (where === null || (isObj(where) && where.stillIn === true && Object.keys(where).length === 1)) &&
     Array.isArray(s.ask) &&
-    s.closes === 'start'
+    (s.closes === 'start' || s.closes === 'daily' || s.closes === 'weekly')
   );
 }
 /** A question a game of questions plays today: a show's (graded from its results or its moments), its line set when it's an

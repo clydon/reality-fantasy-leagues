@@ -71,7 +71,7 @@ test("a lineup scored by stats: places in the sequence as a lineup of moments do
   // yet, nor categories (the sports formats' part).
   assert.deepEqual(G.specProblems({ ...BEST, score: { ...CAPTAIN.score } }, CTX).map((p) => p.at), ["score.captain"]);
   assert.equal(G.specWaitsFor(base({ get: { by: "pick", each: 1, repeat: "cycle" }, count: { pick: true } })).length, 1);
-  assert.deepEqual(G.specWaitsFor(defaultsFor("basketball").specs.categories.spec).map((w) => w.at), ["rank.by", "closes"]);
+  assert.deepEqual(G.specWaitsFor(defaultsFor("basketball").specs.categories.spec).map((w) => w.at), ["rank.by"]);
   assert.equal(G.flagsOf(G.fullSpec(LINEUP)).hasActiveRoster, true);
   // A league's settings say it (statScoring, its table; countAll, everyone drafted counting) and read it back, the cast still in
   // as a show's is (nobody leaves a sport's).
@@ -192,4 +192,39 @@ test("a card's bouts: each holding's bouts scored at their format's table (tenni
   assert.deepEqual(S.StatsLogic.lineOf(s, ep(s, 1), zed), want);
   assert.equal(S.ActiveRosterLogic.episodeScore(s, ep(s, 1), "ann").lines.find((l) => l.castawayId === zed).points, want.points);
   assert.ok(S.SpoilerLogic.viewThrough(s, 0).episodes.every((e) => !e.statBouts), "cut with the lines");
+});
+
+test("a day's or a week's lock: each episode locks at its day's or week's first start (ep.locksAt), the hand overrides as before", () => {
+  const s = league(base({ closes: "weekly" }));
+  assert.deepEqual(G.specWaitsFor(G.gameOf(s.settings)), []);
+  assert.equal(G.gameOf(s.settings).closes, "weekly", "the settings say it (lockCloses)");
+  const e1 = ep(s, 1);
+  const e2 = ep(s, 2);
+  const T = Date.parse("2026-11-08T18:00:00Z");
+  // Sunday's late game (Episode 2) locks with Thursday's (Episode 1), the week's first start.
+  e1.airsAt = new Date(T - 3 * 86_400_000).toISOString();
+  e2.airsAt = new Date(T).toISOString();
+  e1.locksAt = e1.airsAt;
+  e2.locksAt = e1.airsAt;
+  const before = T - 3 * 86_400_000 - 60_000;
+  const between = T - 86_400_000;
+  assert.equal(S.closedForPlay(e2, before), false);
+  assert.equal(S.closedForPlay(e2, between), true, "locked at the week's first start, before its own");
+  // A lock later than its own start is never read (its start locks it); no start, the lock alone; the hand's overrides win.
+  e2.locksAt = new Date(T + 60_000).toISOString();
+  assert.equal(S.closedForPlay(e2, T + 1), true);
+  delete e2.airsAt;
+  assert.equal(S.closedForPlay(e2, T), false);
+  assert.equal(S.closedForPlay(e2, T + 120_000), true);
+  e2.locksAt = e1.airsAt;
+  e2.openPastAir = true;
+  assert.equal(S.closedForPlay(e2, between), false, "kept open past its start");
+  delete e2.openPastAir;
+  e2.lineupsLocked = true;
+  assert.equal(S.closedForPlay(e2, before), true, "locked early by hand");
+  // The words: the day's or week's first game, for every game in it.
+  const rule = (spec) => G.describeSpec(spec, { ...CTX, part: { singular: "game", plural: "games" } }).rules.find((r) => r.startsWith("Lineups lock"));
+  assert.equal(rule(base({ closes: "weekly" })), "Lineups lock when the week's first game starts, for every game that week. Change yours as often as you like until then.");
+  assert.equal(rule(base({ closes: "daily" })), "Lineups lock when the day's first game starts, for every game that day. Change yours as often as you like until then.");
+  assert.equal(rule(base()), "Lineups lock when the game starts. Change yours as often as you like until then.");
 });
