@@ -3721,6 +3721,9 @@ master yet, so its steps 1-3 are what this step built, here).
   database: the search, ESPN's search as the fallback, a list kept a week, the schedule and its adds, a game called off, adding a
   game, the same again, a 35-game season, their meetings, a series, the refusals, a league in capitals, the day's cap); `sports-live.test.js` and `check-live-clock.js` read no
   team list as a recorded game. check-matchup.js, check-finals.js and check-live-event.js pass as before.
+- **The long checks, last, on `4aef9894`:** `golden.js --before=master` (`8d79d71e`: master's engine as it is, so it also checks the
+  sync's merge in schema.js and describe.js): Survivor 49, The Traitors US 4 and The Challenge 40, 74 games, 9,548 reads, every one
+  the same. blind.js and the rehearsal not run: the step changes no game's read (golden alone).
 - **The master sync before it** (`c0f60c2e`, master `2432a70b`: C3, C4, C5 and C4b): both sides kept in schema.js (head to head and
   weeks won on C5's `perEpisode`, categories still read apart), describe.js, GAME-PIECES.md's rank table and the placement corpus (C5
   opened two picks each episode ranked roto to a wait alone; on this branch a roto rank on no categories is refused, L4 part 1b's
