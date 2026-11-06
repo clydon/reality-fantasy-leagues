@@ -26,3 +26,7 @@ concrete plan, routes, and schema ready to execute against.
 Browser checks and fixtures live in `scripts/dev-test/` (see its scripts' header comments: headless browser helper, linked-league fixture, reveal check). Look there before writing a new test setup, and reuse or extend what exists.
 
 When you write a test, script or fixture for a check, design it to be reusable: parameterize it (width, league type, episode), key any DB rows on a `zt-` prefix with an `up`/`down` pair so it cleans up after itself, and put it in `scripts/dev-test/` with a header comment saying what it needs and how to run it. If a one-off really is one-off, say so rather than leaving it half-reusable. Never touch real accounts or leagues from a test.
+
+## UI decisions: the impeccable skill
+
+Every UI decision (a screen, a layout, a component, the words on a screen, a mock) goes through the `impeccable` skill before it's built or recommended: shape for something new, critique to review, and polish, harden or clarify to finish. Design phone first, at 390px (the user, 2026-11-06).
