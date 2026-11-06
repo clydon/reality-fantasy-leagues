@@ -74,28 +74,26 @@ https://claude.ai/artifact/3E6rgiMSJcP3MYJaQkS3rh. Seven flows; part 1's built s
   same pace use the standard way**: those who reveal that episode together (on the same episode at once) put in claims as a
   normal waiver week and the usual priority settles them, among whoever's on pace. Part 3b designs when "together" closes.
 
-## Exclusive teams: Watch it together (the user, 2026-11-06)
+## Exclusive teams: own pace with two sync points (the user, 2026-11-06)
 
-Own pace is for **shared** games only (Survival Pool, Weekly Lineup, Outlast with shared teams, bingo, calls, trivia: parts 1–3a).
-Exclusive ownership needs one shared "now" (who's free, who claims first), so **exclusive on a season that's out is its own mode,
-synchronous: Watch it together**. The user's case: watching The Challenge with their wife, same episode, same night, so they can
-run a real draft and real waivers. Part 3b (exclusive at your own pace, asynchronous) is dropped.
+Exclusive ownership needs everyone on the same episode only twice, so **exclusive teams play at your own pace with two sync
+points**, and everything else stays as built. The use case (the user): a group starting a season late, a couple of episodes
+behind (live or finished), drafting at an episode (Episode 1, before the season, or wherever they are), playing forward at their
+own pace, maybe catching up to live, maybe not.
 
-Mocked as flow 8 in the own-pace mock (https://claude.ai/artifact/3E6rgiMSJcP3MYJaQkS3rh):
-- **Start a game** on a season that's out asks one more thing first: *How do you watch?* **Each at our own pace** (the shared
-  games) or **Together** (every game, exclusive Outlast included: "Same episode, same night. Real drafts and waivers, like it's
-  airing").
-- **One clock for the game:** an episode "airs" for the game when anyone taps **We're watching it now** (moves and claims lock
-  for everyone, waivers settle); the next episode opens when everyone has revealed this one. The runner can skip someone who
-  drifted off (Backstage).
-- **The draft:** the usual draft room on the cast as it stood before the start, started by hand on draft night.
-- **Waivers:** as live, between episodes: the week opens once everyone has revealed and someone lost a castaway; claims settle at
-  the next "We're watching it now".
-- **Tonight:** one plate per game (Get set · Watch · Reveal) with who's set / who's revealed, and a Nudge while you wait on someone
-  (fair here: you agreed to watch together).
-- Engine direction: one league-wide mark (the classic design's catch-up pointer, `RevealLogic.revealedThroughEpisode`, which the
-  engine and `air-times.ts` already honour), the game's own airtime per episode stamped by "We're watching it now", waivers
-  read on the copy at the game's mark. To be planned in detail before it's built.
+- **Sync point 1, the draft:** everyone in an exclusive game starts at the same episode and drafts together in the usual draft
+  room, on the cast as it stood before that episode. Joining closes once the draft starts (as a live Outlast).
+- **Sync point 2, a waiver moment:** an episode where someone's team lost a person, in a game with waivers on. Whoever reaches it
+  first sees **"Wait for everyone else before watching more episodes, so the waivers are fair."** **Words only** (the user's pick):
+  nothing stops them going on. Once every human has revealed that episode, a normal waiver week runs on the cast as it stood then
+  (the usual order, claims, auto-fill); it settles when everyone's claims are in, or when its time runs out. Then everyone carries
+  on at their own pace.
+- Shared games never wait. A group that catches up to live just plays live.
+- **Dropped (2026-11-06, the user: "too niche"):** a separate "Watch it together" mode with one game clock ("We're watching it
+  now" locking everyone's moves). Designed and mocked the same day, never built; what carried over: the draft room on the cast
+  as it stood before the start, waivers settled before newer results, and warn-don't-lock words.
+- Mocked as flow 8 (https://claude.ai/artifact/3E6rgiMSJcP3MYJaQkS3rh): the Draft together plate, the waiver moment's wait
+  (OK, I'll wait; Episode 6 quiet below with Go on), and Everyone's here: waivers.
 
 ## How it reuses the engine
 
