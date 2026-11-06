@@ -372,10 +372,14 @@ declare const StateLogic: {
     /** How many this player may replace in `period`; lossIds: the oldest that many; outIds: every loss a claim may name. */
     /** Nothing owed while nobody's free to come in (`nobodyFree`: a loss that would be, if someone were). */
     replacementsOwed(state: LeagueState, playerId: string, period: WaiverPeriod | null | undefined): { count: number; lossIds: string[]; outIds: string[]; nobodyFree?: true };
-    /** C4: a game whose waivers say where each move comes from (extras.waivers.own): a replacement's mark is only its maker's. */
-    perHolder(state: LeagueState): boolean;
-    /** C4: someone gone home counts as replaced for this player (their own replacement, or, before C4's games, anyone's). */
+    /** A game made before the per-holder rule: its cutover (settings.perHolderFrom), or null (none: per holder throughout). */
+    perHolderFrom(state: LeagueState): number | null;
+    /** Whether `c`'s exit is replaced per holder (a replacement's mark only its maker's); with no `c`, whether every exit is. */
+    perHolder(state: LeagueState, c?: Castaway | null): boolean;
+    /** Someone gone home counts as replaced for this player (their own replacement; before a game's cutover, anyone's). */
     replacedFor(state: LeagueState, c: Castaway, playerId: string): boolean;
+    /** The cutover migration 0207 gives a game: the first episode it hasn't played (at your own pace, past the furthest seat). */
+    cutoverAt(state: LeagueState): number;
     /** Someone gone home on a team, not replaced yet for whoever still holds them. */
     lossOpen(state: LeagueState, c: Castaway): boolean;
     /** replacementsOwed in the week running now (pre-v2 name). */

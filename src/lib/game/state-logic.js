@@ -6231,18 +6231,41 @@ class WaiverLogic {
   // come in (every castaway still in on a team: late in a season, the five left all drafted), so no
   // screen asks for a replacement nobody can make; { ..., nobodyFree: true } says that's why.
   // C4: whether someone gone home counts as replaced for `playerId`. Replacing someone marks them (replenishClaimed; formerOwnerId:
-  // whoever replaced them last, who let them go). In a game whose waivers say where each move comes from (extras.waivers.own: an
-  // exclusive draft's shared replacements, where two teams can hold the same castaway), the mark is only its maker's: anyone still
-  // holding them is still owed. In every game before C4 the mark counts for every holder, as it always has (a shared game's two
-  // holders: one replacing settles it for both; whether that should change is the user's: C4's Noticed). A mark naming nobody (a
-  // league from before formerOwnerId) counts for everyone.
-  static perHolder(state){
-    const w = gameOf(state).extras.waivers;
-    return !!(w && w.own);
+  // whoever replaced them last, who let them go). The mark is only its maker's (per holder): anyone still holding them is still
+  // owed a replacement (two seats in a shared game, or C4's: someone in an exclusive draft another team took on as a shared
+  // replacement). The user's rule (2026-11-06, the Decisions table's "A shared game's two holders"): every game is per holder,
+  // except an exit a game had already played when the rule came in. A game made before it carries its cutover
+  // (settings.perHolderFrom, written once by migration 0207: the first episode it hadn't played), and an exit before that episode
+  // (or one with no episode to tell by) keeps the old rule, the mark counting for every holder, so no past loss is owed again,
+  // whatever its game becomes later (its waivers saying where each move comes from, C4's, included). A game with no cutover (every
+  // game made since, C4's among them) is per holder throughout. A mark naming nobody (a league from before formerOwnerId) counts
+  // for everyone.
+  static perHolderFrom(state){
+    const from = state && state.settings && state.settings.perHolderFrom;
+    return Number.isInteger(from) ? from : null;
+  }
+  /** Whether `c`'s exit is replaced per holder (WaiverLogic.perHolderFrom); with no `c`, whether every exit is. */
+  static perHolder(state, c){
+    const from = WaiverLogic.perHolderFrom(state);
+    if(from == null) return true;
+    const ep = c && c.exitEpisodeId ? (state.episodes || []).find(e => e.id === c.exitEpisodeId) : null;
+    return !!ep && ep.number >= from;
   }
   static replacedFor(state, c, playerId){
     if(!c || !c.replenishClaimed) return false;
-    return !(WaiverLogic.perHolder(state) && c.formerOwnerId && c.formerOwnerId !== playerId);
+    return !(c.formerOwnerId && c.formerOwnerId !== playerId && WaiverLogic.perHolder(state, c));
+  }
+  /** The cutover a game made before the per-holder rule takes (migration 0207's, as data): the first episode it hasn't played, the
+   *  latest with results plus one; at your own pace, the furthest any seat has played (a seat still catching up, its mark; any
+   *  other, the latest with results), so nothing a seat has played changes. */
+  static cutoverAt(state){
+    const latest = SpoilerLogic.latestWithResults(state);
+    if(!GhostLogic.ownPace(state)) return latest + 1;
+    const marks = (state.players || []).map(p => {
+      const lj = p.lateJoin;
+      return lj && lj.catchingUp && Number.isInteger(lj.seenThrough) ? Math.min(lj.seenThrough, latest) : latest;
+    });
+    return Math.max(0, ...marks) + 1;
   }
   /** Someone who went home on a team and isn't replaced yet for whoever still holds them (WaiverLogic.replacedFor). */
   static lossOpen(state, c){

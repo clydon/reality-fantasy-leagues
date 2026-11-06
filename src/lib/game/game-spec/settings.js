@@ -45,6 +45,7 @@ const OUTSIDE = [
   'seasonRuleChanges', 'adoptedRuleChanges', 'declinedRuleChanges', 'wikiSeason',
   'revealedThroughEpisode', 'setupComplete', 'archivedAt', 'archivedBy', // what it's seen, setting it up, archiving it
   'expectedTeams', 'waiverFit', // the waiver recommendation's own bookkeeping (WaiverLogic.recommendFor, refit)
+  'perHolderFrom', // when a game made before the per-holder rule took it (migration 0207, WaiverLogic.perHolderFrom): history
   'bonusCategories', // pre-bets predictions, removed by migrateLeagueState
   'shadowOf', 'shadowFrom', // a local shadow league's source (scripts/dev-test/shadow-leagues.js)
   'game', // the spec itself, once A2 stores it

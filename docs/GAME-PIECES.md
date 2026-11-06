@@ -193,7 +193,8 @@ draft whose replacements are shared: `"extras": { "waivers": { ..., "replace": "
   more than one team, so a replacement can be too"), and a stock market buys at its draft's own.
 - **Someone two of you hold** (a shared game's, or a shared replacement in an exclusive draft): each scores them by their own
   holding (an Outlast's line by what each earned while theirs, when it multiplies how they joined); one letting them go lets go
-  only their own; once they're gone home, each holder is owed a replacement until they make it.
+  only their own; once they're gone home, each holder is owed a replacement until they make it (every game since the user's
+  rule of 2026-11-06; a game made before it keeps the exits it had played as they played out: `settings.perHolderFrom`).
 - An exclusive draft can't be open to anyone joining ("its castaways are one team's each, so newcomers ask").
 - An exclusive stock market needs someone left over to buy.
 

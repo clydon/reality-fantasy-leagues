@@ -208,18 +208,90 @@ test("someone two seats hold, gone home: one replaces them, the other keeps them
   assert.deepEqual(owed("sam"), []);
 });
 
-test("a game before C4: two seats hold someone gone home, and one replacing them settles it for both, as it always has", () => {
-  const s = league({ type: "active-roster", shared: true });
+// A shared game's two holders (the user's rule, 2026-11-06: the Decisions table's "A shared game's two holders"): every holder is
+// owed a replacement for someone gone home, except an exit a game had already played when the rule came in (its cutover,
+// settings.perHolderFrom, migration 0207: the first episode it hadn't played), which stays as it played out.
+/** A shared Weekly Lineup where Josie and Kim both hold Lewis, who goes home in `ep`; waivers open. */
+function twoHold(ep, settings = {}) {
+  const s = league({ type: "active-roster", shared: true, settings });
   S.getCastaway(s, "lewis").ownerIds = ["josie", "kim"];
-  S.addElimination(s, "ep3", "lewis", "Voted Out");
+  S.addElimination(s, ep, "lewis", "Voted Out");
   W.open(s, T0);
+  return s;
+}
+const owedIn = (s) => (pid) => W.replacementsOwed(s, pid, W.current(s)).lossIds;
+
+test("a shared game's two holders: one replacing someone gone home leaves the other still owed (a game with no cutover)", () => {
+  const s = twoHold("ep3");
+  const owed = owedIn(s);
   // Replacing every loss (replaceRule 'always'): each is owed one for Lewis.
-  const owed = (pid) => W.replacementsOwed(s, pid, W.current(s)).lossIds;
   assert.deepEqual([owed("josie"), owed("kim")], [["lewis"], ["lewis"]]);
   M.applyPickup(s, "josie", "rob", "lewis");
-  // Lewis's mark takes him off Kim's losses too (whether a shared game's holders should each be owed one is the user's: C4's
-  // Noticed); Kim keeps him on her team.
-  assert.deepEqual([W.perHolder(s), owners(s, "lewis"), owed("josie"), owed("kim"), W.lossOpen(s, S.getCastaway(s, "lewis"))], [false, ["kim"], [], [], false]);
+  // Josie's mark is only hers: Kim keeps Lewis and is still owed one for him; his loss is still open (the server's waiver moment).
+  const lewis = S.getCastaway(s, "lewis");
+  assert.deepEqual([W.perHolderFrom(s), W.perHolder(s), W.perHolder(s, lewis), owners(s, "lewis"), owed("josie"), owed("kim"), W.lossOpen(s, lewis)],
+    [null, true, true, ["kim"], [], ["lewis"], true]);
+  // Kim replaces him too (with Maggie): nobody's owed, the loss closed.
+  M.applyPickup(s, "kim", "maggie", "lewis");
+  assert.deepEqual([owners(s, "lewis"), owed("kim"), W.lossOpen(s, lewis)], [[], [], false]);
+  // Undo Kim's, then Josie's: each owed again, as before either.
+  const [josies, kims] = s.midSeason.log.slice(-2);
+  M.revert(s, kims);
+  assert.deepEqual([owners(s, "lewis"), owed("josie"), owed("kim")], [["kim"], [], ["lewis"]]);
+  M.revert(s, josies);
+  assert.deepEqual([owners(s, "lewis"), owed("josie"), owed("kim")], [["josie", "kim"], ["lewis"], ["lewis"]]);
+});
+
+test("a game made before the rule: an exit before its cutover stays as it played out, one from it on is owed to each holder", () => {
+  // Cutover at Episode 4: Lewis went home in Episode 3, before it. Josie replacing him settles it for Kim too, as it always has.
+  const before = twoHold("ep3", { perHolderFrom: 4 });
+  const owed = owedIn(before);
+  M.applyPickup(before, "josie", "rob", "lewis");
+  const lewis = S.getCastaway(before, "lewis");
+  assert.deepEqual([W.perHolderFrom(before), W.perHolder(before), W.perHolder(before, lewis), owners(before, "lewis"), owed("josie"), owed("kim"), W.lossOpen(before, lewis)],
+    [4, false, false, ["kim"], [], [], false]);
+  // The same exit with the cutover at Episode 3 (his own episode): from it on, so Kim's still owed.
+  const at = twoHold("ep3", { perHolderFrom: 3 });
+  M.applyPickup(at, "josie", "rob", "lewis");
+  assert.deepEqual([W.perHolder(at, S.getCastaway(at, "lewis")), owedIn(at)("kim")], [true, ["lewis"]]);
+  // In one game: Lewis out in Episode 3 (before the cutover, 4), Ori, whom Andrew and Dee both hold, out in Episode 5 (after it).
+  const s = twoHold("ep3", { perHolderFrom: 4 });
+  S.getCastaway(s, "ori").ownerIds = ["andrew", "dee"];
+  S.addElimination(s, "ep5", "ori", "Voted Out");
+  M.applyPickup(s, "josie", "rob", "lewis");
+  M.applyPickup(s, "andrew", "maggie", "ori");
+  const o = owedIn(s);
+  assert.deepEqual([o("kim"), o("dee"), o("andrew"), o("josie")], [[], ["ori"], [], []]);
+  // An exit with no episode to tell by keeps the old rule. A game whose waivers come to say where each move comes from (C4's own)
+  // keeps its cutover, so its played exits still stand; C4's own games, made with no cutover, are per holder throughout.
+  assert.equal(W.perHolder(s, { ...S.getCastaway(s, "lewis"), exitEpisodeId: null }), false);
+  const own = twoHold("ep3", { perHolderFrom: 4, waiverOwn: { replace: "shared" } });
+  assert.deepEqual([W.perHolderFrom(own), W.perHolder(own, S.getCastaway(own, "lewis"))], [4, false]);
+  const c4 = twoHold("ep3", { waiverOwn: { replace: "shared" } });
+  assert.deepEqual([W.perHolderFrom(c4), W.perHolder(c4, S.getCastaway(c4, "lewis"))], [null, true]);
+  // The cutover lives outside the spec (settings.perHolderFrom: history, never the game), so changing the game keeps it.
+  assert.ok(G.OUTSIDE.includes("perHolderFrom"));
+  assert.equal(G.withSpec(before.settings, G.specOf(before.settings)).perHolderFrom, 4);
+});
+
+test("the cutover migration 0207 gives a game: the first episode it hasn't played; at your own pace, past the furthest seat", () => {
+  // Episodes 1 and 2 have results (x1, x2 out): the first not played is 3. Results in Episode 5 (nobody went home) make it 6.
+  const s = league();
+  assert.equal(W.cutoverAt(s), 3);
+  s.episodes.find((e) => e.number === 5).noExit = true;
+  assert.equal(W.cutoverAt(s), 6);
+  // At your own pace: each seat's mark while it's catching up (no further than the latest with results), the latest for one that
+  // plays live: the furthest plus one.
+  s.settings.ownPace = true;
+  s.players.forEach((p, i) => { p.lateJoin = { startEpisode: 1, catchingUp: true, seenThrough: i }; });
+  assert.equal(W.cutoverAt(s), 5, "the furthest seat has seen through 4");
+  s.players[0].lateJoin.seenThrough = 9;
+  assert.equal(W.cutoverAt(s), 6, "no further than the latest with results (5)");
+  s.players.forEach((p) => { p.lateJoin.seenThrough = 0; });
+  s.players[1].lateJoin.catchingUp = false;
+  assert.equal(W.cutoverAt(s), 6, "a seat playing live has played through the latest");
+  s.players.forEach((p) => { p.lateJoin.catchingUp = true; });
+  assert.equal(W.cutoverAt(s), 1, "nobody's played anything");
 });
 
 test("auto-fill and nobody free: an exclusive replacement waits, a shared one comes from another team", () => {

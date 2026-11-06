@@ -313,6 +313,8 @@ export interface LeagueSettings {
   /** A game at your own pace (docs/PLAN-own-pace-games.md, StateLogic.GhostLogic.paceAll): started from an episode that had
    *  aired, every seat a late joiner from the start, each playing one episode at a time whenever they watch. */
   ownPace?: boolean;
+  /** The first episode whose exits are replaced per holder (migration 0207, a game made before that rule; none: every exit). */
+  perHolderFrom?: number;
   /** Late joiners play from an episode of their choosing, unseen until added (StateLogic.GhostLogic).
    *  Absent means on; only an explicit false switches it off. */
   allowLateJoiners?: boolean;
