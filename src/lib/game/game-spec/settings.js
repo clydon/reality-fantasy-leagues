@@ -277,17 +277,22 @@ function readSpec(st, copy) {
   } else if (type === 'active-roster') {
     const start = st.activeSlots || 0;
     R = start + (st.benchSlots || 0);
-    const score = { by: 'moments', points: isObj(st.eventPoints) ? (copy ? clone(st.eventPoints) : st.eventPoints) : null };
+    // L3 part 2: a lineup scored by a sport's stats (settings.statScoring: its table, as the spec says it, without `by`).
+    const stats = isObj(st.statScoring);
+    const score = stats
+      ? { by: 'stats', ...(copy ? clone(st.statScoring) : st.statScoring) }
+      : { by: 'moments', points: isObj(st.eventPoints) ? (copy ? clone(st.eventPoints) : st.eventPoints) : null };
     if (typeof st.captainTimes === 'number' && Number.isFinite(st.captainTimes) && st.captainTimes > 1) score.captain = { times: st.captainTimes };
     if (Array.isArray(st.pointsTimes) && st.pointsTimes.length) score.times = copy ? clone(st.pointsTimes) : st.pointsTimes;
-    if (Array.isArray(st.joinedTimes) && st.joinedTimes.length) score.multiply = copy ? clone(st.joinedTimes) : st.joinedTimes;
-    countsOf(st, score, copy);
+    if (!stats && Array.isArray(st.joinedTimes) && st.joinedTimes.length) score.multiply = copy ? clone(st.joinedTimes) : st.joinedTimes;
+    if (!stats) countsOf(st, score, copy);
     // A10 part 1: group slots beside the draft (settings.groupSlots, as the spec says them).
     const get = drafted(R);
     if (isObj(st.groupSlots)) get.groups = copy ? clone(st.groupSlots) : st.groupSlots;
     Object.assign(spec, {
       get,
-      count: best ? { best: start } : { start },
+      // L3 part 2: everyone drafted counting (countAll: a sport's game of tonight's few).
+      count: stats && st.countAll === true ? { all: true } : best ? { best: start } : { start },
       score,
       // A10 part 3c: a stock market ranked by worth (draftRank).
       rank: draftRankOf(st, true, copy),
@@ -471,12 +476,17 @@ function settingsOf(spec) {
     }
     if (type === 'classic-draft') out.teamSize = s.get.each;
     else {
-      // A lineup's starters, or best ball's best n (A9 part 2), are activeSlots; the rest of the team benchSlots.
-      const counts = s.count.start !== undefined ? s.count.start : s.count.best;
+      // A lineup's starters, or best ball's best n (A9 part 2), are activeSlots; the rest of the team benchSlots. L3 part 2: everyone
+      // drafted counting (a sport's), the whole team.
+      const counts = s.count.start !== undefined ? s.count.start : s.count.best !== undefined ? s.count.best : s.get.each;
+      const stats = s.score.by === 'stats';
       Object.assign(out, {
         activeSlots: counts,
         benchSlots: s.get.each - counts,
-        eventPoints: s.score.points === null ? undefined : clone(s.score.points),
+        eventPoints: stats || s.score.points === null ? undefined : clone(s.score.points),
+        // L3 part 2: a sport's stats, their table (the score without `by`, a captain or its windows: their own fields).
+        statScoring: stats ? clone(Object.fromEntries(Object.entries(s.score).filter(([k]) => !['by', 'captain', 'times'].includes(k)))) : undefined,
+        countAll: stats && s.count.all === true ? true : undefined,
         hideStartersUntilLock: e.hideStarters === true,
       });
     }
@@ -644,8 +654,8 @@ const PARTS = [
   { fields: ['stages', 'stageOverall'], read: (s) => [s.stages || null, s.overall || null] },
   // A12 part 2: how a game a format change moves takes the change.
   { fields: ['formatChanges'], read: (s) => (Array.isArray(s.stages) && isObj(s.extras) ? s.extras.changes || null : null) },
-  { fields: ['ownershipMode', 'teamSize', 'activeSlots', 'benchSlots', 'bestBall', 'groupSlots', 'poolSecond', 'poolRepeat', 'poolFallback', 'poolEach', 'draftDraw', 'draftAcross', 'draftAuction', 'draftBudget', 'draftKeep'], read: (s) => [s.get, s.count] },
-  { fields: ['eventPoints', 'pickemCorrectPoints', 'poolSurvive', 'parlays', 'linePoints', 'captainTimes', 'pointsTimes', 'joinedTimes', 'reverseOrder', 'poolScore', 'scoreOnly', 'scoreHits', 'poolLives', 'poolBuyback', 'poolMulligans', 'questionsLives', 'questionsLivesOn', 'questionsSaves', 'questionsBank'], read: (s) => s.score },
+  { fields: ['ownershipMode', 'teamSize', 'activeSlots', 'benchSlots', 'bestBall', 'countAll', 'groupSlots', 'poolSecond', 'poolRepeat', 'poolFallback', 'poolEach', 'draftDraw', 'draftAcross', 'draftAuction', 'draftBudget', 'draftKeep'], read: (s) => [s.get, s.count] },
+  { fields: ['eventPoints', 'statScoring', 'pickemCorrectPoints', 'poolSurvive', 'parlays', 'linePoints', 'captainTimes', 'pointsTimes', 'joinedTimes', 'reverseOrder', 'poolScore', 'scoreOnly', 'scoreHits', 'poolLives', 'poolBuyback', 'poolMulligans', 'questionsLives', 'questionsLivesOn', 'questionsSaves', 'questionsBank'], read: (s) => s.score },
   { fields: ['poolRank', 'draftRank', 'draftRace', 'draftCut', 'rankOneLeft', 'rankAllOut', 'questionsRank', 'questionsRace', 'questionsCut', 'rankMatchups', 'rankTies', 'rankTeams', 'rankHandicap'], read: (s) => s.rank },
   { fields: ['allowLateJoiners', 'joinMode'], read: (s) => s.extras.join },
   { fields: ['lockedDown'], read: (s) => s.extras.lockedDown },

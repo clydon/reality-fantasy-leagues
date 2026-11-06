@@ -4,6 +4,7 @@ import Bots from "@/lib/game/bot-logic.js";
 import { pool, withLeagueLock } from "./db";
 import { stampAirTimes } from "./air-times";
 import { notifyDraftTurn } from "./push-events";
+import { stampStats } from "./sports/score";
 
 // What a league read does before it answers: the classic league load (GET /api/leagues/[id]/state) and the new
 // design's show space (season-games.ts) both read through here, so a league moves on whichever design is open.
@@ -31,6 +32,8 @@ function draftTurn(state: LeagueState) {
  * (DrawLogic, step A10 part 3), so its teams are dealt when it's due, whoever looks first; and an auction whose bidding closed
  * with bids still out (AuctionLogic, part 3b), settled the same way; and keepers whose draft has started (KeeperLogic, part 4),
  * locked the same way.
+ *
+ * L3 part 2: a game scored by a sport's stats gets its final games' lines stamped (sports/score.ts stampStats), never stored.
  */
 export async function readyLeague(leagueId: string, state: LeagueState): Promise<LeagueState> {
   await stampAirTimes(pool, state);
@@ -41,10 +44,10 @@ export async function readyLeague(leagueId: string, state: LeagueState): Promise
   const auctionDue = StateLogic.AuctionLogic.due(state, Date.now());
   // Keepers whose draft has started (step A10 part 4): withLeagueLock locks them.
   const keepersDue = StateLogic.KeeperLogic.due(state);
-  if (!StateLogic.ensureNextEpisode(structuredClone(state)) && !Bots.hasWork(state) && !waiverStepDue && !drawDue && !auctionDue && !keepersDue) return state;
+  if (!StateLogic.ensureNextEpisode(structuredClone(state)) && !Bots.hasWork(state) && !waiverStepDue && !drawDue && !auctionDue && !keepersDue) return stampStats(state);
   const before = draftTurn(state);
   const next = await withLeagueLock(leagueId, () => {});
   if (draftTurn(next) !== before) notifyDraftTurn(leagueId, next, null);
   await stampAirTimes(pool, next);
-  return next;
+  return stampStats(next);
 }

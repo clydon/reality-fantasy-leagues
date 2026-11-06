@@ -276,7 +276,11 @@ keys (`sports_events.lines` and `people`, 3-7 KB a game: the NBA's 3 KB, the NFL
 good and never asked again (one ESPN call a game, the same summary the box score reads; cached a day in `sports_cache` too, ~the
 same size). Asked by the daily listings job for the games it sees final (at most 60 a run) and by a season's stats fill when it reads
 a game as final. A game scored by stats and the questions a sport's game settles read them from Neon (one query a league read,
-only for a game that asks one).
+only for a game that asks one). Since L3 part 2 (the engine's hook, no migration) a game scored by stats has them stamped on every
+read of its league (the league poll's every 15 s included: `sports/score.ts` stampStats), so each server instance keeps the last
+stamp per league and asks Neon only for a 32-byte fingerprint of the season's kept finals and cast on a read (one small query, two
+the first time an instance sees the season), reading the finals themselves (3-7 KB a game kept) only when one more is kept or the
+cast changes. Nothing new is stored; a show's league asks nothing.
 **A field's and a card's final (track L, L3 part 3, migration 0302; on the `sports` branch, not merged)**, kept the same way: once a
 linked golf tournament, race weekend, tennis event or fight card is final, the server asks the calls the phone's poller makes for
 it, once (`src/lib/server/sports/espn.ts` eventFinal, through `live-event.ts`'s feeds): golf's board and leaderboard (2 calls); a
@@ -687,6 +691,10 @@ never handles it: the user does the reset and the pasting.
   route, `/api/sports/league`, edge-cached 10 minutes: its calendar, cached a day, and a soccer league's month scoreboards while its
   round slate isn't made) and adding one (`/api/sports/add`'s slate, the matchups' day's cap). No new kind of ESPN call or table;
   nothing polls, nothing new wakes Neon.
+- **2026-11-06, `sports` branch (not merged).** L3 part 2a (docs/PLAN-start-a-game-gpt.md track L; no migration): a game scored by
+  a sport's stats plays, its kept finals' lines stamped on each read of its league (never stored); a 32-byte fingerprint query on
+  each read of such a league (the poll's too), the finals read again only when one more is kept (each instance keeps the last
+  stamp). No new ESPN call or table; a show's league asks nothing.
 - **2026-11-06, `sports` branch (not merged).** L8 part 1 (docs/PLAN-start-a-game-gpt.md track L; migration 0304): a league's slate,
   a season of a whole league's games, several an episode (`sports_slates`; `season_events` keyed by episode and event; `game_lines`
   by event). Three new kinds of ESPN call: a league's bare scoreboard and its season's types (its calendar, a day), and a month's

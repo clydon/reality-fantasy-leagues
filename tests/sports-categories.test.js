@@ -217,7 +217,7 @@ test("the spec: categories on the score, ranked head to head by each one, by mos
   const cats = d.specs.categories.spec;
   assert.deepEqual(problems(cats, ctx), []);
   assert.deepEqual(problems(d.specs.roto.spec, ctx), []);
-  assert.deepEqual(specWaitsFor(cats).map((w) => w.at), ["score.by", "rank.by", "closes"], "the sports branch's own: the engine's hook plays it");
+  assert.deepEqual(specWaitsFor(cats).map((w) => w.at), ["rank.by", "closes"], "the sports branch's own: the engine's hook scores the stats (L3 part 2), the rank and the daily lock still wait");
   const by = (score, rank, more = {}) => ({ ...cats, score: { by: "stats", ...score }, ...(rank ? { rank } : {}), ...more });
   // A categories score's rank when the spec leaves it out: head to head by each category.
   assert.equal(fullSpec({ ...cats, rank: undefined }).rank.by, "categories");
@@ -275,7 +275,7 @@ test("head to head's and best ball's default specs on the recorded fixtures: eac
   const best = d.specs.bestBall.spec;
   const ctx = specContextOf(sportOf("basketball/nba"));
   assert.deepEqual(problems(best, ctx), []);
-  assert.deepEqual(specWaitsFor(best).map((w) => w.at), ["score.by"], "best ball and its lock are the engine's now: only the stats wait for the hook");
+  assert.deepEqual(specWaitsFor(best).map((w) => w.at), [], "best ball, its lock and its stats are the engine's now (L3 part 2: the hook)");
   // Every team sport's and golf's best ball: the season's draft and table, its starters' worth counting, no lineups.
   for (const id of ["basketball", "football", "baseball", "hockey", "soccer", "golf"]) {
     const s = defaultsFor(id).specs;

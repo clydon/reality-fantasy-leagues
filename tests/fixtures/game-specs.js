@@ -35,10 +35,8 @@ module.exports = [
     },
     sentence: "A game for the Red Sox–Yankees series: everyone drafts 3, Games 1–3. Scored 5 a home run and 1 a total base.",
     type: null,
-    waits: [
-      { at: "pool.where", step: "sports" },
-      { at: "score.by", step: "sports" },
-    ],
+    // L3 part 2: the engine scores a sport's stats; the pool of two teams' players is still the sports branch's.
+    waits: [{ at: "pool.where", step: "sports" }],
   },
   {
     name: "the 76ers home opener",

@@ -549,6 +549,19 @@ declare const StateLogic: {
   seasonWinner(state: LeagueState): Castaway | null;
   /** The season is over: its winner crowned, or, in a format nobody wins, nobody left in it. */
   seasonEnded(state: LeagueState): boolean;
+  /** L3 part 2: a game scored by a sport's stats, from the lines the server stamps on the copy it reads (never stored). */
+  StatsLogic: {
+    on(state: LeagueState): boolean;
+    /** An episode's stat lines as its moments at the game's table, or null before its lines are in. */
+    scored(state: LeagueState, ep: Episode | null | undefined): { castawayId: string; points: number }[] | null;
+    /** One holding's line in an episode at the game's table (its points and the stats that made them), or null. */
+    lineOf(state: LeagueState, ep: Episode | null | undefined, castawayId: string): import("./sequence/stats").Scored | null;
+    /** The server's stamp, in place: each final episode's lines (and a card's bouts) by castaway, the cast's position groups. */
+    stamp(state: LeagueState, o: { lines?: Record<number, Record<string, Record<string, number>>>; bouts?: Record<number, Record<string, import("./sequence/stats").StatBout[]>>; groups?: Record<string, string> }): LeagueState;
+    unstamp(state: LeagueState): LeagueState;
+    /** The keys a stamp writes (a save leaves them out). */
+    stampedKeys(): string[];
+  };
   ActiveRosterLogic: {
     /** C7: `episode`, the one it's scored in (only its card's moments count there: score.only 'card'). */
     pointsFor(state: LeagueState, type: string, episode?: number): number;
@@ -556,6 +569,8 @@ declare const StateLogic: {
     eventPoints(state: LeagueState, ev: Pick<ScoringEvent, "type" | "units">, episode?: number): number;
     /** An episode's moments at the game's points, in order: what the scoring sequence reads (C2 part 1). */
     scoredEvents(state: LeagueState, events: ScoringEvent[], episode?: number): { castawayId: string; points: number }[];
+    /** L3 part 2: an episode's moments as step 2 reads them (a stats game's stat lines), or null when it has none yet. */
+    episodeScored(state: LeagueState, ep: Episode, events?: ScoringEvent[]): { castawayId: string; points: number }[] | null;
     activeSlots(state: LeagueState): number;
     benchSlots(state: LeagueState): number;
     /** This episode's lineup, or (if never set for it) the most recent earlier one, still-owned and capped. */

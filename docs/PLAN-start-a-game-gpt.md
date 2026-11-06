@@ -1126,6 +1126,15 @@ engine track; L brings each sport's data to it. Its screens wait for the UI trac
     as a team game's (migration 0302, HOSTING.md) (built 2026-11-06: As built below); 3b, the server's line at the lock and
     postponed, suspended and moved games (they need ESPN's own answers for a postponed game, none recorded yet, and a call on
     which line a game plays by: 3a's Noticed).
+  - **Part 2, the engine's hooks, in parts (2026-11-06, once track C was merged in: the main session's note of 3:45 PM; every "For
+    the engine lane" item of L3, L4 and L8 with it):** 2a, points per stat in the engine (a lineup, best ball or everyone drafted
+    scored by a sport's stats; a card's bouts at their formats: built 2026-11-06, As built below); 2b, a game of questions on the
+    sports settles (pick'em and pick a few: `final`, `stat`, the `side` answer to 'now', an episode's game final as its results)
+    and the daily and weekly locks (`closedForPlay` reading `locksAt`, `closes` daily and weekly to 'now'); 2c, categories and roto
+    (`MatchupLogic` on `categoryParts`, the server handing `statDefs` over, `rank.by` categories and roto to 'now'); 2d, squares
+    and a bracket question (the squares themselves, their pays from the facts, a bracket's faces on the server); 2e, a week's slate
+    (a per-game bonus summed per game, a question per game of an episode). Each part's proof a sports game played end to end on the
+    recorded fixtures.
 - **L4. The formats, as the engine's pieces with sports data:** head-to-head, categories and roto (A11), best ball (A9),
   pick'em and pick a few (A4's questions with the sports settles), brackets (A8), squares (a sports way to `get`), live calls
   (A15); lineup locks per sport.
@@ -3312,6 +3321,60 @@ checked by its own rule). Nothing plays a stats game yet: the engine's hook is p
 - **`check-sports-data.js` fails one case against the real ESPN**: Yandy Díaz's 2026 lines no longer include a postseason
   category (ESPN's answer changed; the regular season still reads). Not this step's code (season stats); the check's expectation
   needs the answer as it is now. (A sports-data step.)
+
+**L3 part 2a as built: points per stat in the engine (2026-11-06, `sports`, not merged; no migration; HOSTING.md updated).** The
+engine's hook, after the sync of master `8c3bdc0d` (track C's C3 to C7 part 1; the merge's six conflicts kept both sides: C6's
+ticket and bank beside L4's bracket and squares, squares' `MAX_PAYS` renamed `MAX_SQUARE_PAYS` beside C6's ticket's, C6's openings
+in the placement corpus with the roto refusal kept on the 7 of them ranked roto).
+- **Where it goes in the sequence** (`schema.js`): `LINES.stats`, a draft's lineup, best ball or (new) everyone drafted counting
+  (`count: { all: true }`: the sports defaults' "short", tonight's three), its place as moments'; a pick each episode by its stats
+  and `categories` have no place yet (a wait that says why: 2c's). `askPlace` and `rankPlace` take `stats` where they take a
+  draft's moments (never ranked by worth: a market's prices are moments'); `shapeOf` 'active-roster'. A captain and `times` (an
+  episode's multiplier) on a lineup by stats too (their checks, `KEYS.score.stats`, `multipliersOf`). VOCAB `score.by: stats` to
+  'now'.
+- **The engine** (`state-logic.js` `StatsLogic`, new): the server stamps each final, kept game's lines on the copy of the league
+  it reads (`stamp`: `ep.statLines` by castaway, a card's `ep.statBouts`, the cast's `state.statGroups`; only the league's
+  castaways); an episode with its lines has results (`EpisodeLogic.hasResults`), so the spoiler view drops them past a viewer's
+  mark as it drops any result (`viewThrough`) and a span cuts them at its end (`spanView`). Step 2 reads them as each holding's
+  moments (`ActiveRosterLogic.episodeScored`: `statMoments` at the game's table, a card's bouts at their formats), so the walk,
+  `episodeScore` (the starters, a captain, `timesFor`, best ball's best n, everyone drafted as best ball with all of them) and
+  the table are a lineup's. `SCORE_PIECES.stats` is the lineup's scorer; `captainTimes`, `combines` (always, for stats: a stats
+  game has no show moments to list) and `timesFor` read stats as moments; a free agent's points so far are their stat lines'
+  (`WaiverLogic.castawayPoints`, waivers taking the best).
+- **The settings say it** (`settings.js`): `statScoring` (the table: the score without `by`, a captain or its windows, which keep
+  their own fields) and `countAll` (everyone drafted), so a league's spec reads back from its fields (`syncGame` writes
+  `settings.game` from them), the cast still in as a show's is (`pool.where` reads `stillIn`; nobody leaves a sport's).
+- **The server hands them over** (`src/lib/server/sports/score.ts` `stampStats`, new): on every read (`league-read.ts`
+  readyLeague: the state route's and the show space's, before every return) and around every write (`db.ts` withLeagueLock: stamped
+  after the load, so its moves see the points; what it saves leaves the stamped keys out, `StatsLogic.stampedKeys`, and the state
+  it hands back is stamped). As it stands (every kept final), so the client's own spoiler copy cuts it at the viewer's mark. Each
+  server instance keeps the last stamp per league with a 32-byte fingerprint of the season's kept finals, links and cast (one small
+  query a read; the finals read again only when it moves: HOSTING.md), since the league poll reads every 15 s.
+- **Checks.** `tests/sports-hook.test.js` (new, 7): where it goes and what still waits (a pick by stats, categories), the settings
+  round trip; the stamp (the league's castaways only, results once in, nothing saved, unstamp); a lineup with a captain on the
+  recorded 76ers opener, each seat's points the phone's scorer's on the same lines, the captain locked once its results are in, the
+  lines carried to a second game; the spoiler view and a span; best ball, everyone drafted and an episode's multiplier; a free agent's
+  points; a card's bouts at tennis's best-of-five table. `scripts/dev-test/check-stats-game.js` (new, reusable; this lane's
+  database, an in-process provider `zt-espn-stats`, `zt-stats-game` rows cleaned up): 11 checks, all pass (the game written as a
+  league's own; nothing before the final's kept; kept, a read stamps it and each seat scores its starters with the captain doubled;
+  the viewer's copy at their mark has none; a write hands back the stamp and saves none of it; a show's league untouched).
+  `check-finals.js` still passes. The placement corpus' 500 more moved (a draft by stats as its moments twin with a lineup, but a
+  stock market's: tests/placement.test.js). 1,830 unit tests pass; `tsc` clean; eslint clean on the files changed.
+- **For the next parts (2b to 2e):** as in the "Part 2" line above and the L3, L4 and L8 lists "For the engine lane", which stand
+  but for what 2a did (L3 part 2's hook and a card's bouts to `statMoments`, both done here).
+
+**L3 part 2a noticed, not fixed:**
+- **A stats game's episode breakdown lists no stats** (`team-episode-breakdown.ts`): its points are the engine's (`combines` is
+  always true for stats) but its items are a show's moments, so a player's row has a total and no "32 PTS". `StatsLogic.lineOf`
+  gives each stat's part; the words are a screen's (U0/U1, through impeccable).
+- **A slate's episode has results once its first game is final** (L8: its lines are its final games' summed), so the reveal and
+  a viewer's mark treat a partial week as in. A week's own "all its games final" is 2e's (a slate's episode, its last game's final).
+- **The bots weigh a stats game's players by nothing** (`bot-logic.js`'s form is each player's recent moments,
+  `eventPoints` over `episodeEvents`, and a sport's episode has none), so a computer player's draft and lineup are by its taste and
+  safety alone; the stamp is there inside a write, so form could read `StatsLogic.lineOf`. (A bots step, or U1 with sports
+  lineups.)
+- **A salary cap or a stock market on stats** stays refused (their prices are moments': `PriceLogic.points`). (When a sports
+  salary cap is asked for: G3.)
 
 **L3 part 3a as built: live points on the phone, and a field's and a card's finals kept (2026-11-06, `sports`, not merged; migration
 0302; HOSTING.md updated).**

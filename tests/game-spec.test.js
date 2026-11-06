@@ -63,7 +63,9 @@ const GAME_FIELDS = {
   // ranked by worth.
   // C3: a multiplier on how a holding joined (joinedTimes), an Outlast's or a lineup's.
   "classic-draft": [...DRAFT_FIELDS, "teamSize", "reverseOrder", "joinedTimes"],
-  "active-roster": [...DRAFT_FIELDS, "activeSlots", "benchSlots", "eventPoints", "hideStartersUntilLock", "bestBall", "captainTimes", "pointsTimes", "groupSlots", "joinedTimes", "scoreOnly", "scoreHits", "gameCard"],
+  "active-roster": [...DRAFT_FIELDS, "activeSlots", "benchSlots", "eventPoints", "hideStartersUntilLock", "bestBall", "captainTimes", "pointsTimes", "groupSlots", "joinedTimes", "scoreOnly", "scoreHits", "gameCard",
+    // L3 part 2: a lineup scored by a sport's stats, its table; everyone drafted counting.
+    "statScoring", "countAll"],
   // A10 part 2: a pool's lives, buyback, mulligans, second pick and last one standing. A11 part 2: a pick that never repeats and
   // its fallback; last one standing's end.
   // C5: a pick scored by what they do (poolScore, its points eventPoints and by when pointsTimes, several each episode poolEach),
@@ -449,7 +451,8 @@ test("specWaitsFor: what a spec needs that isn't built, and the step that builds
   // A11 part 4: head to head plays on a show's draft; a sports spec's daily lock is still the sports branch's.
   assert.deepEqual(waits({ ...P["weekly-lineup"], rank: { by: "matchups" }, closes: "daily" }), ["closes:sports"]);
   assert.deepEqual(waits({ ...P["weekly-lineup"], rank: { by: "categories" }, closes: "daily" }), ["rank.by:sports", "closes:sports"]);
-  assert.deepEqual(waits({ spec: 1, get: { by: "squares" }, score: { by: "stats", points: { PTS: 1 } } }), ["get.by:sports", "score.by:sports"]);
+  // L3 part 2: the engine scores a sport's stats; squares are still the sports branch's.
+  assert.deepEqual(waits({ spec: 1, get: { by: "squares" }, score: { by: "stats", points: { PTS: 1 } } }), ["get.by:sports"]);
   assert.deepEqual(waits({ ...P.outlast, pool: { of: "cast", where: { group: "tribe-1" } } }), ["pool.where:later"]);
   // Every part built, but no game plays a draft where everyone scores moments without a lineup: C2 part 4 says which piece has no
   // place in the scoring sequence, and why.

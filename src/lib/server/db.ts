@@ -13,6 +13,7 @@ import { settleDueAuction } from "./auction";
 import { settleKeepers } from "./keepers";
 import { stampSeatHistory } from "./handicaps";
 import { seatStage, settleStageDraft, stagesToSeat } from "./stages";
+import { stampStats } from "./sports/score";
 import { after } from "next/server";
 
 // Re-exported so route handlers can import { pool, withLeagueLock, HttpError } from one place,
@@ -58,6 +59,11 @@ export const likeOf = (term: string) => `%${term.replace(/[%_\\]/g, (c) => `\\${
 // `change` (docs/PLAN-new-design.md step 5): a write someone makes for others (results, settings, the cast) appends its
 // line to Recent changes in this same transaction (change-log.ts), worked out from the league before and after the
 // mutation alone (not the bots' moves or the waiver clock around it). Results changes carry their exact undo.
+/** L3 part 2: JSON.stringify's replacer for a state the server stamped (a sport's stat lines: StateLogic.StatsLogic), leaving them
+ *  out of what's saved. */
+const STAMPED = new Set<string>(StateLogic.StatsLogic.stampedKeys());
+const unstamped = (key: string, value: unknown) => (STAMPED.has(key) ? undefined : value);
+
 export async function withLeagueLock(
   leagueId: string,
   mutatorFn: (state: LeagueState, client: PoolClient) => void | Promise<void>,
@@ -71,6 +77,8 @@ export async function withLeagueLock(
     const state: LeagueState = rows[0].state;
     // Air times first: whether a lineup or pick is still open depends on them (air-times.ts).
     await stampAirTimes(client, state);
+    // L3 part 2: a game scored by a sport's stats, its final games' lines (read for its moves: a free agent's points), never saved.
+    await stampStats(state);
     const waiversBefore = waiverSnapshot(state);
     // Then the waiver clock, so the mutation sees the week as it stands now: a claim saved after its
     // week processed is refused rather than slipped in (waivers.js).
@@ -127,7 +135,7 @@ export async function withLeagueLock(
     await syncWaivers(client, leagueId, state);
     // Then any computer player's move this opened up (a turn, a new episode's lineup). See bots.ts.
     await runBots(client, leagueId, state);
-    await client.query("UPDATE leagues SET state=$1, updated_at=now() WHERE id=$2", [JSON.stringify(state), leagueId]);
+    await client.query("UPDATE leagues SET state=$1, updated_at=now() WHERE id=$2", [JSON.stringify(state, unstamped), leagueId]);
     if (spec) {
       // The next episode may be new since the mutation (ensureNextEpisode): stamped, so Undo stays open until it airs.
       await stampAirTimes(client, state);

@@ -207,7 +207,7 @@ const VOCAB = {
   'get.fallback': { miss: 'now', skip: 'now' },
   count: { start: 'now', all: 'now', pick: 'now', best: 'now' },
   // A12 part 1: a game in stages scores by its stages (StageLogic).
-  'score.by': { moments: 'now', place: 'now', survive: 'now', lines: 'now', answers: 'now', stages: 'now', stats: 'sports', squares: 'sports' },
+  'score.by': { moments: 'now', place: 'now', survive: 'now', lines: 'now', answers: 'now', stages: 'now', stats: 'now', squares: 'sports' },
   'score.means': { staysIn: 'now', scores: 'now' },
   // A11 part 3: co-op, the couch against the show (a game of questions whose lives are everyone's together: won or lost by all).
   // A11 part 4: head to head (matchups), a draft's on a show (each episode's points against someone's, with playoffs); L4 brings it
@@ -1878,6 +1878,16 @@ const LINES = {
   survive: (s, held) => (held !== 'pick' ? ['score.by', 'surviving scores a pick each episode'] : s.get.each === 1 ? null : ['get.each', "a pool's pick is one each episode: several each episode are scored by what they do (score.by moments)"]),
   answers: (s, held) => (held === 'none' ? null : ['score.by', 'a game of questions holds nothing']),
   lines: (s, held) => (held === 'card' ? null : ['score.by', "bingo lines are a card's"]),
+  // L3 part 2: a sport's stats, each holding's stat line at the game's table as its moments (sequence/stats.js statMoments), so a
+  // lineup's or best ball's steps take it from there (a whole team counting as best ball with all of it). A pick each episode by
+  // its stats, and categories (each stat's total compared: the week's result and the rank's, not points), have no place yet.
+  stats: (s, held) => {
+    if (categoryParts(s)) return ['score.categories', "categories compare each stat's total each week (head to head, or roto over the season): their week's result and rank come with the sports formats"];
+    // A draft's lineup, its best few, or (a sport's own: tonight's three) everyone drafted.
+    if (held === 'draft') return null;
+    if (held === 'pick') return ['get', "a pick each episode scored by its stats has no place yet: a draft's lineup or best ball does"];
+    return ['score.by', 'scoring by stats needs someone of yours: a draft'];
+  },
 };
 /** C2 part 4: the questions beside a game's lines, [at, why] when they have no place (null when they do). */
 function askPlace(s) {
@@ -1885,7 +1895,7 @@ function askPlace(s) {
   const by = s.score.by;
   // C5: a pick each episode scored by what they do: its picks are its game, as a pool's are.
   if (by === 'moments' && isObj(s.get) && s.get.by === 'pick') return none ? null : ['ask', "a pick's picks are its game: questions beside them play in a stage alongside it"];
-  if (by === 'place' || by === 'moments') return draftAskPlace(s);
+  if (by === 'place' || by === 'moments' || by === 'stats') return draftAskPlace(s);
   if (by === 'survive') return none ? null : ['ask', "a pool's picks are its game: questions beside them play in a stage alongside it"];
   if (by === 'lines') return none ? null : ['ask', 'a bingo card is its game: questions beside it play in a stage alongside it'];
   if (by === 'answers') {
@@ -1944,7 +1954,8 @@ function rankPlace(s) {
     if ((by === 'total' || h2h) && rank.race === undefined && rank.cut === undefined) return null;
     return ['rank.by', "a pick each episode scored by what they do ranks by its points, weeks won or head to head: knocking players out, or a race, is a draft's or a game of questions' for now"];
   }
-  if (lines === 'place' || lines === 'moments') {
+  // L3 part 2: a sport's stats as a lineup's moments (never priced: a market's prices are moments').
+  if (lines === 'place' || lines === 'moments' || lines === 'stats') {
     if (by === 'total' || (by === 'standing' && cuts) || (h2h && rank.race === undefined && rank.cut === undefined)) return null;
     if (by === 'worth') return lines === 'moments' && marketOf(s) ? null : ['rank.by', "ranking by worth is a stock market's on a lineup (a draft scored by moments): an Outlast's places aren't priced each week"];
     return ['rank.by', "a draft ranks by its points, last one standing when it cuts, or head to head (or weeks won) with nobody racing or cut"];
@@ -2020,7 +2031,7 @@ function shapeOf(s) {
   if (by === 'answers') return callsAsk(s.ask) ? 'weekly-calls' : 'questions';
   // C5: a pick each episode scored by what they do is a pick's game, as a pool is (its picks, made each episode).
   if (momentsPick(s)) return 'pickem';
-  return { place: 'classic-draft', moments: 'active-roster', survive: 'pickem', lines: 'weekly-bingo' }[by] || null;
+  return { place: 'classic-draft', moments: 'active-roster', stats: 'active-roster', survive: 'pickem', lines: 'weekly-bingo' }[by] || null;
 }
 /** The parts every game today shares: a span (from an episode, or a phase), the cast still in, a list of questions (each
  *  game says which it plays), moves locking at the start. */
@@ -2302,12 +2313,14 @@ function specProblems(spec, ctx, opts) {
   else if (score.by === 'stages') add('score.by', "Scoring by stages is a game in stages': give it its stages");
   if (score.by === 'moments' && score.points !== null && !pointsMap(score.points)) add('score.points', 'Points are moment id to a number, or null for the rulebook\'s own');
   // A9 part 2: a lineup's captain, points that multiply by when, Outlast in reverse.
-  if (score.by === 'moments' && score.captain !== undefined) {
+  // L3 part 2: and a lineup scored by a sport's stats (its moments are its stat lines' points).
+  const lineup = score.by === 'moments' || score.by === 'stats';
+  if (lineup && score.captain !== undefined) {
     const c = score.captain;
     if (!(isObj(c) && isNum(c.times) && c.times > 1 && c.times <= MAX_TIMES)) add('score.captain', `A captain's points multiply by more than 1, up to ${MAX_TIMES}: { times: 2 }`);
     else if (count !== 'start') add('score.captain', 'A captain is one of your starters, named each episode: a lineup ({ start: n })');
   }
-  if (score.by === 'moments' && score.times !== undefined) timesProblems(score.times, s, league).forEach(([at, p]) => add(`score.times${at}`, p));
+  if (lineup && score.times !== undefined) timesProblems(score.times, s, league).forEach(([at, p]) => add(`score.times${at}`, p));
   // C5: only these moments count, and hits counted.
   if (score.by === 'moments' && (score.only !== undefined || score.hits !== undefined)) countProblems(score, s).forEach(([at, p]) => add(`score${at}`, p));
   if (score.by === 'place' && score.reverse !== undefined && score.reverse !== true) add('score.reverse', 'reverse is true, or leave it out');
@@ -2703,7 +2716,7 @@ const KEYS = {
   budget: ['total', 'floor', 'ceiling', 'gone', 'fallback', 'trade', 'left'],
   trade: ['fee'],
   second: ['fallback'],
-  score: { moments: ['by', 'points', 'captain', 'times', 'multiply', 'only', 'hits'], place: ['by', 'reverse', 'multiply'], survive: ['by', 'means', 'points', 'lives', 'buyback', 'mulligans'], lines: ['by', 'points'], answers: ['by', 'parlays', 'lives', 'livesOn', 'saves', 'bank'], stages: ['by'], stats: ['by', 'points', 'byPosition', 'byPlace', 'byFormat', 'categories'], squares: ['by', 'pays', 'empty', 'unread'] },
+  score: { moments: ['by', 'points', 'captain', 'times', 'multiply', 'only', 'hits'], place: ['by', 'reverse', 'multiply'], survive: ['by', 'means', 'points', 'lives', 'buyback', 'mulligans'], lines: ['by', 'points'], answers: ['by', 'parlays', 'lives', 'livesOn', 'saves', 'bank'], stages: ['by'], stats: ['by', 'points', 'byPosition', 'byPlace', 'byFormat', 'categories', 'captain', 'times'], squares: ['by', 'pays', 'empty', 'unread'] },
   pay: ['at', 'points'],
   buyback: ['times', 'before', 'cost'],
   before: ['phase', 'episode'],
@@ -2764,7 +2777,7 @@ function unknownKeys(s) {
     if (s.score.by === 'squares' && Array.isArray(s.score.pays)) s.score.pays.forEach((p, i) => check(p, KEYS.pay, `score.pays[${i}]`));
     if (isObj(s.score.bank)) check(s.score.bank, KEYS.bank, 'score.bank');
     if ((s.score.by === 'moments' || s.score.by === 'place') && Array.isArray(s.score.multiply)) s.score.multiply.forEach((m, i) => check(m, KEYS.multiply, `score.multiply[${i}]`));
-    if (s.score.by === 'moments') {
+    if (s.score.by === 'moments' || s.score.by === 'stats') {
       check(s.score.captain, KEYS.captain, 'score.captain');
       if (Array.isArray(s.score.times)) s.score.times.forEach((t, i) => check(t, KEYS.when, `score.times[${i}]`));
     }
@@ -3662,8 +3675,10 @@ function multiplyProblems(list, s) {
 function multipliersOf(spec) {
   const sc = isObj(spec) && isObj(spec.score) ? spec.score : {};
   const out = [];
-  if (sc.by === 'moments' && isObj(sc.captain) && isNum(sc.captain.times)) out.push({ on: 'captain', times: sc.captain.times });
-  if (sc.by === 'moments' && Array.isArray(sc.times)) sc.times.forEach((t) => { if (isObj(t)) out.push({ on: 'when', ...t }); });
+  // L3 part 2: a lineup scored by a sport's stats has a captain and windows too.
+  const lineup = sc.by === 'moments' || sc.by === 'stats';
+  if (lineup && isObj(sc.captain) && isNum(sc.captain.times)) out.push({ on: 'captain', times: sc.captain.times });
+  if (lineup && Array.isArray(sc.times)) sc.times.forEach((t) => { if (isObj(t)) out.push({ on: 'when', ...t }); });
   if ((sc.by === 'moments' || sc.by === 'place') && Array.isArray(sc.multiply)) {
     sc.multiply.forEach((m) => {
       if (!isObj(m)) return;

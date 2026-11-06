@@ -14,6 +14,15 @@ const only = (was) => `${was[0]}-${was[2]}`;
 /** The combinations C2 part 4 opens, by the corpus' names (hold|score|rank|ask), each with the verdict a spec it moves has now
  *  (`to`: from its verdict before, its name, and any spec's verdict now by name). */
 const OPENED = [
+  // L3 part 2 (the engine's hook): a draft scored by a sport's stats plays as its twin scored by moments with a lineup does (each
+  // holding's stat line its moments: the same places in the sequence; everyone drafted counting as best ball with all of them), but
+  // a stock market, whose prices are moments' (a problem). Ranked roto, squares and a pick each episode by its stats are track L's
+  // still (CLOSED below, and a pick's no place yet). First: before the openings below, which some of these are too.
+  { why: "a draft scored by a sport's stats", test: (n) => /^[a-z]+-(all|start|best)\|stats\|/.test(n) && !/\|roto\|/.test(n),
+    to: (was, n, now) => {
+      const twin = now(n.replace("|stats|", "|moments|").replace(/^([a-z]+)-(all|best)\|/, "$1-start|"));
+      return n.startsWith("market-") ? `${twin[0]}p${twin[2]}` : twin;
+    } },
   // A draft's own questions beyond its finale predictions (part 4c: the answers' lines join the draft's): it reads as the same game
   // asking nothing, but for a question's own problem (a wager plays alone) and its cuts or a race (no place yet: who's out decides the
   // moves its own writes take, which read it as stored). Before the teams' openings below, which some of these are too.
@@ -92,8 +101,11 @@ test("the placement corpus: every verdict as the seven shapes gave it, but the c
   // of them multiplied in the finale) or stats and ranked by the total, refused as well as waiting (the rest of the corpus'
   // squares had a problem already). C6's 73: a stake beside a share or a rollover, and a parlay's staked leg: 40 play
   // now (games of questions), and 33 lose only their problem while something else still holds them back (a sport's rank, questions
-  // beside a pool); 66 more here, the other 7 ranked roto, which L4 part 1b's 354 had moved already (they keep its refusal).
-  assert.equal(moved.length, 169 + 770 + 819 + 215 + 354 + 15 + 66);
+  // beside a pool); 66 more here, the other 7 ranked roto, which L4 part 1b's 354 had moved already (they keep its refusal). L3
+  // part 2's 500: a draft scored by a sport's stats, 600 in all (100 of them moved already by the teams' openings), 450 playing
+  // now (a lineup, best ball or everyone drafted, by points per stat), 90 a stock market's keeping its problem (its prices are
+  // moments'), 60 waiting only for their questions beside a draft's cuts.
+  assert.equal(moved.length, 169 + 770 + 819 + 215 + 354 + 15 + 66 + 500);
   // What plays: 933 before part 4, and every opening that plays now (none played before: each had a problem or a wait).
   assert.ok(moved.every((i) => !C.plays(was[i])));
   assert.equal(now.filter(C.plays).length, 933 + moved.filter((i) => C.plays(now[i])).length);

@@ -73,9 +73,9 @@
 // the database.
 (function(root, factory){
   // eslint-disable-next-line @typescript-eslint/no-require-imports -- CommonJS on purpose, see above
-  if(typeof module === 'object' && module.exports) module.exports = factory(require('./formats/index.js'), require('./game-spec/index.js'), require('./sequence/index.js'));
-  else root.StateLogic = factory(root.GameFormats, root.GameSpec, root.GameSequence);
-})(typeof self !== 'undefined' ? self : this, function(Formats, Spec, Seq){
+  if(typeof module === 'object' && module.exports) module.exports = factory(require('./formats/index.js'), require('./game-spec/index.js'), require('./sequence/index.js'), require('./sequence/stats.js'));
+  else root.StateLogic = factory(root.GameFormats, root.GameSpec, root.GameSequence, root.GameStats);
+})(typeof self !== 'undefined' ? self : this, function(Formats, Spec, Seq, Stats){
 
 const PALETTE = ['#45a89a','#d9704a','#a76bb0','#5089c4','#86a34c','#c99a3e','#b0563f','#6b8fc9'];
 // No longer seeded into new leagues (see Migrations.defaultState) -- a fresh league starts with an
@@ -744,9 +744,10 @@ class ScoringLogic {
     for(const ep of episodes){
       const final = !(EpisodeLogic.resultsStage(ep) === 'early' && ep.number === newest);
       if(!outlast && (w.now || final)){
-        const events = ActiveRosterLogic.episodeEvents(state, ep);
-        if(events.length){
-          const pre = { times: ActiveRosterLogic.timesFor(state, ep.number), slots, scored: ActiveRosterLogic.scoredEvents(state, events, ep.number), joined, stints: stintsOf };
+        // L3 part 2: a game scored by a sport's stats, its episode's stat lines (ActiveRosterLogic.episodeScored).
+        const scored = ActiveRosterLogic.episodeScored(state, ep);
+        if(scored){
+          const pre = { times: ActiveRosterLogic.timesFor(state, ep.number), slots, scored, joined, stints: stintsOf };
           players.forEach(p => running.set(p.id, Seq.add(running.get(p.id), ActiveRosterLogic.episodeScore(state, ep, p.id, pre).total)));
         }
       }
@@ -3065,6 +3066,72 @@ function defaultEventPoints(state, mode){
 // is rounded to hundredths where it's made: the scoring sequence's one rounding (Seq.round).
 function roundPoints(n){ return Seq.round(n); }
 
+// ---------- StatsLogic: a game scored by a sport's stats (docs/PLAN-start-a-game-gpt.md track L, L3 part 2) ----------
+// The server reads each final game's counts (src/lib/server/sports/score.ts leagueGames: kept once at its final) and stamps them on
+// the copy of the league it reads (stamp): each episode's lines by castaway (`ep.statLines`: castaway id to counts, derived stats
+// worked out), on a card each one's bouts (`ep.statBouts`), and the cast's position groups (`state.statGroups`). Plain data, never
+// stored: a write takes them off before it saves (stampedKeys), so a final corrected later scores the new way on the next read. An
+// episode with its lines has results (EpisodeLogic.hasResults), so the spoiler view hides them past a viewer's mark as it hides any
+// result (SpoilerLogic.viewThrough), and a game's span cuts them at its end (spanView). The scoring sequence's step 2 reads them as
+// each holding's moments at the game's table (scored: sequence/stats.js statMoments), so a lineup's starters, a captain, the
+// episode's multiplier and best ball's best n take it from there (ActiveRosterLogic.episodeScore).
+const STAMPED = { episode: ['statLines', 'statBouts'], state: ['statGroups'] };
+class StatsLogic {
+  // The game that's played scores by a sport's stats.
+  static on(state){ return playedGame(state).score.by === 'stats'; }
+  // An episode's stat lines as its moments at the game's table ([{ castawayId, points }], one per holding that scored), or null
+  // before its lines are in.
+  static scored(state, ep){
+    if(!ep || !ep.statLines || typeof ep.statLines !== 'object') return null;
+    const groups = state.statGroups || {};
+    const bouts = ep.statBouts && typeof ep.statBouts === 'object' ? ep.statBouts : null;
+    return Stats.statMoments(ep.statLines, playedGame(state).score, id => groups[id] || null, bouts ? id => bouts[id] || null : undefined);
+  }
+  // One holding's line in an episode at the game's table: { points, parts: [{ stat, value, points, bout? }] } (statLine's), or null
+  // when the episode's lines aren't in or they have none for them.
+  static lineOf(state, ep, castawayId){
+    const line = ep && ep.statLines && ep.statLines[castawayId];
+    if(!line) return null;
+    const groups = state.statGroups || {};
+    const bouts = ep.statBouts && ep.statBouts[castawayId];
+    return Stats.statLine(playedGame(state).score, line, { group: groups[castawayId] || null, bouts: bouts || undefined });
+  }
+  // The server's stamp, in place: `o.lines` { [episode number]: { castawayId: counts } } (only the league's castaways are kept: no
+  // one else can be held), `o.bouts` the same for a card's bouts, `o.groups` { castawayId: position group }. An episode left out
+  // keeps no lines (its game isn't final for this copy). Returns the state.
+  static stamp(state, o){
+    const cast = new Set((state.castaways || []).map(c => c.id));
+    const only = rec => Object.fromEntries(Object.entries(rec || {}).filter(([id]) => cast.has(id)));
+    StatsLogic.unstamp(state);
+    const lines = (o && o.lines) || {};
+    const bouts = (o && o.bouts) || {};
+    (state.episodes || []).forEach(ep => {
+      const at = lines[ep.number];
+      if(!at || typeof at !== 'object') return;
+      ep.statLines = only(at);
+      if(bouts[ep.number]) ep.statBouts = only(bouts[ep.number]);
+    });
+    const groups = only(o && o.groups);
+    if(Object.keys(groups).length) state.statGroups = groups;
+    return state;
+  }
+  // Takes the stamp off, in place.
+  static unstamp(state){
+    (state.episodes || []).forEach(ep => STAMPED.episode.forEach(k => { delete ep[k]; }));
+    STAMPED.state.forEach(k => { delete state[k]; });
+    return state;
+  }
+  // The keys a stamp writes, for a save that leaves them out (JSON.stringify's replacer: db.ts withLeagueLock).
+  static stampedKeys(){ return [...STAMPED.episode, ...STAMPED.state]; }
+  // A draft whose whole team counts (count { all: true }: tonight's three, everyone you draft scoring), no lineups to set.
+  static wholeTeam(state){
+    const g = playedGame(state);
+    return g.score.by === 'stats' && g.get.by === 'draft' && Spec.countKind(g.count) === 'all';
+  }
+}
+// A game whose lineups score moments: by the show's moments, or by a sport's stats (L3 part 2: its stat lines as its moments).
+const lineupScores = g => g.score.by === 'moments' || g.score.by === 'stats';
+
 class ActiveRosterLogic {
   // Points for one event type: the league's own value if set (the spec's points: settings.eventPoints, in a game that
   // scores by moments), else the catalog default. A type
@@ -3119,6 +3186,13 @@ class ActiveRosterLogic {
     }
     return events.map(ev => ({ castawayId: ev.castawayId, points: ActiveRosterLogic.eventPoints(state, ev, episode) }));
   }
+  // An episode's moments at the game's points as step 2 reads them, or null when it has none yet: a game scored by a sport's stats,
+  // its stat lines' (StatsLogic.scored, L3 part 2); else its moments (`events`, else episodeEvents) when it has any.
+  static episodeScored(state, ep, events){
+    if(StatsLogic.on(state)) return StatsLogic.scored(state, ep);
+    const evs = events || ActiveRosterLogic.episodeEvents(state, ep);
+    return evs.length ? ActiveRosterLogic.scoredEvents(state, evs, ep.number) : null;
+  }
   // C5: how a game scored by moments counts hits (score.hits: every, pick, objective), or null (by points, every game before C5).
   static hits(state){
     const score = gameOf(state).score;
@@ -3143,12 +3217,14 @@ class ActiveRosterLogic {
   // A lineup's captain (the spec's score.captain): what their points multiply by, else 0 (no captain in this game).
   static captainTimes(state){
     const g = gameOf(state);
-    return g.score.by === 'moments' && g.count && g.count.start && g.score.captain ? g.score.captain.times : 0;
+    return lineupScores(g) && g.count && g.count.start && g.score.captain ? g.score.captain.times : 0;
   }
   // Whether the game's lineups score any way but plainly (a captain, best ball, points that multiply by when, group slots: A10
   // part 1): compute's own path. A plain lineup keeps the arithmetic it always had.
   static combines(state){
     const g = gameOf(state);
+    // L3 part 2: a sport's stats always (their lines are no moments of the show's to list).
+    if(g.score.by === 'stats') return true;
     return g.score.by === 'moments' && (!!ActiveRosterLogic.bestOf(state) || !!ActiveRosterLogic.captainTimes(state) || Array.isArray(g.score.times) || !!GroupSlotLogic.config(state) || !!joinedFactors(state));
   }
   // What an episode's points multiply by (the spec's score.times): each window it's in, together -- an episode, a run of them,
@@ -3159,7 +3235,7 @@ class ActiveRosterLogic {
   // factor of the one multiplier piece, on 'when' (Spec.multipliersOf, Seq.factorOf: Seq.inWindow says whether it's in it).
   static timesFor(state, number){
     const list = gameOf(state).score.times;
-    if(!Array.isArray(list) || gameOf(state).score.by !== 'moments') return 1;
+    if(!Array.isArray(list) || !lineupScores(gameOf(state))) return 1;
     const seen = SpoilerLogic.latestWithResults(state);
     const starts = Object.values(state.phaseStarts || {}).filter(n => Number.isInteger(n) && n <= seen + 1);
     const inPhase = id => {
@@ -3202,11 +3278,13 @@ class ActiveRosterLogic {
     const best = ActiveRosterLogic.bestOf(state);
     // Each holding once (C2 part 2: a stored lineup listing a starter twice, which validateLineup refuses, scores them once).
     // C5: a pick each episode scored by what they do holds that episode's picks.
-    const held = gameOf(state).get.by === 'pick' ? PickEmLogic.picked(PickEmLogic.pickFor(state, ep.id, playerId)) : best ? ActiveRosterLogic.teamFor(state, ep, playerId) : ActiveRosterLogic.lineupFor(state, ep.id, playerId);
+    // L3 part 2: a draft scored by a sport's stats whose whole team counts holds its team, as best ball does, every line counted.
+    const team = best || StatsLogic.wholeTeam(state);
+    const held = gameOf(state).get.by === 'pick' ? PickEmLogic.picked(PickEmLogic.pickFor(state, ep.id, playerId)) : team ? ActiveRosterLogic.teamFor(state, ep, playerId) : ActiveRosterLogic.lineupFor(state, ep.id, playerId);
     const ids = [...new Set(held)];
-    const captain = best ? null : ActiveRosterLogic.captainFor(state, ep.id, playerId);
+    const captain = team ? null : ActiveRosterLogic.captainFor(state, ep.id, playerId);
     const times = pre && pre.times !== undefined ? pre.times : ActiveRosterLogic.timesFor(state, ep.number);
-    const scored = (pre && pre.scored) || ActiveRosterLogic.scoredEvents(state, (pre && pre.events) || ActiveRosterLogic.episodeEvents(state, ep), ep.number);
+    const scored = (pre && pre.scored) || ActiveRosterLogic.episodeScored(state, ep, pre && pre.events) || [];
     const raw = Seq.momentRaw(ids, scored, ActiveRosterLogic.hits(state));
     // The captain's factor (C3: the one multiplier piece, on 'captain').
     const cap = { on: 'captain', times: captain ? ActiveRosterLogic.captainTimes(state) : 1 };
@@ -4394,7 +4472,7 @@ function getLeagueType(state){
 // with no settings.
 const DRAFT_PIECES = { snake: SnakeDraftStrategy, blind: BlindDraftStrategy, draw: DrawDraftStrategy, auction: AuctionDraftStrategy };
 const SCORE_PIECES = {
-  place: EliminationOrderScoringStrategy, moments: ActiveRosterEventScoringStrategy, survive: PickEmScoringStrategy,
+  place: EliminationOrderScoringStrategy, moments: ActiveRosterEventScoringStrategy, stats: ActiveRosterEventScoringStrategy, survive: PickEmScoringStrategy,
   answers: CallsScoringStrategy, lines: CallsScoringStrategy, stages: StagesScoringStrategy,
 };
 let OUTLAST_GAME = null;
@@ -6789,8 +6867,8 @@ class WaiverLogic {
         pool = fits.length ? fits : pool.filter(id => (prices.get(id) || 0) === cheapest);
       }
     }
-    // A game scored by moments (a lineup, best ball) takes the free agent with the most points.
-    if(gameOf(state).score.by === 'moments'){
+    // A game scored by moments (a lineup, best ball) takes the free agent with the most points (L3 part 2: or by a sport's stats).
+    if(lineupScores(gameOf(state))){
       const pts = {};
       pool.forEach(id => { pts[id] = WaiverLogic.castawayPoints(state, id); });
       return [...pool].sort((a,b) => pts[b] - pts[a] || hashUnit(period.id + a) - hashUnit(period.id + b))[0];
@@ -6800,8 +6878,11 @@ class WaiverLogic {
   /** Active Roster: a castaway's points so far, from every in-play episode's events. */
   static castawayPoints(state, castawayId){
     let total = 0;
+    const stats = StatsLogic.on(state);
     state.episodes.forEach(ep => {
       if(!inPlay(state, ep.number)) return;
+      // L3 part 2: a game scored by a sport's stats, their stat lines at the game's table.
+      if(stats){ const l = StatsLogic.lineOf(state, ep, castawayId); if(l) total += l.points; return; }
       ActiveRosterLogic.episodeEvents(state, ep).forEach(ev => {
         if(ev.castawayId === castawayId) total += ActiveRosterLogic.eventPoints(state, ev, ep.number);
       });
@@ -6882,7 +6963,9 @@ class EpisodeLogic {
   // episode has been played" means everywhere below.
   static hasResults(ep){
     return !!ep && (!!ep.noExit || (ep.events||[]).length > 0 || (ep.scoringEvents||[]).length > 0 || (ep.exiled||[]).length > 0
-      || (ep.roles||[]).length > 0 || (ep.groups||[]).length > 0);
+      || (ep.roles||[]).length > 0 || (ep.groups||[]).length > 0
+      // L3 part 2: a game scored by a sport's stats, once its game's lines are in (StatsLogic.stamp).
+      || (!!ep.statLines && typeof ep.statLines === 'object'));
   }
   // Nobody went home in this episode (on), or that's taken back (off). Only the season sync's shared
   // "nobody went home" fact sets it (decision-apply.ts).
@@ -8082,6 +8165,8 @@ class SpoilerLogic {
       if(!ids.has(ep.id)) return;
       ep.events = []; ep.scoringEvents = []; ep.exiled = []; ep.roles = []; ep.groups = []; delete ep.formatGroups;
       delete ep.resultsStage; delete ep.noExit;
+      // L3 part 2: a sport's stat lines (StatsLogic.stamp).
+      delete ep.statLines; delete ep.statBouts;
       ep.postMerge = visible ? !!visible.postMerge : false;
       (ep.bets || []).forEach(b => (b.predictions || []).forEach(p => { p.correct = null; }));
       ep.resultsHidden = true;
@@ -8877,7 +8962,7 @@ return {
   // the top of this file); SnakeDraftStrategy/BlindDraftStrategy/NoDraftStrategy and
   // EliminationOrderScoringStrategy/PickEmScoringStrategy are those pieces,
   // exported directly for code that wants to bypass the dispatch.
-  Core, ScoringLogic, DraftLogic, RosterLogic, WaiverLogic, EpisodeLogic, BetLogic, FinaleLogic, AnswerLogic, PickEmLogic, BlindDraftLogic, ActiveRosterLogic, GroupSlotLogic, SetupLogic, RevealLogic, SpoilerLogic, GhostLogic, Migrations,
+  Core, ScoringLogic, DraftLogic, RosterLogic, WaiverLogic, EpisodeLogic, BetLogic, FinaleLogic, AnswerLogic, PickEmLogic, BlindDraftLogic, ActiveRosterLogic, StatsLogic, GroupSlotLogic, SetupLogic, RevealLogic, SpoilerLogic, GhostLogic, Migrations,
   SpreadLogic, DrawLogic, PriceLogic, BudgetLogic, MarketLogic, AuctionLogic, KeeperLogic, KnockoutLogic, MatchupLogic, WeekLogic, TeamLogic, HandicapLogic, StageLogic, draftFits, draftFitsFor, rankKey,
   SnakeDraftStrategy, StagesScoringStrategy, EliminationOrderScoringStrategy, NoDraftStrategy, PickEmScoringStrategy, BlindDraftStrategy, ActiveRosterEventScoringStrategy, DrawDraftStrategy, AuctionDraftStrategy
 };

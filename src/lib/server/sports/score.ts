@@ -1,3 +1,4 @@
+import StateLogic from "@/lib/game/state-logic.js";
 import type { SportsGameFacts } from "@/lib/game/game-spec";
 import type { LeagueState } from "@/lib/game/types";
 import { BoutSport, TeamSport, boutsOf, groupOf, renamed, sportOf, storedFacts, type StatBout, type StoredFinal, type StoredPeople, type StoredShape, type Stats } from "@/lib/sports";
@@ -183,4 +184,54 @@ function storedOf(sport: NonNullable<ReturnType<typeof sportOf>>, lines: Record<
 export async function sidesFor(state: LeagueState, episode: number, games?: Map<number, SportsGameFacts>): Promise<Set<string> | null> {
   const sides = games ? games.get(episode)?.sides.map((s) => s.id) : (await leagueGames(state))?.sides.get(episode);
   return sides?.length ? new Set(sides) : null;
+}
+
+/** What a stamp writes (StateLogic.StatsLogic.stamp's `o`). */
+type Stamp = { lines: Record<number, Record<string, Stats>>; bouts: Record<number, Record<string, StatBout[]>>; groups: Record<string, string> };
+// The league poll reads every 15 s (league-read.ts readyLeague), and a season's kept finals are big (everyone's counts, a game an
+// episode): each server instance keeps the last stamp it worked out for a league, with a fingerprint of what it read (32 bytes: the
+// season's kept finals, its cast's provider ids and positions, the league's castaways), and reads the finals again only when it moves.
+// A final is kept once and never written again (finals.ts), so the fingerprint moves exactly when a game is kept or the cast changes.
+const stamps = new Map<string, { key: string; stamp: Stamp }>();
+const MAX_STAMPS = 200;
+const seasons = new Map<string, string>();
+
+/**
+ * L3 part 2, the engine's hook: a game scored by a sport's stats, its games' lines stamped on `state` in place (StateLogic.StatsLogic
+ * .stamp): each final, kept game's lines by castaway on its episode, a card's bouts, the cast's position groups, so the engine's
+ * scoring sequence scores them as each holding's moments. As it stands (every final game: the viewer's copy is cut at their mark
+ * by the spoiler view, as any result is). Never stored: withLeagueLock leaves the stamped keys out of what it saves. Any other game,
+ * or one whose season links no games, is left as it is. Returns the state.
+ */
+export async function stampStats(state: LeagueState): Promise<LeagueState> {
+  if (!StateLogic.StatsLogic.on(state)) return state;
+  const s = (state.settings ?? {}) as { showId?: string; wikiSeason?: unknown };
+  const which = `${s.showId}/${s.wikiSeason}`;
+  const seasonId = seasons.get(which) ?? (await seasonIdOf(state));
+  if (!seasonId) return state;
+  seasons.set(which, seasonId);
+  const { rows } = await pool.query(
+    `SELECT md5(concat_ws('|',
+       (SELECT string_agg(f.event_id || ':' || f.lines_at::text, ',' ORDER BY f.event_id)
+          FROM season_events e JOIN sports_events f ON f.provider = e.provider AND f.league = e.league AND f.event_id = e.event_id
+         WHERE e.season_id = $1 AND f.lines_at IS NOT NULL),
+       (SELECT string_agg(e.episode || ':' || e.event_id, ',' ORDER BY e.episode, e.event_id) FROM season_events e WHERE e.season_id = $1),
+       (SELECT string_agg(c.name || ':' || coalesce(c.role, '') || ':' || coalesce(c.provider_ids::text, ''), ',' ORDER BY c.name)
+          FROM season_cast c WHERE c.season_id = $1))) AS key`,
+    [seasonId]
+  );
+  const cast = (state.castaways ?? []).map((c) => `${c.id}:${c.name}`).join(",");
+  const key = `${seasonId}|${rows[0]?.key}|${cast}`;
+  const id = `${seasonId}|${cast}`;
+  let hit = stamps.get(id);
+  if (!hit || hit.key !== key) {
+    const g = await leagueGames(state);
+    if (!g) return state;
+    hit = { key, stamp: { lines: Object.fromEntries(g.lines), bouts: Object.fromEntries(g.bouts), groups: g.groups } };
+    stamps.delete(id);
+    stamps.set(id, hit);
+    if (stamps.size > MAX_STAMPS) stamps.delete(stamps.keys().next().value!);
+  }
+  // Each league its own copy of the lines (stamp keeps only its castaways' and the copy is the league's to change).
+  return StateLogic.StatsLogic.stamp(state, structuredClone(hit.stamp));
 }

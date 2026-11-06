@@ -227,7 +227,7 @@ How what counts earns points. **`score.by`**:
 | `lines` | bingo lines | a card |
 | `answers` | right answers to the game's questions | `none` |
 | `stages` | a game in stages: its stages' tables (see Stages) | a game in stages only |
-| `stats` | a sport's stat keys | the sports branch |
+| `stats` | a sport's stat keys at the game's table: each holding's stat line in an episode is its moments there (`sequence/stats.js` statMoments), so a lineup's starters, a captain, `times` and best ball's best n take it as they take moments (L3 part 2) | a draft (a lineup, best ball, or everyone drafted counting); a pick each episode by its stats and `categories` not yet (the sports branch) |
 | `squares` | each pay's points (`pays: [{ at: a period's end, 'half' or 'final', points }]`) to whoever holds the square of the two scores' last digits then; an empty square pays nobody or rolls on (`empty`), a period never read pays on the final or nobody (`unread`) (L4 part 2) | `squares`, ranked by the total, nothing beside it; the sports branch |
 
 Each one's own options:

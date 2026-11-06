@@ -170,6 +170,11 @@ export interface Episode {
    *  day's or week's first start, from the games' own starts. Stamped by the server (air-times.ts stampSportLocks); the engine's
    *  lock reads it once its hook does (L4's "For the engine lane"). */
   locksAt?: string;
+  /** L3 part 2: a game scored by a sport's stats, its game's lines by castaway once it's final and kept (counts, derived stats
+   *  worked out), and on a card each one's bouts: stamped by the server on the copy it reads (sports/score.ts stampStats,
+   *  StateLogic.StatsLogic.stamp), never stored; the spoiler view drops them past a viewer's mark. */
+  statLines?: Record<string, Record<string, number>>;
+  statBouts?: Record<string, import("./sequence/stats").StatBout[]>;
   /**
    * Both optional and both filled in only by the wiki connector's eliminations import, which gets them
    * for free off the episode guide. Never overwritten once set, and absent on every hand-created
@@ -1140,6 +1145,9 @@ export interface LeagueState {
   /** C2 part 4c: a draft's own questions' points as the server graded them on exactly this copy (StateLogic.AnswerLogic.withLines):
    *  never stored; a copy that hides anything drops them. */
   answerLines?: import("./state-logic.js").AnswerLines;
+  /** L3 part 2: a game scored by a sport's stats, each castaway's position group from their roster (StatsLogic.stamp): never
+   *  stored. */
+  statGroups?: Record<string, string>;
   /** Step A12 part 1: a game in stages' stages' tables as the server read them (stages.ts stageWalk, StateLogic.StageLogic.withWalk):
    *  never stored; a copy cut at a mark cuts it too. */
   stageWalk?: import("./state-logic.js").StageWalk;
