@@ -22,7 +22,8 @@ const OPENED = [
       const twin = now(n.replace(/[^|]+$/, "none"));
       const ask = n.split("|")[3];
       if (/^[^|]+\|[^|]+\|(standing-cut|total-race|matchups-race)/.test(n)) return `.${twin[1]}w`;
-      return /wager-(split|rollover)$/.test(ask) ? `${twin[0]}p${twin[2]}` : twin;
+      // C6: a wager with a share or a rollover plays now (its stake a line of its own), so it reads as the game asking nothing.
+      return twin;
     } },
   { why: "a game in stages with a stage of a draft asking its own questions", test: (n) => /^stages\|(draft-questions\|[^|]+|[^|]+\|draft-questions)$/.test(n), to: () => "s--" },
   // A shrinking call that's shared (part 4a): each right call at what it was worth when it was made, then shared.
@@ -42,6 +43,9 @@ const OPENED = [
   { why: "a pick each episode, one or several, scored by what they do", test: (n) => /^pick(-never|-two)?\|moments(-cap|-times)?\|(total|total-teams|total-hc|matchups|matchups-po|matchups-teams|matchups-hc)\|/.test(n),
     to: (was, n) => (n.endsWith("|none") ? (n.includes("|moments-cap|") ? "pp-" : "p--") : ".-w") },
   { why: "two picks each episode scored by what they do, ranked a sport's way", test: (n) => /^pick-two\|moments(-times)?\|roto\|/.test(n), to: () => ".-w" },
+  // C6, money: a stake beside a share or a rollover, and a parlay's staked leg (the stake a line of its own; a parlay multiplies it
+  // with the leg's points): each loses only its problem ("A wager plays alone", "a parlay's legs aren't staked").
+  { why: "a stake beside a share, a rollover or a parlay", test: (n) => /\|(idol-wager-split|idol-wager-rollover|wager-imm)$/.test(n), to: only },
 ];
 
 test("the placement corpus: every verdict as the seven shapes gave it, but the combinations part 4 opens", () => {
@@ -70,8 +74,9 @@ test("the placement corpus: every verdict as the seven shapes gave it, but the c
   // captain on best ball, a market's own problem, a wager with a share, their cuts or a race). C5's 225: a pick each episode, one or
   // two, scored by what they do: 42 play now (asking nothing, ranked by its points or head to head, in teams or with a handicap), 21
   // a captain still refuses (a lineup's), and 162 lose only a problem while their questions (a stage alongside) or a sport's rank
-  // still wait.
-  assert.equal(moved.length, 169 + 770 + 819 + 225);
+  // still wait. C6's 73: a stake beside a share or a rollover, and a parlay's staked leg: 40 play now (games of questions), and 33 lose
+  // only their problem while something else still holds them back (a sport's rank, questions beside a pool).
+  assert.equal(moved.length, 169 + 770 + 819 + 225 + 73);
   // What plays: 933 before part 4, and every opening that plays now (none played before: each had a problem or a wait).
   assert.ok(moved.every((i) => !C.plays(was[i])));
   assert.equal(now.filter(C.plays).length, 933 + moved.filter((i) => C.plays(now[i])).length);
@@ -94,10 +99,10 @@ test("a piece with no place says which, and why", () => {
   one({ ...P["weekly-lineup"], count: { all: true } }, "count", "scoring by moments counts a lineup");
   // C5: a pick each episode scored by what they do plays (it was refused: "picks scored by what they do come with C5").
   assert.equal(G.typeOf({ ...P["survival-pool"], score: { by: "moments", points: null }, rank: { by: "total" } }), "pickem");
-  // C2 part 4c: a draft's own questions play beside it, but not a stake of any of your points (money, C6), beside its cuts or a race,
+  // C2 part 4c: a draft's own questions play beside it, but not a stake of any of your points (a game of questions', C6), beside its cuts or a race,
   // or beside a stock market ranked by its worth.
   assert.deepEqual([G.typeOf({ ...P.outlast, ask: [boot] }), G.typeOf({ ...P["weekly-lineup"], ask: [boot] })], ["classic-draft", "active-roster"]);
-  one({ ...P.outlast, ask: [{ ...boot, wager: "total" }] }, "ask[0].wager", "staking any of your points beside a draft comes with money \\(C6\\)");
+  one({ ...P.outlast, ask: [{ ...boot, wager: "total" }] }, "ask[0].wager", "staking any of your points is a game of questions'");
   one({ ...P.outlast, rank: { by: "standing", cut: [{ at: { every: 1 }, out: 1 }] }, ask: [...G.finaleQuestions({ top3: 1, winner: 3, from: "any" }), boot] }, "ask", "a draft's own questions can't go beside its cuts or a race yet");
   one({ get: { by: "draft", each: 5, order: "blind", own: "shared", budget: { total: 100, floor: 5, ceiling: 25, trade: { fee: 0 } } }, count: { start: 3 }, score: { by: "moments", points: null }, rank: { by: "worth" }, ask: [boot] }, "ask", "a stock market ranks by its worth");
   one({ ...P["survival-pool"], ask: [boot] }, "ask", "a pool's picks are its game");
@@ -108,7 +113,7 @@ test("a piece with no place says which, and why", () => {
   // A game in stages: each stage's own, where it is.
   const staged = { get: { by: "none" }, count: null, score: { by: "stages" }, rank: { by: "total" }, ask: [], overall: { by: "points" },
     stages: [{ id: "a", name: null, game: { ...P.outlast, span: { from: 1, to: 5 } } }, { id: "b", name: null, game: { ...P.outlast, span: { from: 6, to: null }, ask: [{ ...boot, wager: "total" }] } }] };
-  one(staged, "stages[1].game.ask[0].wager", "staking any of your points beside a draft");
+  one(staged, "stages[1].game.ask[0].wager", "staking any of your points is a game of questions'");
   // A piece still to build is its step's, never "no game plays this way".
   assert.deepEqual(waits({ ...P.outlast, closes: "daily" }).map(([at, step]) => `${at}:${step}`), ["closes:sports"]);
 });

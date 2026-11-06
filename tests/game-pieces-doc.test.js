@@ -40,6 +40,8 @@ test("the guide's size limits are the schema's", () => {
     ["Group slots", `1 or ${G.MAX_GROUP_SLOTS}`],
     ["Side bets", `1 to ${G.MAX_BET_POINTS} points`],
     ["A race", `1 to ${n(G.MAX_RACE)} points`],
+    // C6: a bank's start.
+    ["A bank", `1 to ${n(G.MAX_BANK)} to start`],
     // C5: a pick of several each episode, and only these moments.
     ["A pick each episode", `1 (a pool); 1 to ${G.MAX_PICKS} scored by what they do`],
     ["Only these moments", `1 to ${G.MAX_ONLY}`],

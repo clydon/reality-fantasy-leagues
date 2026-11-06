@@ -74,7 +74,7 @@ const GAME_FIELDS = {
   "weekly-bingo": ["linePoints"],
   // A11 part 2b: a game of questions' lives (on which questions), race and cuts, and its end; part 3, co-op and who saves a night;
   // part 4b, head to head's playoffs and fallbacks (a draft's too: DRAFT_FIELDS); part 5, teams of players (a draft's too).
-  questions: ["questions", "lateLockHours", "parlays", "seatPeople", "questionsLives", "questionsLivesOn", "questionsRace", "questionsCut", "rankOneLeft", "rankAllOut", "questionsRank", "questionsSaves", "rankMatchups", "rankTeams", "rankHandicap", "rankTies"],
+  questions: ["questions", "lateLockHours", "parlays", "seatPeople", "questionsLives", "questionsLivesOn", "questionsRace", "questionsCut", "rankOneLeft", "rankAllOut", "questionsRank", "questionsSaves", "rankMatchups", "rankTeams", "rankHandicap", "rankTies", "questionsBank"],
   // A12 part 1: a game in stages' stages and overall.
   // A12 part 2: how a game a format change moves takes the change.
   stages: ["stages", "stageOverall", "formatChanges"],

@@ -226,6 +226,9 @@ const VOCAB = {
   'ask.each': { person: 'now' },
   // A9: how a right answer's points are shared, and what makes them shrink.
   'ask.share': { split: 'now', only: 'now' },
+  // C6, money: what a stake pays when it's right: even money (A8's wager: the stake), or the pool (the couch's own odds, a tote: the
+  // wrong stakes split between the right ones by their stakes). Odds from data only: nobody writes a line.
+  'ask.odds': { even: 'now', pool: 'now' },
   'ask.shrink.per': { episode: 'now', change: 'now' },
   // F3 part 2: what a group question asked each episode does when its groups (a season played in pairs, read from the format's
   // state over time) aren't sure at the lock or as played: void that episode's question, no points either way, or follow the
@@ -348,8 +351,13 @@ const VOCAB = {
 //                         (answer-points.ts, facts.trivia), never the state
 //   wager   (A8) a yes or no, a choice, an over/under, or one person or group: stake up to `wager` of your points on it,
 //           { answer, stake }: right, its points and the stake; wrong, the stake lost. A9: 'total', any of your points (the
-//           game's, as they stand for you when you answer: "bet any of your points, double or nothing")
-//   A9, how its points combine (a wager plays alone: none of these go with one):
+//           game's, as they stand for you when you answer: "bet any of your points, double or nothing"). C6, money: the stake is
+//           a line of its own, never shared, rolled over or shrunk (the question's points do what they'd do without it: a share,
+//           a rollover or a shrink goes with a wager), multiplied by a parlay it's a leg of; beside a bank (score.bank) every
+//           stake is drawn from it, held to what you have
+//   odds    (C6) with a wager, what a right stake pays: even (the default, ODDS: the stake) | pool (the window's wrong stakes split
+//           between its right ones by their stakes, each share to the cent; nobody right, every stake back)
+//   A9, how its points combine (C6: a wager's stake goes beside any of them):
 //   share   split: its points are a pot for each window, split between everyone right (by what each would have earned: a
 //           right pick each), so rarer right calls win more | only: a right answer scores only when nobody else's does
 //   rollover  true (asked each, every N or by phase): a window nobody earns anything on (nobody right, or it didn't count)
@@ -499,6 +507,12 @@ const MAX_PAIRS = 12;
 const WAGERS = ['person', 'group', 'yesNo', 'choice', 'overUnder'];
 /** A9: a wager of any of your points ('total'); how a right answer's points are shared; what a shrink counts. */
 const WAGER_TOTAL = 'total';
+/** C6, money: a stake's odds when the question leaves them out (A8's even money), and a bank's: its most at the start, and whether
+ *  one at zero is out when the spec leaves it out (the lane's call, the user's to overrule: it plays on, its questions' own points
+ *  able to bring it back). */
+const ODDS = 'even';
+const MAX_BANK = 10000;
+const BANK = { out: false };
 const SHARES = ['split', 'only'];
 const SHRINK_PER = ['episode', 'change'];
 /** A9: a parlay's legs (2 to MAX_LEGS, each one answer that's right or wrong) and its most multiplier; most parlays. */
@@ -822,19 +836,55 @@ function answerParts(s) {
   const handicap = handicapParts(s);
   // C5: weeks won, each episode's points what its answers settled by then add (the walk's series), as head to head's.
   const weeks = weekParts(s);
-  if (!race && !cuts.length && lives === null && !matchups && !teams && !handicap && !weeks) return null;
+  // C6: a bank at zero that's out (bankOf's out), whoever's on nothing after a night going out as a life lost does.
+  const bank = bankOf(s);
+  const broke = !!(bank && bank.out);
+  if (!race && !cuts.length && lives === null && !matchups && !teams && !handicap && !weeks && !broke) return null;
   const on = lives === null ? [] : Array.isArray(s.score.livesOn) ? s.score.livesOn.filter((id) => typeof id === 'string') : s.ask.filter(livesQuestion).map((q) => q.id);
   const coop = lives !== null && rank.by === 'coop' ? { saves: own(VOCAB['score.saves'], s.score.saves) ? s.score.saves : COOP.saves } : null;
   return {
     race, cuts, lives, on,
-    oneLeft: !coop && (lives !== null || cuts.length) ? endOf(rank, 'oneLeft', ANSWERS_END) : null,
+    oneLeft: !coop && (lives !== null || cuts.length || broke) ? endOf(rank, 'oneLeft', ANSWERS_END) : null,
     allOut: !coop && lives !== null ? endOf(rank, 'allOut', ANSWERS_END) : null,
     coop,
     matchups,
     teams,
     handicap,
     weeks,
+    // Only when it's on, so every game before C6 reads its parts as it did.
+    ...(broke ? { broke } : {}),
   };
+}
+/**
+ * C6, money: a game of questions' bank (score.bank), read the one way from a whole spec: { start, out } (out's default BANK's), or
+ * null for a game without one. Everyone starts with `start` (a line of their own before the first episode: their points, as the table
+ * shows them, start there), every stake is drawn from it (held to what's left of it, less what's on the line still to settle), and
+ * with `out` whoever's on nothing after a night is out (answerParts' broke).
+ */
+function bankOf(s) {
+  if (!isObj(s) || !isObj(s.score) || s.score.by !== 'answers' || !isObj(s.score.bank) || !(isInt(s.score.bank.start, 1) && s.score.bank.start <= MAX_BANK)) return null;
+  return { start: s.score.bank.start, out: s.score.bank.out === undefined ? BANK.out : s.score.bank.out === true };
+}
+/** C6: whether a question's stake is drawn from your points as they stand (A9's wager of any of them, 'total') or, beside a bank
+ *  (bankOf's), from the bank (any stake): what the server holds a new stake to, less what's on the line still to settle. */
+const drawsOnBank = (q, bank) => isObj(q) && q.wager !== undefined && (q.wager === WAGER_TOTAL || !!bank);
+/**
+ * A bank's problems (C6), as [[at, problem]]: { start: 1 to MAX_BANK, out?: true | false }, on a game with a stake to draw from it
+ * (a wager on one of its questions), ranked by its points (the total, last one standing, a race past the start, cuts, teams, a
+ * handicap). Not head to head or weeks won: they read what each episode adds, and a bank's start is there before any (the first week
+ * would carry it). Not co-op: its lives are the couch's together, with nothing for a bank to rank.
+ */
+function bankProblems(b, s) {
+  if (!isObj(b)) return [['', `A bank is { start: 1 to ${MAX_BANK.toLocaleString('en-US')}, out?: true }`]];
+  const out = [];
+  if (!(isInt(b.start, 1) && b.start <= MAX_BANK)) out.push(['.start', `A bank starts with 1 to ${MAX_BANK.toLocaleString('en-US')}`]);
+  if (b.out !== undefined && typeof b.out !== 'boolean') out.push(['.out', 'A bank at zero is out (true), or plays on (false)']);
+  if (!(Array.isArray(s.ask) && s.ask.some((q) => isObj(q) && q.wager !== undefined))) out.push(['', 'A bank is for stakes: stake on at least one question (a wager)']);
+  const rank = isObj(s.rank) ? s.rank : {};
+  if (rank.by === 'matchups' || rank.by === 'weeks') out.push(['', "Head to head and weeks won read what each episode adds, and a bank's start is there before any: rank by the total"]);
+  if (rank.by === 'coop') out.push(['', "Co-op plays for lives together: a bank has nothing to rank there"]);
+  if (isObj(rank.race) && isInt(rank.race.to, 1) && isInt(b.start, 1) && rank.race.to <= b.start) out.push(['', `A race with a bank runs past its start: to more than ${b.start}`]);
+  return out;
 }
 // A11 part 5: teams of players' defaults when the spec leaves them out (the user's to set: Noticed): drawn at the game's start, a
 // team's points its members' mean (fair however big each team is), someone on no team when they start counting put on the
@@ -1537,7 +1587,8 @@ function askPlace(s) {
  * its cuts or a race: who's out, and where the game ends, decide which moves the league's own writes take (lineups, captains, group
  * slots, waivers, an exclusive draft's castaways back in the pool), and those read the league as it's stored, which holds no answers'
  * points (only the server's copies do). Not beside a stock market ranked by its worth (its rank is cash plus the team, so they'd only
- * break ties); not a stake of any of your points (a draft's points are its team's and its questions' together: money, C6); not the
+ * break ties); not a stake of any of your points (a draft's points are its team's and its questions' together: a bank is a game of
+ * questions', C6); not the
  * answer most of you give to a finale prediction (those answers are the state's, apart from its own questions').
  */
 function draftAskPlace(s) {
@@ -1554,7 +1605,7 @@ function draftAskPlace(s) {
   const finale = off > 0 ? FINALE_IDS : [];
   for (let j = 0; j < own.length; j++) {
     const q = own[j];
-    if (q.wager === WAGER_TOTAL) return [`ask[${off + j}].wager`, "staking any of your points beside a draft comes with money (C6): a draft's points are its team's and its questions' together"];
+    if (q.wager === WAGER_TOTAL) return [`ask[${off + j}].wager`, "staking any of your points is a game of questions' (its points are its answers'): a draft's are its team's and its questions' together"];
     if (isPlayers(q) && finale.includes(q.settle.of)) return [`ask[${off + j}].settle.of`, "what most of you answer to a finale prediction can't settle a draft's own question yet: those answers are kept apart, in the league itself"];
   }
   return null;
@@ -1594,7 +1645,9 @@ function rankPlace(s) {
   }
   if (lines === 'answers' && callsAsk(s.ask)) return by === 'total' ? null : ['rank.by', "the show's calls are counted outside the game: most right wins"];
   if (lines === 'answers') {
-    const knocks = isInt(s.score.lives, 1) || cuts;
+    // C6: a bank at zero that's out knocks players out too.
+    const bank = bankOf(s);
+    const knocks = isInt(s.score.lives, 1) || cuts || !!(bank && bank.out);
     if (by === 'total' || (by === 'standing' && knocks) || (by === 'coop' && isInt(s.score.lives, 1)) || (h2h && !knocks && rank.race === undefined)) return null;
     return ['rank.by', 'a game of questions ranks by its points, last one standing when it knocks players out, co-op on its lives, or head to head (or weeks won) with nobody racing, cut or losing a life'];
   }
@@ -1950,6 +2003,8 @@ function specProblems(spec, ctx, opts) {
   // A9: points per bingo line (1 when it's left out).
   if (score.by === 'lines' && score.points !== undefined && !(isInt(score.points, 1) && score.points <= MAX_QUESTION_POINTS)) add('score.points', `A line is worth 1 to ${MAX_QUESTION_POINTS} points`);
   if (score.by === 'answers' && score.parlays !== undefined) parlayProblems(score.parlays, s).forEach(([at, p]) => add(`score.parlays${at}`, p));
+  // C6: a bank, its stakes drawn from it.
+  if (score.by === 'answers' && score.bank !== undefined) bankProblems(score.bank, s).forEach(([at, p]) => add(`score.bank${at}`, p));
   // A11 part 2b: lives on a game of questions' answers.
   if (score.by === 'answers' && (score.lives !== undefined || score.livesOn !== undefined)) answerLivesProblems(score, s).forEach(([at, p]) => add(`score${at}`, p));
   if ((score.by === 'moments' || score.by === 'stats') && !['draft', 'pick', 'squares'].includes(get.by)) add('score.by', `Scoring ${score.by} needs someone of yours: a draft or a pick`);
@@ -1964,7 +2019,9 @@ function specProblems(spec, ctx, opts) {
   // A11 part 1: last one standing is also a draft's that knocks players out (rank.cut); part 2b, a game of questions' that does
   // (its cuts, or its lives).
   const cutsSaid = Array.isArray(rank.cut) && rank.cut.length > 0;
-  const askKnocks = questionsGame(s) && (score.lives !== undefined || cutsSaid);
+  // C6: a bank at zero that's out knocks players out too.
+  const bankOut = bankOf(s);
+  const askKnocks = questionsGame(s) && (score.lives !== undefined || cutsSaid || !!(bankOut && bankOut.out));
   if (rank.by === 'standing' && !(score.by === 'survive' && score.lives !== undefined) && !(get.by === 'draft' && cutsSaid) && !askKnocks) {
     add('rank.by', "Last one standing is a pool with lives (a wrong pick costs one, and at none you're out), or a draft or a game of questions that knocks players out");
   }
@@ -2187,8 +2244,13 @@ function questionProblems(q, at, s, ids, league) {
   if (q.wager !== undefined) {
     if (!WAGERS.includes(q.answer) || each || (NAMES.includes(q.answer) && q.pick !== 1)) add('wager', 'A wager goes on one answer: a yes or no, a choice, an over/under, or one person or group');
     else if (!(q.wager === WAGER_TOTAL || (isInt(q.wager, 1) && q.wager <= MAX_QUESTION_POINTS))) add('wager', `Stake up to 1 to ${MAX_QUESTION_POINTS} points, or 'total': any of your points`);
-    // A9: a wager plays alone (its stake is the answer's own: nothing to share, roll over or shrink).
-    else if (q.share !== undefined || q.rollover !== undefined || q.shrink !== undefined) add('wager', "A wager plays alone: no share, rollover or shrink with it");
+    // C6: a stake is the answer's own line, beside its points' share, rollover or shrink (the scoring sequence's order: the stake, then
+    // the multipliers, then the share; nothing shares, carries or shrinks a stake).
+  }
+  // C6: what a right stake pays.
+  if (q.odds !== undefined) {
+    if (q.wager === undefined) add('odds', 'Only a stake has odds: give it a wager');
+    else if (!one('ask.odds', q.odds)) add('odds', 'A right stake pays even money, or a share of the pool: even or pool');
   }
   // A9: how its points combine.
   if (q.share !== undefined) {
@@ -2273,10 +2335,11 @@ const KEYS = {
   budget: ['total', 'floor', 'ceiling', 'gone', 'fallback', 'trade', 'left'],
   trade: ['fee'],
   second: ['fallback'],
-  score: { moments: ['by', 'points', 'captain', 'times', 'multiply', 'only', 'hits'], place: ['by', 'reverse', 'multiply'], survive: ['by', 'means', 'points', 'lives', 'buyback', 'mulligans'], lines: ['by', 'points'], answers: ['by', 'parlays', 'lives', 'livesOn', 'saves'], stages: ['by'], stats: ['by', 'points'] },
+  score: { moments: ['by', 'points', 'captain', 'times', 'multiply', 'only', 'hits'], place: ['by', 'reverse', 'multiply'], survive: ['by', 'means', 'points', 'lives', 'buyback', 'mulligans'], lines: ['by', 'points'], answers: ['by', 'parlays', 'lives', 'livesOn', 'saves', 'bank'], stages: ['by'], stats: ['by', 'points'] },
   buyback: ['times', 'before', 'cost'],
   before: ['phase', 'episode'],
   parlay: ['of', 'times'],
+  bank: ['start', 'out'],
   captain: ['times'],
   when: ['times', 'episode', 'from', 'to', 'phase', 'finale'],
   multiply: ['times', 'joined', 'then', 'per'],
@@ -2296,7 +2359,7 @@ const KEYS = {
   windows: ['schedule', 'every', 'swaps'],
   draft: ['at', 'timer', 'away', 'opens'],
   bets: ['points'],
-  question: ['id', 'ask', 'answer', 'points', 'settle', 'asked', 'closes', 'pick', 'from', 'line', 'options', 'each', 'every', 'over', 'within', 'chips', 'pairs', 'wager', 'share', 'rollover', 'shrink', 'fallback', 'beat'],
+  question: ['id', 'ask', 'answer', 'points', 'settle', 'asked', 'closes', 'pick', 'from', 'line', 'options', 'each', 'every', 'over', 'within', 'chips', 'pairs', 'wager', 'odds', 'share', 'rollover', 'shrink', 'fallback', 'beat'],
   settle: ['by', 'take', 'moment', 'role', 'phase', 'stat', 'place', 'fact', 'of', 'tie'],
   beat: ['by', 'none'],
 };
@@ -2327,6 +2390,7 @@ function unknownKeys(s) {
   if (isObj(s.score)) {
     check(s.score, own(KEYS.score, s.score.by), 'score');
     if (Array.isArray(s.score.parlays)) s.score.parlays.forEach((p, i) => check(p, KEYS.parlay, `score.parlays[${i}]`));
+    if (isObj(s.score.bank)) check(s.score.bank, KEYS.bank, 'score.bank');
     if ((s.score.by === 'moments' || s.score.by === 'place') && Array.isArray(s.score.multiply)) s.score.multiply.forEach((m, i) => check(m, KEYS.multiply, `score.multiply[${i}]`));
     if (s.score.by === 'moments') {
       check(s.score.captain, KEYS.captain, 'score.captain');
@@ -2951,9 +3015,9 @@ function parlayProblems(list, s) {
       const single = LEGS.includes(q.answer) && !(NAMES.includes(q.answer) && q.pick !== 1) && q.each === undefined;
       if (!single) out.push([`${at}.of`, `"${q.id}" isn't one answer that's right or wrong: a parlay's legs are one person or group, a yes or no, a choice, a number or an over/under`]);
       // C2 part 4: a leg that rolls over, shrinks or pays only the only one right is multiplied as it stands (its window's worth and
-      // its share, then the parlay: the scoring sequence's order). A stake is C6's (money); a split pot waits on a rule (the plan's
+      // its share, then the parlay: the scoring sequence's order). C6: a staked leg too, its stake's winnings with its points (a
+      // parlay pays only when every leg is right, so a stake it multiplies is one won). A split pot waits on a rule (the plan's
       // Noticed: does a parlay multiply your share, or your call before the split?).
-      else if (q.wager !== undefined) out.push([`${at}.of`, `"${q.id}" has a stake: a parlay's legs aren't staked (a staked parlay comes with money, C6)`]);
       else if (q.share === 'split') out.push([`${at}.of`, `"${q.id}" splits a pot: a parlay on a split pot waits on a rule (does it multiply your share, or your call before the split?)`]);
     }
     const way = (q) => `${q.asked}|${q.every || ''}|${q.over || ''}`;
@@ -3552,7 +3616,7 @@ function stagedWaits(s) {
 
 module.exports = {
   SPEC_VERSION, VOCAB, TAKES, SETTLES_FOR, SEASON_TAKES, EACH_SETTLES_FOR, NAMES, NUMBERS, MAX_WINDOW, LATE_HOURS, windowed,
-  RANKS, MAX_ORDER, MAX_WITHIN, MAX_CHIPS, MAX_PAIRS, WAGERS, WAGER_TOTAL, SHARES, SHRINK_PER, LEGS, MAX_LEGS, MAX_TIMES, MAX_WHEN, WHEN, MAX_JOINED, JOINED, multipliersOf, PRESETS, PRESET_TYPES, TYPE_PRESETS, PRESET_LABELS, NO_WAIVERS, DRAFT_ROOM,
+  RANKS, MAX_ORDER, MAX_WITHIN, MAX_CHIPS, MAX_PAIRS, WAGERS, WAGER_TOTAL, ODDS, MAX_BANK, BANK, bankOf, drawsOnBank, SHARES, SHRINK_PER, LEGS, MAX_LEGS, MAX_TIMES, MAX_WHEN, WHEN, MAX_JOINED, JOINED, multipliersOf, PRESETS, PRESET_TYPES, TYPE_PRESETS, PRESET_LABELS, NO_WAIVERS, DRAFT_ROOM,
   MAX_GROUP_SLOTS, GROUP_SLOTS, covers, MAX_LIVES, MAX_BUYBACKS, MAX_MULLIGANS, MAX_BUYBACK_COST, BUYBACK, SECOND_PICK, NEVER, poolParts,
   DRAFT_ACROSS, DRAW_OWN, spreadBounds, MAX_BUDGET, BUDGET, CAP, AUCTION, MAX_BIDS, ceilingFor, budgetParts, TRADE, MARKET_LEFT,
   marketWaivers, marketOf, waiverOwnOf, waiverMoves, KEEP, keepParts, SEATS, MAX_SEAT_PEOPLE, seatPeople, teamsOf,

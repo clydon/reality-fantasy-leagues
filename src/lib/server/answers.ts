@@ -84,8 +84,10 @@ export interface QuestionView {
    *  key and two faces, answered { key: castawayId }). */
   within: number | null;
   chips: number | null;
-  /** A9: "total", any of your points (`stakeMost` is how many that is for you now). */
+  /** A9: "total", any of your points (`stakeMost` is how many that is for you now; step C6, beside a bank, any stake's most). */
   wager: number | "total" | null;
+  /** Step C6: what a right stake pays: even money, or a share of the pool (the window's wrong stakes); null without a wager. */
+  odds: "even" | "pool" | null;
   pairs: { key: string; faces: [QuestionFace, QuestionFace] }[] | null;
   /** A9: how its points combine. share: split (a pot split between everyone right) or only (only the only right one scores);
    *  rollover: a window nobody earns anything on carries its points into the next (`jackpot`: what's carried into this one, once
@@ -269,13 +271,16 @@ function isClosed(r: Read, q: Question, episode: number): boolean {
 const startedNow = (r: Read) =>
   StateLogic.AnswerLogic.started(r.h.state, { now: r.now.getTime(), airAtOf: (n) => r.schedule?.episodes.find((e) => e.number === n)?.airAt ?? null });
 
+/** The game's bank (step C6: score.bank), or null: beside one, every stake is drawn from it (Spec.drawsOnBank). */
+const bankOf = (state: LeagueState) => Spec.bankOf(StateLogic.gameOf(state));
+
 /** What you've staked on wagers of any of your points (A9) still to settle as far as you've seen, by window ("question|episode"):
- *  points that are already on the line, so a new stake of them can't count them again. */
-function heldStakes(qs: Question[], answers: AnswerRow[], verdicts: Map<string, Verdict>, me: string): Map<string, number> {
+ *  points that are already on the line, so a new stake of them can't count them again. Step C6: beside a bank (`bank`), every stake. */
+function heldStakes(qs: Question[], answers: AnswerRow[], verdicts: Map<string, Verdict>, me: string, bank: { start: number } | null): Map<string, number> {
   const held = new Map<string, number>();
   for (const a of answers) {
     const q = qs.find((x) => x.id === a.question);
-    if (a.playerId !== me || q?.wager !== Spec.WAGER_TOTAL) continue;
+    if (a.playerId !== me || !q || !Spec.drawsOnBank(q, bank)) continue;
     const key = `${q.id}|${q.asked === "once" ? 0 : a.episode}`;
     const stake = (a.answer as { stake?: unknown } | null)?.stake;
     if (verdicts.get(key)?.state !== "waiting" || !Number.isInteger(stake) || (stake as number) <= 0) continue;
@@ -295,7 +300,7 @@ function stakeMost(points: number, held: Map<string, number>, key: string, staki
 async function stakeRoom(r: Read): Promise<{ points: number; held: Map<string, number> }> {
   const all = keepsAnswers(r.h.state) ? r.rows : [];
   const graded = StateLogic.AnswerLogic.grade(r.view, all, r.facts);
-  return { points: yourPoints(r, graded.points), held: heldStakes(questionsOf(r.h.state), all, graded.verdicts, r.h.playerId) };
+  return { points: yourPoints(r, graded.points), held: heldStakes(questionsOf(r.h.state), all, graded.verdicts, r.h.playerId, bankOf(r.h.state)) };
 }
 
 /** Where a game that ends early ended, once it has (step A11 part 2b: a race won, one left, a co-op game's last life, as its walk has
@@ -368,7 +373,8 @@ async function readQuestions(r: Read, episodeIn?: unknown): Promise<GameQuestion
   const out: QuestionView[] = [];
   const points = yourPoints(r, graded.points);
   // A9: your stakes still on the line, and how many of the game's episodes have started (a shrinking call made now).
-  const held = heldStakes(qs, stored, graded.verdicts, me);
+  const bank = bankOf(h.state);
+  const held = heldStakes(qs, stored, graded.verdicts, me, bank);
   const lateNow = startedNow(r);
   // A14 part 2: the windows the bot has made its call on (whether it has, before the lock: nothing of what it is), as the facts read them.
   const made = facts.botCalled ?? null;
@@ -414,13 +420,15 @@ async function readQuestions(r: Read, episodeIn?: unknown): Promise<GameQuestion
       within: q.answer === "order" ? (q.within ?? 0) : null,
       chips: q.answer === "chips" ? (q.chips ?? null) : null,
       wager: q.wager ?? null,
+      odds: q.wager !== undefined ? (q.odds ?? Spec.ODDS) : null,
       share: q.share ?? null,
       rollover: !!q.rollover,
       jackpot: q.rollover && graded.worth.has(`${q.id}|${ep}`) ? (graded.worth.get(`${q.id}|${ep}`) ?? q.points) - q.points : null,
       shrink: q.shrink ?? null,
       // Yours as it was made; none yet, one made now (made once the game's on, it counts as a change).
       worth: q.shrink ? Spec.shrunk(q, q.points, mineRow && "late" in mineRow ? mineRow : { late: lateNow, changes: lateNow > 0 ? 1 : 0 }) : null,
-      stakeMost: q.wager === Spec.WAGER_TOTAL ? stakeMost(points, held, `${q.id}|${ep}`) : null,
+      // Step C6: beside a bank, a stake of up to the wager is held to what's left of it too.
+      stakeMost: Spec.drawsOnBank(q, bank) ? Math.min(stakeMost(points, held, `${q.id}|${ep}`), typeof q.wager === "number" ? q.wager : Infinity) : null,
       pairs: q.answer === "pairs" && !behind ? pairsOf(h.state, q).map((p) => ({ key: p.key, faces: [castFace(view, p.ids[0]), castFace(view, p.ids[1])] })) : null,
       each: q.each ?? null,
       episode: each ? ep : null,
@@ -516,6 +524,15 @@ export async function answerQuestions(user: SessionUser, seasonId: string, leagu
   // `staking`, the stakes this answer sends.
   let room: { points: number; held: Map<string, number> } | null = null;
   const staking = new Map<string, number>();
+  // Step C6: beside a bank every stake is drawn from it; a stake this answer takes back frees what it held, wherever it comes in it.
+  const bank = bankOf(h.state);
+  for (const [key, value] of Object.entries(body.answers)) {
+    const q = qs.find((x) => x.id === key);
+    if (value === null && q && Spec.drawsOnBank(q, bank)) {
+      const at = q.asked === "once" ? 0 : windowFor(r, q, thisWeek);
+      if (at !== null) staking.set(`${q.id}|${at}`, 0);
+    }
+  }
   const writes: { q: Question; ep: number; value: unknown }[] = [];
   for (const [key, value] of Object.entries(body.answers)) {
     const q = qs.find((x) => x.id === key);
@@ -552,7 +569,7 @@ export async function answerQuestions(user: SessionUser, seasonId: string, leagu
               ? new Set(facesFor(view, q, h.playerId, r.facts.formatGroups?.get(ep)).map((f) => f.id))
               : null;
       let most: number | undefined;
-      if (q.wager === Spec.WAGER_TOTAL) {
+      if (Spec.drawsOnBank(q, bank)) {
         room ??= await stakeRoom(r);
         most = stakeMost(room.points, room.held, `${q.id}|${ep}`, staking);
       }
@@ -568,7 +585,7 @@ export async function answerQuestions(user: SessionUser, seasonId: string, leagu
         const inRound = new Set(roundKey(r, ep).map((t) => t.id));
         for (const id of sheet) if (id in before && !(id in given) && inRound.has(id)) given[id] = before[id] as string;
       }
-      if (q.wager === Spec.WAGER_TOTAL) staking.set(`${q.id}|${ep}`, (value as { stake: number }).stake);
+      if (Spec.drawsOnBank(q, bank)) staking.set(`${q.id}|${ep}`, (value as { stake: number }).stake);
     } else if (Spec.isTrivia(q)) {
       // A13: nor taken back once one of its questions has been played in the trivia sheet.
       const before = triviaBefore(r, q, ep);

@@ -18,7 +18,7 @@
 //
 // Pure CommonJS, like ./schema.js.
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
-const { PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, spanEnd, spanEndPhase, playsAs, callsAsk, finaleIn, draftQuestions, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion, matchupParts, questionsGame, poolByPoints, teamParts, handicapParts, stageOn, ON_CHANGE, nextStageAts, fallsTo, stageSide, mainCount, stageAlongside, stageSeason, seasonKey, isPlayers, isBeat, waiverOwnOf, waiverMoves, weekParts, momentsPick } = require('./schema.js');
+const { PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, spanEnd, spanEndPhase, playsAs, callsAsk, finaleIn, draftQuestions, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion, matchupParts, questionsGame, poolByPoints, teamParts, handicapParts, stageOn, ON_CHANGE, nextStageAts, fallsTo, stageSide, mainCount, stageAlongside, stageSeason, seasonKey, isPlayers, isBeat, waiverOwnOf, waiverMoves, weekParts, momentsPick, bankOf } = require('./schema.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const NUMBER_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
@@ -331,7 +331,7 @@ function sentenceParts(s, w) {
   else if (sc.by === 'answers' && callsAsk(s.ask)) put(' Most right by the finale wins.', 'score');
   else if (sc.by === 'lines') put(isNum(sc.points) && sc.points !== 1 ? ` ${cap(pointsWord(sc.points))} a line; most points by the finale wins.` : ' Most lines by the finale wins.', 'score');
   else if (sc.by === 'stats' && isObj(sc.points)) put(` Scored ${statsWords(sc.points, w)}.`, 'score');
-  else if (sc.by === 'answers') answersPhrases(s.ask, parlaysOf(sc), put);
+  else if (sc.by === 'answers') answersPhrases(s.ask, parlaysOf(sc), put, bankOf(s));
   // C2 part 4c: a draft's own questions, their points beside the team's.
   if (by === 'draft' && draftQuestions(s).length) answersPhrases(draftQuestions(s), [], (text) => put(text, 'ask'));
   // A11 part 5: teams of players (head to head between them, when it's that); C2 part 4b: said first when they're knocked out or race.
@@ -366,10 +366,20 @@ function askWhen(ask, w) {
   if (ask.some((q) => q.asked === 'phase')) return 'each phase';
   return ask.length && ask.every((q) => q.closes === 'finale') ? 'the finale' : 'it starts';
 }
+/** C6, money: what every stake of a game's questions is, as its sentence says it: how much (up to a number, any of your points or of
+ *  your bank, `bank`) and what a right one pays (even money: double or nothing; the pool: a share of the wrong stakes). */
+function stakeWords(ask, bank) {
+  const w0 = ask[0].wager;
+  const same = ask.every((q) => q.wager === w0);
+  const stake = same ? (w0 === 'total' ? `any of your ${bank ? 'bank' : 'points'}` : `up to ${pointsWord(w0)}${bank ? ' of your bank' : ''}`) : bank ? 'from your bank' : 'points';
+  const pool = ask.filter((q) => q.odds === 'pool').length;
+  const pays = !pool ? 'double or nothing' : pool === ask.length ? 'right, a share of the wrong stakes; wrong, you lose it' : 'double or nothing, or a share of the wrong stakes';
+  return `Stake ${stake} on ${ask.length === 1 ? 'it' : 'each'}: ${pays}.`;
+}
 /** What a game's questions earn, as its sentence says it (`ask`: a game of questions', or a draft's own, C2 part 4c), each phrase
  *  through `put`: their points, A9's ways of combining as far as they're all of them's, the bot's call, a rollover, a shrinking call
- *  and the parlays. */
-function answersPhrases(ask, parlays, put) {
+ *  and the parlays. C6: every stake (stakeWords), said after a share it goes beside, and a bank (`bank`: bankOf's, or null). */
+function answersPhrases(ask, parlays, put, bank) {
   const pts = [...new Set(ask.map((q) => q.points))];
   const all = (f) => ask.length > 0 && ask.every(f);
   const some = (f) => ask.some(f);
@@ -383,12 +393,14 @@ function answersPhrases(ask, parlays, put) {
   // C2 part 4: a pot whose calls shrink is each one's worth, split: at most its points.
   else if (all((q) => q.share === 'split')) said = some((q) => isObj(q.shrink)) ? ` ${each} at most, split between everyone right.` : ` ${each} each time, split between everyone right.`;
   else if (all((q) => q.share === 'only')) said = ` ${each} for a right answer nobody else has.`;
-  else if (all((q) => q.wager !== undefined)) {
-    const w0 = ask[0].wager;
-    const stake = all((q) => q.wager === w0) ? (w0 === 'total' ? 'any of your points' : `up to ${pointsWord(w0)}`) : 'points';
-    said = `${pts.length === 1 && pts[0] === 0 ? '' : said} Stake ${stake} on ${ask.length === 1 ? 'it' : 'each'}: double or nothing.`;
-  }
+  // A wager's stake, when nothing above said how the points go (C6: else after it, below).
+  const staked = all((q) => q.wager !== undefined);
+  const stakeSaid = staked && said === ` ${each} for each right answer.`;
+  if (stakeSaid) said = `${pts.length === 1 && pts[0] === 0 ? '' : said} ${stakeWords(ask, bank)}`;
   put(said, 'score');
+  // C6: a stake beside a share, its own after it; a bank everyone starts with.
+  if (staked && !stakeSaid) put(` ${stakeWords(ask, bank)}`, 'score');
+  if (bank) put(` Everyone starts with a bank of ${pointsWord(bank.start)}.${bank.out ? " Run out and you're out." : ''}`, 'score');
   // A14 part 2: some of them played against the bot (or all, sharing their points): the bot makes its call too.
   if (some(isBeat) && !all((q) => isBeat(q) && q.share === undefined)) {
     put(all(isBeat) ? " Only when the bot's call isn't right." : ` On ${listOf(ask.filter(isBeat).map(questionPhrase))}, only when the bot's call isn't right.`, 'score');
@@ -408,7 +420,7 @@ function whenWords(q, w, each) {
   return q.closes === 'finale' ? 'Before the finale: ' : each ? 'Before it starts: ' : '';
 }
 /** One question as How it works says it: when it's asked, what it is, and what a right answer earns. */
-function questionRule(q, w, each, ask) {
+function questionRule(q, w, each, ask, bank) {
   const when = whenWords(q, w, each);
   const pts = typeof q.points === 'number' ? q.points : null;
   let earn = pts === null ? '' : ` ${cap(pointsWord(pts))} if you're right.`;
@@ -438,11 +450,18 @@ function questionRule(q, w, each, ask) {
   }
   const line = q.answer === 'overUnder' && typeof q.line === 'number' ? ` The line is ${q.line}.` : '';
   const from = q.answer === 'person' && q.from === 'team' ? ' From your own team.' : '';
-  // A wager (A8): its stake, double or nothing; A9's, any of your points.
-  const wager = Number.isInteger(q.wager)
-    ? ` Stake up to ${pointsWord(q.wager)} on it: right, you win them too; wrong, you lose them.`
-    : q.wager === 'total' ? ' Stake any of your points on it: right, you win them too; wrong, you lose them.' : '';
-  return `${when}${askOf(q)}${line}${from}${earn}${wager}${combineWords(q, w)}`;
+  // A wager (A8): its stake, double or nothing; A9's, any of your points. C6: of your bank, at the pool's odds, and apart from a share,
+  // a rollover or a shrink.
+  let wager = '';
+  if (q.wager !== undefined) {
+    const what = Number.isInteger(q.wager) ? `up to ${pointsWord(q.wager)}${bank ? ' of your bank' : ''}` : `any of your ${bank ? 'bank' : 'points'}`;
+    const pays = q.odds === 'pool'
+      ? " right, you take a share of the wrong stakes, by how much you staked; wrong, you lose it. If nobody's right, every stake comes back."
+      : ' right, you win them too; wrong, you lose them.';
+    wager = ` Stake ${what} on it:${pays}`;
+  }
+  const apart = q.wager !== undefined && (q.share !== undefined || q.rollover || isObj(q.shrink)) ? " Your stake stays yours: it isn't shared, carried over or shrunk." : '';
+  return `${when}${askOf(q)}${line}${from}${earn}${wager}${combineWords(q, w)}${apart}`;
 }
 /** A14 part 1: what a question the players settle earns, as How it works says it: the answer most (or fewest) of you give, to it or
  *  to the question it's about (`of`, among the game's `ask`), and when it doesn't count. */
@@ -511,7 +530,7 @@ function knockoutPhrases(s, w) {
   if (a && a.lives) out.push(`${cap(say(a.lives))} ${a.lives === 1 ? 'life' : 'lives'}: a wrong answer${livesWhich(s, a)}, or none, costs one.`);
   out.push(...k.cuts.map((c) => cutPhrase(c, w, teams)));
   if (k.race) out.push(`${teams ? 'The first team' : 'First'} to ${pointsWord(k.race.to)} wins: the game ends there.`);
-  else if (k.cuts.length || (a && a.lives)) out.push(teams ? 'Last team standing wins.' : 'Last one standing wins.');
+  else if (k.cuts.length || (a && a.lives) || (a && a.broke && s.rank.by === 'standing')) out.push(teams ? 'Last team standing wins.' : 'Last one standing wins.');
   // A11 part 2b: a game of questions' end, where it isn't the default.
   if (a && a.oneLeft === 'plays') out.push('With one of you left it plays on.');
   if (a && a.allOut === 'share') out.push('If everyone left goes out together, they share the win.');
@@ -576,15 +595,18 @@ function answerKnockoutRules(s, w) {
     if (c.quiet === 'skip') rule += ` ${cap(article(w.part))} ${w.part} nobody goes home has no cut.`;
     out.push(rule);
   }
-  if (a.lives || a.cuts.length) {
+  // C6: a bank at zero that's out (ranked by its points, or last one standing).
+  const standing = !!(a.lives || a.cuts.length || (a.broke && s.rank.by === 'standing'));
+  if (a.broke && !standing) out.push(`Once you're out you answer nothing more: your bank stays empty. ${a.oneLeft === 'plays' ? 'With one of you left it plays on to the end.' : "Once one of you is left, or none, it's over."}`);
+  if (standing) {
     out.push("Once you're out you answer nothing more and score nothing more: your points stay where they were.");
     out.push(`Last one standing wins: whoever's still in by their points, then whoever went out last. ${a.oneLeft === 'plays' ? 'With one of you left it plays on to the end, their points still growing.' : "Once one of you is left, or none, it's over."}`);
     if (a.allOut === 'share') out.push(`If everyone still in goes out the same ${w.part}, you're all out and share the win, whatever your points.`);
     if (a.allOut === 'back') out.push(`If everyone still in goes out the same ${w.part}, you're all back in for the next, with the lives you had.`);
   }
   if (a.race) out.push(`First to ${pointsWord(a.race.to)} wins: the game ends after that ${w.part}, and the most points then win (a tie shares it). If nobody gets there, the most points at the end win.`);
-  else if (!a.lives && !a.cuts.length) out.push('Most points wins.');
-  out.push(`A life, a cut or a finish waits for ${article(w.part)} ${w.part}'s answers to be settled.`);
+  else if (!standing) out.push('Most points wins.');
+  out.push(`A life, a cut${a.broke ? ', running out' : ''} or a finish waits for ${article(w.part)} ${w.part}'s answers to be settled.`);
   return out;
 }
 /** How a draft's race and cuts work (A11 part 1), a rule a line, as the engine plays them (KnockoutLogic). */
@@ -1054,13 +1076,16 @@ function rulesOf(s, w) {
   if (s.score.by === 'answers' && !callsAsk(s.ask)) {
     const each = s.ask.some((q) => q.asked !== 'once');
     rules.push(`${teamParts(s) ? 'No draft.' : 'No draft, no team.'} Answer ${say(s.ask.length)} ${s.ask.length === 1 ? 'question' : 'questions'}${each ? '' : ' before it starts'}:`);
-    for (const q of s.ask) rules.push(questionRule(q, w, each, s.ask));
+    const bank = bankOf(s);
+    for (const q of s.ask) rules.push(questionRule(q, w, each, s.ask, bank));
     // A9's parlays.
     for (const p of parlaysOf(s.score)) {
       const legs = p.of.map((id) => s.ask.find((q) => q.id === id)).filter(Boolean);
       const times = { 2: 'double', 3: 'triple', 4: 'quadruple' }[p.times] || `${p.times} times`;
-      rules.push(`A parlay: right on ${listOf(legs.map((q) => `"${q.ask}"`))} together, and your points on them are ${times}.`);
+      rules.push(`A parlay: right on ${listOf(legs.map((q) => `"${q.ask}"`))} together, and your points on them are ${times}.${legs.some((q) => q.wager !== undefined) ? ' A stake you win on them is too.' : ''}`);
     }
+    // C6: a bank, every stake drawn from it.
+    if (bank) rules.push(`Everyone starts with a bank of ${pointsWord(bank.start)}, and every stake comes out of it: you can't stake more than you have left, less what's still riding on answers to be settled.${bank.out ? " Run out and you're out." : ' Run out and you can still answer, with nothing to stake.'}`);
     rules.push(each ? `Change an answer until its ${w.part} starts. Nobody sees them until then.` : 'Change your answers until it starts. Nobody sees them until then.');
     // A late lock (A7).
     if (isObj(s.extras.lateLock)) rules.push(`Watching late? Answer before you watch: until you've seen it, up to ${s.extras.lateLock.hours} hours after it airs.`);
@@ -1073,7 +1098,7 @@ function rulesOf(s, w) {
     if (asks && asks.matchups) rules.push(...matchupRules(s, w));
     // C5: weeks won.
     else if (asks && asks.weeks) rules.push(...weekRules(s, w));
-    else if (asks && (asks.race || asks.cuts.length || asks.lives !== null)) rules.push(...answerKnockoutRules(s, w));
+    else if (asks && (asks.race || asks.cuts.length || asks.lives !== null || asks.broke)) rules.push(...answerKnockoutRules(s, w));
     else if (!(asks && asks.teams)) rules.push('Most points wins.');
   }
   // A11 part 4: a draft's head to head, and a game of questions' (part 4b), say themselves (matchupRules); a sports spec's, which

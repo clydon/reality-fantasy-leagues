@@ -52,10 +52,10 @@ test("A9's ways of combining: their shape, and where each goes", () => {
   assert.deepEqual(at([{ ...WIN, shrink: { points: 1, per: "episode", by: 2 } }], CTX), ["ask[0].shrink.by"]);
   // C2 part 4: a shrinking call that's shared plays (tests/shared-shrink.test.js).
   assert.deepEqual(at([{ ...WIN, share: "only" }], CTX), [], "a shrinking call that's shared");
-  // A wager plays alone; 'total' is any of your points.
+  // 'total' is any of your points. C6: a wager goes beside a share or a rollover (its stake a line of its own: tests/money.test.js).
   assert.deepEqual(at([{ ...ALL_IN, wager: "all" }], CTX), ["ask[0].wager"]);
-  assert.deepEqual(at([{ ...ALL_IN, share: "split" }], CTX), ["ask[0].wager"]);
-  assert.deepEqual(at([{ ...ALL_IN, rollover: true }], CTX), ["ask[0].wager"]);
+  assert.deepEqual(at([{ ...ALL_IN, share: "split" }], CTX), []);
+  assert.deepEqual(at([{ ...ALL_IN, rollover: true }], CTX), []);
   // Parlays: 2 to 4 plain questions, asked the same way, each in one; more than 1 times, up to 10.
   const parlay = (parlays, ask = [OUT, IMM]) => at(ask, CTX, { score: { by: "answers", parlays } });
   assert.deepEqual(parlay([{ of: ["out"], times: 3 }]), ["score.parlays[0].of"]);

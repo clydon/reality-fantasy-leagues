@@ -7446,6 +7446,8 @@ class AnswerLogic {
   //   across the seats (windowPoints: a pot split, only the only one right, a shrinking call, the bot's call), a rollover's worth its
   //   points with what the windows before it carried (Seq.jackpot, Seq.carry); 3, the parlays (Seq.multiply on each leg's line);
   //   then each seat's sum, window by window (Seq.add).
+  //   C6, money: a wager's stake a line of its own beside its points (Spec.wagerParts: even money or the pool, never shared, carried
+  //   or shrunk), multiplied by a parlay it's a leg of; a bank's start every seat's line before the first (Spec.bankOf).
   static grade(state, answers, facts){
     const f = facts || AnswerLogic.facts(state);
     const qs = new Map(AnswerLogic.questions(state).filter(q => !Spec.isCalls(q)).map(q => [q.id, q]));
@@ -7511,14 +7513,18 @@ class AnswerLogic {
         const w = Seq.jackpot(q.points, carry);
         worth.set(key, w);
         if(v.state === 'waiting') break;
-        const got = Spec.windowPoints(q, v, groups.has(key) ? groups.get(key).list : [], f, { worth: w, ...botOf(key) });
+        const list = groups.has(key) ? groups.get(key).list : [];
+        // C6: a wager's stakes beside its points, carried on its points alone (a stake won is no claim on the jackpot).
+        const parts = q.wager ? Spec.wagerParts(q, v, list, f, { worth: w, ...botOf(key) }) : null;
+        const got = parts ? Seq.plus(parts.points, parts.stakes) : Spec.windowPoints(q, v, list, f, { worth: w, ...botOf(key) });
         if(groups.has(key)) earned.set(key, got);
-        carry = Seq.carry(w, got);
+        carry = Seq.carry(w, parts ? parts.points : got);
       }
     });
     // A9: the parlays, each window their questions share.
     // C3: each a factor of the one multiplier piece, on 'legs' (Spec.multipliersOf), its times when every leg is right.
-    Spec.multipliersOf(gameOf(state)).filter(f => f.on === 'legs').forEach(p => {
+    const game = gameOf(state);
+    Spec.multipliersOf(game).filter(f => f.on === 'legs').forEach(p => {
       const legs = p.of.map(id => qs.get(id));
       if(legs.some(q => !q)) return;
       const eps = new Set([...groups.values()].filter(g => g.q === legs[0]).map(g => g.ep));
@@ -7533,6 +7539,9 @@ class AnswerLogic {
       });
     });
     const points = new Map();
+    // C6: a bank's start (score.bank), every seat's line before the first episode, so the table, the walk and a stake read it.
+    const bank = Spec.bankOf(game);
+    if(bank) seats.forEach(id => points.set(id, bank.start));
     // To the cent: a split pot's shares are.
     earned.forEach(m => m.forEach((n, pid) => points.set(pid, Seq.add(points.get(pid) || 0, n))));
     return { points, verdicts, earned, worth };
@@ -7637,7 +7646,8 @@ class AnswerLogic {
         // (A question the players settle waits only for its episode, its answers or not: none passed here.)
         let waiting = lifeQs.some(q => Spec.verdictOf(q, k, fk).state === 'waiting');
         if((parts.matchups || parts.weeks) && !waiting) waiting = aboutOne.some(q => Spec.verdictOf(q, k, fk).state === 'waiting');
-        if(waiting || ((parts.race || parts.cuts.length || parts.matchups || parts.weeks) && EpisodeLogic.resultsStage(ep) === 'early')){ walkedAll = false; break; }
+        // C6: a bank that runs out waits too (a stake lost on early results isn't a bank emptied yet).
+        if(waiting || ((parts.race || parts.cuts.length || parts.matchups || parts.weeks || parts.broke) && EpisodeLogic.resultsStage(ep) === 'early')){ walkedAll = false; break; }
       }
       nights.push({
         number: k,
@@ -7696,6 +7706,8 @@ class AnswerLogic {
         oneLeft: parts.oneLeft,
         phaseStarts: state.phaseStarts,
         lives: parts.lives ? { of: parts.lives, allOut: parts.allOut } : null,
+        // C6: a bank at zero that's out.
+        broke: parts.broke,
       });
     const series = new Map(run.walked.map(x => [x.number, x.totals]));
     const out = coop ? new Map() : run.out;

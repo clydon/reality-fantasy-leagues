@@ -127,7 +127,10 @@ each episode a round, wherever head to head plays; the user's third game whole, 
 C7), is built: **C5 is done**. Then C4b, a shared game's two holders per holder (2026-11-06, the user's rule: every holder is
 owed a replacement for someone gone home, every exit a game had already played as it played out, by a cutover each existing game
 carries, `settings.perHolderFrom`, migration 0207), is built: **C4b is done**, to merge with C3 to C5 before Survivor 51's Episode 8
-results (Wed Nov 11). C6 (money) is next, then C7, A14's later parts, and a stop before A15. The live-sports plan is
+results (Wed Nov 11). C6, money, is under way, in parts: part 1, a bank and stakes that combine (2026-11-06: a bank everyone
+starts with, every stake drawn from it, one that can run out; a stake's odds, even money or the pool's; a stake as a line of its own
+beside a share, a rollover, a shrink or a parlay; tracker row p24), is built. Part 2 (tickets a player builds) is next, then C7, A14's
+later parts, and a stop before A15. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5, at
 high since 2026-11-05; C2 at xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: folded in here as track L; its file keeps the details)
 and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track S here).
@@ -6302,6 +6305,75 @@ A14 part 2 and before A14's other parts; every part keeps every golden and blind
     differently: every read kept).
 - **C6. Money.** A starting balance, stakes drawn from it, payouts (even money or odds), a bank that can run out; staked
   parlays and tickets a player builds, the payout growing with the legs. Game 1's bank and wagers.
+
+  **As built (C6 part 1, a bank and stakes that combine, 2026-11-06; not merged).** One session, at high.
+  - **The pieces** (schema.js): **a bank**, `score.bank: { start: 1 to MAX_BANK (10,000), out?: true | false }`, a game of
+    questions' (KEYS `score.answers` `bank`, KEYS.bank; `bankOf` reads it, BANK's default `out: false`): everyone starts with
+    `start`, every stake on its questions is drawn from it (a fixed stake too, held to what's left), and with `out` whoever's on
+    nothing after a night is out. **A stake's odds**, `ask[].odds: 'even' | 'pool'` (VOCAB `ask.odds`; ODDS 'even' the default, A8's):
+    even money, or the pool (the window's wrong stakes split between the right ones by their stakes, each share to the cent; nobody
+    right, every stake back). **A stake beside anything**: "A wager plays alone" and "a parlay's legs aren't staked" are lifted; a
+    wager goes with a share, a rollover or a shrink, and a parlay multiplies a staked leg. `drawsOnBank(q, bank)`: whether a stake
+    is held to your points or bank as they stand (a wager of any of them, or any stake beside a bank). `answerParts` `broke` (only
+    when it's on, so every game before reads its parts as it did). Refused, each with why: a bank with no stake ("A bank is for
+    stakes"), head to head or weeks won ("they read what each episode adds, and a bank's start is there before any"), co-op ("a bank
+    has nothing to rank there"), a race to the bank's start or less; odds without a stake; a bank beside a draft (an unknown key: a
+    draft's points are its team's); a stake against the bot (as before). The draft's own refusal reworded: "staking any of your
+    points is a game of questions' (its points are its answers')".
+  - **The decisions (the lane's defaults, the user's to overrule: Noticed):** the user's first game's three open questions, as
+    settings: "more wagers multiply" is a ticket a player builds (part 2; the spec's own parlays take a staked leg now), even money
+    by default (the pool's odds a setting; odds a person or research writes aren't built: data-settled rules only), and a bank at
+    zero plays on by default (`out: true` knocks you out). What the order means for a stake: the stake first, a line of its own the
+    share, the rollover and the shrink never touch (a rollover carries on the points alone: a stake won is no claim on the
+    jackpot), then the multipliers (a parlay multiplies a staked leg's stake won with its points: it pays only when every leg is
+    right), then the share (the points').
+  - **Today's specs as uses of them:** nothing a stored spec says changes. A wager alone at even money is graded exactly as A8 had it
+    (`windowPoints` hands it to `pointsFor` unchanged); every other read is as before (no stored spec has a bank, odds, or a stake
+    beside a share, a rollover, a shrink or a parlay: each was refused).
+  - **Their place in the sequence:** step 2, a stake's line (`Seq.stakes(bets, odds)`, beside the points: `answers.js` `stakeLines`,
+    `wagerParts`, `Seq.plus`), and a bank's start, every seat's line before the first episode (`AnswerLogic.grade`); step 3, a parlay
+    on a staked leg (the grade's, unchanged); step 4, the points' share (the stake isn't in it); step 5, a bank that runs out
+    (`Seq.knockouts`' `broke`: after a night's lives, before its cuts, whoever's in on 0 or less goes out; one left ends it, as with
+    lives or cuts). The placement corpus: 73 verdicts move (40 play now, games of questions; 33 lose only their problem while something
+    else holds them back: a sport's rank, questions beside a pool), tests/placement.test.js's OPENED.
+  - **The engine** (state-logic.js; the functions changed, for the own-pace merge): `AnswerLogic.grade` (a bank's start for each seat;
+    a rollover's wager carried on its points alone) and `AnswerLogic.walk` (hands `Seq.knockouts` its `broke`). Elsewhere:
+    sequence/index.js (`stakes`, `plus`, `knockouts`' `broke`), schema.js, answers.js (`stakeLines`, `wagerParts`, `windowPoints`,
+    `answerProblem`'s most for a fixed stake), settings.js (`questionsBank` both ways; `questionsRank: 'standing'` where only a bank
+    that's out knocks players out), describe.js (`stakeWords`, `answersPhrases`, `questionRule`, the knockout words), answers.ts (a
+    stake held to what's left of the bank: `heldStakes`, `stakeMost` for any stake beside one; the read's `odds`), index.d.ts.
+  - **Fallbacks for a format change nobody announced:** a stake is your own call on a question, so a question that doesn't count
+    (nobody went home, a void pick, a group that didn't play as offered, a question a change voids) hands every stake back, and so
+    does the pool when nobody's right; a bank that runs out is out only on a night with results. Nothing reads a group.
+  - **What the league's writes read:** the stakes live in `game_answers` with their answers (`{ answer, stake }`), private until the
+    lock as every answer is; the server grades them (`answer-points.ts`, unchanged: the grade carries the bank and the stakes) and
+    hands the walk its totals. The bank is the spec's (`settings.questionsBank`, beside `settings.game`): nothing private.
+  - **Words** (`describe.js`): "Stake any of your bank on each: right, a share of the wrong stakes; wrong, you lose it. Everyone starts
+    with a bank of 500 points. Run out and you're out." p24: "10 points each time, split between everyone right. Stake up to 5 points
+    on it: double or nothing." How it works says each stake's odds ("If nobody's right, every stake comes back."), that a stake stays
+    yours beside a share, a rollover or a shrink, that a parlay doubles a stake won too, and the bank ("you can't stake more than you
+    have left, less what's still riding on answers to be settled"). A wager alone reads as it always did.
+  - **The tracker** (`node scripts/engine-capabilities.js`): p24 (a stake beside a split pot) turns ✅: 214 ✅ · 48 ⏳ (C6 off the
+    waiting list); p10's note says its bank is built and its sheet is C7's (its "more wagers multiply", part 2).
+  - **Proof.** Unit tests: `tests/money.test.js` (seven tests, every number by hand: the shape and refusals, settings both ways, the
+    words, the sequence's stakes, the grading of p24, the pool from a bank, a rollover carried on its points alone and a staked
+    parlay, a stake held to the bank, a bank that runs out walked to its last one standing); the old refusals' tests updated
+    (answers-scoring, parlay-legs, shared-shrink, placement): 1,560 pass. The shapes fixture: four new shapes (q-wager-pot,
+    q-wager-parlay, q-bank-pool, q-bank-out), 72 new reads from this engine, proven by hand (the fixture's comment); `--diff
+    --ref=HEAD` shows only them: the 2,250 before byte-identical. `engine-capabilities.js --check`: up to date. `npx tsc --noEmit -p .`
+    clean. Through the API (a zt- fixture): `check-money.js` (new, on new-fixture's couch: the user's first game with a fixed sheet, a
+    bank of 100, the pool's odds, a fixed stake held to what's left, three stakes in one go, Episode 6 graded by hand, the Games
+    tab), ALL PASS; `check-questions-scoring.js`, `check-answer-knockouts.js`, `check-questions-more.js`, `check-questions.js
+    --api` and `check-engine-lab.js --api`, all pass. Not run: `check-new-start-game.js` (no preset's words changed).
+  - **The code review** (`/code-review` at high, before the commit): nine findings. Taken: a bank that runs out didn't wait for an
+    episode's final results (someone could go out on early results: it waits now, as a race and cuts do); the pool's shares each
+    rounded to the cent didn't add up to the pot (now the largest remainder: 20 three ways is 6.67, 6.67, 6.66); a bank that's out,
+    ranked by the total, didn't say it ends at one left (now said); a stake taken back in the same request still held its amount
+    (now freed, wherever it comes in the request: a wager of any of your points had the same gap, closed with it); BANK and ODDS
+    defaults not read (now read where the defaults apply); one reader for a bank (`bankOf`) everywhere, hoisted in the answers route
+    and the grade; the new exports' type declarations. Kept, saying so: a wager alone at even money keeps A8's grading path
+    (`pointsFor`), beside the new one for everything else (routing it through `wagerParts` grades the same numbers, its lines in
+    another order: every read kept).
 - **C7. A new card each week.** One generator for each episode's set of questions or objectives: from the show's own data (as
   Weekly Calls rotate the show's moments) or written by the bot and checked (as trivia and bingo squares are), data-settled
   only. Calls, trivia, bingo squares, a weekly prediction sheet and weekly objectives all come from it. Games 1 and 3.
@@ -7253,6 +7325,29 @@ From R1 part 2 (2026-10-30):
   (R3, or whoever next works in Game settings.)
 - **For the hosting notes, at the merge:** `/api/me` (classic's sign-in and every classic load) now sends each league's settings, not its
   whole state (20-40 KB each): less Neon transfer than before. (The main folder: docs/HOSTING.md, with the merge.)
+
+From C6 part 1 (2026-11-06):
+- **The user's first game's open questions, as settings with the lane's defaults** (the user's to overrule): "more wagers multiply"
+  is a ticket a player builds from the sheet's lines, its payout growing with its legs (part 2), not the number of wagers placed
+  multiplying the week (that reading would be a multiplier on a count of your stakes: say so and it's a condition of C3's one
+  multiplier piece); a stake pays even money unless the spec says the pool's odds; a bank at zero plays on (`out: true` for out).
+  Recommended: as built. (The user, with the merge's look.)
+- **What the order means for a stake (the lane's call):** a stake is a line of its own, never shared, carried or shrunk; a parlay
+  multiplies a staked leg's stake won with its points. The other ways: a stake into a split pot (that's the pool's odds, built as its
+  own setting), or a parlay on the points alone. Recommended: as built. (The user, with the merge's look.)
+- **Odds written by someone** (a sportsbook's lines, research's "favourite" and "long shot", the field's size: who goes home among 12
+  paying 11 to 1) aren't built: the pool's odds are the couch's own, the only data-settled ones today. Field odds would be a small
+  setting on the stake (data says who's in at the lock); research's would be a prompt change (the 8:30 PM rule: production's research,
+  with the user's OK). (A later C step, once asked for.)
+- **A stake checked against the bank when it's made**: a corrected result that lowers your bank after you staked leaves the stake
+  standing (as a wager of any of your points always has), so a bank can go below zero; one that's out goes out at zero or less.
+  (Recommended: as is; whoever next touches the answers route.)
+- **"You have no points to stake yet: stake 0"** is the refusal's words beside a bank too (it means the bank's empty, or all of it is
+  riding on other answers). (U1, the question's screen, with its words.)
+- **The screens don't know a bank, odds or a stake beside a share** (the question's read sends `odds` and `stakeMost`; nothing shows
+  them yet). (U1.)
+- **No prompt changed and no migration** in this part; nothing for the hosting notes (a bank is a spec field, the stakes were
+  already in `game_answers`).
 
 From C4b (2026-11-06):
 - **The merge's timing sets Survivor 51's cutover.** Migration 0207 works the cutover out from the results in the database when it

@@ -62,7 +62,7 @@
 //   factsThrough(facts, k)        the facts as they stood once episode k was in (A11 part 2b's walk)
 //   answerProblem(q, value, faces) why an answer can't be given (null: it can), faces: who (or which groups) it can name
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
-const { YES_NO, NAMES, NUMBERS, optionRange, isBeat } = require('./schema.js');
+const { YES_NO, NAMES, NUMBERS, optionRange, isBeat, ODDS } = require('./schema.js');
 // C2 part 3 (docs/PLAN-start-a-game-gpt.md track C): a window's points are the scoring sequence's lines and combines; the grading
 // (which answers are right, and how many right ones each has) is here.
 const Seq = require('../sequence/index.js');
@@ -837,7 +837,8 @@ function shrunk(q, worth, a) {
  * What each answer to one question earns on one window, with A9's ways of combining: `o.worth`, the window's points (a rollover's
  * jackpot added; its points by default); a share (split: the worth is a pot split between everyone right, by what each would have
  * earned; only: a right answer scores only when nobody else's does); a shrinking call (each answer's `late` or `changes`). Answers:
- * [{ playerId, answer, late?, changes? }]. A wager plays alone, as A8 has it. A question with none of these earns exactly
+ * [{ playerId, answer, late?, changes? }]. C6: a wager's stake is a line beside the question's points, which combine as they would
+ * without it (wagerParts); a wager on its own, at even money, is A8's (pointsFor, as it always was). A question with none of these earns exactly
  * pointsFor's. C2 part 3: the grading here (each answer's right ones, a unit each: `units`; which right pick who named), the lines
  * and their combining the scoring sequence's (Seq.windowLines at each answer's worth, Seq.split, Seq.only, Seq.onlyEach). C2 part 4:
  * a shrinking call that's shared, each answer's units at what its call is worth, then the share (a split, each divided between
@@ -847,7 +848,14 @@ function windowPoints(q, v, answers, facts, o) {
   const worth = o && isNum(o.worth) ? o.worth : q.points;
   // A14 part 2: the bot's call on the window, for a question played against it.
   const call = beatCall(q, v, o);
-  if (q.wager || (call === undefined && !q.share && !q.shrink && worth === q.points)) return pointsFor(q, v, answers, facts);
+  if (q.wager) {
+    // A8's wager, alone at even money: pointsFor, every read as it was. C6: anything beside it, its points and its stakes apart.
+    // (Kept apart on purpose: routing it through wagerParts grades the same numbers, its lines in another order.)
+    if (call === undefined && !q.share && !q.shrink && !q.rollover && (q.odds || ODDS) === 'even' && worth === q.points) return pointsFor(q, v, answers, facts);
+    const parts = wagerParts(q, v, answers, facts, o);
+    return Seq.plus(parts.points, parts.stakes);
+  }
+  if (call === undefined && !q.share && !q.shrink && worth === q.points) return pointsFor(q, v, answers, facts);
   // Each answer's right ones, at a point each (every kind's points are its points times these); against the bot, those it didn't get.
   const units = call === undefined ? pointsFor({ ...q, points: 1 }, v, answers, facts) : beatUnits(q, v, answers, facts, call);
   const mine = new Map(answers.map((a) => [a.playerId, a]));
@@ -876,6 +884,38 @@ function windowPoints(q, v, answers, facts, o) {
 }
 
 /**
+ * C6, money: a wagered question's stakes in one window, as lines apart from its points (Seq.stakes: even money, or the pool). Each
+ * answer's stake (held to the wager: betOf) on its answer, right or wrong; a stake of 0, or a void pick (A6 on F3: its group didn't
+ * play as offered), isn't one. Nothing either way until it's settled, or when nothing's right (off, or right on the line): every
+ * stake comes back, A8's fallback, and a voided question's (a format change nobody announced) the same.
+ */
+function stakeLines(q, v, answers, facts) {
+  const base = unwagered(q);
+  if (!v || v.state !== 'known' || !rightAnswers(base, v, facts)) return new Map();
+  const bets = [];
+  for (const a of answers) {
+    const bet = betOf(q, a.answer);
+    if (!bet || !(bet.stake > 0) || voided(base, v, bet.answer)) continue;
+    bets.push({ playerId: a.playerId, stake: bet.stake, right: !!isRight(base, v, { playerId: a.playerId, answer: bet.answer }, [], facts) });
+  }
+  return Seq.stakes(bets, q.odds || ODDS);
+}
+/**
+ * C6: a wagered question's lines in one window, its points and its stakes apart: the points as the question earns them without its
+ * stake (each answer's call, at the window's worth, shared, rolled over or shrunk as it says: windowPoints on the unwagered question),
+ * and the stakes (stakeLines). The scoring sequence's order: the stake is a line of its own beside the points, never shared, carried
+ * or shrunk; a parlay then multiplies both (the grade's).
+ */
+function wagerParts(q, v, answers, facts, o) {
+  const calls = [];
+  for (const a of answers) {
+    const bet = betOf(q, a.answer);
+    if (bet) calls.push({ ...a, answer: bet.answer });
+  }
+  return { points: windowPoints(unwagered(q), v, calls, facts, o), stakes: stakeLines(q, v, answers, facts) };
+}
+
+/**
  * Who's right on every leg of a parlay (A9) in one window: legs [{ q, v, answers }] (each leg's verdict and its answers there).
  * Every leg settled and right for them; a leg that didn't count (off) or that they left blank breaks it.
  */
@@ -896,9 +936,11 @@ function allRight(legs, facts) {
  */
 function answerProblem(q, value, faces, o) {
   if (q.wager) {
-    // A8: { answer, stake }, the stake 0 to the wager; A9's 'total', 0 to your points as they stand (o.most; none given, any).
+    // A8: { answer, stake }, the stake 0 to the wager; A9's 'total', 0 to your points as they stand (o.most; none given, any). C6:
+    // beside a bank, a stake of up to the wager is held to what's left of the bank too (o.most).
     if (!isObj(value) || !('answer' in value)) return 'Your answer and your stake: { answer, stake }';
-    const most = Number.isInteger(q.wager) ? q.wager : o && isNum(o.most) ? Math.max(0, Math.floor(o.most)) : Infinity;
+    const left = o && isNum(o.most) ? Math.max(0, Math.floor(o.most)) : Infinity;
+    const most = Number.isInteger(q.wager) ? Math.min(q.wager, left) : left;
     if (!(Number.isInteger(value.stake) && value.stake >= 0 && value.stake <= most)) {
       if (most === Infinity) return 'A stake is a whole number of points, 0 or more';
       return most === 0 ? 'You have no points to stake yet: stake 0' : `Stake 0 to ${most} points`;
@@ -1001,4 +1043,4 @@ function factsThrough(facts, k) {
   };
 }
 
-module.exports = { WAITING, readsTimeline, verdictOf, rightAnswers, pointsFor, windowPoints, allRight, shrunk, isRight, answerProblem, spanEpisodes, pairsFrom, pairKey, windowOf, factsThrough, botKey, botCall, botRight };
+module.exports = { WAITING, readsTimeline, verdictOf, rightAnswers, pointsFor, windowPoints, wagerParts, stakeLines, unwagered, allRight, shrunk, isRight, answerProblem, spanEpisodes, pairsFrom, pairKey, windowOf, factsThrough, botKey, botCall, botRight };

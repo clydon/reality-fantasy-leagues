@@ -35,7 +35,9 @@
 // castaway two teams hold in an exclusive draft) likewise, from C4's engine, proven by hand in tests/ownership.test.js, and each
 // read the same as the engine before C4 gives on the same holdings with no `own` (which nothing scored reads); the 2,088 before
 // them stay. C5's (weekWonShapes: a pick each episode scored by what they do, only some moments and hits, weeks won) likewise, from
-// C5's engine, proven by hand in tests/weeks.test.js; the 2,124 before them stay:
+// C5's engine, proven by hand in tests/weeks.test.js; the 2,124 before them stay. C6's (moneyShapes in outsideShapes: a stake beside
+// a split pot, a parlay's staked leg, a bank at the pool's odds, a bank that runs out) likewise, from C6's engine, proven by hand
+// below and in tests/money.test.js; the 2,250 before them stay:
 //   node tests/fixtures/scoring-shapes.js --write [--ref=<git ref>]      the record, from this tree's engine (or the ref's)
 //   node tests/fixtures/scoring-shapes.js --print <shape> <seat|-> <mark|-|all> [--ref=<git ref>]   one read, in full
 //   node tests/fixtures/scoring-shapes.js --diff [<shape>] [--ref=d5222e68]   where this tree's reads part from the ref's (the
@@ -306,6 +308,20 @@ const Q = {
   WINALONE: { ...WIN, id: "winalone", ask: "Who wins? Less for each episode late, only if you're the only one", share: "only" },
 };
 const BOT = { beat: { by: "bot" } };
+// C6, money: stakes ({ answer, stake }) beside a split pot, as a parlay's leg, from a bank at the pool's odds, from a bank that runs out.
+const bet = (answer, stake) => ({ answer, stake });
+const STAKE = {
+  POT: { ...BOOT, id: "stakepot", ask: "Who goes home? Stake up to 5, the pot split", points: 10, wager: 5, share: "split" },
+  LEG: { ...BOOT, id: "stakeleg", ask: "Who goes home? Stake up to 3", wager: 3 },
+  POOL: { ...BOOT, id: "bankpool", ask: "Who goes home? Stake any of your bank, the pool's odds", wager: "total", odds: "pool" },
+  BROKE: { ...BOOT, id: "broke", ask: "Who goes home? Stake any of your bank", wager: "total" },
+  SAID: {
+    stakepot: { 1: { ann: bet("c13", 5), bo: bet("c13", 2), cy: bet("c5", 4), di: bet("c13", 0) }, 3: { ann: bet("c2", 5) }, 4: { ann: bet("c6", 3), bo: bet("c0", 1), cy: bet("c9", 5) } },
+    stakeleg: { 1: { ann: bet("c13", 3), bo: bet("c13", 3), cy: bet("c5", 2) }, 2: { ann: bet("c4", 1), bo: bet("c3", 3) }, 5: { bo: bet("c1", 3), cy: bet("c2", 2), di: bet("c10", 1) } },
+    bankpool: { 1: { ann: bet("c13", 10), bo: bet("c5", 5), cy: bet("c13", 5), di: bet("c2", 20) }, 2: { ann: bet("c3", 20), bo: bet("c4", 10), cy: bet("c0", 9) }, 4: { ann: bet("c6", 30), bo: bet("c6", 5), cy: bet("c2", 4) } },
+    broke: { 1: { ann: bet("c5", 5), bo: bet("c13", 2), cy: bet("c13", 0), di: bet("c2", 5) }, 2: { bo: bet("c3", 8), cy: bet("c4", 6) } },
+  },
+};
 // The answers, as game_answers holds them: { question: { episode (0: the game's): { seat: answer } } }.
 const SAID = {
   boot: { 1: { ann: "c13", bo: "c13", cy: "c5", di: "c2" }, 2: { ann: "c4", bo: "c3", cy: "c0" }, 3: { ann: "c2", cy: "c7", di: "c8" }, 4: { ann: "c6", bo: "c9", cy: "c4", di: "c0" }, 5: { ann: "c4", bo: "c1", cy: "c2", di: "c10" }, 6: { ann: "c7", bo: "c8", cy: "c14", di: "c12" }, 7: { ann: "c0", bo: "c4", di: "c7" } },
@@ -448,6 +464,16 @@ function outsideShapes() {
     shape("q-shrink-shared", game([Q.WINPOT, Q.SEALPOT, Q.WINALONE]), [Q.WINPOT, Q.SEALPOT, Q.WINALONE], { over: { winalone: { 0: { ann: "c0", bo: "c4", cy: "c2" } } } }),
     shape("q-parlay-legs", game(legs, { parlays: [{ of: ["roll", "immune"], times: 3 }, { of: ["only", "idol"], times: 2 }] }), legs),
     shape("q-parlay-shrink", game([WIN, WINNER], { parlays: [{ of: ["win", "winner"], times: 2 }] }), [WIN, WINNER]),
+    // C6, money: a stake as a line of its own beside the question's points (no engine before C6 plays these). A stake beside a split
+    // pot (p24): Episode 1, the 10-point pot three ways (ann, bo, di right: 3.33 each), ann winning her 5 and bo his 2, cy losing 4;
+    // Episode 3 nobody went home: every stake back. A parlay's staked leg, doubled with its points: Episode 1 ann right on who goes
+    // home (1 + 3) and immunity (2), both doubled: 8 and 4. A bank of 20 at the pool's odds: Episode 1 ann and cy right, staking 10
+    // and 5, take the wrong stakes (bo's 5, di's 20) by theirs: 16.67 and 8.33, with a point each. A bank of 5 that runs out: ann
+    // and di lose all 5 in Episode 1 (out), cy all 6 in Episode 2 (out), bo left alone at 17: it ends there.
+    shape("q-wager-pot", game([STAKE.POT]), [STAKE.POT], { over: STAKE.SAID }),
+    shape("q-wager-parlay", game([STAKE.LEG, IMMUNE], { parlays: [{ of: ["stakeleg", "immune"], times: 2 }] }), [STAKE.LEG, IMMUNE], { over: STAKE.SAID }),
+    shape("q-bank-pool", game([STAKE.POOL], { bank: { start: 20 } }), [STAKE.POOL], { over: STAKE.SAID }),
+    shape("q-bank-out", game([STAKE.BROKE], { bank: { start: 5, out: true } }, { by: "standing" }), [STAKE.BROKE], { over: STAKE.SAID }),
     ["calls", { preset: "weekly-calls" }, null, { none: true, outside: { each: 1 } }],
     ["bingo", { preset: "weekly-bingo", score: { by: "lines", points: 2 } }, null, { none: true, outside: { each: 2 } }],
     ["stages-points", stages("points"), null, { none: true, stages: true }],

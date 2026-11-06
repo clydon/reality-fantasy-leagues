@@ -2540,7 +2540,7 @@
         "score",
         "win"
       ],
-      "note": "the user's first game (2026-11-05, track C): a bank of 500 that stakes are drawn from and payouts go into (C6: money; today's wager stakes your points, with no starting balance), a prediction sheet written each week (C7: a new card each week; today a game's questions are its spec's), and more wagers multiplying the week (C6's staked parlays, or the count of wagers). Nearest today: a game of questions with wager 'total' on each question. Open (the user's): does 'more wagers multiply' mean a parlay (picks combined pay more) or that the number of wagers placed multiplies the week; even money or odds; a bank at zero, out?"
+      "note": "the user's first game (2026-11-05, track C): a bank of 500 that stakes are drawn from and payouts go into (built, C6 part 1: score.bank { start: 500 }, wager 'total' on each line), a prediction sheet written each week (C7: a new card each week; today a game's questions are its spec's), and more wagers multiplying the week (C6 part 2: a ticket a player builds from the sheet's lines, its payout growing with its legs; the spec's own parlays take a staked leg since C6). Open (settings with the lane's defaults, the user's to overrule): a ticket (the default) or the number of wagers placed multiplying the week; even money (the default) or the pool's odds; a bank at zero plays on (the default) or is out."
     },
     {
       "id": "p11",

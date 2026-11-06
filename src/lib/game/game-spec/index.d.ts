@@ -140,7 +140,7 @@ export type SpecScore =
    *  wrong answer, or none, to a question `livesOn` names, else every one asked each episode about it alone, costs one; out at
    *  none). A11 part 3: co-op (rank.by "coop"), the lives the couch's together, a night costing one unless enough of you saw it
    *  coming (`saves`: one right answer among you, most of those who answered, all of them; COOP's default one). */
-  | { by: "answers"; parlays?: SpecParlay[]; lives?: number; livesOn?: string[]; saves?: "one" | "most" | "all" }
+  | { by: "answers"; parlays?: SpecParlay[]; lives?: number; livesOn?: string[]; saves?: "one" | "most" | "all"; bank?: SpecBank }
   /** A12 part 1: a game in stages, scored by its stages (its overall). */
   | { by: "stages" }
   /** sports: the Sport's stat keys -> points */
@@ -150,6 +150,12 @@ export type SpecScore =
 export interface SpecParlay {
   of: string[];
   times: number;
+}
+/** C6, money: a game of questions' bank: everyone starts with `start`, every stake is drawn from it, and with `out` whoever's on
+ *  nothing after a night is out. */
+export interface SpecBank {
+  start: number;
+  out?: boolean;
 }
 
 export interface SpecRank {
@@ -238,6 +244,9 @@ export interface SpecQuestion {
   /** A8: the most points you can stake on your answer: right, its points and the stake; wrong, the stake lost. A9: "total", any
    *  of your points as they stand when you answer. */
   wager?: number | "total";
+  /** C6: what a right stake pays: even money (the default: the stake), or the pool (the window's wrong stakes split between its right
+   *  ones by their stakes; nobody right, every stake back). */
+  odds?: "even" | "pool";
   /** A9: split, a pot for each window split between everyone right (by what each would have earned); only, a right answer scores
    *  only when nobody else's does. */
   share?: "split" | "only";
@@ -641,7 +650,7 @@ export function readsTimeline(q: Question): boolean;
 export function rightAnswers(q: Question, v: Verdict, facts?: AnswerFacts): string[] | null;
 export function pointsFor(q: Question, v: Verdict, answers: { playerId: string; answer: unknown }[], facts?: AnswerFacts): Map<string, number>;
 export function isRight(q: Question, v: Verdict, mine: { playerId: string; answer: unknown }, answers: { playerId: string; answer: unknown }[], facts?: AnswerFacts): boolean | null;
-/** o.most: a wager of any of your points (A9), your points as they stand. */
+/** o.most: a wager of any of your points (A9), your points as they stand; C6, beside a bank, what's left of it for any stake. */
 export function answerProblem(q: Question, value: unknown, faces?: Set<string> | null, o?: { most?: number }): string | null;
 /** A9: what each answer earns on one window with its ways of combining (a split pot, only the only right one, a rollover's worth,
  *  a shrinking call). */
@@ -652,6 +661,17 @@ export function windowPoints(
   facts?: AnswerFacts,
   o?: { worth?: number; bot?: unknown }
 ): Map<string, number>;
+/** C6, money: a wagered question's stakes in one window, as lines apart from its points; its lines, points and stakes apart; the
+ *  question without its wager. */
+export function stakeLines(q: Question, v: Verdict, answers: { playerId: string; answer: unknown }[], facts?: AnswerFacts): Map<string, number>;
+export function wagerParts(
+  q: Question,
+  v: Verdict,
+  answers: { playerId: string; answer: unknown; late?: number; changes?: number }[],
+  facts?: AnswerFacts,
+  o?: { worth?: number; bot?: unknown }
+): { points: Map<string, number>; stakes: Map<string, number> };
+export function unwagered(q: Question): Question;
 /** A14 part 2: a window's key ("question|episode", 0 asked once), as the grade and the bot's calls have it. */
 export function botKey(q: Question, episode: number): string;
 /** A14 part 2: the bot's call on a question's window (facts.bot), or undefined. */
@@ -666,6 +686,15 @@ export function factsThrough(facts: AnswerFacts, k: number): AnswerFacts;
 /** A9: what a shrinking call is worth, as it was made (its late, changes). */
 export function shrunk(q: Question, worth: number, a?: { late?: number; changes?: number } | null): number;
 export const WAGER_TOTAL: "total";
+/** C6, money: a stake's odds when the question leaves them out; a bank's most at the start, and its default (out at zero or not). */
+export const ODDS: "even";
+export const MAX_BANK: number;
+export const BANK: { out: boolean };
+/** C6: a game of questions' bank, { start, out }, or null. */
+export function bankOf(spec: GameSpec | SpecInput | null | undefined): { start: number; out: boolean } | null;
+/** C6: whether a question's stake is drawn from a bank or your points as they stand (a wager of any of them, or any stake beside a
+ *  bank): what answers.ts holds it to. */
+export function drawsOnBank(q: Question, bank: { start: number } | null): boolean;
 /** A8: a pairs question's pairs, drawn from who was in at the game's start (the same every time). */
 export function pairsFrom(q: Question, ids: string[]): [string, string][];
 /** A8: a pair's key for its answers ({ "a|b": who }): its two ids, sorted. */
@@ -774,6 +803,8 @@ export interface AnswerParts {
   handicap: HandicapParts | null;
   /** C5: weeks won, as weekParts reads it; null otherwise. */
   weeks: WeekParts | null;
+  /** C6: a bank at zero that's out (score.bank.out): whoever's on nothing after a night goes out. */
+  broke?: true;
 }
 export function answerParts(spec: GameSpec | SpecInput | null | undefined): AnswerParts | null;
 /** A11 part 5: teams of players' defaults (drawn at the game's start, a team's points its members' mean, someone unplaced onto the

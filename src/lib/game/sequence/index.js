@@ -382,6 +382,46 @@ function onlyEach(worth, by) {
   for (const [, pids] of by) if (pids.length === 1) out.set(pids[0], (out.get(pids[0]) || 0) + at(pids[0]));
   return out;
 }
+/**
+ * C6, money: a window's stakes as lines, apart from the question's points (a stake is never shared, rolled over or shrunk: it's the
+ * answer's own). `bets`: [{ playerId, stake, right }] (each stake more than 0, right true or false; one that didn't count either way,
+ * a void pick, isn't in it). Even money (`odds` 'even', A8's wager): right wins the stake, wrong loses it. The pool ('pool', the
+ * couch's own odds: a tote): the wrong stakes are a pot split between the right ones by their stakes, to the cent, the shares adding up
+ * to the pot exactly (each its cents rounded down, the cents left over one each to the largest remainders, the first first), wrong
+ * loses the stake; nobody right, every stake comes back (nothing either way). Map playerId -> points, in the bets' order; a
+ * stake that comes to nothing (the pool when everyone's right) has no line.
+ */
+function stakes(bets, odds) {
+  const out = new Map();
+  const put = (pid, n) => {
+    if (n) out.set(pid, round((out.get(pid) || 0) + n));
+  };
+  if (odds === "pool") {
+    const on = bets.reduce((n, b) => n + (b.right ? b.stake : 0), 0);
+    if (!on) return out;
+    const cents = Math.round(bets.reduce((n, b) => n + (b.right ? 0 : b.stake), 0) * 100);
+    const right = bets.map((b, i) => ({ b, i, exact: b.right ? (cents * b.stake) / on : 0 })).filter((x) => x.b.right);
+    const share = new Map(right.map((x) => [x.i, Math.floor(x.exact)]));
+    let left = cents - [...share.values()].reduce((n, c) => n + c, 0);
+    const rest = (x) => x.exact - Math.floor(x.exact);
+    for (const x of [...right].sort((p, q) => rest(q) - rest(p) || p.i - q.i)) {
+      if (left <= 0) break;
+      share.set(x.i, share.get(x.i) + 1);
+      left--;
+    }
+    bets.forEach((b, i) => put(b.playerId, b.right ? share.get(i) / 100 : -b.stake));
+    return out;
+  }
+  for (const b of bets) put(b.playerId, b.right ? b.stake : -b.stake);
+  return out;
+}
+/** C6: a window's lines from two sources added up for each seat (a wagered question's points and its stakes), in the order they come
+ *  (the first's, then any only the second has), each to the cent. */
+function plus(a, b) {
+  const out = new Map(a);
+  for (const [pid, n] of b) out.set(pid, round((out.get(pid) || 0) + n));
+  return out;
+}
 
 // ---- 5. The week's result ----
 // What each episode's totals make, for each seat (or each side: a team of players): a running total; a pool's streak, life or
@@ -569,7 +609,8 @@ function livesNight(lives, lost, o) {
  * `lives(ids, out)` says what the night cost each of those who could lose one (once no race has ended it), both read before anything
  * that night moves anyone.
  *   o: { start, everyone: [id] (in it: whatever their start), catching: Set (still catching up), startOf: Map id -> their start (null:
- *   the game's), race: { to } | null, cuts, oneLeft, phaseStarts, lives: { of (each one's at the start), allOut } | null, playing?:
+ *   the game's), race: { to } | null, cuts, oneLeft, phaseStarts, lives: { of (each one's at the start), allOut } | null, broke?: true
+ *   (C6: a bank that runs out, whoever's on 0 or less after a night out), playing?:
  *   (id, k) => whether a side plays episode k (C2 part 4b: a team someone still in the game is on then; left out, every side does):
  *   one that doesn't can't be cut or finish a race then, and isn't left when one left ends it }
  * Returns { out: Map id -> the last episode that counts for them, ends: the episode the game ended at, or null, lives: Map id -> left
@@ -596,12 +637,14 @@ function knockouts(series, o) {
     }
     const lost = lives && night.lives ? night.lives(inAt(k), out) : null;
     if (lost && lost.size) livesNight(lives, lost, { k, ids: inAt(k), left: o.everyone.filter((id) => !out.has(id)), out, shared, allOut: o.lives.allOut });
+    // C6: a bank that runs out (o.broke): whoever's in with nothing left after the night goes out at k, before its cuts.
+    if (o.broke) inAt(k).filter((id) => total(id) <= 0).forEach((id) => out.set(id, k));
     const before = (n) => {
       const x = walked.slice(0, i).filter((y) => y.number <= n).pop();
       return x ? x.totals : null;
     };
     cutsAfter(o.cuts, { k, start: o.start, quiet: night.quiet, inAt, total, before, out, phaseStarts: o.phaseStarts });
-    if ((lives || o.cuts.length) && o.oneLeft === "ends" && lastLeft(o.everyone, (id) => !out.has(id) && plays(id, k))) ends = k;
+    if ((lives || o.cuts.length || o.broke) && o.oneLeft === "ends" && lastLeft(o.everyone, (id) => !out.has(id) && plays(id, k))) ends = k;
   }
   return { out, ends, lives, shared, walked };
 }
@@ -904,6 +947,8 @@ const api = {
   split,
   only,
   onlyEach,
+  stakes,
+  plus,
   add,
   through,
   grown,
