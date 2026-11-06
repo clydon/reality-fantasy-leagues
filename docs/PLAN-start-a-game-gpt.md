@@ -3959,6 +3959,9 @@ has episodes of its own (the Decisions table's "A sports week").
   the database); `check-matchup.js` (20, all pass: the series' locks by start, day and the calendar week, unchanged). 1,799 unit
   tests, the one round-trip failure aside (master's, as before); `tsc` clean in src (two stale `.next/types` entries for routes
   not on this branch); eslint clean on locks.ts and air-times.ts.
+- **The long checks, last, on `d7826503`:** `golden.js --before=5aeaf24a` (the step before): Survivor 49, The Traitors US 4 and The
+  Challenge 40, 74 games, 9,548 reads, every one the same. blind.js and the rehearsal not run: no show's game locks daily or weekly
+  or plays a slate, so every read is kept the same (golden alone).
 
 **L8 part 3 noticed, not fixed:**
 - **A team's season that closes weekly still has its own week beside a slate's**: a team's Tuesday-to-Monday week and, if the same
