@@ -98,7 +98,8 @@ How each of you gets what you play with. Five ways (`get.by`):
   - `blind`: everyone picks in private, revealed at once (a shared draft).
   - `draw`: names out of a hat, dealt at random when the draft starts, seeded and recorded; exclusive or shared.
   - `auction`: sealed bids from a budget (exclusive only; its shared version is a salary cap).
-- `own`: `exclusive` (one team's each) or `shared` (anyone can have the same person). See "Ownership".
+- `own`: `exclusive` (one team's each) or `shared` (anyone can have the same person). See "Ownership" (each way of holding has
+  its own since C4: the draft's here, its group slots' beside them, its waiver moves' on the waivers).
 - Refused: a snake that's shared or a blind draft that's exclusive ("An exclusive draft is snake: everyone takes turns for
   castaways nobody else can have"), an auction that's shared.
 
@@ -159,7 +160,12 @@ The pool: one person each episode you think survives it.
 
 ## Ownership: exclusive or shared
 
-Whether two of you can hold the same person. **`get.own`** (and **`get.groups.own`** for group slots).
+Whether two of you can hold the same person, **for each way of holding** (C4): the draft (**`get.own`**), its group slots
+(**`get.groups.own`**) and each waiver move (**`extras.waivers.own`**: `{ replace, swap }`, a replacement for someone gone home and a
+swap for someone still in, each left out the draft's own). Exclusive: only someone on nobody's team (a free agent). Shared: anyone
+still in who isn't yours already, even someone on another team, who's on both teams then. The user's second game is an exclusive
+draft whose replacements are shared: `"extras": { "waivers": { ..., "replace": "always", "own": { "replace": "shared" } } }` →
+"Lose someone? Their replacement can be anyone still in, even a castaway on another team: they're on both teams then."
 
 - **Shared whenever the math says so** (the user's decision, 2026-10-28). An exclusive draft only when the pool covers every
   pick (`covers`: teams × each ≤ who can be drafted), counted where the game drafts and as the pool shrinks.
@@ -169,10 +175,18 @@ Whether two of you can hold the same person. **`get.own`** (and **`get.groups.ow
   - **Where it drafts later** (a later stage, a side draft, a second draft at the merge), nobody can count it ahead: it's counted
     when its draft opens, from who's still in then, and played shared if it no longer covers (`RosterLogic.settleDraftShare`;
     nothing is refused). Exclusive group slots likewise hold only while the groups on offer cover every slot.
+  - **Per holding** (C4): an exclusive draft that takes everyone, whose replacements are only someone on nobody's team and where
+    nothing ever frees anyone (no swaps, nobody knocked out), never has anyone to replace with: refused where it drafts, "6 of you × 3
+    picks takes all 18 who can be drafted, so nobody's ever free to replace someone gone home with: make the replacements shared". As
+    the pool shrinks later, a replacement with nobody free waits ("Nobody's free to pick up: your team plays as it is"), as it always
+    has. A shared move needs no count.
+- A waiver move can be shared beside an exclusive draft, never exclusive beside a shared one ("In a shared draft anyone can be on
+  more than one team, so a replacement can be too"), and a stock market buys at its draft's own.
+- **Someone two of you hold** (a shared game's, or a shared replacement in an exclusive draft): each scores them by their own
+  holding (an Outlast's line by what each earned while theirs, when it multiplies how they joined); one letting them go lets go
+  only their own; once they're gone home, each holder is owed a replacement until they make it.
 - An exclusive draft can't be open to anyone joining ("its castaways are one team's each, so newcomers ask").
 - An exclusive stock market needs someone left over to buy.
-- Ownership is **one setting for the whole game** today: the draft, the pickups and (separately) the group slots. Ownership per
-  way of holding, and where a replacement comes from, is **planned** (C4).
 
 ---
 
@@ -608,7 +622,7 @@ The details nobody asked about: recommended, out of sight, changeable later. **`
 
 | Field | What | Goes with |
 |---|---|---|
-| `waivers` | a draft's mid-season moves: `feel` (casual, balanced, competitive), `replace` (always, whenShort, windows, never: when someone gone home is replaced), `short`, `windows` (`schedule`: everyEpisode, every, manual; `every`; `swaps`), `order` (rolling, leastPoints, mostPoints), `hours` (12, 24, 48 before), `freeAgency`, `autoFill`, `from: { phase }` | a draft whose people can come free (not a shared Outlast). Left out, they're off (`fullSpec` fills waivers off: nothing replaced, windows only when opened; a stock market's, a window after every episode); `null` is refused there, since it means no waivers can happen |
+| `waivers` | a draft's mid-season moves: `feel` (casual, balanced, competitive), `replace` (always, whenShort, windows, never: when someone gone home is replaced), `short`, `windows` (`schedule`: everyEpisode, every, manual; `every`; `swaps`), `order` (rolling, leastPoints, mostPoints), `hours` (12, 24, 48 before), `freeAgency`, `autoFill`, `from: { phase }`, `own: { replace, swap }` (C4: where each move comes from, exclusive or shared; see "Ownership") | a draft whose people can come free (not a shared Outlast). Left out, they're off (`fullSpec` fills waivers off: nothing replaced, windows only when opened; a stock market's, a window after every episode); `null` is refused there, since it means no waivers can happen |
 | `bets` | side bets, `{ points }` or null | a draft |
 | `calls` | a pool's weekly Who goes home? call, counted, not ranked | a pick |
 | `draft` | the draft room: `at` (a time with its zone, or null), `timer` (0, 60, 120 seconds), `away` (wait, queue), `opens` (any, start) | a draft (required) |
@@ -702,7 +716,8 @@ Every game scores as one sequence of six steps, for each of you and each episode
 (`src/lib/game/sequence/`, track C's C2):
 
 1. **Hold**: what of yours counts for that episode. A draft's team as it stood then (a pickup counts from the episode after
-   it's made; `heldAt`), a lineup's starters, best ball's whole team, a group slot's group.
+   it's made; `heldAt`), a lineup's starters, best ball's whole team, a group slot's group. Someone two of you hold (a shared
+   draft's, or since C4 a shared replacement in an exclusive draft) is on each team, each by its own holding.
 2. **Score each line**: a line is one holding's points in one episode, from one source. An Outlast's line is a **place**, a
    value rather than points earned while held (whoever holds someone now has their whole place: `placed`, `stillIn`); a
    lineup's are its people's **moments** at the game's points (`momentRaw`), a group slot's its group's (`groupRaw`), a side
@@ -760,14 +775,16 @@ result on teams' totals (a draft's teams knocked out or racing); part 4c a draft
 and handed to the draft's walk as a line through each episode and now (`AnswerLogic.lines`), so its table and everything that
 reads its series count them. C3 makes every multiplier one piece keyed by a condition (step 3's `factorOf`: a captain, when, how a
 holding joined, a parlay's legs, a confidence ranking's place), and adds how a holding joined: each holding's line times the factor
-for the way it joined your team, on what it earns while it's yours (an Outlast's line then too: `stints`, `earnedWhileHeld`).
+for the way it joined your team, on what it earns while it's yours (an Outlast's line then too: `stints`, `earnedWhileHeld`). C4
+gives each way of holding its own ownership (a replacement or a swap from anyone still in beside an exclusive draft): nothing the
+sequence reads changes, only who holds whom.
 
 **Playing by placement** (C2 part 4): a spec plays when each piece it names has its place in the sequence, not when it matches
 one of seven shapes (`schema.js` `noPlace`; `typeOf` names the shape the screens read, from its lines):
 
 | Step | The pieces, and what each needs from the steps before it |
 |---|---|
-| 1. Hold | a draft (its order with its ownership, a draw, or an auction for castaways nobody else can have) counting its whole team, a lineup or its best few; a pick each episode (one, cycling or never repeating); nothing; a bingo card |
+| 1. Hold | a draft (its order with its ownership, a draw, or an auction for castaways nobody else can have) counting its whole team, a lineup or its best few, its waiver moves each exclusive or shared (shared beside an exclusive draft, not beside a stock market); a pick each episode (one, cycling or never repeating); nothing; a bingo card |
 | 2. Lines | a place, the whole team held; moments, a lineup or best few held; a pick staying in (or scoring), a pick held; answers, nothing held, each a question a game of questions plays (or the show's calls alone); bingo lines, a card held. Beside them: a draft's finale predictions and (part 4c) its own questions, each one a draft plays (a game of questions' kind, or a person from your own team), not a stake of any of your points, not beside its cuts or a race, not beside a stock market by its worth |
 | 3 and 4. Multipliers, combine | each checked where it's said (`specProblems`): a captain on a lineup, points by when on moments, parlays on a game of questions, how a holding joined on a draft's team (a lineup, best ball or an Outlast not in reverse, not a stock market) whose waivers make that move; best ball's best n; a question's share, rollover, shrink, wager and the bot's call, combining in the sequence's order (a line's worth, the multipliers, the share) |
 | 5 and 6. The week's result, rank | a running total on any game's (a pool's by its points with no lives: its series of totals, since C2 part 4b; else its streak or who's still standing); last one standing on a draft's or a game of questions' cuts, or a pool's or a game of questions' lives, and a draft's teams on their cuts (part 4b); a race on a draft's or a game of questions' totals, or a draft's teams'; head to head on a draft's, a game of questions' or a pool's totals, with nobody racing, cut or losing a life; teams of players and a handicap on any of those totals (a draft's teams knocked out or racing; a game of questions' and a pool's by their points or head to head); worth, a stock market's on a lineup; co-op, a game of questions' lives together; the show's calls and bingo lines, most wins |
@@ -794,7 +811,6 @@ tracker row (`docs/ENGINE-CAPABILITIES.md`, p13 to p25) with the step that bring
 - **Multipliers left to come**: a captain, by when, how a holding joined, a parlay's legs and a confidence ranking's places are
   one piece since C3 (above, "Multipliers"); a streak and when a holding was picked are later, a draft's own questions have no
   parlays, and a wager's double is its own (C6, money).
-- **Ownership per game**: the draft and its pickups share one `own` (C4).
 - **A pick is one person**: nobody picks three each episode (C5).
 - **Six stages at most**: "each week its own round, ranked by weeks won" fits six weeks (C5).
 - **Each episode's questions are the spec's**: nothing writes a new card of questions each week (Weekly Calls' calls and bingo's
@@ -818,7 +834,7 @@ The study of the sequence is in the plan (track C, C1's As built); what's built 
 |---|---|---|
 | C2 | **One scoring sequence** (built): hold → score each line → multipliers → combine → the week's result → rank (above: parts 1 to 3, every game). A spec plays when each piece it names has its place in the sequence (part 4a: playing by placement, a shrinking call that's shared, a parlay's legs that roll over, shrink or pay only the only one right; part 4b: a pool's series of totals, so a pool by its points, head to head, in teams and with a handicap; a draft's teams knocked out and racing; part 4c: a draft's own questions, a line of their own) | done: what's still refused is listed above, with the step that takes it |
 | C3 | **Multipliers on any condition** (built): one piece keyed by a condition, a captain, when, how a holding joined (drafted, a pickup, a replacement or a swap, the Nth per team or per slot), a parlay's legs, a confidence ranking's place | captain, by when, parlay and confidence are uses of it; the user's 1x, 0.5x, 0.25x; an Outlast's pickups counting double while they're yours. A streak and when a holding was picked: later |
-| C4 | **Ownership per holding**: exclusive or shared for the draft, the pickups and the group slots each, and where a replacement comes from | an exclusive draft with shared replacements |
+| C4 | **Ownership per holding** (built): exclusive or shared for the draft, its group slots and each waiver move (a replacement, a swap), so where a replacement comes from: someone on nobody's team, or anyone still in | an exclusive draft with shared replacements (the user's second game, whole); someone two teams hold, each owed a replacement once they're gone home |
 | C5 | **The week as a result**: pick N each episode without a draft; a week's winner and ranking by weeks won; "only these moments count"; hits counted per objective or per pick; more than six stages, or each episode a round | the user's third game |
 | C6 | **Money**: a starting balance, stakes drawn from it, payouts (even money or odds), a bank that can run out; staked parlays and tickets a player builds | the user's first game |
 | C7 | **A new card each week**: one generator for each episode's questions or objectives, from the show's own data or written by the bot and checked, data-settled only | calls, trivia, bingo squares, a weekly prediction sheet and weekly objectives from one piece |
@@ -863,15 +879,18 @@ that players can wager on, more wagers multiply scored earnings."*
 points. If you need to replace one you can pick as if the cast was open and shared but the new player who replaces your lost one
 scores 0.5x, if you need to replace another it scores 0.25x. Those multiplications are configurable."*
 - Hold: an exclusive draft (`own: exclusive`), with waivers replacing someone gone (`replace: always`).
-- Ownership per holding: the draft exclusive, the replacements shared (C4; today one `own` for both, so a replacement comes only
-  from who's free).
+- Ownership per holding: the draft exclusive, the replacements shared: built (C4), `"own": { "replace": "shared" }` on its waivers.
+  A replacement can be anyone still in, even someone on another team, who's on both teams then (each scoring them by their own
+  holding).
 - A multiplier on how a holding joined: 1x drafted, 0.5x the first replacement, 0.25x the second, configurable: built (C3),
   `"multiply": [{ "joined": "replacement", "times": [0.5, 0.25] }]`, on what each earns while it's yours (an Outlast too).
   Its open questions are settings: after the list, `then` (`repeat`, the default, or `ratio`, which keeps halving); per roster
   slot or per team, `per` (`team` the default); voluntary swaps too, `joined: "pickup"` (or `swap` beside `replacement`).
-- Nearest today: an exclusive Outlast or lineup with `replace: "always"`, replacements scoring in full.
+- Plays now (tracker row p11): `{ "preset": "outlast", "score": { "by": "place", "multiply": [{ "joined": "replacement",
+  "times": [0.5, 0.25] }] }, "extras": { "waivers": { ..., "replace": "always", "own": { "replace": "shared" } } } }`.
 - Open: the defaults of those three settings are the user's (the lane's: the last repeats, per team, only replacing someone
-  gone).
+  gone), and whether a voluntary swap, in a game that has them, comes from anyone still in too (`own.swap`; the lane's default:
+  the draft's own, only someone on nobody's team).
 
 **3. Shared objectives each week.** *"Each week everyone has a shared set of objectives (several individual moments). Each player
 picks x cast members that they think will achieve as many objectives as possible. Player with most objectives hit wins the week."*

@@ -2510,7 +2510,7 @@ class BudgetLogic {
     // empty (the same one autoPick would fill it with).
     const drop = dropId ? Core.getCastaway(state, dropId) : null;
     if(!drop || drop.status !== 'active'){
-      const cheapest = Math.min(...MidSeasonLogic.availableFor(state, playerId).map(c => p.get(c.id) || 0));
+      const cheapest = Math.min(...MidSeasonLogic.availableFor(state, playerId, 'replace').map(c => p.get(c.id) || 0));
       if((p.get(addId) || 0) <= cheapest) return null;
     }
     const c = Core.getCastaway(state, addId);
@@ -5552,15 +5552,22 @@ function restoreFields(c, was, keys){
   keys.forEach(k => { if(was && Object.prototype.hasOwnProperty.call(was, k)) c[k] = was[k]; else delete c[k]; });
 }
 class MidSeasonLogic {
-  static isShared(state){ return ownershipModeOf(state) === 'shared'; }
-  static availableFor(state, playerId){
-    const aside = MidSeasonLogic.isShared(state) ? null : ownersAside(state);
-    return state.castaways.filter(c => c.status === 'active' && (MidSeasonLogic.isShared(state)
+  // C4: ownership per holding. A move's `kind` ('replace': for someone gone home; 'swap': for someone still in) holds whom it
+  // brings in as the waivers say (the spec's extras.waivers.own: { replace, swap }), each left out the draft's (get.own); no kind,
+  // the draft's. Exclusive: only someone on nobody's team (a free agent); shared: anyone still in who isn't yours already.
+  static ownOf(state, kind){ return kind ? Spec.waiverOwnOf(gameOf(state), kind) : ownershipModeOf(state); }
+  static isShared(state, kind){ return MidSeasonLogic.ownOf(state, kind) === 'shared'; }
+  // Who `playerId` can bring in by a move of `kind`; with no kind, by either move (a shared one's people include an exclusive
+  // one's), so a list for both says everyone either could take.
+  static availableFor(state, playerId, kind){
+    const shared = kind ? MidSeasonLogic.isShared(state, kind) : MidSeasonLogic.isShared(state, 'replace') || MidSeasonLogic.isShared(state, 'swap');
+    const aside = shared ? null : ownersAside(state);
+    return state.castaways.filter(c => c.status === 'active' && (shared
       ? !ownerListOf(c).includes(playerId)
       : leagueOwnersOf(state, c, aside).length === 0));
   }
-  static isAvailableFor(state, castawayId, playerId){
-    return MidSeasonLogic.availableFor(state, playerId).some(c => c.id === castawayId);
+  static isAvailableFor(state, castawayId, playerId, kind){
+    return MidSeasonLogic.availableFor(state, playerId, kind).some(c => c.id === castawayId);
   }
   // Reverse draft order: last pick in the draft gets first dibs. A shared (blind) draft has no pick
   // order, so the player list stands in for it.
@@ -5628,7 +5635,7 @@ class MidSeasonLogic {
   static applyPickup(state, playerId, addId, lossId, extra){
     const add = Core.getCastaway(state, addId);
     const lost = lossId ? Core.getCastaway(state, lossId) : null;
-    const shared = MidSeasonLogic.isShared(state);
+    const shared = MidSeasonLogic.isShared(state, 'replace');
     const prev = { added: fieldsOf(add, ADDED_KEYS), dropped: lost ? fieldsOf(lost, DROPPED_KEYS) : null };
     if(shared) Core.addOwner(state, addId, playerId);
     else Core.setOwner(state, addId, playerId);
@@ -5638,8 +5645,9 @@ class MidSeasonLogic {
       // formerOwnerId stays a single id (history display only, not scoring).
       lost.formerOwnerId = playerId;
       lost.departedVia = 'replenish';
-      // Shared: only this player lets go; anyone else who owns them keeps them.
-      if(shared) Core.removeOwner(state, lost.id, playerId);
+      // Only this player lets go; anyone else who holds them keeps them (a shared game's, or C4's: someone in an exclusive draft
+      // another team took on as a shared replacement).
+      if(shared || leagueOwnersOf(state, lost).some(id => id !== playerId)) Core.removeOwner(state, lost.id, playerId);
       else Core.setOwner(state, lost.id, null);
     }
     return MidSeasonLogic.log(state, { type:'replenish', playerId, addedCastawayId: addId, droppedCastawayId: lost ? lost.id : null, prev, ...extra });
@@ -5650,7 +5658,7 @@ class MidSeasonLogic {
     drop.formerOwnerId = playerId;
     drop.departedVia = 'trade';
     Core.removeOwner(state, dropId, playerId);
-    if(MidSeasonLogic.isShared(state)) Core.addOwner(state, addId, playerId);
+    if(MidSeasonLogic.isShared(state, 'swap')) Core.addOwner(state, addId, playerId);
     else Core.setOwner(state, addId, playerId);
     add.acquiredVia = 'trade';
     return MidSeasonLogic.log(state, { type:'trade', playerId, addedCastawayId: addId, droppedCastawayId: dropId, prev, ...extra });
@@ -6101,6 +6109,25 @@ class WaiverLogic {
   // can be replaced in it whatever the rule; off, none can. And nothing's owed while nobody is free to
   // come in (every castaway still in on a team: late in a season, the five left all drafted), so no
   // screen asks for a replacement nobody can make; { ..., nobodyFree: true } says that's why.
+  // C4: whether someone gone home counts as replaced for `playerId`. Replacing someone marks them (replenishClaimed; formerOwnerId:
+  // whoever replaced them last, who let them go). In a game whose waivers say where each move comes from (extras.waivers.own: an
+  // exclusive draft's shared replacements, where two teams can hold the same castaway), the mark is only its maker's: anyone still
+  // holding them is still owed. In every game before C4 the mark counts for every holder, as it always has (a shared game's two
+  // holders: one replacing settles it for both; whether that should change is the user's: C4's Noticed). A mark naming nobody (a
+  // league from before formerOwnerId) counts for everyone.
+  static perHolder(state){
+    const w = gameOf(state).extras.waivers;
+    return !!(w && w.own);
+  }
+  static replacedFor(state, c, playerId){
+    if(!c || !c.replenishClaimed) return false;
+    return !(WaiverLogic.perHolder(state) && c.formerOwnerId && c.formerOwnerId !== playerId);
+  }
+  /** Someone who went home on a team and isn't replaced yet for whoever still holds them (WaiverLogic.replacedFor). */
+  static lossOpen(state, c){
+    const holders = ownerListOf(c);
+    return holders.length > 0 && holders.some(id => !WaiverLogic.replacedFor(state, c, id));
+  }
   static replacementsOwed(state, playerId, period){
     const none = { count: 0, lossIds: [], outIds: [] };
     let rule = WaiverLogic.replaceRule(state);
@@ -6113,7 +6140,7 @@ class WaiverLogic {
     if(!inLeagueRotation(Core.getPlayer(state, playerId))) return none;
     if(rule === 'windows' && !WaiverLogic.isWindow(period)) return none;
     const losses = state.castaways
-      .filter(c => ownerListOf(c).includes(playerId) && c.status === 'eliminated' && !c.replenishClaimed && !isWinnerExit(state, c.exitMethod))
+      .filter(c => ownerListOf(c).includes(playerId) && c.status === 'eliminated' && !WaiverLogic.replacedFor(state, c, playerId) && !isWinnerExit(state, c.exitMethod))
       .sort((a,b) => (a.placementOrder || 0) - (b.placementOrder || 0))
       .map(c => c.id);
     let count = losses.length;
@@ -6122,7 +6149,7 @@ class WaiverLogic {
       const at = WaiverLogic.shortAt(state);
       count = Math.min(losses.length, inGame <= at ? at + 1 - inGame : 0);
     }
-    if(count && !MidSeasonLogic.availableFor(state, playerId).length) return { ...none, nobodyFree: true };
+    if(count && !MidSeasonLogic.availableFor(state, playerId, 'replace').length) return { ...none, nobodyFree: true };
     return { count, lossIds: losses.slice(0, count), outIds: count ? losses : [] };
   }
   /** replacementsOwed in the week running now (pre-v2's "pickups owed"). */
@@ -6309,7 +6336,8 @@ class WaiverLogic {
       if(!owed.count) return 'You can’t replace anyone this week';
       if(!owed.outIds.includes(drop.id)) return `${drop.name} can’t be replaced`;
     }
-    if(!MidSeasonLogic.isAvailableFor(state, pair.addId, playerId)) return 'Claim free agents only';
+    // C4: whom it brings in is held as its kind of move says (a replacement's, a swap's).
+    if(!MidSeasonLogic.isAvailableFor(state, pair.addId, playerId, drop.status === 'active' ? 'swap' : 'replace')) return 'Claim free agents only';
     // A10 part 3b: within a salary cap at today's prices, or no further over (`prices`: read once a claim).
     return BudgetLogic.moveProblem(state, playerId, pair.dropId, pair.addId, prices);
   }
@@ -6423,7 +6451,9 @@ class WaiverLogic {
     const at = new Date((opts && opts.now) || Date.now()).toISOString();
     const meta = { via: 'waivers', periodId: p.id, episode: p.episode, at };
     const orderBefore = MidSeasonLogic.order(state, WaiverLogic.rotation(state));
-    const shared = MidSeasonLogic.isShared(state);
+    // C4: each kind of move holds as the waivers say (MidSeasonLogic.ownOf).
+    const moveOf = kind => (kind === 'pickup' ? 'replace' : 'swap');
+    const sharedFor = { pickup: MidSeasonLogic.isShared(state, 'replace'), addDrop: MidSeasonLogic.isShared(state, 'swap') };
     const results = [];
     const movers = new Set();
     const firstTaker = {};
@@ -6449,7 +6479,8 @@ class WaiverLogic {
       const drop = Core.getCastaway(state, x.dropId);
       if(!drop || !ownerListOf(drop).includes(pid)) return { silent: true };
       if(drop.status !== 'active' ? r.repLeft <= 0 : r.swapLeft <= 0) return { silent: true };
-      if((shared || !justDropped.has(x.addId)) && MidSeasonLogic.isAvailableFor(state, x.addId, pid)){
+      const kind = kindOf(x);
+      if((sharedFor[kind] || !justDropped.has(x.addId)) && MidSeasonLogic.isAvailableFor(state, x.addId, pid, moveOf(kind))){
         return prices && BudgetLogic.moveProblem(state, pid, x.dropId, x.addId, prices) ? { castawayId: x.addId, reason: market ? 'cash' : 'cap' } : null;
       }
       if(r.mine.has(x.addId)) return { castawayId: x.addId, reason: 'yours' };
@@ -6547,6 +6578,8 @@ class WaiverLogic {
     if(drop.status !== 'active'){
       if(!owed.count) return 'You can’t replace anyone this week';
       if(!owed.outIds.includes(drop.id)) return `${drop.name} can’t be replaced`;
+      // C4: a replacement brings in whom the waivers' replacements can hold (above: either move's).
+      if(!MidSeasonLogic.isAvailableFor(state, addId, playerId, 'replace')) return 'They’re not a free agent any more';
       // A10 part 3b: within a salary cap at today's prices, or no further over; part 3c: a stock market's, within cash.
       const over = BudgetLogic.moveProblem(state, playerId, drop.id, addId, prices);
       if(over) return over;
@@ -6555,6 +6588,7 @@ class WaiverLogic {
     }
     if(!WaiverLogic.swapsAllowed(p)) return 'No swaps this week';
     if(!WaiverLogic.swapsLeft(state, p, playerId)) return 'You’ve used this window’s swaps';
+    if(!MidSeasonLogic.isAvailableFor(state, addId, playerId, 'swap')) return 'They’re not a free agent any more';
     const over = BudgetLogic.moveProblem(state, playerId, dropId, addId, prices);
     if(over) return over;
     MidSeasonLogic.applyAddDrop(state, playerId, dropId, addId, entryOf(dropId));
@@ -6590,7 +6624,7 @@ class WaiverLogic {
     return p;
   }
   static autoPick(state, period, playerId, n, dropId){
-    let pool = MidSeasonLogic.availableFor(state, playerId).map(c => c.id).sort();
+    let pool = MidSeasonLogic.availableFor(state, playerId, 'replace').map(c => c.id).sort();
     if(!pool.length) return null;
     // A10 part 3b: a salary cap fills with someone who keeps the team within it (or no further over); with nobody who does, the
     // cheapest, so nobody plays short (the cap's fallback: it never leaves a place empty). Part 3c: a stock market fills only

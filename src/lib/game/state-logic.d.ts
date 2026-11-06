@@ -368,6 +368,12 @@ declare const StateLogic: {
     /** How many this player may replace in `period`; lossIds: the oldest that many; outIds: every loss a claim may name. */
     /** Nothing owed while nobody's free to come in (`nobodyFree`: a loss that would be, if someone were). */
     replacementsOwed(state: LeagueState, playerId: string, period: WaiverPeriod | null | undefined): { count: number; lossIds: string[]; outIds: string[]; nobodyFree?: true };
+    /** C4: a game whose waivers say where each move comes from (extras.waivers.own): a replacement's mark is only its maker's. */
+    perHolder(state: LeagueState): boolean;
+    /** C4: someone gone home counts as replaced for this player (their own replacement, or, before C4's games, anyone's). */
+    replacedFor(state: LeagueState, c: Castaway, playerId: string): boolean;
+    /** Someone gone home on a team, not replaced yet for whoever still holds them. */
+    lossOpen(state: LeagueState, c: Castaway): boolean;
     /** replacementsOwed in the week running now (pre-v2 name). */
     pickupsOwed(state: LeagueState, playerId: string): { count: number; lossIds: string[]; outIds: string[]; nobodyFree?: true };
     maxPickupClaims(owed: number): number;
@@ -792,8 +798,9 @@ declare const StateLogic: {
   nextPlacementOrder(state: LeagueState): number;
   updateBet(state: LeagueState, epId: string, betId: string, field: string, value: unknown): void;
   removeBetPrediction(state: LeagueState, epId: string, betId: string, predId: string): void;
-  /** Who this player may add in a pickup or add/drop: free agents (exclusive) or anyone still in the game not already theirs (shared). */
-  availableFor(state: LeagueState, playerId: string): Castaway[];
+  /** Who this player may add in a pickup or add/drop: free agents (exclusive) or anyone still in the game not already theirs (shared).
+   *  C4: by a replacement's or a swap's own (the spec's extras.waivers.own); no kind, by either. */
+  availableFor(state: LeagueState, playerId: string, kind?: "replace" | "swap"): Castaway[];
   /** Active Roster: how many replenish picks this player is owed right now. */
   replenishNeed(state: LeagueState, playerId: string): number;
   MidSeasonLogic: {
@@ -808,6 +815,10 @@ declare const StateLogic: {
     seasonOver(state: LeagueState): boolean;
     priorityList(state: LeagueState): string[];
     order(state: LeagueState, playerIds: string[]): string[];
+    /** C4: how a move of `kind` holds whom it brings in (the waivers' own for it, else the draft's); no kind, the draft's. */
+    ownOf(state: LeagueState, kind?: "replace" | "swap"): "exclusive" | "shared";
+    isShared(state: LeagueState, kind?: "replace" | "swap"): boolean;
+    isAvailableFor(state: LeagueState, castawayId: string, playerId: string, kind?: "replace" | "swap"): boolean;
   };
   setFinalePick(state: LeagueState, playerId: string, idx: number, value: string | null): void;
   setFinaleWinnerPick(state: LeagueState, playerId: string, value: string | null): void;

@@ -89,6 +89,17 @@ function legacyWaivers(st, lineup) {
     windows: st.tradeEnabled === true ? { schedule: n === 1 ? 'everyEpisode' : 'every', every, swaps: 1 } : { schedule: 'manual', every, swaps: 0 },
   };
 }
+/** C4: settings.waiverOwn as the waivers' `own`, { own } or {} (nothing it can't be: see waiversOf). */
+function ownFromSettings(st) {
+  if (!isObj(st.waiverOwn)) return {};
+  const out = {};
+  for (const k of ['replace', 'swap']) {
+    const v = st.waiverOwn[k];
+    if (v === 'shared' || (v === 'exclusive' && st.ownershipMode !== 'shared')) out[k] = v;
+  }
+  return Object.keys(out).length ? { own: out } : {};
+}
+
 /** A draft's waivers, from its settings (lineup: it has starters; R: its team). The spec's extras.waivers. */
 function waiversOf(st, lineup, R) {
   const legacy = legacyWaivers(st, lineup);
@@ -108,6 +119,10 @@ function waiversOf(st, lineup, R) {
     // Waivers that start when a phase of the season does (settings.waiverStartPhase: "When Merged starts"), only when it's
     // set, so a stored spec without it reads as it always did.
     ...(typeof st.waiverStartPhase === 'string' && st.waiverStartPhase ? { from: { phase: st.waiverStartPhase } } : {}),
+    // C4: whom a replacement or a swap brings in (settings.waiverOwn, as the spec says it), only when it's set, so a stored spec
+    // without it reads as it always did (each move the draft's own). Only what a move can be: an exclusive one beside a draft made
+    // shared since (settings.ownershipMode) is the draft's own again.
+    ...ownFromSettings(st),
   };
 }
 
@@ -443,6 +458,7 @@ function settingsOf(spec) {
         waiverProcessHours: w.hours,
         freeAgencyEnabled: w.freeAgency,
         waiverStartPhase: isObj(w.from) ? w.from.phase : undefined,
+        waiverOwn: isObj(w.own) ? { ...w.own } : undefined,
         // The pre-v2 switches, kept in step for whatever still reads them (WaiverLogic.mirrorLegacy).
         replenishEnabled: w.replace !== 'never',
         tradeEnabled: w.windows.schedule !== 'manual' && w.windows.swaps > 0,
@@ -568,7 +584,7 @@ function withSpec(settings, spec) {
 }
 
 // The spec's parts and the settings fields each writes (OWNED is all of them).
-const WAIVER_FIELDS = ['replaceRule', 'replenishAt', 'waiverWindows', 'waiverFeel', 'autoFill', 'replenishOrderBy', 'waiverProcessHours', 'freeAgencyEnabled', 'waiverStartPhase', 'replenishEnabled', 'tradeEnabled', 'swapEvery'];
+const WAIVER_FIELDS = ['replaceRule', 'replenishAt', 'waiverWindows', 'waiverFeel', 'autoFill', 'replenishOrderBy', 'waiverProcessHours', 'freeAgencyEnabled', 'waiverStartPhase', 'waiverOwn', 'replenishEnabled', 'tradeEnabled', 'swapEvery'];
 const PARTS = [
   { fields: ['leagueTypeId'], read: (s) => typeOf(s) },
   { fields: ['startEpisode', 'startPhase', 'endEpisode', 'endPhase'], read: (s) => s.span },

@@ -69,7 +69,7 @@ function gatherOf(state: LeagueState, mark: number | null, me: string): NonNulla
     if (!ep) continue;
     const week = periods.find((p) => p.episode === n);
     if (week && week.phase !== "open") continue;
-    const lost = state.castaways.filter((c) => c.exitEpisodeId === ep.id && (c.ownerIds ?? []).length && !c.replenishClaimed);
+    const lost = state.castaways.filter((c) => c.exitEpisodeId === ep.id && W.lossOpen(state, c));
     if (!lost.length) continue;
     const waiting = state.players
       .filter((p) => p.id !== me && !p.automated && !p.disabled && p.lateJoin && (p.lateJoin.seenThrough ?? (p.lateJoin.startEpisode ?? 1) - 1) < n)

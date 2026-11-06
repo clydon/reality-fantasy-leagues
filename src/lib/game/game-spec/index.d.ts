@@ -387,6 +387,9 @@ export interface SpecWaivers {
   autoFill: boolean;
   /** Waivers that start when this phase of the season does (none before it); left out: from the start. */
   from?: { phase: string };
+  /** C4: whom a replacement or a swap brings in, each left out the draft's own: exclusive (only someone on nobody's team) or
+   *  shared (anyone still in who isn't yours already). Shared beside an exclusive draft, never exclusive beside a shared one. */
+  own?: { replace?: "exclusive" | "shared"; swap?: "exclusive" | "shared" };
 }
 
 export interface SpecExtras {
@@ -860,6 +863,8 @@ export const TRADE: { fee: number };
 export const MARKET_LEFT: "cash";
 export function marketWaivers(each: number): SpecWaivers;
 export function marketOf(spec: unknown): boolean;
+/** C4: how a waiver move of `kind` holds whom it brings in: the waivers' own for it, else the draft's. */
+export function waiverOwnOf(spec: unknown, kind: "replace" | "swap"): "exclusive" | "shared";
 export function budgetParts(spec: GameSpec | SpecInput | null | undefined): BudgetParts | null;
 /** A10 part 4: keepers' defaults, and keepers read from a whole spec (null: none). */
 export const KEEP: { each: number; fallback: "best" | "none" };

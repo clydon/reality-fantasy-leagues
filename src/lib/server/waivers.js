@@ -53,7 +53,7 @@ function foldBack(state, copy) {
 function lossAt(copy) {
   const n = StateLogic.SpoilerLogic.latestWithResults(copy);
   const ep = copy.episodes.find((e) => e.number === n);
-  return !!ep && copy.castaways.some((c) => c.exitEpisodeId === ep.id && (c.ownerIds || []).length && !c.replenishClaimed);
+  return !!ep && copy.castaways.some((c) => c.exitEpisodeId === ep.id && W.lossOpen(copy, c));
 }
 /** Everyone in the game who's owed a replacement this week has a claim in. */
 function owedIn(copy, period) {

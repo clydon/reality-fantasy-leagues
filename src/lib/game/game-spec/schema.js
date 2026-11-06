@@ -241,6 +241,9 @@ const VOCAB = {
   // the episode was played aren't sure (void that episode for the slot, or follow the people), and how a group's points are
   // its members' (their mean: the slot scores like one more person; or their sum).
   'get.groups.own': { shared: 'now', exclusive: 'now' },
+  // C4: ownership per holding. Whom a waiver move brings in (extras.waivers.own: { replace, swap }, each left out the draft's
+  // get.own): exclusive, only someone on nobody's team (a free agent); shared, anyone still in who isn't yours already.
+  'extras.waivers.own': { exclusive: 'now', shared: 'now' },
   'get.groups.fallback': { void: 'now', 'carry-on': 'now', 'next-stage': 'now' },
   'get.groups.points': { mean: 'now', sum: 'now' },
   // A10 part 2: what a pool's second pick does on a night only one goes home (void: no points either way; counts: scored like
@@ -2216,7 +2219,8 @@ const KEYS = {
   extras: ['waivers', 'bets', 'calls', 'draft', 'join', 'hideStarters', 'lockedDown', 'lateLock', 'seats'],
   lateLock: ['hours'],
   seats: ['people'],
-  waivers: ['feel', 'replace', 'short', 'windows', 'order', 'hours', 'freeAgency', 'autoFill', 'from'],
+  waivers: ['feel', 'replace', 'short', 'windows', 'order', 'hours', 'freeAgency', 'autoFill', 'from', 'own'],
+  waiverOwn: ['replace', 'swap'],
   windows: ['schedule', 'every', 'swaps'],
   draft: ['at', 'timer', 'away', 'opens'],
   bets: ['points'],
@@ -2286,6 +2290,7 @@ function unknownKeys(s) {
     for (const k of ['waivers', 'draft', 'bets', 'lateLock', 'seats']) check(e[k], KEYS[k], `extras.${k}`);
     if (isObj(e.waivers)) check(e.waivers.windows, KEYS.windows, 'extras.waivers.windows');
     if (isObj(e.waivers)) check(e.waivers.from, ['phase'], 'extras.waivers.from');
+    if (isObj(e.waivers)) check(e.waivers.own, KEYS.waiverOwn, 'extras.waivers.own');
   }
   return out;
 }
@@ -2726,7 +2731,59 @@ function waiverProblems(w, s) {
   if (typeof w.autoFill !== 'boolean') out.push(['.autoFill', 'autoFill is true or false']);
   // Waivers that start when a phase of the season does: which phase is the data rule's (settleProblems).
   if (w.from !== undefined && !(isObj(w.from) && typeof w.from.phase === 'string' && w.from.phase)) out.push(['.from', 'Waivers start { phase }: when which phase of the season starts, or leave it out for from the start']);
+  if (w.own !== undefined) waiverOwnProblems(w.own, s).forEach(([at, p]) => out.push([`.own${at}`, p]));
   return out;
+}
+
+/**
+ * C4: ownership per holding. Whom a waiver move brings in, { replace?, swap? } (a replacement for someone gone home, a swap for
+ * someone still in), each exclusive (only someone on nobody's team) or shared (anyone still in who isn't yours already), each left
+ * out the draft's own. A move can be shared where the draft is exclusive (the user's second game: an exclusive draft whose
+ * replacements are picked as if the cast was open), never exclusive where the draft is shared (most of a shared draft's cast is on
+ * someone's team), and a stock market buys at its draft's own.
+ */
+function waiverOwnProblems(o, s) {
+  if (!isObj(o) || !Object.keys(o).length) return [['', "Where a pickup comes from is { replace, swap }, each exclusive (only someone on nobody's team) or shared (anyone still in who isn't yours already): leave it out for the draft's own"]];
+  const out = [];
+  for (const k of KEYS.waiverOwn) {
+    if (o[k] === undefined) continue;
+    if (own(VOCAB['extras.waivers.own'], o[k]) !== 'now') out.push([`.${k}`, `A ${k === 'replace' ? 'replacement' : 'swap'} brings in someone exclusive (on nobody's team) or shared (anyone still in who isn't yours already)`]);
+    else if (o[k] === 'exclusive' && s.get.own === 'shared') out.push([`.${k}`, `In a shared draft anyone can be on more than one team, so ${k === 'replace' ? 'a replacement' : 'a swap'} can be too: only someone on nobody's team goes with an exclusive draft`]);
+  }
+  if (marketOf(s)) out.push(['', "A stock market buys at its draft's own: make the draft shared for buying someone another team holds"]);
+  return out;
+}
+
+/**
+ * C4: an exclusive draft's waivers that replace someone gone home only with someone on nobody's team, where nothing ever frees
+ * anyone: no swaps (a swap lets someone still in go) and nobody knocked out (a cut frees an exclusive draft's castaways:
+ * KnockoutLogic.frees). With a draft that takes everyone, nobody is ever free to come in.
+ */
+function freeNeverComes(s) {
+  const moves = waiverMoves(s);
+  if (!moves || waiverOwnOf(s, 'replace') !== 'exclusive') return false;
+  const cuts = isObj(s.rank) && Array.isArray(s.rank.cut) && s.rank.cut.length > 0;
+  return moves.replaces && !moves.swaps && !cuts;
+}
+
+/**
+ * C4: the moves a draft's waivers make on their own, { replaces, swaps }, or null with no waivers: replacements unless they never
+ * replace (or a window at a phase's start replaces everyone out: `from`), swaps when their windows have any. (Whoever runs the game
+ * can still open a window that does either: WaiverLogic.openWindow.)
+ */
+function waiverMoves(spec) {
+  const w = isObj(spec) && isObj(spec.extras) && isObj(spec.extras.waivers) ? spec.extras.waivers : null;
+  if (!w) return null;
+  return { replaces: w.replace !== 'never' || isObj(w.from), swaps: isObj(w.windows) && isInt(w.windows.swaps, 1) };
+}
+
+/** C4: how a waiver move of `kind` ('replace' | 'swap') holds whom it brings in: the waivers' own for it, else the draft's. */
+function waiverOwnOf(spec, kind) {
+  const w = isObj(spec) && isObj(spec.extras) && isObj(spec.extras.waivers) ? spec.extras.waivers : null;
+  const said = w && isObj(w.own) ? w.own[kind] : undefined;
+  if (said === 'shared' || said === 'exclusive') return said;
+  // The draft's own (state-logic.js ownershipModeOf's rule: a game with no draft holds nobody, so exclusive).
+  return isObj(spec) && isObj(spec.get) && spec.get.by === 'draft' && spec.get.own === 'shared' ? 'shared' : 'exclusive';
 }
 
 /**
@@ -2919,6 +2976,10 @@ function settleProblems(s, ctx, opts) {
     // A10 part 3c: an exclusive stock market needs someone left over to buy, or nobody can ever trade (the count where it drafts;
     // as people go home a replacement waits for someone free, as an exclusive draft's waivers do).
     out.push(['get.own', `${teams.said} × ${get.each} ${get.each === 1 ? 'pick' : 'picks'} takes all ${ctx.pool} who can be drafted, so nobody's left to buy: make it shared, so two of you can hold the same one${get.order === 'auction' ? ' (a salary cap: prices from the data, no bidding)' : ''}`]);
+  } else if (!opts.league && get.by === 'draft' && get.own === 'exclusive' && !marketOf(s) && isInt(get.each, 1) && isInt(ctx.pool, 0) && teams && teams.n * get.each >= ctx.pool && freeNeverComes(s)) {
+    // C4: the count per holding. An exclusive draft that takes everyone, whose waivers replace someone gone home with only someone
+    // on nobody's team and nothing else ever frees anyone (no swaps, nobody knocked out), never has anyone to replace them with.
+    out.push(['extras.waivers.own', `${teams.said} × ${get.each} ${get.each === 1 ? 'pick' : 'picks'} takes all ${ctx.pool} who can be drafted, so nobody's ever free to replace someone gone home with: make the replacements shared ({ "replace": "shared" }), so one can be someone on another team`]);
   }
   // A11 part 4: the playoffs take no more than the couch has teams (a bracket short of seeds gives the top ones byes, so fewer is
   // fine: the engine's fallback for a couch that shrinks).
@@ -3356,7 +3417,7 @@ module.exports = {
   RANKS, MAX_ORDER, MAX_WITHIN, MAX_CHIPS, MAX_PAIRS, WAGERS, WAGER_TOTAL, SHARES, SHRINK_PER, LEGS, MAX_LEGS, MAX_TIMES, MAX_WHEN, WHEN, MAX_JOINED, JOINED, multipliersOf, PRESETS, PRESET_TYPES, TYPE_PRESETS, PRESET_LABELS, NO_WAIVERS, DRAFT_ROOM,
   MAX_GROUP_SLOTS, GROUP_SLOTS, covers, MAX_LIVES, MAX_BUYBACKS, MAX_MULLIGANS, MAX_BUYBACK_COST, BUYBACK, SECOND_PICK, NEVER, poolParts,
   DRAFT_ACROSS, DRAW_OWN, spreadBounds, MAX_BUDGET, BUDGET, CAP, AUCTION, MAX_BIDS, ceilingFor, budgetParts, TRADE, MARKET_LEFT,
-  marketWaivers, marketOf, KEEP, keepParts, SEATS, MAX_SEAT_PEOPLE, seatPeople, teamsOf,
+  marketWaivers, marketOf, waiverOwnOf, waiverMoves, KEEP, keepParts, SEATS, MAX_SEAT_PEOPLE, seatPeople, teamsOf,
   MAX_RACE, MAX_CUTS, MAX_CUT_OUT, CUT, CUT_AT, knockoutParts, DRAFT_END, POOL_END, ANSWERS_END, COOP, answerParts, livesQuestion, questionsGame, isPool, poolByPoints,
   MATCHUPS, MATCHUP_KEYS, MAX_PLAYOFF_TEAMS, playoffRounds, matchupParts, TEAMS, MAX_PLAYER_TEAMS, MAX_TEAM_NAME, teamParts,
   HANDICAP, MAX_HANDICAP, handicapParts,

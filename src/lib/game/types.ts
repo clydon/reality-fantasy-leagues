@@ -301,6 +301,8 @@ export interface LeagueSettings {
   freeAgencyEnabled?: boolean;
   /** Waivers start when this phase of the season does ("When Merged starts": WaiverLogic.startsAt); unset: from the start. */
   waiverStartPhase?: string;
+  /** C4: whom a replacement or a swap brings in (the spec's extras.waivers.own), each left out the draft's ownershipMode. */
+  waiverOwn?: { replace?: "exclusive" | "shared"; swap?: "exclusive" | "shared" };
   /**
    * Catch-up mode (StateLogic.RevealLogic): null = live, an integer = this league may only see
    * episodes 1..n. Absent on every league that predates it, which reads as null.

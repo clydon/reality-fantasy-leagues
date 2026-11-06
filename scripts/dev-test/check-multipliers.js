@@ -15,6 +15,11 @@
 //   - Episode 6 airs and its results come in (someone else goes home): the replacement earns the boot it outlasted, half of 1;
 //     the Games tab's table as alex, riley, jordan (seen through 6) and sam (3) read it is the engine's on each one's copy; the
 //     hub's place for the claimer is the Games tab's.
+//   - C4, the user's second game whole: someone else on a team goes home in Episode 6 (a team that's seen it, not the claimer's);
+//     its holder claims someone on another team for them, refused while replacements are only someone on nobody's team ("Claim
+//     free agents only"); Couch Cup's replacements made shared (extras.waivers.own { replace: 'shared' }, settings.waiverOwn, its
+//     words), the same claim goes through the waiver routes and Process now: the newcomer on both teams, the move logged, the
+//     Games tab's table the engine's.
 //   - The game-specs flag's check passes on it.
 //
 //   node scripts/lane.js dev   (or npm run dev; in another terminal)
@@ -101,7 +106,8 @@ const sameBy = (a, b) => same(Object.entries(a).sort(), Object.entries(b).sort()
 
     // ---------- the game ----------
     let st = await league();
-    const waivers = { ...S.gameOf(st).extras.waivers, replace: "always", freeAgency: true };
+    // No auto-fill: a loss in Episode 6 is still owed in its week (C4's claim below), not filled as the week before closes.
+    const waivers = { ...S.gameOf(st).extras.waivers, replace: "always", freeAgency: true, autoFill: false };
     const extras = { ...S.gameOf(st).extras, waivers };
     const reverse = await setGame({ score: { by: "place", reverse: true, multiply: MULTIPLY }, extras });
     check(reverse.some((p) => p.at === "score.multiply" && /In reverse/.test(p.problem)) && (await league()).settings.joinedTimes === undefined,
@@ -144,7 +150,9 @@ const sameBy = (a, b) => same(Object.entries(a).sort(), Object.entries(b).sort()
 
     // ---------- Episode 6 airs; someone else goes home ----------
     st = await league();
-    const goner = st.castaways.find((c) => c.status === "active" && c.id !== free.id);
+    // C4: someone on the team of one who's seen Episode 6 (not the claimer's), so they can replace them below; else anyone still in.
+    const onTeam = (c) => ownerOf(c) && ["alex", "riley", "jordan"].includes(whoOf(ownerOf(c))) && whoOf(ownerOf(c)) !== claimer;
+    const goner = st.castaways.find((c) => c.status === "active" && c.id !== free.id && onTeam(c)) ?? st.castaways.find((c) => c.status === "active" && c.id !== free.id);
     await pool.query("UPDATE show_seasons SET premiere_date = premiere_date - 4 WHERE id = $1", [sid]);
     await decide(6, goner.name);
     for (const who of ["alex", "riley", "jordan"]) await seen(who, 6);
@@ -169,6 +177,36 @@ const sameBy = (a, b) => same(Object.entries(a).sort(), Object.entries(b).sort()
     const there = (hub?.games ?? []).find((x) => x.leagueId === L);
     g = await gameIn(claimer);
     check(!!there && there.rank === g?.you?.rank, `  the hub's place for ${claimer} in Couch Cup is the Games tab's (${g?.you?.rank})`, JSON.stringify({ hub: there?.rank, games: g?.you?.rank }));
+
+    // ---------- C4: the user's second game whole, its replacements from anyone still in ----------
+    st = await league();
+    const loser = ownerOf(st.castaways.find((c) => c.id === goner.id)) ? whoOf(ownerOf(goner)) : null;
+    const taken = st.castaways.find((c) => c.status === "active" && ownerOf(c) && !(c.ownerIds ?? []).includes(pids[loser]));
+    check(!!loser && loser !== claimer && !!taken, `${loser}'s ${goner.name} gone home, and ${taken?.name} on ${taken ? whoOf(ownerOf(taken)) : "?"}'s team`, JSON.stringify({ loser, taken: taken?.name }));
+    // Revealed through Episode 6 in this league, as a reveal marks it (the waiver routes ask for it).
+    await pool.query("UPDATE league_memberships SET results_seen_through = 6 WHERE league_id = $1 AND user_id = $2", [L, fx.users[loser]]);
+    r = await as[loser].call("GET", `${L_}/waivers`);
+    check(r.status === 200, `  ${loser} reads the waiver week`, `${r.status} ${JSON.stringify(r.body).slice(0, 300)}`);
+    r = await as[loser].call("PUT", `${L_}/waivers/claims`, { pairs: [{ addId: taken.id, dropId: goner.id }] });
+    check(r.status >= 400 && /free agents only/.test(JSON.stringify(r.body)), `  replacements from nobody's team: ${loser}'s claim for ${taken.name} refused`, `${r.status} ${JSON.stringify(r.body).slice(0, 300)}`);
+    const sharedWaivers = { ...S.gameOf(st).extras.waivers, own: { replace: "shared" } };
+    const made = await setGame({ extras: { ...S.gameOf(st).extras, waivers: sharedWaivers } });
+    st = await league();
+    const said = G.describeSpec(S.gameOf(st));
+    check(!made.length && same(st.settings.waiverOwn, { replace: "shared" }) && same((S.gameOf(st).score.multiply ?? []).map((m) => [m.joined, m.times]), MULTIPLY.map((m) => [m.joined, m.times])) && /replacements from anyone still in/.test(said.sentence) && said.rules.some((x) => /^Lose someone\? Their replacement can be anyone still in/.test(x)),
+      "Couch Cup's replacements from anyone still in (settings.waiverOwn; the multiplier kept; its words)", JSON.stringify({ made, own: st.settings.waiverOwn, multiply: S.gameOf(st).score.multiply, sentence: said.sentence, rules: said.rules.slice(0, 3) }));
+    r = await as[loser].call("PUT", `${L_}/waivers/claims`, { pairs: [{ addId: taken.id, dropId: goner.id }] });
+    check(r.status === 200, `  ${loser} claims ${taken.name} (${whoOf(ownerOf(taken))}'s) for ${goner.name}`, `${r.status} ${JSON.stringify(r.body).slice(0, 300)}`);
+    r = await as.alex.call("POST", `${L_}/waivers/process`);
+    check(r.status === 200, "  the commissioner's Process now", `${r.status} ${JSON.stringify(r.body).slice(0, 300)}`);
+    st = await league();
+    const both = st.castaways.find((c) => c.id === taken.id)?.ownerIds ?? [];
+    const tx2 = (st.midSeason?.log ?? []).find((x) => x.addedCastawayId === taken.id && x.playerId === pids[loser]);
+    check(both.includes(pids[loser]) && both.includes(ownerOf(taken)) && !!tx2 && tx2.type === "replenish" && tx2.droppedCastawayId === goner.id && !(st.castaways.find((c) => c.id === goner.id)?.ownerIds ?? []).includes(pids[loser]),
+      `  ${taken.name} on both teams now (${both.map(whoOf).join(" and ")}), ${loser}'s move logged, ${goner.name} let go`, JSON.stringify({ both, tx2 }));
+    g = await gameIn(loser);
+    const want6 = totals((await copies(loser, 6)).view);
+    check(sameBy(tableOf(g), want6), `  the Games tab as ${loser} reads it: the engine's table (${JSON.stringify(want6)})`, JSON.stringify({ api: tableOf(g), want: want6 }));
 
     // ---------- the game-specs flag's check ----------
     const flagged = checkLeague(await league());

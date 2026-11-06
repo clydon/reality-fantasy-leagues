@@ -2550,12 +2550,17 @@
         "rulebook": "survivor"
       },
       "words": "Have an exclusive draft initially, these players score 1x points. If you need to replace one you can pick as if the cast was open and shared but the new player who replaces your lost one scores 0.5x, if you need to replace another it scores 0.25x. Those multiplications are configurable.",
+      "spec": {
+        "preset": "outlast",
+        "score": { "by": "place", "multiply": [{ "joined": "replacement", "times": [0.5, 0.25] }] },
+        "extras": { "waivers": { "feel": "balanced", "replace": "always", "short": null, "windows": { "schedule": "manual", "every": 3, "swaps": 0 }, "order": "rolling", "hours": 24, "freeAgency": true, "autoFill": true, "own": { "replace": "shared" } } }
+      },
       "step": "C4",
       "dials": [
         "score",
         "who"
       ],
-      "note": "the user's second game (2026-11-05, track C): an exclusive draft whose replacements are shared (C4: ownership per holding, and where a replacement comes from; today one own for the draft and its pickups, so a replacement comes only from who's free) and score less the later they joined, 1x, 0.5x, 0.25x, configurable (built in C3: score.multiply [{ joined: 'replacement', times: [0.5, 0.25] }], on what each earns while it's yours). Nearest today: an exclusive Outlast or lineup with waivers replacing someone gone (replace 'always') and that multiplier, its replacements only from who's free. Open (the user's), each a C3 setting with the lane's default: after the list the last repeats (then 'repeat') or keeps halving ('ratio'); per team (per 'team') or per roster slot ('slot'); only replacing someone gone ('replacement') or voluntary swaps too ('pickup')."
+      "note": "the user's second game (2026-11-05, track C): an exclusive draft whose replacements are shared (C4: ownership per holding, extras.waivers.own { replace: 'shared' }: a replacement can be anyone still in, even someone on another team, who's on both teams then) and score less the later they joined, 1x, 0.5x, 0.25x, configurable (C3: score.multiply [{ joined: 'replacement', times: [0.5, 0.25] }], on what each earns while it's yours). Open (the user's), each a setting with the lane's default: after the list the last repeats (then 'repeat') or keeps halving ('ratio'); per team (per 'team') or per roster slot ('slot'); only replacing someone gone ('replacement') or voluntary swaps too ('pickup'); and whether a voluntary swap, if the game has them, comes from anyone still in too (own.swap 'shared') or only from nobody's team (the draft's, the default)."
     },
     {
       "id": "p12",

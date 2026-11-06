@@ -31,7 +31,10 @@
 // facts, head to head, teams and a handicap on them) likewise, from part 4c's engine, each read with the questions'
 // lines the server hands it (o.asks), proven by hand in tests/draft-questions.test.js and checked in tests/sequence-agree.test.js;
 // the 1,836 before them stay. C3's (multiplyShapes: a multiplier on how a holding joined) likewise, from C3's engine, proven by hand
-// in tests/multipliers.test.js; the 1,998 before them stay:
+// in tests/multipliers.test.js; the 1,998 before them stay. C4's (ownShapes: replacements and swaps from anyone still in, so a
+// castaway two teams hold in an exclusive draft) likewise, from C4's engine, proven by hand in tests/ownership.test.js, and each
+// read the same as the engine before C4 gives on the same holdings with no `own` (which nothing scored reads); the 2,088 before
+// them stay:
 //   node tests/fixtures/scoring-shapes.js --write [--ref=<git ref>]      the record, from this tree's engine (or the ref's)
 //   node tests/fixtures/scoring-shapes.js --print <shape> <seat|-> <mark|-|all> [--ref=<git ref>]   one read, in full
 //   node tests/fixtures/scoring-shapes.js --diff [<shape>] [--ref=d5222e68]   where this tree's reads part from the ref's (the
@@ -96,6 +99,7 @@ function shapes(G) {
     ...seriesShapes(outlast, lineup),
     ...askShapes(outlast, lineup),
     ...multiplyShapes(G, outlast, lineup),
+    ...ownShapes(G, outlast, lineup),
   ];
 }
 
@@ -120,6 +124,24 @@ function multiplyShapes(G, outlast, lineup) {
     ["x-outlast-matchups", x(outlast({ score: place([{ joined: "replacement", times: 3 }]), rank: { by: "matchups", quiet: "tie" } })), "exclusive", W],
     ["x-lineup", x(lineup({ score: { by: "moments", points: null, captain: { times: 2 }, times: [{ times: 2, finale: true }], multiply: [{ joined: "replacement", times: 0.5 }] }, ask: FINALE(G) })), "exclusive"],
     ["x-best-ball", x(lineup({ count: { best: 2 }, score: { by: "moments", points: null, multiply: [{ joined: "pickup", times: [3], per: "slot" }] } })), "exclusive", W],
+  ];
+}
+
+/**
+ * C4: ownership per holding (extras.waivers.own), on the same season with MOVES.own: replacements from anyone still in, so bo's
+ * for c3 after Episode 2 is cy's c7 and di's for c9 after 4 is ann's c0 (each on both teams then), and cy's for c8 after 6 the
+ * free c14. No engine before C4 plays them (it refuses `own`), so their reads are new (from C4's engine), proven by hand in
+ * tests/ownership.test.js: the user's second game (an exclusive Outlast, its replacements shared, half then a quarter) with its
+ * finale predictions (di's c0 earns from its 5 at Episode 4 to the Sole Survivor's 15, half: 5; cy keeps c7's whole place, bo half
+ * of what it earns from 3), and best ball with both moves shared (c7's and c0's moments count for both their teams from the next
+ * episode), with no multiplier.
+ */
+function ownShapes(G, outlast, lineup) {
+  const waivers = { ...G.fullSpec({ preset: "outlast" }).extras.waivers, replace: "always" };
+  const M = { moves: MOVES.own };
+  return [
+    ["own-outlast", outlast({ score: { by: "place", multiply: [{ joined: "replacement", times: [0.5, 0.25] }] }, ask: FINALE(G), extras: { waivers: { ...waivers, own: { replace: "shared" } } } }), "exclusive", M],
+    ["own-best-ball", lineup({ count: { best: 2 }, extras: { waivers: { ...waivers, windows: { schedule: "every", every: 3, swaps: 1 }, own: { replace: "shared", swap: "shared" } } } }), "exclusive", { ...M, week: true }],
   ];
 }
 
@@ -442,6 +464,13 @@ const MOVES = {
     { playerId: "cy", episode: 6, droppedCastawayId: "c8", addedCastawayId: "c14" },
   ],
   shared: [],
+  // C4: replacements from anyone still in (ownShapes): bo's c3 for cy's c7 after Episode 2, di's c9 for ann's c0 after 4, cy's c8
+  // for the free c14 after 6.
+  own: [
+    { playerId: "bo", episode: 2, droppedCastawayId: "c3", addedCastawayId: "c7" },
+    { playerId: "di", episode: 4, droppedCastawayId: "c9", addedCastawayId: "c0" },
+    { playerId: "cy", episode: 6, droppedCastawayId: "c8", addedCastawayId: "c14" },
+  ],
   market: [
     { playerId: "ann", episode: 3, droppedCastawayId: "c1", addedCastawayId: "c4", sold: 10, paid: 18, fee: 1 },
     { playerId: "di", episode: 5, droppedCastawayId: "c10", addedCastawayId: "c14", sold: 0, paid: 7 },
@@ -521,7 +550,7 @@ function league(S, G, T, spec, own, o = {}) {
     s.teamSeats = JSON.parse(JSON.stringify(mine(o.teamSeats === true ? TEAM_SEATS : o.teamSeats)));
     s.teamDraw = { seed: "zt-teams", kept: true };
   }
-  const moves = holds ? (o.market ? MOVES.market : MOVES[own]).filter((m) => seats.includes(m.playerId)) : [];
+  const moves = holds ? (o.moves || (o.market ? MOVES.market : MOVES[own])).filter((m) => seats.includes(m.playerId)) : [];
   s.midSeason = { ...(s.midSeason || {}), log: moves.map((m) => ({ ...m })) };
   moves.forEach((m) => {
     const drop = s.castaways.find((c) => c.id === m.droppedCastawayId);

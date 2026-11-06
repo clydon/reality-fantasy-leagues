@@ -18,7 +18,7 @@
 //
 // Pure CommonJS, like ./schema.js.
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
-const { PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, spanEnd, spanEndPhase, playsAs, callsAsk, finaleIn, draftQuestions, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion, matchupParts, questionsGame, poolByPoints, teamParts, handicapParts, stageOn, ON_CHANGE, nextStageAts, fallsTo, stageSide, mainCount, stageAlongside, stageSeason, seasonKey, isPlayers, isBeat } = require('./schema.js');
+const { PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, spanEnd, spanEndPhase, playsAs, callsAsk, finaleIn, draftQuestions, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion, matchupParts, questionsGame, poolByPoints, teamParts, handicapParts, stageOn, ON_CHANGE, nextStageAts, fallsTo, stageSide, mainCount, stageAlongside, stageSeason, seasonKey, isPlayers, isBeat, waiverOwnOf, waiverMoves } = require('./schema.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const NUMBER_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
@@ -197,6 +197,32 @@ function joinedRules(sc) {
     return slot ? `On each spot on your team, ${text}` : cap(text);
   }).filter(Boolean);
 }
+/**
+ * C4: ownership per holding, where a waiver move's isn't the draft's (an exclusive draft whose replacements or swaps are shared):
+ * { replace, swap, replaces, swaps } (each shared move the waivers make on their own, and whether they make each), or null. Only
+ * what the spec says.
+ */
+function sharedMoves(s) {
+  const e = isObj(s.extras) ? s.extras.waivers : null;
+  const made = waiverMoves(s);
+  if (!made || !isObj(e.own) || !isObj(s.get) || s.get.own !== 'exclusive') return null;
+  const replace = made.replaces && waiverOwnOf(s, 'replace') === 'shared';
+  const swap = made.swaps && waiverOwnOf(s, 'swap') === 'shared';
+  if (!replace && !swap) return null;
+  return { replace, swap, ...made };
+}
+/** C4: the sentence's few words for it: ", replacements from anyone still in". */
+function sharedMovesPhrase(m) {
+  if (m.replace && m.swap) return ', pickups from anyone still in';
+  return m.replace ? ', replacements from anyone still in' : ', swaps from anyone still in';
+}
+/** C4: How it works' rule for it ("Lose someone? Their replacement can be anyone still in, even a castaway on another team: ..."). */
+function sharedMovesRule(m, w) {
+  const anyone = `anyone still in, even a ${w.castaway} on another team: they're on both teams then.`;
+  if (m.replace && m.swap) return `Anyone you pick up can be ${anyone}`;
+  if (m.replace) return `Lose someone? Their replacement can be ${anyone}${m.swaps ? " A swap brings in only someone on nobody's team." : ''}`;
+  return `A swap can bring in ${anyone}${m.replaces ? " A replacement is someone on nobody's team." : ''}`;
+}
 /** C3: what a multiplied holding counts, said once: an Outlast's what they earn while they're yours, not their whole place. */
 const joinedHow = (sc) => (sc.by === 'place'
   ? `Each counts the boots they outlast while they're yours (one you drafted, their whole place), and keeps for you what they earned before you let them go.`
@@ -234,6 +260,9 @@ function sentenceParts(s, w) {
     // A10 part 4: keepers from last season's game.
     const keep = keepParts(s);
     if (keep) put(keep.each === 1 ? `, keeping one of last season's team if they come back` : `, keeping up to ${say(keep.each)} of last season's team who come back`, 'get');
+    // C4: an exclusive draft whose replacements (or swaps) are shared.
+    const moves = sharedMoves(s);
+    if (moves) put(sharedMovesPhrase(moves), 'extras');
     // C2 part 4c: its own questions beside the team.
     const asks = draftQuestions(s);
     if (asks.length) put(`, and answers ${say(asks.length)} ${asks.length === 1 ? 'question' : 'questions'} before ${askWhen(asks, w)}: ${listOf(asks.map(questionPhrase))}`, 'ask');
@@ -845,6 +874,9 @@ function rulesOf(s, w) {
   const waivers = s.extras.waivers;
   if (by === 'draft') {
     if (draft) rules.push(draft);
+    // C4: whom a replacement or a swap brings in, where it isn't the draft's own.
+    const moves = sharedMoves(s);
+    if (moves) rules.push(sharedMovesRule(moves, w));
     // A12 part 1: a draft that opens at its game's start drafts from who's still in then.
     if (isObj(s.extras.draft) && s.extras.draft.opens === 'start') rules.push(`The draft opens once it's known where the game starts and the ${w.part} before it has results, so you draft from who's still in.`);
     rules.push(...drawRules(s, w));
@@ -1047,7 +1079,9 @@ function detailsOf(s, w) {
       : `a window ${win.schedule === 'everyEpisode' ? `after every ${w.part}` : `every ${win.every} ${w.parts}`}${win.swaps ? `, ${win.swaps === 1 ? 'one swap' : `${win.swaps} swaps`}` : ''}`;
     // Waivers that start with a phase: "From when Merged starts: ...".
     const from = isObj(e.waivers.from) ? `From when ${phaseWord(e.waivers.from.phase, w)} starts: ` : '';
-    out.push({ id: 'waivers', label: 'Waivers', recommended: rec('waivers'), value: `${from}${(own(REPLACE_WORDS, e.waivers.replace) || 'Replacements as set').replace(/^./, (c) => (from ? c.toLowerCase() : c))} · ${windows}` });
+    // C4: whom a shared replacement or swap brings in.
+    const moves = sharedMoves(s);
+    out.push({ id: 'waivers', label: 'Waivers', recommended: rec('waivers'), value: `${from}${(own(REPLACE_WORDS, e.waivers.replace) || 'Replacements as set').replace(/^./, (c) => (from ? c.toLowerCase() : c))} · ${windows}${moves ? ` ·${sharedMovesPhrase(moves).slice(1)}` : ''}` });
   }
   // Side bets and finale predictions go with a draft: nothing else scores them.
   if (betsFit(s)) out.push({ id: 'bets', label: 'Side bets', recommended: rec('bets'), value: isObj(e.bets) ? `On, ${pointsWord(e.bets.points)} each` : 'Off' });

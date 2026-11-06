@@ -423,7 +423,8 @@ function catchUpTo(state, n) {
 // you lose the person who was about to have a big week. Kept within the week's limit on adds.
 function waiverClaim(state, playerId, period) {
   const W = StateLogic.WaiverLogic;
-  const offered = MidSeasonLogic.availableFor(state, playerId).map((c) => c.id);
+  // C4: whom each kind of move can bring in (a replacement's, a swap's), as the game's waivers hold them.
+  const offeredFor = (kind) => MidSeasonLogic.availableFor(state, playerId, kind).map((c) => c.id);
   const owed = W.replacementsOwed(state, playerId, period);
   const swapsLeft = W.swapsLeft(state, period, playerId);
   const cap = owed.count + swapsLeft + 2;
@@ -443,7 +444,7 @@ function waiverClaim(state, playerId, period) {
   const market = MarketLogic.on(state);
   const affords = (a, d) => !market || !MarketLogic.moveProblem(state, playerId, d, a, prices);
   if (owed.count) {
-    const reps = ranked(state, playerId, offered, "value");
+    const reps = ranked(state, playerId, offeredFor("replace"), "value");
     if (market) owed.outIds.forEach((d) => reps.filter((a) => affords(a, d)).slice(0, owed.count + 2).forEach((a) => push(a, d)));
     else reps.slice(0, owed.count + 2).forEach((a) => owed.outIds.forEach((d) => push(a, d)));
   }
@@ -451,7 +452,7 @@ function waiverClaim(state, playerId, period) {
     const level = levelOf(state, playerId);
     const r = ratings(state, level);
     const mine = state.castaways.filter((c) => c.status === "active" && (c.ownerIds || []).includes(playerId)).map((c) => c.id);
-    const best = ranked(state, playerId, offered, "value");
+    const best = ranked(state, playerId, offeredFor("swap"), "value");
     ranked(state, playerId, mine, "value")
       .reverse()
       .slice(0, swapsLeft)
