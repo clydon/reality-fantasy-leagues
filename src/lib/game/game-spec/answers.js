@@ -63,6 +63,9 @@
 //   answerProblem(q, value, faces) why an answer can't be given (null: it can), faces: who (or which groups) it can name
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
 const { YES_NO, NAMES, NUMBERS, optionRange, isBeat } = require('./schema.js');
+// C2 part 3 (docs/PLAN-start-a-game-gpt.md track C): a window's points are the scoring sequence's lines and combines; the grading
+// (which answers are right, and how many right ones each has) is here.
+const Seq = require('../sequence/index.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const WAITING = Object.freeze({ state: 'waiting' });
@@ -819,15 +822,14 @@ function isRight(q, v, mine, answers, facts) {
   return picks(q, mine.answer).some((x) => set.has(key(q, x)));
 }
 
-/** Two decimal places: a pot split three ways is 3.33 each. */
-const cents = (n) => Math.round(n * 100) / 100;
 /** What a shrinking call (A9) is worth: its points less `shrink.points` for each episode of the game that had started when it was
- *  made (`late`), or each change made once the game had started (`changes`: a first answer made then is one), never below 0. */
+ *  made (`late`), or each change made once the game had started (`changes`: a first answer made then is one), never below 0 (the
+ *  sequence's shrink). */
 function shrunk(q, worth, a) {
   const sh = q.shrink;
   if (!isObj(sh) || !isNum(sh.points)) return worth;
   const n = sh.per === 'change' ? (a && Number.isInteger(a.changes) ? a.changes : 0) : a && Number.isInteger(a.late) ? a.late : 0;
-  return Math.max(0, worth - sh.points * n);
+  return Seq.shrink(worth, sh.points, n);
 }
 
 /**
@@ -835,7 +837,8 @@ function shrunk(q, worth, a) {
  * jackpot added; its points by default); a share (split: the worth is a pot split between everyone right, by what each would have
  * earned; only: a right answer scores only when nobody else's does); a shrinking call (each answer's `late` or `changes`). Answers:
  * [{ playerId, answer, late?, changes? }]. A wager plays alone, as A8 has it. A question with none of these earns exactly
- * pointsFor's.
+ * pointsFor's. C2 part 3: the grading here (each answer's right ones, a unit each: `units`; which right pick who named), the lines
+ * and their combining the scoring sequence's (Seq.windowLines at each answer's worth, Seq.split, Seq.only, Seq.onlyEach).
  */
 function windowPoints(q, v, answers, facts, o) {
   const worth = o && isNum(o.worth) ? o.worth : q.points;
@@ -844,13 +847,7 @@ function windowPoints(q, v, answers, facts, o) {
   if (q.wager || (call === undefined && !q.share && !q.shrink && worth === q.points)) return pointsFor(q, v, answers, facts);
   // Each answer's right ones, at a point each (every kind's points are its points times these); against the bot, those it didn't get.
   const units = call === undefined ? pointsFor({ ...q, points: 1 }, v, answers, facts) : beatUnits(q, v, answers, facts, call);
-  const out = new Map();
-  const right = [...units].filter(([, u]) => u > 0);
-  if (q.share === 'split') {
-    const total = right.reduce((n, [, u]) => n + u, 0);
-    for (const [pid, u] of right) out.set(pid, cents((worth * u) / total));
-    return out;
-  }
+  if (q.share === 'split') return Seq.split(worth, units);
   if (q.share === 'only') {
     // A person or group answer (A9 part 2, part 1's open item, decided): each right pick nobody else named scores, so two players
     // each alone on a different right one (the final three, a double boot) both do. Anything else: the only player right.
@@ -865,18 +862,12 @@ function windowPoints(q, v, answers, facts, o) {
           if (rightSet.has(k)) by.set(k, [...(by.get(k) || []), a.playerId]);
         }
       }
-      for (const [, pids] of by) if (pids.length === 1) out.set(pids[0], (out.get(pids[0]) || 0) + worth);
-      return out;
+      return Seq.onlyEach(worth, by);
     }
-    if (right.length === 1) out.set(right[0][0], right[0][1] * worth);
-    return out;
+    return Seq.only(worth, units);
   }
   const mine = new Map(answers.map((a) => [a.playerId, a]));
-  for (const [pid, u] of right) {
-    const n = u * shrunk(q, worth, mine.get(pid));
-    if (n) out.set(pid, n);
-  }
-  return out;
+  return Seq.windowLines(units, (pid) => shrunk(q, worth, mine.get(pid)));
 }
 
 /**

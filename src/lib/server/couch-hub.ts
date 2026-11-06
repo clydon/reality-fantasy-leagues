@@ -1,4 +1,5 @@
 import StateLogic from "@/lib/game/state-logic.js";
+import * as Seq from "@/lib/game/sequence/index.js";
 import type { AnswerWalk } from "@/lib/game/state-logic.js";
 import { answerStanding, asItStands, storedAnswers } from "./answer-points";
 import { foldFor, isFolded, revealedThrough } from "@/lib/game/chat-fold";
@@ -171,9 +172,9 @@ async function callsThrough(state: LeagueState, g: Game & { seasonId: string }, 
   const opts = { from: from ?? 0, through: upTo, couchId: g.couchId };
   const bingo = StateLogic.piecesOf(state).hasBingo;
   const rights = from === null ? new Map<string, number>() : bingo ? await bingoLines(g.seasonId, userIds, opts) : await callRights(g.seasonId, userIds, opts);
-  // A bingo line's points (step A9), as its table counts them.
+  // A bingo line's points (step A9), as its table counts them (the scoring sequence's count at a line's points).
   const each = bingo ? pointsPerLine(state) : 1;
-  return { right: (p: string) => (rights.get(who(p) ?? "") ?? 0) * each, through: upTo, ended: endedThrough(schedule, through, end) };
+  return { right: (p: string) => Seq.counted(rights.get(who(p) ?? "") ?? 0, each), through: upTo, ended: endedThrough(schedule, through, end) };
 }
 
 export async function couchHub(user: SessionUser, couchId: string): Promise<CouchHub> {

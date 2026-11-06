@@ -103,8 +103,10 @@ parts: part 1, the sequence and the drafts (2026-11-05: the six steps as a pure 
 through it under `ScoringLogic.compute` with every read the same, proven against the scorers before it shape by shape and episode by
 episode), is built, and so is part 2, the week's results (2026-11-05: what each episode's totals make as the sequence's step 5, a
 pool's nights, the knockouts, head to head and its playoffs, teams of players and co-op's night, on a draft's one walk, its table the
-sequence at now and its series at each episode once its results are final; every golden and Survivor 51 rehearsal read the same, every blind game played through); part 3,
-outside the state, next; then C3 to C7, A14's later parts, and a stop before A15. The live-sports plan is
+sequence at now and its series at each episode once its results are final; every golden and Survivor 51 rehearsal read the same, every blind game played through), and so
+is part 3, outside the state (2026-11-06: a game of questions' windows, every way they combine, and its walk, Weekly Calls' and bingo's
+counts and a game in stages' overall, as lines the server hands the sequence; every shape, golden, blind and Survivor 51 rehearsal read
+the same); part 4, playing by placement, next; then C3 to C7, A14's later parts, and a stop before A15. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5, at
 high since 2026-11-05; C2 at xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: folded in here as track L; its file keeps the details)
 and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track S here).
@@ -5518,6 +5520,88 @@ A14 part 2 and before A14's other parts; every part keeps every golden and blind
     place counting nothing in the series (part 1's Noticed 3, settled on purpose and tested); the plain lineup's cent (documented,
     no show reaches it); the walk run more than once in one read of a game with knockouts, head to head or teams (as before part
     2: Noticed); the one-line wrappers left in state-logic.js (Noticed).
+
+  **As built (C2 part 3, outside the state, 2026-11-06; on `engine`, not merged; no migration).** One session (xhigh), after `lane.js
+  sync engine` (master's own-pace games parts 2 to 3a and their two sync points, What scores and the rulebook research: the
+  conflicts in state-logic.js, its d.ts, game-view.ts, bot-logic.js and the own-pace files resolved to master's own-pace code with
+  C2's changes kept, every one of master's state-logic.js lines checked in; the plan to the lane's newer Status and master's
+  "merged and live" headings; HANDOFF.md master's) and `npm run migrate` (master's 0432 to 0436).
+  - **The sequence's pieces outside the state** (`src/lib/game/sequence/index.js`, types in `index.d.ts`), each pure, data in and
+    out: 2, a window's lines (`windowLines`: each answer's right ones at what the window is worth to it), a shrinking call's worth
+    (`shrink`), a rollover's jackpot and what it carries on (`jackpot`, `carry`), right calls and bingo lines counted, each
+    episode's too (`tally`); 3, a count at a line's points (`counted`, never rounded); 4, a window's answers combined across the
+    seats (`split`, a pot by units, each share to the cent; `only`; `onlyEach`, by pick); 5, a count's running total through each
+    episode (`through`), a night's lives lost (`livesNight`: none left goes out; everyone left going out the same night all back,
+    sharing it, or out), the knockouts walking a game of questions too (`knockouts`: an episode's totals, and what it cost each who
+    could lose a life, can be worked out as the walk goes from who's out so far, since someone out takes no share of anyone's points
+    after; a race, then the night's lives, then the cuts, then one left), and co-op's walk (`coop`: the couch's lives together, one
+    for each question lost, over at none).
+  - **What reads them.** A game of questions' grade (`AnswerLogic.grade`): each window graded by game-spec answers.js (the verdict,
+    each answer's right ones, which right pick who named, against the bot those it didn't name: the grading stays there), its lines
+    and combines the sequence's (`windowPoints`: `Seq.split`, `Seq.only`, `Seq.onlyEach`, `Seq.windowLines` at each answer's worth;
+    `shrunk` on `Seq.shrink`; answers.js's own `cents` gone), a rollover's worth `Seq.jackpot` and its carry `Seq.carry`, the parlays
+    `Seq.multiply` on each leg's line, the sum `Seq.add`. Its walk (`AnswerLogic.walk`): what only the league says (the episodes it
+    walks, to head to head's end, the newest left out while it waits; each one's totals through it, graded on the answers that count
+    as who's out so far has them, a handicap added; what the night cost each who could lose a life; co-op's night), handed to
+    `Seq.knockouts` or `Seq.coop`, its result the run's. A game in stages' overall (`StageLogic.overall`: `Seq.sum` of its stages'
+    points and of their places' points). The server's counts: Weekly Calls' right calls (`calls.ts callRights`: `Seq.tally`; its
+    `addAt` gone), bingo's lines (`bingo.ts bingoLines`: `Seq.tally`; `leagueBingo`'s table `Seq.counted`), a stage's tables at each
+    episode (`answer-points.ts outsideCounts`: `Seq.through`, `Seq.counted`) and the hub's standings (`couch-hub.ts callsThrough`:
+    `Seq.counted`). What only the server knows (`serverFacts`: the format's groups, the trivia key, episode facts, the bot's calls)
+    stays out of the state as before: the server grades with it and hands the sequence the lines.
+  - **state-logic.js, the functions changed** (for the merge with the own-pace session): `AnswerLogic.grade`, `AnswerLogic.walk`,
+    `StageLogic.overall`; `KnockoutLogic.cutAfter` gone (the walk was its only caller: its cuts are the sequence's knockouts' now).
+  - **What reads differently:** nothing: every shape (1,620 reads), every golden read, every blind game and every Survivor 51
+    rehearsal read the same as before part 3.
+  - **Proof:** the shapes fixture (`tests/fixtures/scoring-shapes.js`) extended with 40 shapes scored outside the state, on the same
+    season, read as the server reads them: a game of questions (`questionsRead`: graded on the viewer's copy with what only the
+    server knows, given as data, walked first where the game walks; the grade's points, each window's verdict, what each answer
+    earned and a rollover's worth, the walk, the score rows, the table as the Games tab ranks it, `game-view.ts tableOf`, head to
+    head's and the teams' walks, where it ends): every answer kind plain (a person, a number, yes or no, a group, the game's winner),
+    a pot split, only the only one right (alone, by pick, on yes or no), a rollover plain and as a pot, chips split, a split's cents
+    adding up with float noise in them, a shrinking call by episode and by change, a wager, a parlay, trivia, an episode fact, the
+    players' answers, the bot's calls (and a pot against them, void where it made none), lives, last one standing, everyone out the
+    same night each way, a race (with early results, with lives), cuts (with lives and early results), co-op with each `saves`, head
+    to head with and without playoffs, teams and head to head between teams, a handicap (on the table, a race and head to head) and a
+    span; Weekly Calls and bingo (`outsideRead`: the server's counts through each mark at a line's points, the table, where it
+    ends); a game in stages by points, places and wins (`stageRead`: each stage's standing, the overall, where it ends). 720 new reads
+    (90 shapes, 1,620 reads in all), recorded from part 3's parent's engine (5004de5d, `--write --ref=HEAD`) before any engine change:
+    the 900 earlier reads byte for byte as recorded, and the new ones read the same on d5222e68's engine too. This tree reads all
+    1,620 the same. `tests/sequence-outside.test.js` (12: each piece; the window's pieces against the combining they replaced, kept
+    in the test, on 2,000 made-up windows; the running count against `outsideCounts`' old loop on 300 made-up counts; the knockouts
+    reading who's out before each night's totals and lives; co-op). Each piece changed in turn (24 changes: a line worth nothing kept,
+    a shrinking call below nothing, a rollover carrying nothing and carrying always, its worth unread, a split unrounded and even, only
+    for anyone right, a shared pick scoring, the parlay not multiplying, the sum unrounded, everyone out coming back regardless and
+    never sharing, a life lost leaving one, lives before the race, the totals read after the night's outs, one left ending only with
+    cuts, co-op losing no lives and never ending, the newest never waiting, a walk's handicap left out, a stage's overall unrounded,
+    its places' points doubled, the shrink unread) is caught; two weren't at first (the sum unrounded, a walk's handicap left out of
+    its series: no shape read either) until `q-chips-cents`, `q-handicap-race` and `q-handicap-matchups`, and the code review's
+    reorder got `q-race-lives`. `npm test` 1468 of 1468; `tsc` clean; eslint on the changed files (the `require()` style aside).
+    `engine-capabilities.js --check`: up to date (no row moves: part 3 opens nothing). `game-specs-flag.js check`: PASS (9 of 9
+    leagues, this lane's database). Through the app (this lane's server, the zt_nd_ fixture), ALL PASS: `check-mini-stages.js` (a
+    stage of bingo and of Weekly Calls on the server's counts, the overall), `check-stages.js`, `check-answer-h2h.js`,
+    `check-players-game.js`, `check-beat-bot.js`, `check-episode-facts.js`, `check-trivia-game.js`, `check-questions-scoring.js`
+    (rollovers, pots, parlays, shrinking calls, bingo's points a line), `check-answer-knockouts.js`, `check-coop.js` (once its step on
+    the hub read today's shape: it read `rankings.counted`, gone since power rankings became couch points on 2026-10-31, as
+    check-teams.js's was in part 2; now head to head, which leaves a co-op game out) and `check-questions.js --api` (Weekly Calls'
+    table and a draft's finale predictions).
+  - **Golden replays:** `golden.js` (HEAD, part 3's parent, against the working tree): 7 seasons, 160 games, **19,361 reads, every one
+    the same**; against master's (`--before=master`, production's engine): every one the same.
+  - **Blind replays:** (`blind.js run`, the five seasons, on the final code): **every game played through and over on all five**, as
+    after part 2: Survivor 49 140 of 140, The Challenge 41 110, 40 104, 39 112, The Traitors 4 99; every stand-in call filed, none
+    refused; nothing refused that the app offered, no score that isn't a number.
+  - **The Survivor 51 rehearsal:** (`season-forward.js rehearse --from=backups/prod-2026-10-30 --scenario=realistic,rough,dst
+    --before=master`, this lane's tree): every invariant holds in all three scenarios, flag off and on read the same (2,856 reads
+    each), and master's engine against this tree's reads the same in every one (2,856 reads, flag off and on).
+  - **The code review** (`/code-review` at high, before the long runs): ten findings. Taken: a count times a line's points rounded
+    through `Seq.multiply` where the tables never rounded it (whole numbers both, so it read the same; now `Seq.counted`, unrounded,
+    one piece for its three callers); co-op's night typed as optional where `Seq.coop` calls it (a `CoopNight` of its own); co-op's
+    night reading the walk's own map of who's out where the totals read the sequence's (both empty in co-op; now the sequence's,
+    `missed(out)`); the walk copying the run's results into maps it had filled before (now the run's own); the answers with anything
+    right filtered three times (`rightOf`); an orphan comment; a night's lives graded before a race could end it (now after, as
+    nothing moves between). Kept, saying so: the one-line pieces (`jackpot`, `shrink`, `carry`, `counted`: the sequence's named places
+    part 4 composes, as part 2's `add` and `allOut` are); the newest episode's life questions read once more for its waiting check
+    (one verdict a question, once a walk); `each = bingo ? pointsPerLine(state) : 1` in three files (as before part 3: Noticed).
 - **C3. Multipliers on any condition.** One multiplier piece keyed by a condition: how a holding joined (drafted, a pickup,
   the Nth replacement), when it was picked, a captain, a streak, the legs of a parlay. Captain, by when, parlay and confidence
   become uses of it. Game 2's 1x, 0.5x, 0.25x, configurable.
@@ -6475,6 +6559,24 @@ From R1 part 2 (2026-10-30):
 - **For the hosting notes, at the merge:** `/api/me` (classic's sign-in and every classic load) now sends each league's settings, not its
   whole state (20-40 KB each): less Neon transfer than before. (The main folder: docs/HOSTING.md, with the merge.)
 
+From C2 part 3 (2026-11-06):
+- **A parlay multiplies after a window's share** (today's order: the window's worth, its share, only, shrink or the bot, then the
+  parlays), where the study's order for the combinations C2 part 4 and C6 open is the stake, then the multipliers, then the share. A
+  parlay's legs are plain questions today (no share), so nothing plays it yet; once part 4 lets a shared question be a parlay's leg,
+  which comes first is a rule question for the user. Recommended: the share, then the parlay (a parlay multiplies what each leg gave
+  you, as today's lines are; the other way round a parlay would grow your share of a pot everyone else shares too). (C2 part 4, or C6
+  with the stakes.)
+- **`each = bingo ? pointsPerLine(state) : 1` is in three files** (`answer-points.ts outsideCounts`, `bingo.ts leagueBingo`,
+  `couch-hub.ts callsThrough`), as before part 3; their multiply is one piece now (`Seq.counted`). A `linePoints(state)` in
+  `game/bingo.ts` on `piecesOf` would make it one. (R3, or whoever next works in them.)
+- **The fixture's Weekly Calls and bingo reads count with the fixture's own loop:** the server's counting reads the database
+  (`episode_calls`, `bingo_cards`), so the shapes read the tables and the game's end on counts given as data; `Seq.tally` and
+  `Seq.through` are proven by the unit tests against the loops they replaced, and through the app by `check-mini-stages.js` and
+  `check-questions.js`. A pure count of a card's lines (`countLines`) and a call's verdict are TypeScript (`game/bingo.ts`,
+  `game/calls.ts`); the fixture loads `game-view.ts` through jiti already, so it could read them too. (C7, when one generator makes
+  calls, trivia and bingo squares.)
+- **No prompt changed and no migration** in this part; nothing for the hosting notes (no storage, no new reads).
+
 From C2 part 2 (2026-11-05):
 - **The walk runs more than once in one read** of a game with knockouts, head to head or teams: the table's `now`, then the series
   for the week's results, and the series again where `lastEpisode`, `spanView` and the knockouts' `apply` ask, as before part 2
@@ -6484,7 +6586,8 @@ From C2 part 2 (2026-11-05):
 - **The one-line wrappers stay** (`MatchupLogic.round`, `median`, `bracket`, `PickEmScoringStrategy.standingKey` and
   `compareKeys`, `KnockoutLogic.cutAfter`): their callers (state-logic.js's own, tests, scripts, `state-logic.d.ts`) keep their
   names while the own-pace session edits state-logic.js; once it's merged, they can read the sequence directly. (After that
-  merge, or R3.)
+  merge, or R3.) C2 part 3: `KnockoutLogic.cutAfter` is gone (its one caller, a game of questions' walk, walks the sequence's
+  knockouts now).
 - **A pool has no series of totals:** its walk has each night's points, but head to head, teams of players or a handicap on a
   pool's points (refused today: "its streak stays its rank's") need one, the shape `ScoringLogic.walk`'s series has, built from
   the pool's histories. (C2 part 4, when it opens them.)

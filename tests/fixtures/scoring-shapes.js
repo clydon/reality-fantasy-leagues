@@ -6,7 +6,10 @@
 // carried, two pickups (one after the last episode but one, so a mark sees the move before the series does), side bets (one paying,
 // one alone, one shared), finale predictions, group slots on the format's pairs, a handicap, a stock market's cash. C2 part 2 adds
 // the week's results on the same season (weekShapes: knockouts, head to head, teams of players, pools with every piece), each
-// read with its walk's own output too (weekOf).
+// read with its walk's own output too (weekOf). C2 part 3 adds what the server scores outside the state (outsideShapes: a game of
+// questions with every way its points combine and every walk on it, its answers and what only the server knows as data here;
+// Weekly Calls and bingo on the server's counts; a game in stages on its stages' tables), each read as the server reads it
+// (questionsRead, outsideRead, stageRead).
 //
 // What each read is (readOf): everything the engine scores a draft by, as a viewer sees it at a mark (nothing seen, each episode,
 // everything; GhostLogic.viewFor, as golden.js reads): the table's rows (every field, in its order), the knockouts' series
@@ -18,7 +21,8 @@
 // say which reads move and why. Moved so far: C2 part 2, a plain lineup's table rows (15 shapes, 180 reads: lineup, lineup-early,
 // handicap, race, matchups and the week's lineups, at the marks from Episode 3 on), a cent each on the half-cent moments (0.5
 // points x 1.15 units), its table now adding up each episode's total as its series always did, where it rounded after each moment
-// (`--diff` against d5222e68 lists them):
+// (`--diff` against d5222e68 lists them). C2 part 3's shapes (q-plain on) were recorded from the engine before part 3 (its
+// commit's parent, with --ref=HEAD), and read the same on d5222e68's:
 //   node tests/fixtures/scoring-shapes.js --write [--ref=<git ref>]      the record, from this tree's engine (or the ref's)
 //   node tests/fixtures/scoring-shapes.js --print <shape> <seat|-> <mark|-|all> [--ref=<git ref>]   one read, in full
 //   node tests/fixtures/scoring-shapes.js --diff [<shape>] [--ref=d5222e68]   where this tree's reads part from the ref's (the
@@ -28,14 +32,19 @@ const crypto = require("crypto");
 const path = require("path");
 const fs = require("fs");
 
+// C2 part 3: the moments a game of questions here is settled by, the show's calls, the trivia key and the title quote (research
+// rated reliable on it), so every shape's spec has no problems.
 const CTX = {
-  moments: [],
+  moments: ["individualImmunity", "idolPlayed", "idolFound", "tribeImmunity"].map((id) => ({ id, label: id, defaultPoints: 1, answeredBy: "research" })),
   results: true,
   winner: true,
   roles: [],
   grouped: true,
   jury: true,
   phases: [{ id: "premerge" }, { id: "merged" }],
+  calls: "results",
+  trivia: true,
+  facts: { titleQuote: { asked: 10, settled: 10 } },
 };
 const SEATS = ["ann", "bo", "cy", "di"];
 const FINALE = (G) => G.finaleQuestions({ top3: 1, winner: 3, from: "any" });
@@ -69,6 +78,7 @@ function shapes(G) {
     ["market", lineup({ rank: { by: "worth" } }, { by: "draft", each: 3, order: "blind", own: "shared", budget: { total: 100, floor: 5, ceiling: 25, trade: { fee: 1 } } }), "shared", { market: true }],
     ["market-total", lineup({}, { by: "draft", each: 3, order: "blind", own: "shared", budget: { total: 100, floor: 5, ceiling: 25, trade: {} } }), "shared", { market: true }],
     ...weekShapes(G, outlast, lineup),
+    ...outsideShapes(),
   ];
 }
 
@@ -118,6 +128,174 @@ function weekShapes(G, outlast, lineup) {
     ["pool-allout-back", pool({ lives: 1 }, null, standing({ allOut: "back" })), null, allOut],
     ["pool-allout-share", pool({ lives: 1 }, null, standing({ allOut: "share", oneLeft: "ends" })), null, allOut],
     ["pool-allout-points", pool({ lives: 1 }, null, standing({ allOut: "points" })), null, allOut],
+  ];
+}
+
+// ---- C2 part 3: what the server scores outside the state ----
+// A game of questions' questions (each a window an episode, or the game's), every way their points combine.
+const BOOT = { id: "boot", ask: "Who goes home?", answer: "person", points: 1, asked: "each", settle: { by: "results", take: "out" } };
+const IMMUNE = { id: "immune", ask: "Who wins immunity?", answer: "person", points: 2, asked: "each", settle: { by: "moment", moment: "individualImmunity", take: "who" } };
+const IDOL = { id: "idol", ask: "An idol played?", answer: "yesNo", points: 1, asked: "each", settle: { by: "moment", moment: "idolPlayed", take: "happened" } };
+const MANY = { id: "many", ask: "How many idols played?", answer: "number", points: 3, asked: "each", settle: { by: "moment", moment: "idolPlayed", take: "count" } };
+const TRIBE = { id: "tribe", ask: "Which tribe wins immunity?", answer: "group", points: 1, asked: "each", settle: { by: "moment", moment: "tribeImmunity", take: "who" } };
+const WINNER = { id: "winner", ask: "Who wins?", answer: "person", points: 5, settle: { by: "results", take: "winner" } };
+const WIN = { id: "win", ask: "Who wins? Less for each episode late", answer: "person", points: 10, closes: "finale", shrink: { points: 1, per: "episode" }, settle: { by: "results", take: "winner" } };
+const Q = {
+  BOOT, IMMUNE, IDOL, MANY, TRIBE, WINNER, WIN,
+  POT: { ...BOOT, id: "pot", ask: "10 points split between everyone who calls the boot", points: 10, share: "split" },
+  ONLY: { ...BOOT, id: "only", points: 2, share: "only" },
+  ONLY2: { ...BOOT, id: "only2", ask: "Two who go home: only yours count", points: 2, pick: 2, share: "only" },
+  ONLY_IDOL: { ...IDOL, id: "onlyidol", points: 3, share: "only" },
+  ROLL: { ...BOOT, id: "roll", points: 2, rollover: true },
+  ROLL_POT: { ...BOOT, id: "rollpot", points: 6, rollover: true, share: "split" },
+  CHIPS: { id: "chips", ask: "10 points split by chips on who wins immunity", answer: "chips", points: 10, chips: 10, asked: "each", share: "split", settle: { by: "moment", moment: "individualImmunity", take: "who" } },
+  SEAL: { ...WIN, id: "seal", ask: "Seal your winner: every change costs a point", shrink: { points: 1, per: "change" } },
+  BET: { id: "bet", ask: "An idol found tonight?", answer: "yesNo", points: 1, asked: "each", wager: 5, settle: { by: "moment", moment: "idolFound", take: "happened" } },
+  TRIVIA: { id: "trivia", ask: "Trivia about the episode before", answer: "trivia", points: 1, asked: "each", settle: { by: "trivia" } },
+  QUOTE: { id: "quote", ask: "Who says the title quote?", answer: "person", points: 2, asked: "each", settle: { by: "fact", fact: "titleQuote", take: "who" } },
+  HERD: { id: "herd", ask: "Who goes home, as most of us say?", answer: "person", points: 2, asked: "each", settle: { by: "players", take: "majority" } },
+  GUESS: { id: "guess", ask: "Who will most of us say goes home?", answer: "person", points: 3, asked: "each", settle: { by: "players", take: "majority", of: "boot" } },
+};
+const BOT = { beat: { by: "bot" } };
+// The answers, as game_answers holds them: { question: { episode (0: the game's): { seat: answer } } }.
+const SAID = {
+  boot: { 1: { ann: "c13", bo: "c13", cy: "c5", di: "c2" }, 2: { ann: "c4", bo: "c3", cy: "c0" }, 3: { ann: "c2", cy: "c7", di: "c8" }, 4: { ann: "c6", bo: "c9", cy: "c4", di: "c0" }, 5: { ann: "c4", bo: "c1", cy: "c2", di: "c10" }, 6: { ann: "c7", bo: "c8", cy: "c14", di: "c12" }, 7: { ann: "c0", bo: "c4", di: "c7" } },
+  immune: { 1: { ann: "c0", bo: "c4", cy: "c0", di: "c1" }, 2: { ann: "c1", bo: "c2" }, 3: { ann: "c2", bo: "c2", cy: "c4" }, 5: { bo: "c4", cy: "c0", di: "c4" }, 6: { ann: "c0", di: "c0" }, 7: { cy: "c2", di: "c4" } },
+  idol: { 1: { ann: "no", bo: "yes", cy: "no" }, 2: { ann: "yes", bo: "yes", cy: "no", di: "yes" }, 3: { bo: "no", di: "yes" }, 4: { ann: "no" }, 6: { ann: "yes", cy: "yes", di: "no" }, 7: { ann: "no", bo: "no" } },
+  many: { 2: { ann: 2, bo: 1, cy: 3, di: 0 }, 4: { ann: 0, bo: 1 }, 6: { ann: 1, cy: 1, di: 2 } },
+  tribe: { 1: { ann: "t1", bo: "t2", cy: "t1" }, 2: { ann: "t2", di: "t1" } },
+  winner: { 0: { ann: "c0", bo: "c4", cy: "c2", di: "c0" } },
+  only2: { 4: { ann: ["c6", "c9"], bo: ["c9", "c0"], cy: ["c4"] }, 5: { ann: ["c1"], di: ["c10", "c1"] }, 6: { ann: ["c11", "c8"], bo: ["c8", "c12"], di: ["c12", "c2"] } },
+  chips: { 1: { ann: { c0: 6, c4: 4 }, bo: { c0: 10 }, cy: { c4: 10 } }, 3: { ann: { c2: 5, c0: 5 }, di: { c2: 3 } }, 5: { bo: { c4: 10 }, di: { c4: 1, c0: 9 } } },
+  bet: { 1: { ann: { answer: "yes", stake: 3 }, bo: { answer: "no", stake: 5 }, cy: { answer: "yes", stake: 0 } }, 2: { ann: { answer: "no", stake: 2 }, bo: { answer: "yes", stake: 4 } }, 4: { cy: { answer: "yes", stake: 5 }, di: { answer: "no", stake: 1 } } },
+  trivia: { 2: { ann: { q1: "A", q2: "B" }, bo: { q1: "B" }, cy: { q2: "B" } }, 3: { ann: { q3: "C" } }, 4: { bo: { q4: "A", q5: "D" }, di: { q4: "A", q5: "C" } } },
+  quote: { 1: { ann: "c4", bo: "c0" }, 2: { ann: "c1" }, 3: { cy: "c2" }, 4: { di: "c13" }, 5: { ann: "c2", bo: "c2", cy: "c4" } },
+  herd: { 1: { ann: "c13", bo: "c13", cy: "c5" }, 2: { ann: "c4", bo: "c3" }, 4: { ann: "c6", bo: "c6", cy: "c9", di: "c9" }, 5: { ann: "c4", bo: "c1", cy: "c4" } },
+  guess: { 1: { ann: "c13", cy: "c2" }, 4: { bo: "c6", di: "c4" }, 5: { ann: "c2", di: "c4" } },
+};
+// A shrinking call's: how many episodes had started when each was made (late), and how many times each was changed once the
+// game had started (changes).
+const LATE = { win: { ann: 0, bo: 1, cy: 3, di: 6 } };
+const CHANGES = { seal: { ann: 0, cy: 2, di: 12 } };
+/** Each question's answers as rows ({ playerId, question, episode, answer, late?, changes? }): its own (`from`: another's). */
+function answersOf(qs, over = {}) {
+  const rows = [];
+  for (const q of qs) {
+    const from = q.id === "win" || q.id === "seal" ? "winner" : q.id in SAID ? q.id : ["pot", "only", "roll", "rollpot"].includes(q.id) ? "boot" : q.id === "onlyidol" ? "idol" : q.id === "beatonly" ? "only2" : q.id;
+    const by = over[q.id] || SAID[from] || {};
+    for (const [n, seats] of Object.entries(by)) {
+      for (const [playerId, answer] of Object.entries(seats)) {
+        const row = { playerId, question: q.id, episode: Number(n), answer };
+        if (LATE[q.id] && playerId in LATE[q.id]) row.late = LATE[q.id][playerId];
+        if (CHANGES[q.id] && playerId in CHANGES[q.id]) row.changes = CHANGES[q.id][playerId];
+        rows.push(row);
+      }
+    }
+  }
+  return rows;
+}
+/** What only the server knows (answer-points.ts serverFacts), fresh for each read: each round's trivia key, research's title quote
+ *  by episode, and the bot's calls (its windows locked). */
+const SERVER = {
+  trivia: () => ({ trivia: new Map([[2, [{ id: "q1", answer: "A" }, { id: "q2", answer: "C" }]], [3, []], [4, [{ id: "q4", answer: "A" }, { id: "q5", answer: "D" }]], [5, [{ id: "q6", answer: "B" }]]]) }),
+  facts: () => ({
+    episodeFacts: new Map([
+      [1, { titleQuote: { state: "who", who: "c4", name: "C4" } }],
+      [2, { titleQuote: { state: "unsure", why: "Two people say it" } }],
+      [3, { titleQuote: { state: "none" } }],
+      [4, { titleQuote: { state: "who", who: "c13", name: "C13" } }],
+      [5, { titleQuote: { state: "who", who: "c2", name: "C2" } }],
+      [6, { titleQuote: { state: "outside", name: "The host" } }],
+    ]),
+  }),
+  bot: () => {
+    const calls = { "boot|1": "c13", "boot|2": "c0", "boot|4": "c6", "boot|5": "c10", "idol|2": "yes", "idol|6": "no", "many|2": 2, "many|6": 1, "beatonly|4": ["c6", "c4"], "beatonly|6": ["c8"] };
+    return { bot: new Map(Object.entries(calls)), botCalled: new Set([...Object.keys(calls), "boot|7"]) };
+  },
+};
+// Lives that empty on one night: ann and bo both wrong in Episode 2, the only two left after Episode 1.
+const ALL_OUT = { boot: { ...SAID.boot, 2: { ann: "c4", bo: "c5", cy: "c0" } } };
+// Weekly Calls' right calls and bingo's lines, each seat's by episode, as the server counts them (calls.ts callRights, bingo.ts
+// bingoLines): the table at a mark reads them through it (answer-points.ts outsideCounts), times a line's points.
+const COUNTS = { 1: { ann: 2, bo: 1 }, 2: { bo: 2, cy: 1 }, 3: {}, 4: { ann: 1, di: 3 }, 5: { cy: 2 }, 6: { ann: 1, bo: 1, cy: 1, di: 1 }, 7: { di: 2, ann: 1 } };
+// A game in stages' walk as the server hands it (answer-points.ts stageWalk): each stage's table after each episode, its points
+// with float noise in them (1.1 + 2.2), its places, over at its end.
+const STAGE_WALK = {
+  stages: [
+    { key: "a", leagueId: "zt-a", from: 1, to: 3, entries: [
+      { episode: 1, over: false, rows: [["ann", 1.1, 1], ["cy", 1.1, 1], ["bo", 0.5, 3], ["di", 0, 4]] },
+      { episode: 2, over: false, rows: [["bo", 3.3, 1], ["ann", 2.2, 2], ["cy", 1.15, 3], ["di", 0.45, 4]] },
+      { episode: 3, over: true, rows: [["ann", 4.4, 1], ["bo", 3.3, 2], ["cy", 2.25, 3], ["di", 2.25, 3]] },
+    ] },
+    { key: "b", leagueId: "zt-b", from: 4, to: null, entries: [
+      { episode: 4, over: false, rows: [["di", 2.2, 1], ["ann", 1.1, 2], ["bo", 0, 3], ["cy", 0, 3]] },
+      { episode: 5, over: false, rows: [["di", 3.3, 1], ["cy", 2.1, 2], ["ann", 1.1, 3], ["bo", 0.7, 4]] },
+      { episode: 6, over: false, rows: [["cy", 4.35, 1], ["di", 3.3, 2], ["bo", 2.7, 3], ["ann", 1.2, 4]] },
+      { episode: 7, over: true, rows: [["cy", 5.45, 1], ["bo", 4.7, 2], ["di", 3.3, 3], ["ann", 3.3, 3]] },
+    ] },
+  ].map((st) => ({ ...st, entries: st.entries.map((e) => ({ ...e, rows: e.rows.map(([playerId, points, place]) => ({ playerId, points, place })) })) })),
+};
+
+/**
+ * What the server scores outside the league's state (C2 part 3), on the same season: a game of questions with every way its points
+ * combine (a plain window on each answer kind; a pot split; only the only one right, by pick and alone; a rollover, plain and as a
+ * pot; chips split; a shrinking call by episode and by change; a wager; a parlay; trivia; an episode fact; the players' answers;
+ * the bot's calls) and every walk on it (lives, last one standing, the night everyone left goes out each way, a race, cuts, all three
+ * with early results, co-op with each `saves`, head to head with and without playoffs, teams of players and head to head between
+ * them, a handicap, a span); Weekly Calls and bingo (their counts through each mark, at a line's points); and a game in stages by
+ * points, places and wins. Each read as the server reads it (questionsRead, outsideRead, stageRead).
+ */
+function outsideShapes() {
+  const game = (ask, score = {}, rank, more = {}) => ({ get: { by: "none" }, score: { by: "answers", ...score }, ask, ...(rank ? { rank } : {}), ...more });
+  const qs = (ask, more = {}) => ({ none: true, questions: { answers: answersOf(ask, more.over), extra: more.extra }, ...(more.o || {}) });
+  const two = [BOOT, IMMUNE];
+  const stages = (by) => ({ stages: [{ id: "a", game: { preset: "outlast", span: { from: 1, to: 3 } } }, { id: "b", game: { preset: "outlast", span: { from: 4 } } }], overall: { by } });
+  const botQs = [{ ...BOOT, ...BOT }, { ...IDOL, ...BOT }, { ...MANY, ...BOT }, { ...Q.ONLY2, id: "beatonly", ...BOT }];
+  const shape = (name, spec, ask, more) => [name, spec, null, qs(ask, more)];
+  const CENTS = { ...Q.CHIPS, id: "cents", ask: "1 point split by chips on who wins immunity", points: 1 };
+  return [
+    shape("q-plain", game([BOOT, IMMUNE, IDOL, MANY, TRIBE, WINNER]), [BOOT, IMMUNE, IDOL, MANY, TRIBE, WINNER]),
+    shape("q-pot", game([Q.POT]), [Q.POT]),
+    shape("q-only", game([Q.ONLY, Q.ONLY2, Q.ONLY_IDOL]), [Q.ONLY, Q.ONLY2, Q.ONLY_IDOL]),
+    shape("q-rollover", game([Q.ROLL, Q.ROLL_POT]), [Q.ROLL, Q.ROLL_POT]),
+    shape("q-chips", game([Q.CHIPS]), [Q.CHIPS]),
+    shape("q-shrink", game([WIN, Q.SEAL]), [WIN, Q.SEAL]),
+    shape("q-wager", game([Q.BET]), [Q.BET]),
+    shape("q-parlay", game(two, { parlays: [{ of: ["boot", "immune"], times: 3 }] }), two),
+    shape("q-trivia", game([Q.TRIVIA, BOOT]), [Q.TRIVIA, BOOT], { extra: SERVER.trivia }),
+    shape("q-fact", game([Q.QUOTE]), [Q.QUOTE], { extra: SERVER.facts }),
+    shape("q-players", game([BOOT, Q.HERD, Q.GUESS]), [BOOT, Q.HERD, Q.GUESS]),
+    shape("q-bot", game(botQs), botQs, { extra: SERVER.bot }),
+    shape("q-bot-pot", game([{ ...Q.POT, ...BOT, beat: { by: "bot", none: "void" } }]), [Q.POT], { extra: () => ({ bot: new Map([["pot|1", "c13"], ["pot|5", "c1"]]), botCalled: new Set(["pot|1", "pot|5"]) }) }),
+    shape("q-lives", game([BOOT, IDOL], { lives: 2, livesOn: ["boot"] }, { by: "standing" }), [BOOT, IDOL]),
+    shape("q-lives-last", game([BOOT], { lives: 1 }, { by: "standing", oneLeft: "ends" }), [BOOT]),
+    shape("q-allout-back", game([BOOT], { lives: 1 }, { by: "standing", allOut: "back" }), [BOOT], { over: ALL_OUT }),
+    shape("q-allout-share", game([BOOT], { lives: 1 }, { by: "standing", allOut: "share", oneLeft: "ends" }), [BOOT], { over: ALL_OUT }),
+    shape("q-allout-points", game([BOOT], { lives: 1 }, { by: "standing", allOut: "points" }), [BOOT], { over: ALL_OUT }),
+    shape("q-race", game(two, {}, { by: "total", race: { to: 6 } }), two),
+    shape("q-race-early", game(two, {}, { by: "total", race: { to: 9 } }), two, { o: { early: 6 } }),
+    shape("q-race-lives", game(two, { lives: 2, livesOn: ["boot"] }, { by: "standing", race: { to: 7 } }), two),
+    shape("q-cuts", game(two, {}, { by: "standing", cut: [{ at: { every: 2 }, out: 1 }] }), two),
+    shape("q-cuts-lives", game([BOOT, Q.POT], { lives: 3, livesOn: ["boot"] }, { by: "standing", cut: [{ at: { episode: 3 }, out: 1, tie: "all" }] }), [BOOT, Q.POT], { o: { early: 7 } }),
+    shape("q-coop-one", game([BOOT, IDOL], { lives: 3 }, { by: "coop" }), [BOOT, IDOL]),
+    shape("q-coop-most", game([BOOT, IDOL], { lives: 3, saves: "most" }, { by: "coop" }), [BOOT, IDOL]),
+    shape("q-coop-all", game([BOOT, IDOL], { lives: 2, saves: "all" }, { by: "coop" }), [BOOT, IDOL]),
+    shape("q-matchups", game(two, {}, { by: "matchups" }), two),
+    shape("q-matchups-playoffs", game([BOOT, IMMUNE, WINNER], {}, { by: "matchups", playoffs: { teams: 2, from: 6 } }), [BOOT, IMMUNE, WINNER]),
+    shape("q-teams", game(two, {}, { by: "total", teams: { of: 2 } }), two),
+    shape("q-teams-matchups", game(two, {}, { by: "matchups", teams: { of: 2 } }), two),
+    shape("q-handicap", game(two, {}, { by: "total", handicap: { points: 2 } }), two, { o: { history: true } }),
+    // Each window's share to the cent, the sum of them with float noise in it (0.7 + 0.1), rounded as it adds up; a handicap in the
+    // walk's series (a race on it, head to head on it).
+    shape("q-chips-cents", game([CENTS]), [CENTS], { over: { cents: { 1: { ann: { c0: 7, c4: 3 }, bo: { c0: 3 } }, 3: { ann: { c2: 1 }, di: { c2: 9 } }, 5: { bo: { c4: 2 }, cy: { c4: 2 }, di: { c4: 6 } } } } }),
+    shape("q-handicap-race", game(two, {}, { by: "total", race: { to: 12 }, handicap: { points: 2 } }), two, { o: { history: true } }),
+    shape("q-handicap-matchups", game(two, {}, { by: "matchups", handicap: { points: 2 } }), two, { o: { history: true } }),
+    shape("q-span", game([Q.ROLL, IMMUNE], {}, undefined, { span: { from: 2, to: 5 } }), [Q.ROLL, IMMUNE]),
+    ["calls", { preset: "weekly-calls" }, null, { none: true, outside: { each: 1 } }],
+    ["bingo", { preset: "weekly-bingo", score: { by: "lines", points: 2 } }, null, { none: true, outside: { each: 2 } }],
+    ["stages-points", stages("points"), null, { none: true, stages: true }],
+    ["stages-places", stages("places"), null, { none: true, stages: true }],
+    ["stages-wins", stages("wins"), null, { none: true, stages: true }],
   ];
 }
 
@@ -219,8 +397,10 @@ function league(S, G, T, spec, own, o = {}) {
     castaways,
     episodes: Array.from({ length: 7 }, (_, i) => ({ id: `e${i + 1}`, number: i + 1, events: [], scoringEvents: [], bets: [], picks: [], lineups: {} })),
   });
-  // A pool holds nobody: each seat's pick an episode (POOL_PICKS, a shape's own over them).
-  const team = o.pick ? {} : mine(TEAMS[own]);
+  // A pool holds nobody: each seat's pick an episode (POOL_PICKS, a shape's own over them). Nor does a game scored outside the state
+  // (o.none: a game of questions, Weekly Calls, bingo, a game in stages: C2 part 3).
+  const holds = !o.pick && !o.none;
+  const team = holds ? mine(TEAMS[own]) : {};
   for (const [p, ids] of Object.entries(team)) ids.forEach((id) => s.castaways.find((c) => c.id === id).ownerIds.push(p));
   s.castaways.forEach((c) => { if (c.ownerIds.length) c.acquiredVia = "draft"; });
   if (o.phaseStarts) s.phaseStarts = { ...o.phaseStarts };
@@ -229,7 +409,7 @@ function league(S, G, T, spec, own, o = {}) {
     s.teamSeats = JSON.parse(JSON.stringify(mine(TEAM_SEATS)));
     s.teamDraw = { seed: "zt-teams", kept: true };
   }
-  const moves = o.pick ? [] : (o.market ? MOVES.market : MOVES[own]).filter((m) => seats.includes(m.playerId));
+  const moves = holds ? (o.market ? MOVES.market : MOVES[own]).filter((m) => seats.includes(m.playerId)) : [];
   s.midSeason = { ...(s.midSeason || {}), log: moves.map((m) => ({ ...m })) };
   moves.forEach((m) => {
     const drop = s.castaways.find((c) => c.id === m.droppedCastawayId);
@@ -250,13 +430,14 @@ function league(S, G, T, spec, own, o = {}) {
       const picks = { ...mine(POOL_PICKS[n]), ...mine((o.picks || {})[n]) };
       ep.picks = Object.entries(picks).map(([playerId, [castawayId, second]]) => ({ playerId, castawayId, ...(second ? { second } : {}) }));
     }
-    const lu = o.pick ? null : LINEUPS[own][n];
+    const lu = holds ? LINEUPS[own][n] : null;
     if (lu) Object.entries(mine(lu)).forEach(([p, ids]) => { ep.lineups[p] = ids.slice(); });
     if (CAPTAINS[n]) ep.captains = { ...CAPTAINS[n] };
     ep.bets = (BETS[n] || []).map((b) => JSON.parse(JSON.stringify(b)));
     if (o.early === n) ep.resultsStage = "early";
   }
   s.finalePredictions = FINALE_PICKS.map((f) => JSON.parse(JSON.stringify(f)));
+  if (o.stages) s.stageWalk = JSON.parse(JSON.stringify(STAGE_WALK));
   if (o.pairs) {
     // Pairs from the premiere to Episode 5, each for themselves after (a re-pairing would end every slot at once).
     const reports = [1, 2, 3, 4, 5, 6, 7].map((n) => ({
@@ -315,7 +496,13 @@ function weekOf(S, v) {
  * Everything the engine scores a draft by, as one viewer sees it (`v`, a copy at a mark), as a string. `o`: the shape's own
  * options; the week's shapes (o.week) add their walks' own output (weekOf), and a pool reads no draft's series.
  */
-function readOf(S, v, o) {
+function readOf(S, v, o, seat, eng) {
+  // C2 part 3: a game scored outside the state, read as the server reads it (`eng`: the engine's game-spec and game-view.ts, a
+  // ref's for its reads; the working tree's by default).
+  const e = eng || engine();
+  if (o && o.questions) return questionsRead(S, v, o, seat, e);
+  if (o && o.outside) return outsideRead(S, v, o, seat, e);
+  if (o && o.stages) return stageRead(S, v);
   const g = S.gameOf(v);
   const ids = (list) => (list || []).map((c) => c.id);
   const rows = S.computeScores(v).map((r) => ({ ...r, roster: ids(r.roster), formerRoster: ids(r.formerRoster) }));
@@ -345,8 +532,65 @@ function readOf(S, v, o) {
   });
 }
 
-/** Each shape's reads: { shape: { "seat@mark": read } }, the seat null (nobody) and bo, every mark (nothing, 0, 1 to 7). */
-function readAll(S, G, T, only) {
+/**
+ * A game of questions as the server reads it for one viewer (answer-points.ts walked and leagueAnswers, sheetNights' grade): the
+ * answers graded on their copy with what only the server knows (o.questions.extra), walked first where the game races, knocks
+ * players out, plays co-op, head to head, in teams or with a handicap (AnswerLogic.walk), its copy carrying the walk; the grade
+ * (each one's points, each window's verdict, what each answer earned, a rollover's worth), the walk, the score rows, the table as
+ * the Games tab ranks it (game-view.ts tableOf, by the points), head to head's and the teams' walks, and where it ends.
+ */
+function questionsRead(S, v, o, seat, { G, GV }) {
+  const A = S.AnswerLogic;
+  const all = o.questions.answers;
+  const extra = o.questions.extra ? o.questions.extra() : {};
+  const factsOf = (x) => ({ ...A.facts(x), ...extra });
+  const ids = (list) => (list || []).map((c) => c.id);
+  let view = S.spanView(v);
+  let rows = all;
+  let walk = null;
+  if (G.answerParts(S.gameOf(v))) {
+    walk = A.walk(v, all, factsOf(v));
+    view = S.spanView(A.withWalk(v, walk));
+    rows = walk ? A.liveRows(v, all, walk.out) : all;
+  }
+  const graded = A.grade(view, rows, factsOf(view));
+  const right = walk ? (p) => walk.totals[p] || 0 : (p) => graded.points.get(p) || 0;
+  return JSON.stringify({
+    points: plain(graded.points),
+    verdicts: plain(graded.verdicts),
+    earned: plain(graded.earned),
+    worth: plain(graded.worth),
+    walk: plain(walk),
+    rows: S.computeScores(view).map((r) => ({ ...r, roster: ids(r.roster), formerRoster: ids(r.formerRoster) })),
+    table: GV.tableOf(view, seat || "", (p) => p, right),
+    matchups: S.MatchupLogic.on(view) ? plain(S.MatchupLogic.run(view)) : null,
+    teams: S.TeamLogic.on(view) ? plain(S.TeamLogic.series(view)) : null,
+    last: S.lastEpisode(view),
+    over: S.gameOver(view),
+  });
+}
+/**
+ * Weekly Calls or bingo as the server reads it for one viewer (calls.ts leagueCalls, bingo.ts leagueBingo, answer-points.ts
+ * outsideCounts): each seat's count through the latest episode they've seen (the server's counts by episode, COUNTS, added up from
+ * the game's start), times a line's points (o.outside.each); the table as the Games tab ranks it, the score rows and where it ends.
+ */
+function outsideRead(S, v, o, seat, { GV }) {
+  const through = S.SpoilerLogic.latestWithResults(v);
+  const from = S.startEpisode(v);
+  const count = new Map();
+  for (let e = from === null ? through + 1 : from; e <= through; e++) for (const [p, n] of Object.entries(COUNTS[e] || {})) count.set(p, (count.get(p) || 0) + n);
+  const right = (p) => (count.get(p) || 0) * o.outside.each;
+  return JSON.stringify({ through, table: GV.tableOf(v, seat || "", (p) => p, right), rows: S.computeScores(v), last: S.lastEpisode(v), over: S.gameOver(v) });
+}
+/** A game in stages as one viewer reads it: each stage's standing, the overall, the score rows, where it ends. */
+function stageRead(S, v) {
+  return JSON.stringify({ standings: S.StageLogic.standings(v), overall: S.StageLogic.overall(v), rows: S.computeScores(v), ends: S.StageLogic.endsAt(v), last: S.lastEpisode(v), over: S.gameOver(v) });
+}
+
+/** Each shape's reads: { shape: { "seat@mark": read } }, the seat null (nobody) and bo, every mark (nothing, 0, 1 to 7). `GV`: the
+ *  engine's game-view.ts (a ref's, for its reads; the working tree's by default), for the shapes scored outside the state. */
+function readAll(S, G, T, only, GV) {
+  const eng = { G, get GV() { return GV || gameView(); } };
   const out = {};
   for (const [name, spec, own, o] of shapes(G)) {
     if (only && name !== only) continue;
@@ -354,7 +598,7 @@ function readAll(S, G, T, only) {
     out[name] = {};
     for (const seat of [null, "bo"]) {
       for (const mark of [null, 0, 1, 2, 3, 4, 5, 6, 7]) {
-        out[name][`${seat || "-"}@${mark === null ? "-" : mark}`] = readOf(S, S.GhostLogic.viewFor(JSON.parse(JSON.stringify(s)), seat, mark), o);
+        out[name][`${seat || "-"}@${mark === null ? "-" : mark}`] = readOf(S, S.GhostLogic.viewFor(JSON.parse(JSON.stringify(s)), seat, mark), o, seat, eng);
       }
     }
   }
@@ -363,11 +607,19 @@ function readAll(S, G, T, only) {
 const hash = (read) => crypto.createHash("sha1").update(read).digest("hex");
 
 function engine(root = path.join(__dirname, "..", "..")) {
+  let gv = null;
   return {
     S: require(path.join(root, "src/lib/game/state-logic.js")),
     G: require(path.join(root, "src/lib/game/game-spec/index.js")),
     T: require(path.join(root, "src/lib/game/formats/format-timeline.js")),
+    // Loaded when a read first needs it (C2 part 3: the Games tab's table).
+    get GV() { return (gv = gv || gameView(root)); },
   };
+}
+/** An engine's game-view.ts (the Games tab's table), through jiti, as the server and the tests load it. */
+function gameView(root = path.join(__dirname, "..", "..")) {
+  const jiti = require("jiti")(__filename, { alias: { "@": path.join(root, "src") } });
+  return jiti(path.join(root, "src/lib/game/game-view.ts"));
 }
 /** A git ref's engine (its src/lib/game, exported into a temp folder): { ...engine, done() } to take the folder out. */
 function engineAt(ref) {
@@ -396,13 +648,14 @@ if (require.main === module) {
   const args = process.argv.slice(2).filter((a) => !a.startsWith("--ref="));
   const ref = (process.argv.find((a) => a.startsWith("--ref=")) || "").slice(6) || null;
   const at = ref && args[0] !== "--diff" ? engineAt(ref) : null;
-  const { S, G, T } = at || engine();
+  const eng = at || engine();
+  const { S, G, T } = eng;
   if (args[0] === "--diff") {
     const before = engineAt(ref || "d5222e68");
     try {
       const only = args[1] || undefined;
-      const a = readAll(before.S, before.G, before.T, only);
-      const b = readAll(S, G, T, only);
+      const a = readAll(before.S, before.G, before.T, only, before.GV);
+      const b = readAll(S, G, T, only, eng.GV);
       let n = 0;
       for (const [shape, reads] of Object.entries(b)) {
         for (const [where, r] of Object.entries(reads)) {
@@ -416,13 +669,13 @@ if (require.main === module) {
       before.done();
     }
   } else if (args[0] === "--write") {
-    const all = readAll(S, G, T);
+    const all = readAll(S, G, T, undefined, eng.GV);
     const record = Object.fromEntries(Object.entries(all).map(([k, reads]) => [k, Object.fromEntries(Object.entries(reads).map(([at, r]) => [at, hash(r)]))]));
     fs.writeFileSync(module.exports.RECORD, JSON.stringify(record, null, 1) + "\n");
     console.log(`wrote ${Object.keys(record).length} shapes, ${Object.values(record).reduce((n, r) => n + Object.keys(r).length, 0)} reads`);
   } else if (args[0] === "--print") {
     const [, shape, seat = "-", mark = "-"] = args;
-    const reads = readAll(S, G, T, shape)[shape];
+    const reads = readAll(S, G, T, shape, eng.GV)[shape];
     for (const [at, r] of Object.entries(reads)) if (mark === "all" || at === `${seat}@${mark}`) console.log(at, JSON.stringify(JSON.parse(r), null, 1));
   } else console.log("node tests/fixtures/scoring-shapes.js --write | --print <shape> <seat|-> <mark|-|all> | --diff [<shape>]  [--ref=<git ref>]");
   if (at) at.done();

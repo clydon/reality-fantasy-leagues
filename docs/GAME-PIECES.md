@@ -602,17 +602,27 @@ Every game scores as one sequence of six steps, for each of you and each episode
    value rather than points earned while held (whoever holds someone now has their whole place: `placed`, `stillIn`); a
    lineup's are its people's **moments** at the game's points (`momentRaw`), a group slot's its group's (`groupRaw`), a side
    bet's a right guess on a bet with company (`betLines`); finale predictions and a handicap are lines settled on their own.
+   In a game of questions a line is an **answer's right ones at what its window is worth** to it (`windowLines`): the
+   question's points, a rollover's jackpot in them (what the windows before it left unclaimed: `jackpot`, `carry`), a shrinking
+   call's less for each episode late or each change (`shrink`). Which answers are right, and how many right ones each has, is
+   the grading's (the settles above), never the sequence's. A right call (Weekly Calls) and a bingo line are lines too, counted
+   (`tally`).
 3. **Multipliers**: each line times whatever applies to it, in order (`multiply`): a captain's, then the episode's own
-   (`score.times`).
-4. **Combine**: the lines into your total for the episode, all of them or your best n (`best`, `episodeTotal`).
-5. **The week's result**: what each episode's totals make, once its results are final: a running total (`add`); a pool's
-   night on your streak and lives (its right picks first, then its wrong ones; a mulligan forgives one, a wrong one costs a
-   life, a buyback brings you back, or you're out: `poolNight`, `poolEmptied`), and the night everyone left goes out
-   (`allOut`); a race won, a cut, one left (`knockouts`, `cutsAfter`, `lastLeft`); a matchup won, the standings and the
-   playoffs (`matchups`, on what each episode added: `grown`); a team's points, its members' sum or mean (`teamStep`); co-op's
-   night (`saved`).
+   (`score.times`); a parlay's on what each of its windows gave you (after the window's share, below: the order today's games
+   keep); a line's points on a count of bingo lines (`counted`).
+4. **Combine**: the lines into your total for the episode, all of them or your best n (`best`, `episodeTotal`); and a window's
+   answers across all of you: a pot split between everyone right by what each would have earned, only the only one right, by
+   answer or by pick (`split`, `only`, `onlyEach`). Against the bot, the right ones it didn't name are your lines (the grading's).
+5. **The week's result**: what each episode's totals make, once its results are final: a running total (`add`; a count's,
+   `through`); a pool's night on your streak and lives (its right picks first, then its wrong ones; a mulligan forgives one, a
+   wrong one costs a life, a buyback brings you back, or you're out: `poolNight`, `poolEmptied`), and the night everyone left
+   goes out (`allOut`); a race won, a life lost, a cut, one left (`knockouts`, `livesNight`, `cutsAfter`, `lastLeft`); a
+   matchup won, the standings and the playoffs (`matchups`, on what each episode added: `grown`); a team's points, its members'
+   sum or mean (`teamStep`); co-op's night and its lives together (`saved`, `coop`). A game of questions walks the same
+   knockouts as a draft, its totals worked out as the walk goes (someone out takes no share of anyone's points after).
 6. **Rank**: the table in its order (`byTotal`, `byKey`, last one standing's `standingKey`, head to head's `recordKey`), each
-   row's total from its parts (`total`).
+   row's total from its parts (`total`); a game in stages' overall from its stages' tables, their points added up (`sum`), their
+   places' points, or their wins.
 
 A draft is walked once: its table is the sequence **at now**, and the series the week's results read is the same sequence **at
 each episode** once its results are final. They differ only by what's known now and wasn't then: an episode's early results,
@@ -622,13 +632,17 @@ a side bet or finale predictions graded before their episode's results are final
 Rounding (to the cent) is part of the sequence, where each game has always done it: an Outlast's places are whole and never
 rounded; a lineup rounds each person's points as they add up, each line, each episode's total and the running total (a plain
 lineup too, since C2 part 2: it rounded its running total after each moment, a cent apart on a half cent, which a sport's
-counts can make and a show's halves never do).
+counts can make and a show's halves never do); a game of questions rounds only a split pot's shares inside a window, each line
+a parlay multiplies and its sum window by window; counts of calls and lines are whole; a game in stages rounds its overall.
 
-What scores through it now (C2 parts 1 and 2): every draft (an Outlast, a lineup, best ball, group slots, side bets, finale
-predictions, a handicap, a stock market's worth), and the week's results (a pool's walk, the knockouts, head to head and its
-playoffs, teams of players, co-op's night). Still to come: what the server scores outside the league's state (a game of
-questions, Weekly Calls, bingo, a stage's table: part 3), and a spec playing by each piece's place in the sequence instead of
-by one of seven shapes (part 4). Each part keeps every game scoring exactly as before unless it says otherwise.
+What scores through it now (C2 parts 1 to 3): every draft (an Outlast, a lineup, best ball, group slots, side bets, finale
+predictions, a handicap, a stock market's worth), the week's results (a pool's walk, the knockouts, head to head and its
+playoffs, teams of players, co-op's night), and what the server scores outside the league's state, handing the sequence its
+lines (a game of questions' windows, every way they combine, and its walk: lives, a race, cuts, co-op, head to head and teams
+on it, a handicap; Weekly Calls' right calls and bingo's lines, through each episode; a game in stages' overall). What only the
+server knows (the format's groups, the trivia key, episode facts, the bot's calls) stays out of the league's state: the server
+grades with it and hands over the lines. Still to come: a spec playing by each piece's place in the sequence instead of by one
+of seven shapes (part 4). Each part keeps every game scoring exactly as before unless it says otherwise.
 
 ## Where it's still a menu
 
@@ -637,8 +651,8 @@ by three of the user's games tested on 2026-11-05:
 
 - **Seven shapes** (`playsAs`): a spec plays only when its parts match one of them. So a draft can't carry its own questions
   beyond finale predictions ("No game plays this way yet"), a pool can't play head to head or in teams, and a captain or a
-  multiplier by when lives only on a draft scored by moments. The sequence above is built under the drafts and the week's
-  results (C2 parts 1 and 2); the shapes give way to it in C2 part 4.
+  multiplier by when lives only on a draft scored by moments. The sequence above is built under every game (C2 parts 1 to 3);
+  the shapes give way to it in C2 part 4.
 - **Combiners that exclude each other**: a wager plays alone; a parlay's legs are plain; a shrinking call has no share.
 - **One feature per multiplier**: captain, by when, parlay and the wager's double are four separate pieces.
 - **Ownership per game**: the draft and its pickups share one `own`.
@@ -654,7 +668,7 @@ is under C2's.
 
 | Step | The piece | What it opens |
 |---|---|---|
-| C2 | **One scoring sequence**: hold → score each line → multipliers → combine → the week's result → rank (above: parts 1 and 2, the drafts and the week's results, built). A spec plays when each piece it names has its place in the sequence | combiners that exclude each other today combine wherever the sequence allows; no seven shapes |
+| C2 | **One scoring sequence**: hold → score each line → multipliers → combine → the week's result → rank (above: parts 1 to 3, every game, built). A spec plays when each piece it names has its place in the sequence | combiners that exclude each other today combine wherever the sequence allows; no seven shapes |
 | C3 | **Multipliers on any condition**: one piece keyed by how a holding joined (drafted, a pickup, the Nth replacement), when it was picked, a captain, a streak, a parlay's legs | captain, by when, parlay and confidence become uses of it; the user's 1x, 0.5x, 0.25x |
 | C4 | **Ownership per holding**: exclusive or shared for the draft, the pickups and the group slots each, and where a replacement comes from | an exclusive draft with shared replacements |
 | C5 | **The week as a result**: pick N each episode without a draft; a week's winner and ranking by weeks won; "only these moments count"; hits counted per objective or per pick; more than six stages, or each episode a round | the user's third game |

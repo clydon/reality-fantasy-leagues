@@ -1,5 +1,6 @@
 import StateLogic from "@/lib/game/state-logic.js";
 import * as Spec from "@/lib/game/game-spec/index.js";
+import * as Seq from "@/lib/game/sequence/index.js";
 import type { SheetNights } from "@/lib/game/episode-view";
 import { gameView, type BotLine, type GameCalls } from "@/lib/game/game-view";
 import { pointsPerLine } from "@/lib/game/bingo";
@@ -225,19 +226,15 @@ async function outsideCounts(leagueId: string, state: LeagueState, seasons: Map<
     const users = [...new Set(userOf.values())];
     await (pieces.hasBingo ? bingoLines(seasonId, users, opts) : callRights(seasonId, users, opts));
   }
-  // Each account's count through each episode, added up once.
-  const through = new Map<number, Map<string, number>>();
-  const run = new Map<string, number>();
-  for (let e = start ?? upTo + 1; e <= upTo; e++) {
-    for (const [u, k] of byEpisode.get(e) ?? []) run.set(u, (run.get(u) ?? 0) + k);
-    through.set(e, new Map(run));
-  }
+  // Each account's count through each episode, added up once (C2 part 3: the scoring sequence's running count), times a line's
+  // points (a call's 1).
+  const through = Seq.through(byEpisode, start ?? upTo + 1, upTo);
   const each = pieces.hasBingo ? pointsPerLine(state) : 1;
   return {
     aired,
     at: (n) => {
       const counts = through.get(Math.min(n, upTo));
-      const right = (p: string) => (counts?.get(userOf.get(p) ?? "") ?? 0) * each;
+      const right = (p: string) => Seq.counted(counts?.get(userOf.get(p) ?? "") ?? 0, each);
       // Over once its last episode or the season's is within n, or, as the engine knows a season is over, its winner crowned by n (a
       // schedule's episode count can run past the final).
       const ended = endedThrough(schedule, n, end) || StateLogic.gameOver(StateLogic.GhostLogic.viewFor(state, null, n));

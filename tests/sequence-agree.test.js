@@ -7,9 +7,14 @@
 // the knockouts' series, each seat's episode scores, each castaway's place, the market, the finale's points, who's out and where
 // the game ends. C2 part 2: the week's results on the same season (knockouts on an Outlast and a lineup, head to head with playoffs
 // and an odd seat, teams of players summed, by the mean and head to head, pools with lives, a buyback, mulligans, a second pick, a
-// pick that never repeats, last one standing and the night everyone left goes out), each with its walk's own output. Each read
-// must be the one the scorers before the sequence gave (tests/fixtures/scoring-shapes.json, recorded at d5222e68), but for a
-// plain lineup's table rows, which C2 part 2 moved by a cent on the half-cent moments (the fixture's header). Run with `npm test`.
+// pick that never repeats, last one standing and the night everyone left goes out), each with its walk's own output. C2 part 3:
+// what the server scores outside the state (a game of questions with every way its points combine, a pot split, only the only one
+// right, a rollover, chips, a shrinking call, a wager, a parlay, trivia, an episode fact, the players' answers and the bot's calls,
+// and every walk on it, lives, last one standing, everyone out each way, a race, cuts, co-op with each `saves`, head to head, teams,
+// a handicap, a span; Weekly Calls and bingo; a game in stages by points, places and wins), each read as the server reads it. Each
+// read must be the one the scorers before the sequence gave (tests/fixtures/scoring-shapes.json, recorded at d5222e68, part 3's
+// shapes from part 3's parent), but for a plain lineup's table rows, which C2 part 2 moved by a cent on the half-cent moments (the
+// fixture's header). Run with `npm test`.
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const F = require("./fixtures/scoring-shapes.js");

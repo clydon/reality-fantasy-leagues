@@ -779,13 +779,6 @@ class KnockoutLogic {
     });
     return { out, ends, series };
   }
-  // The cuts after episode k, each in turn on who's left then (A11 part 1; part 2b, a game of questions' too, on its answers' points):
-  // the sequence's (Seq.cutsAfter: every n episodes by the points over them, after an episode, or the episode before a phase starts
-  // once data says where, as a phase's multiplier reads it: timesFor). Who goes is set in `out`.
-  //   o: { k, start, quiet, inAt(k) (the players who can be cut), total(id) (through k), before(n), out (Map) }
-  static cutAfter(state, cuts, o){
-    Seq.cutsAfter(cuts, { ...o, inAt: k => o.inAt(k).map(p => p.id), phaseStarts: state.phaseStarts });
-  }
   // Where the game ends early: the episode a race was won or one was left, else null. A11 part 2: a pool's too, where one or none
   // left ends it (PickEmLogic.endsAt), so lastEpisode, gameOver, spanView and endedBefore read both; part 2b, a game of questions'
   // as the walk its state carries has it (AnswerLogic.walkOf: none, the span's end).
@@ -4523,22 +4516,26 @@ class StageLogic {
   static overall(state){
     const o = StageLogic.overallOf(state);
     const stands = StageLogic.standings(state);
+    // C2 part 3: each stage's table a line for each seat (its points, and once it's over its place's points and a win), added up
+    // across the stages (Seq.sum), the overall by points, places or wins.
     return (state.players || []).filter(p => !isGhost(p)).map(p => {
-      let points = 0;
-      let placePoints = 0;
+      const points = [];
+      const placePoints = [];
       let wins = 0;
       const stages = stands.map(st => {
         const r = st.rows.find(x => x.playerId === p.id);
         if(!r) return { key: st.key, points: null, place: null, over: st.over };
-        points += Number(r.points) || 0;
+        points.push(Number(r.points) || 0);
         if(st.over){
-          placePoints += StageLogic.placePoints(o, r.place, st.rows.length);
+          placePoints.push(StageLogic.placePoints(o, r.place, st.rows.length));
           if(r.place === 1) wins += 1;
         }
         return { key: st.key, points: r.points, place: r.place, over: st.over };
       });
-      const overall = o.by === 'places' ? roundPoints(placePoints) : o.by === 'wins' ? wins : roundPoints(points);
-      return { playerId: p.id, overall, points: roundPoints(points), placePoints: roundPoints(placePoints), wins, stages };
+      const total = Seq.sum(points);
+      const placed = Seq.sum(placePoints);
+      const overall = o.by === 'places' ? placed : o.by === 'wins' ? wins : total;
+      return { playerId: p.id, overall, points: total, placePoints: placed, wins, stages };
     });
   }
   // Every stage is over, as far as this copy has seen.
@@ -7034,6 +7031,11 @@ class AnswerLogic {
   //   A9: a question that rolls over is graded window by window from its first (one nobody answered rolls over too), each
   //   one's points what the windows before it left unclaimed; a window still to settle stops it there, so nothing after it
   //   counts until it does. A parlay multiplies the points of whoever's right on every one of its questions in a window.
+  //   C2 part 3, the scoring sequence: 1, the answers held for each window (each question's, the episode it opens at); 2 and 4, each
+  //   window graded (game-spec answers.js: the verdict, each answer's right ones) into its lines at the window's worth, combined
+  //   across the seats (windowPoints: a pot split, only the only one right, a shrinking call, the bot's call), a rollover's worth its
+  //   points with what the windows before it carried (Seq.jackpot, Seq.carry); 3, the parlays (Seq.multiply on each leg's line);
+  //   then each seat's sum, window by window (Seq.add).
   static grade(state, answers, facts){
     const f = facts || AnswerLogic.facts(state);
     const qs = new Map(AnswerLogic.questions(state).filter(q => !Spec.isCalls(q)).map(q => [q.id, q]));
@@ -7096,12 +7098,12 @@ class AnswerLogic {
         const key = q.id + '|' + ep;
         const v = verdicts.get(key) || Spec.verdictOf(q, ep, f, tallyOf(q, ep));
         // The first window still to settle has its jackpot (what the read shows it's for); nothing after it is known yet.
-        const w = q.points + carry;
+        const w = Seq.jackpot(q.points, carry);
         worth.set(key, w);
         if(v.state === 'waiting') break;
         const got = Spec.windowPoints(q, v, groups.has(key) ? groups.get(key).list : [], f, { worth: w, ...botOf(key) });
         if(groups.has(key)) earned.set(key, got);
-        carry = [...got.values()].some(n => n > 0) ? 0 : w;
+        carry = Seq.carry(w, got);
       }
     });
     // A9: the parlays, each window their questions share.
@@ -7115,13 +7117,13 @@ class AnswerLogic {
         const right = Spec.allRight(legs.map((q, i) => ({ q, v: verdicts.get(keys[i]), answers: groups.get(keys[i]).list })), f);
         right.forEach(pid => keys.forEach(k => {
           const m = earned.get(k);
-          if(m && m.has(pid)) m.set(pid, roundPoints(m.get(pid) * p.times));
+          if(m && m.has(pid)) m.set(pid, Seq.multiply(m.get(pid), [p.times]));
         }));
       });
     });
     const points = new Map();
     // To the cent: a split pot's shares are.
-    earned.forEach(m => m.forEach((n, pid) => points.set(pid, roundPoints((points.get(pid) || 0) + n))));
+    earned.forEach(m => m.forEach((n, pid) => points.set(pid, Seq.add(points.get(pid) || 0, n))));
     return { points, verdicts, earned, worth };
   }
   // ---------- A11 part 2b: a game of questions' race, cuts and lives (game-spec answerParts) ----------
@@ -7164,6 +7166,10 @@ class AnswerLogic {
   // sharing it), totals: { playerId: points as the table shows them }, coop (co-op only: { lives: left, of: lives at the start,
   // lost: [{ episode, question }], result: 'won' | 'lost' | null while it plays }), series (head to head only: [{ number, totals:
   // { playerId: points through it } }], each episode walked) }, or null for a game with none of it.
+  //   C2 part 3: the walk is the scoring sequence's step 5 on the game's series, as a draft's is (Seq.knockouts: a race, its lives
+  //   lost, its cuts, one left; Seq.coop: co-op's lives together). Here, what only the league says: the episodes it walks (to head
+  //   to head's end; the newest left out while it waits), each one's totals through it (graded on the answers that count, as who's
+  //   out so far has them: someone out takes no share after), what the night cost each who could lose a life, and co-op's night.
   static walk(state, answers, facts){
     const parts = Spec.answerParts(gameOf(state));
     if(!parts) return null;
@@ -7177,28 +7183,18 @@ class AnswerLogic {
     const to = endEpisode(state);
     const eps = start === null ? [] : (state.episodes || []).filter(e => e.number >= start && (to === null || e.number <= to) && EpisodeLogic.hasResults(e)).sort((a,b) => a.number - b.number);
     const newest = eps.length ? eps[eps.length - 1].number : null;
-    const out = new Map();
-    const lives = new Map(everyone.map(p => [p.id, parts.lives || 0]));
-    const shared = new Set();
-    const series = new Map();
-    let ends = null;
-    const live = () => AnswerLogic.liveRows(state, rows, out);
     // A14 part 1: the answers a question the players settle is settled by at episode k (its own, or its `of` question's), as the
-    // grade has them: the answers that count (`now`, live()'s at k), of this copy's seats but a ghost's.
+    // grade has them: the answers that count (`now`, as who's out by then has them: liveRows), of this copy's seats but a ghost's.
     const seats = new Set((state.players || []).filter(p => !isGhost(p)).map(p => p.id));
     const tallyAt = (q, k, now) => {
       const src = q.settle.of ? q.settle.of : q.id;
       return now.filter(a => a.question === src && a.episode === k && seats.has(a.playerId)).map(a => ({ playerId: a.playerId, answer: a.answer }));
     };
     const byPlayers = lifeQs.some(q => Spec.isPlayers(q));
-    // Who can lose a life, be cut or finish a race after episode k: in, started by then, and caught up.
-    const inAt = k => everyone.filter(p => !out.has(p.id) && !catching.has(p.id) && (startOf.get(p.id) || start) <= k);
     // A11 part 3: co-op's lives, the couch's together, and the nights they went; whose answers count there at k (in it from their
     // start and caught up, as everywhere in the walk: someone catching up answers nothing yet, answers.ts refuses it); whether the
     // walk reached its newest episode with nothing still to settle.
     const coop = parts.coop;
-    let couch = parts.lives || 0;
-    const nights = [];
     const counted = k => everyone.filter(p => !catching.has(p.id) && (startOf.get(p.id) || start) <= k);
     let walkedAll = true;
     // A11 part 4b: head to head's last episode, its final's (MatchupLogic.endsAt), or the season's finale once it's over if that came
@@ -7209,76 +7205,94 @@ class AnswerLogic {
     const aboutOne = parts.matchups ? [...qs.values()].filter(Spec.livesQuestion) : [];
     // A11 part 5b: a handicap, each newcomer's points through each episode walked.
     const tally = parts.handicap ? HandicapLogic.tally(state, eps.map(e => e.number)) : null;
+    // The facts as they stood once each episode was in, worked out once each.
+    const factsAt = new Map();
+    const fkOf = k => { if(!factsAt.has(k)) factsAt.set(k, Spec.factsThrough(facts, k)); return factsAt.get(k); };
+    // Each question a life rides on at k, as it stands (the window's answers: who answered what).
+    const lifeNight = (k, now) => lifeQs.map(q => {
+      const fk = fkOf(k);
+      const v = Spec.verdictOf(q, k, fk, Spec.isPlayers(q) ? tallyAt(q, k, now) : undefined);
+      return { q, v, fk, list: rows.filter(a => a.question === q.id && a.episode === k).map(a => ({ playerId: a.playerId, answer: a.answer })) };
+    });
+    // The episodes walked, each the sequence's night: to head to head's end, the newest left out while it waits (a question a life
+    // rides on still to settle there, or its results early in a game that races, cuts or plays head to head).
+    const nights = [];
     for(const ep of eps){
       const k = ep.number;
       if(stop !== null && k > stop) break;
-      const fk = Spec.factsThrough(facts, k);
-      // Lives lost at k: each question a life rides on, settled there.
-      const lost = new Map();
-      const couchLost = [];
-      let waiting = false;
-      const liveNow = byPlayers ? live() : null;
-      for(const q of lifeQs){
-        const v = Spec.verdictOf(q, k, fk, Spec.isPlayers(q) ? tallyAt(q, k, liveNow) : undefined);
-        if(v.state === 'waiting'){ waiting = true; continue; }
-        if(v.state !== 'known') continue;
-        const list = rows.filter(a => a.question === q.id && a.episode === k).map(a => ({ playerId: a.playerId, answer: a.answer }));
-        if(coop){
-          // The couch's night: of those who answered (a void answer is none), how many saw it coming. A night every answer was void
-          // costs nothing, as a void pick does; a night nobody answered at all costs one.
-          let said = 0, right = 0, voids = 0;
-          counted(k).forEach(p => {
-            const mine = list.find(a => a.playerId === p.id);
-            if(!mine) return;
-            const r = Spec.isRight(q, v, mine, list, fk);
-            if(r === null){ voids++; return; }
-            said++;
-            if(r) right++;
-          });
-          if(!said && voids) continue;
-          if(!Seq.saved(said, right, coop.saves)) couchLost.push(q.id);
-          continue;
-        }
-        inAt(k).forEach(p => {
-          const mine = list.find(a => a.playerId === p.id);
-          if((mine ? Spec.isRight(q, v, mine, list, fk) : false) === false) lost.set(p.id, (lost.get(p.id) || 0) + 1);
-        });
+      const fk = fkOf(k);
+      if(k === newest){
+        // (A question the players settle waits only for its episode, its answers or not: none passed here.)
+        let waiting = lifeQs.some(q => Spec.verdictOf(q, k, fk).state === 'waiting');
+        if(parts.matchups && !waiting) waiting = aboutOne.some(q => Spec.verdictOf(q, k, fk).state === 'waiting');
+        if(waiting || ((parts.race || parts.cuts.length || parts.matchups) && EpisodeLogic.resultsStage(ep) === 'early')){ walkedAll = false; break; }
       }
-      // (A question the players settle waits only for its episode, its answers or not: none passed here.)
-      if(parts.matchups && k === newest && !waiting) waiting = aboutOne.some(q => Spec.verdictOf(q, k, fk).state === 'waiting');
-      if(k === newest && (waiting || ((parts.race || parts.cuts.length || parts.matchups) && EpisodeLogic.resultsStage(ep) === 'early'))){ walkedAll = false; break; }
-      // Head to head's final is the game's end: its questions about the game settle there, as the table's totals have them.
-      const totals = AnswerLogic.grade(state, live(), k === stop ? { ...fk, over: true } : fk).points;
-      if(tally) tally(k).forEach((n, id) => totals.set(id, roundPoints((totals.get(id) || 0) + n)));
-      series.set(k, totals);
-      const total = id => totals.get(id) || 0;
-      if(coop){
-        couchLost.forEach(question => nights.push({ episode: k, question }));
-        couch = Math.max(0, couch - couchLost.length);
-        if(couch === 0){ ends = k; break; }
-        continue;
-      }
-      if(parts.race && Seq.raceWon(inAt(k).map(p => p.id), total, parts.race.to)){ ends = k; break; }
-      if(parts.lives && lost.size){
-        const left = everyone.filter(p => !out.has(p.id));
-        const gone = inAt(k).filter(p => lives.get(p.id) - (lost.get(p.id) || 0) <= 0);
-        // Everyone left going out the same night (two or more, nobody catching up still in): the game's allOut.
-        const all = Seq.allOut(gone.length, left.length);
-        if(!(all && parts.allOut === 'back')){
-          lost.forEach((n, id) => lives.set(id, Math.max(0, lives.get(id) - n)));
-          gone.forEach(p => { out.set(p.id, k); if(all && parts.allOut === 'share') shared.add(p.id); });
-        }
-      }
-      // Its cuts, as a draft's (the points through the last episode walked at or before a window's start).
-      const before = n => { const at = [...series.keys()].filter(x => x <= n && x < k).pop(); return at === undefined ? null : series.get(at); };
-      KnockoutLogic.cutAfter(state, parts.cuts, { k, start, quiet: !!ep.noExit, inAt, total, before, out });
-      if((parts.lives || parts.cuts.length) && parts.oneLeft === 'ends' && Seq.lastLeft(everyone, p => !out.has(p.id))){ ends = k; break; }
+      nights.push({
+        number: k,
+        quiet: !!ep.noExit,
+        // Its totals: the answers that count as who's out so far has them, graded on the facts through it (head to head's final is the
+        // game's end: its questions about the game settle there, as the table's totals have them), a handicap's points added.
+        totals: outNow => {
+          const totals = AnswerLogic.grade(state, AnswerLogic.liveRows(state, rows, outNow), k === stop ? { ...fk, over: true } : fk).points;
+          if(tally) tally(k).forEach((n, id) => totals.set(id, Seq.add(totals.get(id) || 0, n)));
+          return totals;
+        },
+        // Lives lost at k: each question a life rides on, settled there, wrong (or not answered) for each who could lose one.
+        lives: (ids, outNow) => {
+          const lost = new Map();
+          for(const { q, v, fk: at, list } of lifeNight(k, byPlayers ? AnswerLogic.liveRows(state, rows, outNow) : null)){
+            if(v.state !== 'known') continue;
+            ids.forEach(id => {
+              const mine = list.find(a => a.playerId === id);
+              if((mine ? Spec.isRight(q, v, mine, list, at) : false) === false) lost.set(id, (lost.get(id) || 0) + 1);
+            });
+          }
+          return lost;
+        },
+        // Co-op's night: of those who answered (a void answer is none), how many saw it coming (Seq.saved). A night every answer was
+        // void costs nothing, as a void pick does; a night nobody answered at all costs one.
+        missed: outNow => {
+          const missed = [];
+          for(const { q, v, fk: at, list } of lifeNight(k, byPlayers ? AnswerLogic.liveRows(state, rows, outNow) : null)){
+            if(v.state !== 'known') continue;
+            let said = 0, right = 0, voids = 0;
+            counted(k).forEach(p => {
+              const mine = list.find(a => a.playerId === p.id);
+              if(!mine) return;
+              const r = Spec.isRight(q, v, mine, list, at);
+              if(r === null){ voids++; return; }
+              said++;
+              if(r) right++;
+            });
+            if(!said && voids) continue;
+            if(!Seq.saved(said, right, coop.saves)) missed.push(q.id);
+          }
+          return missed;
+        },
+      });
     }
+    // Step 5 on the series: co-op's lives together, or the knockouts (a race, lives lost, cuts as a draft's, one left).
+    const run = coop
+      ? Seq.coop(nights, { lives: parts.lives || 0 })
+      : Seq.knockouts(nights, {
+        start,
+        everyone: everyone.map(p => p.id),
+        catching,
+        startOf,
+        race: parts.race,
+        cuts: parts.cuts,
+        oneLeft: parts.oneLeft,
+        phaseStarts: state.phaseStarts,
+        lives: parts.lives ? { of: parts.lives, allOut: parts.allOut } : null,
+      });
+    const series = new Map(run.walked.map(x => [x.number, x.totals]));
+    const out = coop ? new Map() : run.out;
+    const ends = run.ends;
     // The points the table shows: at the game's end (a race won, one left, head to head's final walked: its questions about the game
     // settle there), or as they stand; someone out, as they stood at their last episode in.
     const at = ends !== null ? ends : stop !== null && series.has(stop) ? stop : null;
     const final = at === null ? facts : { ...Spec.factsThrough(facts, at), over: true };
-    const points = AnswerLogic.grade(state, live(), final).points;
+    const points = AnswerLogic.grade(state, AnswerLogic.liveRows(state, rows, out), final).points;
     const totals = {};
     // A11 part 5b: the handicap through the game's end, else every episode with results (as the points stand); someone out, through
     // their last episode in.
@@ -7298,17 +7312,17 @@ class AnswerLogic {
       return {
         ends,
         out: {},
-        lives: Object.fromEntries(everyone.map(p => [p.id, couch])),
+        lives: Object.fromEntries(everyone.map(p => [p.id, run.lives])),
         shared: everyone.map(p => p.id),
         totals,
-        coop: { lives: couch, of: parts.lives, lost: nights, result },
+        coop: { lives: run.lives, of: parts.lives, lost: run.lost, result },
       };
     }
     return {
       ends,
       out: Object.fromEntries(out),
-      lives: parts.lives ? Object.fromEntries(lives) : {},
-      shared: [...shared],
+      lives: parts.lives ? Object.fromEntries(run.lives) : {},
+      shared: [...run.shared],
       totals,
       // A11 part 4b: head to head's episodes, for MatchupLogic.series; part 5, teams of players' (TeamLogic, through seatSeries).
       ...(parts.matchups || parts.teams ? { series: [...series].map(([number, t]) => ({ number, totals: Object.fromEntries(t) })) } : {}),

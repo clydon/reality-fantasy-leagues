@@ -2,23 +2,28 @@
 // scores as one sequence of six steps, for each seat and each episode (or window) it plays:
 //   1. Hold: what of yours counts for that episode (heldAt).
 //   2. Score each line: a line is one holding's points in one episode, from one source: its place (placed, stillIn), its moments
-//      (momentLines), a group slot's group (groupRaw), a side bet (betLines); a finale prediction and a handicap are lines of
-//      their own, worked out where they're settled.
-//   3. Multipliers: each line times whatever applies to it, in order (multiply: a captain, then the episode's own multiplier).
-//   4. Combine: the lines into the seat's total for the episode (all of them, or your best n: best, episodeTotal), and a holding's
-//      values into what it stands at (sum).
-//   5. The week's result: what each episode's totals make: a running total (add); a pool's streak, life or buyback (poolTally,
-//      poolPick, poolNight, poolEmptied, poolSpare); a race won, a cut, one left (raceWon, cut, cutsAfter, knockouts, lastLeft,
-//      allOut); a matchup won, the standings and the playoffs (roundRobin, median, bracket, matchups, on each episode's growth:
-//      grown); a team's points (teamStep); co-op's night (saved).
+//      (momentLines), a group slot's group (groupRaw), a side bet (betLines), an answer's right ones at what its window is worth
+//      (windowLines: a rollover's jackpot in it, jackpot and carry; a shrinking call's less, shrink), a right call or a bingo line
+//      (tally); a finale prediction and a handicap are lines of their own, worked out where they're settled.
+//   3. Multipliers: each line times whatever applies to it, in order (multiply: a captain, then the episode's own multiplier; a
+//      parlay's legs on what each of its windows gave an answer; a line's points on a count of bingo lines, counted).
+//   4. Combine: the lines into the seat's total for the episode (all of them, or your best n: best, episodeTotal), a holding's
+//      values into what it stands at (sum), and a window's answers across the seats (a pot split, only the only one right: split,
+//      only, onlyEach).
+//   5. The week's result: what each episode's totals make: a running total (add; a count's, through); a pool's streak, life or
+//      buyback (poolTally, poolPick, poolNight, poolEmptied, poolSpare); a race won, a cut, a life lost, one left (raceWon, cut,
+//      cutsAfter, knockouts, livesNight, lastLeft, allOut); a matchup won, the standings and the playoffs (roundRobin, median,
+//      bracket, matchups, on each episode's growth: grown); a team's points (teamStep); co-op's night and its walk (saved, coop).
 //   6. Rank: the table in its order (byTotal, byKey, compareKeys, standingKey, recordKey), and a seat's row from its parts (total).
 // Pure and plain CommonJS, like game-spec beside it (state-logic.js and the server both read it): state-logic.js reads a league
 // (who held whom when, the episode's moments at the game's points, the results, the extras) and hands each step its data;
 // nothing here reads a league. C2 part 1 has the drafts score through it (Outlast, a lineup, best ball, group slots, side bets,
 // finale predictions, a handicap, a stock market's worth, under ScoringLogic.compute); part 2 the week's results (a pool's walk,
 // knockouts, head to head, teams of players and co-op's night), on a draft's one walk (ScoringLogic.walk: the series at each
-// episode's final results and the table at now); part 3 what the server scores outside the state (a game of questions, Weekly
-// Calls, bingo, a stage's table); part 4 has a spec play by each piece's place here instead of by one of seven shapes.
+// episode's final results and the table at now); part 3 what the server scores outside the state, as lines it hands the sequence
+// (a game of questions' windows, graded by game-spec answers.js, and its walk; Weekly Calls' right calls and bingo's lines, counted
+// by calls.ts and bingo.ts; a game in stages' overall from its stages' tables); part 4 has a spec play by each piece's place here
+// instead of by one of seven shapes.
 //
 // Rounding is part of the sequence, exactly where each game has always done it and nowhere else (the study's "What C2 has to
 // keep exactly"; tests/sequence-agree.test.js holds every draft's reads to the scorers' before it):
@@ -29,7 +34,11 @@
 //   - a lineup that combines rounds each holding's raw points as its moments add up, each line (raw × captain × the episode's
 //     multiplier), each group slot's line, each episode's total and the running total after it;
 //   - a lineup's row rounds its total (its points, side bets and finale predictions); a market's worth rounds the team's prices,
-//     then cash plus them.
+//     then cash plus them;
+//   - a game of questions rounds only a split pot's shares inside a window (split), each line a parlay multiplies, and its sum
+//     (add, window by window); its walk's totals through each episode add a handicap rounded, as its sum is;
+//   - a count of right calls or bingo lines is whole, never rounded, and so is a count times a line's points (a whole number);
+//   - a game in stages' overall rounds its stages' points added up (sum), and their places' points.
 
 /** To the cent: points are decimals (0.5 steps, a count's units: 3 × 1.1), and sums of them pick up float noise. */
 function round(n) {
@@ -109,7 +118,66 @@ function betLines(bets) {
   return out;
 }
 
+/** The answers with anything right in a window's units (Map playerId -> units), in their order: [[playerId, units]]. */
+function rightOf(units) {
+  return [...units].filter(([, u]) => u > 0);
+}
+/**
+ * A game of questions' lines in one window (C2 part 3): each answer's right ones at a point each (`units`, Map playerId -> units: the
+ * grading's, game-spec answers.js pointsFor at one point, or against the bot's call the right ones it didn't name), each at what the
+ * window is worth to that answer (`worthOf(playerId)`: its points, a rollover's jackpot in them, a shrinking call's less). Map
+ * playerId -> points, in the units' order; an answer with nothing right, or worth nothing, has no line. Not rounded: a window's
+ * points are whole, or a pot's share (split), or a parlay's (multiply).
+ */
+function windowLines(units, worthOf) {
+  const out = new Map();
+  for (const [pid, u] of rightOf(units)) {
+    const n = u * worthOf(pid);
+    if (n) out.set(pid, n);
+  }
+  return out;
+}
+/** A shrinking call's worth (A9's shrink): `worth` less `per` for each of `n` (the game's episodes started when it was made, or the
+ *  changes made once it had), never below 0. */
+function shrink(worth, per, n) {
+  return Math.max(0, worth - per * n);
+}
+/** A window that rolls over (A9's rollover): its points with what the windows before it left unclaimed (`carried`). */
+function jackpot(points, carried) {
+  return points + carried;
+}
+/** What a window that rolls over leaves the next (`got`, Map playerId -> what each answer earned there): nothing once anyone scored,
+ *  else the window's whole worth. */
+function carry(worth, got) {
+  return [...got.values()].some((n) => n > 0) ? 0 : worth;
+}
+/**
+ * Right calls and bingo lines as lines (C2 part 3: calls.ts callRights, bingo.ts bingoLines): each { id, episode, n } (an account's;
+ * n how many: 1 a call, a card's lines that count), added up for each one in the order they come, and each episode's too into
+ * `byEpisode` when it's given (Map episode -> Map id -> n: what a stage's table reads at each episode). Whole numbers, never
+ * rounded. Map id -> n.
+ */
+function tally(lines, byEpisode) {
+  const out = new Map();
+  for (const l of lines) {
+    if (!l.n) continue;
+    out.set(l.id, (out.get(l.id) || 0) + l.n);
+    if (byEpisode) {
+      const at = byEpisode.get(l.episode) || new Map();
+      at.set(l.id, (at.get(l.id) || 0) + l.n);
+      byEpisode.set(l.episode, at);
+    }
+  }
+  return out;
+}
+
 // ---- 3. Multipliers ----
+
+/** A count's points (C2 part 3): n right calls or bingo lines at a line's points each (a call's 1). Whole, as both are; never rounded,
+ *  as the tables have always shown it. */
+function counted(n, points) {
+  return n * points;
+}
 
 /** A line times each factor that applies to it, left to right (a captain's, then the episode's), rounded. */
 function multiply(raw, factors) {
@@ -133,9 +201,32 @@ function best(lines, n) {
 function episodeTotal(lines, slots) {
   return round(lines.reduce((t, l) => t + (l.counted ? l.points : 0), 0) + (slots || []).reduce((t, l) => t + l.points, 0));
 }
-/** Values added up, in order, rounded (a team's prices). */
+/** Values added up, in order, rounded (a team's prices; a game in stages' points across its stages, and its places' points). */
 function sum(values) {
   return round(values.reduce((n, v) => n + v, 0));
+}
+/** A pot split (a question's share 'split'): the window's `worth` between everyone right, by their units (windowLines' `units`),
+ *  each share rounded to the cent (a pot of 10 three ways is 3.33 each). */
+function split(worth, units) {
+  const out = new Map();
+  const right = rightOf(units);
+  const total = right.reduce((n, [, u]) => n + u, 0);
+  for (const [pid, u] of right) out.set(pid, round((worth * u) / total));
+  return out;
+}
+/** Only the only one right (share 'only'): their units at `worth` when exactly one answer has anything right, else nobody. */
+function only(worth, units) {
+  const out = new Map();
+  const right = rightOf(units);
+  if (right.length === 1) out.set(right[0][0], right[0][1] * worth);
+  return out;
+}
+/** Only the only one right on a person or group answer (A9 part 2): each right pick (`by`: Map pick -> [playerId] who named it, in
+ *  the answers' order) named by one alone scores `worth` for them, so two each alone on a different right one both do. */
+function onlyEach(worth, by) {
+  const out = new Map();
+  for (const [, pids] of by) if (pids.length === 1) out.set(pids[0], (out.get(pids[0]) || 0) + worth);
+  return out;
 }
 
 // ---- 5. The week's result ----
@@ -147,6 +238,17 @@ function sum(values) {
 /** A running total after one more line or episode: rounded at every step. */
 function add(running, x) {
   return round(running + x);
+}
+/** A count's running total through each episode from `from` to `to` (C2 part 3: Weekly Calls' and bingo's, for a stage's table
+ *  at each episode): Map episode -> Map id -> the count through it, from `byEpisode` (tally's). Whole, never rounded. */
+function through(byEpisode, from, to) {
+  const out = new Map();
+  const run = new Map();
+  for (let e = from; e <= to; e++) {
+    for (const [id, n] of byEpisode.get(e) || []) run.set(id, (run.get(id) || 0) + n);
+    out.set(e, new Map(run));
+  }
+  return out;
 }
 /** What one episode added to a side's points: its total through it (`totals`, a Map) less its total through the one before
  *  (`before`, a Map, or null for none), rounded. */
@@ -288,32 +390,63 @@ function cutsAfter(cuts, o) {
   });
 }
 /**
- * A draft's knockouts walked over its series (each episode's totals: [{ number, quiet, totals }]): after each, a race won ends the
- * game there (the most points then win); else its cuts; then one left (oneLeft 'ends', with cuts) ends it. Who can be cut or finish
- * a race after episode k: in, started by then and caught up.
+ * A night's lives lost (C2 part 3: a game of questions with lives, score.lives): `lost` (Map id -> the lives the night cost each who
+ * could lose one, o.ids) on `lives` (Map id -> lives left). Whoever has none left goes out at k; everyone left (o.left, two or more)
+ * going out the same night (allOut) all come back with the lives they had ('back'), go out sharing it ('share', into o.shared), or go
+ * out as anyone does ('points').
+ *   o: { k, ids, left, out (Map), shared (Set), allOut }
+ */
+function livesNight(lives, lost, o) {
+  const gone = o.ids.filter((id) => lives.get(id) - (lost.get(id) || 0) <= 0);
+  const all = allOut(gone.length, o.left.length);
+  if (all && o.allOut === "back") return;
+  lost.forEach((n, id) => lives.set(id, Math.max(0, lives.get(id) - n)));
+  gone.forEach((id) => {
+    o.out.set(id, o.k);
+    if (all && o.allOut === "share") o.shared.add(id);
+  });
+}
+/**
+ * The knockouts walked over a series (each episode's totals: [{ number, quiet, totals }]): after each, a race won ends the game there
+ * (the most points then win); else its lives lost (o.lives), then its cuts; then one left (oneLeft 'ends', with lives or cuts) ends
+ * it. Who can be cut, lose a life or finish a race after episode k: in, started by then and caught up. A draft's series is its totals
+ * (KnockoutLogic.walk); a game of questions' (C2 part 3: AnswerLogic.walk) is worked out as the walk goes, since someone out takes no
+ * share of anyone's points from then on: an episode's `totals` can be a function of who's out so far (Map id -> episode), and its
+ * `lives(ids, out)` says what the night cost each of those who could lose one (once no race has ended it), both read before anything
+ * that night moves anyone.
  *   o: { start, everyone: [id] (in it: whatever their start), catching: Set (still catching up), startOf: Map id -> their start (null:
- *   the game's), race: { to } | null, cuts, oneLeft, phaseStarts }
- * Returns { out: Map id -> the last episode that counts for them, ends: the episode the game ended at, or null }.
+ *   the game's), race: { to } | null, cuts, oneLeft, phaseStarts, lives: { of (each one's at the start), allOut } | null }
+ * Returns { out: Map id -> the last episode that counts for them, ends: the episode the game ended at, or null, lives: Map id -> left
+ * (null without lives), shared: Set (out together, sharing it), walked: [{ number, quiet, totals }] (each episode walked, its
+ * totals a Map) }.
  */
 function knockouts(series, o) {
   const out = new Map();
   const inAt = (k) => o.everyone.filter((id) => !out.has(id) && !o.catching.has(id) && (o.startOf.get(id) || o.start) <= k);
+  const lives = o.lives ? new Map(o.everyone.map((id) => [id, o.lives.of])) : null;
+  const shared = new Set();
+  const walked = [];
   let ends = null;
   for (let i = 0; i < series.length && ends === null; i++) {
-    const { number: k, quiet, totals } = series[i];
+    const night = series[i];
+    const k = night.number;
+    const totals = typeof night.totals === "function" ? night.totals(out) : night.totals;
+    walked.push({ number: k, quiet: night.quiet, totals });
     const total = (id) => totals.get(id) || 0;
     if (o.race && raceWon(inAt(k), total, o.race.to)) {
       ends = k;
       break;
     }
+    const lost = lives && night.lives ? night.lives(inAt(k), out) : null;
+    if (lost && lost.size) livesNight(lives, lost, { k, ids: inAt(k), left: o.everyone.filter((id) => !out.has(id)), out, shared, allOut: o.lives.allOut });
     const before = (n) => {
-      const x = series.slice(0, i).filter((y) => y.number <= n).pop();
+      const x = walked.slice(0, i).filter((y) => y.number <= n).pop();
       return x ? x.totals : null;
     };
-    cutsAfter(o.cuts, { k, start: o.start, quiet, inAt, total, before, out, phaseStarts: o.phaseStarts });
-    if (o.cuts.length && o.oneLeft === "ends" && lastLeft(o.everyone, (id) => !out.has(id))) ends = k;
+    cutsAfter(o.cuts, { k, start: o.start, quiet: night.quiet, inAt, total, before, out, phaseStarts: o.phaseStarts });
+    if ((lives || o.cuts.length) && o.oneLeft === "ends" && lastLeft(o.everyone, (id) => !out.has(id))) ends = k;
   }
-  return { out, ends };
+  return { out, ends, lives, shared, walked };
 }
 
 // Head to head (rank.by 'matchups'): on the sides' series.
@@ -485,6 +618,32 @@ function teamStep(run, grown, how) {
 function saved(said, right, saves) {
   return saves === "all" ? said > 0 && right === said : saves === "most" ? right * 2 > said : right > 0;
 }
+/**
+ * Co-op walked over its series (C2 part 3: rank.by 'coop', a game of questions'): the couch's lives together (o.lives), nobody
+ * knocked out; each episode costs one for each question it lost (its `missed(out)`: the questions a life rode on that not enough of
+ * the couch saw coming, saved), and at none left the game ends there. Its totals and its missed as knockouts' (nobody's out here).
+ * Returns { lives: left, lost: [{ episode, question }], ends: the episode the last went, or null, walked: [{ number, quiet, totals }] }.
+ */
+function coop(series, o) {
+  let left = o.lives;
+  const lost = [];
+  const walked = [];
+  let ends = null;
+  const nobody = new Map();
+  for (const night of series) {
+    const k = night.number;
+    const missed = night.missed(nobody);
+    const totals = typeof night.totals === "function" ? night.totals(nobody) : night.totals;
+    walked.push({ number: k, quiet: night.quiet, totals });
+    missed.forEach((question) => lost.push({ episode: k, question }));
+    left = Math.max(0, left - missed.length);
+    if (left === 0) {
+      ends = k;
+      break;
+    }
+  }
+  return { lives: left, lost, ends, walked };
+}
 
 // ---- 6. Rank, and a seat's row ----
 
@@ -535,11 +694,21 @@ const api = {
   momentRaw,
   groupRaw,
   betLines,
+  windowLines,
+  shrink,
+  jackpot,
+  carry,
+  tally,
+  counted,
   multiply,
   best,
   episodeTotal,
   sum,
+  split,
+  only,
+  onlyEach,
   add,
+  through,
   grown,
   poolTally,
   poolPick,
@@ -551,6 +720,7 @@ const api = {
   raceWon,
   cut,
   cutsAfter,
+  livesNight,
   knockouts,
   roundRobin,
   median,
@@ -558,6 +728,7 @@ const api = {
   matchups,
   teamStep,
   saved,
+  coop,
   total,
   compareKeys,
   byTotal,
