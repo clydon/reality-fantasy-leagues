@@ -3381,6 +3381,14 @@ in the placement corpus with the roto refusal kept on the 7 of them ranked roto)
   overrides, the words each way. The placement corpus' 14 more (each kind of game locking daily or weekly, all playing as the same
   game locking at each start). 1,831 unit tests pass.
 
+- **The long checks, last, on `c89f424f` (parts 2a and 2b together; they touch state-logic.js):** `golden.js --before=09434af1`
+  (the sync's merge, the code before this step): Survivor 49, The Challenge 40 and The Traitors US 4, 74 games, 9,548 reads, every
+  one the same. The Survivor 51 rehearsal (`season-forward.js rehearse --from=../reality-fantasy-leagues/backups/prod-2026-10-30
+  --scenario=realistic,rough,dst --before=09434af1`): every invariant holds in all three scenarios, flag off and on the same, the
+  engine before against this tree's the same (2,856 reads each). The blind replays (`blind.js run` on each season loaded here; The
+  Challenge 39 and 41 aren't in this lane's database): every game played through and over, Survivor 49 156 of 156, The Challenge
+  40 115 of 115, The Traitors 4 110 of 110.
+
 **L3 part 2b noticed, not fixed:**
 - **The screens' lock badges and times read the episode's own start** (`week.tsx`'s locked badge `hasAired`, `status-plate.ts`'s
   times, `episode-status.ts`), so a weekly game's Sunday episode shows open until Sunday though it locked on Thursday (the server
