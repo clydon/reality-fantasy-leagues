@@ -5384,6 +5384,14 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     tab as alex, riley and jordan read it the engine's table on each copy, the goner's holder 4 down and each other voter's holder 2 up
     (riley −4, jordan +2, sam +2: the own team's and the free agent's votes moved nothing); sam (through 3) none of it, and the state
     route's record trimmed off sam's copy; re-researched with a count that doesn't add up, the next read void; the flag's check.
+  - **The long checks** (once, last, on `a61ad93f`): golden (`golden.js --before=master`): 7 seasons, 160 games, **19,361 reads, every one
+    the same**. Blind (`blind.js run`): every game played through and over on all five seasons, The Challenge 41 121, 40 115 and 39 123
+    (as after C7 part 2: nobody's voted out there, so s16 doesn't play), Survivor 49 157 and The Traitors 4 111 (one more each: s16).
+    On The Traitors 4 (a two-game rerun kept standing, then the season again in full to restore its record) every episode with a
+    banishment carried its record, sure on 4 of 10 (2, 5, 6 and 9), and each of those four sent home someone nobody had drafted, so no
+    bounty moved (Noticed). The Survivor 51 rehearsal (`season-forward.js rehearse --from=backups/prod-2026-10-30
+    --scenario=realistic,rough,dst --before=master`): every invariant holds, flag off against on and master's engine against this
+    tree's, 2,856 reads each, every one the same.
 - **A15. Live and replay** (with the watch along, docs/PLAN-couch-and-episode-night.md §6, and the sports branch's
   `GameClock`). It needs A7. The watch along is in its infancy (the user, 2026-10-28): its concept, how it's built and how it
   connects to games are all open, so A15 is where the games shape it, not only where they plug into it.
@@ -7725,6 +7733,12 @@ From A14 part 3 (2026-11-06):
   bounty honest, but a season like those plays few. A double boot asked as one vote each never agrees: asking each vote's own answer
   (a list per Tribal, as The Traitors' finale has) would settle it. A prompt change, the user's OK at its merge. Recommended: ask it
   before a bounty game is offered on a show by default. (Whoever next changes the research prompt.)
+- **A steal needs someone to steal from**: on The Traitors 4's blind replay (four seats of three, 12 of 23 drafted) all four episodes
+  research was sure of sent home someone nobody had drafted, so the bounty game ended exactly as a plain Outlast. Item 3's option
+  (points for voting out a free agent too) would make a bounty matter more in a small draft. (The user, with item 3.)
+- **The blind records share one folder across lanes**: this run's Survivor 49 record on file (`rfl-tapeseplayslind\survivor-49.json`)
+  is another lane's run at the same time (master's tracker, 149 games, no s16); this lane's run counted 157 played through (its
+  log). A lane's own TAPES_DIR for its records, or a lane name in the file, would keep them apart. (Whoever next works on blind.js.)
 - **The screens don't show a bounty** (U1): a row's `bounty` (a gain or a loss) is in its total, and nothing shows who took what from whom
   or why an episode was void (the record's `why`). (U1.)
 - **The hourly waiver job reads the record saved with the last write** (db/waivers.js has no stamp of its own): a re-research since then
