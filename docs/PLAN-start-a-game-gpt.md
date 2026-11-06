@@ -3605,6 +3605,10 @@ little more: HOSTING.md).**
   of the ordinal words; a dead guard. Declined: the server's bracket faces, null today (the hook's: below); finals kept before this
   step lacking a bout's round or a game's periods (nothing in production keeps finals before L6's release; a lane database's old ones
   read as off or unread)).
+- **The long checks, last, on `c9aa1983`:** `golden.js --before=e20a4bd0` (the step before it: master had moved to `2432a70b`,
+  C3 to C5 and C4b, not yet synced here, so against master the engine's own changes would show): Survivor 49, The Traitors US 4
+  and The Challenge 40, 74 games, 9,548 reads, every one the same. blind.js and the rehearsal not run: no show's game plays squares
+  or asks a bracket (the only specs whose check changed besides the corpus' 15), and every read is kept the same (golden alone).
 - **For the engine lane (with L3 part 2's hook):**
   - `schema.js` placement: `holdOf` 'squares' (a hold of its own), `LINES.squares` (its lines are its pays: `squaresPays`' totals
     each episode), `rankPlace` total only (the check refuses the rest). A bracket question in a game of questions: `playable` takes it
