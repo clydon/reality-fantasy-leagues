@@ -8,7 +8,7 @@ them next (the user's, in production). **Merged and live in production (2026-10-
 **the game-specs flag is on** (R2, 2:39 PM: every league carries its spec), then the rest of A12 (parts 2–4c) and R1 part 3
 (2026-10-31, 12:31 AM, `075d193e`, no migration), then A13 (2026-11-05, 9:26 PM, `1d4b20a0`, migrations 0204 and 0436), then A14 parts 1-2, C1 and C2
 (2026-11-06, 9:33 AM, `e450fcd4`, migrations 0205 and 0206), then C3, C4, C4b and C5 (2026-11-06, 12:37 PM, `f22c9753`, migration
-0207); later parts (C6 on) stay on `engine` until the main folder merges them, after each
+0207), then C6 and C7 part 1 (2026-11-06, 3:53 PM, `abfa4a74`, no migration); later parts (C7 part 2 on) stay on `engine` until the main folder merges them, after each
 lettered step. A1–A4 are built on `engine` (A4 in two parts: the engine and storage, then the Prediction Sheet's screens, built before
 the screens moved to U1), merged and live since 2026-10-30 (above).
 A5 to A9 built on `engine` (2026-10-28: the tracker and the engine lab; questions about who and about each; time; more
@@ -6312,7 +6312,7 @@ A14 part 2 and before A14's other parts; every part keeps every golden and blind
 - **C6. Money.** A starting balance, stakes drawn from it, payouts (even money or odds), a bank that can run out; staked
   parlays and tickets a player builds, the payout growing with the legs. Game 1's bank and wagers.
 
-  **As built (C6 part 1, a bank and stakes that combine, 2026-11-06; not merged).** One session, at high.
+  **As built (C6 part 1, a bank and stakes that combine, 2026-11-06; on `engine`; merged and live 2026-11-06, `abfa4a74`).** One session, at high.
   - **The pieces** (schema.js): **a bank**, `score.bank: { start: 1 to MAX_BANK (10,000), out?: true | false }`, a game of
     questions' (KEYS `score.answers` `bank`, KEYS.bank; `bankOf` reads it, BANK's default `out: false`): everyone starts with
     `start`, every stake on its questions is drawn from it (a fixed stake too, held to what's left), and with `out` whoever's on
@@ -6380,7 +6380,7 @@ A14 part 2 and before A14's other parts; every part keeps every golden and blind
     and the grade; the new exports' type declarations. Kept, saying so: a wager alone at even money keeps A8's grading path
     (`pointsFor`), beside the new one for everything else (routing it through `wagerParts` grades the same numbers, its lines in
     another order: every read kept).
-  **As built (C6 part 2, a ticket a player builds, 2026-11-06; not merged).** The same session as part 1, at high, its own commit.
+  **As built (C6 part 2, a ticket a player builds, 2026-11-06; on `engine`; merged and live 2026-11-06, `abfa4a74`).** The same session as part 1, at high, its own commit.
   - **The piece** (schema.js): **a ticket**, a question of its own, `{ answer: 'ticket', points: 0, asked, wager, settle: { by: 'legs',
     of: [ids] }, legs?: { min, max }, pays?: [...] }` (VOCAB `ask.answer` `ticket`, `ask.settle` `legs`; NO_TAKE; KEYS question `legs`,
     `pays`, KEYS.ticketLegs; `isTicket`, `ticketOf`, MAX_TICKET_LEGS 6, MAX_PAYS 1,000, TICKET's `min: 2`), answered `{ legs: [the ids
@@ -6437,7 +6437,7 @@ A14 part 2 and before A14's other parts; every part keeps every golden and blind
   Weekly Calls rotate the show's moments) or written by the bot and checked (as trivia and bingo squares are), data-settled
   only. Calls, trivia, bingo squares, a weekly prediction sheet and weekly objectives all come from it. Games 1 and 3.
 
-  **As built (C7 part 1, a card from the show's moments, 2026-11-06; not merged).** One session, at high. Part 2, the bot writing
+  **As built (C7 part 1, a card from the show's moments, 2026-11-06; on `engine`; merged and live 2026-11-06, `abfa4a74`).** One session, at high. Part 2, the bot writing
   the week's card, is the next session's.
   - **The piece** (schema.js): **a card**, `card: { from: 'moments', each: 1 to MAX_CARD (12), of: [1 to MAX_ONLY (40) of the
     show's moments, at least each, none twice] }` (KEYS.top `card`, KEYS.card; VOCAB `card.from` `moments`; CARD's default `from`;

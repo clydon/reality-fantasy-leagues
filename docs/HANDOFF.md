@@ -343,6 +343,20 @@ it doesn't go in the menu.** The audit (checked in the code, 2026-10-30), per ol
   full target first (A5, the capability tracker, then A6–A15), today's games rebuilt on it (R1–R3), the UI last (U0–U1), the
   GPT's words alongside (G1), and live sports folded in as track L. Lanes (worktree + branch + database + port + session loop):
   [PARALLEL-SESSIONS.md](PARALLEL-SESSIONS.md); season tapes and playtests: [PLAN-playtests.md](PLAN-playtests.md).
+- **Merged and pushed 2026-11-06, 3:53 PM: the engine's C6 and C7 part 1** (`abfa4a74`, merging the engine's `49c0292b`; no
+  migration, so no Neon rehearsal). C6, money: a bank everyone starts with, stakes drawn from it (even money by default,
+  or the pool's odds from the couch's own stakes), out at zero as an option, a stake beside any combiner, and a ticket a
+  player builds from the week's answers (each leg doubles it by default). C7 part 1: a new card each episode from the
+  show's moments (`card: { from: 'moments', each, of }`, drawn in turn, worked out from the spec and the episode, stored
+  nowhere), as questions (`card: true`) or as the week's objectives (`score.only: 'card'`); Weekly Calls rotate through
+  the same function. The user's three games all play in the engine and the tracker (216 rows), not yet from a screen.
+  Also: a pool stored with `eventPoints` ignores them, as before C5 (the round-trip test fixed). Checked: the lane's long
+  checks on `f434ea44` (golden 19,361 reads the same; blind, every game played through; the Survivor 51 rehearsal, 2,856
+  reads the same in all three scenarios), with origin bringing nothing new, so not run again; on the merged tree
+  (rfl-merge, branch merge-c7): unit tests 1573, eslint on the changed source files and `next build` with its type-check.
+  Also in the push: the impeccable rule for UI decisions (CLAUDE.md and the session loop), backlog 39's update, and the
+  lane watcher's quieter keeper lines. Still open: C7 part 2, the bot writing a week's card (a prompt change, the user's
+  approval at its merge), and C7's Noticed questions for the user.
 - **Merged and pushed 2026-11-06, 12:37 PM: the engine's C3, C4, C5 and C4b, the shared-replacement fix** (`f22c9753`, merging the
   engine's `063192de`; migration 0207, rehearsed on the Neon branch `rehearse-c4b-2026-11-06`; the snapshot to roll back to
   is `pre-c4b-2026-11-06`, auto-deleted after 7 days). C4b is the user's rule (2026-11-06): someone who goes home is owed a
@@ -497,8 +511,8 @@ it doesn't go in the menu.** The audit (checked in the code, 2026-10-30), per ol
   **Waiting on the user:** restart the main bot (8765) on the new code, then the tapes move back to it and 8766 goes. The
   playtest branch is merged into master (`2c945d31`).
 - **Neon is on Launch** since 2026-10-28 (the user upgraded it at 98.3% of the free transfer; about $5 a month; HOSTING.md).
-- **On branches, not merged:** the engine from C6 on (`engine`: track C's C6 and C7, then A14's rest), track L's live
-  sports (`sports`: L1, L2 and L5 done, L3 and L4 in parts; its engine hooks after track C merges). The lanes run at high
+- **On branches, not merged:** the engine from C7 part 2 on (`engine`: the bot writing a week's card, then A14's rest),
+  track L's live sports (`sports`: L1, L2, L5 and L7 done, L3, L4 and L8 in parts; its engine hooks next, on track C). The lanes run at high
   since 2026-11-05 (the user; C2 at xhigh) under the usage cap ([PARALLEL-SESSIONS.md](PARALLEL-SESSIONS.md), "The usage
   cap"). Waiting on the
   user: S3 after two matching episodes; which rule a preset meets (open until the engine is complete: the user, 2026-10-30);
