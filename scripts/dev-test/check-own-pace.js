@@ -105,7 +105,7 @@ async function main() {
     r = await alex.call("GET", `/api/seasons/${season}/games?couch=${couch}`);
     let gv = (r.body.games || []).find((g) => g.leagueId === leagueId);
     check(gv && gv.catchUp && gv.catchUp.week === 4, "alex's week is Episode 4", gv && gv.catchUp);
-    check(gv && gv.catchUp && Array.isArray(gv.catchUp.others) && gv.catchUp.others.length === 1 && gv.catchUp.others[0].week === 4, "the others: riley on 4 (no bots in it)", gv && gv.catchUp && gv.catchUp.others);
+    check(gv && gv.ownPace === true && gv.pace && gv.pace.others.length === 1 && gv.pace.others[0].week === 4 && gv.pace.last >= 5, "the others: riley on 4 (no bots in it); the season's last episode", gv && gv.pace);
     check(gv && gv.pick && !gv.pick.pick, "a pick to make for Episode 4", gv && gv.pick);
     // alex picks: the first castaway offered.
     const ep4 = s.episodes.find((e) => e.number === 4);
@@ -133,10 +133,10 @@ async function main() {
     // riley's strip: alex · Ep 5. alex's: riley · Ep 4, and revealing 5 would be two ahead.
     r = await riley.call("GET", `/api/seasons/${season}/games?couch=${couch}`);
     gv = (r.body.games || []).find((g) => g.leagueId === leagueId);
-    check(gv && gv.catchUp && gv.catchUp.week === 4 && gv.catchUp.others[0].week === 5, "riley: on 4, alex on 5", gv && gv.catchUp);
+    check(gv && gv.catchUp && gv.catchUp.week === 4 && gv.pace.others[0].week === 5, "riley: on 4, alex on 5", gv && gv.pace);
     r = await alex.call("GET", `/api/seasons/${season}/games?couch=${couch}`);
     gv = (r.body.games || []).find((g) => g.leagueId === leagueId);
-    check(gv && gv.catchUp && gv.catchUp.week === 5 && gv.catchUp.others[0].week === 4, "alex: on 5, riley on 4", gv && gv.catchUp);
+    check(gv && gv.catchUp && gv.catchUp.week === 5 && gv.pace.others[0].week === 4, "alex: on 5, riley on 4", gv && gv.pace);
     check(gv && gv.catchUp && gv.catchUp.latest >= 5, "the game has results past 5 to play", gv && gv.catchUp);
 
     if (shots) {
@@ -146,7 +146,9 @@ async function main() {
         await page.waitForTimeout(600);
         await page.screenshot({ path: path.join(outDir, `${String(++n).padStart(2, "0")}-${name}.png`) });
       };
-      // alex: the Games tab's row, Start a game's sheet, Tonight's strip and the catch-up sheet with the gap words.
+      const RILEY = fixture.username("riley");
+      // alex: the Games tab's row, Start a game's sheet (the mock: no banner, no AI card, no How long; number-first starts and the
+      // pace line), then Tonight's plate: asking once before a reveal with no pick, then picked, the gap words, the reveal.
       const a = await open({ user: fixture.username("alex"), pass: PASSWORD, width: 390, height: 844 });
       a.page.setDefaultTimeout(15000);
       try {
@@ -154,38 +156,90 @@ async function main() {
         await a.page.locator("[data-start-row='pace']").waitFor();
         await shot(a.page, "games-tab-row");
         await a.page.locator("[data-start-row='pace']").click();
-        await a.page.locator("[data-own-pace]").waitFor();
-        await shot(a.page, "start-sheet-top");
-        const sheet = a.page.locator("[data-start-sheet]");
-        await sheet.locator("[data-start-from]").scrollIntoViewIfNeeded();
-        await shot(a.page, "start-sheet-starts");
-        check((await a.page.locator("[data-start-from-choice='here']").count()) === 1 && (await a.page.locator("[data-start-from-choice='top']").count()) === 1, "the sheet shows Where you are and From the top");
+        await a.page.locator("[data-start-pace-line]").waitFor();
+        await shot(a.page, "start-sheet");
+        check((await a.page.locator("[data-start-from-choice='here']").count()) === 1 && (await a.page.locator("[data-start-from-choice='top']").count()) === 1, "Start from: where you are, and from the top");
+        const here = await a.page.locator("[data-start-from-choice='here']").textContent();
+        // alex has revealed 4 by now (above), so where alex is is 5.
+        check(/Episode 5 · where you are/.test(here || "") && /You've seen 1 to 4/.test(here || ""), "the tile reads number first and says what you've seen", here);
+        check((await a.page.locator("[data-start-span], [data-no-fit]").count()) === 0 && (await a.page.getByText("Create a game with AI").count()) === 0, "no AI card, no How long, no doesn't-fit line at your own pace");
         await a.page.keyboard.press("Escape");
+
         await a.page.goto(`${a.BASE}/show/${season}/tonight`);
-        await a.page.locator(`[data-catchup='${leagueId}']`).waitFor();
-        await shot(a.page, "tonight-strip");
-        const strip = await a.page.locator(`[data-catchup='${leagueId}'] [data-pace-where]`).textContent();
-        check(/riley · Ep 4/.test(strip || ""), "the strip says riley · Ep 4", strip);
-        await a.page.locator(`[data-catchup='${leagueId}']`).click();
-        await a.page.locator("[data-catchup-reveal]").waitFor();
-        await shot(a.page, "catchup-sheet-ahead");
-        const ahead = await a.page.locator("[data-catchup-reveal]").getAttribute("data-pace-ahead");
+        const plate = a.page.locator(`[data-pace-plate='${leagueId}']`);
+        await plate.waitFor();
+        check((await a.page.locator(`[data-catchup='${leagueId}']`).count()) === 0, "no catching-up strip for an own-pace game");
+        check((await a.page.locator("[data-phase]").count()) === 0, "no episode heading saying it again");
+        check(/Pick who survives/.test((await plate.textContent()) || ""), "the plate asks for the pick first");
+        await shot(a.page, "tonight-plate-pick");
+        await plate.locator("[data-pace-watched]").click();
+        await plate.locator("[data-pace-ask]").waitFor();
+        await shot(a.page, "tonight-plate-ask");
+        // The pick, through the API (the moves sheet is its own check's), then the plate's next step.
+        const g5 = ((await alex.call("GET", `/api/seasons/${season}/games?couch=${couch}`)).body.games || []).find((g) => g.leagueId === leagueId);
+        const ep5 = (await stateOf()).episodes.find((e) => e.number === 5);
+        r = await alex.call("PUT", `/api/leagues/${leagueId}/episodes/${ep5.id}/picks`, { playerId: g5.playerId, castawayId: g5.pick.available[0] });
+        check(r.status === 200, "alex picks for Episode 5", r.body);
+        await a.page.reload();
+        await plate.locator("[data-pace-reveal]").waitFor();
+        await shot(a.page, "tonight-plate-watch");
+        const ahead = await plate.locator("[data-pace-reveal]").getAttribute("data-pace-ahead");
         // Names are as the couch shows them everywhere (couchMembers: the username).
-        check(ahead === `you'll be 2 ahead of ${fixture.username("riley")}`, "the reveal button says you'll be 2 ahead of riley", ahead);
+        check(ahead === `you'll be 2 ahead of ${RILEY}`, "the reveal button says you'll be 2 ahead of riley", ahead);
+        await plate.locator("[data-pace-reveal]").click();
+        await a.page.locator("[data-pace-revealed='5']").waitFor();
+        await shot(a.page, "revealed-sheet");
+        check((await a.page.locator("[data-pace-next]").textContent())?.includes("Pick for Episode 6"), "the way on is Pick for Episode 6");
+        check((await a.page.locator("[data-pace-later]").count()) === 1, "and Done for now");
       } finally {
         await a.close();
       }
-      // riley: the join sheet (before joining there'd be one; riley's in already, so the strip saying alex is ahead).
-      const b = await open({ user: fixture.username("riley"), pass: PASSWORD, width: 390, height: 844 });
+
+      // riley: Tonight's plate on Episode 4, quiet about alex (ahead).
+      const b = await open({ user: RILEY, pass: PASSWORD, width: 390, height: 844 });
       b.page.setDefaultTimeout(15000);
       try {
         await b.page.goto(`${b.BASE}/show/${season}/tonight`);
-        await b.page.locator(`[data-catchup='${leagueId}']`).waitFor();
-        await shot(b.page, "riley-strip");
-        const strip = await b.page.locator(`[data-catchup='${leagueId}'] [data-pace-where]`).textContent();
-        check(/alex · Ep 5/.test(strip || ""), "riley's strip says alex · Ep 5", strip);
+        const plate = b.page.locator(`[data-pace-plate='${leagueId}']`);
+        await plate.waitFor();
+        check((await plate.getAttribute("data-pace-week")) === "4", "riley's plate is on Episode 4");
+        check((await plate.locator("[data-pace-near]").count()) === 0, "nobody's behind riley: no line about it");
+        await shot(b.page, "riley-plate");
       } finally {
         await b.close();
+      }
+
+      // jordan (not in it): the join sheet, a statement with who's playing and where.
+      const c = await open({ user: fixture.username("jordan"), pass: PASSWORD, width: 390, height: 844 });
+      c.page.setDefaultTimeout(15000);
+      try {
+        await c.page.goto(`${c.BASE}/show/${season}/games`);
+        await c.page.locator(`[data-league='${leagueId}'] [data-join-button]`).click();
+        await c.page.locator("[data-join-pace]").waitFor();
+        await c.page.locator("[data-join-playing]").waitFor();
+        await shot(c.page, "join-sheet");
+        const who = (await c.page.locator("[data-join-playing]").textContent()) || "";
+        check(/Keeps pace/.test(who) && /On Episode 6/.test(who) && /On Episode 4/.test(who), "who's playing: alex on 6, riley on 4, the computers keep pace", who);
+      } finally {
+        await c.close();
+      }
+
+      // alex plays to the end (reveals with no pick): the finish plate.
+      for (let k = 0; k < 40; k++) {
+        const x = await alex.call("POST", `/api/seasons/${season}/catchup`, { leagueId, couch });
+        if (x.status !== 200 || x.body.next === null) break;
+      }
+      const d = await open({ user: fixture.username("alex"), pass: PASSWORD, width: 390, height: 844 });
+      d.page.setDefaultTimeout(15000);
+      try {
+        await d.page.goto(`${d.BASE}/show/${season}/tonight`);
+        const fin = d.page.locator(`[data-pace-finish='${leagueId}']`);
+        await fin.waitFor();
+        const text = (await fin.textContent()) || "";
+        check(/You finished it/.test(text) && /of 4/.test(text) && new RegExp(`${RILEY} is on Episode 4`).test(text), "the finish plate: your place of 4 (two computers), riley still on 4 with it hidden", text);
+        await shot(d.page, "finish-plate");
+      } finally {
+        await d.close();
       }
       console.log(`screens in ${outDir}`);
     }

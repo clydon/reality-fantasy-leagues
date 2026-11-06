@@ -442,6 +442,8 @@ export interface JoinOptions {
   team: number;
   /** Step A11 part 5c: the game's teams came out of a hat, so yours is dealt when you join (nothing to pick: `pool` is always empty). */
   dealt?: boolean;
+  /** A game at your own pace: who's in it and the episode they're on (null once finished; computer players keep pace). */
+  playing?: { name: string; bot: boolean; week: number | null }[];
   pool: { id: string; name: string; photo: string | null; tribe: { name: string; colour: string } | null }[];
 }
 
@@ -464,8 +466,20 @@ export async function joinOptions(user: SessionUser, couchId: string, leagueId: 
   const team = G.teamSize(state);
   // A game whose teams came out of a hat deals yours as you join (StateLogic.DrawLogic.lateDeal): nothing to pick.
   const dealt = !!team && StateLogic.DrawLogic.dealsLate(state);
-  if (start === null || !team || dealt) return { game: join, starts, seen, start, team, ...(dealt ? { dealt } : {}), pool: [] };
-  return { game: join, starts, seen, start, team, pool: poolFrom(state, start, !join.shared) };
+  // Who's in an own-pace game and where (the join sheet shows it before you join); computer players keep pace, so no episode.
+  const playing =
+    paced !== null
+      ? state.players
+          .filter((p) => !p.disabled && !G.isGhost(p))
+          .map((p) => {
+            const lj = G.lateJoinOf(state, p.id);
+            const mark = lj ? (lj.seenThrough ?? (Number.isInteger(lj.startEpisode) ? (lj.startEpisode as number) - 1 : 0)) : null;
+            return { name: p.name, bot: !!p.automated, week: lj?.catchingUp && mark !== null ? mark + 1 : null };
+          })
+      : undefined;
+  const more = { ...(dealt ? { dealt } : {}), ...(playing ? { playing } : {}) };
+  if (start === null || !team || dealt) return { game: join, starts, seen, start, team, ...more, pool: [] };
+  return { game: join, starts, seen, start, team, ...more, pool: poolFrom(state, start, !join.shared) };
 }
 
 /** Where a new player starts in a game at your own pace: where they are (their season mark plus one), never before the game's

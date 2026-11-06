@@ -657,7 +657,7 @@ const PLAY_LINE: Record<string, string> = {
 };
 
 /** A season watched at your own pace (docs/PLAN-own-pace-games.md): the game plays the same way. */
-const OWN_PACE_LINE = "Survival Pool at your own pace: pick before each episode, reveal after. Bring the couch, or computer players.";
+const OWN_PACE_LINE = "Every episode is out. Pick who survives before you watch each one, reveal after.";
 
 /** A show with no game of yours (the mock's playplate and rulebook.js rbPlate): Make it a game when nobody has set it up
  *  (step 10 part 2a), else Play it: Start a game (part 2b). */

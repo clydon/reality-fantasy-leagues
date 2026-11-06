@@ -198,8 +198,11 @@ export async function viewWithCalls(user: SessionUser, seasonId: string, h: Game
     return null;
   });
   const view = gameView(h.ref, h.state, h.readOnly ? null : h.playerId, h.mark, h.userOf, calls ?? undefined);
-  // A game at your own pace: where the others are, for its strip and its reveal button (docs/PLAN-own-pace-games.md).
-  if (view.catchUp && !h.readOnly && StateLogic.GhostLogic.ownPace(h.state)) view.catchUp.others = othersIn(h.state, h.playerId, h.marks);
+  // A game at your own pace: where the others are, for its plate and its reveal button, and the season's last episode
+  // (docs/PLAN-own-pace-games.md).
+  if (!h.readOnly && StateLogic.GhostLogic.ownPace(h.state)) {
+    view.pace = { others: othersIn(h.state, h.playerId, h.marks), last: Math.max(0, ...h.state.episodes.map((e) => e.number)) };
+  }
   // A game that starts when a phase does (step A3 of docs/PLAN-start-a-game-gpt.md): the phase by name, from its rulebook.
   const phase = StateLogic.startPhase(h.state);
   if (phase) view.phase = (await leaguePhases(pool, h.game.leagueId, seasonId)).find((p) => p.id === phase)?.name ?? phase;
@@ -214,7 +217,7 @@ export async function viewWithCalls(user: SessionUser, seasonId: string, h: Game
 }
 
 function refOf(g: Game): GameRefIn {
-  return { leagueId: g.leagueId, name: g.name, gameType: g.gameType, gameName: g.gameName, yourRole: g.yourRole, solo: g.solo, archived: g.archived };
+  return { leagueId: g.leagueId, name: g.name, gameType: g.gameType, gameName: g.gameName, yourRole: g.yourRole, solo: g.solo, archived: g.archived, ownPace: g.ownPace };
 }
 
 /**

@@ -147,6 +147,31 @@ new-fixture's couch and a real finished season in the local database) and `tests
   "at your own pace" (`played` leaves them out: show-space.tsx, where.ts, where-sheet.tsx, hub sections.tsx).
 - Names in the words are the couch's (`couchMembers`: the username), as the standings show them.
 
+## As built: part 1's UI to the mock (2026-11-05)
+
+The mock's part 1 screens, built and checked at 390px (`check-own-pace.js`, nine screens: the Games tab's row, Start a game,
+Tonight's plate asking for the pick / asking once before a reveal with none / picked with the gap words, the revealed sheet,
+riley's plate, the join sheet, the finish plate).
+
+- **Tonight's plate** (`src/new/show/pace-plate.tsx`, `OwnPacePlates`): one per own-pace game, first on Tonight. Tag "Episode N
+  of M · Survival Pool", the step as its title, a Pick · Watch · Reveal bar, your pick's face with Change, one button that's the
+  next step (the gap words small inside the reveal button), "I've already watched it" asking once ("No pick for Episode N · Pick
+  first / Reveal anyway"), and one quiet line only when someone's behind you or on the same one. The reveal opens a sheet
+  (`CatchUpResult`, shared with the late joiner's sheet) with your place so far, "Pick for Episode N+1" and "Done for now", or
+  "See how you finished". Once you've seen the last episode the plate is the finish plate (your place of how many, who's still
+  behind with it hidden, See the standings). Tonight leaves out the episode heading and that game's Your moves card (no block at
+  all when it's the only game). Late joiners in live games keep the strip (`CatchUpStrips` skips own-pace games).
+- **Data:** `GameView.ownPace` (from `Game.ownPace` through `refOf`) and `GameView.pace` (`others`, `last`) for every own-pace
+  game, caught up or not; `catchUp.others` is gone. `JoinOptions.playing` (name, computer, episode) for an own-pace game.
+- **Start a game:** no banner, no AI card, no How long at your own pace, no doesn't-fit line (`noFit` null); the subtitle on a
+  finished season is "Survivor 49 · all 13 episodes are out"; "Start from" tiles read number first ("Episode 5 · where you are",
+  "You've seen 1 to 4." / "Episode 1 · from the top", "A rewatch.") with the pace line under them.
+- **Join:** a plate ("You start at Episode N", what you've seen or that the game starts there), Who's playing with each episode
+  (computers "Keeps pace"), one Join button.
+- **Play it's line** on a finished show: "Every episode is out. Pick who survives before you watch each one, reveal after."
+- Not built from the mock yet: the finish plate's "Start another" (no next all-out show is read for it), Watch it together and
+  the bingo row on the plate (part 2).
+
 ## Noticed, not fixed
 - The Play it card on a finished season offered Start a game and the sheet then refused it (the dead end that started this).
   Part 1 fixes it by making the start work; the Games tab's own Start row already hid itself.

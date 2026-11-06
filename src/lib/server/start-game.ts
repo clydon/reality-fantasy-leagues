@@ -375,7 +375,8 @@ export async function startOptions(
     spans: spanChoices(spanEps, from, part),
     ends: spanEnds(spanEps, from),
     games: choices,
-    noFit: ownPace ? `At your own pace it's Survival Pool for now. The drafts, the sheet and the one-night games come next.` : noFitLine(fits, blocks, show),
+    // At your own pace the games that can't play it yet aren't listed at all (the mock): no line about them either.
+    noFit: ownPace ? null : noFitLine(fits, blocks, show),
     questions: asks.map((c) => ({ id: c.question.id, ask: c.question.ask, line: c.line, on: c.on, season: c.season })),
     watchers,
     blocked,
