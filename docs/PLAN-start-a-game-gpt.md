@@ -138,7 +138,10 @@ moments (2026-11-06: `card: { from: 'moments', each, of }`, drawn in turn as Wee
 tracker rows p10 and p12, the user's first and third games), is built, and so is part 2, a card the bot chooses (2026-11-06: `card:
 { from: 'bot', fallback }`, the AI ranking the season's cards' moments before each episode, one ask for the season, kept in
 `card_choices`, migration 0208, stamped on each league's episodes, out by 12 hours before the episode on its fallback; tracker row
-p10): **C7 is done**. A14's later parts are next (2b, the bot's own run, and the rest), then a stop before A15. The live-sports plan is
+p10): **C7 is done**. A14 part 2b, the bot's own run for its calls (2026-11-06: before each lock of a question played against the bot,
+the bot's call from only what anyone could know then, one ask per game per lock six hours before the episode, filed and checked as a
+seat's answer is; migration 0209), is built. A14's other parts are next (bounties, secret roles, the top scorer's twist, a rotating
+host's questions, a number from a vetted outside source), then a stop before A15. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5, at
 high since 2026-11-05; C2 at xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: folded in here as track L; its file keeps the details)
 and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track S here).
@@ -5246,6 +5249,78 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     scored nobody who said the same, a night of several exits only the one it named. The study doc's "A14 part 2".
   - **The Survivor 51 rehearsal** isn't run for this part: no existing game scores differently (none is played against the bot; golden
     every read the same).
+  **As built (A14 part 2b, the bot's own run for its calls, 2026-11-06, on `engine`; migration 0209).** One session, after `lane.js sync
+  engine` (master's docs only; 1582 tests). Part 2's piece (beat the bot) had its calls only from stand-ins; this part is the run that
+  makes them, so a game played against the bot plays it for real once it's merged. No screen, no new piece, no game scores differently
+  (every existing game's call is still none: no game in production plays against the bot), and nothing in `state-logic.js` changed
+  (for the own-pace merge: no function there touched).
+  - **The run** (`db/call-research.js`, new; `db/bot-research.js` `planCalls`, `callJob`): bot research's call run, a run that isn't any
+    season's schedule (as C7 part 2's card run): planned from the games that need it (`callGames`: every league still played with a
+    question against the bot in its spec, by SQL `jsonb_path_exists`, each confirmed on its state; a draft's own questions included, found
+    through `AnswerLogic.questions` as the grade finds them), one run per game per lock (slot `call:<league id>`, episode_number the lock's
+    episode): every window whose call locks at that episode (`BotCalls.windowsAt`: each window opening there, a question asked once at the
+    game's first) less those it has called. **Timed back from the lock** (`callNext`, the lane's call: Noticed): due `CALL_BEFORE` (6 hours)
+    before the episode airs by the broadcast's schedule, no sooner than `CALL_AFTER_PREV` (an hour) after the episode before it ends (its
+    results in, a nightly show's or a binge drop's), no later than `CALL_LAST` (an hour) before the lock (room for the retries); three tries
+    20 minutes apart (`nextTryAt`, as every run but the quick check), counted since the lock's last try that worked (a window that turns
+    up there later, a phase's or a question added, gets tries of its own); never at or after the lock. Only locks still to come by the broadcast's
+    clock are planned, so a game at its own pace on an aired season is never asked (its windows play their fallback, as a card the bot
+    chooses does there). `planRuns` adds them to what's due and to `next` (the VM's clock is told when one comes due).
+  - **The prompt** (`buildCallPrompt`, the user's to approve at the merge: Noticed): the show, the season, the episode coming ("Episode 7 is
+    the latest to air; episode 8 hasn't aired yet", its air time), recaps and previews only, never anything about the episode or later after
+    it aired, never a spoiler; that it plays against a group of friends who score when they're right and it isn't; who's still in by id
+    (listed once, "if one of them has already left, don't name them"); each question as players see it (its own words), what it's about
+    (`aboutWords`: the episode, a run of episodes, a phase, the game's whole run, or the season as a whole for who wins) and how to answer
+    (`answerWords`: an id, up to N ids, yes or no, a whole number, over or under the line, one of its options; a group's or a format group's
+    choices listed under it, by id); and a strict JSON shape (`{"episode": n, "calls": {id: {"answer", "why"}}}`).
+  - **The parse** (`parseCallAnswer`, `coerce`): the JSON (a code block or the outermost braces), about the episode asked, each call on a
+    question it was asked about (others listed as `unknown`, those it left out as `missing`), each answer as its kind takes it (an id, or a
+    name matched to its id only when it's exactly one of those offered, any case; a list for a pick of several, a list of one unwrapped for a
+    pick of one; yes or no from a word or a boolean; a number from a numeral; over or under; an option in any case), anything else passed on
+    as it came, for `fileCalls`'s check (`Spec.answerProblem` against `facesFor`, as a seat's) to refuse with its reason. The bot's line on
+    each is kept as the call's note (`bot_calls.note`, 300 at most), never shown to players.
+  - **What a try does** (`callJob`): reads the game (gone or archived: nothing to call), the windows open now at the lock with what each can
+    name (`windowsToCall`, on the planner's clock; a window offering nobody yet, the format's groups not sure, waits and the try fails, so
+    it's asked again); while the episode before it has no results in the league yet (back to back), its first two tries wait for them
+    (`waitsForResults`: who it sent home would still be offered) and the last calls from what's there; then asks once, files through `BotCalls.fileCalls` (`made_by` 'bot'; a check's or a replay's job says 'stand-in'). A try that leaves a window
+    uncalled (missing, refused, or waiting) failed, and the next asks about those alone; one with everything filed worked. Its run row says
+    how many it called and lists what was refused and why ("refused: winner (Name someone still in)").
+  - **Migration 0209:** only bot_research_runs' kind check, every kind already allowed (0208's: quick, full, schedule, tiebreak, rulebook,
+    trivia, bingo, facts, card) and `call`.
+  - **The tracker** doesn't move (settle.bot, win.bot and s35 played already, on stand-in calls): 216 ✅ · 47 ⏳. `engine-capabilities.js
+    --check` current; `game-specs-flag.js check`: PASS.
+  - **Proof:** `tests/bot-call-run.test.js` (new, 5): what a lock asks about (each window against the bot locking there, the game's who wins
+    at its first, never a question not against it, less those called, who's gone left out, nothing once it has results or aired), a draft's
+    own questions (an Outlast's who goes home called, never its finale predictions), the prompt (the episode, the cast by id, every answer
+    kind's words, a group's list, what each is about, the JSON), the parse (every kind, names to ids, an unknown id kept for the check, two
+    with one name never guessed, booleans, a list of one, missing and unknown, no JSON, another episode, nothing called) and the timing (six
+    hours before; an hour after the episode before it; back to back an hour before the lock; retries; three failed; a retry at the lock;
+    no air time; waiting for the episode before's results). `npm test` 1587; `tsc` clean. **API check:** `scripts/dev-test/check-bot-calls-run.js`
+    (new), ALL PASS (16): a lab
+    game against the bot (who goes home, an idol, who wins) on the fixture's couch; seven hours before Episode 6 nothing due and the next
+    six hours before it; five hours before, its call run due through `planRuns`; the stand-in's answer (who goes home by name, no idol, who
+    wins naming someone out) files two and lists the third refused, the try failed; 25 minutes on it's due again and asks about who wins
+    alone, filed; its run rows; the calls kept (ids, the reason); a window there left uncalled asked again though the lock's last try worked;
+    nothing left for Episode 6, the next run Episode 7's; riley sees all three
+    called, nothing of what; once Episode 6 airs nothing's planned and a run asks nothing. Also ALL PASS: `check-beat-bot.js`,
+    `check-card-bot.js`.
+  - **The prompt at the local bot** (http://127.0.0.1:8765 directly, one question at a time, waiting for it to be free; built exactly as the
+    run builds it, from each season's cast and who had left): **Survivor 51 Episode 8** (live, before it airs on Nov 11), Survivor 49
+    Episodes 3 and 10 and The Challenge 41 Episode 5 (recorded): every answer parsed, every question called, every call passing the seat's
+    check, 21 to 27 seconds each. Survivor 51's: Mike Pinsky goes home, an idol played, idols over 0.5, Carter Krull wins (its reasons from
+    Episode 7's recaps and the paired twist). On the recorded ones the bot can read what happened: Survivor 49 Episode 3's double boot and
+    The Challenge 41 Episode 5's two exits were named exactly (Episode 10's call missed). Proof of the shape only, and why the planner never
+    asks about a lock already past (Noticed).
+  - **The code review** (`/code-review` at high, before the long runs): ten findings, eight taken: a lock whose last try worked never
+    planned again for a window that turned up later (now its tries count from the last that worked); a number taken as 0 from a list or a
+    boolean (now only a number or a numeral); the episode before's exit still offered on a show back to back (its first two tries wait for
+    its results); the JSON example's answer for a choice (now its first option); the job reading the locks on the real clock while the
+    planner read its own (the job carries the planner's `now`); the answer's JSON read by a copy of the card's (now the card's `jsonIn`);
+    the planner walking every episode of the season and reloading the season it was given (now it stops at the first lock planned and
+    reuses it); `bot-research.d.ts`'s kinds and jobs (`card`, `call`, a job's `leagueId`). Left: the run reading the league and the format's
+    groups again in `fileCalls` (two small queries a run, a few runs a week) and the castaway word worked out inline as the card's, trivia's
+    and bingo's are (a shared helper with the show's plural words, 0429, for every run: Noticed); `callNext` and `cardNext` kept apart (the
+    same shape, different rules at the cut).
 - **A15. Live and replay** (with the watch along, docs/PLAN-couch-and-episode-night.md §6, and the sports branch's
   `GameClock`). It needs A7. The watch along is in its infancy (the user, 2026-10-28): its concept, how it's built and how it
   connects to games are all open, so A15 is where the games shape it, not only where they plug into it.
@@ -7564,6 +7639,41 @@ From R1 part 2 (2026-10-30):
 - **For the hosting notes, at the merge:** `/api/me` (classic's sign-in and every classic load) now sends each league's settings, not its
   whole state (20-40 KB each): less Neon transfer than before. (The main folder: docs/HOSTING.md, with the merge.)
 
+From A14 part 2b (2026-11-06):
+- **The call prompt is the user's to approve at the merge** (8:30 PM note: a prompt change): `db/call-research.js` `buildCallPrompt`, with
+  the run's timing and the parse. Proven on Survivor 51 Episode 8 (live) and three recorded episodes at the local bot (As built). Recommended:
+  approve as built, then watch the first live runs on the desk's run list. (The user, at the merge.)
+- **For the user, in the design session (decide nothing a person sees), each built with a recommendation:**
+  1. **When the bot calls.** Built: 6 hours before the episode airs (no sooner than an hour after the one before it ends, no later than an
+     hour before it). Options: a day before (the card's two days: steadier, but before the week's news); an hour before (the latest news,
+     less room for retries). Recommended: as built.
+  2. **One call per game, or one per season.** Built: one ask per game per lock, so two games asking the same question get two calls that can
+     differ (the bot is asked twice). Option: one ask per season for the questions the games share, every game reading the same call (the
+     card's way). Recommended: as built while few games play against the bot; the season's ask once several on one season do.
+  3. **The bot's reason.** Kept as each call's note, never shown. Option: shown with its call once the window locks ("the bot said: …"), a
+     line players may enjoy. Recommended: shown after the lock, U1's words.
+- **An aired season's bot knows the answers** (the recorded proofs named two episodes' boots exactly): so the run plans only locks still to
+  come by the broadcast's clock, and a game at your own pace on an aired season plays every window on its fallback (as a card the bot
+  chooses does there). A stand-in for it there (a habit like blind.js's) would let such a game play against "the bot" honestly; whether to is
+  the user's (own-pace games' plan). (Own pace, if asked.)
+- **The live proof's list was stale:** this lane's copy of Survivor 51 has results through Episode 4, so the prompt listed those who left
+  in Episodes 5 to 7 as still in; the prompt tells the bot not to name anyone who has, and the league's own list is current in production (its results
+  are in long before the run, six hours before the lock). A call naming someone who left in an episode whose results a league doesn't have
+  yet is accepted (they're in, as far as it knows) and simply wrong, as a seat's would be. (Nothing to do.)
+- **A call is independent of the others**: The Challenge 41 Episode 5's named Cara Maria going home and said nobody quits (she quit). Each
+  question is graded on its own, so nothing breaks; one prompt per lock keeps them in one chat, which helps more than it hurts.
+  (Nothing to do.)
+- **Every run works out the cast's word inline** (the code review's): the card's, trivia's, bingo's and now the call's prompt each take
+  `shows.castaway_term` and add an s, where the show's own plural words (0429) would say it right ("housemates", "players"). One helper
+  for every prompt, with the plural words. (Whoever next changes a research prompt; a prompt change, so with the user's OK at its merge.)
+- **The desk doesn't know the call run** (as C7 part 2's card run): its run list shows kind `call` and slot `call:<league id>` with the
+  run's message; no words, no game named, no Run now. (The desk, when it next works on the bot's page.)
+- **For the hosting notes, at the merge:** every planning (each VM tick and each desk save that tells the bot's clock) reads every league
+  still played whose settings hold a question against the bot (one query, `jsonb_path_exists` over the leagues' settings: a scan of the
+  leagues table, cheap at today's size; a column or an index once leagues number in the thousands), and for each such game its calls and its
+  season's call runs. Each call run asks the bot once (20 to 30 seconds), per game per episode it plays against the bot; its row in
+  bot_research_runs and a few rows in bot_calls. Migration 0209 only changes a check. (The main folder: docs/HOSTING.md, with the merge.)
+
 From C7 part 2 (2026-11-06):
 - **The card prompt is the user's to approve at the merge** (8:30 PM note: a prompt change): `db/card-research.js`
   `buildCardPrompt`, with `card_choices`' shape and the run's timing. Proven on three episodes at the local bot (C7's As built).
@@ -7784,7 +7894,8 @@ From C2 part 4c (2026-11-06):
 - **Tonight shows a draft's finale predictions from Extras by its sheet's `finale`**: a draft with its own questions has a sheet of
   them instead (`finale` false, its finale predictions among its questions but not counted as a move), so Tonight lists it as a sheet
   to fill in, its finale predictions inside it. (U1, the sheet's screen.)
-- **The bot's call on a draft's own questions** is open (as a game of questions'): A14 part 2b's run, which makes the bot's call before
+- **The bot's call on a draft's own questions** (built in A14 part 2b: its run finds them through `AnswerLogic.questions`; the bot line
+  was already worked out for them) was open (as a game of questions'): A14 part 2b's run, which makes the bot's call before
   each lock, has to file calls for a draft's questions too (it finds them through `AnswerLogic.questions`, as `botCallsFor` does); the
   Games tab's bot line is worked out for them (`leagueAnswers`). (A14 part 2b.)
 - **The lane's calls, the user's to overrule** (with the merge's look): a draft's finale predictions come first among its questions (as
@@ -7943,10 +8054,12 @@ From A14 part 2 (2026-10-31):
   4. **How the table shows the bot.** Built: a line beside the table (its calls right of those settled, each seat's beat and beaten), never a
      row or a place. Option: a ghost row ranked among you ("where the bot would be"). Recommended: the line, as built (the Decisions table's
      guardrail: a player-decided outcome never moves anyone's place, and the bot is no player); its words and look are U1's.
-  5. **When the bot calls and what it's told** (part 2b's): recommended, a run of its own a few hours before each lock, for every game with
+  5. **When the bot calls and what it's told** (part 2b's; built in part 2b as recommended, six hours before each lock: its Noticed):
+     recommended, a run of its own a few hours before each lock, for every game with
      a question against the bot, told only what anyone could know before the episode (the show, the season, the episode number, who's still
      in, the question and its choices) and asked not to look anything up about the episode or after it; one ask per game per episode.
-- **A call can be made early** (any open window, Episode 12 now): harmless (it's checked against who's in now, and someone who goes home
+- **A call can be made early** (part 2b's run calls each window only six hours before its lock; fileCalls still takes an early one)
+  (any open window, Episode 12 now): harmless (it's checked against who's in now, and someone who goes home
   before it is simply a wrong call), but part 2b's run calls each window only shortly before its lock. (Part 2b, if it matters.)
 - **For the hosting notes, at the merge:** migration 0206's `bot_calls`, a row per game per window played against the bot (a few a week a
   game): negligible storage; a read of a game against the bot reads its calls once, and the season's schedule while a call's window is still

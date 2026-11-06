@@ -50,6 +50,12 @@
 // sooner than CARD_AFTER_PREV after the one before it ends), three tries 20 minutes apart, and never once the card is out
 // (Spec.CARD_OUT_HOURS before the episode: the game plays its fallback then). An episode with a live choice already isn't asked.
 //
+// The bot's own call as an opponent (step A14 part 2b, db/call-research.js): a game with a question played against the bot needs its
+// call on each window before the window locks, whatever the season's schedule says. Not any season's schedule either: each such game
+// gets a call run for each lock coming with a window it hasn't called (slot 'call:<league id>', its episode the lock's), due
+// CallResearch.CALL_BEFORE minutes before that episode airs (no sooner than CALL_AFTER_PREV after the one before it ends, no later
+// than CALL_LAST before it), three tries 20 minutes apart, and never once it has locked (the window plays its fallback then).
+//
 // Results someone asked for (db/migrations/0152, src/lib/server/research-asks.ts): a show nobody plays a game on, whose
 // aired episodes have no results, gets each episode's full research when someone fills in what happened. It isn't any
 // season's schedule either: each asked episode is a job of its own (slot 'asked'), a season's one at a time in episode
@@ -67,6 +73,8 @@ const Bingo = require("./bingo-research.js");
 const FactsRun = require("./facts-research.js");
 const FinalResults = require("../src/lib/game/final-results.js");
 const CardResearch = require("./card-research.js");
+const CallResearch = require("./call-research.js");
+const BotCalls = require("./bot-calls.js");
 
 const KINDS = ["quick", "full", "schedule", "trivia", "bingo", "facts"];
 // A tie-break's run rows (kind 'tiebreak', 0116) carry this slot.
@@ -123,8 +131,8 @@ const QUICK = { fastMs: 5 * MIN, fastForMs: 30 * MIN, slowMs: 15 * MIN, windowMs
 // full one is useful for days, and so is a tie-break.
 // Bingo's squares are worth writing until the episode airs (slots cuts a try off there), however early its run was set. An
 // episode's facts, for a day: a game's question waits for them only until the episode's final results.
-// A card run, until its card is out (cardNext cuts a try off there).
-const STALE_MS = { quick: 12 * 60 * MIN, full: 3 * 24 * 60 * MIN, schedule: 3 * 24 * 60 * MIN, tiebreak: 3 * 24 * 60 * MIN, trivia: 2 * 24 * 60 * MIN, bingo: MAX_AFTER * MIN, facts: 24 * 60 * MIN, card: MAX_AFTER * MIN };
+// A card run, until its card is out (cardNext cuts a try off there); a call run, until its lock (CallResearch.callNext's).
+const STALE_MS = { quick: 12 * 60 * MIN, full: 3 * 24 * 60 * MIN, schedule: 3 * 24 * 60 * MIN, tiebreak: 3 * 24 * 60 * MIN, trivia: 2 * 24 * 60 * MIN, bingo: MAX_AFTER * MIN, facts: 24 * 60 * MIN, card: MAX_AFTER * MIN, call: MAX_AFTER * MIN };
 // A result disputed this long gets its tie-break run.
 const TIEBREAK_AFTER_MS = 24 * 60 * MIN;
 // A card run's rows (kind 'card', 0208) carry this slot.
@@ -166,7 +174,7 @@ function nextTryAt(kind, due, tries) {
       next = last + (last - at < QUICK.fastForMs ? QUICK.fastMs : QUICK.slowMs);
       if (tries.length >= MAX_ATTEMPTS && next - at > QUICK.windowMs) return null;
     } else {
-      // A full run, a schedule check, a tie-break, trivia and the facts run: three tries, 20 minutes apart.
+      // A full run, a schedule check, a tie-break, trivia, the facts run, a card and a call: three tries, 20 minutes apart.
       if (tries.length >= MAX_ATTEMPTS) return null;
       next = last + FULL_RETRY_MS;
     }
@@ -419,6 +427,110 @@ async function cardJob(pool, job, { ask, dry, runId, finish }) {
   // A check or a replay standing in for the bot says so (job.madeBy 'stand-in'): never production's.
   await CardResearch.storeChoice(pool, season.id, episode, ids, parsed, { runId, madeBy: job.madeBy });
   return finish(parsed.status === "live", line, result);
+}
+
+// ---------- the bot's own call ----------
+
+/**
+ * The call runs due now, across every game with a question played against the bot (or one season's), and when the next comes due:
+ * { due: [job], next } (A14 part 2b). For each game, each episode coming by the broadcast's schedule with a window whose call locks
+ * there that it hasn't called (BotCalls.windowsAt, as of `now`): its run's time and next try (CallResearch.callNext on its tries, slot
+ * 'call:<league id>'). A lock already past by the broadcast's clock (a game at its own pace on an aired season) is never planned.
+ */
+async function planCalls(pool, now, seasonId = null) {
+  const due = [];
+  let next = null;
+  const only = seasonId ? await loadSeasonForJob(pool, seasonId) : null;
+  if (seasonId && !only) return { due, next };
+  const seasons = new Map();
+  for (const g of await CallResearch.callGames(pool, only)) {
+    const s = g.state.settings || {};
+    const key = `${s.showId}|${s.wikiSeason}`;
+    if (!seasons.has(key)) {
+      const [season] = only ? [only] : s.showId && s.wikiSeason != null ? await SeasonClock.loadSeasons(pool, "s.slug = $1 AND ss.season_number::text = $2", [s.showId, String(s.wikiSeason)]) : [];
+      const { rows: history } = season ? await pool.query("SELECT episode_number, slot, started_at, ok FROM bot_research_runs WHERE season_id = $1 AND kind = 'call'", [season.id]) : { rows: [] };
+      seasons.set(key, season ? { season, airTimes: episodeAirTimes(season), history } : null);
+    }
+    const on = seasons.get(key);
+    if (!on) continue;
+    const slot = CallResearch.slotOf(g.id);
+    let called = null;
+    for (const e of on.airTimes) {
+      if (e.at <= now) continue;
+      const windows = BotCalls.windowsAt(g.state, e.episode, { now: now.getTime(), airAt: e.at.toISOString() });
+      if (!windows.length) continue;
+      called ??= await CallResearch.calledOn(pool, g.id);
+      if (windows.every((w) => called.has(`${w.q.id}|${w.window}`))) continue;
+      const prev = on.airTimes.find((x) => x.episode === e.episode - 1);
+      // Its tries since the last that worked: a window that turned up at a lock already called (a phase's, a question added) gets
+      // tries of its own.
+      const mine = on.history.filter((h) => h.slot === slot && h.episode_number === e.episode);
+      const lastOk = Math.max(-Infinity, ...mine.filter((h) => h.ok === true).map((h) => new Date(h.started_at).getTime()));
+      const tries = mine.filter((h) => new Date(h.started_at).getTime() > lastOk);
+      const r = CallResearch.callNext({
+        lockAt: e.at.getTime(),
+        prevEnd: prev ? prev.at.getTime() + (prev.minutes ?? episodeMinutesOf(on.season)) * MIN : null,
+        tries,
+        nextTry: (d, t) => nextTryAt("call", d, t),
+      });
+      if (!r) continue;
+      if (r.next <= now) due.push({ episode: e.episode, slot, kind: "call", after: null, at: r.at, season: on.season, leagueId: g.id, tries: tries.length, now: now.getTime() });
+      const when = Math.max(r.next.getTime(), now.getTime());
+      if (next === null || when < next) next = when;
+      // A later lock's run is never due before this one's: one planned is enough for the game.
+      break;
+    }
+  }
+  return { due, next: next === null ? null : new Date(next) };
+}
+
+/**
+ * A call run (runJob's, A14 part 2b: db/call-research.js): the bot's call on each window of a game's questions against it that locks
+ * at `episode` and it hasn't called, from what can be named there, filed through BotCalls.fileCalls (made_by 'bot'; a check's or a
+ * replay's job.madeBy 'stand-in'), each checked as a seat's answer is. A try that leaves a window uncalled (missing from the answer,
+ * refused, or offering nobody yet) is a failed one, asked again for those alone; a game gone or a lock passed asks nothing.
+ */
+async function callJob(pool, job, { ask, dry, runId, finish }) {
+  const { season, episode, leagueId } = job;
+  const { rows } = await pool.query("SELECT state, deleted_at FROM leagues WHERE id = $1", [leagueId]);
+  const league = rows[0];
+  if (!league || league.deleted_at || (league.state.settings || {}).archivedAt) return finish(true, "The game is gone: nothing to call", { asked: [] });
+  const airedAt = Air.episodeAirTime(season.schedule, episode, season.wikiAirDates);
+  const airAt = airedAt ? airedAt.toISOString() : null;
+  // The planner's clock (a check's or the cron's `now`), so the job reads the locks the planner did.
+  const now = Number.isFinite(job.now) ? job.now : Date.now();
+  const { asked, cast, waiting } = await CallResearch.windowsToCall(pool, league.state, episode, { now, airAt, skip: await CallResearch.calledOn(pool, leagueId) });
+  if (!asked.length) {
+    if (waiting.length) return finish(false, `Episode ${episode}: nobody can be named yet on ${waiting.join(", ")} (the format's groups aren't sure)`, { asked: [], waiting });
+    return finish(true, `Episode ${episode}: nothing left to call (called already, or locked)`, { asked: [] });
+  }
+  // The episode before it without its results in the league yet (back to back): who it sent home would still be offered, so its first
+  // two tries wait for them; the last calls from what's there.
+  if (CallResearch.waitsForResults(league.state, episode) && (job.tries || 0) < 2) {
+    return finish(false, `Episode ${episode}: waiting for Episode ${episode - 1}'s results before the bot calls`, { asked: [], waitingFor: episode - 1 });
+  }
+  const { rows: show } = await pool.query("SELECT name, castaway_term FROM shows WHERE id = $1", [season.show_id]);
+  const term = show[0] && show[0].castaway_term ? `${show[0].castaway_term.toLowerCase()}s` : "cast members";
+  const prompt = CallResearch.buildCallPrompt({
+    showName: show[0] ? show[0].name : season.slug,
+    season: season.season_number,
+    episode,
+    airAt: airedAt ? Air.formatInTz(airedAt, season.air_tz) : null,
+    asked,
+    cast: asked.some((a) => a.q.answer === "person") ? cast : [],
+    term,
+    state: league.state,
+  });
+  const { answer } = await ask(prompt);
+  const parsed = CallResearch.parseCallAnswer(answer, episode, asked);
+  const result = { asked: asked.map((a) => a.id), calls: parsed.calls, missing: parsed.missing, unknown: parsed.unknown, ...(waiting.length ? { waiting } : {}) };
+  if (!parsed.found) return finish(false, `Episode ${episode}'s calls: ${parsed.note}`, result);
+  const gaps = [parsed.missing.length ? `${parsed.missing.length} not answered` : null, waiting.length ? `${waiting.length} waiting` : null].filter(Boolean);
+  if (dry) return finish(!parsed.missing.length && !waiting.length, `Episode ${episode}: ${parsed.calls.length} of ${asked.length} call(s)${gaps.length ? ` (${gaps.join(", ")})` : ""} (dry run: not filed)`, result);
+  const { filed, refused } = await BotCalls.fileCalls(pool, leagueId, parsed.calls, { madeBy: job.madeBy, airAt, now });
+  if (refused.length) gaps.unshift(`refused: ${refused.map((x) => `${x.question} (${x.why})`).join("; ")}`);
+  const ok = filed.length === asked.length && !waiting.length;
+  return finish(ok, `Episode ${episode}: the bot called ${filed.length} of ${asked.length}${gaps.length ? `; ${gaps.join(", ")}` : ""}`, { ...result, filed, refused });
 }
 
 // ---------- results someone asked for ----------
@@ -815,6 +927,10 @@ async function planRuns(pool, { now = new Date(), seasonId } = {}) {
   const cards = await planCards(pool, now, seasonId);
   due.push(...cards.due);
   if (cards.next && (next === null || cards.next < next)) next = cards.next;
+  // A14 part 2b: the bot's own call before each lock (any game with a question against it, whatever its season's schedule).
+  const calls = await planCalls(pool, now, seasonId);
+  due.push(...calls.due);
+  if (calls.next && (next === null || calls.next < next)) next = calls.next;
   // Results someone asked for (any season, whatever its schedule).
   const asks = await planAsks(pool, now, seasonId);
   due.push(...asks.due);
@@ -924,6 +1040,7 @@ async function runJob(pool, job, { ask, send = null, dry = false } = {}) {
     if (kind === "bingo") return await bingoJob(pool, job, { ask, dry, runId, started, finish });
     if (kind === "facts") return await factsJob(pool, job, { ask, dry, runId, finish });
     if (kind === "card") return await cardJob(pool, job, { ask, dry, runId, finish });
+    if (kind === "call") return await callJob(pool, job, { ask, dry, runId, finish });
     if (kind === "quick") {
       const ctx = await Research.resolveSeasonResearchContext(pool, season.slug, season.season_number, episode);
       const airedAt = Air.episodeAirTime(season.schedule, episode, season.wikiAirDates);
@@ -1114,6 +1231,7 @@ module.exports = {
   CARD_SLOT,
   cardNext,
   planCards,
+  planCalls,
   RUNNING_STALE_MS,
   askedNext,
   seasonAskNext,

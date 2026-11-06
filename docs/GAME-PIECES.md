@@ -718,8 +718,12 @@ each other stay hidden until the lock; what the players decide changes the game,
 - **Beat the bot** `beat: { by: "bot", none: "plays" | "void" }`: the bot makes its own call before the lock (kept apart and
   hidden until then); a right answer scores only where the bot's isn't right (each right pick it didn't name; a number only when
   closer than the bot). A person or group, yes or no, number, over/under or choice, settled by what happened; a game of
-  questions' own, or (C2 part 4c) a draft's; no wager. The bot's own run that makes the call is A14 part 2b (until then every
-  game against it plays its fallback).
+  questions' own, or (C2 part 4c) a draft's; no wager. The call is the bot's own run (A14 part 2b, `db/call-research.js`): one ask
+  per game per lock, six hours before the episode airs (no sooner than an hour after the one before it ends, no later than an hour
+  before the lock), three tries, never once it's locked; told the question as players see it, what it's about, its answer kind and
+  exactly who or what can be named then (by id), asked not to use anything about the episode; each call checked as a seat's answer
+  is and kept in `bot_calls` ("made_by" `bot`), what's refused listed and asked again. A window the bot never called (it was down,
+  the game was made after its lock, a game at your own pace on an aired season) plays `none`.
 - **Vote on a format change** `extras.changes.ok: "vote"` (above).
 - **Side bets** `extras.bets: { points }` (1 to 3): Predictions the game's runner grades; one pays out only once two of you
   guessed. Beside a draft.
