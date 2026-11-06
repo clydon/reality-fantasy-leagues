@@ -202,6 +202,21 @@ const kindOf = (text: string) => text.toLowerCase().replace(/[^a-z0-9]+/g, "-").
 const ENDS = ["Fight Over", "Fight Complete"];
 const announces = (text: string) => text === "Results" || text.startsWith("Unofficial Winner");
 
+/** A bout's time into its round as ESPN writes it ("4:59"); not its "-" for none (the FightCenter's, now and then). */
+const clockOf = (st: EspnBoutStatus | null | undefined): string | null => {
+  const c = str(st?.displayClock);
+  return c && c !== "-" ? c : null;
+};
+
+/** When a bout ended by ESPN's plays (its "Fight Over", else its last timed play; null with none), and whether they announce its
+ *  result yet (live-event.ts's cardFeed: a bout's plays asked on after its end until they do, its statistics once settled). */
+export function playsEnd(plays: EspnBoutPlay[] | null | undefined): { endedAt: number | null; announced: boolean } {
+  const ps = [...(plays ?? [])].sort((a, b) => (num(a.sequenceNumber) ?? 0) - (num(b.sequenceNumber) ?? 0));
+  const over = ps.find((p) => ENDS.includes(str(p.type?.text) ?? ""));
+  const last = [...ps].reverse().find((p) => msOf(p.wallclock ?? null) != null);
+  return { endedAt: msOf((over ?? last)?.wallclock ?? null), announced: ps.some((p) => announces(str(p.type?.text) ?? "")) };
+}
+
 /** How long after the last segment's start a card is surely over, where the answers say nothing later (a finished card read
  *  with no `_asked` and no plays): a UFC card runs 4 to 6 hours from its first segment, a main card about 3. */
 const CARD_OVER_MS = 12 * 3600_000;
@@ -389,7 +404,7 @@ export class MMA extends BoutSport {
       method: named?.method ?? null,
       how,
       round: round || null,
-      time: str(r.status?.displayClock) ?? (secs != null ? mmss(secs) : null),
+      time: clockOf(r.status) ?? (secs != null ? mmss(secs) : null),
       cards,
     };
   }
@@ -487,7 +502,7 @@ export class MMA extends BoutSport {
       const res = this.resultOf(r, issues);
       const over = this.over(r);
       const ends: BoutPlay[] = [];
-      const endPlay = (at: string | null): BoutPlay => ({ ...base, id: `${bout.id}:end`, who: null, at, period: 0, clock: null, text: `${title}: over${this.timeOf(r) != null ? ` (${r.status?.period ? `the ${ordinal(r.status.period)} round, ` : ""}${r.status?.displayClock ?? ""})` : ""}`, kind: "bout-end", people: bout.sides, deltas: this.endStats(r) });
+      const endPlay = (at: string | null): BoutPlay => ({ ...base, id: `${bout.id}:end`, who: null, at, period: 0, clock: null, text: `${title}: over${this.timeOf(r) != null ? ` (${r.status?.period ? `the ${ordinal(r.status.period)} round, ` : ""}${clockOf(r.status) ?? ""})` : ""}`, kind: "bout-end", people: bout.sides, deltas: this.endStats(r) });
       const resultPlay = (at: string | null, res: BoutResult): BoutPlay => ({ ...base, id: `${bout.id}:result`, who: res.winner, at, period: 0, clock: null, text: this.says(res, bout, r.names), kind: "result", people: bout.sides, deltas: this.resultStats(res, bout), result: res });
       if (r.plays.length) {
         let ended = false;
@@ -512,7 +527,13 @@ export class MMA extends BoutSport {
           const lastEnd = [...ends].reverse().find((p) => p.kind === "round-end") ?? ends[ends.length - 1];
           ends.splice(ends.indexOf(lastEnd) + 1, 0, endPlay(lastEnd.at));
         }
-        if (res && !said) ends.push(resultPlay(ends.find((p) => p.kind === "bout-end")!.at, res));
+        // Its result not announced after its end in ESPN's order: at a play announcing it if there's one (401928106's plays go on
+        // past its end), else when a live answer had it (on its board by then), else at the bout's end; never before its end.
+        if (res && !said) {
+          const end = msOf(ends.find((p) => p.kind === "bout-end")!.at);
+          const told = r.plays.map((p) => (announces(str(p.type?.text) ?? "") ? msOf(p.wallclock ?? null) : null)).find((t) => t != null) ?? (asked ?? end);
+          ends.push(resultPlay(iso(told != null && end != null ? Math.max(told, end) : told ?? end), res));
+        }
         if (!over && r.status?.type?.state === "in" && asked != null) ends.push(this.soFar(r, title, iso(asked)));
       } else if (over) {
         // Timed by nothing of its own: when the answers were had, or the next bout's first moment, or the card's fallback.

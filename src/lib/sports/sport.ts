@@ -562,8 +562,9 @@ export interface EspnCoreCompetitor {
   startOrder?: number;
   winner?: boolean;
   vehicle?: { number?: string; manufacturer?: string; team?: string; sponsor?: string };
-  statistics?: { splits?: { categories?: { stats?: { name?: string; value?: number }[] }[] } };
-  status?: { period?: number; type?: { name?: string; state?: string } };
+  /** Null: asked, and ESPN has none (a 404: live-event.ts's raceFeed keeps it so, so it isn't asked again). */
+  statistics?: { splits?: { categories?: { stats?: { name?: string; value?: number }[] }[] } } | null;
+  status?: { period?: number; type?: { name?: string; state?: string } } | null;
 }
 
 /** ESPN's event on a field's board or leaderboard, only the parts the readers read. */
@@ -899,7 +900,7 @@ export interface EspnBoutCompetitor {
 export interface EspnBoutCore {
   status?: EspnBoutStatus | null;
   plays?: EspnBoutPlay[];
-  competitors?: { id?: string | number; order?: number; winner?: boolean; statistics?: { splits?: { categories?: { stats?: { name?: string; value?: number }[] }[] } } }[];
+  competitors?: { id?: string | number; order?: number; winner?: boolean; statistics?: { splits?: { categories?: { stats?: { name?: string; value?: number }[] }[] } } | null }[];
 }
 
 export interface EspnBoutPlay {

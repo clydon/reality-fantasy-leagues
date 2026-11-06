@@ -1044,7 +1044,7 @@ engine track; L brings each sport's data to it. Its screens wait for the UI trac
   - **Part 2 (2026-11-05): the pollers for fields, fight cards and tennis draws**, on the live recordings' numbers, keeping the
     moment each result was first seen (the main session's order). Split in two: 2a, the shared poller and golf's and tennis's
     feeds (one or two plain calls: built 2026-11-05, As built below); 2b, racing's and MMA's (their core API's calls, brought from
-    the dev scripts into the app).
+    the dev scripts into the app: built 2026-11-05, As built below). **L2 is done.**
 - **L3. Live scoring through the spec.** Points per stat from box scores and plays (`score.by: stats`), live on the phone and
   saved once when final, replacing today's ChatGPT research of sports moments.
 - **L4. The formats, as the engine's pieces with sports data:** head-to-head, categories and roto (A11), best ball (A9),
@@ -2488,9 +2488,9 @@ Master still hadn't A1-A4 (the main session's order).
     core 5 calls and 39 KB unpacked.
   - No lap has a time, so ESPN's lag can't be measured; a session's first order showed 6 (FP1) and 11 minutes (the race) after
     its listed start.
-- **Racing's live poller is L2 part 2b's**, on 2a's `LiveEvent`: the board every 30 s while a session's on (2 KB; it's the running
-  order in a race, not in practice: above), the core's list at a session's start for the grid, its statistics after the end
-  (filled in later: above), F1's statuses.
+- **Racing's live poller is built** (L2 part 2b: `raceFeed` on `LiveEvent`, the board every 30 s while a session's on, the core's
+  list at a race's or a sprint's start for the grid, its statistics and F1's statuses once it's over, a counted series' waited
+  for till ESPN fills them in).
 - **NASCAR's and IndyCar's retirements aren't in ESPN's data** (no status): a car out isn't told from one laps down, so a game
   scores laps completed or the lead lap instead; nor NASCAR's stage results (one `bonus`), DraftKings' fastest laps, or F1's laps
   led (its `lapsLead` counts something else). The wizard should say what a series can't score. (G3, U0.)
@@ -2653,9 +2653,9 @@ still hadn't A1-A4 (the main session's order). Part 4 is split in two: 4a MMA (t
   live is in the final, read the same. `check-bout-reduce.js --events=600061420`: every number but one of ESPN's own (a bout
   whose plays go to round 3 and whose status ended it in round 2, 401928106). **A phone's data**: 23 KB an answer for the board
   and the FightCenter (248 KB unpacked), 2.7 MB an hour at 30 s; the core 6 calls and 24 KB unpacked an ask.
-- **A card's live poller is L2 part 2b's**, on 2a's `LiveEvent`: the board and the FightCenter every 30 s while a bout's on (23 KB),
-  the core's status and plays of the bout on for their times (about a minute behind), its statistics at the bout's end (the live
-  totals run ahead: above), nothing between cards.
+- **A card's live poller is built** (L2 part 2b: `cardFeed` on `LiveEvent`, the board and the FightCenter every 30 s while a bout's
+  on, the core's plays of the bout on, each fighter's statistics once the bout's settled; no core status: the plays carry the
+  moments).
 - **No play says whose it is, and nothing is by round per fighter**: a game can't score "a knockdown in round 1" for a fighter, nor
   live points round by round; a bout's own rounds (its knockdowns and takedowns, timed) can settle a live call about the bout ("a
   takedown this round"). (A15, L4.)
@@ -2946,6 +2946,77 @@ updated).**
 - **Between rounds and between days the poller asks every 10 minutes** while the screen is on, though nothing's to come until
   the next tee time or the next day's order of play (tennis's placeholder starts): U1 could stop at a day's end and say when it's
   back. (U1.)
+
+**L2 part 2b as built: the pollers for a race weekend and a fight card (2026-11-05, `sports`, not merged; no migration, nothing
+stored; HOSTING.md updated).**
+- **An ask in rounds** (`live-event.ts`): an `EventFeed` can say, after its first round (`paths`, every ask), what else the answers
+  so far want (`more`: the core API's calls, from everything had and this ask's own), up to four rounds; each call's last answer is
+  kept between asks (`LiveEvent.had`), so a session's grid or a bout's statistics are asked once and carried. A later round's call
+  ESPN answers 404 is had as none (not asked again), unless something was had for it before (kept); one that fails otherwise is
+  left to the next ask, tried once an ask; a first-round call can be `optional` (a card's FightCenter). Paths name ESPN's host:
+  the site API's, `core:` (`sports.core.api.espn.com`) or `web:` (`site.web.api.espn.com`), each a stand-in's in a check
+  (`base`, `core`, `web`). Golf's and tennis's feeds are as before.
+- **Racing's feed** (`raceFeed`): the weekend's board every 30 s while a session's on (or its listed start gone within the hour
+  with ESPN not on yet); between sessions until the next start. From the core, only what the reader reads (`racing.ts`'s
+  `coreReads`): a race's or a sprint's list from its start, for the grid (asked again while it's on until it has one); qualifying's,
+  a sprint's and a race's statistics once it's over, with F1's statuses; practice and sprint qualifying the board's order alone
+  (the core's order the board's in under half the live answers: L5 part 3b). A counted series' race (`fills`): the winner's
+  statistics first, every ask (every 10 minutes once over) for 12 hours from its start, and everyone's once they're filled in
+  (`coreFilled`: a lap led or points; before, nobody's). Over once every session is (`weekendOver`) and its statistics are had.
+- **A card's feed** (`cardFeed`): its board and FightCenter every 30 s while a bout's on or between bouts (or its listed start
+  gone, no bout on); before it, until its start. From the core: the card's rounds once (its event), the plays of the bout on every
+  ask and of one just over until they announce its result (10 minutes at most), and each fighter's statistics once the bout's
+  settled: 10 minutes from its end, and again each ask while they don't agree with the FightCenter's totals on its keys, until 30
+  minutes on. A fighter's core statistics are read only while they agree (until then the FightCenter's are the fresher), so a
+  bout's live and just-ended totals are the FightCenter's. No core status: the plays carry ESPN's moments (the core's status was
+  30 s ahead of the board's in 9 of 12 bouts, the plays the same, so a phone sees a result one ask later at the same moment). Over:
+  the card final and every bout's result announced and statistics settled (the main event's hold the card 10 minutes or so).
+- **The MMA reader** (`mma.ts`): a result its plays announce after rounds past its end (401928106's) is at the announcement; one no
+  play announces yet is when a live answer had it, not at the bout's end (a decision's announced ~2 minutes after it: a later
+  watch would have seen it early); the FightCenter's "-" for a clock read as no time (it flips between "5:00" and "-" on a
+  finished bout). `playsEnd` (when a bout ended, whether it's announced), in ESPN's order.
+- **A phone's calls**: racing's board 2-4 KB over the wire an ask (up to 0.5 MB an hour), a list 1.2 KB (F1) or 2.2 KB (NASCAR)
+  once a race or sprint, a session's statistics 0.7-0.9 KB a driver and F1's statuses 0.2 KB (44 calls, ~20 KB, an F1 session;
+  ~37 and 33 KB NASCAR's race): ~140 core calls an F1 sprint weekend, ~60 KB. A card's board and FightCenter 23 KB an ask (2.7 MB
+  an hour), the bout on's plays 1-1.3 KB more, the rounds 3.3 KB once, a fighter's statistics 1.4 KB (~35 KB a 12-bout card).
+  Measured with gzip on finished events (2026-11-05); CORS `*` on all three hosts.
+- **Checks.** `tests/sports-live-event.test.js` (+5, on fixtures in virtual time): Miami 2026 with its race put back on (the board
+  every 30 s, the sprint's and the race's lists once, the sprint's and qualifying's statistics and statuses at the first ask, the
+  race's in the ask that has it over, then done, every line the weekend's); Daytona 2025 before ESPN fills it in (the winner's
+  statistics every 10 minutes, places and the grid till then, everyone's once filled; a car with none, ESPN's 404, asked once);
+  UFC 324 with its main event put back on (every bout's plays once, the bout on's each ask, a bout's plays failing once asked
+  again, the rounds' 404 not; its end and result at ESPN's moments and not moved; held till its statistics settle, those running
+  ahead not used and asked again; every line the card's); a card whose FightCenter fails (the ask goes on), a 404 not wiping plays
+  had, a result announced late held for and at its first sight; where between sessions and before a card, one called off over.
+  **`check-live-event.js`** now replays racing and card recordings too (a stand-in for the core's calls from the recording as of
+  each ask; each kind of call's count and size said): **F1's FP1** (191 asks, 22 results), **Martinsville** (413 asks; the list
+  once; the winner's statistics every 10 minutes after the flag, still not filled at the recording's end, as ESPN had them) and
+  **the UFC's 600061420** (725 asks; 697 plays calls, 41 statistics calls) pass, with Basel, Guangzhou and the Mexico Open as before:
+  6 of 6. `check-bout-reduce.js`: the UFC's 2025 and 2026 cards every number and result but ESPN's own, as before. 1,432 unit tests;
+  `tsc` clean; eslint clean on `src/lib/sports`; `check-live-clock.js` at 30x 22 of 22.
+- `/code-review` on the diff (its fixes: a card's FightCenter failing failed the whole ask, now optional; ESPN's 404 for a race's
+  list stopped its grid's re-asks; a fighter's statistics ESPN has none of held the card open; a 404 could wipe an answer kept
+  from before; the counted series' filling-in rule reached qualifying, now a race's or a sprint's (`coreReads`' `fills`); a session
+  with no start was waited for forever; a bout's plays not yet announcing its result weren't asked on once the card was final, now
+  held for; `playsEnd` in ESPN's order; the check's stand-in on a missing part; one league path in the feeds).
+
+**L2 part 2b noticed, not fixed:**
+- **A bout's official totals come minutes after its end**, from the UFC's 600061420 recorded live: the FightCenter's reached the
+  final's a median 3 minutes after the bout's end (0 to 9 minutes, one 17); the core's statistics asked at a bout's end weren't
+  the final's in 11 of 12; live, the core's run ahead of the FightCenter's (178 of 422 asks ahead, 18 behind, 226 the same). When
+  the core's own reach the official count wasn't recorded (the recorder asked them at a bout's end and the card's final only; the
+  one bout asked between, 401921310, had both at once): the check's stand-in assumes they come with the FightCenter's. A live
+  strikes count is still U1's to show as provisional.
+- **When ESPN fills a counted series' statistics in isn't known**: Martinsville's recording stopped at the final, still unfilled.
+  The poller waits 12 hours from the race's start; the next Cup or IndyCar race recorded past its final (record-espn-live.js would
+  need an `--until=filled`) would say how long. L3's stored final waits for them either way (`readBox`'s final).
+- **F1's session stays "in" for ~24 minutes after its end** ("End of Session", STATUS_SESSION_COMPLETE, FP1), its order settling;
+  the poller asks every 30 s through it and its statistics once it's "post". A race's post-race penalties after that aren't asked
+  for (the weekend's over): L3's stored final has them.
+- **A phone opening a card mid-way** asks every bout's plays once (~1.3 KB each) and the settled ones' statistics (2 each); a
+  weekend opened after qualifying, its statistics and statuses once (44 calls).
+- **The check counts content, so the poller's own versions of a live bout's totals** (the FightCenter's, where the recording
+  read the core's) have no recorded twin and aren't timed against it; their results and ESPN-timed plays are.
 
 **Open, from the sports plan:** head-to-head's schedule over a span, and playoffs; whether a sport's moves follow Weekly
 Lineup's waivers or need their own rhythm for daily sports; what a live call is worth, and how fast they open and close;

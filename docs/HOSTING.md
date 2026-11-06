@@ -255,10 +255,17 @@ over the wire (7 MB an hour at 15 s), the NFL 38 KB (9 MB), the WNBA 35 KB (8 MB
 poller for an event, `src/lib/sports/live-event.ts`, as untimed as ESPN's answers; no screen uses it yet, U1): **golf** asks the
 event's board and leaderboard every minute while a round's on (33 KB over the wire together, 576 KB unzipped: 2 MB an hour; 120
 calls an hour a phone), until the next tee time between rounds; **tennis** the event's board every 30 s while a match is on (12
-KB, ~150 KB unzipped: 1.5 MB an hour; 120 calls an hour), until the next listed start between, every 10 minutes at most. Nothing
-on Vercel or Neon either, the same fallback if ESPN stops answering phones. Measured for part 2b's pollers, not built yet: a UFC
-card's board and FightCenter 23 KB an answer (2.7 MB an hour at 30 s, over a 6-hour card), racing's board 2 KB (its core API
-5-6 calls and 23-39 KB unzipped an ask).
+KB, ~150 KB unzipped: 1.5 MB an hour; 120 calls an hour), until the next listed start between, every 10 minutes at most;
+**racing** (L2 part 2b) the weekend's board every 30 s while a session's on (2-4 KB over the wire, ~12 KB unzipped: up to 0.5 MB
+an hour; 120 calls), and from ESPN's core API (`sports.core.api.espn.com`, CORS `*`) a race's or a sprint's list once from its
+start, for the grid (1.2 KB F1's, 2.2 KB NASCAR's), and qualifying's, a sprint's and a race's statistics once it's over (F1: 22
+drivers' statistics, 0.7 KB each, and statuses, 0.2 KB: 44 calls, ~20 KB; NASCAR: the winner's, 0.9 KB, every 10 minutes until
+ESPN fills them in after the race, then everyone's, ~36 calls and 33 KB): about 140 core calls an F1 weekend, ~60 KB; **a fight
+card** (L2 part 2b) its board and FightCenter (`site.web.api.espn.com`, CORS `*`) every 30 s while a bout's on or between bouts
+(23 KB over the wire together, ~250 KB unzipped: 2.7 MB an hour, 16 MB over a 6-hour card; 240 calls an hour), and from the core
+the card's rounds once (3.3 KB), the plays of the bout on each ask (1-1.3 KB: ~150 KB an hour) and each fighter's statistics
+once the bout's settled (1.4 KB each, ~35 KB a 12-bout card). Nothing on Vercel or Neon either, the same fallback if ESPN stops
+answering phones (it would forward the core's and the web API's calls too).
 
 **All of TV and the daily listings job (new design, step 11 part 2)** poll nothing and wake nothing of their own. **The job**
 (`src/lib/server/tv-listings.ts`) runs at most once an Eastern day, after the answer of a bot clock call
@@ -613,6 +620,13 @@ never handles it: the user does the reset and the pasting.
   for the couch's three Survivor 51 games, three more league rows (~the real ones' state each) and a handful of users, and every
   result accepted for the season syncs three more leagues (a few more writes on an episode night). Researched rules ask our bot
   once (the answer is kept). Remove it when done.
+- **2026-11-05, `sports` branch (not merged).** L2 part 2b (docs/PLAN-start-a-game-gpt.md track L): the phone's poller for a race
+  weekend's and a fight card's events (`raceFeed` and `cardFeed` in `src/lib/sports/live-event.ts`): phones ask ESPN themselves,
+  now ESPN's core API (`sports.core.api.espn.com`) and web API (`site.web.api.espn.com`, a card's FightCenter) besides its site
+  API, all CORS `*`: racing's board every 30 s while a session's on (up to 0.5 MB an hour) with each session's core asked once
+  (a grid at the start; statistics once it's over: ~140 calls and ~60 KB an F1 weekend); a card's board and FightCenter every 30
+  s while it's on (2.7 MB an hour) with the bout on's plays (~150 KB an hour) and each bout's statistics once settled (Live
+  games). Nothing new on Vercel or Neon (no route, no table, no writes); no screen uses it yet (U1).
 - **2026-11-05, `sports` branch (not merged).** The weekend's live recordings compared, and L2 part 2a (docs/PLAN-start-a-game-gpt.md
   track L): the phone's poller for golf's and tennis's events (`src/lib/sports/live-event.ts`): phones ask ESPN themselves, golf's
   two answers every minute while a round's on (2 MB an hour), a tennis board every 30 s while a match is on (1.5 MB an hour).

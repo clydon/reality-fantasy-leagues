@@ -131,6 +131,26 @@ export function weekendOver(board: EspnFieldEvent | null | undefined): boolean {
   return st?.completed === true && st?.state === "post" && (board?.competitions ?? []).every((c) => c.status?.type?.state === "post");
 }
 
+/**
+ * What a session's core is read for (live-event.ts's raceFeed asks only these): a race's or a sprint's grid (the list's
+ * `startOrder`), qualifying's, a sprint's and a race's statistics (Q2 and Q3, laps, laps led, pit stops, the fastest lap, the
+ * points) and, F1's, their statuses (retired, disqualified). Practice and sprint qualifying read the board's order alone. `only`:
+ * the board's one session (NASCAR's and IndyCar's race, untyped).
+ */
+export function coreReads(abbr: string | null | undefined, only: boolean, feed: Series["feed"]): { grid: boolean; stats: boolean; status: boolean; fills: boolean } {
+  const kind = SESSIONS[str(abbr) ?? (only ? "Race" : "")]?.kind;
+  const raced = kind === "race" || kind === "sprint";
+  const stats = raced || kind === "qualifying";
+  // `fills`: its statistics filled in after it, a counted series' race (or sprint), as Racing.sessions reads them.
+  return { grid: raced, stats, status: stats && feed === "f1", fills: raced && feed === "counted" };
+}
+
+/** Whether a counted series' race statistics are filled in, from its winner's (Racing.sessions' rule, on one car): the winner led
+ *  a lap at least, and before ESPN fills them nobody has (Martinsville 2026, recorded live). */
+export function coreFilled(stats: Record<string, number>): boolean {
+  return (stats.lapsLead ?? 0) > 0 || (stats.championshipPts ?? 0) > 0;
+}
+
 /** How the standings list those in and out: the placed, then the disqualified, then whoever didn't qualify (golf's "cut"). */
 const ORDER: Record<FieldStatus, number> = { in: 0, wd: 1, dq: 2, cut: 3 };
 
