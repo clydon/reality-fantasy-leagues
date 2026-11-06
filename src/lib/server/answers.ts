@@ -16,6 +16,7 @@ import { seasonBook } from "./calls";
 import { gamesHere, type GameHere } from "./season-games";
 import { playedInSheet, triviaWritten } from "./trivia-key";
 import { factContextForSeason } from "./episode-facts";
+import { sidesFor } from "./sports/score";
 
 // A game's questions (docs/PLAN-start-a-game-gpt.md step A4; migration 0200 game_answers):
 //   GET  /api/seasons/[id]/answers?league=&episode=   the game's questions as you may see them: this week's (asked each
@@ -550,7 +551,10 @@ export async function answerQuestions(user: SessionUser, seasonId: string, leagu
             ? new Set(roundKey(r, ep).flatMap((t) => t.options.map((o) => `${t.id}:${o}`)))
             : namesSomeone(q)
               ? new Set(facesFor(view, q, h.playerId, r.facts.formatGroups?.get(ep)).map((f) => f.id))
-              : null;
+              : q.answer === "side"
+                ? // L3 part 1: a side is one of its game's teams (a question asked once: the game's first).
+                  await sidesFor(h.state, ep || (StateLogic.startEpisode(h.state) ?? 1), r.facts.games)
+                : null;
       let most: number | undefined;
       if (q.wager === Spec.WAGER_TOTAL) {
         room ??= await stakeRoom(r);

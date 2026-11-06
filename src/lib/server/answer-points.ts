@@ -14,6 +14,7 @@ import { stagesOf } from "./stages";
 import { triviaKeyFor } from "./trivia-key";
 import { episodeFactsFor } from "./episode-facts";
 import type { SeasonSchedule } from "./schedule";
+import { leagueGames } from "./sports/score";
 
 // A game of questions' points, for its tables (step A4 of docs/PLAN-start-a-game-gpt.md; answers.ts reads and writes the
 // answers): graded on read from the league's results at the viewer's mark (StateLogic.AnswerLogic), never stored. Step C2 part 4c:
@@ -77,7 +78,7 @@ export async function walked(o: { leagueId: string; state: LeagueState; playerId
   const all = o.rows ?? (keepsAnswers(o.state) ? await storedAnswers(o.leagueId) : []);
   // The format's groups, the trivia key and the episode facts (A13), read once (the seen copy and the one cut at the game's end
   // have the same cast).
-  const extra = await serverFacts(o.state, seen, o.leagueId);
+  const extra = await serverFacts(o.state, seen, o.leagueId, o.mark);
   const factsOf = (v: LeagueState): AnswerFacts => ({ ...A.facts(v), ...extra });
   // Step C2 part 4c: a draft's own questions, graded on the viewer's own copy and carried on it as the draft's lines, so its table, its
   // series and what reads them (its knockouts, head to head, teams, a handicap) count them as far as they've seen.
@@ -338,13 +339,20 @@ async function scheduleLock(leagueId: string, state: LeagueState, now: Date): Pr
  *  trivia key (A13: trivia-key.ts triviaKeyFor), for one an episode fact settles each episode's facts as research said them
  *  (A13 part 2: episode-facts.ts episodeFactsFor), and for one played against the bot its calls (A14 part 2: botCallsFor). Each
  *  only when the game reads it. */
-async function serverFacts(state: LeagueState, view: LeagueState, leagueId: string): Promise<Pick<AnswerFacts, "formatGroups" | "trivia" | "episodeFacts" | "bot" | "botCalled">> {
-  const [formatGroups, trivia, episodeFacts, bot] = await Promise.all([formatGroupsFor(state, view), triviaKeyFor(state), episodeFactsFor(state, view), botCallsFor(leagueId, state)]);
-  return { ...(formatGroups ? { formatGroups } : {}), ...(trivia ? { trivia } : {}), ...(episodeFacts ? { episodeFacts } : {}), ...(bot ?? {}) };
+async function serverFacts(state: LeagueState, view: LeagueState, leagueId: string, mark: number | null = null): Promise<Pick<AnswerFacts, "formatGroups" | "trivia" | "episodeFacts" | "bot" | "botCalled" | "games">> {
+  const [formatGroups, trivia, episodeFacts, bot, games] = await Promise.all([formatGroupsFor(state, view), triviaKeyFor(state), episodeFactsFor(state, view), botCallsFor(leagueId, state), sportsGamesFor(state, mark)]);
+  return { ...(formatGroups ? { formatGroups } : {}), ...(trivia ? { trivia } : {}), ...(episodeFacts ? { episodeFacts } : {}), ...(bot ?? {}), ...(games ? { games } : {}) };
+}
+
+/** L3 part 1: each episode's game as of the viewer's mark (null: as it stands), for a game that asks a question a sport's game
+ *  settles (sports/score.ts leagueGames: from the counts saved at its final), only when it asks one. */
+async function sportsGamesFor(state: LeagueState, mark: number | null): Promise<AnswerFacts["games"] | undefined> {
+  if (!StateLogic.AnswerLogic.questions(state).some((q) => q.settle?.by === "final" || q.settle?.by === "stat")) return undefined;
+  return (await leagueGames(state, { mark }))?.games;
 }
 
 /** The facts a game's questions are graded on as a viewer sees them (StateLogic.AnswerLogic.facts), the timeline's groups, the
- *  trivia key, the episode facts and the bot's calls in. */
+ *  trivia key, the episode facts, the bot's calls and a sport's games (as they stand) in. */
 export async function answerFacts(state: LeagueState, view: LeagueState, leagueId: string): Promise<AnswerFacts> {
   return { ...StateLogic.AnswerLogic.facts(view), ...(await serverFacts(state, view, leagueId)) };
 }

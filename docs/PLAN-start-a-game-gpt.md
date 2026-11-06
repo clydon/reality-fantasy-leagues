@@ -1087,6 +1087,16 @@ engine track; L brings each sport's data to it. Its screens wait for the UI trac
     the dev scripts into the app: built 2026-11-05, As built below). **L2 is done.**
 - **L3. Live scoring through the spec.** Points per stat from box scores and plays (`score.by: stats`), live on the phone and
   saved once when final, replacing today's ChatGPT research of sports moments.
+  - **Split in three (2026-11-06, after master's C2 merged in):** part 1, the server's side, in this lane's files: the scoring
+    sequence's line for a stat (`sequence/stats.js`: a holding's stat line at the game's table is its moments, so a captain, the
+    episode's multiplier and best ball's best n take it from there), a team game's counts saved once when final (migration 0301),
+    a league's games read from them in its own people with their roster's position groups, `facts.games` for the sports settles as
+    of a viewer's mark, a side answer's faces (built 2026-11-06: As built below); part 2, **the engine's hook** (the engine lane's:
+    state-logic.js and schema.js's placement; written down in part 1's As built, "For the engine lane"); part 3, live on the phone
+    and the rest of what's saved: each holding's points live from the poller's `stateAt(t)` through the same line, the saved
+    final replacing the phone's provisional points (corrections at the final), a field's and a card's finals saved (their answers
+    are several calls: new server calls, HOSTING.md), the server's line at the lock (`lineAtStart`'s), postponed and suspended
+    games.
 - **L4. The formats, as the engine's pieces with sports data:** head-to-head, categories and roto (A11), best ball (A9),
   pick'em and pick a few (A4's questions with the sports settles), brackets (A8), squares (a sports way to `get`), live calls
   (A15); lineup locks per sport.
@@ -3153,6 +3163,81 @@ of a game as of the viewer's moment.
   another day keeps it; one wiped out, as a sportsbook voids, would flip it to off at the final). Rare; the final's verdict is
   what's saved (L3). Only the total clinches: a stat can go down (plus-minus, to par, places gained).
 - **A soccer draw is off for a side answer**: a draw as a third side ("draw" an answer) isn't in the vocabulary. (L4's pick'em.)
+
+**L3 part 1 as built: the server's side of points per stat (2026-11-06, `sports`, not merged; migration 0301; HOSTING.md
+updated).** Master merged in first (`572806d4`: C2's scoring sequence, A14 parts 1-2; the four spec files' conflicts kept both
+sides, and `settle.of` is now shared: the players' settles name a question with it, the sports settles a player, team or bout, each
+checked by its own rule). Nothing plays a stats game yet: the engine's hook is part 2, the engine lane's (below).
+- **The sequence's line for a stat** (`src/lib/game/sequence/stats.js`, new, plain CommonJS beside the sequence, with its types):
+  `statLine(score, line, { group, format })` is L1 part 4a's `linePoints` moved into the sequence (`src/lib/sports/spec.ts`
+  delegates to it, so the phone, the server and the engine score a line alike), and `statMoments(lines, score, groupOf)` turns an
+  episode's stat lines into momentRaw's moments (`[{ castawayId, points }]`, one per holding that scored): a stats game's step 2 is
+  the same as a lineup's from there (its captain, the episode's multiplier, best ball's best n, the rounding).
+- **A team game's final as it's kept** (`src/lib/sports/final.ts`, new, pure): `storedGame(sport, summary)`, everyone's counts at
+  the end of the timeline (the plays with the final's correction: ESPN's own box score), their teams and positions, the score;
+  `storedState` and `storedFacts` read a kept one back as the sport's state and as `facts.games`' one; `groupOf(sport, role,
+  position)` a position group from the roster first (season_cast.role, ESPN's roster's name: "Goalkeeper"), the game's after (a
+  soccer sub's "SUB" is none), so L1 part 4a's sub scores as his roster says. Derived stats are worked out at the read
+  (`Sport.full`), so a reader fixed later scores a kept final the new way.
+- **Saved once when final** (migration 0301: `sports_events.lines`, `people`, `lines_at`; `src/lib/server/sports/finals.ts`
+  `saveFinals`): the provider's new `game(league, event)` (espn.ts: the same summary as the box score, read into a StoredGame; null
+  for a field's or a card's league; cached a day once final, the row keeping it) for each team game that's final with none kept,
+  asking at most 60 a run; one the provider has nothing for two days after its final, or whose answer the sport's reader can't
+  read (said in the run's errors), kept as none (`{}`), so one game never holds up the rest. Run by the daily listings job
+  (`refreshSportsEvents`, for its own seasons when a check says `only`) and by a season's stats fill (`statsFromEvents`, for a game
+  it just read as final). A check's provider can never write another's rows (`seasons`, and a provider id of its own).
+- **A league's games** (`src/lib/server/sports/score.ts` `leagueGames(state, { mark })`): each episode's game from its saved
+  final, in the league's people (a castaway by their season_cast provider id, by name as research's results are; anyone the cast
+  hasn't got under the provider's id, so "who scores the most" is still right when it's nobody's pick); each episode's lines by
+  castaway with derived stats (what the engine's hook reads), each one's position group, each episode's `facts.games` one and its
+  sides. Status: final once its counts are kept (a final without them is still being played for everyone), off when the provider
+  says it's over without a final (postponed, called off), and a game past the viewer's mark still to play for them.
+- **The sports settles graded on the server**: `answer-points.ts` `serverFacts` adds `facts.games` (as of the viewer's mark: `walked`
+  passes it; as it stands, everything) only for a game that asks a question a sport's game settles; `answers.ts` checks a side
+  answer against its game's sides (`sidesFor`, from the facts it already read; a question asked once, the game's first), as L1
+  part 4b's Noticed asked. A game final whose counts aren't kept yet keeps its row's score (who's ahead, for the phone).
+- **Checks.** `tests/sports-final.test.js` (5, on the recorded fixtures, each read back as saved): the 76ers opener kept (every
+  count ESPN's box score has); the sequence's line on it equal to the phone's scorer, then a lineup with a captain through the
+  sequence's own steps; the Red Sox-Yankees series from kept finals (total bases worked out at the read: the user's numbers); the
+  position group from the roster (Tel's goal at a forward's points when his roster says Forward); the user's 76ers sentence graded
+  from the kept final. `scripts/dev-test/check-finals.js` (new, reusable; this lane's database, an in-process provider `zt-espn`
+  serving the recorded summary, `zt-` rows cleaned up): 19 checks, all pass (saved once and never asked again, kept as none, an
+  answer the reader can't read given up on without holding up the rest, a
+  field's and an unlinked game's left alone, the league's read in its people with positions and teams, off, still to play, past
+  the mark, the 76ers sentence graded from the read, the moments as the phone scores them, a side's faces). `check-matchup.js`
+  still passes (ALL PASS). 1,713 unit tests pass; `tsc` clean; eslint clean on src/lib/sports, src/lib/server/sports,
+  src/lib/game/sequence, answers.ts and answer-points.ts. `/code-review` on the diff (its fixes: one unreadable answer no longer
+  stops every run, the stats fill never fails for the finals' step, the run's limit counts only games asked, the cache keeps a
+  game's counts a day as the row keeps them, a side's faces from the facts already read; the league's season looked up from the
+  league's state, as episode-facts.ts does, since the reads here have no league id).
+- **For the engine lane (L3 part 2, the hook; not changed here):**
+  - `schema.js` placement: `LINES.stats` as `LINES.moments` (a lineup or its best few held; the whole team, best ball with all of
+    it), `askPlace` and `rankPlace` taking `stats` where they take `moments` (not worth: a market prices moments), `shapeOf` the
+    lineup's or best ball's shape.
+  - `state-logic.js`: every `score.by === 'moments'` read that's a lineup's (`captainTimes`, `combines`, `timesFor`) takes `stats`
+    too; `episodeScore`'s moments for a stats game are `statMoments(state.statLines[ep.number], g.score, id =>
+    state.statGroups[id])` instead of `scoredEvents(episodeEvents)`; an episode of a stats game has results once its lines are in
+    (`EpisodeLogic.hasResults`, so the week's results and the spoiler view know it); `SpoilerLogic.viewThrough` drops
+    `statLines` past the mark (as it drops `answerLines`) and `spanView` keeps them.
+  - The server hands them over as it does a draft's own questions' lines (`AnswerLogic.withLines`): `leagueGames(state, { mark })`'s
+    `lines` and `groups` on the server's copies (`walked`, `asItStands`, the game view), under whatever names the engine picks.
+  - VOCAB: `score.by: stats` to 'now' once the hook scores it; `settle.by` `final` and `stat` and the `side` answer to 'now' once a
+    game of questions plays them (the server grades them now: `playable` would take them, and the reveal's "results are in" for
+    a matchup's episode is the engine's to say: a game final for the viewer).
+
+**L3 part 1 noticed, not fixed:**
+- **Points wait for the daily job or a Players tab read**: a final's counts are saved by the daily listings job (once a day) or a
+  season's stats fill (when someone opens the Players tab), so the server's points can be up to a day behind the phone's live ones.
+  An hourly step (the desk's Reminders and waivers job) could save them sooner. (L3 part 3, or the main session's call: cron.)
+- **A stat correction after the final isn't read**: a final is saved once (ESPN corrects a scorer's call days later, rarely). (L3
+  part 3: read a final again once, a day on, if live points need it.)
+- **A field's and a card's events aren't saved** (golf, racing, MMA, tennis: their answers are several calls), so their games
+  are still to play on the server. (L3 part 3.)
+- **People are matched by name** (the league's castaway and the season_cast row of the same name), as research's results are: two
+  players of one name on a matchup's teams would both be the first. Rare. (When the cast carries the provider's id: R2 or U1.)
+- **`check-sports-data.js` fails one case against the real ESPN**: Yandy Díaz's 2026 lines no longer include a postseason
+  category (ESPN's answer changed; the regular season still reads). Not this step's code (season stats); the check's expectation
+  needs the answer as it is now. (A sports-data step.)
 
 **Open, from the sports plan:** head-to-head's schedule over a span, and playoffs; whether a sport's moves follow Weekly
 Lineup's waivers or need their own rhythm for daily sports; what a live call is worth, and how fast they open and close;

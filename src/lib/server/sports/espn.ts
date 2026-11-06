@@ -1,5 +1,7 @@
 import { readOdds, type EspnOdds } from "@/lib/sports/matchup";
-import { idOf, str } from "@/lib/sports/sport";
+import { storedGame } from "@/lib/sports/final";
+import { sportOf } from "@/lib/sports";
+import { TeamSport, idOf, str, type EspnSummary } from "@/lib/sports/sport";
 import { SportsUnavailable, type LeagueName, type BoxScore, type Competitor, type EventState, type Found, type League, type Person, type RosterPlayer, type SeasonLine, type SeasonStage, type SportsEvent, type SportsProvider, type StatTable, type Team } from "./types";
 
 // ESPN (docs/PLAN-sports-data.md, docs/HOSTING.md): free, no key, but unofficial and undocumented, with no stated rate limit or
@@ -371,6 +373,12 @@ export function espn(base?: string): SportsProvider {
     },
     async boxScore(league, event) {
       return readBoxScore(await get(`${site}/apis/site/v2/sports/${path(league)}/summary?event=${encodeURIComponent(event)}`));
+    },
+    async game(league, event) {
+      const sport = sportOf(league);
+      if (!(sport instanceof TeamSport)) return null;
+      const raw = await get<EspnSummary>(`${site}/apis/site/v2/sports/${path(league)}/summary?event=${encodeURIComponent(event)}`);
+      return raw ? storedGame(sport, raw) : null;
     },
     async seasonStats(league, athlete, season) {
       return readSeasonStats(await get(`${web}/apis/common/v3/sports/${path(league)}/athletes/${encodeURIComponent(athlete)}/stats?season=${season}`), season);

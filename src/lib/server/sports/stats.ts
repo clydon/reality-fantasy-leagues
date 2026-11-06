@@ -2,6 +2,7 @@ import { after } from "next/server";
 import { comingInLabel, comingInSeason, ordinal, type LineTable } from "@/lib/game/sports-stats";
 import { easternDay } from "@/lib/game/tv-listings";
 import { pool } from "../db";
+import { saveFinals, type EventRef } from "./finals";
 import { sportsProviders } from "./index";
 import { SportsUnavailable, type BoxScore, type SportsEvent, type SportsProvider } from "./types";
 
@@ -173,6 +174,7 @@ export async function statsFromEvents(seasonId: string, opts: { providers?: Spor
     );
     // An episode no longer linked (its listing moved it off its game) has no lines.
     await pool.query("DELETE FROM game_lines WHERE season_id = $1 AND episode > 0 AND NOT (episode = ANY($2::int[]))", [seasonId, rows.map((r) => r.episode)]);
+    const finals: EventRef[] = [];
     for (const l of rows) {
       const start = l.starts_at ? (l.starts_at as Date).getTime() : null;
       if (l.lines_final || start == null || start > now - OVER_AFTER_MS) continue;
@@ -194,8 +196,19 @@ export async function statsFromEvents(seasonId: string, opts: { providers?: Spor
       // Nothing from the provider two days on: it isn't coming.
       if (!lines.length && start < now - GIVE_UP_MS) final = true;
       await saveGame(seasonId, l.episode, p.id, lines, final, new Date(now));
+      if (final && l.teams) finals.push({ provider: p.id, league: l.league, event: l.event_id });
       out.games++;
       through = Math.max(through ?? 0, l.episode);
+    }
+    // L3 part 1: a team game just read as final, its counts saved with it too (finals.ts: once its own row says it's final). Its
+    // own step: what it can't do never fails the fill (the daily job tries again).
+    if (finals.length) {
+      try {
+        const f = await saveFinals({ providers, only: finals, now: new Date(now) });
+        if (f.errors.length) console.error("[sports] finals:", f.errors.join("; "));
+      } catch (e) {
+        console.error("[sports] finals:", e);
+      }
     }
     out.comingIn = await fillComingIn(seasonId, rows[0], providers);
   } catch (e) {

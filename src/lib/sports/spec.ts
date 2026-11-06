@@ -7,93 +7,32 @@
 // best of five). Pure: the server, the phone and the tests share it. Nothing here knows a sport's numbers: they're its defaults
 // (./defaults/*.json) or a game's own spec.
 import { placeRange } from "@/lib/game/game-spec";
+import { placePoints, statLine } from "@/lib/game/sequence/stats";
 import { TeamSport } from "./sport";
 import type { SportsGameFacts } from "@/lib/game/game-spec";
+import type { Scored, StatPart, StatScore } from "@/lib/game/sequence/stats";
 import type { BoutCard, BoutState, FieldState, GameState, LockCadence, Sport, Stats } from "./sport";
 
-/** A spec's score by a sport's stats (the game spec's `score` when `by` is "stats"). */
-export interface StatScore {
-  by?: "stats";
-  points?: Record<string, number>;
-  byPosition?: Record<string, Record<string, number>>;
-  byPlace?: Record<string, Record<string, number>>;
-  byFormat?: Record<string, Record<string, number>>;
-}
-
-/** One stat's part of someone's points: its value (a place, for a place) and what it scored; `bout`, the bout it was in, when
- *  its points were its format's. */
-export interface StatPart {
-  stat: string;
-  value: number;
-  points: number;
-  bout?: string;
-}
-
-/** Someone's points and the stats that made them, in the table's order (counts, then places). */
-export interface Scored {
-  points: number;
-  parts: StatPart[];
-}
+export type { Scored, StatPart, StatScore };
 
 const cents = (n: number) => Math.round(n * 100) / 100;
-const has = (o: object | undefined, k: string) => !!o && Object.prototype.hasOwnProperty.call(o, k);
 
 /** A place or a range of them ("1", "4-10"), as { min, max }; null when it isn't one: the game spec's own, so the check and the
  *  scorer read a table alike. */
 export { placeRange };
 
-// A table's places read once (a field's every competitor, at every poll).
-const RANGES = new WeakMap<Record<string, number>, { min: number; max: number; points: number }[]>();
-function rangesOf(table: Record<string, number>) {
-  let r = RANGES.get(table);
-  if (!r) {
-    r = Object.entries(table).flatMap(([k, points]) => {
-      const at = placeRange(k);
-      return at ? [{ ...at, points }] : [];
-    });
-    RANGES.set(table, r);
-  }
-  return r;
-}
-
-/** A place's points in a table by place: the place's or its range's; 0 for one it leaves out (or no place: out of the places). */
-export function placePoints(table: Record<string, number>, place: number | null | undefined): number {
-  if (place == null || !Number.isFinite(place)) return 0;
-  return rangesOf(table).find((r) => place >= r.min && place <= r.max)?.points ?? 0;
-}
-
-/** What one of a stat scores for someone: their position group's points (byPosition), else their bout's format's (byFormat),
- *  else `points`'; 0 when the table doesn't score it. */
-function eachOf(score: StatScore, stat: string, group: string | null, format: Record<string, number> | undefined): number {
-  const pos = group != null ? score.byPosition?.[stat] : undefined;
-  if (pos && has(pos, group!)) return pos[group!];
-  if (format && has(format, stat)) return format[stat];
-  return score.points?.[stat] ?? 0;
-}
+/** A place's points in a table by place: the place's or its range's; 0 for one it leaves out (or no place: out of the places).
+ *  The scoring sequence's (src/lib/game/sequence/stats.js, L3 part 1). */
+export { placePoints };
 
 /**
  * Someone's points from one line (their counts in a game, a field event or a bout, places in it), by a stats score: each stat
  * the table scores times its points (by their position group, by the bout's format), and each place stat by its place. A line's
- * missing stat is 0; a place out of the table's places scores nothing.
+ * missing stat is 0; a place out of the table's places scores nothing. The scoring sequence's step 2 for stats (L3 part 1:
+ * sequence/stats.js statLine), so the engine's scorer, the server and the phone score a line alike.
  */
 export function linePoints(score: StatScore, line: Stats, o: { group?: string | null; format?: number | string | null } = {}): Scored {
-  const group = o.group ?? null;
-  const format = o.format != null ? score.byFormat?.[String(o.format)] : undefined;
-  const places = score.byPlace ?? {};
-  const keys = new Set([...Object.keys(score.points ?? {}), ...Object.keys(format ?? {})]);
-  if (group != null) for (const [k, by] of Object.entries(score.byPosition ?? {})) if (has(by, group)) keys.add(k);
-  const parts: StatPart[] = [];
-  for (const stat of keys) {
-    if (has(places, stat)) continue;
-    const value = line[stat] ?? 0;
-    const each = eachOf(score, stat, group, format);
-    if (value && each) parts.push({ stat, value, points: cents(value * each) });
-  }
-  for (const [stat, table] of Object.entries(places)) {
-    const points = placePoints(table, line[stat]);
-    if (points) parts.push({ stat, value: line[stat], points });
-  }
-  return { points: cents(parts.reduce((n, p) => n + p.points, 0)), parts };
+  return statLine(score, line, o);
 }
 
 const minus = (a: Stats, b: Stats): Stats => {

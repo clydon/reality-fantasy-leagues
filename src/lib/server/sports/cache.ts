@@ -13,6 +13,7 @@ import { SportsUnavailable, type SportsEvent, type SportsProvider } from "./type
 //   a team's schedule    3 minutes while one of its games is being played; an hour when one starts within the day; else 12
 //                        hours (times move, games get added)
 //   a game's box score   for good once it's final; 3 minutes while it's being played; an hour before it starts
+//   a game's counts      a day once it's final (L3 part 1: finals.ts saves them with the game, for good); else an hour
 //   a season line        a day
 // When the provider doesn't answer (SportsUnavailable), an answer past its time is served instead (stale beats nothing); with
 // none, the caller sees the error. A broken cache (the table missing, the database slow) never breaks a call: it just asks.
@@ -98,6 +99,8 @@ export function withCache(p: SportsProvider, opts: { prefix?: string; db?: Query
     roster: (league, team) => cached(key("roster", league, team), () => p.roster(league, team), () => DAY, at()),
     boxScore: (league, event) =>
       cached(key("box", league, event), () => p.boxScore(league, event), (b) => (b?.final ? null : b?.state === "in" ? 3 * MIN : b?.state === "post" ? DAY : HOUR), at()),
+    // L3 part 1: a team game's counts, asked once it's final and saved with the game (finals.ts), so the cache keeps them a day.
+    game: (league, event) => cached(key("game", league, event), () => p.game(league, event), (g) => (g?.final ? DAY : HOUR), at()),
     seasonStats: (league, athlete, season) => cached(key("season", league, athlete, season), () => p.seasonStats(league, athlete, season), () => DAY, at()),
   };
 }

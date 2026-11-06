@@ -4,6 +4,7 @@ import { factsOf, leagueName, matchupKey, matchupName, matchupStatus, pickMatchu
 import { pool } from "../db";
 import { castFromEvents } from "./cast";
 import { sportsProviders } from "./index";
+import { saveFinals } from "./finals";
 import { fillLater } from "./season";
 import { SportsUnavailable, type LeagueName, type SportsEvent, type SportsProvider } from "./types";
 
@@ -17,7 +18,8 @@ import { SportsUnavailable, type LeagueName, type SportsEvent, type SportsProvid
 // Each game's facts are kept per event (sports_events), shared by every season that links it: its sides and, once it's over,
 // its final; its line before it (the over/under's default), from the day's scoreboard while it's still to play and kept once it
 // starts, or for a game seen only after, from its summary. Made here for a matchup's games, and by the daily listings job
-// (refreshSportsEvents) for every linked game from three days back to a week ahead. ESPN is asked as little as can be: a
+// (refreshSportsEvents) for every linked game from three days back to a week ahead; a team game's counts once it's final (L3
+// part 1: finals.ts). ESPN is asked as little as can be: a
 // team's schedule, a scoreboard per day with a game still to play, a summary per finished game with no line yet, all cached
 // (cache.ts); never ChatGPT.
 
@@ -218,7 +220,7 @@ export async function storeEvents(provider: string, league: string, events: Spor
  * isn't final yet, read from its day's scoreboard (one per league and day, cached) and kept (storeEvents); then each matchup
  * season's status from its games. `only` (a check's seasons) looks at just those games.
  */
-export async function refreshSportsEvents(opts: { providers?: SportsProvider[]; now?: Date; only?: string[] } = {}): Promise<{ days: number; stored: number; errors: string[] }> {
+export async function refreshSportsEvents(opts: { providers?: SportsProvider[]; now?: Date; only?: string[] } = {}): Promise<{ days: number; stored: number; finals: number; errors: string[] }> {
   const now = opts.now ?? new Date();
   const providers = opts.providers ?? sportsProviders();
   const { rows } = await pool.query(
@@ -261,5 +263,14 @@ export async function refreshSportsEvents(opts: { providers?: SportsProvider[]; 
       WHERE ss.id = x.season_id AND ss.status IS DISTINCT FROM x.status`,
     [now]
   );
-  return { days: Math.min(days.size, MAX_DAYS), stored, errors };
+  // L3 part 1: the team games just final, their counts saved with them (finals.ts).
+  let finals = 0;
+  try {
+    const f = await saveFinals({ providers, now, seasons: opts.only });
+    finals = f.saved;
+    errors.push(...f.errors);
+  } catch (e) {
+    errors.push(`finals: ${(e as Error).message.slice(0, 160)}`);
+  }
+  return { days: Math.min(days.size, MAX_DAYS), stored, finals, errors };
 }

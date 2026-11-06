@@ -232,6 +232,13 @@ scoreboard from three days back to a week ahead until it's final (at most 40 day
 cached), a game first seen after it started taking its summary's line (the box score the stats read anyway, cached for good), and
 sets each matchup season's status. Measured on the real 76ers home opener (2026-10-28): 5 ESPN calls in 0.5 s (the schedule, its summary for
 the line, two rosters, the next game's scoreboard), none a second time. Not backed up (asked again).
+**A team game's counts at its final (track L, L3 part 1, migration 0301; on the `sports` branch, not merged)** poll nothing and
+wake nothing of their own. Once a linked team game is final, its summary is read once more into everyone's counts in the sport's
+keys (`sports_events.lines` and `people`, 3-7 KB a game: the NBA's 3 KB, the NFL's 5 KB, the NHL's 5 KB), kept with the game for
+good and never asked again (one ESPN call a game, the same summary the box score reads; cached a day in `sports_cache` too, ~the
+same size). Asked by the daily listings job for the games it sees final (at most 60 a run) and by a season's stats fill when it reads
+a game as final. A game scored by stats and the questions a sport's game settles read them from Neon (one query a league read,
+only for a game that asks one). A field's and a card's events aren't kept yet (their answers are several calls each: L3's next part).
 **Live games (docs/PLAN-start-a-game-gpt.md track L, L2; on the `sports` branch, not merged; no screen uses it yet, U1)** cost
 nothing on Vercel or Neon. The phone asks ESPN's summary itself (`src/lib/sports/live.ts`): once when the page opens, then from
 the game's start every 15 s (±10%) while it's on and the screen is visible, never while hidden, backing off to 5 minutes while ESPN
@@ -622,6 +629,10 @@ never handles it: the user does the reset and the pasting.
   for the couch's three Survivor 51 games, three more league rows (~the real ones' state each) and a handful of users, and every
   result accepted for the season syncs three more leagues (a few more writes on an episode night). Researched rules ask our bot
   once (the answer is kept). Remove it when done.
+- **2026-11-06, `sports` branch (not merged).** L3 part 1 (docs/PLAN-start-a-game-gpt.md track L; migration 0301): a team game's
+  counts kept once it's final (`sports_events.lines`, `people`, `lines_at`: 3-7 KB a game), from one more read of its summary (a call
+  a game, once; cached a day). Asked by the daily listings job (at most 60 games a run) and a season's stats fill. Nothing polls,
+  nothing new wakes Neon; a league read that asks a sports question reads them in one query.
 - **2026-11-05, `sports` branch (not merged).** L2 part 2b (docs/PLAN-start-a-game-gpt.md track L): the phone's poller for a race
   weekend's and a fight card's events (`raceFeed` and `cardFeed` in `src/lib/sports/live-event.ts`): phones ask ESPN themselves,
   now ESPN's core API (`sports.core.api.espn.com`) and web API (`site.web.api.espn.com`, a card's FightCenter) besides its site
