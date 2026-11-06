@@ -30,7 +30,8 @@
 // C2 part 4c's (askShapes: a draft's own questions, an Outlast's and a lineup's, with every way their points combine, the server's
 // facts, head to head, teams and a handicap on them) likewise, from part 4c's engine, each read with the questions'
 // lines the server hands it (o.asks), proven by hand in tests/draft-questions.test.js and checked in tests/sequence-agree.test.js;
-// the 1,836 before them stay:
+// the 1,836 before them stay. C3's (multiplyShapes: a multiplier on how a holding joined) likewise, from C3's engine, proven by hand
+// in tests/multipliers.test.js; the 1,998 before them stay:
 //   node tests/fixtures/scoring-shapes.js --write [--ref=<git ref>]      the record, from this tree's engine (or the ref's)
 //   node tests/fixtures/scoring-shapes.js --print <shape> <seat|-> <mark|-|all> [--ref=<git ref>]   one read, in full
 //   node tests/fixtures/scoring-shapes.js --diff [<shape>] [--ref=d5222e68]   where this tree's reads part from the ref's (the
@@ -94,6 +95,31 @@ function shapes(G) {
     ...outsideShapes(),
     ...seriesShapes(outlast, lineup),
     ...askShapes(outlast, lineup),
+    ...multiplyShapes(G, outlast, lineup),
+  ];
+}
+
+/**
+ * C3: a multiplier on how a holding joined (score.multiply), on the same season and its two pickups (bo's c12 for c3 after Episode
+ * 2, cy's c14 for c8 after 6: both replacements). No engine before C3 plays them (it reads no score.multiply), so their reads are
+ * new (from C3's engine), the mechanics proven by hand in tests/multipliers.test.js: an Outlast whose replacements score half, then a
+ * quarter, with its finale predictions and side bets (each holding's line what it earns while it's yours: bo's c12 from 3 to 8,
+ * half: 2.5, where its whole place was 8; cy keeps c8's 9 and c14 earns nothing more); an Outlast whose draft counts double and
+ * pickups half, cut every two episodes and head to head; a lineup with a captain, the finale doubled and replacements half; best
+ * ball with pickups triple per slot.
+ */
+function multiplyShapes(G, outlast, lineup) {
+  const W = { week: true };
+  const place = (multiply) => ({ by: "place", multiply });
+  // Waivers that replace anyone gone (a multiplier on how a holding joined needs a move that makes it: settingsOf is null otherwise).
+  const waivers = { ...G.fullSpec({ preset: "outlast" }).extras.waivers, replace: "always" };
+  const x = (spec, more = {}) => ({ ...spec, extras: { ...(spec.extras || {}), waivers, ...more } });
+  return [
+    ["x-outlast", x(outlast({ score: place([{ joined: "replacement", times: [0.5, 0.25] }]), ask: FINALE(G) }), { bets: { points: 1 } }), "exclusive"],
+    ["x-outlast-cut", x(outlast({ score: place([{ joined: "draft", times: 2 }, { joined: "pickup", times: 0.5 }]), rank: { by: "standing", cut: [{ at: { every: 2 }, out: 1 }] } })), "exclusive", W],
+    ["x-outlast-matchups", x(outlast({ score: place([{ joined: "replacement", times: 3 }]), rank: { by: "matchups", quiet: "tie" } })), "exclusive", W],
+    ["x-lineup", x(lineup({ score: { by: "moments", points: null, captain: { times: 2 }, times: [{ times: 2, finale: true }], multiply: [{ joined: "replacement", times: 0.5 }] }, ask: FINALE(G) })), "exclusive"],
+    ["x-best-ball", x(lineup({ count: { best: 2 }, score: { by: "moments", points: null, multiply: [{ joined: "pickup", times: [3], per: "slot" }] } })), "exclusive", W],
   ];
 }
 

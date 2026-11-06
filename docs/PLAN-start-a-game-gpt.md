@@ -114,8 +114,11 @@ teams of players and with a handicap, all reading its series of totals from its 
 racing, the week's result on the teams' totals; tracker rows p18 to p22), and so is 4c, a draft's own questions (2026-11-06: any
 question a game of questions plays, or a person from your own team, beside a draft after its finale predictions, graded by the
 server as a game of questions' and handed to the draft's walk as a line of its own, so its table, head to head, teams of players and
-a handicap count them; not yet beside its cuts or a race; tracker row p17), which ends C2: **C2 is done**. C3 (multipliers on any
-condition) is next, then C4 to C7, A14's later parts, and a stop before A15. The live-sports plan is
+a handicap count them; not yet beside its cuts or a race; tracker row p17), which ends C2: **C2 is done**. C3, multipliers on any
+condition (2026-11-06: one multiplier piece keyed by a condition, a captain, when, how a holding joined, a parlay's legs, a confidence
+ranking's place; the new one, how a holding joined your team, drafted, a pickup, a replacement or a swap, the Nth per team or per slot,
+on what each one earns while it's yours, an Outlast's lines included; the user's second game's 1x, 0.5x, 0.25x; tracker row p23), is
+built: **C3 is done**. C4 (ownership per holding) is next, then C5 to C7, A14's later parts, and a stop before A15. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5, at
 high since 2026-11-05; C2 at xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: folded in here as track L; its file keeps the details)
 and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track S here).
@@ -168,6 +171,7 @@ and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track
 | A pool's finale (2026-10-30) | **Only the winner survives the finale** (the user: "it keeps the game rules consistent: pick the player that survives the episode"; chosen over the finalists surviving it, high stakes accepted). A finale pick is right only when its person is who the results record as winning (each winner, on a show with several); a finalist who loses is out like any exit; on a show with no winner, whoever isn't among the episode's exits survives, as on any night. Data settles it. It changes today's pools' finales (Survivor 51's Survival Pool on Dec 16): built and merged before then. |
 | A preset's rule (2026-10-30) | **Open until the engine is complete** (the user). Whether a tapped preset meets the same data-can-settle rule as the GPT's games: R1 part 1's question, options (a) to (c) in its Noticed (Claude recommends (a)). The user's reason: what the moments say research can answer may differ from what research reliably returns at the end of each episode. So decide it on what research actually returns: the season tapes hold every research answer, episode by episode, so each moment's real rate can be measured then. Nothing running is affected meanwhile (no couch plays a show with couch-answered moments). A fourth option, from "Custom moments" below: (d) a preset's couch-answered moment goes through the same feasibility ask, becoming a question research answers each episode if it's feasible, else scoring 0. |
 | Custom moments (2026-10-30) | **Allowed, sometimes encouraged** (the user: "a fun league of Below Deck that just every week players guess 'did someone cry'"). A moment the show's research doesn't cover, typed to the GPT or added by hand (Make it ours included), takes the new-moment path in "Our check": a short feasibility ask at the start (how reliably research can answer it each episode, from recaps), and, if it's feasible, a question research asks after every episode (it won't come up unless it's asked explicitly). The user leans toward allowing somewhat-reliable moments (crying "will likely be mentioned in post episode recaps"); the bar (high only, or medium too) is still open. Claude's recommendation: medium too, with three nets: the feasibility answer shown to the maker, an episode research can't settle voided (no points either way), and the game's real answer rate shown as the season goes. Before the bar is set, measure on the season tapes whether the feasibility ask predicts what research actually returns (the user's concern in "A preset's rule"). |
+| A replacement's multiplier (2026-11-05) | **On what the replacement earns while it's yours, on every kind of draft, an Outlast included** (the user: "your assumptions are correct"; C1's Noticed). "The new player who replaces your lost one scores 0.5x" multiplies the points they earn from the episode after they join, never their whole place: in an Outlast, the boots they outlast while yours. An Outlast without a multiplier keeps today's count (whoever holds someone now has their whole place). Built in C3. |
 
 ## What's there today (mapped 2026-10-27)
 
@@ -5945,6 +5949,78 @@ A14 part 2 and before A14's other parts; every part keeps every golden and blind
 - **C3. Multipliers on any condition.** One multiplier piece keyed by a condition: how a holding joined (drafted, a pickup,
   the Nth replacement), when it was picked, a captain, a streak, the legs of a parlay. Captain, by when, parlay and confidence
   become uses of it. Game 2's 1x, 0.5x, 0.25x, configurable.
+
+  **As built (C3, 2026-11-06; on engine, not merged; no migration, no prompt change).** One session, at high.
+  - **The decision first** (the Decisions table, "A replacement's multiplier", the user's 2026-11-05 "your assumptions are correct"):
+    a replacement's multiplier is on what it earns while it's yours, on every kind of draft, an Outlast included, never its whole place
+    times it.
+  - **One piece, keyed by a condition** (the sequence's step 3: `Seq.factorOf(f, facts)`, the factor's times when its condition holds,
+    else 1): `captain` (the line is the captain's), `when` (the episode in its window: `Seq.inWindow`, an episode, a run, a phase, the
+    finale), `joined` (how the holding joined: `Seq.joinedTimes`), `legs` (every leg of a parlay right), `rank` (a confidence ranking's
+    place from the bottom, its weight). `schema.js multipliersOf(spec)` lists a spec's as one list ({ on, times, ...condition }) from the
+    fields where each is said: `score.captain`, each of `score.times`, each of `score.multiply` (its `per` and `then` filled in), each of
+    `score.parlays`; so captain, by when, parlay and confidence are uses of it, and **every stored spec reads exactly as before** (no field
+    moved: `ActiveRosterLogic.timesFor` multiplies its windows through `factorOf`, `episodeScore` its captain, `AnswerLogic.grade` its
+    parlays, answers.js `earned` a confidence ranking's weights; x × 1 is x, so the arithmetic is the same to the bit). VOCAB
+    `multiply.on` (`streak` and `picked`, a draft's round, `later`).
+  - **The new condition, how a holding joined** (`score.multiply: [{ joined, times, per?, then? }]`, on `moments` and `place`;
+    `settings.joinedTimes` both ways; `MAX_JOINED` 6, `JOINED` the defaults): `joined` `draft` (drafted or kept) | `pickup` (any move) |
+    `replacement` (a pickup for someone gone: the log's 'replenish') | `swap` (for someone still in: 'trade'); `times` a number, or for a
+    pickup, a replacement or a swap a list for the first, second and so on (the user's game 2: `[0.5, 0.25]`); a list's `per` `team`
+    (your Nth such move, the default) or `slot` (the Nth along the roster spot it fills: a replacement's replacement is the second
+    there), its `then` `repeat` (the last again, the default) or `ratio` (on by the list's last step: 0.125 after 0.5, 0.25). The user's
+    three open questions on game 2 are these three settings, with the lane's defaults: the last repeats, per team, only replacing
+    someone gone. Our check (`multiplyProblems`): 1 to 3, each way of joining once (a pickup is a replacement or a swap, so not beside
+    them); a draft's only (a lineup, best ball or an Outlast); refused in reverse ("In reverse, a place is 1 plus everyone who outlasts
+    them, which nobody earns while they're yours: a multiplier on how they joined needs Outlast's own order"), beside a stock market ("A
+    stock market's worth is its prices, not its points: nothing it holds earns points to multiply"), and where the game's waivers can't
+    make that move ("This game never replaces anyone: its waivers make no replacements", "This game's waivers make no swaps", "Nobody
+    joins a team after the draft in this game: give it waivers that replace or swap"); a list growing at its end can't go on by its
+    step; every one 1, or a single 1, multiplies nothing.
+  - **How each holding joined** (`Seq.stints(now, log, playerId)`, step 1's): from the same mid-season log `heldAt` reads, each holding
+    held without a break, oldest first: the team before any move (drafted, keepers included), then each move's add (its kind, its Nth
+    for the seat and along its slot), ended by the move that let it go. `Seq.heldIn(s, n)` is `heldAt`'s rule (a move after episode k
+    counts from k + 1; one with no episode stands): the unit test holds the two equal at every mark of a log with every kind of move.
+  - **An Outlast's line, with the multiplier** (`ScoringLogic.walk`'s `placesAt`): what each stint earns while held
+    (`Seq.earnedWhileHeld`): its place as a value where it was let go (or at the mark) less its value when it joined, never below 0;
+    drafted and kept, its whole place (so a seat that made no move scores as before); a pickup, the boots it outlasts while yours;
+    someone let go keeps for you what they earned until then (the one reading where "what it earns while it's yours" holds both ways:
+    a castaway's place splits across its holders by the time each held them; the lane's call, Noticed). Each line rounds as it's
+    multiplied, their sum, and the row's total (`EliminationOrderScoringStrategy.compute`'s `rounded`); `banked` is what can't change
+    any more (one out, or let go). The series and the table are the same walk, so the knockouts, head to head, teams and a handicap
+    read the multiplied lines. An Outlast without `multiply` keeps today's count exactly (whoever holds someone now has their whole
+    place; someone let go counts for nobody).
+  - **A lineup's and best ball's lines** (`episodeScore`): each starter's (or best ball's team's) moment line times its captain's, the
+    episode's and how it joined (the stint held in that episode), best ball's best n then picked from the multiplied lines (step 3
+    before step 4); `combines` says so, so the team breakdown shows each line. The walk hands `episodeScore` the factors and each
+    seat's stints once (`pre.joined`, `pre.stints`).
+  - **Words** (`describe.js joinedRules`, `joinedHow`): "Pickups score double.", "Your first replacement scores half, your second a
+    quarter, and every one after that a quarter.", "On each spot on your team, the first replacement scores half, and each one after
+    that half the one before.", and in How it works what it multiplies ("Each counts the boots they outlast while they're yours (one you
+    drafted, their whole place), and keeps for you what they earned before you let them go.").
+  - **The functions changed in state-logic.js** (for the own-pace merge): `EliminationOrderScoringStrategy.compute` (its rounding and the
+    former-roster comment), the new module functions `joinedFactors` and `joinedTimesOf` right after it, `ScoringLogic.walk` (the stints,
+    `valueAt`, `placesAt`'s multiplied branch, `pre`), `ActiveRosterLogic.combines`, `timesFor` and `episodeScore`, `AnswerLogic.grade`
+    (its parlays through the piece). Elsewhere: the sequence (`stints`, `heldIn`, `earnedWhileHeld`, `factorOf`, `inWindow`,
+    `joinedTimes`), schema.js (`VOCAB`, `KEYS`, `multiplyProblems`, `multipliersOf`, `MAX_JOINED`, `JOINED`), settings.js
+    (`joinedTimes`), describe.js, answers.js (`earned`), types.ts, both d.ts.
+  - **The tracker** (`node scripts/engine-capabilities.js`): p23 ("In our Outlast, anyone you pick up mid-season counts double while
+    they're yours") turns ✅ with its spec: 211 ✅ · 51 ⏳ (C3's one row gone from the waiting list); p11 (the user's game 2) still waits
+    on C4 (its replacements shared), its note saying the multiplier is built.
+  - **Proof.** Unit tests: `tests/multipliers.test.js` (six tests, every number worked by hand in its comment: the shape, refusals,
+    words and settings; the stints and every factor; the user's game 2 on an Outlast, table and series, a third replacement past the
+    list; p23 and a draft counting double; a best ball's lines while held), with `game-spec.test.js`'s settings fields and the guide's
+    size limits: 1,524 pass. The shapes fixture: five new shapes (`multiplyShapes`: an Outlast with finale predictions and side bets,
+    one cut every two episodes with the draft doubled and pickups half, one head to head, a lineup with a captain and the finale
+    doubled, best ball per slot), 90 new reads from this engine (bo's pickup earns 2.5 where its whole place was 8; cy keeps c8's 9),
+    and `--diff --ref=HEAD` shows only them: the 1,998 before byte-identical. The golden replays (against HEAD with the step uncommitted, and `--before=master`): seven seasons, 160 games, 19,361 reads, every one the same both ways. The blind replays (`blind.js run`): every game played through and over on all five seasons, one more on each (p23's): Survivor 49 151, The Challenge 41 119, 40 113, 39 121, The Traitors 4 108; the seven games of questions on The Challenge's seasons still note their wait on early results (playtest finding 20), none of them C3's. The Survivor 51 rehearsal (`season-forward.js rehearse --from=backups/prod-2026-10-30 --scenario=realistic,rough,dst --before=master`): every invariant holds in all three scenarios, flag off and on the same, master's engine against this tree's the same (2,856 reads each). `game-specs-flag.js check`: PASS. `engine-capabilities.js --check`: up to date. Through the API (a zt- fixture, all ALL PASS): the new `scripts/dev-test/check-multipliers.js` (Couch Cup's replacements at half then a quarter, refused in reverse, a real replacement claimed through the waiver routes and the commissioner's Process now, logged from Episode 5: before Episode 6 it has earned nothing and the claimer keeps the one gone home's place, 19 where today's count gives 22; after Episode 6 it earns half the boot it outlasted; the Games tab's table as each of the four reads it is the engine's on that copy, the hub's place the Games tab's, the flag's check PASS), `check-lineup-scoring.js`, `check-questions-scoring.js`, `check-waivers.js`, `check-waivers-alerts.js`, `check-knockouts.js`, `check-h2h.js`, `check-teams.js`, `check-draft-questions.js` and `check-engine-lab.js <outDir> --api`. `npx tsc --noEmit -p .` clean; eslint, nothing new (the require() style only). Not run: `check-new-start-game.js` (no preset's or existing spec's words changed; its setup failure is master's, fixed on rfl-merge 65bff5a8, coming with the C2 merge) and `check-new-reveal.js` (nothing C3 changes reaches the reveal's own code: it reads the table).
+  - **The code review** (`/code-review` at high, before the long runs): ten findings. Taken: a logged move that brought nobody in counted
+    toward the Nth (`stints` counts only adds now, with a test); the factors read from the game the walk plays (`playedGame`, not
+    `gameOf`: a spec no game plays scores as a plain Outlast); a list of 4 that could never pass (3 now: each way of joining once);
+    the `rank` factor nothing used (a confidence ranking's weights go through it now) and a missing rank read as 1, not NaN; the
+    sequence's rounding comment; the ordinals (describe.js's `NTH`); the former roster's comment. Kept, saying so: the screens'
+    per-castaway numbers (Noticed: U1); `stints` beside `heldAt` (two readers of one log, held equal at every mark by the unit test, and
+    `heldAt` unchanged so every golden read stays); the lineup rows' episode lines working the stints out again per call (Noticed).
 - **C4. Ownership per holding.** Exclusive or shared for each way of holding (the draft, pickups, group slots) instead of one
   for the game, and where a replacement comes from (free agents only, or anyone still in). Game 2's shared replacements.
 - **C5. The week as a result.** Pick N each episode without a draft; a week's winner, and ranking by weeks won; "only these
@@ -6898,6 +6974,34 @@ From R1 part 2 (2026-10-30):
   (R3, or whoever next works in Game settings.)
 - **For the hosting notes, at the merge:** `/api/me` (classic's sign-in and every classic load) now sends each league's settings, not its
   whole state (20-40 KB each): less Neon transfer than before. (The main folder: docs/HOSTING.md, with the merge.)
+
+From C3 (2026-11-06):
+- **The screens' per-castaway numbers don't know the multiplier** (the code review's): an Outlast's `castawayPoints` (classic-view.ts:
+  the Standings, Your Team and Scoreboard cards, the player page, the claim screen) and `episodeGains` show each castaway's whole place
+  and its growth, and a lineup's per-castaway stats (`active-roster-rows.ts`) its raw moments; the table, the series and everything the
+  Games tab reads are the multiplied ones, so on a game with `score.multiply` the cards' numbers won't add up to the total. Someone you
+  let go who still earns for you (an Outlast's) is listed only in the last seat's former roster. Nothing plays such a game until a maker
+  can make one (Start a game's presets are unchanged; the GPT and the engine lab can). (U1, with the screens: each holding's line
+  should read the walk's stints.)
+- **An Outlast's someone let go keeps what they earned for you: the lane's call, the user's to overrule.** "What a replacement earns
+  while it's yours" read both ways: the one you let go keeps for you what they earned while yours (as a lineup's past points always
+  have), so a castaway's place splits across its holders by the time each held them. The other reading: someone let go counts for
+  nobody (today's Outlast), which makes a replacement a loss whenever the newcomer earns less than the one let go had. Recommended: as
+  built. (The user, with the merge's look.)
+- **The three settings' defaults are the lane's** (the user's game 2 open questions): after the list, the last repeats (`then:
+  'repeat'`, or `ratio` to keep halving); per team (`per: 'team'`, or `slot`); only replacing someone gone counts (`joined:
+  'replacement'`, or `pickup` for voluntary swaps too). Each is a setting, so the user's answer is a default for the wizard (U0), never
+  a rebuild. (The user, at the merge's look or with U0.)
+- **A streak and when a holding was picked are later** (VOCAB `multiply.on`: `streak`, `picked`): a pool's points growing with its
+  streak needs the pool's scoring to take a factor on each night (its rank by streak is the streak already); a draft's round needs the
+  draft's pick order kept per pick (a snake's is, a blind draft's isn't). Parlays on a draft's own questions (C2 part 4c's "a draft's
+  score has none") stay none: a parlay is a game of questions' (`score.by 'answers'`), and a draft's score is its team's. (A later C
+  step, once someone asks for one.)
+- **The lineup rows work the stints out per call** (`active-roster-rows.ts episodePlayerPoints` calls `episodeScore` without `pre.joined`
+  and `pre.stints`): only on a game with the multiplier, one scan of the mid-season log for each seat and episode shown. (Whoever next
+  works there, or U1.)
+- **For the hosting notes, at the merge:** nothing stored and no new reads (the walk reads the same log it always did, once a seat). No
+  prompt changed and no migration.
 
 From C2 part 4c (2026-11-06):
 - **A draft's own questions wait beside its cuts or a race** (the code review's): who's out, and where a race ends, decide which moves

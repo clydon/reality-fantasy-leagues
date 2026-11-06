@@ -172,6 +172,35 @@ function whenPhrase(t, w) {
 }
 /** "Points in the finale count double.", one for each window (A9 part 2). */
 const timesRules = (sc, w) => (Array.isArray(sc.times) ? sc.times.filter(isObj) : []).map((t) => `Points ${whenPhrase(t, w)} count ${timesWord(t.times)}.`);
+/** C3: a multiplier on how a holding joined, in words: "half", "a quarter", "in full", "double". */
+const joinedWord = (x) => ({ 1: 'in full', 0.25: 'a quarter' })[x] || timesWord(x);
+const JOINED_NOUN = { draft: ['', ''], pickup: ['pickup', 'pickups'], replacement: ['replacement', 'replacements'], swap: ['swap', 'swaps'] };
+/**
+ * C3: a draft's multipliers on how a holding joined (score.multiply), a sentence each: "Who you draft scores double.", "Pickups score
+ * half.", "Your first replacement scores half, your second a quarter, and every one after that a quarter." (per slot: "On each spot
+ * on your team, the first replacement scores half, ..."; then 'ratio': "each one after that half the one before"). Only what's
+ * said (a spec still being made can have it half-written).
+ */
+function joinedRules(sc) {
+  const list = Array.isArray(sc.multiply) ? sc.multiply.filter((m) => isObj(m) && JOINED_NOUN[m.joined]) : [];
+  return list.map((m) => {
+    const [one, many] = JOINED_NOUN[m.joined];
+    if (m.joined === 'draft') return isNum(m.times) ? `Who you draft scores ${joinedWord(m.times)}.` : '';
+    if (isNum(m.times)) return `${cap(many)} score ${joinedWord(m.times)}.`;
+    if (!Array.isArray(m.times) || !m.times.length || !m.times.every(isNum)) return '';
+    const slot = m.per === 'slot';
+    const said = m.times.map((t, i) => (i === 0 ? `${slot ? 'the' : 'your'} ${NTH[i]} ${one} scores ${joinedWord(t)}` : `${slot ? 'the' : 'your'} ${NTH[i]} ${joinedWord(t)}`));
+    const last = m.times[m.times.length - 1];
+    const step = m.times.length > 1 ? last / m.times[m.times.length - 2] : last;
+    const after = m.then === 'ratio' ? `each one after that ${joinedWord(Math.round(step * 1000) / 1000)} the one before` : `every one after that ${joinedWord(last)}`;
+    const text = `${said.join(', ')}, and ${after}.`;
+    return slot ? `On each spot on your team, ${text}` : cap(text);
+  }).filter(Boolean);
+}
+/** C3: what a multiplied holding counts, said once: an Outlast's what they earn while they're yours, not their whole place. */
+const joinedHow = (sc) => (sc.by === 'place'
+  ? `Each counts the boots they outlast while they're yours (one you drafted, their whole place), and keeps for you what they earned before you let them go.`
+  : `Each counts what they score while they're yours.`);
 
 function sentenceParts(s, w) {
   const parts = [];
@@ -241,8 +270,14 @@ function sentenceParts(s, w) {
     put(changed === null ? ` Scored by ${rules}, with the game's own points.` : changed ? ` Scored by ${rules}, with ${say(changed)} ${changed === 1 ? "moment's" : "moments'"} points changed.` : ` Scored by ${rules}.`, 'score');
     // A9 part 2: when the points multiply.
     for (const rule of timesRules(sc, w)) put(` ${rule}`, 'score');
+    // C3: how a holding joined.
+    for (const rule of joinedRules(sc)) put(` ${rule}`, 'score');
   } else if (sc.by === 'place' && sc.reverse === true) put(' Each scores more the earlier they go home: the first one out carries you.', 'score');
-  else if (sc.by === 'place') put(' Each scores by how long they last: the last one standing carries you.', 'score');
+  else if (sc.by === 'place') {
+    put(' Each scores by how long they last: the last one standing carries you.', 'score');
+    // C3: how a holding joined.
+    for (const rule of joinedRules(sc)) put(` ${rule}`, 'score');
+  }
   else if (sc.by === 'survive') {
     // A10 part 2: lives, a buyback, mulligans; last one standing.
     for (const said of poolPhrases(s, w)) put(` ${said}`, 'score');
@@ -828,6 +863,9 @@ function rulesOf(s, w) {
       rules.push(...times);
       if (times.length > 1) rules.push(`${cap(article(w.part))} ${w.part} in two of them counts both.`);
     }
+    // C3: a multiplier on how a holding joined.
+    const joinedSaid = s.score.by === 'moments' || s.score.by === 'place' ? joinedRules(s.score) : [];
+    if (joinedSaid.length && s.score.by === 'moments') rules.push(...joinedSaid, joinedHow(s.score));
     if (count === 'start') rules.push(`Lineups lock when the ${w.part} starts. Change yours as often as you like until then.`);
     rules.push(...groupSlotRules(s, w));
     if (s.score.by === 'place' && s.score.reverse === true) {
@@ -838,6 +876,7 @@ function rulesOf(s, w) {
     } else if (s.score.by === 'place') {
       rules.push(`Each ${w.castaway} earns 1 point, plus 1 for every boot they outlast.`);
       rules.push('So they end on their place in the boot order: the last one standing carries you.');
+      if (joinedSaid.length) rules.push(...joinedSaid, joinedHow(s.score));
       rules.push('No lineups to set. Just watch.');
     }
     // A10 part 3c: a stock market's moves are its trades (drawRules says them).

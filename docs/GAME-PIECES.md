@@ -207,7 +207,7 @@ How what counts earns points. **`score.by`**:
 Each one's own options:
 
 - **`place`**: `reverse: true`, the earlier they go home the more (1, plus 1 for everyone who outlasts them): "Each scores more
-  the earlier they go home: the first one out carries you".
+  the earlier they go home: the first one out carries you". `multiply`, how a holding joined (below, "Multipliers").
 - **`moments`**:
   - `points`: moment id to points, over the rulebook's own; `null` is the rulebook's own.
   - `captain: { times }`: one of your starters, named each episode, whose points multiply (more than 1, up to 10). A lineup
@@ -215,13 +215,54 @@ Each one's own options:
   - `times: [{ times, episode | from (to) | phase | finale }]`: when points multiply (up to 8 of them; more than 0, not 1, up
     to 10, so half is 0.5): one episode, a run, a phase, or the finale. An episode in two multiplies by both. Example:
     `"times": [{ "times": 2, "finale": true }]` → "Points in the finale count double".
+  - `multiply`: how a holding joined (below, "Multipliers").
   - Captain and `times` are **only** on a draft scored by moments today: `{ "by": "place", "captain": ... }` is refused as
-    "captain isn't part of a game spec". Multipliers on any condition (how a holding joined, when it was picked, a streak) are
-    **planned** (C3).
+    "captain isn't part of a game spec".
 - **`survive`**: `points` a right pick; a pool's lives, buyback and mulligans (see "Lives and saves").
 - **`lines`**: `points` a line (1 to 100; 1 when it's left out).
 - **`answers`**: `parlays` (below, under "How a question's points combine"); `lives` and `livesOn`, and co-op's `saves` (see
   "Lives and saves").
+
+### Multipliers: one piece keyed by a condition (C3)
+
+Every multiplier is one piece: a factor with its times and the condition that says which lines it multiplies (the sequence's
+`factorOf`; game-spec `multipliersOf` lists a spec's). The spec says each where its condition lives, so a stored spec reads as
+it always did:
+
+| Condition (`on`) | Said as | Multiplies |
+|---|---|---|
+| `captain` | `score.captain: { times }` | the captain's line, a lineup's |
+| `when` | `score.times: [{ times, episode \| from (to) \| phase \| finale }]` | every line in its window |
+| `joined` | `score.multiply: [{ joined, times, per?, then? }]` | each holding's line, by how it joined your team (C3) |
+| `legs` | `score.parlays: [{ of, times }]` | each leg's line, when every leg is right |
+| `rank` | a `confidence` answer | each right pick, by its place from the bottom (its answer's own weight) |
+
+A **streak** (a pool's points growing with it) and **when a holding was picked** (a draft's round) are later.
+
+**How a holding joined: `score.multiply`** (a draft's: a lineup, best ball or an Outlast; up to 3, each way of joining once):
+
+- `joined`: `draft` (drafted, or kept from last season), `pickup` (any mid-season move), `replacement` (a pickup for someone
+  gone), `swap` (for someone still in). A pickup is a replacement or a swap, so it isn't said beside them.
+- `times`: a number (more than 0, so half is 0.5, up to 10, not 1), or for a pickup, a replacement or a swap a list of 1 to 6 for
+  the first, the second and so on (1 allowed in it, not every one).
+- `per` (a list's): `team`, your Nth such move (the default), or `slot`, the Nth along the roster spot it fills (a replacement's
+  replacement is the second there).
+- `then` (a list's): past the list, `repeat` (the last again, the default) or `ratio` (on by its last step: 0.5, 0.25, then
+  0.125; on a list that shrinks at the end).
+- It multiplies **what each one earns while it's yours** (the user's decision, 2026-11-05): from the episode after the move to
+  the one before the move that lets them go. A lineup's moment lines while held. An **Outlast's line becomes what they earn
+  while yours**: their place where you let them go (or now) less their place when they joined, so one you drafted and kept has
+  their whole place, a pickup the boots they outlast while yours, and someone you let go keeps for you what they earned until
+  then. An Outlast without `multiply` keeps today's count (whoever holds someone now has their whole place; someone let go
+  counts for nobody).
+- Examples: `"multiply": [{ "joined": "pickup", "times": 2 }]` on an Outlast → "Pickups score double." The user's second game,
+  `"multiply": [{ "joined": "replacement", "times": [0.5, 0.25] }]` → "Your first replacement scores half, your second a quarter,
+  and every one after that a quarter."
+- Refused, in our check's words: in reverse ("In reverse, a place is 1 plus everyone who outlasts them, which nobody earns while
+  they're yours: a multiplier on how they joined needs Outlast's own order"); beside a stock market ("A stock market's worth is
+  its prices, not its points: nothing it holds earns points to multiply"); a way of joining the waivers can't make ("This game
+  never replaces anyone: its waivers make no replacements", "This game's waivers make no swaps", "Nobody joins a team after the
+  draft in this game: give it waivers that replace or swap"); anything but a draft.
 
 ---
 
@@ -671,9 +712,11 @@ Every game scores as one sequence of six steps, for each of you and each episode
    call's less for each episode late or each change (`shrink`). Which answers are right, and how many right ones each has, is
    the grading's (the settles above), never the sequence's. A right call (Weekly Calls) and a bingo line are lines too, counted
    (`tally`). A draft's own questions (since C2 part 4c) are graded the same way, their sum a line of the draft's beside its team's.
-3. **Multipliers**: each line times whatever applies to it, in order (`multiply`): a captain's, then the episode's own
-   (`score.times`); a parlay's on what each of its windows gave you (after the window's share, below: the order today's games
-   keep); a line's points on a count of bingo lines (`counted`).
+3. **Multipliers**: each line times whatever applies to it, in order (`multiply`), each a factor of the one multiplier piece
+   keyed by its condition (`factorOf`, since C3): a captain's, then the episode's own (`score.times`), then how the holding
+   joined your team (`score.multiply`, from its stint: `stints`); a parlay's on what each of its windows gave you (after the
+   window's share, below: the order today's games keep); a line's points on a count of bingo lines (`counted`). With a
+   multiplier on how a holding joined, an Outlast's line is what it earns while yours (`earnedWhileHeld`), not its whole place.
 4. **Combine**: the lines into your total for the episode, all of them or your best n (`best`, `episodeTotal`); and a window's
    answers across all of you: a pot split between everyone right by what each would have earned, only the only one right, by
    answer or by pick (`split`, `only`, `onlyEach`), each at the window's worth or (a shrinking call that's shared, since C2 part
@@ -699,7 +742,8 @@ a side bet or finale predictions graded before their episode's results are final
 (the table counts each at once, the week's results from the next episode).
 
 Rounding (to the cent) is part of the sequence, where each game has always done it: an Outlast's places are whole and never
-rounded; a lineup rounds each person's points as they add up, each line, each episode's total and the running total (a plain
+rounded (with a multiplier on how a holding joined, since C3, each line rounds as it's multiplied, and their sum and the total);
+a lineup rounds each person's points as they add up, each line, each episode's total and the running total (a plain
 lineup too, since C2 part 2: it rounded its running total after each moment, a cent apart on a half cent, which a sport's
 counts can make and a show's halves never do); a game of questions rounds only a split pot's shares inside a window, each line
 a parlay multiplies and its sum window by window; counts of calls and lines are whole; a game in stages rounds its overall.
@@ -714,7 +758,9 @@ grades with it and hands over the lines. Each part keeps every game scoring exac
 4b adds a pool's series of totals (head to head, teams of players and a handicap on a pool ranked by its points) and the week's
 result on teams' totals (a draft's teams knocked out or racing); part 4c a draft's own questions, graded as a game of questions'
 and handed to the draft's walk as a line through each episode and now (`AnswerLogic.lines`), so its table and everything that
-reads its series count them.
+reads its series count them. C3 makes every multiplier one piece keyed by a condition (step 3's `factorOf`: a captain, when, how a
+holding joined, a parlay's legs, a confidence ranking's place), and adds how a holding joined: each holding's line times the factor
+for the way it joined your team, on what it earns while it's yours (an Outlast's line then too: `stints`, `earnedWhileHeld`).
 
 **Playing by placement** (C2 part 4): a spec plays when each piece it names has its place in the sequence, not when it matches
 one of seven shapes (`schema.js` `noPlace`; `typeOf` names the shape the screens read, from its lines):
@@ -723,7 +769,7 @@ one of seven shapes (`schema.js` `noPlace`; `typeOf` names the shape the screens
 |---|---|
 | 1. Hold | a draft (its order with its ownership, a draw, or an auction for castaways nobody else can have) counting its whole team, a lineup or its best few; a pick each episode (one, cycling or never repeating); nothing; a bingo card |
 | 2. Lines | a place, the whole team held; moments, a lineup or best few held; a pick staying in (or scoring), a pick held; answers, nothing held, each a question a game of questions plays (or the show's calls alone); bingo lines, a card held. Beside them: a draft's finale predictions and (part 4c) its own questions, each one a draft plays (a game of questions' kind, or a person from your own team), not a stake of any of your points, not beside its cuts or a race, not beside a stock market by its worth |
-| 3 and 4. Multipliers, combine | each checked where it's said (`specProblems`): a captain on a lineup, points by when on moments, parlays on a game of questions; best ball's best n; a question's share, rollover, shrink, wager and the bot's call, combining in the sequence's order (a line's worth, the multipliers, the share) |
+| 3 and 4. Multipliers, combine | each checked where it's said (`specProblems`): a captain on a lineup, points by when on moments, parlays on a game of questions, how a holding joined on a draft's team (a lineup, best ball or an Outlast not in reverse, not a stock market) whose waivers make that move; best ball's best n; a question's share, rollover, shrink, wager and the bot's call, combining in the sequence's order (a line's worth, the multipliers, the share) |
 | 5 and 6. The week's result, rank | a running total on any game's (a pool's by its points with no lives: its series of totals, since C2 part 4b; else its streak or who's still standing); last one standing on a draft's or a game of questions' cuts, or a pool's or a game of questions' lives, and a draft's teams on their cuts (part 4b); a race on a draft's or a game of questions' totals, or a draft's teams'; head to head on a draft's, a game of questions' or a pool's totals, with nobody racing, cut or losing a life; teams of players and a handicap on any of those totals (a draft's teams knocked out or racing; a game of questions' and a pool's by their points or head to head); worth, a stock market's on a lineup; co-op, a game of questions' lives together; the show's calls and bingo lines, most wins |
 
 A piece with no place says which and why ("No game plays this way yet: a pool's picks are its game: questions beside them play
@@ -745,8 +791,9 @@ tracker row (`docs/ENGINE-CAPABILITIES.md`, p13 to p25) with the step that bring
   draft's.)
 - **Combiners still exclusive**: a wager plays alone (C6, money: the stake, then the multipliers, then the share); a parlay on a
   split pot waits on a rule (does it multiply your share, or your call before the split?).
-- **One feature per multiplier**: captain, by when, parlay and the wager's double are four separate pieces, and nothing
-  multiplies an Outlast's lines (C3: one multiplier keyed by a condition, on what a holding earns while it's yours).
+- **Multipliers left to come**: a captain, by when, how a holding joined, a parlay's legs and a confidence ranking's places are
+  one piece since C3 (above, "Multipliers"); a streak and when a holding was picked are later, a draft's own questions have no
+  parlays, and a wager's double is its own (C6, money).
 - **Ownership per game**: the draft and its pickups share one `own` (C4).
 - **A pick is one person**: nobody picks three each episode (C5).
 - **Six stages at most**: "each week its own round, ranked by weeks won" fits six weeks (C5).
@@ -770,7 +817,7 @@ The study of the sequence is in the plan (track C, C1's As built); what's built 
 | Step | The piece | What it opens |
 |---|---|---|
 | C2 | **One scoring sequence** (built): hold → score each line → multipliers → combine → the week's result → rank (above: parts 1 to 3, every game). A spec plays when each piece it names has its place in the sequence (part 4a: playing by placement, a shrinking call that's shared, a parlay's legs that roll over, shrink or pay only the only one right; part 4b: a pool's series of totals, so a pool by its points, head to head, in teams and with a handicap; a draft's teams knocked out and racing; part 4c: a draft's own questions, a line of their own) | done: what's still refused is listed above, with the step that takes it |
-| C3 | **Multipliers on any condition**: one piece keyed by how a holding joined (drafted, a pickup, the Nth replacement), when it was picked, a captain, a streak, a parlay's legs | captain, by when, parlay and confidence become uses of it; the user's 1x, 0.5x, 0.25x |
+| C3 | **Multipliers on any condition** (built): one piece keyed by a condition, a captain, when, how a holding joined (drafted, a pickup, a replacement or a swap, the Nth per team or per slot), a parlay's legs, a confidence ranking's place | captain, by when, parlay and confidence are uses of it; the user's 1x, 0.5x, 0.25x; an Outlast's pickups counting double while they're yours. A streak and when a holding was picked: later |
 | C4 | **Ownership per holding**: exclusive or shared for the draft, the pickups and the group slots each, and where a replacement comes from | an exclusive draft with shared replacements |
 | C5 | **The week as a result**: pick N each episode without a draft; a week's winner and ranking by weeks won; "only these moments count"; hits counted per objective or per pick; more than six stages, or each episode a round | the user's third game |
 | C6 | **Money**: a starting balance, stakes drawn from it, payouts (even money or odds), a bank that can run out; staked parlays and tickets a player builds | the user's first game |
@@ -818,11 +865,13 @@ scores 0.5x, if you need to replace another it scores 0.25x. Those multiplicatio
 - Hold: an exclusive draft (`own: exclusive`), with waivers replacing someone gone (`replace: always`).
 - Ownership per holding: the draft exclusive, the replacements shared (C4; today one `own` for both, so a replacement comes only
   from who's free).
-- A multiplier on how a holding joined: 1x drafted, 0.5x the first replacement, 0.25x the second, configurable (C3; today's
-  multipliers are a captain or by when, on a draft scored by moments only).
+- A multiplier on how a holding joined: 1x drafted, 0.5x the first replacement, 0.25x the second, configurable: built (C3),
+  `"multiply": [{ "joined": "replacement", "times": [0.5, 0.25] }]`, on what each earns while it's yours (an Outlast too).
+  Its open questions are settings: after the list, `then` (`repeat`, the default, or `ratio`, which keeps halving); per roster
+  slot or per team, `per` (`team` the default); voluntary swaps too, `joined: "pickup"` (or `swap` beside `replacement`).
 - Nearest today: an exclusive Outlast or lineup with `replace: "always"`, replacements scoring in full.
-- Open: after the list, does the last repeat or keep halving; per roster slot or per team; do voluntary swaps count, or only
-  replacing someone gone?
+- Open: the defaults of those three settings are the user's (the lane's: the last repeats, per team, only replacing someone
+  gone).
 
 **3. Shared objectives each week.** *"Each week everyone has a shared set of objectives (several individual moments). Each player
 picks x cast members that they think will achieve as many objectives as possible. Player with most objectives hit wins the week."*
@@ -854,6 +903,7 @@ picks x cast members that they think will achieve as many objectives as possible
 | A window (every, over, a cut's every) | 2 to 10 episodes (a cut, 1 to 10) |
 | Parlays | 6, each 2 to 4 legs; multipliers more than 1, up to 10 |
 | When points multiply | 8 |
+| How a holding joined | 1 to 3; a list of 1 to 6 |
 | Stages | 2 to 6, a name up to 40 characters; copies of a stage a change starts, 12 |
 | A side stage's grouping | held 1 to 6 episodes |
 | The overall's points for places | 1 to 12 places |

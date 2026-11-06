@@ -61,8 +61,9 @@ const GAME_FIELDS = {
   every: ["leagueTypeId", "startEpisode", "startPhase", "endEpisode", "endPhase", "allowLateJoiners", "joinMode", "lockedDown", "bonusEnabled", "defaultBetPoints"],
   // A9 part 2: Outlast in reverse; best ball, a lineup's captain, points that multiply by when. A10 part 3c: a stock market
   // ranked by worth.
-  "classic-draft": [...DRAFT_FIELDS, "teamSize", "reverseOrder"],
-  "active-roster": [...DRAFT_FIELDS, "activeSlots", "benchSlots", "eventPoints", "hideStartersUntilLock", "bestBall", "captainTimes", "pointsTimes", "groupSlots"],
+  // C3: a multiplier on how a holding joined (joinedTimes), an Outlast's or a lineup's.
+  "classic-draft": [...DRAFT_FIELDS, "teamSize", "reverseOrder", "joinedTimes"],
+  "active-roster": [...DRAFT_FIELDS, "activeSlots", "benchSlots", "eventPoints", "hideStartersUntilLock", "bestBall", "captainTimes", "pointsTimes", "groupSlots", "joinedTimes"],
   // A10 part 2: a pool's lives, buyback, mulligans, second pick and last one standing. A11 part 2: a pick that never repeats and
   // its fallback; last one standing's end.
   pickem: ["pickemCorrectPoints", "poolSurvive", "calls", "poolLives", "poolBuyback", "poolMulligans", "poolSecond", "poolRank", "seatPeople", "poolRepeat", "poolFallback", "rankOneLeft", "rankAllOut"],

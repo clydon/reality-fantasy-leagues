@@ -44,9 +44,15 @@
 //   score    { by: 'moments', points, captain?, times? } (points: moment id -> points over the rulebook's own; null = its
 //            own. A9 part 2: captain { times }, a lineup's captain, one of your starters you name each episode, whose points
 //            multiply; times [{ times, episode | from (to) | phase | finale }], an episode, a run of them, a phase of the
-//            season or its finale whose points multiply: "double in the finale", "the first three count triple")
-//            | { by: 'place', reverse? } (Outlast: 1, plus 1 for every boot outlasted; A9 part 2's reverse: true, the
-//            earlier they go home the more, 1 plus 1 for everyone who outlasts them) | { by: 'survive', means: staysIn | scores,
+//            season or its finale whose points multiply: "double in the finale", "the first three count triple"; C3's
+//            multiply [{ times, joined, then?, per? }], a draft's (a lineup, best ball or an Outlast) multiplier on how a holding
+//            joined your team: drafted, a pickup, a replacement (for someone gone) or a swap (for someone still in), times a
+//            number, or a list for the Nth (per team or per slot; past the list the last again, or on by its last step), on
+//            what each one earns while it's yours: "replacements score half, the second a quarter")
+//            | { by: 'place', reverse?, multiply? } (Outlast: 1, plus 1 for every boot outlasted; A9 part 2's reverse: true, the
+//            earlier they go home the more, 1 plus 1 for everyone who outlasts them; C3's multiply as a lineup's, an Outlast's
+//            lines then what each holding earns while it's yours: its place where it was let go, or now, less its place when
+//            it joined) | { by: 'survive', means: staysIn | scores,
 //            points, lives?, buyback?, mulligans? } (Survival Pool. A10 part 2: lives n, a wrong pick (or none) costs one and at
 //            none you're out, no more picks; buyback { times, before: { phase } | { episode } | null, cost }, someone out in an
 //            episode before then is back in from the next with one life, `cost` points off their total, `times` in a game;
@@ -220,6 +226,16 @@ const VOCAB = {
   'ask.fallback': { void: 'now', 'carry-on': 'now', 'next-stage': 'now' },
   // A9 part 2: when a draft's points multiply (score.times): an episode, a run of them, a phase of the season, its finale.
   'score.times': { episode: 'now', from: 'now', phase: 'now', finale: 'now' },
+  // C3: one multiplier piece keyed by a condition (multipliersOf): a captain (score.captain), when (score.times), how a holding
+  // joined (score.multiply), a parlay's legs (score.parlays), a confidence ranking's place (its answer's own weight). A streak
+  // (a pool's points growing with it) and when a holding was picked (a draft's round) are later.
+  'multiply.on': { captain: 'now', when: 'now', joined: 'now', legs: 'now', rank: 'now', streak: 'later', picked: 'later' },
+  // C3: how a holding joined (score.multiply's joined): drafted (or kept), any pickup, a replacement (a pickup for someone gone)
+  // or a swap (for someone still in); a list's Nth counted per team (your Nth such move) or per slot (the Nth along the roster
+  // slot it fills); past the list, the last again or on by the list's last step.
+  'score.multiply.joined': { draft: 'now', pickup: 'now', replacement: 'now', swap: 'now' },
+  'score.multiply.per': { team: 'now', slot: 'now' },
+  'score.multiply.then': { repeat: 'now', ratio: 'now' },
   // A10 part 1: group slots (get.groups), a draft's +1 or +2 slot that holds a pair or a team the show forms, read from the
   // format's state over time: whether two people can hold the same group, what a slot does when the groups at its lock or as
   // the episode was played aren't sure (void that episode for the slot, or follow the people), and how a group's points are
@@ -483,6 +499,9 @@ const MAX_PARLAYS = 6;
 /** A9 part 2: the most windows a draft's points multiply in (score.times), and what each one says when it is. */
 const MAX_WHEN = 8;
 const WHEN = ['episode', 'from', 'phase', 'finale'];
+/** C3: a multiplier on how a holding joined (score.multiply): the most in a list for the Nth, and its defaults. */
+const MAX_JOINED = 6;
+const JOINED = { per: 'team', then: 'repeat' };
 /** A10 part 1: a draft's most group slots (the user's "+1 or +2"), and a slot's defaults when the spec leaves them out (the
  *  user's to set: the plan's Noticed for A10). */
 const MAX_GROUP_SLOTS = 2;
@@ -1847,6 +1866,8 @@ function specProblems(spec, ctx, opts) {
   }
   if (score.by === 'moments' && score.times !== undefined) timesProblems(score.times, s, league).forEach(([at, p]) => add(`score.times${at}`, p));
   if (score.by === 'place' && score.reverse !== undefined && score.reverse !== true) add('score.reverse', 'reverse is true, or leave it out');
+  // C3: a multiplier on how a holding joined, a draft's.
+  if ((score.by === 'moments' || score.by === 'place') && score.multiply !== undefined) multiplyProblems(score.multiply, s).forEach(([at, p]) => add(`score.multiply${at}`, p));
   if (score.by === 'stats' && !(pointsMap(score.points) && Object.keys(score.points).length)) add('score.points', 'Stats score as stat key to points');
   if (score.by === 'survive') {
     if (!one('score.means', score.means)) add('score.means', 'A pick survives by staying in (staysIn) or by scoring (scores)');
@@ -2177,12 +2198,13 @@ const KEYS = {
   budget: ['total', 'floor', 'ceiling', 'gone', 'fallback', 'trade', 'left'],
   trade: ['fee'],
   second: ['fallback'],
-  score: { moments: ['by', 'points', 'captain', 'times'], place: ['by', 'reverse'], survive: ['by', 'means', 'points', 'lives', 'buyback', 'mulligans'], lines: ['by', 'points'], answers: ['by', 'parlays', 'lives', 'livesOn', 'saves'], stages: ['by'], stats: ['by', 'points'] },
+  score: { moments: ['by', 'points', 'captain', 'times', 'multiply'], place: ['by', 'reverse', 'multiply'], survive: ['by', 'means', 'points', 'lives', 'buyback', 'mulligans'], lines: ['by', 'points'], answers: ['by', 'parlays', 'lives', 'livesOn', 'saves'], stages: ['by'], stats: ['by', 'points'] },
   buyback: ['times', 'before', 'cost'],
   before: ['phase', 'episode'],
   parlay: ['of', 'times'],
   captain: ['times'],
   when: ['times', 'episode', 'from', 'to', 'phase', 'finale'],
+  multiply: ['times', 'joined', 'then', 'per'],
   shrink: ['points', 'per'],
   rank: ['by', 'race', 'cut', 'oneLeft', 'allOut', ...MATCHUP_KEYS, 'teams', 'handicap'],
   race: ['to'],
@@ -2229,6 +2251,7 @@ function unknownKeys(s) {
   if (isObj(s.score)) {
     check(s.score, own(KEYS.score, s.score.by), 'score');
     if (Array.isArray(s.score.parlays)) s.score.parlays.forEach((p, i) => check(p, KEYS.parlay, `score.parlays[${i}]`));
+    if ((s.score.by === 'moments' || s.score.by === 'place') && Array.isArray(s.score.multiply)) s.score.multiply.forEach((m, i) => check(m, KEYS.multiply, `score.multiply[${i}]`));
     if (s.score.by === 'moments') {
       check(s.score.captain, KEYS.captain, 'score.captain');
       if (Array.isArray(s.score.times)) s.score.times.forEach((t, i) => check(t, KEYS.when, `score.times[${i}]`));
@@ -2786,6 +2809,69 @@ function timesProblems(list, s, league) {
   return out;
 }
 
+/**
+ * C3: a multiplier on how a holding joined (score.multiply), as [[at, problem]]: 1 to 3 of { joined, times, per?, then? }, each kind
+ * once (a pickup is a replacement or a swap, so not beside them); times more than 0, up to MAX_TIMES and not 1, or (a pickup, a
+ * replacement or a swap) a list of 1 to MAX_JOINED for the first, second and so on (1 allowed in it, not every one), whose per and
+ * then say how it counts the Nth and what comes after it (then 'ratio' on a list that never grows). On a draft only (a lineup, best
+ * ball or an Outlast, not in reverse, not a stock market), and a pickup's needs waivers that make that move.
+ */
+function multiplyProblems(list, s) {
+  const one = (key, v) => own(VOCAB[key], v) !== undefined;
+  if (!Array.isArray(list) || !list.length || list.length > 3) return [['', 'A multiplier on how a holding joined is a list of 1 to 3: { joined, times }']];
+  const out = [];
+  if (!(isObj(s.get) && s.get.by === 'draft')) return [['', 'A multiplier on how a holding joined is a draft\'s: who you drafted, and who joined your team after']];
+  if (s.score.by === 'place' && s.score.reverse === true) return [['', "In reverse, a place is 1 plus everyone who outlasts them, which nobody earns while they're yours: a multiplier on how they joined needs Outlast's own order"]];
+  if (marketOf(s) || (isObj(s.rank) && s.rank.by === 'worth')) return [['', "A stock market's worth is its prices, not its points: nothing it holds earns points to multiply"]];
+  const w = isObj(s.extras) && isObj(s.extras.waivers) ? s.extras.waivers : null;
+  const replaces = !!w && w.replace !== 'never';
+  const swaps = !!w && isObj(w.windows) && isInt(w.windows.swaps, 1);
+  const kinds = new Set();
+  list.forEach((m, i) => {
+    const at = `[${i}]`;
+    if (!isObj(m)) return out.push([at, 'Each is { joined, times }']);
+    if (!one('score.multiply.joined', m.joined)) return out.push([`${at}.joined`, 'How they joined: draft, pickup, replacement (for someone gone) or swap (for someone still in)']);
+    if (kinds.has(m.joined) || (m.joined === 'pickup' && (kinds.has('replacement') || kinds.has('swap'))) || (m.joined !== 'pickup' && m.joined !== 'draft' && kinds.has('pickup'))) out.push([`${at}.joined`, 'Say each way of joining once (a pickup is a replacement or a swap: pickups, or each of them)']);
+    kinds.add(m.joined);
+    const many = Array.isArray(m.times);
+    if (many) {
+      if (m.joined === 'draft') out.push([`${at}.times`, 'Everyone drafted joined the same way: one number for them']);
+      else if (!(m.times.length >= 1 && m.times.length <= MAX_JOINED && m.times.every((t) => isNum(t) && t > 0 && t <= MAX_TIMES))) out.push([`${at}.times`, `A list for the first, the second and so on: 1 to ${MAX_JOINED} of them, each more than 0 (half is 0.5), up to ${MAX_TIMES}`]);
+      else if (m.times.every((t) => t === 1)) out.push([`${at}.times`, 'Every one is 1, so nothing multiplies: leave it out']);
+      else if (m.then === 'ratio' && (m.times.some((t, j) => j > 0 && t > m.times[j - 1]) || (m.times.length === 1 ? m.times[0] >= 1 : m.times[m.times.length - 1] === m.times[m.times.length - 2]))) out.push([`${at}.then`, 'Going on by its last step needs a list that shrinks at the end, never grows (0.5, 0.25: then 0.125)']);
+    } else if (!(isNum(m.times) && m.times > 0 && m.times !== 1 && m.times <= MAX_TIMES)) out.push([`${at}.times`, `Points multiply by more than 0 (half is 0.5), up to ${MAX_TIMES}, and not 1: or a list for the first, the second and so on`]);
+    if (m.per !== undefined && !(many && one('score.multiply.per', m.per))) out.push([`${at}.per`, many ? 'Counted per team (your Nth) or per slot (the Nth on that roster spot)' : 'Only a list counts the Nth (per team or per slot)']);
+    if (m.then !== undefined && !(many && one('score.multiply.then', m.then))) out.push([`${at}.then`, many ? 'Past the list: repeat (the last again) or ratio (on by its last step)' : 'Only a list has an after (then)']);
+    // What the game's waivers can make.
+    if (m.joined === 'replacement' && !replaces) out.push([`${at}.joined`, 'This game never replaces anyone: its waivers make no replacements']);
+    if (m.joined === 'swap' && !swaps) out.push([`${at}.joined`, "This game's waivers make no swaps"]);
+    if ((m.joined === 'pickup' || m.joined === 'draft') && !replaces && !swaps) out.push([`${at}.joined`, "Nobody joins a team after the draft in this game: give it waivers that replace or swap"]);
+  });
+  return out;
+}
+/**
+ * C3: every multiplier a spec has, as one piece keyed by a condition (the sequence's factorOf): [{ on, times, ...condition }]. A
+ * lineup's captain (score.captain, on 'captain'), each of score.times ('when', its window), each of score.multiply ('joined', with
+ * its per and then filled in) and each parlay ('legs', its questions). A confidence ranking's weights are its answer's own ('rank',
+ * graded with the answer). The fields stay where each was said: a stored spec reads exactly as before.
+ */
+function multipliersOf(spec) {
+  const sc = isObj(spec) && isObj(spec.score) ? spec.score : {};
+  const out = [];
+  if (sc.by === 'moments' && isObj(sc.captain) && isNum(sc.captain.times)) out.push({ on: 'captain', times: sc.captain.times });
+  if (sc.by === 'moments' && Array.isArray(sc.times)) sc.times.forEach((t) => { if (isObj(t)) out.push({ on: 'when', ...t }); });
+  if ((sc.by === 'moments' || sc.by === 'place') && Array.isArray(sc.multiply)) {
+    sc.multiply.forEach((m) => {
+      if (!isObj(m)) return;
+      const f = { on: 'joined', joined: m.joined, times: m.times };
+      if (Array.isArray(m.times)) Object.assign(f, { per: m.per || JOINED.per, then: m.then || JOINED.then });
+      out.push(f);
+    });
+  }
+  if (sc.by === 'answers' && Array.isArray(sc.parlays)) sc.parlays.forEach((p) => { if (isObj(p)) out.push({ on: 'legs', of: p.of, times: p.times }); });
+  return out;
+}
+
 // The data-can-settle rule (the user's decision, 2026-10-27): only what data can settle. Sports: box scores and
 // scoreboards (the Sport's stat keys, finals). Shows: the results research, which counts as data.
 function settleProblems(s, ctx, opts) {
@@ -3267,7 +3353,7 @@ function stagedWaits(s) {
 
 module.exports = {
   SPEC_VERSION, VOCAB, TAKES, SETTLES_FOR, SEASON_TAKES, EACH_SETTLES_FOR, NAMES, NUMBERS, MAX_WINDOW, LATE_HOURS, windowed,
-  RANKS, MAX_ORDER, MAX_WITHIN, MAX_CHIPS, MAX_PAIRS, WAGERS, WAGER_TOTAL, SHARES, SHRINK_PER, LEGS, MAX_LEGS, MAX_TIMES, MAX_WHEN, WHEN, PRESETS, PRESET_TYPES, TYPE_PRESETS, PRESET_LABELS, NO_WAIVERS, DRAFT_ROOM,
+  RANKS, MAX_ORDER, MAX_WITHIN, MAX_CHIPS, MAX_PAIRS, WAGERS, WAGER_TOTAL, SHARES, SHRINK_PER, LEGS, MAX_LEGS, MAX_TIMES, MAX_WHEN, WHEN, MAX_JOINED, JOINED, multipliersOf, PRESETS, PRESET_TYPES, TYPE_PRESETS, PRESET_LABELS, NO_WAIVERS, DRAFT_ROOM,
   MAX_GROUP_SLOTS, GROUP_SLOTS, covers, MAX_LIVES, MAX_BUYBACKS, MAX_MULLIGANS, MAX_BUYBACK_COST, BUYBACK, SECOND_PICK, NEVER, poolParts,
   DRAFT_ACROSS, DRAW_OWN, spreadBounds, MAX_BUDGET, BUDGET, CAP, AUCTION, MAX_BIDS, ceilingFor, budgetParts, TRADE, MARKET_LEFT,
   marketWaivers, marketOf, KEEP, keepParts, SEATS, MAX_SEAT_PEOPLE, seatPeople, teamsOf,

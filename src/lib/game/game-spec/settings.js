@@ -238,6 +238,8 @@ function readSpec(st, copy) {
   if (type === 'classic-draft') {
     R = st.teamSize;
     const score = st.reverseOrder === true ? { by: 'place', reverse: true } : { by: 'place' };
+    // C3: a multiplier on how a holding joined (settings.joinedTimes, as the spec says it).
+    if (Array.isArray(st.joinedTimes) && st.joinedTimes.length) score.multiply = copy ? clone(st.joinedTimes) : st.joinedTimes;
     Object.assign(spec, { get: drafted(st.teamSize), count: { all: true }, score, rank: draftRankOf(st, false, copy) });
   } else if (type === 'active-roster') {
     const start = st.activeSlots || 0;
@@ -245,6 +247,7 @@ function readSpec(st, copy) {
     const score = { by: 'moments', points: isObj(st.eventPoints) ? (copy ? clone(st.eventPoints) : st.eventPoints) : null };
     if (typeof st.captainTimes === 'number' && Number.isFinite(st.captainTimes) && st.captainTimes > 1) score.captain = { times: st.captainTimes };
     if (Array.isArray(st.pointsTimes) && st.pointsTimes.length) score.times = copy ? clone(st.pointsTimes) : st.pointsTimes;
+    if (Array.isArray(st.joinedTimes) && st.joinedTimes.length) score.multiply = copy ? clone(st.joinedTimes) : st.joinedTimes;
     // A10 part 1: group slots beside the draft (settings.groupSlots, as the spec says them).
     const get = drafted(R);
     if (isObj(st.groupSlots)) get.groups = copy ? clone(st.groupSlots) : st.groupSlots;
@@ -503,6 +506,8 @@ function settingsOf(spec) {
   out.captainTimes = lineup && isObj(s.score.captain) ? s.score.captain.times : undefined;
   out.pointsTimes = lineup && Array.isArray(s.score.times) ? clone(s.score.times) : undefined;
   out.reverseOrder = type === 'classic-draft' && s.score.reverse === true ? true : undefined;
+  // C3: a draft's multiplier on how a holding joined (an Outlast's or a lineup's).
+  out.joinedTimes = (type === 'classic-draft' || lineup) && Array.isArray(s.score.multiply) ? clone(s.score.multiply) : undefined;
   // A10 part 1: a lineup's or best ball's group slots.
   out.groupSlots = lineup && isObj(s.get.groups) ? clone(s.get.groups) : undefined;
   // A10 part 3: a draw, and a draft spread across the cast's groups.
@@ -572,7 +577,7 @@ const PARTS = [
   // A12 part 2: how a game a format change moves takes the change.
   { fields: ['formatChanges'], read: (s) => (Array.isArray(s.stages) && isObj(s.extras) ? s.extras.changes || null : null) },
   { fields: ['ownershipMode', 'teamSize', 'activeSlots', 'benchSlots', 'bestBall', 'groupSlots', 'poolSecond', 'poolRepeat', 'poolFallback', 'draftDraw', 'draftAcross', 'draftAuction', 'draftBudget', 'draftKeep'], read: (s) => [s.get, s.count] },
-  { fields: ['eventPoints', 'pickemCorrectPoints', 'poolSurvive', 'parlays', 'linePoints', 'captainTimes', 'pointsTimes', 'reverseOrder', 'poolLives', 'poolBuyback', 'poolMulligans', 'questionsLives', 'questionsLivesOn', 'questionsSaves'], read: (s) => s.score },
+  { fields: ['eventPoints', 'pickemCorrectPoints', 'poolSurvive', 'parlays', 'linePoints', 'captainTimes', 'pointsTimes', 'joinedTimes', 'reverseOrder', 'poolLives', 'poolBuyback', 'poolMulligans', 'questionsLives', 'questionsLivesOn', 'questionsSaves'], read: (s) => s.score },
   { fields: ['poolRank', 'draftRank', 'draftRace', 'draftCut', 'rankOneLeft', 'rankAllOut', 'questionsRank', 'questionsRace', 'questionsCut', 'rankMatchups', 'rankTeams', 'rankHandicap'], read: (s) => s.rank },
   { fields: ['allowLateJoiners', 'joinMode'], read: (s) => s.extras.join },
   { fields: ['lockedDown'], read: (s) => s.extras.lockedDown },

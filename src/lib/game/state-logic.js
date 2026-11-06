@@ -483,15 +483,32 @@ class EliminationOrderScoringStrategy {
       if(asks) results[p.id].questions = at.questions;
     });
     state.castaways.forEach(c=>{
-      // Dropped via replenish/trade: no longer counts, but still shown (grayed out) for history.
+      // Dropped via replenish/trade: no longer counts (C3: with a multiplier on how a holding joined, what they earned while
+      // that seat held them still does), but still shown (grayed out) for history, under the last seat to let them go.
       if(c.formerOwnerId && results[c.formerOwnerId]){
         results[c.formerOwnerId].formerRoster.push(c);
       }
     });
     const bets = addSideLayers(state, results);
-    Object.values(results).forEach(r=> r.total = Seq.total(r, bets, asks));
+    // Rounded once its own questions (a pot's share) or a multiplier on how a holding joined (C3: half a place) are in it.
+    const rounded = asks || !!joinedFactors(state);
+    Object.values(results).forEach(r=> r.total = Seq.total(r, bets, rounded));
     return Seq.byTotal(Object.values(results));
   }
+}
+// C3: a draft's multipliers on how a holding joined (score.multiply, read as the one multiplier piece: Spec.multipliersOf), or null
+// for none: a lineup's, best ball's or an Outlast's (never in reverse: our check refuses it there). Each holding's line is what it
+// earns while it's yours times the factor for how it joined (Seq.stints, from the mid-season log).
+function joinedFactors(state){
+  // The game that's played (as the walk reads it: a spec no game plays is scored as a plain Outlast).
+  const g = playedGame(state);
+  if(!g.get || g.get.by !== 'draft' || !(g.score.by === 'moments' || (g.score.by === 'place' && g.score.reverse !== true))) return null;
+  const list = Spec.multipliersOf(g).filter(f => f.on === 'joined' && (typeof f.times === 'number' || Array.isArray(f.times)));
+  return list.length ? list : null;
+}
+// What a stint's line multiplies by: each factor on how it joined that names it (at most one does: each way of joining is said once).
+function joinedTimesOf(factors, stint){
+  return factors.reduce((x, f) => x * Seq.factorOf(f, { stint }), 1);
 }
 // C2 part 4c: whether the game that's played has a draft's own questions (beyond its finale predictions), whose points are a line of
 // their own on its rows (`questions`).
@@ -651,7 +668,10 @@ class ScoringLogic {
   // each episode's total as ActiveRosterLogic.episodeScore counts it (the starters or best ball's team, their moments, a captain's
   // and the episode's multiplier, best ball's best n, the group slots beside them), added up episode by episode (Seq.add). C2 part 4c:
   // a draft's own questions, a line of their own beside them, their points as the server graded them on this copy (AnswerLogic.lines:
-  // through each episode, and now); a copy without them scores them as nothing.
+  // through each episode, and now); a copy without them scores them as nothing. C3: with a multiplier on how a holding joined
+  // (joinedFactors), each holding's line is what it earns while it's yours (Seq.stints: drafted, or the move that brought it, until
+  // the move that let it go), times its factor: an Outlast's, its place where it was let go (or at the mark) less its place when it
+  // joined (Seq.earnedWhileHeld), each line rounded and their sum; a lineup's, each moment line times it too (episodeScore).
   static walk(state, want){
     const w = want || { series: true, now: true };
     const game = gameOf(state);
@@ -670,7 +690,27 @@ class ScoringLogic {
     // recorded, from the start); a boot outlasted, gone with a place recorded.
     const goneBy = (c, k) => c.status === 'eliminated' && (numberOf.has(c.exitEpisodeId) ? numberOf.get(c.exitEpisodeId) : 0) <= k;
     const markAt = k => ({ size: cast.length, out: cast.filter(c => goneBy(c, k) && typeof c.placementOrder === 'number').length, reverse });
+    // C3: how each seat's holdings joined it, and each one's place as a value at a mark (out by then: their place, or nothing with
+    // none recorded; still in, 1 plus the boots so far), for a multiplier on how a holding joined.
+    const joined = joinedFactors(state);
+    const stintsOf = joined ? new Map(players.map(p => [p.id, Seq.stints(Core.ownedCastawayIds(state, p.id), log, p.id)])) : null;
+    const marks = new Map();
+    const markOf = k => { if(!marks.has(k)) marks.set(k, markAt(k)); return marks.get(k); };
+    const valueAt = (c, m) => goneBy(c, m) ? (typeof c.placementOrder === 'number' ? Seq.placed(c.placementOrder, markOf(m)) : 0) : Seq.stillIn(markOf(m));
     const placesAt = (playerId, k, mark) => {
+      if(joined){
+        // Banked: what can't change any more (one out by then, or let go).
+        let locked = 0, banked = 0;
+        stintsOf.get(playerId).forEach(s => {
+          const c = Core.getCastaway(state, s.id);
+          const earned = c ? Seq.earnedWhileHeld(s, k, m => valueAt(c, m)) : 0;
+          if(!earned) return;
+          const pts = Seq.multiply(earned, [joinedTimesOf(joined, s)]);
+          locked += pts;
+          if(goneBy(c, k) || (s.ended && s.to < k)) banked += pts;
+        });
+        return { locked: Seq.round(locked), banked: Seq.round(banked) };
+      }
       const stillIn = Seq.stillIn(mark);
       let locked = 0, banked = 0;
       Seq.heldAt(Core.ownedCastawayIds(state, playerId), log, playerId, k).forEach(id => {
@@ -700,7 +740,7 @@ class ScoringLogic {
       if(!outlast && (w.now || final)){
         const events = ActiveRosterLogic.episodeEvents(state, ep);
         if(events.length){
-          const pre = { times: ActiveRosterLogic.timesFor(state, ep.number), slots, scored: ActiveRosterLogic.scoredEvents(state, events) };
+          const pre = { times: ActiveRosterLogic.timesFor(state, ep.number), slots, scored: ActiveRosterLogic.scoredEvents(state, events), joined, stints: stintsOf };
           players.forEach(p => running.set(p.id, Seq.add(running.get(p.id), ActiveRosterLogic.episodeScore(state, ep, p.id, pre).total)));
         }
       }
@@ -3042,13 +3082,14 @@ class ActiveRosterLogic {
   // part 1): compute's own path. A plain lineup keeps the arithmetic it always had.
   static combines(state){
     const g = gameOf(state);
-    return g.score.by === 'moments' && (!!ActiveRosterLogic.bestOf(state) || !!ActiveRosterLogic.captainTimes(state) || Array.isArray(g.score.times) || !!GroupSlotLogic.config(state));
+    return g.score.by === 'moments' && (!!ActiveRosterLogic.bestOf(state) || !!ActiveRosterLogic.captainTimes(state) || Array.isArray(g.score.times) || !!GroupSlotLogic.config(state) || !!joinedFactors(state));
   }
   // What an episode's points multiply by (the spec's score.times): each window it's in, together -- an episode, a run of them,
   // a phase of the season, the finale -- else 1. A phase counts from where data says it starts (state.phaseStarts, the desk's:
   // RosterLogic.settlePhases) to where the next one known does, once this copy is up to the episode before its start (as a
   // phase window shows: nobody behind learns a phase began); the finale is the episode that ended the season (finaleEpisodeOf),
-  // known once its results are. Scoring only reads episodes with results, so the guard never changes a score.
+  // known once its results are. Scoring only reads episodes with results, so the guard never changes a score. C3: each window is a
+  // factor of the one multiplier piece, on 'when' (Spec.multipliersOf, Seq.factorOf: Seq.inWindow says whether it's in it).
   static timesFor(state, number){
     const list = gameOf(state).score.times;
     if(!Array.isArray(list) || gameOf(state).score.by !== 'moments') return 1;
@@ -3065,15 +3106,9 @@ class ActiveRosterLogic {
       if(finale === undefined){ const f = finaleEpisodeOf(state); finale = f ? f.number : null; }
       return finale;
     };
+    const facts = { episode: number, phase: inPhase, finale: finaleNumber };
     let x = 1;
-    list.forEach(t => {
-      const hit = Number.isInteger(t.episode) ? number === t.episode
-        : Number.isInteger(t.from) ? number >= t.from && (t.to === undefined || t.to === null || number <= t.to)
-        : typeof t.phase === 'string' ? inPhase(t.phase)
-        : t.finale === true ? number === finaleNumber()
-        : false;
-      if(hit) x *= t.times;
-    });
+    Spec.multipliersOf(gameOf(state)).forEach(f => { if(f.on === 'when') x *= Seq.factorOf(f, facts); });
     return x;
   }
   // The team a player held for an episode (best ball, which has no lineups to store it): who they hold now, with every move
@@ -3094,8 +3129,8 @@ class ActiveRosterLogic {
   // multiplier (timesFor) on all of it. `pre`: what the caller has worked out already for the episode (compute, every player):
   // its multiplier, its moments at the game's points (`scored`: scoredEvents; else its `events`, scored here), group slots' index.
   // The scoring sequence's steps 1 to 4 for one seat and one episode (C2 part 1): what counts (the starters, or best ball's whole
-  // team), each holding's moments, times its captain's and the episode's multiplier, then best ball's best n with the group
-  // slots' lines beside them.
+  // team), each holding's moments, times its captain's and the episode's multiplier (C3: and the factor for how it joined, where the
+  // game has one: `pre.joined`, `pre.stints` the walk's), then best ball's best n with the group slots' lines beside them.
   static episodeScore(state, ep, playerId, pre){
     const best = ActiveRosterLogic.bestOf(state);
     // Each holding once (C2 part 2: a stored lineup listing a starter twice, which validateLineup refuses, scores them once).
@@ -3104,8 +3139,13 @@ class ActiveRosterLogic {
     const times = pre && pre.times !== undefined ? pre.times : ActiveRosterLogic.timesFor(state, ep.number);
     const scored = (pre && pre.scored) || ActiveRosterLogic.scoredEvents(state, (pre && pre.events) || ActiveRosterLogic.episodeEvents(state, ep));
     const raw = Seq.momentRaw(ids, scored);
-    const cap = captain ? ActiveRosterLogic.captainTimes(state) : 1;
-    const lines = ids.map(id => ({ castawayId: id, points: Seq.multiply(raw.get(id), [id === captain ? cap : 1, times]), counted: false, captain: id === captain }));
+    // The captain's factor (C3: the one multiplier piece, on 'captain').
+    const cap = { on: 'captain', times: captain ? ActiveRosterLogic.captainTimes(state) : 1 };
+    const joined = pre && pre.joined !== undefined ? pre.joined : joinedFactors(state);
+    const mine = joined ? ((pre && pre.stints && pre.stints.get(playerId)) || Seq.stints(Core.ownedCastawayIds(state, playerId), state.midSeason && state.midSeason.log, playerId)) : null;
+    const joinedOf = id => { const s = mine.find(x => x.id === id && Seq.heldIn(x, ep.number)); return s ? joinedTimesOf(joined, s) : 1; };
+    const factors = id => joined ? [Seq.factorOf(cap, { captain: id === captain }), times, joinedOf(id)] : [Seq.factorOf(cap, { captain: id === captain }), times];
+    const lines = ids.map(id => ({ castawayId: id, points: Seq.multiply(raw.get(id), factors(id)), counted: false, captain: id === captain }));
     // Best ball: the n highest count (a tie can't change the total; the cast's order breaks it). A lineup: every starter.
     Seq.best(lines, best);
     const slots = GroupSlotLogic.scoredLines(state, ep, playerId, scored, times, pre && pre.slots);
@@ -7299,7 +7339,8 @@ class AnswerLogic {
       }
     });
     // A9: the parlays, each window their questions share.
-    (gameOf(state).score.parlays || []).forEach(p => {
+    // C3: each a factor of the one multiplier piece, on 'legs' (Spec.multipliersOf), its times when every leg is right.
+    Spec.multipliersOf(gameOf(state)).filter(f => f.on === 'legs').forEach(p => {
       const legs = p.of.map(id => qs.get(id));
       if(legs.some(q => !q)) return;
       const eps = new Set([...groups.values()].filter(g => g.q === legs[0]).map(g => g.ep));
@@ -7309,7 +7350,7 @@ class AnswerLogic {
         const right = Spec.allRight(legs.map((q, i) => ({ q, v: verdicts.get(keys[i]), answers: groups.get(keys[i]).list })), f);
         right.forEach(pid => keys.forEach(k => {
           const m = earned.get(k);
-          if(m && m.has(pid)) m.set(pid, Seq.multiply(m.get(pid), [p.times]));
+          if(m && m.has(pid)) m.set(pid, Seq.multiply(m.get(pid), [Seq.factorOf(p, { legs: true })]));
         }));
       });
     });

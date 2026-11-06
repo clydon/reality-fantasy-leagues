@@ -329,6 +329,8 @@ export interface LeagueSettings {
   bestBall?: boolean;
   captainTimes?: number;
   pointsTimes?: import("./game-spec/index.js").SpecWhen[];
+  /** Step C3, absent unless a game says it: a draft's multiplier on how a holding joined (the spec's score.multiply). */
+  joinedTimes?: import("./game-spec/index.js").SpecJoined[];
   reverseOrder?: boolean;
   /** Step A10 part 1, absent unless a game says it: a lineup's or best ball's group slots (the spec's get.groups). */
   groupSlots?: import("./game-spec/index.js").GroupSlots;

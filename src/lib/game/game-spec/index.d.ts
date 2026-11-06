@@ -103,12 +103,29 @@ export type SpecWhen = { times: number } & (
   | { finale: true }
 );
 
+/** C3: a multiplier on how a holding joined your team (drafted, any pickup, a replacement for someone gone, a swap for someone
+ *  still in), on what each one earns while it's yours: a number, or a list for the Nth (per team or per slot; past the list the
+ *  last again, or on by its last step). */
+export type SpecJoined = {
+  joined: "draft" | "pickup" | "replacement" | "swap";
+  times: number | number[];
+  per?: "team" | "slot";
+  then?: "repeat" | "ratio";
+};
+/** C3: one multiplier, keyed by its condition (multipliersOf). */
+export type SpecFactor =
+  | { on: "captain"; times: number }
+  | ({ on: "when" } & SpecWhen)
+  | { on: "joined"; joined: SpecJoined["joined"]; times: number | number[]; per?: "team" | "slot"; then?: "repeat" | "ratio" }
+  | { on: "legs"; of: string[]; times: number };
+
 export type SpecScore =
   /** points: moment id -> points over the rulebook's own; null = its own. A9 part 2: a lineup's captain, one of your starters you
-   *  name each episode, whose points multiply by `times`; and when the points multiply (`times`). */
-  | { by: "moments"; points: Record<string, number> | null; captain?: { times: number }; times?: SpecWhen[] }
-  /** A9 part 2's reverse: the earlier they go home the more (1, plus 1 for everyone who outlasts them). */
-  | { by: "place"; reverse?: true }
+   *  name each episode, whose points multiply by `times`; and when the points multiply (`times`). C3: how a holding joined. */
+  | { by: "moments"; points: Record<string, number> | null; captain?: { times: number }; times?: SpecWhen[]; multiply?: SpecJoined[] }
+  /** A9 part 2's reverse: the earlier they go home the more (1, plus 1 for everyone who outlasts them). C3: how a holding joined
+   *  (never in reverse), its lines then what each one earns while it's yours. */
+  | { by: "place"; reverse?: true; multiply?: SpecJoined[] }
   /** A10 part 2: lives (a wrong pick costs one, out at none), a buyback (someone out before `before` is back in from the next
    *  episode with one life, `cost` points off their total, `times` in a game), mulligans (the first n wrong picks forgiven). */
   | { by: "survive"; means: "staysIn" | "scores"; points: number; lives?: number; buyback?: PoolBuyback; mulligans?: number }
@@ -572,6 +589,10 @@ export function finaleOf(ask: SpecQuestion[] | null | undefined): { top3: number
  *  game); and whether a question is one a draft plays. */
 export function finaleIn(ask: SpecQuestion[] | null | undefined): { top3: number; winner: number; from: "any" | "own" } | null;
 export function draftQuestions(spec: Partial<GameSpec> | null | undefined): Question[];
+/** C3: every multiplier a spec has, as one piece keyed by a condition; the most in a list for the Nth, and its defaults. */
+export function multipliersOf(spec: Partial<GameSpec> | null | undefined): SpecFactor[];
+export const MAX_JOINED: number;
+export const JOINED: { per: "team"; then: "repeat" };
 export function draftPlayable(q: SpecQuestion): boolean;
 /** The answers that name someone (a person) or something (a group), `pick` of them (A6). */
 export const NAMES: readonly SpecQuestion["answer"][];
