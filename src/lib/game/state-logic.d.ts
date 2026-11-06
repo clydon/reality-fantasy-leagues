@@ -163,6 +163,8 @@ export interface LeagueType {
   hasCalls?: boolean;
   /** A game of questions (step A4): scored by its own answers (game_answers, answers.ts), not the state. */
   hasQuestions?: boolean;
+  /** C2 part 4c: a draft's own questions beyond its finale predictions (their answers in game_answers, as a game of questions'). */
+  hasDraftQuestions?: boolean;
   /** Weekly Bingo: scored from each person's bingo lines (src/lib/server/bingo.ts), which aren't in the state either. */
   hasBingo?: boolean;
 }
@@ -1165,6 +1167,11 @@ declare const StateLogic: {
     liveAnswers<T extends { playerId: string; question: string; episode: number }>(state: LeagueState, rows: T[]): T[];
     applyWalk(state: LeagueState, rows: ScoreRow[], walk: AnswerWalk): ScoreRow[];
     walkRows(rows: ScoreRow[], walk: AnswerWalk): ScoreRow[];
+    /** C2 part 4c: a draft's own questions' points, graded on exactly this state's data (null: a game with none). */
+    lines(state: LeagueState, answers: { playerId: string; question: string; episode: number; answer: unknown; late?: number; changes?: number }[], facts?: AnswerFacts): AnswerLines | null;
+    /** A copy of the state carrying them (never the state itself); the lines a state carries, or null. */
+    withLines(state: LeagueState, lines: AnswerLines | null): LeagueState;
+    linesOf(state: LeagueState): AnswerLines | null;
   };
 };
 /** A11 part 5b: a handicap as a game's screens read it (HandicapLogic.view): its points an episode, what newcomers are new to, the
@@ -1278,6 +1285,12 @@ export interface HandicapView {
 }
 /** A11 part 2b: a game of questions' walk (AnswerLogic.walk): where it ends early, who's out after which episode, lives left (with
  *  lives), who went out together sharing it, and each one's points as the table shows them (frozen once out). Plain data. */
+/** C2 part 4c: a draft's own questions' points as the server graded them (StateLogic.AnswerLogic.lines): through each of the game's
+ *  episodes with results, and now (the table's; at the game's end once it's over at an end of its own). */
+export interface AnswerLines {
+  through: Record<string, Record<string, number>>;
+  now: Record<string, number>;
+}
 export interface AnswerWalk {
   ends: number | null;
   out: Record<string, number>;

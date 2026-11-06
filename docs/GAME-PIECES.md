@@ -47,7 +47,7 @@ Three things decide whether a spec is a game (`src/lib/game/game-spec/schema.js`
   scores (below).
 - **`specWaitsFor(spec)`**: what it needs that isn't built yet (a value only the sports branch or a later step builds), or,
   when every part is built, a piece with no place in the scoring sequence: "No game plays this way yet: ..." naming the piece
-  and why (since C2 part 4: "a draft's own questions beyond its finale predictions come with C2's last part ...").
+  and why (since C2 part 4: "a pool's picks are its game: questions beside them play in a stage alongside it").
 - **`typeOf(spec)`**: the shape the screens name it by, worked out from its pieces: it plays when each piece it names has its
   place in the scoring sequence (C2 part 4, "playing by placement": see "How a game is scored: the sequence"), and is named by
   its lines: an Outlast-style draft (`classic-draft`), a draft scored by moments (`active-roster`), a pool (`pickem`), Weekly
@@ -228,7 +228,8 @@ Each one's own options:
 ## Questions: `ask`
 
 A question is answered before its lock, and data settles it. A game of questions is just questions (`get: none`, `score:
-answers`); a draft can carry questions only as its finale predictions (below). A question is:
+answers`); a draft carries its finale predictions and (since C2 part 4c) questions of its own beside its team, their points a
+line of the draft's (below). A question is:
 
 ```jsonc
 { "id": "boot", "ask": "Who goes home?", "answer": "person", "points": 2,
@@ -358,10 +359,10 @@ A staked parlay a player builds, with a bank, is **planned** (C6).
 
 ### Finale predictions
 
-A draft's own questions, two of them (`finaleQuestions({ top3, winner, from })`): name your final three and the winner before
-the finale, `from: "any"` (the cast) or `"own"` (your team). They're the only questions a draft carries today: any other
-question beside a draft waits ("No game plays this way yet: a draft's own questions beyond its finale predictions come with C2's
-last part"; until then, put them in a stage alongside: see Stages).
+A draft's two finale questions (`finaleQuestions({ top3, winner, from })`): name your final three and the winner before the
+finale, `from: "any"` (the cast) or `"own"` (your team). They come first among a draft's questions (`finaleIn`), as Start a game
+makes them, their answers kept in the league's state (`state.finalePredictions`, where classic's finale panel writes them), their
+switch and points in their own settings fields.
 
 ```jsonc
 [{ "id": "top3", "ask": "Who makes the final three?", "answer": "person", "pick": 3, "from": "cast", "points": 1,
@@ -371,6 +372,37 @@ last part"; until then, put them in a stage alongside: see Stages).
 ```
 → "Finale predictions: before the finale, name your final three and the winner. 1 point for each of the three you get, 3
 points for the winner."
+
+### A draft's own questions (C2 part 4c)
+
+Any question a game of questions plays can go beside a draft too, after its finale predictions (`draftQuestions`: the ask less
+them; `settings.draftQuestions`, a field of their own), and so can a person from your own team (`from: "team"`: a draft has
+teams). Their answers are kept as a game of questions' are (`game_answers`, through the same answers route and sheet) and graded
+the same way, every way their points combine (a pot split, only the only one right, a rollover, a shrinking call, a fixed stake,
+the bot's call, the answer most of you give); their points are a line of the draft's (step 2 of the sequence), so the table, head
+to head (its final settling the questions about the whole game, as a game of questions' do), teams of players and a handicap all
+count them. Each row carries them as `questions`.
+
+```jsonc
+{ "preset": "outlast", "ask": [{ "id": "boot", "ask": "Who goes home?", "answer": "person", "points": 2,
+  "asked": "each", "settle": { "by": "results", "take": "out" } }] }
+```
+→ "An Outlast for Survivor 51: everyone drafts 3, and answers one question before each episode: who goes home, all season. Each
+scores by how long they last: the last one standing carries you. 2 points for each right answer." (the tracker's p17)
+
+- Their points round to the cent as a game of questions' do (a pot's share), so an Outlast's total rounds once they're in it.
+- Only the server holds the answers and grades them (with what only it knows: the format's groups, the trivia key, an episode's
+  facts, the bot's calls), on each copy it reads, and hands the draft's walk their points through each episode and now
+  (`AnswerLogic.lines`, `answerLines` on that copy, never stored). A reader not taught yet, without them, scores the questions as
+  nothing (the safe fallback): today the classic app's screens and the Episodes page's lines.
+- Still refused, in our check's words: "a draft's own questions can't go beside its cuts or a race yet: who's out decides the
+  moves you can make, and those are checked without the questions' points" (the league's own writes, a lineup, a waiver claim,
+  an exclusive draft's castaways back in the pool, read it as it's stored, which holds no answers' points); "staking any of your
+  points beside a draft comes with money (C6): a draft's points are its team's and its questions' together"; "what most of you
+  answer to a finale prediction can't settle a draft's own question yet: those answers are kept apart, in the league itself"; "a
+  stock market ranks by its worth (cash plus the team at today's prices): questions beside it would only break ties"; the show's
+  calls (a game of their own); a late lock (a draft's moves lock as each episode starts); parlays (a draft's score has none: C3's
+  multipliers).
 
 ---
 
@@ -509,12 +541,13 @@ each other stay hidden until the lock; what the players decide changes the game,
 
 - **Match the majority** `settle: { by: "players", take: "majority" | "minority", of?, tie? }`: right is the answer most (or
   fewest) of you gave in the window, to this question or (`of`) another of the game's, answered the same way; a tie `none`
-  (nobody's right, the default) or `all`. A game of questions only, one answer each, one lock for everyone (no late lock).
+  (nobody's right, the default) or `all`. A game of questions', or (C2 part 4c) a draft's own questions, one answer each, one
+  lock for everyone (no late lock).
 - **Beat the bot** `beat: { by: "bot", none: "plays" | "void" }`: the bot makes its own call before the lock (kept apart and
   hidden until then); a right answer scores only where the bot's isn't right (each right pick it didn't name; a number only when
   closer than the bot). A person or group, yes or no, number, over/under or choice, settled by what happened; a game of
-  questions' own; no wager. The bot's own run that makes the call is A14 part 2b (until then every game against it plays its
-  fallback).
+  questions' own, or (C2 part 4c) a draft's; no wager. The bot's own run that makes the call is A14 part 2b (until then every
+  game against it plays its fallback).
 - **Vote on a format change** `extras.changes.ok: "vote"` (above).
 - **Side bets** `extras.bets: { points }` (1 to 3): Predictions the game's runner grades; one pays out only once two of you
   guessed. Beside a draft.
@@ -582,6 +615,7 @@ a few fields on top (every one of these plays now):
 | The idea | The spec, on top of its base |
 |---|---|
 | A game of calls, who goes home each episode | `get: none`, `score: answers`, `ask: [boot]` (the question above) |
+| Our Outlast, plus a question every week | Outlast, `ask: [boot]` (C2 part 4c: its own questions' points beside its team's) |
 | Guillotine | Weekly Lineup, `each: 4`, `rank: { by: "standing", cut: [{ at: { every: 1 } }] }` |
 | Head to head with playoffs | Weekly Lineup, `rank: { by: "matchups", playoffs: { teams: 4 } }` |
 | A captain who scores double | Weekly Lineup, `score: { by: "moments", points: null, captain: { times: 2 } }` |
@@ -636,7 +670,7 @@ Every game scores as one sequence of six steps, for each of you and each episode
    question's points, a rollover's jackpot in them (what the windows before it left unclaimed: `jackpot`, `carry`), a shrinking
    call's less for each episode late or each change (`shrink`). Which answers are right, and how many right ones each has, is
    the grading's (the settles above), never the sequence's. A right call (Weekly Calls) and a bingo line are lines too, counted
-   (`tally`).
+   (`tally`). A draft's own questions (since C2 part 4c) are graded the same way, their sum a line of the draft's beside its team's.
 3. **Multipliers**: each line times whatever applies to it, in order (`multiply`): a captain's, then the episode's own
    (`score.times`); a parlay's on what each of its windows gave you (after the window's share, below: the order today's games
    keep); a line's points on a count of bingo lines (`counted`).
@@ -678,7 +712,9 @@ on it, a handicap; Weekly Calls' right calls and bingo's lines, through each epi
 server knows (the format's groups, the trivia key, episode facts, the bot's calls) stays out of the league's state: the server
 grades with it and hands over the lines. Each part keeps every game scoring exactly as before unless it says otherwise. Part
 4b adds a pool's series of totals (head to head, teams of players and a handicap on a pool ranked by its points) and the week's
-result on teams' totals (a draft's teams knocked out or racing).
+result on teams' totals (a draft's teams knocked out or racing); part 4c a draft's own questions, graded as a game of questions'
+and handed to the draft's walk as a line through each episode and now (`AnswerLogic.lines`), so its table and everything that
+reads its series count them.
 
 **Playing by placement** (C2 part 4): a spec plays when each piece it names has its place in the sequence, not when it matches
 one of seven shapes (`schema.js` `noPlace`; `typeOf` names the shape the screens read, from its lines):
@@ -686,7 +722,7 @@ one of seven shapes (`schema.js` `noPlace`; `typeOf` names the shape the screens
 | Step | The pieces, and what each needs from the steps before it |
 |---|---|
 | 1. Hold | a draft (its order with its ownership, a draw, or an auction for castaways nobody else can have) counting its whole team, a lineup or its best few; a pick each episode (one, cycling or never repeating); nothing; a bingo card |
-| 2. Lines | a place, the whole team held; moments, a lineup or best few held; a pick staying in (or scoring), a pick held; answers, nothing held, each a question a game of questions plays (or the show's calls alone); bingo lines, a card held. Beside them: a draft's finale predictions |
+| 2. Lines | a place, the whole team held; moments, a lineup or best few held; a pick staying in (or scoring), a pick held; answers, nothing held, each a question a game of questions plays (or the show's calls alone); bingo lines, a card held. Beside them: a draft's finale predictions and (part 4c) its own questions, each one a draft plays (a game of questions' kind, or a person from your own team), not a stake of any of your points, not beside its cuts or a race, not beside a stock market by its worth |
 | 3 and 4. Multipliers, combine | each checked where it's said (`specProblems`): a captain on a lineup, points by when on moments, parlays on a game of questions; best ball's best n; a question's share, rollover, shrink, wager and the bot's call, combining in the sequence's order (a line's worth, the multipliers, the share) |
 | 5 and 6. The week's result, rank | a running total on any game's (a pool's by its points with no lives: its series of totals, since C2 part 4b; else its streak or who's still standing); last one standing on a draft's or a game of questions' cuts, or a pool's or a game of questions' lives, and a draft's teams on their cuts (part 4b); a race on a draft's or a game of questions' totals, or a draft's teams'; head to head on a draft's, a game of questions' or a pool's totals, with nobody racing, cut or losing a life; teams of players and a handicap on any of those totals (a draft's teams knocked out or racing; a game of questions' and a pool's by their points or head to head); worth, a stock market's on a lineup; co-op, a game of questions' lives together; the show's calls and bingo lines, most wins |
 
@@ -701,10 +737,12 @@ spec plays by each piece's place in the scoring sequence (above), not by one of 
 tracker row (`docs/ENGINE-CAPABILITIES.md`, p13 to p25) with the step that brings it:
 
 - **Pieces with no place yet** (each refused with why: "No game plays this way yet: ...", or our check's own words):
-  - a draft's own questions beyond its finale predictions (their answers' lines joining the draft's: C2's last part; until
-    then, a stage alongside the draft);
   - a pick each episode scored by what they do (C5, pick N each episode);
-  - questions beside a pool or a bingo card (they play in a stage alongside it).
+  - questions beside a pool or a bingo card (they play in a stage alongside it);
+  - a stake of any of your points beside a draft (C6, money: a draft's points are its team's and its questions' together).
+
+  (A draft's own questions beyond its finale predictions have their place since C2 part 4c: their answers' lines join the
+  draft's.)
 - **Combiners still exclusive**: a wager plays alone (C6, money: the stake, then the multipliers, then the share); a parlay on a
   split pot waits on a rule (does it multiply your share, or your call before the split?).
 - **One feature per multiplier**: captain, by when, parlay and the wager's double are four separate pieces, and nothing
@@ -721,6 +759,9 @@ tracker row (`docs/ENGINE-CAPABILITIES.md`, p13 to p25) with the step that bring
   settle.
 - **For now, a draft's only**: teams knocked out and a race between teams (a game of questions' walk works each night's points
   out from who's out so far, seat by seat, so its teams would need that walk on the teams' totals: refused, saying so).
+- **For now, not beside a draft's cuts or a race**: a draft's own questions (who's out, and where the game ends, decide the moves
+  the league's own writes take, and those read it as stored, without the answers' points only the server's copies hold: refused,
+  saying so). Questions beside a stock market ranked by its worth are refused for their own reason (they'd only break ties).
 
 The study of the sequence is in the plan (track C, C1's As built); what's built is under C2's.
 
@@ -728,7 +769,7 @@ The study of the sequence is in the plan (track C, C1's As built); what's built 
 
 | Step | The piece | What it opens |
 |---|---|---|
-| C2 | **One scoring sequence**: hold → score each line → multipliers → combine → the week's result → rank (above: parts 1 to 3, every game, built). A spec plays when each piece it names has its place in the sequence (part 4a, built: playing by placement, a shrinking call that's shared, a parlay's legs that roll over, shrink or pay only the only one right; part 4b, built: a pool's series of totals, so a pool by its points, head to head, in teams and with a handicap; a draft's teams knocked out and racing) | a draft's own questions (its last part, 4c) |
+| C2 | **One scoring sequence** (built): hold → score each line → multipliers → combine → the week's result → rank (above: parts 1 to 3, every game). A spec plays when each piece it names has its place in the sequence (part 4a: playing by placement, a shrinking call that's shared, a parlay's legs that roll over, shrink or pay only the only one right; part 4b: a pool's series of totals, so a pool by its points, head to head, in teams and with a handicap; a draft's teams knocked out and racing; part 4c: a draft's own questions, a line of their own) | done: what's still refused is listed above, with the step that takes it |
 | C3 | **Multipliers on any condition**: one piece keyed by how a holding joined (drafted, a pickup, the Nth replacement), when it was picked, a captain, a streak, a parlay's legs | captain, by when, parlay and confidence become uses of it; the user's 1x, 0.5x, 0.25x |
 | C4 | **Ownership per holding**: exclusive or shared for the draft, the pickups and the group slots each, and where a replacement comes from | an exclusive draft with shared replacements |
 | C5 | **The week as a result**: pick N each episode without a draft; a week's winner and ranking by weeks won; "only these moments count"; hits counted per objective or per pick; more than six stages, or each episode a round | the user's third game |

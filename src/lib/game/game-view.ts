@@ -1,6 +1,6 @@
 import type { Castaway, LeagueState, ScoreRow } from "./types";
 import StateLogic from "./state-logic.js";
-import type { AnswerWalk, CoopWalk, HandicapView, MatchupView, TeamView } from "./state-logic.js";
+import type { AnswerLines, AnswerWalk, CoopWalk, HandicapView, MatchupView, TeamView } from "./state-logic.js";
 import { castawayEventStats } from "./active-roster-rows";
 import { castawayPoints, teamOrder } from "./classic-view";
 import { latestScoredEpisode } from "./episode-team-summary";
@@ -155,7 +155,7 @@ export interface SheetMove {
   closesAt: string | null;
   /** A question waits until you've seen this episode (it says who's still in), or null. */
   behind: number | null;
-  /** A draft's finale predictions, not a game of questions. */
+  /** A draft's finale predictions, not a game of questions (nor, step C2 part 4c, a draft's own questions beside them). */
   finale: boolean;
 }
 
@@ -169,6 +169,8 @@ export interface GameCalls {
   ended?: boolean;
   /** Step A11 part 2b: a game of questions' walk on this viewer's own copy (answer-points.ts walked): who's out, where it ended. */
   walk?: AnswerWalk | null;
+  /** Step C2 part 4c: a draft's own questions' lines on this viewer's own copy (answer-points.ts walked): its table and series add them. */
+  lines?: AnswerLines | null;
   /** Step A14 part 2: how the couch did against the bot, on a game whose questions are played against it (answer-points.ts botLine). */
   bot?: BotLine | null;
 }
@@ -313,9 +315,11 @@ export type UserOf = (playerId: string) => string | null;
  */
 export function gameView(game: GameRefIn, full: LeagueState, playerId: string | null, seen: number | null, userOf: UserOf, calls?: GameCalls): GameView {
   // A game over a span (settings.endEpisode) as it stood at its last episode, however far past it you are. Step A11 part 2b: a game
-  // of questions' walk on your copy (answer-points.ts), so it ends, and knocks anyone out, only as far as you've seen.
+  // of questions' walk on your copy (answer-points.ts), so it ends, and knocks anyone out, only as far as you've seen; step C2 part
+  // 4c, a draft's own questions' lines on it, so its table counts them as far as you've seen.
   const seenView = StateLogic.GhostLogic.viewFor(full, playerId, seen);
-  const view = StateLogic.spanView(calls?.walk ? StateLogic.AnswerLogic.withWalk(seenView, calls.walk) : seenView);
+  const carried = calls?.walk ? StateLogic.AnswerLogic.withWalk(seenView, calls.walk) : calls?.lines ? StateLogic.AnswerLogic.withLines(seenView, calls.lines) : seenView;
+  const view = StateLogic.spanView(carried);
   const pieces = StateLogic.piecesOf(view);
   const me = playerId ?? "";
   const seat = playerId !== null;

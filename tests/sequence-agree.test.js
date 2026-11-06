@@ -12,7 +12,9 @@
 // right, a rollover, chips, a shrinking call, a wager, a parlay, trivia, an episode fact, the players' answers and the bot's calls,
 // and every walk on it, lives, last one standing, everyone out each way, a race, cuts, co-op with each `saves`, head to head, teams,
 // a handicap, a span; Weekly Calls and bingo; a game in stages by points, places and wins), each read as the server reads it. C2 part
-// 4b: a pool by its points, head to head, in teams and with a handicap; teams knocked out and racing (new reads, part 4b's). Each
+// 4b: a pool by its points, head to head, in teams and with a handicap; teams knocked out and racing (new reads, part 4b's). C2 part
+// 4c: a draft's own questions, an Outlast's and a lineup's, every way their points combine, the server's facts, and cuts, a race,
+// head to head, teams and a handicap on them (new reads, part 4c's). Each
 // read must be the one the scorers before the sequence gave (tests/fixtures/scoring-shapes.json, recorded at d5222e68, part 3's
 // shapes from part 3's parent), but for a plain lineup's table rows, which C2 part 2 moved by a cent on the half-cent moments (the
 // fixture's header). Run with `npm test`.
@@ -100,6 +102,23 @@ test("the shapes read what they're meant to: every game played, each kind of lin
   const o = read("teams-cut-outlast");
   assert.deepEqual([o.week.knockouts.teams.out, o.week.knockouts.ends, o.over], [[["t1", 3]], null, true]);
   assert.deepEqual([read("teams-race").last, read("teams-race").week.knockouts.teams.out], [2, []]);
+  // C2 part 4c: a draft's own questions, a line of its table. Who goes home from your own team (ann's c1 and di's c10 in Episode 5,
+  // cy's c8 in 6: a point each) and the season's winner (ann's and di's c0: 5); who goes home (ann 2, bo 6, cy 0, di 3) and the
+  // answer most of you give (Episode 1 ann's and bo's c13, Episode 5 ann's and cy's c4: 2 each; Episodes 2 and 4 tied, void) beside
+  // teams of players; a pot and a rollover on who goes home (bo's 35 of the pots, 6 calls and 14 of the rollover, Episode 3's 2
+  // rolling into Episode 4's 4; ann's 10, 2 and 6; di's 15, 3 and 6).
+  assert.deepEqual(read("dq-shared").rows.map((r) => [r.playerId, r.questions]), [["ann", 6], ["bo", 0], ["cy", 1], ["di", 6]]);
+  assert.deepEqual(read("dq-teams").rows.map((r) => [r.playerId, r.questions]).sort(), [["ann", 6], ["bo", 8], ["cy", 2], ["di", 3]]);
+  assert.deepEqual(read("dq-rollover").rows.map((r) => [r.playerId, r.questions]), [["bo", 55], ["ann", 18], ["di", 24], ["cy", 0]]);
+  // Each one's row its parts, and (where nothing's knocked out or early) its lines through the newest episode the table's.
+  for (const [name] of F.shapes(G).filter(([n]) => n.startsWith("dq-"))) {
+    const r = read(name);
+    for (const row of r.rows) assert.equal(row.total, S.roundPoints(row.locked + row.bonus + row.finale + row.questions + (row.handicap || 0)), `${name}: ${row.playerId}`);
+    if (r.last === null) for (const row of r.rows) assert.equal(r.lines.through[7][row.playerId] || 0, row.questions, `${name}: ${row.playerId} through 7`);
+  }
+  // Seen at a mark, the lines are that copy's: through Episode 3, ann's who goes home in 1 and the majority's there (1 + 2), bo's two
+  // and the majority's (1 + 1 + 2); Episode 4's and later aren't in.
+  assert.deepEqual(read("dq-teams", "bo", 3).rows.map((r) => [r.playerId, r.questions]).sort(), [["ann", 3], ["bo", 4], ["cy", 0], ["di", 0]]);
 });
 
 test("the screens read the sequence: an episode's points (episode lines, the reveal) and the side bets that paid", () => {

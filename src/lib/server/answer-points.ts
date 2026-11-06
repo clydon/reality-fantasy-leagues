@@ -5,7 +5,7 @@ import type { SheetNights } from "@/lib/game/episode-view";
 import { gameView, type BotLine, type GameCalls } from "@/lib/game/game-view";
 import { pointsPerLine } from "@/lib/game/bingo";
 import type { AnswerFacts, FormatGroups, Question, Verdict } from "@/lib/game/game-spec/index.js";
-import type { AnswerWalk, StageWalk } from "@/lib/game/state-logic.js";
+import type { AnswerLines, AnswerWalk, StageWalk } from "@/lib/game/state-logic.js";
 import type { LeagueState } from "@/lib/game/types";
 import type { CallBook } from "@/lib/game/calls";
 import { leagueGroupFacts } from "@db/format-timeline.js";
@@ -16,7 +16,9 @@ import { episodeFactsFor } from "./episode-facts";
 import type { SeasonSchedule } from "./schedule";
 
 // A game of questions' points, for its tables (step A4 of docs/PLAN-start-a-game-gpt.md; answers.ts reads and writes the
-// answers): graded on read from the league's results at the viewer's mark (StateLogic.AnswerLogic), never stored.
+// answers): graded on read from the league's results at the viewer's mark (StateLogic.AnswerLogic), never stored. Step C2 part 4c:
+// a draft's own questions (beyond its finale predictions) too, graded the same way and handed to the draft's walk as a line of their
+// own (StateLogic.AnswerLogic.lines, on the copy it reads: withLines).
 
 export interface AnswerRow {
   playerId: string;
@@ -35,6 +37,13 @@ export async function storedAnswers(leagueId: string): Promise<AnswerRow[]> {
   return rows.map((r) => ({ playerId: r.player_id as string, question: r.question as string, episode: r.episode as number, answer: r.answer, late: r.late as number, changes: r.changes as number }));
 }
 
+/** Whether a game keeps answers in game_answers (step C2 part 4c): a game of questions, or a draft with its own questions (beyond its
+ *  finale predictions, which its state keeps). */
+export function keepsAnswers(state: LeagueState): boolean {
+  const p = StateLogic.piecesOf(state);
+  return !!p.hasQuestions || !!p.hasDraftQuestions;
+}
+
 /** The season's last episode, when the season says how many it has: what finale predictions wait for. */
 export function finaleEpisode(schedule: SeasonSchedule | undefined): { number: number; airAt: string | null } | null {
   const n = schedule?.episodeCount ?? null;
@@ -44,12 +53,14 @@ export function finaleEpisode(schedule: SeasonSchedule | undefined): { number: n
 
 /** A game of questions as someone may see it (walked): its view, the facts its questions are graded on there, the answers that
  *  count (none of someone's for an episode after they went out) and its walk (null for a game that neither races nor knocks
- *  players out). */
+ *  players out). Step C2 part 4c: a draft with its own questions, their lines (on `view`: StateLogic.AnswerLogic.withLines), else
+ *  none. */
 export interface Walked {
   view: LeagueState;
   facts: AnswerFacts;
   rows: AnswerRow[];
   walk: AnswerWalk | null;
+  lines?: AnswerLines | null;
 }
 
 /**
@@ -63,11 +74,18 @@ export interface Walked {
 export async function walked(o: { leagueId: string; state: LeagueState; playerId: string | null; mark: number | null; rows?: AnswerRow[] }): Promise<Walked> {
   const A = StateLogic.AnswerLogic;
   const seen = StateLogic.GhostLogic.viewFor(o.state, o.playerId, o.mark);
-  const all = o.rows ?? (StateLogic.piecesOf(o.state).hasQuestions ? await storedAnswers(o.leagueId) : []);
+  const all = o.rows ?? (keepsAnswers(o.state) ? await storedAnswers(o.leagueId) : []);
   // The format's groups, the trivia key and the episode facts (A13), read once (the seen copy and the one cut at the game's end
   // have the same cast).
   const extra = await serverFacts(o.state, seen, o.leagueId);
   const factsOf = (v: LeagueState): AnswerFacts => ({ ...A.facts(v), ...extra });
+  // Step C2 part 4c: a draft's own questions, graded on the viewer's own copy and carried on it as the draft's lines, so its table, its
+  // series and what reads them (its knockouts, head to head, teams, a handicap) count them as far as they've seen.
+  if (StateLogic.piecesOf(o.state).hasDraftQuestions) {
+    const lines = A.lines(seen, all, factsOf(seen));
+    const view = StateLogic.spanView(A.withLines(seen, lines));
+    return { view, facts: factsOf(view), rows: all, walk: null, lines };
+  }
   if (!Spec.answerParts(StateLogic.gameOf(seen))) {
     const view = StateLogic.spanView(seen);
     return { view, facts: factsOf(view), rows: all, walk: null };
@@ -87,6 +105,12 @@ export async function asItStands(leagueId: string, state: LeagueState, rows?: An
   // Step A12 part 1: a game in stages, its stages' tables (stageWalk), so its own table is the overall (part 4b: a stage on another
   // season at `viewer`'s mark there).
   if (StateLogic.StageLogic.on(state)) return { state: StateLogic.StageLogic.withWalk(state, await stageWalk(leagueId, state, viewer)), rows };
+  // Step C2 part 4c: a draft's own questions, graded on every answer and result, as lines its walk reads (who's out, where it ends).
+  if (StateLogic.piecesOf(state).hasDraftQuestions) {
+    const all = rows ?? (await storedAnswers(leagueId));
+    const lines = StateLogic.AnswerLogic.lines(state, all, await answerFacts(state, state, leagueId));
+    return { state: StateLogic.AnswerLogic.withLines(state, lines), rows: all };
+  }
   if (!Spec.answerParts(StateLogic.gameOf(state))) return { state, rows };
   const all = rows ?? (await storedAnswers(leagueId));
   const walk = StateLogic.AnswerLogic.walk(state, all, await answerFacts(state, state, leagueId));
@@ -109,7 +133,8 @@ const seasonKeyOf = (s: LeagueState): string | null => (s.settings?.showId && s.
 
 /**
  * A game in stages' stages' tables (step A12 part 1: StateLogic.StageLogic reads them): each stage league as it stands (a game of
- * questions graded and walked on its answers, as its own table is; part 4a: bingo's lines and Weekly Calls' right calls counted as
+ * questions graded and walked on its answers, as its own table is, and a draft's own questions (C2 part 4c) as its lines; part 4a:
+ * bingo's lines and Weekly Calls' right calls counted as
  * their own tables count them, outsideCounts), its table as it stood after each episode it played, the table anyone on its couch sees
  * at that mark (game-view.ts gameView, no seat), up to the episode it's over at; so the game's overall reads at any viewer's mark. One
  * query for the stages, one for each game of questions' answers and a few for each stage of bingo or Calls (each season's schedule
@@ -128,7 +153,7 @@ export async function stageWalk(parentId: string, parent: LeagueState, viewer?: 
   // Each stage's walk side by side.
   const stages: StageWalk["stages"] = await Promise.all(
     all.map(async (r) => {
-      const questions = StateLogic.piecesOf(r.state).hasQuestions;
+      const questions = keepsAnswers(r.state);
       const answers = questions ? await storedAnswers(r.id) : undefined;
       const { state } = await asItStands(r.id, r.state, answers);
       const from = StateLogic.startEpisode(state);
@@ -326,11 +351,17 @@ export async function answerFacts(state: LeagueState, view: LeagueState, leagueI
 
 /**
  * A game of questions' points by player, as `playerId` sees it at `mark` (the spoiler guard's view: nothing past it is
- * graded), for its table (game-view.ts tableOf ranks it by them, as Weekly Calls' by its calls). Null for any other game: a
- * draft's finale predictions are in its own scores.
+ * graded), for its table (game-view.ts tableOf ranks it by them, as Weekly Calls' by its calls). Step C2 part 4c: a draft with its
+ * own questions, their lines for its table (gameView carries them on the viewer's copy: its own scores add them), and how the couch
+ * did against the bot where they're played against it. Null for any other game: a draft's finale predictions are in its own scores.
  */
 export async function leagueAnswers(o: { leagueId: string; state: LeagueState; playerId: string | null; mark: number | null; rows?: AnswerRow[] }): Promise<GameCalls | null> {
-  if (!StateLogic.piecesOf(o.state).hasQuestions) return null;
+  const pieces = StateLogic.piecesOf(o.state);
+  if (pieces.hasDraftQuestions) {
+    const w = await walked(o);
+    return { right: () => 0, move: null, lines: w.lines ?? null, bot: botLine(w) };
+  }
+  if (!pieces.hasQuestions) return null;
   const w = await walked(o);
   // Step A11 part 2b: a game that races or knocks players out has its points in its walk (frozen once someone's out), and the
   // table reads who's out from the walk (gameView puts it on its copy of the league).
@@ -388,6 +419,13 @@ function pointsOf(w: Walked, graded?: { points: Map<string, number> } | null): (
   }
   const { points } = graded ?? StateLogic.AnswerLogic.grade(w.view, w.rows, w.facts);
   return (p) => points.get(p) ?? 0;
+}
+
+/** Step C2 part 4c: a draft's own questions' lines as `playerId` sees it at `mark`, for a reader that carries them on its own copy (the
+ *  hub's standings: couch-hub.ts standingOf), or null for any other game. `rows`: the game's answers when they've been read already. */
+export async function draftLines(o: { leagueId: string; state: LeagueState; playerId: string | null; mark: number | null; rows?: AnswerRow[] }): Promise<AnswerLines | null> {
+  if (!StateLogic.piecesOf(o.state).hasDraftQuestions) return null;
+  return (await walked(o)).lines ?? null;
 }
 
 /**

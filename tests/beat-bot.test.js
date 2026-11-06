@@ -97,8 +97,9 @@ test("its shape: one call the bot can make, settled by data, a game of questions
   assert.deepEqual(problems(game([{ id: "t", ask: "Trivia", answer: "trivia", points: 1, asked: "each", settle: { by: "trivia" }, beat: { by: "bot" } }])), ["ask[0].beat"]);
   assert.deepEqual(problems(game([{ ...BOOT, wager: 3 }])), ["ask[0].beat"], "a wager is on your own call");
   assert.ok(problems(game([{ ...BOOT, from: "team" }])).includes("ask[0].beat"), "the bot has no team");
-  // Only in a game of questions: a draft's finale predictions are its own.
-  assert.ok(problems({ preset: "outlast", ask: [{ ...BOOT, asked: "once", settle: { by: "results", take: "winner" } }] }).includes("ask[0].beat"));
+  // In a game of questions, or (C2 part 4c) beside a draft as one of its own questions; never a pool's or a bingo card's.
+  assert.ok(!problems({ preset: "outlast", ask: [{ ...BOOT, asked: "once", closes: "finale", settle: { by: "results", take: "winner" } }] }).includes("ask[0].beat"));
+  assert.ok(problems({ preset: "survival-pool", ask: [BOOT] }).includes("ask[0].beat"));
   // Its round trip through a league's settings.
   const s = league(game([BOOT]));
   assert.deepEqual(S.gameOf(s).ask[0].beat, { by: "bot", none: "plays" });

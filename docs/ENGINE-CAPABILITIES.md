@@ -9,8 +9,8 @@ A row plays now when its spec passes the validator (`specProblems`, with what it
 needs waits (`specWaitsFor`); it then says the game in the engine's own words (`describeSpec`). A show the tracker has no
 rules for is checked against a show of its kind, and says so.
 
-**Now:** 209 ✅ · 53 ⏳ · 1 🆕 · 4 ❓ · 23 💬, of 290.
-**Waiting, by step:** C2 1 · C3 1 · C4 1 · C6 1 · C7 2 · A14 8 · A15 15 · L3 7 · L4 13 · G1 4.
+**Now:** 210 ✅ · 52 ⏳ · 1 🆕 · 4 ❓ · 23 💬, of 290.
+**Waiting, by step:** C3 1 · C4 1 · C6 1 · C7 2 · A14 8 · A15 15 · L3 7 · L4 13 · G1 4.
 
 ## The dials
 
@@ -181,7 +181,7 @@ The plan's worked examples, as people would type them on a show's page.
 | ✅ | p14 | Survivor 51 | Who wins, worth a point less every episode you wait, and it only scores if nobody else called it. | score | A game for Survivor 51: everyone answers one question before the finale: who wins, all season. 10 points for a right answer nobody else has. The earlier you call it, the more it's worth. |
 | ✅ | p15 | Survivor 51 | Who goes home and who wins immunity: triple if you get both, and who goes home rolls over when nobody gets it. | score | A game for Survivor 51: everyone answers two questions before each episode: who goes home and who wins immunity, all season. 2 points for each right answer. If nobody's right, the points roll over. Right on who goes home and who wins immunity together: triple the points. |
 | ✅ | p16 | Survivor 51 | Who goes home and who wins immunity, double if you get both, but who goes home only pays if you're the only one who called it. | score | A game for Survivor 51: everyone answers two questions before each episode: who goes home and who wins immunity, all season. 2 points for each right answer. Right on who goes home and who wins immunity together: double the points. |
-| ⏳ | p17 | Survivor 51 | Our Outlast, plus a question every week: who goes home, 2 points. | what, score | C2: its last part: a draft's own questions beyond its finale predictions, their answers' lines joining the draft's (today: "No game plays this way yet"; a stage alongside the Outlast plays it). |
+| ✅ | p17 | Survivor 51 | Our Outlast, plus a question every week: who goes home, 2 points. | what, score | An Outlast for Survivor 51: everyone drafts 3, and answers one question before each episode: who goes home, all season. Each scores by how long they last: the last one standing carries you. 2 points for each right answer. |
 | ✅ | p18 | Survivor 51 | A Survival Pool, but head to head each week: whoever's pick stays in beats whoever's doesn't. | win | A Survival Pool for Survivor 51: everyone picks one person to stay in each episode, all season. A point for each right pick. Each episode you play one of the others head to head: more points wins it. Most wins at the end wins. |
 | ✅ | p19 | Survivor 51 | A Survival Pool in two teams: each team's right picks add up. | who | A Survival Pool for Survivor 51: everyone picks one person to stay in each episode, all season. A point for each right pick. Played in two teams, drawn at random at the start: a team's points are its members' added up. |
 | ✅ | p20 | Survivor 51 | Most right picks wins our Survival Pool, and newcomers get a point a week head start. | who, win | A Survival Pool for Survivor 51: everyone picks one person to stay in each episode, all season. A point for each right pick. Newcomers get 1 point an episode: anyone with no game on this couch from an earlier season. Most points wins. |

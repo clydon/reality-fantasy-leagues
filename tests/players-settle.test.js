@@ -76,8 +76,9 @@ test("its shape: one answer each, in a game of questions with one lock for every
   assert.deepEqual(problems(game([{ ...BOOT, settle: { by: "results", take: "out", tie: "all" } }])), ["ask[0].settle.tie"], "only the players' answers tie");
   assert.deepEqual(problems(game([{ ...BOOT, settle: { by: "results", take: "out", of: "herd" } }])), ["ask[0].settle.of"]);
   assert.deepEqual(problems(game([HERD], {}, { extras: { lateLock: { hours: 24 } } })), ["ask[0].settle"], "one lock for everyone: a late lock would show some the answers first");
-  // Only in a game of questions: a draft's finale predictions are the results'.
-  assert.ok(problems({ preset: "outlast", ask: [{ ...HERD, asked: "once" }] }).includes("ask[0].settle"));
+  // In a game of questions, or (C2 part 4c) beside a draft as one of its own questions; never a pool's or a bingo card's.
+  assert.ok(!problems({ preset: "outlast", ask: [HERD] }).includes("ask[0].settle"));
+  assert.ok(problems({ preset: "survival-pool", ask: [HERD] }).includes("ask[0].settle"));
   // `of`: the game's question it guesses at, answered the same way and asked when it is.
   assert.deepEqual(G.specProblems(game([BOOT, GUESS]), CTX), []);
   assert.deepEqual(problems(game([BOOT, { ...GUESS, settle: { ...GUESS.settle, of: "nope" } }])), ["ask[1].settle.of"]);

@@ -568,6 +568,11 @@ export function betsFit(spec: Partial<GameSpec>): boolean;
 export const CALLS: Question;
 export function finaleQuestions(f: { top3: number; winner: number; from: "any" | "own" }): Question[];
 export function finaleOf(ask: SpecQuestion[] | null | undefined): { top3: number; winner: number; from: "any" | "own" } | null;
+/** C2 part 4c: a draft's finale predictions at the head of its questions, or null; its own questions beyond them ([] for any other
+ *  game); and whether a question is one a draft plays. */
+export function finaleIn(ask: SpecQuestion[] | null | undefined): { top3: number; winner: number; from: "any" | "own" } | null;
+export function draftQuestions(spec: Partial<GameSpec> | null | undefined): Question[];
+export function draftPlayable(q: SpecQuestion): boolean;
 /** The answers that name someone (a person) or something (a group), `pick` of them (A6). */
 export const NAMES: readonly SpecQuestion["answer"][];
 /** The settles a number answer is graded by ("by:take"). */
@@ -854,7 +859,7 @@ export function typeOf(spec: SpecInput | GameSpec): LeagueTypeId | null;
 export function playsAs(spec: GameSpec): LeagueTypeId | null;
 /** The league type's flags, worked out from a whole spec. */
 export function flagsOf(spec: GameSpec): {
-  hasRoster: boolean; hasActiveRoster: boolean; hasBestBall: boolean; hasGroupSlots: boolean; hasKeepers: boolean; hasWeeklyPicks: boolean; hasCalls: boolean; hasQuestions: boolean; hasBingo: boolean;
+  hasRoster: boolean; hasActiveRoster: boolean; hasBestBall: boolean; hasGroupSlots: boolean; hasKeepers: boolean; hasWeeklyPicks: boolean; hasCalls: boolean; hasQuestions: boolean; hasDraftQuestions: boolean; hasBingo: boolean;
   hasRace: boolean; hasCuts: boolean; hasAnswerLives: boolean; hasCoop: boolean; hasMatchups: boolean; hasTeams: boolean; hasHandicap: boolean; hasStages: boolean;
   supportsReplenish: boolean; supportsTrade: boolean; supportsFinalePredictions: boolean;
 };

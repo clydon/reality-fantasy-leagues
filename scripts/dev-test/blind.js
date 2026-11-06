@@ -594,7 +594,7 @@ async function standInCalls(r, n, gq) {
 }
 
 /** The league as it stands (A11 part 2b: a game of questions that races or knocks players out walked over its answers, as the
- *  app reads it: answer-points.ts asItStands). */
+ *  app reads it: answer-points.ts asItStands; C2 part 4c, a draft's own questions' lines on it). */
 async function standing(r) {
   return (await app().points.asItStands(r.leagueId, await H.stateOf(r.leagueId))).state;
 }
@@ -603,9 +603,10 @@ async function standing(r) {
  *  earned what, whose pick was void), its table, whether it's over. */
 async function lookAt(r, n) {
   const { answers, points, S } = app();
-  // A12 part 1: a game in stages read as it stands, its stages' tables handed over (its own table the overall).
+  // A12 part 1: a game in stages read as it stands, its stages' tables handed over (its own table the overall); C2 part 4c, a draft
+  // with its own questions, their lines carried (its table counts them).
   const raw = await H.stateOf(r.leagueId);
-  const s = S.StageLogic.on(raw) ? await standing(r) : raw;
+  const s = S.StageLogic.on(raw) || S.piecesOf(raw).hasDraftQuestions ? await standing(r) : raw;
   const out = { episode: n, table: {}, verdicts: {}, over: S.gameOver(s) };
   if (S.StageLogic.on(s)) out.stages = S.StageLogic.standings(s).map((x) => ({ key: x.key, started: x.started, over: x.over, first: x.rows.filter((y) => y.place === 1).map((y) => (r.seats.find((z) => H.pidOf(r, z) === y.playerId) || {}).label || y.playerId) }));
   const type = S.getLeagueType(s);

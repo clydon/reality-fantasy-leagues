@@ -75,8 +75,10 @@ test("a trivia question's shape: a round before each episode, settled by its key
   // The data rule: a season whose research writes no trivia (its trivia run off) has nothing to settle it; unsaid, it's written.
   assert.deepEqual(at(TRIVIA, {}, { ...CTX, trivia: false }), ["ask[0].settle"]);
   assert.deepEqual(at(TRIVIA, {}, { ...CTX, trivia: true }), []);
-  // Beside a draft: only its finale predictions, as any question (a draft with trivia is a game in stages, alongside: below).
-  assert.deepEqual(G.specWaitsFor({ ...G.PRESETS.outlast, ask: [TRIVIA] }).map((w) => `${w.at}: ${w.problem}`), ["ask: No game plays this way yet: a draft's own questions beyond its finale predictions come with C2's last part: until then, play them in a stage alongside the draft"]);
+  // Beside a draft (C2 part 4c): one of its own questions, its round's points a line of the draft's; beside a pool, no place.
+  assert.deepEqual(G.specWaitsFor({ ...G.PRESETS.outlast, ask: [TRIVIA] }), []);
+  assert.equal(G.typeOf({ ...G.PRESETS.outlast, ask: [TRIVIA] }), "classic-draft");
+  assert.deepEqual(G.specWaitsFor({ ...G.PRESETS["survival-pool"], ask: [TRIVIA] }).map((w) => `${w.at}: ${w.problem}`), ["ask: No game plays this way yet: a pool's picks are its game: questions beside them play in a stage alongside it"]);
 });
 
 test("a trivia question in words: the round before each episode, a point for each one right", () => {

@@ -26,7 +26,11 @@
 // are combinations no engine before it plays (refused there), so their reads are new, recorded from part 4a's engine and proven by
 // hand in tests/shared-shrink.test.js and tests/parlay-legs.test.js; the 1,620 reads before them stay as they were. C2 part 4b's
 // (seriesShapes: a pool's series of totals, teams knocked out and racing) likewise, from part 4b's engine, proven by hand in
-// tests/pool-series.test.js and tests/team-knockouts.test.js and checked in tests/sequence-agree.test.js; the 1,674 before them stay:
+// tests/pool-series.test.js and tests/team-knockouts.test.js and checked in tests/sequence-agree.test.js; the 1,674 before them stay.
+// C2 part 4c's (askShapes: a draft's own questions, an Outlast's and a lineup's, with every way their points combine, the server's
+// facts, head to head, teams and a handicap on them) likewise, from part 4c's engine, each read with the questions'
+// lines the server hands it (o.asks), proven by hand in tests/draft-questions.test.js and checked in tests/sequence-agree.test.js;
+// the 1,836 before them stay:
 //   node tests/fixtures/scoring-shapes.js --write [--ref=<git ref>]      the record, from this tree's engine (or the ref's)
 //   node tests/fixtures/scoring-shapes.js --print <shape> <seat|-> <mark|-|all> [--ref=<git ref>]   one read, in full
 //   node tests/fixtures/scoring-shapes.js --diff [<shape>] [--ref=d5222e68]   where this tree's reads part from the ref's (the
@@ -52,6 +56,11 @@ const CTX = {
 };
 const SEATS = ["ann", "bo", "cy", "di"];
 const FINALE = (G) => G.finaleQuestions({ top3: 1, winner: 3, from: "any" });
+// C2 part 4c: the same two, written out (a draft's own questions after them).
+const FINALE_Q = [
+  { id: "top3", ask: "Who makes the final three?", answer: "person", points: 1, settle: { by: "results", take: "top", place: 3 }, asked: "once", closes: "finale", pick: 3, from: "cast" },
+  { id: "winner", ask: "Who wins?", answer: "person", points: 3, settle: { by: "results", take: "winner" }, asked: "once", closes: "finale", pick: 1, from: "cast" },
+];
 
 /** The shapes: [name, spec, how the league is held]. `own`: exclusive (each seat's three, two pickups) or shared (overlapping). */
 function shapes(G) {
@@ -84,6 +93,7 @@ function shapes(G) {
     ...weekShapes(G, outlast, lineup),
     ...outsideShapes(),
     ...seriesShapes(outlast, lineup),
+    ...askShapes(outlast, lineup),
   ];
 }
 
@@ -160,6 +170,37 @@ function seriesShapes(outlast, lineup) {
     ["teams-guillotine", lineup({ rank: { by: "standing", cut: [{ at: { every: 2 }, out: 1 }], teams: { of: 3, made: "choose", score: "sum" } } }), "exclusive", { ...W, teamSeats: THREE }],
     ["teams-cut-outlast", outlast({ rank: { by: "standing", cut: [{ at: { episode: 3 }, out: 1 }], oneLeft: "plays", teams: { of: 2 } } }), "exclusive", W],
     ["teams-race", lineup({ rank: { by: "total", race: { to: 10 }, teams: { of: 2, score: "sum" } } }), "exclusive", W],
+  ];
+}
+
+/**
+ * C2 part 4c: a draft's own questions beyond its finale predictions, on the same season, each read as the server reads it (o.asks:
+ * their answers and what only the server knows, graded on the viewer's copy into the lines it carries: AnswerLogic.lines). No engine
+ * before part 4c plays them, so their reads are new (from part 4c's engine), the mechanics proven by hand in
+ * tests/draft-questions.test.js: an Outlast with its finale predictions, side bets and a pot split; a lineup with a captain, only the
+ * only one right and a number's closest; a shared Outlast's pick from your own team and the season's winner; best ball with a fixed
+ * stake; a pot and a rollover; head to head with playoffs; teams of players on the answer most of you give; a handicap with chips;
+ * and the server's facts (the bot's call, trivia, an episode fact, a shrinking call). (A draft's own questions beside its cuts or a
+ * race have no place yet: schema.js draftAskPlace.)
+ */
+function askShapes(outlast, lineup) {
+  const W = { week: true };
+  const shared = { by: "draft", each: 3, order: "blind", own: "shared" };
+  // Each question's answers as game_answers holds them (a finale prediction's are the state's, FINALE_PICKS: none here), and who goes
+  // home from your own team (a shared team's: c1 and c10 in Episode 5, c8 in 6; cy's c7 in 4 stays).
+  const MINE = { mine: { 4: { cy: "c7" }, 5: { di: "c10", ann: "c1" }, 6: { cy: "c8" } } };
+  const shape = (name, spec, own, o = {}) => [name, spec, own, { ...o, asks: { answers: answersOf(spec.ask.filter((q) => !FINALE_Q.includes(q)), MINE), extra: o.extra } }];
+  const server = () => ({ ...SERVER.trivia(), ...SERVER.facts(), ...SERVER.bot() });
+  return [
+    shape("dq-outlast", outlast({ ask: [...FINALE_Q, BOOT, Q.POT, IDOL], extras: { bets: { points: 1 } } }), "exclusive"),
+    shape("dq-lineup", lineup({ score: { by: "moments", points: null, captain: { times: 2 } }, ask: [IMMUNE, Q.ONLY, MANY] }), "exclusive"),
+    shape("dq-shared", outlast({ get: shared, ask: [{ ...BOOT, id: "mine", from: "team" }, WINNER] }), "shared"),
+    shape("dq-stake", lineup({ count: { best: 2 }, ask: [BOOT, Q.BET] }), "exclusive", W),
+    shape("dq-rollover", outlast({ ask: [BOOT, Q.POT, Q.ROLL] }), "exclusive", W),
+    shape("dq-matchups", lineup({ rank: { by: "matchups", playoffs: { teams: 2, from: 6 } }, ask: [BOOT, IMMUNE, WINNER] }), "exclusive", W),
+    shape("dq-teams", outlast({ rank: { by: "total", teams: { of: 2, score: "sum" } }, ask: [BOOT, Q.HERD] }), "exclusive", W),
+    shape("dq-handicap", lineup({ rank: { by: "total", handicap: { points: 2 } }, ask: [BOOT, Q.CHIPS] }), "exclusive", { history: true }),
+    shape("dq-server", outlast({ ask: [{ ...BOOT, ...BOT }, Q.TRIVIA, Q.QUOTE, WIN] }), "exclusive", { extra: server }),
   ];
 }
 
@@ -552,6 +593,10 @@ function readOf(S, v, o, seat, eng) {
   if (o && o.questions) return questionsRead(S, v, o, seat, e);
   if (o && o.outside) return outsideRead(S, v, o, seat, e);
   if (o && o.stages) return stageRead(S, v);
+  // C2 part 4c: a draft's own questions, graded on this copy with what only the server knows, carried as its lines (answer-points.ts
+  // walked), where the engine plays them.
+  const lines = o && o.asks && S.AnswerLogic.lines ? S.AnswerLogic.lines(v, o.asks.answers, { ...S.AnswerLogic.facts(v), ...(o.asks.extra ? o.asks.extra() : {}) }) : null;
+  if (lines) v = S.AnswerLogic.withLines(v, lines);
   const g = S.gameOf(v);
   const ids = (list) => (list || []).map((c) => c.id);
   const rows = S.computeScores(v).map((r) => ({ ...r, roster: ids(r.roster), formerRoster: ids(r.formerRoster) }));
@@ -578,6 +623,7 @@ function readOf(S, v, o, seat, eng) {
     last: S.lastEpisode(v),
     over: S.gameOver(v),
     ...(o && o.week ? { week: weekOf(S, v) } : {}),
+    ...(o && o.asks ? { lines } : {}),
   });
 }
 

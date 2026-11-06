@@ -1125,6 +1125,9 @@ export interface LeagueState {
   /** A11 part 2b: a game of questions' race, cuts and lives as the server walked them over its answers on exactly this copy
    *  (StateLogic.AnswerLogic.withWalk): never stored; a copy that hides anything drops it. */
   answerWalk?: { ends: number | null; out: Record<string, number>; lives: Record<string, number>; shared: string[]; totals: Record<string, number> };
+  /** C2 part 4c: a draft's own questions' points as the server graded them on exactly this copy (StateLogic.AnswerLogic.withLines):
+   *  never stored; a copy that hides anything drops them. */
+  answerLines?: import("./state-logic.js").AnswerLines;
   /** Step A12 part 1: a game in stages' stages' tables as the server read them (stages.ts stageWalk, StateLogic.StageLogic.withWalk):
    *  never stored; a copy cut at a mark cuts it too. */
   stageWalk?: import("./state-logic.js").StageWalk;
@@ -1212,6 +1215,8 @@ export interface ScoreRow {
   banked?: number;
   bonus: number;
   finale: number;
+  /** C2 part 4c: a draft's own questions' points (beyond its finale predictions), only where the game has them. */
+  questions?: number;
   total: number;
   roster: Castaway[];
   formerRoster: Castaway[];

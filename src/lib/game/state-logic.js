@@ -167,8 +167,11 @@ function spanView(state){
   const end = lastEpisode(state);
   if(end === null || !(state.episodes || []).some(e => e.number > end && EpisodeLogic.hasResults(e))) return state;
   const view = SpoilerLogic.viewThrough(state, end);
-  // A11 part 2b: a game of questions' walk holds for its copy cut at the game's end (nothing it read is after it).
-  return state.answerWalk && view !== state ? AnswerLogic.withWalk(view, state.answerWalk) : view;
+  if(view === state) return view;
+  // A11 part 2b: a game of questions' walk holds for its copy cut at the game's end (nothing it read is after it); C2 part 4c, a
+  // draft's own questions' lines (worked out to its end: AnswerLogic.lines).
+  const walked = state.answerWalk ? AnswerLogic.withWalk(view, state.answerWalk) : view;
+  return state.answerLines ? AnswerLogic.withLines(walked, state.answerLines) : walked;
 }
 // The game is over: its season is (seasonEnded), or its span's last episode has results. A12 part 4b: a game in stages with an own
 // stage on another season once every own stage is (StageLogic.overAcross), never at its own season's end.
@@ -460,10 +463,13 @@ class EliminationOrderScoringStrategy {
   static stillInPoints(state){ return Seq.stillIn(EliminationOrderScoringStrategy.mark(state)); }
   // The scoring sequence for an Outlast (C2): the draft's one walk at now (ScoringLogic.walk: (1) who each seat holds now; (2) each
   // holding's line, its place as a value as this copy sees it, a pickup bringing its whole place and someone dropped counting for
-  // nobody; (4) their sum, never rounded); side bets and finale predictions beside it (addSideLayers); (6) the total, ranked.
+  // nobody; (4) their sum, never rounded); side bets and finale predictions beside it (addSideLayers); C2 part 4c, its own questions'
+  // points (`questions`, as the server graded them on this copy: AnswerLogic.lines); (6) the total, ranked (rounded once its own
+  // questions are in it: a pot's share is cents).
   static compute(state){
     const results = {};
-    state.players.forEach(p=> results[p.id] = {playerId:p.id, name:p.name, color:p.color, locked:0, banked:0, bonus:0, finale:0, total:0, roster:[], formerRoster:[]});
+    const asks = draftAsks(state);
+    state.players.forEach(p=> results[p.id] = asked({playerId:p.id, name:p.name, color:p.color, locked:0, banked:0, bonus:0, finale:0, total:0, roster:[], formerRoster:[]}, asks));
     const now = ScoringLogic.walk(state, { now: true }).now;
     // Per-player, via Core.ownedCastawayIds rather than a single scalar owner per castaway, so a
     // castaway with several owners (shared-ownership league types) contributes its placement to
@@ -474,6 +480,7 @@ class EliminationOrderScoringStrategy {
       const at = now.get(p.id);
       results[p.id].locked = at.locked;
       results[p.id].banked = at.banked;
+      if(asks) results[p.id].questions = at.questions;
     });
     state.castaways.forEach(c=>{
       // Dropped via replenish/trade: no longer counts, but still shown (grayed out) for history.
@@ -482,9 +489,20 @@ class EliminationOrderScoringStrategy {
       }
     });
     const bets = addSideLayers(state, results);
-    Object.values(results).forEach(r=> r.total = Seq.total(r, bets, false));
+    Object.values(results).forEach(r=> r.total = Seq.total(r, bets, asks));
     return Seq.byTotal(Object.values(results));
   }
+}
+// C2 part 4c: whether the game that's played has a draft's own questions (beyond its finale predictions), whose points are a line of
+// their own on its rows (`questions`).
+function draftAsks(state){ return Spec.draftQuestions(playedGame(state)).length > 0; }
+// A score row with a draft's own questions' points beside its finale predictions (`questions`), where the game has them: every other
+// game's row keeps its fields, in their order.
+function asked(row, asks){
+  if(!asks) return row;
+  const out = {};
+  for(const k of Object.keys(row)){ out[k] = row[k]; if(k === 'finale') out.questions = 0; }
+  return out;
 }
 // The layers both drafts carry over how they score, as the spec says them: side bets while they're on (extras.bets: a bet
 // needs company, it won't pay out unless two guessed), and finale predictions while they're on (the spec's two finale
@@ -616,12 +634,13 @@ class ScoringLogic {
   // read, a race, the cuts, head to head, the teams), and now (`now`: the table's, what each seat's holdings stand at with
   // everything known now). want: { series, now } (left out, both).
   //   series  [{ number, quiet, totals: Map playerId -> points through it, rows: Map playerId -> { locked, banked, bonus, finale,
-  //           handicap? } }]: each episode from the game's start to its span's end with results, in order, all but the newest while
+  //           questions?, handicap? } }]: each episode from the game's start to its span's end with results, in order, all but the newest while
   //           its results are early (only final results move a week's result; an episode where nothing scored can stay early for
   //           good, so once a later one has results it's as final as it will be). Through each: what the holdings scored (locked;
   //           an Outlast's places of those out by then, banked), the side bets settled in the episodes walked, finale predictions
-  //           from the finale's episode on, a handicap's points (A11 part 5b), and their total, rounded.
-  //   now     Map playerId -> { locked, banked }: what each seat's holdings score with everything known now: a lineup, every
+  //           from the finale's episode on, a draft's own questions graded through it (C2 part 4c), a handicap's points (A11 part 5b),
+  //           and their total, rounded.
+  //   now     Map playerId -> { locked, banked, questions? }: what each seat's holdings score with everything known now: a lineup, every
   //           episode with results, its newest early one too; an Outlast, its team now at the boots so far. Its side bets, finale
   //           predictions, handicap and market are the table's own beside it (addSideLayers, HandicapLogic.apply, MarketLogic), as
   //           they settle: the table counts a bet marked right, or finale predictions graded, before their episode's results are
@@ -630,7 +649,9 @@ class ScoringLogic {
   // that episode on taken back: Seq.heldAt) and each holding's place as a value as the season stood then (out by then, their place,
   // or nothing with no place recorded; still in, 1 plus the boots so far, in reverse the cast less them), never rounded; a lineup,
   // each episode's total as ActiveRosterLogic.episodeScore counts it (the starters or best ball's team, their moments, a captain's
-  // and the episode's multiplier, best ball's best n, the group slots beside them), added up episode by episode (Seq.add).
+  // and the episode's multiplier, best ball's best n, the group slots beside them), added up episode by episode (Seq.add). C2 part 4c:
+  // a draft's own questions, a line of their own beside them, their points as the server graded them on this copy (AnswerLogic.lines:
+  // through each episode, and now); a copy without them scores them as nothing.
   static walk(state, want){
     const w = want || { series: true, now: true };
     const game = gameOf(state);
@@ -667,6 +688,10 @@ class ScoringLogic {
     const finaleEp = w.series ? finaleEpisodeOf(state) : null;
     const finale = finaleEp ? AnswerLogic.finalePoints(state) : new Map();
     const tally = w.series ? HandicapLogic.tally(state, episodes.map(e => e.number)) : null;
+    // C2 part 4c: a draft's own questions' points, through each episode and now, as the server graded them on this copy.
+    const asks = draftAsks(state);
+    const lines = asks ? AnswerLogic.linesOf(state) : null;
+    const askedAt = (at, id) => (at && typeof at[id] === 'number' ? at[id] : 0);
     const bets = new Map(players.map(p => [p.id, 0]));
     let finaleIn = false;
     const series = [];
@@ -692,15 +717,23 @@ class ScoringLogic {
         const bonus = game.extras.bets ? bets.get(p.id) : 0;
         const fin = finaleIn ? (finale.get(p.id) || 0) : 0;
         const handicap = handicaps ? (handicaps.get(p.id) || 0) : 0;
-        rows.set(p.id, tally ? { locked, banked, bonus, finale: fin, handicap } : { locked, banked, bonus, finale: fin });
-        totals.set(p.id, Seq.round(locked + bonus + fin + handicap));
+        const q = asks ? askedAt(lines && lines.through[ep.number], p.id) : 0;
+        const row = { locked, banked, bonus, finale: fin };
+        if(asks) row.questions = q;
+        if(tally) row.handicap = handicap;
+        rows.set(p.id, row);
+        totals.set(p.id, Seq.round(locked + bonus + fin + handicap + q));
       });
       series.push({ number: ep.number, quiet: !!ep.noExit, totals, rows });
     }
     const now = new Map();
     if(w.now){
       const mark = outlast ? markAt(Infinity) : null;
-      players.forEach(p => now.set(p.id, outlast ? placesAt(p.id, Infinity, mark) : { locked: running.get(p.id), banked: 0 }));
+      players.forEach(p => {
+        const at = outlast ? placesAt(p.id, Infinity, mark) : { locked: running.get(p.id), banked: 0 };
+        if(asks) at.questions = askedAt(lines && lines.now, p.id);
+        now.set(p.id, at);
+      });
     }
     return { series, now };
   }
@@ -891,6 +924,8 @@ class KnockoutLogic {
         if('banked' in r) r.banked = was.banked;
         r.bonus = was.bonus;
         r.finale = was.finale;
+        // C2 part 4c: a draft's own questions', as they stood then.
+        if(r.questions !== undefined && was.questions !== undefined) r.questions = was.questions;
         // A11 part 5b: a handicap's, as it stood then.
         if(r.handicap !== undefined && was.handicap !== undefined) r.handicap = was.handicap;
       }
@@ -3619,7 +3654,9 @@ class RoleLogic {
 class ActiveRosterEventScoringStrategy {
   static compute(state){
     const results = {};
-    state.players.forEach(p=> results[p.id] = {playerId:p.id, name:p.name, color:p.color, locked:0, bonus:0, finale:0, total:0, roster:[], formerRoster:[]});
+    // C2 part 4c: a draft's own questions' points beside its finale predictions (`questions`), where it has them.
+    const asks = draftAsks(state);
+    state.players.forEach(p=> results[p.id] = asked({playerId:p.id, name:p.name, color:p.color, locked:0, bonus:0, finale:0, total:0, roster:[], formerRoster:[]}, asks));
     state.players.forEach(p=>{
       Core.ownedCastawayIds(state, p.id).forEach(cid=>{
         results[p.id].roster.push(Core.getCastaway(state, cid));
@@ -3633,7 +3670,10 @@ class ActiveRosterEventScoringStrategy {
     // when, group slots), its total added to the running total (step 5). C2 part 2: a plain lineup's too, where its table added up
     // each starter's moments on its own (the same to the cent but on a half cent: the episode's total, as its series always read it).
     const now = ScoringLogic.walk(state, { now: true }).now;
-    state.players.forEach(p=>{ results[p.id].locked = now.get(p.id).locked; });
+    state.players.forEach(p=>{
+      results[p.id].locked = now.get(p.id).locked;
+      if(asks) results[p.id].questions = now.get(p.id).questions;
+    });
     // The same optional layers classic-draft carries: side bets and finale predictions are orthogonal
     // to how the main score is earned, so an Active Roster league can still use them.
     const bets = addSideLayers(state, results);
@@ -4260,10 +4300,11 @@ function tradeAvailable(state){
 function finalePredictionsAvailable(state){
   return !!finaleOfGame(state);
 }
-// A draft's finale predictions, as the spec's two questions say them ({ top3, winner, from }: their points), or null.
+// A draft's finale predictions, as the spec's two questions say them ({ top3, winner, from }: their points), or null. C2 part 4c: the
+// first two of its questions, its own after them.
 function finaleOfGame(state){
   const g = gameOf(state);
-  return g.get.by === 'draft' ? Spec.finaleOf(g.ask) : null;
+  return g.get.by === 'draft' ? Spec.finaleIn(g.ask) : null;
 }
 // Side bets, where they count ({ points }: each new one's), or null: only beside a draft (A4: a pool, Weekly Calls and
 // Weekly Bingo never scored them, so they don't offer them). What everything that shows or takes a bet asks.
@@ -5368,10 +5409,12 @@ function readsPhases(state){
   return score.by === 'moments' && Array.isArray(score.times) && score.times.some(t => t && typeof t.phase === 'string');
 }
 
-// A game's own questions (A4): any but the presets' (a draft's finale predictions, Weekly Calls' calls).
+// A game's own questions (A4): any but the presets' (a draft's finale predictions, Weekly Calls' calls). C2 part 4c: a draft's are
+// those beyond its finale predictions.
 function ownQuestions(spec){
   const ask = Array.isArray(spec.ask) ? spec.ask : [];
-  return ask.length > 0 && !Spec.callsAsk(ask) && !(spec.get && spec.get.by === 'draft' && Spec.finaleOf(ask));
+  if(spec.get && spec.get.by === 'draft') return Spec.draftQuestions(spec).length > 0;
+  return ask.length > 0 && !Spec.callsAsk(ask);
 }
 
 // The settings fields a game is made of (game-spec OWNED) and the waiver suggestion's mark (waiverFit, which withSpec
@@ -6962,11 +7005,11 @@ class FinaleLogic {
 }
 
 // ---------- AnswerLogic: a game's questions (docs/PLAN-start-a-game-gpt.md step A4) ----------
-// The spec's `ask` (game-spec schema.js): a draft's finale predictions, Weekly Calls' calls (Call it's, graded in
-// src/lib/server/calls.ts) or a game of questions' own. Graded from the league's own results, as the viewer's state says
-// them (pass the spoiler guard's view, and nothing past their mark is graded), by game-spec answers.js; never stored.
-// Answers to a game of questions live in game_answers (src/lib/server/answers.ts reads them in); a draft's finale
-// predictions in state.finalePredictions, where classic's finale panel writes them.
+// The spec's `ask` (game-spec schema.js): a draft's finale predictions and (C2 part 4c) its own questions after them, Weekly Calls'
+// calls (Call it's, graded in src/lib/server/calls.ts) or a game of questions' own. Graded from the league's own results, as the
+// viewer's state says them (pass the spoiler guard's view, and nothing past their mark is graded), by game-spec answers.js; never
+// stored. Answers to a game of questions, and to a draft's own questions, live in game_answers (src/lib/server/answers.ts reads them
+// in); a draft's finale predictions in state.finalePredictions, where classic's finale panel writes them.
 class AnswerLogic {
   // What the results say, for grading (answers.js's facts): the game's own episodes with results (who went home in each,
   // who was still in at its start and the group each person was on in it; once the full results are in, every moment's
@@ -7538,6 +7581,57 @@ class AnswerLogic {
     });
     return rows;
   }
+  // ---------- C2 part 4c: a draft's own questions (beyond its finale predictions) ----------
+  // Their answers live in game_answers, as a game of questions' do, and are graded the same way (grade: every way their points
+  // combine) by whoever holds them: the server (src/lib/server/answer-points.ts), on each copy of the league it reads, the viewer's
+  // own (spoiler-trimmed) and the league as it stands. It hands their points to the engine on a copy of that state (withLines:
+  // `answerLines`, plain data, never stored), and the draft's one walk adds them as a line of their own beside its team's
+  // (ScoringLogic.walk: the series through each episode, the table at now), so the knockouts, head to head, teams of players and a
+  // handicap play on them. A copy that hides anything drops them (viewThrough, viewFor): they're that copy's to work out again. A
+  // state without them scores the questions as nothing: the safe fallback a reader not taught yet gets. Returns null for a game with
+  // none, else:
+  //   through  { [episode]: { playerId: points } }: each of the game's episodes with results, its own questions graded on what was
+  //            known through it (answers.js factsThrough; at head to head's final its questions about the whole game settle, as a
+  //            game of questions' do there)
+  //   now      { playerId: points }: graded on everything known now (the table's), or, once the game is over at an end of its own (its
+  //            span's last episode, a race won, one left, head to head's final), as it stood there, its questions about the whole
+  //            game settled
+  // Only the draft's own questions' answers count (its finale predictions are its state's: AnswerLogic.finalePoints). Someone out
+  // keeps their points as they stood at their last episode in (KnockoutLogic.apply, from the series), and a question its seats share
+  // can't go beside a draft's cuts (schema.js draftAskPlace), so nobody out takes a share of anyone's points.
+  static lines(state, answers, facts){
+    const ids = new Set(Spec.draftQuestions(playedGame(state)).map(q => q.id));
+    if(!ids.size) return null;
+    const rows = (answers || []).filter(a => ids.has(a.question));
+    const f = facts || AnswerLogic.facts(state);
+    const obj = m => Object.fromEntries(m);
+    const start = startEpisode(state);
+    const to = endEpisode(state);
+    const eps = start === null ? [] : (state.episodes || []).filter(e => e.number >= start && (to === null || e.number <= to) && EpisodeLogic.hasResults(e)).map(e => e.number).sort((a,b) => a - b);
+    // Head to head's final, where its questions about the whole game settle (a game that plays head to head knocks nobody out, so it
+    // doesn't depend on these lines).
+    const stop = MatchupLogic.on(state) ? MatchupLogic.endsAt(state) : null;
+    const through = {};
+    eps.forEach(k => {
+      const fk = Spec.factsThrough(f, k);
+      through[k] = obj(AnswerLogic.grade(state, rows, k === stop ? { ...fk, over: true } : fk).points);
+    });
+    // Where the game ends with these lines in it (a race won and one left are its knockouts', which read them), and whether it's over.
+    const lined = AnswerLogic.withLines(state, { through, now: {} });
+    const over = gameOver(lined);
+    const end = lastEpisode(lined);
+    const at = over && end !== null ? end : null;
+    const now = obj(AnswerLogic.grade(state, rows, at !== null ? { ...Spec.factsThrough(f, at), over: true } : { ...f, over }).points);
+    return { through, now };
+  }
+  // A copy of `state` carrying a draft's own questions' lines (AnswerLogic.lines, worked out on exactly this state's data): never the
+  // state itself, so nothing that's saved carries them.
+  static withLines(state, lines){ return lines ? { ...state, answerLines: lines } : state; }
+  // The lines a state carries (a draft with its own questions), or null.
+  static linesOf(state){
+    const l = state && state.answerLines;
+    return l && typeof l === 'object' && l.through && typeof l.through === 'object' && draftAsks(state) ? l : null;
+  }
   // How many of the game's episodes had started at `o.now` (A9: when an answer was made, for a call whose points shrink), from
   // its first: each one's lock (closedForPlay, the schedule's air time `o.airAtOf(n)` for one the league hasn't made yet,
   // never for a league catching up at its own pace), or its results. None while it waits for its phase.
@@ -7718,8 +7812,10 @@ class SpoilerLogic {
     const hidesChanges = ['seasonRuleChanges', 'adoptedRuleChanges'].some(k => (st[k] || []).some(changeHidden));
     if(!hidden.length && !hidesChanges) return state;
     const s = JSON.parse(JSON.stringify(state));
-    // A game of questions' walk (A11 part 2b) was worked out on more than this copy holds: it's the copy's to work out again.
+    // A game of questions' walk (A11 part 2b), and a draft's own questions' lines (C2 part 4c), were worked out on more than this copy
+    // holds: they're the copy's to work out again.
     delete s.answerWalk;
+    delete s.answerLines;
     // A12 part 1: a game in stages' walk, each stage's tables through this mark only.
     if(s.stageWalk) s.stageWalk = StageLogic.cutWalk(s.stageWalk, seenThrough);
     ['seasonRuleChanges', 'adoptedRuleChanges'].forEach(k => {
@@ -8021,8 +8117,10 @@ class GhostLogic {
     const catchingUp = GhostLogic.isCatchingUp(state, viewerId) && Number.isInteger(seenThrough);
     if(!others.size && !catchingUp) return full ? state : SpoilerLogic.viewThrough(state, seenThrough);
     let s = JSON.parse(JSON.stringify(state));
-    // A game of questions' walk (A11 part 2b) was worked out on more than this copy holds: it's the copy's to work out again.
+    // A game of questions' walk (A11 part 2b), and a draft's own questions' lines (C2 part 4c), were worked out on more than this copy
+    // holds: they're the copy's to work out again.
     delete s.answerWalk;
+    delete s.answerLines;
     if(others.size) GhostLogic.stripPlayers(s, others);
     if(catchingUp || !full) s = SpoilerLogic.viewThrough(s, full ? seenThrough + 1 : seenThrough);
     if(catchingUp) GhostLogic.rewindTo(s, seenThrough);

@@ -18,7 +18,7 @@
 const {
   SPEC_VERSION, TYPE_PRESETS, REPLACE_RULES, WINDOW_SCHEDULES, WAIVER_FEELS, WAIVER_ORDERS, WAIVER_HOURS, DRAFT_TIMERS,
   MAX_BET_POINTS, ORDER_OF, CALLS, fullSpec, typeOf, playsAs, specProblems, waiversFit, sameValue, spanStart, spanPhase,
-  finaleQuestions, finaleOf, LATE_HOURS, MAX_SEAT_PEOPLE, seatPeople, NEVER, VOCAB, MATCHUP_KEYS, spanEnd, spanEndPhase, OVERALL,
+  finaleQuestions, finaleIn, draftQuestions, LATE_HOURS, MAX_SEAT_PEOPLE, seatPeople, NEVER, VOCAB, MATCHUP_KEYS, spanEnd, spanEndPhase, OVERALL,
 } = require('./schema.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
@@ -303,11 +303,16 @@ function readSpec(st, copy) {
     Object.assign(spec, { get: { by: 'card' }, count: null, score: points === undefined ? { by: 'lines' } : { by: 'lines', points }, rank: { by: 'total' } });
   }
   // The questions (A4): Weekly Calls' is the show's calls; a game of questions keeps its own (settings.questions, as its
-  // spec says them); a draft's are its finale predictions while they're on.
+  // spec says them); a draft's are its finale predictions while they're on, then (C2 part 4c) its own questions
+  // (settings.draftQuestions, as its spec says them: a field of their own, so a game of questions' left behind is never a draft's).
   if (type === 'weekly-calls') spec.ask = [clone(CALLS)];
   else if (type === 'questions') spec.ask = Array.isArray(st.questions) ? (copy ? clone(st.questions) : st.questions) : [];
-  else if (draft && st.finalePredictionsEnabled === true) {
-    spec.ask = finaleQuestions({ top3: st.finaleTop3Points || 0, winner: st.finaleWinnerPoints || 0, from: st.finalePredictionScope === 'ownPicksOnly' ? 'own' : 'any' });
+  else if (draft) {
+    const finale = st.finalePredictionsEnabled === true
+      ? finaleQuestions({ top3: st.finaleTop3Points || 0, winner: st.finaleWinnerPoints || 0, from: st.finalePredictionScope === 'ownPicksOnly' ? 'own' : 'any' })
+      : [];
+    const asks = Array.isArray(st.draftQuestions) && st.draftQuestions.length ? (copy ? clone(st.draftQuestions) : st.draftQuestions) : null;
+    spec.ask = asks ? [...finale, ...asks] : finale;
   } else spec.ask = [];
   spec.closes = 'start';
 
@@ -383,7 +388,8 @@ function settingsOf(spec) {
   // A league's own rules hold (a team bigger than a new game's): what the engine can't play is never written.
   if (!type || specProblems(s, null, { league: true }).length) return null;
   const e = s.extras;
-  const finale = s.get.by === 'draft' ? finaleOf(s.ask) : null;
+  // A draft's finale predictions, first among its questions (C2 part 4c: its own after them).
+  const finale = s.get.by === 'draft' ? finaleIn(s.ask) : null;
   const out = {
     leagueTypeId: type,
     // A phase start (A3): startPhase, with startEpisode null while it waits (spanOf reads both back).
@@ -484,6 +490,9 @@ function settingsOf(spec) {
   out.rankHandicap = (draft || asks || pool) && isObj(s.rank.handicap) ? clone(s.rank.handicap) : undefined;
   out.draftCut = draft && Array.isArray(s.rank.cut) ? clone(s.rank.cut) : undefined;
   if (type === 'questions') out.questions = clone(s.ask);
+  // C2 part 4c: a draft's own questions beyond its finale predictions.
+  const own = draftQuestions(s);
+  out.draftQuestions = own.length ? clone(own) : undefined;
   out.lateLockHours = type === 'questions' && e.lateLock ? e.lateLock.hours : undefined;
   // A9: a game of questions' parlays; points per bingo line.
   out.parlays = type === 'questions' && Array.isArray(s.score.parlays) ? clone(s.score.parlays) : undefined;
@@ -572,8 +581,10 @@ const PARTS = [
   { fields: ['draftScheduledAt', 'draftTimer', 'draftAway', 'draftOpens'], read: (s) => s.extras.draft },
   // The questions: a draft's finale predictions in their fields, a game of questions' own in settings.questions (Weekly
   // Calls' is its type's).
-  { fields: ['finalePredictionsEnabled', 'finaleTop3Points', 'finaleWinnerPoints', 'finalePredictionScope'], read: (s) => (s.get.by === 'draft' ? finaleOf(s.ask) : null) },
+  { fields: ['finalePredictionsEnabled', 'finaleTop3Points', 'finaleWinnerPoints', 'finalePredictionScope'], read: (s) => (s.get.by === 'draft' ? finaleIn(s.ask) : null) },
   { fields: ['questions'], read: (s) => (typeOf(s) === 'questions' ? s.ask : null) },
+  // C2 part 4c: a draft's own questions beyond its finale predictions.
+  { fields: ['draftQuestions'], read: (s) => (s.get.by === 'draft' ? draftQuestions(s) : null) },
   { fields: ['lateLockHours'], read: (s) => s.extras.lateLock },
   { fields: ['hideStartersUntilLock'], read: (s) => s.extras.hideStarters },
   { fields: ['calls'], read: (s) => s.extras.calls },

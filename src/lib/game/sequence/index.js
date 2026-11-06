@@ -25,12 +25,14 @@
 // by calls.ts and bingo.ts; a game in stages' overall from its stages' tables); part 4 has a spec play by each piece's place here
 // instead of by one of seven shapes (game-spec schema.js unplaced), and opens the combinations the sequence's order settles (part
 // 4a: a shrinking call that's shared, each answer at its own worth in split, only and onlyEach; a parlay's legs that roll over,
-// shrink or pay only the only one right).
+// shrink or pay only the only one right; 4b, a pool's series of totals and a team's knocked out or racing; 4c, a draft's own
+// questions, graded as a game of questions' and handed to its walk as a line of their own beside its team's).
 //
 // Rounding is part of the sequence, exactly where each game has always done it and nowhere else (the study's "What C2 has to
 // keep exactly"; tests/sequence-agree.test.js holds every draft's reads to the scorers' before it):
 //   - an Outlast's places are whole numbers, never rounded; its row's total isn't either (its side bets and finale points are
-//     whole too); a handicap on it rounds the total it's added to;
+//     whole too) unless its own questions are in it (C2 part 4c: their points can be a pot's share, cents); a handicap on it rounds
+//     the total it's added to;
 //   - a plain lineup (no captain, best ball, multiplier or group slots) rounds its running total after each moment, with no line
 //     of its own (each moment is its line);
 //   - a lineup that combines rounds each holding's raw points as its moments add up, each line (raw × captain × the episode's
@@ -38,7 +40,8 @@
 //   - a lineup's row rounds its total (its points, side bets and finale predictions); a market's worth rounds the team's prices,
 //     then cash plus them;
 //   - a game of questions rounds only a split pot's shares inside a window (split), each line a parlay multiplies, and its sum
-//     (add, window by window); its walk's totals through each episode add a handicap rounded, as its sum is;
+//     (add, window by window); its walk's totals through each episode add a handicap rounded, as its sum is; a draft's own questions
+//     (C2 part 4c) are graded the same way, their sum a line of the draft's, added into its rounded totals;
 //   - a count of right calls or bingo lines is whole, never rounded, and so is a count times a line's points (a whole number);
 //   - a game in stages' overall rounds its stages' points added up (sum), and their places' points.
 
@@ -664,10 +667,12 @@ function coop(series, o) {
 
 /**
  * A seat's row total from its parts: what its holdings scored (`locked`), its side bets while they count (`bets`), its finale
- * predictions; `rounded` where its game rounds (a lineup), not where it doesn't (an Outlast's whole places).
+ * predictions, and (C2 part 4c) a draft's own questions' points (`questions`, where the game has them); `rounded` where its game
+ * rounds (a lineup, or an Outlast once its own questions are in it: a pot's share is cents), not where it doesn't (an Outlast's
+ * whole places).
  */
 function total(row, bets, rounded) {
-  const t = row.locked + (bets ? row.bonus : 0) + row.finale;
+  const t = row.locked + (bets ? row.bonus : 0) + row.finale + (row.questions || 0);
   return rounded ? round(t) : t;
 }
 /** Two keys compared from their first number on (positive when `a` is higher): sort with compareKeys(key(b), key(a)). */
