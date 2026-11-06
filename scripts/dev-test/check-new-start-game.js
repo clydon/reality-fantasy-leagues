@@ -65,7 +65,11 @@ const clone = (v) => JSON.parse(JSON.stringify(v));
 const answerFrom = (id, show) => `\`\`\`json\n${JSON.stringify({ ...clone(LIBRARY[id].blocks), show }, null, 1)}\n\`\`\``;
 const castAnswer = (people) => `\`\`\`json\n${JSON.stringify({ castaways: people.map(([name, group]) => ({ name, photoUrl: "", startingGroup: group })), sources: ["https://example.invalid/cast"] })}\n\`\`\``;
 const ANSWERS = {
-  "ZT Yacht Life": { setup: () => answerFrom("below-deck", "ZT Yacht Life") },
+  // A reality series' cast is asked for like a competition's (a898437d), not taken from the listing: its listing's crew.
+  "ZT Yacht Life": {
+    setup: () => answerFrom("below-deck", "ZT Yacht Life"),
+    cast: () => castAnswer([["Cap Rivers", null], ["Dee Chief", null], ["Bo Sun", null], ["Ash Deck", null], ["Kit Galley", null]]),
+  },
   "ZT Grand Prix": {
     setup: () => answerFrom("world-series", "ZT Grand Prix"),
     cast: () => castAnswer([["Ana Speed", "Red Team"], ["Bo Lap", "Red Team"], ["Cy Pole", "Blue Team"], ["Di Grid", "Blue Team"], ["Ed Pit", "Green Team"], ["Fi Flag", "Green Team"]]),
@@ -251,7 +255,8 @@ function lateNight(shows) {
     check(Array.isArray(hub.again) && hub.again.length === 0, "the trophy shelf offers nothing to run back while the couch plays Survivor 51's games", JSON.stringify(hub.again));
     await pool.query("UPDATE show_seasons SET status = 'completed' WHERE id = $1", [sid]);
     const over = (await opts("alex", sid)).body;
-    check(over.blocked === "The season's over: every episode has aired" && over.nextSeason?.seasonId === s52 && over.nextSeason.label === "ZT Survivor 52", "a season that's over: nothing starts, and its next season is offered", JSON.stringify({ b: over.blocked, n: over.nextSeason }));
+    // Own-pace games (docs/PLAN-own-pace-games.md): a season that's over starts at your own pace, not blocked.
+    check(over.blocked === null && over.ownPace === true && over.nextSeason?.seasonId === s52 && over.nextSeason.label === "ZT Survivor 52", "a season that's over: its games start at your own pace, and its next season is offered", JSON.stringify({ b: over.blocked, p: over.ownPace, n: over.nextSeason }));
     hub = (await as.alex.call("GET", `/api/couches/${couch}/hub`)).body;
     const cup50 = hub.trophies?.plaques.find((p) => p.label === "ZT Survivor 50" && p.gameName === "Outlast");
     check(cup50 && hub.again.some((a) => a.leagueId === cup50.leagueId && a.seasonId === s52 && a.label === "ZT Survivor 52"), "the trophy shelf: run ZT Survivor 50's Outlast back on Survivor 52", JSON.stringify(hub.again));
