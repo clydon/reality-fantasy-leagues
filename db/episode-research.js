@@ -283,7 +283,7 @@ const NextEpisode = z
       .string()
       .nullable()
       .describe(
-        "When the NEXT episode starts, ISO 8601 with the UTC offset of the time zone it's announced in: " +
+        "When the NEXT episode starts, ISO 8601 with the UTC offset of the time zone it's announced in, as it is on that date (after a clock change, the new one): " +
           "'2026-11-05T20:00:00-05:00' for 8 PM Eastern on November 5. If the show takes a week off, the date " +
           "of the next one that does air. Null if it hasn't been announced, or this was the finale."
       ),
@@ -1981,7 +1981,8 @@ async function storeResearch(pool, ctx, payload, provenance, opts) {
 function nextEpisodeFrom(next, { tz = "America/New_York", airTime = Air.DEFAULT_AIR_TIME, now = new Date() } = {}) {
   if (!next || typeof next !== "object") return null;
   const raw = typeof next.airsAt === "string" ? next.airsAt.trim() : "";
-  let at = Air.exactAirTime(raw);
+  // An offset from before the clocks change is read as the announced time in the season's zone (Air.exactInZone).
+  let at = Air.exactInZone(raw, tz);
   if (!at) {
     const m = /^(\d{4}-\d{2}-\d{2})(?:[T ](\d{2}:\d{2}))?/.exec(raw);
     if (m) at = Air.zonedToUtc(m[1], m[2] || String(airTime).slice(0, 5), tz);

@@ -140,7 +140,7 @@ test("a salary cap's prices come from the data: by standing, ties sharing, movin
 
 test("an auction: sealed bids, settled at once, the highest first, ties by the seed; the fallbacks", () => {
   const s = started(league(AUCTION(2, { total: 10, floor: 1 }), { n: 8 }));
-  assert.equal(S.getLeagueType(s).draftStrategy, S.AuctionDraftStrategy);
+  assert.equal(S.piecesOf(s).draft, S.AuctionDraftStrategy);
   assert.equal(draftKind(s), "auction");
   assert.equal(S.currentDraftTurn(s), null);
   assert.ok(draftOpen(s));

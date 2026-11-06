@@ -15,7 +15,7 @@ import { mdIn, plural, whenAt } from "./desk-dates";
 import type { MoveLine } from "./desk-episode";
 import { deskSetup, type SeasonDelete } from "./desk-setup";
 import { LEAGUE_SEASON_JOIN } from "./league-season";
-import { castPhotosFor } from "./show-art";
+import { castAnchor, castPhotosFor, notThisSeason } from "./show-art";
 import { applyApprovedCastToLeagues, renameInSeasonDecisions, seasonCastRows } from "./season-cast";
 import { syncSeasonLeagues } from "./season-decisions";
 
@@ -354,9 +354,14 @@ export async function castInboxItems(): Promise<{ kind: "cast"; title: string; l
 // ---------- getting it: our bot's question, its answer, a paste ----------
 
 /** The question our bot is asked, and Paste it's (cast-prompt.js, in the show's own words). */
-export async function castQuestion(id: string): Promise<{ prompt: string; task: string }> {
+export async function castQuestion(id: string, listings?: string): Promise<{ prompt: string; task: string }> {
   const s = await seasonRow(id);
-  return { prompt: buildCastPrompt(await castFormat(s), { seasonName: s.name, showName: s.show_name }), task: `finding who's in ${s.name}` };
+  // This season and no other (show-art.ts castAnchor): its number, the year it premiered, who the listings credit in it.
+  const a = await castAnchor(id, listings);
+  return {
+    prompt: buildCastPrompt(await castFormat(s), { seasonName: a.season ?? s.name, showName: s.show_name, year: a.year, known: a.credits.map((c) => c.names[0]) }),
+    task: `finding who's in ${s.name}`,
+  };
 }
 
 /** An answer read against the season's rules: the people it lists (rows with a problem left out). Nobody readable refuses. */
@@ -412,6 +417,40 @@ export async function askCastNow(id: string, askedBy: string | null, bot: string
     await logDesk(pool, { entity: "season", entityId: id, action: "cast", text: `Asked our bot for the cast: it failed (${message.slice(0, 200)})`, userId: null }).catch(() => undefined);
     return { ok: false, message };
   }
+}
+
+/**
+ * Getting it ready (season-fill.ts): a season of a show that's a game, with nobody in its cast, gets our bot's answer staged
+ * and sent at once, as whoever added it would send it (everyone in it joins). How many joined (0 when someone sent a cast
+ * meanwhile). A failed ask, or an answer nobody in can be read from, throws.
+ */
+export async function castByItself(id: string, user: SessionUser, bot: string | undefined, budgetMs: number, listings?: string): Promise<number> {
+  const { prompt } = await castQuestion(id, listings);
+  const { answer } = await askBot(prompt, { bot, budgetMs });
+  return firstCast(id, user, "bot", answer, listings);
+}
+
+/** The same with an answer someone pasted (copy and paste, the free way: season-fill.ts fillPaste). Refused once there's a cast. */
+export async function castPastedByItself(id: string, user: SessionUser, raw: unknown, listings?: string): Promise<number> {
+  const answer = typeof raw === "string" ? raw.trim() : "";
+  if (!answer) throw new HttpError(400, "Paste the AI's whole answer");
+  if (answer.length > 200_000) throw new HttpError(400, "That's too long to be the answer");
+  if ((await castOf(id)).length) throw new HttpError(409, "Who's in it is in already");
+  return firstCast(id, user, "paste", answer, listings);
+}
+
+/** An answer read, staged and sent as the season's first cast. How many joined (0 when a cast came in meanwhile). */
+async function firstCast(id: string, user: SessionUser, source: "bot" | "paste", answer: string, listings?: string): Promise<number> {
+  const s = await seasonRow(id);
+  const people = await readAnswer(s, answer);
+  // Another season's cast (one with the same name, years before) is refused: the bot's is asked again, a paste says why.
+  const wrong = notThisSeason(people.map((p) => p.name), (await castAnchor(id, listings)).credits);
+  if (wrong) throw new HttpError(400, wrong);
+  await stage(s, source, answer, people, user.id);
+  const r = await reviewOf(id);
+  if (!r.open || !r.pending || r.ours.length) return 0;
+  await sendCast(user, id, { answer: r.pending.id, picks: {} }, { listings });
+  return people.length;
 }
 
 /** Paste it: an answer from Ask an AI, staged as our bot's is. Answers the page. */

@@ -268,6 +268,13 @@ html[data-nav="channel"]::view-transition-new(root) {
   animation-duration: 0.44s;
 }
 
+/* Tuning in (src/new/tune-in.tsx): the bumper covers the screen while the page changes under it, so the page just swaps.
+   (nav.tsx keeps a view transition from starting at all; this is for one that starts anyway.) */
+html[data-nav="tune"]::view-transition-old(root),
+html[data-nav="tune"]::view-transition-new(root) {
+  animation: none;
+}
+
 /* A plain swap (same depth, no order): a crossfade. */
 html[data-nav="fade"]::view-transition-old(root),
 html[data-nav="calm"]::view-transition-old(root) {
@@ -344,9 +351,15 @@ html[data-nav="right"] .nd-dock {
 .nd-vote {
   animation: nd-vote-in 0.55s cubic-bezier(0.34, 1.45, 0.64, 1) both;
 }
+/* The reveal's In this episode (reveal.tsx Recap): the write-up lands a sentence at a time, at a voiceover's pace. */
+.nd-recap-line {
+  animation: nd-beat-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(var(--i, 0) * 380ms + 180ms);
+}
 @media (prefers-reduced-motion: reduce) {
   .nd-beat,
   .nd-beat-row,
+  .nd-recap-line,
   .nd-vote {
     animation: none;
   }
@@ -583,5 +596,193 @@ html[data-nav="right"] .nd-dock {
   .nd-wa-float {
     bottom: 40%;
     animation: nd-wa-fade 2.6s linear forwards;
+  }
+}
+
+
+/* Settings' folds (the 2026-10-31 redesign, src/new/settings/controls.tsx Fold): what opens drops in a little under its row;
+   reduced motion just shows it. */
+@keyframes nd-unfold {
+  from { opacity: 0; transform: translateY(-6px); }
+}
+.nd-unfold {
+  animation: nd-unfold 300ms cubic-bezier(.16, 1, .3, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .nd-unfold {
+    animation: none;
+  }
+}
+
+/* The first-time tour (docs/PLAN-first-time-tour.md version 2, src/new/tour/): a step's words rising in as the page moves to it,
+   and the pulse breathing out of the ring round what's lit when it can be tried (the same ~10px out on any size: --sx, --sy set
+   from its box). Reduced motion: neither. */
+@keyframes nd-tour-rise {
+  from { opacity: 0; transform: translateY(6px); }
+}
+.nd-tour-rise {
+  animation: nd-tour-rise 260ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes nd-tour-pulse {
+  from { opacity: 0.85; transform: none; }
+  to { opacity: 0; transform: scale(var(--sx, 1.05), var(--sy, 1.05)); }
+}
+.nd-tour-pulse {
+  animation: nd-tour-pulse 1.6s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+/* Add a show's demo tapping for you (watching/sheets.tsx runDemo): what it's about to tap ringed, then pressed in, so each tap
+   is seen (the user, 2026-11-01). Reduced motion: the ring, no press. */
+[data-tour-tap] {
+  outline: 2px solid var(--foreground);
+  outline-offset: 2px;
+  transition: transform 0.14s cubic-bezier(0.16, 1, 0.3, 1);
+}
+[data-tour-tap="press"] {
+  transform: scale(0.97);
+}
+/* A practice sheet's one path (tour/practice.tsx keepToPath): what's chosen there can't be changed, so its outline, or a switch
+   that's on (Tell the couch), isn't the yellow of your move; the one thing to tap keeps its yellow (the critique, 2026-11-01). */
+[data-practice-path] .outline-chyron-line {
+  outline-color: color-mix(in srgb, var(--foreground) 45%, transparent);
+}
+[data-practice-path] [role="switch"] .bg-chyron {
+  background-color: color-mix(in srgb, var(--foreground) 35%, transparent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .nd-tour-rise,
+  .nd-tour-pulse {
+    animation: none;
+  }
+  .nd-tour-pulse {
+    opacity: 0;
+  }
+  [data-tour-tap="press"] {
+    transform: none;
+  }
+}
+
+/* Getting it ready (show/getting-ready.tsx, docs/PLAN-getting-it-ready.md; the user's pick A, the Call sheet): each step's slate
+   slams in from the left as its turn comes, a red tally light pulses on the one working, a check is stamped as it lands; empty
+   headshot frames and episode tiles are swept by a scanline while they're looked up, faces pop in as the cast lands, and each
+   episode's tile lights as it comes in. On Home a show getting ready is a no-signal card (B's poster): static over colour bars,
+   clearing as each step lands, a bright line rolling down it. Transforms and opacity only (tune-in.tsx's lesson: nothing on the
+   main thread while a page renders). Reduced motion: everything still, the tally lit. */
+@keyframes nd-slate-in {
+  from { transform: translateX(-28px); opacity: 0; }
+  60% { transform: translateX(4px); opacity: 1; }
+  to { transform: none; opacity: 1; }
+}
+.nd-slate-in {
+  animation: nd-slate-in 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+@keyframes nd-tally {
+  50% { opacity: 0.25; }
+}
+.nd-tally {
+  animation: nd-tally 1.1s ease-in-out infinite;
+}
+@keyframes nd-stamp {
+  from { transform: scale(1.9) rotate(-14deg); opacity: 0; }
+  55% { transform: scale(0.92) rotate(-4deg); opacity: 1; }
+  to { transform: scale(1) rotate(-6deg); opacity: 1; }
+}
+.nd-stamp {
+  transform: rotate(-6deg);
+  animation: nd-stamp 0.42s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+}
+@keyframes nd-sweep {
+  from { transform: translateX(-120%); }
+  to { transform: translateX(320%); }
+}
+.nd-sweep {
+  position: relative;
+  overflow: hidden;
+}
+.nd-sweep::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--foreground) 18%, transparent), transparent);
+  animation: nd-sweep 1.6s ease-in-out var(--d, 0s) infinite;
+}
+@keyframes nd-face-in {
+  from { transform: translateY(8px) scale(0.6); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+.nd-face-in {
+  animation: nd-face-in 0.36s cubic-bezier(0.2, 0.9, 0.3, 1.25) var(--d, 0s) both;
+}
+@keyframes nd-tile-on {
+  from { transform: scale(0.7); }
+  60% { transform: scale(1.14); }
+  to { transform: none; }
+}
+.nd-tile-on {
+  animation: nd-tile-on 0.34s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+.nd-bars {
+  background: linear-gradient(90deg, #bfbfbf 0 14.28%, #bfbf00 0 28.57%, #00bfbf 0 42.85%, #00bf00 0 57.14%, #bf00bf 0 71.42%, #bf0000 0 85.71%, #0000bf 0);
+}
+.nd-noise {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.95' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 140px;
+}
+@keyframes nd-static {
+  0% { transform: translate(0, 0); }
+  20% { transform: translate(-12%, 8%); }
+  40% { transform: translate(6%, -10%); }
+  60% { transform: translate(-8%, -4%); }
+  80% { transform: translate(10%, 6%); }
+  100% { transform: translate(0, 0); }
+}
+.nd-static {
+  animation: nd-static 0.5s steps(5) infinite;
+}
+@keyframes nd-roll {
+  from { transform: translateY(-100%); }
+  to { transform: translateY(420%); }
+}
+.nd-roll {
+  animation: nd-roll 2.6s linear infinite;
+}
+@keyframes nd-bar-run {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(260%); }
+}
+.nd-bar-run {
+  animation: nd-bar-run 1.8s cubic-bezier(0.6, 0, 0.4, 1) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .nd-slate-in,
+  .nd-stamp,
+  .nd-face-in,
+  .nd-tile-on,
+  .nd-tally,
+  .nd-static {
+    animation: none;
+  }
+  .nd-sweep::after,
+  .nd-roll,
+  .nd-bar-run {
+    animation: none;
+    opacity: 0;
+  }
+}
+
+/* A cast photo landing (getting-ready.tsx Frames): a camera flash over the headshot, gone in under half a second. Reduced motion:
+   none (the photo just appears). */
+@keyframes nd-flash {
+  from { opacity: 0.85; }
+  to { opacity: 0; }
+}
+.nd-flash {
+  opacity: 0;
+  pointer-events: none;
+  animation: nd-flash 0.45s cubic-bezier(0.16, 1, 0.3, 1) var(--d, 0s) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .nd-flash {
+    animation: none;
   }
 }

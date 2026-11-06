@@ -12,6 +12,8 @@ import { HoldSheet } from "../ui/guards";
 import { Btn, Row } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
+import { PersonSheet } from "./person-sheet";
+import { WhereSheet } from "./where-sheet";
 
 // Couches (docs/PLAN-new-design.md step 9; the mock's round2.js couchSwitch and newCouchSheet, index.html couchSheet and
 // joinSheet): the switcher (the hub shows one couch at a time; your profile's couch line opens it), a couch's details
@@ -28,7 +30,11 @@ export type CouchSheet =
   | { kind: "join" }
   | { kind: "leave"; couchId: string }
   | { kind: "rename"; couchId: string }
-  | { kind: "handOn"; couchId: string };
+  | { kind: "handOn"; couchId: string }
+  /** Someone on the couch: what they watch and how far they are (person-sheet.tsx). `back`: the sheet it was opened from. */
+  | { kind: "person"; couchId: string; userId: string; back?: { kind: "details"; couchId: string } | { kind: "where"; couchId: string; seasonId: string } }
+  /** Where everyone is on a show (where-sheet.tsx): Tonight's header line of numbered faces opens it. */
+  | { kind: "where"; couchId: string; seasonId: string };
 
 // The open sheet, and how many times each kind has opened: a sheet is keyed by its count, so each opening starts fresh
 // (and a closing one keeps its key until it's gone).
@@ -100,6 +106,17 @@ export function CouchSheets() {
       <LeaveCouchSheet key={`leave-${opened.leave ?? 0}`} couchId={sheet?.kind === "leave" ? sheet.couchId : null} onOpenChange={close} />
       <RenameCouchSheet key={`rename-${opened.rename ?? 0}`} couchId={sheet?.kind === "rename" ? sheet.couchId : null} onOpenChange={close} />
       <HandOnSheet key={`handOn-${opened.handOn ?? 0}`} couchId={sheet?.kind === "handOn" ? sheet.couchId : null} onOpenChange={close} />
+      <PersonSheet
+        couchId={sheet?.kind === "person" ? sheet.couchId : null}
+        userId={sheet?.kind === "person" ? sheet.userId : null}
+        back={
+          sheet?.kind === "person" && sheet.back
+            ? { label: sheet.back.kind === "details" ? "Back to the couch" : "Back to where everyone is", onClick: () => sheet.back && openCouchSheet(sheet.back) }
+            : undefined
+        }
+        onOpenChange={close}
+      />
+      <WhereSheet couchId={sheet?.kind === "where" ? sheet.couchId : null} seasonId={sheet?.kind === "where" ? sheet.seasonId : null} onOpenChange={close} />
     </>
   );
 }
@@ -259,12 +276,20 @@ function DetailsSheet({ couchId, onOpenChange }: { couchId: string | null; onOpe
       {couch && (
         <div data-couch-details={couch.name}>
           <div className="grid grid-cols-4 gap-x-2 gap-y-3">
+            {/* A face opens what that person watches and how far they are (person-sheet.tsx), with a way back here. */}
             {couch.members.map((m) => (
-              <div key={m.userId} className="flex min-w-0 flex-col items-center gap-1 text-center" data-member={m.name}>
+              <button
+                key={m.userId}
+                type="button"
+                onClick={() => openCouchSheet({ kind: "person", couchId: couch.id, userId: m.userId, back: { kind: "details", couchId: couch.id } })}
+                aria-label={`${m.name}: what they watch and how far they are`}
+                className="nd-press flex min-w-0 flex-col items-center gap-1 text-center"
+                data-member={m.name}
+              >
                 <Avatar id={m.userId} name={m.name} size={52} />
                 <span className="w-full truncate text-[13px]">{m.name}</span>
                 {m.role === "owner" && <small className="-mt-1 text-[11px] text-muted-foreground">Runs it</small>}
-              </div>
+              </button>
             ))}
             <button type="button" data-invite-tile onClick={() => openCouchSheet({ kind: "invite", couchId: couch.id })} className="flex flex-col items-center gap-1 text-center">
               <span className="grid size-[52px] place-items-center rounded-[3px] outline-[1.5px] -outline-offset-[1.5px] outline-dashed outline-input">

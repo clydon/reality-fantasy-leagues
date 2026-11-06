@@ -23,6 +23,11 @@ export interface SeasonHeader {
   dropAt: string | null;
   /** Set up as a game (shows.set_up_at, step 10): false is "Not a game yet", a show someone added to follow. */
   ready: boolean;
+  /** Getting it ready (season-fill.ts): its rules, cast or episodes being got now (results someone asked for count), stopped
+   *  partway, or a show that's a game with nobody in this season's cast and no job yet (not a sport or a talk show: a new season
+   *  added before this was here, The Challenge 42's case); else null. A brand-new show gets ready as it's added, and one added
+   *  before is Make it a game's, as it was. */
+  filling: "going" | "stuck" | "missing" | null;
   show: {
     id: string;
     slug: string;
@@ -50,9 +55,14 @@ export async function seasonHeaders(seasonIds: string[]): Promise<Map<string, Se
   const { rows } = await pool.query(
     `SELECT ss.id, ss.season_number, ss.name, ss.status, ss.episode_count, to_char(ss.premiere_date, 'YYYY-MM-DD') AS premiere_date,
             ss.release, ss.drop_at, s.set_up_at IS NOT NULL AS ready,
+            CASE WHEN f.stuck_at IS NOT NULL THEN 'stuck'
+                 WHEN (f.season_id IS NOT NULL AND f.done_at IS NULL) OR EXISTS (SELECT 1 FROM research_asks a WHERE a.season_id = ss.id AND a.done_at IS NULL) THEN 'going'
+                 WHEN f.season_id IS NULL AND s.set_up_at IS NOT NULL AND s.kind NOT IN ('sport', 'talk')
+                      AND NOT EXISTS (SELECT 1 FROM season_cast c WHERE c.season_id = ss.id) THEN 'missing'
+            END AS filling,
             s.id AS show_id, s.slug, s.name AS show_name, s.kind, ${cardArtSql()} AS art_url, s.art_url AS own_art, s.art_style,
             CASE WHEN s.art_off THEN NULL ELSE s.backdrop_url END AS backdrop_url, s.backdrop_style, s.castaway_term, s.castaway_plural, s.tribe_term, s.episode_term, s.tvmaze_id, s.listing->>'network' AS network
-       FROM show_seasons ss JOIN shows s ON s.id = ss.show_id
+       FROM show_seasons ss JOIN shows s ON s.id = ss.show_id LEFT JOIN season_fills f ON f.season_id = ss.id
       WHERE ss.id = ANY($1::uuid[])`,
     [ids]
   );
@@ -67,6 +77,7 @@ export async function seasonHeaders(seasonIds: string[]): Promise<Map<string, Se
       release: r.release,
       dropAt: r.drop_at ? new Date(r.drop_at).toISOString() : null,
       ready: r.ready,
+      filling: r.filling ?? null,
       show: {
         id: r.show_id,
         slug: r.slug,
@@ -107,6 +118,8 @@ export interface Game {
   /** The episode it starts with (settings.startEpisode): a game started after a span ended is its run back. Null while a game
    *  that starts at a phase of the season (settings.startPhase: step A3 of docs/PLAN-start-a-game-gpt.md) waits for it. */
   start: number | null;
+  /** Step A12 part 1: the game in stages this league is a stage of (leagues.stage_of), or null. */
+  stageOf: string | null;
 }
 
 /**
@@ -129,7 +142,7 @@ export async function games(viewerId: string, filter: { mine?: boolean; couchIds
     `SELECT l.id, l.name, l.couch_id, l.group_id, l.solo, l.state->'settings'->>'leagueTypeId' AS type_id, ss.id AS season_id, me.role AS your_role,
             COALESCE(l.state->'settings'->>'archivedAt', '') <> '' AS archived,
             l.state->'settings'->'startEpisode' AS start_episode, l.state->'settings'->'endEpisode' AS end_episode,
-            l.state->'settings'->>'startPhase' AS start_phase
+            l.state->'settings'->>'startPhase' AS start_phase, l.stage_of
        FROM leagues l
        LEFT JOIN shows s ON s.slug = l.state->'settings'->>'showId'
        LEFT JOIN show_seasons ss ON ss.show_id = s.id AND ss.season_number::text = l.state->'settings'->>'wikiSeason'
@@ -155,6 +168,7 @@ export async function games(viewerId: string, filter: { mine?: boolean; couchIds
     archived: !!r.archived,
     span: Number.isInteger(r.end_episode) && startOf(r) !== null ? { from: startOf(r) as number, to: r.end_episode } : null,
     start: startOf(r),
+    stageOf: r.stage_of ?? null,
   }));
 }
 

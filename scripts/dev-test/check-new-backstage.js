@@ -172,8 +172,11 @@ function fullAnswer(prompt) {
     check(true, "the ⋯ menu carries Backstage's dot");
     await page.getByRole("button", { name: /Show menu/ }).click();
     await sheet.getByText("Who went home in Episode 6?").waitFor();
-    check(await sheet.getByText("Recent changes").isVisible(), "the ⋯ menu: Backstage says what needs you, and Recent changes is there");
     await shot("menu");
+    // Recent changes is rarely wanted, so it's under Everything else.
+    await sheet.getByRole("button", { name: /^Everything else/ }).click();
+    await sheet.getByText("Recent changes").waitFor();
+    check(true, "the ⋯ menu: Backstage's plate says what needs you, and Everything else has Recent changes");
     await page.goto(`${BASE}/show/${sid}/backstage`);
     await page.locator("[data-job=quick]").waitFor();
     check((await page.locator("[data-job]").count()) === 1, "Backstage › Needs you: one job");
@@ -367,7 +370,8 @@ function fullAnswer(prompt) {
     closers.push(r.close);
     await r.page.goto(`${BASE}/show/${sid}/tonight`);
     await r.page.getByRole("button", { name: /Show menu/ }).click();
-    await r.page.locator("[role=dialog]").getByText("Recent changes").waitFor();
+    await r.page.locator("[data-menu-main]").getByRole("button", { name: /^Everything else/ }).click();
+    await r.page.locator("[data-menu-else]").getByText("Recent changes").waitFor();
     check(true, "riley's ⋯ menu has Recent changes");
     const alexErrors = errors.filter((e) => !/Failed to load resource/.test(e)).concat(errors.filter((e) => /Failed to load resource/.test(e)).slice(favicon));
     for (const [who, list] of [["alex", alexErrors], ["sam", s.errors], ["riley", r.errors]]) check(!list.length, `no page errors (${who})`, [...list, ...(who === "alex" ? failed : [])].join(" | "));

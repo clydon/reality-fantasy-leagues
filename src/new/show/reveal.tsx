@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } fro
 import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import { ChevronRight, Eye, Send } from "lucide-react";
-import { chatCouch, postToCouch, revealEpisode, useAfterReveal, type SeasonReveal } from "../data";
+import { chatCouch, postToCouch, revealEpisode, useAfterReveal, useEpisodeGifs, type SeasonReveal } from "../data";
 import { ordinal } from "../games";
 import type { ShowData } from "../screens/show-space";
 import { Avatar } from "../ui/bars";
@@ -15,13 +15,14 @@ import { Sheet } from "../ui/sheet";
 import { ShowArt } from "../ui/show-bar";
 import { toast } from "../ui/toast";
 import { first } from "./moves";
+import { GifsAction, GifsBeat, openGif, showLabel, type GifTarget } from "./react";
 import { Face } from "./parts";
 
 // The one reveal (the mock's episode.js revealPlay, stages.js, share.js; docs/PLAN-new-design.md step 2): one
 // broadcast per episode for every game you play on the show. Tapping Reveal asks the server to reveal it in all of
 // them at once (POST /api/seasons/[id]/reveal: your progress moves, the chat hears it), and plays what comes back a
-// beat at a time: the episode, what happened, who went home, your Weekly Lineup, your other games, the table
-// moving. At the early stage (who went home only) the lineup reads "so far" and the pool's streaks move instead.
+// beat at a time: the episode, what happened, who went home, the couch's GIFs for it (React with a GIF; react.tsx GifsBeat,
+// on a couch with someone else on it), your Weekly Lineup, your other games, the table moving. At the early stage (who went home only) the lineup reads "so far" and the pool's streaks move instead.
 // The last beat offers Share your night: a post to the couch, or a card for outside it that leaves out who went home
 // unless you say so. It's in the history (?page=reveal), so back closes it.
 //
@@ -29,20 +30,21 @@ import { Face } from "./parts";
 // revealed early has its final scores, "So far last night +14 > Final +22", who added what this morning, and the table
 // moving from where it stood that night (show_follows.early_night). Nothing new to spoil: who went home was seen already.
 
-let asked: number | null = null;
+let asked: { n: number; replay: boolean } | null = null;
 const listeners = new Set<() => void>();
 
-function ask(n: number) {
-  asked = n;
+function ask(n: number, replay = false) {
+  asked = { n, replay };
   listeners.forEach((l) => l());
 }
 
-/** Opens the reveal of episode `n`. A link opens one too: ?page=reveal&ep=N (the "Final results are in" push's Watch the
- *  final results, for an episode you've revealed: the reveal answers it as it is now). */
+/** Opens the reveal of episode `n`; `replay` (Episodes' Replay the reveal: the user, 2026-11-02) plays one you've seen again and
+ *  writes nothing. A link opens one too: ?page=reveal&ep=N (the "Final results are in" push's Watch the final results, for an
+ *  episode you've revealed: the reveal answers it as it is now). */
 export function useOpenReveal() {
   const page = usePushedPage("reveal", ["ep"]);
-  return (n: number) => {
-    ask(n);
+  return (n: number, o: { replay?: boolean } = {}) => {
+    ask(n, !!o.replay);
     page.show();
   };
 }
@@ -87,7 +89,8 @@ export function RevealScreen({ show, seasonId }: { show: ShowData; seasonId: str
   const linked = Number(useSearchParams().get("ep")) || null;
   const tapped = useAsked();
   // A link's episode first: an earlier tap's is still in `asked`.
-  const n = linked ?? tapped ?? show.episodes?.reveal?.episode ?? null;
+  const n = linked ?? tapped?.n ?? show.episodes?.reveal?.episode ?? null;
+  const replay = !linked && !!tapped?.replay;
   const mounted = useSyncExternalStore(noop, () => true, () => false);
   if (!mounted) return null;
   return createPortal(
@@ -101,38 +104,128 @@ export function RevealScreen({ show, seasonId }: { show: ShowData; seasonId: str
         page.open ? "visible opacity-100" : "invisible opacity-0"
       }`}
     >
-      {page.open && n != null && <Broadcast key={n} show={show} seasonId={seasonId} n={n} onClose={page.close} />}
+      {page.open && n != null && <Broadcast key={`${n}${replay ? "-again" : ""}`} show={show} seasonId={seasonId} n={n} replay={replay} onClose={page.close} />}
     </div>,
     document.body
   );
 }
 
-function Broadcast({ show, seasonId, n, onClose }: { show: ShowData; seasonId: string; n: number; onClose: () => void }) {
+function Broadcast({ show, seasonId, n, replay, onClose }: { show: ShowData; seasonId: string; n: number; replay: boolean; onClose: () => void }) {
   const [r, setR] = useState<SeasonReveal | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [k, setK] = useState(0);
   const [sharing, setSharing] = useState(false);
   const after = useAfterReveal();
   const asked = useRef(false);
   const name = (show.header?.show.name ?? "The show").replace(/^The /, "");
+  // The couch's GIFs for it (yours alone, solo): every reveal offers yours (the user, 2026-11-02). Read once the reveal has moved
+  // where you are (the server sends them only to someone who's seen it).
+  const label = showLabel(show);
+  const gifTarget: GifTarget = { seasonId, couchId: show.couch?.id ?? null, episode: n, label, solo: show.solo };
+  useEpisodeGifs(seasonId, show.couch?.id ?? null, n, !!r);
+  // No games in it (a show you only watch): nothing to share or reveal next, the end goes back.
+  const games = !!r && !!(r.lineup || r.games.length || r.predictions.length || r.table);
 
   useEffect(() => {
     // Once per episode (a second ask would only say "again").
     if (asked.current) return;
     asked.current = true;
-    revealEpisode(seasonId, show.couch?.id ?? null, n)
+    revealEpisode(seasonId, show.couch?.id ?? null, n, { replay })
       .then((res) => {
         setR(res);
         after();
       })
-      .catch((e: Error) => setError(e.message));
-  }, [seasonId, show.couch?.id, n, after]);
+      .catch((e: Error) => {
+        // A show you only watch with nothing the reveal can read: at least your GIF.
+        if (show.plays) return setError(e.message);
+        onClose();
+        openGif({ seasonId, couchId: show.couch?.id ?? null, episode: n, label, solo: show.solo, just: true });
+      });
+  }, [seasonId, show.couch?.id, n, replay, after, show.plays, show.solo, label, onClose]);
 
-  const beats: { key: string; node: ReactNode }[] = r
+  return (
+    <>
+      <Beats
+        name={name}
+        season={show.header?.seasonNumber ?? null}
+        n={n}
+        r={r}
+        error={error}
+        replay={replay}
+        gifs={{ node: <GifsBeat target={gifTarget} />, action: <GifsAction target={gifTarget} /> }}
+        onClose={onClose}
+        end={
+          r && (
+            <>
+              {games && (
+                <Btn wide onClick={() => setSharing(true)}>
+                  <Send className="size-[18px]" aria-hidden />
+                  Share your night
+                </Btn>
+              )}
+              {/* A replay goes back: the next one isn't a replay's to reveal. */}
+              {r.next && !replay ? (
+                <>
+                  {/* The next one in the same place: back still closes the reveal. */}
+                  <Btn tone="ink" wide onClick={() => ask(r.next!)}>
+                    Reveal Episode {r.next}
+                  </Btn>
+                  <button type="button" onClick={onClose} className="h-11 text-[15px] font-semibold text-muted-foreground">
+                    Back to {name}
+                  </button>
+                </>
+              ) : (
+                <Btn tone="ink" wide onClick={onClose}>
+                  Back to {name}
+                </Btn>
+              )}
+            </>
+          )
+        }
+      />
+      {r && <ShareSheet open={sharing} onOpenChange={setSharing} r={r} show={show} />}
+    </>
+  );
+}
+
+/**
+ * A reveal's beats, a tap at a time, under its bar (the show's name; Skip, then Close) and over its progress, and what the last
+ * beat offers (`end`): the show's own reveal (Broadcast) and the first-time tour's (TourReveal). `gifs`: the couch's GIFs slide
+ * and its action (the show's own reveal, on a couch), after who went home.
+ */
+function Beats({
+  name,
+  season,
+  n,
+  r,
+  error,
+  replay,
+  gifs,
+  end,
+  onClose,
+}: {
+  name: string;
+  season: number | null;
+  n: number;
+  r: SeasonReveal | null;
+  error: string | null;
+  replay?: boolean;
+  gifs?: { node: ReactNode; action: ReactNode };
+  end: ReactNode;
+  onClose: () => void;
+}) {
+  const [k, setK] = useState(0);
+  // A swipe sideways (the user, 2026-11-02: "swipe backwards"): right goes back a beat, left on, like a story; a tap still goes on.
+  // The tap a swipe ends in is the swipe's, not a Next.
+  const swipe = useRef<{ x: number; y: number } | null>(null);
+  const swiped = useRef(false);
+  const beats: { key: string; node: ReactNode; action?: ReactNode }[] = r
     ? [
-        { key: "open", node: <Opener r={r} show={show} /> },
+        { key: "open", node: <Opener r={r} name={name} season={season} replay={replay} /> },
+        ...(r.summary ? [{ key: "recap", node: <Recap r={r} /> }] : []),
         ...(r.happened.length ? [{ key: "happened", node: <Challenges r={r} /> }] : []),
-        { key: "out", node: <VoteCards r={r} /> },
+        // Who went home: always in a game's reveal ("Nobody went home" is news there); on a show you only watch, only when someone did.
+        ...(r.out.length || r.lineup || r.games.length || r.predictions.length || r.table ? [{ key: "out", node: <VoteCards r={r} /> }] : []),
+        ...(gifs ? [{ key: "gifs", node: gifs.node, action: gifs.action }] : []),
         ...(r.lineup ? [{ key: "lineup", node: <LineupBeat r={r} /> }] : []),
         ...(r.games.length + r.predictions.length ? [{ key: "games", node: <OtherGames r={r} /> }] : []),
         ...(r.table ? [{ key: "table", node: <TableBeat r={r} /> }] : []),
@@ -159,8 +252,41 @@ function Broadcast({ show, seasonId, n, onClose }: { show: ShowData; seasonId: s
         type="button"
         data-stage
         aria-label={last ? "The last beat" : "Next"}
-        onClick={() => !last && setK((x) => x + 1)}
-        className="flex min-h-0 flex-1 flex-col justify-center overflow-hidden px-4 text-left"
+        aria-keyshortcuts="ArrowLeft ArrowRight"
+        onPointerDown={(e) => {
+          swipe.current = { x: e.clientX, y: e.clientY };
+          // Its end lands here even if the finger slides off the stage.
+          e.currentTarget.setPointerCapture?.(e.pointerId);
+        }}
+        onPointerUp={(e) => {
+          const from = swipe.current;
+          swipe.current = null;
+          if (!from) return;
+          const dx = e.clientX - from.x;
+          const dy = e.clientY - from.y;
+          if (Math.abs(dx) < 48 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+          swiped.current = true;
+          if (dx > 0) setK((x) => Math.max(0, Math.min(x, beats.length - 1) - 1));
+          else if (!last) setK((x) => x + 1);
+        }}
+        onPointerCancel={() => (swipe.current = null)}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowLeft") {
+            e.preventDefault();
+            setK((x) => Math.max(0, Math.min(x, beats.length - 1) - 1));
+          } else if (e.key === "ArrowRight" && !last) {
+            e.preventDefault();
+            setK((x) => x + 1);
+          }
+        }}
+        onClick={() => {
+          if (swiped.current) {
+            swiped.current = false;
+            return;
+          }
+          if (!last) setK((x) => x + 1);
+        }}
+        className="flex min-h-0 flex-1 touch-pan-y flex-col justify-center overflow-hidden px-4 text-left"
       >
         {error ? (
           <p className="text-sm text-muted-foreground">{error}</p>
@@ -182,32 +308,60 @@ function Broadcast({ show, seasonId, n, onClose }: { show: ShowData; seasonId: s
             ))}
           </div>
         )}
-        {last && r && (
-          <>
-            <Btn wide onClick={() => setSharing(true)}>
-              <Send className="size-[18px]" aria-hidden />
-              Share your night
-            </Btn>
-            {r.next ? (
-              <>
-                {/* The next one in the same place: back still closes the reveal. */}
-                <Btn tone="ink" wide onClick={() => ask(r.next!)}>
-                  Reveal Episode {r.next}
-                </Btn>
-                <button type="button" onClick={onClose} className="h-11 text-[15px] font-semibold text-muted-foreground">
-                  Back to {name}
-                </button>
-              </>
-            ) : (
-              <Btn tone="ink" wide onClick={onClose}>
-                Back to {name}
-              </Btn>
-            )}
-          </>
-        )}
+        {r && beats[at]?.action}
+        {last && r && end}
       </div>
-      {r && <ShareSheet open={sharing} onOpenChange={setSharing} r={r} show={show} />}
     </>
+  );
+}
+
+/** The first-time tour's reveal: the last episode you revealed on a show you play, again, or a made-up one. */
+export type TourRevealPlay = { name: string; season: number | null } & ({ seasonId: string; couchId: string | null; n: number } | { made: SeasonReveal });
+
+/**
+ * The first-time tour's reveal (docs/PLAN-first-time-tour.md version 2), over Home: a replay (POST .../reveal with `replay`, which
+ * writes nothing) or a made-up episode (no server at all). Nothing that would be real at the end: no Share your night, no next
+ * episode; Back to the tour.
+ */
+export function TourReveal({ play, onFail, onClose }: { play: TourRevealPlay; onFail?: () => void; onClose: () => void }) {
+  const [fetched, setFetched] = useState<SeasonReveal | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const asked = useRef(false);
+  useEffect(() => {
+    if ("made" in play || asked.current) return;
+    asked.current = true;
+    revealEpisode(play.seasonId, play.couchId, play.n, { replay: true })
+      .then(setFetched)
+      // A replay that can't be had: the made-up one instead (onFail), else say why.
+      .catch((e: Error) => (onFail ? onFail() : setError(e.message)));
+  }, [play, onFail]);
+  const r = "made" in play ? play.made : fetched;
+  const mounted = useSyncExternalStore(noop, () => true, () => false);
+  if (!mounted) return null;
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="The reveal"
+      data-tour-reveal={"made" in play ? "made" : "replay"}
+      className="dark nd-fixed-x fixed inset-y-0 z-[86] flex flex-col bg-[#0b0a10] text-foreground"
+    >
+      <Beats
+        name={play.name.replace(/^The /, "")}
+        season={play.season}
+        n={"made" in play ? play.made.episode : play.n}
+        r={r}
+        error={error}
+        replay
+        onClose={onClose}
+        end={
+          <Btn tone="ink" wide data-tour-reveal-done onClick={onClose}>
+            Back to the tour
+          </Btn>
+        }
+      />
+    </div>,
+    document.body
   );
 }
 
@@ -217,16 +371,17 @@ function Kicker({ children }: { children: ReactNode }) {
   return <span className="type-caption mb-3 block text-[15px] tracking-[0.06em] text-muted-foreground">{children}</span>;
 }
 
-function Opener({ r, show }: { r: SeasonReveal; show: ShowData }) {
-  const season = show.header?.seasonNumber;
+/** The first beat: the show and episode, and "Previously on the couch" (an episode revealed early whose final scores are in now:
+ *  "Final scores are in"; never in the tour's replay, which plays it as it was). */
+function Opener({ r, name, season, replay }: { r: SeasonReveal; name: string; season: number | null; replay?: boolean }) {
   const finalWords = useFinalLine(r.stage, r.finalAt);
   return (
     <div>
       <Kicker>
-        {(show.header?.show.name ?? "").replace(/^The /, "")}
+        {name}
         {season ? ` ${season}` : ""} · Episode {r.episode}
       </Kicker>
-      {r.again && r.stage === "final" ? (
+      {r.again && r.stage === "final" && !replay ? (
         <h2 className="type-caption text-[56px] leading-[.92]">
           Final scores
           <br />
@@ -242,6 +397,51 @@ function Opener({ r, show }: { r: SeasonReveal; show: ShowData }) {
       <p className="mt-4 text-[15px] text-muted-foreground">
         {r.stage === "early" ? `Early results: who went home. ${finalWords ? `${finalWords}.` : "Weekly Lineup's full scores come later."} ` : ""}Tap anywhere to go on
       </p>
+    </div>
+  );
+}
+
+/** A write-up's sentences: split where one ends and the next begins with a capital (or a number, or a quote), never after a
+ *  title or an abbreviation ("Dr. Ava", "Ep. 4"). */
+const sentencesOf = (t: string) =>
+  t
+    .replace(/\s+/g, " ")
+    .trim()
+    .split(/(?<=[.!?…])\s+(?=["“'‘(]?[A-Z0-9])/)
+    .filter(Boolean)
+    .reduce<string[]>((out, part) => {
+      const last = out[out.length - 1];
+      if (last && /\b(Dr|Mr|Mrs|Ms|Mx|St|Jr|Sr|vs|No|Ep|Vol|Pt)\.$/i.test(last)) out[out.length - 1] = `${last} ${part}`;
+      else out.push(part);
+      return out;
+    }, []);
+
+/**
+ * In this episode: the episode's write-up (Fill in what happened), what a show with nobody going home still has to reveal. Read
+ * as the show's own "previously on" (the user, 2026-11-02: bolder, a little delight, still minimal): its first sentence the lede,
+ * big and bold, then the rest landing a sentence at a time, at a voiceover's pace (new.css nd-recap-line; all at once under
+ * reduced motion). No new colour: the lede in the foreground, the rest muted.
+ */
+function Recap({ r }: { r: SeasonReveal }) {
+  const [lede = "", ...rest] = sentencesOf(r.summary ?? "");
+  return (
+    <div data-reveal-recap>
+      <Kicker>In this episode</Kicker>
+      <p
+        className={`nd-recap-line line-clamp-5 font-bold leading-[1.15] tracking-[-0.01em] [text-wrap:balance] ${lede.length > 110 ? "text-[23px]" : "text-[28px]"}`}
+        style={{ ["--i" as string]: 0 }}
+      >
+        {lede}
+      </p>
+      {rest.length > 0 && (
+        <div className="mt-4 line-clamp-[9] text-[17px] leading-relaxed text-muted-foreground">
+          {rest.map((t, i) => (
+            <span key={i} className="nd-recap-line mt-1.5 block" style={{ ["--i" as string]: i + 1 }}>
+              {t}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

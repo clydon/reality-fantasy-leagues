@@ -581,6 +581,20 @@ const REAL_SHOWS = `SELECT md5(string_agg(s.id || s.name || s.archived::text || 
     const errs = dsk.errors.filter((e) => !/Failed to load resource/.test(e));
     check(!errs.length && !failed.length, "no page errors or failed requests", [...errs, ...failed].join(" | "));
 
+    // ---- 7b: its season gone, its deleted games still in their 30 days (the user's World Series, 2026-11-01): the sheet lists
+    // each game, to its own page (where Delete it for good is), not a season row that leads nowhere ----
+    await pool.query("UPDATE leagues SET deleted_at = now() - interval '1 day' WHERE id = ANY($1)", [[ids.outlast, ids.binned]]);
+    await pool.query("DELETE FROM show_seasons WHERE show_id = $1 AND season_number = 2", [ids.isle]);
+    const gone = (await get(ids.isle)).delete.blocked.find((x) => x.label === "ZT DV Isle 2");
+    check(!!gone && gone.seasonId === null && gone.games.length === 2 && gone.games.every((g) => g.state === "deleted"), "a season that's gone: its games listed one by one", JSON.stringify(gone));
+    await pg.goto(`${BASE}/desk/show/${ids.isle}`);
+    await pg.locator("[data-delete-row='show'] button").click();
+    await pg.locator("[data-says='show-blocked']").waitFor({ timeout: 10000 });
+    const links = await pg.locator("[data-show-blockers] a[data-desk-row='show-blocker']").evaluateAll((els) => els.map((e) => e.getAttribute("href")));
+    check(links.length === 3 && links.every((h) => /^\/desk\/game\//.test(h ?? "")), "the sheet: each game in the way opens its own page (2 deleted, 1 ended)", links.join(" "));
+    await shot("delete-refused-season-gone");
+    await pg.keyboard.press("Escape");
+
     // ---- 8, last (it takes rows the counts above read): a game deleted long ago doesn't hold a show ----
     await pool.query("UPDATE leagues SET deleted_at = now() - interval '40 days' WHERE id = ANY($1)", [[ids.outlast, ids.old, ids.binned]]);
     r = await as.desk.call("DELETE", `/api/desk/shows/${ids.isle}`);

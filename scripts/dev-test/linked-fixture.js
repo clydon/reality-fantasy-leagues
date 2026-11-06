@@ -69,6 +69,8 @@ async function up(pool, { groupName = null } = {}) {
     `INSERT INTO account (id, "accountId", "providerId", "userId", password, "createdAt", "updatedAt") VALUES ($1,$2,'credential',$2,$3,now(),now())`,
     [id(), userId, await hashPassword(PASSWORD)]
   );
+  // A classic-design fixture: its people open on classic, which since 0155 (everyone on the new design) has to be chosen.
+  await pool.query(`INSERT INTO user_settings (user_id, ui) VALUES ($1, 'classic')`, [userId]);
   const { rows: g } = await pool.query(`INSERT INTO league_groups (created_by, name) VALUES ($1, $2) RETURNING id`, [userId, groupName]);
   const made = [];
   for (const [i, [slug, name, type]] of LEAGUES.entries()) {

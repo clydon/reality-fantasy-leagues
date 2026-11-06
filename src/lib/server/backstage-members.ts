@@ -13,6 +13,7 @@ import { leagueStates } from "./league-states";
 import { LEAGUE_ROLES, lastCommissionerProblem, setLeagueRole, type LeagueRole } from "./roles";
 import type { Game } from "./show-space";
 import { othersOnSeat } from "./shared-seats";
+import { stagesBegun } from "./stages";
 
 // Backstage › Members & roles (docs/PLAN-new-design.md step 6a; the mock's backstage.js bsMembers and guards.js): who plays
 // the couch's games on a season and who runs each. Commissioner (results, waivers, rules and roles) and Game admin (results
@@ -148,7 +149,12 @@ export async function setMemberRole(
  */
 export async function freeSeat(s: LeagueState, client: PoolClient, leagueId: string, seat: Player | null | undefined, userId: string): Promise<boolean> {
   if (seat && (await othersOnSeat(client, leagueId, seat.id, userId))) return false;
-  const removed = !s.draftPicksMade;
+  // A game in stages (step A12 part 4c of docs/PLAN-start-a-game-gpt.md) has no draft of its own: once any stage has begun its seat is
+  // kept, disabled, so the seat in each stage stays the same one and the account gets it back on its return (stages.ts seatStage).
+  // A late joiner still catching up (GhostLogic, docs/PLAN-late-joiners.md) was never in anyone's game yet, so their seat goes whole,
+  // as it would before a draft, rather than staying in the standings unplayed (the user, 2026-10-31).
+  const catchingUp = !!seat && StateLogic.GhostLogic.isCatchingUp(s, seat.id);
+  const removed = catchingUp || (StateLogic.StageLogic.on(s) ? !(await stagesBegun(client, leagueId)) : !s.draftPicksMade);
   if (!seat) return removed;
   if (removed) {
     StateLogic.removePlayer(s, seat.id);
@@ -225,8 +231,18 @@ export async function outPreview(here: Game[], userId: string): Promise<OutPrevi
     const { rows } = await pool.query("SELECT user_id, role FROM league_memberships WHERE league_id = $1", [g.leagueId]);
     const p = lastCommissionerProblem(rows.map((r) => ({ userId: r.user_id, role: r.role })), userId, "member");
     if (p && !problem) problem = `Every game needs a Commissioner. Hand ${g.name} to someone first.`;
-    const { rows: st } = await pool.query("SELECT (state->>'draftPicksMade')::int AS made FROM leagues WHERE id = $1", [g.leagueId]);
+    const { rows: st } = await pool.query(
+      `SELECT (l.state->>'draftPicksMade')::int AS made, EXISTS (SELECT 1 FROM leagues c WHERE c.stage_of = $1 AND c.deleted_at IS NULL) AS staged,
+              EXISTS (SELECT 1 FROM league_memberships m, jsonb_array_elements(COALESCE(l.state->'players', '[]'::jsonb)) p
+                       WHERE m.league_id = l.id AND m.user_id = $2 AND p->>'id' = m.player_id AND p->'lateJoin'->>'catchingUp' = 'true') AS catching
+         FROM leagues l WHERE l.id = $1`,
+      [g.leagueId, userId]
+    );
+    // A late joiner still catching up goes whole, as freeSeat lets them.
+    if (st[0]?.catching) continue;
     if (st[0]?.made) drafted = true;
+    // A game in stages (step A12 part 4c) keeps the seat once any stage has begun, as freeSeat does.
+    else if (st[0]?.staged && (await stagesBegun(pool, g.leagueId))) drafted = true;
   }
   return { name: who[0]?.name ?? "someone", games: games.map((g) => g.name), drafted, problem };
 }

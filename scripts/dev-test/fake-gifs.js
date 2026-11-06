@@ -1,13 +1,13 @@
-// Dev-only: a stand-in for GIPHY (src/lib/server/gifs.ts), so a check can send GIFs in a watch along (docs/PLAN-new-design.md
-// step 13 part 1) without a GIPHY key or the internet. It answers GET /v1/gifs/search?q= and /v1/gifs/trending in GIPHY's shape
-// (each GIF's fixed_width and fixed_width_small pictures), and serves those pictures itself: the mock's coloured tiles with a word
-// (watching.js GIFS), as SVG. Every request is kept in `asked`.
+// Dev-only: a stand-in for KLIPY (src/lib/server/gifs.ts; GIPHY's until 2026-10-31), so a check can send GIFs in a watch along or
+// the couch chat (docs/PLAN-new-design.md step 13 part 1) without a KLIPY key or the internet. It answers GET /v2/search?q= and
+// /v2/featured in KLIPY's v2 shape (Tenor's: each result's media_formats, mediumgif and tinygif with dims), and serves those
+// pictures itself: the mock's coloured tiles with a word (watching.js GIFS), as SVG. Every request is kept in `asked`.
 //
 //   const gifs = await require("./fake-gifs").start();
 //   // point the dev server at it for a request or a browser: header  x-gys-gifs: gifs.url   (next dev only, loopback only)
 //   gifs.down = true (searches fail);  gifs.asked;  gifs.GIFS;  await gifs.close();
 //
-// No database. With no header and no GIPHY_API_KEY, the app has no GIFs at all (no button), which a check can assert too.
+// No database. With no header and no KLIPY_API_KEY, the app has no GIFs at all (no button), which a check can assert too.
 const http = require("http");
 
 // The mock's tiles: [word, colour, darker].
@@ -45,23 +45,24 @@ async function start() {
       res.writeHead(200, { "content-type": "image/svg+xml" });
       return res.end(svg(g[0], g[1], g[2], w, Math.round(w * 0.75)));
     }
-    if (u.pathname === "/v1/gifs/search" || u.pathname === "/v1/gifs/trending") {
+    if (u.pathname === "/v2/search" || u.pathname === "/v2/featured") {
       if (fake.down) return json(503, { message: "the stand-in is down" });
-      if (!u.searchParams.get("api_key")) return json(401, { message: "no key" });
+      if (!u.searchParams.get("key")) return json(401, { message: "no key" });
       const q = (u.searchParams.get("q") || "").toLowerCase();
-      const list = u.pathname.endsWith("trending") ? GIFS : GIFS.filter((g) => g[0].toLowerCase().includes(q));
+      const list = u.pathname.endsWith("featured") ? GIFS : GIFS.filter((g) => g[0].toLowerCase().includes(q));
       return json(200, {
-        data: list.map(([word]) => {
+        results: list.map(([word]) => {
           const id = idOf(word);
           return {
             id,
             title: `${word} GIF`,
-            images: {
-              fixed_width: { url: `${fake.url}/media/${id}/200w.svg`, width: "200", height: "150" },
-              fixed_width_small: { url: `${fake.url}/media/${id}/100w.svg`, width: "100", height: "75" },
+            media_formats: {
+              mediumgif: { url: `${fake.url}/media/${id}/200w.svg`, dims: [200, 150] },
+              tinygif: { url: `${fake.url}/media/${id}/100w.svg`, dims: [100, 75] },
             },
           };
         }),
+        next: "",
       });
     }
     json(404, {});

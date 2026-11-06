@@ -480,9 +480,7 @@ function researchEntryProblems(entry) {
   if (entry.attendedTribal === "no" && Number.isInteger(entry.votesReceived) && entry.votesReceived > 0) {
     problems.push(`${entry.name}: ${entry.votesReceived} votes against someone who didn't attend Tribal`);
   }
-  if (entry.wonIndividualImmunity === "yes" && entry.leftTheGame === "yes" && entry.exitMethod === "Voted Out") {
-    problems.push(`${entry.name}: voted out despite winning individual immunity`);
-  }
+  // Voted out despite winning individual immunity: an episode's check (researchEpisodeProblems), as a double Tribal's isn't one.
   if (entry.foundAdvantage === "yes" && !entry.advantageFoundName) {
     problems.push(`${entry.name}: found an advantage but didn't say what`);
   }
@@ -502,6 +500,15 @@ function researchEpisodeProblems(payload) {
   const problems = [];
   const cast = (payload && payload.castaways) || [];
   const attendees = () => cast.filter((c) => c.attendedTribal === "yes");
+  // Two voted out is two Tribals the same night (a double boot), and the checklist has one vote and one immunity a person an
+  // episode: the first Tribal's immunity winner can go home at the second, and everyone there votes twice. So those two
+  // checks are made only on a night with one vote.
+  const oneVote = cast.filter((c) => c.leftTheGame === "yes" && c.exitMethod === "Voted Out").length < 2;
+  if (oneVote) {
+    for (const c of cast) {
+      if (c.wonIndividualImmunity === "yes" && c.leftTheGame === "yes" && c.exitMethod === "Voted Out") problems.push(`${c.name}: voted out despite winning individual immunity`);
+    }
+  }
   if (payload.tribalCouncilHeld === "no" && attendees().length) {
     for (const c of attendees()) Object.assign(c, { attendedTribal: "no", votesReceived: null });
     problems.push("No Tribal Council this episode, but some people were marked as attending it (cleared)");
@@ -520,10 +527,10 @@ function researchEpisodeProblems(payload) {
     problems.push(`Everyone at Tribal was given zero votes, so the vote counts look missing (cleared, nobody marked safe)`);
   }
   // Votes against people should roughly match the people who voted. Only reported: revotes, extra
-  // votes and idols all make honest counts differ.
+  // votes and idols all make honest counts differ; on a double Tribal everyone there votes twice.
   const voters = attendees().filter((c) => c.votedFor).length;
   const against = cast.reduce((n, c) => n + (Number.isInteger(c.votesReceived) ? c.votesReceived : 0), 0);
-  if (voters && against && against !== voters) {
+  if (oneVote && voters && against && against !== voters) {
     problems.push(`${against} votes counted against people, but ${voters} people at Tribal are recorded voting: check who attended`);
   }
   return problems;

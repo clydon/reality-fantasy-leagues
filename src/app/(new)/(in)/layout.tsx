@@ -10,9 +10,10 @@ import { BingoSheets } from "@/new/show/bingo";
 import { CallSheets } from "@/new/show/calls";
 import { QuestionSheets } from "@/new/show/questions";
 import { PollSheets } from "@/new/show/polls";
-import { RateSheets } from "@/new/show/rate";
+import { EpisodeGifSheets } from "@/new/show/react";
 import { TriviaSheets } from "@/new/show/trivia";
 import { WatchingSheets } from "@/new/watching/sheets";
+import { TourBack } from "@/new/tour/back";
 import { paths, START_STEPS } from "@/new/routes";
 import { viewAsFor } from "@/lib/server/view-as";
 
@@ -35,9 +36,10 @@ export default async function SignedInLayout({ children }: { children: React.Rea
     impersonatingUntil: (session.session as { impersonatedBy?: unknown }).impersonatedBy ? new Date(session.session.expiresAt).toISOString() : null,
   };
   // The couch sheets (switch, details, invite, start, join, leave: step 9), the watching ones (Add a show, where you are:
-  // step 10), Start a game (step 10 part 2b), planned nights (step 11 part 3), Rate it (step 12 part 1), Call it and the couch's
+  // step 10), Start a game (step 10 part 2b), planned nights (step 11 part 3), React with a GIF (docs/PLAN-gif-reactions.md), Call it and the couch's
   // polls (part 2), bingo and trivia (part 3), and a game's questions (step A4 part 2 of docs/PLAN-start-a-game-gpt.md: a
-  // Prediction Sheet, finale predictions) open from anywhere signed in.
+  // Prediction Sheet, finale predictions) open from anywhere signed in, and the first-time tour's way back from a page one of its
+  // steps went to (tour/back.tsx).
   // The Read-only plate over a game a site admin opened from the desk (part 6c of docs/PLAN-desk-parity.md), first.
   return (
     <SessionProvider me={me}>
@@ -47,12 +49,13 @@ export default async function SignedInLayout({ children }: { children: React.Rea
       <WatchingSheets />
       <StartGameSheets />
       <PlanSheets />
-      <RateSheets />
+      <EpisodeGifSheets />
       <CallSheets />
       <QuestionSheets />
       <PollSheets />
       <BingoSheets />
       <TriviaSheets />
+      <TourBack />
     </SessionProvider>
   );
 }

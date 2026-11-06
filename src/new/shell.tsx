@@ -3,6 +3,7 @@
 import { useLayoutEffect, type ReactNode } from "react";
 import { ThemeSync, useAppearance } from "./appearance";
 import { NavMotion } from "./nav";
+import { TuneIn } from "./tune-in";
 import { ToastHost } from "./ui/toast";
 
 // The new design's frame (docs/PLAN-new-design.md step 0c), around every one of its routes: the phone column
@@ -29,6 +30,7 @@ export function NewShell({ children }: { children: ReactNode }) {
       {children}
       <ToastHost />
       <NavMotion />
+      <TuneIn />
       <ThemeSync />
     </div>
   );

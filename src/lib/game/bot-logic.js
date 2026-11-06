@@ -1,5 +1,5 @@
 // Computer players: seats a commissioner adds with "Computer player" ticked (player.automated). They
-// draft, set lineups, make Eliminator Pool picks, make waiver claims and fill in finale picks
+// draft, set lineups, make Eliminator Pool picks, fill group slots, make waiver claims and fill in finale picks
 // on their own, in every show and league type, using only what the league itself knows -- what each
 // castaway has done in episodes with results (scored by the show's own catalog), who's been in the
 // firing line, tribe numbers, who's holding an idol, a known Traitor. Nothing clever: the bar
@@ -25,7 +25,7 @@ const Formats = require("./formats/index.js");
 
 const {
   Core, DraftLogic, BlindDraftLogic, AuctionLogic, BudgetLogic, PriceLogic, MarketLogic, ActiveRosterLogic, PickEmLogic, MidSeasonLogic,
-  KeeperLogic, EpisodeLogic, FinaleLogic, getLeagueType, inPlay, closedForPlay,
+  KeeperLogic, EpisodeLogic, FinaleLogic, GroupSlotLogic, KnockoutLogic, piecesOf, inPlay, closedForPlay,
   currentEpisode, finalePredictionsAvailable, seasonWinner,
 } = StateLogic;
 
@@ -154,7 +154,7 @@ function ratings(state, level) {
   const prof = profiles(state);
   const edges = tribeEdges(state);
   const merged = isMerged(state);
-  const activeRoster = !!getLeagueType(state).hasActiveRoster;
+  const activeRoster = !!piecesOf(state).hasActiveRoster;
   const out = {};
   state.castaways.forEach((c) => {
     if (c.status !== "active") return;
@@ -205,7 +205,7 @@ function draftOrderFor(state, playerId, candidateIds, alreadyMine) {
 
 function snakeDraft(state) {
   // A blind draft's bots lock in (blindSubmissions), an auction's bid (auctionBids); a draw's deals itself (no turn comes up).
-  if (BlindDraftLogic.on(state) || !getLeagueType(state).hasRoster) return 0;
+  if (BlindDraftLogic.on(state) || !piecesOf(state).hasRoster) return 0;
   if (!DraftLogic.isStarted(state)) return 0;
   let made = 0;
   for (let guard = 0; guard < 500; guard++) {
@@ -230,7 +230,7 @@ function snakeDraft(state) {
 // locking (src/lib/server/bots.ts) since submissions are kept out of `state`.
 function blindSubmissions(state) {
   if (!botIds(state).length) return [];
-  if (!BlindDraftLogic.on(state) || !getLeagueType(state).hasRoster) return [];
+  if (!BlindDraftLogic.on(state) || !piecesOf(state).hasRoster) return [];
   if (!DraftLogic.isStarted(state) || BlindDraftLogic.isRevealed(state)) return [];
   const active = state.castaways.filter((c) => c.status === "active").map((c) => c.id);
   return botIds(state)
@@ -255,7 +255,7 @@ function blindSubmissions(state) {
 // team's worth and as many again as backups, as a sheet (AuctionLogic.sheetFor: the budget over the team it wants by rank, the
 // backups at the lowest price). The server locks them in (src/lib/server/bots.ts), since bids are kept out of `state`.
 function auctionBids(state) {
-  if (!botIds(state).length || !AuctionLogic.on(state) || !getLeagueType(state).hasRoster) return [];
+  if (!botIds(state).length || !AuctionLogic.on(state) || !piecesOf(state).hasRoster) return [];
   if (!DraftLogic.isStarted(state) || !AuctionLogic.ready(state)) return [];
   const free = state.castaways.filter((c) => c.status === "active" && !(c.ownerIds || []).length).map((c) => c.id);
   return botIds(state)
@@ -273,7 +273,7 @@ function sameSet(a, b) {
 // differs from what the bot would field now -- so an eliminated starter is replaced the moment the
 // results land, not left as an empty slot.
 function lineups(state) {
-  if (!getLeagueType(state).hasActiveRoster) return 0;
+  if (!piecesOf(state).hasActiveRoster) return 0;
   const ep = currentEpisode(state);
   if (!ep || !inPlay(state, ep.number) || ActiveRosterLogic.isLineupLocked(state, ep.id)) return 0;
   const slots = ActiveRosterLogic.activeSlots(state);
@@ -297,10 +297,47 @@ function lineups(state) {
   return made;
 }
 
+// Group slots (docs/PLAN-start-a-game-gpt.md step A10 part 1; computer players fill them since A11 part 5c): a slot with nothing in
+// it for the episode (never picked, or its group has ended) takes the group on offer whose people it rates best (their likely
+// points, on average, as its lineup reads them, plus its own taste), before the episode locks. A slot riding with its group is
+// left as it is (validatePick refuses a swap while it lasts unless the game allows them, and a bot never chases one), and an
+// exclusive opening's group someone else holds is passed over for the next best. Nothing on offer (the show isn't divided going
+// in, or that's not sure and the game voids it): the slot stays empty, as a person's would.
+function groupSlotPicks(state) {
+  const cfg = GroupSlotLogic.config(state);
+  if (!cfg) return 0;
+  const ep = currentEpisode(state);
+  if (!ep || !inPlay(state, ep.number) || ActiveRosterLogic.isLineupLocked(state, ep.id)) return 0;
+  const ix = GroupSlotLogic.index(state);
+  const offer = GroupSlotLogic.offered(state, ep.number, ix);
+  if (!offer.groups.length) return 0;
+  const outs = KnockoutLogic.outs(state);
+  let made = 0;
+  botIds(state).forEach((pid) => {
+    // Knocked out, or a team with nobody on it (a bot with no castaways scores nothing, as its lineup does).
+    if (outs.has(pid) || !Core.ownedCastawayIds(state, pid).length) return;
+    const level = levelOf(state, pid);
+    const r = ratings(state, level);
+    // Each group's people's likely points on average, worked out once.
+    const rate = new Map(offer.groups.map((g) => {
+      const people = g.members.filter((m) => r[m]);
+      return [g.id, people.length ? people.reduce((n, m) => n + r[m].points + taste(pid, m, level), 0) / people.length : -Infinity];
+    }));
+    const best = [...offer.groups].sort((a, b) => rate.get(b.id) - rate.get(a.id) || (a.id < b.id ? -1 : 1));
+    for (let slot = 0; slot < cfg.slots; slot++) {
+      const st = GroupSlotLogic.standing(state, pid, slot, ep.number, ix);
+      if (st.pick && st.status !== "dropped") continue;
+      const g = best.find((x) => !GroupSlotLogic.validatePick(state, ep.id, pid, slot, x.id));
+      if (g && GroupSlotLogic.setPick(state, ep.id, pid, slot, g.id)) made++;
+    }
+  });
+  return made;
+}
+
 // Eliminator Pool: whoever looks safest of the people the cycle rule still allows. A pool's second pick (step A10 part 2): the
 // next safest beside it. Someone out of a pool with lives has nobody to pick (eligibility).
 function eliminatorPicks(state) {
-  if (!getLeagueType(state).hasWeeklyPicks) return 0;
+  if (!piecesOf(state).hasWeeklyPicks) return 0;
   const ep = currentEpisode(state);
   if (!ep || !inPlay(state, ep.number) || closedForPlay(ep) || PickEmLogic.decided(ep, state)) return 0;
   const parts = PickEmLogic.parts(state);
@@ -402,7 +439,7 @@ function run(state) {
   if (!botIds(state).length) return 0;
   let total = 0;
   for (let pass = 0; pass < 5; pass++) {
-    const made = snakeDraft(state) + lineups(state) + eliminatorPicks(state) + finalePicks(state);
+    const made = snakeDraft(state) + lineups(state) + groupSlotPicks(state) + eliminatorPicks(state) + finalePicks(state);
     total += made;
     if (!made) break;
   }
@@ -415,4 +452,4 @@ function hasWork(state) {
   return blindSubmissions(state).length > 0 || auctionBids(state).length > 0 || run(structuredClone(state)) > 0;
 }
 
-module.exports = { LEVELS, DEFAULT_LEVEL, isBot, botIds, ratings, run, hasWork, blindSubmissions, auctionBids, waiverClaim };
+module.exports = { LEVELS, DEFAULT_LEVEL, isBot, botIds, ratings, run, hasWork, blindSubmissions, auctionBids, waiverClaim, groupSlotPicks };

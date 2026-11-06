@@ -21,11 +21,285 @@ and the Neon password rotation (deferred; steps there). Fixed 2026-10-24: the ch
 end); GitHub Actions, stopped since 2026-10-19, runs again. Vercel builds production only (Preview shared
 production's database).
 
+## React with a GIF (2026-11-01; branch `reactions`, lane `rfl-reactions`, migration 0162)
+The user found Rate it's stars no fun: an episode's reaction is now **one GIF you search for** (KLIPY, the chat's picker), and
+**Rate it is shelved** (stars, couch verdict, taste twin, rating accolades, Couch verdicts; `episode_ratings` kept). The GIF
+sheet opens after you watch (a watch along's end, and soon Tonight's I watched it), Tonight and Episodes show the couch's, and
+the reveal has a new slide, The couch reacts, after who went home and before your games. **Read
+[PLAN-gif-reactions.md](PLAN-gif-reactions.md)** (decisions, as built, the three I-watched-it mocks waiting on the user's pick).
+Check: `check-gif-reactions.js`. **Live 2026-11-01** (`c5ae1c06`, migration 0162; pushed with the user's go-ahead).
+
+## Up next for you (2026-11-01; branch `reactions`, no migration)
+The user's pick A of three /impeccable mocks (https://claude.ai/artifact/BcE68eG6VHXPQGy2PomGHv): on Tonight, the next episode you
+haven't watched is one plate (Watch along, I watched it, Ask the couch), under Your moves on a show you play (Your moves keep the
+yellow). I watched it always asks "Watched all of Episode N?" first: on a show you play Yes plays the reveal, on one you watch it
+moves where you are (Undo) and opens the GIF sheet. Ask the couch: Start now (a planned night that starts now: a push and a chat
+line) or Pick a time. Caught up: "Watch Episode 7 together". All set is one slim line now. **Read
+[PLAN-up-next.md](PLAN-up-next.md)**. Check: `check-tonight-up-next.js`.
+
+## Getting it ready (2026-11-01; branch `ready`, lane `rfl-ready`, migration 0160)
+The user added The Challenge 42 (finished, 14 episodes) and found no cast, and a summary for Episode 1 only. Now a show someone adds
+gets ready by itself:
+- **The steps:** how it's played (a brand-new show is made a game by our bot, applied when our check passes), then who's in it,
+  then what happened in every aired episode (and their results, when nobody plays it).
+- **How it looks:** the user picked look A, the Call sheet. It plays in Add's sheet, on Home's poster (no-signal), in the
+  show's header (a chip and a line), on Contestants (the casting wall) and on Episodes (the filmstrip).
+- **The free way:** asking ChatGPT yourself (the /b/ link, then paste) is on every step, and it leads while our bot's away.
+- **Read [PLAN-getting-it-ready.md](PLAN-getting-it-ready.md)** (decisions, as built, noticed).
+- **Checks:** `check-getting-ready.js` (36 PASS at 390).
+- **Live 2026-11-01** (`3367cba4`, then three fixes from the user's re-add: `86d5ba9c`, `a567e424`, `d014016b`; the plan's "After it went
+  live"). The user deleted The Challenge on the desk to test adding it fresh.
+
+## Where everyone is (2026-11-01; F and C pushed 31ea9286, then B; no migration, no new endpoint)
+The user: people say what episode they're on when they add a show, but the couch had no intuitive way to see it. Mocked
+with /impeccable on a private Design canvas (https://claude.ai/artifact/3EvNJC8CP7HDA3CHJuvAaB: A rail, B numbered header
+faces, C Episodes bookmarks, D hub board, then for the hub E captions, F faces, G poster backs, H one list). The user picked
+**F** ("we don't really have a view of the full couch yet") and **C**, then asked for **B** too (and the faces a smidge smaller).
+- **B, Tonight's header:** under the couch line's words, a button of numbered faces (`WhereLine`, screens/show-space.tsx: each
+  face with the last episode they've seen, "3 caught up" / "2 catching up"), once anyone else shares and something has aired.
+  It opens where everyone is (`couch/where-sheet.tsx`, `openCouchSheet({ kind: "where" })`): a group per place, then Place not
+  shown; each row says watching now or what they play, and opens the person sheet, whose back arrow returns
+  (`kind: "person"`'s `back`). Tonight's Who's watching rows open the person sheet too. Your own mark is one rule everywhere
+  (couch/where.ts knownMark); the words are whereWords' (`whereGroups`, `caughtUpLine`, own pace included).
+- **F, the hub:** the couch's faces under the status line on one 44px line with the couch's name (32px faces, no heading, no names:
+  the user wanted Your shows' poster whole on the first screen; check-where-everyone.js measures it at 412×823 too)
+  (`CouchRow`, hub/sections.tsx), You first and ringed, a teal dot on whoever's
+  watching along now. A face opens the person sheet (`couch/person-sheet.tsx`, `openCouchSheet({ kind: "person" })`): every
+  show they share Where I am on, "Caught up · Episode 7" / "Up to Episode 5 of 7", watching now, "2 ahead of you", and on a
+  show you don't watch "You don't watch it" with Add (the where sheet). Your own face: what the couch sees of you, your
+  private shows marked as only yours, a link to Settings. The couch details sheet's faces open it too, with a way back.
+- **C, Episodes:** each row carries the faces of whoever's up to it ("You're here · riley", your row lifted), a line saying
+  what a face marks, then who hasn't started and who plays without sharing where they are (show/episodes.tsx).
+- All from what the home and space reads already carried (guard.ts visibleFollows: private shows and Where I am off never
+  show), plus `user.shareWhere` on the home read so your own sheet says when the couch sees none of it. The pure part is
+  `src/new/couch/where.ts` (tests/couch-where.test.js). The couch's words are "Up to Episode 5" now, never "On Episode 5":
+  one rule, lib/sharing.ts whereWords (its "full" style is the sheet's "Up to Episode 5 of 7"), the Settings preview line, and
+  your own spoiler chip ("you're up to Ep 5"). Your own face on Episodes needs a known mark (none while you see results
+  straight away, as on Tonight).
+- Check: `node scripts/dev-test/check-where-everyone.js <outDir> [--width=390] [--height=844] [--theme=night|studio]` (new-fixture.js; jordan
+  turns Where I am off).
+- **Everyone on dark, shipped with it (the user, 2026-11-01: "force everyone on dark mode by default"):** migration 0159 puts
+  every account on Night (Studio and Match phone choices reset; Settings › Appearance still offers both, and a choice made
+  after it sticks); classic's per-browser theme defaults to dark (src/lib/theme.ts, theme-script.ts; a Light chosen there stays).
+
+## The first-time tour (2026-10-31; merged to master and pushed the same day, migration 0158)
+Everyone's on the new design (0155), so the user asked for the quickest, most useful first tour for players: couch first, then
+the game, few steps, almost no words, the real thing lit, examples instead of paragraphs; shaped with `/impeccable shape`, a
+clickable mock picked (Look A, "in place": https://claude.ai/artifact/KrgXF9AkNvpFeUv1Xn9qVf, from `.impeccable/mocks/tour/`),
+then built. **Read [PLAN-first-time-tour.md](PLAN-first-time-tour.md)** (the steps and their words, how it behaves, As built).
+Nine steps (eight when this phone already gets reminders; solo players get the couch pitched and no Couch points), once per
+account (`user_settings.tour_seen_at` / `tour_reached`, migration 0158), replay from Settings › Help and account or
+`/home?tour=1`, never while an admin acts as someone. **Checks:** `scripts/dev-test/check-new-tour.js` (92 PASS on the lane),
+`tests/tour-steps.test.js`; `npm test` 1227 of 1228 (the known `watch-along.test.js` failure, BACKLOG 37); on the shipped code
+`next build`, check-new-hub (106), -shell (44) and -settings (120) too. **Shipped** with the user's go-ahead: pushed as a
+fast-forward of master without the Neon rehearsal (the user: push; 0158 is two empty columns on `user_settings`); the snapshot to
+roll back to is the Neon branch `pre-tour-2026-10-31` (auto-deleted after 7 days). **Checks get Home without the tour** (browser.js's `gys_tour=off` cookie; a check
+that wants it passes `tour: true`). BACKLOG 38 has what it left.
+
+**Version 2, built 2026-11-01 on branch `tour2` (lane `rfl-tour2`), merged to master and pushed the same day (no migration):** the night version 1 went live the user
+found it too passive; after two mocks they set it: a welcome card (what the app is, its three ideas), then the real Home with
+**practice runs that save nothing**: Add a show (the first of Survivor, The Amazing Race, The Challenge you don't have, typed in for
+you; then "you don't need a game to add a show", and the tour adds HBO's Harry Potter and the next NFL game by itself), Your couch
+sees it (the TV guide with them in it), the reveal (your last one replayed: POST reveal with `replay`, or a made-up one), Start a game
+(a Prediction Sheet on the practice show, with Create a game with AI coming soon, also in the real sheet). Seven steps. **Read
+PLAN-first-time-tour.md, Version 2.** **Take the tour** again from the menu behind your picture on Home (beside Settings; Home
+plays it at once), or Settings. Checked: check-new-tour 111 PASS (phases A to K), npm test 1237/1238 (the one fails on master too),
+`next build`. **Production data first** (the user's go-ahead): The Amazing Race 39 added through the desk's New show and made a game
+with the bot (Ask ChatGPT for me), approved as drafted: ready, on nobody's Home; it's the couch's practice show (they all play
+Survivor 51). The Challenge has no current season (42 ended 2026-10-28). **Follow-up, live the same day (`fd3ae05f`, branch
+`tour3`, lane `rfl-tour3` kept while the user tests):** after trying it on their phone, on a practice step the plate says Try it
+where Next was (Next there skipped the practice by habit), Skip this step sits by Skip tour, a stray tap shakes the plate; the
+tour's own typing and taps slowed to be followed (each tap ringed and pressed in; ~19 s for the demo's two shows). check-new-tour
+119 PASS (phase L).
+
+**Version 3, the same day (branch `tour3`, lane `rfl-tour3`; PLAN-first-time-tour.md, Version 3):**
+- **Why:** the user, trying it again: Try it mustn't do the thing for them; Start a game's Start hid below the fold; and they set a
+  new order.
+- **The order:** up top, then **Down Home** (one step, a beat a section with a dot each: Your shows, This week on the couch, On the
+  couch, More on the couch), then hands on:
+  - **Your moves**, for real: the top line goes to its show, a "4/10 Back to the tour" pill sits on that page (tour/back.tsx), and
+    the tour carries on at Home without counting a skip.
+  - **Add a show.**
+  - **Flip a show:** the poster's corner turns it over to your games and back.
+  - **The TV guide:** its filters work through the tour, and a **Sports** filter says it's coming, in the guide for everyone.
+  - **The reveal**, then **Start a game**.
+- **Try it only shakes the thing to tap.** The skip pill uses its step's own words.
+- **Start a game's Start it** sits in the sheet's foot for everyone (ui/sheet.tsx `foot`).
+- **In practice, another show in Start a game's list** shakes the practice show's row instead of opening.
+- **`tour_reached`** is the count's number (10 at most).
+- **Then the same morning:**
+  - **One path through each practice** (tour/practice.tsx `keepToPath`): only the show it typed in, Where are you and Add, the
+    Prediction Sheet's Start it. Anything else shakes the next thing.
+  - **The reveal step draws Home with results waiting** on the episode the replay plays.
+  - **The demo adds Saturday Night Live** in the NFL game's place (sports aren't set up yet).
+  - **The show you practice-add goes on Home's guide** with the demo's, read from its listing.
+- **After an /impeccable critique (26/40, the same day; its five issues bar accessibility, the user's picks):**
+  - **Says what it does:** "nothing's saved" in place of "won't show up"; a Practice tag on practice posters and guide cards;
+    "Episode 4 stays sealed".
+  - **The demo adds SNL only.**
+  - **The wrap:** Turn on reminders is the main button; on an iPhone, the Add to Home Screen pictures.
+  - **Skip tour:** top right, with Undo.
+  - **The plate says Tap it ↑.**
+  - **Left:** BACKLOG 38.
+- **After the user tried it again (the same evening; PLAN-first-time-tour.md, "Trying it again"):**
+  - **Flip a show lit nothing** ("impossible to complete"): the light was measured mid-scroll on a long shelf. It now waits for the
+    shelf to stop, waits for the practice's shows to land, and follows its target.
+  - **Hints:** Where are you's Add to my shows shakes by itself; Start a game's options scroll to their end, then Start it shakes
+    (`useNudge`, practice only).
+  - **The TV guide's week scrolls by swipe or wheel** during the tour.
+  - **Found on the way:** a guide taller than the room above the plate (a night with many shows) now keeps its filters in sight;
+    in practice a switch that's on isn't yellow.
+  - `tests/watch-along.test.js` fixed (`gifUrl`): `npm test` all green. check-new-tour 198 PASS.
+
+## Next: adding sports by team (planned 2026-11-01, not started)
+The user: people search a team, not "Sunday Night Football"; show its schedule, take two teams in any order, add a series.
+**Read [PLAN-sports-add.md](PLAN-sports-add.md).** It builds on the `sports` branch's L1 part 3 (a team's ESPN schedule, matchups
+made as shared seasons, migration 0300), brought to master early in a lane of its own; the sports lane keeps track L.
+
+## Settings, redesigned (2026-10-31; pushed to master the same day, no migration)
+The user found Settings "very difficult to navigate" (every section open at once, about 35 controls, several screens long).
+Four phone mocks and an /impeccable critique (dual-agent; A 25, B 27, C 19 /40; archived in `.impeccable/critique/`) are on a
+private page, https://claude.ai/artifact/Uci3rUyydKaGgBZrm7aQCe, from `.impeccable/mocks/settings/`; the user picked **D**, built
+in `src/new/settings/`: **Quick settings** (this phone, Couch chat as Every message · Quiet nights · Never, Hide scores, Appearance
+with Dark/Light/Auto under the names), **Everything else** as rows saying what they're set to that open in place (`Fold`: Which
+notifications, Shows that move along by themselves, What your couch sees, Your couches, Your AI for results only for whoever
+runs a game), then **Help and account** (How each game works, Report a problem, Your account with the classic design, Sign
+out, Credits; the site admin's Test couch went 2026-10-31, its production couch removed, BACKLOG 36). When nothing reaches you, this phone is the screen's one yellow plate (Turn on, or Not
+now, kept per device; on an iPhone in Safari the reminder ask's three pictures); turning Hide scores off asks first. New token
+`--edge` (DESIGN.md Control Edge) for 44px outlined buttons, radio rings and off switches (BACKLOG 34). Checks open folds with
+`openFold(page, id)` from `scripts/dev-test/browser.js`. The default theme stays Night (the user's call).
+
+## The show's ⋯ menu, rebuilt for the casual player (2026-10-30; merged to master and pushed the same day, no migration)
+The user found the menu "way too cluttered and hard to read/navigate" (11 rows for a player, scrolling, every row the same weight).
+Mockups (a private design canvas, https://claude.ai/artifact/Snuugqw4eb5E2Ut4gVKxT4, options A–D) and the pick (D) are in that
+canvas; this is what was built. **The rule it follows, and the rule for the next row: if a tab already carries it prominently,
+it doesn't go in the menu.** The audit (checked in the code, 2026-10-30), per old row:
+- **Left the menu, a tab carries it:** Start a game (Tonight's tile when not solo; the Games tab's Start a game / Run it back /
+  Play it plate), Make it a game (that plate, on Tonight and Games), Add to my shows (Tonight's card for a show you don't follow),
+  Where you are for anyone who doesn't play (the spoiler chip with Change on every tab, but **not on a player's Tonight**, so a
+  player keeps a plain Where you are row).
+- **Stays, nothing else has it:** Backstage (Tonight carries no commissioner job on purpose; tonight.tsx's header says so), Invite
+  (a show's players have it only here; the couch pages and Backstage › Members are elsewhere), Notifications (the per-show
+  moments), How it works (the Games tab has a row, Tonight and the rest don't), Recent changes (players: only here; runners also
+  have Backstage's index), the drafts once done (a live draft is the dock's Draft button), Watch privately (Tonight only shows a
+  line while it's on), Remove from my shows, Leave.
+- **Stays as a fallback:** Plan a watch along. Tonight offers it only until the next episode has a plan; the menu is how a second
+  night is planned from the show (check-new-plans.js plans Episode 7 that way). The hub's guide can too.
+**What it is now** (`ShowMenu` in `src/new/screens/show-space.tsx`; the rule and rows are in DESIGN.md › The new design):
+- First sheet: Backstage for whoever runs a game (a caption plate naming the first job while something needs them, with the dot on
+  ⋯; else a quiet row), This season in Admin for a site admin (`paths.deskItem("season", …)`), **Notifications** saying what
+  *this phone* does (`reminderLine`, from `usePhone`/`useReach` in `show/remind.tsx`: never a flat "On", no dot), **Invite a
+  friend**, **How it works**, **Where you are** for a player (a plain row, "Spoiler-safe · you're on Ep N"), then **Everything
+  else** (second sheet with a back arrow: `Sheet`'s new `back` prop; the needs-you dot while a draft in it waits on you): Plan a
+  watch along, Draft room, Blind draft (a dot when it's your turn), Recent changes, Watch privately, Remove from my shows, Leave
+  (red). One or two such rows sit in the first sheet instead (counted from what's known when it opens, so rows never jump when
+  the drafts load).
+- The Notifications sheet (`show/notify-sheet.tsx`) leads with **Turn on** while no phone of yours gets them (blocked and
+  Add-to-Home-Screen say so too).
+- **Checks:** new `scripts/dev-test/check-new-show-menu.js` (player, commissioner with a real job, admin, a show he doesn't play).
+  Updated for the moved rows: check-new-watching (Where you are is the chip's Change; Watch privately and Remove are under
+  Everything else), -draft, -backstage, -backstage-ii, -couches ("Invite a friend"), -make-it (Tonight's plate), -plans,
+  -start-game (the Games tab). tsc and eslint are clean.
+- **Running the dev-test checks from a Linux cloud session** (the helper `browser.js` is Windows-only; nothing in the repo changed
+  for this): install `postgresql-16-pgvector` (`apt-get update` first); `initdb` as the `postgres` user under
+  `/var/lib/postgresql/…` (it can't reach `/tmp/claude-*`; not as root); a `.env.local` with `AUTH_DATABASE_URL`,
+  `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`; **Better Auth's CLI first** (`npx @better-auth/cli migrate --yes`), then
+  `alter table "user" drop column approved` (the CLI makes it and migration 0058 adds it), then `node db/migrate.js`; `npm run dev`;
+  `npx next typegen` before `tsc`. For `browser.js`, point `LOCALAPPDATA` at a folder holding `npm-cache/_npx/x/node_modules/playwright`
+  (a symlink to Playwright) and `ms-playwright/chromium-NNNN/chrome-win64/chrome.exe` (a shell script that `exec`s the Linux
+  Chromium with `--no-sandbox`).
+- **Checked on the user's PC before the merge (2026-10-30),** with master (the engine merge, df527fe6 and after) merged in first, in
+  a review worktree on a copy of the local database: the 13 checks that open the menu pass (show-menu, watching, draft, backstage,
+  backstage-ii, couches, make-it, plans, start-game, shell, show, notify, sheet-back). check-new-shell's show wall passes here: the
+  cloud run's failure was its database's missing catalog. check-sheet-back hangs about one run in four, on master's code as well
+  (BACKLOG 30); it passes when it doesn't.
+- **No What's New entry:** What's New is paused (2026-10-27) and the new design has no popup.
+- **Decided with the user (2026-10-30):** planning a *second* night stays only in Everything else (and the hub's guide);
+  phone-back from Everything else closes the whole menu (one history entry, like every sheet).
+- **The review's suggestions, made the same day (the user: "Do all your suggested items"):** the Notifications row's yellow dot is
+  gone (it never went away for someone who chose not to turn them on; the reminder ask respects Not now; yellow is for what you
+  must do, and a commissioner's menu carried three); the spoiler card is a plain Where you are row after How it works (the chip
+  with Change is on every tab past Tonight, a player's place moves on its own, and the card stacked under the Backstage plate;
+  `GuardChip`'s `card` size went with it); "On for your other phone" is "On for another device" (and "On for the Home Screen app
+  or another device" on an iPhone in Safari, whose Home Screen app is a device of its own), and "Add it to your Home Screen first"
+  is "Add to Home Screen to get them"; Everything else carries the needs-you dot while a draft in it waits on you
+  (check-new-draft.js checks it on alex's turn).
+
 ## Now (2026-10-28): the Start-a-game GPT plan, run in lanes
 - **Read [PLAN-start-a-game-gpt.md](PLAN-start-a-game-gpt.md) first.** Hardened with the user on 2026-10-28: the engine to its
   full target first (A5, the capability tracker, then A6–A15), today's games rebuilt on it (R1–R3), the UI last (U0–U1), the
   GPT's words alongside (G1), and live sports folded in as track L. Lanes (worktree + branch + database + port + session loop):
   [PARALLEL-SESSIONS.md](PARALLEL-SESSIONS.md); season tapes and playtests: [PLAN-playtests.md](PLAN-playtests.md).
+- **Merged and pushed 2026-10-31, 12:31 AM: the engine's A12 (parts 2–4c) and R1 part 3** (`075d193e`, merging the engine's
+  `bebf4101`; no migration, so no Neon rehearsal). R1 part 3 is the user's pool finale: only the winner survives it (on a night the
+  results record a winner, everyone else in the episode went home, `nightOf`), which changes Survivor 51's Survival Pool on
+  Dec 16; a How it works line telling the pool's players is still the user's call. A12, games in stages, now has everything
+  its step asked for: a stage a format change starts (part 2), the 'next-stage' fallbacks (2b), a side stage while a grouping
+  lasts (3), mini-games and two ways of scoring (4a), one game across two shows (4b) and late joiners (4c), engine and API
+  only (no screen makes a game in stages yet). Checked on the merged tree (rfl-merge, branch merge-a12): unit tests 1207
+  (on the engine's tree; on the merged one at 12:30 AM two of `status-plate.test.js`'s failed, not the merge's: it adds 48
+  hours to the real clock, which the night before the clocks go back is tomorrow), eslint on the 30 changed source files
+  (nothing new), `next build` with its type-check, `golden.js --before=origin/master` (7 seasons, 160 games, 19,361 reads:
+  only R1 part 3's expected 20 differ, The Challenge 40's Survival Pool), the Survivor 51 rehearsal (`season-forward.js
+  rehearse --scenario=realistic,rough,dst --before=origin/master` from the 2026-10-30 backup: every invariant holds, flag
+  off and on read the same, and against the live engine only the rough scenario's finale pick on the Sole Survivor differs,
+  4 reads).
+  The format-change design session after A12 has its questions in A12's Noticed lists, the side draft's (people, or the
+  pairs and teams themselves) first.
+- **Merged and pushed 2026-10-30 afternoon: the engine's A11 part 5c, A12 part 1 and R1, and the game-specs flag on**
+  (`46b77bba`, merging `3f5c6488`; migration 0203, rehearsed on the Neon branch `rehearse-r1-2026-10-30`; the snapshot to
+  roll back to is `pre-r1-2026-10-30`, auto-deleted after 7 days). **The flag is on in production** (2:39 PM, the user's Copy
+  and Enter in the main folder's `.session-loop/flag-on-prod.ps1`: the read-only check passed on all 10 leagues first, then
+  10 of 10 carry their spec). R1: today's five games are drafted and scored by the pieces their spec names (`piecesOf`), with
+  no league type in scoring (the type still names a game and gives the screens their flags until R3). A11 part 5c refuses
+  teams that follow the show's own groups and finishes the late joiners' leftovers; A12 part 1 adds games in stages (engine
+  and API only: each stage a league of its own, `stage_of` and `stage_key`). Checked on the merged tree (rfl-merge, branch
+  merge-r1): unit tests 1172, eslint on the 43 changed source files, `next build` with its type-check, the Survivor 51
+  rehearsal (`season-forward.js rehearse --scenario=realistic,rough,dst --before=origin/master`: every invariant holds, and
+  flag off against on and production's engine against the merge give 2,856 reads a scenario, every one the same),
+  `golden.js --before=origin/master` (7 seasons, 160 games, 19,361 reads, every one the same) and the Neon rehearsal (0203
+  applied, `[check] all good`, rulebooks backfilled with only the test couch's known FAILs, the game-specs check PASS on all
+  10 with the merged engine). Still the user's: R1 part 1's two questions (which rule a preset meets; a Survival Pool pick
+  of the season's winner graded wrong at the finale, before Dec 16).
+- **Merged and pushed 2026-10-30 afternoon: Survivor 51's season-forward rehearsal and its fixes** (the survivor lane,
+  `b09ed2a5`, merging `e9d0cbd9`; no migration). `scripts/dev-test/season-forward.js` clones the couch's three Survivor 51
+  games from a production backup and plays them forward from Episode 6 to a 13-episode finale in three scenarios
+  (realistic, rough, the daylight-saving week): every read the same flag off against on and master's engine against the
+  branch's (2,856 a scenario), and the screens' words at 390 the same off against on (since `e9d0cbd9` its word check reads
+  only the open panel; before, half the rough run's pages compared nothing). The fixes it found: a desk correction on a
+  double-boot night no longer swaps the two finishing places (the season sync re-applies re-decided exits in the season's
+  order; `tests/night-order.test.js`), nor does a commissioner's Undo; a double boot no longer trips research's vote checks;
+  nothing is owed when nobody's free to pick up ("Nobody's free to pick up: your team plays as it is"); a lock weeks away
+  says its date; and new words, the user's to change: Survival Pool's "No repeats until you've picked everyone still in"
+  (was "Never the same twice") and, after the finale, "The season's over: nothing more to set". The same day Survivor 51's
+  episode count went to 13 on production's desk (TVmaze lists 13, the finale Wed Dec 16), so finale predictions close at
+  the finale. Checked on the merged tree: unit tests 1151, eslint on the changed files, `next build` with its type-check (in
+  rfl-desk: the main folder's `next dev` held port 3000, and its stale `.next/types` fails a bare `tsc`), and
+  `golden.js --before=origin/master` (Survivor 49, the season loaded here: 30 games, 3,480 reads, every one the same).
+  **Next:** the game-specs flag on in production (R2), now proven with the flag on, is the user's
+  (`node scripts/game-specs-flag.js on`, from their terminal); the engine's R1 merges after the rehearsal passes on its tree.
+- **Merged and pushed 2026-10-30: the engine to A11 part 5b, with F1–F4** (`df527fe6`, merging `e8953d0a`; migrations
+  0200–0202, rehearsed on the Neon branch `rehearse-engine-2026-10-30`; the snapshot to roll back to is `pre-engine-2026-10-30`,
+  auto-deleted after 7 days). Players see **Starts** on Start a game and Game settings (the next episode, any later listed one,
+  or when a phase such as Merged starts, settled by the desk's "When did Merged start?" or the season's results) and the
+  **Prediction Sheet** (a game of questions from the show's moments, private until each locks, graded from the results) with
+  finale predictions in the new design. Finale predictions are graded from the season's results now (classic's enter-the-
+  winner routes answer 409), and side bets show only where they count. **Every show's full research asks the format section**
+  (who is with whom at the episode's end and what changed; about 7,800 characters more a prompt) and Survivor's tribe moves
+  come from it, approved by the user with the push ([STUDY-format-changes.md](STUDY-format-changes.md)). A5–A11 are engine and
+  API only, with no screens: the desk's **engine lab** (`/desk/lab`, site admins) starts them as test games. The game-specs flag
+  stays off; its read-only check passed on the Neon branch (10 of 10 leagues play the same carrying their spec), so **turning
+  it on is the user's call** (`scripts/game-specs-flag.js on`, from their terminal). Checked on the merged tree: unit tests
+  1130, tsc, `next build`; every game read by master's engine and the merged one, as every seat at every mark, the same
+  (production's leagues in the local copy and six taped seasons' replays: 140 games, 18,796 reads; `golden.js` needs A4's
+  `AnswerLogic` on both sides, so from the next merge it does this itself); the screens at 390 (Starts 98, phase starts 57,
+  the Prediction Sheet 98, hub 77, couches 114, way in 86, shell 46, show 81, Start a game 75). On the way:
+  `rehearse-migrations.js` refuses production by its endpoint id, so its pooled host too. The sports lane is synced and
+  migrated; the engine lane syncs itself at its next session. **The live check found two older faults, both fixed the same morning** ([BACKLOG](BACKLOG.md) 29):
+  Backstage and an episode's results answered 500 for Survivor 51's couch since 2026-10-29's Make every game match
+  (`rulings.ts`, `bc351e48`), and Survivor 51's Episode 7 read 7:00 PM ET once daylight time ends, research having written
+  October's offset for a November night (`3b42dca0`: `Air.exactInZone`, both prompts, `tests/dst.test.js` for every clock-
+  change edge; the schedule check refiled it at 8 PM EST in production).
 - **Merged and pushed 2026-10-29 evening: the app fixes** (the desk lane, `03e12bdc`, migration 0431, a new table): back
   closes a bottom sheet; pages show their loading look once, never content that disappears; early and final results (final
   at 12:00 noon the day after, in the season's zone, said wherever early results are, with an "Episode N final results are
@@ -53,8 +327,14 @@ production's database).
   **Waiting on the user:** restart the main bot (8765) on the new code, then the tapes move back to it and 8766 goes. The
   playtest branch is merged into master (`2c945d31`).
 - **Neon is on Launch** since 2026-10-28 (the user upgraded it at 98.3% of the free transfer; about $5 a month; HOSTING.md).
-- **On branches, not merged:** the engine's A1–A9, F1–F4 and A10 so far (`engine`; A1–A4 merge first), the sports plan's pointer (`sports`). Waiting on the user: S3 after two matching episodes, A2's game-specs flag on a Neon branch, the
-  rule questions in the plan's "Where the engine is headed", and an engine lab (yes or no).
+- **On branches, not merged:** the engine from A13 on (`engine`: A13 done, A14 parts 1-2 done, part 2b next), track L's live
+  sports (`sports`: L5 done, its next session after the weekly usage reset, Thu 2026-11-05 3 PM ET). **The lanes are held
+  by the usage cap until then** (the user, 2026-10-31: lanes pause at 75% of the week; a probe found 88% on 2026-11-01:
+  [PARALLEL-SESSIONS.md](PARALLEL-SESSIONS.md), "The usage cap"). Waiting on the
+  user: S3 after two matching episodes; which rule a preset meets (open until the engine is complete: the user, 2026-10-30);
+  the format-change design session after A12 (A12's Noticed lists); the watch along's concept before A15; and the rule
+  questions in the plan's "Where the engine is headed". Decided 2026-10-30 and live: a pool's finale, only the winner
+  survives it (R1 part 3).
 
 ## Next: moving the app onto the new design (plan written 2026-10-23)
 Steps can run back to back, unattended: `node scripts/session-loop.js` (its header comment says how: each session hands off to the next, stops only for a question, and can be paused and resumed).
@@ -170,7 +450,7 @@ spec.
 2. **A fresh production backup** into a new folder, restored until it prints "everything matches": `$env:BACKUP_DATABASE_URL = "<production string>"`; `node scripts/backup-leagues.js backups/prod-<date>-pre-merge`; `Remove-Item Env:BACKUP_DATABASE_URL`; `node scripts/restore-leagues.js backups/prod-<date>-pre-merge --into=restore_prod`.
 3. **A Neon branch of production** (Neon › Branches › New, e.g. `pre-merge-<date>`) and **the rehearsal of every branch migration, 0100 to 0140**: `$env:REHEARSE_DATABASE_URL = "<the branch's string>"`; `node scripts/rehearse-migrations.js`; `Remove-Item Env:REHEARSE_DATABASE_URL`. It must end "all good" (it also runs the rulebooks backfill and its scoring check there).
 4. **Merge `new-design` into master and push.** Vercel builds production only, and the build runs `db/migrate.js`, so 0100-0140 apply to production as it deploys (before pushing, add `TMDB_READ_TOKEN` to Vercel's environment variables, or show art stays TVmaze's posters only); check the deploy and the classic app (the couch keeps playing there until the next step).
-5. **Switch the couch:** with their OK, `ui='new'` for the three members (each can tap Try the new design, or one SQL update of `user_settings.ui`); classic stays one tap away (Settings › Back to the classic design). Then a week's watch before step C.
+5. **Done 2026-10-31, for everyone** (migration 0155: every account on the new design, new the default; Settings keeps Back to the classic design). **Switch the couch:** with their OK, `ui='new'` for the three members (each can tap Try the new design, or one SQL update of `user_settings.ui`); classic stays one tap away (Settings › Back to the classic design). Then a week's watch before step C.
 
 After the merge, also yours: turn on notifications from Settings on a real phone and see a push arrive (no check may reach a real push service); everyone starts on Everything in What your couch sees and on Night, so say so to the couch; the GIPHY key, the Google OAuth app and the tie-break switch stay off until you set them; Studio, the light theme, is plain (your note, 2026-10-26): a design step of its own, mocked first (the plan's Noticed, not fixed); Traitors 5's faction-as-tribe can be taken out from the desk; the Neon password rotation is still deferred (HOSTING.md). Updated 2026-10-24 with every
 mock decision since, the rulebooks phases placed in its order (R1–R3 after 0b), and step 6 split into 6a/6b/6c. **All

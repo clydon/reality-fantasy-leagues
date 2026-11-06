@@ -32,11 +32,13 @@ test("the new design's pages: Night unless this device's cookie says Studio, or 
   for (const p of ["/welcome", "/signin", "/start/2", "/join/ABC123", "/desk/find"]) assert.equal(boot({ path: p, cookie: "gys_theme=studio" }).theme, "studio", p);
 });
 
-test("classic's pages keep classic's own choice, whatever the new design's cookie says", () => {
+test("classic's pages keep classic's own choice, whatever the new design's cookie says; dark until someone chooses", () => {
   assert.deepEqual(boot({ path: "/", cookie: "gys_theme=studio", stored: "dark" }), { dark: true, theme: null });
-  assert.deepEqual(boot({ path: "/account", cookie: "gys_theme=night", stored: null }), { dark: false, theme: null }, "classic's default is light");
+  assert.deepEqual(boot({ path: "/account", cookie: "gys_theme=studio", stored: null }), { dark: true, theme: null }, "classic's default is dark (the user, 2026-11-01)");
+  assert.deepEqual(boot({ path: "/account", cookie: "gys_theme=night", stored: "light" }), { dark: false, theme: null }, "a Light chosen since stays");
   assert.deepEqual(boot({ path: "/account", stored: "system", phoneDark: true }), { dark: true, theme: null });
-  assert.deepEqual(boot({ path: "/homes", cookie: "gys_theme=night" }), { dark: false, theme: null }, "only the new design's own routes (not /homes)");
+  assert.deepEqual(boot({ path: "/account", stored: "system", phoneDark: false }), { dark: false, theme: null });
+  assert.deepEqual(boot({ path: "/homes", cookie: "gys_theme=studio" }), { dark: true, theme: null }, "only the new design's own routes (not /homes): classic's dark, not Studio");
 });
 
 test("the cookie, read on either side: Night unless it names a theme we have", () => {

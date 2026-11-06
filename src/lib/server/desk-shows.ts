@@ -244,7 +244,16 @@ export interface ShowSeasonRow {
 export interface ShowDelete {
   name: string;
   /** What's in the way, by season, newest first: each season's games and their states (one game: the game itself). */
-  blocked: { label: string; seasonId: string | null; count: number; states: Partial<Record<"playing" | "ended" | "archived" | "deleted", number>>; one: { id: string; name: string; couch: string | null; state: string } | null }[];
+  blocked: {
+    label: string;
+    seasonId: string | null;
+    count: number;
+    states: Partial<Record<"playing" | "ended" | "archived" | "deleted", number>>;
+    one: { id: string; name: string; couch: string | null; state: string } | null;
+    /** Each game, when its season's gone (a game on a season deleted since: there's no season page to list them, so the sheet
+     *  lists them itself, each to its page and its Delete for good); else empty. */
+    games: { id: string; name: string; couch: string | null; state: string }[];
+  }[];
   games: number;
   seasons: number;
   followers: number;
@@ -313,7 +322,10 @@ async function deleteOf(s: ShowHead, seasons: number, db: Pick<PoolClient, "quer
     by.set(label, row);
   }
   const blocked = [...by.values()]
-    .map(({ games: gs, ...r }) => ({ ...r, one: gs.length === 1 ? { id: gs[0].id, name: gs[0].name, couch: gs[0].couch ?? null, state: gs[0].state } : null }))
+    .map(({ games: gs, ...r }) => {
+      const each = gs.map((g) => ({ id: g.id, name: g.name, couch: g.couch ?? null, state: g.state }));
+      return { ...r, one: each.length === 1 ? each[0] : null, games: r.seasonId ? [] : each };
+    })
     .sort((a, b) => (Number(b.label.match(/\d+$/)?.[0]) || 0) - (Number(a.label.match(/\d+$/)?.[0]) || 0) || a.label.localeCompare(b.label));
   return {
     name: s.name,

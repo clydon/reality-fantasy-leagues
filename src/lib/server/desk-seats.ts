@@ -6,7 +6,7 @@ import { freeSeat } from "./backstage-members";
 import { othersOnSeat } from "./shared-seats";
 import { recordChange, roleChange } from "./change-log";
 import { joinedLeague, stayedOnCouch } from "./couches";
-import { pool, tx, withLeagueLock, HttpError } from "./db";
+import { pool, tx, withLeagueLock, HttpError, syncStagesFor } from "./db";
 import { logDesk, type DeskEntity } from "./desk";
 import { gameName, LEAGUE_SEASON_NAME } from "./league-season";
 import { notifyHandedOn } from "./push-events";
@@ -124,6 +124,8 @@ export async function unlinkSeat(user: SessionUser, leagueId: string, userId: st
       userId: user.id,
     });
   });
+  // A game in stages (step A12 part 4c): the stages' memberships follow now, not at the game's next write.
+  await syncStagesFor([leagueId]);
   await stayedOnCouch(leagueId, userId);
   return { changeId, text: `Unlinked · ${seat.person}'s seat waits for an account` };
 }
@@ -240,6 +242,7 @@ export async function handOn(
     // A game nobody ran (a couch nobody runs): its Undo puts it back as it was, nobody running it, in the Inbox again.
     return logDesk(db, { entity: home.entity, entityId: home.id, action: "hand-on", text, after: { batch, moves }, undo: { type: "seat", do: "handOn", batch, moves }, userId: user.id });
   });
+  await syncStagesFor(wanted.map((m) => m.leagueId));
   for (const r of by) notifyHandedOn({ userId: r.to, leagueIds: r.games, games: andList(r.games.map((id) => gameOf(id).name)), key: batch });
   return {
     changeId,
@@ -333,6 +336,7 @@ export async function restoreSeat(user: SessionUser, changeId: string, u: Record
         ]);
         await markGames(db);
       });
+      await syncStagesFor([leagueId]);
       await joinedLeague(leagueId, userId);
       if (u.couchVia === "game")
         await pool.query("UPDATE couch_members cm SET via = 'game' FROM leagues l WHERE l.id = $1 AND cm.couch_id = l.couch_id AND cm.user_id = $2", [leagueId, userId]);

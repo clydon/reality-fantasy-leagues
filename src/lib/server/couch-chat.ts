@@ -1,9 +1,11 @@
 import crypto from "crypto";
 import { byAuthorMark, foldFor, isFolded, revealedBy, type AirTime } from "@/lib/game/chat-fold";
 import type { ChatMessage, ChatReaction } from "@/lib/game/types";
+import type { Gif } from "@/lib/game/watch-along";
 import { isSuperAdminUser, isUuid, type SessionUser } from "./auth-helpers";
 import { AUTHOR_SEEN, authorName, insertMessage, MESSAGE_COLUMNS, messageText, REVEAL_SHARED, withReactions } from "./chat";
 import { requireCouch, type CouchRole } from "./couches";
+import { gifFrom, type GifSource } from "./gifs";
 import { pool, HttpError } from "./db";
 import { seenThrough } from "./guard";
 import { hiddenFromGroup } from "./late-join";
@@ -99,6 +101,8 @@ export interface ChatLine {
   type: "message" | "reveal";
   /** Null while it's folded for you. */
   text: string | null;
+  /** A GIF message's picture (0156); null while it's folded, as its text is. */
+  gif?: Gif | null;
   at: string;
   edited: boolean;
   reactions: Record<string, ChatReaction>;
@@ -115,6 +119,8 @@ export interface CouchChat {
    *  its author's mark (a season watched at its own pace), not by airtime. Null when nothing's past you. */
   fold: { episode: number; latest: number; count: number; revealed: string[]; byMark: boolean } | null;
   you: { userId: string; canPost: boolean; moderator: boolean };
+  /** GIFs are set up here (gifs.ts: a KLIPY key): the composer shows its GIF button. Added by the route. */
+  gifs?: boolean;
   v: string;
 }
 
@@ -152,6 +158,7 @@ async function linesOf(rows: MessageRow[], fold: ReturnType<typeof foldFor>, use
       name: m.author_name,
       type: m.type,
       text: folded ? null : m.text,
+      ...(m.gif && !folded ? { gif: m.gif } : {}),
       at: new Date(m.created_at).toISOString(),
       edited: !folded && !!m.edited_at,
       reactions: folded ? {} : (reacted.get(m.id) ?? {}),
@@ -255,19 +262,27 @@ export async function readEarlierChat(
 }
 
 /** Posts a message to the couch's chat about the show: into its first game there, else the couch and season. */
-export async function postCouchChat(user: SessionUser, scope: ChatScope, rawText: unknown): Promise<ChatLine> {
+export async function postCouchChat(user: SessionUser, scope: ChatScope, rawText: unknown, rawGif?: unknown, src?: GifSource | null): Promise<ChatLine> {
   if (scope.role === "viewer") throw new HttpError(403, "Only people on the couch can post here");
   if (scope.out) throw new HttpError(403, "Chat opens once you're caught up and in the game");
-  const text = messageText(rawText);
+  // A GIF (0156: KLIPY's, from /api/gifs) is its own message, its text "GIF" for whatever reads only text (classic, the push).
+  let gif: Gif | null = null;
+  if (rawGif !== undefined && rawGif !== null) {
+    if (!src) throw new HttpError(409, "GIFs aren't on here");
+    gif = gifFrom(src, rawGif);
+    if (!gif) throw new HttpError(400, "That GIF isn't one of KLIPY's");
+  }
+  const text = gif ? "GIF" : messageText(rawText);
   const name = authorName(user as { name: string; username?: string | null });
   const m = await insertMessage(
     user as { id: string; name: string; username?: string | null },
     scope.postTo ? { leagueId: scope.postTo, seasonId: scope.seasonId } : { couchId: scope.couchId, seasonId: scope.seasonId },
-    text
+    text,
+    gif
   );
   // Everyone in the conversation hears, as it would show them it (step 15 part 2: folded, quiet or not at all).
   notifyCouchChat({ messageId: m.id, authorId: user.id, authorName: name, text, leagueId: scope.postTo, couchId: scope.couchId, seasonId: scope.seasonId });
-  return { id: m.id, userId: m.user_id, name: m.author_name, type: "message", text: m.text, at: new Date(m.created_at).toISOString(), edited: false, reactions: {} };
+  return { id: m.id, userId: m.user_id, name: m.author_name, type: "message", text: m.text, ...(gif ? { gif } : {}), at: new Date(m.created_at).toISOString(), edited: false, reactions: {} };
 }
 
 /** A message in this conversation, for reacting, editing or removing; 404 when it isn't one. */

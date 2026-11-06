@@ -10,6 +10,7 @@
 //      more of its own too. The episode page lists it with two of its own, and the other three (who went home only) as missing
 //      the season's moments; in the browser at --width, Make every game match and its hold: every game has exactly the
 //      season's Episode 4, the lineup game an "Episode 4 corrected" line.
+//      Backstage and Episode 4's results read that correction (the game's own result: no ruling to keep).
 //   4. Every game's Episodes 1-4 are the same, and the season's; no results push went to anyone.
 // Nothing wider than the screen; no page errors. Screenshots go to <outDir>.
 //
@@ -167,6 +168,15 @@ const seasonSays = (rows, n) => rows.filter((d) => d.episode_number === n).map((
     check(games.every((id) => JSON.stringify(said(now.get(id), 4)) === JSON.stringify(seasonSays(season14, 4))), "Episode 4: every game has exactly the season's results", JSON.stringify(games.map((id) => said(now.get(id), 4).length)));
     const { rows: lines } = await pool.query(`SELECT league_id FROM league_changes WHERE league_id = ANY($1::uuid[]) AND kind = 'results.correction' AND episode = 4`, [games]);
     check(lines.length === 1 && lines[0].league_id === fx.leagues.lineup, "the lineup game has an Episode 4 corrected line", JSON.stringify(lines));
+    // That correction is the lineup game's own result taken out (an own: id, not a season decision): the couch's reads take it
+    // (production's Backstage and episode results answered 500 on one, 2026-10-29 to 10-30), and it offers no ruling to keep.
+    const runs = await api({ user: fixture.username("alex"), pass: fixture.PASSWORD });
+    const bs = await runs.call("GET", `/api/seasons/${season}/backstage?couch=${fx.couchId}`);
+    const own = (bs.body?.corrections || []).filter((c) => String(c.decisionId).startsWith("own:"));
+    check(bs.status === 200 && own.length >= 1 && own.every((c) => c.keepable === false), "Backstage reads the game's own results taken out, with no ruling to keep", `${bs.status} ${JSON.stringify(own.map((c) => [c.decisionId, c.keepable]))}`);
+    const res4 = await runs.call("GET", `/api/seasons/${season}/results/4?couch=${fx.couchId}`);
+    check(res4.status === 200 && (res4.body?.corrections || []).some((c) => String(c.decisionId).startsWith("own:")), "Episode 4's results read it too", `${res4.status}`);
+
 
     // ---------- 4. the same everywhere, nobody pushed ----------
     for (const n of [1, 2, 3, 4]) {

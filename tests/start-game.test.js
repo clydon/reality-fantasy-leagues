@@ -51,7 +51,7 @@ test("the doesn't-fit line, per kind (the mock's RB_NOFIT)", () => {
 test("each game's line, in the show's words: a sport's race and players, a series' crew or characters", () => {
   const f1 = { ...structuredClone(LIBRARY["world-series"].blocks), parts: { singular: "race", plural: "races" }, cast: { ...LIBRARY["world-series"].blocks.cast, singular: "driver", plural: "drivers" } };
   assert.equal(gameLine("weeklyLineup", f1), "Draft five drivers, start three each race");
-  assert.equal(gameLine("survivalPool", f1), "Pick one driver to score each race. Never the same twice");
+  assert.equal(gameLine("survivalPool", f1), "Pick one driver to score each race. No repeats until you've picked them all");
   assert.equal(gameLine("weeklyLineup", LIBRARY.scrubs.blocks), "Draft the characters, start three each week, score what happens to them");
   assert.match(gameLine("weeklyLineup", LIBRARY["below-deck"].blocks), /^Draft the crew members, start three each week, score what they get up to$/);
   assert.equal(gameLine("survivalPool", BUILT_IN_BLOCKS.survivor.blocks), "No draft · pick one castaway to survive each episode · best for mid-season");

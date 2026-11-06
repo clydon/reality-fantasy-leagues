@@ -1,19 +1,23 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { usePathname } from "next/navigation";
-import { BookOpen, CalendarDays, Ellipsis, EyeOff, Eye, KeyRound, Bell, LogOut, Plus, RotateCcw, Tv, UserPlus, Users, X } from "lucide-react";
+import { BookOpen, ChevronRight, Ellipsis, EyeOff, Eye, KeyRound, Bell, Lock, LogOut, RotateCcw, ShieldCheck, Tv, UserPlus, Users, X } from "lucide-react";
 import { airTime, calm, justAired, ticks } from "../clock";
-import { chatCouch, gameAdmin, useAfterReveal, useAfterWatching, watching, useBackstage, useChatBadge, useCouchForSeason, useHome, useSeasonDraft, useSeasonEpisodes, useSeasonGames, useSpace, type Couch, type DraftGame, type GameRef, type GameView, type Need, type OutPreview, type SeasonEpisodes, type SeasonHeader, type Space } from "../data";
+import { chatCouch, fill, gameAdmin, useFill, useAfterReveal, useAfterWatching, watching, useBackstage, useChatBadge, useCouchForSeason, useHome, useSeasonDraft, useSeasonEpisodes, useSeasonGames, useSpace, type Couch, type DraftGame, type GameRef, type GameView, type Need, type OutPreview, type SeasonEpisodes, type SeasonHeader, type Space } from "../data";
 import { leaveToDesk, ReadOnlyPanel, useReadOnly, type ReadOnlyGame } from "../read-only";
 import { READ_ONLY_SAYS } from "@/lib/read-only";
 import { movesByDue } from "../hub/sections";
 import { useNav } from "../nav";
 import { isShowTab, paths, SHOW_TABS, type ShowTab } from "../routes";
+import { startTuneBack, tunedIn } from "../tune-in";
 import { Cast } from "../show/cast";
 import { Chat } from "../show/chat";
 import { Dock, dockShows, MovesSheet } from "../show/dock";
-import { RemindSheet } from "../show/remind";
+import { RemindSheet, useReach } from "../show/remind";
+import { useMe } from "../session";
+import type { PhoneState } from "../settings/notify";
 import { Episodes } from "../show/episodes";
 import { Roster } from "../show/roster";
 import { Games } from "../show/games";
@@ -27,14 +31,15 @@ import { HoldSheet } from "../ui/guards";
 import { Loaded } from "../ui/loaded";
 import { toast } from "../ui/toast";
 import { usePushedPage } from "../ui/page";
-import { EmptyState, GuardChip, Row } from "../ui/parts";
+import { CaptionPlate, EmptyState, GuardChip, Row } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { ShowBar, TabBar } from "../ui/show-bar";
 import { openCouchSheet } from "../couch/couch-sheets";
+import { atEnd, caughtUpLine, knownMark, marksOf, plainName, type Mark, type Pace, type Where } from "../couch/where";
 import { PoolPage } from "../show/solo";
-import { MakeGamePage, useOpenMake } from "../show/make-game";
+import { MakeGamePage } from "../show/make-game";
+import { GettingReadySheet, ReadyChip, ReadyLine, useFillSync } from "../show/getting-ready";
 import { openWatching, type WhereTarget } from "../watching/sheets";
-import { openStartGame } from "../couch/start-game";
 import { openPlan, PlanIcon } from "../couch/watch-plans";
 import { WatchAlongPage } from "../show/watch-along";
 import { ShowNotifySheet } from "../show/notify-sheet";
@@ -132,9 +137,6 @@ function readOnlyCouch(ro: ReadOnlyGame, space: Space | undefined): Couch {
   };
 }
 
-/** As people say a show: "The Traitors", not "The Traitors (US)". */
-const plainName = (name: string) => name.replace(/\s*\([^)]*\)\s*$/, "").trim() || name;
-
 /** Where you are in this show, for the where sheet (step 10: watching/sheets.tsx). */
 export function whereTarget(show: ShowData): WhereTarget | null {
   const h = show.header;
@@ -169,6 +171,9 @@ export const isTabOf = (seasonId: string) => (prev: string) => prev.startsWith(`
 /** How many episodes a season has, as far as anyone knows: its count, else what's out. */
 export const episodesOf = (show: ShowData) => show.header?.episodeCount ?? show.latestAired;
 
+/** The season's last episode has aired ("Season over"): known once its episode count is. */
+export const seasonOver = (show: Pick<ShowData, "header" | "latestAired">) => !!show.header?.episodeCount && show.latestAired >= show.header.episodeCount;
+
 /** "All 8 episodes · Netflix" (the mock's streaming wBar): a season watched at your own pace, once it's out. */
 export function allOut(show: ShowData): string {
   const n = episodesOf(show);
@@ -182,7 +187,6 @@ export function allOut(show: ShowData): string {
 function useAirStatus(show: ShowData): ReactNode {
   const { upNext, latestAired, episodes } = show;
   const ep = show.words.ep;
-  const episodeCount = show.header?.episodeCount ?? null;
   const t = upNext?.airAt ? Date.parse(upNext.airAt) : null;
   const now = useNow(t != null && ticks(t));
   if (show.streaming && !episodes?.reveal) {
@@ -201,7 +205,7 @@ function useAirStatus(show: ShowData): ReactNode {
   if (episodes?.reveal) return `${ep} ${episodes.reveal.episode} ${episodes.reveal.stage === "early" ? "early results" : "results are in"}`;
   if (episodes?.waiting) return `${ep} ${episodes.waiting.episode} ${justAired(episodes.waiting.airAt) ? "just aired" : "aired"}`;
   if (upNext && t != null) return `${ep} ${upNext.number} · ${calm(t, now)}`;
-  if (episodeCount && latestAired >= episodeCount) return "Season over";
+  if (seasonOver(show)) return "Season over";
   if (latestAired) return `${ep} ${latestAired} aired`;
   return null;
 }
@@ -218,6 +222,29 @@ export function SpaceFrame({ seasonId, children }: { seasonId: string; children:
   // The Chat tab's badge, every 30 s (the open chat polls its own instead, and reading it clears this). Read-only: the
   // couch's chat is theirs, so not even its count.
   const badge = useChatBadge(seasonId, ro ? null : chatCouch(show), show.episodes?.reveal?.episode ?? null, tab !== "chat");
+  // The Tune in bumper holds until what Tonight shows is in (its own read and the episodes), then folds into the header.
+  const settled = !!show.header && !!show.space && !!show.episodes;
+  useEffect(() => {
+    if (settled) tunedIn(seasonId);
+  }, [settled, seasonId]);
+  // Getting it ready (show/getting-ready.tsx): while its rules, cast or episodes are being got, the header's chip and line say
+  // so; a season you follow of a show that's a game, with nobody in its cast and nothing getting it, is started here, once a visit.
+  const filling = ro ? null : (show.header?.filling ?? null);
+  const fillRead = useFill(seasonId, !!filling);
+  const f = fillRead.data;
+  useFillSync(seasonId, f);
+  const qc = useQueryClient();
+  const started = useRef(false);
+  const mine = show.following || show.plays;
+  useEffect(() => {
+    if (filling !== "missing" || started.current || !mine) return;
+    started.current = true;
+    fill
+      .start(seasonId)
+      .then((s) => qc.setQueryData(["new-design", "fill", seasonId], s))
+      .catch(() => undefined);
+  }, [filling, mine, seasonId, qc]);
+  const fillOn = !!f && (f.status === "going" || f.status === "stuck");
 
   if (show.notFound) {
     return <EmptyState icon={Tv} title="Show not found" line="It may have been removed." />;
@@ -232,8 +259,18 @@ export function SpaceFrame({ seasonId, children }: { seasonId: string; children:
         <ShowBar
           show={{ seasonId, name: show.header.show.name, seasonNumber: show.header.seasonNumber, artUrl: show.header.show.artUrl, backdropUrl: show.header.show.backdropUrl }}
           tall={tab === "tonight"}
-          back={ro ? { label: "Desk", onClick: () => leaveToDesk(nav, ro) } : { label: "Home", onClick: () => nav.back(paths.home) }}
-          status={status}
+          back={
+            ro
+              ? { label: "Desk", onClick: () => leaveToDesk(nav, ro) }
+              : // Home: the Tune in's reverse, the header dropping into the show's card (else the usual move). Back past the
+                // show's own pages you jumped between, to the hub you came from, rather than a new hub on top of them.
+                {
+                  label: "Home",
+                  onClick: () => nav.back(paths.home, undefined, startTuneBack(seasonId) ? "tune" : undefined, (p) => p.startsWith(`/show/${seasonId}/`)),
+                }
+          }
+          status={fillOn ? <ReadyChip f={f} /> : status}
+          progress={fillOn ? <ReadyLine f={f} /> : undefined}
           menu={ro ? <ReadOnlyMenu /> : <ShowMenu seasonId={seasonId} show={show} />}
           below={<CouchLine show={show} />}
         />
@@ -256,6 +293,7 @@ export function SpaceFrame({ seasonId, children }: { seasonId: string; children:
           <RemindSheet show={show} />
           <RevealScreen show={show} seasonId={seasonId} />
           <MorningSheet show={show} seasonId={seasonId} />
+          <GettingReadySheet seasonId={seasonId} />
         </>
       )}
       {show.header && (
@@ -290,9 +328,32 @@ function ReadOnlyMenu() {
  *  watches it (the mock's "2 on the couch watch"), "Streaming" on a season that drops at once (step 14), and "Not a game yet"
  *  on a show nobody's set up. */
 function CouchLine({ show }: { show: ShowData }) {
+  const me = useMe();
   const games = show.games.length;
   const watchers = games ? null : (show.people ?? []).filter((p) => p.watching || p.playing.length);
   const faces = watchers ?? show.people;
+  // Where everyone is (the user's pick B, 2026-11-01): once anyone else here shares how far they are and something has aired,
+  // the faces move into the numbered line under this one (WhereLine). Until the space read is in, the home read's couch says the
+  // same (its members' shared marks, guard.ts visibleFollows), so the header doesn't grow under you when it lands.
+  const seasonId = show.header?.seasonId ?? null;
+  const people: ShowData["people"] =
+    show.people ??
+    (seasonId && show.couch
+      ? show.couch.members.map((m) => ({ userId: m.userId, name: m.name, role: m.role, watching: m.watching.includes(seasonId), seen: m.userId === me.id ? null : (m.at?.[seasonId] ?? null), playing: [] }))
+      : null);
+  const { known, quiet } = marksOf(people, { id: me.id, name: me.name, seen: knownMark(show) });
+  const where = !show.readOnly && !show.solo && !!show.couch && !!seasonId && show.latestAired > 0 && known.some((w) => !w.you);
+  const pace: Pace = { aired: show.latestAired, total: show.header?.episodeCount ?? 0, ownPace: show.ownPace };
+  return (
+    <>
+      <CouchText show={show} faces={where ? null : faces} watchers={watchers} games={games} />
+      {where && show.couch && seasonId && <WhereLine known={known} quiet={quiet} pace={pace} couchId={show.couch.id} seasonId={seasonId} />}
+    </>
+  );
+}
+
+/** The couch line's own words (and, without the numbered line under it, its faces). */
+function CouchText({ show, faces, watchers, games }: { show: ShowData; faces: ShowData["people"]; watchers: ShowData["people"]; games: number }) {
   return (
     <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 px-2 pt-2.5 text-[13px] font-semibold" data-couch-line>
       {faces && faces.length > 0 && (
@@ -327,6 +388,56 @@ function CouchLine({ show }: { show: ShowData }) {
   );
 }
 
+/**
+ * The couch on this show, numbered (the user's pick B of the 2026-11-01 mocks): each face with the last episode they've seen
+ * under it (yours ringed, the caught-up in bold, "–" not started), then whoever plays here without their place shown, dimmed and
+ * unnumbered; then "3 caught up" over "2 catching up". It opens where everyone is (couch/where-sheet.tsx). On the show's art, so
+ * its words are white on a dark glass, never muted grey (DESIGN.md Show Art).
+ */
+function WhereLine({ known, quiet, pace, couchId, seasonId }: { known: Where[]; quiet: Mark[]; pace: Pace; couchId: string; seasonId: string }) {
+  const all = [...known, ...quiet.map((m) => ({ ...m, seen: null }))];
+  const shown = all.slice(0, all.length > 6 ? 5 : 6);
+  const { top, under } = caughtUpLine(known, pace);
+  return (
+    <button
+      type="button"
+      data-where-line
+      onClick={() => openCouchSheet({ kind: "where", couchId, seasonId })}
+      aria-label={`Where everyone is: ${top}${under ? `, ${under}` : ""}`}
+      className="nd-press mx-2 mt-2.5 flex min-h-[60px] items-center gap-3 rounded-[4px] bg-[rgba(16,14,21,.6)] px-2.5 py-2 text-left backdrop-blur-sm"
+    >
+      <span className="flex flex-none gap-1.5" aria-hidden>
+        {shown.map((w) => (
+          <span
+            key={w.userId}
+            data-where-face={w.you ? "you" : w.name}
+            data-where-seen={w.seen ?? undefined}
+            data-where-quiet={w.seen == null || undefined}
+            className="flex w-6 flex-col items-center gap-1"
+          >
+            <span className={`rounded-[3px] ${w.you ? "outline-2 outline-offset-1 outline-white" : ""} ${w.seen == null ? "opacity-45 grayscale" : ""}`}>
+              <Avatar id={w.userId} name={w.name} size={24} />
+            </span>
+            <span className={`type-num text-[12px] leading-none ${w.seen != null && atEnd(w.seen, pace) ? "font-bold text-white" : "text-white/85"}`}>
+              {w.seen == null ? " " : w.seen > 0 ? w.seen : "–"}
+            </span>
+          </span>
+        ))}
+        {all.length > shown.length && (
+          <span className="flex w-6 flex-col items-center gap-1">
+            <span className="type-num grid size-6 place-items-center rounded-[3px] bg-white/15 text-[11px]">+{all.length - shown.length}</span>
+          </span>
+        )}
+      </span>
+      <span className="min-w-0 flex-1">
+        <b className="block truncate text-[14px] font-semibold">{top}</b>
+        {under && <small className="block truncate text-[12.5px] text-white/85">{under}</small>}
+      </span>
+      <ChevronRight className="size-5 flex-none text-white/85" aria-hidden />
+    </button>
+  );
+}
+
 /** What needs whoever runs a game here (Backstage's results jobs, step 5): a dot on the ⋯ menu and its Backstage row. */
 function useBackstageNeeds(seasonId: string, show: ShowData): Need[] {
   const runs = show.runs.length > 0;
@@ -338,7 +449,7 @@ function useBackstageNeeds(seasonId: string, show: ShowData): Need[] {
 function draftLine(g: DraftGame): string {
   const at = g.scheduledAt ? Date.parse(g.scheduledAt) : null;
   if (g.phase === "waiting") return at ? `${g.name} · starts ${airTime(at)}` : `${g.name} · not started yet`;
-  if (g.phase === "done") return `${g.name} · done · see the teams`;
+  if (g.phase === "done") return `${g.name} · done`;
   if (g.kind === "blind") {
     const left = g.seats.length - g.locked.length;
     return g.you && g.locked.includes(g.you) ? `You're in · waiting for ${left}` : "Pick your team in private";
@@ -348,145 +459,227 @@ function draftLine(g: DraftGame): string {
   return `${who} is picking · round ${g.clock?.round ?? 1}`;
 }
 
-/** The show's ⋯ menu: Backstage for whoever runs a game here (with a dot when it needs you), Recent changes for the
- *  couch, the drafts (for games that have one), Plan a watch along (step 11 part 3), and this show's Notifications (step 15
- *  part 2). */
+/** A draft that's waiting on you: it's your pick, or your blind team isn't in yet. */
+function draftNeedsYou(g: DraftGame | undefined): boolean {
+  if (!g || g.phase !== "live") return false;
+  if (g.kind === "blind") return !(g.you && g.locked.includes(g.you));
+  return !!g.you && g.clock?.playerId === g.you;
+}
+
+/** What Notifications says about this phone, in Settings' words for it, shorter. A phone that doesn't get them says so
+ *  here rather than "On": the Fan Who Forgets' trap is reminders that look on and aren't (docs/ARCHETYPES.md). The line is all
+ *  of it: no dot, which would stay for good on the phone of someone who chose not to (the reminder ask takes Not now). */
+function reminderLine(phone: PhoneState, reaches: boolean | null): string {
+  switch (phone) {
+    case "on":
+      return "On for this phone";
+    case "off":
+      // "Turn on" only once the profile says no phone of yours gets them.
+      return reaches ? "On for another device" : reaches === false ? "Off on this phone · turn on" : "Off on this phone";
+    case "install":
+      // An iPhone in Safari: its own Home Screen app is a device of its own, as far as notifications go.
+      return reaches ? "On for the Home Screen app or another device" : "Add to Home Screen to get them";
+    case "blocked":
+      return "Blocked on this phone";
+    case "unsupported":
+      return "Not available in this browser";
+    default:
+      return "Reminders, results and chat for this show";
+  }
+}
+
+/** The show's ⋯ menu: what has no other home. What a show offers is on its tabs already, so it isn't repeated here: Start a game
+ *  (Tonight's tile, the Games tab), Make it a game (their plate), Add to my shows (Tonight's card), and Where you are for anyone
+ *  who isn't playing (the spoiler chip on every tab). Up top, for whoever runs a game, Backstage (a plate while something needs
+ *  them; Tonight carries no commissioner job) and, for a site admin, this season in Admin. Then for everyone: Notifications with
+ *  the truth about this phone, Invite a friend, How it works and, for a player, Where you are as a plain row (a player's Tonight has
+ *  no chip, and their place moves on its own as they reveal, so it's rarely changed). What's rarely wanted is one tap down, under
+ *  Everything else: Plan a watch along (Tonight offers it only until the next episode has a plan), the drafts, Recent changes,
+ *  Watch privately, Remove from my shows and Leave. */
 function ShowMenu({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const [open, setOpen] = useState(false);
+  const [more, setMore] = useState(false);
   const [notify, setNotify] = useState(false);
   const [leave, setLeave] = useState<OutPreview | null | false>(false);
   const nav = useNav();
+  const me = useMe();
   const refresh = useAfterReveal();
   const how = usePushedPage("how-it-works");
-  const openMake = useOpenMake();
   const needs = useBackstageNeeds(seasonId, show);
+  const playing = show.games.some((g) => g.yourRole);
+  const { phone, reaches } = useReach(open && playing);
   // The drafts, read when the menu opens (a game with a team to draft: Outlast, Weekly Lineup).
   const drafting = show.games.some((g) => g.yourRole && (g.gameType === "classic-draft" || g.gameType === "active-roster"));
-  const drafts = useSeasonDraft(seasonId, show.couch?.id ?? null, { enabled: open && drafting }).data?.games ?? [];
+  const drafts = useSeasonDraft(seasonId, show.couch?.id ?? null, { enabled: (open || more) && drafting }).data?.games ?? [];
   const room = drafts.filter((g) => g.kind === "snake");
   const blind = drafts.filter((g) => g.kind === "blind");
   const lead = (list: DraftGame[]) => list.find((g) => g.phase === "live") ?? list.find((g) => g.phase === "waiting") ?? list[0];
   const name = show.header?.show.name ?? "This show";
   const runNames = [...new Set(show.runs.map((g) => g.gameName))].join(" and ");
+  const subtitle = [show.header?.seasonNumber ? `Season ${show.header.seasonNumber}` : null, show.couch?.name].filter(Boolean).join(" · ");
+  // What waits under Everything else, for its line. One or two rows don't earn a sheet of their own (a follower who doesn't play
+  // has Watch privately and Remove): they sit in the menu itself. Counted from what's known when it opens, not the drafts that load
+  // after, so the rows never jump while it's up.
+  const canPlan = !!show.couch && !show.solo;
+  const canHistory = !!show.couch && show.games.length > 0;
+  const canPrivate = show.following || show.plays;
+  const canLeave = !!show.couch && playing;
+  const canRemove = !show.plays && show.following;
+  const rest = [canPlan && "watch along", drafting && "drafts", canHistory && "history", canPrivate && "privacy", canLeave ? "leave" : canRemove && "remove"].filter(Boolean) as string[];
+  const restLine = rest.join(", ").replace(/^./, (c) => c.toUpperCase());
+  const inline = rest.length <= 2;
+  // Closing whichever sheet the rows are in, for a row that opens something else.
+  const gone = () => (inline ? setOpen(false) : setMore(false));
+  // What's rarely wanted, in Everything else's sheet or (one or two of them) in the menu itself.
+  const elseRows = (
+    <>
+      {canPlan && (
+        <Row
+          icon={PlanIcon}
+          title="Plan a watch along"
+          detail={show.streaming ? "Pick a time and start together" : "Invite the couch to watch together"}
+          onClick={() => {
+            gone();
+            openPlan({ kind: "new", seasonId, couchId: show.couch!.id });
+          }}
+        />
+      )}
+      {room.length > 0 && (
+        <Row href={`${paths.showPage(seasonId, "draft")}?game=${lead(room).leagueId}`} icon={Users} title="Draft room" detail={draftLine(lead(room))} dot={draftNeedsYou(lead(room))} />
+      )}
+      {blind.length > 0 && (
+        <Row href={`${paths.showPage(seasonId, "blind")}?game=${lead(blind).leagueId}`} icon={Lock} title="Blind draft" detail={draftLine(lead(blind))} dot={draftNeedsYou(lead(blind))} />
+      )}
+      {canHistory && <Row href={paths.backstage(seasonId, "history")} icon={RotateCcw} title="Recent changes" detail="Who changed what in these games" />}
+      <WatchingRows show={show} onDone={gone} />
+      {canLeave && (
+        <Row
+          icon={LogOut}
+          iconClass="bg-secondary text-live"
+          title={<span className="text-live">Leave these games</span>}
+          detail="Your team stays; nobody plays it"
+          onClick={async () => {
+            gone();
+            setLeave(null);
+            try {
+              setLeave(await gameAdmin.leave(seasonId, show.couch!.id, true));
+            } catch (e) {
+              setLeave(false);
+              toast.quiet((e as Error).message);
+            }
+          }}
+        />
+      )}
+    </>
+  );
   return (
     <>
       <button type="button" aria-label={needs.length ? "Show menu: Backstage needs you" : "Show menu"} onClick={() => setOpen(true)} className="relative grid size-11 place-items-center rounded-[3px] text-white">
         <Ellipsis className="size-5" aria-hidden />
         {needs.length > 0 && <i data-menu-dot className="absolute right-1.5 top-2 size-2.5 rounded-full bg-chyron ring-2 ring-[rgba(16,14,21,.9)]" aria-hidden />}
       </button>
-      <Sheet
-        open={open}
-        onOpenChange={setOpen}
-        title={name}
-        subtitle={[show.header?.seasonNumber ? `Season ${show.header.seasonNumber}` : null, show.couch?.name].filter(Boolean).join(" · ")}
-      >
+      <Sheet open={open} onOpenChange={setOpen} title={name} subtitle={subtitle}>
         {/* A row that goes somewhere leaves the sheet open: the show's frame (and the sheet with it) slides away with
             the screen. Closing it first would cut the move short (Base UI closes synchronously). */}
-        <div className="flex flex-col">
-          {show.runs.length > 0 && (
-            <Row
-              href={paths.backstage(seasonId)}
-              icon={KeyRound}
-              iconClass="bg-foreground text-background"
-              title="Backstage"
-              detail={needs.length ? needs[0].title : `You run ${runNames}`}
-              dot={needs.length > 0}
-            />
+        <div className="flex flex-col" data-menu-main>
+          {show.runs.length > 0 &&
+            (needs.length > 0 ? (
+              <div data-backstage-plate className="mb-2">
+                <CaptionPlate
+                  tag="Backstage"
+                  size="sm"
+                  wrap
+                  title={needs[0].title}
+                  subtitle={needs.length > 1 ? `And ${needs.length - 1} more waiting` : undefined}
+                  action="Open"
+                  onClick={() => nav.push(paths.backstage(seasonId))}
+                />
+              </div>
+            ) : (
+              <Row href={paths.backstage(seasonId)} icon={KeyRound} iconClass="bg-foreground text-background" title="Backstage" detail={`You run ${runNames}`} />
+            ))}
+          {me.isSuperAdmin && (
+            <Row href={paths.deskItem("season", seasonId)} icon={Tv} iconClass="bg-foreground text-background" title="This season in Admin" detail="Cast, episodes and rules" />
           )}
-          {show.ready && (
-            <Row
-              icon={BookOpen}
-              title="How it works"
-              detail="The show, the games and what scores, in plain words"
-              onClick={() => {
-                setOpen(false);
-                how.show();
-              }}
-            />
-          )}
-          <WatchingRows show={show} onDone={() => setOpen(false)} />
-          {show.couch && show.games.length > 0 && (
-            <Row href={paths.backstage(seasonId, "history")} icon={RotateCcw} title="Recent changes" detail="What's changed in these games, and who changed it" />
-          )}
-          {room.length > 0 && (
-            <Row href={`${paths.showPage(seasonId, "draft")}?game=${lead(room).leagueId}`} icon={Users} title="Draft room" detail={draftLine(lead(room))} />
-          )}
-          {blind.length > 0 && (
-            <Row href={`${paths.showPage(seasonId, "blind")}?game=${lead(blind).leagueId}`} icon={Eye} title="Blind draft" detail={draftLine(lead(blind))} />
-          )}
-          {show.couch && !show.solo && (
-            <Row
-              icon={PlanIcon}
-              title="Plan a watch along"
-              detail={show.streaming ? "Pick a time and start together; anyone can pause for everyone" : "Invite the couch for the live airing or a shared start"}
-              onClick={() => {
-                setOpen(false);
-                openPlan({ kind: "new", seasonId, couchId: show.couch!.id });
-              }}
-            />
-          )}
+          <Row
+            icon={Bell}
+            title="Notifications"
+            detail={reminderLine(phone, reaches)}
+            onClick={() => {
+              setOpen(false);
+              setNotify(true);
+            }}
+          />
           {show.couch && (
             <Row
               icon={UserPlus}
-              title="Invite to this show"
-              detail={`A code; they join ${show.couch.name} too`}
+              title="Invite a friend"
+              detail={`They join ${show.couch.name} with a code`}
               onClick={() => {
                 setOpen(false);
                 openCouchSheet({ kind: "invite", couchId: show.couch!.id, show: [name.replace(/^The /, ""), show.header?.seasonNumber].filter(Boolean).join(" ") });
               }}
             />
           )}
-          {show.ready ? (
-            !show.solo && (
-              <Row
-                icon={Plus}
-                title="Start a game"
-                detail="A season game that fits this show. Anyone on the couch can"
-                onClick={() => {
-                  setOpen(false);
-                  openStartGame({ seasonId, couchId: show.couch?.id ?? null });
-                }}
-              />
-            )
-          ) : (
+          {show.ready && (
             <Row
-              icon={Plus}
-              title="Make it a game"
-              detail="One question to ChatGPT sets it up for every couch"
+              icon={BookOpen}
+              title="How it works"
+              detail="Games and scoring, in plain words"
               onClick={() => {
                 setOpen(false);
-                openMake();
+                how.show();
               }}
             />
           )}
-          <Row
-            icon={Bell}
-            title="Notifications"
-            detail="Reminders, results and chat for this show"
-            onClick={() => {
-              setOpen(false);
-              setNotify(true);
-            }}
-          />
-          {show.couch && show.games.some((g) => g.yourRole) && (
+          {playing && show.seenThrough != null && (
             <Row
-              icon={LogOut}
-              title="Leave these games"
-              detail="Your team stays in the standings; nobody plays it"
-              onClick={async () => {
+              icon={ShieldCheck}
+              title="Where you are"
+              detail={`Spoiler-safe · ${show.seenThrough ? `you're up to ${show.words.ep} ${show.seenThrough}` : "not started yet"}`}
+              onClick={() => {
                 setOpen(false);
-                setLeave(null);
-                try {
-                  setLeave(await gameAdmin.leave(seasonId, show.couch!.id, true));
-                } catch (e) {
-                  setLeave(false);
-                  toast.quiet((e as Error).message);
-                }
+                openWhere(show);
               }}
             />
           )}
+          {inline
+            ? elseRows
+            : rest.length > 0 && (
+                <Row
+                  icon={Ellipsis}
+                  title="Everything else"
+                  detail={restLine}
+                  // A draft that waits on you is in there (the dock's Draft button has it too).
+                  dot={draftNeedsYou(lead(room)) || draftNeedsYou(lead(blind))}
+                  onClick={() => {
+                    setOpen(false);
+                    setMore(true);
+                  }}
+                />
+              )}
         </div>
       </Sheet>
+      {/* Reached from the menu, so it goes back to it (the same pattern as a row that opens its own sheet). */}
+      {!inline && (
+        <Sheet
+          open={more}
+          onOpenChange={setMore}
+          title="Everything else"
+          subtitle={subtitle}
+          back={{
+            label: "Back to the show menu",
+            onClick: () => {
+              setMore(false);
+              setOpen(true);
+            },
+          }}
+        >
+          <div className="flex flex-col" data-menu-else>
+            {elseRows}
+          </div>
+        </Sheet>
+      )}
       {/* Tier 3: hard to undo, so a hold; never as a game's last Commissioner. */}
       <HoldSheet
         open={leave !== false}
@@ -511,27 +704,15 @@ function ShowMenu({ seasonId, show }: { seasonId: string; show: ShowData }) {
   );
 }
 
-/** The ⋯ menu's watching rows (step 10; the mock's watching.js wMenu): on your shows, watch privately and where you are, and
- *  Remove from my shows (a show you play stays: your games keep it); not on them, Add to my shows. */
+/** The ⋯ menu's watching rows (step 10; the mock's watching.js wMenu), under Everything else: Watch privately, and Remove from my
+ *  shows (a show you play stays: your games keep it). Where you are and Add to my shows aren't here any more: the spoiler chip
+ *  and Tonight's card are where they live. */
 function WatchingRows({ show, onDone }: { show: ShowData; onDone: () => void }) {
   const refresh = useAfterWatching();
   const nav = useNav();
   const h = show.header;
-  if (!h) return null;
+  if (!h || (!show.following && !show.plays)) return null;
   const name = plainName(h.show.name);
-  if (!show.following && !show.plays) {
-    return (
-      <Row
-        icon={Plus}
-        title="Add to my shows"
-        detail="Then where you are: nothing past it shows"
-        onClick={() => {
-          onDone();
-          openWhere(show);
-        }}
-      />
-    );
-  }
   return (
     <>
       {/* A switch, not a row that goes somewhere (the desk's SwitchRow, in the menu's row shape). */}
@@ -564,15 +745,6 @@ function WatchingRows({ show, onDone }: { show: ShowData; onDone: () => void }) 
           <i className={`absolute top-[3px] size-6 rounded-full transition-[left] ${show.watchingPrivately ? "left-[25px] bg-background" : "left-[3px] bg-muted-foreground"}`} />
         </span>
       </button>
-      <Row
-        icon={CalendarDays}
-        title="Where you are"
-        detail={show.plays ? `Moves as you reveal each ${show.words.episode.toLowerCase()}` : show.seenThrough ? `${show.words.episode} ${show.seenThrough}` : "Not started"}
-        onClick={() => {
-          onDone();
-          openWhere(show);
-        }}
-      />
       {!show.plays && show.following && (
         <Row
           icon={X}

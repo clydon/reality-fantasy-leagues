@@ -118,7 +118,7 @@ export function EmptyState({ icon: Icon, title, line, action }: { icon?: LucideI
 }
 
 /**
- * The one spoiler chip, on every guarded surface: "Spoiler-safe · you're on Ep N · Change". `seenThrough` null:
+ * The one spoiler chip, on every guarded surface: "Spoiler-safe · you're up to Ep N · Change". `seenThrough` null:
  * spoiler protection is off (Account settings), so there's nothing to guard.
  */
 export function GuardChip({ seenThrough, onChange, ep = "Ep", className = "" }: { seenThrough: number | null; onChange?: () => void; ep?: string; className?: string }) {
@@ -135,7 +135,7 @@ export function GuardChip({ seenThrough, onChange, ep = "Ep", className = "" }: 
     >
       <ShieldCheck className="size-[15px] flex-none" aria-hidden />
       <span className="flex-1">
-        <b>Spoiler-safe</b> · {seenThrough ? `you're on ${ep} ${seenThrough}` : "not started yet"}
+        <b>Spoiler-safe</b> · {seenThrough ? `you're up to ${ep} ${seenThrough}` : "not started yet"}
       </span>
       {onChange && <b className="text-foreground">Change</b>}
     </button>

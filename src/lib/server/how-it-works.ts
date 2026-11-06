@@ -43,9 +43,13 @@ export async function seasonHowItWorks(user: SessionUser, seasonId: string, couc
   // The game whose rules it tells: one you play before one you don't, a Weekly Lineup first (its points are the
   // ones What scores lists; the others don't score by moments).
   const here = await games(user.id, couchId ? { couchIds: [couchId], seasonId } : { mine: true, seasonId });
-  const rank = (g: (typeof here)[number]) => (g.yourRole ? 0 : 2) + (g.gameType === "active-roster" ? 0 : 1);
+  // Step R1: a game that scores by moments (its spec's score.by), never a type compared by name.
+  const states = await leagueStates(here.map((g) => g.leagueId));
+  const byMoments = new Set(here.filter((g) => { const s = states.get(g.leagueId); return !!s && StateLogic.piecesOf(s).scores === "moments"; }).map((g) => g.leagueId));
+  const moments = (g: (typeof here)[number]) => byMoments.has(g.leagueId);
+  const rank = (g: (typeof here)[number]) => (g.yourRole ? 0 : 2) + (moments(g) ? 0 : 1);
   const game = [...here].sort((a, b) => rank(a) - rank(b))[0] ?? null;
-  const state = game ? (await leagueStates([game.leagueId])).get(game.leagueId) : undefined;
+  const state = game ? states.get(game.leagueId) : undefined;
 
   let format: GameFormat;
   let row: Rulebook | null;
@@ -60,7 +64,7 @@ export async function seasonHowItWorks(user: SessionUser, seasonId: string, couc
     row = await rulebookForLeague(pool, { leagueId: game.leagueId, settings: state.settings });
     const tribes = new Map((view.tribes || []).map((t) => [t.id, t.color]));
     cast = view.castaways.map((c) => ({ name: c.name, photo: publicMediaSrc(c.photoUrl), colour: tribes.get(c.startTribeId || c.tribeId) ?? null }));
-    if (game.gameType === "active-roster") points = state.settings.eventPoints;
+    if (moments(game)) points = state.settings.eventPoints;
     ownership = state.settings.ownershipMode;
     // A game that starts when a phase does (step A3 of docs/PLAN-start-a-game-gpt.md) says which; while it waits, the rules are
     // in force from the premiere and the game from that phase.

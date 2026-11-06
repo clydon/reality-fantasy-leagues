@@ -1,8 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { useSearchParams } from "next/navigation";
 import { Archive, BookOpen, Check, Eye, Plus, RotateCcw, X } from "lucide-react";
-import { backstage, gamesApi, useAfterReveal, useCouchGames, useHowItWorks, useSeasonPolls, useSeasonWaivers, useStartOptions, type GameView, type JoinGame, type TableRow, type WaiverWeek } from "../data";
+import { airTime } from "../clock";
+import { backstage, gamesApi, useAfterReveal, useCouchGames, useHowItWorks, useSeasonDraft, useSeasonPolls, useSeasonWaivers, useStartOptions, type GameView, type JoinGame, type TableRow, type WaiverWeek } from "../data";
+import { useNav } from "../nav";
 import { openStartGame } from "../couch/start-game";
 import { toast } from "../ui/toast";
 import { JoinGameRow, JoinGameSheet } from "../couch/join-game";
@@ -13,7 +16,8 @@ import { Avatar } from "../ui/bars";
 import { usePushedPage } from "../ui/page";
 import { Chip, Row } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
-import { faceIn, first } from "./moves";
+import { faceIn, first, openMoves } from "./moves";
+import { yourMove, type YourMove } from "./your-move";
 import { placeOf, sheetAsks } from "./tonight";
 import { Block, Face, IconBox } from "./parts";
 import { playsWaivers, WaiversHowBody } from "./waivers";
@@ -23,9 +27,10 @@ import { useOpenMake } from "./make-game";
 import { CallRow } from "./calls";
 import { SheetRow } from "./questions";
 import { PollRow, StartPollRow } from "./polls";
-import { rateLabel } from "./rate";
+import { showLabel } from "./react";
 import { bingoEpisode, BingoRow } from "./bingo";
 import { TriviaRow } from "./trivia";
+import { latestWeek, LineupSheet, nextWeek, signed } from "./lineup-sheet";
 
 // Games (the mock's show.js tabStandings, gamestab.js, rulebook.js rbHowRow): where you play. Your games' tables when
 // you're in one (a pill per game, then each table; a row opens that person's team, Rules each game in plain words),
@@ -33,6 +38,12 @@ import { TriviaRow } from "./trivia";
 // (your games through the guard: game-view.ts), each game's rules (its settings: game-rules.ts), How it works' row.
 // This week's bingo, Call it, the couch's polls and trivia are real (step 12). Make it a game (10 part 2a) and Start a game, Run
 // it back and an archived game's Bring it back (10 part 2b) are real.
+// What everyone's doing (the 2026-10-30 mock): every table names its columns; Weekly Lineup's rows show who each player started
+// last episode and that week's points (its episode chips went 2026-10-31: the player sheet's weeks do that now). A player's sheet
+// steps through the table (‹ ›, or a swipe on its header) and, for Weekly Lineup, through their weeks (lineup-sheet.tsx). A
+// game's line on Tonight or an episode page lands here (?game=<id>&ep=N), on that game's table. Your move in each game is a card
+// under its name (the user, 2026-10-31: your-move.ts): what you've set or what's due, the draft and the mid-season draft
+// included, one tap to Your moves on that game or to its page; a game that needs you gets a dot on its pill. No dock here.
 
 /** A game's line under its name: what it is, for a game the new design knows. */
 const lineOf = (g: GameView) => (isGameName(g.gameName) ? GAME_STYLE[g.gameName].line : g.name);
@@ -61,7 +72,7 @@ export function Games({ show }: { show: ShowData }) {
  * sees it, at your own mark, nobody marked "you"; Rules and a person's team open as ever. Nothing to join, start or reveal.
  */
 function ReadOnlyGames({ show }: { show: ShowData }) {
-  const [player, setPlayer] = useState<{ row: TableRow; game: GameView } | null>(null);
+  const [player, setPlayer] = useState<Opened | null>(null);
   const [rules, setRules] = useState<GameView | null>(null);
   const ro = show.readOnly!;
   if (!show.play) return <div aria-busy className="mx-4 mt-4 h-72 animate-pulse rounded-[4px] bg-card" />;
@@ -71,11 +82,11 @@ function ReadOnlyGames({ show }: { show: ShowData }) {
   const people = `${g.players} ${g.players === 1 ? "player" : "players"}${ro.runBy?.length ? ` · run by ${ro.runBy.join(", ")}` : ""}`;
   return (
     <>
-      <Standings play={[g]} words={show.words} aired={show.latestAired} scope={null} onPlayer={(row, game) => setPlayer({ row, game })} onRules={setRules} readOnly />
+      <Standings play={[g]} words={show.words} aired={show.latestAired} scope={null} onPlayer={(row, game, week) => setPlayer({ row, game, week })} onRules={setRules} readOnly />
       <p data-read-only-foot className="px-4 pt-4 text-[13px] text-muted-foreground">
         {g.through ? `Through ${show.words.episode} ${g.through}, where you are.` : "Nothing counted yet, as far as you've watched."} {people}.
       </p>
-      <PlayerSheet open={player} onClose={() => setPlayer(null)} />
+      <PlayerSheet open={player} onOpen={setPlayer} onClose={() => setPlayer(null)} words={show.words} />
       <RulesSheet game={rules} play={[g]} onGame={setRules} waivers={[]} />
     </>
   );
@@ -87,11 +98,69 @@ function YourGamesHere({ show }: { show: ShowData }) {
   const couchGames = useCouchGames(show.couch?.id ?? null, show.games.some((g) => !g.yourRole));
   const others = (couchGames.data?.games ?? []).filter((g) => g.seasonId === show.header?.seasonId && !g.ended && !g.you?.playing);
   const [joining, setJoining] = useState<JoinGame | null>(null);
-  const [player, setPlayer] = useState<{ row: TableRow; game: GameView } | null>(null);
+  const [player, setPlayer] = useState<Opened | null>(null);
   const [rules, setRules] = useState<GameView | null>(null);
   const name = (show.header?.show.name ?? "This show").replace(/^The /, "");
-  // How waivers work, under the rules of a game that has them (step 6a).
+  // From a game's line on Tonight or an episode page (?game=<id>&ep=N): once the tab has slid in, glide to that game's table.
+  const params = useSearchParams();
+  const asked = params.get("game");
+  const askedEp = Number(params.get("ep")) || null;
+  const ready = !!show.play;
+  useEffect(() => {
+    if (!asked || !ready) return;
+    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const el = () => document.getElementById(`game-${asked}`);
+    const go = (smooth: boolean) => el()?.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "start" });
+    let t = 0;
+    let tries = 0;
+    let steady = 0;
+    let last = NaN;
+    // A finger or a wheel on the page meanwhile: the scroll is theirs.
+    const stop = () => window.clearTimeout(t);
+    window.addEventListener("touchstart", stop, { passive: true });
+    window.addEventListener("wheel", stop, { passive: true });
+    // A glide started while the tabs still slide (nav.tsx marks html[data-nav] until the transition has played), or while the
+    // tables above still settle, gets cut short: wait for both, then glide, and finish it at once if it didn't land.
+    const wait = () => {
+      const top = el()?.getBoundingClientRect().top ?? NaN;
+      steady = top === last ? steady + 1 : 0;
+      last = top;
+      if ((document.documentElement.dataset.nav || steady < 3) && tries++ < 60) {
+        t = window.setTimeout(wait, 50);
+        return;
+      }
+      go(!still);
+      t = window.setTimeout(() => {
+        const at = el();
+        if (at && Math.abs(at.getBoundingClientRect().top - parseFloat(getComputedStyle(at).scrollMarginTop || "0")) > 24) go(false);
+      }, 900);
+    };
+    t = window.setTimeout(wait, 50);
+    return () => {
+      stop();
+      window.removeEventListener("touchstart", stop);
+      window.removeEventListener("wheel", stop);
+    };
+  }, [asked, askedEp, ready]);
+  // How waivers work, under the rules of a game that has them (step 6a); and each game's mid-season draft for its card.
   const wv = useSeasonWaivers(show.header?.seasonId ?? "", show.couch?.id ?? null, !!show.header && playsWaivers(show));
+  // The drafts, while a game with a team to draft hasn't started counting or you've no team yet (after that, the mid-season
+  // draft is waivers').
+  const drafting =
+    !!show.play?.some((g) => (g.gameType === "classic-draft" || g.gameType === "active-roster") && !!g.you && (g.you.team.length === 0 || g.from === null || g.through < g.from)) ||
+    show.moves.some((m) => m.kind === "draftTurn" || m.kind === "blindDraft");
+  const drafts = useSeasonDraft(show.header?.seasonId ?? "", show.couch?.id ?? null, { enabled: !!show.header && drafting }).data?.games ?? [];
+  const moves = new Map<string, YourMove>();
+  for (const g of show.play ?? []) {
+    const m = yourMove(g, {
+      seasonId: show.header?.seasonId ?? "",
+      episode: show.words.episode,
+      when: (iso) => airTime(Date.parse(iso)),
+      draft: drafts.find((d) => d.leagueId === g.leagueId),
+      waivers: wv.data?.games.find((w) => w.leagueId === g.leagueId),
+    });
+    if (m) moves.set(g.leagueId, m);
+  }
   return (
     <>
       {playing && show.episodes?.reveal && <AsOf show={show} />}
@@ -102,8 +171,9 @@ function YourGamesHere({ show }: { show: ShowData }) {
             words={show.words}
             aired={show.latestAired}
             scope={show.header && show.couch ? { seasonId: show.header.seasonId, couchId: show.couch.id } : null}
-            onPlayer={(row, game) => setPlayer({ row, game })}
+            onPlayer={(row, game, week) => setPlayer({ row, game, week })}
             onRules={setRules}
+            moves={moves}
           />
         ) : (
           <div aria-busy className="mx-4 mt-4 h-72 animate-pulse rounded-[4px] bg-card" />
@@ -129,7 +199,7 @@ function YourGamesHere({ show }: { show: ShowData }) {
       {!show.solo && show.ready && <StartRow show={show} others={others} />}
       {/* Anyone on a couch can practise against computer players too (solo players have it under On your own). */}
       {!show.solo && show.ready && <CouchPractice show={show} />}
-      <PlayerSheet open={player} onClose={() => setPlayer(null)} />
+      <PlayerSheet open={player} onOpen={setPlayer} onClose={() => setPlayer(null)} words={show.words} />
       <RulesSheet game={rules} play={show.play ?? []} onGame={setRules} waivers={wv.data?.games ?? []} />
     </>
   );
@@ -193,16 +263,19 @@ function Standings({
   onPlayer,
   onRules,
   readOnly,
+  moves,
 }: {
   play: GameView[];
   words: ShowData["words"];
   /** The latest episode that's aired, by the schedule. */
   aired: number;
   scope: Scope;
-  onPlayer: (row: TableRow, game: GameView) => void;
+  onPlayer: (row: TableRow, game: GameView, week: number | null) => void;
   onRules: (g: GameView) => void;
   /** One game, nobody's place in it to show: no pills, and the foot line is the caller's. */
   readOnly?: boolean;
+  /** Your move in each game, by league (your-move.ts): its card under the game's name. */
+  moves?: Map<string, YourMove>;
 }) {
   const twin = (g: GameView) => play.filter((x) => x.gameType === g.gameType).length > 1;
   // A game over a span that's over stands at its last episode (it says Final): the line is the running games'.
@@ -217,11 +290,12 @@ function Standings({
               key={g.leagueId}
               type="button"
               onClick={() => document.getElementById(anchor(g))?.scrollIntoView({ behavior: "smooth", block: "start" })}
-              className="flex h-10 flex-none items-center gap-2 rounded-[3px] border-l-[3px] bg-card px-3 text-sm font-semibold"
+              className="relative flex h-10 flex-none items-center gap-2 rounded-[3px] border-l-[3px] bg-card px-3 text-sm font-semibold"
               style={{ borderLeftColor: gameColour(g.gameName) }}
             >
               {g.solo === "public" ? "Everyone" : twin(g) ? g.name : g.gameName}
               <b className="type-num text-[20px]">{placeOf(g)}</b>
+              {moves?.get(g.leagueId)?.due && <i data-pill-due className="absolute right-1 top-[5px] size-[7px] rounded-full bg-chyron-line" aria-label="Needs you" />}
             </button>
           ))}
         </div>
@@ -247,30 +321,18 @@ function Standings({
               Rules
             </button>
           </div>
+          {moves?.get(g.leagueId) && <YourMoveCard g={g} m={moves.get(g.leagueId)!} />}
           {g.table.length === 0 && <p className="border-t border-border py-3 text-sm text-muted-foreground">Nobody on the table yet.</p>}
-          {g.table.map((r) => (
-            <button
-              key={r.playerId}
-              type="button"
-              data-player={r.name}
-              // A public pool's strangers, and the talk show's games (a count of right calls or lines, nothing more to open: step 12).
-              disabled={(g.solo === "public" && !r.you) || g.gameType === "weekly-calls" || g.gameType === "weekly-bingo" || g.gameType === "questions"}
-              onClick={() => onPlayer(r, g)}
-              className={`flex min-h-14 items-center gap-2.5 border-t text-left ${r.you ? "-mx-2 w-[calc(100%+16px)] rounded-[2px] border-transparent bg-secondary px-2" : "w-full border-border"}`}
-            >
-              <span className="type-num w-[30px] flex-none text-[22px] text-muted-foreground">{r.rank}</span>
-              <Avatar id={r.userId ?? r.playerId} name={r.name} size={28} />
-              <span className="flex min-w-0 items-center gap-1.5 text-[15px] font-semibold">
-                <span className="truncate">{r.name}</span>
-                {r.you && <span className="type-caption rounded-[2px] bg-foreground px-1.5 py-0.5 text-[10px] tracking-[0.06em] text-background">You</span>}
-                {r.bot && <span className="type-caption rounded-[2px] bg-secondary px-1.5 py-0.5 text-[10px] tracking-[0.06em] text-muted-foreground">Computer</span>}
-              </span>
-              <span className="ml-auto flex flex-none gap-[3px]">
-                <RowExtras g={g} r={r} />
-              </span>
-              <b className="type-num min-w-[34px] flex-none text-right text-[24px]">{r.total}</b>
-            </button>
-          ))}
+          {weekly(g) ? (
+            <LineupTable g={g} words={words} onPlayer={onPlayer} />
+          ) : (
+            <>
+              {g.table.length > 0 && COLUMNS[g.gameType] && <Columns mid={COLUMNS[g.gameType][0]} end={COLUMNS[g.gameType][1]} />}
+              {g.table.map((r) => (
+                <PlayerRow key={r.playerId} g={g} r={r} extras={<RowExtras g={g} r={r} />} onClick={() => onPlayer(r, g, null)} />
+              ))}
+            </>
+          )}
         </section>
       ))}
       {!readOnly && (
@@ -289,21 +351,158 @@ function Standings({
   );
 }
 
-function PlayerSheet({ open, onClose }: { open: { row: TableRow; game: GameView } | null; onClose: () => void }) {
+/** Your move in a game (your-move.ts), under its name: the faces of what you've set (dashed places for what's still to fill, faded
+ *  for who's out), what it is and when it locks, and its button: yellow only when it's due. It opens Your moves on this game, or the
+ *  game's own page (the draft room, Waivers). */
+function YourMoveCard({ g, m }: { g: GameView; m: YourMove }) {
+  const nav = useNav();
+  return (
+    <button
+      type="button"
+      data-your-move={m.kind}
+      data-due={m.due}
+      onClick={() => ("tab" in m.go ? openMoves(m.go.tab, g.leagueId) : nav.push(m.go.href))}
+      className="nd-press mb-1.5 flex min-h-[62px] w-full items-center gap-3 rounded-[4px] bg-card py-2 pl-2.5 pr-2 text-left"
+    >
+      {(m.faces.length > 0 || m.empty > 0) && (
+        <span className="flex flex-none gap-[3px]" aria-hidden>
+          {m.faces.map((id) => {
+            const c = faceIn(g, id);
+            return <Face key={id} src={c?.photo ?? null} name={c?.name} out={m.out.includes(id)} className={`h-9 w-7 rounded-[2px] text-xs ${m.out.includes(id) ? "opacity-45 grayscale" : ""}`} />;
+          })}
+          {Array.from({ length: m.empty }, (_, i) => (
+            <span key={i} className="h-9 w-7 rounded-[2px] border-[1.5px] border-dashed border-muted-foreground/55" />
+          ))}
+        </span>
+      )}
+      <span className="min-w-0 flex-1">
+        <b className="block text-[15px] font-bold leading-tight">{m.title}</b>
+        <small className="mt-[3px] block text-[13px] leading-snug text-muted-foreground">{m.line}</small>
+      </span>
+      <span
+        className={`grid h-10 flex-none place-items-center whitespace-nowrap rounded-[3px] px-3.5 text-[15px] font-extrabold ${
+          m.due ? "bg-chyron text-chyron-foreground" : "bg-background text-foreground outline-[1.5px] -outline-offset-[1.5px] outline-input"
+        }`}
+      >
+        {m.action}
+      </span>
+    </button>
+  );
+}
+
+/** A player's sheet: whose, in which game, on which week (Weekly Lineup). */
+type Opened = { row: TableRow; game: GameView; week: number | null };
+
+/** Weekly Lineup with weeks to show (or one being set): its table shows last episode's lineups and points. */
+const weekly = (g: GameView) => g.gameType === "active-roster" && (g.table.some((r) => r.weeks.length > 0) || !!nextWeek(g));
+
+/** Whether a row opens a sheet: not a public pool's strangers, nor the talk show's games (a count of right calls or lines, nothing
+ *  more to open: step 12). */
+const opens = (g: GameView, r: TableRow) => !((g.solo === "public" && !r.you) || g.gameType === "weekly-calls" || g.gameType === "weekly-bingo" || g.gameType === "questions");
+
+/** What a table's two right-hand columns are, where a game's say it plainly (the pool's number is a streak, not points). */
+const COLUMNS: Record<string, [string, string]> = { pickem: ["Last picks", "Streak"], "classic-draft": ["Team", "Points"] };
+
+function Columns({ left, mid, end }: { left?: ReactNode; mid?: ReactNode; end: ReactNode }) {
+  return (
+    <div className="flex items-end gap-2.5 pb-1.5 text-[11px] font-semibold uppercase leading-tight tracking-[0.06em] text-muted-foreground">
+      <span className="min-w-0 flex-1 truncate">{left}</span>
+      {mid && <span className="flex-none text-right">{mid}</span>}
+      <span className="min-w-[34px] flex-none text-right">{end}</span>
+    </div>
+  );
+}
+
+/** A row on a game's table: place, face, name, what sits before the total, and the total; `below`, a second line. */
+function PlayerRow({ g, r, rank, extras, total, below, onClick }: { g: GameView; r: TableRow; rank?: string; extras?: ReactNode; total?: ReactNode; below?: ReactNode; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      data-player={r.name}
+      disabled={!opens(g, r)}
+      onClick={onClick}
+      className={`block border-t text-left ${below ? "py-2.5" : ""} ${r.you ? "-mx-2 w-[calc(100%+16px)] rounded-[2px] border-transparent bg-secondary px-2" : "w-full border-border"}`}
+    >
+      <span className={`flex items-center gap-2.5 ${below ? "" : "min-h-14"}`}>
+        <span className="type-num w-[30px] flex-none text-[22px] text-muted-foreground">{rank ?? r.rank}</span>
+        <Avatar id={r.userId ?? r.playerId} name={r.name} size={28} />
+        <span className="flex min-w-0 items-center gap-1.5 text-[15px] font-semibold">
+          <span className="truncate">{r.name}</span>
+          {r.you && <span className="type-caption rounded-[2px] bg-foreground px-1.5 py-0.5 text-[10px] tracking-[0.06em] text-background">You</span>}
+          {r.bot && <span className="type-caption rounded-[2px] bg-secondary px-1.5 py-0.5 text-[10px] tracking-[0.06em] text-muted-foreground">Computer</span>}
+        </span>
+        <span className="ml-auto flex flex-none items-center gap-[3px]">{extras}</span>
+        {total === undefined ? <b className="type-num min-w-[34px] flex-none text-right text-[24px]">{r.total}</b> : total}
+      </span>
+      {below}
+    </button>
+  );
+}
+
+/**
+ * Weekly Lineup's table: who each player started last episode and that week's points under their season total. A row opens that
+ * player's sheet, on that week, where their weeks swipe by (lineup-sheet.tsx); the user dropped the table's episode chips for it
+ * (2026-10-31).
+ */
+function LineupTable({ g, words, onPlayer }: { g: GameView; words: ShowData["words"]; onPlayer: (row: TableRow, game: GameView, week: number | null) => void }) {
+  const next = nextWeek(g);
+  const latest = g.table[0]?.weeks.at(-1)?.episode ?? null;
+  const face = (id: string) => {
+    const c = faceIn(g, id);
+    return <Face key={id} src={c?.photo ?? null} name={c?.name} className="size-[26px] flex-none rounded-[2px] text-xs" />;
+  };
+  return (
+    <>
+      <Columns mid={latest !== null ? `Started ${words.ep} ${latest}` : undefined} end="Season" />
+      {g.table.map((r) => {
+        const w = latest === null ? undefined : r.weeks.find((x) => x.episode === latest);
+        return (
+          <PlayerRow
+            key={r.playerId}
+            g={g}
+            r={r}
+            extras={(w ? w.started.map((s) => s.id) : r.last).map((id) => face(id))}
+            total={
+              <span className="flex min-w-[34px] flex-none flex-col items-end gap-1">
+                <b className="type-num text-[24px]">{r.total}</b>
+                {w && <small className="text-[12px] leading-none text-muted-foreground">{signed(w.total)}</small>}
+              </span>
+            }
+            onClick={() => onPlayer(r, g, latest ?? next?.episode ?? null)}
+          />
+        );
+      })}
+    </>
+  );
+}
+
+function PlayerSheet({ open, onOpen, onClose, words }: { open: Opened | null; onOpen: (o: Opened) => void; onClose: () => void; words: ShowData["words"] }) {
   const [last, setLast] = useState(open);
   if (open && open !== last) setLast(open);
   const shown = open ?? last;
   const g = shown?.game;
   const r = shown?.row;
+  // ‹ › and a swipe on the header step through the table in its order, staying on the same week.
+  const people = g ? g.table.filter((x) => opens(g, x)) : [];
+  const at = r ? people.findIndex((x) => x.playerId === r.playerId) : -1;
+  const prev = at > 0 ? people[at - 1] : null;
+  const nextUp = at >= 0 && at < people.length - 1 ? people[at + 1] : null;
+  const step = (dir: 1 | -1) => {
+    const to = dir > 0 ? nextUp : prev;
+    if (to && g && shown) onOpen({ row: to, game: g, week: shown.week });
+  };
+  const lineup = !!g && !!r && g.gameType === "active-roster" && (r.weeks.length > 0 || !!nextWeek(g));
   return (
     <Sheet
       open={!!open}
       onOpenChange={(o) => !o && onClose()}
       title={r?.name ?? ""}
-      subtitle={g && r ? `${g.gameName} · ${r.rank.startsWith("T") ? r.rank : ordinal(r.place)} of ${g.table.length}` : undefined}
+      subtitle={g && r ? `${g.gameName} · ${r.rank.startsWith("T") ? r.rank : ordinal(r.place)} of ${g.table.length}${g.gameType === "active-roster" ? ` · ${r.total} pts` : ""}` : undefined}
+      stepper={people.length > 1 ? { prev: prev?.name ?? null, next: nextUp?.name ?? null, onStep: step } : undefined}
     >
       {g && r && (
-        <div className="mt-3 pb-2">
+        // Keyed by player: each one's sheet starts fresh (the sheet slides them in and out).
+        <div key={r.playerId} data-sheet-player={r.playerId} className="mt-3 pb-2">
           {g.gameType === "pickem" && (
             <>
               <p className="type-caption mb-2 text-[13px] text-muted-foreground">Picks, oldest first</p>
@@ -331,7 +530,10 @@ function PlayerSheet({ open, onClose }: { open: { row: TableRow; game: GameView 
               </p>
             </>
           )}
-          {g.gameType === "active-roster" && (
+          {lineup && shown && (
+            <LineupSheet g={g} r={r} week={shown.week ?? latestWeek(g, r)} onWeek={(n) => onOpen({ row: r, game: g, week: n })} words={words} onClose={onClose} />
+          )}
+          {g.gameType === "active-roster" && !lineup && (
             <>
               <div className="grid grid-cols-3 gap-2">
                 {[
@@ -365,7 +567,7 @@ function PlayerSheet({ open, onClose }: { open: { row: TableRow; game: GameView 
             </>
           )}
           {g.gameType !== "pickem" && g.gameType !== "active-roster" && <TeamList g={g} team={r.team} />}
-          {g.gameType === "active-roster" && r.team.length > 0 && (
+          {g.gameType === "active-roster" && !lineup && r.team.length > 0 && (
             <>
               <p className="type-caption mb-0 mt-4 text-[13px] text-muted-foreground">The team</p>
               <TeamList g={g} team={r.team} label={false} />
@@ -624,12 +826,12 @@ function ThisWeek({ show }: { show: ShowData }) {
   return (
     <Block title="This week" aside="One night each">
       <div data-this-week>
-        {bingo && seasonId && <BingoRow icon target={{ seasonId, couchId, episode: bingo, label: rateLabel(show), solo: show.solo }} />}
-        {call && seasonId && !sheetAsks(show, call) && <CallRow icon target={{ seasonId, couchId, episode: call, label: rateLabel(show), solo: show.solo }} />}
+        {bingo && seasonId && <BingoRow icon target={{ seasonId, couchId, episode: bingo, label: showLabel(show), solo: show.solo }} />}
+        {call && seasonId && !sheetAsks(show, call) && <CallRow icon target={{ seasonId, couchId, episode: call, label: showLabel(show), solo: show.solo }} />}
         {seasonId && sheets.map((g) => <SheetRow key={g.leagueId} icon move={g.sheet!} target={{ seasonId, leagueId: g.leagueId, episode: null, game: g.name }} />)}
         {onCouch && (polls.data?.polls ?? []).map((p) => <PollRow key={p.id} icon p={p} couchId={couchId!} />)}
         {seasonId && <TriviaRow icon target={{ seasonId, couchId: show.solo ? null : couchId }} />}
-        {onCouch && <StartPollRow seasonId={seasonId!} couchId={couchId!} label={rateLabel(show)} />}
+        {onCouch && <StartPollRow seasonId={seasonId!} couchId={couchId!} label={showLabel(show)} />}
       </div>
     </Block>
   );

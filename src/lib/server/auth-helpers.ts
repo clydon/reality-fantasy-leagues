@@ -49,7 +49,8 @@ export async function requireSession(req: Request): Promise<Session> {
 // "Last active" for the admin Users table (db/migrations/0032): stamped on any authenticated request,
 // skipped while an admin impersonates, and at most once a minute per user (checked in memory first,
 // then in the UPDATE itself) so busy pages don't write on every poll. Fire-and-forget: a failed
-// stamp must never fail the request.
+// stamp must never fail the request. In the same statement, today (Eastern) in user_days (0157): a
+// day the app was opened, a couch point (couch-points.ts).
 const lastTouched = new Map<string, number>();
 function touchLastSeen(session: Session) {
   if (isImpersonating(session)) return;
@@ -59,7 +60,8 @@ function touchLastSeen(session: Session) {
   lastTouched.set(userId, now);
   pool
     .query(
-      `INSERT INTO user_last_seen (user_id, last_seen_at) VALUES ($1, now())
+      `WITH today AS (INSERT INTO user_days (user_id, day) VALUES ($1, (now() AT TIME ZONE 'America/New_York')::date) ON CONFLICT DO NOTHING)
+       INSERT INTO user_last_seen (user_id, last_seen_at) VALUES ($1, now())
        ON CONFLICT (user_id) DO UPDATE SET last_seen_at = now()
        WHERE user_last_seen.last_seen_at < now() - interval '1 minute'`,
       [userId]

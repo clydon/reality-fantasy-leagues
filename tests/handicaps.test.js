@@ -327,11 +327,12 @@ test("the couch: a newcomer's handicap is in the points the couch's standings re
   const s = league(best(FIVE));
   points(s, 1, { bo: 3 });
   const { tableOf } = jiti("../src/lib/game/game-view.ts");
-  const { rankingsOf } = jiti("../src/lib/game/couch-standings.ts");
+  const { headToHead } = jiti("../src/lib/game/couch-standings.ts");
   const standingRows = tableOf(s, "ann", (p) => `u-${p}`).map((r) => ({ userId: r.userId, name: r.name, place: r.place, rank: r.rank, total: r.total, seat: r.playerId }));
   assert.deepEqual(standingRows.map((r) => [r.userId, r.place, r.total]), [["u-ann", 1, 5], ["u-di", 1, 5], ["u-bo", 3, 3], ["u-cy", 4, 0]]);
   const game = { leagueId: "l1", name: "L", gameName: "Weekly Lineup", gameType: "active-roster", seasonId: "s1", showId: "sh", showName: "Survivor", label: "Survivor 51", artUrl: null, year: 2026, through: 1, ended: false, rows: standingRows, before: null };
   const people = PLAYERS.map((p) => ({ userId: `u-${p}`, name: p }));
-  const r = rankingsOf([game], people, "u-bo", 2026);
-  assert.deepEqual(r.all.map((x) => x.userId).slice(0, 2).sort(), ["u-ann", "u-di"]);
+  // Power rankings are Couch points since 2026-10-31; head to head reads the places, handicap and all: ann and di both beat bo.
+  const h2h = headToHead([game], people, "u-bo");
+  assert.deepEqual(h2h.map((h) => [h.userId, h.won, h.lost]).sort(), [["u-ann", 0, 1], ["u-cy", 1, 0], ["u-di", 0, 1]]);
 });

@@ -262,6 +262,11 @@ export function navigating() {
  *  (it went nowhere, or failed) no longer counts. */
 const navStarting = () => navFrom > 0 && Date.now() - navFrom < 15000;
 
+/** How many entries the open sheets have above the page (nav.tsx counts back from the page's own). */
+export function sheetsAbove(): number {
+  return stack.filter((s) => s.put).length;
+}
+
 /** How many entries the open sheets have above the page: a back that leaves the page goes past them (nav.tsx). They
  *  close with the page. */
 export function leaveThroughSheets(): number {

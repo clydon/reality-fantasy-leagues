@@ -20,7 +20,7 @@ const SEASON_TABLES = [
   "season_rule_changes", "episode_research", "episode_research_items", "wiki_extractions", "season_episodes", "show_follows",
   "fact_sources", "fact_disputes", "rulebooks", "rulebook_edits", "rulebook_suggestions", "admin_changes", "rulebook_checks",
   "guide_hidden", "episode_ratings", "episode_calls", "episode_call_says", "bingo_cards", "bingo_marks", "trivia_plays",
-  "watch_reactions",
+  "watch_reactions", "episode_gifs",
 ];
 const PEOPLE_TABLES = ["user", "user_settings", "notification_prefs"];
 const TABLES = [...LEAGUE_TABLES, ...SEASON_TABLES, ...PEOPLE_TABLES];
@@ -61,6 +61,7 @@ const LATER_TABLES = {
   bingo_marks: { since: "0130", fill: null },
   trivia_plays: { since: "0130", fill: null },
   watch_reactions: { since: "0131", fill: null },
+  episode_gifs: { since: "0162", fill: null },
   game_answers: { since: "0200", fill: null },
 };
 
@@ -110,7 +111,9 @@ async function foreignKeys(db) {
       WHERE c.contype = 'f' AND ns.nspname = 'public'`
   );
   const bare = (t) => t.replace(/^public\./, "").replace(/^"(.*)"$/, "$1");
-  return rows.map((r) => {
+  // A multi-column key on a table the backup doesn't take (season_events, 0148: a sport's games) is no concern of it.
+  const ours = rows.filter((r) => r.n === 1 || TABLES.includes(bare(r.tbl)));
+  return ours.map((r) => {
     if (r.n !== 1) throw new Error(`${r.tbl}: a multi-column foreign key; backup-common.js only handles single columns`);
     // checked: a CHECK constraint reads the column (rulebooks_owner_shape needs a season's season_id), so a restore
     // can't leave it empty for a moment.

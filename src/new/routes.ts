@@ -66,6 +66,8 @@ export const paths = {
   signin: (next?: string) => (next ? `/signin?next=${encodeURIComponent(next)}` : "/signin"),
   settings: "/settings",
   show: (seasonId: string, tab: ShowTab = "tonight") => `/show/${seasonId}/${tab}`,
+  /** The Games tab at one game's table, on an episode (Weekly Lineup's view of it): a game's line on Tonight or an episode page. */
+  game: (seasonId: string, leagueId: string, ep?: number | null) => `/show/${seasonId}/games?game=${encodeURIComponent(leagueId)}${ep ? `&ep=${ep}` : ""}`,
   /** The show's Tonight with its watch along open (step 13): your next episode, or `ep`; a planned night's, together (`plan`). */
   watch: (seasonId: string, ep?: number | null, plan?: string | null) => `/show/${seasonId}/tonight?page=watch${ep ? `&ep=${ep}` : ""}${plan ? `&plan=${plan}` : ""}`,
   backstage: (seasonId: string, page?: string) => `/show/${seasonId}/backstage${page ? `/${page}` : ""}`,
@@ -143,8 +145,9 @@ export function safeNext(next: string | null | undefined): string | null {
  *   channel      the hub and a show: the show's art grows from its card into the header (or back), the rest crossfades
  *   fade         same depth, no order: a crossfade
  *   calm         reduced motion: a short crossfade, nothing moves
+ *   tune         the hub and a show, under the Tune in bumper (tune-in.tsx): the page just swaps, the bumper does the moving
  */
-export type NavKind = "push" | "pop" | "left" | "right" | "channel" | "fade" | "calm";
+export type NavKind = "push" | "pop" | "left" | "right" | "channel" | "fade" | "calm" | "tune";
 
 function parse(href: string): string[] {
   const path = href.split(/[?#]/)[0];

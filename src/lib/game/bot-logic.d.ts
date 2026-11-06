@@ -32,3 +32,5 @@ export function blindSubmissions(state: LeagueState): { playerId: string; castaw
 export function auctionBids(state: LeagueState): { playerId: string; bids: { castawayId: string; bid: number }[] }[];
 /** What a bot claims for a waiver week, asked for when the week processes (claims live outside state). */
 export function waiverClaim(state: LeagueState, playerId: string, period: WaiverPeriod | null): WaiverClaim;
+/** Fills each bot's empty group slots for the current episode (step A10 part 1, since A11 part 5c); returns how many it filled. */
+export function groupSlotPicks(state: LeagueState): number;

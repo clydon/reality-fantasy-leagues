@@ -415,7 +415,7 @@ function youBeat(before: LeagueState, after: LeagueState, eps: LeagueState["epis
     const ep = eps[eps.length - 1];
     const pick = ep && (ep.picks || []).find((p) => p.playerId === me);
     const c = pick ? StateLogic.getCastaway(after, pick.castawayId) : null;
-    const out = !!pick && ep.events.some((e) => e.castawayId === pick.castawayId);
+    const out = !!pick && StateLogic.PickEmLogic.wentHome(after, ep, pick.castawayId);
     title = !pick ? "You didn't pick" : out ? "Your pick went home" : "Your pick survived";
     if (c) lines.push(out ? `${c.name} is out.` : `${c.name} is still in.`);
     hero = String(mineA.currentStreak ?? 0);

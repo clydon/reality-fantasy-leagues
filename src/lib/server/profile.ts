@@ -44,8 +44,8 @@ export interface Profile {
   since: string | null;
   /** What we notify you about (step 15 part 2): each moment on or off, and Couch chat's choice. */
   notify: NotifySettings;
-  /** What your couch sees (step 15 part 3): the four switches, and a line each on what one lets out ("alex is on Episode 4 of
-   *  Survivor 51"), from your own shows, ratings and reactions where you have any (only shows you follow openly). */
+  /** What your couch sees (step 15 part 3): the four switches, and a line each on what one lets out ("alex is up to Episode 4 of
+   *  Survivor 51"), from your own shows, episode GIFs and reactions where you have any (only shows you follow openly). */
   sharing: { on: Sharing; lines: Record<ShareSwitch, string> };
   account: {
     username: string | null;
@@ -102,7 +102,7 @@ export async function readProfile(user: SessionUser): Promise<Profile> {
 
 /**
  * What each switch of What your couch sees lets out of you, as someone on your couch would read it: from the show you follow openly
- * that you moved along most lately, your latest rating and the show you reacted on most (only shows you follow openly: a show you
+ * that you moved along most lately, your latest episode GIF and the show you reacted on most (only shows you follow openly: a show you
  * watch privately is never shared). Where you have none, what it would share.
  */
 async function sharingLines(userId: string, name: string): Promise<Record<ShareSwitch, string>> {
@@ -116,24 +116,24 @@ async function sharingLines(userId: string, name: string): Promise<Record<ShareS
      SELECT (SELECT row_to_json(x) FROM (SELECT label, seen_through AS seen, episode_count AS count FROM open WHERE seen_through > 0
                ORDER BY updated_at DESC LIMIT 1) x) AS "where",
             (SELECT label FROM open ORDER BY updated_at DESC LIMIT 1) AS now,
-            (SELECT row_to_json(x) FROM (SELECT o.label, r.episode, r.stars FROM episode_ratings r JOIN open o ON o.season_id = r.season_id
-               WHERE r.user_id = $1 ORDER BY r.updated_at DESC LIMIT 1) x) AS rated,
+            (SELECT row_to_json(x) FROM (SELECT o.label, g.episode FROM episode_gifs g JOIN open o ON o.season_id = g.season_id
+               WHERE g.user_id = $1 ORDER BY g.updated_at DESC LIMIT 1) x) AS gif,
             (SELECT row_to_json(x) FROM (SELECT o.label, count(*)::int AS n FROM watch_reactions w JOIN open o ON o.season_id = w.season_id
                WHERE w.user_id = $1 GROUP BY o.label ORDER BY n DESC, o.label LIMIT 1) x) AS reacted`,
     [userId]
   );
   const x = rows[0] ?? {};
   const where = x.where as { label: string; seen: number; count: number | null } | null;
-  const rated = x.rated as { label: string; episode: number; stars: number } | null;
+  const gif = x.gif as { label: string; episode: number } | null;
   const reacted = x.reacted as { label: string; n: number } | null;
   const lines: Record<ShareSwitch, string> = {
     where: where
       ? where.count && where.seen >= where.count
         ? `${name} finished ${where.label}`
-        : `${name} is on Episode ${where.seen} of ${where.label}`
+        : `${name} is up to Episode ${where.seen} of ${where.label}`
       : `What ${name} watches, and how far ${name} is`,
     now: x.now ? `${name} is watching ${x.now} now` : `When ${name} is watching along`,
-    ratings: rated ? `${name} rated ${rated.label} Episode ${rated.episode} ★${rated.stars}` : `${name}'s episode ratings`,
+    gifs: gif ? `${name}'s GIF for ${gif.label} Episode ${gif.episode}` : `${name}'s episode GIFs`,
     reactions: reacted ? `${name} left ${reacted.n} ${reacted.n === 1 ? "reaction" : "reactions"} on ${reacted.label}` : `${name}'s watch along reactions`,
   };
   return Object.fromEntries(SHARE_SWITCHES.map((k) => [k, lines[k]])) as Record<ShareSwitch, string>;
@@ -182,7 +182,7 @@ export async function saveSettings(
   }
   if ("sharing" in body) {
     const next = sharingFrom(body.sharing, (await sharingOf([session.user.id])).get(session.user.id)!);
-    if (!next) throw new HttpError(400, "sharing: { preset: all, games or min } or any of where, now, ratings, reactions as true or false");
+    if (!next) throw new HttpError(400, "sharing: { preset: all, games or min } or any of where, now, gifs, reactions as true or false");
     for (const k of SHARE_SWITCHES) {
       args.push(next[k]);
       sets.push(`share_${k} = $${args.length}`);

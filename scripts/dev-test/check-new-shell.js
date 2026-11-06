@@ -1,8 +1,9 @@
 // Dev-only check for step 0c, the new design's shell (docs/PLAN-new-design.md), in a real browser against the dev
 // server, as new-fixture.js's alex:
+//   - an account that never chose a design opens on the new one (0155: everyone on the new design); classic once chosen;
 //   - opting in: classic's More › "Try the new design" lands on /home (on a desktop width: the setting, then "/");
 //     "/" goes to /home from then on, by the cookie, and through AuthGate on a device without it;
-//   - the hub's show card changes the channel into the show (its art grows into the show bar), the tabs slide
+//   - the hub's show card tunes into the show (the Tune in bumper, since 2026-10-30), the tabs slide
 //     sideways with the show bar and tab bar still, Backstage and its pages push in and pop back, How it works
 //     is a page pushed over the show that the back gesture closes, the hub's bell opens Notifications, the guard
 //     chip says where you are, first run steps forward;
@@ -20,7 +21,7 @@ require("dotenv").config({ path: ".env.local", quiet: true });
 const fs = require("fs");
 const path = require("path");
 const { Pool } = require("pg");
-const { open } = require("./browser");
+const { open, openFold } = require("./browser");
 const fixture = require("./new-fixture");
 
 const DB = process.env.AUTH_DATABASE_URL || "";
@@ -114,6 +115,14 @@ function recordTransitions() {
     }
     const cookie = async () => (await page.context().cookies()).find((c) => c.name === "gys_ui")?.value ?? null;
 
+    // ---- everyone's on the new design (0155, 2026-10-31): an account that never chose opens on /home ----
+    await page.goto(BASE + "/", { waitUntil: "networkidle" });
+    await page.waitForURL("**/home", { timeout: 30_000 }).catch(() => {});
+    check(new URL(page.url()).pathname === "/home", "an account with no design chosen opens on the new design", page.url());
+    // Classic is for whoever chooses it again (Settings › Back to the classic design); from there, Try the new design.
+    const toClassic = await page.request.put(BASE + "/api/me/settings", { data: { ui: "classic" }, headers: { origin: BASE } });
+    check(toClassic.ok() && (await toClassic.json()).ui === "classic", "classic, once chosen, is kept");
+
     // ---- opting in ----
     if (!desktop) {
       await page.goto(BASE + "/", { waitUntil: "networkidle" });
@@ -156,9 +165,16 @@ function recordTransitions() {
     await page.evaluate(() => (window.__vt.length = 0));
 
     // ---- into the show: the channel change ----
+    // Since 2026-10-30 the Tune in bumper (src/new/tune-in.tsx; check-tune-in.js checks it beat by beat) plays over it, and the
+    // page swaps under it with no view transition at all (its snapshot froze the bumper mid-move: nav.tsx, NavMotion).
     await card.click();
+    await page.locator("[data-tune-in]").waitFor({ timeout: 3000 });
     await page.waitForURL(`**/show/${sid}/tonight`);
-    await moved("hub → show", "channel", "(nd-art)");
+    await page.locator("[data-tune-in]").waitFor({ state: "detached", timeout: 8000 });
+    {
+      const vts = await page.evaluate(() => window.__vt.map((v) => v.nav));
+      check(vts.length === 0, "hub → show: the Tune in bumper, the page swapping under it with no view transition", JSON.stringify(vts));
+    }
     await page.getByRole("heading", { level: 1 }).first().waitFor();
     // "in 3 days" by the database's date (the fixture's), "in 4" by the browser's once it's past midnight UTC.
     check(await page.getByText(/^Ep 6 · in \d days$/).first().isVisible(), "the show bar's calm clock: Ep 6 · in N days");
@@ -182,7 +198,9 @@ function recordTransitions() {
     await page.locator("nav[aria-label=Show] a", { hasText: "Episodes" }).click();
     await page.waitForURL(`**/show/${sid}/episodes`);
     await moved("Tonight → Episodes", "left", "nd-tabind");
-    check(await page.getByText("you're on Ep 5").isVisible(), "the guard chip says where you are (Ep 5)");
+    // The tab's content can still be coming in once the move has played: wait for the chip, don't just look once.
+    const chip = await page.getByText("you're up to Ep 5").first().waitFor({ timeout: 8000 }).then(() => true, () => false);
+    check(chip, "the guard chip says where you are (Ep 5)");
     await snap("episodes");
     await page.locator("nav[aria-label=Show] a", { hasText: "Cast" }).click();
     await page.waitForURL(`**/show/${sid}/cast`);
@@ -227,9 +245,17 @@ function recordTransitions() {
     check(!page.url().includes("page=") && !(await page.locator('[data-how]').isVisible()), "the back gesture closes it, on the same show");
 
     // ---- back to the hub: the channel change in reverse ----
+    await page.evaluate(() => (window.__vt.length = 0));
     await page.getByRole("button", { name: "Home" }).click();
     await page.waitForURL("**/home");
-    await moved("show → hub", "channel", "(nd-art)");
+    if (reduce) await moved("show → hub", "channel");
+    else {
+      // The Tune in's reverse: the header drops into the show's card, the page swapping under it (no view transition).
+      await page.locator("[data-tune-in]").waitFor({ state: "detached", timeout: 4000 });
+      const vts = await page.evaluate(() => window.__vt.map((v) => v.nav));
+      check(vts.length === 0, "show → hub: the Tune in reverse, with no view transition", JSON.stringify(vts));
+      await page.evaluate(() => (window.__vt.length = 0));
+    }
 
     // ---- you ----
     await page.getByRole("button", { name: "Your profile" }).click();
@@ -246,7 +272,8 @@ function recordTransitions() {
     await snap("start-2");
     await page.goto(BASE + "/settings", { waitUntil: "networkidle" });
 
-    // ---- back to classic ----
+    // ---- back to classic (Settings › Your account, a fold since the 2026-10-31 redesign) ----
+    await openFold(page, "account");
     await page.getByText("Back to the classic design").click();
     await page.waitForURL((u) => new URL(u).pathname === "/", { timeout: 30_000 });
     await page.waitForTimeout(1500);

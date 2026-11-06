@@ -114,6 +114,9 @@ export async function startDraft(a: DraftActor, leagueId: string): Promise<Leagu
     (s) => {
       if (!draftKind(s)) throw new HttpError(400, "This game has no draft");
       if (!s.castaways.some((c) => c.status === "active")) throw new HttpError(409, "Add the cast first");
+      // Step A12 part 1: a draft that opens at its game's start (a later stage's) says why it isn't open yet.
+      const waits = StateLogic.DraftLogic.waits(s);
+      if (waits) throw new HttpError(409, waits);
       StateLogic.forceStartDraft(s);
     },
     plainChange(a.user.id, "draft", "Started the draft", 2)

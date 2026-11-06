@@ -657,21 +657,25 @@ export function ShowDeleteRow({ s }: { s: DeskShow }) {
           <span className="text-[13px] text-muted-foreground">{plural(d.games, "game")}</span>
         </div>
         <div data-show-blockers className="border-b border-border">
+          {/* A game alone, or the games of a season that's gone (no season page to list them: the user, 2026-11-01, World
+              Series's two deleted games), each to its own page, where Delete for good is; else the season's row. */}
           {d.blocked.map((b) =>
-            b.one ? (
-              <DeskRow
-                key={b.label}
-                data="show-blocker"
-                href={paths.deskItem("game", b.one.id)}
-                lead={<IconLead icon={Trophy} />}
-                title={
-                  <>
-                    {b.one.name}
-                    {b.one.state !== "playing" && <i className={`${TAG} ${b.one.state === "deleted" ? "text-live outline-1 -outline-offset-1 outline-live" : "text-muted-foreground outline-1 -outline-offset-1 outline-input"}`}>{STATE_WORD[b.one.state]}</i>}
-                  </>
-                }
-                line={`${b.label}${b.one.couch ? ` · ${b.one.couch}` : ""}`}
-              />
+            b.one || b.games.length ? (
+              (b.one ? [b.one] : b.games).map((g) => (
+                <DeskRow
+                  key={g.id}
+                  data="show-blocker"
+                  href={paths.deskItem("game", g.id)}
+                  lead={<IconLead icon={Trophy} />}
+                  title={
+                    <>
+                      {g.name}
+                      {g.state !== "playing" && <i className={`${TAG} ${g.state === "deleted" ? "text-live outline-1 -outline-offset-1 outline-live" : "text-muted-foreground outline-1 -outline-offset-1 outline-input"}`}>{STATE_WORD[g.state]}</i>}
+                    </>
+                  }
+                  line={`${b.label}${g.couch ? ` · ${g.couch}` : ""}`}
+                />
+              ))
             ) : (
               <DeskRow
                 key={b.label}
@@ -687,7 +691,7 @@ export function ShowDeleteRow({ s }: { s: DeskShow }) {
             )
           )}
         </div>
-        <p className={NOTE}>Each season&apos;s Delete lists its games; each game&apos;s page ends with its delete.</p>
+        <p className={NOTE}>Each season&apos;s Delete lists its games; each game&apos;s page ends with its delete (a deleted one&apos;s: Delete it for good, now).</p>
       </Sheet>
       <HoldSheet
         open={open && !blocked}

@@ -1,0 +1,1064 @@
+// Dev-only check of the first-time tour, version 3 (docs/PLAN-first-time-tour.md, src/new/tour/): a welcome card, up top, down Home a
+// section a beat, then hands on, each real thing tapped by the person (the plate's Tap it only shakes it): your moves for real (the
+// top line's page, Back to the tour), Add a show as a practice that saves nothing (and its demo), a show flipped over to your games,
+// the TV guide's filters, the reveal replayed, Start a game as a practice; kept once an account:
+//   A. sam (results waiting; notifications allowed): the card; every step's count, words and light, down Home's beats with a dot
+//      each; your moves: Tap it shakes the top line and goes nowhere, the line itself goes to its show, Back to the tour brings Home
+//      and the step ticks, and that's no skip; Add a show: Tap it shakes the tile, the tile itself opens the practice: the practice
+//      show the catalog says (the first of Survivor, The Amazing Race, The Challenge sam doesn't have) typed in, slowly enough to
+//      follow, and ringed, Where are you (left a moment, its Add to my shows shakes by itself), its finish (isn't saved; you don't
+//      need a game), Show me: the demo adds one show, Saturday Night Live, by itself, slowly enough to follow (its Add to my shows
+//      ringed and pressed before the tap); Flip a show: sam's show far along a long shelf (four shows on before it: longShelf) brought
+//      into view and lit, Tap it shakes the corner, the tap turns it over to sam's games and back, the practice shows on the shelf
+//      saying Practice; the TV guide: those shows on their nights (tagged Practice), taller than the room above the lower third
+//      (the long shelf's night) with its filters kept clear of it (on All TV too), the filters working through the tour, Sports
+//      saying it's coming, a swipe across its week scrolling it (no tap; it stays put after), a sideways wheel too; the
+//      reveal: the line saying sam's real waiting episode stays sealed, Up next with
+//      results waiting on the episode the replay plays (Home drawn so for the step, then as it was), the replay of sam's last
+//      episode with nothing that would be real (no Share, no next episode), the demo's shows gone by then; Start a game: the
+//      practice show first, its rules' moment, the Prediction Sheet chosen, Create a game with AI (coming soon), Start it in sight
+//      in the sheet's foot without scrolling (left a moment, the options scroll to their end and it shakes; the one thing yellow,
+//      Tell the couch neutral), its finish. One path through each practice: the search the tour's to type, another
+//      show shakes the one to tap, Back to search shakes Add to my shows, another game shakes Start it. Nothing written: no write
+//      but the tour's own and the replay's
+//      (with replay: true), and sam's follows, marks, leagues and chat as they were. The wrap: Turn on reminders first and solid,
+//      Explore quieter, no Skip tour; Explore keeps it (seen, to the last step); Home doesn't play it again.
+//   B/C. alex: Skip on the welcome card keeps it (step 1); Settings › Take the tour plays it again; Escape skips it.
+//   D. sam: /home?tour=1 plays it and takes ?tour off the address.
+//   K. sam: the menu behind your picture › Take the tour plays it there and then; once played, a reload doesn't play it again.
+//   E. zt_nd_solo (no couch, one show, no game): no Start a game practice (the couch pitched), no flip, a made-up reveal (no server
+//      call); Turn on ends it.
+//   F. riley with reduced motion: each step lit at once; Tap it blinks the ring and moves nothing; Start a game's rules moment
+//      still shows (a pause, not a movement).
+//   G. zt_nd_admin acting as jordan (the desk's Act as them): Home doesn't play it, and a write isn't kept.
+//   I. casey leaves Home mid-tour by a move inside the app (as the phone's back): kept as a skip at that step.
+//   H. riley in Studio: plays through, with no page errors.
+//   J. the real Start a game sheet (no tour): Create a game with AI, coming soon, for everyone; Start it in the sheet's foot; no
+//      practice hint (it stays put); Tell the couch keeps its yellow.
+//   L. jordan: on the first step with a real thing to tap, the plate says Tap it where Next was the step before, and a tap there
+//      (or anywhere off what's lit) shakes it and does nothing else; the skip pill (its own words) moves on (the user, 2026-11-01:
+//      Next skipped it by habit; then: Tap it mustn't do it for them). Skip tour sits at the top, far from the thumb, and a skip
+//      can be undone: Undo takes the tour up again at that step.
+// Nothing wider than the screen; no page errors.
+//
+//   node scripts/lane.js dev                                  (the server, in another terminal; BASE from .env.local)
+//   node scripts/dev-test/check-new-tour.js [--width=390] [--shots=<dir>] [--keep]
+//
+// Brings new-fixture.js's couch up (its zt_nd_ people) and adds zt_nd_solo (on no couch, following its season), zt_nd_admin
+// (a site admin) and four zt-nd-shelf shows sam follows (alex's); takes them all down at the end unless --keep (new-fixture's
+// down removes every zt_nd_ account and the zt- shows they made). The TV listings
+// are fake-listings.js with HBO's Harry Potter and Saturday Night Live under their real TVmaze ids (the demo finds them by id:
+// tour/plan.ts), SNL on next Saturday night; nothing is added from them (the practice saves nothing). Needs the real
+// Survivor, The Amazing Race or The Challenge set up as a game in the database (a copy of production has Survivor 51). Refuses a
+// non-local database. Don't run it beside another check on the same database: they share the zt_nd_ fixture.
+require("dotenv").config({ path: ".env.local", quiet: true });
+const fs = require("fs");
+const path = require("path");
+const crypto = require("crypto");
+const { Pool } = require("pg");
+const jiti = require("jiti")(__filename, { alias: { "@": path.join(__dirname, "..", "..", "src") } });
+const { numbered, tourSteps } = jiti("../../src/new/tour/steps.ts");
+const { demoOf, practiceShowOf, replayOf } = jiti("../../src/new/tour/plan.ts");
+const { open } = require("./browser");
+const fixture = require("./new-fixture");
+const listings = require("./fake-listings");
+
+const args = process.argv.slice(2);
+const opt = (name, dflt) => {
+  const a = args.find((x) => x.startsWith(`--${name}=`));
+  return a ? a.slice(name.length + 3) : dflt;
+};
+const WIDTH = Number(opt("width", 390));
+const SHOTS = opt("shots", null);
+const KEEP = args.includes("--keep");
+const DB = process.env.AUTH_DATABASE_URL || "";
+if (!/@(localhost|127\.0\.0\.1)[:/]/.test(DB)) throw new Error("refusing: not a local database");
+
+let failed = 0;
+function check(ok, label, detail) {
+  if (ok) console.log(`PASS ${label}`);
+  else {
+    failed++;
+    console.log(`FAIL ${label}${detail ? ` (${detail})` : ""}`);
+  }
+}
+
+const id = () => crypto.randomBytes(18).toString("hex");
+async function makeUser(pool, who, role = "user") {
+  const { hashPassword } = await import("better-auth/crypto");
+  const userId = id();
+  const name = `zt_nd_${who}`;
+  await pool.query(
+    `INSERT INTO "user" (id, name, email, "emailVerified", username, "displayUsername", role, "createdAt", "updatedAt") VALUES ($1, $2, $3, true, $2, $2, $4, now(), now())`,
+    [userId, name, `${name}@example.invalid`, role]
+  );
+  await pool.query(`INSERT INTO account (id, "accountId", "providerId", "userId", password, "createdAt", "updatedAt") VALUES ($1, $2, 'credential', $2, $3, now(), now())`, [
+    id(),
+    userId,
+    await hashPassword(fixture.PASSWORD),
+  ]);
+  return userId;
+}
+
+const tourOf = async (pool, userId) => (await pool.query("SELECT tour_seen_at, tour_reached FROM user_settings WHERE user_id = $1", [userId])).rows[0] ?? {};
+const resetTour = (pool, userId) => pool.query("UPDATE user_settings SET tour_seen_at = NULL, tour_reached = NULL WHERE user_id = $1", [userId]);
+/** What a practice could have written for someone: their follows (and where they are), their marks, their games, their chat. */
+async function rowsOf(pool, userId) {
+  const q = async (sql) => JSON.stringify((await pool.query(sql, [userId])).rows);
+  return {
+    follows: await q("SELECT season_id, seen_through, following, private, keep_up, early_seen, early_night FROM show_follows WHERE user_id = $1 ORDER BY season_id"),
+    marks: await q("SELECT league_id, results_seen_through FROM league_memberships WHERE user_id = $1 ORDER BY league_id"),
+    leagues: await q("SELECT count(*)::int AS n FROM leagues WHERE created_by = $1"),
+    chat: await q("SELECT count(*)::int AS n FROM chat_messages WHERE user_id = $1"),
+  };
+}
+
+/** A long shelf for sam (the user, 2026-11-01: Flip a show lit nothing when the show sat far along Your shows, the shelf still
+ *  easing back from Add a show's tile at its end): four zt shows on tomorrow night, so the shelf puts them before the couch's (on in
+ *  three days), sam caught up on each. Alex's, so new-fixture's down takes them. */
+async function longShelf(pool, U) {
+  for (let i = 1; i <= 4; i++) {
+    const show = (await pool.query("INSERT INTO shows (slug, name, created_by) VALUES ($1, $2, $3) RETURNING id", [`zt-nd-shelf-${i}`, `ZT Shelf ${i}`, U.alex])).rows[0].id;
+    const season = (
+      await pool.query(
+        `INSERT INTO show_seasons (show_id, season_number, name, status, premiere_date, air_time, air_tz, episode_minutes, episode_count)
+         VALUES ($1, 1, $2, 'airing', current_date + 1 - 7, $3, 'America/New_York', 60, 10) RETURNING id`,
+        [show, `ZT Shelf ${i} 1`, `${18 + i}:00`]
+      )
+    ).rows[0].id;
+    await pool.query("INSERT INTO show_follows (user_id, season_id, seen_through, following) VALUES ($1, $2, 1, true)", [U.sam, season]);
+  }
+}
+
+// The demo's shows in the stand-in listings: HBO's Harry Potter (upcoming) and Saturday Night Live, on next Saturday night.
+const DAY = 24 * 3600 * 1000;
+function nextDay(day, hour, minute) {
+  const t = new Date();
+  t.setHours(hour, minute, 0, 0);
+  let d = (day - t.getDay() + 7) % 7;
+  if (d === 0 && t.getTime() < Date.now()) d = 7;
+  return t.getTime() + d * DAY;
+}
+const DEMO_SHOWS = () => [
+  listings.oneNight(68803, "ZT Harry Potter", Date.now() + 54 * DAY, { type: "Scripted", network: "ZT HBO", episodes: 8 }),
+  listings.oneNight(361, "ZT Saturday Night Live", nextDay(6, 23, 30), { type: "Variety", network: "ZT NBC", season: 52, first: 5, runtime: 90 }),
+];
+
+/** The tour as it stands: which step, lit or not, its words, the ring, and what its step list says it lights (all, for `union`). */
+function state(page, steps) {
+  return page.evaluate((steps) => {
+    const root = document.querySelector('[role="dialog"][data-tour]');
+    if (!root) return null;
+    const step = steps.find((s) => s.id === root.dataset.tour);
+    const box = root.getBoundingClientRect();
+    const hub = document.querySelector("[data-hub]");
+    const boxed = (sel) => {
+      let el = hub?.querySelector(sel);
+      if (el && !el.getClientRects().length && el.firstElementChild) el = el.firstElementChild;
+      return el && el.getBoundingClientRect().width > 0 ? el : null;
+    };
+    const found = (step?.targets ?? []).map((sel) => [sel, boxed(sel)]).filter(([, el]) => el);
+    const use = step?.union ? found : found.slice(0, 1);
+    let target = null;
+    if (use.length) {
+      const rs = use.map(([, el]) => el.getBoundingClientRect());
+      const l = Math.min(...rs.map((r) => r.left)), t = Math.min(...rs.map((r) => r.top));
+      const r = Math.max(...rs.map((x) => x.right)), b = Math.max(...rs.map((x) => x.bottom));
+      target = { sel: use.map(([s]) => s).join(" + "), x: l - box.left, y: t - box.top, w: r - l, h: b - t };
+    }
+    const ring = root.querySelector("svg rect[stroke-width]");
+    const n = (a) => Number(ring?.getAttribute(a) ?? 0);
+    // What the step has to tap in what's lit (the guide's filters).
+    const pr = step?.play ? hub?.querySelector(step.play)?.getBoundingClientRect() : null;
+    return {
+      play: pr ? { y: pr.top - box.top, h: pr.height } : null,
+      id: root.dataset.tour,
+      lit: root.dataset.tourLit,
+      count: root.querySelector("[data-tour-count]")?.textContent ?? "",
+      beats: root.querySelectorAll("[data-tour-beats] i").length,
+      title: root.querySelector("#nd-tour-title")?.textContent ?? "",
+      line: root.querySelector("#nd-tour-line")?.textContent ?? "",
+      act: root.querySelector("[data-tour-act]")?.getAttribute("data-tour-act") ?? null,
+      skip: root.querySelector("[data-tour-skip-step]")?.textContent?.trim() ?? null,
+      ring: { x: n("x"), y: n("y"), w: n("width"), h: n("height") },
+      target,
+      lowerTop: (root.querySelector("[data-tour-lower]")?.getBoundingClientRect().top ?? box.bottom) - box.top,
+      boxW: box.width,
+      wide: document.documentElement.scrollWidth > window.innerWidth + 1,
+      scrollY: window.scrollY,
+    };
+  }, steps);
+}
+
+/** Waits for step k on Home to have its light on (or the screen dimmed, when nothing of it is on this Home), then a beat for a glide. */
+async function onStep(page, steps, k) {
+  await page.waitForFunction(
+    (sid) => {
+      const r = document.querySelector('[role="dialog"][data-tour]');
+      return r && r.dataset.tour === sid && r.dataset.tourLit !== "off" && !r.hasAttribute("data-tour-away") && !r.querySelector('[data-tour-count="done"]');
+    },
+    steps[k].id,
+    { timeout: 15000 }
+  );
+  await page.waitForTimeout(550);
+  return state(page, steps);
+}
+
+/** The ring sits around the target (padded 6, kept 4 inside the column). */
+function ringFits(s) {
+  if (!s.target) return s.lit === "dim";
+  const want = { x: Math.max(4, s.target.x - 6), y: s.target.y - 6 };
+  const right = Math.min(s.boxW - 4, s.target.x + s.target.w + 6);
+  return s.lit === "on" && Math.abs(s.ring.x - want.x) <= 2 && Math.abs(s.ring.y - want.y) <= 2 && Math.abs(s.ring.x + s.ring.w - right) <= 2 && Math.abs(s.ring.h - (s.target.h + 12)) <= 2;
+}
+
+/** Step k's count (down Home's beats share one, a dot each), words, light, its place clear of the lower third, and what's to tap. */
+function stepChecks(who, s, plan, k) {
+  const { steps, nums, of } = plan;
+  const want = steps[k];
+  const beats = want.part ? steps.filter((x) => x.part === want.part).length : 0;
+  const label = `${who} step ${nums[k]}${beats > 1 ? ` (${want.id})` : ""}`;
+  check(s.count === `${nums[k]}/${of}` && s.title === want.title && s.line === want.line && s.beats === (beats > 1 ? beats : 0), `${label}: ${want.id}, its count and words`, `${s.count} ·${s.beats} "${s.title}" "${s.line}"`);
+  check(ringFits(s), `${label}: ${s.target ? `lights ${s.target.sel}` : "lights nothing, the screen dims"}`, JSON.stringify({ lit: s.lit, ring: s.ring, target: s.target }));
+  check(!s.wide, `${label}: nothing wider than the screen`);
+  // Taller than the room above the lower third (the guide, a night with many shows): its top in sight, or on a step with things to
+  // tap in it, those (the guide's filters) clear of the lower third.
+  const tall = !!s.target && s.target.h + 12 + 32 > s.lowerTop - 10;
+  if (!tall) check(!s.target || s.target.y + s.target.h + 6 <= s.lowerTop + 1, `${label}: what's lit is clear of the lower third`, s.target && `${Math.round(s.target.y + s.target.h)} vs ${Math.round(s.lowerTop)}`);
+  else if (want.play) check(!!s.play && s.play.y >= 0 && s.play.y + s.play.h <= s.lowerTop - 1, `${label}: what's lit is taller than the room above the lower third: what's to tap in it is clear of it`, JSON.stringify({ play: s.play, lowerTop: s.lowerTop }));
+  else check(s.target.y >= -1, `${label}: what's lit is taller than the room above the lower third: its top in sight`, JSON.stringify(s.target));
+  check((s.act ?? null) === (want.act?.kind ?? null) && (s.skip ?? null) === (want.act?.skip ?? null), `${label}: ${want.act ? `its real thing to tap (${want.act.kind}; "${want.act.skip}")` : "nothing to tap"}`, `${s.act} "${s.skip}"`);
+}
+
+/** Ends the tour with `act` and waits for the account to keep it (the write is keepalive; a reload right after mustn't race it). */
+async function endWith(page, act) {
+  const [res] = await Promise.all([page.waitForResponse((r) => r.url().includes("/api/me/tour") && r.request().method() === "POST", { timeout: 10000 }), act()]);
+  await gone(page);
+  return res.status();
+}
+
+const tourUp = (page) => page.$('[role="dialog"][data-tour]');
+const tourId = (page) => page.evaluate(() => document.querySelector('[role="dialog"][data-tour]')?.dataset.tour ?? null);
+async function noTour(page, label) {
+  await page.waitForTimeout(3500);
+  check(!(await tourUp(page)), label);
+}
+async function gone(page) {
+  await page.waitForFunction(() => !document.querySelector('[role="dialog"][data-tour]'), null, { timeout: 6000 });
+}
+async function shot(page, name) {
+  if (!SHOTS) return;
+  fs.mkdirSync(SHOTS, { recursive: true });
+  await page.screenshot({ path: path.join(SHOTS, `${name}.png`) });
+}
+/** The welcome card, up. */
+const welcome = (page) => page.waitForSelector("[data-tour-welcome].opacity-100", { timeout: 20000 });
+/** Back from a step's real thing: the step ticks (its count turns green), then the next one. */
+const ticked = (page) => page.waitForSelector('[data-tour-count="done"]', { timeout: 15000 });
+
+/** A finger on what's lit (the tour takes the tap and passes it on). */
+async function tapLit(page) {
+  const c = await page.evaluate(() => {
+    const root = document.querySelector('[role="dialog"][data-tour]');
+    const ring = root.querySelector("svg rect[stroke-width]");
+    const b = root.getBoundingClientRect();
+    const n = (a) => Number(ring.getAttribute(a));
+    return { x: b.left + n("x") + n("width") / 2, y: b.top + n("y") + n("height") / 2 };
+  });
+  await page.mouse.click(c.x, c.y);
+}
+/** A finger on something of Home's, under the tour. */
+async function tapAt(page, sel) {
+  const c = await page.$eval(sel, (el) => {
+    const r = el.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  });
+  await page.mouse.click(c.x, c.y);
+}
+/** Whether something in a sheet is moving right now (a practice's next thing, shaken: a Web Animation on it). */
+const moving = (page, sel) => page.evaluate((sel) => (document.querySelector(sel)?.getAnimations().length ?? 0) > 0, sel);
+/** Whether the step's thing to tap is moving right now (Tap it's shake: a Web Animation on it); `ring`, the tour's ring instead. */
+const shook = (page, step, ring = false) =>
+  page.evaluate(
+    ([step, ring]) => {
+      if (ring) return (document.querySelector('[role="dialog"][data-tour] svg rect[stroke-width]')?.getAnimations().length ?? 0) > 0;
+      const hub = document.querySelector("[data-hub]");
+      const boxed = (sel) => {
+        let el = hub?.querySelector(sel);
+        if (el && !el.getClientRects().length && el.firstElementChild) el = el.firstElementChild;
+        return el && el.getBoundingClientRect().width > 0 ? el : null;
+      };
+      let el = step.targets.map(boxed).find(Boolean);
+      if (el && step.tap) el = el.querySelector(step.tap) ?? el;
+      return !!el && el.getAnimations().length > 0;
+    },
+    [step, ring]
+  );
+
+let HEADERS = {};
+async function session(who, opts = {}) {
+  // `tour: true`: browser.js turns the tour off for every other check.
+  const s = await open({ user: `zt_nd_${who}`, pass: fixture.PASSWORD, width: WIDTH, height: 844, tour: true, headers: HEADERS, ...opts });
+  if (opts.notifications) await s.page.context().grantPermissions(["notifications"], { origin: s.BASE });
+  return s;
+}
+/** The tour's steps for whoever's signed in, as the tour works them out (tour.tsx): from their Home, the catalog, and what's on
+ *  their Home (a top line that goes somewhere, a show that flips, which sections there are and in what order). */
+async function stepsFor(page, { solo = false, reminders = "off" } = {}) {
+  const [home, catalog] = await page.evaluate(() => Promise.all([fetch("/api/me/home").then((r) => r.json()), fetch("/api/catalog").then((r) => r.json())]));
+  const practice = practiceShowOf(catalog.seasons, home);
+  const replay = replayOf(home);
+  const here = await page.evaluate(() => {
+    const hub = document.querySelector("[data-hub]");
+    const boxed = (sel) => {
+      let el = hub?.querySelector(sel);
+      if (el && !el.getClientRects().length && el.firstElementChild) el = el.firstElementChild;
+      return el && el.getBoundingClientRect().width > 0 ? el : null;
+    };
+    const top = {};
+    for (const sel of ["[data-your-shows]", "[data-guide]", "[data-feed-list]", "[data-more-couch]"]) top[sel] = boxed(sel)?.getBoundingClientRect().top ?? null;
+    return { moves: !!hub?.querySelector("a[data-status]"), flip: !!hub?.querySelector("[data-flip]"), top };
+  });
+  // Real results waiting on the replay's show, past the episode it replays (tour.tsx): the reveal step says they stay sealed.
+  const waiting = replay ? home.shows.find((s) => s.seasonId === replay.seasonId)?.results?.reveal?.episode : null;
+  const sealed = replay && waiting && waiting !== replay.n ? { now: waiting, replays: replay.n } : null;
+  let steps = tourSteps({ solo, reminders, show: practice?.name ?? null, replay: !!replay, sealed, moves: here.moves, flip: here.flip });
+  steps = steps.filter((s) => !s.optional || s.targets.some((sel) => here.top[sel] != null));
+  const first = steps.findIndex((s) => s.part);
+  if (first >= 0) {
+    let end = first;
+    while (steps[end + 1]?.part === steps[first].part) end++;
+    const beats = steps.slice(first, end + 1).sort((a, b) => here.top[a.targets[0]] - here.top[b.targets[0]]);
+    steps = [...steps.slice(0, first), ...beats, ...steps.slice(end + 1)];
+  }
+  return { steps, ...numbered(steps), practice, replay, demo: demoOf(home) };
+}
+
+(async () => {
+  const pool = new Pool({ connectionString: DB });
+  const tv = await listings.start({ shows: DEMO_SHOWS() });
+  HEADERS = { "x-gys-listings": tv.url };
+  const fx = await fixture.up(pool);
+  const U = fx.users;
+  U.solo = await makeUser(pool, "solo");
+  U.admin = await makeUser(pool, "admin", "admin");
+  // Solo: one show, as first run's "Just me for now" leaves someone (no couch, no game).
+  await pool.query("INSERT INTO show_follows (user_id, season_id, seen_through, following) VALUES ($1, $2, 3, true) ON CONFLICT DO NOTHING", [U.solo, fx.seasonId]);
+  await longShelf(pool, U);
+  const errors = [];
+  try {
+    // ---- A. sam: all of it, every real thing, to Explore ----
+    {
+      const { page, errors: e, BASE, close } = await session("sam", { notifications: true });
+      const writes = [];
+      page.on("request", (r) => {
+        if (!["GET", "HEAD", "OPTIONS"].includes(r.method())) writes.push({ m: r.method(), u: new URL(r.url()).pathname, b: r.postData() ?? "" });
+      });
+      try {
+        const before = await rowsOf(pool, U.sam);
+        await page.goto(BASE + "/home", { waitUntil: "domcontentloaded" });
+        await welcome(page);
+        const plan = await stepsFor(page);
+        const { steps, nums, of, practice, replay, demo } = plan;
+        const at = (sid) => steps.findIndex((x) => x.id === sid);
+        check(!!practice, "A: the catalog has a practice show for sam (Survivor, The Amazing Race or The Challenge, set up as a game)", JSON.stringify(practice));
+        // The practice show's listing (under its real id) in the stand-in TV listings, airing Wednesday: once it's practice-added it's on
+        // Home's guide (the user: "make sure the practice shows we add show up in the guide").
+        const OWN = "ZT Practice Survivor";
+        if (practice?.tvmazeId) tv.shows.push(listings.oneNight(practice.tvmazeId, OWN, nextDay(3, 21, 0), { network: "ZT CBS", season: 51, first: 7, runtime: 60 }));
+        check(!!replay, "A: sam has a reveal to replay (a game, an episode revealed)", JSON.stringify(replay));
+        check((await page.textContent("[data-tour-welcome]")).includes(`1/${of}`), `A: the welcome card, 1/${of}`);
+        await shot(page, "sam-1-welcome");
+        await page.click("[data-tour-go]");
+
+        // 2: up top.
+        let s = await onStep(page, steps, 1);
+        stepChecks("sam", s, plan, 1);
+        const y = s.scrollY;
+        await page.mouse.wheel(0, 500);
+        await page.waitForTimeout(400);
+        check((await page.evaluate(() => window.scrollY)) === y, "A: Home doesn't scroll by hand under the tour");
+        await shot(page, "sam-2-home");
+        await page.click("[data-tour-next]");
+
+        // 3: down Home, a section a beat.
+        let k = 2;
+        for (; steps[k].part === "down"; k++) {
+          s = await onStep(page, steps, k);
+          stepChecks("sam", s, plan, k);
+          await shot(page, `sam-3-${steps[k].id}`);
+          await page.click("[data-tour-next]");
+        }
+        check(k > 3, `A: down Home has its sections: ${steps.filter((x) => x.part).map((x) => x.id).join(", ")}`);
+
+        // 4: your moves, for real.
+        k = at("moves");
+        s = await onStep(page, steps, k);
+        stepChecks("sam", s, plan, k);
+        check(!!steps[k].act, "A: sam's top line goes somewhere (results in), so the moves step goes there for real");
+        if (steps[k].act) {
+          await shot(page, "sam-4-moves");
+          await page.click('[data-tour-act="moves"]');
+          const shake = await shook(page, steps[k]);
+          await page.waitForTimeout(700);
+          check(shake && /\/home$/.test(page.url()) && (await tourId(page)) === "moves", "A: Your moves: Tap it shakes the top line, and goes nowhere", page.url());
+          const kept = [];
+          const keep = (r) => r.url().includes("/api/me/tour") && r.method() === "POST" && kept.push(r.url());
+          page.on("request", keep);
+          await tapLit(page);
+          await page.waitForURL(/\/show\//, { timeout: 12000 });
+          const pill = await page.waitForSelector("[data-tour-back]", { timeout: 10000 });
+          const said = (await pill.textContent()).replace(/\s+/g, " ").trim();
+          check(said.includes(`${nums[k]}/${of}`) && /Back to the tour/.test(said), "A: the top line goes to its show for real, with Back to the tour on that page", said);
+          await page.waitForTimeout(600);
+          await shot(page, "sam-4a-moves-page");
+          await page.click("[data-tour-back]");
+          await page.waitForURL(/\/home$/, { timeout: 10000 });
+          await ticked(page);
+          check((await tourId(page)) === "moves", "A: back Home, the tour carries on from your moves, ticked");
+          page.off("request", keep);
+          check(kept.length === 0, "A: going to your moves isn't a skip (nothing kept)", kept.join(", "));
+        } else await page.click("[data-tour-next]");
+
+        // 5: Add a show: the tile itself, a practice.
+        k = at("add");
+        s = await onStep(page, steps, k);
+        stepChecks("sam", s, plan, k);
+        await shot(page, "sam-5-add");
+        await page.click('[data-tour-act="add"]');
+        const addShook = await shook(page, steps[k]);
+        await page.waitForTimeout(700);
+        check(addShook && !(await page.$("[role=dialog][data-open] [data-practice]")), "A: Add a show: Tap it shakes the tile, and opens nothing");
+        await tapLit(page);
+        await page.waitForSelector("[role=dialog][data-open] [data-practice]", { timeout: 15000 });
+        const typing = Date.now();
+        await page.waitForFunction((name) => document.querySelector("[data-add-input]")?.value === name, practice.name, { timeout: 20000 });
+        const typed = Date.now() - typing;
+        check(typed >= 0.8 * (900 + (practice.name.length - 1) * 100), `A: the tile itself opens the practice, the name typed slowly enough to follow (${typed} ms for ${practice.name.length} letters)`);
+        await page.waitForSelector("[data-practice-pick]", { timeout: 20000 });
+        check((await page.inputValue("[data-add-input]")) === practice.name, "A: Add a show's practice types the practice show's name", await page.inputValue("[data-add-input]"));
+        check(await page.$eval("[data-add-input]", (el) => el.readOnly), "A: the practice's search is the tour's to type: read-only");
+        await shot(page, "sam-5a-typed");
+        // One path (the user: "don't let the user stray"): another show shakes the one to tap, and nothing opens.
+        const stray = await page.$("[data-add-show=search] [data-hit]:not([data-practice-pick])");
+        if (stray) {
+          await stray.click();
+          const row = await moving(page, "[data-practice-pick]");
+          await page.waitForTimeout(500);
+          check(row && !!(await page.$("[data-add-show=search]")), "A: another show in the practice's results shakes the one to tap, and opens nothing");
+        }
+        await page.click("[data-practice-pick]");
+        await page.waitForSelector("[role=dialog][data-open] [data-where-save]", { timeout: 15000 });
+        // Left a moment, Add to my shows shows itself (the user: "shake Add to my shows to show it's what we need to do to progress").
+        const saveNudged = await page
+          .waitForFunction(
+            () => {
+              const b = document.querySelector("[role=dialog][data-open] [data-where-save]");
+              const r = b?.getBoundingClientRect();
+              return !!b && b.getAnimations().length > 0 && r.top >= 0 && r.bottom <= window.innerHeight;
+            },
+            null,
+            { timeout: 4000 }
+          )
+          .then(() => true, () => false);
+        check(saveNudged, "A: Where are you, left a moment: Add to my shows shakes by itself, in view");
+        await shot(page, "sam-5a-where");
+        await page.waitForFunction(() => !document.querySelector("[role=dialog][data-open] [data-where-save]")?.getAnimations().length, null, { timeout: 3000 });
+        await page.click("[role=dialog][data-open] >> text=Back to search");
+        const save = await moving(page, "[role=dialog][data-open] [data-where-save]");
+        await page.waitForTimeout(500);
+        check(save && !(await page.$("[data-add-show=search]")), "A: Back to search shakes Add to my shows, and stays on Where are you");
+        await page.click("[role=dialog][data-open] [data-where-save]");
+        await page.waitForSelector("[data-practice-done]", { timeout: 10000 });
+        const fin = await page.textContent("[data-practice-done]");
+        check(fin.includes(`${practice.label} isn't saved`) && /You don.t need a game to add a show/.test(fin) && /Show me$/.test(fin.trim()), "A: its finish: it isn't saved; you don't need a game; Show me", fin);
+        await shot(page, "sam-5b-finish");
+        // Show me: the demo adds the rest by itself, each tap seen (the button ringed, then pressed in).
+        const ringed = page.waitForSelector("[data-where-save][data-tour-tap]", { timeout: 60000 }).then(() => true, () => false);
+        const showing = Date.now();
+        await page.click("[data-practice-close]");
+        await page.waitForSelector('[data-add-show="demoed"] [data-practice-done]', { timeout: 60000 });
+        const showed = Date.now() - showing;
+        const names = demo.map((d) => DEMO_SHOWS().find((x) => x.show.id === d.tvmazeId).show.name);
+        const demoed = await page.textContent("[data-practice-done]");
+        check(names.length === 1 && names.every((n) => demoed.includes(n)) && demoed.includes("saved either"), `A: Show me: the tour adds one show, ${names.join(" and ")}, by itself, and says it isn't saved either`, demoed);
+        check(showed >= 6000 * names.length, `A: the demo slow enough to follow (${Math.round(showed / 100) / 10} s for ${names.length} shows)`);
+        check(await ringed, "A: the demo's Add to my shows ringed and pressed before it's tapped");
+        await shot(page, "sam-5c-demoed");
+        await page.click("[data-practice-close]");
+        await ticked(page);
+
+        // 6: Flip a show: the corner, for real.
+        k = at("flip");
+        check(k > 0, "A: sam's show turns over to sam's games, so there's a flip step");
+        if (k > 0) {
+          s = await onStep(page, steps, k);
+          stepChecks("sam", s, plan, k);
+          // Far along a long shelf (longShelf), the shelf at Add a show's tile the step before: brought back to it, lit whole.
+          const far = await page.evaluate(() => {
+            const all = [...document.querySelectorAll("[data-hub] [data-poster]")];
+            const p = document.querySelector("[data-hub] [data-poster]:has([data-flip])");
+            const r = p.getBoundingClientRect();
+            return { at: all.indexOf(p), left: Math.round(r.left), right: Math.round(r.right) };
+          });
+          check(far.at >= 4 && far.left >= -1 && far.right <= WIDTH + 1 && ringFits(s), `A: Flip a show: sam's show, far along the shelf (the ${far.at + 1}th), comes into view and is what's lit`, JSON.stringify({ far, ring: s.ring }));
+          const shelf = await page.$$eval("[data-poster]", (p) => p.map((x) => x.getAttribute("data-poster")));
+          check(demo.every((d) => shelf.includes(`tour-${d.tvmazeId}`)) && (!practice.tvmazeId || shelf.includes(`tour-${practice.tvmazeId}`)), "A: Your shows has the show you practice-added and the demo's, for now", shelf.join(", "));
+          // Said as they are: practice, here for the tour (the critique: "won't show up", then they did).
+          const tagged = await page.$$eval('[data-poster^="tour-"]', (p) => p.every((x) => x.querySelector("[data-practice-tag]")?.textContent?.trim() === "Practice"));
+          check(tagged && !(await page.$('[data-poster]:not([data-poster^="tour-"]) [data-practice-tag]')), "A: each practice poster says Practice, and no real one does");
+          await shot(page, "sam-6-flip");
+          await page.click('[data-tour-act="flip"]');
+          const flipShook = await shook(page, steps[k]);
+          await page.waitForTimeout(600);
+          check(flipShook && !(await page.$("[data-hub] [data-flipped]")), "A: Flip a show: Tap it shakes the corner, and turns nothing");
+          await tapLit(page);
+          const turned = await page.waitForSelector("[data-hub] [data-flipped]", { timeout: 4000 }).then(() => true, () => false);
+          await page.waitForTimeout(900);
+          await shot(page, "sam-6a-flipped");
+          const back = await page.waitForFunction(() => !document.querySelector("[data-hub] [data-flipped]"), null, { timeout: 8000 }).then(() => true, () => false);
+          check(turned && back, "A: the tap turns the show over to sam's games, then back");
+          await ticked(page);
+        }
+
+        // 7: the TV guide: the demo's game in it, its filters through the tour, Sports soon.
+        k = at("guide");
+        s = await onStep(page, steps, k);
+        stepChecks("sam", s, plan, k);
+        await page.waitForTimeout(800);
+        const snl = demo.find((d) => d.tvmazeId === 361);
+        const cards = await page.$$eval("[data-guide-card]", (c) => c.map((x) => x.getAttribute("aria-label") ?? ""));
+        const snlName = snl && DEMO_SHOWS().find((x) => x.show.id === snl.tvmazeId).show.name;
+        check(!snl || cards.some((c) => c.startsWith(snlName)), `A: the guide has the demo's Saturday Night Live on its night (${snlName})`, cards.join(" | "));
+        check(!practice.tvmazeId || cards.some((c) => c.startsWith(OWN)), "A: and the show you practice-added, on its night", cards.join(" | "));
+        const cardTags = await page.$$eval('[data-guide-card^="tour-"]', (c) => c.length > 0 && c.every((x) => x.querySelector("[data-practice-tag]")));
+        check(cardTags && !(await page.$('[data-guide-card]:not([data-guide-card^="tour-"]) [data-practice-tag]')), "A: the practice shows' guide cards say Practice, and no real one does");
+        // The reel goes to those nights in turn, yours first, so they're seen.
+        const inView = (key) =>
+          page
+            .waitForFunction(
+              (key) => {
+                const reel = document.querySelector("[data-guide-reel]");
+                const card = reel?.querySelector(`[data-guide-card^="${key}"]`);
+                if (!card) return false;
+                const r = card.getBoundingClientRect();
+                const b = reel.getBoundingClientRect();
+                return r.left >= b.left - 2 && r.right <= b.right + 2;
+              },
+              key,
+              { timeout: 6000 }
+            )
+            .then(() => true, () => false);
+        if (practice.tvmazeId) check(await inView(`tour-${practice.tvmazeId}:`), "A: the guide goes to the night of the show you practice-added");
+        await shot(page, "sam-7-guide-yours");
+        if (snl) check(await inView("tour-361:"), "A: then on to Saturday Night Live's");
+        await shot(page, "sam-7-guide");
+        await tapAt(page, "[data-guide-tv-soon]");
+        const soon = await page.waitForFunction(() => /Sports are coming soon/.test(document.querySelector("[data-toast]")?.textContent ?? ""), null, { timeout: 4000 }).then(() => true, () => false);
+        // (Left on All TV: this browser's own setting, gone with it.)
+        await tapAt(page, '[data-guide-tv-choice="all"]');
+        await page.waitForTimeout(400);
+        const all = await page.getAttribute("[data-guide-tv]", "data-guide-tv");
+        check(soon && all === "all" && (await tourId(page)) === "guide", "A: the TV guide's filters work through the tour, and Sports says it's coming", `${soon} ${all}`);
+        // All of TV can make the week taller: its filters stay clear of the lower third, to tap again.
+        const filtersClear = await page
+          .waitForFunction(
+            () => {
+              const f = document.querySelector("[data-hub] [data-guide-tv]")?.getBoundingClientRect();
+              const low = document.querySelector('[role="dialog"][data-tour] [data-tour-lower]')?.getBoundingClientRect();
+              return !!f && !!low && f.top >= 0 && f.bottom <= low.top - 1;
+            },
+            null,
+            { timeout: 5000 }
+          )
+          .then(() => true, () => false);
+        check(filtersClear, "A: on All TV its filters stay clear of the lower third");
+        // A swipe across the week scrolls it (the user: "allow me to scroll in the tv guide"), and is no tap: still the guide,
+        // nothing opened; it stays where it's left (the tour's hold on it isn't cut short); a sideways wheel scrolls it too.
+        await page.waitForTimeout(600);
+        const reelAt = () => page.$eval("[data-guide-reel]", (r) => Math.round(r.scrollLeft));
+        const rb = await page.$eval("[data-guide-reel]", (r) => {
+          const b = r.getBoundingClientRect();
+          return { cx: b.left + b.width / 2, y: b.top + b.height / 2, max: r.scrollWidth - r.clientWidth };
+        });
+        const x0 = await reelAt();
+        const dir = x0 > rb.max / 2 ? 1 : -1;
+        await page.mouse.move(rb.cx - dir * 80, rb.y);
+        await page.mouse.down();
+        for (let j = 1; j <= 8; j++) await page.mouse.move(rb.cx - dir * 80 + dir * 20 * j, rb.y);
+        await page.mouse.up();
+        await page.waitForTimeout(300);
+        const x1 = await reelAt();
+        const opened = !!(await page.$('[role="dialog"][data-open]:not([data-tour])'));
+        check(Math.abs(x1 - (x0 - dir * 160)) <= 4 && (await tourId(page)) === "guide" && !opened, "A: a swipe across the guide's week scrolls it, and is no tap: still the guide, nothing opened", `${x0} → ${x1}, opened ${opened}`);
+        await page.waitForTimeout(4500);
+        check(Math.abs((await reelAt()) - x1) < 3, "A: the week stays where the swipe left it while the guide's lit (it doesn't roll on)");
+        await page.evaluate(() => {
+          window.__wheels = [];
+          document.addEventListener("wheel", (e) => window.__wheels.push({ dx: e.deltaX, dy: e.deltaY, x: Math.round(e.clientX), y: Math.round(e.clientY), on: e.target?.tagName }), { capture: true, passive: true });
+        });
+        await page.mouse.wheel(dir * 100, 0);
+        await page.waitForTimeout(300);
+        const x2 = await reelAt();
+        // By the wheel's own delta (the device scale halves Playwright's 100).
+        const wheels = await page.evaluate(() => window.__wheels);
+        const by = wheels.reduce((a, w) => a + w.dx, 0);
+        check(Math.abs(by) >= 20 && Math.abs(x2 - (x1 + by)) <= 4, "A: a sideways wheel (a trackpad) scrolls the week too", `${x1} → ${x2}, by ${by}; wheels ${JSON.stringify(wheels)}`);
+        await shot(page, "sam-7a-guide-swiped");
+        await page.click("[data-tour-next]");
+
+        // 8: the reveal, replayed.
+        k = at("reveal");
+        s = await onStep(page, steps, k);
+        stepChecks("sam", s, plan, k);
+        const shelfAfter = await page.$$eval("[data-poster]", (p) => p.map((x) => x.getAttribute("data-poster")));
+        check(!shelfAfter.some((x) => x.startsWith("tour-")), "A: past the guide, the demo's shows are off Home", shelfAfter.join(", "));
+        // Home as it is with results waiting, on the episode the replay plays (the user: "simulate that top card as results waiting").
+        const waiting = (await page.textContent('[data-upnext-plate="reveal"]').catch(() => "")) ?? "";
+        check(waiting.includes(`Episode ${replay.n} final results are in`), `A: the reveal step: Up next shows results waiting, Episode ${replay.n} (the one the replay plays)`, waiting);
+        await shot(page, "sam-8-reveal");
+        await page.click('[data-tour-act="reveal"]');
+        const revealShook = await shook(page, steps[k]);
+        await page.waitForTimeout(600);
+        check(revealShook && !(await page.$("[data-tour-reveal]")), "A: the reveal: Tap it shakes Reveal, and plays nothing");
+        await tapLit(page);
+        await page.waitForSelector('[data-tour-reveal="replay"] [data-beat]', { timeout: 20000 });
+        await shot(page, "sam-8a-replay");
+        for (let j = 0; j < 8 && !(await page.$("[data-tour-reveal-done]")); j++) {
+          await page.click("[data-tour-reveal] [data-stage]");
+          await page.waitForTimeout(350);
+        }
+        const end = await page.textContent("[data-tour-reveal]");
+        check(!!(await page.$("[data-tour-reveal-done]")) && !/Share your night/.test(end) && !/Reveal Episode/.test(end), "A: the replay ends on Back to the tour: no Share your night, no next episode");
+        await page.click("[data-tour-reveal-done]");
+        await ticked(page);
+
+        // 9: Start a game, practice: the Prediction Sheet, Start it always in sight.
+        k = at("start");
+        s = await onStep(page, steps, k);
+        stepChecks("sam", s, plan, k);
+        const upAfter = (await page.textContent("[data-upnext]").catch(() => "")) ?? "";
+        check(!upAfter.includes(`Episode ${replay.n} final results are in`), "A: past the reveal, Up next is as it was");
+        await shot(page, "sam-9-start");
+        await tapLit(page);
+        await page.waitForSelector(`[data-pick-practice][data-pick-show="${practice.seasonId}"]`, { timeout: 15000 });
+        check(true, "A: Start a game's practice offers the practice show first");
+        // Another show of sam's: the practice row shakes, and nothing else opens.
+        if (await page.$("[data-start-pick] [data-pick-show]:not([data-pick-practice])")) {
+          await page.click("[data-start-pick] [data-pick-show]:not([data-pick-practice])");
+          const row = await page.evaluate(() => (document.querySelector("[data-pick-practice]")?.getAnimations().length ?? 0) > 0);
+          await page.waitForTimeout(600);
+          check(row && !!(await page.$("[data-start-pick] [data-pick-practice]")) && !(await page.$("[data-start-sheet]")), "A: in practice, another show shakes the practice show's row, and opens nothing");
+        }
+        await page.click("[data-pick-practice]");
+        const warmed = await page.waitForSelector("[data-start-warming]", { timeout: 6000 }).then(() => true, () => false);
+        check(warmed, "A: picking it, a moment getting its rules");
+        await page.waitForSelector("[data-start-go]", { timeout: 30000 });
+        check((await page.getAttribute('[data-start-game="questions"]', "aria-pressed")) === "true", "A: the Prediction Sheet chosen");
+        check(!!(await page.$("[data-coming-soon-ai]")), "A: Create a game with AI, coming soon, in the sheet");
+        const go = await page.$eval("[role=dialog][data-open] [data-start-go]", (el) => {
+          const r = el.getBoundingClientRect();
+          return { foot: !!el.closest("[data-sheet-foot]"), seen: r.top >= 0 && r.bottom <= window.innerHeight };
+        });
+        check(go.foot && go.seen, "A: Start it sits in the sheet's foot, in sight without scrolling", JSON.stringify(go));
+        // Left a moment, the options go down to their end and Start it shakes (the user: "scroll down then shake Start it").
+        const room = await page.$eval("[role=dialog][data-open] [data-start-sheet]", (el) => el.parentElement.scrollHeight - el.parentElement.clientHeight);
+        const startNudged = await page
+          .waitForFunction(
+            () => {
+              const body = document.querySelector("[role=dialog][data-open] [data-start-sheet]")?.parentElement;
+              const go = document.querySelector("[role=dialog][data-open] [data-start-go]");
+              return !!body && !!go && body.scrollHeight - body.clientHeight - body.scrollTop <= 4 && go.getAnimations().length > 0;
+            },
+            null,
+            { timeout: 5000 }
+          )
+          .then(() => true, () => false);
+        check(startNudged && room > 2, `A: Start a game's options, left a moment: down to their end (${room}px), then Start it shakes`);
+        // Only Start it is yellow: Tell the couch, on, isn't (what's chosen in a practice can't be changed).
+        const yellow = await page.evaluate(() => {
+          const go = getComputedStyle(document.querySelector("[role=dialog][data-open] [data-start-go]")).backgroundColor;
+          const track = document.querySelector('[role=dialog][data-open] [data-start-tell="on"] > span:last-child');
+          return { go, tell: track ? getComputedStyle(track).backgroundColor : null };
+        });
+        check(!!yellow.tell && yellow.tell !== yellow.go, "A: in practice only Start it is yellow: Tell the couch, on, is neutral", JSON.stringify(yellow));
+        await shot(page, "sam-9a-nudged");
+        await page.waitForFunction(() => !document.querySelector("[role=dialog][data-open] [data-start-go]")?.getAnimations().length, null, { timeout: 3000 });
+        // One path: another game (Outlast, say) stays unchosen, and Start it shakes.
+        const other = await page.$('[role=dialog][data-open] [data-start-game]:not([data-start-game="questions"]):not([disabled])');
+        if (other) {
+          const name = await other.getAttribute("data-start-game");
+          await other.click();
+          const startShook = await moving(page, "[role=dialog][data-open] [data-start-go]");
+          await page.waitForTimeout(500);
+          check(
+            startShook && (await page.getAttribute('[data-start-game="questions"]', "aria-pressed")) === "true" && (await other.getAttribute("aria-pressed")) !== "true",
+            `A: in practice, ${name} stays unchosen: the Prediction Sheet's kept and Start it shakes`
+          );
+        }
+        await shot(page, "sam-9a-options");
+        await page.click("[data-start-go]");
+        await page.waitForSelector("[data-practice-done]", { timeout: 10000 });
+        const started = await page.textContent("[data-practice-done]");
+        check(/Prediction Sheet .* isn't saved/.test(started) && !!(await page.$("[data-practice-done] [data-coming-soon-ai]")), "A: its finish: it isn't saved, and the AI's coming", started);
+        await page.click("[data-practice-close]");
+        await ticked(page);
+
+        // 10: the wrap: reminders first, Explore quieter, no Skip tour.
+        k = steps.length - 1;
+        s = await onStep(page, steps, k);
+        stepChecks("sam", s, plan, k);
+        const ending = await page.evaluate(() => {
+          const on = document.querySelector("[data-tour-on]");
+          const explore = document.querySelector("[data-tour-explore]");
+          return {
+            on: !!on,
+            explore: !!explore,
+            onFirst: !!on && !!explore && !!(on.compareDocumentPosition(explore) & Node.DOCUMENT_POSITION_FOLLOWING),
+            onSolid: !!on && getComputedStyle(on).backgroundColor !== getComputedStyle(explore.querySelector("span") ?? explore).backgroundColor,
+            // The tour's own Skip tour (a child of its root), not the welcome card's, which stays in the page faded out.
+            skip: !!document.querySelector('[role="dialog"][data-tour] > [data-tour-skip]'),
+          };
+        });
+        check(ending.on && ending.explore && ending.onFirst && ending.onSolid && !ending.skip, "A: the wrap: Turn on reminders first and solid, Explore quieter under it, no Skip tour", JSON.stringify(ending));
+        await shot(page, "sam-10-done");
+        const status = await endWith(page, () => page.click("[data-tour-explore]"));
+        check(status === 200 && /your picture to take the tour again/.test((await page.textContent('[data-toast="done"]').catch(() => "")) ?? ""), "A: Explore ends it, and says where it lives", String(status));
+        const row = await tourOf(pool, U.sam);
+        check(!!row.tour_seen_at && row.tour_reached === of, `A: kept for the account, to the last step (${of})`, JSON.stringify(row));
+
+        // Nothing written by any practice.
+        const bad = writes.filter((w) => /^\/api\/me\/shows|^\/api\/me\/follows\/|^\/api\/seasons\/[^/]+\/start$/.test(w.u) || (/\/reveal$/.test(w.u) && !/"replay":true/.test(w.b)));
+        check(bad.length === 0, "A: no practice wrote anything (no add, follow, start, or reveal but a replay)", bad.map((w) => `${w.m} ${w.u}`).join(", "));
+        check(writes.some((w) => /\/reveal$/.test(w.u)), "A: the replay asked the server (with replay: true)");
+        const after = await rowsOf(pool, U.sam);
+        for (const key of Object.keys(before)) check(before[key] === after[key], `A: sam's ${key} as they were`, `${before[key]} → ${after[key]}`);
+        await page.reload({ waitUntil: "domcontentloaded" });
+        await noTour(page, "A: Home doesn't play it again");
+      } finally {
+        errors.push(...e.map((x) => `A: ${x}`));
+        await close();
+      }
+    }
+
+    // ---- B and C. alex: Skip on the welcome card; then Settings' Take the tour, and Escape ----
+    {
+      const { page, errors: e, BASE, close } = await session("alex");
+      try {
+        await page.goto(BASE + "/home", { waitUntil: "domcontentloaded" });
+        await welcome(page);
+        await shot(page, "alex-welcome");
+        await endWith(page, () => page.click("[data-tour-welcome] [data-tour-skip]"));
+        const row = await tourOf(pool, U.alex);
+        check(!!row.tour_seen_at && row.tour_reached === 1, "B: Skip on the welcome card keeps it (step 1)", JSON.stringify(row));
+        await page.reload({ waitUntil: "domcontentloaded" });
+        await noTour(page, "B: Home doesn't play it again");
+        const seenAt = row.tour_seen_at.toISOString();
+
+        await page.goto(BASE + "/settings", { waitUntil: "domcontentloaded" });
+        await page.click("text=Take the tour");
+        await page.waitForURL(/\/home$/, { timeout: 8000 });
+        await welcome(page);
+        check(true, "C: Settings › Take the tour plays it on Home, from the welcome card");
+        await page.click("[data-tour-go]");
+        await page.waitForFunction(() => document.querySelector('[role="dialog"][data-tour]')?.dataset.tour === "home", null, { timeout: 8000 });
+        await endWith(page, () => page.keyboard.press("Escape"));
+        const again = await tourOf(pool, U.alex);
+        check(again.tour_reached === 2 && again.tour_seen_at.toISOString() === seenAt, "C: Escape skips; the first time it was seen stays, the furthest step moves on", JSON.stringify(again));
+      } finally {
+        errors.push(...e.map((x) => `B/C: ${x}`));
+        await close();
+      }
+    }
+
+    // ---- D. sam: /home?tour=1 ----
+    {
+      const { page, errors: e, BASE, close } = await session("sam");
+      try {
+        await page.goto(BASE + "/home?tour=1", { waitUntil: "domcontentloaded" });
+        await welcome(page);
+        await page.waitForTimeout(300);
+        check(!/tour=1/.test(page.url()), "D: /home?tour=1 plays it, and ?tour comes off the address", page.url());
+        await endWith(page, () => page.click("[data-tour-welcome] [data-tour-skip]"));
+      } finally {
+        errors.push(...e.map((x) => `D: ${x}`));
+        await close();
+      }
+    }
+
+    // ---- K. sam: your picture › Take the tour, on Home itself ----
+    {
+      const { page, errors: e, BASE, close } = await session("sam");
+      try {
+        await page.goto(BASE + "/home", { waitUntil: "domcontentloaded" });
+        await noTour(page, "K: sam's seen it, so Home doesn't play it by itself");
+        await page.click('button[aria-label="Your profile"]');
+        await page.click("[role=dialog][data-open] [data-take-tour]", { timeout: 8000 });
+        await welcome(page);
+        check(/\/home$/.test(page.url()) && !(await page.$("[role=dialog][data-open] [data-take-tour]")), "K: your picture › Take the tour: the menu closes and the tour plays on Home", page.url());
+        await shot(page, "sam-picture-tour");
+        await page.click("[data-tour-go]");
+        await page.waitForFunction(() => document.querySelector('[role="dialog"][data-tour]')?.dataset.tour === "home", null, { timeout: 8000 });
+        await endWith(page, () => page.keyboard.press("Escape"));
+        await page.reload({ waitUntil: "domcontentloaded" });
+        await noTour(page, "K: once it's played, a reload doesn't play it again");
+      } finally {
+        errors.push(...e.map((x) => `K: ${x}`));
+        await close();
+      }
+    }
+
+    // ---- E. solo: no Start a game practice, no flip, a made-up reveal, Turn on ends it ----
+    {
+      const { page, errors: e, BASE, close } = await session("solo", { notifications: true });
+      const reveals = [];
+      page.on("request", (r) => /\/reveal$/.test(new URL(r.url()).pathname) && reveals.push(r.url()));
+      try {
+        await page.goto(BASE + "/home", { waitUntil: "domcontentloaded" });
+        await page.waitForSelector('[data-hub="solo"]', { timeout: 15000 });
+        await welcome(page);
+        const plan = await stepsFor(page, { solo: true });
+        const { steps, of } = plan;
+        check(!steps.find((x) => x.id === "start").act && !steps.find((x) => x.id === "flip"), "E: no Start a game practice and no flip for a solo player");
+        await page.click("[data-tour-go]");
+        for (let k = 1; k < steps.length; k++) {
+          const s = await onStep(page, steps, k);
+          stepChecks("solo", s, plan, k);
+          if (steps[k].id === "reveal") {
+            await tapLit(page);
+            await page.waitForSelector('[data-tour-reveal="made"] [data-beat]', { timeout: 8000 });
+            check(/Golden Crust/.test(await page.textContent("[data-tour-reveal]")), "E: nothing to replay: a made-up reveal (Golden Crust)");
+            await shot(page, "solo-reveal-made");
+            for (let j = 0; j < 8 && !(await page.$("[data-tour-reveal-done]")); j++) {
+              await page.click("[data-tour-reveal] [data-stage]");
+              await page.waitForTimeout(250);
+            }
+            await page.click("[data-tour-reveal-done]");
+            await ticked(page);
+            continue;
+          }
+          if (k < steps.length - 1) await page.click("[data-tour-next]");
+        }
+        check(reveals.length === 0, "E: the made-up reveal asks the server nothing", reveals.join(", "));
+        await endWith(page, () => page.click("[data-tour-on]"));
+        const row = await tourOf(pool, U.solo);
+        check(!!row.tour_seen_at && row.tour_reached === of, "E: Turn on reminders ends it, kept", JSON.stringify(row));
+      } finally {
+        // Turn on asks the browser for a push subscription, which a headless one may refuse: that's the reminder's own toast.
+        errors.push(...e.filter((x) => !/push|subscri|service ?worker/i.test(x)).map((x) => `E: ${x}`));
+        await close();
+      }
+    }
+
+    // ---- F. riley, reduced motion: lit at once; Tap it only blinks the ring; the rules' moment still shows ----
+    {
+      const { page, errors: e, BASE, close } = await session("riley", { motion: "reduce", notifications: true });
+      try {
+        await page.goto(BASE + "/home", { waitUntil: "domcontentloaded" });
+        await welcome(page);
+        const { steps } = await stepsFor(page);
+        await page.click("[data-tour-go]");
+        let ok = true;
+        let blinked = null;
+        for (let k = 1; k < steps.length; k++) {
+          const t0 = Date.now();
+          const s = await onStep(page, steps, k);
+          ok &&= Date.now() - t0 < 2500 && ringFits(s);
+          if (steps[k].act && blinked === null) {
+            await page.click("[data-tour-act]");
+            blinked = (await shook(page, steps[k], true)) && !(await shook(page, steps[k]));
+          }
+          if (steps[k].id === "start") {
+            await tapLit(page);
+            await page.click("[data-pick-practice]", { timeout: 15000 });
+            const warmed = await page.waitForSelector("[data-start-warming]", { timeout: 4000 }).then(() => true, () => false);
+            check(warmed, "F: reduced motion: Start a game's rules moment still shows");
+            await page.waitForSelector("[data-start-go]", { timeout: 30000 });
+            await page.keyboard.press("Escape");
+            await ticked(page);
+            continue;
+          }
+          if (k < steps.length - 1) await page.click("[data-tour-next]");
+        }
+        check(ok, "F: reduced motion: each step lit at once, around its target");
+        check(blinked === true, "F: reduced motion: Tap it blinks the ring and moves nothing");
+        await endWith(page, () => page.click("[data-tour-explore]"));
+      } finally {
+        errors.push(...e.map((x) => `F: ${x}`));
+        await close();
+      }
+    }
+
+    // ---- G. an admin acting as jordan ----
+    {
+      const { page, errors: e, BASE, close } = await session("admin");
+      try {
+        await page.goto(BASE + "/settings", { waitUntil: "domcontentloaded" });
+        const act = await page.evaluate(async (jordan) => (await fetch(`/api/desk/people/${jordan}/act`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })).status, U.jordan);
+        check(act === 200, "G: the desk's Act as them starts an hour as jordan", String(act));
+        await page.goto(BASE + "/home", { waitUntil: "domcontentloaded" });
+        await page.waitForSelector("[data-viewing-as]", { timeout: 15000 });
+        await noTour(page, "G: acting as jordan, Home doesn't play it");
+        const wrote = await page.evaluate(async () => (await fetch("/api/me/tour", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ reached: 3 }) })).json());
+        check(wrote.kept === false && !(await tourOf(pool, U.jordan)).tour_seen_at, "G: acting as jordan, a write isn't kept for them", JSON.stringify(wrote));
+        await page.evaluate(() => fetch("/api/desk/acting", { method: "DELETE" }));
+      } finally {
+        errors.push(...e.map((x) => `G: ${x}`));
+        await close();
+      }
+    }
+
+    // ---- I. casey leaves Home mid-tour (a move inside the app, as the phone's back makes): it counts as a skip ----
+    {
+      const { page, errors: e, BASE, close } = await session("casey");
+      try {
+        await page.goto(BASE + "/home", { waitUntil: "domcontentloaded" });
+        await welcome(page);
+        await page.click("[data-tour-go]");
+        await page.waitForFunction(() => document.querySelector('[role="dialog"][data-tour]')?.dataset.tourLit !== "off", null, { timeout: 9000 });
+        await page.waitForTimeout(500);
+        const [res] = await Promise.all([
+          page.waitForResponse((r) => r.url().includes("/api/me/tour") && r.request().method() === "POST", { timeout: 10000 }),
+          page.evaluate(() => window.next.router.push("/settings")),
+        ]);
+        const row = await tourOf(pool, U.casey);
+        check(res.status() === 200 && !!row.tour_seen_at && row.tour_reached === 2, "I: leaving Home mid-tour counts as a skip (step 2)", JSON.stringify(row));
+        await page.waitForTimeout(800);
+        check(!(await tourUp(page)), "I: and the tour's gone with Home");
+      } finally {
+        errors.push(...e.map((x) => `I: ${x}`));
+        await close();
+      }
+    }
+
+    // ---- H. riley in Studio ----
+    {
+      await pool.query("UPDATE user_settings SET theme = 'studio' WHERE user_id = $1", [U.riley]);
+      await resetTour(pool, U.riley);
+      const { page, errors: e, BASE, close } = await session("riley", { notifications: true });
+      try {
+        await page.goto(BASE + "/home", { waitUntil: "domcontentloaded" });
+        await welcome(page);
+        check(!(await page.evaluate(() => document.documentElement.classList.contains("dark"))), "H: Studio (light) is on");
+        await shot(page, "studio-1-welcome");
+        const { steps } = await stepsFor(page);
+        await page.click("[data-tour-go]");
+        for (let k = 1; k < steps.length; k++) {
+          const s = await onStep(page, steps, k);
+          await shot(page, `studio-${k + 1}-${s.id}`);
+          if (k < steps.length - 1) await page.click("[data-tour-next]");
+        }
+        await endWith(page, () => page.click("[data-tour-explore]"));
+        check(true, "H: Studio plays through");
+      } finally {
+        errors.push(...e.map((x) => `H: ${x}`));
+        await close();
+      }
+    }
+
+    // ---- J. the real Start a game sheet: Create a game with AI, coming soon; Start it in sight ----
+    {
+      const { page, errors: e, BASE, close } = await open({ user: "zt_nd_alex", pass: fixture.PASSWORD, width: WIDTH, height: 844, headers: HEADERS });
+      try {
+        await page.goto(BASE + "/home", { waitUntil: "domcontentloaded" });
+        await page.click("[data-foot-start]", { timeout: 20000 });
+        await page.click("[data-pick-show]", { timeout: 10000 });
+        await page.waitForSelector("[data-start-go]", { timeout: 30000 });
+        check(!!(await page.$("[role=dialog][data-open] [data-coming-soon-ai]")) && !(await page.$("[data-practice]")), "J: the real Start a game sheet: Create a game with AI, coming soon (and no Practice strip)");
+        const go = await page.$eval("[role=dialog][data-open] [data-start-go]", (el) => {
+          const r = el.getBoundingClientRect();
+          return { foot: !!el.closest("[data-sheet-foot]"), seen: r.top >= 0 && r.bottom <= window.innerHeight };
+        });
+        check(go.foot && go.seen, "J: Start it in the sheet's foot, in sight without scrolling, for everyone", JSON.stringify(go));
+        // The practice's hint is the practice's: the real sheet stays put, Start it still.
+        await page.waitForTimeout(2600);
+        const still = await page.$eval("[role=dialog][data-open] [data-start-sheet]", (el) => ({
+          top: el.parentElement.scrollTop,
+          shaking: document.querySelector("[role=dialog][data-open] [data-start-go]").getAnimations().length > 0,
+        }));
+        check(still.top === 0 && !still.shaking, "J: no practice hint in the real sheet: it stays put and Start it doesn't shake", JSON.stringify(still));
+        const tellOn = await page.evaluate(() => {
+          const go = getComputedStyle(document.querySelector("[role=dialog][data-open] [data-start-go]")).backgroundColor;
+          const track = document.querySelector('[role=dialog][data-open] [data-start-tell="on"] > span:last-child');
+          return { go, tell: track ? getComputedStyle(track).backgroundColor : null };
+        });
+        check(tellOn.tell === tellOn.go, "J: in the real sheet Tell the couch, on, keeps its yellow", JSON.stringify(tellOn));
+        await shot(page, "start-game-ai");
+      } finally {
+        errors.push(...e.map((x) => `J: ${x}`));
+        await close();
+      }
+    }
+
+    // ---- L. jordan: a step with a real thing to tap: Tap it at the thumb's spot only shakes it, and a stray tap doesn't skip it ----
+    {
+      const { page, errors: e, BASE, close } = await session("jordan");
+      try {
+        await page.goto(BASE + "/home", { waitUntil: "domcontentloaded" });
+        await welcome(page);
+        const plan = await stepsFor(page);
+        const { steps, nums } = plan;
+        await page.click("[data-tour-go]");
+        await onStep(page, steps, 1);
+        // Where a thumb taps Next on a step with nothing to do.
+        const nextAt = await page.$eval("[data-tour-next] > span:last-child", (el) => {
+          const r = el.getBoundingClientRect();
+          return { x: r.left + r.width / 2, y: r.top + r.height / 2, text: el.textContent.trim() };
+        });
+        check(nextAt.text === "Next", "L: a step with nothing to do: the plate says Next", nextAt.text);
+        const k = steps.findIndex((x) => x.act);
+        for (let j = 1; j < k; j++) {
+          await onStep(page, steps, j);
+          await page.click("[data-tour-next]");
+        }
+        const s = await onStep(page, steps, k);
+        const url = page.url();
+        await page.mouse.click(nextAt.x, nextAt.y);
+        const thumb = await shook(page, steps[k]);
+        await page.waitForTimeout(1000);
+        const says = await page.$eval("[data-tour-act] > span:last-child", (el) => el.textContent.trim());
+        check(
+          s.act === steps[k].act.kind && says === "Tap it" && thumb && page.url() === url && (await tourId(page)) === steps[k].id && !(await page.$("[role=dialog][data-open] [data-practice]")),
+          `L: ${steps[k].id}: the plate says Tap it, and a tap where Next was shakes the thing to tap and does nothing else`,
+          JSON.stringify({ says, thumb, url: page.url() })
+        );
+        check(s.skip === steps[k].act.skip, `L: its skip says "${steps[k].act.skip}", up by Skip tour`, s.skip);
+        await shot(page, "jordan-try-it");
+        // A tap on the dimmed page, away from what's lit and the lower third: a shake, not a skip.
+        const off = { x: 24, y: s.ring.y + s.ring.h + 40 < s.lowerTop - 20 ? s.ring.y + s.ring.h + 40 : Math.max(8, s.ring.y - 40) };
+        await page.mouse.click(off.x, off.y);
+        const stray = await shook(page, steps[k]);
+        await page.waitForTimeout(1000);
+        check(stray && (await tourId(page)) === steps[k].id, "L: a tap anywhere else shakes it too, and stays", String(await tourId(page)));
+        await page.click("[data-tour-next]");
+        const s2 = await onStep(page, steps, k + 1);
+        check(s2.id === steps[k + 1].id, `L: the skip moves on, to ${steps[k + 1].id}`, s2.id);
+        // Skip tour is up top, where the welcome card has it, far from the thumb's Next; and a skip can be undone.
+        const skipAt = await page.$eval('[role="dialog"][data-tour] > [data-tour-skip]', (el) => el.getBoundingClientRect().bottom);
+        check(skipAt < 120 && skipAt < nextAt.y - 300, "L: Skip tour sits at the top, far from where a thumb taps Next", `${Math.round(skipAt)} vs ${Math.round(nextAt.y)}`);
+        await endWith(page, () => page.click('[role="dialog"][data-tour] > [data-tour-skip]'));
+        await page.waitForSelector('[data-toast] >> text=Undo', { timeout: 4000 });
+        check(/Tour skipped/.test((await page.textContent("[data-toast]")) ?? ""), "L: a skip says so, with Undo");
+        await page.click('[data-toast] >> text=Undo');
+        const s3 = await onStep(page, steps, k + 1);
+        check(s3.id === steps[k + 1].id && !(await page.$("[data-tour-welcome].opacity-100")), `L: Undo takes the tour up again at ${steps[k + 1].id}, not from the start`, s3.id);
+        await endWith(page, () => page.keyboard.press("Escape"));
+        const row = await tourOf(pool, U.jordan);
+        check(row.tour_reached === nums[k + 1], `L: kept as seen to step ${nums[k + 1]}`, JSON.stringify(row));
+      } finally {
+        errors.push(...e.map((x) => `L: ${x}`));
+        await close();
+      }
+    }
+  } finally {
+    check(errors.length === 0, "no page errors", errors.slice(0, 6).join(" | "));
+    if (!KEEP) await fixture.down(pool);
+    await pool.end();
+    await tv.close();
+  }
+  console.log(failed ? `${failed} FAILED` : "all passed");
+  process.exit(failed ? 1 : 0);
+})().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

@@ -244,7 +244,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     check(bot.asked.filter((q) => q.kind === "full").every((q) => q.stream === "progress"), "every run asks the bot to stream its progress");
     check(JSON.stringify(statusOf(await recaps())) === JSON.stringify({ 1: "done", 2: "waiting", 3: "waiting", 4: "waiting" }), "1 in, the rest waiting");
     const b1 = await bellAfter("watcher", 1);
-    check(b1.length === 1 && /Episode 1's results are in/.test(b1[0].title) && /Players tab counts them/.test(b1[0].body) && b1[0].link === `/show/${sid}/cast` && !CAST.some((n) => b1[0].body.includes(n)), "the watcher hears Episode 1 is in (no names), opening the Cast tab", JSON.stringify(b1));
+    check(b1.length === 1 && /Ep 1 results are in/.test(b1[0].title) && /Players tab counts them/.test(b1[0].body) && b1[0].link === `/show/${sid}/cast` && !CAST.some((n) => b1[0].body.includes(n)), "the watcher hears Episode 1 is in (no names), opening the Cast tab", JSON.stringify(b1));
     check((await bell("friend")).length === 0, "the friend isn't told (they didn't ask)");
     if (browser) {
       const { page } = browser;
@@ -288,7 +288,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     check((await tick(at(9))) === null, "then nothing's due");
     check(JSON.stringify(statusOf(await recaps())) === JSON.stringify({ 1: "done", 2: "done", 3: "failed", 4: "done" }), "1, 2 and 4 in; 3 not found");
     const b2 = await bellAfter("watcher", 4);
-    check(b2.length === 4 && b2.some((n) => /Couldn't find Episode 3's results/.test(n.title) && n.link === `/show/${sid}/episodes`), "told of each: three in, and Episode 3 not found", JSON.stringify(b2.map((n) => n.title)));
+    check(b2.length === 4 && b2.some((n) => /Ep 3: couldn't find its results/.test(n.title) && n.link === `/show/${sid}/episodes`), "told of each: three in, and Episode 3 not found", JSON.stringify(b2.map((n) => n.title)));
 
     // ---- the stats ----
     const s1 = await stats();

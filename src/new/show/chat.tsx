@@ -5,6 +5,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Theme } from "emoji-picker-react";
 import { Eye, MessageCircle, Plus, Send } from "lucide-react";
 import { chatEarlier, useChatActions, useCouchChat, type ChatLine, type CouchChat } from "../data";
+import { GifSheet } from "../ui/gif-sheet";
 import type { ShowData } from "../screens/show-space";
 import { Avatar } from "../ui/bars";
 import { Btn, CaptionPlate, EmptyState } from "../ui/parts";
@@ -93,6 +94,7 @@ export function Chat({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const actions = useChatActions(seasonId, couchId);
   const openReveal = useOpenReveal();
   const [open, setOpen] = useState<ChatLine | null>(null);
+  const [gifOpen, setGifOpen] = useState(false);
   const data = chat.data && "messages" in chat.data ? chat.data : null;
   const read = data?.messages ?? [];
   const waiting = !!page && chat.isPlaceholderData && read[0]?.id !== since?.id;
@@ -216,11 +218,23 @@ export function Chat({ seasonId, show }: { seasonId: string; show: ShowData }) {
         if (item.kind === "fold") return <Fold key={item.key} lines={item.lines} fold={data.fold} reveal={reveal} onShow={showThem} onReveal={openReveal} />;
         return <Line key={item.m.id} item={item} me={data.you.userId} onOpen={() => setOpen(item.m)} onReact={(e) => actions.react(item.m.id, e).catch((err) => toast.quiet(`Not sent: ${err.message}`))} />;
       })}
-      {data.you.canPost && <Composer placeholder={placeholder} onSend={async (text) => {
+      {data.you.canPost && <Composer placeholder={placeholder} onGif={data.gifs ? () => setGifOpen(true) : undefined} onSend={async (text) => {
         atBottom.current = true;
         await actions.post(text);
       }} />}
       <MessageSheet m={open} chat={data} onClose={() => setOpen(null)} actions={actions} />
+      {data.gifs && (
+        <GifSheet
+          open={gifOpen}
+          subtitle={`To the couch about ${showName.replace(/^The /, "")}`}
+          onOpenChange={setGifOpen}
+          onPick={(g) => {
+            setGifOpen(false);
+            atBottom.current = true;
+            actions.post("", g).catch((e) => toast.quiet(`Not sent: ${(e as Error).message}`));
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -247,17 +261,25 @@ function Line({ item, me, onOpen, onReact }: { item: Extract<Item, { kind: "line
           type="button"
           onClick={onOpen}
           aria-haspopup="dialog"
-          className={`max-w-[78%] whitespace-pre-wrap break-words rounded-[4px] px-[11px] py-2 text-left text-[15px] leading-[1.35] [overflow-wrap:anywhere] ${mine ? "bg-foreground text-background" : "bg-card"}`}
+          className={`max-w-[78%] whitespace-pre-wrap break-words rounded-[4px] text-left text-[15px] leading-[1.35] [overflow-wrap:anywhere] ${
+            // A GIF of yours shows bare; someone else's keeps a slim card for their name over it.
+            m.gif ? (mine ? "" : "bg-card p-1.5") : `px-[11px] py-2 ${mine ? "bg-foreground text-background" : "bg-card"}`
+          }`}
         >
           {!mine && starts && (
-            <small className="mb-0.5 flex items-baseline gap-1.5 text-[11px] font-bold text-muted-foreground">
+            <small className={`mb-0.5 flex items-baseline gap-1.5 text-[11px] font-bold text-muted-foreground ${m.gif ? "px-1 pt-0.5" : ""}`}>
               {m.name}
               <time dateTime={m.at} className="font-medium">
                 {timeOf(m.at)}
               </time>
             </small>
           )}
-          {m.text}
+          {m.gif ? (
+            // eslint-disable-next-line @next/next/no-img-element -- a GIF from KLIPY's own hosts (0156)
+            <img data-chat-gif src={m.gif.url} alt={m.gif.title || "GIF"} className="block max-h-[200px] w-[200px] max-w-full rounded-[3px] object-cover" style={{ aspectRatio: `${m.gif.w} / ${m.gif.h}` }} />
+          ) : (
+            m.text
+          )}
           {m.edited && <span className="ml-1.5 text-[12px] opacity-60">edited</span>}
         </button>
       </div>
@@ -334,7 +356,7 @@ function Fold({
 }
 
 /** The field above the tab bar, lifted over the keyboard while you type. Enter sends; Shift+Enter is a new line. */
-function Composer({ placeholder, onSend }: { placeholder: string; onSend: (text: string) => Promise<void> }) {
+function Composer({ placeholder, onSend, onGif }: { placeholder: string; onSend: (text: string) => Promise<void>; onGif?: () => void }) {
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const field = useRef<HTMLTextAreaElement>(null);
@@ -395,6 +417,11 @@ function Composer({ placeholder, onSend }: { placeholder: string; onSend: (text:
         className="nd-fixed-x fixed z-[25] flex items-end gap-2 border-t border-border bg-background/95 px-4 pb-4 pt-2.5 backdrop-blur-md"
         style={{ bottom: lift ? lift : "calc(66px + env(safe-area-inset-bottom, 0px))" }}
       >
+        {onGif && (
+          <button type="button" data-chat-gif-button aria-label="Send a GIF" onClick={onGif} className="type-caption grid h-[46px] w-11 flex-none place-items-center rounded-[3px] bg-secondary text-[15px]">
+            GIF
+          </button>
+        )}
         <textarea
           ref={field}
           rows={1}
@@ -523,16 +550,18 @@ function MessageSheet({ m, chat, onClose, actions }: { m: ChatLine | null; chat:
             </div>
           )}
           <div className="mt-3 flex flex-col gap-2">
-            <Btn
-              wide
-              onClick={() => {
-                close();
-                navigator.clipboard?.writeText(shown.text ?? "").then(() => toast("Copied"), () => {});
-              }}
-            >
-              Copy text
-            </Btn>
-            {canChange && (
+            {!shown.gif && (
+              <Btn
+                wide
+                onClick={() => {
+                  close();
+                  navigator.clipboard?.writeText(shown.text ?? "").then(() => toast("Copied"), () => {});
+                }}
+              >
+                Copy text
+              </Btn>
+            )}
+            {canChange && !shown.gif && (
               <Btn wide onClick={() => setEditing(shown.text ?? "")}>
                 Edit
               </Btn>

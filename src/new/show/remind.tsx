@@ -78,6 +78,12 @@ function remember(userId: string, patch: Memory) {
   emit();
 }
 
+/** The first-time tour asked on this device (docs/PLAN-first-time-tour.md, tour/tour.tsx): the sheet after a first save doesn't
+ *  ask again (unless it showed the iPhone's pictures and the app's on the Home Screen now, as when the sheet showed them). */
+export function markAsked(userId: string, as: "off" | "install") {
+  remember(userId, { asked: { at: Date.now(), as } });
+}
+
 /** Your moves saved: ask once, if this device hasn't (or asked only for the Home Screen and the app is installed now). */
 export function askAfterSave(kinds: string[]) {
   sheet = { open: true, kinds, fromRow: false };
@@ -90,10 +96,11 @@ const closeSheet = () => {
 };
 
 /** Whether this phone could start getting them from here: off (Turn on), or an iPhone outside the installed app (the pictures). */
-const askable = (p: PhoneState): p is "off" | "install" => p === "off" || p === "install";
+export const askable = (p: PhoneState): p is "off" | "install" => p === "off" || p === "install";
 
-/** The phone's state as the ask sees it, and whether any phone of yours gets notifications (null until the profile's read). */
-function useReach(wanted: boolean) {
+/** The phone's state as the ask sees it, and whether any phone of yours gets notifications (null until the profile's read).
+ *  The show's ⋯ menu and its Notifications sheet read it too, so what they say about this phone is what the ask says. */
+export function useReach(wanted: boolean) {
   useVersion();
   const [browser] = usePhone();
   const phone = phoneNow ?? browser;
@@ -103,7 +110,7 @@ function useReach(wanted: boolean) {
 }
 
 /** Turns this phone on from a tap (the permission prompt needs one), then says so. */
-async function turnOn(after: () => void) {
+export async function turnOn(after: () => void) {
   try {
     await enablePushOnThisDevice();
     phoneNow = "on";

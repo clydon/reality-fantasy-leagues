@@ -25,7 +25,9 @@
 //     made first for the same seats on the show's previous season as this database has it loaded (lastSeasonGame), and what each
 //     seat kept recorded (none where no previous season is loaded: the fallback); a game with a handicap (A11 part 5b), an
 //     earlier game on its couch for the tinkerer and the fan first (earlierGame), so the drive-by and the forgetter are its
-//     newcomers, and each episode's record says who it names and what it has given each so far.
+//     newcomers, and each episode's record says who it names and what it has given each so far; a game in stages (A12), each
+//     stage played as a game of its own beside it, and a stage a format change starts (A12 part 2) found as the season sync makes
+//     each copy mid-season (its draft at its start, from who's left), its record ended where a corrected report takes it away.
 // Nothing asks a bot. The local bot's answers are F2's, kept beside the tapes; the stand-ins are marked as such in the record.
 //
 //   node scripts/dev-test/blind.js run [<show> <season>] [--only=3,7] [--through=N] [--keep]
@@ -263,7 +265,8 @@ const answersThisWeek = (seat, n) => seat.role === "tinkerer" || PT.movesThisWee
 function problemsOf(g) {
   const out = [];
   if (!g.leagueId) return [`never started: ${(g.problems || [])[0] || "no game"}`];
-  if (!g.over) out.push(`not over after its last episode (${g.lastEpisode ?? "none"})`);
+  // A12 part 2: a copy a format change started that the data took away again ends there (what it scored went with it).
+  if (!g.over && !g.undone) out.push(`not over after its last episode (${g.lastEpisode ?? "none"})`);
   for (const e of g.episodes || []) {
     for (const [who, v] of Object.entries(e.table || {})) if (!Number.isFinite(v)) out.push(`episode ${e.episode}: ${who}'s score is ${v}`);
     for (const [qid, v] of Object.entries(e.verdicts || {})) {
@@ -314,7 +317,10 @@ function app() {
  */
 async function gamesFor(seasonId, show = null) {
   const { lab, C, rows: R, tracker } = app();
-  const yes = C.rowsOf(tracker).filter((r) => C.statusOf(r, R.pageCtx(r.page)).state === "yes");
+  // A12 part 4b: a game across two shows (a stage's `season`) plays a season this replay doesn't: left out (tests/two-shows.test.js
+  // and check-two-shows.js prove it), as is anything made on a real season's league beside the tapes' copy.
+  const G = require("../../src/lib/game/game-spec/index.js");
+  const yes = C.rowsOf(tracker).filter((r) => C.statusOf(r, R.pageCtx(r.page)).state === "yes" && !(r.spec && G.onSeasons(r.spec.stages)));
   const bySpec = new Map();
   for (const r of yes) {
     const key = JSON.stringify(r.spec);
@@ -324,7 +330,7 @@ async function gamesFor(seasonId, show = null) {
   const out = [];
   const add = async (spec, rows, variant = null) => {
     const v = await lab.labCheck({ seasonId, spec });
-    out.push({ n: out.length + 1, spec, rows, variant, label: `${(v.describe && v.describe.name) || "a game"}${variant ? ` (${variant})` : ""}`, plays: !!(v.startable && v.playsAs), playsAs: v.playsAs || null, why: v.startable ? null : ((v.problems || [])[0] || (v.waits || [])[0] || {}).problem || "doesn't play here", sentence: (v.describe && v.describe.sentence) || "" });
+    out.push({ n: out.length + 1, spec, rows, variant, label: `${(v.describe && v.describe.name) || (v.playsAs === "stages" ? "Stages" : "a game")}${variant ? ` (${variant})` : ""}`, plays: !!(v.startable && v.playsAs), playsAs: v.playsAs || null, why: v.startable ? null : ((v.problems || [])[0] || (v.waits || [])[0] || {}).problem || "doesn't play here", sentence: (v.describe && v.describe.sentence) || "" });
   };
   const both = async (spec, rows, variant = null) => {
     await add(spec, rows, variant);
@@ -437,11 +443,42 @@ async function earlierGame(r, season) {
   return { leagueId: made[0].id, veterans: veterans.map((x) => x.label), newcomers: r.seats.filter((x) => !veterans.includes(x)).map((x) => x.label) };
 }
 
+/** A game's record, as playtest.js's moves and waivers read one. */
+const recordOf = (n, name, seats, users, seasonId, game) => ({ n, name, seats, users, seasonId, lateSeat: null, log: [], problems: [], weeks: {}, did: {}, asks: {}, waivers: [], accepted: {}, opts: {}, bots: [], game, episodes: [] });
+
+/**
+ * A12 part 1: a game in stages' stage leagues (stages.ts: each its own game with the game's seats), a record each beside the game's,
+ * in its spec's order: its own n (the game's, then the stage's place), the same seats and couch; the first stage's draft now when it
+ * can open, a later one's when it does (the episode loop: at its start, from who's left). A12 part 2: only the live ones not in
+ * `known` (a copy a format change started is found after the episode whose research made it), a copy after its stage's own place.
+ */
+async function stageRecords(r, g, known = new Set()) {
+  const { pool, S } = app();
+  const { rows: all } = await pool.query("SELECT id, stage_key FROM leagues WHERE stage_of = $1 AND deleted_at IS NULL ORDER BY created_at, id", [r.leagueId]);
+  const rows = all.filter((x) => !known.has(x.stage_key));
+  const order = (S.gameOf(await H.stateOf(r.leagueId)).stages || []).map((x) => x.id);
+  const place = (key) => order.indexOf(S.StageLogic.copyOf(key) || key);
+  rows.sort((a, b) => place(a.stage_key) - place(b.stage_key));
+  const out = [];
+  for (const [j, row] of rows.entries()) {
+    const i = known.size + j;
+    await pool.query("UPDATE leagues SET slug = $2 WHERE id = $1", [row.id, `zt-pt-${r.n}-${i + 1}-${row.id.slice(0, 8)}`]);
+    const sr = recordOf(r.n * 10 + i + 1, `${g.label} · ${row.stage_key}`, r.seats, r.users, r.seasonId, { ...g, n: `${g.n}.${i + 1}`, label: `${g.label} · ${row.stage_key}`, stageOf: g.n });
+    Object.assign(sr, { couchId: r.couchId, leagueId: row.id, stageOf: r.leagueId, stageKey: row.stage_key });
+    await H.seatIds(sr);
+    const s = await H.stateOf(row.id);
+    if (S.getLeagueType(s).hasRoster && !S.DraftLogic.waits(s)) await H.draft(sr);
+    out.push(sr);
+  }
+  return out;
+}
+
 /** One game: made before the premiere on a couch of its own (the engine lab's start, the tinkerer its Commissioner), the
- *  other seats joining through Join, its draft if it has one. A record playtest.js's moves and waivers can play. */
+ *  other seats joining through Join, its draft if it has one. A record playtest.js's moves and waivers can play. A game in stages
+ *  (A12 part 1) has its stages' records too (r.stages). */
 async function startGame(g, copy, users, seats, show, season) {
   const { lab, pool, S } = app();
-  const r = { n: 900 + g.n, name: g.label, seats: seats.map((x) => ({ ...x })), users, seasonId: copy.seasonId, lateSeat: null, log: [], problems: [], weeks: {}, did: {}, asks: {}, waivers: [], accepted: {}, opts: {}, bots: [], game: g, episodes: [] };
+  const r = recordOf(900 + g.n, g.label, seats.map((x) => ({ ...x })), users, copy.seasonId, g);
   r.couchId = await H.couchFor(r.n, r.seats, users, copy.seasonId);
   const lead = users[r.seats[0].username];
   try {
@@ -459,6 +496,7 @@ async function startGame(g, copy, users, seats, show, season) {
     for (const seat of r.seats.slice(1)) await H.join(r, seat);
     await H.seatIds(r);
     if (S.getLeagueType(await H.stateOf(r.leagueId)).hasRoster) await H.draft(r);
+    if (g.playsAs === "stages") r.stages = await stageRecords(r, g);
     // What each seat kept, once the draft locked them.
     if (r.lastSeason) {
       const s = await H.stateOf(r.leagueId);
@@ -523,8 +561,11 @@ async function standing(r) {
  *  earned what, whose pick was void), its table, whether it's over. */
 async function lookAt(r, n) {
   const { answers, points, S } = app();
-  const s = await H.stateOf(r.leagueId);
+  // A12 part 1: a game in stages read as it stands, its stages' tables handed over (its own table the overall).
+  const raw = await H.stateOf(r.leagueId);
+  const s = S.StageLogic.on(raw) ? await standing(r) : raw;
   const out = { episode: n, table: {}, verdicts: {}, over: S.gameOver(s) };
+  if (S.StageLogic.on(s)) out.stages = S.StageLogic.standings(s).map((x) => ({ key: x.key, started: x.started, over: x.over, first: x.rows.filter((y) => y.place === 1).map((y) => (r.seats.find((z) => H.pidOf(r, z) === y.playerId) || {}).label || y.playerId) }));
   const type = S.getLeagueType(s);
   const label = (pid) => (r.seats.find((x) => H.pidOf(r, x) === pid) || {}).label || pid;
   if (type.hasQuestions) {
@@ -721,6 +762,8 @@ async function formatAfter(copy, n, E) {
   const tl = got ? got.timeline : null;
   const e = tl ? Timeline.at(tl, n) : null;
   const trig = tl ? Timeline.stageTriggers(tl) : { act: [], held: [] };
+  // A12 part 2b: where a stage with a 'next-stage' fallback would end, the groups gone going into an episode (sure, or held).
+  const gone = tl ? Timeline.groupsGone(tl) : { act: [], held: [] };
   const out = {
     episode: n,
     sure: e ? e.sure : null,
@@ -730,8 +773,18 @@ async function formatAfter(copy, n, E) {
     changes: e ? e.changes.map((c) => ({ kind: c.kind, allNew: !!c.allNew, from: Timeline.effective(c, n), sure: c.sure, by: c.by, ahead: !!c.ahead, what: c.what || "" })) : [],
     wentHomeAs: e ? e.wentHomeAs : null,
     triggers: { act: trig.act.filter((x) => x.episode === n).map((x) => `${x.kind} from ${x.from}`), held: trig.held.filter((x) => x.episode === n).map((x) => `${x.kind} from ${x.from}`) },
+    groupsGone: { act: gone.act.filter((x) => x.episode === n).map((x) => `${x.kind} from ${x.from}`), held: gone.held.filter((x) => x.episode === n).map((x) => `${x.kind} from ${x.from}`) },
     slots: tl ? Timeline.groupSlots(tl).filter((x) => x.opensAfter === n).length : 0,
-    sideStages: tl ? Timeline.sideStages(tl).filter((x) => x.opens && x.opensAfter === n).map((x) => ({ groups: x.groups.length, scores: x.scores })) : [],
+    // A12 part 3: where a side stage (held 2, the default) would open and close, as if live: opened with this episode's research (from
+    // the next), closed with it (its last episode), and held (research not sure it lasted, or not sure it changed).
+    side: (() => {
+      const t = tl ? Timeline.sideTriggers(tl) : { act: [], held: [] };
+      return {
+        open: t.act.filter((x) => x.episode === n).map((x) => `${x.id} (${x.groups} groups) from ${x.from}`),
+        close: t.act.filter((x) => x.closes && x.closes.episode === n).map((x) => `${x.id} with ${Math.max(x.closes.at, x.closes.episode)} (${x.closes.ended})`),
+        held: [...t.held.filter((x) => x.episode === n).map((x) => `${x.id} lasted`), ...t.act.filter((x) => x.closing && x.closing.episode === n).map((x) => `${x.id} changed`)],
+      };
+    })(),
     newcomers: tl ? tl.newcomers.filter((x) => x.episode === n).map((x) => x.name) : [],
   };
   if (n < E) {
@@ -780,6 +833,8 @@ async function run(show, season, opts = {}) {
   for (const g of games) {
     const r = await startGame(g, copy, users, seats, show, season);
     replays.push(r);
+    // A12 part 1: a game in stages' stages, each played as a game of its own.
+    for (const sr of r.stages || []) replays.push(sr);
     if (r.problems.length) console.log(`  ${g.n}. ${g.label}: ${r.problems[0]}`);
   }
   const live = () => replays.filter((r) => r.leagueId && !r.dead);
@@ -792,8 +847,19 @@ async function run(show, season, opts = {}) {
   for (let ep = 1; ep <= through; ep++) {
     // Before it airs: the moves and the answers, at the lock (each game its own league and couch: four at once).
     await each(live(), async (r) => {
-      const s = await H.stateOf(r.leagueId);
+      let s = await H.stateOf(r.leagueId);
       const e = { episode: ep };
+      // A12 part 1: a stage's draft that opens at its start, once it has (the episode before it has results): drafted now, from
+      // who's left (shared as it opens when four of you no longer fit: stages.ts).
+      try {
+        if (r.stageOf && S.getLeagueType(s).hasRoster && !S.DraftLogic.begun(s) && !S.DraftLogic.waits(s)) {
+          await H.draft(r);
+          s = await H.stateOf(r.leagueId);
+          e.drafted = { own: s.settings.ownershipMode, picks: r.draft };
+        }
+      } catch (err) {
+        r.problems.push(`episode ${ep}: the stage's draft failed: ${err.message}`);
+      }
       try {
         if (S.inPlay(s, ep)) r.weeks[ep] = await H.moves(r, ep);
       } catch (err) {
@@ -833,11 +899,36 @@ async function run(show, season, opts = {}) {
     fmt.source = src.from;
     fmt.results = { quick: filed.quick.message, full: filed.full.message };
     record.format.push(fmt);
+    // A12 part 2: a stage a format change starts: the copies the season sync made with this episode's research (each played from
+    // here as a game of its own, its draft at its start), and a copy a corrected report took away (its record ends here).
+    for (const r of replays.filter((x) => x.game.playsAs === "stages" && !x.stageOf && x.leagueId && !x.dead)) {
+      try {
+        r.stages = r.stages || [];
+        const fresh = await stageRecords(r, r.game, new Set(r.stages.map((x) => x.stageKey)));
+        for (const sr of fresh) {
+          sr.madeAfter = ep;
+          r.stages.push(sr);
+          replays.push(sr);
+        }
+        const { rows: gone } = await pool.query("SELECT id FROM leagues WHERE stage_of = $1 AND deleted_at IS NOT NULL", [r.leagueId]);
+        for (const sr of r.stages) {
+          const away = gone.some((x) => x.id === sr.leagueId);
+          if (!sr.dead && away) Object.assign(sr, { dead: true, undone: ep });
+          // Back (its change said again): played on from here.
+          else if (sr.dead && sr.undone && !away) Object.assign(sr, { dead: false, undone: null, back: ep });
+        }
+        if (fresh.length) console.log(`    ${r.game.n}. ${r.game.label}: ${fresh.map((x) => x.stageKey).join(", ")} made after ${ep}`);
+      } catch (err) {
+        r.problems.push(`episode ${ep}: finding its stages failed: ${err.message}`);
+      }
+    }
     const said = fmt.changes.length ? fmt.changes.map((c) => `${c.kind}${c.allNew ? " (all new)" : ""} from ${c.from} ${c.sure === "high" && (c.by === "both" || c.by === "said") && !c.ahead ? "sure" : "held"}`).join("; ") : "no change";
     console.log(`  episode ${ep}: ${src.from || "no section"}; ${fmt.sure ? "sure" : `unsure (${(fmt.why || []).join("; ")})`}; ${said}${fmt.newcomers.length ? `; came in: ${fmt.newcomers.join(", ")}` : ""}${record.exits[ep] ? `; exits made the fixture's: ${[...record.exits[ep].left, ...record.exits[ep].stayed.map((x) => `${x} stays`)].join(", ")}` : ""}`);
     await each(live(), async (r) => {
       const s = await H.stateOf(r.leagueId);
       const e = r.episodes.find((x) => x.episode === ep);
+      // A game still waiting for its phase (a stage at the merge) has nothing to look at yet.
+      if (S.waitsForPhase(s)) return;
       if (ep > (s.settings.endEpisode ?? Infinity) || ep < (s.settings.startEpisode ?? 1)) return;
       try {
         Object.assign(e, await lookAt(r, ep));
@@ -861,7 +952,7 @@ async function run(show, season, opts = {}) {
   for (const r of replays) {
     const s = r.leagueId ? await H.stateOf(r.leagueId) : null;
     const played = r.episodes.filter((e) => e.played);
-    const g = { n: r.game.n, label: r.game.label, variant: r.game.variant, rows: r.game.rows, sentence: r.game.sentence, playsAs: r.game.playsAs, leagueId: r.leagueId || null, span: s ? [s.settings.startEpisode ?? 1, s.settings.endEpisode ?? null] : null, over: s ? (played.length ? played[played.length - 1].over : S.gameOver(s)) : false, lastEpisode: played.length ? played[played.length - 1].episode : null, draft: r.draft || null, lastSeason: r.lastSeason || null, history: r.history || null, episodes: r.episodes, problems: r.problems, final: played.length ? played[played.length - 1].table : null };
+    const g = { n: r.game.n, label: r.game.label, variant: r.game.variant, rows: r.game.rows, sentence: r.game.sentence, playsAs: r.game.playsAs, leagueId: r.leagueId || null, madeAfter: r.madeAfter ?? null, undone: r.undone ?? null, span: s ? [s.settings.startEpisode ?? 1, s.settings.endEpisode ?? null] : null, over: s ? (played.length ? played[played.length - 1].over : S.gameOver(s)) : false, lastEpisode: played.length ? played[played.length - 1].episode : null, draft: r.draft || null, lastSeason: r.lastSeason || null, history: r.history || null, episodes: r.episodes, problems: r.problems, final: played.length ? played[played.length - 1].table : null };
     if (through < E) g.over = g.over || null;
     g.unsettled = (r.unsettled && r.unsettled.never) || [];
     g.waitsOnEarly = (r.unsettled && r.unsettled.early) || [];
@@ -942,7 +1033,7 @@ function markdown(x) {
   out.push("|---|---|---|---|---|---|---|");
   for (const g of x.replays) {
     const table = g.final ? Object.entries(g.final).map(([k, v]) => `${k} ${v}`).join(", ") : "-";
-    out.push(`| ${g.n} | ${cell(g.label)} | ${g.playsAs || "-"} | ${g.span ? `${g.span[0]}-${g.span[1] ?? "end"}` : "-"} | ${g.over ? "yes" : "no"} | ${cell(table)} | ${cell(g.check.length ? g.check.slice(0, 3).join("; ") : (g.waitsOnEarly || []).length ? `ok; waits on early results (finding 20): ${g.waitsOnEarly.join(", ")}` : "ok")} |`);
+    out.push(`| ${g.n} | ${cell(g.label)}${g.madeAfter ? ` (made after ${g.madeAfter})` : ""}${g.undone ? ` (taken away after ${g.undone})` : ""} | ${g.playsAs || "-"} | ${g.span ? `${g.span[0]}-${g.span[1] ?? "end"}` : "-"} | ${g.over ? "yes" : g.undone ? "taken away" : "no"} | ${cell(table)} | ${cell(g.check.length ? g.check.slice(0, 3).join("; ") : (g.waitsOnEarly || []).length ? `ok; waits on early results (finding 20): ${g.waitsOnEarly.join(", ")}` : "ok")} |`);
   }
   // A10 part 4: the keepers games, and what they kept from last season's.
   for (const g of x.replays.filter((y) => y.lastSeason)) {

@@ -1,10 +1,9 @@
 import StateLogic from "@/lib/game/state-logic.js";
 import type { AnswerWalk } from "@/lib/game/state-logic.js";
-import { answerStanding, storedAnswers } from "./answer-points";
+import { answerStanding, asItStands, storedAnswers } from "./answer-points";
 import { foldFor, isFolded, revealedThrough } from "@/lib/game/chat-fold";
 import { accoladesOf, fieldOf, rankingsOf, trophiesOf, yourNumbers, type Accolade, type GameStanding, type Person, type Rankings, type StandingRow, type TrophyShelf, type YourNumbers } from "@/lib/game/couch-standings";
 import { tableOf } from "@/lib/game/game-view";
-import type { Taste } from "@/lib/game/ratings";
 import { showWords } from "@/lib/game/show-words";
 import { spanName } from "@/lib/game/spans";
 import type { LeagueState } from "@/lib/game/types";
@@ -13,23 +12,25 @@ import { bingoLines } from "./bingo";
 import { pointsPerLine } from "@/lib/game/bingo";
 import { callRights, endedThrough } from "./calls";
 import { AUTHOR_SEEN, REVEAL_SHARED, withReactions } from "./chat";
+import { couchPointCounts } from "./couch-points";
+import { movesCounted, stateMoves } from "@/lib/game/couch-moves";
 import { couchMembers, requireCouch } from "./couches";
 import { pool } from "./db";
 import { EVERYTHING, seenThrough, sharesSql, switchOn } from "./guard";
 import { hiddenFromGroup } from "./late-join";
 import { gameName } from "./league-season";
 import { leagueStates } from "./league-states";
-import { couchTaste } from "./ratings";
 import { latestAired, seasonSchedules } from "./schedule";
 import { runItBack } from "./start-game";
 import { followsOf, games, seasonHeaders, type Game } from "./show-space";
 import { plansLately, type PlanHow } from "./watch-plans";
 
 // The hub's couch, for More on the couch, your profile's numbers and the feed (docs/PLAN-new-design.md step 8; GET
-// /api/couches/[id]/hub): every game the couch plays, read as you may see it, turned into power rankings, the trophy
-// shelf, Commercial break's "You're playing", By the numbers' couch accolades and your numbers (couch-standings.ts);
-// and On the couch, what the couch has been up to and said lately. Since step 12 part 1 also your taste on the couch (your taste
-// twin, how often you agree with the couch, how many shows have a verdict) and the accolades ratings can say (ratings.ts).
+// /api/couches/[id]/hub): every game the couch plays, read as you may see it, turned into head to head, the trophy
+// shelf, Commercial break's "You're playing", By the numbers' couch accolades and your numbers (couch-standings.ts); power
+// rankings are Couch points since 2026-10-31, what everyone has done on the couch (couch-points.ts);
+// and On the couch, what the couch has been up to and said lately. (Step 12 part 1's taste twin, agreeing with the couch and the
+// rating accolades went with Rate it's stars on 2026-11-01: docs/PLAN-gif-reactions.md.)
 //
 // Spoiler-safe through guard.ts: each game's table is your copy of it at your mark on its season (GhostLogic.viewFor), so
 // a place, a title or a streak is never past where you are, and a season only ends for you once you've seen it end. The
@@ -68,6 +69,8 @@ export interface FeedItem {
   at: string;
   /** What they said; the episode they revealed. */
   text?: string;
+  /** A GIF they sent (0156): drawn instead of the text. */
+  gif?: { id: string; url: string; w: number; h: number; title: string };
   episode?: number;
   /** The show it's about, and where it opens. */
   seasonId?: string;
@@ -90,8 +93,6 @@ export interface CouchHub {
   feed: FeedItem[];
   /** Run it back (step 10 part 2b): a finished game of yours, and the show's next season to play it again on. */
   again: { leagueId: string; seasonId: string; label: string }[];
-  /** Rate it (step 12 part 1): your taste twin, how often you agree with the couch, how many shows have a verdict. */
-  taste: Taste;
 }
 
 /** What a game's table says, for one viewer at their mark: who placed where, the streaks, predictions called. `calls`: Weekly
@@ -105,11 +106,11 @@ function standingOf(
   userOf: (p: string) => string | null,
   calls?: { right: (p: string) => number; through: number; ended: boolean; walk?: AnswerWalk | null },
   usersOf: (p: string) => string[] = () => []
-): { rows: StandingRow[]; through: number; ended: boolean; coop: GameStanding["coop"]; matchups: boolean; teams: boolean } {
+): { rows: StandingRow[]; through: number; ended: boolean; coop: GameStanding["coop"]; matchups: boolean; teams: boolean; pool: boolean } {
   // Step A11 part 2b: a game of questions' walk on your copy (answer-points.ts answerStanding): who's out, ranked as it ranks.
   const seenView = StateLogic.GhostLogic.viewFor(state, playerId, mark);
   const view = calls?.walk ? StateLogic.AnswerLogic.withWalk(seenView, calls.walk) : seenView;
-  const pool = StateLogic.getLeagueType(view).hasWeeklyPicks;
+  const pool = StateLogic.piecesOf(view).hasWeeklyPicks;
   const called = new Map<string, number>();
   // Side bets called right, where they count (beside a draft: a pool's or Weekly Calls' never scored).
   if (StateLogic.betsOn(view)) for (const ep of view.episodes) for (const b of ep.bets || []) for (const p of b.predictions || []) if (p.correct === true) called.set(p.playerId, (called.get(p.playerId) ?? 0) + 1);
@@ -143,7 +144,7 @@ function standingOf(
   const matchups = StateLogic.MatchupLogic.on(view);
   // Step A11 part 5: teams of players rank by their teams (its points, or its record), so no margin in anyone's own points.
   const teams = StateLogic.TeamLogic.on(view);
-  return { rows, through: calls ? calls.through : end === null ? seen : Math.min(seen, end), ended: calls ? calls.ended : StateLogic.gameOver(view), coop, matchups, teams };
+  return { rows, through: calls ? calls.through : end === null ? seen : Math.min(seen, end), ended: calls ? calls.ended : StateLogic.gameOver(view), coop, matchups, teams, pool };
 }
 
 /** A game over a span (docs/PLAN-sports-data.md step 6), named in the show's own word ("Games 4–6"); null for a season game. */
@@ -166,7 +167,7 @@ async function callsThrough(state: LeagueState, g: Game & { seasonId: string }, 
   // Nothing counts while it waits for its phase (step A3).
   const from = StateLogic.startEpisode(state);
   const opts = { from: from ?? 0, through: upTo, couchId: g.couchId };
-  const bingo = StateLogic.getLeagueType(state).hasBingo;
+  const bingo = StateLogic.piecesOf(state).hasBingo;
   const rights = from === null ? new Map<string, number>() : bingo ? await bingoLines(g.seasonId, userIds, opts) : await callRights(g.seasonId, userIds, opts);
   // A bingo line's points (step A9), as its table counts them.
   const each = bingo ? pointsPerLine(state) : 1;
@@ -180,12 +181,14 @@ export async function couchHub(user: SessionUser, couchId: string): Promise<Couc
   const list = all.filter((g): g is Game & { seasonId: string } => !!g.seasonId);
   const seasonIds = [...new Set(list.map((g) => g.seasonId))];
   const ids = list.map((g) => g.leagueId);
-  const [headers, states, seats, marks, schedules] = await Promise.all([
+  const [headers, states, seats, marks, schedules, points, made] = await Promise.all([
     seasonHeaders(seasonIds),
     leagueStates(ids),
     ids.length ? pool.query("SELECT league_id, user_id, player_id FROM league_memberships WHERE league_id = ANY($1::uuid[]) ORDER BY seat_slot, created_at", [ids]) : { rows: [] },
     Promise.all(seasonIds.map(async (id) => [id, await seenThrough(user.id, id)] as const)).then((xs) => new Map(xs)),
     seasonSchedules(seasonIds),
+    couchPointCounts(couchId, people.map((p) => p.userId)),
+    ids.length ? pool.query("SELECT id, created_at FROM leagues WHERE id = ANY($1::uuid[])", [ids]) : { rows: [] },
   ]);
   // Each seat's accounts, its first first (a team two people share: step A10 part 4b); a seat's face is its first's.
   const usersOf = new Map<string, Map<string, string[]>>(ids.map((id) => [id, new Map()]));
@@ -202,7 +205,12 @@ export async function couchHub(user: SessionUser, couchId: string): Promise<Couc
   // Each game as you may see it: now, and one episode back (who moved).
   const standings: GameStanding[] = [];
   for (const g of list) {
-    const state = states.get(g.leagueId);
+    // Step A12 part 1: a stage counts inside its game in stages, whose table (the overall, its stages' tables read as they stand) is
+    // the one the couch's standings read.
+    if (g.stageOf) continue;
+    const stored = states.get(g.leagueId);
+    // Step A12 part 4b: a stage on another season at your mark there.
+    const state = stored && StateLogic.StageLogic.on(stored) ? (await asItStands(g.leagueId, stored, undefined, { userId: user.id })).state : stored;
     const header = headers.get(g.seasonId);
     if (!state || !header) continue;
     const seen = marks.get(g.seasonId) ?? 0;
@@ -211,15 +219,15 @@ export async function couchHub(user: SessionUser, couchId: string): Promise<Couc
     const onSeat = (p: string) => usersOf.get(g.leagueId)?.get(p) ?? [];
     try {
       // Weekly Calls and Weekly Bingo are through the latest show that's aired and you've seen, scored from the couch's calls or cards.
-      const type = StateLogic.getLeagueType(state);
+      const pieces = StateLogic.piecesOf(state);
       const schedule = schedules.get(g.seasonId);
       const me = mine.get(g.leagueId) ?? null;
       // A game of questions (step A4) by its answers' points, graded at the mark, as its own table is.
-      const rows = type.hasQuestions ? await storedAnswers(g.leagueId) : [];
+      const rows = pieces.hasQuestions ? await storedAnswers(g.leagueId) : [];
       const answers = (m: number | null) => answerStanding({ leagueId: g.leagueId, state, playerId: me, mark: m, rows });
-      const calls = type.hasQuestions ? await answers(mark) : type.hasCalls || type.hasBingo ? await callsThrough(state, g, who, Math.min(seen, latestAired(schedule)), schedule) : undefined;
+      const calls = pieces.hasQuestions ? await answers(mark) : pieces.hasCalls || pieces.hasBingo ? await callsThrough(state, g, who, Math.min(seen, latestAired(schedule)), schedule) : undefined;
       const now = standingOf(state, me, mark, who, calls, onSeat);
-      const back = calls && now.through >= 2 ? (type.hasQuestions ? await answers(now.through - 1) : await callsThrough(state, g, who, now.through - 1, schedule)) : undefined;
+      const back = calls && now.through >= 2 ? (pieces.hasQuestions ? await answers(now.through - 1) : await callsThrough(state, g, who, now.through - 1, schedule)) : undefined;
       const before = now.through >= 2 ? standingOf(state, mine.get(g.leagueId) ?? null, now.through - 1, who, back, onSeat).rows : null;
       standings.push({
         leagueId: g.leagueId,
@@ -239,6 +247,7 @@ export async function couchHub(user: SessionUser, couchId: string): Promise<Couc
         rows: now.rows,
         before,
         coop: now.coop,
+        ...(now.pool ? { pool: true } : {}),
         ...(now.matchups ? { matchups: true } : {}),
         ...(now.teams ? { teams: true } : {}),
       });
@@ -248,7 +257,24 @@ export async function couchHub(user: SessionUser, couchId: string): Promise<Couc
     }
   }
 
-  const rankings = rankingsOf(standings, people, user.id, new Date().getFullYear());
+  // Couch points' moves kept in the games' states (couch-moves.ts), each credited to everyone on its seat: pool picks and lineups at
+  // their episode's airtime, draft picks when the log says (else the season's first airtime), never before the game was made (a
+  // catch-up game plays an old season's episodes now).
+  const member = new Set(people.map((p) => p.userId));
+  const madeAt = new Map(made.rows.map((r) => [r.id as string, new Date(r.created_at).getTime()]));
+  const moves = list
+    .filter((g) => !g.stageOf)
+    .flatMap((g) => {
+      const state = states.get(g.leagueId);
+      if (!state) return [];
+      const air = new Map((schedules.get(g.seasonId)?.episodes ?? []).map((e) => [e.number, e.airAt ? Date.parse(e.airAt) : null]));
+      const since = madeAt.get(g.leagueId) ?? points.yearStart;
+      const first = [...air.values()].find((x) => x !== null) ?? since;
+      return stateMoves(state, (n) => air.get(n) ?? null, first).flatMap((m) =>
+        (usersOf.get(g.leagueId)?.get(m.playerId) ?? []).filter((u) => member.has(u)).map((userId) => ({ userId, at: Math.max(m.at, since) }))
+      );
+    });
+  const rankings = rankingsOf(standings, people, user.id, [...points.counts, ...movesCounted(moves, points.yearStart)], points.weekInYear);
   const trophies = trophiesOf(standings, people, user.id);
   const yours = standings
     .filter((g) => mine.has(g.leagueId))
@@ -272,22 +298,20 @@ export async function couchHub(user: SessionUser, couchId: string): Promise<Couc
     });
 
   const finished = standings.filter((g) => g.ended && yours.some((y) => y.leagueId === g.leagueId));
-  const [accolades, feed, again, rated] = await Promise.all([
+  const [accolades, feed, again] = await Promise.all([
     accoladesFor(user, couchId, people, list, standings),
     feedFor(user, couchId, people, list, marks, schedules),
     runItBack(user, couchId, finished.map((g) => ({ leagueId: g.leagueId, seasonId: g.seasonId, gameType: g.gameType, span: g.span ?? null }))),
-    couchTaste(user.id, couchId, people),
   ]);
   return {
     couchId,
     rankings,
     trophies,
     games: yours,
-    accolades: [...accolades, ...rated.accolades],
+    accolades,
     you: yourNumbers(standings, rankings, trophies, user.id),
     feed,
     again,
-    taste: rated.taste,
   };
 }
 
@@ -359,7 +383,7 @@ async function accoladesFor(user: SessionUser, couchId: string, people: Person[]
   });
 }
 
-const FEED_SIZE = 8;
+const FEED_SIZE = 6;
 
 /**
  * On the couch: the newest of what's been said in the couch's chats (folded past where you are, as the chat folds:
@@ -378,7 +402,7 @@ async function feedFor(
   const seasonOf = new Map(list.map((g) => [g.leagueId, g.seasonId]));
   const ids = list.map((g) => g.leagueId);
   const { rows: said } = await pool.query(
-    `SELECT id, league_id, season_id, user_id, author_name, type, text, created_at, ${AUTHOR_SEEN} FROM chat_messages
+    `SELECT id, league_id, season_id, user_id, author_name, type, text, gif, created_at, ${AUTHOR_SEEN} FROM chat_messages
       WHERE (league_id = ANY($1::uuid[]) OR (league_id IS NULL AND couch_id = $2)) AND type IN ('message', 'reveal') AND ${REVEAL_SHARED("$3")}
       ORDER BY created_at DESC LIMIT 40`,
     [ids, couchId, user.id]
@@ -427,6 +451,7 @@ async function feedFor(
         ...base,
         kind: "said",
         text: m.text,
+        ...(m.gif ? { gif: m.gif } : {}),
         reactions: Object.entries(r).map(([emoji, x]) => ({ emoji, n: x.count, mine: x.userIds.includes(user.id) })),
       });
     }

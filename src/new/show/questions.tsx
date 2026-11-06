@@ -2,7 +2,7 @@
 
 import { useState, useSyncExternalStore } from "react";
 import { Check, ChevronRight, ListChecks, Minus, Plus, X } from "lucide-react";
-import { airTime, calm, ticks } from "../clock";
+import { calm, lockTime, ticks } from "../clock";
 import { answersApi, useAfterAnswers, useGameQuestions, type GameQuestions, type QuestionFace, type QuestionView, type SheetMove } from "../data";
 import { Avatar, useNow } from "../ui/bars";
 import { Btn, Chip } from "../ui/parts";
@@ -159,7 +159,7 @@ function LockLine({ at, closed }: { at: string | null; closed: boolean }) {
   if (t == null) return null;
   return (
     <span data-sheet-locks className="text-[13px] tabular-nums text-muted-foreground">
-      Locks {airTime(t)} · {calm(t, now)}
+      Locks {lockTime(t, now)} · {calm(t, now)}
     </span>
   );
 }
@@ -210,7 +210,7 @@ function SheetBody({ target, d, onDone }: { target: SheetTarget; d: GameQuestion
   const settled = closedOnes.filter((q) => q.verdict?.state === "known" && q.people.some((p) => p.you));
   const rightOnes = settled.filter((q) => q.people.find((p) => p.you)?.right).length;
   const firstLock = open.map((q) => (q.closesAt ? Date.parse(q.closesAt) : Infinity)).reduce((a, b) => Math.min(a, b), Infinity);
-  const until = Number.isFinite(firstLock) ? airTime(firstLock) : "it locks";
+  const until = Number.isFinite(firstLock) ? lockTime(firstLock) : "it locks";
   const answered = Math.max(0, ...open.map((q) => q.answered));
 
   const save = async () => {
@@ -434,12 +434,12 @@ export function SheetRow({ target, move: m, icon }: { target: SheetTarget; move:
   const what = target.finale ? "your finale predictions" : `your sheet${m.episode ? ` for Episode ${m.episode}` : ""}`;
   const title = done ? `${what.charAt(0).toUpperCase()}${what.slice(1)} ${target.finale ? "are" : "is"} in` : target.finale ? "Finale predictions" : `Fill in ${what}`;
   const line = done
-    ? `Change until ${lock ? airTime(Date.parse(lock)) : "it locks"}`
+    ? `Change until ${lock ? lockTime(Date.parse(lock)) : "it locks"}`
     : !m.of
       ? `See Episode ${m.behind} first`
       : target.finale
-        ? `Your final three and the winner${lock ? ` · until ${airTime(Date.parse(lock))}` : ""}`
-        : `${m.of} ${m.of === 1 ? "question" : "questions"}${lock ? ` · locks ${airTime(Date.parse(lock))}` : ""}`;
+        ? `Your final three and the winner${lock ? ` · until ${lockTime(Date.parse(lock))}` : ""}`
+        : `${m.of} ${m.of === 1 ? "question" : "questions"}${lock ? ` · locks ${lockTime(Date.parse(lock))}` : ""}`;
   const state = done ? "In" : m.answered ? `${m.answered} of ${m.of}` : m.of ? "Open" : "";
   return (
     <button

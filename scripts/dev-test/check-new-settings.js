@@ -11,7 +11,9 @@
 //   - hiding scores is the guard's own setting (show_results_immediately): seenThrough null while off;
 //   - the couch: only whoever runs it renames it or hands it on (refused for anyone else, and for someone not on it), a
 //     new code retires your old one (it stops opening the couch) and leaves everyone else's.
-//   In a real browser at --width (390 by default), as alex: Settings in the mock's order with no Preview left (part 3 made What
+//   In a real browser at --width (390 by default), as alex: Settings as the 2026-10-31 redesign has it (Quick settings, then
+//   Everything else folded shut under rows saying what they're set to, then Help and account; 44px buttons; Hide scores off
+//   asks first: Keep them hidden, then Show scores with Undo), no Preview left (part 3 made What
 //   your couch sees real: check-new-sharing.js; part 4 Appearance: check-new-studio.js), the profile sheet (a colour with Undo, a picture shrunk in the browser and shown on every face of his, a taken name
 //   refused, a new one saved and shown at once), Hide scores with Undo, Your AI for results leading each Ask an AI sheet
 //   (Ask each time: both apps; I'll copy and paste: the copy first; Grok), the couch's sheet (Rename with Undo, a new code,
@@ -28,7 +30,7 @@ require("dotenv").config({ path: ".env.local", quiet: true });
 const fs = require("fs");
 const path = require("path");
 const { Pool } = require("pg");
-const { open, api, BASE } = require("./browser");
+const { open, api, BASE, openFold } = require("./browser");
 const fixture = require("./new-fixture");
 
 const DB = process.env.AUTH_DATABASE_URL || "";
@@ -251,28 +253,51 @@ function check(ok, what, detail = "") {
       await pg.waitForTimeout(800);
       const meLine = await pg.locator("[data-me-card]").innerText();
       check(/zt_nd_alex/.test(meLine) && /On ZT Extra and ZT Survivor 51|On ZT Survivor 51 and ZT Extra/.test(meLine) && /since ZT Survivor 51/.test(meLine), "the me card: his name, his couches, since ZT Survivor 51", meLine);
+      // The 2026-10-31 redesign (option D): Quick settings, Everything else folded shut under rows saying what they're set to,
+      // Help and account.
       const heads = await pg.locator("[data-settings] h2").allInnerTexts();
+      check(heads.map((x) => x.toLowerCase()).join("|") === "quick settings|everything else|help and account", "three sections: Quick settings, Everything else, Help and account", heads.join("|"));
+      const folds = await pg.locator("[data-fold]").evaluateAll((els) => els.map((e) => `${e.getAttribute("data-fold")}${e.hasAttribute("data-open") ? ":open" : ""}`));
       check(
-        heads.map((x) => x.toLowerCase()).join("|") ===
-          "what we notify you about|keeping you spoiler-free|what your couch sees|your ai for results|appearance|your couches|help|your account|the new design",
-        "the mock's order: notify, spoiler-free, couch sees, your AI, appearance, couches, help, your account (and the classic design)",
-        heads.join("|")
+        folds.filter((f) => f !== "auto").join("|") === "notify|sharing|couches|ai|account",
+        "the folds in order, every one shut (Which notifications, What your couch sees, Your couches, Your AI for one who runs games, Your account)",
+        folds.join("|")
       );
+      const quick = await pg.locator("[data-settings-quick] [data-phone], [data-settings-quick] [data-settings-chat], [data-settings-quick] [data-setting=hide-scores], [data-settings-quick] [data-settings-appearance]").count();
+      check(quick === 4, "Quick settings: this phone, Couch chat, Hide scores, Appearance", String(quick));
+      check(/\d of \d on|none reach you yet/.test(await pg.locator('[data-fold="notify"] [data-fold-value]').innerText()), "Which notifications says how many are on, shut");
+      check(/Everything · recommended/.test(await pg.locator('[data-fold="sharing"] [data-fold-value]').innerText()), "What your couch sees: Everything · recommended, shut");
+      check(/ChatGPT · for games you run/.test(await pg.locator('[data-fold="ai"] [data-fold-value]').innerText()), "Your AI: ChatGPT, shut");
       const previews = await pg.locator("[data-preview]").evaluateAll((els) => els.map((e) => e.getAttribute("data-preview")));
       check(previews.length === 0, "nothing is Preview any more (parts 2 to 4 made notifications, sharing and Appearance real)", previews.join());
       check((await pg.locator("[data-setting=hide-scores]").getAttribute("aria-checked")) === "true", "Hide scores until I reveal is on");
-      check((await pg.locator("[data-choice=chatgpt]").getAttribute("aria-checked")) === "true", "ChatGPT is his AI (Recommended)");
-      check(!(await pg.locator("[data-settings-account]").innerText()).includes("Google"), "no Google row while it isn't set up");
+      const small = await pg.locator("[data-settings] button:visible").evaluateAll((els) =>
+        els.filter((e) => e.closest("[data-settings-quick], [data-me-card]")).map((e) => e.getBoundingClientRect()).filter((r) => r.height < 44).length
+      );
+      check(small === 0, "every button in the profile row and Quick settings is at least 44px tall", String(small));
       await a.wide("Settings");
       await a.shot("settings-top");
+      await openFold(pg, "ai");
+      await openFold(pg, "account");
+      check((await pg.locator("[data-choice=chatgpt]").getAttribute("aria-checked")) === "true", "ChatGPT is his AI (Recommended)");
+      check(!(await pg.locator("[data-settings-account]").innerText()).includes("Google"), "no Google row while it isn't set up");
+      check(/Back to the classic design/.test(await pg.locator("[data-settings-account]").innerText()), "the classic design is in Your account");
       await pg.locator("[data-settings-ai]").scrollIntoViewIfNeeded();
       await a.shot("settings-ai");
       await pg.locator("[data-sign-out]").scrollIntoViewIfNeeded();
       await a.shot("settings-end");
 
-      // Hide scores, with Undo.
+      // Hide scores: off asks first (Undo can't unsee a result). Keep them hidden leaves it; Show scores saves, with Undo.
+      await pg.locator("[data-setting=hide-scores]").scrollIntoViewIfNeeded();
       await pg.locator("[data-setting=hide-scores]").click();
-      check(await a.toasted(/results show as soon as they're in/), "off: the toast says what it means");
+      await pg.locator("[data-hide-warn]").waitFor({ timeout: 5000 });
+      check(/Show scores straight away\?/.test(await pg.locator("[data-hide-warn]").innerText()) && (await immediate()) === false, "off asks first, and nothing's saved yet");
+      await a.shot("settings-hide-ask");
+      await pg.locator("[data-hide-keep]").click();
+      check((await pg.locator("[data-hide-warn]").count()) === 0 && (await pg.locator("[data-setting=hide-scores]").getAttribute("aria-checked")) === "true", "Keep them hidden: still on");
+      await pg.locator("[data-setting=hide-scores]").click();
+      await pg.locator("[data-hide-confirm]").click();
+      check(await a.toasted(/results show as soon as they're in/), "Show scores: the toast says what it means");
       check((await immediate()) === true, "saved: he sees results straight away");
       await pg.locator("[role=status] button", { hasText: /undo/i }).click();
       await pg.waitForFunction(() => document.querySelector("[data-setting=hide-scores]")?.getAttribute("aria-checked") === "true", null, { timeout: 15000 });
@@ -366,6 +391,7 @@ function check(ok, what, detail = "") {
 
       // The couch's sheet: rename with Undo, a new code, Hand it on.
       await pg.goto(`${BASE}/settings`, { waitUntil: "load" });
+      await openFold(pg, "couches");
       await pg.locator('[data-settings-couch="ZT Survivor 51"]').waitFor({ timeout: 30000 });
       await pg.locator('[data-settings-couch="ZT Survivor 51"]').click();
       await pg.locator("[data-couch-details]").waitFor();
@@ -404,9 +430,10 @@ function check(ok, what, detail = "") {
       await a.sheet.waitFor({ state: "hidden" }).catch(() => {});
 
       // Help and your account.
+      await openFold(pg, "account");
       await pg.getByRole("button", { name: /How each game works/ }).click();
       await pg.locator("[data-games-help]").waitFor();
-      check((await pg.locator("[data-game-help]").count()) === 5, "How each game works: the five season games");
+      check((await pg.locator("[data-game-help]").count()) === 6, "How each game works: the six season games (Prediction Sheet since 2026-10-30)");
       await a.shot("games-help");
       await pg.keyboard.press("Escape");
       await a.sheet.waitFor({ state: "hidden" }).catch(() => {});
@@ -446,6 +473,7 @@ function check(ok, what, detail = "") {
       // ---------- riley: alex's face on the couch ----------
       const rr = await browse("riley");
       await rr.pg.goto(`${BASE}/settings`, { waitUntil: "load" });
+      await openFold(rr.pg, "couches");
       await rr.pg.locator('[data-settings-couch="ZT Survivor 51"]').waitFor({ timeout: 30000 });
       await rr.pg.locator('[data-settings-couch="ZT Survivor 51"]').click();
       await rr.pg.locator("[data-couch-details]").waitFor();

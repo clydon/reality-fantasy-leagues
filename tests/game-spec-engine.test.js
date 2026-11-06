@@ -45,7 +45,7 @@ test("the league types' flags are worked out from their presets, and are what th
   }
   // Shared ownership: a blind draft; Outlast loses its waivers (no free agents), Weekly Lineup keeps them.
   const shared = (type) => S.getLeagueType(made(type, (s) => S.updateSettings(s, "ownershipMode", "shared")));
-  assert.equal(shared("classic-draft").draftStrategy, S.BlindDraftStrategy);
+  assert.equal(S.piecesOf(made("classic-draft", (s) => S.updateSettings(s, "ownershipMode", "shared"))).draft, S.BlindDraftStrategy);
   assert.deepEqual([shared("classic-draft").supportsReplenish, shared("classic-draft").supportsFinalePredictions], [false, true]);
   assert.deepEqual([shared("active-roster").supportsReplenish, shared("active-roster").id], [true, "active-roster"]);
 });

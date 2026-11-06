@@ -20,6 +20,24 @@ export function airTime(t: number): string {
   return new Date(t).toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" }).replace(",", "");
 }
 
+/**
+ * "Wed 8:05 PM" within the coming week; past it, the date too ("Wed Dec 16, 8:05 PM"): a lock weeks away (finale
+ * predictions close when the finale starts) read as the coming Wednesday otherwise.
+ */
+export function lockTime(t: number, now = Date.now()): string {
+  if (dayDiff(t, now) < 7) return airTime(t);
+  const d = new Date(t);
+  return `${d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}, ${timeOf(t)}`;
+}
+
+/** When an episode aired: "Wed 8:05 PM" within the last week; before that the day itself ("Jul 30"; "Dec 16, 2025" in another
+ *  year), since a weekday alone reads as this week's (the user, 2026-11-01: every episode of a finished season said "Aired Wed"). */
+export function airedAt(t: number, now = Date.now()): string {
+  if (Math.abs(dayDiff(t, now)) < 7) return airTime(t);
+  const d = new Date(t);
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", ...(d.getFullYear() !== new Date(now).getFullYear() ? { year: "numeric" as const } : {}) });
+}
+
 /** "8:05 PM". */
 export function timeOf(t: number): string {
   return new Date(t).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });

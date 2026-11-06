@@ -127,4 +127,9 @@ test("calm clocks: days when it's more than a day out, a ticking countdown insid
   assert.equal(C.calm(at(0, 15, 4, 9), now), "3:04:09");
   assert.equal(C.calm(now - 1000, now), "now");
   assert.equal(C.calmWhen(at(4, 20, 5), now), "Wed 8:05 PM · in 4 days");
+  // A lock within the coming week by its weekday; one a week or more away with its date (finale predictions weeks out
+  // read as the coming Wednesday before: season-forward.js's look, 2026-10-30).
+  assert.equal(C.lockTime(at(4, 20, 5), now), "Wed 8:05 PM");
+  assert.equal(C.lockTime(at(6, 20), now), C.airTime(at(6, 20)));
+  assert.match(C.lockTime(at(46, 20), now), /^[A-Z][a-z]{2}, [A-Z][a-z]{2} \d{1,2}, 8:00 PM$/);
 });

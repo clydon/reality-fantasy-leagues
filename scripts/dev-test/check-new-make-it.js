@@ -22,7 +22,7 @@
 //   In a real browser at --width (390 by default): alex makes ZT Love Shack a game from the Games tab with Ask ChatGPT for
 //   me (asking, then the review), changes the kind and back, opens How it works from the review, Looks right (the plate
 //   becomes Play it); then copy and paste on ZT Drop Show from Tonight's plate (Ask an AI's sheet, Check what it found);
-//   the ⋯ menu's Make it a game. Nothing wider than the screen; no page errors. Screenshots go to <outDir>.
+//   Tonight's plate again (the ⋯ menu leaves Make it a game to it). Nothing wider than the screen; no page errors. Screenshots go to <outDir>.
 //
 //   npm run dev                                                  (in another terminal)
 //   node scripts/dev-test/check-new-make-it.js <outDir> [--width=390] [--keep] [--api]
@@ -415,14 +415,17 @@ const showIn = (prompt) => Object.keys(ANSWERS).find((name) => prompt.includes(n
       await fits("the pasted review");
       await shot("make-paste-review");
 
-      // The ⋯ menu, on a show that isn't a game.
+      // On a show that isn't a game: Tonight's plate carries Make it a game, so the ⋯ menu doesn't repeat it.
       await page.goto(`${BASE}/show/${ds}/tonight`);
+      await page.locator("[data-make-it]").first().waitFor({ timeout: 30_000 });
       await page.getByRole("button", { name: /Show menu/ }).click();
-      await sheet().getByText("Make it a game", { exact: true }).waitFor();
+      await sheet().getByText("Notifications").waitFor();
+      check((await sheet().getByText("Make it a game", { exact: true }).count()) === 0, "the ⋯ menu doesn't repeat Make it a game");
       await shot("menu-make");
-      await sheet().getByText("Make it a game", { exact: true }).click();
+      await page.keyboard.press("Escape");
+      await page.locator("[data-make-it]").first().click();
       await makeView("review").waitFor({ timeout: 15_000 });
-      check(true, "the ⋯ menu opens Make it a game where it was left (the review)");
+      check(true, "Tonight's plate opens Make it a game where it was left (the review)");
       check(errors.length === 0, "no page errors", errors.join(" | "));
     }
   } finally {

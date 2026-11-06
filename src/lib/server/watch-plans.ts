@@ -2,6 +2,7 @@ import { isUuid, type SessionUser } from "./auth-helpers";
 import { couchMembers, requireCouch, type CouchMember } from "./couches";
 import { pool, HttpError } from "./db";
 import { seenThrough } from "./guard";
+import { chatScope, postCouchChat } from "./couch-chat";
 import { notifyPlanned, notifyPlanOff } from "./push-events";
 import { DEFAULT_RUNTIME_MIN, latestAired, seasonSchedules, type SeasonSchedule } from "./schedule";
 import { followsOf, games, seasonHeaders, type SeasonHeader } from "./show-space";
@@ -15,7 +16,7 @@ import { followsOf, games, seasonHeaders, type SeasonHeader } from "./show-space
 // is step 13 part 3's (watch-along.ts togetherRead/togetherWrite): opening it says you're in.
 //
 //   GET  /api/seasons/[id]/plans?couch=   what can be planned: the episodes, who's on the couch, the plans already made
-//   POST /api/seasons/[id]/plans?couch=   plan one: { episode, how, startsAt?, invite }
+//   POST /api/seasons/[id]/plans?couch=   plan one: { episode, how, startsAt?, invite, now? } (now: Tonight's Start now, below)
 //   POST /api/plans/[id]                  { answer: "in" | "out" } or { cancel: true | false }
 //
 // Spoiler-safe (guard.ts): a plan carries when, which episode and who's in, never a title or a result. Seen by the couch it's
@@ -284,19 +285,25 @@ export interface PlanAnswerOut {
   plans: WatchPlan[];
 }
 
-/** Plan a watch along (POST /api/seasons/[id]/plans?couch=): `{ episode, how, startsAt?, invite: userIds }`. */
+/**
+ * Plan a watch along (POST /api/seasons/[id]/plans?couch=): `{ episode, how, startsAt?, invite: userIds }`. With `now` (Tonight's Up
+ * next, Ask the couch, Start now; docs/PLAN-up-next.md), a shared start right now: its push says so, and a line from you goes in the
+ * couch chat about the show.
+ */
 export async function planNight(
   user: SessionUser,
   seasonId: string,
   couchIdIn: string | null,
-  body: { episode?: unknown; how?: unknown; startsAt?: unknown; invite?: unknown },
+  body: { episode?: unknown; how?: unknown; startsAt?: unknown; invite?: unknown; now?: unknown },
   now = new Date()
 ): Promise<PlanAnswerOut & { told: number }> {
   if (!isUuid(seasonId)) throw new HttpError(404, "Season not found");
   const couchId = await onCouch(user, couchIdIn);
   const episode = body.episode;
   if (!Number.isInteger(episode) || (episode as number) < 1) throw new HttpError(400, "Which episode?");
+  const startNow = body.now === true;
   if (body.how !== "live" && body.how !== "start") throw new HttpError(400, "how must be live or start");
+  if (startNow && body.how !== "start") throw new HttpError(400, "Starting now is a shared start");
   const how = body.how as PlanHow;
   const invite = Array.isArray(body.invite) ? [...new Set(body.invite.filter((x): x is string => typeof x === "string"))] : null;
   if (!invite?.length) throw new HttpError(400, "Invite someone on the couch");
@@ -316,7 +323,7 @@ export async function planNight(
     if (out <= now.getTime()) throw new HttpError(409, `Episode ${episode} has aired: start it together instead`);
     at = out;
   } else {
-    at = typeof body.startsAt === "string" ? Date.parse(body.startsAt) : NaN;
+    at = startNow ? now.getTime() : typeof body.startsAt === "string" ? Date.parse(body.startsAt) : NaN;
     if (!Number.isFinite(at)) throw new HttpError(400, "startsAt: when it starts");
     if (at < now.getTime() - 60_000) throw new HttpError(409, "Pick a time still to come");
     if (at > now.getTime() + MAX_AHEAD_MS) throw new HttpError(409, "Plan it within two months");
@@ -338,7 +345,16 @@ export async function planNight(
   }
 
   // One push to everyone invited, to the show (where I'm in is), the time in each one's own zone (step 15 part 2).
-  notifyPlanned({ planId: id, userIds: invite, seasonId, host: nameOf(user), episode: episode as number, live: how === "live", at });
+  notifyPlanned({ planId: id, userIds: invite, seasonId, host: nameOf(user), episode: episode as number, live: how === "live", at, now: startNow });
+  if (startNow) {
+    // The couch chat hears it from you (a plain message, so it folds and reads like anything you'd say there). Best effort: a
+    // chat you can't post in (a game you're out of) leaves the push and the plan to say it.
+    try {
+      await postCouchChat(user, await chatScope(user, seasonId, couchId), `Starting Episode ${episode} now. Join me in the watch along?`);
+    } catch {
+      /* the plan and its push stand */
+    }
+  }
   const plans = await yourPlans(user.id, now);
   const plan = plans.find((p) => p.id === id) ?? (await planById(user, id, now)).plan;
   return { plan, plans, told: invite.length };

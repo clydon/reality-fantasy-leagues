@@ -201,8 +201,10 @@ function ReadView({
   const called = predictionsRight(state, ep, me);
   // Eliminator Pool (the canvas's Pool "Episode 3" board): how your pick did, then everyone's.
   const pool = !!type.hasWeeklyPicks && inPlay;
-  // When your pick is who went home, the card above already says so: no second plate for them.
-  const myPickOut = pool && me ? (ep.picks || []).find((p) => p.playerId === me)?.castawayId : undefined;
+  // When your pick is who went home, the card above already says so: no second plate for them (a pick on the winner
+  // survived the finale: their plate stays).
+  const myPick = pool && me ? (ep.picks || []).find((p) => p.playerId === me)?.castawayId : undefined;
+  const myPickOut = myPick && StateLogic.PickEmLogic.wentHome(state, ep, myPick) ? myPick : undefined;
   const exitPlates = exits.filter(({ c }) => c.id !== myPickOut);
 
   return (

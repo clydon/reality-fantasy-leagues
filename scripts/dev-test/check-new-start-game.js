@@ -22,7 +22,7 @@
 //     changes by whoever ran it, not by anyone else; gone for good after 30 days).
 //   In a real browser at --width (390 by default): the Games tab's Start a game (a competition's three, Tell the couch,
 //   Start it, its table), the hub's foot (Pick the show, then a sport's sheet), the nudge's Start a game, a talk show's sheet
-//   from the ⋯ menu, Make it a game's Done view, Backstage › Game settings' Archive (Undo) and Delete (hold), Recent
+//   from the Games tab, Make it a game's Done view, Backstage › Game settings' Archive (Undo) and Delete (hold), Recent
 //   changes' restore, Commercial break's Start a game, the feed's line. Nothing wider than the screen; no page errors.
 //
 //   npm run dev                                                  (in another terminal)
@@ -349,7 +349,7 @@ function lateNight(shows) {
       await shot("start-competition");
       await wide("Start a game");
       await sheet.locator('[data-start-game="outlast"]').click();
-      await sheet.locator("[data-start-go]").click();
+      await page.locator("[role=dialog]:has([data-start-sheet]) [data-start-go]").click();
       await page.waitForURL(/\/games$/);
       await page.locator("text=Outlast started").first().waitFor();
       const { rows: started } = await pool.query("SELECT id FROM leagues WHERE created_by = $1 AND name = 'Outlast' AND deleted_at IS NULL", [fx.users.alex]);
@@ -381,12 +381,11 @@ function lateNight(shows) {
       const feedLine = page.locator('[data-feed="started"]').first();
       check((await feedLine.count()) === 1 && /started an? (Outlast|Weekly Lineup|Survival Pool)/.test(await feedLine.innerText()), "On the couch: someone started a game");
 
-      // a talk show from the ⋯ menu
+      // a talk show from the Games tab (the ⋯ menu leaves Start a game to the tab and Tonight)
       await page.goto(`${BASE}/show/${late}/games`, { waitUntil: "load" });
-      await page.getByRole("button", { name: /Show menu/ }).click();
-      await page.getByRole("button", { name: /Start a game/ }).last().click();
+      await page.locator("[data-start-row], [data-play-start]").first().click();
       await page.locator('[data-start-sheet="talk"]').waitFor();
-      check((await sheet.locator("[data-start-game][disabled]").count()) === 0 && (await sheet.locator("[data-start-go][disabled]").count()) === 0, "a talk show: Weekly Bingo and Weekly Calls can both start");
+      check((await sheet.locator("[data-start-game][disabled]").count()) === 0 && (await page.locator("[role=dialog]:has([data-start-sheet]) [data-start-go][disabled]").count()) === 0, "a talk show: Weekly Bingo and Weekly Calls can both start");
       await shot("start-talk");
       await page.keyboard.press("Escape");
 

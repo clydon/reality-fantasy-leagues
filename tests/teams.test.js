@@ -59,11 +59,14 @@ test("teams of players: their shape, defaults, words and settings; what's refuse
   // Its settings: rankTeams, a draft's and a game of questions'.
   assert.deepEqual(G.withSpec(S.defaultState().settings, WHO_TEAMS).rankTeams, { of: 2 });
   assert.equal(G.withSpec(S.defaultState().settings, { preset: "weekly-lineup" }).rankTeams, undefined);
-  // Following the show's own groups is part 5b's: said, it waits for its step, and nothing plays it.
+  // Following the show's own groups (part 5c): refused, with what rides the show's groups instead; nothing plays it (never the
+  // default's draw).
   const group = { preset: "weekly-lineup", rank: { by: "total", teams: { of: 2, made: "group" } } };
-  assert.deepEqual(at(group), []);
-  assert.deepEqual(G.specWaitsFor(group).map((x) => [x.at, x.step]), [["rank.teams.made", "later"]]);
+  assert.deepEqual(at(group), ["rank.teams.made"]);
+  assert.match(G.specProblems(group, CTX)[0].problem, /last the game, while the show's groups end at a swap, a merge or a re-pairing: .*group slot/);
+  assert.deepEqual(G.specWaitsFor(group), []);
   assert.equal(G.teamParts(G.fullSpec(group)), null);
+  assert.equal(G.answerParts(G.fullSpec({ ...questions, rank: { by: "total", teams: { of: 2, made: "group" } } })), null);
   // Beside the wrong game, or out of range.
   assert.deepEqual(at({ preset: "survival-pool", rank: { teams: { of: 2 } } }), ["rank.teams"], "a pool's streak is one person's");
   assert.deepEqual(at({ preset: "weekly-calls", rank: { teams: { of: 2 } } }), ["rank.teams"], "Weekly Calls' calls are counted outside the game");
@@ -448,9 +451,9 @@ test("the couch: one team in the field, each member credited with its place, tea
   assert.equal(placePoints(1, fieldOf(standingRows)), 10);
   const game = { leagueId: "l1", name: "L", gameName: "Weekly Lineup", gameType: "active-roster", seasonId: "s1", showId: "sh", showName: "Survivor", label: "Survivor 51", artUrl: null, year: 2026, through: 1, ended: true, rows: standingRows, before: null, teams: true };
   const people = [...PLAYERS.map((p) => ({ userId: `u-${p}`, name: p })), { userId: "u-di2", name: "di2" }];
-  const r = rankingsOf([game], people, "u-ann", 2026);
+  // Power rankings are Couch points since 2026-10-31; head to head still reads the teams' places.
+  const r = rankingsOf([game], people, "u-ann", [], true);
   assert.deepEqual(r.h2h.map((h) => [h.userId, h.won, h.lost, h.tied]), [["u-cy", 1, 0, 0], ["u-di", 1, 0, 0], ["u-di2", 1, 0, 0]], "bo, a teammate, isn't there");
-  assert.deepEqual(r.all.map((x) => [x.userId, x.total]).slice(0, 2), [["u-ann", 10], ["u-bo", 10]]);
   const shelf = trophiesOf([game], people, "u-cy");
   assert.deepEqual(shelf.plaques[0].winners.map((w) => w.userId), ["u-ann", "u-bo"], "the winning team's members");
   assert.equal(shelf.plaques[0].by, null, "no margin in anyone's own points");

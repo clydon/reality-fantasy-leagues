@@ -41,6 +41,8 @@ const uniq = (names) => {
 };
 const divided = (s) => !!s && Array.isArray(s.groups) && s.groups.length > 1;
 const structural = (c) => GROUPING.has(c.kind) && c.kind !== 'newcomer';
+// The kinds of change that leave nobody in a group (A12 part 2b: groupsGone).
+const ENDS = new Set(['merge', 'split-into-individuals']);
 
 /** The episode a change takes effect from: its own `from`, else this one for a change at the start or partway, else the next. */
 function effective(c, n) {
@@ -71,7 +73,7 @@ function crossed(ours, theirs, n, { mergedNow = false, mergedBefore = false } = 
   const said = (theirs || []).map((c) => ({ ...c }));
   const out = [];
   const near = (c) => c.from == null || c.from === n || c.from === n + 1;
-  const ended = (k) => k === 'merge' || k === 'split-into-individuals';
+  const ended = (k) => ENDS.has(k);
   for (const c of ours || []) {
     const near0 = c.by === 'played' ? (x) => x.from == null || x.from <= n : near;
     let i = said.findIndex((x) => x.kind === c.kind && near0(x));
@@ -291,8 +293,8 @@ function lifetimes(tl) {
     if (next && next.end) {
       const gone = goneAfter.get(next.episode);
       const still = L.now.filter((m) => !gone.has(low(m)));
-      const why = next.changes.find((c) => structural(c) && !c.ahead && (c.moved.some((m) => L.now.map(low).includes(low(m))) || c.allNew || c.kind === 'merge' || c.kind === 'split-into-individuals'));
-      L.ended = still.length <= 1 ? 'left' : why && (why.kind === 'merge' || why.kind === 'split-into-individuals') ? (why.kind === 'merge' ? 'merge' : 'split') : 'changed';
+      const why = next.changes.find((c) => structural(c) && !c.ahead && (c.moved.some((m) => L.now.map(low).includes(low(m))) || c.allNew || ENDS.has(c.kind)));
+      L.ended = still.length <= 1 ? 'left' : why && ENDS.has(why.kind) ? (why.kind === 'merge' ? 'merge' : 'split') : 'changed';
       L.endedAt = next.episode;
       L.endedBy = L.ended === 'left' ? null : why ? why.id : null;
     }
@@ -371,13 +373,14 @@ function playedIn(tl, n) {
 /**
  * A6: the groups a question about a group offers at episode n's lock, with the spec's fallback for a state that isn't sure:
  * 'carry-on' offers the last known groups (flagged), 'void' (the default) and 'next-stage' void the question for that episode
- * (no points either way; next-stage also says the game moves on). Not divided going in: nothing to offer, void. Pure.
+ * (no points either way: where a stage with 'next-stage' ends is groupsGone's, read by the game's plan). Not divided going in:
+ * nothing to offer, void. Pure.
  */
 function groupChoices(tl, n, { fallback = 'void' } = {}) {
   const g = goingInto(tl, n);
   if (g.known && g.sure) return g.divided ? { choices: g.groups, void: false, sure: true, why: [] } : { choices: [], void: true, sure: true, why: ['the game isn\'t divided into groups going into this episode'] };
   if (fallback === 'carry-on' && g.known && g.divided) return { choices: g.groups, void: false, sure: false, why: g.why };
-  return { choices: null, void: true, sure: false, why: g.why, ...(fallback === 'next-stage' ? { nextStage: true } : {}) };
+  return { choices: null, void: true, sure: false, why: g.why };
 }
 
 /**
@@ -452,6 +455,52 @@ function sideStages(tl, { after = 2 } = {}) {
 }
 
 /**
+ * A12 part 3: when a grouping lasts, for a side stage (a copy of it beside the game's own stages, one for each spell of a grouping
+ * that holds `held` episodes; the user's "if we ever get teams forming or pairing up that lasts for multiple episode i want us to start
+ * a side draft after that episode ends"). Only a reliable report opens or closes one (the 8:15 PM rule): a spell opens at the first
+ * episode, once its groups have played `held` of them, whose research is sure the same groups go on into the next (goingInto's sure:
+ * that end sure, nothing announced for the next unsure), from the next; one that held that long but research was never sure of going
+ * on is `held` (flagged, never acted on); one gone at the episode it would open after never opens. It closes once research is sure
+ * the grouping changed (the first sure end at or after the one it was gone from), `closes` { at: the last episode its groups played,
+ * episode: the one whose research made it sure, ended: how (the spell's) }; gone but not sure yet, `closing` (the same, flagged: the
+ * side stage plays on until a sure report). A group going home whole doesn't end a spell (spells'). Each { id: the spell's, kind
+ * 'lasted', groups (how many), from, episode, when 'end', what, allNew false, closes, closing? }, as stageTriggers' are. Pure.
+ */
+function sideTriggers(tl, { held = 2 } = {}) {
+  const act = [];
+  const hold = [];
+  const n0 = Number.isInteger(held) && held >= 1 ? held : 2;
+  for (const s of tl ? tl.spells : []) {
+    if (s.played.length < n0) continue;
+    let at = null;
+    for (const k of s.played.slice(n0 - 1)) {
+      if (s.endedAt != null && s.endedAt <= k) break;
+      if (goingInto(tl, k + 1).sure) {
+        at = k;
+        break;
+      }
+    }
+    const base = { id: s.id, kind: 'lasted', groups: s.groups.length, allNew: false, when: 'end', what: '', held: n0 };
+    if (at === null) {
+      // It held long enough, but research was never sure it went on (or it was gone at the episode it would open after).
+      const k = s.played[n0 - 1];
+      if (!(s.endedAt != null && s.endedAt <= k)) hold.push({ ...base, from: k + 1, episode: k, closes: null });
+      continue;
+    }
+    let closes = null;
+    let closing = null;
+    if (s.endedAt != null) {
+      const last = s.played[s.played.length - 1];
+      const sure = tl.episodes.find((e) => e.episode >= s.endedAt && e.end && goingInto(tl, e.episode + 1).sure);
+      if (sure) closes = { at: last, episode: sure.episode, ended: s.ended };
+      else closing = { at: last, episode: s.endedAt, ended: s.ended };
+    }
+    act.push({ ...base, from: at + 1, episode: at, closes, ...(closing ? { closing } : {}) });
+  }
+  return { act, held: hold };
+}
+
+/**
  * A12: the changes a stage starts on, of the spec's kinds (MAJOR by default; 'swap-all' a swap that left no group as it was,
  * 'swap' any swap; a twist or a role never): `act` the sure ones (both sides saw it, the answer sure), each with the episode it
  * takes effect from; `held` the unsure ones, flagged and never acted on. Pure.
@@ -468,6 +517,66 @@ function stageTriggers(tl, kinds = MAJOR) {
       (c.sure === 'high' && (c.by === 'both' || c.by === 'said') && !c.ahead ? act : held).push(t);
     }
   }
+  return { act, held };
+}
+
+/**
+ * A12 part 2b: where a stage whose group question or group slots carry the 'next-stage' fallback can't be played as the groups
+ * stand, so the game's next stage starts: going into an episode nobody is in a group (everyone went on alone, or the merge made
+ * one group of everyone), after groups. A re-draw (pairs re-paired, a swap) leaves the game divided: the question offers the new
+ * groups, the slots drop and open again, and nothing moves. Once a spell without groups (from the episode they went until groups
+ * are back): `act` at the first episode whose research is sure of it going into the next (that end was, nothing announced for the
+ * next is unsure; at the episode they went, the change that ended them sure too, as stageTriggers counts it), from the episode
+ * it takes effect; `held` a spell research isn't sure of yet, flagged and never acted on (its episodes are the safe fallback's:
+ * void). Each as stageTriggers' are, keyed by the change that ended the groups (a stage its own kinds start too starts once, and
+ * a spell held, then sure, keeps its key), else '<episode>:groups-gone'; `episode` the one whose research made it sure; `gone`
+ * true. Pure.
+ */
+function groupsGone(tl) {
+  const act = [];
+  const held = [];
+  let spell = null;
+  const close = () => {
+    if (spell && !spell.acted) held.push(spell.t);
+    spell = null;
+  };
+  for (const e of tl ? tl.episodes : []) {
+    if (!e.end) continue;
+    if (divided(e.end)) {
+      close();
+      continue;
+    }
+    let sure = goingInto(tl, e.episode + 1).sure;
+    if (!spell) {
+      const before = goingInto(tl, e.episode);
+      if (!(before.known && before.divided)) continue;
+      const c = e.changes.find((x) => ENDS.has(x.kind) && !x.ahead) || null;
+      sure = sure && (!c || (c.sure === 'high' && (c.by === 'both' || c.by === 'said')));
+      const t = c
+        ? { id: c.id, kind: c.kind, allNew: !!c.allNew, from: effective(c, e.episode), when: c.when, episode: e.episode, what: c.what, gone: true }
+        : { id: `${e.episode}:groups-gone`, kind: 'groups-gone', allNew: false, from: e.episode + 1, when: 'end', episode: e.episode, what: '', gone: true };
+      spell = { t, acted: false };
+    }
+    if (spell.acted || !sure) continue;
+    act.push(e.episode === spell.t.episode ? spell.t : { ...spell.t, from: e.episode + 1, episode: e.episode });
+    spell.acted = true;
+  }
+  close();
+  return { act, held };
+}
+
+/** A12 part 2b: a stage's triggers (stageTriggers') with where the groups are gone (groupsGone's), for a stage the one before's
+ *  'next-stage' fallback starts: one per change, a sure one taking a held one's place. Pure. */
+function withGone(t, gone) {
+  const act = t.act.slice();
+  const ids = new Set(act.map((x) => x.id));
+  for (const x of gone.act) {
+    if (ids.has(x.id)) continue;
+    act.push(x);
+    ids.add(x.id);
+  }
+  const held = t.held.filter((x) => !ids.has(x.id));
+  for (const x of gone.held) if (!ids.has(x.id) && !held.some((y) => y.id === x.id)) held.push(x);
   return { act, held };
 }
 
@@ -638,4 +747,4 @@ function timelineDiff(before, after) {
   };
 }
 
-module.exports = { FALLBACKS, MAJOR, TRIGGER_KINDS, effective, reportFrom, crossed, buildTimeline, at, goingInto, playedIn, groupChoices, heldThrough, groupSlots, slotRecords, sideStages, stageTriggers, castAt, newcomersIn, newcomerCues, groupWord, unstaged, groupLabel, groupFacts, timelineDiff };
+module.exports = { FALLBACKS, MAJOR, TRIGGER_KINDS, effective, reportFrom, crossed, buildTimeline, at, goingInto, playedIn, groupChoices, heldThrough, groupSlots, slotRecords, sideStages, sideTriggers, stageTriggers, groupsGone, withGone, castAt, newcomersIn, newcomerCues, groupWord, unstaged, groupLabel, groupFacts, timelineDiff };

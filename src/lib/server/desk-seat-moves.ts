@@ -7,6 +7,7 @@ import { noLinkFor } from "@/lib/desk-seat-words";
 import { LAST_ACTIVE } from "./last-active";
 import { isUuid, type SessionUser } from "./auth-helpers";
 import { freeSeat, takeOut } from "./backstage-members";
+import { dropBlindPicksForPlayer } from "./blind-draft";
 import { recordChange, type MemberUndo } from "./change-log";
 import { joinedLeague, stayedOnCouch } from "./couches";
 import { likeOf, pool, withLeagueLock, HttpError } from "./db";
@@ -17,6 +18,14 @@ import { restoreMember } from "./league-changes";
 import { notifyDeskSeat } from "./push-events";
 import { LEAGUE_ROLES, lastCommissionerProblem, type LeagueRole } from "./roles";
 import { WAITING } from "./way-in";
+import { stagesBegun } from "./stages";
+
+/** Whether the draft has moved on since `picks` picks: a game in stages (step A12 part 4c) has no draft of its own, so any stage begun
+ *  since (a seat that went from one went before any had: backstage-members.ts freeSeat). */
+async function movedOn(s: LeagueState, client: Pick<PoolClient, "query">, leagueId: string, picks: unknown): Promise<boolean> {
+  if ((s.draftPicksMade ?? 0) !== picks) return true;
+  return StateLogic.StageLogic.on(s) && (await stagesBegun(client, leagueId));
+}
 
 // A game's seats on the desk (docs/PLAN-desk-parity.md step 6, part 6b; the mock's desk-games.js dgSeatsHTML, dgLinkSheet,
 // dgTakeOut, dgEmptySheet and dgOutSheet). A seat is a place in a game (its team, picks and scores) with one account signed in
@@ -260,7 +269,8 @@ export async function gameSeats(user: SessionUser, leagueId: string): Promise<Ga
     computer: players(s)
       .filter((p) => p.automated && !p.disabled)
       .map((p) => ({ playerId: p.id, name: p.name, level: LEVEL_WORDS[levelOf(p as Parameters<typeof levelOf>[0])] })),
-    drafted: (s.draftPicksMade ?? 0) > 0,
+    // A game in stages (step A12 part 4c): once any stage has begun, as freeSeat reads it.
+    drafted: (s.draftPicksMade ?? 0) > 0 || (StateLogic.StageLogic.on(s) && (await stagesBegun(pool, leagueId))),
     noLink: noLinkFor(g.solo),
   };
 }
@@ -626,6 +636,29 @@ export async function removeSeat(user: SessionUser, leagueId: string, playerId: 
   return { changeId, text: `${name}'s seat is out of ${g.name}` };
 }
 
+/**
+ * Erases a seat that's out of the game (tier 3, no Undo; the user, 2026-10-31): someone who left after a draft, or whose account
+ * was deleted, kept in the standings unplayed until now. Their team, picks and scores leave the game as if they never played, and
+ * the tables recount without them; a castaway only they had goes back undrafted. Never a seat someone's signed in to.
+ */
+export async function eraseSeat(user: SessionUser, leagueId: string, playerId: string): Promise<{ text: string }> {
+  const g = await gameOf(leagueId);
+  let name = "";
+  await withLeagueLock(leagueId, async (s, client) => {
+    const seat = players(s).find((p) => p.id === playerId);
+    if (!seat || !seat.disabled) throw new HttpError(409, "Only a seat that's out of the game can be erased");
+    const { rows } = await client.query("SELECT 1 FROM league_memberships WHERE league_id = $1 AND player_id = $2 FOR UPDATE", [leagueId, playerId]);
+    if (rows.length) throw new HttpError(409, "Someone's signed in to that seat now");
+    name = seat.formerName || seat.name;
+    StateLogic.removePlayer(s, playerId);
+    await dropBlindPicksForPlayer(client, leagueId, playerId);
+    StateLogic.BlindDraftLogic.setLockedPlayerIds(s, StateLogic.BlindDraftLogic.lockedPlayerIds(s).filter((id) => id !== playerId));
+    await recordChange(client, leagueId, null, { userId: user.id, kind: "member", tier: 3, text: `Erased ${name}'s seat: their team and scores left the game`, batch: crypto.randomUUID() });
+    await logDesk(client, { entity: "game", entityId: leagueId, action: "erase-seat", text: `Erased ${name}'s seat`, before: { playerId, name }, userId: user.id });
+  });
+  return { text: `${name}'s seat is erased from ${g.name}` };
+}
+
 // ---------- Undo ----------
 
 /** The desk's lines from the same change (the person's), marked undone with the one that carried the Undo. */
@@ -713,7 +746,7 @@ export async function restoreSeatMove(user: SessionUser, changeId: string, u: Re
         if (!me || me.player_id !== playerId) throw new HttpError(409, "Their seat has changed since: it can't go back");
         const problem = lastCommissionerProblem(rows.map((r) => ({ userId: r.user_id, role: r.role })), userId, "member");
         if (problem) throw new HttpError(409, problem);
-        if (u.added && (s.draftPicksMade ?? 0) !== u.picks) throw new HttpError(409, "The draft has moved on since: take them out from their seat instead");
+        if (u.added && (await movedOn(s, client, leagueId, u.picks))) throw new HttpError(409, "The draft has moved on since: take them out from their seat instead");
         const seat = players(s).find((p) => p.id === playerId);
         // The app's rule, as when they went: before a draft the seat goes, after one it's disabled again.
         await freeSeat(s, client, leagueId, seat, userId);
@@ -733,7 +766,7 @@ export async function restoreSeatMove(user: SessionUser, changeId: string, u: Re
         const { rows } = await client.query("SELECT 1 FROM league_memberships WHERE league_id = $1 AND player_id = $2", [leagueId, playerId]);
         if (rows.length) throw new HttpError(409, "Someone's signed in to that seat since");
         if (u.added) {
-          if ((s.draftPicksMade ?? 0) !== u.picks) throw new HttpError(409, "The draft has moved on since: it can't go back");
+          if (await movedOn(s, client, leagueId, u.picks)) throw new HttpError(409, "The draft has moved on since: it can't go back");
           await freeSeat(s, client, leagueId, seat, "");
         } else StateLogic.disablePlayer(s, playerId);
         if (u.lineId) await client.query("UPDATE league_changes SET undone_at = NULL, undone_by = NULL WHERE id = $1", [String(u.lineId)]);
@@ -747,7 +780,7 @@ export async function restoreSeatMove(user: SessionUser, changeId: string, u: Re
         const seat = players(s).find((p) => p.id === playerId);
         if (u.went) {
           if (seat) throw new HttpError(409, "That seat is back already");
-          if ((s.draftPicksMade ?? 0) !== u.picks) throw new HttpError(409, "The draft has moved on since: put the seat back from the game's page");
+          if (await movedOn(s, client, leagueId, u.picks)) throw new HttpError(409, "The draft has moved on since: put the seat back from the game's page");
           StateLogic.addPlayer(s, String(u.name));
         } else {
           if (!seat || !seat.disabled || seat.disabledFromUserId) throw new HttpError(409, "That seat is back already");

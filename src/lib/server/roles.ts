@@ -1,5 +1,5 @@
 import type { PoolClient } from "pg";
-import { pool, HttpError } from "./db";
+import { pool, HttpError, syncStagesFor } from "./db";
 
 // League roles (db/migrations/0105): Commissioner (results, waivers, rules and roles), Game admin (results and
 // waivers, can pick for people in a draft; not rules or roles) and member. Roles can be handed off or shared;
@@ -47,6 +47,8 @@ export async function setLeagueRole(
     await client.query("UPDATE league_memberships SET role = $3 WHERE league_id = $1 AND user_id = $2", [leagueId, userId, role]);
     await inside?.(client, rows.find((r) => r.user_id === userId).role);
     await client.query("COMMIT");
+    // A game in stages (step A12 part 4c): the role in each stage too, now it's committed (no write to the game would carry it).
+    await syncStagesFor([leagueId]);
     return role as LeagueRole;
   } catch (e) {
     await client.query("ROLLBACK");

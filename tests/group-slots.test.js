@@ -39,7 +39,8 @@ test("group slots: their shape, defaults, words and settings; what they wait for
   assert.equal(G.flagsOf(G.fullSpec(LINEUP)).hasGroupSlots, false);
   // Best ball takes them too: what counts is the moments its members earn.
   assert.deepEqual(at(slotted({}, { ...LINEUP, count: { best: 2 } })), []);
-  // 1 or 2; shared or exclusive; swap a boolean; void or carry-on (next-stage A12's); mean or sum; a draft scored by moments.
+  // 1 or 2; shared or exclusive; swap a boolean; void or carry-on (next-stage a stage's: A12 part 2b); mean or sum; a draft scored by
+  // moments.
   assert.deepEqual(at(slotted({ slots: 0 })), ["get.groups.slots"]);
   assert.deepEqual(at(slotted({ slots: 3 })), ["get.groups.slots"]);
   assert.deepEqual(at(slotted({ own: "mine" })), ["get.groups.own"]);
@@ -49,7 +50,8 @@ test("group slots: their shape, defaults, words and settings; what they wait for
   assert.deepEqual(at(slotted({ slots: 1, size: 2 })), ["get.groups.size"]);
   assert.deepEqual(at({ ...G.PRESETS.outlast, get: { ...G.PRESETS.outlast.get, groups: { slots: 1 } } }), ["get.groups"], "Outlast scores places, not what a group's people do");
   assert.deepEqual(at({ ...G.PRESETS["survival-pool"], get: { by: "pick", each: 1, repeat: "cycle", groups: { slots: 1 } } }), ["get.groups"], "only a draft");
-  assert.deepEqual(G.specWaitsFor(slotted({ fallback: "next-stage" })).map((w) => [w.at, w.step]), [["get.groups.fallback", "later"]]);
+  assert.deepEqual(G.specWaitsFor(slotted({ fallback: "next-stage" })), []);
+  assert.deepEqual(at(slotted({ fallback: "next-stage" })), ["get.groups.fallback"], "alone there's no next stage to start");
   // The settings, both ways (and none written for a game without them).
   const fields = G.settingsOf(slotted({ slots: 2, own: "exclusive" }));
   assert.deepEqual(fields.groupSlots, { slots: 2, own: "exclusive", swap: false, fallback: "void", points: "mean" });

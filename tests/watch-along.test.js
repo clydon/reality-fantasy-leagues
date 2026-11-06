@@ -73,10 +73,12 @@ test("runtimes as people read them, and back", () => {
   assert.equal(W.parseRuntime("999:00"), null, "past six hours");
 });
 
-test("what a reaction may carry: GIPHY's own pictures only, a tidy comment", () => {
+test("what a reaction may carry: KLIPY's own pictures (GIPHY's, sent before) only, a tidy comment", () => {
   const gif = { id: "xT0xeJpnrWC4XWblEk", url: "https://media4.giphy.com/media/xT0xeJpnrWC4XWblEk/200w.webp?cid=1&rid=200w.webp", w: 200, h: 113, title: "  slow   clap " };
   assert.deepEqual(W.cleanGif(gif), { ...gif, title: "slow clap" });
-  assert.ok(W.giphyUrl("https://i.giphy.com/x.gif"));
+  assert.ok(W.gifUrl("https://i.giphy.com/x.gif"));
+  assert.ok(W.gifUrl("https://static.klipy.com/ii/x.gif"));
+  assert.equal(W.gifUrl("https://klipy.com.evil.example/x.gif"), false);
   assert.equal(W.cleanGif({ ...gif, url: "http://media4.giphy.com/x.gif" }), null, "https only");
   assert.equal(W.cleanGif({ ...gif, url: "https://evil.example/giphy.com.gif" }), null, "another host");
   assert.equal(W.cleanGif({ ...gif, url: "https://media.giphy.com.evil.example/x.gif" }), null);

@@ -61,7 +61,7 @@ export interface ShowBarShow {
 
 /**
  * The show bar. `tall`: Tonight's big header, the name large with `below` under it (the couch line); otherwise
- * compact and sticky, with `title` (default "Survivor · S51").
+ * compact and sticky, with `title` (default "Survivor · S51"). `progress`: along its foot (Getting it ready's line).
  */
 export function ShowBar({
   show,
@@ -71,6 +71,7 @@ export function ShowBar({
   menu,
   title,
   below,
+  progress,
 }: {
   show: ShowBarShow;
   tall?: boolean;
@@ -79,6 +80,7 @@ export function ShowBar({
   menu?: ReactNode;
   title?: ReactNode;
   below?: ReactNode;
+  progress?: ReactNode;
 }) {
   const season = show.seasonNumber ? `S${show.seasonNumber}` : null;
   // A wide image fills the tall bar under the same fade, so the name sits on its dark left; a poster keeps to the right.
@@ -134,6 +136,7 @@ export function ShowBar({
       ) : (
         <b className="type-caption block px-2 pt-2.5 text-[20px]">{title ?? (season ? `${show.name} · ${season}` : show.name)}</b>
       )}
+      {progress}
     </header>
   );
 }
@@ -146,7 +149,11 @@ const TAB_META: Record<ShowTab, { label: string; icon: LucideIcon }> = {
   chat: { label: "Chat", icon: MessageCircle },
 };
 
-/** The show's tabs. A tab move replaces the history entry: back from any tab leaves the show. */
+/** What a tab is called: the show's own word ("Schedule", "Players") where it has one. */
+export const tabLabel = (tab: ShowTab, labels?: Partial<Record<ShowTab, string>> | null) => labels?.[tab] ?? TAB_META[tab].label;
+
+/** The show's tabs. A tab move replaces the history entry: back from any tab leaves the show, or returns to the tab a
+ *  link jumped from (a jump pushes); tapping that tab goes back to it (NavLink), so it's never in the history twice. */
 export function TabBar({
   seasonId,
   tabs,
@@ -172,7 +179,7 @@ export function TabBar({
     >
       {tabs.map((tab) => {
         const { icon: Icon } = TAB_META[tab];
-        const label = labels?.[tab] ?? TAB_META[tab].label;
+        const label = tabLabel(tab, labels);
         const on = tab === current;
         const badge = badges[tab];
         return (

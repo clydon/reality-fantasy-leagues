@@ -377,10 +377,11 @@ async function settleAsk(pool, seasonId, episode, ok, message, found) {
       WHERE a.season_id = $1 AND a.episode_number = $2 AND a.done_at IS NULL
         AND ($3 OR (SELECT count(*) FROM bot_research_runs r WHERE r.season_id = a.season_id AND r.episode_number = a.episode_number
                       AND r.slot = $6 AND r.started_at >= a.asked_at) >= $7)
-      RETURNING a.asked_by, a.asked_at`,
+      RETURNING a.asked_by, a.asked_at, a.quiet`,
     [seasonId, episode, ok, String(message || "").slice(0, 300), ok ? found : null, ASKED_SLOT, ASKED_TRIES]
   );
-  return rows[0] ? { userId: rows[0].asked_by, askedAt: rows[0].asked_at, ok, found: ok ? found : null, message: ok ? null : message } : null;
+  // quiet (0161): Getting it ready's own ask, whose one notification comes when everything's in (season-fill.ts tellReady).
+  return rows[0] ? { userId: rows[0].asked_by, askedAt: rows[0].asked_at, ok, found: ok ? found : null, message: ok ? null : message, quiet: !!rows[0].quiet } : null;
 }
 
 /**
@@ -580,7 +581,7 @@ function buildSchedulePrompt(showName, season, episode, airedAt, tz) {
     "Reply with only this JSON, in a ```json code block:",
     '{"found": true, "airsAt": "2026-11-04T20:00:00-05:00", "minutes": 90, "note": null, "sources": ["https://..."]}',
     "",
-    `- airsAt: when episode ${episode + 1} starts, ISO 8601 with the UTC offset of the time zone it's announced in. If the show takes a week off, the date of the next one that does air.`,
+    `- airsAt: when episode ${episode + 1} starts, ISO 8601 with the UTC offset of the time zone it's announced in, as it is on that date (after a clock change, the new one). If the show takes a week off, the date of the next one that does air.`,
     "- minutes: how long it runs, ads included (60, 90, or 120 for a two-hour episode). Null if not announced.",
     "- note: anything unusual in a few words ('after a week off', 'two-hour finale'), else null.",
     `If you can't find a source for when episode ${episode + 1} airs, set "found" to false. Never guess from earlier seasons or a usual pattern.`,

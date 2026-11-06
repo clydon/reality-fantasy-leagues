@@ -167,7 +167,8 @@ export interface DeskSeatGame {
   alone: boolean;
   /** How many others are signed in to its seats (who it could be handed to). */
   others: number;
-  /** It has drafted: a seat that's let go stays in the standings, unplayed (before a draft, or with none, it goes). */
+  /** It has drafted: a seat that's let go stays in the standings, unplayed (before a draft, or with none, it goes; so does a late
+   *  joiner's still catching up, backstage-members.ts freeSeat). */
   drafted: boolean;
   /** A practice game or a public pool (no couch). */
   solo: "practice" | "public" | null;
@@ -215,7 +216,9 @@ export async function deskPerson(user: SessionUser, id: string): Promise<DeskPer
     pool.query(
       `SELECT l.id, l.name, l.couch_id, c.name AS couch, m.role, l.solo, l.state->'settings'->>'leagueTypeId' AS type,
               (SELECT count(*)::int FROM couch_members x WHERE x.couch_id = l.couch_id) AS people, ${LEAGUE_SEASON_NAME} AS season,
-              COALESCE((l.state->>'draftPicksMade')::int, 0) > 0 AS drafted,
+              COALESCE((l.state->>'draftPicksMade')::int, 0) > 0 AND NOT EXISTS (
+                SELECT 1 FROM jsonb_array_elements(COALESCE(l.state->'players', '[]'::jsonb)) p
+                 WHERE p->>'id' = m.player_id AND p->'lateJoin'->>'catchingUp' = 'true') AS drafted,
               (SELECT count(*)::int FROM league_memberships o WHERE o.league_id = l.id AND o.user_id <> m.user_id) AS others,
               m.role = 'commissioner' AND NOT EXISTS (SELECT 1 FROM league_memberships o WHERE o.league_id = l.id AND o.user_id <> m.user_id AND o.role = 'commissioner') AS alone
          FROM league_memberships m JOIN leagues l ON l.id = m.league_id LEFT JOIN couches c ON c.id = l.couch_id

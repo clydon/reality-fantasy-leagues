@@ -66,6 +66,16 @@ Last updated 2026-10-27.
    - **Places that don't know the end yet:** the classic app's catch-up reveal (`RevealLogic.isComplete`, `revealNext`),
      Backstage's open episodes (`backstage.ts` `takes`), and How it works' updates (they say only where a game starts).
 
+32. **Watch-along sync by microphone (an idea, not planned: the user, 2026-10-30).** Passive sync for watching together:
+    live watchers opt in to the microphone and their audio becomes the baseline; everyone watching later syncs to it
+    automatically, the mic listening until the episode's set length ends. Only a small signature is stored, never audio (a
+    sparse audio fingerprint, roughly 15-60 KB per hour of broadcast, once per episode; nothing per viewer). Anchored to the
+    live broadcast's clock, so a later viewer sees what the couch did up to the same moment, and ads simply don't match.
+    Known limits: a web app's microphone stops when the phone locks or the app is in the background (true background
+    listening needs a native app); headphones leave nothing to hear (fall back to "tap the last moment you saw"); it must be
+    opt-in, show that it's listening, and get a legal check on consent before launch. **When:** if the user picks it up, with
+    the watch along (A15 in docs/PLAN-start-a-game-gpt.md); its first step would be a test with two phones on one clip.
+
 ## Open: small or polish
 
 8. **League swipe tuning.** Everything is a constant at the top of `league-swipe.tsx`: DEAD_ZONE
@@ -241,6 +251,152 @@ Last updated 2026-10-27.
       (Episode 5's Maggie); two runs count as one source, so a miss the second run fixes still waits for a second source.
       Worth a line in the full-results prompt about every tribe that won something, first place or not.
     - **When:** the next session on results or the desk; the first is the user's call.
+
+29. **Things the engine merge noticed and left (2026-10-30, the A1-A11 part 5b merge, df527fe6).**
+    - `tapes.js load below-deck 12` fails on a database where Below Deck 12 is already set up (a production copy: rfl-merge's):
+      the tape's answers are parsed against that season's rulebook, which asks `notableTwist` of every crew member, and the
+      tape's first episode leaves it out. The engine lane's database loaded it before that rulebook. Either load parses
+      against the tape's own rules, or the rulebook's field is optional. **When:** the playtest lane's next session.
+    - `check-questions.js`'s browser half hadn't run since A9 (the engine lane ran its `--api` half): its This week row
+      check didn't wait for the Games read (fixed in the merge, 555e6c1e). The engine's other browser checks may want a run
+      on a cold dev server too. **When:** the engine lane, at R or U1.
+    - **Survivor 51's Episode 7 said Wed 7:00 PM ET** (fixed 2026-10-30, the merge's live check): research of Episode 6 filed
+      its start as `20:00-04:00`, daylight time's offset, for a night after the clocks go back (Sunday 2026-11-01), and an exact
+      start wins over the season's 8 PM America/New_York, so lineups would have locked an hour early. `Air.exactInZone` now
+      reads an offset that is the zone's other one as the announced time in the season's zone (`nextEpisodeFrom`, which the
+      full research and the schedule check both file through), both prompts ask for the offset in force on that date, and
+      `tests/dst.test.js` covers every schedule edge a clock change touches. In production, the desk's Run now of the
+      schedule check refiled it: "Episode 7: Wed, Nov 4, 8:00 PM EST, 90 min"; the hub says Wed 8:00 PM.
+    - **Backstage and an episode's results answered 500 for Survivor 51's couch from 2026-10-29 to 10-30** (fixed at the merge's
+      live check): Make every game match records a game's own result it took out as `own:<kind>:<id>` (season-decisions.ts),
+      and `couchCorrections` read every correction's id as a season decision's uuid. It reads only decision ids now, and such a
+      correction offers no ruling to keep (`keepable`); `check-match-season.js` reads both after Make every game match.
+
+30. **check-sheet-back.js hangs about one run in four (noticed 2026-10-30, checking the show's ⋯ menu before its merge).** After
+    the hub's guide case ("back again goes where the hub came from": a back to /settings that loads the page in full), its
+    `page.close()` never returns, and Playwright's close has no timeout, so the check sits until it's killed. `DEBUG=pw:api`
+    shows `page.close started` with nothing after it. It happens on master's code without the menu change too (c10b4258's
+    `src/new`), so it's the check or Chromium, not the app; every run that gets past it passes all 27 cases. Close the case's
+    page with a timeout (or leave it to `browser.close()` at the end), and look at why the close hangs (a back-forward-cache
+    restore? the service worker?). **When:** whoever next runs or extends check-sheet-back.
+
+31. **Desk rows didn't open their sheets on a mouse click from Claude in Chrome (noticed 2026-10-30, setting Survivor 51's
+    episode count to 13 in production).** On the desk's season Setup page at desktop width, Episodes and When it airs did
+    nothing when clicked (by element and by coordinate, three tries), with no console error; the page was hydrated and the
+    row's React onClick was there, and `element.click()` from the page opened the sheet at once (the stepper and Save then
+    worked as normal). Sign in's button clicked fine the same way. Either the extension's clicks don't reach `nd-press` rows
+    (a gesture layer, phone-back.tsx's edge swipe, or the press style?) or a real desktop mouse can't open them either: try a
+    real mouse on the desk first. **When:** the next desk or nd-press change; until then a Chrome session opens a row with
+    `document.querySelector('[data-desk-row="<name>"]').click()`.
+
+33. **Things the Games tab's "what everyone's doing" left (noticed 2026-10-30, building it on games-insight; the 2026-10-30
+    mock).** (a) A game with group slots (A10) or best ball gets weeks too, but its sheet and episode view show castaways where
+    a slot holds a group: the generated game pages (track V) should draw a slot's group. (b) Survival Pool's sheet could step
+    through episodes the way Weekly Lineup's does (picks are decided per episode; who's still pickable is public), and
+    Outlast's could say what each castaway's points would be if they won. (c) `use-sheet-swipe.ts` has a lint error on master
+    (`react-hooks/immutability`, writing the scrim ref's style in `reset`); the sideways-drag guard added here didn't cause it.
+    (d) Arriving on Games from a game's line waits for the tab's slide and the tables to settle (about a second and a half),
+    since a glide started earlier is cut short; a page that renders its tables at once would land sooner. **When:** (a, b)
+    track V's blocks; (c) the next change to that hook; (d) if anyone finds the wait long.
+
+34. **Settings' controls under the floor (noticed 2026-10-31, the /impeccable critique of the Settings redesign mocks).** In
+    the app today (`src/new/settings/controls.tsx`, `Btn`): outlined buttons (Edit, Turn on/off) are 40px tall, under the
+    44px target; their edge (`outline-input`, Field Line), an unselected radio ring and an off switch's track are 1.2-1.6:1
+    against the ground, under WCAG 1.4.11's 3:1 (the knob still shows on/off). **Done in Settings 2026-10-31** (the
+    redesign, option D): a Control Edge token (`--edge`: Night #75708a, Studio #7a748a; DESIGN.md), 44px outlined buttons,
+    the radio ring and the off switch's track (controls.tsx, shared with a show's Notifications sheet). **Left:** `Btn`'s
+    optional tone app-wide is still `outline-input` (40-52px, faint edge on every screen); moving it to `outline-edge` is a
+    look change everywhere. **When:** a polish pass over the whole app, checked in Night and Studio.
+
+35. **The welcome page's "Nothing on" is too faint (noticed 2026-10-31, check-new-studio.js while checking the Settings
+    redesign).** `src/components/landing/landing-page.tsx` (its TV guide's empty day) colours it `var(--field)`: 1.37:1 on
+    Night, 1.89:1 on Studio, under 3:1. It only shows on a day with nothing on, so the check fails some days and not others.
+    **When:** the next change to the landing page (muted text instead of the field line).
+
+36. **The test couch's backend is dormant (2026-10-31, the user: delete the test players and the switcher).** Production's test
+    couch was removed through its own Remove (`DELETE /api/test-couch`: its 3 games, couch and 4 test players), and Settings' Test
+    couch fold and the profile menu's test-player switches are gone, with check-test-couch.js. What's left, unreachable from any
+    screen: `/api/test-couch`, `src/lib/server/test-couch.ts` and `test-players.ts`, the `test_couches`/`test_players` tables, the
+    engine lab's "your test couch" option (engine-lab.ts), the desk's test-couch marks (desk-couches.ts) and Act as them's
+    `from: "test-couch"` (desk-person-actions.ts, `api.actAsTestPlayer`). `src/lib/game/shadow.ts` is shared with the local shadow
+    leagues and stays. **When:** step C's cleanup (a migration drops the two tables).
+
+37. **What Couch points left (noticed 2026-10-31, building Couch points and By the numbers' ties).**
+    - **Done the same day (the user: yes): the moves kept in a game's state count** (src/lib/game/couch-moves.ts): a pool pick an
+      episode, the player's own draft picks (before the draft log, what an exclusive draft gave them), a lineup that's their first
+      or brings someone in, at the episode's airtime (never before the game was made: a catch-up game plays old episodes now).
+      **Left:** a lineup change that only benches someone isn't told apart from carrying it forward (which only drops people),
+      so it doesn't count; a public pool's "Who goes home?" calls (`episodes[].calls`) don't count as moves.
+    - **Tonight's Stats card has the same tie** (`src/new/show/stats.tsx` StatsCard and StatRows): Stat of the week takes
+      `statBoard(d, key)[0]`, and the short boards number a tie 1, 2, 3. `leadWorthNaming` (couch-standings.ts) is the rule to
+      reuse. **When:** the next change to Tonight's stats.
+    - **Most-watched show picks one show on a tie** (accoladesOf `watched`); leadWorthNaming could decide it too.
+    - **`user_days` isn't in the backup** (like `user_last_seen`): a restore loses who opened the app which days (a point a day).
+    - **A day is Eastern's** for the chat cap, the days opened and the year (as desk-couches.ts counts a month); a couch elsewhere
+      would want its own zone.
+    - **Couch points count what someone did whatever What your couch sees says** (reactions, watch alongs): only totals show,
+      never what or when. A private follow is left out (the hub's rule for follows).
+    - **Done 2026-11-01 (with the tour's fixes): `tests/watch-along.test.js` failed on master** ("what a reaction may carry"):
+      the KLIPY change (1c7cedc1) renamed `giphyUrl` to `gifUrl` and left its test. It calls `gifUrl` now, with a KLIPY host and
+      a look-alike one.
+    - **check-new-hub's grow note** asked `isVisible` the instant the address changed and failed twice in a row on a busy
+      machine; it now waits for the page to slide in.
+38. **What the first-time tour left (noticed 2026-10-31, building it on branch `tour`; docs/PLAN-first-time-tour.md).**
+    - **Nothing reads `tour_reached` yet** (the furthest step an account got to, kept with `tour_seen_at`): a line on the desk's
+      person page, or a count of who skipped where, would say whether the tour's too long. **When:** the next desk people change.
+    - **The three show pictures in `public/tour/`** (Survivor, The Traitors, Pluribus) are the site mock's art, with the same
+      open question as /mock (PRODUCT.md: network key art has no confirmed usage rights). If that's settled against, the
+      examples can take the player's own shows' art (the home read has it) or the art-less placeholder.
+    - **Turn on is two colours across the app:** the reminder sheet's and the tour's are the bone ink button (yellow is for what
+      you must do), Settings' "this phone" plate is yellow. The tour follows the sheet. **When:** the next reminders change.
+    - **new-fixture.js's shows carry art the home read never shows** (it takes the season's `art_url` first, and the fixture's
+      seasons have none), so screenshots of the fixture's Home are art-less unless the seasons get it.
+    - **A player on several couches** gets the tour on the couch Home opens with; nothing in it says how to switch couches
+      (the profile sheet does). Left out on purpose: the simpler the better.
+    - **check-new-hub's "and one in the deck, never a tied one" can fail on a cold server** (seen once shipping the tour, on
+      a lane's first run; 106 of 106 straight after): it reads By the numbers' deck 700 ms after the accolades list shows, and
+      the deck waits for every show's stats read (the skeleton until then). It should wait for `[data-stat-deck]`, or for the
+      skeleton to go. **When:** the next change to check-new-hub.
+    - **Version 2's practice shows in production:** done 2026-11-01 for The Amazing Race 39 (the desk's New show, then Make it a
+      game with the bot); The Challenge has no current season (42 ended 2026-10-28). **When:** its next season, make it a game
+      the same way, or the tour skips it.
+    - **The Amazing Race 39's make review said "Who's playing · 26 teams"**: they're 26 racers in 13 pairs. The bot's cast says
+      `unit: "teams"` while its faces are people, and the pairs aren't grouped (`who.groups` empty), so a Survival Pool or Outlast
+      on it picks a racer, not a team. Approved as drafted (the tour's Prediction Sheet doesn't pick racers). **When:** before the
+      couch starts a pick game on The Amazing Race, or the next change to the make review (it could notice a unit that doesn't
+      match its faces).
+    - **The desk's New show keeps the admin as the show's adder** (`shows.created_by`), so its seasons aren't "curated" and first
+      run's wall leaves them out (The Amazing Race 39 is one). If a show the desk adds should be on the wall, New show could
+      leave `created_by` empty. **When:** the next desk shows change.
+    - **The guide's foot takes two lines at 390 since Sports joined its filters** (version 3: Couch · Competitions · All TV ·
+      Sports, then Add a show wrapped under them). Fine as it stands; if the foot should stay one line, Add a show could shrink to
+      its icon there, or Sports go once sports are added by team (docs/PLAN-sports-add.md). **When:** that plan's UI step.
+    - **Left from the tour's critique (2026-11-01, 26/40; PLAN-first-time-tour.md version 3, The critique):**
+      - **Keyboard and screen readers can't do the steps with a real tap.** Home is inert under the tour, Tap it only shakes, and
+        Enter works only on the tour root. The dismissed welcome card also stays a modal dialog whose buttons can still be tabbed
+        to (welcome.tsx:21-28). Fix: Tap it moves focus to the lit thing (un-inert only it) and announces it; the welcome unmounts
+        once dismissed. **When:** the user's call ("not a big deal to me" for now).
+      - **No resume after a reload or iOS killing the app.** The tour starts over at 1/10 when it's next asked for: keep the step
+        in sessionStorage and offer "Pick up at 6/10?".
+      - **The solo reveal step lights Up next with no Reveal on it** (the made-up reveal has no card of its own).
+      - **The welcome card's "Welcome to" kicker** is banned by the impeccable craft floor; the user approved it in the mock.
+      - **Outside the tour:** the reveal's standings reorder has a bounce easing (reveal.tsx:465, "No bounce" in DESIGN.md), and
+        Home's 10 px game chips and "Not on your list" tag (hub/sections.tsx:456, :671) are under the 11 px floor.
+      - **When:** the next tour change, or the next polish pass on Home and the reveal.
+    - **A poster for a premiere weeks away says only its weekday** ("Season 1 · Fri" for HBO's Harry Potter on Dec 25, seen in the
+      tour's demo): Your shows' poster takes `day()` of the next episode however far off. A date past a week ("Dec 25") would read
+      better, for every show coming back. **When:** the next Your shows change.
+    - **Done 2026-11-01: `tests/watch-along.test.js`** (`W.giphyUrl is not a function`): a quick rename after all (item 37).
+    - **The guide's week is as tall as its fullest night** (seen 2026-11-01 with the tour check's long shelf: four shows on one
+      Monday made every night's column about 700 px, mostly empty, at 390). The tour keeps the guide's filters in sight now
+      (PLAN-first-time-tour.md, "Trying it again"); the guide itself could show a night's first few cards and "N more", as All TV
+      does. **When:** the next guide change.
+    - **The tour's demo leans on two TV listings by id** (HBO's Harry Potter 68803 and Saturday Night Live 361, in tour/plan.ts;
+      SNL took the NFL's weekly game's place on 2026-11-01, sports not being set up yet). If TVmaze renumbers, the demo passes
+      that show over (its row never comes) and says what it did add. Off its season SNL has no night in the guide that week.
+      **When:** SNL's summer break (June to September), see what the guide step shows without it.
+
+
 
 ## Decided against (don't re-propose without new information)
 

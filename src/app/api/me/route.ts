@@ -7,6 +7,7 @@ import { uiOf, withUiCookie } from "@/lib/server/ui-choice";
 import { themeOf, withThemeCookie } from "@/lib/server/appearance";
 import { keepTimeZone } from "@/lib/server/notify-prefs";
 import StateLogic from "@/lib/game/state-logic.js";
+import { inClassicList } from "@/lib/game/classic-list";
 import type { LeagueState } from "@/lib/game/types";
 
 // Combines Better Auth's own session with this app's league_memberships table -- matches the
@@ -19,23 +20,35 @@ export const GET = apiRoute(async (req) => {
   const { user, session } = await requireSession(req);
   // The time zone this phone is in (`?tz=`, step 15 part 2), so a push says the reader's time; written only when it's changed.
   if (!(session as { impersonatedBy?: unknown }).impersonatedBy) await keepTimeZone(user.id, new URL(req.url).searchParams.get("tz"));
-  const { rows } = await pool.query(
-    `SELECT l.id, l.name, l.join_code, m.role, l.state, l.group_id, l.group_position, g.favorite_league_id,
+  // Each league's settings only (as `state.settings`), all that's read of it here (which game it is, its show and season): the
+  // 20-40 KB states stay in the database.
+  const { rows: all } = await pool.query(
+    `SELECT l.id, l.name, l.join_code, m.role, jsonb_build_object('settings', l.state->'settings') AS state, l.group_id, l.group_position, g.favorite_league_id,
             g.name AS group_name, s.name AS show_name
        FROM league_memberships m
        JOIN leagues l ON l.id = m.league_id
        LEFT JOIN league_groups g ON g.id = l.group_id
        LEFT JOIN shows s ON s.slug = l.state->'settings'->>'showId'
       WHERE m.user_id=$1 AND l.solo IS DISTINCT FROM 'public'
-        AND COALESCE(l.state->'settings'->>'leagueTypeId', '') NOT IN ('weekly-calls', 'weekly-bingo', 'questions')
       ORDER BY l.name`,
     [user.id]
   );
+  // Classic lists no game scored outside its state (Weekly Calls, Weekly Bingo, a game of questions: the new design's only), by
+  // each game's pieces (classic-list.ts, step R1 part 2 of docs/PLAN-start-a-game-gpt.md), never its stored type in SQL.
+  // A league whose state can't be read still lists (unsorted, last) -- this route is sign-in itself.
+  const listed = (state: LeagueState) => {
+    try {
+      return inClassicList(state);
+    } catch {
+      return true;
+    }
+  };
+  const rows = all.filter((r) => listed(r.state));
   // Each league's type and show resolved here, and the list returned already in display order
   // (Active Roster, Classic, Eliminator Pool, then anything else; alphabetical within), so the
   // league dropdowns render sorted on first paint instead of re-sorting once a per-league
   // state fetch lands.
-  // A league whose state can't be read still lists (unsorted, last) -- this route is sign-in itself.
+  // Its name is classic's label for it, the league type's ("Active Roster"): a screen's words, which step R3 takes to the spec's.
   const typeOf = (state: LeagueState) => {
     try {
       return StateLogic.getLeagueType(state).name as string;

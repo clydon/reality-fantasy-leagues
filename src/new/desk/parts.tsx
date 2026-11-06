@@ -591,11 +591,11 @@ export function Text({ label, value, onChange, placeholder, data, multiline }: {
 }
 
 /** A number, with − and + (44px each). `step` for points (0.5). */
-export function Stepper({ label, value, onChange, min = 0, max = 999, step = 1, data }: { label: string; value: number; onChange: (v: number) => void; min?: number; max?: number; step?: number; data?: string }) {
+export function Stepper({ label, value, onChange, min = 0, max = 999, step = 1, data }: { label: React.ReactNode; value: number; onChange: (v: number) => void; min?: number; max?: number; step?: number; data?: string }) {
   const set = (v: number) => onChange(Math.max(min, Math.min(max, Math.round(v / step) * step)));
   return (
     <div data-question={data} className="mt-4 flex items-center gap-3 first:mt-0">
-      <b className="min-w-0 flex-1 text-[15px]">{label}</b>
+      {typeof label === "string" ? <b className="min-w-0 flex-1 text-[15px]">{label}</b> : <div className="min-w-0 flex-1">{label}</div>}
       <button type="button" aria-label="Less" data-step="-1" onClick={() => set(value - step)} className="grid size-11 place-items-center rounded-[3px] bg-secondary">
         <Minus className="size-4" aria-hidden />
       </button>

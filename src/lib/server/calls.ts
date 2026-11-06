@@ -420,6 +420,13 @@ export async function callEpisode(
 
 // ---------- what the season games read ----------
 
+/** `n` more for `userId` at `episode`, in a count by episode (callRights' and bingo.ts bingoLines' byEpisode: step A12 part 4a). */
+export function addAt(byEpisode: Map<number, Map<string, number>>, episode: number, userId: string, n: number): void {
+  const at = byEpisode.get(episode) ?? new Map<string, number>();
+  at.set(userId, (at.get(userId) ?? 0) + n);
+  byEpisode.set(episode, at);
+}
+
 /**
  * How many calls each of these people got right on a season, from episode `from` through `through` (a viewer's mark), as the
  * season's results (or, a talk show's, the couch's says: `couchId`'s people who share the show) settle them. `only`: some
@@ -428,7 +435,7 @@ export async function callEpisode(
 export async function callRights(
   seasonId: string,
   userIds: string[],
-  opts: { from: number; through: number; couchId: string | null; only?: (key: string) => boolean; book?: CallBook }
+  opts: { from: number; through: number; couchId: string | null; only?: (key: string) => boolean; book?: CallBook; byEpisode?: Map<number, Map<string, number>> }
 ): Promise<Map<string, number>> {
   const out = new Map<string, number>();
   const upTo = Number.isFinite(opts.through) ? opts.through : 100000;
@@ -454,7 +461,12 @@ export async function callRights(
   const verdictFor = (c: MadeCall) =>
     verdictOf(c.key, talk && c.key.startsWith("m:") ? "couch" : "results", facts.get(c.episode) ?? null, said.get(opts.couchId ? `${c.episode}|${c.key}` : `${c.userId}|${c.episode}|${c.key}`) ?? null);
   // Each call against its own verdict (a talk show with no couch settles each person's by their own say).
-  for (const c of calls) if ((!opts.only || opts.only(c.key)) && isRight(verdictFor(c), c.answer)) out.set(c.userId, (out.get(c.userId) ?? 0) + 1);
+  for (const c of calls) {
+    if ((opts.only && !opts.only(c.key)) || !isRight(verdictFor(c), c.answer)) continue;
+    out.set(c.userId, (out.get(c.userId) ?? 0) + 1);
+    // Step A12 part 4a of docs/PLAN-start-a-game-gpt.md: each episode's right calls too, for a stage's table at each episode.
+    if (opts.byEpisode) addAt(opts.byEpisode, c.episode, c.userId, 1);
+  }
   return out;
 }
 
@@ -491,9 +503,10 @@ export async function leagueCalls(o: {
   book?: CallBook;
   now?: Date;
 }): Promise<GameCalls | null> {
-  const type = StateLogic.getLeagueType(o.state);
+  // Step R1 part 2: Weekly Calls by its pieces (a game scored by the show's calls), never a league type.
+  const calls = StateLogic.piecesOf(o.state).hasCalls;
   const pooled = StateLogic.pickEmCallsOn(o.state);
-  if (!type.hasCalls && !pooled) return null;
+  if (!calls && !pooled) return null;
   const now = o.now ?? new Date();
   // A game over a span counts its own shows only (settings.endEpisode).
   const end = StateLogic.endEpisode(o.state);
@@ -506,7 +519,7 @@ export async function leagueCalls(o: {
   const rights =
     start === null
       ? new Map<string, number>()
-      : await callRights(o.seasonId, userIds, { from: start, through, couchId: type.hasCalls ? o.couchId : null, only: pooled ? (k) => k === "out" : undefined, book });
+      : await callRights(o.seasonId, userIds, { from: start, through, couchId: calls ? o.couchId : null, only: pooled ? (k) => k === "out" : undefined, book });
   const right = (p: string) => rights.get(o.userOf(p) ?? "") ?? 0;
   if (pooled) {
     if (!o.playerId) return { right, move: null };
@@ -549,16 +562,19 @@ export async function seasonCastIdOf(seasonId: string, castaway: { name: string;
 
 /**
  * Weekly Calls' move on the home (/api/me/home), beside actionItems' (whose league states don't hold calls): for each of your
- * Weekly Calls games, the next show's calls while you haven't made them all.
+ * Weekly Calls games, the next show's calls while you haven't made them all. Step R1 part 2: a game is Weekly Calls by its pieces
+ * (`states`: each game's, as the home read them, a hash each), never by its stored type; a game whose state wasn't read has none.
  */
 export async function weeklyCallMoves(
   userId: string,
-  games: { leagueId: string; name: string; gameType: string; seasonId: string | null; archived?: boolean; span?: { from: number; to: number } | null }[],
+  games: { leagueId: string; name: string; seasonId: string | null; archived?: boolean; span?: { from: number; to: number } | null }[],
+  states: Map<string, LeagueState>,
   now = new Date()
 ): Promise<{ kind: "calls"; text: string; href: string; leagueId: string; leagueName: string; episode: number; deadline: string; who: "you" }[]> {
   const out = [];
   for (const g of games) {
-    if (g.gameType !== "weekly-calls" || !g.seasonId || g.archived) continue;
+    const state = states.get(g.leagueId);
+    if (!state || !StateLogic.piecesOf(state).hasCalls || !g.seasonId || g.archived) continue;
     const made = await callsMade(userId, g.seasonId, now).catch(() => null);
     if (!made || !made.of || made.made >= made.of) continue;
     // A game over a span asks for no calls past its last show.

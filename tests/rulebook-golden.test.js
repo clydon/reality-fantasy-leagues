@@ -283,6 +283,12 @@ function checkScenarios(frozen) {
     at("Hedy Lamarr", { votesNullified: 2, playedAdvantage: "no" });
     at("Claude Shannon", { individualChallengeFinish: 1, wonIndividualReward: "yes", foundAdvantage: "yes", advantageFoundName: "an idol", notableTwist: "Lost a shoe" });
   });
+  // Two Tribals the same night: the first's immunity winner goes home at the second, and everyone there votes twice.
+  one("a double boot", (p, at) => {
+    at("Ada Lovelace", { wonIndividualImmunity: "yes", leftTheGame: "yes", exitMethod: "Voted Out", attendedTribal: "yes", votesReceived: 4, votedFor: "Grace Hopper" });
+    at("Grace Hopper", { leftTheGame: "yes", exitMethod: "Voted Out", attendedTribal: "yes", votesReceived: 4, votedFor: "Ada Lovelace" });
+    for (const n of ["Alan Turing", "Hedy Lamarr"]) at(n, { attendedTribal: "yes", votesReceived: 0, votedFor: "Ada Lovelace" });
+  });
   one("a missed tribe move", (p, at) => {
     for (const n of ["Ada Lovelace", "Grace Hopper", "Alan Turing"]) at(n, { attendedTribal: "yes", votesReceived: 1, votedFor: "Hedy Lamarr" });
     at("Hedy Lamarr", { attendedTribal: "yes", votesReceived: 3, leftTheGame: "yes", exitMethod: "Voted Out" });
@@ -331,6 +337,10 @@ test("Survivor on its own blocks: research is reviewed the same, problems, repai
     /people at Tribal are recorded voting: check who attended$/, /was at Kele's Tribal but was still on Lavo/,
   ];
   for (const re of reached) assert.ok(seen.some((p) => re.test(p)), `reached: ${re}`);
+  // A double boot is a normal night: neither of the checks that need one vote is made (the rehearsal's item 5).
+  const double = reviewed(format, checkScenarios(frozen).find(([l]) => l === "a double boot")[1]);
+  assert.equal(double.parseError, undefined);
+  assert.deepEqual(double.problems.filter((p) => /despite winning individual immunity|recorded voting/.test(p)), []);
   // Notes say what happened, in survivor.js's words (a few, spelled out).
   const notes = reviewed(format, checkScenarios(frozen).find(([l]) => l === "one person contradicting themselves")[1]).notes;
   assert.deepEqual(notes[2][0], ["found an advantage"], "a find with no name says so");

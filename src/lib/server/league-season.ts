@@ -14,6 +14,8 @@ export const GAME_NAMES: Record<string, string> = {
   "weekly-bingo": "Weekly Bingo",
   // A game of questions (step A4 of docs/PLAN-start-a-game-gpt.md): a sheet of them each episode, and a few for the season.
   questions: "Prediction Sheet",
+  // A game in stages (step A12 part 1): each stage a game of its own, the overall its table. A working name: U0's to settle.
+  stages: "Stages",
 };
 
 /** A league type's name in the new design ("Weekly Lineup"), from settings.leagueTypeId. */

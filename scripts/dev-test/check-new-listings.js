@@ -409,7 +409,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       await shot("add-from-listing");
       await where.locator("[data-where-save]").click();
       await pg.waitForFunction(() => /ZT Prime B 1 added to your shows/.test(document.querySelector("[role=status]:last-of-type")?.textContent ?? "") || [...document.querySelectorAll("[role=status]")].some((x) => /ZT Prime B 1 added/.test(x.textContent)), null, { timeout: 15_000 }).catch(() => {});
-      check([...(await pg.locator("[role=status]").allTextContents())].some((x) => /ZT Prime B 1 added to your shows · not a game yet/.test(x)), "added: ZT Prime B 1, not a game yet", (await pg.locator("[role=status]").allTextContents()).join(" | "));
+      // It gets ready by itself now (Getting it ready), so it isn't "not a game yet" for long.
+      check([...(await pg.locator("[role=status]").allTextContents())].some((x) => /ZT Prime B 1 added to your shows/.test(x)), "added: ZT Prime B 1", (await pg.locator("[role=status]").allTextContents()).join(" | "));
       const primeB = await showOf(990102);
       const primeBSeason = primeB ? (await seasonsOf(primeB.id))[0] : null;
       check(!!primeBSeason && (await pool.query("SELECT following FROM show_follows WHERE user_id = $1 AND season_id = $2", [fx.users.alex, primeBSeason.id])).rows[0]?.following === true, "a show made from its listing, followed by alex");

@@ -8,7 +8,8 @@ import { isUiChoice, withUiCookie, type UiChoice } from "@/lib/server/ui-choice"
 //   showResultsImmediately -- spoiler protection's opt-out (results-seen.ts).
 //   whatsNewSeen           -- the "What's New" release this account last dismissed (whats-new.ts).
 //   accountCreatedAt       -- read-only: an account made after a release doesn't need its "What's New".
-//   ui                     -- the design this account opens on, classic or new (0108, ui-choice.ts).
+//   ui                     -- the design this account opens on, classic or new (0108, ui-choice.ts; new unless classic was
+//                             chosen, since 0155).
 async function read(userId: string) {
   const { rows } = await pool.query(
     `SELECT s.show_results_immediately, s.whats_new_seen, s.ui, u."createdAt" AS created_at
@@ -20,7 +21,7 @@ async function read(userId: string) {
     showResultsImmediately: !!rows[0]?.show_results_immediately,
     whatsNewSeen: (rows[0]?.whats_new_seen as string | null) ?? null,
     accountCreatedAt: rows[0]?.created_at ? new Date(rows[0].created_at).toISOString() : null,
-    ui: (rows[0]?.ui === "new" ? "new" : "classic") as UiChoice,
+    ui: (rows[0]?.ui === "classic" ? "classic" : "new") as UiChoice,
   };
 }
 
@@ -46,7 +47,7 @@ export const PUT = apiRoute(async (req) => {
   }
   if ("ui" in body && !isUiChoice(body.ui)) throw new HttpError(400, "ui must be classic or new");
   await pool.query(
-    `INSERT INTO user_settings (user_id, show_results_immediately, whats_new_seen, ui) VALUES ($1, COALESCE($2, false), $3, COALESCE($4, 'classic'))
+    `INSERT INTO user_settings (user_id, show_results_immediately, whats_new_seen, ui) VALUES ($1, COALESCE($2, false), $3, COALESCE($4, 'new'))
      ON CONFLICT (user_id) DO UPDATE SET
        show_results_immediately = COALESCE($2, user_settings.show_results_immediately),
        whats_new_seen = COALESCE($3, user_settings.whats_new_seen),

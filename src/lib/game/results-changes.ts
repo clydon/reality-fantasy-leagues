@@ -13,7 +13,9 @@ import { publicMediaSrc } from "./selectors";
 
 /** What a results write removed, enough to put it back. */
 export type RemovedResult =
-  | { kind: "elimination"; castawayId: string; method: string; juryVotes: number | null }
+  // `at`: its place in the night's exits before the write (0 first out), so Undo puts it back there, not after the night's
+  // others; a change recorded before 2026-10-30 has none and puts it back last, as it always did.
+  | { kind: "elimination"; castawayId: string; method: string; juryVotes: number | null; at?: number }
   | { kind: "event"; castawayId: string; eventType: string; units: number | null }
   | { kind: "role"; castawayId: string; role: string }
   | { kind: "group"; castawayId: string; tribeId: string | null }
@@ -55,7 +57,8 @@ export function resultsDiff(before: LeagueState, after: LeagueState, episode: nu
   };
 
   const outs = pair((e) => e?.events ?? [], (x) => x.castawayId);
-  for (const x of outs.gone) removed.push({ kind: "elimination", castawayId: x.castawayId, method: x.method, juryVotes: x.juryVotes ?? null });
+  const night = (was?.events ?? []).map((x) => x.castawayId);
+  for (const x of outs.gone) removed.push({ kind: "elimination", castawayId: x.castawayId, method: x.method, juryVotes: x.juryVotes ?? null, at: night.indexOf(x.castawayId) });
   for (const x of outs.come) added.push(base(x.castawayId, "elimination"));
 
   const events = pair((e) => e?.scoringEvents ?? [], (x) => x.id);
@@ -82,7 +85,11 @@ export function resultsDiff(before: LeagueState, after: LeagueState, episode: nu
   return { type: "results", episode, added, removed, stageBefore: was ? StateLogic.resultsStage(was) : null };
 }
 
-/** Takes a results change back: what it added comes off (newest first), what it removed goes back, and the stage with it. */
+/**
+ * Takes a results change back: what it added comes off (newest first), what it removed goes back, and the stage with it. An
+ * exit put back takes its old place in the night (its `at`): one of a double boot's two, taken out by hand and put back, would
+ * otherwise come after the night's other, swapping their finishing places (and Outlast's points, which are that order).
+ */
 export function undoResults(state: LeagueState, undo: ResultsUndo) {
   for (const d of [...undo.added].reverse()) undoDetail(state, d);
   if (undo.removed.length) {
@@ -98,10 +105,20 @@ export function undoResults(state: LeagueState, undo: ResultsUndo) {
       else StateLogic.addExiled(state, ep.id, r.castawayId);
     }
   }
-  if (undo.added.some((d) => d.kind === "elimination") || undo.removed.some((r) => r.kind === "elimination")) orderPlacementsByEpisode(state);
+  if (undo.added.some((d) => d.kind === "elimination") || undo.removed.some((r) => r.kind === "elimination")) orderPlacementsByEpisode(state, nightOrder(state, undo));
   const ep = state.episodes.find((e) => e.number === undo.episode);
   // "final" takes the mark off, which is also how an episode with nothing in reads.
   if (ep) StateLogic.setResultsStage(state, ep.id, StateLogic.episodeHasResults(ep) && undo.stageBefore === "early" ? "early" : "final");
+}
+
+/** The undone episode's exits in the night's order, each one put back at its `at`; undefined when none has one (an older change). */
+function nightOrder(state: LeagueState, undo: ResultsUndo): Map<number, string[]> | undefined {
+  const back = undo.removed.flatMap((r) => (r.kind === "elimination" && typeof r.at === "number" && r.at >= 0 ? [{ id: r.castawayId, at: r.at }] : []));
+  if (!back.length) return undefined;
+  const ids = new Set(back.map((r) => r.id));
+  const night = (state.episodes.find((e) => e.number === undo.episode)?.events ?? []).map((e) => e.castawayId).filter((id) => !ids.has(id));
+  for (const r of back.sort((a, b) => a.at - b.at)) night.splice(Math.min(r.at, night.length), 0, r.id);
+  return new Map([[undo.episode, night]]);
 }
 
 // ---- 5B: what applies on its own ----
@@ -198,13 +215,13 @@ const and = (names: string[]) => (names.length < 2 ? names.join("") : `${names.s
  * game, after they've chosen to see the results.
  */
 export function previewLines(before: LeagueState, after: LeagueState, gameName: string, userOf: (playerId: string) => string | null): PreviewLine[] {
-  const type = StateLogic.getLeagueType(after);
+  const pieces = StateLogic.piecesOf(after);
   const a = tableOf(before, "", userOf);
   const b = new Map(tableOf(after, "", userOf).map((r) => [r.playerId, r]));
   const lines: PreviewLine[] = [];
   const outBefore = new Set(before.castaways.filter((c) => c.status === "eliminated").map((c) => c.id));
   for (const c of after.castaways.filter((x) => x.status === "eliminated" && !outBefore.has(x.id))) {
-    const owners = type.hasRoster ? a.filter((r) => r.team.includes(c.id)).map((r) => r.name) : [];
+    const owners = pieces.hasRoster ? a.filter((r) => r.team.includes(c.id)).map((r) => r.name) : [];
     lines.push({
       face: { kind: "castaway", name: c.name, photo: publicMediaSrc(c.photoUrl) },
       label: `${c.name} out · ${gameName}`,
@@ -222,7 +239,7 @@ export function previewLines(before: LeagueState, after: LeagueState, gameName: 
     const n: TableRow | undefined = b.get(r.playerId);
     if (!n) continue;
     const place = n.place !== r.place ? `${n.place < r.place ? "▲" : "▼"} ${n.rank.startsWith("T") ? "T" : ""}${ordinal(n.place)}` : "";
-    const pool = type.hasWeeklyPicks;
+    const pool = pieces.hasWeeklyPicks;
     const delta = pool ? (n.week ?? 0) - (r.week ?? 0) : n.total - r.total;
     if (!place && !delta) continue;
     const score = !delta

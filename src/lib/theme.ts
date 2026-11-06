@@ -4,17 +4,17 @@ import { useEffect, useState } from "react";
 import { THEME_KEY } from "./theme-script";
 
 // Light / dark / match the device, remembered per browser. The `dark` class on <html> is what the
-// styles key off (globals.css's `.dark` block and Tailwind's `dark:` variant). Light is the default,
-// so nobody's app changes until they choose.
+// styles key off (globals.css's `.dark` block and Tailwind's `dark:` variant). Dark is the default
+// (the user, 2026-11-01: everyone on dark, as the new design is), until someone chooses otherwise.
 export type ThemeChoice = "light" | "dark" | "system";
 const KEY = THEME_KEY;
 
 function readChoice(): ThemeChoice {
   try {
     const t = localStorage.getItem(KEY);
-    return t === "dark" || t === "system" ? t : "light";
+    return t === "light" || t === "system" ? t : "dark";
   } catch {
-    return "light";
+    return "dark";
   }
 }
 
@@ -25,7 +25,7 @@ function apply(choice: ThemeChoice) {
 
 /** The current choice and a setter; follows the device live while on "system". */
 export function useTheme(): [ThemeChoice, (c: ThemeChoice) => void] {
-  const [choice, setChoice] = useState<ThemeChoice>("light");
+  const [choice, setChoice] = useState<ThemeChoice>("dark");
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time read of browser storage

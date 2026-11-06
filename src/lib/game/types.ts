@@ -25,6 +25,9 @@ export interface Player {
   ghost?: boolean;
   /** A late joiner's own season (StateLogic.GhostLogic). Kept after they're added to the league. */
   lateJoin?: LateJoin;
+  /** Step A11 part 5c of docs/PLAN-start-a-game-gpt.md: what a team given after the draft cost under a price (a late joiner's own
+   *  draft, or castaways whoever runs the game gave them): a stock market's cash counts it as it counts the draft's log. */
+  joinPaid?: number;
 }
 
 export interface LateJoin {
@@ -296,6 +299,8 @@ export interface LeagueSettings {
   waiverProcessHours?: number;
   /** Free agency between processing and airtime; on unless false. */
   freeAgencyEnabled?: boolean;
+  /** Waivers start when this phase of the season does ("When Merged starts": WaiverLogic.startsAt); unset: from the start. */
+  waiverStartPhase?: string;
   /**
    * Catch-up mode (StateLogic.RevealLogic): null = live, an integer = this league may only see
    * episodes 1..n. Absent on every league that predates it, which reads as null.
@@ -360,6 +365,12 @@ export interface LeagueSettings {
    * it through StateLogic.endEpisode.
    */
   endEpisode?: number | null;
+  /** Step A12 part 1: the phase of the season's rulebook it ends before (its id), with endEpisode its last episode once that's
+   *  settled. Read it through StateLogic.endPhase. */
+  endPhase?: string;
+  /** Step A12 part 1: a game in stages' stages (each a whole spec, played as a league of its own: stages.ts) and its overall. */
+  stages?: import("./game-spec/index.js").SpecStage[];
+  stageOverall?: import("./game-spec/index.js").SpecOverall;
   defaultBetPoints: number;
   // Same opt-in shape as replenishEnabled/tradeEnabled above, gated together with the league
   // type's own supportsFinalePredictions -- see finalePredictionsAvailable in state-logic.js.
@@ -372,6 +383,8 @@ export interface LeagueSettings {
   draftTimer?: number;
   /** When the pick timer runs out: wait for them (the default), or pick the first still free from their queue. */
   draftAway?: "wait" | "queue";
+  /** Step A12 part 1: when the draft opens: any time (absent) or once its start is known and the episode before it has results. */
+  draftOpens?: "any" | "start";
   leagueTypeId: string;
   /** The catalog show's slug. Null on a new league until the commissioner picks one. */
   showId: string | null;
@@ -1002,6 +1015,8 @@ export interface WaiverPeriod {
   swaps?: number;
   /** This window's own say on replacements (Open a waiver window's toggle); unset: the league's rule decides. */
   replace?: boolean;
+  /** The window waivers start with, when their phase starts (WaiverLogic.startsAt): the phase. */
+  starts?: string;
   /** The commissioner opened or changed this window (Open a waiver window). */
   openedBy?: "commissioner";
   /** The commissioner turned the window off and nothing else ran this week: closed without a run. */
@@ -1107,6 +1122,12 @@ export interface LeagueState {
   /** A11 part 2b: a game of questions' race, cuts and lives as the server walked them over its answers on exactly this copy
    *  (StateLogic.AnswerLogic.withWalk): never stored; a copy that hides anything drops it. */
   answerWalk?: { ends: number | null; out: Record<string, number>; lives: Record<string, number>; shared: string[]; totals: Record<string, number> };
+  /** Step A12 part 1: a game in stages' stages' tables as the server read them (stages.ts stageWalk, StateLogic.StageLogic.withWalk):
+   *  never stored; a copy cut at a mark cuts it too. */
+  stageWalk?: import("./state-logic.js").StageWalk;
+  /** Step A12 part 2: what a game in stages remembers of its format changes (StateLogic.StageLogic.changeRecord): when each was
+   *  first seen, the maker's answers, what Recent changes has said, the copies taken away. */
+  changeStages?: import("./state-logic.js").ChangeRecord;
   /** A11 part 4: head to head's playoffs, placed at the season's end: its length as its schedule says (show_seasons.episode_count,
    *  stamped by the server on every read and write: air-times.ts), and where they began once their first round had results
    *  (StateLogic.MatchupLogic.settle), so the schedule changing after that moves nothing. */
@@ -1171,6 +1192,8 @@ export interface ChatMessage {
   /** "system": the retired automated result lines (no longer shown). "reveal": "conor revealed episode 9". */
   type: "message" | "system" | "reveal";
   text: string;
+  /** A GIF message's picture (migration 0156; its text is "GIF"). */
+  gif?: { id: string; url: string; w: number; h: number; title: string } | null;
   created_at: string;
   edited_at: string | null;
   reactions: Record<string, ChatReaction>;

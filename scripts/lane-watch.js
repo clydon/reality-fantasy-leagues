@@ -17,6 +17,8 @@
 //   STOPPED <lane> | ... a lane whose loop was running and hasn't been for 15 minutes, with why (state.json: waiting for
 //        the user, done, the weekly limit, a step handed off)
 //   TAPES ... the recorder stopped, or its last three questions failed
+//   CAP ... the week crossed the usage cap's lines (scripts/usage-cap.js): no session starts, or running ones pause; and
+//        when it's back under them (the window reset)
 //   HEARTBEAT ... nothing to say for --max-hours: each lane's state, one line each
 //
 // It remembers what it has said in .session-loop/lane-watch.json (this folder's, gitignored), so nothing is said twice and
@@ -25,6 +27,7 @@
 const fs = require("fs");
 const path = require("path");
 const { execFileSync, spawnSync } = require("child_process");
+const Cap = require("./usage-cap.js");
 
 const ROOT = path.join(__dirname, "..");
 const STATE = path.join(ROOT, ".session-loop", "lane-watch.json");
@@ -117,6 +120,8 @@ function whyStopped(state) {
   if (state?.pending?.question) return `waiting for you (${state.pending.name}): ${String(state.pending.question).split("\n")[0].slice(0, 200)}`;
   if (state?.pending) return `stopped partway through ${state.pending.name}`;
   if (!state?.next) return "done: nothing handed off";
+  const cap = Cap.check();
+  if (cap.stop) return `stopped with ${state.next.name} handed off, held by the usage cap: ${cap.line}`;
   if (week && week.utilization >= 0.9 && week.resetsAt * 1000 > Date.now()) return `the weekly usage window is ${Math.round(week.utilization * 100)}% used, until ${new Date(week.resetsAt * 1000).toLocaleString()}`;
   return `stopped with ${state.next.name} handed off`;
 }
@@ -194,6 +199,18 @@ function look(state, now) {
   const failing = tail.length === 3 && tail.every((x) => /\b(failed|GAVE UP|LIMITED)\b/.test(x));
   if (failing && !state.tapesFailing) events.push(`TAPES its last three questions failed:\n${tail.map((x) => `    ${x}`).join("\n")}`);
   state.tapesFailing = failing;
+  // The usage cap: said as the week crosses each line (a keeper acts on it: lane.js keep), and when it's back under.
+  const cap = Cap.check();
+  const level = cap.pause ? "pause" : cap.stop ? "stop" : "under";
+  if (state.capLevel && level !== state.capLevel)
+    events.push(
+      level === "pause"
+        ? `CAP ${cap.line}: past the cap, running loops pause where they are (a keeper writes their PAUSE)`
+        : level === "stop"
+          ? `CAP ${cap.line}: no session starts; running loops stop after their session (a keeper writes their STOP)`
+          : `CAP ${cap.line}: under the cap again, lanes may start`,
+    );
+  state.capLevel = level;
   return { events, shots };
 }
 
@@ -208,6 +225,7 @@ function status() {
     );
   }
   if (procs) console.log(`keeper ${procs.keeper ? "running" : "not running"} · tapes recorder ${procs.tapes ? "running" : "not running"}`);
+  console.log(`usage: ${Cap.check().line}`);
 }
 
 async function watch() {

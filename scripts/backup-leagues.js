@@ -102,6 +102,8 @@ const GROUP_SLICES = {
   show_follows: "season_id = ANY($S::uuid[]) AND user_id IN (SELECT user_id FROM league_memberships WHERE league_id = ANY($L::uuid[]))",
   // Rate it (0128, step 12 part 1): the group's people's stars and takes for its seasons' episodes, as their follows are.
   episode_ratings: "season_id = ANY($S::uuid[]) AND user_id IN (SELECT user_id FROM league_memberships WHERE league_id = ANY($L::uuid[]))",
+  // React with a GIF (0162, in place of Rate it's stars): the group's people's GIFs for its seasons' episodes, as their ratings are.
+  episode_gifs: "season_id = ANY($S::uuid[]) AND user_id IN (SELECT user_id FROM league_memberships WHERE league_id = ANY($L::uuid[]))",
   // Call it (0129, step 12 part 2): the group's people's calls on its seasons' episodes (Weekly Calls and a pool count them), and
   // what they said happened on a talk show's.
   episode_calls: "season_id = ANY($S::uuid[]) AND user_id IN (SELECT user_id FROM league_memberships WHERE league_id = ANY($L::uuid[]))",

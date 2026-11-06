@@ -10,9 +10,12 @@ import SAMPLES from "../../../tests/fixtures/rulebook-samples.js";
 //
 // A page's `rulebook` names the rules its specs are checked against: a built-in (survivor, traitors, challenge) or one of
 // tests/fixtures/rulebook-samples.js (belowDeck, pluribus, snl, formula1, amazingRace, dancing). A show with neither names a
-// show of its kind as a stand-in (`checkedAs`: Love Island against Survivor's, someone out each week and a winner).
+// show of its kind as a stand-in (`checkedAs`: Love Island against Survivor's, someone out each week and a winner). A12 part 4b: one
+// game across two shows names the other seasons its stages play on (`also`: each with its show's id, the id a stage's `season` names,
+// and its rulebook), each checked on its own rules (ctx.seasons).
 
-type Page = { show?: string; season?: number | null; sport?: string; league?: string; event?: string | null; rulebook?: string | null; checkedAs?: boolean } | null | undefined;
+type Also = { id: string; show: string; season: number; rulebook: string };
+type Page = { show?: string; season?: number | null; sport?: string; league?: string; event?: string | null; rulebook?: string | null; checkedAs?: boolean; also?: Also[] } | null | undefined;
 
 /** The rules a `rulebook` key names, or null. */
 export function bookOf(key: string | null | undefined): CallBook | null {
@@ -25,14 +28,27 @@ export function bookOf(key: string | null | undefined): CallBook | null {
 }
 
 const ctxCache = new Map<string, SpecContext | null>();
-/** What a row's page can settle (game-spec specProblems' ctx), or null when its page names no rules. */
-export function pageCtx(page: Page): SpecContext | null {
-  const key = page?.rulebook ?? "";
+/** The rules a rulebook key names, as a ctx (cached), or null. */
+function bookCtx(key: string): SpecContext | null {
   if (!ctxCache.has(key)) {
     const book = bookOf(key);
     ctxCache.set(key, book ? contextOf(book) : null);
   }
   return ctxCache.get(key) ?? null;
+}
+
+/** What a row's page can settle (game-spec specProblems' ctx), or null when its page names no rules. A12 part 4b: with each other season
+ *  it names (`also`) as ctx.seasons, by its key ("<show id>/<number>"). */
+export function pageCtx(page: Page): SpecContext | null {
+  const base = bookCtx(page?.rulebook ?? "");
+  const also = (page?.also ?? []).filter((a) => a && a.id && Number.isInteger(a.season));
+  if (!base || !also.length) return base;
+  const seasons: Record<string, SpecContext> = {};
+  for (const a of also) {
+    const ctx = bookCtx(a.rulebook);
+    if (ctx) seasons[`${a.id}/${a.season}`] = { ...ctx, show: `${a.show} ${a.season}` };
+  }
+  return { ...base, seasons };
 }
 
 /** "Survivor 51", "football: NFL". */

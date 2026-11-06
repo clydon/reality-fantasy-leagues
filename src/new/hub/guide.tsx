@@ -14,6 +14,8 @@ import { Sheet } from "../ui/sheet";
 import { ShowArt } from "../ui/show-bar";
 import { toast } from "../ui/toast";
 import { openPlan, PlanPlates } from "../couch/watch-plans";
+import { plainName as plain } from "../couch/where";
+import { usePracticeShows } from "../tour/practice-shows";
 import { ListingsCredit } from "../watching/search";
 import { openWatching } from "../watching/sheets";
 import { useReducedMotion } from "../welcome/hooks";
@@ -31,13 +33,13 @@ import { namesOf, showOfMove } from "./sections";
 const DAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const DAY_LONG = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const plain = (name: string) => name.replace(/\s*\([^)]*\)\s*$/, "").trim() || name;
 
 /**
  * The guide rolls on its own once you reach it (not while it's the first thing you see: the critique, 2026-10-23), and is
  * Paused for a few seconds when you move it yourself: a swipe across it, a sideways wheel or trackpad, the keyboard. A tap (on
  * a card or between them) and a swipe up or down the page leave it rolling (2026-10-27: a stray tap used to stop it).
- * Reduced motion: it never rolls.
+ * Reduced motion: it never rolls. The first-time tour holds it on today while it's lit (an `nd-guide-hold` event on the reel,
+ * `detail` the ms to hold for; 0 lets it go; a swipe meanwhile doesn't cut it short): tour/tour.tsx.
  */
 function useRoll(reel: React.RefObject<HTMLDivElement | null>) {
   const [rolling, setRolling] = useState(false);
@@ -66,7 +68,7 @@ function useRoll(reel: React.RefObject<HTMLDivElement | null>) {
       }
       raf = requestAnimationFrame(step);
     };
-    const hold = () => (holdUntil = performance.now() + 4000);
+    const hold = () => (holdUntil = Math.max(holdUntil, performance.now() + 4000));
     // A swipe is across once it's gone further across than down, past a tap's wobble.
     const touchStart = (e: TouchEvent) => (from = { x: e.touches[0].clientX, y: e.touches[0].clientY });
     const touchMove = (e: TouchEvent) => {
@@ -79,6 +81,7 @@ function useRoll(reel: React.RefObject<HTMLDivElement | null>) {
     // Whatever else moves it (a fling still gliding, the arrow keys): it's somewhere the roll didn't put it.
     const scroll = () => Math.abs(el.scrollLeft - x) > 2 && hold();
     const focus = (e: FocusEvent) => (e.target as Element).matches(":focus-visible") && hold();
+    const held = (e: Event) => (holdUntil = performance.now() + ((e as CustomEvent<number>).detail ?? 0));
     const io = new IntersectionObserver(
       ([e]) => {
         if (e.isIntersecting && !started) {
@@ -97,6 +100,7 @@ function useRoll(reel: React.RefObject<HTMLDivElement | null>) {
     el.addEventListener("wheel", wheel, { passive: true });
     el.addEventListener("scroll", scroll, { passive: true });
     el.addEventListener("focusin", focus);
+    el.addEventListener("nd-guide-hold", held);
     return () => {
       cancelAnimationFrame(raf);
       io.disconnect();
@@ -107,6 +111,7 @@ function useRoll(reel: React.RefObject<HTMLDivElement | null>) {
       el.removeEventListener("wheel", wheel);
       el.removeEventListener("scroll", scroll);
       el.removeEventListener("focusin", focus);
+      el.removeEventListener("nd-guide-hold", held);
     };
   }, [reel]);
   return rolling;
@@ -149,13 +154,15 @@ const useOnTv = () =>
     (): OnTv => "couch"
   );
 
-/** The guide's switch, quiet in its foot: Couch (My shows, solo) · Competitions · All TV. */
+/** The guide's switch, quiet in its foot: Couch (My shows, solo) · Competitions · All TV · Sports, which says it's coming (the
+ *  user, 2026-11-01: games by team, docs/PLAN-sports-add.md). */
 function OnTvSwitch({ on, solo }: { on: OnTv; solo: boolean }) {
   const choices: [OnTv, string][] = [
     ["couch", solo ? "My shows" : "Couch"],
     ["comps", "Competitions"],
     ["all", "All TV"],
   ];
+  const choice = "nd-press h-9 rounded-[2px] px-2 text-[12px] font-semibold transition-colors";
   return (
     <div role="radiogroup" aria-label="What the guide shows" data-guide-tv={on} className="flex flex-none gap-[2px] rounded-[3px] p-[2px] outline-1 -outline-offset-1 outline-border">
       {choices.map(([id, label]) => (
@@ -166,11 +173,14 @@ function OnTvSwitch({ on, solo }: { on: OnTv; solo: boolean }) {
           aria-checked={on === id}
           data-guide-tv-choice={id}
           onClick={() => setOnTv(id)}
-          className={`nd-press h-9 rounded-[2px] px-2 text-[12px] font-semibold transition-colors ${on === id ? "bg-secondary text-foreground" : "text-muted-foreground"}`}
+          className={`${choice} ${on === id ? "bg-secondary text-foreground" : "text-muted-foreground"}`}
         >
           {label}
         </button>
       ))}
+      <button type="button" aria-disabled data-guide-tv-soon onClick={() => toast("Sports are coming soon.")} className={`${choice} text-muted-foreground`}>
+        Sports
+      </button>
     </div>
   );
 }
@@ -334,6 +344,12 @@ function CardBody({ c, now, me }: { c: GuideCard; now: number; me: string }) {
       {c.drop != null && (
         <span className="type-caption mb-1 self-start bg-secondary py-[3px] pl-1.5 pr-2.5 text-[10px] tracking-[0.06em] text-foreground [clip-path:polygon(0_0,100%_0,calc(100%_-_6px)_100%,0_100%)]">
           All {c.drop} drop
+        </span>
+      )}
+      {/* One the first-time tour's practice added (tour/practice-shows.ts): here for the tour, not saved. */}
+      {c.key.startsWith("tour-") && (
+        <span data-practice-tag className="type-caption mb-1 self-start bg-quiet-tag py-[3px] pl-1.5 pr-2.5 text-[11px] tracking-[0.06em] text-quiet-tag-foreground [clip-path:polygon(0_0,100%_0,calc(100%_-_6px)_100%,0_100%)]">
+          Practice
         </span>
       )}
       {/* A planned night (part 3): teal, good news rather than a duty (the mock's b-tag good). */}
@@ -539,11 +555,14 @@ function Day({
 }
 
 /** The guide: the week rolling by, the foot (what dashed and faded mean, what's hidden, Add a show), and its sheets. */
-export function Guide({ home, couch }: { home: Home; couch: Couch | null }) {
+export function Guide({ home: read, couch }: { home: Home; couch: Couch | null }) {
   const reel = useRef<HTMLDivElement>(null);
   const rolling = useRoll(reel);
   const still = useReducedMotion();
   const now = useMinute();
+  // The first-time tour's demo shows (tour/practice-shows.ts), as yours while it shows where shows you add go.
+  const practice = usePracticeShows();
+  const home = useMemo(() => (practice.length ? { ...read, shows: [...read.shows, ...practice] } : read), [read, practice]);
   const shows = useMemo(() => guideShows(home, couch), [home, couch]);
   const plans = useMemo(() => guidePlans(home, couch), [home, couch]);
   const week = useMemo(() => guideWeek(shows, now, undefined, plans), [shows, now, plans]);
@@ -592,6 +611,7 @@ export function Guide({ home, couch }: { home: Home; couch: Couch | null }) {
       </div>
       <div
         ref={reel}
+        data-guide-reel
         className="mx-2 flex overflow-x-auto pb-1.5 pt-2 [scrollbar-width:none] [mask-image:linear-gradient(90deg,transparent,#000_14px,#000_calc(100%_-_24px),transparent)]"
       >
         {week.map((d, i) => (

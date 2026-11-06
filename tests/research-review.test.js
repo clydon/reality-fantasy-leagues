@@ -56,11 +56,12 @@ test("a show's blocks give research its checks: a vote by the cast, a team's win
     "Bo Example": { shieldWon: "yes", leftTheGame: "yes", exitMethod: "Voted out" },
     "Cy Example": { shieldPlace: 1, shieldWon: "no", tokensVotesCancelled: 1, tokensPlayed: "no" },
   }));
+  // A safe winner sent home is the episode's to say (a night with two votes isn't checked), after everyone's own.
   assert.deepEqual(r.problems, [
     "Ann Example: 2 votes against someone who wasn't at Council",
-    "Bo Example: went home (Voted out) despite winning the Shield",
     "Cy Example: finished 1st in the Shield but isn't marked as winning it",
     "Cy Example: votes cancelled by a token they aren't marked as playing",
+    "Bo Example: went home (Voted out) despite winning the Shield",
   ]);
   // The episode's: the team that won the shield wasn't at the council (cleared to unknown, one line each), then the votes.
   const e = review(format, payload({
@@ -78,6 +79,33 @@ test("a show's blocks give research its checks: a vote by the cast, a team's win
   assert.deepEqual(z.problems, ["Everyone at Council was given zero votes, so the vote counts look missing (cleared, nobody marked safe)"]);
   assert.deepEqual(z.entries.slice(0, 2).map((c) => c.councilVotesReceived), [null, null]);
   assert.deepEqual(ER.candidatesFor({ castaways: clone(z.entries) }, format, 1).filter((i) => i.eventType === "councilZeroVotes"), [], "nothing staged as safe");
+});
+
+test("two sent home by the vote the same night (a double boot): neither the safe winner's nor the count's check is made", () => {
+  const { data, format } = compiled(island());
+  // A rulebook's own condition for the safe winner's check says who it flags; the night's gate stays.
+  const own = island();
+  own.research = { checks: { shieldWonVotedOut: { when: { all: [{ answer: "shieldWon", is: "yes" }, { answer: "leftTheGame", is: "yes" }] } } } };
+  const mine = compiled(own);
+  assert.deepEqual(mine.warnings, []);
+  const k = mine.data.research.checks.find((x) => x.id === "shieldWonVotedOut");
+  assert.deepEqual([k.who.all.length, k.when], [2, data.research.checks.find((x) => x.id === "shieldWonVotedOut").when]);
+  // The first vote's Shield winner goes home at the second, and everyone there votes twice (2 + 3 + 3 against, 4 voting).
+  const night = {
+    "Ann Example": { shieldWon: "yes", leftTheGame: "yes", exitMethod: "Voted out", councilAttended: "yes", councilVotesReceived: 3, councilVotedFor: "Bo Example" },
+    "Bo Example": { leftTheGame: "yes", exitMethod: "Voted out", councilAttended: "yes", councilVotesReceived: 3, councilVotedFor: "Ann Example" },
+    "Cy Example": { councilAttended: "yes", councilVotesReceived: 2, councilVotedFor: "Bo Example" },
+    "Di Example": { councilAttended: "yes", councilVotesReceived: 0, councilVotedFor: "Ann Example" },
+  };
+  for (const f of [format, mine.format]) assert.deepEqual(review(f, payload(night)).problems, []);
+  // The same answers with one sent home: both said.
+  const one = { ...night, "Bo Example": { ...night["Bo Example"], leftTheGame: "no", exitMethod: null } };
+  for (const f of [format, mine.format]) {
+    assert.deepEqual(review(f, payload(one)).problems, [
+      "Ann Example: went home (Voted out) despite winning the Shield",
+      "8 votes counted against people, but 4 people at Council are recorded voting: check who was there",
+    ]);
+  }
 });
 
 test("a vote asked whether it was held clears its attendance when it wasn't", () => {
@@ -115,7 +143,7 @@ test("the research block's checks: their own words, their own condition, off, an
   assert.match(warnings[0], /^How research checks "halfOne": this rulebook makes no such check/);
   assert.match(warnings[1], /^How research checks "shieldWonVotedOut": .*nobodyAsks.*, so it's checked as the blocks make it$/);
   assert.match(warnings[2], /^How research checks "strayOne": .*nobodyAsks.*, so it's left out$/);
-  assert.deepEqual(data.research.checks.find((k) => k.id === "shieldWonVotedOut").when.all[0], { answer: "shieldWon", is: "yes" });
+  assert.deepEqual(data.research.checks.find((k) => k.id === "shieldWonVotedOut").who.all[0], { answer: "shieldWon", is: "yes" });
   const r = review(format, payload({
     "Ann Example": { councilAttended: "no", councilVotesReceived: 1 },
     "Bo Example": { shieldPlace: 1, shieldWon: "no", prizeWon: "yes" },

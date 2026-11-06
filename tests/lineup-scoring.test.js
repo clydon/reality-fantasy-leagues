@@ -206,7 +206,7 @@ test("best ball: each episode the best n of the team it held then, no lineups; a
   assert.deepEqual(A.teamFor(s, ep(s, 3), "ann"), [cid(s, 1), cid(s, 2), cid(s, 7)]);
   // The shared draft is its own variant: blind, still best ball.
   const shared = league({ ...BEST, get: { ...BEST.get, own: "shared", order: "blind" } });
-  assert.equal(S.getLeagueType(shared).draftStrategy, S.BlindDraftStrategy);
+  assert.equal(S.piecesOf(shared).draft, S.BlindDraftStrategy);
   assert.equal(S.getLeagueType(shared).hasBestBall, true);
 });
 

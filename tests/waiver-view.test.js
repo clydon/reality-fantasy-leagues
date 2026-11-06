@@ -71,6 +71,21 @@ test("your own picks, a spot at a time: first choice first, then backups", () =>
   assert.deepEqual(w.spots, [{ dropId: "a1", addIds: ["f2", "f1"] }]);
 });
 
+test("every week's run, oldest first (Episodes lists them where they happened); one you haven't revealed isn't there", () => {
+  const s = league();
+  W.process(s, { ann: W.checkClaim(s, W.current(s), "ann", { pairs: [{ addId: "f1", dropId: "a1" }] }).claim }, { now: T0 + 3600e3, by: "commissioner" });
+  S.addElimination(s, "ep4", "b2", "Voted Out");
+  W.open(s, T0 + 7 * 86400e3);
+  W.process(s, { bo: W.checkClaim(s, W.current(s), "bo", { pairs: [{ addId: "f2", dropId: "b2" }] }).claim }, { now: T0 + 7 * 86400e3 + 3600e3, by: "commissioner" });
+  const w = waiverWeek(ref, s, "ann", 4, userOf, null);
+  assert.deepEqual(w.runs.map((r) => r.episode), [3, 4]);
+  assert.equal(w.run, w.runs[1], "the week's run is the latest");
+  assert.ok(w.runs[0].moves.some((m) => m.you && m.outcome === "got" && m.add.id === "f1"), "after Episode 3: you got F1");
+  assert.ok(w.runs[1].moves.some((m) => m.name === "bo" && m.outcome === "got" && m.add.id === "f2"), "after Episode 4: bo got F2");
+  const behind = waiverWeek(ref, s, "ann", 3, userOf, null);
+  assert.deepEqual(behind.runs.map((r) => r.episode), [3], "on Episode 3: the week Episode 4 opened isn't there");
+});
+
 test("after the run: each move in picking order, yours marked, and why it wasn't a first choice", () => {
   const s = league();
   // bo (out B3) and ann (out A1) both want F1: whoever's first in line gets them.
@@ -106,6 +121,35 @@ test("shared ownership: no picking order; How it works says who picks first", ()
   assert.equal(ex.order, "Lowest score picks first.");
   assert.equal(ex.lanes.episodes.length, ex.lanes.replace.length);
   assert.ok(ex.lanes.replace.every(Boolean), "replace right away: every episode");
+});
+
+test("waivers that start when Merged does: How it works says so, and the lanes are empty until it", () => {
+  const s = league({ settings: { replaceRule: "never", waiverWindows: { schedule: "manual", every: 3, swaps: 1 }, waiverStartPhase: "merged" } });
+  s.midSeason.waivers.periods = [];
+  const how = waiverHow(s);
+  assert.equal(how.starts, "Waivers start when Merged starts");
+  assert.match(how.out, /^They stay on your team until Merged starts\. After its first episode, a waiver window lets you replace everyone who's out\. After that, out is out\.$/);
+  assert.match(how.swap, /^Not until Merged starts: its waiver window allows 1 swap\. After that, when your commissioner opens a waiver window\.$/);
+  assert.ok(how.lanes.replace.every((on) => !on) && how.lanes.swap.every((on) => !on), "nothing while nobody knows when");
+  // The merge's start known (Episode 6) but not seen yet: nothing says where (a spoiler), in the season's name for the phase.
+  S.settlePhases(s, { phases: [{ id: "tribes", from: 1 }, { id: "merged", from: 6 }], open: 4 });
+  const known = waiverHow(s, [{ id: "merged", name: "The Merge" }]);
+  assert.equal(known.starts, "Waivers start when The Merge starts");
+  assert.ok(known.lanes.replace.every((on) => !on) && known.lanes.swap.every((on) => !on));
+  // Once you've seen it start: its window in the lanes, and the usual words.
+  S.addElimination(s, "ep4", "a2", "Voted Out");
+  S.addElimination(s, "ep5", "c2", "Voted Out");
+  S.addElimination(s, "ep6", "b2", "Voted Out");
+  const after = waiverHow(s);
+  assert.equal(after.starts, null);
+  assert.equal(after.out, "They stay on your team: there are no replacements.");
+  const at = (lane) => after.lanes.episodes.filter((n, i) => lane[i]);
+  assert.deepEqual(at(after.lanes.replace), [6]);
+  assert.deepEqual(at(after.lanes.swap), [6]);
+  // A viewer who hasn't seen Episode 6 still reads it as ahead.
+  const behind = waiverHow(S.GhostLogic.viewFor(s, "ann", 4));
+  assert.equal(behind.starts, "Waivers start when Merged starts");
+  assert.ok(behind.lanes.replace.every((on) => !on));
 });
 
 test("a game with no waivers has no week", () => {

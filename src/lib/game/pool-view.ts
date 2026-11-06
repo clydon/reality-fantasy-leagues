@@ -15,7 +15,7 @@ export function pickWindow(state: LeagueState) {
 
 /** Whether you still owe a pick for this week (the Pick tab's badge; the alert strip's same check). */
 export function myPickDue(state: LeagueState, playerId: string | null): boolean {
-  if (!playerId || !StateLogic.getLeagueType(state).hasWeeklyPicks) return false;
+  if (!playerId || !StateLogic.piecesOf(state).hasWeeklyPicks) return false;
   const { ep, open } = pickWindow(state);
   if (!ep || !open || StateLogic.pickEmPickFor(state, ep.id, playerId)) return false;
   return StateLogic.pickEmEligibility(state, ep.id, playerId).available.length > 0;

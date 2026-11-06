@@ -299,7 +299,7 @@ test("A6 on the timeline: graded on the pairs that played, a re-drawn pair void,
   assert.deepEqual([Q, { ...Q, asked: "once" }, { ...Q, over: 2 }, { ...Q, answer: "person" }].map(G.readsTimeline), [true, false, false, false]);
 });
 
-test("a group question's fallback in the spec: void or carry-on, only on a group asked about each episode; next-stage is A12's", () => {
+test("a group question's fallback in the spec: void or carry-on, only on a group asked about each episode; next-stage a stage's", () => {
   const Q = { id: "pair", ask: "Which pair wins the daily?", answer: "group", points: 1, asked: "each", settle: { by: "results", take: "out" } };
   const game = (q) => ({ spec: 1, get: { by: "none" }, score: { by: "answers" }, ask: [q] });
   const ats = (q) => G.specProblems(game(q)).map((x) => x.at);
@@ -309,7 +309,9 @@ test("a group question's fallback in the spec: void or carry-on, only on a group
   assert.deepEqual(ats({ ...Q, answer: "person", fallback: "void" }), ["ask[0].fallback"]);
   assert.deepEqual(ats({ ...Q, asked: "once", fallback: "void" }), ["ask[0].fallback"]);
   assert.deepEqual(ats({ ...Q, over: 2, fallback: "void" }), ["ask[0].fallback"]);
-  assert.deepEqual(G.specWaitsFor(game({ ...Q, fallback: "next-stage" })).map((x) => x.step), ["later"]);
-  assert.equal(G.playable({ ...Q, fallback: "next-stage" }), false);
+  // A12 part 2b: next-stage plays, in a stage with a stage after it (tests/next-stage.test.js); alone, a new game's is refused.
+  assert.deepEqual(G.specWaitsFor(game({ ...Q, fallback: "next-stage" })), []);
+  assert.deepEqual(ats({ ...Q, fallback: "next-stage" }), ["ask[0].fallback"]);
+  assert.equal(G.playable({ ...Q, fallback: "next-stage" }), true);
   assert.equal(G.playable({ ...Q, fallback: "void" }), true);
 });

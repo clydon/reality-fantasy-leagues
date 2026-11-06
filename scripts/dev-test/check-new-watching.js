@@ -19,7 +19,7 @@
 //   asks where you are and stays on the hub), the "you both watch" nudge (the most people first, Not now, then the next),
 //   Add a show (suggestions, the listings as you type, a listing's where you are, Add as a new show, already on your list),
 //   a show with no game (Not a game yet, the spoiler chip, Who's watching without anyone private, Make it a game's
-//   plate (check-new-make-it.js takes it from there), the ⋯ menu's Watch privately, Where you are and Remove from my shows), a show you don't follow (who watches
+//   plate (check-new-make-it.js takes it from there), the ⋯ menu's Everything else: Watch privately and Remove from my shows; Where you are is the chip's Change), a show you don't follow (who watches
 //   it, Add to my shows); then a newcomer's first run picking a listing and a name. Nothing wider than the screen; no page
 //   errors. Screenshots go to <outDir>.
 //
@@ -353,10 +353,11 @@ async function newcomer(pool, who, approved = true) {
       await sheet(page).locator("[data-add-name]").waitFor();
       await shot("add-by-name", page);
       await sheet(page).locator("[data-add-name-go]").click();
-      check(/ZT Brand Spanking 1 added to your shows · not a game yet/.test(await toasted(/Brand Spanking/, page)), "added by name: not a game yet", await toasted(/added/, page));
-      await sheet(page).locator("[data-add-input]").waitFor();
-      check((await sheet(page).locator("[data-add-input]").inputValue()) === "ZT Brand Spanking", "back on the search, the sheet still open");
-      await page.keyboard.press("Escape");
+      // Getting it ready (check-getting-ready.js has the rest): a brand-new show plays the call sheet as it's added (our bot is
+      // away here: the check's stand-in listings never reach a real one).
+      await sheet(page).locator("[data-added-ready]").waitFor({ timeout: 15000 });
+      check(/ZT Brand Spanking 1 is on your shows/.test(await sheet(page).innerText()) && (await sheet(page).locator('[data-slate="rules"]').count()) === 1, "added by name: getting it ready");
+      await sheet(page).locator("[data-added-done]").click();
       await sheetGone(page);
       check((await pool.query("SELECT 1 FROM shows WHERE name = 'ZT Brand Spanking' AND created_by = $1", [fx.users.alex])).rows.length === 1, "made, alex's");
       // A listing from the search: Add a show asks where you are from the listing.
@@ -376,8 +377,9 @@ async function newcomer(pool, who, approved = true) {
         await sheet(page).locator("[data-where-line]").innerText()
       );
       await sheet(page).locator("[data-where-save]").click();
-      check(/ZT Late Bloomer 1 added to your shows · not a game yet/.test(await toasted(/Late Bloomer/, page)), "added from the listing", await toasted(/added/, page));
-      await page.keyboard.press("Escape");
+      await sheet(page).locator("[data-added-ready]").waitFor({ timeout: 15000 });
+      check(/ZT Late Bloomer 1 is on your shows/.test(await sheet(page).innerText()), "added from the listing: getting it ready");
+      await sheet(page).locator("[data-added-done]").click();
       await sheetGone(page);
       const bloom = await showOf(990006);
       const bloomSeason = bloom ? (await pool.query("SELECT id FROM show_seasons WHERE show_id = $1", [bloom.id])).rows[0] : null;
@@ -393,16 +395,21 @@ async function newcomer(pool, who, approved = true) {
       await page.locator("[data-whos-watching] [data-watcher]").nth(1).waitFor({ timeout: 15000 }).catch(() => {});
       const line = await page.locator("[data-couch-line]").innerText();
       check(/2 on the couch watch/.test(line) && /Not a game yet/i.test(line), "the couch line: who watches it, Not a game yet", line);
-      check(/you're on Ep 3/.test(await page.locator("[data-following]").innerText()), "the spoiler chip: he's on Episode 3");
+      check(/you're up to Ep 3/.test(await page.locator("[data-following]").innerText()), "the spoiler chip: he's on Episode 3");
       const watchers = await page.locator("[data-whos-watching] [data-watcher]").evaluateAll((els) => els.map((e) => e.getAttribute("data-watcher")));
       check(watchers.join() === "zt_nd_alex,zt_nd_riley", "Who's watching: him, then riley (never how far)", watchers.join());
       check((await page.locator('[data-play-it="make"] [data-make-it]').count()) === 1, "Make it a game (real since step 10 part 2a)");
       await fits("a show with no game", page);
       await shot("no-game-tonight", page);
       await page.getByRole("button", { name: /^Show menu/ }).click();
-      await sheet(page).getByText("Watch privately").waitFor();
+      await sheet(page).getByRole("button", { name: /^Everything else/ }).waitFor();
       check((await sheet(page).getByText("How it works").count()) === 0, "no How it works for a show that isn't a game");
+      check((await sheet(page).getByText("Add to my shows").count()) === 0 && (await sheet(page).getByText("Make it a game").count()) === 0, "and no Add to my shows or Make it a game: Tonight's card and plate carry them");
       await shot("menu", page);
+      // Watch privately is rarely wanted, so it's one tap down.
+      await sheet(page).getByRole("button", { name: /^Everything else/ }).click();
+      await sheet(page).getByText("Watch privately").waitFor();
+      await shot("menu-else", page);
       await sheet(page).getByText("Watch privately").click();
       check(/Watching privately/.test(await toasted(/privately/, page)), "Watch privately: on");
       await page.locator("[data-private-line]").waitFor();
@@ -411,18 +418,23 @@ async function newcomer(pool, who, approved = true) {
       check(rileySpace.people.find((p) => p.name === "zt_nd_alex")?.watching === false, "riley no longer sees him watch it");
       await shot("private", page);
       await page.getByRole("button", { name: /^Show menu/ }).click();
+      await sheet(page).getByRole("button", { name: /^Everything else/ }).click();
       await sheet(page).getByText("Watch privately").click();
       await toasted(/can see you watch it again/, page);
       check((await follow(fx.users.alex, ss.id))?.private === false, "and off again");
+      // Where you are is the spoiler chip's Change on Tonight, not a menu row.
       await page.getByRole("button", { name: /^Show menu/ }).click();
-      await sheet(page).getByRole("button", { name: /^Where you are/ }).click();
+      await sheet(page).getByRole("button", { name: /^Everything else/ }).waitFor();
+      check((await sheet(page).getByRole("button", { name: /^Where you are/ }).count()) === 0, "the ⋯ menu has no Where you are row: the chip's Change is it");
+      await page.keyboard.press("Escape");
+      await page.locator("[data-following]").getByRole("button", { name: /Change/ }).click();
       await sheet(page).locator("[data-where-ask]").waitFor();
       await sheet(page).getByRole("button", { name: "Earlier in ZT Love Shack 1" }).click();
       await sheet(page).getByRole("button", { name: "Earlier in ZT Love Shack 1" }).click();
       await sheet(page).locator("[data-where-save]").click();
-      check(/Saved · you're on Episode 1/.test(await toasted(/Saved/, page)), "where you are, moved back to Episode 1");
-      await page.waitForFunction(() => /you're on Ep 1/.test(document.querySelector("[data-following]")?.textContent || ""), null, { timeout: 10000 }).catch(() => {});
-      check(/you're on Ep 1/.test(await page.locator("[data-following]").innerText()), "the chip follows");
+      check(/Saved · you're up to Episode 1/.test(await toasted(/Saved/, page)), "where you are, moved back to Episode 1");
+      await page.waitForFunction(() => /you're up to Ep 1/.test(document.querySelector("[data-following]")?.textContent || ""), null, { timeout: 10000 }).catch(() => {});
+      check(/you're up to Ep 1/.test(await page.locator("[data-following]").innerText()), "the chip follows");
       await page.goto(`${BASE}/show/${ss.id}/episodes`);
       await page.locator("[data-ep-aired]").first().waitFor({ timeout: 30_000 });
       const aired = await page.locator("[data-ep-aired]").evaluateAll((els) => els.map((e) => `${e.getAttribute("data-ep-aired")}:${e.getAttribute("data-watched")}`));
@@ -440,6 +452,7 @@ async function newcomer(pool, who, approved = true) {
       await page.goto(`${BASE}/show/${ss.id}/tonight`);
       await page.locator("[data-following]").waitFor({ timeout: 30_000 });
       await page.getByRole("button", { name: /^Show menu/ }).click();
+      await sheet(page).getByRole("button", { name: /^Everything else/ }).click();
       await sheet(page).getByText("Remove from my shows").click();
       check(/removed from your shows/.test(await toasted(/removed/, page)), "Remove from my shows");
       await page.waitForURL("**/home", { timeout: 15000 }).catch(() => {});

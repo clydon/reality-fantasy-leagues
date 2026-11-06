@@ -37,7 +37,7 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const { Pool } = require("pg");
-const { open, api, BASE } = require("./browser");
+const { open, api, BASE, openFold } = require("./browser");
 const fixture = require("./new-fixture");
 const fakePush = require("./fake-push");
 
@@ -306,10 +306,10 @@ async function person(pool, who, role = null) {
     await expect((rs) => rs.some((x) => x.who === "riley") && rs.some((x) => x.who === "jordan"));
     await wait(2000);
     const re = got("riley");
-    check(re.length === 1 && re[0].title === `Episode 6: ${OUT6} went home` && /^ZT Survivor 51 · Final results soon\./.test(re[0].body), "riley (sees results straight away): who went home, once for three games", JSON.stringify(re));
+    check(re.length === 1 && re[0].title === `Ep 6: ${OUT6} went home` && /^ZT Survivor 51 · Final results soon\./.test(re[0].body), "riley (sees results straight away): who went home, once for three games", JSON.stringify(re));
     check(re[0]?.url.startsWith("/episodes?league="), "on classic: classic's Episodes");
     const je = got("jordan");
-    check(je.length === 1 && je[0].title === "Episode 6 results are in" && /^ZT Survivor 51 · Reveal when you've watched\./.test(je[0].body) && !JSON.stringify(je).includes("Cristian"), "jordan (seen 5): only that they're in, no name anywhere", JSON.stringify(je));
+    check(je.length === 1 && je[0].title === "Ep 6 results are in" && /^ZT Survivor 51 · Reveal when you've watched\./.test(je[0].body) && !JSON.stringify(je).includes("Cristian"), "jordan (seen 5): only that they're in, no name anywhere", JSON.stringify(je));
     check(je[0]?.url === `/show/${sid}/tonight`, "on the new design: the show's Tonight");
     const wl = /Waivers process (.+)\.$/.exec(je[0]?.body || "");
     check(!wl || /P[DS]T$/.test(wl[1]), "a waiver line, if any, in jordan's own zone (Los Angeles)", je[0]?.body);
@@ -317,8 +317,8 @@ async function person(pool, who, role = null) {
     const bellE = (who) => notes(who, `results:${sid}:6`);
     check((await bellE("sam")).length === 1 && (await bellE("jordan")).length === 1 && (await bellE("riley")).length === 1 && (await bellE("alex")).length === 0, "the bell keeps one for each of them (sam's too), none for alex");
     const rileyRow = (await bellE("riley"))[0];
-    check(rileyRow.spoils === 6 && rileyRow.safe?.title === "Episode 6 results are in" && rileyRow.link === `/show/${sid}/tonight`, "riley's names Episode 6, with its safe words beside it", JSON.stringify(rileyRow));
-    check((await bellE("sam"))[0].title === "Episode 6 results are in", "sam's is worded for where he is");
+    check(rileyRow.spoils === 6 && rileyRow.safe?.title === "Ep 6 results are in" && rileyRow.link === `/show/${sid}/tonight`, "riley's names Episode 6, with its safe words beside it", JSON.stringify(rileyRow));
+    check((await bellE("sam"))[0].title === "Ep 6 results are in", "sam's is worded for where he is");
 
     // Final scores: riley switches classic's Final scores off first.
     await as.riley.call("PUT", "/api/me/notification-prefs", { enabled: { finalScores: false } });
@@ -329,14 +329,14 @@ async function person(pool, who, role = null) {
     await expect((rs) => rs.some((x) => x.who === "jordan") && rs.some((x) => x.who === "sam"));
     const jf = got("jordan");
     const sf = got("sam");
-    check(jf.length === 1 && jf[0].title === "Episode 6 final results are in" && /Reveal when you've watched/.test(jf[0].body), "jordan: Final results are in (past its time: at once), once", JSON.stringify(jf));
-    check(sf.length === 1 && sf[0].title === "Episode 6 final results are in" && !JSON.stringify(sf).includes("Cristian"), "sam (final not switched off): Final results are in, no names", JSON.stringify(sf));
+    check(jf.length === 1 && jf[0].title === "Ep 6 final results are in" && /Reveal when you've watched/.test(jf[0].body), "jordan: Final results are in (past its time: at once), once", JSON.stringify(jf));
+    check(sf.length === 1 && sf[0].title === "Ep 6 final results are in" && !JSON.stringify(sf).includes("Cristian"), "sam (final not switched off): Final results are in, no names", JSON.stringify(sf));
     check(got("riley").length === 0 && (await notes("riley", `final:${sid}:6`)).length === 1, "riley switched it off in classic: no push, but his bell keeps it");
     // The bell, read back through the guard: riley hides scores again, on Episode 5.
     await save("riley", { hideScores: true });
     const rb = (await as.riley.call("GET", "/api/me/notifications")).body;
     const early = rb.notes.find((n) => n.moment === "early");
-    check(early?.title === "Episode 6 results are in" && !JSON.stringify(rb).includes("Cristian"), "riley's bell now: the safe words, not who went home", JSON.stringify(early));
+    check(early?.title === "Ep 6 results are in" && !JSON.stringify(rb).includes("Cristian"), "riley's bell now: the safe words, not who went home", JSON.stringify(early));
 
     // ---------- the couch's moments ----------
     for (const who of ["alex", "jordan"]) await as[who].call("POST", `/api/seasons/${sid}/reveal`, { episode: 6, couch: fx.couchId });
@@ -421,7 +421,7 @@ async function person(pool, who, role = null) {
     await expect((rs) => rs.some((x) => x.who === "jordan"));
     const fl = got("jordan");
     check(
-      fl.length === 1 && fl[0].title === "You were right about Episode 6" && fl[0].body === "ZT Survivor 51 · Danny Kilby · individual immunity: every game has it put right." && fl[0].url === `/show/${sid}/episodes`,
+      fl.length === 1 && fl[0].title === "Ep 6: you were right" && fl[0].body === "ZT Survivor 51 · Danny Kilby · individual immunity: every game has it put right." && fl[0].url === `/show/${sid}/episodes`,
       "jordan hears how his flag went",
       JSON.stringify(fl)
     );
@@ -526,10 +526,13 @@ async function person(pool, who, role = null) {
       };
       const sheet = pg.locator("[role=dialog][data-open]");
 
-      // Settings: What we notify you about.
+      // Settings: this phone and Couch chat in Quick settings, the moments in Which notifications (a fold under Everything
+      // else, since the 2026-10-31 redesign).
       await pg.goto(`${BASE}/settings`, { waitUntil: "load" });
+      await openFold(pg, "notify");
       await pg.locator("[data-settings-notify]").waitFor({ timeout: 30000 });
       await pg.locator("[data-phone=off]").waitFor({ timeout: 15000 });
+      check((await pg.locator("[data-phone-plate]").count()) === 0, "his other phone gets them: this phone's a quiet row, no plate");
       await pg.waitForTimeout(800);
       const switches = await pg.locator("[data-settings-notify] [data-setting]").evaluateAll((els) => els.map((e) => `${e.getAttribute("data-setting")}:${e.getAttribute("aria-checked")}`));
       check(
@@ -578,6 +581,12 @@ async function person(pool, who, role = null) {
       const other = push.subscription("alex");
       await pool.query("DELETE FROM push_subscriptions WHERE endpoint = $1", [other.endpoint]);
       await pg.reload({ waitUntil: "load" });
+      // Nothing reaches him: this phone is Quick settings' plate (the screen's one yellow), and the fold says so too.
+      await pg.locator("[data-phone-plate][data-phone=off]").waitFor({ timeout: 15000 });
+      check(/Nothing reaches you yet/i.test(await pg.locator("[data-phone-plate]").innerText()), "no phone of his on: this phone is a plate, Nothing reaches you yet, with Turn on");
+      check(/none reach you yet/.test(await pg.locator('[data-fold="notify"] [data-fold-value]').innerText()), "Which notifications says none reach him, shut");
+      await shot("settings-plate");
+      await openFold(pg, "notify");
       await pg.locator("[data-notify-quiet=off]").waitFor({ timeout: 15000 }).catch(() => {});
       check(
         /None of these reach you yet.*turn notifications on above/.test((await pg.locator("[data-notify-quiet]").textContent().catch(() => "")) || ""),
@@ -588,9 +597,15 @@ async function person(pool, who, role = null) {
       await pg.locator("[data-phone-toggle]").click();
       await pg.locator("[data-phone=on]").waitFor({ timeout: 10000 });
       await pg.waitForFunction(() => !document.querySelector("[data-notify-quiet]"), null, { timeout: 10000 }).catch(() => {});
-      check((await pg.locator("[data-notify-quiet]").count()) === 0, "turned on here: the line goes");
+      check((await pg.locator("[data-notify-quiet]").count()) === 0 && (await pg.locator("[data-phone-plate]").count()) === 0, "turned on from the plate: the plate and the line go");
       await pg.locator("[data-phone-toggle]").click();
-      await pg.locator("[data-phone=off]").waitFor({ timeout: 10000 });
+      await pg.locator("[data-phone-plate][data-phone=off]").waitFor({ timeout: 10000 });
+      // Not now: his choice, on this device; the row says Off, and it stays that way.
+      await pg.locator("[data-phone-not-now]").click();
+      await pg.locator("[data-phone=off]:not([data-phone-plate])").waitFor({ timeout: 5000 });
+      await pg.reload({ waitUntil: "load" });
+      await pg.locator("[data-phone=off]").waitFor({ timeout: 15000 });
+      check((await pg.locator("[data-phone-plate]").count()) === 0, "Not now: a quiet Off row, still after a reload");
       await pool.query("INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth, user_agent) VALUES ($1, $2, $3, $4, 'zt notify check')", [U.alex, other.endpoint, other.p256dh, other.auth]);
 
       // The hub's bell.
@@ -716,6 +731,19 @@ async function person(pool, who, role = null) {
       check((await ask.getAttribute("data-remind-sheet").catch(() => null)) === "install", "the row's Turn on shows the pictures again");
       await ask.locator("[data-remind-later]").click();
       await ask.waitFor({ state: "hidden", timeout: 10000 });
+      // Settings in Safari on the iPhone: this phone says Add to Home Screen (the same three pictures on its plate when nothing
+      // reaches him), never a Turn on that can't work.
+      await ip.goto(`${BASE}/settings`, { waitUntil: "load" });
+      await ip.locator("[data-phone=install]").waitFor({ timeout: 15000 }).catch(() => {});
+      const ipPlate = (await ip.locator("[data-phone-plate]").count()) === 1;
+      check(
+        (await ip.locator("[data-phone=install]").count()) === 1 &&
+          (await ip.locator("[data-phone-toggle]").count()) === 0 &&
+          (ipPlate ? (await ip.locator("[data-phone-plate] img[src*=add-to-home-screen]").count()) === 1 : /Add it to your Home Screen first/.test(await ip.locator("[data-phone=install]").innerText())),
+        `Settings on the iPhone in Safari: Add to Home Screen (${ipPlate ? "the plate, with the pictures" : "a row: another phone of his gets them"}), no Turn on`
+      );
+      await ip.waitForTimeout(400);
+      await ip.screenshot({ path: path.join(out, `${String(++n).padStart(2, "0")}-alex-settings-iphone.png`) });
 
       // Opened from the Home Screen: notifications can work now, so the next save asks again, and Turn on turns this phone on.
       await ip.evaluate(() => localStorage.setItem("zt-installed", "1"));
@@ -735,6 +763,7 @@ async function person(pool, who, role = null) {
       check(got("alex-iphone").length === 1, "a test push reaches it");
       await ip.goto(`${BASE}/settings`, { waitUntil: "load" });
       await ip.locator("[data-phone=on]").waitFor({ timeout: 15000 }).catch(() => {});
+      await openFold(ip, "notify");
       check((await ip.locator("[data-phone=on]").count()) === 1 && (await ip.locator("[data-notify-quiet]").count()) === 0, "Settings agrees: on for this phone, nothing about none reaching him");
       check(b2.errors.length === 0, "the iPhone: no page errors", b2.errors.join(" | "));
     }

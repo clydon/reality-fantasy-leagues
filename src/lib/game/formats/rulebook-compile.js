@@ -522,18 +522,29 @@ function compileRulebook(blocks, { aliases = {}, id, reader, base, phaseStarts =
   function researchChecks() {
     const out = [];
     const votes = [];
+    const perPerson = new Set();
     const asks = (key) => fields.some((f) => f.key === qk(key));
     const asksEpisode = (key) => episodeFields.some((f) => f.key === qk(key) && f.type === 'answer');
     const exitIs = (names) => (names.length === 1 ? { answer: 'exitMethod', is: names[0] } : { any: names.map((n) => ({ answer: 'exitMethod', is: n })) });
     const castVotes = segs.filter((s) => !talk && s.decidedBy === 'vote' && s.voters === 'cast');
     const byVote = [...new Set(castVotes.flatMap((s) => causedBy(s)))];
     const group = (groups && groups.singular) || 'group';
+    // Two sent home by a vote is two votes the same night (a double boot), and the checklist has one vote and one win a person
+    // a part: the first vote's safe winner can go home at the second, and everyone there votes twice. So the checks that need
+    // one vote are an episode's, made only on a night with one ({ value: 'votedOut' }; `perPerson`: a rulebook's own
+    // condition for one says who it flags).
+    const votedOut = (ways) => ({ count: { all: [Y('leftTheGame'), exitIs(ways)] } });
+    const oneVote = { not: { value: 'votedOut', greaterThan: 1 } };
     for (const s of segs) {
       if (talk) break;
       const won = `${s.id}Won`;
       // Safe for winning it, yet voted out.
       if (s.onTheLine === 'safety' && asks(won) && byVote.length) {
-        out.push({ id: `${s.id}WonVotedOut`, when: { all: [Y(won), Y('leftTheGame'), exitIs(byVote)] }, say: `{name}: went home ({exitMethod}) despite winning ${the(s.name)}` });
+        perPerson.add(`${s.id}WonVotedOut`);
+        out.push({
+          id: `${s.id}WonVotedOut`, of: 'episode', values: { votedOut: votedOut(byVote) }, when: oneVote,
+          who: { all: [Y(won), Y('leftTheGame'), exitIs(byVote)] }, each: true, say: `{name}: went home ({exitMethod}) despite winning ${the(s.name)}`,
+        });
       }
       // A finishing place of 1 is a win.
       if (s.decides === 'topThree' && s.places === 'place' && asks(`${s.id}Place`) && asks(won)) {
@@ -566,10 +577,12 @@ function compileRulebook(blocks, { aliases = {}, id, reader, base, phaseStarts =
         when: { all: [{ value: 'attending', greaterThan: 0 }, { value: 'attendingWithVotes', equals: 0 }, { value: 'anyVotes', equals: 0 }] }, who: at, set: { [V]: null },
         say: `Everyone at ${s.name} was given zero votes, so the vote counts look missing (cleared, nobody marked safe)`,
       });
-      // Votes against people should roughly match the people voting: only reported (revotes, extra votes and idols differ).
+      // Votes against people should roughly match the people voting: only reported (revotes, extra votes and idols differ), and
+      // on a night with one of its votes (on two, everyone there votes twice).
+      const one = causedBy(s).length ? { votedOut: votedOut(causedBy(s)) } : null;
       out.push({
-        id: `${s.id}VoteCount`, of: 'episode', values: { voters: { count: { all: [at, { answer: F, present: true }] } }, against: { sum: V } },
-        when: { all: [{ value: 'voters', greaterThan: 0 }, { value: 'against', greaterThan: 0 }, { not: { value: 'against', equals: { value: 'voters' } } }] },
+        id: `${s.id}VoteCount`, of: 'episode', values: { voters: { count: { all: [at, { answer: F, present: true }] } }, against: { sum: V }, ...one },
+        when: { all: [{ value: 'voters', greaterThan: 0 }, { value: 'against', greaterThan: 0 }, { not: { value: 'against', equals: { value: 'voters' } } }, ...(one ? [oneVote] : [])] },
         say: `{against} votes counted against people, but {voters} people at ${s.name} are recorded voting: check who was there`,
       });
     }
@@ -588,7 +601,8 @@ function compileRulebook(blocks, { aliases = {}, id, reader, base, phaseStarts =
     const shaped = (id, c, base) => {
       const k = { ...(base || { id }) };
       if (typeof c.words === 'string' && c.words.trim()) k.say = renamePlaceholders(c.words, qk);
-      if (isObj(c.when)) k.when = renameAnswers(c.when, qk);
+      if (isObj(c.when) && perPerson.has(id)) k.who = renameAnswers(c.when, qk);
+      else if (isObj(c.when)) k.when = renameAnswers(c.when, qk);
       if (isObj(c.set)) k.set = Object.fromEntries(Object.entries(c.set).map(([key, v]) => [qk(key), v]));
       return k;
     };

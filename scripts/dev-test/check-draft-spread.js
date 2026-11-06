@@ -138,7 +138,7 @@ const tribesOf = (st, pid) => teamOf(st, pid).map((id) => st.castaways.find((c) 
     problems = await remake(P, { preset: "outlast", get: { by: "draft", each: 1, order: "draw" } });
     st = await league(P);
     const before = JSON.parse(JSON.stringify(st));
-    check(!problems.length && S.getLeagueType(st).draftStrategy === S.DrawDraftStrategy && st.settings.draftDraw === true && !S.DrawLogic.drawn(st), "Pool Party made names out of a hat (an Outlast of one each, drawn): not drawn yet", JSON.stringify(problems));
+    check(!problems.length && S.piecesOf(st).draft === S.DrawDraftStrategy && st.settings.draftDraw === true && !S.DrawLogic.drawn(st), "Pool Party made names out of a hat (an Outlast of one each, drawn): not drawn yet", JSON.stringify(problems));
     r = await as.alex.call("POST", `/api/leagues/${P}/draft/force-start`, {});
     st = await league(P);
     const dealt = Object.fromEntries(Object.entries(pP).map(([w, p]) => [w, teamOf(st, p)]));
