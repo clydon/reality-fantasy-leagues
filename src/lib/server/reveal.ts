@@ -1,4 +1,5 @@
 import StateLogic from "@/lib/game/state-logic.js";
+import Bots from "@/lib/game/bot-logic.js";
 import type { LeagueState } from "@/lib/game/types";
 import type { SessionUser } from "./auth-helpers";
 import { pool, HttpError, withLeagueLock } from "./db";
@@ -47,6 +48,9 @@ export async function markRevealed(user: SessionUser, leagueId: string, playerId
       const lj = StateLogic.GhostLogic.lateJoinOf(s, playerId);
       // Forward only: someone behind on the team never takes it back.
       if (lj && !((lj.seenThrough ?? -1) >= seat)) lj.seenThrough = seat;
+      // A game at your own pace (docs/PLAN-own-pace-games.md): its computer players play each week up to this one on their own
+      // copies, the moment the first person reveals it, so they're never ahead of or behind anyone.
+      if (StateLogic.GhostLogic.ownPace(s)) Bots.catchUpTo(s, n);
     });
     await revealAcrossGroup(user.id, leagueId, seen, n, late.catchingUp && jump);
     if (StateLogic.getPlayer(current, playerId)?.ghost) return;

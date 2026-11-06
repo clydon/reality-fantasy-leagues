@@ -39,16 +39,18 @@ export interface MoveCard {
   sheet?: { leagueId: string; game: string };
 }
 
-/** A required move as Tonight's card. `twin`: another move of the same kind is due here (two leagues), so name it. */
-export function moveCard(m: Move, seasonId: string, twin: boolean): MoveCard {
+/** A required move as Tonight's card. `twin`: another move of the same kind is due here (two leagues), so name it. `paced`: you're
+ *  catching up in that game (a late joiner's week, a game at your own pace): the episode aired long ago, so it locks when you
+ *  reveal it, not at airtime. */
+export function moveCard(m: Move, seasonId: string, twin: boolean, paced = false): MoveCard {
   const when = m.deadline ? airTime(Date.parse(m.deadline)) : null;
   const which = twin ? ` · ${m.leagueName}` : "";
   const key = `${m.kind}-${m.leagueId}`;
   switch (m.kind) {
     case "lineup":
-      return { key, title: "Set your lineup", line: `${plural(slotsOf(m), "open slot")}${when ? ` · locks ${when}` : ""}${which}`, action: "Set lineup", tab: "lineup", leagueId: m.leagueId };
+      return { key, title: "Set your lineup", line: `${plural(slotsOf(m), "open slot")}${when ? ` · locks ${when}` : paced ? " · locks when you reveal it" : ""}${which}`, action: "Set lineup", tab: "lineup", leagueId: m.leagueId };
     case "pick":
-      return { key, title: "Pick who survives", line: `Picks close at airtime${when ? ` · ${when}` : ""}${which}`, action: "Make my pick", tab: "pool", leagueId: m.leagueId };
+      return { key, title: "Pick who survives", line: `${paced && !when ? "Picks close when you reveal it" : "Picks close at airtime"}${when ? ` · ${when}` : ""}${which}`, action: "Make my pick", tab: "pool", leagueId: m.leagueId };
     case "pickup":
       return { key, title: m.text, line: `${when ? `Due ${when} · ` : ""}you pick who comes in${which}`, action: "Pick who comes in", href: `${paths.showPage(seasonId, "waivers")}?game=${m.leagueId}` };
     case "draftTurn":

@@ -54,6 +54,8 @@ export interface PlayingGame {
   through: number;
   /** Its season has ended, as far as you've seen: the place is where you finished. */
   ended: boolean;
+  /** A game at your own pace (docs/PLAN-own-pace-games.md): its season stays watched at your own pace. */
+  ownPace: boolean;
   /** Step A11 part 3: a co-op game's result and lives (everyone shares its place, `rank`); null for any other game. */
   coop?: GameStanding["coop"];
 }
@@ -244,6 +246,7 @@ export async function couchHub(user: SessionUser, couchId: string): Promise<Couc
         through: now.through,
         // An archived game (step 10 part 2b) is over where it stood: it keeps its place on the trophy shelf.
         ended: now.ended || g.archived,
+        ownPace: StateLogic.GhostLogic.ownPace(state),
         rows: now.rows,
         before,
         coop: now.coop,
@@ -293,6 +296,7 @@ export async function couchHub(user: SessionUser, couchId: string): Promise<Couc
         of: fieldOf(g.rows),
         through: g.through,
         ended: g.ended,
+        ownPace: g.ownPace,
         coop: g.coop ?? null,
       };
     });

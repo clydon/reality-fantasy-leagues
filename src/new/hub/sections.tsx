@@ -691,13 +691,13 @@ type Watched = { s: HomeShow | CouchShow; yours: boolean; who: { userId: string;
  *  the streaming rail's (step 14: streaming.tsx), and a show the couch plays is already on Your shows with its games. */
 export function couchWatching(home: Home, couch: Couch | null): Watched[] {
   if (!couch) return [];
-  const played = new Set(couch.games.map((g) => g.seasonId));
+  const played = new Set(couch.games.filter((g) => !g.ownPace).map((g) => g.seasonId));
   const all: Watched[] = [
     ...(home.couchShows ?? []).map((s) => ({ s, yours: false, who: watchersOn(couch, home.user.id, s.seasonId) })),
     ...home.shows.filter((s) => s.following || s.games.length).map((s) => ({ s, yours: true, who: watchersOn(couch, home.user.id, s.seasonId) })),
   ];
   return all
-    .filter((x) => x.who.length > 0 && !played.has(x.s.seasonId) && !ownPace({ release: x.s.release, status: x.s.status, played: "games" in x.s && x.s.games.length > 0 }))
+    .filter((x) => x.who.length > 0 && !played.has(x.s.seasonId) && !ownPace({ release: x.s.release, status: x.s.status, played: "games" in x.s && x.s.games.some((g) => !g.ownPace) }))
     .sort((a, b) => Number(a.yours) - Number(b.yours) || b.who.length - a.who.length || a.s.show.name.localeCompare(b.s.show.name));
 }
 

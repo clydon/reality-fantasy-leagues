@@ -130,6 +130,8 @@ export interface GameRef {
   archived?: boolean;
   /** A game over a span (step 6 of docs/PLAN-sports-data.md): its first and last episode; null or absent to the season's end. */
   span?: { from: number; to: number } | null;
+  /** A game at your own pace (docs/PLAN-own-pace-games.md): a season with only such games on it is still watched at your own pace. */
+  ownPace?: boolean;
   /** The episode it starts with: a game started after a span ended is its run back. Null while a game that starts when a phase
    *  of the season does waits for it (step A3 of docs/PLAN-start-a-game-gpt.md): it'll start after anything that's over. */
   start?: number | null;

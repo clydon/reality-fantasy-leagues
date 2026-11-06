@@ -267,8 +267,10 @@ export interface GameView extends GameRefIn {
   revealFirst: number | null;
   /** A late joiner playing their own season (GhostLogic): their week is the episode after their mark. */
   catchingUp: boolean;
-  /** Catching up (step 9): the episode they're on (their week), and the latest the game has results for ("Episode 2 of 4"). */
-  catchUp: { week: number; latest: number } | null;
+  /** Catching up (step 9): the episode they're on (their week), and the latest the game has results for ("Episode 2 of 4"). In a
+   *  game at your own pace (docs/PLAN-own-pace-games.md) `others`: everyone else in it (not its computer players) and the episode
+   *  they're on, null once they've finished; the server fills it (season-games.ts). */
+  catchUp: { week: number; latest: number; others?: { name: string; week: number | null }[] } | null;
   /** Step A11 part 3: a co-op game's lives (the couch's together) and its result, won or lost by all, as far as you've seen (its
    *  walk on your copy); null for any other game. What it shows is U1's. */
   coop: CoopWalk | null;
