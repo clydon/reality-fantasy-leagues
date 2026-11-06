@@ -98,6 +98,13 @@ fantasy team."
 - **The survivoR check (step five) wasn't run:** the dataset (`dev/xlsx/survivoR.xlsx`, from the October research) isn't in
   the repo. The four promises hold the arithmetic in tests; the check is rerunnable from docs/RESEARCH-scoring-values.md's
   method whenever the dataset is to hand.
+- **How the scoring is playing** (step six, read-only): the desk rulebook's third Research row, from the season's accepted
+  results as the admin may see them (`scoringPlay`, over `seasonStats` by their mark): each moment that fired, how often,
+  what it scored in all and its share of all points moved; each week how many people share a total with someone; and plain
+  notes when something stands out (one moment carrying 40% or more; a moment scoring more than two best weeks a time, its
+  per how much to check; most weeks most people tied; once the season is done, the last episode's best against a best
+  earlier week, the fourth promise as it played). By the standing rule it moves nothing: what stands out is for next
+  season's starting point, by hand.
 - **A moment belongs to one person** (the user, 2026-11-05, Below Deck 13's first research had "the tip is revealed" and
   "a guest complains" as moments): the rulebook prompt says every custom moment is something one cast member did or had
   done to them, with a line for a reality series beside the talk-show and scripted ones. What scores says such a moment

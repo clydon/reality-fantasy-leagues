@@ -184,6 +184,9 @@ async function main() {
     const qc = await read(`${P}?prompt=check`);
     check(/as a rulebook for a fantasy game/.test(q1.prompt) && /Start from this rulebook/.test(q1.prompt) && q1.prompt.includes('"elimination"') && q1.prompt === qc.prompt && /describing how/.test(qc.task), "Check for changes' question: the rulebook prompt from this rulebook (?prompt=1 is ?prompt=check)");
     check((await as.desk.call("GET", `${P}?prompt=bingo`)).status === 400, "an unknown question refused");
+    const play = (await as.desk.call("GET", `${P}?play=1`)).body;
+    check(play.through === 0 && play.moments.length === 0 && /No results yet/.test(play.notes[0]), "how the scoring is playing: no results yet, nothing to read", JSON.stringify(play));
+    check((await as.jo.call("GET", `${P}?play=1`)).status === 403, "jo is refused it");
     const q3 = await read(`${P}?prompt=scores&through=3`);
     check(!/have been watched/.test(q3.prompt) && q3.through === null && /its earlier seasons too/.test(q3.prompt) && /"known": "pastSeasons"/.test(q3.prompt) && /onceOrTwice: \+1/.test(q3.prompt), "What scores reads the whole season whatever's asked: earlier seasons, known from past seasons, rarity", q3.task);
     const qc3 = await read(`${P}?prompt=check&through=3`);
@@ -324,7 +327,7 @@ async function main() {
     };
     await web.goto(`${BASE}/desk/rulebook/${ids.rulebook}`, { waitUntil: "networkidle" });
     await web.locator('[data-desk-row="research-scores"]').waitFor({ timeout: 30_000 });
-    check((await web.locator('[data-desk-row="research-check"]').count()) === 1 && (await web.locator('[data-check-changes]').count()) === 0, "the Research rows, no copy-only button");
+    check((await web.locator('[data-desk-row="research-check"]').count()) === 1 && (await web.locator('[data-desk-row="research-play"]').count()) === 1 && (await web.locator('[data-check-changes]').count()) === 0, "the Research rows, no copy-only button");
     await web.locator('[data-desk-row="research-scores"]').scrollIntoViewIfNeeded();
     await shot("1-rulebook");
     await noWider("the rulebook page");
@@ -367,6 +370,14 @@ async function main() {
     check((await web.locator('[data-ask-ai="rulebook-check"] [data-ai-open="chatgpt"]').count()) === 1, "Paste it: Ask an AI's sheet, Open in ChatGPT");
     await shot("6-paste");
     await noWider("Ask an AI's sheet");
+    await web.keyboard.press("Escape");
+    await web.locator('[data-ask-ai="rulebook-check"]').waitFor({ state: "detached", timeout: 10_000 }).catch(() => undefined);
+    await web.keyboard.press("Escape");
+    await web.locator('[data-research-sheet]').waitFor({ state: "detached", timeout: 10_000 }).catch(() => undefined);
+    await web.locator('[data-desk-row="research-play"]').click();
+    await web.locator("[data-play-sheet] [data-play-notes]").waitFor({ timeout: 10_000 });
+    check(/No results yet/.test(await web.locator("[data-play-notes]").innerText()), "How the scoring is playing: its sheet, read-only");
+    await shot("7-play");
     check(errors.length === 0, "no page errors", errors.join(" | "));
 
     // 7. Nothing real moved.

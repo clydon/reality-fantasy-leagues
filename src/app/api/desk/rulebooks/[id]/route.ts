@@ -3,7 +3,7 @@ import { apiRoute } from "@/lib/server/api-route";
 import { botFor } from "@/lib/server/ask-bot";
 import { HttpError } from "@/lib/server/db";
 import { requireDesk } from "@/lib/server/desk";
-import { confirmPhase, deskRulebook, lockRulebook, pasteRulebookAnswer, researchKind, rulebookPrompt, saveAsTemplate, saveRulebook, setLive, settleRulebookAnswer, settleSuggestion } from "@/lib/server/desk-rulebooks";
+import { confirmPhase, deskRulebook, lockRulebook, pasteRulebookAnswer, researchKind, rulebookPrompt, saveAsTemplate, saveRulebook, scoringPlay, setLive, settleRulebookAnswer, settleSuggestion } from "@/lib/server/desk-rulebooks";
 import { deleteLibraryRulebook, setTemplate, takeOver } from "@/lib/server/desk-library";
 import { queueRulebook, takeOverQueue } from "@/lib/server/desk-research";
 import { settleNotice } from "@/lib/server/show-changes";
@@ -11,7 +11,8 @@ import { getRulebook } from "@db/rulebooks.js";
 import { pool } from "@/lib/server/db";
 
 // A rulebook on the desk, its editor (step 6b part 2): GET the page (`?prompt=check|scores[&through=N]`: research's question,
-// for Ask an AI's chat links and its copy; `1` is `check`; `through`: only Episodes 1 to N, so nothing later is in it). POST one action:
+// for Ask an AI's chat links and its copy; `1` is `check`; `through`: only Episodes 1 to N, so nothing later is in it;
+// `?play=1`: how the scoring is playing, read-only, by the admin's own mark). POST one action:
 //   { action: "save", blocks, kind: "fix" | "show_changed", fromEpisode?, summary? }   saved, pushed to its leagues, rescored
 //   { action: "live", live }                     its season's leagues play by it (or go back to their show's rules)
 //   { action: "phase", phaseId, episode }        when a phase started (null clears it)
@@ -32,6 +33,8 @@ export const GET = apiRoute(async (req, { params }: { params: Promise<{ id: stri
   const url = new URL(req.url);
   const prompt = url.searchParams.get("prompt");
   if (prompt) return NextResponse.json(await rulebookPrompt(id, prompt === "1" ? "check" : researchKind(prompt), url.searchParams.get("through")));
+  // How the scoring is playing (read-only, docs/PLAN-rulebook-research.md step six), as this admin may see it.
+  if (url.searchParams.get("play") === "1") return NextResponse.json(await scoringPlay(id, user));
   const page = await deskRulebook(id, user);
   // While it's asking, a queue whose driver was cut off is this read's to take over.
   if (page.research.check.asking || page.research.scores.asking) await takeOverQueue(new URL(req.url).origin);

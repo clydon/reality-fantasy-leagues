@@ -20,6 +20,8 @@ import { madeLine, saveTemplate } from "./desk-library";
 import { reachCopies } from "./ours";
 import { settleSeasonStarts } from "./phase-starts";
 import { leagueSeason } from "./push-events";
+import { seasonStats } from "./season-stats";
+import { LADDER } from "@/lib/game/formats/rulebook-scores";
 import { deskNotices } from "./show-changes";
 import { latestAired, seasonSchedules } from "./schedule";
 
@@ -736,4 +738,73 @@ export async function suggestFix(user: SessionUser, seasonId: string, couchId: s
   if (!book) throw new HttpError(404, "Season not found");
   await pool.query("INSERT INTO rulebook_suggestions (rulebook_id, season_id, user_id, couch_id, about, note) VALUES ($1, $2, $3, $4, $5, $6)", [book.row.id, seasonId, user.id, couchId || null, about, note]);
   return { ok: true };
+}
+
+// ---------- how the scoring is playing (read-only) ----------
+
+export interface ScoringPlay {
+  /** The last episode counted: where you are (your mark), or the last with results. 0: nothing yet. */
+  through: number;
+  people: number;
+  /** Each moment that fired, most points first: how often, what it scored in all, its share of all points moved. */
+  moments: { id: string; label: string; times: number; points: number; share: number; each: number }[];
+  /** Each week, how many people shared a total with someone else, on average, out of how many were in. */
+  ties: { people: number; tied: number } | null;
+  /** What stands out, in plain lines; empty when nothing does. Advisory: nothing here moves a value. */
+  notes: string[];
+}
+
+/**
+ * How the scoring is playing, from the season's accepted results as this admin may see them (their mark): where the points
+ * come from by moment, whether weeks end in ties, whether one moment carries the season, and what the finale gave the
+ * winner against a best week. Read-only by the standing rule: what happened never moves a value in play; it says what to
+ * revisit in the starting-point rulebook. The desk's rulebook page shows it (docs/PLAN-rulebook-research.md, step six).
+ */
+export async function scoringPlay(id: string, user: SessionUser): Promise<ScoringPlay> {
+  const r = await row(id);
+  const season = await seasonOf(r);
+  if (!season) return { through: 0, people: 0, moments: [], ties: null, notes: ["Not a season's rulebook: nothing to read."] };
+  const st = await seasonStats(user, season.id, null, {});
+  const cast = st.cast;
+  if (!st.through || !cast.length) return { through: st.through, people: cast.length, moments: [], ties: null, notes: ["No results yet: nothing to read."] };
+  const names = new Map(st.stats.map((x) => [x.key, x.name]));
+  const by = new Map<string, { times: number; points: number }>();
+  for (const c of cast) for (const [, key, points] of c.events) {
+    const m = by.get(key) ?? { times: 0, points: 0 };
+    m.times++;
+    m.points += points;
+    by.set(key, m);
+  }
+  const moved = [...by.values()].reduce((a, m) => a + Math.abs(m.points), 0);
+  const round = (n: number) => Math.round(n * 100) / 100;
+  const moments = [...by]
+    .map(([key, m]) => ({ id: key, label: names.get(key) ?? key, times: m.times, points: round(m.points), share: moved ? Math.round((Math.abs(m.points) / moved) * 100) / 100 : 0, each: round(m.points / m.times) }))
+    .sort((a, b) => Math.abs(b.points) - Math.abs(a.points));
+  // Ties: each week, who shared a total with someone else still in.
+  let weeks = 0;
+  let inAll = 0;
+  let tiedAll = 0;
+  for (let e = 1; e <= st.through; e++) {
+    const totals = cast.map((c) => c.perEp[e - 1]).filter((v): v is number => v !== null && v !== undefined);
+    if (!totals.length) continue;
+    const counts = new Map<number, number>();
+    for (const v of totals) counts.set(v, (counts.get(v) ?? 0) + 1);
+    weeks++;
+    inAll += totals.length;
+    tiedAll += totals.filter((v) => (counts.get(v) ?? 0) > 1).length;
+  }
+  const ties = weeks ? { people: round(inAll / weeks), tied: round(tiedAll / weeks) } : null;
+  const notes: string[] = [];
+  const best = LADDER.find((x) => x.id === "wonAlone")?.points ?? 4;
+  const top = moments[0];
+  if (top && top.share >= 0.4 && moments.length > 1) notes.push(`${top.label} carries ${Math.round(top.share * 100)}% of all points moved so far.`);
+  for (const m of moments) if (m.times >= 2 && Math.abs(m.each) > best * 2) notes.push(`${m.label} scores ${m.each} a time on average, more than two of the biggest weekly wins: check its per how much.`);
+  if (ties && ties.people >= 4 && ties.tied / ties.people >= 0.5) notes.push(`Most weeks ${Math.round(ties.tied)} of ${Math.round(ties.people)} people share a total with someone: moments most people get are doing the scoring.`);
+  // The finale against a best week, once the season is done: the fourth promise, as it played.
+  if (season.episodeCount && st.through >= season.episodeCount) {
+    const last = Math.max(...cast.map((c) => c.perEp[st.through - 1] ?? -Infinity));
+    const bestWeek = Math.max(...cast.flatMap((c) => c.perEp.slice(0, st.through - 1).filter((v): v is number => v !== null)));
+    if (Number.isFinite(last) && Number.isFinite(bestWeek)) notes.push(`The last episode's best was ${round(last)}, against a best earlier week of ${round(bestWeek)}${last >= 2 * bestWeek ? ": the finale outweighed two best weeks, which the ladder means to prevent" : "."}`);
+  }
+  return { through: st.through, people: cast.length, moments, ties, notes };
 }

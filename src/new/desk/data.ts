@@ -27,7 +27,7 @@ export type { DeskGame, GameFilter, GameOpen, GameRow, GameSort, GamesList } fro
 export type { DeskPerson, DeskSeatGame, PeopleList, PersonRow, PeopleFilter, PeopleSort } from "@/lib/server/desk-people";
 export type { HandOnCandidate, HandOnGame } from "@/lib/server/desk-seats";
 export type { GameSeats, LinkCandidate, SeatEmpty, SeatIn, SeatOut, SeatPerson } from "@/lib/server/desk-seat-moves";
-export type { DeskRulebook, DeskRulebookEdit, ResearchKind, RulebookAnswerCard, RulebookResearch } from "@/lib/server/desk-rulebooks";
+export type { DeskRulebook, DeskRulebookEdit, ResearchKind, RulebookAnswerCard, RulebookResearch, ScoringPlay } from "@/lib/server/desk-rulebooks";
 export type { DeskLibrary, LibraryTemplateCard, ProposedShape, LibraryRow, MadeRow } from "@/lib/server/desk-library";
 
 const KEY = ["new-design", "desk"] as const;

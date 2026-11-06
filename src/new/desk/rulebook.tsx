@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { BookOpen, Check, ChevronRight, Clock, ListChecks, Plus, Sparkles, X } from "lucide-react";
+import { BookOpen, Check, ChevronRight, Clock, Gauge, ListChecks, Plus, Sparkles, X } from "lucide-react";
 import { OPT, QUESTIONS, TWIST_FIELDS, blockLabel, blocksProblems, camelId, dropMisfitRefinements, labelOf, optionsFor, type RulebookBlocks } from "@/lib/game/formats/rulebook-schema.js";
 import { momentsFor, WAY_POINTS } from "@/lib/game/formats/rulebook-moments.js";
 import { pickScores } from "@/lib/game/formats/rulebook-scores.js";
@@ -15,7 +15,7 @@ import { HowItWorksBody } from "../show/how-it-works";
 import { Btn, Chip } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
-import { deskGet, deskSend, useAfterDesk, type DeskRulebook, type ResearchKind, type RulebookAnswerCard } from "./data";
+import { deskGet, deskSend, useAfterDesk, useDesk, type DeskRulebook, type ResearchKind, type RulebookAnswerCard, type ScoringPlay } from "./data";
 import { Choice, DeskHeader, DeskRow, History, IconLead, LockRow, Multi, Section, Stepper, Tag, Text, agoOf } from "./parts";
 
 // A rulebook on the desk, as its editor (docs/PLAN-new-design.md step 6b part 2; rulebooks phases 4-6; the mock's
@@ -73,6 +73,7 @@ export function RulebookPage({ id }: { id: string }) {
   const [reading, setReading] = useState(false);
   // Research open: which question, whether Ask an AI's paste sheet is up, and through which episode (null: the whole season).
   const [research, setResearch] = useState<{ kind: ResearchKind; paste: boolean; through: number | null } | null>(null);
+  const [playing, setPlaying] = useState(false);
   const page = q.data;
   // A new version from the server (a save, an undo) starts the draft again.
   if (page && seenVersion !== page.version) {
@@ -294,6 +295,9 @@ export function RulebookPage({ id }: { id: string }) {
             />
           );
         })}
+        {page.season && (
+          <DeskRow data="research-play" onClick={() => setPlaying(true)} lead={<IconLead icon={Gauge} />} title="How the scoring is playing" line="Where the points come from so far. Read-only: nothing here moves a value" />
+        )}
       </Section>
 
       {page.notices.length > 0 && (
@@ -425,6 +429,7 @@ export function RulebookPage({ id }: { id: string }) {
           </div>
         </Sheet>
       )}
+      {playing && <PlaySheet id={id} onClose={() => setPlaying(false)} />}
       {research && !research.paste && (
         <ResearchSheet
           page={page}
@@ -1334,6 +1339,57 @@ function SaveSheet({ page, lines, onClose, onSave }: { page: DeskRulebook; lines
         >
           {kind === "fix" ? "Save the fix" : "Save the change"}
         </Btn>
+      </div>
+    </Sheet>
+  );
+}
+
+// ---------- how the scoring is playing (read-only) ----------
+
+/** The season's results as this admin may see them: where the points come from, ties, what stands out. Never a control. */
+function PlaySheet({ id, onClose }: { id: string; onClose: () => void }) {
+  const q = useDesk<ScoringPlay>(`/rulebooks/${id}?play=1`);
+  const p = q.data;
+  return (
+    <Sheet open onOpenChange={(o) => !o && onClose()} title="How the scoring is playing" subtitle={p ? (p.through ? `Up to Episode ${p.through} · ${p.people} people · read-only` : "Read-only") : "Reading the results…"}>
+      <div data-play-sheet>
+        {q.error && <p className="text-[13px] text-destructive">{(q.error as Error).message}</p>}
+        {!p && !q.error && <div aria-busy className="h-32 animate-pulse rounded-[3px] bg-background" />}
+        {p && (
+          <>
+            {p.notes.length > 0 && (
+              <div data-play-notes className="mb-3 rounded-[4px] bg-background p-3">
+                {p.notes.map((n) => (
+                  <p key={n} className="text-[14px] leading-snug [&+&]:mt-1.5">
+                    {n}
+                  </p>
+                ))}
+              </div>
+            )}
+            {p.ties && (
+              <small className="mb-2 block text-[13px] text-muted-foreground">
+                Each week about {Math.round(p.ties.tied)} of {Math.round(p.ties.people)} people share a total with someone.
+              </small>
+            )}
+            {p.moments.length > 0 && (
+              <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground">
+                <span className="min-w-0 flex-1">Moment</span>
+                <span className="w-10 text-right">Times</span>
+                <span className="w-12 text-right">Points</span>
+                <span className="w-10 text-right">Share</span>
+              </div>
+            )}
+            {p.moments.map((m) => (
+              <div key={m.id} data-play-moment={m.id} className="flex min-h-9 items-center gap-2 border-t border-border py-1 text-[14px]">
+                <span className="min-w-0 flex-1 truncate">{m.label}</span>
+                <span className="type-num w-10 text-right text-muted-foreground">{m.times}</span>
+                <b className="type-num w-12 text-right">{m.points}</b>
+                <span className="type-num w-10 text-right text-muted-foreground">{Math.round(m.share * 100)}%</span>
+              </div>
+            ))}
+            <small className="mt-3 block text-[13px] leading-snug text-muted-foreground">What happened never moves a value in play. What stands out here is for next season&apos;s starting point, by hand.</small>
+          </>
+        )}
       </div>
     </Sheet>
   );
