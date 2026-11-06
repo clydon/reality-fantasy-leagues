@@ -1050,7 +1050,8 @@ engine track; L brings each sport's data to it. Its screens wait for the UI trac
     tables as the defaults keep them: points each, by position, by place, by a bout's format; the check against a sport's ctx;
     one scorer for every shape; the default specs passing the engine's own check: built 2026-11-06, As built below); part 4b, the
     sports settles (`final` and `stat`, settled from a game as of a moment, `settle.of`, the `side` answer), on the recorded
-    fixtures and a live recording through the poller in virtual time.
+    fixtures and a live recording through the poller in virtual time (built 2026-11-06, As built below). **L1 is done**; L3
+    builds on both.
 - **L2. The live clock.** The phone's poller and `GameClock` (live, synced, snapped), shared with A15; fake-espn replaying a
   recorded game in real time or 60x; HOSTING.md. (Built 2026-10-28, in one session: As built below. Its one open check, a
   real game recorded in progress against its final, is a script waiting for a game: L2's Noticed.)
@@ -3074,11 +3075,58 @@ does, the engine's own check reads it against the sport, and one scorer works it
   missing card. 1,496 unit tests pass.
 
 **L1 part 4a noticed, not fixed:**
-- **A stats question can be settled backwards by a place**: `settle: { by: 'stat', stat: 'POS', take: 'most' }` passes the check,
-  and the most POS is the last place. (Part 4b, with the settles: a place's best is its least, or refused.)
+- **A stats question can be settled backwards by a place**: `settle: { by: 'stat', stat: 'POS', take: 'most' }` passed the check,
+  and the most POS is the last place. **Done in part 4b**: refused, with who places best being the least.
 - **A sub's position is the box's "SUB"**, so `groupOf` from the box gives a soccer sub no group (he scores the flat table: a
   midfielder's). The roster's (`season_cast.role`) is the right one, as L5 part 1 noticed; L3's scorer reads it.
 - **The words are long**: F1's are four lists of places. The wizard's short form is the UI track's (U0) and G4's.
+
+**L1 part 4b as built: the sports settles (2026-11-06, `sports`, not merged; no migration, no ESPN calls, nothing stored).** A
+question a sport's game settles, checked by the engine's own check and graded by its own grader, from facts the sports build out
+of a game as of the viewer's moment.
+- **The settles** (`game-spec/schema.js`, the engine's): `{ by: 'final', take: winner | total | margin, of? }` (a team game's
+  winner, both sides' points, the margin; a field's winner, whoever's first; a card's bout's, `of: 'main'` by default or the
+  bout's id) and `{ by: 'stat', stat, take: most | least | value, of? }` (who has the most or least of it, `of` a team among its
+  players; how many, `of` a player's or a team's, else the game's). Asked each episode: that game's; asked once: a stat over the
+  game's span added up (the series' home runs), a final only in a game of just one; never over a window. `settle.of` only on a
+  stat or a winner; `settle.stat` only on a stat. With a sport's ctx (`ctx.shape`, specContextOf's `team`, `field` or `card`): a
+  team game is won by a side (`answer: side`), a field or a card by someone (`person`: `SETTLES_FOR.person` takes
+  `final:winner`), a field's or a card's final has no total or margin, only a card's bout takes `of`; a place's `most` is refused
+  (the most POS is the last place: who places best is the least), as is a place asked once over several games (places don't add
+  up).
+- **The grader** (`game-spec/answers.js` `sportsVerdict`, from `verdictOf`): reads `facts.games`, Map episode to the game as of
+  the viewer's moment (`SportsGameFacts`: status pre / in / final / off, the sides and their score, everyone's lines, their teams,
+  a field's places and which stats are places, a card's bouts). Known at the final; **an over on the total is known the moment the
+  total passes its line** (scores only add: `early`), and stays known; anything else live is still waiting, with where it stands
+  (`live`: the value, or who's ahead, for the phone). A game called off, a tie, a draw or a no contest, nobody with the stat: off,
+  no points either way. The least of a place is among those placed (a cut golfer has none); the most of a stat that can be under 0
+  (plus-minus) is among those who have it. A season-long stat asked once waits for the season's end (`facts.over`). The `side`
+  answer: a team's id, one of the game's sides (`answerProblem`'s faces).
+- **The facts** (`gameFacts(sport, state, { status, sides, people, card })`, `src/lib/sports/spec.ts`): from any shape's state
+  (its reduce or stateAt: the server's from a stored final, the phone's from the poller's), a team sport's lines with their
+  derived stats (`Sport.full`), the teams from the box's or the poller's who's who; a card's without its card throws (every bout
+  would read as not on the card).
+- **Tests** (`tests/sports-settles.test.js`, 6): the check; **the user's 76ers sentence** (`sixersOpener`: the 76ers win, Maxey and
+  Mitchell tied on 32 both right, 220 under 237.5, ESPN's line), with the margin, a team's and a player's points; the Red
+  Sox-Yankees series' home runs asked once (its two games added up: Ben Rice's two the most); what doesn't count; golf's winner
+  and least place at Bermuda, UFC 324's main event and Gaethje's bout by its id, a draw; and **live, the 76ers' opener through
+  the phone's poller in virtual time**: an over at 200.5 known the moment the total passed it, before the final, and kept;
+  nobody winning before the final, both sides leading at some point; someone 20 minutes behind knowing the over 20 minutes
+  later (from the poller's timeline at their moment); at the final, the winner and the under as the box score says. 1,502 unit
+  tests pass.
+
+**L1 part 4b noticed, not fixed:**
+- **The server doesn't grade a sports question yet**: no league plays one (VOCAB keeps `final` and `stat` the sports branch's),
+  `facts.games` is built by no server code, and `src/lib/server/answers.ts` builds an answer's faces only for one that names
+  someone, so a `side` answer isn't checked against the game's sides there. (L3: facts.games from the stored final, the faces.)
+- **An `of` isn't checked against the roster**: a mistyped player's id is a stat of nobody (0, or off for a most). The check has
+  no roster in its ctx; G3's context pack has the cast. (G3.)
+- **A least over a whole game counts everyone who played**, so "who has the fewest turnovers" names the bench. The question's to
+  avoid (G3 asks better ones), not the grader's.
+- **An over known early on the total stays known if the game is then called off** mid-way (a suspended baseball game resumed
+  another day keeps it; one wiped out, as a sportsbook voids, would flip it to off at the final). Rare; the final's verdict is
+  what's saved (L3). Only the total clinches: a stat can go down (plus-minus, to par, places gained).
+- **A soccer draw is off for a side answer**: a draw as a third side ("draw" an answer) isn't in the vocabulary. (L4's pick'em.)
 
 **Open, from the sports plan:** head-to-head's schedule over a span, and playoffs; whether a sport's moves follow Weekly
 Lineup's waivers or need their own rhythm for daily sports; what a live call is worth, and how fast they open and close;

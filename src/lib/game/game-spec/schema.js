@@ -373,7 +373,12 @@ const VOCAB = {
 //               group they were on); asked each episode, about that one. Void when research isn't sure, the title isn't a
 //               line, or whoever said it couldn't be picked (the host, someone already out): no points either way. Our check
 //               takes it only where research says it reliably on the show (ctx.facts, what it returned there: ratingOf, BAR)
-//           sports: { by: 'final', take: winner | total | margin } | { by: 'stat', stat, take: most | least | value }
+//           sports (L1 part 4b): { by: 'final', take: winner | total | margin, of? } a game's final (who wins, both sides'
+//               points, the margin), a field's winner (whoever finishes first), a card's bout's (of: 'main', the main event,
+//               the default, or the bout's id); | { by: 'stat', stat, take: most | least | value, of? } a stat in the game:
+//               who has the most or least of it (of: a team, among its players), or how many (of: a player's, a team's; left
+//               out, the game's). A game an episode: asked each episode (once, on a game of one). Graded from the sports'
+//               facts (answers.js sportsVerdict: facts.games, the game as of the viewer's moment)
 const TAKES = {
   results: ['winner', 'out', 'placed', 'top', 'stays', 'order', 'split', 'outlast'],
   moment: ['happened', 'count', 'who', 'most', 'first', 'order'],
@@ -394,7 +399,7 @@ const NUMBERS = ['moment:count', 'role:count', 'phase:starts', 'final:total', 'f
 /** Who's right, as people (A8's confidence and chips are graded by any of them). */
 const PEOPLE = ['results:winner', 'results:out', 'results:placed', 'results:top', 'results:stays', 'moment:who', 'moment:most', 'moment:first', 'role:who', 'role:end', 'points:most'];
 const SETTLES_FOR = {
-  person: [...PEOPLE, 'stat:most', 'stat:least', 'fact:who'],
+  person: [...PEOPLE, 'stat:most', 'stat:least', 'fact:who', 'final:winner'],
   group: ['results:out', 'moment:who', 'fact:who'],
   order: ['results:order', 'moment:order', 'points:order'],
   confidence: PEOPLE,
@@ -1790,6 +1795,15 @@ function questionProblems(q, at, s, ids, league) {
   // Where a phase starts is one episode for the whole game.
   if (how === 'phase:starts' && q.asked !== 'once') add('asked', 'Which episode a phase starts in is the game\'s: ask it once');
   if (st.by === 'stat' && (typeof st.stat !== 'string' || !st.stat)) add('settle.stat', 'Which stat settles it');
+  if (st.stat !== undefined && st.by !== 'stat') add('settle.stat', 'Only a stat settles by a stat');
+  // L1 part 4b: a sport's game settles a question about it, a game an episode: that game's (asked each episode), or asked once,
+  // the game's span's (a stat added up over its games: a series' home runs; a final, a game of just one: settleProblems). `of`
+  // says whose: a stat's player or team, a card's bout.
+  if ((st.by === 'final' || st.by === 'stat') && windowed(q)) add('asked', `A game's ${st.by === 'final' ? 'final is' : 'stats are'} that game's or the whole game's: ask it each episode, or once`);
+  if (st.of !== undefined) {
+    if (!(st.by === 'stat' || (st.by === 'final' && st.take === 'winner'))) add('settle.of', "Only a stat, or who wins a card's bout, says whose");
+    else if (typeof st.of !== 'string' || !st.of) add('settle.of', "Whose: a player's or a team's id (a card's bout: 'main' or its id)");
+  }
   if (st.by === 'results' && (st.take === 'placed' || st.take === 'top') && !isInt(st.place, 1)) add('settle.place', 'Which place: 1 or more');
   if (st.place !== undefined && !(st.by === 'results' && (st.take === 'placed' || st.take === 'top'))) add('settle.place', 'Only a place or a top settles by a place');
   // What the season's results say only at its end: asked once, in a game that runs to it.
@@ -1942,7 +1956,7 @@ const KEYS = {
   draft: ['at', 'timer', 'away', 'opens'],
   bets: ['points'],
   question: ['id', 'ask', 'answer', 'points', 'settle', 'asked', 'closes', 'pick', 'from', 'line', 'options', 'each', 'every', 'over', 'within', 'chips', 'pairs', 'wager', 'share', 'rollover', 'shrink', 'fallback'],
-  settle: ['by', 'take', 'moment', 'role', 'phase', 'stat', 'place', 'fact'],
+  settle: ['by', 'take', 'moment', 'role', 'phase', 'stat', 'place', 'fact', 'of'],
 };
 /** The paths of keys a spec has that no game spec does. */
 function unknownKeys(s) {
@@ -2610,6 +2624,7 @@ function settleProblems(s, ctx, opts) {
   const moments = Array.isArray(ctx.moments) ? ctx.moments : [];
   const momentById = new Map(moments.map((m) => [m.id, m]));
   const stats = new Set((Array.isArray(ctx.stats) ? ctx.stats : []).map((x) => (isObj(x) ? x.key : x)));
+  const places = new Set((Array.isArray(ctx.stats) ? ctx.stats : []).filter((x) => isObj(x) && x.place).map((x) => x.key));
   const roles = new Set(Array.isArray(ctx.roles) ? ctx.roles : []);
   const byData = (m) => m.answeredBy === 'research' || (!!m.auto && m.answeredBy !== 'league');
   const couchWord = (m) => `${m.label || m.id} is the couch's word: research doesn't answer it, so data can't settle it`;
@@ -2747,6 +2762,19 @@ function settleProblems(s, ctx, opts) {
     // A group answer names a group someone's on, as research records them after each swap: a show whose cast has none can't.
     if (q && q.answer === 'group' && ctx.grouped === false) out.push([`ask[${i}].answer`, "Nobody on the show is in a group (a tribe, a team): name a person instead"]);
     if (st.by === 'stat' && typeof st.stat === 'string' && !stats.has(st.stat)) out.push([`ask[${i}].settle.stat`, `Nothing counts "${st.stat}": it isn't one of the sport's stats`]);
+    // L1 part 4b: a place's best is its least (1st), so the most of it is the last place, and places don't add up over games.
+    else if (st.by === 'stat' && st.take === 'most' && places.has(st.stat)) out.push([`ask[${i}].settle.take`, `${st.stat} is a place: the most of it is the last place, so who places best is the least`]);
+    const oneGame = isObj(s.span) && isInt(s.span.from, 1) && s.span.to === s.span.from;
+    if (st.by === 'stat' && places.has(st.stat) && q && q.asked === 'once' && !oneGame) out.push([`ask[${i}].asked`, `${st.stat} is a place, which doesn't add up over games: ask it each episode`]);
+    // What a sport's final says (ctx.shape, the sports' specContextOf): a team game's, who wins (a side), the total and the margin;
+    // a field's and a card's, who wins (a person: a card's bout by `of`). A final asked once is one game's: a game of just one.
+    const shape = ctx.shape;
+    if (st.by === 'final' && (shape === 'team' || shape === 'field' || shape === 'card')) {
+      if (shape !== 'team' && st.take !== 'winner') out.push([`ask[${i}].settle.take`, `A ${shape}'s final says who wins: no total or margin`]);
+      if (st.take === 'winner' && q && (q.answer === 'side' || q.answer === 'person') && q.answer !== (shape === 'team' ? 'side' : 'person')) out.push([`ask[${i}].answer`, shape === 'team' ? 'A team game is won by a side: answer side' : `A ${shape} is won by someone: answer person`]);
+      if (st.of !== undefined && shape !== 'card') out.push([`ask[${i}].settle.of`, "Only a card's bout says whose win: a game has one winner"]);
+      if (q && q.asked === 'once' && !oneGame) out.push([`ask[${i}].asked`, "A final is one game's: ask it each episode, or once in a game of just one"]);
+    }
     if (st.by === 'results' && ctx.results === false) out.push([`ask[${i}].settle`, "The show's results don't say who goes home or wins"]);
     else if (st.by === 'results' && ['winner', 'placed', 'top', 'split'].includes(st.take) && ctx.winner === false) out.push([`ask[${i}].settle`, "Nobody wins this show: its results don't crown a winner"]);
     else if (st.by === 'results' && st.take === 'split' && ctx.jury === false) out.push([`ask[${i}].settle`, 'A jury vote split needs a finale a jury decides']);

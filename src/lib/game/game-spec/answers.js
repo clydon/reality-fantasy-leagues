@@ -35,6 +35,10 @@
 //                   { state: 'who', who } | 'outside' | 'none' | 'unsure'), for each episode research has stored its answer for
 //                   (one without the facts section: 'unsure', research didn't say); the server's (episode-facts.ts
 //                   episodeFactsFor), never the state's: without it, a fact question waits
+//     games         (L1 part 4b) Map episode -> its game as of the viewer's moment, a sport's (src/lib/sports/spec.ts gameFacts:
+//                   { status: pre | in | final | off, sides: [{ id, score }], lines: { id: stats }, teams: { id: team id },
+//                   places?: { id: place } a field's, placed?: the stats that are places, bouts?: { id: { sides, winner, outcome, main } } a card's): the server's
+//                   from a stored final, the phone's from the poller's stateAt(t); without it, a sports question waits
 //   }
 //   and each episode's `points` (A8): each person's points in it by the game's rules, once its full results are in
 //
@@ -351,6 +355,104 @@ function factVerdict(q, episode, facts) {
   return known([o.who], undefined, groupsIn([o.who], e));
 }
 
+/**
+ * L1 part 4b: where a sports question stands in a game (facts.games' one): { right?, value? }, or { off: why } (a tie, a bout with
+ * no winner, nobody with the stat). A final: who wins (a team game's side, a field's first, a card's bout's winner), both sides'
+ * points, the margin. A stat: of a player, theirs; of a team, among its players (its players' added, for a value); else the game's.
+ */
+function standingIn(st, g) {
+  const lines = isObj(g.lines) ? g.lines : {};
+  if (st.by === 'final') {
+    if (isObj(g.bouts)) {
+      const bouts = Object.entries(g.bouts);
+      const found = st.of === undefined || st.of === 'main' ? bouts.find(([, b]) => b.main) : bouts.find(([id]) => id === st.of);
+      if (!found) return { off: "That bout isn't on the card: it doesn't count either way" };
+      if (st.take !== 'winner') return { off: 'A bout has no total' };
+      const b = found[1];
+      if (b.winner) return { right: [b.winner] };
+      return { off: b.outcome === 'draw' ? "A draw: it doesn't count either way" : b.outcome === 'nc' ? "No contest: it doesn't count either way" : 'Not decided yet' };
+    }
+    if (isObj(g.places)) {
+      if (st.take !== 'winner') return { off: 'A field has no total' };
+      const first = Object.keys(g.places).filter((id) => g.places[id] === 1);
+      return first.length ? { right: first } : { off: 'Nobody has won yet' };
+    }
+    const sides = Array.isArray(g.sides) ? g.sides : [];
+    if (sides.length !== 2) return { off: "The game's sides aren't known" };
+    const [a, b] = sides;
+    if (st.take === 'total') return { value: a.score + b.score };
+    if (st.take === 'margin') return { value: Math.abs(a.score - b.score) };
+    if (a.score === b.score) return { off: "A tie: it doesn't count either way" };
+    return { right: [a.score > b.score ? a.id : b.id] };
+  }
+  const teams = isObj(g.teams) ? g.teams : {};
+  const sideIds = new Set((Array.isArray(g.sides) ? g.sides : []).map((x) => x.id));
+  const ofTeam = st.of !== undefined && (sideIds.has(st.of) || Object.values(teams).includes(st.of));
+  let whose = Object.keys(lines).filter((id) => st.of === undefined || (ofTeam ? teams[id] === st.of : id === st.of));
+  const of = (id) => (isNum(lines[id] && lines[id][st.stat]) ? lines[id][st.stat] : 0);
+  if (st.take === 'value') return { value: whose.reduce((n, id) => n + of(id), 0) };
+  // A place's missing is out of the places (golf's cut): never its least. A count's missing is none of it.
+  if (Array.isArray(g.placed) && g.placed.includes(st.stat)) whose = whose.filter((id) => isNum(lines[id] && lines[id][st.stat]));
+  if (!whose.length) return { off: NOBODY };
+  let best = st.take === 'most' ? Math.max(...whose.map(of)) : Math.min(...whose.map(of));
+  if (st.take === 'most' && best <= 0) {
+    // A stat that can be under 0 (plus-minus): the most of those who have it; nobody with any of it, nobody.
+    const had = whose.filter((id) => isNum(lines[id] && lines[id][st.stat]));
+    if (!had.length || had.every((id) => lines[id][st.stat] === 0)) return { off: NOBODY };
+    whose = had;
+    best = Math.max(...had.map(of));
+  }
+  return { right: whose.filter((id) => of(id) === best), value: best };
+}
+
+/**
+ * L1 part 4b: a question asked once, the game's span's: its one game, or a stat over its games added up (each one's lines; a
+ * series' home runs), final once every game of the span is (one called off counts nothing), the span's end known; else where it
+ * stands so far.
+ */
+function spanGame(q, facts) {
+  if (facts.from === null) return null;
+  if (q.settle.by !== 'stat' || facts.to === facts.from) return facts.games.get(facts.from) || null;
+  const last = facts.to !== null ? facts.to : Math.max(facts.from, ...facts.games.keys());
+  const games = [];
+  for (let n = facts.from; n <= last; n++) if (facts.games.has(n)) games.push(facts.games.get(n));
+  if (!games.length) return null;
+  const lines = {};
+  const teams = {};
+  for (const g of games) {
+    if (g.status === 'off') continue;
+    // Places don't add up (the check refuses one asked so): only the counts.
+    const placed = new Set(Array.isArray(g.placed) ? g.placed : []);
+    for (const [id, l] of Object.entries(g.lines || {})) {
+      const into = (lines[id] = lines[id] || {});
+      for (const [k, v] of Object.entries(l)) if (isNum(v) && !placed.has(k)) into[k] = (into[k] || 0) + v;
+    }
+    Object.assign(teams, g.teams || {});
+  }
+  const counted = facts.to !== null ? last - facts.from + 1 : null;
+  const over = (counted === null ? facts.over : games.length === counted) && games.every((g) => g.status === 'final' || g.status === 'off');
+  const status = over ? 'final' : games.some((g) => g.status !== 'pre') ? 'in' : 'pre';
+  return { status, sides: [], lines, teams, placed: games[0].placed };
+}
+
+/**
+ * L1 part 4b: a question a sport's game settles (facts.games), graded once the game is final as of the viewer's moment (a later
+ * watch's: the game as far as they've seen it), its answers locked at the game's start as any episode's. An over on the total is
+ * known the moment the total passes its line (scores only add: `early`); anything else live is still waiting, with where it
+ * stands (`live`: the value or who's ahead, for the phone). A game called off, a tie, a bout with no winner: off.
+ */
+function sportsVerdict(q, episode, facts) {
+  if (!(facts.games instanceof Map)) return WAITING;
+  const g = q.asked === 'once' ? spanGame(q, facts) : facts.games.get(episode);
+  if (!g || g.status === 'pre') return WAITING;
+  if (g.status === 'off') return off("The game wasn't played: it doesn't count either way");
+  const st = q.settle;
+  const now = standingIn(st, g);
+  if (g.status === 'final') return now.off ? off(now.off) : known(now.right || [], now.value);
+  if (st.by === 'final' && st.take === 'total' && q.answer === 'overUnder' && isNum(q.line) && isNum(now.value) && now.value > q.line) return { ...known([], now.value), early: true };
+  return now.off ? WAITING : { state: 'waiting', live: now };
+}
+
 /** How a question stands for the window it opens at `episode` (asked each, every N or by phase) or the game (asked once;
  *  `episode` ignored). */
 function verdictOf(q, episode, facts) {
@@ -360,7 +462,8 @@ function verdictOf(q, episode, facts) {
     const fg = timelineGroups(q, episode, facts);
     return fg ? onTimeline(q, factVerdict(q, episode, facts), fg, facts) : forGroups(q, factVerdict(q, episode, facts));
   }
-  if (!st || !['results', 'moment', 'role', 'phase', 'points'].includes(st.by)) return WAITING; // the sports branch's settles, and the calls
+  if (st && (st.by === 'final' || st.by === 'stat')) return sportsVerdict(q, episode, facts);
+  if (!st || !['results', 'moment', 'role', 'phase', 'points'].includes(st.by)) return WAITING; // the calls
   if (q.each) return eachVerdict(q, episode, facts);
   if (st.by === 'results' && st.take === 'outlast') return pairsVerdict(q, facts);
   const fg = timelineGroups(q, episode, facts);
@@ -821,6 +924,11 @@ function answerProblem(q, value, faces, o) {
       return null;
     }
     case 'yesNo': return YES_NO.includes(value) ? null : 'Yes or no';
+    // L1 part 4b: a side of the game (a team's id), `faces` its sides.
+    case 'side': {
+      if (typeof value !== 'string' || !value) return 'Pick a side';
+      return faces && !faces.has(value) ? 'Pick one of the sides' : null;
+    }
     case 'number': return isNum(value) && value >= 0 && value <= 100000 ? null : 'A number, 0 or more';
     case 'overUnder': return value === 'over' || value === 'under' ? null : 'Over or under';
     case 'choice': return Array.isArray(q.options) && q.options.includes(value) ? null : 'One of its options';

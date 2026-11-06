@@ -8,6 +8,7 @@
 // (./defaults/*.json) or a game's own spec.
 import { placeRange } from "@/lib/game/game-spec";
 import { TeamSport } from "./sport";
+import type { SportsGameFacts } from "@/lib/game/game-spec";
 import type { BoutCard, BoutState, FieldState, GameState, LockCadence, Sport, Stats } from "./sport";
 
 /** A spec's score by a sport's stats (the game spec's `score` when `by` is "stats"). */
@@ -135,6 +136,35 @@ export function statePoints(
     parts.push(...linePoints(score, rest, { group }).parts);
     out[id] = { points: cents(parts.reduce((n, p) => n + p.points, 0)), parts };
   }
+  return out;
+}
+
+/**
+ * A sport's game as the game spec's grader reads it (L1 part 4b: facts.games' one, answers.js sportsVerdict), from the sport's
+ * state as of the viewer's moment (its reduce or stateAt: the server's from a stored final, the phone's from the poller) and
+ * where the game is then (`status`: final once the viewer's moment is past its end). A team game's sides and score, everyone's
+ * lines (derived stats worked out) and their teams (`people`: the box's or the poller's who's who); a field's places; a card's
+ * bouts and their results.
+ */
+export function gameFacts(
+  sport: Sport,
+  state: GameState | FieldState | BoutState,
+  o: { status: SportsGameFacts["status"]; sides?: string[]; people?: Record<string, { team?: string | null }>; card?: BoutCard | null },
+): SportsGameFacts {
+  const team = sport instanceof TeamSport;
+  const lines = Object.fromEntries(Object.entries(state.lines).map(([id, l]) => [id, team ? sport.full(l) : l]));
+  const teams = Object.fromEntries(Object.entries(o.people ?? {}).flatMap(([id, p]) => (p.team ? [[id, p.team]] : [])));
+  const placed = sport.stats.filter((s) => s.place).map((s) => s.key);
+  const out: SportsGameFacts = { status: o.status, sides: [], lines, teams, ...(placed.length ? { placed } : {}) };
+  if ("standings" in state) out.places = Object.fromEntries(state.standings.map((s) => [s.id, s.place]));
+  else if ("bouts" in state) {
+    // Without its card a bout's sides and the main event aren't known: every bout would read as not on the card.
+    if (!o.card) throw new Error("A card's facts need the card");
+    out.bouts = Object.fromEntries((o.card?.bouts ?? []).map((b) => {
+      const r = state.bouts[b.id]?.result ?? null;
+      return [b.id, { sides: b.sides, winner: r?.winner ?? null, outcome: r?.outcome ?? null, main: b.main }];
+    }));
+  } else out.sides = (o.sides ?? Object.keys(state.score)).map((id) => ({ id, score: state.score[id] ?? 0 }));
   return out;
 }
 

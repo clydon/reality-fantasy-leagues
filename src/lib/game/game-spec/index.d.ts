@@ -191,10 +191,10 @@ export type SpecSettle =
   | { by: "trivia" }
   /** A13 part 2: an episode fact research answers after each episode (formats/episode-facts.js FACTS): who it names. */
   | { by: "fact"; fact: string; take: "who" }
-  /** sports */
-  | { by: "final"; take: "winner" | "total" | "margin" }
-  /** sports */
-  | { by: "stat"; stat: string; take: "most" | "least" | "value" };
+  /** L1 part 4b: a sport's game's final (a card's bout: `of` 'main' or its id). */
+  | { by: "final"; take: "winner" | "total" | "margin"; of?: string }
+  /** L1 part 4b: a stat in a sport's game, `of` a player or a team (else the game's). */
+  | { by: "stat"; stat: string; take: "most" | "least" | "value"; of?: string };
 
 /** A question answered before its lock (A4), each settled by data. */
 export interface SpecQuestion {
@@ -253,6 +253,17 @@ export interface SpecQuestion {
 /** A question as a spec holds it once it's whole (fullSpec): asked and closes always said. */
 export type Question = SpecQuestion & { asked: "once" | "each" | "every" | "phase"; closes: "start" | "finale" };
 
+/** L1 part 4b: a sport's game as the grader reads it (src/lib/sports/spec.ts gameFacts builds it). */
+export interface SportsGameFacts {
+  status: "pre" | "in" | "final" | "off";
+  sides: { id: string; score: number }[];
+  lines: Record<string, Record<string, number>>;
+  teams: Record<string, string>;
+  places?: Record<string, number | null>;
+  /** The stats whose values are places (a missing one: out of the places). */
+  placed?: string[];
+  bouts?: Record<string, { sides: string[]; winner: string | null; outcome: string | null; main: boolean }>;
+}
 /** What a game's results say, for grading its questions (answers.js). */
 export interface AnswerFacts {
   from: number | null;
@@ -297,6 +308,8 @@ export interface AnswerFacts {
   /** A13 part 2: what research said of each episode fact, by episode, for each episode whose stored research has the section: the
    *  server's (episode-facts.ts episodeFactsFor). No map at all, a fact question waits. */
   episodeFacts?: Map<number, Record<string, FactOutcome>>;
+  /** L1 part 4b: each episode's game as of the viewer's moment, a sport's (src/lib/sports/spec.ts gameFacts). */
+  games?: Map<number, SportsGameFacts>;
 }
 /** A13: one question of a round's trivia key (trivia_questions, live and not pulled): what the grader reads (id, answer) and what
  *  the round shows (the rest). */
@@ -328,7 +341,8 @@ export interface FormatGroups {
 /** How a question stands: still to settle, off (nobody went home, right on the line), or what was right (and a count; the
  *  groups the right people were on; a question about each person, each one's verdict by castaway id). */
 export type Verdict =
-  | { state: "waiting" }
+  /** L1 part 4b: a sports question live, where it stands now (the value, or who's ahead). */
+  | { state: "waiting"; live?: { right?: string[]; value?: number } }
   | { state: "off"; why: string }
   | {
       state: "known";
@@ -336,6 +350,8 @@ export type Verdict =
       value?: number;
       groups?: string[];
       each?: Record<string, Verdict>;
+      /** L1 part 4b: known before the game's final (an over on the total, past its line). */
+      early?: boolean;
       /** A8, a ranking: the places each one could hold (0-based; ties share a block). */
       places?: Record<string, [number, number]>;
       /** F3 part 2, a group answer on the timeline's groups: the offered groups that played the episode as offered (a pick of
@@ -481,6 +497,9 @@ export interface SpecContext {
   positions?: ({ key: string; label?: string } | string)[];
   formats?: ({ key: string; label?: string } | string)[];
   sizes?: { starters?: number; bench?: number };
+  /** L1 part 4b: the sport's shape, what its games' finals say: a team game's winner (a side), total and margin; a field's
+   *  and a card's winner (a person; a card's bout by `of`). */
+  shape?: "team" | "field" | "card";
   /** false when the show's results don't say who goes home or wins. */
   results?: boolean;
   /** false when nobody wins the show (no way out that means winning): who wins, where they finish and a top can't settle. */
