@@ -1360,7 +1360,9 @@ function EndPanel({ show, episode: n, info, onBack, onKeepWatching }: { show: Sh
   const [busy, setBusy] = useState(false);
   const seen = info?.you.seen ?? (show.seenThrough ?? 0) >= n;
   const toReveal = show.plays && !seen && show.episodes?.reveal?.episode === n;
-  const waiting = show.plays && !seen && !toReveal;
+  // A game at your own pace on this episode (docs/PLAN-own-pace-games.md part 2): its plate on Tonight reveals it, one tap.
+  const paced = show.plays && !seen && (show.play ?? []).some((g) => g.ownPace && g.catchUp?.week === n);
+  const waiting = show.plays && !seen && !toReveal && !paced;
   const react = async () => {
     if (busy) return;
     setBusy(true);
@@ -1384,7 +1386,11 @@ function EndPanel({ show, episode: n, info, onBack, onKeepWatching }: { show: Sh
         <br />
         Episode {n}?
       </h3>
-      {waiting ? (
+      {paced ? (
+        <p data-watch-end-line className="text-[15px] leading-normal text-muted-foreground">
+          Reveal it on Tonight to see how your pick did, then react with a GIF.
+        </p>
+      ) : waiting ? (
         <p data-watch-end-line className="text-[15px] leading-normal text-muted-foreground">
           Your scores come with the results. Reveal them on Tonight once they&rsquo;re in, then react with a GIF.
         </p>
@@ -1398,7 +1404,11 @@ function EndPanel({ show, episode: n, info, onBack, onKeepWatching }: { show: Sh
         </p>
       )}
       <div className="mt-4 flex flex-col gap-2.5">
-        {toReveal ? (
+        {paced ? (
+          <Btn tone="must" wide data-watch-reveal-pace onClick={onBack}>
+            Back to Tonight to reveal it
+          </Btn>
+        ) : toReveal ? (
           <Btn tone="must" wide data-watch-reveal onClick={() => openReveal(n)}>
             Reveal your scores
           </Btn>
@@ -1409,9 +1419,11 @@ function EndPanel({ show, episode: n, info, onBack, onKeepWatching }: { show: Sh
             </Btn>
           )
         )}
-        <Btn wide data-watch-done onClick={onBack}>
-          Back to Tonight
-        </Btn>
+        {!paced && (
+          <Btn wide data-watch-done onClick={onBack}>
+            Back to Tonight
+          </Btn>
+        )}
         <button type="button" data-watch-keep onClick={onKeepWatching} className="h-11 text-[14px] font-semibold text-muted-foreground">
           Keep watching
         </button>

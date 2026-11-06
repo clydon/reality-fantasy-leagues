@@ -847,8 +847,11 @@ function ThisWeek({ show }: { show: ShowData }) {
   const couchId = show.couch?.id ?? null;
   const seasonId = show.header?.seasonId ?? null;
   const playing = show.games.some((g) => g.yourRole);
-  // Call it for the next episode (step 12 part 2), on a show that's a game you follow or play.
-  const call = seasonId && show.ready && up && !up.live && (show.following || playing) ? up.number : null;
+  // Call it for the next episode (step 12 part 2), on a show that's a game you follow or play. At your own pace (every episode
+  // out: docs/PLAN-own-pace-games.md part 2) there's no "this week", only your next episode: its calls, its card.
+  const next = show.ownPace ? (show.seenThrough ?? 0) + 1 : null;
+  const paced = next !== null && next <= show.latestAired;
+  const call = seasonId && show.ready && (show.following || playing) ? (paced ? next : up && !up.live ? up.number : null) : null;
   // The couch's polls on this show, and Start a poll (part 2): a couch's, so not solo.
   const onCouch = !!couchId && !show.solo && !!seasonId;
   const polls = useSeasonPolls(seasonId, couchId, onCouch);
@@ -858,7 +861,7 @@ function ThisWeek({ show }: { show: ShowData }) {
   // next episode stands in for Call it.
   const sheets = (show.play ?? []).filter((g) => g.gameType === "questions" && !g.archived && !!g.sheet);
   return (
-    <Block title="This week" aside="One night each">
+    <Block title={paced ? `Your Episode ${next}` : "This week"} aside={paced ? "Before you watch" : "One night each"}>
       <div data-this-week>
         {bingo && seasonId && <BingoRow icon target={{ seasonId, couchId, episode: bingo, label: showLabel(show), solo: show.solo }} />}
         {call && seasonId && !sheetAsks(show, call) && <CallRow icon target={{ seasonId, couchId, episode: call, label: showLabel(show), solo: show.solo }} />}

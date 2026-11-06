@@ -728,12 +728,23 @@ function latestSeen(show: ShowData): number | null {
 function toCall(show: ShowData): number | null {
   const up = show.upNext;
   const playing = show.games.some((g) => g.yourRole);
-  if (!show.header || !show.ready || !up || up.live || (!show.following && !playing)) return null;
+  if (!show.header || !show.ready || (!show.following && !playing)) return null;
+  // At your own pace (every episode out: docs/PLAN-own-pace-games.md part 2), your next episode's calls, open until you've seen it.
+  const next = paceNext(show);
+  if (next !== null) return sheetAsks(show, next) ? null : next;
+  if (!up || up.live) return null;
   if (show.games.some((g) => g.yourRole && g.gameType === "weekly-calls" && asksFor(g, up.number))) return null;
   // A Prediction Sheet here asks about it already (step A4 part 2): the couch answers its sheet, not Call it as well.
   if (sheetAsks(show, up.number)) return null;
   return up.number;
 }
+
+/** At your own pace, your next episode (your mark plus one) while there is one out; else null. */
+export const paceNext = (show: ShowData): number | null => {
+  if (!show.ownPace) return null;
+  const n = (show.seenThrough ?? 0) + 1;
+  return n <= show.latestAired ? n : null;
+};
 
 /** A Prediction Sheet of yours here asks about episode `n` this week (its questions for it, as the Games read says). */
 export const sheetAsks = (show: ShowData, n: number) => (show.play ?? []).some((g) => g.gameType === "questions" && !g.archived && g.sheet?.episode === n);
@@ -757,7 +768,7 @@ function Extras({ show }: { show: ShowData }) {
   const sheets = seen && show.header ? show.games.filter((g) => g.yourRole && g.gameType === "questions" && !g.archived) : [];
   if (up?.live || (!predictions.length && !call && !seen && !bingo && !open && !finales.length)) return null;
   return (
-    <Block title="Extras this week" aside="Optional">
+    <Block title={paceNext(show) !== null ? `Extras · Episode ${paceNext(show)}` : "Extras this week"} aside="Optional">
       {predictions.map((m) => (
         <ExtraRow key={m.leagueId} title={m.text} line={`Closes at airtime · ${m.leagueName}`} state="Open" onClick={() => openMoves("predict")} />
       ))}

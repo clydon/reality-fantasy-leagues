@@ -172,12 +172,31 @@ riley's plate, the join sheet, the finish plate).
 - Not built from the mock yet: the finish plate's "Start another" (no next all-out show is read for it), Watch it together and
   the bingo row on the plate (part 2).
 
+## As built: part 2 (2026-11-05)
+
+The one-night games follow your episode on a show watched at your own pace (every episode out, or a streaming drop).
+
+- **Call it** (`calls.ts`): `pacedSeason` (finished, every listed episode aired, or a binge drop) and `pacedOpen`: an aired
+  episode's calls are **open to whoever is on it** (has seen the one before, not it), on the honour system like bingo's ticks;
+  "behind" before that; closed once you've seen it ("You've seen Episode N: its calls are closed"). `EpisodeCalls.paced` turns
+  the sheet's words from airtime to "until you've seen it" / "until they've watched it". Live seasons are unchanged.
+- **Games tab:** "This week" reads **"Your Episode N · Before you watch"** at your own pace, with Call it for that episode (bingo
+  already dealt your next episode's card: `bingoEpisode`). Trivia was already about what you've seen.
+- **Tonight:** Extras reads "Extras · Episode N" and offers your next episode's calls (`paceNext`, `toCall`). The watch along
+  under the plate is the mock's "Watch it together" (no second row); your episode's bingo card stays in Extras.
+- **Watch along's end** (`EndPanel`): on an episode an own-pace game of yours is on, "Reveal it on Tonight to see how your pick
+  did" with **Back to Tonight to reveal it**, where the plate's Reveal is the first thing.
+- Checked by `check-own-pace.js`: calls 5 open (alex on 5), 6 behind, 4 closed with verdicts and a call on it refused; the Games
+  tab's "Your Episode 5" with its Call it row.
+
 ## Noticed, not fixed
 - The Play it card on a finished season offered Start a game and the sheet then refused it (the dead end that started this).
   Part 1 fixes it by making the start work; the Games tab's own Start row already hid itself.
 - A pool with lives: once anyone's out for good (`GhostLogic.someoneOut`, bots included, which run ahead of a slower joiner),
   nobody new joins, as in a live game. At your own pace that can shut the door earlier than feels right; a rule for part 3.
-- The Games tab's "This week" is empty on a finished season (bingo, calls, trivia key on the live episode): part 2.
-- The watch-along End panel's "Reveal your scores" doesn't open the catch-up reveal: part 2.
 - The hub's Where everyone is on the couch's own-pace season reads `ownPace` through the home read's games (GameRef.ownPace):
   built, not looked at in a browser.
+- **Bingo needs a bank on a finished season.** A season added after it aired has no episode banks (the bot writes them the day
+  before an episode airs) and no season bank unless an admin runs Write squares now, so bingo shows nothing at your own pace
+  there. Next: when an own-pace game starts on a season with no bank, plan its `bingo@season` run (db/bot-research.js planRuns).
+- The finish plate's "Start another" from the mock is skipped (the user, 2026-11-05: nothing to point it at yet).

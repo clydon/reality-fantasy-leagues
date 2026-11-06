@@ -139,6 +139,22 @@ async function main() {
     check(gv && gv.catchUp && gv.catchUp.week === 5 && gv.pace.others[0].week === 4, "alex: on 5, riley on 4", gv && gv.pace);
     check(gv && gv.catchUp && gv.catchUp.latest >= 5, "the game has results past 5 to play", gv && gv.catchUp);
 
+    // Part 2: the one-night games follow your episode. Call it for alex's next (5) is open on the honour system, the one after
+    // waits, the one alex has seen is closed and says how the calls went.
+    r = await alex.call("GET", `/api/seasons/${season}/calls/5?couch=${couch}`);
+    check(r.status === 200 && r.body.status === "open" && r.body.paced === true && r.body.questions.length > 0, "Call it for Episode 5 (aired, alex's next) is open", r.body && { status: r.body.status, paced: r.body.paced, q: r.body.questions?.length });
+    const q5 = r.body.questions && r.body.questions[0];
+    if (q5) {
+      const x = await alex.call("POST", `/api/seasons/${season}/calls/5?couch=${couch}`, { calls: { [q5.key]: q5.options[0].key } });
+      check(x.status === 200 && x.body.mine[q5.key] === q5.options[0].key, "alex calls Episode 5", x.body);
+    }
+    r = await alex.call("GET", `/api/seasons/${season}/calls/6?couch=${couch}`);
+    check(r.status === 200 && r.body.status === "behind" && r.body.catchUp === 5, "Episode 6's calls wait for 5", r.body && { status: r.body.status, catchUp: r.body.catchUp });
+    r = await alex.call("GET", `/api/seasons/${season}/calls/4?couch=${couch}`);
+    check(r.status === 200 && r.body.status === "closed" && !!r.body.verdicts, "Episode 4 (seen) is closed, with how the calls went", r.body && { status: r.body.status, verdicts: !!r.body.verdicts });
+    r = await alex.call("POST", `/api/seasons/${season}/calls/4?couch=${couch}`, { calls: { out: null } });
+    check(r.status === 409, "a call on an episode alex has seen is refused", r.body);
+
     if (shots) {
       fs.mkdirSync(outDir, { recursive: true });
       let n = 0;
@@ -154,7 +170,12 @@ async function main() {
       try {
         await a.page.goto(`${a.BASE}/show/${season}/games`);
         await a.page.locator("[data-start-row='pace']").waitFor();
-        await shot(a.page, "games-tab-row");
+        await a.page.locator("[data-this-week]").waitFor();
+        check((await a.page.getByText("Your Episode 5", { exact: true }).count()) === 1, "the Games tab says Your Episode 5, not This week");
+        // One of its calls made (there may be two): the row is there for Episode 5, made or not.
+        check((await a.page.locator("[data-this-week] [data-call-row='5']").count()) === 1, "with Call it for Episode 5");
+        await a.page.locator("[data-this-week]").scrollIntoViewIfNeeded();
+        await shot(a.page, "games-your-episode");
         await a.page.locator("[data-start-row='pace']").click();
         await a.page.locator("[data-start-pace-line]").waitFor();
         await shot(a.page, "start-sheet");
