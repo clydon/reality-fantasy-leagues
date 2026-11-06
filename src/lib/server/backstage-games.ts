@@ -563,7 +563,8 @@ async function questionsOf(l: Loaded, seasonId: string, started: boolean, part: 
 async function sheetQuestions(s: LeagueState, leagueId: string, seasonId: string) {
   const book = await leagueBook(leagueId, seasonId);
   const ctx = contextOf(book);
-  const own = StateLogic.AnswerLogic.questions(s) as Question[];
+  // The spec's own (step C7: a question on the card is one, not its lines: AnswerLogic.questions makes those).
+  const own = StateLogic.gameOf(s).ask as Question[];
   return { own, offered: questionChoices(book, ctx), ctx };
 }
 

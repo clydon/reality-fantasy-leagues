@@ -80,6 +80,11 @@ const SHEET_ANSWERS: QuestionView["answer"][] = ["person", "group", "yesNo", "nu
 /** "Kristin", "Kristin, Sue and Ozzy", "Yes", "4", "Over 3.5". */
 function answerWords(q: QuestionView, v: unknown, cast: Map<string, QuestionFace>): string {
   if (!isIn(v)) return "";
+  // Step C6 part 2: a ticket says how many legs and its stake (its legs are the sheet's other questions).
+  if (q.answer === "ticket" && v && typeof v === "object" && Array.isArray((v as { legs?: unknown }).legs)) {
+    const t = v as { legs: string[]; stake?: number };
+    return `${t.legs.length} on a ticket (${t.stake ?? 0} staked)`;
+  }
   // A8's: a wager says its stake; an order or confidence its names in order; chips each one's; a split its numbers.
   if (q.wager !== null && v && typeof v === "object" && "answer" in (v as object)) {
     const bet = v as { answer: unknown; stake?: number };

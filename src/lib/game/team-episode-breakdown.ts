@@ -50,7 +50,7 @@ export function teamEpisodeBreakdown(state: LeagueState, epId: string, playerId:
   const line = (c: Castaway): TeamEpisodeLine => {
     const items = evs
       .filter((e) => e.castawayId === c.id)
-      .map((e) => ({ id: e.id, label: defs.find((d) => d.id === e.type)?.label ?? e.type, points: StateLogic.ActiveRosterLogic.eventPoints(state, e) }));
+      .map((e) => ({ id: e.id, label: defs.find((d) => d.id === e.type)?.label ?? e.type, points: StateLogic.ActiveRosterLogic.eventPoints(state, e, ep.number) }));
     return { c, items, points: StateLogic.roundPoints(items.reduce((t, i) => t + i.points, 0)) };
   };
   const roster = rosterAtEpisode(state, playerId, ep.id);

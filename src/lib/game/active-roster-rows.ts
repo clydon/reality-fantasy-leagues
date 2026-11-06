@@ -32,7 +32,7 @@ export function castawayEventStats(state: LeagueState, castawayId: string): { to
       StateLogic.ActiveRosterLogic.episodeEvents(state, ep).forEach((sev) => {
         if (sev.castawayId !== castawayId) return;
         counts[sev.type] = (counts[sev.type] || 0) + (sev.units ?? 1);
-        total = StateLogic.roundPoints(total + StateLogic.ActiveRosterLogic.eventPoints(state, sev));
+        total = StateLogic.roundPoints(total + StateLogic.ActiveRosterLogic.eventPoints(state, sev, ep.number));
       });
     });
   // Same order as the Active Roster Settings list (the format's own catalog order), filtered to only
@@ -68,21 +68,22 @@ export function playerEventRows(state: LeagueState, playerId: string): PlayerEve
           postMerge: ep.postMerge,
           castawayName: StateLogic.getCastaway(state, sev.castawayId)?.name || "?",
           label: def?.label || sev.type,
-          points: StateLogic.ActiveRosterLogic.eventPoints(state, sev),
+          points: StateLogic.ActiveRosterLogic.eventPoints(state, sev, ep.number),
         });
       });
     });
   return rows;
 }
 
-// Same shape as castawayEventStats, over a chosen set of scoring events.
-function statsFrom(state: LeagueState, evs: { type: string; units?: number }[]): { total: number; byType: CastawayEventStat[] } {
+// Same shape as castawayEventStats, over a chosen set of scoring events (each with the episode it's in: C7, where only that episode's
+// card counts).
+function statsFrom(state: LeagueState, evs: { type: string; units?: number; episode?: number }[]): { total: number; byType: CastawayEventStat[] } {
   const events = StateLogic.formatOf(state).events;
   const counts: Record<string, number> = {};
   let total = 0;
   for (const ev of evs) {
     counts[ev.type] = (counts[ev.type] || 0) + (ev.units ?? 1);
-    total = StateLogic.roundPoints(total + StateLogic.ActiveRosterLogic.eventPoints(state, ev));
+    total = StateLogic.roundPoints(total + StateLogic.ActiveRosterLogic.eventPoints(state, ev, ev.episode));
   }
   const byType = events
     .filter((e) => counts[e.id] > 0)
@@ -93,7 +94,7 @@ function statsFrom(state: LeagueState, evs: { type: string; units?: number }[]):
 /** One castaway's events in one episode (exits included). */
 export function castawayEpisodeStats(state: LeagueState, epId: string, castawayId: string) {
   const ep = state.episodes.find((e) => e.id === epId);
-  return statsFrom(state, ep ? StateLogic.ActiveRosterLogic.episodeEvents(state, ep).filter((s) => s.castawayId === castawayId) : []);
+  return statsFrom(state, ep ? StateLogic.ActiveRosterLogic.episodeEvents(state, ep).filter((s) => s.castawayId === castawayId).map((s) => ({ ...s, episode: ep.number })) : []);
 }
 
 /** What one castaway earned for one player all season: only episodes they were in that player's lineup. */
@@ -101,7 +102,7 @@ export function castawayEarnedStats(state: LeagueState, playerId: string, castaw
   const evs = state.episodes
     .filter((ep) => StateLogic.inPlay(state, ep.number))
     .filter((ep) => StateLogic.activeRosterLineupFor(state, ep.id, playerId).includes(castawayId))
-    .flatMap((ep) => StateLogic.ActiveRosterLogic.episodeEvents(state, ep).filter((s) => s.castawayId === castawayId));
+    .flatMap((ep) => StateLogic.ActiveRosterLogic.episodeEvents(state, ep).filter((s) => s.castawayId === castawayId).map((s) => ({ ...s, episode: ep.number })));
   return statsFrom(state, evs);
 }
 
@@ -132,7 +133,7 @@ export function castawayRosterStats(state: LeagueState, playerId: string, castaw
       (ep) =>
         (ownedNow && ep.number > pickedUpAfter) || StateLogic.activeRosterLineupFor(state, ep.id, playerId).includes(castawayId)
     )
-    .flatMap((ep) => StateLogic.ActiveRosterLogic.episodeEvents(state, ep).filter((s) => s.castawayId === castawayId));
+    .flatMap((ep) => StateLogic.ActiveRosterLogic.episodeEvents(state, ep).filter((s) => s.castawayId === castawayId).map((s) => ({ ...s, episode: ep.number })));
   return statsFrom(state, evs);
 }
 
@@ -170,7 +171,7 @@ export function episodePlayerPoints(state: LeagueState, epId: string) {
   const A = StateLogic.ActiveRosterLogic;
   const pre = {
     times: A.timesFor(state, ep.number),
-    scored: A.scoredEvents(state, A.episodeEvents(state, ep)),
+    scored: A.scoredEvents(state, A.episodeEvents(state, ep), ep.number),
     slots: StateLogic.GroupSlotLogic.config(state) ? StateLogic.GroupSlotLogic.index(state) : undefined,
   };
   return state.players

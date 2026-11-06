@@ -19,6 +19,7 @@ const {
   SPEC_VERSION, TYPE_PRESETS, REPLACE_RULES, WINDOW_SCHEDULES, WAIVER_FEELS, WAIVER_ORDERS, WAIVER_HOURS, DRAFT_TIMERS,
   MAX_BET_POINTS, ORDER_OF, CALLS, fullSpec, typeOf, playsAs, specProblems, waiversFit, sameValue, spanStart, spanPhase,
   finaleQuestions, finaleIn, draftQuestions, LATE_HOURS, MAX_SEAT_PEOPLE, seatPeople, NEVER, VOCAB, MATCHUP_KEYS, spanEnd, spanEndPhase, OVERALL,
+  bankOf,
 } = require('./schema.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
@@ -32,6 +33,8 @@ const REPEATS = ['cycle', 'never', 'any'];
 /** C5: only these moments count and hits counted (scoreOnly, scoreHits), a game scored by moments', each only when it's set. */
 function countsOf(st, score, copy) {
   if (Array.isArray(st.scoreOnly) && st.scoreOnly.length) score.only = copy ? clone(st.scoreOnly) : st.scoreOnly;
+  // C7: only the card's moments each week.
+  else if (st.scoreOnly === 'card') score.only = 'card';
   if (Object.prototype.hasOwnProperty.call(VOCAB['score.hits'], st.scoreHits)) score.hits = st.scoreHits;
 }
 /** C5: weeks won's tied week (rankTies), only when it's set. */
@@ -182,7 +185,8 @@ function questionsRankOf(st, lives, copy) {
   const cut = Array.isArray(st.questionsCut) && st.questionsCut.length ? (copy ? clone(st.questionsCut) : st.questionsCut) : null;
   // A co-op or head-to-head game keeps whatever else its settings say (a race, cuts, lives, an end), so our check refuses them
   // rather than losing them.
-  const by = st.questionsRank === 'matchups' || st.questionsRank === 'weeks' ? st.questionsRank : lives && st.questionsRank === 'coop' ? 'coop' : cut || lives ? 'standing' : 'total';
+  // C6: last one standing said (questionsRank 'standing') where only a bank that's out knocks players out (it can rank by the total too).
+  const by = st.questionsRank === 'matchups' || st.questionsRank === 'weeks' ? st.questionsRank : lives && st.questionsRank === 'coop' ? 'coop' : cut || lives || st.questionsRank === 'standing' ? 'standing' : 'total';
   const rank = { by };
   tiesOf(st, rank);
   if (by === 'matchups') matchupsOf(st, rank, copy);
@@ -340,6 +344,8 @@ function readSpec(st, copy) {
       // A11 part 3: co-op's who saves a night, only when it's set (else COOP's default, read by answerParts).
       if (st.questionsRank === 'coop' && Object.prototype.hasOwnProperty.call(VOCAB['score.saves'], st.questionsSaves)) score.saves = st.questionsSaves;
     }
+    // C6: a game of questions' bank (questionsBank, as its spec says it), only when it's set.
+    if (type === 'questions' && isObj(st.questionsBank)) score.bank = copy ? clone(st.questionsBank) : st.questionsBank;
     Object.assign(spec, { get: { by: 'none' }, count: null, score, rank: type === 'questions' ? questionsRankOf(st, lives, copy) : { by: 'total' } });
   } else {
     // Points per bingo line (A9: settings.linePoints), 1 when it's left out.
@@ -358,6 +364,8 @@ function readSpec(st, copy) {
     const asks = Array.isArray(st.draftQuestions) && st.draftQuestions.length ? (copy ? clone(st.draftQuestions) : st.draftQuestions) : null;
     spec.ask = asks ? [...finale, ...asks] : finale;
   } else spec.ask = [];
+  // C7: a new card each week (settings.gameCard, as its spec says it), only when it's set.
+  if (isObj(st.gameCard)) spec.card = copy ? clone(st.gameCard) : st.gameCard;
   spec.closes = 'start';
 
   // Who can join (GhostLogic.joinMode): classic's late-joiner switch off locks it; open only where castaways can be on
@@ -524,8 +532,13 @@ function settingsOf(spec) {
   // A11 part 3: co-op (lives the couch's together) is said, as last one standing isn't (lives alone imply it), with who saves a night.
   const coop = askLives && s.rank.by === 'coop';
   // A11 part 4b: head to head is said too (its playoffs and fallbacks in rankMatchups, as a draft's).
-  out.questionsRank = coop ? 'coop' : asks && (s.rank.by === 'matchups' || s.rank.by === 'weeks') ? s.rank.by : undefined;
+  // C6: last one standing where only a bank that's out knocks players out (lives or cuts imply it; a bank can rank by the total too).
+  const bank = asks ? bankOf(s) : null;
+  const bankOut = !!(bank && bank.out) && !askLives && !(Array.isArray(s.rank.cut) && s.rank.cut.length);
+  out.questionsRank = coop ? 'coop' : asks && (s.rank.by === 'matchups' || s.rank.by === 'weeks') ? s.rank.by : bankOut && s.rank.by === 'standing' ? 'standing' : undefined;
   out.questionsSaves = coop && s.score.saves !== undefined ? s.score.saves : undefined;
+  // C6: a game of questions' bank, as the spec says it.
+  out.questionsBank = asks && isObj(s.score.bank) ? clone(s.score.bank) : undefined;
   out.questionsRace = asks && isObj(s.rank.race) ? clone(s.rank.race) : undefined;
   out.questionsCut = asks && Array.isArray(s.rank.cut) ? clone(s.rank.cut) : undefined;
   // A10 part 3c: a lineup's or best ball's stock market ranked by worth; A11 part 1: a draft's last one standing, its race and its
@@ -556,7 +569,9 @@ function settingsOf(spec) {
   out.captainTimes = lineup && isObj(s.score.captain) ? s.score.captain.times : undefined;
   out.pointsTimes = (lineup || pickMoments) && Array.isArray(s.score.times) ? clone(s.score.times) : undefined;
   // C5: only these moments count, and hits counted (a lineup's, best ball's or a pick's scored by moments).
-  out.scoreOnly = (lineup || pickMoments) && Array.isArray(s.score.only) ? clone(s.score.only) : undefined;
+  out.scoreOnly = (lineup || pickMoments) && (Array.isArray(s.score.only) || s.score.only === 'card') ? clone(s.score.only) : undefined;
+  // C7: a new card each week.
+  out.gameCard = isObj(s.card) ? clone(s.card) : undefined;
   out.scoreHits = (lineup || pickMoments) && s.score.hits !== undefined ? s.score.hits : undefined;
   out.reverseOrder = type === 'classic-draft' && s.score.reverse === true ? true : undefined;
   // C3: a draft's multiplier on how a holding joined (an Outlast's or a lineup's).
@@ -630,7 +645,7 @@ const PARTS = [
   // A12 part 2: how a game a format change moves takes the change.
   { fields: ['formatChanges'], read: (s) => (Array.isArray(s.stages) && isObj(s.extras) ? s.extras.changes || null : null) },
   { fields: ['ownershipMode', 'teamSize', 'activeSlots', 'benchSlots', 'bestBall', 'groupSlots', 'poolSecond', 'poolRepeat', 'poolFallback', 'poolEach', 'draftDraw', 'draftAcross', 'draftAuction', 'draftBudget', 'draftKeep'], read: (s) => [s.get, s.count] },
-  { fields: ['eventPoints', 'pickemCorrectPoints', 'poolSurvive', 'parlays', 'linePoints', 'captainTimes', 'pointsTimes', 'joinedTimes', 'reverseOrder', 'poolScore', 'scoreOnly', 'scoreHits', 'poolLives', 'poolBuyback', 'poolMulligans', 'questionsLives', 'questionsLivesOn', 'questionsSaves'], read: (s) => s.score },
+  { fields: ['eventPoints', 'pickemCorrectPoints', 'poolSurvive', 'parlays', 'linePoints', 'captainTimes', 'pointsTimes', 'joinedTimes', 'reverseOrder', 'poolScore', 'scoreOnly', 'scoreHits', 'poolLives', 'poolBuyback', 'poolMulligans', 'questionsLives', 'questionsLivesOn', 'questionsSaves', 'questionsBank'], read: (s) => s.score },
   { fields: ['poolRank', 'draftRank', 'draftRace', 'draftCut', 'rankOneLeft', 'rankAllOut', 'questionsRank', 'questionsRace', 'questionsCut', 'rankMatchups', 'rankTies', 'rankTeams', 'rankHandicap'], read: (s) => s.rank },
   { fields: ['allowLateJoiners', 'joinMode'], read: (s) => s.extras.join },
   { fields: ['lockedDown'], read: (s) => s.extras.lockedDown },
@@ -644,6 +659,8 @@ const PARTS = [
   // C2 part 4c: a draft's own questions beyond its finale predictions.
   { fields: ['draftQuestions'], read: (s) => (s.get.by === 'draft' ? draftQuestions(s) : null) },
   { fields: ['lateLockHours'], read: (s) => s.extras.lateLock },
+  // C7: a new card each week.
+  { fields: ['gameCard'], read: (s) => s.card || null },
   { fields: ['hideStartersUntilLock'], read: (s) => s.extras.hideStarters },
   { fields: ['calls'], read: (s) => s.extras.calls },
   { fields: WAIVER_FIELDS, read: (s) => s.extras.waivers, written: (out) => delete out.waiverFit },

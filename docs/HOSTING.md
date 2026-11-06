@@ -1178,3 +1178,6 @@ never handles it: the user does the reset and the pasting.
 - **2026-11-06, pushed to master (`f22c9753`, migration 0207).** The engine's C3, C4, C5 and C4b. **No new table, service, job
   or poll.** 0207 adds one small number to each league's stored settings (`perHolderFrom`), once. Scoring stays in the
   same request at the same cost.
+- **2026-11-06, pushed to master (`abfa4a74`, no migration).** The engine's C6 and C7 part 1. **Nothing new is stored, runs or
+  polls:** a week's card is worked out from the spec and the episode on each read, and stakes and tickets are answers
+  like any other (`game_answers`).

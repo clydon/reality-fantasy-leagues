@@ -23,9 +23,9 @@ test("its shape: a shrinking call shares a pot, or pays only the only one right"
     assert.deepEqual(G.specWaitsFor(game([q])), [], q.id);
     assert.equal(G.typeOf(game([q])), "questions", q.id);
   }
-  // A wager still plays alone (C6, money, owns the stakes).
+  // C6: a wager goes beside a share, its stake a line of its own (tests/money.test.js).
   const bet = { id: "bet", ask: "Is an idol played?", answer: "yesNo", points: 2, asked: "each", wager: 3, settle: { by: "moment", take: "happened", moment: "idolPlayed" } };
-  assert.deepEqual(G.specProblems(game([{ ...bet, share: "split" }])).map((p) => p.problem), ["A wager plays alone: no share, rollover or shrink with it"]);
+  assert.deepEqual(G.specProblems(game([{ ...bet, share: "split" }])).map((p) => p.problem), []);
 });
 
 test("graded on facts: each call at its worth, then shared", () => {

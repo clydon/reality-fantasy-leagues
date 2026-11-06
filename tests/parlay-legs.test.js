@@ -20,7 +20,7 @@ const CTX = {
   results: true, winner: true, roles: [], grouped: true, jury: true, phases: [],
 };
 
-test("its shape: legs that roll over, shrink or pay only the only one right; not a stake or a split pot", () => {
+test("its shape: legs that roll over, shrink, pay only the only one right or (C6) are staked; not a split pot", () => {
   const ok = (ask, of, times = 3) => G.specProblems(game(ask, [{ of, times }]), CTX).map((p) => p.problem);
   assert.deepEqual(ok([ROLL, IMM], ["out", "imm"]), []);
   assert.deepEqual(ok([ONLY, IMM], ["out", "imm"]), []);
@@ -28,7 +28,8 @@ test("its shape: legs that roll over, shrink or pay only the only one right; not
   assert.deepEqual(ok([WIN, SECOND], ["win", "second"], 2), []);
   assert.deepEqual(ok([{ ...WIN, share: "only" }, SECOND], ["win", "second"], 2), []);
   assert.equal(G.typeOf(game([ROLL, IMM], [{ of: ["out", "imm"], times: 3 }])), "questions");
-  assert.deepEqual(ok([{ ...OUT, wager: 3 }, IMM], ["out", "imm"]), ['"out" has a stake: a parlay\'s legs aren\'t staked (a staked parlay comes with money, C6)']);
+  // C6: a staked leg, its stake's winnings multiplied with its points (tests/money.test.js).
+  assert.deepEqual(ok([{ ...OUT, wager: 3 }, IMM], ["out", "imm"]), []);
   assert.deepEqual(ok([{ ...OUT, share: "split" }, IMM], ["out", "imm"]), ['"out" splits a pot: a parlay on a split pot waits on a rule (does it multiply your share, or your call before the split?)']);
   // Still asked the same way, so they share their windows.
   assert.deepEqual(ok([ROLL, { ...IMM, asked: "every", every: 2 }], ["out", "imm"]).length, 1);

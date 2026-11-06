@@ -219,6 +219,8 @@ const VOCAB = {
   // C5: a game scored by moments counting hits (each moment an objective, worth 1: momentWorth): every hit, each objective once
   // for each holding that hit it, or each objective once for you however many of yours hit it.
   'score.hits': { every: 'now', pick: 'now', objective: 'now' },
+  // C7: a new card each week, drawn from the show's moments in turn (the bot writing one is a later part).
+  'card.from': { moments: 'now' },
   closes: { start: 'now', daily: 'sports', weekly: 'sports' },
   'pool.where': { stillIn: 'now', teams: 'sports', group: 'later' },
   'ask.answer': {
@@ -228,9 +230,11 @@ const VOCAB = {
     bracket: 'sports',
     // A13: the episode's trivia, settled by its key (the bot's trivia research).
     trivia: 'now',
+    // C6 part 2: a ticket a player builds from the game's other questions (its legs), settled by them.
+    ticket: 'now',
   },
   // A14 part 1: the players' own answers (the answer most of you give, or fewest), as data: the couch never decides what happened.
-  'ask.settle': { results: 'now', moment: 'now', role: 'now', phase: 'now', points: 'now', calls: 'now', trivia: 'now', fact: 'now', players: 'now', final: 'sports', stat: 'sports' },
+  'ask.settle': { results: 'now', moment: 'now', role: 'now', phase: 'now', points: 'now', calls: 'now', trivia: 'now', fact: 'now', players: 'now', legs: 'now', final: 'sports', stat: 'sports' },
   // A14 part 1: a question the players' own answers settle, on a tie for the most (or the fewest): nobody's right (void, no points
   // either way), or each of the tied answers is.
   'ask.settle.tie': { none: 'now', all: 'now' },
@@ -244,6 +248,9 @@ const VOCAB = {
   'ask.each': { person: 'now' },
   // A9: how a right answer's points are shared, and what makes them shrink.
   'ask.share': { split: 'now', only: 'now' },
+  // C6, money: what a stake pays when it's right: even money (A8's wager: the stake), or the pool (the couch's own odds, a tote: the
+  // wrong stakes split between the right ones by their stakes). Odds from data only: nobody writes a line.
+  'ask.odds': { even: 'now', pool: 'now' },
   'ask.shrink.per': { episode: 'now', change: 'now' },
   // F3 part 2: what a group question asked each episode does when its groups (a season played in pairs, read from the format's
   // state over time) aren't sure at the lock or as played: void that episode's question, no points either way, or follow the
@@ -366,8 +373,13 @@ const VOCAB = {
 //                         (answer-points.ts, facts.trivia), never the state
 //   wager   (A8) a yes or no, a choice, an over/under, or one person or group: stake up to `wager` of your points on it,
 //           { answer, stake }: right, its points and the stake; wrong, the stake lost. A9: 'total', any of your points (the
-//           game's, as they stand for you when you answer: "bet any of your points, double or nothing")
-//   A9, how its points combine (a wager plays alone: none of these go with one):
+//           game's, as they stand for you when you answer: "bet any of your points, double or nothing"). C6, money: the stake is
+//           a line of its own, never shared, rolled over or shrunk (the question's points do what they'd do without it: a share,
+//           a rollover or a shrink goes with a wager), multiplied by a parlay it's a leg of; beside a bank (score.bank) every
+//           stake is drawn from it, held to what you have
+//   odds    (C6) with a wager, what a right stake pays: even (the default, ODDS: the stake) | pool (the window's wrong stakes split
+//           between its right ones by their stakes, each share to the cent; nobody right, every stake back)
+//   A9, how its points combine (C6: a wager's stake goes beside any of them):
 //   share   split: its points are a pot for each window, split between everyone right (by what each would have earned: a
 //           right pick each), so rarer right calls win more | only: a right answer scores only when nobody else's does
 //   rollover  true (asked each, every N or by phase): a window nobody earns anything on (nobody right, or it didn't count)
@@ -464,6 +476,7 @@ const TAKES = {
   points: ['most', 'order'],
   calls: [],
   trivia: [],
+  legs: [],
   fact: ['who'],
   players: ['majority', 'minority'],
   final: ['winner', 'total', 'margin', 'bracket'],
@@ -496,6 +509,7 @@ const SETTLES_FOR = {
   choice: null,
   calls: ['calls:'],
   trivia: ['trivia:'],
+  ticket: ['legs:'],
 };
 /** A window's most episodes (asked every N; over N). */
 const MAX_WINDOW = 10;
@@ -524,6 +538,12 @@ const MAX_PAIRS = 12;
 const WAGERS = ['person', 'group', 'yesNo', 'choice', 'overUnder'];
 /** A9: a wager of any of your points ('total'); how a right answer's points are shared; what a shrink counts. */
 const WAGER_TOTAL = 'total';
+/** C6, money: a stake's odds when the question leaves them out (A8's even money), and a bank's: its most at the start, and whether
+ *  one at zero is out when the spec leaves it out (the lane's call, the user's to overrule: it plays on, its questions' own points
+ *  able to bring it back). */
+const ODDS = 'even';
+const MAX_BANK = 10000;
+const BANK = { out: false };
 const SHARES = ['split', 'only'];
 const SHRINK_PER = ['episode', 'change'];
 /** A9: a parlay's legs (2 to MAX_LEGS, each one answer that's right or wrong) and its most multiplier; most parlays. */
@@ -544,7 +564,7 @@ const SQUARE_TAKES = ['pick', 'deal'];
 const SQUARE_EMPTY = ['void', 'next'];
 const SQUARE_UNREAD = ['final', 'void'];
 const SQUARES = { grid: 10, take: 'pick', empty: 'void', unread: 'final' };
-const MAX_PAYS = 10;
+const MAX_SQUARE_PAYS = 10;
 const MAX_PAY_PERIOD = 9;
 /** L4 part 2: a bracket's right picks, worth doubling round by round from the first (ESPN's Tournament Challenge), or the same. */
 const BRACKET_ROUNDS = ['double', 'same'];
@@ -846,8 +866,9 @@ function weekParts(s) {
  * moments count: a league read from its settings carries the rulebook's points filled in, so a weight couldn't be told from the
  * default. A game with neither reads exactly as before.
  */
-function momentWorth(score, id, dflt) {
-  const only = Array.isArray(score.only) ? score.only : null;
+function momentWorth(score, id, dflt, at) {
+  // C7: `at`, the moments that count where only some do, worked out for the episode (onlyAt: the card's that week).
+  const only = Array.isArray(at) ? at : Array.isArray(score.only) ? score.only : null;
   if (only && !only.includes(id)) return 0;
   const given = pointsMap(score.points) && Object.prototype.hasOwnProperty.call(score.points, id) && isNum(score.points[id]) ? score.points[id] : undefined;
   const points = given !== undefined ? given : dflt;
@@ -876,7 +897,10 @@ const poolByPoints = (s) => isPool(s) && isObj(s.rank) && (s.rank.by === 'total'
 const POOL_LIVES = "A pool with lives knocks players out, so it ranks by its streak or last one standing: head to head plays everyone each week, and ranked by points someone out would just stop scoring";
 /** A question a life can ride on (A11 part 2b): asked each episode, about that episode alone, so it's right or wrong once that
  *  episode's results are in. */
-const livesQuestion = (q) => isObj(q) && q.asked === 'each' && !(Number.isInteger(q.over) && q.over > 1);
+const livesQuestion = (q) => isObj(q) && q.asked === 'each' && !(Number.isInteger(q.over) && q.over > 1) && q.answer !== 'ticket';
+/** C7: a question a life rides on unless the spec says which: one about its episode alone, never a card's (its lines are new each
+ *  week: a life rides on the game's own questions). */
+const lifeRides = (q) => livesQuestion(q) && !(isObj(q) && q.card !== undefined);
 /**
  * A game of questions' race, cuts and lives (A11 part 2b: rank.race and rank.cut on its answers' points, score.lives), read the one
  * way from a whole spec: { race: { to } | null, cuts, lives (null: none), on (the questions a wrong answer, or none, costs a life
@@ -901,19 +925,55 @@ function answerParts(s) {
   const handicap = handicapParts(s);
   // C5: weeks won, each episode's points what its answers settled by then add (the walk's series), as head to head's.
   const weeks = weekParts(s);
-  if (!race && !cuts.length && lives === null && !matchups && !teams && !handicap && !weeks) return null;
-  const on = lives === null ? [] : Array.isArray(s.score.livesOn) ? s.score.livesOn.filter((id) => typeof id === 'string') : s.ask.filter(livesQuestion).map((q) => q.id);
+  // C6: a bank at zero that's out (bankOf's out), whoever's on nothing after a night going out as a life lost does.
+  const bank = bankOf(s);
+  const broke = !!(bank && bank.out);
+  if (!race && !cuts.length && lives === null && !matchups && !teams && !handicap && !weeks && !broke) return null;
+  const on = lives === null ? [] : Array.isArray(s.score.livesOn) ? s.score.livesOn.filter((id) => typeof id === 'string') : s.ask.filter(lifeRides).map((q) => q.id);
   const coop = lives !== null && rank.by === 'coop' ? { saves: own(VOCAB['score.saves'], s.score.saves) ? s.score.saves : COOP.saves } : null;
   return {
     race, cuts, lives, on,
-    oneLeft: !coop && (lives !== null || cuts.length) ? endOf(rank, 'oneLeft', ANSWERS_END) : null,
+    oneLeft: !coop && (lives !== null || cuts.length || broke) ? endOf(rank, 'oneLeft', ANSWERS_END) : null,
     allOut: !coop && lives !== null ? endOf(rank, 'allOut', ANSWERS_END) : null,
     coop,
     matchups,
     teams,
     handicap,
     weeks,
+    // Only when it's on, so every game before C6 reads its parts as it did.
+    ...(broke ? { broke } : {}),
   };
+}
+/**
+ * C6, money: a game of questions' bank (score.bank), read the one way from a whole spec: { start, out } (out's default BANK's), or
+ * null for a game without one. Everyone starts with `start` (a line of their own before the first episode: their points, as the table
+ * shows them, start there), every stake is drawn from it (held to what's left of it, less what's on the line still to settle), and
+ * with `out` whoever's on nothing after a night is out (answerParts' broke).
+ */
+function bankOf(s) {
+  if (!isObj(s) || !isObj(s.score) || s.score.by !== 'answers' || !isObj(s.score.bank) || !(isInt(s.score.bank.start, 1) && s.score.bank.start <= MAX_BANK)) return null;
+  return { start: s.score.bank.start, out: s.score.bank.out === undefined ? BANK.out : s.score.bank.out === true };
+}
+/** C6: whether a question's stake is drawn from your points as they stand (A9's wager of any of them, 'total') or, beside a bank
+ *  (bankOf's), from the bank (any stake): what the server holds a new stake to, less what's on the line still to settle. */
+const drawsOnBank = (q, bank) => isObj(q) && q.wager !== undefined && (q.wager === WAGER_TOTAL || !!bank);
+/**
+ * A bank's problems (C6), as [[at, problem]]: { start: 1 to MAX_BANK, out?: true | false }, on a game with a stake to draw from it
+ * (a wager on one of its questions), ranked by its points (the total, last one standing, a race past the start, cuts, teams, a
+ * handicap). Not head to head or weeks won: they read what each episode adds, and a bank's start is there before any (the first week
+ * would carry it). Not co-op: its lives are the couch's together, with nothing for a bank to rank.
+ */
+function bankProblems(b, s) {
+  if (!isObj(b)) return [['', `A bank is { start: 1 to ${MAX_BANK.toLocaleString('en-US')}, out?: true }`]];
+  const out = [];
+  if (!(isInt(b.start, 1) && b.start <= MAX_BANK)) out.push(['.start', `A bank starts with 1 to ${MAX_BANK.toLocaleString('en-US')}`]);
+  if (b.out !== undefined && typeof b.out !== 'boolean') out.push(['.out', 'A bank at zero is out (true), or plays on (false)']);
+  if (!(Array.isArray(s.ask) && s.ask.some((q) => isObj(q) && q.wager !== undefined))) out.push(['', 'A bank is for stakes: stake on at least one question (a wager)']);
+  const rank = isObj(s.rank) ? s.rank : {};
+  if (rank.by === 'matchups' || rank.by === 'weeks') out.push(['', "Head to head and weeks won read what each episode adds, and a bank's start is there before any: rank by the total"]);
+  if (rank.by === 'coop') out.push(['', "Co-op plays for lives together: a bank has nothing to rank there"]);
+  if (isObj(rank.race) && isInt(rank.race.to, 1) && isInt(b.start, 1) && rank.race.to <= b.start) out.push(['', `A race with a bank runs past its start: to more than ${b.start}`]);
+  return out;
 }
 // A11 part 5: teams of players' defaults when the spec leaves them out (the user's to set: Noticed): drawn at the game's start, a
 // team's points its members' mean (fair however big each team is), someone on no team when they start counting put on the
@@ -1146,6 +1206,230 @@ function draftQuestions(s) {
 const isCalls = (q) => isObj(q) && q.answer === 'calls';
 /** A13: a question answered from the episode's trivia key. */
 const isTrivia = (q) => isObj(q) && q.answer === 'trivia';
+/** C6 part 2: a ticket a player builds from the game's other questions, settled by its legs. */
+const isTicket = (q) => isObj(q) && q.answer === 'ticket';
+/** C6 part 2: a ticket's most legs, its most payout (its stake's winnings, times), and its defaults when the spec leaves them out (the
+ *  lane's, the user's to overrule: at least two legs, as many as it's built from up to MAX_TICKET_LEGS; each leg doubling what rides
+ *  on it, even money on each: 2^n - 1 times the stake won). */
+const MAX_TICKET_LEGS = 6;
+const MAX_PAYS = 1000;
+const TICKET = { min: 2 };
+/**
+ * A ticket's parts (C6 part 2), read the one way: { of (its legs' question ids), min, max (the legs it takes), pays (n -> its stake's
+ * winnings, times, for n legs right), payouts (pays for min to max) }, or null for a question that isn't one.
+ */
+function ticketOf(q) {
+  if (!isTicket(q) || !isObj(q.settle) || !Array.isArray(q.settle.of)) return null;
+  const of = q.settle.of;
+  const legs = isObj(q.legs) ? q.legs : {};
+  const max = isInt(legs.max, 1) ? legs.max : Math.min(of.length, MAX_TICKET_LEGS);
+  const min = isInt(legs.min, 1) ? legs.min : TICKET.min;
+  const pays = (n) => (Array.isArray(q.pays) && isNum(q.pays[n - 2]) ? q.pays[n - 2] : 2 ** n - 1);
+  // What it pays for each number of legs right from its least to its most (what its words and the read say).
+  const payouts = [];
+  for (let n = min; n <= max; n++) payouts.push(pays(n));
+  return { of, min, max, pays, payouts };
+}
+/**
+ * A ticket's problems (C6 part 2), as [[at, problem]]: answered as { legs: [the ids of its questions you put on it], stake }, built from
+ * 2 to MAX_TICKET_LEGS... of the game's other questions (`settle: { by: 'legs', of: [ids] }`), each one answer that's right or wrong
+ * (one person or group, a yes or no, a choice, a number, an over/under: as a parlay's legs), asked the same way as the ticket (so they
+ * share its windows), never another ticket; `legs: { min, max }` the legs a ticket takes (2 to the most it's built from, up to
+ * MAX_TICKET_LEGS); `pays`, its stake's winnings for each number of legs from 2 (times, more than 0 and up to MAX_PAYS, never less
+ * for more legs); a stake (`wager`: up to a number, or any of your points or bank) at its own payout (no odds), no points of its own,
+ * in a game of questions. Nothing shared, carried, shrunk or against the bot: it's your own stake on your own calls.
+ */
+function ticketProblems(q, s) {
+  const out = [];
+  const st = isObj(q.settle) ? q.settle : {};
+  if (q.answer !== 'ticket') return [['settle', 'Only a ticket is settled by its legs']];
+  if (st.by !== 'legs') return [['settle', "A ticket is settled by its legs: { by: 'legs', of: [question ids] }"]];
+  const qs = new Map((Array.isArray(s.ask) ? s.ask : []).filter(isObj).map((x) => [x.id, x]));
+  const of = st.of;
+  // C7: a question on the card is as many legs as the card has lines.
+  const legsIn = (list) => list.reduce((n, id) => n + questionLines(qs.get(id), s), 0);
+  if (!(Array.isArray(of) && of.length && of.every((id) => typeof id === 'string' && id) && legsIn(of) >= 2)) out.push(['settle.of', "A ticket is built from 2 or more of the game's other questions: their ids"]);
+  else if (new Set(of).size !== of.length) out.push(['settle.of', 'A ticket names each question once']);
+  else {
+    // Asked the same way and closing when it does (a ticket that closed after its legs settled could be built on known calls).
+    const way = (x) => `${x.asked}|${x.every || ''}|${x.over || ''}|${x.closes || 'start'}`;
+    for (const id of of) {
+      const leg = qs.get(id);
+      if (!leg || id === q.id) out.push(['settle.of', `"${id}" isn't one of the game's other questions`]);
+      else if (isTicket(leg)) out.push(['settle.of', `"${id}" is a ticket: a ticket's legs are questions`]);
+      else if (!LEGS.includes(leg.answer) || (NAMES.includes(leg.answer) && (leg.pick === undefined ? 1 : leg.pick) !== 1) || leg.each !== undefined) out.push(['settle.of', `"${id}" isn't one answer that's right or wrong: a ticket's legs are one person or group, a yes or no, a choice, a number or an over/under`]);
+      else if (way(leg) !== way(q)) out.push(['settle.of', `"${id}" is asked another way: a ticket's legs are asked when it is, so they're answered together`]);
+    }
+  }
+  const n = Array.isArray(of) ? Math.min(legsIn(of), MAX_TICKET_LEGS) : MAX_TICKET_LEGS;
+  if (q.legs !== undefined) {
+    const l = q.legs;
+    if (!isObj(l)) out.push(['legs', `A ticket's legs are { min, max }: 2 to ${n}`]);
+    else {
+      if (l.min !== undefined && !(isInt(l.min, 2) && l.min <= n)) out.push(['legs.min', `A ticket takes at least 2 to ${n} legs`]);
+      if (l.max !== undefined && !(isInt(l.max, 2) && l.max <= n && (!isInt(l.min, 2) || l.max >= l.min))) out.push(['legs.max', `A ticket takes at most ${isInt(l.min, 2) ? l.min : 2} to ${n} legs`]);
+    }
+  }
+  const t = ticketOf(askOf(s).find((x) => x.id === q.id) || q);
+  if (q.pays !== undefined) {
+    const p = q.pays;
+    const want = t ? Math.max(1, t.max - 1) : 1;
+    if (!(Array.isArray(p) && p.length === want && p.every((x) => isNum(x) && x > 0 && x <= MAX_PAYS))) out.push(['pays', `What a ticket pays for 2 to ${t ? t.max : 'its most'} legs right: ${want} ${want === 1 ? 'number' : 'numbers'}, each more than 0 and up to ${MAX_PAYS}, its stake's winnings times`]);
+    else if (p.some((x, i) => i > 0 && x < p[i - 1])) out.push(['pays', 'More legs never pay less']);
+  }
+  if (q.wager === undefined) out.push(['wager', 'A ticket is a stake: up to a number, or any of your points ("total")']);
+  if (q.odds !== undefined) out.push(['odds', 'A ticket pays by its legs: no odds of its own']);
+  if (isNum(q.points) && q.points !== 0) out.push(['points', 'A ticket pays its stake: no points of its own (0)']);
+  for (const k of ['share', 'rollover', 'shrink', 'beat', 'each', 'fallback']) if (q[k] !== undefined) out.push([k, "A ticket is your own stake on your own calls: nothing shared, carried, shrunk or against the bot"]);
+  if (!(isObj(s.score) && s.score.by === 'answers')) out.push(['answer', "A ticket is a game of questions'"]);
+  return out;
+}
+
+// ---------- C7: a new card each week ----------
+// One generator for each episode's set of questions or objectives: `card: { from, each, of }`, a game's card each episode, `each`
+// of the show's moments `of` names, drawn in turn (Weekly Calls' rotation: calls.ts callQuestions draws its moments with
+// drawInTurn), so it's new each week, the same for everyone, and settled by data (each one a moment research answers: the
+// data-can-settle rule, settleProblems). Read by a question on the card (`card: true`: one question for each of its lines, the
+// line's moment settling it that episode: askOf) and by the moments that count each week (`score.only: 'card'`: onlyAt). Pure: a
+// card drawn from the spec's own list needs nothing stored (the bot writing one is a later part, with a table of its own).
+/** C7: a card's most lines an episode. */
+const MAX_CARD = 12;
+/** C7: what a card leaves out: drawn from the show's moments. */
+const CARD = { from: 'moments' };
+/** C7: how a question on the card settles each line (its moment, that episode), and the answers it takes. */
+const CARD_TAKES = ['happened', 'count', 'who', 'most'];
+const CARD_ANSWERS = ['yesNo', 'number', 'person', 'group'];
+/**
+ * `each` of `list` for an episode, in turn (C7's one generator; Weekly Calls' rotation): episode 1 the first `each`, episode 2 the next
+ * `each`, round and round the list; never more than the list has. The same for everyone, every time it's read.
+ */
+function drawInTurn(list, each, episode) {
+  if (!Array.isArray(list) || !list.length || !isInt(each, 1)) return [];
+  const want = Math.min(each, list.length);
+  const start = ((Math.max(1, isInt(episode, 1) ? episode : 1) - 1) * each) % list.length;
+  const out = [];
+  for (let i = 0; i < want; i++) out.push(list[(start + i) % list.length]);
+  return out;
+}
+/** C7: a spec's card, read the one way ({ from, each, of }, its defaults in), or null for a game without one. */
+function cardOf(s) {
+  if (!isObj(s) || !isObj(s.card)) return null;
+  const c = s.card;
+  return { from: c.from === undefined ? CARD.from : c.from, each: c.each, of: Array.isArray(c.of) ? c.of : [] };
+}
+/** C7: a card's lines for an episode, its moments' ids in order (drawInTurn). */
+const cardLines = (card, episode) => (card ? drawInTurn(card.of, card.each, episode) : []);
+/** C7: a card's lines each episode as the spec says them, when that's 1 to MAX_CARD (else 0: nothing is drawn from it). */
+const cardEach = (c) => (isObj(c) && isInt(c.each, 1) && c.each <= MAX_CARD && Array.isArray(c.of) ? c.each : 0);
+/** C7: how many questions one question is an episode: a question on the card one for each of its lines (none drawn: one). */
+const questionLines = (q, s) => (isCardQuestion(q) && isObj(s) && cardEach(s.card) ? s.card.each : 1);
+/** C7: a question on the game's card (as the spec says it: one question for each of the card's lines). */
+const isCardQuestion = (q) => isObj(q) && q.card === true;
+/** C7: one line of the card, as askOf makes it: its card ({ of, each }), its line (from 0) and the question it's from. */
+const isCardLine = (q) => isObj(q) && isObj(q.card) && Number.isInteger(q.card.line);
+/** C7: the moment a line of the card is about at an episode (null for anything else, or an episode with no line there). */
+const cardMoment = (q, episode) => (isCardLine(q) ? cardLines(q.card, episode)[q.card.line] || null : null);
+/** C7: a line's id, the question's own then its line's number from 1 ("sheet.2"). */
+const lineId = (id, k) => `${id}.${k}`;
+/** C7: whether only the card's moments count each week (score.only 'card'). */
+const onlyCard = (score) => isObj(score) && score.only === 'card';
+/**
+ * C7: the moments that count in an episode where only some do (score.only): the card's that episode with 'card' (no episode: every
+ * moment its list names), else the spec's own list; undefined where every moment counts.
+ */
+function onlyAt(s, episode) {
+  const score = isObj(s) ? s.score : null;
+  if (onlyCard(score)) {
+    const card = cardOf(s);
+    if (!card) return [];
+    if (!isInt(episode, 1)) return card.of;
+    // Worked out once for each episode of a card (every moment of every seat asks it).
+    let byEp = drawn.get(s.card);
+    if (!byEp) drawn.set(s.card, (byEp = new Map()));
+    if (!byEp.has(episode)) byEp.set(episode, cardLines(card, episode));
+    return byEp.get(episode);
+  }
+  return isObj(score) && Array.isArray(score.only) ? score.only : undefined;
+}
+const asked = new WeakMap();
+const drawn = new WeakMap();
+/**
+ * C7: a game's questions as they're answered and graded: each question on the card one for each of its lines (`<id>.1` to
+ * `<id>.<each>`, each knowing its card and line: cardMoment), and a ticket built from one of them its lines, as legs; every other
+ * question as the spec says it. A spec without a card, or none of its questions on it: its own ask, the same list. Worked out once
+ * for each list (a league's reads ask it often).
+ */
+function askOf(s) {
+  const ask = isObj(s) && Array.isArray(s.ask) ? s.ask : [];
+  const card = cardOf(s);
+  if (!card || !cardEach(s.card) || !ask.some(isCardQuestion)) return ask;
+  const memo = asked.get(ask);
+  if (memo && memo.card === s.card) return memo.out;
+  const lines = new Map();
+  const flat = [];
+  for (const q of ask) {
+    if (!isCardQuestion(q)) { flat.push(q); continue; }
+    const ids = [];
+    for (let k = 1; k <= card.each; k++) {
+      ids.push(lineId(q.id, k));
+      flat.push({ ...q, id: lineId(q.id, k), card: { of: card.of, each: card.each, line: k - 1, from: q.id } });
+    }
+    lines.set(q.id, ids);
+  }
+  const out = flat.map((q) => (isTicket(q) && isObj(q.settle) && Array.isArray(q.settle.of) && q.settle.of.some((id) => lines.has(id))
+    ? { ...q, settle: { ...q.settle, of: q.settle.of.flatMap((id) => lines.get(id) || [id]) } }
+    : q));
+  asked.set(ask, { card: s.card, out });
+  return out;
+}
+/** C7: how many questions a game asks an episode, each line of its card one. */
+function linesAsked(s) {
+  const ask = isObj(s) && Array.isArray(s.ask) ? s.ask : [];
+  return ask.reduce((n, q) => n + questionLines(q, s), 0);
+}
+/**
+ * C7: a card's problems, as [[at, problem]]: { from: 'moments', each: 1 to MAX_CARD, of: 1 to MAX_ONLY of the show's moments (with
+ * ctx, each one research answers: settleProblems), at least `each` of them, none twice }, read by a question on it or by the moments
+ * that count each week; and a question on the card, or score.only 'card', only with one.
+ */
+function cardProblems(s) {
+  const out = [];
+  const ask = Array.isArray(s.ask) ? s.ask : [];
+  const readers = ask.some(isCardQuestion) || onlyCard(s.score);
+  if (s.card === undefined) return out;
+  const c = s.card;
+  if (!isObj(c)) return [['card', "A card is { from: 'moments', each, of: [the show's moments] }"]];
+  if (own(VOCAB['card.from'], c.from === undefined ? CARD.from : c.from) === undefined) out.push(['card.from', "A card is drawn from the show's moments: from 'moments'"]);
+  if (!(isInt(c.each, 1) && c.each <= MAX_CARD)) out.push(['card.each', `A card has 1 to ${MAX_CARD} lines each episode`]);
+  const list = c.of;
+  if (!(Array.isArray(list) && list.length && list.length <= MAX_ONLY && list.every((id) => typeof id === 'string' && id))) out.push(['card.of', `A card is drawn from a list of 1 to ${MAX_ONLY} of the show's moments`]);
+  else if (new Set(list).size !== list.length) out.push(['card.of', 'A moment is named twice']);
+  else if (isInt(c.each, 1) && c.each <= MAX_CARD && c.each > list.length) out.push(['card.each', `A card of ${c.each} each episode is drawn from at least ${c.each} moments: name more, or draw fewer`]);
+  if (!readers) out.push(['card', "A card is for questions on it (card: true) or the moments that count each week (score.only: 'card')"]);
+  return out;
+}
+/**
+ * C7: a question on the card's problems, as [[where, problem]]: asked each episode (the card is each episode's), settled by the line's
+ * moment (`{ by: 'moment', take: happened | count | who | most }`, no moment of its own), a yes or no, a count, or who (a person or a
+ * group), in a game of questions with a card; nothing rolled over, played against the bot or about each person (each line is a new
+ * moment each week).
+ */
+function cardQuestionProblems(q, s) {
+  const out = [];
+  if (q.card !== true) return [['card', 'card is true (a question asked for each line of the card), or leave it out']];
+  const st = isObj(q.settle) ? q.settle : {};
+  // Its lines' ids are its own and a number ("sheet.12"), which an answer is stored by: 40 characters at most.
+  const room = 40 - 1 - String(cardEach(s.card) || 1).length;
+  if (typeof q.id === 'string' && q.id.length > room) out.push(['id', `A question on the card leaves room for its lines' numbers: an id of ${room} characters at most`]);
+  if (s.card === undefined) out.push(['card', "A question on the card needs the game's card: { from: 'moments', each, of }"]);
+  if (!(isObj(s.score) && s.score.by === 'answers')) out.push(['card', "A card's questions are a game of questions' own"]);
+  if (q.asked !== 'each' || q.over !== undefined) out.push(['asked', "The card is each episode's: ask it each episode"]);
+  if (st.by !== 'moment' || !CARD_TAKES.includes(st.take)) out.push(['settle', `Each line of the card is settled by its moment that episode: { by: 'moment', take: ${CARD_TAKES.join(' | ')} }`]);
+  else if (st.moment !== undefined) out.push(['settle.moment', "The card's line says which moment: leave settle.moment out"]);
+  if (!CARD_ANSWERS.includes(q.answer)) out.push(['answer', 'A line of the card is a yes or no, a count, or who: yesNo, number, person or group']);
+  for (const k of ['rollover', 'beat', 'each']) if (q[k] !== undefined) out.push([k, "Each line of the card is a new moment each week: nothing carried, against the bot or about each person"]);
+  return out;
+}
 /** A13 part 2: a question an episode fact settles (who says the title quote). */
 const isFact = (q) => isObj(q) && isObj(q.settle) && q.settle.by === 'fact';
 /** A14 part 1: a question the players' own answers settle (the answer most of you give, or fewest). */
@@ -1160,7 +1444,7 @@ const BEAT = { none: 'plays' };
 /** A14 part 2: the answers the bot makes its call on (one call, right or wrong; a number the closest). */
 const BEATS = ['person', 'group', 'yesNo', 'number', 'overUnder', 'choice'];
 /** The settles that settle themselves, with no take: the show's calls, the episode's trivia key (A13). */
-const NO_TAKE = ['calls', 'trivia'];
+const NO_TAKE = ['calls', 'trivia', 'legs'];
 /** An ask that's exactly the show's calls (Weekly Calls). */
 const callsAsk = (ask) => Array.isArray(ask) && ask.length === 1 && sameValue(ask[0], CALLS);
 
@@ -1332,6 +1616,8 @@ function fullSpec(spec) {
   }
   if (isObj(s.pool) && s.pool.where === undefined) s.pool.where = null;
   if (Array.isArray(s.ask)) s.ask = s.ask.map(fullQuestion);
+  // C7: a card says what it leaves out as the defaults (CARD).
+  if (isObj(s.card) && s.card.from === undefined) s.card.from = CARD.from;
   const by = isObj(s.get) ? s.get.by : undefined;
   if (by === 'draft') {
     // A10 part 3: a draw is either ownership; said alone, nobody shares (DRAW_OWN). Part 3b: an auction is for castaways nobody
@@ -1616,7 +1902,8 @@ function askPlace(s) {
  * its cuts or a race: who's out, and where the game ends, decide which moves the league's own writes take (lineups, captains, group
  * slots, waivers, an exclusive draft's castaways back in the pool), and those read the league as it's stored, which holds no answers'
  * points (only the server's copies do). Not beside a stock market ranked by its worth (its rank is cash plus the team, so they'd only
- * break ties); not a stake of any of your points (a draft's points are its team's and its questions' together: money, C6); not the
+ * break ties); not a stake of any of your points (a draft's points are its team's and its questions' together: a bank is a game of
+ * questions', C6); not the
  * answer most of you give to a finale prediction (those answers are the state's, apart from its own questions').
  */
 function draftAskPlace(s) {
@@ -1633,7 +1920,7 @@ function draftAskPlace(s) {
   const finale = off > 0 ? FINALE_IDS : [];
   for (let j = 0; j < own.length; j++) {
     const q = own[j];
-    if (q.wager === WAGER_TOTAL) return [`ask[${off + j}].wager`, "staking any of your points beside a draft comes with money (C6): a draft's points are its team's and its questions' together"];
+    if (q.wager === WAGER_TOTAL) return [`ask[${off + j}].wager`, "staking any of your points is a game of questions' (its points are its answers'): a draft's are its team's and its questions' together"];
     if (isPlayers(q) && finale.includes(q.settle.of)) return [`ask[${off + j}].settle.of`, "what most of you answer to a finale prediction can't settle a draft's own question yet: those answers are kept apart, in the league itself"];
   }
   return null;
@@ -1642,7 +1929,7 @@ function draftAskPlace(s) {
 const FINALE_IDS = ['top3', 'winner'];
 /** C2 part 4c: a question a draft plays beside its team: one a game of questions plays, or a person from your own team (a draft has
  *  teams). */
-const draftPlayable = (q) => playable(q) || (isObj(q) && q.answer === 'person' && q.from === 'team' && playable({ ...q, from: 'cast' }));
+const draftPlayable = (q) => !isTicket(q) && (playable(q) || (isObj(q) && q.answer === 'person' && q.from === 'team' && playable({ ...q, from: 'cast' })));
 /** C2 part 4: steps 5 and 6, how the table ranks on what the lines make, [at, why] when it has no place (null when it does). */
 function rankPlace(s) {
   const rank = isObj(s.rank) ? s.rank : {};
@@ -1673,7 +1960,9 @@ function rankPlace(s) {
   }
   if (lines === 'answers' && callsAsk(s.ask)) return by === 'total' ? null : ['rank.by', "the show's calls are counted outside the game: most right wins"];
   if (lines === 'answers') {
-    const knocks = isInt(s.score.lives, 1) || cuts;
+    // C6: a bank at zero that's out knocks players out too.
+    const bank = bankOf(s);
+    const knocks = isInt(s.score.lives, 1) || cuts || !!(bank && bank.out);
     if (by === 'total' || (by === 'standing' && knocks) || (by === 'coop' && isInt(s.score.lives, 1)) || (h2h && !knocks && rank.race === undefined)) return null;
     return ['rank.by', 'a game of questions ranks by its points, last one standing when it knocks players out, co-op on its lives, or head to head (or weeks won) with nobody racing, cut or losing a life'];
   }
@@ -2033,6 +2322,8 @@ function specProblems(spec, ctx, opts) {
   // A9: points per bingo line (1 when it's left out).
   if (score.by === 'lines' && score.points !== undefined && !(isInt(score.points, 1) && score.points <= MAX_QUESTION_POINTS)) add('score.points', `A line is worth 1 to ${MAX_QUESTION_POINTS} points`);
   if (score.by === 'answers' && score.parlays !== undefined) parlayProblems(score.parlays, s).forEach(([at, p]) => add(`score.parlays${at}`, p));
+  // C6: a bank, its stakes drawn from it.
+  if (score.by === 'answers' && score.bank !== undefined) bankProblems(score.bank, s).forEach(([at, p]) => add(`score.bank${at}`, p));
   // A11 part 2b: lives on a game of questions' answers.
   if (score.by === 'answers' && (score.lives !== undefined || score.livesOn !== undefined)) answerLivesProblems(score, s).forEach(([at, p]) => add(`score${at}`, p));
   if ((score.by === 'moments' || score.by === 'stats') && !['draft', 'pick'].includes(get.by)) add('score.by', `Scoring ${score.by} needs someone of yours: a draft or a pick`);
@@ -2049,7 +2340,9 @@ function specProblems(spec, ctx, opts) {
   // A11 part 1: last one standing is also a draft's that knocks players out (rank.cut); part 2b, a game of questions' that does
   // (its cuts, or its lives).
   const cutsSaid = Array.isArray(rank.cut) && rank.cut.length > 0;
-  const askKnocks = questionsGame(s) && (score.lives !== undefined || cutsSaid);
+  // C6: a bank at zero that's out knocks players out too.
+  const bankOut = bankOf(s);
+  const askKnocks = questionsGame(s) && (score.lives !== undefined || cutsSaid || !!(bankOut && bankOut.out));
   if (rank.by === 'standing' && !(score.by === 'survive' && score.lives !== undefined) && !(get.by === 'draft' && cutsSaid) && !askKnocks) {
     add('rank.by', "Last one standing is a pool with lives (a wrong pick costs one, and at none you're out), or a draft or a game of questions that knocks players out");
   }
@@ -2078,9 +2371,21 @@ function specProblems(spec, ctx, opts) {
   if (!Array.isArray(s.ask)) add('ask', 'ask is a list of questions');
   else {
     if (s.ask.length > MAX_QUESTIONS) add('ask', `A game asks at most ${MAX_QUESTIONS} questions`);
+    // C7: each line of its card one.
+    else if (linesAsked(s) > MAX_QUESTIONS) add('card.each', `A game asks at most ${MAX_QUESTIONS} questions an episode, each line of its card one`);
     const ids = new Set();
     s.ask.forEach((q, i) => questionProblems(q, `ask[${i}]`, s, ids, league).forEach(([at, p]) => add(at, p)));
+    // C7: a line's id ("sheet.2") is no other question's.
+    const each = cardEach(s.card);
+    if (each) {
+      s.ask.forEach((q, i) => {
+        if (!isCardQuestion(q)) return;
+        for (let k = 1; k <= each; k++) if (ids.has(lineId(q.id, k))) add(`ask[${i}].id`, `"${lineId(q.id, k)}" is a line of the card "${q.id}": name the other question something else`);
+      });
+    }
   }
+  // C7: a new card each week.
+  cardProblems(s).forEach(([at, p]) => add(at, p));
 
   // extras
   const e = s.extras;
@@ -2149,7 +2454,7 @@ function questionProblems(q, at, s, ids, league) {
   else ids.add(q.id);
   if (typeof q.ask !== 'string' || !q.ask.trim()) add('ask', 'A question asks something');
   else if (q.ask.length > 200) add('ask', 'A question is 200 characters at most');
-  if (!one('ask.answer', q.answer)) add('answer', 'The answer is a person, group, side, yesNo, number, overUnder, choice, calls, order, confidence, chips, split, pairs, trivia or bracket');
+  if (!one('ask.answer', q.answer)) add('answer', 'The answer is a person, group, side, yesNo, number, overUnder, choice, calls, order, confidence, chips, split, pairs, trivia, bracket or ticket');
   if (!(isNum(q.points) && q.points >= 0 && (league || q.points <= MAX_QUESTION_POINTS))) add('points', `A right answer is worth 0 to ${MAX_QUESTION_POINTS}`);
   if (!one('ask.asked', q.asked)) add('asked', 'A question is asked once, each episode, every few episodes, or once a phase');
   // A7's windows: every N episodes (asked every), over the next N (asked each).
@@ -2164,9 +2469,9 @@ function questionProblems(q, at, s, ids, league) {
   else if (q.closes === 'finale' && q.asked !== 'once') add('closes', 'Only a question asked once waits for the finale: one asked each episode closes as it starts');
   const st = isObj(q.settle) ? q.settle : {};
   let settled = false;
-  if (!one('ask.settle', st.by)) add('settle', 'Data settles every question: results, moment, role, phase, points, calls, trivia, fact, players (your own answers), final or stat');
+  if (!one('ask.settle', st.by)) add('settle', 'Data settles every question: results, moment, role, phase, points, calls, trivia, fact, players (your own answers), legs (a ticket\'s), final or stat');
   else if (NO_TAKE.includes(st.by)) {
-    if (st.take !== undefined) add('settle.take', st.by === 'calls' ? 'The calls settle themselves: no take' : 'The trivia key settles it: no take');
+    if (st.take !== undefined) add('settle.take', st.by === 'calls' ? 'The calls settle themselves: no take' : st.by === 'legs' ? 'Its legs settle it: no take' : 'The trivia key settles it: no take');
     else settled = true;
   } else if (!TAKES[st.by].includes(st.take)) add('settle.take', `${st.by} takes ${TAKES[st.by].join(', ')}`);
   else settled = true;
@@ -2178,7 +2483,9 @@ function questionProblems(q, at, s, ids, league) {
   }
   if (q.answer !== 'calls' && st.by === 'calls') add('answer', "Only the show's calls are settled as calls");
   if (q.answer !== 'trivia' && st.by === 'trivia') add('answer', "Only trivia is settled by the episode's trivia key");
-  if (st.by === 'moment' && (typeof st.moment !== 'string' || !st.moment)) add('settle.moment', 'Which moment settles it');
+  // C7: a question on the card is settled by its line's moment each episode.
+  if (q.card !== undefined) cardQuestionProblems(q, s).forEach(([where, p]) => add(where, p));
+  else if (st.by === 'moment' && (typeof st.moment !== 'string' || !st.moment)) add('settle.moment', 'Which moment settles it');
   if (st.moment !== undefined && st.by !== 'moment') add('settle.moment', 'Only a moment settles by a moment');
   if (st.by === 'role' && (typeof st.role !== 'string' || !st.role)) add('settle.role', 'Which role settles it');
   if (st.role !== undefined && st.by !== 'role') add('settle.role', 'Only a role settles by a role');
@@ -2206,7 +2513,7 @@ function questionProblems(q, at, s, ids, league) {
       const same = (k) => JSON.stringify(a[k] === undefined ? null : a[k]) === JSON.stringify(b[k] === undefined ? null : b[k]);
       if (typeof st.of !== 'string' || !st.of || st.of === q.id) add('settle.of', "Which of the game's other questions: its id");
       else if (!of) add('settle.of', `The game has no question "${st.of}"`);
-      else if (isPlayers(of) || isCalls(of) || isTrivia(of) || of.each !== undefined) add('settle.of', "It's what most of you answer to a question of the game's own, one answer each");
+      else if (isPlayers(of) || isCalls(of) || isTrivia(of) || of.each !== undefined || isCardQuestion(of)) add('settle.of', "It's what most of you answer to a question of the game's own, one answer each");
       else if (of.answer !== q.answer || !['options', 'line', 'from'].every(same)) add('settle.of', "It's answered the same way as the question it's about: the same kind of answer, options, line and from");
       else if (!['asked', 'every', 'over'].every(same)) add('settle.of', 'It is asked when the question it\'s about is: the same asked, every and over');
       else if (NAMES.includes(of.answer) && (of.pick === undefined ? 1 : of.pick) !== 1) add('settle.of', 'The question it\'s about names one');
@@ -2225,7 +2532,10 @@ function questionProblems(q, at, s, ids, league) {
     if (q.from === 'team') add('beat', 'The bot has no team: it names from the cast, so ask from the cast');
   }
   // L1 part 4b: a sport's stat or bout says whose with `of` too (below).
-  if (st.of !== undefined && st.by !== 'players' && st.by !== 'stat' && st.by !== 'final') add('settle.of', "Only your own answers settle by another question's, or a sport's stat or bout says whose");
+  if (st.of !== undefined && st.by !== 'players' && st.by !== 'legs' && st.by !== 'stat' && st.by !== 'final') add('settle.of', "Only your own answers settle by another question's, or a sport's stat or bout says whose");
+  // C6 part 2: a ticket, and only a ticket, is settled by its legs, and has legs and pays.
+  if (q.answer === 'ticket' || st.by === 'legs') ticketProblems(q, s).forEach(([where, p]) => add(where, p));
+  else for (const k of ['legs', 'pays']) if (q[k] !== undefined) add(k, "Only a ticket has legs and pays");
   if (st.tie !== undefined && st.by !== 'players') add('settle.tie', 'Only your own answers settle on a tie');
   // Where a phase starts is one episode for the whole game.
   if (how === 'phase:starts' && q.asked !== 'once') add('asked', 'Which episode a phase starts in is the game\'s: ask it once');
@@ -2282,10 +2592,15 @@ function questionProblems(q, at, s, ids, league) {
     if (q.asked !== 'once') add('asked', 'Who outlasts whom is over the game: ask it once');
   } else if (q.pairs !== undefined) add('pairs', 'Only a pairs answer has pairs');
   if (q.wager !== undefined) {
-    if (!WAGERS.includes(q.answer) || each || (NAMES.includes(q.answer) && q.pick !== 1)) add('wager', 'A wager goes on one answer: a yes or no, a choice, an over/under, or one person or group');
+    if ((!WAGERS.includes(q.answer) && q.answer !== 'ticket') || each || (NAMES.includes(q.answer) && q.pick !== 1)) add('wager', 'A wager goes on one answer: a yes or no, a choice, an over/under, or one person or group (or a ticket of them)');
     else if (!(q.wager === WAGER_TOTAL || (isInt(q.wager, 1) && q.wager <= MAX_QUESTION_POINTS))) add('wager', `Stake up to 1 to ${MAX_QUESTION_POINTS} points, or 'total': any of your points`);
-    // A9: a wager plays alone (its stake is the answer's own: nothing to share, roll over or shrink).
-    else if (q.share !== undefined || q.rollover !== undefined || q.shrink !== undefined) add('wager', "A wager plays alone: no share, rollover or shrink with it");
+    // C6: a stake is the answer's own line, beside its points' share, rollover or shrink (the scoring sequence's order: the stake, then
+    // the multipliers, then the share; nothing shares, carries or shrinks a stake).
+  }
+  // C6: what a right stake pays.
+  if (q.odds !== undefined) {
+    if (q.wager === undefined) add('odds', 'Only a stake has odds: give it a wager');
+    else if (!one('ask.odds', q.odds)) add('odds', 'A right stake pays even money, or a share of the pool: even or pool');
   }
   // A9: how its points combine.
   if (q.share !== undefined) {
@@ -2365,7 +2680,9 @@ const isInstant = (v) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2
 
 // Every key a spec can have, so a misspelled one ("scoring", "sideBets") is reported, not quietly played as the default.
 const KEYS = {
-  top: ['spec', 'preset', 'span', 'pool', 'get', 'count', 'score', 'rank', 'ask', 'closes', 'extras', 'stages', 'overall'],
+  top: ['spec', 'preset', 'span', 'pool', 'get', 'count', 'score', 'rank', 'ask', 'closes', 'extras', 'stages', 'overall', 'card'],
+  // C7: a new card each week.
+  card: ['from', 'each', 'of'],
   // A12 part 1: a stage of a game in stages, and its overall.
   stage: ['id', 'name', 'game', 'on', 'side', 'alongside', 'season'],
   overall: ['by', 'places'],
@@ -2386,11 +2703,13 @@ const KEYS = {
   budget: ['total', 'floor', 'ceiling', 'gone', 'fallback', 'trade', 'left'],
   trade: ['fee'],
   second: ['fallback'],
-  score: { moments: ['by', 'points', 'captain', 'times', 'multiply', 'only', 'hits'], place: ['by', 'reverse', 'multiply'], survive: ['by', 'means', 'points', 'lives', 'buyback', 'mulligans'], lines: ['by', 'points'], answers: ['by', 'parlays', 'lives', 'livesOn', 'saves'], stages: ['by'], stats: ['by', 'points', 'byPosition', 'byPlace', 'byFormat', 'categories'], squares: ['by', 'pays', 'empty', 'unread'] },
+  score: { moments: ['by', 'points', 'captain', 'times', 'multiply', 'only', 'hits'], place: ['by', 'reverse', 'multiply'], survive: ['by', 'means', 'points', 'lives', 'buyback', 'mulligans'], lines: ['by', 'points'], answers: ['by', 'parlays', 'lives', 'livesOn', 'saves', 'bank'], stages: ['by'], stats: ['by', 'points', 'byPosition', 'byPlace', 'byFormat', 'categories'], squares: ['by', 'pays', 'empty', 'unread'] },
   pay: ['at', 'points'],
   buyback: ['times', 'before', 'cost'],
   before: ['phase', 'episode'],
   parlay: ['of', 'times'],
+  bank: ['start', 'out'],
+  ticketLegs: ['min', 'max'],
   captain: ['times'],
   when: ['times', 'episode', 'from', 'to', 'phase', 'finale'],
   multiply: ['times', 'joined', 'then', 'per'],
@@ -2410,7 +2729,7 @@ const KEYS = {
   windows: ['schedule', 'every', 'swaps'],
   draft: ['at', 'timer', 'away', 'opens'],
   bets: ['points'],
-  question: ['id', 'ask', 'answer', 'points', 'settle', 'asked', 'closes', 'pick', 'from', 'line', 'options', 'each', 'every', 'over', 'within', 'chips', 'pairs', 'wager', 'share', 'rollover', 'shrink', 'fallback', 'beat', 'draw', 'rounds'],
+  question: ['id', 'ask', 'answer', 'points', 'settle', 'asked', 'closes', 'pick', 'from', 'line', 'options', 'each', 'every', 'over', 'within', 'chips', 'pairs', 'wager', 'odds', 'share', 'rollover', 'shrink', 'fallback', 'beat', 'legs', 'pays', 'card', 'draw', 'rounds'],
   settle: ['by', 'take', 'moment', 'role', 'phase', 'stat', 'place', 'fact', 'of', 'tie'],
   beat: ['by', 'none'],
 };
@@ -2427,6 +2746,7 @@ function unknownKeys(s) {
   // A12 part 1: an end at a phase.
   if (isObj(s.span)) check(s.span.to, KEYS.from, 'span.to');
   check(s.pool, KEYS.pool, 'pool');
+  check(s.card, KEYS.card, 'card');
   if (isObj(s.get)) {
     check(s.get, own(KEYS.get, s.get.by), 'get');
     if (s.get.by === 'draft') {
@@ -2442,6 +2762,7 @@ function unknownKeys(s) {
     check(s.score, own(KEYS.score, s.score.by), 'score');
     if (Array.isArray(s.score.parlays)) s.score.parlays.forEach((p, i) => check(p, KEYS.parlay, `score.parlays[${i}]`));
     if (s.score.by === 'squares' && Array.isArray(s.score.pays)) s.score.pays.forEach((p, i) => check(p, KEYS.pay, `score.pays[${i}]`));
+    if (isObj(s.score.bank)) check(s.score.bank, KEYS.bank, 'score.bank');
     if ((s.score.by === 'moments' || s.score.by === 'place') && Array.isArray(s.score.multiply)) s.score.multiply.forEach((m, i) => check(m, KEYS.multiply, `score.multiply[${i}]`));
     if (s.score.by === 'moments') {
       check(s.score.captain, KEYS.captain, 'score.captain');
@@ -2469,6 +2790,7 @@ function unknownKeys(s) {
       check(q.settle, KEYS.settle, `ask[${i}].settle`);
       check(q.shrink, KEYS.shrink, `ask[${i}].shrink`);
       check(q.beat, KEYS.beat, `ask[${i}].beat`);
+      check(q.legs, KEYS.ticketLegs, `ask[${i}].legs`);
     }
   });
   const e = s.extras;
@@ -2539,7 +2861,7 @@ function statScoreProblems(score) {
 
 /**
  * L4 part 2: a squares game, as [[at, problem]]: its grid (10 or 5), how squares are taken (pick or deal) and how many each, nothing
- * counting but them, scored by them alone (1 to MAX_PAYS pays, each { at: a period's number, 'half' or 'final', points }, each
+ * counting but them, scored by them alone (1 to MAX_SQUARE_PAYS pays, each { at: a period's number, 'half' or 'final', points }, each
  * moment once; empty, unread), ranked by the total with nothing beside it, its squares taken before it starts. Whether the sport
  * has two scores and those periods is settleProblems' (ctx.shape, ctx.periods).
  */
@@ -2557,7 +2879,7 @@ function squaresProblems(s, count) {
   if (count !== null) out.push(['count', 'Nothing counts but your squares: count null']);
   if (score.by === 'squares') {
     const pays = score.pays;
-    if (!(Array.isArray(pays) && pays.length >= 1 && pays.length <= MAX_PAYS)) out.push(['score.pays', `Squares pay 1 to ${MAX_PAYS} times: [{ at, points }], at a period's end (its number), halftime ('half') or the final ('final')`]);
+    if (!(Array.isArray(pays) && pays.length >= 1 && pays.length <= MAX_SQUARE_PAYS)) out.push(['score.pays', `Squares pay 1 to ${MAX_SQUARE_PAYS} times: [{ at, points }], at a period's end (its number), halftime ('half') or the final ('final')`]);
     else {
       const seen = new Set();
       pays.forEach((p, i) => {
@@ -2839,8 +3161,10 @@ function answerLivesProblems(score, s) {
       if (!q) out.push([`.livesOn[${i}]`, `"${id}" isn't one of the game's questions`]);
       else if (on.indexOf(id) !== i) out.push([`.livesOn[${i}]`, `"${id}" is named twice`]);
       else if (!livesQuestion(q)) out.push([`.livesOn[${i}]`, "A life rides on a question asked each episode, about that episode alone: it's right or wrong once that episode's results are in"]);
+      // C7: a card's lines are new each week.
+      else if (!lifeRides(q)) out.push([`.livesOn[${i}]`, "A card's lines are new each week: a life rides on the game's own questions"]);
     });
-  } else if (!s.ask.some(livesQuestion)) {
+  } else if (!s.ask.some(lifeRides)) {
     out.push(['.lives', 'A life rides on a question asked each episode, about that episode alone: this game asks none']);
   }
   return out;
@@ -3004,7 +3328,10 @@ function weekProblems(rank, s) {
  */
 function countProblems(score, s) {
   const out = [];
-  if (score.only !== undefined) {
+  // C7: only the card's moments each week ('card'), the card's own list checked as a card (cardProblems).
+  if (onlyCard(score)) {
+    if (!isObj(s.card)) out.push(['.only', "Only the card's moments count each week: give the game a card, { from: 'moments', each, of }"]);
+  } else if (score.only !== undefined) {
     const list = Array.isArray(score.only) ? score.only : null;
     if (!list || !list.length || list.length > MAX_ONLY || !list.every((id) => typeof id === 'string' && id)) out.push(['.only', `Only these moments count: a list of 1 to ${MAX_ONLY} of the show's moments`]);
     else if (new Set(list).size !== list.length) out.push(['.only', 'A moment is named twice']);
@@ -3226,6 +3553,8 @@ function parlayProblems(list, s) {
     for (const id of of) {
       const q = qs.get(id);
       if (!q) out.push([`${at}.of`, `"${id}" isn't one of its questions`]);
+      // C7: a card's lines are new each week; a ticket a player builds is how they're combined.
+      else if (isCardQuestion(q)) out.push([`${at}.of`, `"${id}" is the card's: its lines are new each week, so build a ticket from them`]);
       else if (used.has(id)) out.push([`${at}.of`, `"${id}" is in two parlays`]);
       else {
         used.add(id);
@@ -3236,9 +3565,9 @@ function parlayProblems(list, s) {
       const single = LEGS.includes(q.answer) && !(NAMES.includes(q.answer) && q.pick !== 1) && q.each === undefined;
       if (!single) out.push([`${at}.of`, `"${q.id}" isn't one answer that's right or wrong: a parlay's legs are one person or group, a yes or no, a choice, a number or an over/under`]);
       // C2 part 4: a leg that rolls over, shrinks or pays only the only one right is multiplied as it stands (its window's worth and
-      // its share, then the parlay: the scoring sequence's order). A stake is C6's (money); a split pot waits on a rule (the plan's
+      // its share, then the parlay: the scoring sequence's order). C6: a staked leg too, its stake's winnings with its points (a
+      // parlay pays only when every leg is right, so a stake it multiplies is one won). A split pot waits on a rule (the plan's
       // Noticed: does a parlay multiply your share, or your call before the split?).
-      else if (q.wager !== undefined) out.push([`${at}.of`, `"${q.id}" has a stake: a parlay's legs aren't staked (a staked parlay comes with money, C6)`]);
       else if (q.share === 'split') out.push([`${at}.of`, `"${q.id}" splits a pot: a parlay on a split pot waits on a rule (does it multiply your share, or your call before the split?)`]);
     }
     const way = (q) => `${q.asked}|${q.every || ''}|${q.over || ''}`;
@@ -3440,7 +3769,9 @@ function settleProblems(s, ctx, opts) {
       // the rulebook switched off scores nothing whatever the points say (it isn't among the rules' events).
       for (const m of moments) {
         // C5: a moment score.only leaves out counts nothing; with hits counted, each counts its worth (momentWorth).
-        const pts = m.off ? 0 : momentWorth(score, m.id, Object.prototype.hasOwnProperty.call(given, m.id) ? given[m.id] : defaultOf(m.defaultPoints, shared));
+        // C7: with only the card's moments counting, every one its list names (each checked as the card's, below).
+        const pts = m.off ? 0 : momentWorth(score, m.id, Object.prototype.hasOwnProperty.call(given, m.id) ? given[m.id] : defaultOf(m.defaultPoints, shared), onlyAt(s));
+        if (onlyCard(score) && cardOf(s) && cardOf(s).of.includes(m.id)) continue;
         // One score.only names counts whatever its points say: take it out of the list.
         const listed = Array.isArray(score.only) ? score.only.indexOf(m.id) : -1;
         if (pts !== 0 && !byData(m)) out.push(listed >= 0 ? [`score.only[${listed}]`, `${couchWord(m)}. Take it out of the moments that count`] : [`score.points.${m.id}`, `${couchWord(m)}. Score it 0`]);
@@ -3570,6 +3901,12 @@ function settleProblems(s, ctx, opts) {
       const p = EpisodeFacts.factProblem(st.fact, ctx.facts[st.fact]);
       if (p) out.push([`ask[${i}].settle.fact`, p]);
     }
+  });
+  // C7: every moment a card is drawn from is the show's, one research answers: its lines are questions and objectives data settles.
+  const card = cardOf(s);
+  if (card) card.of.forEach((id, i) => {
+    const p = typeof id === 'string' && id ? momentProblem(id, true) : null;
+    if (p) out.push([`card.of[${i}]`, p]);
   });
   return out;
 }
@@ -3870,16 +4207,17 @@ function stagedWaits(s) {
 
 module.exports = {
   SPEC_VERSION, VOCAB, TAKES, SETTLES_FOR, SEASON_TAKES, EACH_SETTLES_FOR, NAMES, NUMBERS, MAX_WINDOW, LATE_HOURS, windowed,
-  RANKS, MAX_ORDER, MAX_WITHIN, MAX_CHIPS, MAX_PAIRS, WAGERS, WAGER_TOTAL, SHARES, SHRINK_PER, LEGS, MAX_LEGS, MAX_TIMES, MAX_WHEN, WHEN, MAX_JOINED, JOINED, multipliersOf, PRESETS, PRESET_TYPES, TYPE_PRESETS, PRESET_LABELS, NO_WAIVERS, DRAFT_ROOM,
+  RANKS, MAX_ORDER, MAX_WITHIN, MAX_CHIPS, MAX_PAIRS, WAGERS, WAGER_TOTAL, ODDS, MAX_BANK, BANK, bankOf, drawsOnBank, isTicket, ticketOf, MAX_TICKET_LEGS, MAX_PAYS, TICKET, SHARES, SHRINK_PER, LEGS, MAX_LEGS, MAX_TIMES, MAX_WHEN, WHEN, MAX_JOINED, JOINED, multipliersOf, PRESETS, PRESET_TYPES, TYPE_PRESETS, PRESET_LABELS, NO_WAIVERS, DRAFT_ROOM,
   MAX_GROUP_SLOTS, GROUP_SLOTS, covers, MAX_LIVES, MAX_BUYBACKS, MAX_MULLIGANS, MAX_BUYBACK_COST, BUYBACK, SECOND_PICK, NEVER, poolParts,
   DRAFT_ACROSS, DRAW_OWN, spreadBounds, MAX_BUDGET, BUDGET, CAP, AUCTION, MAX_BIDS, ceilingFor, budgetParts, TRADE, MARKET_LEFT,
   marketWaivers, marketOf, waiverOwnOf, waiverMoves, KEEP, keepParts, SEATS, MAX_SEAT_PEOPLE, seatPeople, teamsOf,
   MAX_RACE, MAX_CUTS, MAX_CUT_OUT, CUT, CUT_AT, knockoutParts, DRAFT_END, POOL_END, ANSWERS_END, COOP, answerParts, livesQuestion, questionsGame, isPool, poolByPoints,
   MATCHUPS, MATCHUP_KEYS, MAX_PLAYOFF_TEAMS, playoffRounds, matchupParts, TEAMS, MAX_PLAYER_TEAMS, MAX_TEAM_NAME, teamParts,
   MAX_CATEGORIES, CATEGORY_RANKS, categoriesOf, categoryParts,
-  SQUARE_GRIDS, SQUARE_TAKES, SQUARE_EMPTY, SQUARE_UNREAD, SQUARES, MAX_PAYS, BRACKET_ROUNDS, squaresParts, ordinalWord,
+  SQUARE_GRIDS, SQUARE_TAKES, SQUARE_EMPTY, SQUARE_UNREAD, SQUARES, MAX_SQUARE_PAYS, BRACKET_ROUNDS, squaresParts, ordinalWord,
   HANDICAP, MAX_HANDICAP, handicapParts,
   WEEKS, MAX_PICKS, MAX_ONLY, momentsPick, weekParts, momentWorth,
+  MAX_CARD, CARD, CARD_TAKES, CARD_ANSWERS, drawInTurn, cardOf, cardLines, cardEach, questionLines, isCardQuestion, isCardLine, cardMoment, onlyCard, onlyAt, askOf, linesAsked, lifeRides,
   REPLACE_RULES, WINDOW_SCHEDULES, WAIVER_FEELS, WAIVER_ORDERS, WAIVER_HOURS, DRAFT_TIMERS, MAX_BET_POINTS, JOINS, ORDER_OF,
   MAX_TEAM, MAX_STARTERS, MAX_BENCH, MAX_LINEUP_TEAM, MAX_QUESTIONS, MAX_PICK, MAX_QUESTION_POINTS, MAX_OPTIONS, YES_NO,
   CALLS, finaleQuestions, finaleOf, finaleIn, draftQuestions, draftPlayable, isCalls, isTrivia, isFact, isPlayers, PLAYERS, isBeat, BEAT, BEATS, callsAsk, fullQuestion, optionRange, playable,

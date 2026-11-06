@@ -33,7 +33,8 @@ settings are all read from it. A league carries its spec as `settings.game`.
   "closes": "start",   // moves lock when each episode starts
   "extras": { ... },   // the details nobody asked about               → The extras
   "stages": [ ... ],   // a game in stages instead: 2 to 6 games       → Stages
-  "overall": { ... }   //   and how their tables add up
+  "overall": { ... },  //   and how their tables add up
+  "card":  { ... }     // a new card each episode (C7), for questions on it and the week's objectives → A new card each week
 }
 ```
 
@@ -333,6 +334,7 @@ Limits: up to 12 questions a game; an `id` is letters, digits, `.`, `_` or `-`, 
 | `pairs` | for each pair, who outlasts whom | `pairs` 1 to 12, drawn from who's in at the start; asked once |
 | `trivia` | the round's trivia questions (the episode before) | asked each episode |
 | `calls` | the show's two calls (Weekly Calls) | a game of its own |
+| `ticket` | a ticket (C6): the questions you put on it and a stake, `{ legs: [ids], stake }`, each leg your own answer to it | settled by its `legs` (below); `legs: { min, max }`, `pays`; a stake (`wager`) |
 | `side` | a team (sports) | the sports branch |
 | `bracket` | a draw's winners round by round, by distance from the final (`{ "7": [...], ..., "1": [the champion] }`), each right pick worth the points, doubling each round (`rounds: 'double'`, the default, or `'same'`) (L4 part 2: `sequence/bracket.js`) | settled `final` `bracket` of a draw (tennis's `MS`, `WS`...); the sports branch |
 
@@ -356,6 +358,7 @@ players' own mechanics below, which settle the game, never a fact about the show
 | `trivia` | none | the episode's trivia key (the bot writes a round after each episode) |
 | `calls` | none | the show's calls (Weekly Calls) |
 | `players` | `majority`, `minority` | the players' own answers: see "The players' own mechanics" |
+| `legs` | none | a ticket's legs (C6): `{ by: "legs", of: [the game's question ids] }`, your own answers to them in the window |
 | `final`, `stat` | | a sport's finals and stats (the sports branch); `final`'s `bracket`, a draw's winners round by round (L4 part 2) |
 
 Which answers each settle can grade (`SETTLES_FOR` in the schema): a `person` by anything that names people (`results` out,
@@ -401,8 +404,24 @@ On one question:
 - `shrink: { points, per: "episode" | "change" }`: a call that stays open (asked once, closing at the finale) is worth less for
   each episode already started when it was made, or each change made once the game started.
 - `wager: n | "total"`: stake up to n of your points (or any you have) on your answer: right, its points and the stake; wrong,
-  the stake lost. On one answer only: a yes or no, a choice, an over/under, or one person or group.
+  the stake lost. On one answer only: a yes or no, a choice, an over/under, or one person or group. Since C6 the stake is a line
+  of its own beside the question's points, so a wager goes with a share, a rollover or a shrink (the points do what they'd do
+  without it; the stake is never shared, carried or shrunk), and a parlay multiplies a staked leg.
+- `odds: "even" | "pool"` (C6, money, with a wager): what a right stake pays. `even` (the default): the stake, double or nothing.
+  `pool`: the couch's own odds (a tote): the window's wrong stakes are a pot split between the right ones by their stakes, each
+  share to the cent; nobody right, every stake comes back. Odds only from data: nobody writes a line. "Stake any of your bank on
+  each: right, a share of the wrong stakes; wrong, you lose it."
 - `beat: { by: "bot", none }`: played against the bot's own call (see "The players' own mechanics").
+
+**A bank** (C6, money), on the game's score: **`score.bank: { start, out? }`**: everyone starts with `start` points (1 to
+10,000), a line of their own before the first episode, and every stake on the game's questions is drawn from it (a fixed stake too:
+held to what you have left, less what's still riding on answers to be settled). `out: true`: whoever's on nothing after a night is
+out (their answers after it count for nobody), ranked by the total or last one standing; `out: false` (the default, the lane's
+call): run out and you can still answer, with nothing to stake. A bank needs a stake on at least one question, ranks by its points
+(the total, last one standing, a race past its start, cuts, teams, a handicap), and is a game of questions' (a draft's points are
+its team's). Example (the user's first game, its fixed sheet): `{ "score": { "by": "answers", "bank": { "start": 500 } }, "ask":
+[{ ..., "wager": "total" }, ...] }` → "Stake any of your bank on each: double or nothing. Everyone starts with a bank of 500
+points."
 
 Across questions, on the game's score: **`score.parlays: [{ of: [ids], times }]`** (up to 6): someone right on every leg in the
 same window has their points on them multiplied (more than 1, up to 10). Legs: 2 to 4 plain questions asked the same way, each
@@ -420,16 +439,32 @@ share):
 - **A parlay's leg** can roll over (its window's jackpot, then the parlay), shrink (its call's worth, then the parlay) or pay
   only the only one right (its share, then the parlay: the same either way round). Someone right on every leg has what each leg
   gave them multiplied (a leg where they were right but not alone gave them nothing to multiply).
+- **A stake** (C6) goes beside any of them: the stake first in the sequence's order, a line of its own the share, the rollover and
+  the shrink never touch (a rollover carries on the points alone: a stake won is no claim on the jackpot). A parlay's staked leg
+  has its stake's winnings multiplied with its points (a parlay pays only when every leg is right, so it multiplies a stake won).
+  p24's "Stake up to 5 points on who goes home, and the pot's split between everyone who gets it right" →
+  `{ ..., "points": 10, "wager": 5, "share": "split" }`: "10 points each time, split between everyone right. Stake up to 5
+  points on it: double or nothing."
 
 Still refused, in our check's words:
 
-- "A wager plays alone: no share, rollover or shrink with it." (A stake beside them is C6's, money.)
-- A parlay's leg with a stake: "... has a stake: a parlay's legs aren't staked (a staked parlay comes with money, C6)".
 - A parlay's leg that splits a pot: "... splits a pot: a parlay on a split pot waits on a rule (does it multiply your share, or
   your call before the split?)", a rule question for the user (the plan's Noticed; recommended: your share).
 - "A wager is on your own call: not with the bot's."
 
-A staked parlay a player builds, with a bank, is **planned** (C6).
+**A ticket** (C6 part 2, money): a question that's a staked parlay a player builds from the game's other questions, its legs.
+`{ "id": "ticket", "answer": "ticket", "points": 0, "asked": "each", "wager": "total", "settle": { "by": "legs", "of": ["boot",
+"imm", "idol"] } }`, answered `{ "legs": ["boot", "idol"], "stake": 20 }`: the legs are your own answers to those questions in the
+same window (the server refuses a ticket naming one you haven't answered). Every leg you put on it right: your stake won `pays`
+times for that many legs (by default each leg doubles what rides on it, even money on each: 3 times for two, 7 for three, 15 for
+four); one wrong, or left blank, the stake lost; a leg that doesn't count (off, a void pick) drops out and the ticket rides on the
+rest (one left pays once the stake; none left, the stake back). `legs: { min, max }`: how many it takes (2 to as many as it's built
+from, up to 6; at least 2 by default); `pays: [for 2, for 3, ...]`, each more than 0 and up to 1,000, never less for more legs. Its
+legs: 2 or more of the game's questions, each one answer that's right or wrong (as a parlay's), asked when the ticket is; never
+another ticket. Its stake is a wager's (up to a number, or any of your points or bank), at its own payout (no odds), with no points
+of its own, nothing shared, carried, shrunk or against the bot; a game of questions' only, never a life's question. "Build a ticket
+from who goes home, who wins immunity and an idol found: put two to three of your calls on it and stake any of your bank; all of
+them right wins 3 times your stake for two, 7 for three."
 
 ### Finale predictions
 
@@ -477,6 +512,49 @@ scores by how long they last: the last one standing carries you. 2 points for ea
   stock market ranks by its worth (cash plus the team at today's prices): questions beside it would only break ties"; the show's
   calls (a game of their own); a late lock (a draft's moves lock as each episode starts); parlays (a draft's score has none: C3's
   multipliers).
+
+## A new card each week: `card`
+
+One generator for each episode's set of questions or objectives (C7). A game's **card** is drawn new each episode, the same for
+everyone, and every line of it is settled by data:
+
+```jsonc
+"card": { "from": "moments", "each": 4, "of": ["idolFound", "idolPlayed", "votesNegated", "wentOnJourney",
+          "learnedOfAdvantage", "advantageTargeted", "rewardWin", "tribeImmunity"] }
+```
+→ "Each episode's card is the next four of got an idol or advantage, played an idol or advantage, ..., in turn, so it's new each
+episode."
+
+- `from`: `moments`, the show's own moments its list names, drawn in turn: Episode 1 the first `each`, Episode 2 the next, round
+  and round the list (`drawInTurn`: Weekly Calls' rotation, the same function). The bot writing the week's card is C7's later part.
+- `each`: its lines each episode, 1 to 12. `of`: the moments it's drawn from, 1 to 40, at least `each`, none twice; each one the
+  show's and one research answers (the data-can-settle rule: "Cried is the couch's word: research doesn't answer it, so data can't
+  settle it").
+- Nothing is stored: a card drawn from the spec's own list is worked out from the spec and the episode (`cardLines`), so it's the
+  same on every read and never changes once someone's answered it.
+
+Two things read it:
+
+- **A question on the card**, `card: true`: asked for each of the card's lines, one question each (`"sheet"` is `sheet.1` to
+  `sheet.4`: `askOf`, which everything that answers, grades or reads a game's questions goes through), each settled by its line's
+  moment that episode: `{ "by": "moment", "take": "happened" | "count" | "who" | "most" }` with no moment of its own, answered yes
+  or no, a count, or who (a person or a group). Asked each episode, in a game of questions. A line is a question like any other: a
+  stake on it (from a bank, at even money or the pool's odds), a share; and a ticket built from the card (`"settle": { "by":
+  "legs", "of": ["sheet"] }`) takes its lines as legs ("Build a ticket from the card's four lines"). Two questions on one card ask
+  each line two ways ("whether it happens" and "who does it"). Refused, each with why: rolled over, against the bot or about each
+  person ("each line of the card is a new moment each week"), a parlay of it ("build a ticket from them"), the players' own
+  answers about it, a life riding on it, an over/under or a choice (a line or options for every moment), a moment of its own ("the
+  card's line says which moment"), beside a draft, and more than 12 questions an episode, each line one.
+- **The moments that count each week**, `score.only: "card"`: only the moments on that episode's card count, in a game scored by
+  moments (a pick each episode, a lineup, best ball), so each week's objectives are the card's ("Only the moments on each
+  episode's card count."). With hits counted (C5), each is an objective.
+
+Today's games as uses of it: a game's own questions are a card that's the same every week (the spec's list); Weekly Calls' moment
+call is the show's callable moments drawn in turn (`calls.ts` draws them with `drawInTurn`); trivia's round and bingo's squares are
+cards the bot writes and a second ask checks, each episode's in a table of its own (`trivia_questions`, the bingo bank), private
+until their lock where they must be, and void (trivia) or not dealt when nothing passed. Fallbacks for a change nobody announced:
+a line's moment that didn't happen is a no; who did a moment nobody did is off (no points either way); nothing reads a group, so a
+swap or a split changes nothing.
 
 ---
 
@@ -608,6 +686,9 @@ carries from the start, and no game waits for a person:
 | A week two or more top (weeks won) | `rank.ties` | `all`, `split`, `none` |
 | A week nobody scores in (a quiet night, a format change voiding it) | (by itself) | won by nobody |
 | A pick of several when fewer can be picked (a cycle's blocks, few left) | (by itself) | fewer picks; the rest score nothing |
+| A stake on a question that doesn't count (nobody went home, a void pick, a question voided by a change) | (by itself) | every stake back |
+| A stake at the pool's odds nobody got right | (by itself) | every stake back |
+| A ticket's leg that doesn't count | (by itself) | drops out; the ticket rides on the rest (none left: the stake back) |
 
 (`next-stage` is only for a stage with another after it.) The research behind it: each episode's research says the format's
 state at its end (who is with whom, the phase) as data (F2), the engine works out what changed by comparing episodes (F3), and
@@ -744,16 +825,20 @@ Every game scores as one sequence of six steps, for each of you and each episode
 
 1. **Hold**: what of yours counts for that episode. A draft's team as it stood then (a pickup counts from the episode after
    it's made; `heldAt`), a lineup's starters, best ball's whole team, a group slot's group. Someone two of you hold (a shared
-   draft's, or since C4 a shared replacement in an exclusive draft) is on each team, each by its own holding.
+   draft's, or since C4 a shared replacement in an exclusive draft) is on each team, each by its own holding. Since C7, the card's
+   lines that episode (`cardLines`): the questions on it it asks, and the moments that count.
 2. **Score each line**: a line is one holding's points in one episode, from one source (since C5, a pick scored by moments holds
    that episode's picks, each a line as a lineup's starter is). An Outlast's line is a **place**, a
    value rather than points earned while held (whoever holds someone now has their whole place: `placed`, `stillIn`); a
    lineup's are its people's **moments** at the game's points (`momentRaw`; since C5 only the moments `score.only` names, or each an
-   objective hit, counted every time, once a holding or once for you: `hits`), a group slot's its group's (`groupRaw`), a side
+   objective hit, counted every time, once a holding or once for you: `hits`; since C7 only the moments on that episode's card,
+   `onlyAt`), a group slot's its group's (`groupRaw`), a side
    bet's a right guess on a bet with company (`betLines`); finale predictions and a handicap are lines settled on their own.
    In a game of questions a line is an **answer's right ones at what its window is worth** to it (`windowLines`): the
    question's points, a rollover's jackpot in them (what the windows before it left unclaimed: `jackpot`, `carry`), a shrinking
-   call's less for each episode late or each change (`shrink`). Which answers are right, and how many right ones each has, is
+   call's less for each episode late or each change (`shrink`). A **stake** is a line of its own beside them (C6: `stakes`,
+   even money or the pool's share of the wrong stakes, added to the points with `plus`), and a **bank's start** a line before the
+   first episode. Which answers are right, and how many right ones each has, is
    the grading's (the settles above), never the sequence's. A right call (Weekly Calls) and a bingo line are lines too, counted
    (`tally`). A draft's own questions (since C2 part 4c) are graded the same way, their sum a line of the draft's beside its team's.
 3. **Multipliers**: each line times whatever applies to it, in order (`multiply`), each a factor of the one multiplier piece
@@ -761,6 +846,7 @@ Every game scores as one sequence of six steps, for each of you and each episode
    joined your team (`score.multiply`, from its stint: `stints`); a parlay's on what each of its windows gave you (after the
    window's share, below: the order today's games keep); a line's points on a count of bingo lines (`counted`). With a
    multiplier on how a holding joined, an Outlast's line is what it earns while yours (`earnedWhileHeld`), not its whole place.
+   A parlay multiplies a staked leg's stake won with its points (C6).
 4. **Combine**: the lines into your total for the episode, all of them or your best n (`best`, `episodeTotal`); and a window's
    answers across all of you: a pot split between everyone right by what each would have earned, only the only one right, by
    answer or by pick (`split`, `only`, `onlyEach`), each at the window's worth or (a shrinking call that's shared, since C2 part
@@ -768,7 +854,7 @@ Every game scores as one sequence of six steps, for each of you and each episode
 5. **The week's result**: what each episode's totals make, once its results are final: a running total (`add`; a count's,
    `through`); a pool's night on your streak and lives (its right picks first, then its wrong ones; a mulligan forgives one, a
    wrong one costs a life, a buyback brings you back, or you're out: `poolNight`, `poolEmptied`), and the night everyone left
-   goes out (`allOut`); a race won, a life lost, a cut, one left (`knockouts`, `livesNight`, `cutsAfter`, `lastLeft`); a
+   goes out (`allOut`); a race won, a life lost, a bank run out (C6: `knockouts`' `broke`), a cut, one left (`knockouts`, `livesNight`, `cutsAfter`, `lastLeft`); a
    matchup won, the standings and the playoffs (`matchups`, on what each episode added: `grown`); a team's points, its members'
    sum or mean (`teamStep`); co-op's night and its lives together (`saved`, `coop`). A game of questions walks the same
    knockouts as a draft, its totals worked out as the walk goes (someone out takes no share of anyone's points after). Each of
@@ -809,17 +895,22 @@ for the way it joined your team, on what it earns while it's yours (an Outlast's
 gives each way of holding its own ownership (a replacement or a swap from anyone still in beside an exclusive draft): nothing the
 sequence reads changes, only who holds whom. C5 gives a pick each episode its place scored by what they do (step 1 holds that
 episode's picks, one or several, and the draft's walk scores them: `ScoringLogic.walk`, `episodeScore`), only some moments and hits
-counted (step 2's `momentRaw`), and a week's winner (step 5's `weeks`, on head to head's series and seats: `WeekLogic`).
+counted (step 2's `momentRaw`), and a week's winner (step 5's `weeks`, on head to head's series and seats: `WeekLogic`). C6 (money)
+gives a stake its own line beside a question's points (step 2's `stakes`, even money or the pool; `plus`), so it goes with a share, a
+rollover, a shrink and a parlay in the sequence's order (the stake, then the multipliers, then the share), a bank's start a line
+before the first episode, and a bank that runs out a knockout (step 5's `broke`). C7 (a new card each week) gives step 1 the card's
+lines each episode: a question on the card is a question for each line (graded on its moment that episode, a line like any
+question's), and the moments that count are the card's that episode; nothing else in the sequence changes.
 
 **Playing by placement** (C2 part 4): a spec plays when each piece it names has its place in the sequence, not when it matches
 one of seven shapes (`schema.js` `noPlace`; `typeOf` names the shape the screens read, from its lines):
 
 | Step | The pieces, and what each needs from the steps before it |
 |---|---|
-| 1. Hold | a draft (its order with its ownership, a draw, or an auction for castaways nobody else can have) counting its whole team, a lineup or its best few, its waiver moves each exclusive or shared (shared beside an exclusive draft, not beside a stock market); a pick each episode (1 to 8, cycling, never repeating or any: C5); nothing; a bingo card |
+| 1. Hold | a draft (its order with its ownership, a draw, or an auction for castaways nobody else can have) counting its whole team, a lineup or its best few, its waiver moves each exclusive or shared (shared beside an exclusive draft, not beside a stock market); a pick each episode (1 to 8, cycling, never repeating or any: C5); nothing; a bingo card. Beside any of them, a new card each week (C7), read by a game of questions' questions on it or the moments that count |
 | 2. Lines | a place, the whole team held; moments, a lineup or best few held, or (C5) a pick each episode held, only some moments or each a hit; a pick staying in (or scoring), one pick held; answers, nothing held, each a question a game of questions plays (or the show's calls alone); bingo lines, a card held. Beside them: a draft's finale predictions and (part 4c) its own questions, each one a draft plays (a game of questions' kind, or a person from your own team), not a stake of any of your points, not beside its cuts or a race, not beside a stock market by its worth |
-| 3 and 4. Multipliers, combine | each checked where it's said (`specProblems`): a captain on a lineup, points by when on moments, parlays on a game of questions, how a holding joined on a draft's team (a lineup, best ball or an Outlast not in reverse, not a stock market) whose waivers make that move; best ball's best n; a question's share, rollover, shrink, wager and the bot's call, combining in the sequence's order (a line's worth, the multipliers, the share) |
-| 5 and 6. The week's result, rank | weeks won (C5) wherever head to head plays; a pick scored by moments by its points, head to head or weeks won; a running total on any game's (a pool's by its points with no lives: its series of totals, since C2 part 4b; else its streak or who's still standing); last one standing on a draft's or a game of questions' cuts, or a pool's or a game of questions' lives, and a draft's teams on their cuts (part 4b); a race on a draft's or a game of questions' totals, or a draft's teams'; head to head on a draft's, a game of questions' or a pool's totals, with nobody racing, cut or losing a life; teams of players and a handicap on any of those totals (a draft's teams knocked out or racing; a game of questions' and a pool's by their points or head to head); worth, a stock market's on a lineup; co-op, a game of questions' lives together; the show's calls and bingo lines, most wins |
+| 3 and 4. Multipliers, combine | each checked where it's said (`specProblems`): a captain on a lineup, points by when on moments, parlays on a game of questions, how a holding joined on a draft's team (a lineup, best ball or an Outlast not in reverse, not a stock market) whose waivers make that move; best ball's best n; a question's share, rollover, shrink, wager (since C6 beside any of them, at even money or the pool's odds, and as a parlay's leg) and the bot's call (not with a wager), combining in the sequence's order (the stake, a line's worth, the multipliers, the share) |
+| 5 and 6. The week's result, rank | weeks won (C5) wherever head to head plays; a pick scored by moments by its points, head to head or weeks won; a running total on any game's (a game of questions' with a bank, C6: its start a line before the first, and out when it runs out, so last one standing too; a pool's by its points with no lives: its series of totals, since C2 part 4b; else its streak or who's still standing); last one standing on a draft's or a game of questions' cuts, or a pool's or a game of questions' lives, and a draft's teams on their cuts (part 4b); a race on a draft's or a game of questions' totals, or a draft's teams'; head to head on a draft's, a game of questions' or a pool's totals, with nobody racing, cut or losing a life; teams of players and a handicap on any of those totals (a draft's teams knocked out or racing; a game of questions' and a pool's by their points or head to head); worth, a stock market's on a lineup; co-op, a game of questions' lives together; the show's calls and bingo lines, most wins |
 
 A piece with no place says which and why ("No game plays this way yet: a pool's picks are its game: questions beside them play
 in a stage alongside it"), and every game that played before plays the same way (a corpus of 56,025 specs, every holding,
@@ -834,18 +925,22 @@ tracker row (`docs/ENGINE-CAPABILITIES.md`, p13 to p25) with the step that bring
 - **Pieces with no place yet** (each refused with why: "No game plays this way yet: ...", or our check's own words):
   - questions beside a pick, a pool or a bingo card (they play in a stage alongside it);
   - a pick scored by moments knocked out or racing (C5 left it: a draft's or a game of questions' for now);
-  - a stake of any of your points beside a draft (C6, money: a draft's points are its team's and its questions' together).
+  - a stake of any of your points beside a draft (a draft's points are its team's and its questions' together: a bank, C6, is a
+    game of questions').
 
   (A draft's own questions beyond its finale predictions have their place since C2 part 4c: their answers' lines join the
   draft's.)
-- **Combiners still exclusive**: a wager plays alone (C6, money: the stake, then the multipliers, then the share); a parlay on a
-  split pot waits on a rule (does it multiply your share, or your call before the split?).
+- **Combiners still exclusive**: a parlay on a split pot waits on a rule (does it multiply your share, or your call before the
+  split?). (A wager beside a share, a rollover, a shrink or a parlay plays since C6.)
 - **Multipliers left to come**: a captain, by when, how a holding joined, a parlay's legs and a confidence ranking's places are
   one piece since C3 (above, "Multipliers"); a streak and when a holding was picked are later, a draft's own questions have no
-  parlays, and a wager's double is its own (C6, money).
+  parlays, and a stake's odds are its own (C6: even money or the pool's).
 - **Six stages at most**: each week its own round is weeks won (C5), so only a game of seven real stages waits.
-- **Each episode's questions are the spec's**: nothing writes a new card of questions each week (Weekly Calls' calls and bingo's
-  squares are their own games' generators: C7).
+- **A ticket's legs are one window's**: a ticket is built from questions asked when it is, each window its own (a ticket across
+  episodes, or a leg that's a pot split, a ranking or a question about each person, isn't built).
+- **A card is the show's moments in turn** (C7): the bot writing the week's card (choosing its moments, or a question research
+  then answers) is C7's later part; a card's lines ride no parlay, life or question about the players' own answers, and a
+  question on it is a game of questions' (not a draft's own).
 - **Refused for their own reasons** (not a menu: the sequence wouldn't make them sensible): co-op on a draft (a night needs a
   right or wrong for each of you, which a draft's points don't give), group slots on an Outlast (a group has no place), a pool
   with lives ranked by its points or head to head (its lives knock players out: it ranks by its streak or last one standing), a
@@ -867,8 +962,8 @@ The study of the sequence is in the plan (track C, C1's As built); what's built 
 | C3 | **Multipliers on any condition** (built): one piece keyed by a condition, a captain, when, how a holding joined (drafted, a pickup, a replacement or a swap, the Nth per team or per slot), a parlay's legs, a confidence ranking's place | captain, by when, parlay and confidence are uses of it; the user's 1x, 0.5x, 0.25x; an Outlast's pickups counting double while they're yours. A streak and when a holding was picked: later |
 | C4 | **Ownership per holding** (built): exclusive or shared for the draft, its group slots and each waiver move (a replacement, a swap), so where a replacement comes from: someone on nobody's team, or anyone still in | an exclusive draft with shared replacements (the user's second game, whole); someone two teams hold, each owed a replacement once they're gone home |
 | C5 | **The week as a result** (built): pick 1 to 8 each episode without a draft, scored by what they do; weeks won (each episode a round); only these moments count; hits counted every time, per pick or per objective | the user's third game, whole (tracker row p12, a fixed list of objectives until C7) |
-| C6 | **Money**: a starting balance, stakes drawn from it, payouts (even money or odds), a bank that can run out; staked parlays and tickets a player builds | the user's first game |
-| C7 | **A new card each week**: one generator for each episode's questions or objectives, from the show's own data or written by the bot and checked, data-settled only | calls, trivia, bingo squares, a weekly prediction sheet and weekly objectives from one piece |
+| C6 | **Money** (built): a bank everyone starts with, every stake drawn from it, one that can run out (`score.bank`); a stake's odds, even money or the pool's (`ask[].odds`); a stake as a line of its own, beside a share, a rollover, a shrink or a parlay (part 1); a ticket a player builds, a staked parlay of the legs they choose, the payout growing with the legs (part 2) | the user's first game (its bank, stakes and tickets; its weekly sheet is C7's); p24 |
+| C7 | **A new card each week** (part 1 built): one generator for each episode's questions or objectives (`card`), the show's moments in turn from the spec's list, read by questions on it (`card: true`, a ticket from its lines) and the moments that count each week (`score.only: 'card'`); written by the bot and checked, the later part | the user's first game (p10: a sheet written each week, staked from a bank, a ticket from its lines) and third (p12: the week's objectives); Weekly Calls' rotation is its draw |
 
 ---
 
@@ -897,14 +992,24 @@ Ask these of any idea. Each is a piece above; the answer is a field.
 **1. A bank and a weekly sheet.** *"For show X, have a starting bank of 500 units, have a prediction sheet generated each week
 that players can wager on, more wagers multiply scored earnings."*
 - Act: before each episode. Hold: nothing (`get: none`). Settle: each line of the sheet by data.
-- Points: a stake from a bank of 500 (C6: today's `wager` stakes your points, with no starting balance and no bank that can run
-  out); "more wagers multiply": a parlay (C6's staked parlays, or today's `parlays`, which can't take a wagered leg) or the number
-  of wagers multiplying the week (an open question). A sheet generated each week: C7 (today's questions are the spec's, the same
-  every week).
-- Win: the most units (`total`), or the bank's own end (a bank at zero, out? open).
-- Nearest today: a game of questions with `wager: "total"` on each question ("Stake any of your points on each: double or
-  nothing").
-- Open: a parlay or a count of wagers; even money or odds; a bank at zero, out?
+- Points: a stake from a bank of 500: built (C6), `"bank": { "start": 500 }` with `"wager": "total"` on each line of the sheet
+  ("Stake any of your bank on each: double or nothing. Everyone starts with a bank of 500 points."). "More wagers multiply": a
+  ticket a player builds from the sheet's lines, its payout growing with its legs: built (C6 part 2), a `ticket` question built
+  from the sheet's (the spec's own `parlays` take a staked leg too), or the number of wagers multiplying the week (the other
+  reading: the lane's default is the ticket). A sheet
+  generated each week: built (C7), a card of the show's moments drawn in turn (`"card": { "from": "moments", "each": 4, "of": [...] }`)
+  and a question on it (`"card": true`, asked for each line, staked from the bank), beside who goes home, a ticket built from them
+  all (`"of": ["boot", "sheet"]`).
+- Win: the most units (`total`), or the bank's own end: `out: true`, whoever runs out is out, last one standing (the lane's default:
+  a bank at zero plays on).
+- Plays now (tracker row p10, since C7): `{ "get": { "by": "none" }, "score": { "by": "answers", "bank": { "start": 500 } }, "card":
+  { "from": "moments", "each": 4, "of": [eight of the show's moments] }, "ask": [who goes home, { "id": "sheet", "answer": "yesNo",
+  "card": true, "wager": "total", "settle": { "by": "moment", "take": "happened" } }, { "id": "ticket", "answer": "ticket",
+  "settle": { "by": "legs", "of": ["boot", "sheet"] } }] }`: "everyone answers five questions before each episode: who goes home
+  and whether each of the card's four moments happens".
+- Open (settings with the lane's defaults, the user's to overrule): a ticket (the default) or a count of wagers; even money (the
+  default) or the pool's odds (`odds: "pool"`; odds written by research aren't built: data-settled rules only); a bank at zero
+  plays on (the default) or is out.
 
 **2. An exclusive draft with shared, discounted replacements.** *"Have an exclusive draft initially, these players score 1x
 points. If you need to replace one you can pick as if the cast was open and shared but the new player who replaces your lost one
@@ -927,15 +1032,16 @@ scores 0.5x, if you need to replace another it scores 0.25x. Those multiplicatio
 picks x cast members that they think will achieve as many objectives as possible. Player with most objectives hit wins the week."*
 - Act: before each episode. Hold: x people picked fresh each episode, no draft: `get: { by: "pick", each: 3 }` (C5; anyone still
   in, every episode).
-- Score: only the week's objectives count, `score.only` (a fixed list, the spec's own, until C7's new card each week), each a hit
+- Score: only the week's objectives count, `score.only: "card"` (since C7: each episode's card, the show's moments in turn from the
+  maker's list; a fixed list, `score.only: [ids]`, still plays), each a hit
   worth a point, `hits`: `pick` (each objective once for each of your picks that hit it: the lane's default), `objective` (once for
   you, however many of your picks hit it) or `every` (every time).
 - Win: the week's winner, the season by weeks won, `rank: { by: "weeks" }` (a tied week: each of them wins it, `ties: "all"`).
 - Plays now (tracker row p12): `{ "get": { "by": "pick", "each": 3 }, "count": { "pick": true }, "score": { "by": "moments",
-  "only": ["individualImmunity", "rewardWin", "idolFound", "idolPlayed", "zeroVotesSafe"], "hits": "pick" }, "rank": { "by":
-  "weeks" } }`.
-- Open: the defaults are the user's (hits per pick, a tied week to each of them); who writes each week's objectives (C7: the bot
-  from research, the maker; a fixed list until then).
+  "only": "card", "hits": "pick" }, "rank": { "by": "weeks" }, "card": { "from": "moments", "each": 5, "of": [ten of the show's
+  moments] } }`.
+- Open: the defaults are the user's (hits per pick, a tied week to each of them); who writes each week's objectives (built: the
+  show's moments in turn from the maker's list; the bot choosing them is C7's later part).
 
 ---
 
@@ -971,6 +1077,9 @@ picks x cast members that they think will achieve as many objectives as possible
 | Group slots | 1 or 2 |
 | Side bets | 1 to 3 points |
 | A race | 1 to 1,000 points |
+| A bank | 1 to 10,000 to start |
+| A ticket | 2 to 6 legs; pays up to 1,000 times its stake |
+| A card | 1 to 12 lines an episode, from 1 to 40 moments |
 
 (`tests/game-pieces-doc.test.js` checks this table against the schema's limits, and that every value the schema plays now is
 named in this guide.)

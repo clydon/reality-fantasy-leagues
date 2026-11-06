@@ -8,7 +8,7 @@ them next (the user's, in production). **Merged and live in production (2026-10-
 **the game-specs flag is on** (R2, 2:39 PM: every league carries its spec), then the rest of A12 (parts 2–4c) and R1 part 3
 (2026-10-31, 12:31 AM, `075d193e`, no migration), then A13 (2026-11-05, 9:26 PM, `1d4b20a0`, migrations 0204 and 0436), then A14 parts 1-2, C1 and C2
 (2026-11-06, 9:33 AM, `e450fcd4`, migrations 0205 and 0206), then C3, C4, C4b and C5 (2026-11-06, 12:37 PM, `f22c9753`, migration
-0207); later parts (C6 on) stay on `engine` until the main folder merges them, after each
+0207), then C6 and C7 part 1 (2026-11-06, 3:53 PM, `abfa4a74`, no migration); later parts (C7 part 2 on) stay on `engine` until the main folder merges them, after each
 lettered step. A1–A4 are built on `engine` (A4 in two parts: the engine and storage, then the Prediction Sheet's screens, built before
 the screens moved to U1), merged and live since 2026-10-30 (above).
 A5 to A9 built on `engine` (2026-10-28: the tracker and the engine lab; questions about who and about each; time; more
@@ -128,7 +128,15 @@ each episode a round, wherever head to head plays; the user's third game whole, 
 C7), is built: **C5 is done**. Then C4b, a shared game's two holders per holder (2026-11-06, the user's rule: every holder is
 owed a replacement for someone gone home, every exit a game had already played as it played out, by a cutover each existing game
 carries, `settings.perHolderFrom`, migration 0207), is built: **C4b is done**, to merge with C3 to C5 before Survivor 51's Episode 8
-results (Wed Nov 11). C6 (money) is next, then C7, A14's later parts, and a stop before A15. The live-sports plan is
+results (Wed Nov 11). C6, money, is under way, in parts: part 1, a bank and stakes that combine (2026-11-06: a bank everyone
+starts with, every stake drawn from it, one that can run out; a stake's odds, even money or the pool's; a stake as a line of its own
+beside a share, a rollover, a shrink or a parlay; tracker row p24), is built, and so is part 2, a ticket a player builds (2026-11-06:
+a staked parlay of the legs a player chooses from the game's questions, the payout growing with the legs; tracker row p26, the user's
+first game with a fixed sheet): **C6 is done**. C7, a new card each week, is under way, in parts: part 1, a card from the show's
+moments (2026-11-06: `card: { from: 'moments', each, of }`, drawn in turn as Weekly Calls' moments are, read by a question on it,
+`card: true`, one for each line, a ticket built from its lines, and by the moments that count each week, `score.only: 'card'`;
+tracker rows p10 and p12, the user's first and third games), is built; part 2, the bot writing the week's card, is next, then A14's
+later parts, and a stop before A15. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5, at
 high since 2026-11-05; C2 at xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: folded in here as track L; its file keeps the details)
 and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track S here).
@@ -3565,7 +3573,7 @@ little more: HOSTING.md).**
   score `'final'`; `empty` what a square nobody holds does: `void`, nobody, the default, or `next`, rolled on to the next pay;
   `unread` what a period whose end was never read does: `final`, paid on the final score, the default, or `void`), ranked by the
   total, nothing beside it, closing at the start. VOCAB `score.by` `squares` as 'sports' (`get.by`'s was already). `squaresProblems`
-  (the grid, the take, `each` within the grid, 1 to `MAX_PAYS` (10) pays in the order they're paid and each once, points 1 to 100,
+  (the grid, the take, `each` within the grid, 1 to `MAX_SQUARE_PAYS` (10; `MAX_PAYS` is C6's ticket's, renamed at the sync) pays in the order they're paid and each once, points 1 to 100,
   `empty` and `unread`, rank total, no race, cut, teams, handicap or head to head, no questions beside it: a stage alongside, as
   bingo's and a pool's) and, against the sport, `settleProblems`: a team game only (`ctx.shape`: "a field has none"), a pay's period
   one of its regulation ones (`ctx.periods`, new in `specContextOf`: the Sport's `periods`), halftime only on an even number of them,
@@ -9200,9 +9208,218 @@ A14 part 2 and before A14's other parts; every part keeps every golden and blind
     differently: every read kept).
 - **C6. Money.** A starting balance, stakes drawn from it, payouts (even money or odds), a bank that can run out; staked
   parlays and tickets a player builds, the payout growing with the legs. Game 1's bank and wagers.
+
+  **As built (C6 part 1, a bank and stakes that combine, 2026-11-06; on `engine`; merged and live 2026-11-06, `abfa4a74`).** One session, at high.
+  - **The pieces** (schema.js): **a bank**, `score.bank: { start: 1 to MAX_BANK (10,000), out?: true | false }`, a game of
+    questions' (KEYS `score.answers` `bank`, KEYS.bank; `bankOf` reads it, BANK's default `out: false`): everyone starts with
+    `start`, every stake on its questions is drawn from it (a fixed stake too, held to what's left), and with `out` whoever's on
+    nothing after a night is out. **A stake's odds**, `ask[].odds: 'even' | 'pool'` (VOCAB `ask.odds`; ODDS 'even' the default, A8's):
+    even money, or the pool (the window's wrong stakes split between the right ones by their stakes, each share to the cent; nobody
+    right, every stake back). **A stake beside anything**: "A wager plays alone" and "a parlay's legs aren't staked" are lifted; a
+    wager goes with a share, a rollover or a shrink, and a parlay multiplies a staked leg. `drawsOnBank(q, bank)`: whether a stake
+    is held to your points or bank as they stand (a wager of any of them, or any stake beside a bank). `answerParts` `broke` (only
+    when it's on, so every game before reads its parts as it did). Refused, each with why: a bank with no stake ("A bank is for
+    stakes"), head to head or weeks won ("they read what each episode adds, and a bank's start is there before any"), co-op ("a bank
+    has nothing to rank there"), a race to the bank's start or less; odds without a stake; a bank beside a draft (an unknown key: a
+    draft's points are its team's); a stake against the bot (as before). The draft's own refusal reworded: "staking any of your
+    points is a game of questions' (its points are its answers')".
+  - **The decisions (the lane's defaults, the user's to overrule: Noticed):** the user's first game's three open questions, as
+    settings: "more wagers multiply" is a ticket a player builds (part 2; the spec's own parlays take a staked leg now), even money
+    by default (the pool's odds a setting; odds a person or research writes aren't built: data-settled rules only), and a bank at
+    zero plays on by default (`out: true` knocks you out). What the order means for a stake: the stake first, a line of its own the
+    share, the rollover and the shrink never touch (a rollover carries on the points alone: a stake won is no claim on the
+    jackpot), then the multipliers (a parlay multiplies a staked leg's stake won with its points: it pays only when every leg is
+    right), then the share (the points').
+  - **Today's specs as uses of them:** nothing a stored spec says changes. A wager alone at even money is graded exactly as A8 had it
+    (`windowPoints` hands it to `pointsFor` unchanged); every other read is as before (no stored spec has a bank, odds, or a stake
+    beside a share, a rollover, a shrink or a parlay: each was refused).
+  - **Their place in the sequence:** step 2, a stake's line (`Seq.stakes(bets, odds)`, beside the points: `answers.js` `stakeLines`,
+    `wagerParts`, `Seq.plus`), and a bank's start, every seat's line before the first episode (`AnswerLogic.grade`); step 3, a parlay
+    on a staked leg (the grade's, unchanged); step 4, the points' share (the stake isn't in it); step 5, a bank that runs out
+    (`Seq.knockouts`' `broke`: after a night's lives, before its cuts, whoever's in on 0 or less goes out; one left ends it, as with
+    lives or cuts). The placement corpus: 73 verdicts move (40 play now, games of questions; 33 lose only their problem while something
+    else holds them back: a sport's rank, questions beside a pool), tests/placement.test.js's OPENED.
+  - **The engine** (state-logic.js; the functions changed, for the own-pace merge): `AnswerLogic.grade` (a bank's start for each seat;
+    a rollover's wager carried on its points alone) and `AnswerLogic.walk` (hands `Seq.knockouts` its `broke`). Elsewhere:
+    sequence/index.js (`stakes`, `plus`, `knockouts`' `broke`), schema.js, answers.js (`stakeLines`, `wagerParts`, `windowPoints`,
+    `answerProblem`'s most for a fixed stake), settings.js (`questionsBank` both ways; `questionsRank: 'standing'` where only a bank
+    that's out knocks players out), describe.js (`stakeWords`, `answersPhrases`, `questionRule`, the knockout words), answers.ts (a
+    stake held to what's left of the bank: `heldStakes`, `stakeMost` for any stake beside one; the read's `odds`), index.d.ts.
+  - **Fallbacks for a format change nobody announced:** a stake is your own call on a question, so a question that doesn't count
+    (nobody went home, a void pick, a group that didn't play as offered, a question a change voids) hands every stake back, and so
+    does the pool when nobody's right; a bank that runs out is out only on a night with results. Nothing reads a group.
+  - **What the league's writes read:** the stakes live in `game_answers` with their answers (`{ answer, stake }`), private until the
+    lock as every answer is; the server grades them (`answer-points.ts`, unchanged: the grade carries the bank and the stakes) and
+    hands the walk its totals. The bank is the spec's (`settings.questionsBank`, beside `settings.game`): nothing private.
+  - **Words** (`describe.js`): "Stake any of your bank on each: right, a share of the wrong stakes; wrong, you lose it. Everyone starts
+    with a bank of 500 points. Run out and you're out." p24: "10 points each time, split between everyone right. Stake up to 5 points
+    on it: double or nothing." How it works says each stake's odds ("If nobody's right, every stake comes back."), that a stake stays
+    yours beside a share, a rollover or a shrink, that a parlay doubles a stake won too, and the bank ("you can't stake more than you
+    have left, less what's still riding on answers to be settled"). A wager alone reads as it always did.
+  - **The tracker** (`node scripts/engine-capabilities.js`): p24 (a stake beside a split pot) turns ✅: 214 ✅ · 48 ⏳ (C6 off the
+    waiting list); p10's note says its bank is built and its sheet is C7's (its "more wagers multiply", part 2).
+  - **Proof.** Unit tests: `tests/money.test.js` (seven tests, every number by hand: the shape and refusals, settings both ways, the
+    words, the sequence's stakes, the grading of p24, the pool from a bank, a rollover carried on its points alone and a staked
+    parlay, a stake held to the bank, a bank that runs out walked to its last one standing); the old refusals' tests updated
+    (answers-scoring, parlay-legs, shared-shrink, placement): 1,560 pass. The shapes fixture: four new shapes (q-wager-pot,
+    q-wager-parlay, q-bank-pool, q-bank-out), 72 new reads from this engine, proven by hand (the fixture's comment); `--diff
+    --ref=HEAD` shows only them: the 2,250 before byte-identical. `engine-capabilities.js --check`: up to date. `npx tsc --noEmit -p .`
+    clean. Through the API (a zt- fixture): `check-money.js` (new, on new-fixture's couch: the user's first game with a fixed sheet, a
+    bank of 100, the pool's odds, a fixed stake held to what's left, three stakes in one go, Episode 6 graded by hand, the Games
+    tab), ALL PASS; `check-questions-scoring.js`, `check-answer-knockouts.js`, `check-questions-more.js`, `check-questions.js
+    --api` and `check-engine-lab.js --api`, all pass. Not run: `check-new-start-game.js` (no preset's words changed).
+  - **The code review** (`/code-review` at high, before the commit): nine findings. Taken: a bank that runs out didn't wait for an
+    episode's final results (someone could go out on early results: it waits now, as a race and cuts do); the pool's shares each
+    rounded to the cent didn't add up to the pot (now the largest remainder: 20 three ways is 6.67, 6.67, 6.66); a bank that's out,
+    ranked by the total, didn't say it ends at one left (now said); a stake taken back in the same request still held its amount
+    (now freed, wherever it comes in the request: a wager of any of your points had the same gap, closed with it); BANK and ODDS
+    defaults not read (now read where the defaults apply); one reader for a bank (`bankOf`) everywhere, hoisted in the answers route
+    and the grade; the new exports' type declarations. Kept, saying so: a wager alone at even money keeps A8's grading path
+    (`pointsFor`), beside the new one for everything else (routing it through `wagerParts` grades the same numbers, its lines in
+    another order: every read kept).
+  **As built (C6 part 2, a ticket a player builds, 2026-11-06; on `engine`; merged and live 2026-11-06, `abfa4a74`).** The same session as part 1, at high, its own commit.
+  - **The piece** (schema.js): **a ticket**, a question of its own, `{ answer: 'ticket', points: 0, asked, wager, settle: { by: 'legs',
+    of: [ids] }, legs?: { min, max }, pays?: [...] }` (VOCAB `ask.answer` `ticket`, `ask.settle` `legs`; NO_TAKE; KEYS question `legs`,
+    `pays`, KEYS.ticketLegs; `isTicket`, `ticketOf`, MAX_TICKET_LEGS 6, MAX_PAYS 1,000, TICKET's `min: 2`), answered `{ legs: [the ids
+    of its questions you put on it], stake }`, each leg your own answer to it in the same window. Every leg right: the stake won `pays`
+    times for that many legs (by default each leg doubling it: 2^n - 1); one wrong or left blank, the stake lost; a leg that doesn't
+    count drops out. Its legs: 2 or more of the game's questions, each one answer that's right or wrong (as a parlay's), asked when
+    the ticket is, never another ticket. Refused, each with why: a ticket without a stake, with odds, with points of its own, with a
+    share, a rollover, a shrink, the bot, a question about each person or a fallback ("your own stake on your own calls"), in
+    anything but a game of questions, a leg that isn't one of the game's questions, is a ticket, isn't one right-or-wrong answer or is
+    asked another way, too many or too few legs, a pays list of the wrong length, out of range or paying less for more legs; a
+    question settled by legs that isn't a ticket. It's never a life's question (`livesQuestion`) nor a draft's own (`draftPlayable`).
+  - **Its place in the sequence:** step 2, its line is its stake times what it pays (`pointsFor`'s ticket branch, from its verdict),
+    after the window's other questions are graded: `answers.js` `ticketVerdict` (from its legs' verdicts and answers there: waiting
+    while any is, then for each ticket won, lost or none counted, with its legs right) and the grade's ticket pass (state-logic.js
+    `AnswerLogic.grade`, before the parlays). Its stake is drawn from the bank, or your points, as any stake (`drawsOnBank`).
+  - **The engine** (state-logic.js; the functions changed, for the own-pace merge): `AnswerLogic.grade` (the tickets' pass). Elsewhere:
+    schema.js, answers.js (`ticketBet`, `ticketVerdict`, `pointsFor`, `isRight`, `answerProblem`), describe.js (`ticketWords`,
+    `ticketRule`, the sentence counting the questions without the ticket), answers.ts (a ticket naming a leg you haven't answered
+    refused; the read's `ticket`), index.d.ts, blind.js (a seat builds a ticket from the answers it gives: `ticketFor`).
+  - **Fallbacks for a format change nobody announced:** a leg a change voids (a group that didn't play as offered), or one that doesn't
+    count (nobody went home), drops out and the ticket rides on the rest; every leg gone, the stake back. Nothing reads a group.
+  - **What the league's writes read:** a ticket is a `game_answers` row like any answer (`{ legs, stake }`), private until its lock;
+    the server grades it with the rest.
+  - **Words:** "Build a ticket from who goes home, who wins immunity and an idol found: put two to three of your calls on it and stake
+    any of your bank; all of them right wins 3 times your stake for two, 7 for three." How it works says a blank leg loses it, and a
+    leg that doesn't count drops out.
+  - **The tracker:** a new row, **p26**, the user's first game with a fixed sheet ("Everyone starts with 500 units. Each episode, stake
+    on who goes home, who wins immunity and whether an idol is found, and build a parlay ticket from your calls: the more legs, the
+    bigger the payout."), ✅: 215 ✅ · 48 ⏳ of 291. p10 stays ⏳ C7 (its sheet written each week), its note saying the rest is built.
+  - **Proof.** Unit tests (tests/money.test.js, three more: the ticket's shape, defaults, refusals, words and answers; graded by hand on
+    a made-up season, every leg right by its legs, one wrong, one blank, one that doesn't count, still waiting, every leg off and a
+    pays list of its own; the blind replays' ticket): 1,564 pass. The shapes fixture: q-ticket, 18 new reads from this engine, proven
+    by hand (the fixture's comment); `--diff --ref=HEAD` shows only them. `engine-capabilities.js --check` up to date; `tsc` clean.
+    Through the API: `check-money.js` (the read's ticket; a ticket naming a leg taken back refused, and taking back a leg a ticket
+    stands on; two tickets graded, one won, one lost; the Games tab), ALL PASS; `check-engine-lab.js --api`, `check-questions.js
+    --api` and `check-questions-scoring.js`, all pass.
+  - **The code review** (`/code-review` at high, before the commit): ten findings, all taken. A leg that pushes (an over/under right
+    on its line, a choice nothing matched) lost the ticket (now it drops out, as an off leg does); a ticket asked once could close at
+    the finale after its legs settled at the start and be built on known calls (now a ticket closes when its legs do); a leg a ticket
+    stands on could be taken back later, losing it silently (now refused: "Your ticket stands on ..."); How it works counted the
+    ticket among the questions to answer (not now); the sheet's people list showed a ticket's answer as "[object Object]" (now "2 on a
+    ticket (5 staked)": the one screen line it needed); `legs` and `pays` passed silently on other questions (now "Only a ticket has
+    legs and pays"); the fix-it messages for an answer and a settle now name ticket and legs; the blind replays' stakes from one bank
+    could add up past it in one request (now fitted: `fitStakes`); the grade's first pass graded a ticket for nothing (now skipped);
+    one payouts list (`ticketOf`'s `payouts`) and one stake clamp (`stakeOf`).
+  - **The long checks, once for C6, on `dfe52bf5`** (parts 1 and 2 together): the golden replays (`--before=master`): seven seasons,
+    160 games, 19,361 reads, every one the same; the blind replays (`blind.js run`): every game played through and over on all five
+    seasons, Survivor 49 155 (two more: p24 and p26), The Challenge 39 123, 40 115, 41 121 and The Traitors 4 110 (one more each: p24),
+    the seven games of questions on The Challenge's seasons still noting their wait on early results (playtest finding 20), none of
+    them C6's; the Survivor 51 rehearsal (`--scenario=realistic,rough,dst --before=master`): every invariant holds in all three
+    scenarios, flag off and on the same, master's engine against this tree's the same (2,856 reads each). `game-specs-flag.js check`:
+    PASS.
 - **C7. A new card each week.** One generator for each episode's set of questions or objectives: from the show's own data (as
   Weekly Calls rotate the show's moments) or written by the bot and checked (as trivia and bingo squares are), data-settled
   only. Calls, trivia, bingo squares, a weekly prediction sheet and weekly objectives all come from it. Games 1 and 3.
+
+  **As built (C7 part 1, a card from the show's moments, 2026-11-06; on `engine`; merged and live 2026-11-06, `abfa4a74`).** One session, at high. Part 2, the bot writing
+  the week's card, is the next session's.
+  - **The piece** (schema.js): **a card**, `card: { from: 'moments', each: 1 to MAX_CARD (12), of: [1 to MAX_ONLY (40) of the
+    show's moments, at least each, none twice] }` (KEYS.top `card`, KEYS.card; VOCAB `card.from` `moments`; CARD's default `from`;
+    `cardOf` reads it, `cardEach` its lines when they're 1 to 12). Each episode it's the next `each` of its list, round and round
+    (`drawInTurn`, `cardLines`: Episode 1 the first `each`). Two things read it: **a question on the card**, `card: true` (KEYS
+    question `card`), asked for each of its lines, one question each (`askOf`: `sheet` is `sheet.1` to `sheet.<each>`, each knowing
+    its card and line, `isCardLine`, `cardMoment`; a ticket built from it takes its lines as legs), settled by its line's moment that
+    episode (`{ by: 'moment', take: happened | count | who | most }`, no moment of its own; CARD_TAKES, CARD_ANSWERS: yes or no, a
+    count, a person or a group); and **the moments that count each week**, `score.only: 'card'` (`onlyCard`, `onlyAt`: the card's
+    lines that episode, worked out once per card and episode; `momentWorth` takes them). `linesAsked` and `questionLines` count a
+    card question as its lines (at most 12 questions an episode). Refused, each with why: a card nothing reads, `from` other than
+    moments, `each` out of range or more than `of` has, a moment twice or not the show's or the couch's word (settleProblems, with
+    ctx: `card.of[i]`); a question on the card without a card, outside a game of questions (a draft's own), asked other than each
+    episode, settled other than by its line's moment or with a moment of its own, answered other than yes or no, a count, a person
+    or a group, rolled over, against the bot or about each person, an id that leaves no room for its lines' numbers (an answer is
+    stored by 40 characters), a line's id another question's; a parlay of it ("build a ticket from them"), the players' own answers
+    about it, a life on it (`lifeRides`: a life rides on the game's own questions; `livesQuestion` is unchanged, so a line is still
+    about its episode alone for head to head's wait); `score.only: 'card'` without a card.
+  - **The decisions (the lane's, the user's to overrule: Noticed):** where a card lives: nowhere, for a card from the show's moments
+    (it's the spec and the episode: the same on every read, never changed once answered, nothing private); a table of its own for
+    one the bot writes (part 2), as trivia's and bingo's are. Its fallback: none needed here (a list the check passed always draws);
+    part 2's bot card falls back to the spec's list in turn, or the week void. In turn from the list's start at Episode 1 (Weekly
+    Calls' rotation exactly; a game from Episode 6 starts part way round). A line that didn't happen is a no; who did a moment
+    nobody did is off (no points either way).
+  - **Today's games as uses of it:** a game's own questions are a card that's the same every week (the spec's list: nothing changes);
+    Weekly Calls' moment call is the show's callable moments drawn in turn, now with the same `drawInTurn` (`calls.ts`
+    `callQuestions`: the same calls, tests/calls.test.js); trivia's round and bingo's squares are cards the bot writes and a second
+    ask checks, each episode's in a table of their own (`trivia_questions`, the bingo bank), as they were. Every stored spec plays
+    exactly as before (no stored spec has a card; `AnswerLogic.questions` hands back the spec's own list, the same array, without one).
+  - **Its place in the sequence:** step 1, the card's lines that episode: the questions it asks (each line a question, graded on its
+    moment that episode: answers.js `plainVerdict`, then a line like any question's, its stake, share and a ticket's legs as C6 has
+    them) and the moments that count (step 2's `momentRaw` at `momentWorth`'s points for that episode). Nothing else moves.
+  - **The engine** (state-logic.js; the functions changed, for the own-pace merge): `AnswerLogic.questions` (`Spec.askOf`),
+    `ActiveRosterLogic.pointsFor`, `eventPoints` and `scoredEvents` (an episode, where only its card counts), and the episode passed
+    in `ScoringLogic.walk`, `PriceLogic.points`, `ActiveRosterLogic.episodeScore`, `GroupSlotLogic.episodeLines`,
+    `PickEmLogic.scored`, `WaiverLogic.castawayPoints` and `AnswerLogic.facts`. Elsewhere: schema.js (the piece, its checks,
+    `lifeRides`), answers.js (`plainVerdict`), describe.js (`cardPhrase`, `cardSentence`, `momentWord`, `cardLegs`, a ticket's legs
+    from its lines), settings.js (`gameCard`, `scoreOnly` `'card'`, both ways), index.d.ts, calls.ts, answers.ts (a line's read:
+    `card` { from, moment, label }, its words the line's own: "This week's sheet: Found an idol"), backstage-games.ts (Game settings
+    edits the spec's own questions, not their lines), and the episode passed where the screens read a moment's points
+    (active-roster-rows.ts, cast-stats.ts, team-episode-breakdown.ts, active-roster-detail.tsx, episode-active-roster-section.tsx,
+    research-rows.tsx).
+  - **Fallbacks for a format change nobody announced:** a card names moments, never a group or a person, so a swap, a split or a new
+    phase changes nothing it draws; a moment that can't happen any more (tribal immunity after the merge) comes round as an easy
+    no (Noticed); a "who" line answered with a group reads the format's groups as any group question does.
+  - **What the league's writes read:** each line's answers are `game_answers` rows by the line's id (`sheet.1`), private until its
+    lock as every answer is; the server grades them (`answer-points.ts`, unchanged) and hands the walk its totals. The card itself
+    is the spec's (`settings.gameCard`, beside `settings.game`).
+  - **Words** (`describe.js`): p10, "everyone answers five questions before each episode: who goes home and whether each of the
+    card's four moments happens, all season. Each episode's card is the next four of got an idol or advantage, ..., in turn, so
+    it's new each episode. ... Build a ticket from who goes home and the card's four lines ..."; How it works: "This week's sheet:
+    for each of the four moments on that episode's card, whether it happens: each its own question." p12: "Only the moments on
+    each episode's card count. Each episode's card is the next five of ..., in turn, so it's new each episode."
+  - **The tracker** (`node scripts/engine-capabilities.js`): p10, the user's first game (a bank of 500, a sheet of four moments
+    each week beside who goes home, a ticket from them all), ✅; p12, the user's third, now the week's objectives from a card
+    (five of ten moments each week; a fixed list still plays): 216 ✅ · 47 ⏳ of 291.
+  - **The 1:40 PM note (a pool's stored eventPoints):** decided, a pool ignores them, as before (a pool survives; since C5 a pick
+    scored by moments reads them, and a pool's spec has none). The round trip's failure on the sports lane's database was the test's
+    own reading, which listed the moment ids from the stored settings: it now lists those the rules have and the game scores, and
+    two cases are added (a pool with its own moment points, and one played with points for a moment its rules don't have).
+  - **Proof.** Unit tests: `tests/card.test.js` (seven tests, every number by hand: the draw, the questions as they're answered, the
+    shape and every refusal, settings both ways, the words, a sheet and who-does-it on the card graded with a ticket from its lines
+    and a bank, the week's objectives from a card over three episodes and its weeks won), the round trip's two cases: 1,573 pass.
+    The shapes fixture: q-card (a sheet staked from a bank, who does it, a ticket from the lines: ann 43, bo 13, cy 37, di 17) and
+    w-pick-card (two picks, only the card's moments, weeks won: ann 3 and three weeks), 36 new reads from this engine, proven by
+    hand (the fixture's comment); `--diff --ref=HEAD` shows only them: the 2,340 before byte-identical. `engine-capabilities.js
+    --check`: up to date. `game-specs-flag.js check`: PASS. `npx tsc --noEmit -p .` clean. Through the API (a zt- fixture):
+    `check-card.js` (new, on new-fixture's couch: the user's first game, a bank of 100, who goes home and a sheet of two lines
+    on a card of three moments, a ticket from them; the read's lines and their moments for Episodes 6 and 7, a ticket naming the
+    sheet itself or a line the card doesn't have refused, Episode 6 graded by hand, the Games tab), ALL PASS; `check-money.js`,
+    `check-questions-scoring.js`, `check-questions.js --api` and `check-engine-lab.js --api`, all pass.
+  - **The code review** (`/code-review` at high, before the commit): nine findings, all taken. A line's id could pass 40
+    characters (the answers' column holds 40: now refused); a card's `each` far past 12 was looped over before it was refused (now
+    bounded first: `cardEach`); leaving card questions out of `livesQuestion` also left their lines out of head to head's and
+    weeks won's wait for an episode's questions (now `livesQuestion` is as it was and `lifeRides` leaves the card out only where a
+    life rides); the screens' per-moment points read without the episode (now passed where it's known); the questions read gave
+    every line the same words (now each says its moment); the card's lines were worked out for every moment of every seat (now once
+    an episode); one count of a card question's lines (`questionLines`) where four copies differed; one moment-words helper; an
+    unused parameter.
+  - **The long checks, once for C7 part 1, on `f434ea44`:** the golden replays (`--before=master`): seven seasons, 160 games, 19,361
+    reads, every one the same; the blind replays (`blind.js run`): every game played through and over on all five seasons, Survivor
+    49 156 (one more: p10), The Challenge 39 123, 40 115, 41 121 and The Traitors 4 110 (p12's game now draws its card), nothing
+    refused, the seven games of questions on The Challenge's seasons still noting their wait on early results (playtest finding 20),
+    none of them C7's; the Survivor 51 rehearsal (`--scenario=realistic,rough,dst --before=master`): every invariant holds in all
+    three scenarios, flag off and on the same, master's engine against this tree's the same (2,856 reads each).
 
 The three games (the user, 2026-11-05), each a request in the tracker:
 1. "For show X, have a starting bank of 500 units, have a prediction sheet generated each week that players can wager on,
@@ -10151,6 +10368,75 @@ From R1 part 2 (2026-10-30):
   (R3, or whoever next works in Game settings.)
 - **For the hosting notes, at the merge:** `/api/me` (classic's sign-in and every classic load) now sends each league's settings, not its
   whole state (20-40 KB each): less Neon transfer than before. (The main folder: docs/HOSTING.md, with the merge.)
+
+From C7 part 1 (2026-11-06):
+- **The bot writing the week's card (C7 part 2, the next session):** recommended, the bot chooses the episode's `each` lines from the
+  card's own list before its lock (what's likely to matter that week: a journey coming, idols in play, the phase), stored per
+  season and episode in a table of its own (as trivia's batches are, keyed on the season so every game on it reads the same),
+  checked (each line one of the card's `of`, none twice, the right count) and read at the lock; its fallback from the start, the
+  spec's list in turn (`fallback: 'spec'`, the default) or the week void (`'void'`). The other way, the bot writing new yes-or-no
+  questions that research then answers after the episode, is the custom-moments path (a feasibility ask, a question research asks
+  each episode): bigger, and its reliability bar is the user's (the Decisions table, "Custom moments"). Either is a prompt change:
+  on this branch only, the user's to approve at the merge. (C7 part 2.)
+- **A card drawn in turn, no shuffle:** the list's order, from its start at Episode 1 (Weekly Calls' rotation), so a game from
+  Episode 6 starts part way round, and a moment that can't happen any more (tribal immunity after the merge) still comes round as
+  an easy no. A phase filter (only moments the season's current phase has) or the bot's choice (part 2) would fix it; the lane's
+  default is as built. (C7 part 2, or the user with the merge's look.)
+- **The card's defaults (the lane's, the user's to overrule):** its lines from the spec's list in turn; a line that didn't happen
+  is a no; who did a moment nobody did is off; a card's lines carry no life, parlay or question about the players' own answers;
+  a question on a card is a game of questions' (not a draft's own). Recommended: as built. (The user, with the merge's look.)
+- **The screens don't know a card** (U1): the read sends each line's `card` (the question it's from, its moment, its words) and
+  says the moment in the line's own words; Game settings lists the card question as one row; nothing shows the card itself, and
+  Start a game can't make one (the GPT and the engine lab can). A refusal about a line names the card question's words ("Answer
+  "This week's sheet" first"), not the line's. The classic screens' moment points beside a card that only counts its moments
+  (scoring-table.tsx, rules-section.tsx, setup-tab.tsx: a moment's points without an episode) show every moment of the card's list
+  as counting. (U1, with the screens.)
+- **A ticket's legs from a card** are any of its lines that window (and the game's other questions it names): its most legs count
+  the card's lines (`questionLines`). A ticket naming the card question itself, not a line, is refused at the answer. (As built.)
+- **No prompt changed and no migration** in this part (a card is a spec field; its lines' answers are `game_answers` rows);
+  nothing for the hosting notes.
+
+From C6 part 2 (2026-11-06):
+- **A ticket's defaults (the lane's, the user's to overrule):** at least two legs, as many as it's built from (up to six); each leg
+  doubling what rides on it (even money on each: 3 times the stake for two, 7 for three, 15 for four) unless `pays` says otherwise; a
+  leg left blank loses the ticket (you put it on and gave no call), a leg that doesn't count drops out (one left pays once the stake,
+  none left the stake back). The other ways: a blank leg dropping out too (but then a ticket could be built on calls never made), a
+  void leg losing it. Recommended: as built. (The user, with the merge's look.)
+- **A ticket's legs are one window's**: built from questions asked when it is (each episode's with each episode's), never across
+  windows ("this week's boot and the season's winner"), nor from a pot split, a ranking or a question about each person (their
+  right or wrong is a share or a count). (A later C step, once asked for.)
+- **A ticket waits for every question it's built from**, not only the legs you put on it: one leg research is unsure of holds every
+  ticket of that window until it settles (or the window is off). Recommended: as is (one verdict for the window, as every question
+  has). (Whoever next touches the grade, if it bites.)
+- **A leg's answer taken back after its ticket was built** is refused now ("Your ticket stands on ...": the code review's); a leg
+  left blank still loses the ticket where it never was answered (a ticket built before this rule, or from an answer the server lost).
+  The screen should say why (U1, the question's screen.)
+- **The screens don't know a ticket** (the read sends `ticket`: what it's built from, its legs, what it pays). (U1.)
+- **No prompt changed and no migration** in this part (a ticket's answer is a `game_answers` row like any other); nothing for the
+  hosting notes.
+
+From C6 part 1 (2026-11-06):
+- **The user's first game's open questions, as settings with the lane's defaults** (the user's to overrule): "more wagers multiply"
+  is a ticket a player builds from the sheet's lines, its payout growing with its legs (part 2), not the number of wagers placed
+  multiplying the week (that reading would be a multiplier on a count of your stakes: say so and it's a condition of C3's one
+  multiplier piece); a stake pays even money unless the spec says the pool's odds; a bank at zero plays on (`out: true` for out).
+  Recommended: as built. (The user, with the merge's look.)
+- **What the order means for a stake (the lane's call):** a stake is a line of its own, never shared, carried or shrunk; a parlay
+  multiplies a staked leg's stake won with its points. The other ways: a stake into a split pot (that's the pool's odds, built as its
+  own setting), or a parlay on the points alone. Recommended: as built. (The user, with the merge's look.)
+- **Odds written by someone** (a sportsbook's lines, research's "favourite" and "long shot", the field's size: who goes home among 12
+  paying 11 to 1) aren't built: the pool's odds are the couch's own, the only data-settled ones today. Field odds would be a small
+  setting on the stake (data says who's in at the lock); research's would be a prompt change (the 8:30 PM rule: production's research,
+  with the user's OK). (A later C step, once asked for.)
+- **A stake checked against the bank when it's made**: a corrected result that lowers your bank after you staked leaves the stake
+  standing (as a wager of any of your points always has), so a bank can go below zero; one that's out goes out at zero or less.
+  (Recommended: as is; whoever next touches the answers route.)
+- **"You have no points to stake yet: stake 0"** is the refusal's words beside a bank too (it means the bank's empty, or all of it is
+  riding on other answers). (U1, the question's screen, with its words.)
+- **The screens don't know a bank, odds or a stake beside a share** (the question's read sends `odds` and `stakeMost`; nothing shows
+  them yet). (U1.)
+- **No prompt changed and no migration** in this part; nothing for the hosting notes (a bank is a spec field, the stakes were
+  already in `game_answers`).
 
 From C4b (2026-11-06):
 - **The merge's timing sets Survivor 51's cutover.** Migration 0207 works the cutover out from the results in the database when it

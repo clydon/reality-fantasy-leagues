@@ -97,6 +97,9 @@ export type Worth = number | ((playerId: string) => number);
 export function split(worth: Worth, units: Map<string, number>): Map<string, number>;
 export function only(worth: Worth, units: Map<string, number>): Map<string, number>;
 export function onlyEach(worth: Worth, by: Map<string, string[]>): Map<string, number>;
+/** C6, money: a window's stakes as lines (even money, or the pool's share of the wrong stakes), and two sources' lines added up. */
+export function stakes(bets: { playerId: string; stake: number; right: boolean }[], odds: "even" | "pool"): Map<string, number>;
+export function plus(a: Map<string, number>, b: Map<string, number>): Map<string, number>;
 export function add(running: number, x: number): number;
 /** C2 part 3: a count's running total through each episode (Weekly Calls', bingo's). */
 export function through(byEpisode: Map<number, Map<string, number>>, from: number, to: number): Map<number, Map<string, number>>;
@@ -184,6 +187,8 @@ export function knockouts(series: (SeriesEpisode | WalkNight)[], o: {
   lives?: { of: number; allOut: "back" | "share" | "points" | string | null } | null;
   /** C2 part 4b: whether a side plays episode k (a team someone still in the game is on then); left out, every side does. */
   playing?: (id: string, k: number) => boolean;
+  /** C6: a bank that runs out: whoever's in on 0 or less after a night goes out. */
+  broke?: boolean;
 }): { out: Map<string, number>; ends: number | null; lives: Map<string, number> | null; shared: Set<string>; walked: SeriesEpisode[] };
 export function roundRobin(ids: string[], r: number): [string, string | null][];
 export function median(values: number[]): number;
