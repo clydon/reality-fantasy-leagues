@@ -2525,6 +2525,53 @@
         "who"
       ],
       "note": "group slots (A10 part 1, on F3's grouping lifetimes): shared, no swaps while a group lasts, void when the groups aren't sure, a group's points its members' mean (the defaults, the user's to set)"
+    },
+    {
+      "id": "p10",
+      "page": {
+        "show": "Survivor",
+        "season": 51,
+        "rulebook": "survivor"
+      },
+      "words": "For show X, have a starting bank of 500 units, have a prediction sheet generated each week that players can wager on, more wagers multiply scored earnings.",
+      "step": "C7",
+      "dials": [
+        "answer",
+        "score",
+        "win"
+      ],
+      "note": "the user's first game (2026-11-05, track C): a bank of 500 that stakes are drawn from and payouts go into (C6: money; today's wager stakes your points, with no starting balance), a prediction sheet written each week (C7: a new card each week; today a game's questions are its spec's), and more wagers multiplying the week (C6's staked parlays, or the count of wagers). Nearest today: a game of questions with wager 'total' on each question. Open (the user's): does 'more wagers multiply' mean a parlay (picks combined pay more) or that the number of wagers placed multiplies the week; even money or odds; a bank at zero, out?"
+    },
+    {
+      "id": "p11",
+      "page": {
+        "show": "Survivor",
+        "season": 51,
+        "rulebook": "survivor"
+      },
+      "words": "Have an exclusive draft initially, these players score 1x points. If you need to replace one you can pick as if the cast was open and shared but the new player who replaces your lost one scores 0.5x, if you need to replace another it scores 0.25x. Those multiplications are configurable.",
+      "step": "C4",
+      "dials": [
+        "score",
+        "who"
+      ],
+      "note": "the user's second game (2026-11-05, track C): an exclusive draft whose replacements are shared (C4: ownership per holding, and where a replacement comes from; today one own for the draft and its pickups, so a replacement comes only from who's free) and score less the later they joined, 1x, 0.5x, 0.25x, configurable (C3: multipliers on any condition, here how a holding joined; today's multipliers are a captain or by when, on a draft scored by moments). Nearest today: an exclusive Outlast or lineup with waivers replacing someone gone (replace 'always'), replacements scoring in full. Open (the user's): after the list, does the last repeat or keep halving; per roster slot or per team; do voluntary swaps count, or only replacing someone gone?"
+    },
+    {
+      "id": "p12",
+      "page": {
+        "show": "Survivor",
+        "season": 51,
+        "rulebook": "survivor"
+      },
+      "words": "Each week everyone has a shared set of objectives (several individual moments). Each player picks x cast members that they think will achieve as many objectives as possible. Player with most objectives hit wins the week.",
+      "step": "C7",
+      "dials": [
+        "what",
+        "score",
+        "win"
+      ],
+      "note": "the user's third game (2026-11-05, track C): x cast members picked fresh each episode without a draft, only the week's objectives counting, the week's winner and the season ranked by weeks won (C5: the week as a result; today a pick is one person and stages stop at six), each week's objectives from one generator (C7: a new card each week, or a fixed list). Nearest today: a game of questions with a 'name x' question per objective, each settled by its moment (each question's picks separate), or up to six one-week stages with overall 'wins'. Open (the user's): distinct objectives your picks hit, or every hit counted; who writes each week's objectives (the bot from research, the maker, a fixed list)?"
     }
   ],
   "stretch": [

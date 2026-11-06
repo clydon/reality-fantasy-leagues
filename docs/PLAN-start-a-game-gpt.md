@@ -95,9 +95,12 @@ the lock; `settle.by 'players'`, `StageLogic.vote`, `stage_change_votes`, migrat
 opponent (2026-10-31: a question played against the bot, `beat: { by: 'bot', none }`, a right answer scoring only where the bot's call
 isn't right, the bot's call kept apart and hidden until the lock, a week it made no call playing as usual or void; the table's line on how
 each of you did against it; proven with stand-in calls: `bot_calls`, migration 0206, `db/bot-calls.js`); part 2b, the bot's own run that
-makes the call before each lock (a prompt change), next. The live-sports plan is
-folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5 at
-xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: folded in here as track L; its file keeps the details)
+makes the call before each lock (a prompt change), comes after track C. **Track C** (pieces that compose, the user's, 2026-11-05)
+runs first: C1, the pieces guide ([GAME-PIECES.md](GAME-PIECES.md), every piece of a game for someone thinking up games, kept
+current by every engine step) and the study of one scoring sequence, is done (2026-11-05); C2, one scoring sequence, next; then
+C3 to C7, A14's later parts, and a stop before A15. The live-sports plan is
+folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5, at
+high since 2026-11-05; C2 at xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: folded in here as track L; its file keeps the details)
 and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track S here).
 
 ## What the user asked for (2026-10-27)
@@ -5246,6 +5249,110 @@ A14 part 2 and before A14's other parts; every part keeps every golden and blind
   this track adds, as planned. Every later engine step keeps it current. Then the study: every one of today's shapes and
   combiners mapped onto one scoring sequence (hold, score each line, multipliers, combine, the week's result, rank), what each
   becomes in it and what stays as it is; the three games below as tracker rows, with their open questions.
+
+  **As built (C1, 2026-11-05; on `engine`, not merged).** One session; no engine code changed.
+  - **The pieces guide**, [GAME-PIECES.md](GAME-PIECES.md), for someone thinking up games: the span, the pool, what you hold (a
+    draft and its group slots, spread, prices and keepers; a pick; a card; nothing), ownership, what counts, how it scores,
+    questions (how you answer × what settles it × its window, and how a question's points combine, with what excludes what
+    today), finale predictions, how you win, lives and saves, stages and format changes, the fallbacks in one table, the players'
+    own mechanics, the extras, today's games as specs (the five presets whole, and the newer pieces as a few fields each), how a
+    request becomes a game (the taps, the engine lab, the tracker, our check, the bot as G1 plans it), where it's still a menu,
+    track C's pieces as planned, "Thinking up a game" (nine questions, the user's three games worked through, each with its
+    nearest game today) and the size limits. Plain words first, the field names after. Every example in it was run through the
+    engine (`specProblems`, `specWaitsFor`, `typeOf`, `describeSpec`, on Survivor 51's, The Challenge 41's or The Traitors 4's
+    rules): the sentences and the refusals it quotes are the engine's own. From now on every engine step keeps it current.
+  - **The tracker:** C1 to C7 in `capabilities.js` `STEPS`, before A14 (the order they run: track C before A14's later
+    parts), and the user's three games as requests on Survivor 51's page, in the user's words (the first
+    game's "show X" kept): **p10** (waits on C7: its bank is C6, its weekly sheet C7), **p11** (C4: ownership per holding, with
+    C3's multiplier on how a holding joined) and **p12** (C7: the week as a result is C5, the week's objectives C7), each note
+    saying the nearest game today and its open questions. `docs/ENGINE-CAPABILITIES.md`: 200 ✅ · 50 ⏳ · 1 🆕 · 3 ❓ · 23 💬, of
+    277 (waiting: C4 1, C7 2, A14 8, A15 15, L3 7, L4 13, G1 4).
+  - **The guide's own check**, `tests/game-pieces-doc.test.js` (2): its size limits are the schema's (each row built from the
+    `MAX_` constants), and every value `VOCAB` marks 'now' is named in it, so a step that adds a value or changes a limit
+    without the guide's entry fails `npm test`.
+  - **Proof:** `node scripts/engine-capabilities.js --check` passing on the regenerated doc; `npm test` 1306 of 1306 (1304 with
+    master's merged in, and the guide's 2); `tsc` clean on the source (its only two errors are in the stale generated
+    `.next/dev/types/validator.ts`, naming routes master removed); no engine code changed (the code lines are the tracker's step
+    list). The code review (`/code-review` at high, forked) checked the guide's and the study's claims against the code and the
+    engine: 10 findings, all fixed: a shared Outlast said to have waivers (it can't); the exclusive count said to refuse a later
+    stage (that's counted when its draft opens and played shared); the study's rounding (now as the code does it); shrink placed
+    with the multipliers (it's the window's worth); a game of questions' handicap (on its walk, not the rows); a refusal quoted
+    from a comment (now the check's words); trivia said to be about its own episode (the one before); waivers said to be
+    required (left out, they're off; `null` is the refusal); C1 to C7 listed after A15 (now before A14); and nothing checking the
+    guide (the test above).
+
+  **The study: one scoring sequence (C2's).** Every game today, run as one sequence, per game, per seat, per episode or window:
+  1. **Hold:** what of yours counts in it, each holding with where it came from (drafted, a pickup, the Nth replacement, a
+     keeper, a group slot, a pick, a card, an answer), when it joined, and how it's owned.
+  2. **Score each line:** a line is one holding's points in one episode or window, from one source (its place, a moment, a pick
+     surviving, a bingo line, a right answer, a side bet, a handicap).
+  3. **Multipliers:** each line times whatever applies to it (a captain, an episode or a phase, a parlay's legs).
+  4. **Combine:** the lines into each seat's total for the episode, and across seats where a rule needs the others (your best n;
+     a pot split between everyone right; only the only right one; a rollover's jackpot; the bot's call; teams of players).
+  5. **The week's result:** what each episode's totals make (a running total; a streak's step or a life lost; a matchup won; a
+     cut; a race finished; a week won).
+  6. **Rank:** the table from the week's results (total, streak, standing, worth, co-op, wins), its ties, and a game in stages'
+     overall.
+
+  | Today's shape (`playsAs`) | Hold | Lines | Multipliers | Combine | The week's result | Rank | Where it's done today |
+  |---|---|---|---|---|---|---|---|
+  | Outlast (`classic-draft`) | the whole team (`all`), drafted, picked up, kept | each holding's **place**: a value (1 plus each boot outlasted; reversed, the other way), credited to whoever holds it now | none today | the sum | the running total; a cut; a race | total, standing (cuts), matchups | `EliminationOrderScoringStrategy.compute`; per episode `KnockoutLogic.series` (who was held then, from the mid-season log) |
+  | A draft scored by moments (`active-roster`) | the lineup (`start`), or the whole team for best ball; group slots | each holding's **moments** in the episode, by the rulebook's or the spec's points; a slot's group's mean or sum | a captain; the episode's `times` | the sum, or best ball's best n (after the multipliers) | as Outlast's; a stock market's cash | total, standing, matchups, worth | `ActiveRosterEventScoringStrategy.compute`, `ActiveRosterLogic.episodeScore`, `GroupSlotLogic.episodeLines`, `MarketLogic` |
+  | The extras beside a draft | side bets; finale predictions | a bet's points (right, and two guessed); the finale questions' points | none | added after (bets only while they're on) | in the running total | as the draft's | `addSideLayers`, `AnswerLogic.finalePoints` |
+  | A pool (`pickem`) | the pick (and a second on a night two go) | the pick's points when it stays in (or scores) | none | the seat's own | **a streak step**, a life lost or a mulligan used, a buyback | streak, standing | `PickEmLogic.history(ies)`, `PickEmScoringStrategy` |
+  | A game of questions (`questions`) | each answer, per question and window | `pointsFor` on the verdict (an order's places, a confidence ranking's weights, chips, a number's closest, a stake won or lost), at the window's worth (a rollover's jackpot carried from the windows before; a shrinking call's less for each episode late) | a parlay's legs | a pot split, only the only right one, the bot's call | the running total; lives; co-op's lives; a cut; a race; a matchup | total, standing, coop, matchups | `AnswerLogic.grade` and `walk` (the server's facts, `answer-points.ts`), `windowPoints`, `allRight` |
+  | Weekly Calls, Weekly Bingo | each call; each card | a right call; a line (times its points) | none | the sum | the running total | total | `calls.ts`, `bingo.ts` (outside the state); a stage's table, `stageWalk` |
+  | Around them all | | a handicap's points each episode for a newcomer | | teams of players: their members' sum or mean | head to head between seats or teams; playoffs | | a draft's handicap `HandicapLogic.apply` on the rows before the knockouts, a game of questions' inside `AnswerLogic.walk` episode by episode (before its race, cuts and lives); `KnockoutLogic`, `MatchupLogic`, `TeamLogic`, in `ScoringLogic.compute`'s order |
+  | A game in stages (`stages`) | each stage is a league of its own, its own sequence | each stage's table, as a line in the overall | | | a stage over | overall: points, places, wins | `StageLogic`, `stages.ts` |
+
+  - **What stays as it is:** how holdings are got (the draft orders, waivers' processing, keepers, the group slots' timeline):
+    they feed step 1. Grading (`verdictOf`, every settle, the data-can-settle rule), the format's state over time (F3) and every
+    fallback. Where moves are stored and what stays private until a lock (lineups per episode, picks, `game_answers`, bingo cards,
+    `bot_calls`). Stages as leagues of their own, and their triggers. `describeSpec`'s words (C2 adds words only for what it newly
+    allows). `piecesOf` (frozen per carried spec, never changing what it returns) and the flags the screens read until R3.
+  - **What the sequence would allow that's refused today** (each becomes a tracker row and a test when it's opened): a draft with
+    its own questions beyond finale predictions ("No game plays this way yet": the answers' lines join the draft's at step 2,
+    with no stage alongside); a multiplier on an Outlast's lines (step 3 is the same for every source; C3 builds the piece); a
+    wager with a share or a rollover, a parlay with a wagered leg, a shrinking call that's shared (the order made explicit: the
+    stake, then the multipliers, then the share; C6 owns the stakes); head to head, teams of players or a handicap on a pool's
+    points (its streak stays its rank's); teams knocked out, and a race between teams (step 5 on a team's totals). Still refused
+    for their own reasons: co-op on a draft (a night needs a right or wrong for each of you, which a draft's points don't give),
+    group slots on an Outlast (a group has no place), anything the data can't settle.
+  - **What C2 has to keep exactly** (or golden, blind and the Survivor 51 rehearsal differ):
+    - **Rounding** (`roundPoints`, to the cent), where the code does it and nowhere else: Outlast's places are whole numbers and
+      never rounded; a plain lineup rounds its running total after each moment (no line of its own); a lineup that combines
+      (a captain, the episode's multiplier, best ball, group slots) rounds each castaway's raw points, each line (raw × captain ×
+      multiplier), each episode's total and the running total; side bets and finale predictions go into a rounded total; in a
+      game of questions only a split pot's shares round inside the window (`cents`), a parlay rounds what it multiplies, and the
+      game's sum rounds again.
+    - **The order:** in a lineup, the captain and the episode's multiplier on each line, then best ball's best n; group slot lines
+      times the episode's multiplier; side bets and finale predictions after (`total = locked + (bets ? bonus : 0) + finale`); a
+      draft's handicap on the rows before the knockouts, a game of questions' inside its walk; in a game of questions, the window's
+      worth (a rollover's jackpot), then the share, only, shrink or the bot (one of them: a shrinking call has no share), then the
+      parlays.
+    - **Outlast's place is a value, not lines earned while held:** whoever holds someone now gets their whole place, and someone
+      dropped counts for nobody; `KnockoutLogic.series` works out who was held for each episode from the mid-season log. Both
+      reads stay, and that's C3's question below.
+    - **Only final results move a week's result** (early results wait), each viewer's copy is spoiler-trimmed (`spanView`,
+      `viewFor`), and late joiners start from their own start (`GhostLogic.startFor`).
+    - **What only the server knows** (`answer-points.ts` `serverFacts`: the format's groups, the trivia key, episode facts, the
+      bot's calls) stays out of the state: the server hands the sequence its lines.
+  - **C2's parts** (a proposal; C2 at xhigh, started by the main session):
+    - **Part 1, the sequence and the drafts:** a pure module beside game-spec (CommonJS, so `state-logic.js` and the server both
+      read it), the six steps as data in and out; Outlast (place as a value line), the lineup and best ball (moments, captain,
+      the episode's multiplier, group slots), side bets and finale predictions, the handicap and a market's worth run through it
+      under `ScoringLogic.compute`, every read the same: golden (both), blind, the Survivor 51 rehearsal (realistic, rough, dst,
+      `--before=master`), the flag's check, and a test per shape that the old scorer and the sequence agree episode by episode.
+    - **Part 2, the week's results:** the pool's walk (streaks, lives, mulligans, buybacks, a second pick), the knockouts (cuts, a
+      race), head to head and its playoffs, teams of players and co-op as step 5 on the sequence's totals; `KnockoutLogic.series`
+      becomes the sequence's own per-episode totals (one walk, not two).
+    - **Part 3, outside the state:** a game of questions (`AnswerLogic.grade`'s lines, a rollover as a carry, the parlays as a
+      multiplier, the shares and the bot as combines), Weekly Calls' and bingo's counts, and a stage's table, as lines the server
+      hands the same sequence.
+    - **Part 4, playing by placement:** `playsAs`' seven shapes give way to a check that each piece the spec names has its place in
+      the sequence (`typeOf` still names a shape for the screens and `piecesOf` until R3); the combinations above opened one by
+      one, each with its words, its refusal lifted, its tracker row and unit tests; GAME-PIECES.md's "Where it's still a menu"
+      rewritten.
 - **C2. One scoring sequence** (xhigh: it touches every game). The study's sequence built under today's games with every read
   the same (golden, blind, the Survivor 51 rehearsal). A spec plays when each piece it names has its place in the sequence,
   not when it matches one of seven shapes; combiners that exclude each other today combine wherever the sequence allows.
@@ -6205,6 +6312,22 @@ From R1 part 2 (2026-10-30):
   (R3, or whoever next works in Game settings.)
 - **For the hosting notes, at the merge:** `/api/me` (classic's sign-in and every classic load) now sends each league's settings, not its
   whole state (20-40 KB each): less Neon transfer than before. (The main folder: docs/HOSTING.md, with the merge.)
+
+From C1 (2026-11-05):
+- **For the user, with game 2's open questions (C3 builds it): a multiplier on a replacement in an Outlast.** An Outlast credits a
+  castaway's whole place to whoever holds them now (a pickup brings its whole history; someone dropped counts for nobody), so "the
+  new player who replaces your lost one scores 0.5x" reads two ways there: their whole place times 0.5, or only what they earn
+  while yours (the boots they outlast from the episode they joined) times 0.5. A draft scored by moments has only the second.
+  Recommended: what they earn while yours, times the multiplier, on every draft (it's what "scores 0.5x" says, and one rule for
+  both); an Outlast without the multiplier keeps today's count. (C3.)
+- **The guide's check covers `VOCAB` and the limits, not the rest** (`tests/game-pieces-doc.test.js`): the waivers' values
+  (`feel`, `replace`, `order`: not in `VOCAB`), the refusals it quotes and the sentences it gives are still kept by hand. A step that
+  changes a refusal's words or a preset's sentence updates the guide's quote. (Every engine step.)
+- **`describeSpec`'s sentence leaves out finale predictions, waivers and a late lock** (each is in How it works or the details):
+  right for the wizard's one line, but the guide quotes sentences, so those pieces show only in its own words there. (U0, with
+  the wizard's words.)
+- **The user's first game says "show X"**: its row (p10) is on Survivor 51's page, the words kept as written, so once C6 and C7
+  give it a spec it's checked against Survivor's rules. (C6.)
 
 From A14 part 2 (2026-10-31):
 - **For the user, in the design session (decide nothing a person sees), each built with a recommendation:**
