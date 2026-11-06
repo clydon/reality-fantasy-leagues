@@ -31,20 +31,32 @@ function weekOf(date: string): string {
 export function locksOf(starts: { episode: number; at: string | null }[], closes: Closes, zone: string = LOCK_ZONE): Map<number, string> {
   const out = new Map<number, string>();
   const timed = starts.filter((s) => s.at && !Number.isNaN(Date.parse(s.at)));
+  // An episode of several games (a league's slate: L8) locks at the first of them.
+  const earliest = (episode: number, t: number) => {
+    const had = out.get(episode);
+    if (!had || t < Date.parse(had)) out.set(episode, new Date(t).toISOString());
+  };
   if (closes === "start") {
-    for (const s of timed) out.set(s.episode, new Date(s.at!).toISOString());
+    for (const s of timed) earliest(s.episode, Date.parse(s.at!));
     return out;
   }
+  // An episode of several games is a slate's day or week (L8): its own first game, never another episode's day or week (a
+  // Monday-to-Sunday week's Monday is in Tuesday-to-Monday's week before).
+  const count = new Map<number, number>();
+  for (const s of timed) count.set(s.episode, (count.get(s.episode) ?? 0) + 1);
+  const several = new Set([...count].filter(([, n]) => n > 1).map(([e]) => e));
+  for (const s of timed) if (several.has(s.episode)) earliest(s.episode, Date.parse(s.at!));
   const keyOf = (at: string) => {
     const day = Air.localDate(new Date(at), zone);
     return closes === "daily" ? day : weekOf(day);
   };
   const first = new Map<string, number>();
   for (const s of timed) {
+    if (several.has(s.episode)) continue;
     const k = keyOf(s.at!);
     const t = Date.parse(s.at!);
     if (!first.has(k) || t < first.get(k)!) first.set(k, t);
   }
-  for (const s of timed) out.set(s.episode, new Date(first.get(keyOf(s.at!))!).toISOString());
+  for (const s of timed) if (!several.has(s.episode)) earliest(s.episode, first.get(keyOf(s.at!))!);
   return out;
 }

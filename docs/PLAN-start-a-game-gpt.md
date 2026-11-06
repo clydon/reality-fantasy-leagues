@@ -1158,6 +1158,14 @@ engine track; L brings each sport's data to it. Its screens wait for the UI trac
   part), what the week is (Tuesday to Monday, a soccer round ESPN doesn't number), and the engine's reads of a week's games (the
   hook's: with L3 part 2), where L7 only finds and adds a team's games one an episode on what L1 part 3 built. Finding one reads
   ESPN's search's leagues (L7's search finds teams only).
+  - **Split in two (2026-11-06):** part 1, the slate itself (what an episode is, from ESPN's calendar: a day, a week, football's
+    weeks, a soccer round; several linked events an episode, migration 0304; made and found by league, season, stage and cadence,
+    shared; its games linked as they near, a makeup or a moved game finding its episode; the daily refresh, the finals, the stats and
+    the cast reading several an episode; `leagueGames` keeping each game apart: built 2026-11-06, As built below); part 2, finding one
+    by the league's name beside L7's teams (ESPN's search's leagues and the team sports' own), what each league's slate can be (its
+    stages and cadences, each named, with the season already made for it) and adding one, as routes the screens can read
+    (`/api/sports/search`'s leagues, a league's slates, `/api/sports/add`'s slate), with check-find-game.js's cases. A tour's season
+    (golf's, F1's: an event an episode) is its Noticed, not a part.
 - **L6. Release:** `sports` merges into master at once (migrations checked against a production backup first), then G3
   teaches the GPT these formats.
 - Its screens (the scorebug, the live box score, the couch's play feed, players organised, the matchup, sync, each format's
@@ -3751,6 +3759,107 @@ master yet, so its steps 1-3 are what this step built, here).
   id, in a later series). That's the schedule's view only: L3 part 3b still wants a postponement recorded live (a game's summary and
   scoreboard as it's called off).
 - **A league by name** ("NFL", "Premier League") finds no team: L8's slate would be what it adds.
+
+**L8 part 1 as built: a league's slate (2026-11-06, `sports`, not merged; migration 0304; new ESPN calls and stored data: HOSTING.md).**
+A season made of a whole league's games, several an episode, shared by everyone who asks for it; no route or screen calls it yet
+(part 2's routes, then U0 and U1).
+- **What an episode is** (`src/lib/sports/slate.ts`, new, pure), from ESPN's own answers: **by week** for a sport whose calendar is
+  weeks (football: ESPN's own, "Week 9" with its "Nov 1-3" detail, the playoffs' "Wild Card" ...), and for a sport that locks daily
+  Monday to Sunday (Yahoo's and ESPN's fantasy week for the NBA, NHL and MLB); **by day** (each of ESPN's days in the stage); **by
+  round** for soccer (ESPN numbers none: the core's weeks are empty): the league's days in order, a day joining the round unless one
+  of its teams has already played in it. `cadencesOf` says which a league takes, its usual first (football `week`; a daily sport
+  `week`, `day`; soccer `round`, `day`; a field's or a card's none: not a slate). Each episode is a window of days (the East's), and
+  the windows **tile** the stage, so a day without games belongs to the next episode and a game listed later always has one. On the
+  recordings: the NFL's 2026 regular season 18 weeks, every one of its 272 games in its week (the Wednesday opener and Monday night
+  in week 1); the Premier League's 2026-27, **exactly its 38 rounds of 10**; the NBA's 2026-27 from October 20 by day (election day,
+  no games, in the next day's window) or Monday-to-Sunday weeks; MLB's June 2026 with a postponed game kept on its day and its
+  makeup (a new event, a doubleheader's first) on its own. Names: "NFL 2026", "NBA 2026-27, day by day", "NBA 2026-27 playoffs",
+  "Premier League 2026-27"; keys `espn:football/nfl:slate:2026:regular:week`.
+- **ESPN** (`espn.ts`): `calendar(league)`, the league's season now from its bare scoreboard (its year, name, stage now and calendar
+  of days or weeks) with its stages' bounds from the core's season types (`/v2/sports/{sport}/leagues/{league}/seasons/{year}/types`,
+  each a call; the off season and the NBA's play-in neither stage, a soccer league's one type its whole season), cached a day;
+  `eventsIn(league, month)`, a month's scoreboard (`dates=YYYYMM&limit=1000`: ESPN refuses a range of days with a 400 but answers a
+  month; MLB's June is 401 games, 7.7 MB raw), cached as a schedule and 30 days once over. The stand-in (`fake-espn.js`) answers
+  both (`calendars`), and the month. `record-espn-slate.js` (new, reusable) records a league's calendar, types and months trimmed
+  (`tests/fixtures/espn/*-schedule-league-*.json`: the NFL's 2026, the Premier League's 2026-27, the NBA's November, MLB's June;
+  "schedule" in the name, so the tests reading every recorded game skip them).
+- **Migration 0304:** `season_events` keyed by episode and event (an episode links several; every season before links one, so every
+  row stays); `game_lines.event_id` (a player's line a game each: a week's games, a doubleheader's two; '' for the lines before and
+  coming in); `sports_slates` (provider, league, season, stage, cadence, each episode's window, its key, who made it, when it last
+  synced).
+- **Made** (`src/lib/server/sports/slate.ts` `makeSlate`): its league's show (L1 part 3's `leagueShow`, now shared), its episodes at
+  once from the calendar (titled "Week 9", "Round 12", "Sun, Nov 8", their dates in the note; each one's air time its first game's
+  start, or its first day's start in the East until its games are linked: a lock never late), the games from three days back to eight
+  ahead linked then, a soccer league's every fixture at once (its rounds need them: a month's scoreboard each), the links' `sports_links`
+  row so the listings' linking leaves it alone (and `linkSeason` refuses a slate besides), its people the linked teams' rosters after
+  the answer. Refused (`SlateRefused`) for a cadence the league isn't cut by, or a stage not listed yet; null for a league that isn't a
+  team sport ESPN has. Asked again: found, by its key.
+- **Kept current** (`syncSlate`, run first by the daily listings job's `refreshSportsEvents`, so its games' facts are kept in the same
+  run): each day's scoreboard from three back to eight ahead (the same answers the job reads for every linked game, cached), a game
+  not linked yet linked to the episode its day is in, one on another episode's day moved to its own (a flexed or rained-out game), a
+  game listed later (a makeup) linked, each touched episode's air time its first game's start, the season's status from its days
+  (completed only once every linked game is over); the playoffs, listed as they go, add episodes after the last (a regular season's
+  calendar holds all of it, so the play-in's games past its last day are never its); new teams' rosters added (cast.ts only adds).
+- **Several an episode, read** everywhere a season's links are read: `locksOf` locks an episode of several games at its own first
+  game (by start, day or week: never another episode's day or week, so a Monday-to-Sunday week's Monday isn't locked with the
+  Tuesday-to-Monday week before), a listing's episodes of one game each with their day's or week's first as before;
+  the listings' linking replaces an episode's link rather than adding one; the stats fill saves a game's lines by its event (the lines
+  from before 0304 replaced with it) and drops a game moved off its episode; `castable` takes a slate as a matchup; the spans' teams
+  are an episode of one game's. **`leagueGames`** (`score.ts`): a slate's every episode (one with a single game listed so far too, so
+  its shape never changes as more are linked) keeps each game apart, `slate` (event id to its facts, as the grader reads one, as of the
+  mark) and `byGame` (each final game's lines), and its `lines` are its final games' counts added up with the derived stats worked out
+  on the sum (a category over a week); `games` and `sides` stay a listing's or a matchup's (an episode of one game).
+- **A regular season's last episode reaches its stage's last day** (a makeup after the last listed day, a fixture moved past the last
+  round, is still its); the playoffs' grow, an episode at a time, as they're listed.
+- **Checks:** `tests/sports-slate.test.js` (8, on the recordings: the calendars, the cadences, the NFL's weeks, the NBA's days and
+  weeks, MLB's postponement and makeup, the Premier League's 38 rounds, the words, an episode's lock at its first game);
+  `scripts/dev-test/check-slate.js` (new, reusable; this lane's database and the stand-in, keyed `zt-slate-`, its events `zt-sl-*`,
+  cleaned up; never beside check-matchup.js): 33 checks, all pass (made by day, linked in the window, a day's games and a postponed one
+  in one episode, a doubleheader's two, a makeup on a day off in the next day's episode, air times, its key and status and facts, the
+  listings' linking leaving it alone, its people, found again, by week, by round refused, the playoffs from ESPN's days and an episode
+  added past their last, a moved game moved, a game listed later and one three weeks on linked, the daily job, a day's lock, the
+  Players tab's lines a game each, `leagueGames` on an episode of two finals and a postponed game, a soccer league by round read a month
+  at a time, a soccer week refused, no such league). `/code-review` on the diff (its fixes: a Monday-to-Sunday week's lock; a slate's
+  shape by its being one, not by its games so far; a regular season's last window to its stage's end; a team's roster retried while
+  it has nobody in, not only when the run linked it; the sync's windows and links read under its lock; the listings' link replaced in
+  one statement under its episode's row lock (two runs at once leave one); a linked game's sides refreshed (a playoff's once set); an
+  added day's episode named by its own day; a calendar ESPN didn't give kept an hour, not a day; no day read past a regular season's
+  last; the season's stages asked at once). `check-find-game.js`, `check-matchup.js`, `check-finals.js`,
+  `check-live-event.js` (6 of 6) and `check-sports-links.js` pass. 1,796 unit tests, the one round-trip failure aside (master's, as
+  before); `tsc` clean; eslint clean on src/lib/sports, src/lib/server/sports, src/lib/game/sequence, src/app/api/sports,
+  air-times.ts and start-game.ts. The real ESPN's calendars read right (the NBA's, the NFL's, the Premier League's, 2026-11-06).
+- **For the engine lane (with L3 part 2's hook):**
+  - A **week's games**: `leagueGames`' `lines` for an episode of several games are its counts added up, so a categories matchup over
+    a week reads them as it reads one game's (L4 part 1b's window is the episode); points per stat with a per-game bonus (100 yards,
+    a double-double) score each game of `byGame` through `statLine` and add them (`statMoments` over each game, summed per holding).
+  - **A question per game of an episode** (pick'em over a week's slate, confidence points): `facts.games` is an episode's one game
+    today; an episode of several hands `slate` (event id to facts) over, and a question asked over "every game this week" answers a
+    side per game (`{ [eventId]: side }`, like a bracket's picks), graded per game against its facts, each pick locking at its own
+    game's start (a lock per game inside an episode: L4 part 1a's `closedForPlay` reads `locksAt`, the episode's first game, today).
+    The faces are the episode's games as linked at the lock (`sidesFor` reads `games`: an episode of several needs the game named).
+  - **Daily lineups inside a week's episode** (Yahoo's NBA: set each day, scored over the week): a holding locks at its own game's
+    start; today an episode locks once, at its first game.
+  - **A playoff's series as a bracket** (L4 part 2's Noticed): a playoffs slate's games, grouped by `oneSeries` (matchup.ts), are each
+    series' games; `bracketOf` takes each series as a bout once its round is known (ESPN's note: "East 1st Round - Game 3").
+
+**L8 part 1 noticed, not fixed:**
+- **Only the season now**: `calendar(league)` reads ESPN's bare scoreboard, its season now (MLB's is its 2026 postseason in November;
+  its 2027 isn't readable until ESPN moves on). A season ahead (or one past, to replay) needs ESPN's calendar for another year
+  (`?dates=2027` or the core's season), when a couch wants to make one early.
+- **A day's slate puts a makeup on a day off into the next day's episode**, whose lock (its first game) then moves a day earlier. Rare
+  (an NBA makeup on an off day); its episode's lock is never late, only early.
+- **A soccer round with a match moved between two rounds** starts a short round (each team once a round), as FPL calls a double
+  gameweek otherwise. The Premier League's 2026-27 as listed today is 38 whole rounds; a moved match mid-season would show it. FPL's
+  own rounds aren't ESPN's.
+- **College slates read ESPN's default scoreboard**: college football's and basketball's day scoreboards list ESPN's own selection
+  (the top 25's and featured games), so a college slate is that selection (a "top 25 pick'em", not every D1 game: `groups=80` would
+  be every FBS game, master's plan's Later).
+- **A tour's season** (golf's, F1's, NASCAR's, the UFC's: an event an episode, a one-and-done pool) isn't a slate: `cadencesOf` gives
+  a field or a card none. It's L1 part 3's listing (an event an episode) made from the tour's calendar: its own step when a couch asks.
+- **Two players of one name in a league** (MLB's two Will Smiths) are one `season_cast` row (its key is the name): the second's
+  lines go to nobody. Matched by name already (L3 part 1's Noticed); a slate's whole league makes it likelier. (When the cast carries
+  the provider's id: R2 or U1.)
+- **The NBA's play-in** (its own stage, 5) is in neither slate: a playoffs slate starts at the first round.
 
 **Open, from the sports plan:** head-to-head's schedule over a span, and playoffs; whether a sport's moves follow Weekly
 Lineup's waivers or need their own rhythm for daily sports; what a live call is worth, and how fast they open and close;

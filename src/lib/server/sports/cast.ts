@@ -115,14 +115,14 @@ export async function rosterFromEvents(links: LinkedEvent[], providers: SportsPr
   return { groups: groups.filter((g) => g.people.length), waiting };
 }
 
-/** Whether a season's people may come from its linked games: a sport nobody's made a game of (or a matchup: its people are
- *  always its teams', whatever its league's show is), with no one yet or only people from here. */
+/** Whether a season's people may come from its linked games: a sport nobody's made a game of (or a matchup or a slate: its people
+ *  are always its teams', whatever its league's show is), with no one yet or only people from here. */
 export async function castable(seasonId: string, db: Queryable = pool): Promise<{ ok: boolean; people: number; why?: string }> {
   const { rows } = await db.query(
     `SELECT s.kind, s.set_up_at IS NOT NULL AS ready,
             (SELECT count(*)::int FROM season_cast c WHERE c.season_id = ss.id) AS people,
             (SELECT count(*)::int FROM season_cast c WHERE c.season_id = ss.id AND c.provider_ids IS NOT NULL) AS ours,
-            EXISTS (SELECT 1 FROM sports_matchups m WHERE m.season_id = ss.id) AS matchup
+            EXISTS (SELECT 1 FROM sports_matchups m WHERE m.season_id = ss.id) OR EXISTS (SELECT 1 FROM sports_slates x WHERE x.season_id = ss.id) AS matchup
        FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id = $1`,
     [seasonId]
   );

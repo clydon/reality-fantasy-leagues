@@ -153,3 +153,4 @@ export function specContextOf(sport: AnySport, league?: string): { stats: { key:
   const ctx = { stats: sport.specStats(), categories: sport.specCategories(), positions, formats: sport.formats.map((n) => ({ key: String(n), label: `${n} ${sport.periods.plural}` })), shape, periods, ...(draws ? { draws } : {}) };
   return d ? { ...ctx, sizes: { starters: d.slots.lineup.reduce((n, s) => n + s.n, 0), bench: d.slots.bench } } : ctx;
 }
+export * from "./slate";

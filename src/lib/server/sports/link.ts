@@ -56,7 +56,7 @@ interface Linked {
 
 async function seasonOf(seasonId: string, db: Queryable) {
   const [{ rows: s }, { rows: eps }, { rows: links }, { rows: state }] = await Promise.all([
-    db.query("SELECT s.name, s.kind FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id = $1", [seasonId]),
+    db.query("SELECT s.name, s.kind, EXISTS (SELECT 1 FROM sports_slates x WHERE x.season_id = ss.id) AS slate FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id = $1", [seasonId]),
     db.query("SELECT number, air_at, title FROM season_episodes WHERE season_id = $1 ORDER BY number", [seasonId]),
     db.query("SELECT episode, provider, league, event_id, part, starts_at, teams FROM season_events WHERE season_id = $1", [seasonId]),
     db.query("SELECT provider, league FROM sports_links WHERE season_id = $1", [seasonId]),
@@ -66,6 +66,7 @@ async function seasonOf(seasonId: string, db: Queryable) {
     // As people say it: "Formula 1", not "Formula 1 (UK)".
     show: (s[0].name as string).replace(/\s*\([^)]*\)\s*$/, "").trim() || (s[0].name as string),
     kind: s[0].kind as string,
+    slate: !!s[0].slate,
     episodes: eps.map((e) => ({ number: e.number as number, airAt: e.air_at ? (e.air_at as Date).toISOString() : null, title: (e.title as string | null) ?? null })),
     links: links.map((l): Linked => ({ episode: l.episode, provider: l.provider, league: l.league, eventId: l.event_id, part: l.part, startsAt: l.starts_at ? (l.starts_at as Date).toISOString() : null, teams: l.teams })),
     provider: (state[0]?.provider as string | null) ?? null,
@@ -117,6 +118,8 @@ export async function linkSeason(seasonId: string, opts: { providers?: SportsPro
   const season = await seasonOf(seasonId, db);
   if (!season) throw new Error(`No season ${seasonId}`);
   if (season.kind !== "sport") return { provider: null, league: null, linked: 0, added: 0, unmatched: [], message: "Not a sport" };
+  // L8: a league's slate links its own games (slate.ts syncSlate), several an episode: never by its titles here.
+  if (season.slate) return { provider: null, league: null, linked: season.links.length, added: 0, unmatched: [], message: null };
 
   const airOf = new Map(season.episodes.map((e) => [e.number, e.airAt]));
   const moved = season.links.filter((l) => {
@@ -158,12 +161,16 @@ export async function linkSeason(seasonId: string, opts: { providers?: SportsPro
         }
         if (!pick) continue;
         const sides = pick.event.competitors.map((c) => c.team).filter((t) => !!t);
+        // A listing's episode is one event: its link replaced, never added to (an episode links several only on a slate: L8), in one
+        // statement under its episode's row lock, so two runs at once leave one link.
         await db.query(
-          `INSERT INTO season_events (season_id, episode, provider, league, event_id, part, name, starts_at, teams)
+          `WITH ep AS (SELECT number FROM season_episodes WHERE season_id = $1 AND number = $2 FOR UPDATE),
+                gone AS (DELETE FROM season_events WHERE season_id = $1 AND episode = $2 AND EXISTS (SELECT 1 FROM ep)
+                           AND (provider, league, event_id) IS DISTINCT FROM ($3, $4, $5))
+           INSERT INTO season_events (season_id, episode, provider, league, event_id, part, name, starts_at, teams)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)
-           ON CONFLICT (season_id, episode) DO UPDATE SET provider = EXCLUDED.provider, league = EXCLUDED.league, event_id = EXCLUDED.event_id,
-             part = EXCLUDED.part, name = EXCLUDED.name, starts_at = EXCLUDED.starts_at, teams = EXCLUDED.teams, linked_at = now(),
-             lines_at = NULL, lines_final = false`,
+           ON CONFLICT (season_id, episode, provider, league, event_id) DO UPDATE SET part = EXCLUDED.part, name = EXCLUDED.name,
+             starts_at = EXCLUDED.starts_at, teams = EXCLUDED.teams, linked_at = now(), lines_at = NULL, lines_final = false`,
           [seasonId, ep.number, provider.id, league, pick.event.id, pick.part, pick.event.name.slice(0, 200) || null, pick.event.at, sides.length >= 2 ? JSON.stringify(sides.map((t) => ({ id: t!.id, name: t!.name }))) : null]
         );
         added.add(ep.number);

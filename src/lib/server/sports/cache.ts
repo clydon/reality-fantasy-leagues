@@ -8,6 +8,8 @@ import { SportsUnavailable, type SportsEvent, type SportsProvider } from "./type
 // How long each answer is good for comes from the answer itself:
 //   leagues, search      a week
 //   a league's teams     a week (L7: finding a game by team)
+//   a league's calendar  a day (L8: a league's slate: its season's stages and days or weeks)
+//   a month's games      as a team's schedule; 30 days once the month is a week gone and every game in it over (L8)
 //   a day's games        3 minutes while one is being played; 30 days once the day is two days gone and every game on it is over;
 //                        an hour otherwise (today's, a future day's: games get added and moved)
 //   a roster             a day
@@ -77,6 +79,13 @@ export function keepSchedule(events: SportsEvent[] | null, now: number): Keep {
   return 12 * HOUR;
 }
 
+/** How long a month's games are good for (L8): a team's schedule's, and 30 days once the month's a week gone and every game over. */
+export function keepMonth(events: SportsEvent[], month: string, now: number): Keep {
+  const [y, m] = month.split("-").map(Number);
+  if (Date.UTC(y, m, 8) < now && events.every((e) => e.state === "post")) return 30 * DAY;
+  return keepSchedule(events, now);
+}
+
 /**
  * A provider whose every answer goes through the cache. `prefix` keeps a check's rows apart ("zt-sports:"), so it can remove
  * them after; `db` and `now` are for checks too.
@@ -93,6 +102,12 @@ export function withCache(p: SportsProvider, opts: { prefix?: string; db?: Query
       const o = at();
       return cached(key("events", league, date), () => p.eventsOn(league, date), (events) => keepDay(events, date, o.now ?? Date.now()), o);
     },
+    // L8: a month's games (a slate's fixtures) keep as a team's schedule does, and for good-ish once the month's long over.
+    eventsIn: (league, month) => {
+      const o = at();
+      return cached(key("month", league, month), () => p.eventsIn(league, month), (events) => keepMonth(events, month, o.now ?? Date.now()), o);
+    },
+    calendar: (league) => cached(key("calendar", league), () => p.calendar(league), (c) => (c ? DAY : HOUR), at()),
     schedule: (league, team, sopts = {}) => {
       const o = at();
       return cached(key("schedule", league, team, sopts.season ?? "now", sopts.type ?? "now"), () => p.schedule(league, team, sopts), (events) => keepSchedule(events, o.now ?? Date.now()), o);

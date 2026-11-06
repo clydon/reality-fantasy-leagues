@@ -7,6 +7,7 @@ import { castFromEvents } from "./cast";
 import { sportsProviders } from "./index";
 import { saveFinals } from "./finals";
 import { fillLater } from "./season";
+import { syncSlates } from "./slate";
 import { SportsUnavailable, type LeagueName, type SportsEvent, type SportsProvider } from "./types";
 
 // Games straight from a team's schedule, as a season of their own (docs/PLAN-start-a-game-gpt.md track L, L1 part 3;
@@ -149,8 +150,9 @@ export async function matchupSeason(
   return { seasonId, made: true, name, games: ids };
 }
 
-/** The league's show (made once, "Not a game yet" until someone makes it one, as a show added from its listing is). */
-async function leagueShow(db: Queryable, provider: string, league: string, prefix: string, userId: string | null, named: LeagueName | null): Promise<string> {
+/** The league's show (made once, "Not a game yet" until someone makes it one, as a show added from its listing is): a matchup's
+ *  and a slate's (L8). */
+export async function leagueShow(db: Queryable, provider: string, league: string, prefix: string, userId: string | null, named: LeagueName | null): Promise<string> {
   const tag = `${prefix}${provider}:${league}`;
   const { rows } = await db.query("SELECT id FROM shows WHERE sports_league = $1", [tag]);
   if (rows[0]) return rows[0].id as string;
@@ -241,6 +243,13 @@ export async function storeEvents(provider: string, league: string, events: Spor
 export async function refreshSportsEvents(opts: { providers?: SportsProvider[]; now?: Date; only?: string[] } = {}): Promise<{ days: number; stored: number; finals: number; errors: string[] }> {
   const now = opts.now ?? new Date();
   const providers = opts.providers ?? sportsProviders();
+  const errors: string[] = [];
+  // L8: each slate's games near now linked first (a makeup, a moved game), so their facts are kept below in the same run.
+  try {
+    errors.push(...(await syncSlates({ providers, now, only: opts.only })).errors);
+  } catch (e) {
+    errors.push(`slates: ${(e as Error).message.slice(0, 160)}`);
+  }
   const { rows } = await pool.query(
     `SELECT DISTINCT e.provider, e.league, e.event_id, e.starts_at, e.teams IS NOT NULL AS linked FROM season_events e
        LEFT JOIN sports_events f ON f.provider = e.provider AND f.league = e.league AND f.event_id = e.event_id
@@ -262,7 +271,6 @@ export async function refreshSportsEvents(opts: { providers?: SportsProvider[]; 
     days.get(k)!.ids.add(r.event_id as string);
   }
   let stored = 0;
-  const errors: string[] = [];
   // The days past first (their finals), then today's and on.
   for (const d of [...days.values()].sort((a, b) => a.day.localeCompare(b.day)).slice(0, MAX_DAYS)) {
     const p = providers.find((x) => x.id === d.provider);

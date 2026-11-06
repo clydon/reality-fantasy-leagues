@@ -6,6 +6,7 @@
 // stats come for free. Every call goes through the cache (cache.ts), so a season costs a handful of calls.
 
 import type { StoredFinal } from "@/lib/sports/final";
+import type { LeagueCalendar } from "@/lib/sports/slate";
 
 /** A league as the provider names it. `id` is the provider's own handle for it (ESPN's "baseball/mlb"). */
 export interface League {
@@ -180,6 +181,10 @@ export interface SportsProvider {
   find(text: string): Promise<Found[]>;
   /** A league's events on a day (YYYY-MM-DD, the provider's own calendar day). */
   eventsOn(league: string, date: string): Promise<SportsEvent[]>;
+  /** L8: a league's events in a month ("YYYY-MM"), for a season's fixtures at once (a slate's rounds). */
+  eventsIn(league: string, month: string): Promise<SportsEvent[]>;
+  /** L8: a league's season now (its stages' bounds and its calendar of days or weeks), or null when the provider has none. */
+  calendar(league: string): Promise<LeagueCalendar | null>;
   /**
    * A team's games in a season, in order (L1 part 3: a matchup's games straight from it), or null when the provider has no such
    * team. `season` is the provider's year for it (ESPN's 2027 for the NBA's 2026-27), `type` its stage (2 the regular season, 3

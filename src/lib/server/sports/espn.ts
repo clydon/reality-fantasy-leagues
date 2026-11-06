@@ -1,6 +1,7 @@
 import { readOdds, type EspnOdds } from "@/lib/sports/matchup";
 // One copy of the sports' classes (the index's): `instanceof` reads them alike wherever they're imported from.
 import { FieldSport, LiveEvent, TeamSport, feedOf, idOf, sportOf, storedCard, storedField, storedGame, str, type BoutAnswer, type BoutSport, type EspnSummary, type EventFeed, type FieldAnswer, type Play, type StoredCard, type StoredField } from "@/lib/sports";
+import type { CalendarStage, CalendarWeek, LeagueCalendar } from "@/lib/sports/slate";
 import { SportsUnavailable, type LeagueName, type LeagueTeams, type BoxScore, type Competitor, type EventState, type Found, type League, type Person, type RosterPlayer, type SeasonLine, type SeasonStage, type SportsEvent, type SportsProvider, type StatTable, type Team } from "./types";
 
 // ESPN (docs/PLAN-sports-data.md, docs/HOSTING.md): free, no key, but unofficial and undocumented, with no stated rate limit or
@@ -84,6 +85,17 @@ interface RawLeague {
   name?: string;
   abbreviation?: string;
   slug?: string;
+  /** L8: a bare scoreboard's season now and its calendar: days (ISO instants), or weeks by stage (football's). */
+  season?: { year?: number; displayName?: string; type?: { type?: number } };
+  calendarType?: string;
+  calendar?: (string | { value?: string; entries?: { label?: string; detail?: string; startDate?: string; endDate?: string }[] })[];
+}
+/** L8: one of a season's types (the core's …/seasons/{year}/types/{n}): its stage and bounds. */
+interface RawSeasonType {
+  type?: number;
+  name?: string;
+  startDate?: string;
+  endDate?: string;
 }
 interface RawStatRow {
   athlete?: RawAthlete;
@@ -211,6 +223,42 @@ export function readScoreboard(league: string, raw: { events?: RawEvent[]; leagu
     });
   }
   return out;
+}
+
+/**
+ * L8: a league's season now (a bare scoreboard's league: its year, name, stage and calendar) with its stages' bounds (the core's
+ * season types); null when the scoreboard names no season.
+ */
+export function readCalendar(raw: { leagues?: RawLeague[] } | null, types: RawSeasonType[]): LeagueCalendar | null {
+  const l = raw?.leagues?.[0];
+  const season = l?.season?.year;
+  if (!l || !Number.isInteger(season)) return null;
+  const iso = (x: unknown) => (typeof x === "string" && !Number.isNaN(Date.parse(x)) ? x : null);
+  const stages: CalendarStage[] = [];
+  for (const t of types) {
+    const from = iso(t.startDate);
+    const to = iso(t.endDate);
+    if (!Number.isInteger(t.type) || !from || !to) continue;
+    // ESPN's 1 to 3; a soccer league's season is one type of its own number (14308): its whole season (null); the off season (4)
+    // and the NBA's play-in (5) are neither.
+    stages.push({ stage: stageOf({ type: t.type }) ?? (t.type! > 5 ? null : "other"), type: t.type!, name: str(t.name) ?? "", from, to });
+  }
+  const days: string[] = [];
+  const weeks: CalendarWeek[] = [];
+  for (const c of l.calendar ?? []) {
+    if (typeof c === "string") {
+      if (iso(c)) days.push(new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles" }).format(new Date(c)));
+      continue;
+    }
+    const type = Number(c.value);
+    for (const w of c.entries ?? []) {
+      const from = iso(w.startDate);
+      const to = iso(w.endDate);
+      if (Number.isInteger(type) && from && to) weeks.push({ type, label: str(w.label) ?? "", detail: str(w.detail), from, to });
+    }
+  }
+  const name = str(l.name) ?? str(l.abbreviation);
+  return { season: season!, label: str(l.season?.displayName) ?? String(season), now: l.season?.type?.type ?? 2, stages, days: [...new Set(days)].sort(), weeks, leagueName: name ? { name, short: str(l.abbreviation) } : null };
 }
 
 /** Search's teams and leagues (site.web …/search/v2), each with ESPN's league path; anything without one is left out. */
@@ -437,6 +485,25 @@ export function espn(base?: string): SportsProvider {
     },
     async eventsOn(league, date) {
       return readScoreboard(league, await get(`${site}/apis/site/v2/sports/${path(league)}/scoreboard?dates=${date.replace(/-/g, "")}&limit=300`));
+    },
+    // L8: a month's games at once (ESPN answers a month, "202611", where it refuses a range of days); a month of MLB's is ~400.
+    async eventsIn(league, month) {
+      return readScoreboard(league, await get(`${site}/apis/site/v2/sports/${path(league)}/scoreboard?dates=${month.replace(/-/g, "")}&limit=1000`));
+    },
+    async calendar(league) {
+      const raw = await get<{ leagues?: RawLeague[] }>(`${site}/apis/site/v2/sports/${path(league)}/scoreboard`);
+      const year = raw?.leagues?.[0]?.season?.year;
+      if (!raw || !Number.isInteger(year)) return null;
+      // Its stages' bounds, one call each (the core lists them as refs, at ESPN's own host: asked at ours).
+      const [sport, slug] = league.split("/").map(encodeURIComponent);
+      const refs = await get<{ items?: { $ref?: string }[] }>(`${core}/v2/sports/${sport}/leagues/${slug}/seasons/${year}/types?limit=20`);
+      const types = await Promise.all(
+        (refs?.items ?? []).map((r) => {
+          const at = /\/v2\/sports\/[^?]+/.exec(r.$ref ?? "")?.[0];
+          return at ? get<RawSeasonType>(`${core}${at}`) : Promise.resolve(null);
+        })
+      );
+      return readCalendar(raw, types.filter((t): t is RawSeasonType => !!t));
     },
     async schedule(league, team, opts = {}) {
       const q = [opts.season ? `season=${opts.season}` : "", opts.type ? `seasontype=${opts.type}` : ""].filter(Boolean).join("&");
