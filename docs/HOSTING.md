@@ -1019,3 +1019,6 @@ never handles it: the user does the reset and the pasting.
   format change) and `bot_calls` (the bot's call on a beat-the-bot question), each read a game at a time; nothing can
   make such a game yet. C2 runs every game's scoring through one sequence in the same request, at the same cost as
   before (`playsAs` 0.29 µs a call, was 0.21).
+- **2026-11-06, pushed to master (`f22c9753`, migration 0207).** The engine's C3, C4, C5 and C4b. **No new table, service, job
+  or poll.** 0207 adds one small number to each league's stored settings (`perHolderFrom`), once. Scoring stays in the
+  same request at the same cost.
