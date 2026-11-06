@@ -1125,6 +1125,14 @@ engine track; L brings each sport's data to it. Its screens wait for the UI trac
     (its own grammar of plays, on Football's vocabulary and box reader: built 2026-10-30, As built below); 2c, college baseball
     (its own box and two feeds: built 2026-10-30, As built below). **College hockey isn't readable from ESPN** (looked at in
     2a, below): left out, as boxing is.
+- **L7. Finding a game** (the user, 2026-11-06: "make adding games easier because right now adding by the tvmaze show interface
+  isnt intuitive. wed search by team, teams schedule, team v opponent, etc."; after L4's data parts, before L6). The data side, as
+  an API the screens (U0, U1: U0's sports brief on master) can read, no UI: search teams by name across the leagues ESPN covers;
+  a team's schedule, past and coming; a team against an opponent (their meetings this season); and what adding one makes (one
+  game, a team's season, a matchup), on master's Add a team pieces (docs/PLAN-sports-add.md: `espn.schedule`, `matchupSeason`,
+  the daily refresh, L1 part 3's, brought to master early). A season of a whole league's slate (several games an episode, for
+  pick'em over a week and a season-long league: L4 part 1a's Noticed) is a question for it or a step of its own. The guide's
+  Sports filter (src/new/hub/guide.tsx, "coming soon" today) turns on with the release.
 - **L6. Release:** `sports` merges into master at once (migrations checked against a production backup first), then G3
   teaches the GPT these formats.
 - Its screens (the scorebug, the live box score, the couch's play feed, players organised, the matchup, sync, each format's
@@ -3392,6 +3400,9 @@ calls, nothing stored).**
   `defaultsFor` merging a league's specs; the doubleheader and the database's week checks, which tested the function with itself.
   Declined: college hockey's ties after a shootout (college hockey isn't read: L5 part 2a), `locksAt` unread until the hook (by
   design, below), soccer's Tuesday week (Noticed)).
+- **The long checks, last, on `6410c1c5`:** `golden.js --before=master` (master `54d58239`, nothing new in the engine's files since
+  `e4f3441d`): Survivor 49, The Traitors US 4 and The Challenge 40, 74 games, 9,548 reads, every one the same. blind.js and the
+  rehearsal not run: no show's game asks a draw or locks daily or weekly, so every read is kept the same (golden alone).
 - **For the engine lane (with L3 part 2's hook):**
   - `closedForPlay` (state-logic.js) locks at `ep.locksAt` when it's earlier than `airsAt` (or there's no `airsAt`), so a daily
     or weekly game's episodes lock together; the hand overrides (`lineupsLocked`, `openPastAir`) as they are. VOCAB's `closes`
