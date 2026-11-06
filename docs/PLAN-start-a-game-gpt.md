@@ -3210,6 +3210,9 @@ checked by its own rule). Nothing plays a stats game yet: the engine's hook is p
   stops every run, the stats fill never fails for the finals' step, the run's limit counts only games asked, the cache keeps a
   game's counts a day as the row keeps them, a side's faces from the facts already read; the league's season looked up from the
   league's state, as episode-facts.ts does, since the reads here have no league id).
+- **The long checks, last, on `946300f8`:** `golden.js --before=master` (master `e4f3441d`): Survivor 49, The Traitors US 4 and The
+  Challenge 40 (the last two loaded into rfl_sports for it), 74 games, 9,548 reads, every one the same. blind.js and the
+  rehearsal not run: every read a game makes is kept the same (golden against master alone, as the lane's notes say).
 - **For the engine lane (L3 part 2, the hook; not changed here):**
   - `schema.js` placement: `LINES.stats` as `LINES.moments` (a lineup or its best few held; the whole team, best ball with all of
     it), `askPlace` and `rankPlace` taking `stats` where they take `moments` (not worth: a market prices moments), `shapeOf` the
