@@ -700,6 +700,8 @@ never handles it: the user does the reset and the pasting.
 - **2026-11-06, `sports` branch (not merged).** L3 part 2c (no migration): a game of questions on a sport's games (pick'em, pick a
   few) plays; its league's reads take the same fingerprint query as a stats game's (which episodes' games are final, stamped, never
   stored). No new ESPN call or table.
+- **2026-11-06, `sports` branch (not merged).** L3 part 2d (no migration): categories and roto play; a categories league's reads
+  carry the sport's stats' definitions beside its lines (a couple of KB in the response, no query of their own). Nothing stored.
 - **2026-11-06, `sports` branch (not merged).** L8 part 1 (docs/PLAN-start-a-game-gpt.md track L; migration 0304): a league's slate,
   a season of a whole league's games, several an episode (`sports_slates`; `season_events` keyed by episode and event; `game_lines`
   by event). Three new kinds of ESPN call: a league's bare scoreboard and its season's types (its calendar, a day), and a month's

@@ -9,7 +9,7 @@
 // works one out without the sport's code. Pure and plain CommonJS, like the sequence beside it: the engine's hook, the server,
 // the phone and the tests share it.
 /* eslint-disable-next-line @typescript-eslint/no-require-imports -- CommonJS on purpose, as the sequence beside it */
-const { roundRobin } = require('./index.js');
+const { roundRobin, bracket, compareKeys } = require('./index.js');
 
 const cents = (n) => Math.round(n * 100) / 100;
 // A window's counts added: whole numbers add exactly, a derived stat's thirds (innings pitched) pick up float noise, kept off here.
@@ -187,4 +187,109 @@ function roto(totals, cats, defs) {
   return rows.sort((x, y) => y.total - x.total || x.i - y.i).map(({ id, points, total }) => ({ id, points, total }));
 }
 
-module.exports = { weigh, rateOf, categoryTotals, windowLines, compareCategory, categoryMatchup, categoryWeek, categoryRecords, roto };
+/**
+ * L3 part 2d: head to head on categories over a game (state-logic.js MatchupLogic's walk for a categories game), in the shape the
+ * sequence's matchups gives head to head on points: { weeks, records, from, seeds, rounds, alive, champion, tiers }. `played`: each
+ * episode with its lines in, in order, [{ number, totals: Map side -> categoryTotals over that episode }]. `o`: { parts
+ * (categoryParts': by, categories, odd, quiet, playoffs), defs, start, from (the playoffs' first round, or null), finale, ended,
+ * seatsAt(k) }. Each regular-season episode is a week of categoryWeek (the same round robin as a game by points); the record is
+ * by each category (by 'categories') or by each matchup (by 'matchups'), its `for` and `against` the categories won and lost (what
+ * breaks a tie in the standings, then the order the seats joined). A game's aPoints and bPoints are the categories each side won,
+ * its `cats` each category's values; a bye's none. The playoffs are a matchup a round by most categories, a tie (or a night nobody
+ * has anything) to the better seed, seeded once every episode before them has been played (or the season ended first).
+ */
+function categoryMatchups(played, o) {
+  const { parts, defs, start, from, finale } = o;
+  const cats = parts.categories;
+  const records = new Map();
+  const rec = (id) => {
+    if (!records.has(id)) records.set(id, { wins: 0, losses: 0, ties: 0, for: 0, against: 0 });
+    return records.get(id);
+  };
+  const weeks = [];
+  const playoff = new Map();
+  for (const x of played) {
+    const k = x.number;
+    if (from !== null && k >= from) {
+      playoff.set(k, x.totals);
+      continue;
+    }
+    if (finale !== null && k > finale) continue;
+    const seats = o.seatsAt(k);
+    seats.forEach(rec);
+    const week = categoryWeek(x.totals, seats, k - start, cats, defs, { odd: parts.odd, quiet: parts.quiet });
+    const games = week.games.map((g) => {
+      const m = g.matchup;
+      if (!m) return { a: g.a, b: g.b, aPoints: null, bPoints: null, result: null, cats: null };
+      // The median's side of a game is nobody's.
+      for (const [side, id] of g.b === null ? [['a', g.a]] : [['a', g.a], ['b', g.b]]) {
+        const r = rec(id);
+        const other = side === 'a' ? 'b' : 'a';
+        if (parts.by === 'categories') {
+          r.wins += m[side].wins;
+          r.losses += m[side].losses;
+          r.ties += m[side].ties;
+        } else if (m.result === 'tie') r.ties++;
+        else if (m.result === side) r.wins++;
+        else r.losses++;
+        r.for += m[side].wins;
+        r.against += m[other].wins;
+      }
+      return { a: g.a, b: g.b, aPoints: m.a.wins, bPoints: m.b.wins, result: m.result, cats: m.cats };
+    });
+    weeks.push({ number: k, quiet: week.quiet, games });
+  }
+  const out = { weeks, records, from, seeds: null, rounds: [], alive: new Set(), champion: null, tiers: new Map() };
+  const reached = played.length ? played[played.length - 1].number : null;
+  if (from === null || !parts.playoffs || !((reached !== null && reached >= from - 1) || o.ended)) return out;
+  const key = (id) => {
+    const r = records.get(id);
+    return r ? [r.wins * 2 + r.ties, r.for] : [0, 0];
+  };
+  const ranked = o.seatsAt(from).map((id, i) => ({ id, i, key: key(id) })).sort((a, b) => compareKeys(b.key, a.key) || a.i - b.i);
+  const n = Math.min(parts.playoffs.teams, ranked.length);
+  if (n < 2) return out;
+  const seeds = ranked.slice(0, n).map((r) => r.id);
+  out.seeds = seeds;
+  seeds.forEach((id) => out.tiers.set(id, 1));
+  let alive = bracket(2 ** parts.playoffs.rounds).map((sd) => (sd <= n ? sd : null));
+  for (let j = 0; j < parts.playoffs.rounds; j++) {
+    const number = from + j;
+    const totals = finale !== null && number > finale ? null : playoff.get(number) || null;
+    const games = [];
+    const next = [];
+    for (let g = 0; g < alive.length; g += 2) {
+      const a = alive[g];
+      const b = alive[g + 1];
+      const game = { a: a === null ? null : seeds[a - 1], b: b === null ? null : seeds[b - 1], aSeed: a, bSeed: b, aPoints: null, bPoints: null, winner: null };
+      let w;
+      if (a === null || b === null) w = a === null ? b : a;
+      else if (totals) {
+        const m = categoryMatchup(totals.get(game.a) || {}, totals.get(game.b) || {}, cats, defs);
+        game.aPoints = m.a.wins;
+        game.bPoints = m.b.wins;
+        game.cats = m.cats;
+        w = m.result === 'a' ? a : m.result === 'b' ? b : Math.min(a, b);
+      }
+      if (Number.isInteger(w) && (totals || a === null || b === null)) game.winner = seeds[w - 1];
+      next.push(totals ? (Number.isInteger(w) ? w : null) : undefined);
+      games.push(game);
+    }
+    out.rounds.push({ number, played: !!totals, games });
+    if (!totals) break;
+    next.forEach((sd) => { if (Number.isInteger(sd)) out.tiers.set(seeds[sd - 1], j + 2); });
+    alive = next;
+  }
+  const still = alive.filter((sd) => Number.isInteger(sd));
+  still.forEach((sd) => out.alive.add(seeds[sd - 1]));
+  const last = out.rounds[out.rounds.length - 1];
+  if (out.rounds.length === parts.playoffs.rounds && last.played) out.champion = last.games[0].winner;
+  else if (o.ended && still.length) out.champion = seeds[Math.min(...still) - 1];
+  if (out.champion) {
+    out.tiers.set(out.champion, parts.playoffs.rounds + 1);
+    out.alive = new Set([out.champion]);
+  }
+  return out;
+}
+
+module.exports = { weigh, rateOf, categoryTotals, windowLines, compareCategory, categoryMatchup, categoryWeek, categoryRecords, roto, categoryMatchups };

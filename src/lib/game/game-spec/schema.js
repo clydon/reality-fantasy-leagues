@@ -213,7 +213,10 @@ const VOCAB = {
   // A11 part 4: head to head (matchups), a draft's on a show (each episode's points against someone's, with playoffs); L4 brings it
   // to sports (their stats score it).
   // C5: weeks won (each episode's most points wins it; the season by weeks won, then the points), wherever head to head plays.
-  'rank.by': { total: 'now', streak: 'now', standing: 'now', worth: 'now', coop: 'now', matchups: 'now', weeks: 'now', categories: 'sports', roto: 'sports' },
+  'rank.by': { total: 'now', streak: 'now', standing: 'now', worth: 'now', coop: 'now', matchups: 'now', weeks: 'now',
+    // L3 part 2d: a sport's categories, head to head by each category (or by most categories: matchups) and roto (state-logic.js
+    // MatchupLogic and RotoLogic on sequence/categories.js).
+    categories: 'now', roto: 'now' },
   // C5: a week two or more top: each of them wins it, they share one, or nobody does.
   'rank.ties': { all: 'now', split: 'now', none: 'now' },
   // C5: a game scored by moments counting hits (each moment an objective, worth 1: momentWorth): every hit, each objective once
@@ -1886,9 +1889,9 @@ const LINES = {
   lines: (s, held) => (held === 'card' ? null : ['score.by', "bingo lines are a card's"]),
   // L3 part 2: a sport's stats, each holding's stat line at the game's table as its moments (sequence/stats.js statMoments), so a
   // lineup's or best ball's steps take it from there (a whole team counting as best ball with all of it). A pick each episode by
-  // its stats, and categories (each stat's total compared: the week's result and the rank's, not points), have no place yet.
+  // its stats has no place yet. L3 part 2d: categories (each stat's total compared, not points) have no line of points: their place
+  // is the week's result and the rank's (rankPlace), on a draft's lineup or everyone drafted (categoryProblems refuses the rest).
   stats: (s, held) => {
-    if (categoryParts(s)) return ['score.categories', "categories compare each stat's total each week (head to head, or roto over the season): their week's result and rank come with the sports formats"];
     // A draft's lineup, its best few, or (a sport's own: tonight's three) everyone drafted.
     if (held === 'draft') return null;
     if (held === 'pick') return ['get', "a pick each episode scored by its stats has no place yet: a draft's lineup or best ball does"];
@@ -1960,6 +1963,9 @@ function rankPlace(s) {
     if ((by === 'total' || h2h) && rank.race === undefined && rank.cut === undefined) return null;
     return ['rank.by', "a pick each episode scored by what they do ranks by its points, weeks won or head to head: knocking players out, or a race, is a draft's or a game of questions' for now"];
   }
+  // L3 part 2d: a sport's categories, head to head (by each category or by most of them) or roto over the game so far, nobody
+  // racing or cut (categoryProblems refuses the rest).
+  if (lines === 'stats' && categoryParts(s)) return rank.race === undefined && rank.cut === undefined ? null : ['rank.by', 'categories rank head to head or roto, with nobody racing or cut'];
   // L3 part 2: a sport's stats as a lineup's moments (never priced: a market's prices are moments').
   if (lines === 'place' || lines === 'moments' || lines === 'stats') {
     if (by === 'total' || (by === 'standing' && cuts) || (h2h && rank.race === undefined && rank.cut === undefined)) return null;
@@ -2146,7 +2152,9 @@ function flagsOf(s) {
     // A11 part 3: co-op, the couch against the show (its lives everyone's together).
     hasCoop: !!(asks && asks.coop),
     // A11 part 4: head to head, with playoffs.
-    hasMatchups: !!matchupParts(s),
+    // L3 part 2d: head to head on a sport's categories too (by each, or by most of them); hasCategories, any game ranked by them.
+    hasMatchups: !!matchupParts(s) || !!(categoryParts(s) && categoryParts(s).by !== 'roto'),
+    hasCategories: !!categoryParts(s),
     // C5: weeks won (each episode's most points wins it).
     hasWeeks: !!weekParts(s),
     // A11 part 5: teams of players.

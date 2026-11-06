@@ -156,7 +156,8 @@ test("a piece with no place says which, and why", () => {
     stages: [{ id: "a", name: null, game: { ...P.outlast, span: { from: 1, to: 5 } } }, { id: "b", name: null, game: { ...P.outlast, span: { from: 6, to: null }, ask: [{ ...boot, wager: "total" }] } }] };
   one(staged, "stages[1].game.ask[0].wager", "staking any of your points is a game of questions'");
   // A piece still to build is its step's, never "no game plays this way".
-  assert.deepEqual(waits({ ...P.outlast, rank: { by: "roto" } }).map(([at, step]) => `${at}:${step}`), ["rank.by:sports"]);
+  // (Roto plays since L3 part 2d, on a sport's categories: a pool of two teams' players is still the sports branch's.)
+  assert.deepEqual(waits({ ...P.outlast, pool: { of: "cast", where: { teams: ["a"] } } }).map(([at, step]) => `${at}:${step}`), ["pool.where:sports"]);
 });
 
 test("each shape is still named for the screens, from its lines", () => {

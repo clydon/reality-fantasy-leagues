@@ -1132,7 +1132,7 @@ engine track; L brings each sport's data to it. Its screens wait for the UI trac
     (`closedForPlay` reading `locksAt`, `closes` daily and weekly to 'now', their words: built 2026-11-06, As built below); 2c, a
     game of questions on the sports settles (pick'em and pick a few: `final`, `stat`, the `side` answer to 'now', an episode's game
     final as its results: built 2026-11-06, As built below); 2d, categories and roto (`MatchupLogic` on `categoryParts`, the server handing `statDefs` over, `rank.by`
-    categories and roto to 'now'); 2e, squares and a bracket question (the squares themselves, their pays from the facts, a
+    categories and roto to 'now': built 2026-11-06, As built below); 2e, squares and a bracket question (the squares themselves, their pays from the facts, a
     bracket's faces on the server); 2f, a week's slate (a per-game bonus summed per game, a question per game of an episode). Each
     part's proof a sports game played end to end on the recorded fixtures.
 - **L4. The formats, as the engine's pieces with sports data:** head-to-head, categories and roto (A11), best ball (A9),
@@ -3413,6 +3413,42 @@ in the placement corpus with the roto refusal kept on the 7 of them ranked roto)
   the opener, a write hands back the mark and saves none of it. The placement corpus' 198 more (its three new sports asks, recorded
   from 6b8b1269's engine with the rest: each as its twin asking who goes home). GAME-PIECES.md's `side`, `final` and `stat`. 1,833
   unit tests pass (2 more here); `tsc` clean; eslint clean on the src files changed.
+
+**L3 part 2d as built: categories and roto (2026-11-06, `sports`, not merged; no migration).**
+- **The spec** (`schema.js`): VOCAB `rank.by` `categories` and `roto` to 'now'. A categories score has no line of points (`LINES.stats`
+  takes it on a draft), its place the week's result and the rank's (`rankPlace`: head to head or roto, nobody racing or cut;
+  `categoryProblems` refuses the rest, as built in L4 part 1b). `flagsOf`: `hasMatchups` for head to head on categories too,
+  `hasCategories` new. The settings say it (`settings.js`: `draftRank` takes `categories` and `roto`, `rankMatchups` head to head's
+  playoffs and fallbacks for `categories`; the categories themselves ride in `statScoring`), so every sport's `categories` and `roto`
+  defaults read back from their fields.
+- **The engine** (`state-logic.js`, `sequence/categories.js`): `StatsLogic.categories`, `heldAt` (a seat's starters in an episode, or
+  everyone drafted), `played` (the span's episodes with their lines) and `totals` (each seat's `categoryTotals` over episodes, the
+  sport's stats from `state.statDefs`). `MatchupLogic.parts` reads head to head on categories (by each, or by most: `categoryParts`),
+  and its walk is `categoryMatchups` (new, in the sequence's `matchups` shape, so `apply`, `view`, `gameAt`, `endsAt` and the playoffs'
+  placing are head to head's): each regular-season episode a `categoryWeek` on the same round robin; the record by each category or
+  by each matchup, its `for` and `against` the categories won and lost (**a decision: the categories won break a tie in the
+  standings, then the order the seats joined**, where head to head on points uses its points); a game's `aPoints` and `bPoints` the
+  categories each side won, `cats` each category's values; the playoffs a round by most categories, a tie (or a night nobody has
+  anything) to the better seed. `rankKey` ranks `categories` as `matchups` (the record). `RotoLogic` (new): the table by `roto` over
+  the game so far (the copy's played episodes: a viewer's mark, a span's end), the row's total its roto points, `roto` each
+  category's points and totals. The categories game's own points stay 0 (its rows' totals are the record's or roto's: Noticed).
+- **The server** (`sports/score.ts`): `leagueGames`' `defs` (`Sport.categoryDefs()`, the season's games' sport), stamped as
+  `state.statDefs` (`STAMPED`: never saved) for a game ranked by categories only, beside its lines.
+- **Checks.** `tests/sports-hook.test.js` (13 now): every sport's categories and roto play; head to head by each category on the
+  76ers' opener twice (each seat's record each category won, lost or tied, as the scorer gives it straight from the lines; the
+  table by the record; by most categories; everyone drafted; the viewer's copy with nothing seen; the settings back); roto (each
+  row's total the scorer's over both episodes; nothing seen, every category tied at 1.5); the playoffs on the pure walk (seeded by the
+  record, a level final to the better seed). `check-stats-game.js` (26 now, all pass): a categories league read with the sport's
+  stats beside the lines, the opener's matchup each of the nine won, lost or tied; a game by points per stat gets none. The placement
+  corpus unchanged (**not extended: it's recorded from 6b8b1269's engine, which predates categories, so a categories spec has no
+  verdict before to compare; their placement is the hook test's**); game-spec.test.js and sports-categories.test.js say they play.
+  GAME-PIECES.md's categories row. 1,836 unit tests pass; `tsc` clean; eslint clean on the src files changed.
+
+**L3 part 2d noticed, not fixed:**
+- **A categories game's table shows a total of 0 for head to head** (its rows' points are a stats table's, and categories have
+  none): the record (`r.matchups`) and roto's `r.roto` are what to show; the screens' (U1, through impeccable): a W-L-T record, each
+  category's value and who won it (`cats`), roto's points by category.
+- **The bots draft and set lineups for a categories game by nothing** (as 2a's Noticed: form reads moments). A bots step.
 
 **L3 part 2c noticed, not fixed:**
 - **A game called off never has results** (`status: 'off'`: ESPN's over without a final): its questions are off (void), but its

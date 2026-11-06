@@ -1,6 +1,7 @@
 import StateLogic from "@/lib/game/state-logic.js";
 import type { SportsGameFacts } from "@/lib/game/game-spec";
 import type { LeagueState } from "@/lib/game/types";
+import type { CategoryDefs } from "@/lib/game/sequence/categories";
 import { BoutSport, TeamSport, boutsOf, groupOf, renamed, sportOf, storedFacts, type StatBout, type StoredFinal, type StoredPeople, type StoredShape, type Stats } from "@/lib/sports";
 import { pool } from "../db";
 
@@ -42,6 +43,9 @@ export interface LeagueGames {
   games: Map<number, SportsGameFacts>;
   /** Each episode's sides (the teams' ids), for a side answer; an episode of one game. */
   sides: Map<number, string[]>;
+  /** L3 part 2d: the sport's stats as the engine reads them for categories (Sport.categoryDefs: each one's better, group and a
+   *  rate's parts), the season's games' sport's. */
+  defs: CategoryDefs;
 }
 
 /** The season a league plays (its show's slug and season number), or null. */
@@ -94,7 +98,7 @@ export async function leagueGames(state: LeagueState, o: { mark?: number | null;
     if (!id) continue;
     for (const [provider, athlete] of Object.entries((c.provider_ids ?? {}) as Record<string, string>)) who.set(`${provider}:${athlete}`, { id, role: c.role ?? null });
   }
-  const out: LeagueGames = { lines: new Map(), byGame: new Map(), slate: new Map(), groups: {}, bouts: new Map(), games: new Map(), sides: new Map() };
+  const out: LeagueGames = { lines: new Map(), byGame: new Map(), slate: new Map(), groups: {}, bouts: new Map(), games: new Map(), sides: new Map(), defs: {} };
   // L8: a slate's every episode is of several games (one with a single game listed so far too: its shape never changes as more are
   // linked).
   const slate = slated.length > 0;
@@ -122,6 +126,7 @@ export async function leagueGames(state: LeagueState, o: { mark?: number | null;
     const event = String(r.event_id);
     const sport = sportOf(r.league);
     if (!sport) continue;
+    if (!Object.keys(out.defs).length) out.defs = sport.categoryDefs();
     if (mark !== null && n > mark) {
       setGame(n, event, { status: "pre", sides: teams.map((id) => ({ id, score: 0 })), lines: {}, teams: {} });
       continue;
@@ -187,7 +192,7 @@ export async function sidesFor(state: LeagueState, episode: number, games?: Map<
 }
 
 /** What a stamp writes (StateLogic.StatsLogic.stamp's `o`). */
-type Stamp = { lines: Record<number, Record<string, Stats>>; bouts: Record<number, Record<string, StatBout[]>>; groups: Record<string, string>; finals: number[] };
+type Stamp = { lines: Record<number, Record<string, Stats>>; bouts: Record<number, Record<string, StatBout[]>>; groups: Record<string, string>; finals: number[]; defs: CategoryDefs };
 // The league poll reads every 15 s (league-read.ts readyLeague), and a season's kept finals are big (everyone's counts, a game an
 // episode): each server instance keeps the last stamp it worked out for a league, with a fingerprint of what it read (32 bytes: the
 // season's kept finals, its cast's provider ids and positions, the league's castaways), and reads the finals again only when it moves.
@@ -231,13 +236,14 @@ export async function stampStats(state: LeagueState): Promise<LeagueState> {
     if (!g) return state;
     // An episode's one game final (a league's slate's episodes are 2f's: their lines are their final games' already).
     const finals = [...g.games].filter(([, f]) => f.status === "final").map(([n]) => n);
-    hit = { key, stamp: { lines: Object.fromEntries(g.lines), bouts: Object.fromEntries(g.bouts), groups: g.groups, finals } };
+    hit = { key, stamp: { lines: Object.fromEntries(g.lines), bouts: Object.fromEntries(g.bouts), groups: g.groups, finals, defs: g.defs } };
     stamps.delete(id);
     stamps.set(id, hit);
     if (stamps.size > MAX_STAMPS) stamps.delete(stamps.keys().next().value!);
   }
   // Each league its own copy of the lines (stamp keeps only its castaways' and the copy is the league's to change); a game of
-  // questions, its finals alone (the grader reads the games).
-  const stamp = StateLogic.StatsLogic.on(state) ? structuredClone(hit.stamp) : { finals: [...hit.stamp.finals] };
+  // questions, its finals alone (the grader reads the games); the sport's stats' defs only for a game ranked by categories.
+  const { defs, ...lines } = hit.stamp;
+  const stamp = StateLogic.StatsLogic.on(state) ? { ...structuredClone(lines), ...(StateLogic.StatsLogic.categories(state) ? { defs } : {}) } : { finals: [...hit.stamp.finals] };
   return StateLogic.StatsLogic.stamp(state, stamp);
 }

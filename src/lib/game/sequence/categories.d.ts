@@ -52,3 +52,25 @@ export function categoryMatchup(a: CategoryTotals, b: CategoryTotals, cats: stri
 export function categoryWeek(totals: Map<string, CategoryTotals>, seats: string[], r: number, cats: string[], defs: CategoryDefs, o?: { odd?: "median" | "bye"; quiet?: "skip" | "tie" }): CategoryWeek;
 export function categoryRecords(weeks: CategoryWeek[], by: "categories" | "matchups"): Map<string, CategoryRecord>;
 export function roto(totals: Map<string, CategoryTotals>, cats: string[], defs: CategoryDefs): RotoRow[];
+/** L3 part 2d: head to head on categories over a game, in the sequence's matchups' shape (state-logic.js MatchupLogic's walk). */
+export function categoryMatchups(
+  played: { number: number; totals: Map<string, CategoryTotals> }[],
+  o: {
+    parts: { by: "categories" | "matchups" | "roto"; categories: string[]; odd: "median" | "bye" | null; quiet: "skip" | "tie" | null; playoffs: { teams: number; rounds: number; from: number | null } | null };
+    defs: CategoryDefs;
+    start: number;
+    from: number | null;
+    finale: number | null;
+    ended?: boolean;
+    seatsAt: (k: number) => string[];
+  }
+): {
+  weeks: { number: number; quiet: boolean; games: { a: string; b: string | null; aPoints: number | null; bPoints: number | null; result: "a" | "b" | "tie" | null; cats: CategoryMatchup["cats"] | null }[] }[];
+  records: Map<string, CategoryRecord & { for: number; against: number }>;
+  from: number | null;
+  seeds: string[] | null;
+  rounds: { number: number; played: boolean; games: { a: string | null; b: string | null; aSeed: number | null; bSeed: number | null; aPoints: number | null; bPoints: number | null; winner: string | null; cats?: CategoryMatchup["cats"] }[] }[];
+  alive: Set<string>;
+  champion: string | null;
+  tiers: Map<string, number>;
+};

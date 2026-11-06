@@ -70,10 +70,10 @@ test("a lineup scored by stats: places in the sequence as a lineup of moments do
     assert.equal(G.typeOf(spec), "active-roster");
   }
   // A captain only on a lineup, as a show's; a stock market's prices are moments'; a pick each episode by its stats has no place
-  // yet, nor categories (the sports formats' part).
+  // yet.
   assert.deepEqual(G.specProblems({ ...BEST, score: { ...CAPTAIN.score } }, CTX).map((p) => p.at), ["score.captain"]);
   assert.equal(G.specWaitsFor(base({ get: { by: "pick", each: 1, repeat: "cycle" }, count: { pick: true } })).length, 1);
-  assert.deepEqual(G.specWaitsFor(defaultsFor("basketball").specs.categories.spec).map((w) => w.at), ["rank.by"]);
+  // (Categories play since part 2d: below.)
   assert.equal(G.flagsOf(G.fullSpec(LINEUP)).hasActiveRoster, true);
   // A league's settings say it (statScoring, its table; countAll, everyone drafted counting) and read it back, the cast still in
   // as a show's is (nobody leaves a sport's).
@@ -303,4 +303,90 @@ test("one game's pick'em is over at its final; pick a few on the opener: Maxey a
   // At the viewer's mark the server's games are still to play (leagueGames' mark): nothing graded.
   const pre = new Map([[1, { status: "pre", sides: [], lines: {}, teams: {} }]]);
   assert.equal(S.AnswerLogic.grade(S.SpoilerLogic.viewThrough(s, 0), answers, { ...S.AnswerLogic.facts(S.SpoilerLogic.viewThrough(s, 0)), games: pre }).points.get("ann") || 0, 0);
+});
+
+// L3 part 2d: categories and roto. The NBA's nine on the opener (Episode 1) and the same lines again (Episode 2), ann starting the
+// 76ers' first two, bo the Cavaliers' first two.
+const Cats = require("../src/lib/game/sequence/categories.js");
+const CATS = defaultsFor("basketball").categories.stats;
+const DEFS = nba.categoryDefs();
+function cats(rank, count = { start: 2 }) {
+  const s = league(base({ count, score: { by: "stats", categories: CATS }, rank }));
+  // Lineups first: an episode with its results in is locked.
+  for (const n of [1, 2]) {
+    S.ActiveRosterLogic.setLineup(s, ep(s, n).id, "ann", SIXERS_THREE.slice(0, 2).map((x) => cid(s, x)));
+    S.ActiveRosterLogic.setLineup(s, ep(s, n).id, "bo", CAVS_THREE.slice(0, 2).map((x) => cid(s, x)));
+  }
+  const lines = linesIn(s);
+  S.StatsLogic.stamp(s, { lines: { 1: lines, 2: lines }, defs: DEFS });
+  return s;
+}
+/** Ann's and bo's totals on one episode, worked out straight from the lines (the scorer's own, not the engine's). */
+const direct = (s, names) => Cats.categoryTotals(names.map((x) => linesIn(s)[cid(s, x)]), CATS, DEFS);
+
+test("head to head on categories: each episode's starters' totals compared category by category, the record by each or by most", () => {
+  for (const name of ["categories", "roto"]) for (const sport of ["basketball", "hockey", "baseball"]) {
+    assert.deepEqual(G.specWaitsFor(defaultsFor(sport).specs[name].spec), [], `${sport}'s ${name} plays now`);
+  }
+  const s = cats({ by: "categories" });
+  assert.equal(S.MatchupLogic.on(s), true);
+  assert.equal(G.flagsOf(G.gameOf(s.settings)).hasMatchups, true);
+  assert.equal(G.flagsOf(G.gameOf(s.settings)).hasCategories, true);
+  const m = Cats.categoryMatchup(direct(s, SIXERS_THREE.slice(0, 2)), direct(s, CAVS_THREE.slice(0, 2)), CATS, DEFS);
+  const view = S.MatchupLogic.view(s, "ann");
+  // Two episodes of the same lines: each category's result twice.
+  assert.deepEqual([view.record.wins, view.record.losses, view.record.ties], [2 * m.a.wins, 2 * m.a.losses, 2 * m.a.ties]);
+  assert.equal(view.last.points, m.a.wins);
+  assert.equal(view.last.against, m.b.wins);
+  const rows = S.computeScores(s);
+  const lead = m.a.wins > m.b.wins ? "ann" : "bo";
+  if (m.a.wins !== m.b.wins) assert.equal(rows[0].playerId, lead, "the record ranks the table");
+  assert.equal(rows.find((r) => r.playerId === "ann").matchups.wins, 2 * m.a.wins);
+  // By most categories: whoever won more of them wins the episode.
+  const most = S.MatchupLogic.view(cats({ by: "matchups" }), "ann").record;
+  assert.deepEqual([most.wins, most.losses, most.ties], m.result === "a" ? [2, 0, 0] : m.result === "b" ? [0, 2, 0] : [0, 0, 2]);
+  // Everyone drafted counting: the whole team's lines.
+  const all = cats({ by: "categories" }, { all: true });
+  const mAll = Cats.categoryMatchup(direct(all, SIXERS_THREE), direct(all, CAVS_THREE), CATS, DEFS);
+  assert.equal(S.MatchupLogic.view(all, "ann").record.wins, 2 * mAll.a.wins);
+  // The viewer's copy at their mark has no lines and nothing played; the settings say it back.
+  assert.equal(S.MatchupLogic.view(S.SpoilerLogic.viewThrough(s, 0), "ann").record.wins, 0);
+  assert.equal(G.specOf(s.settings).rank.by, "categories");
+  assert.equal(S.StatsLogic.stampedKeys().includes("statDefs"), true);
+});
+
+test("roto: each category ranks everyone on the game so far, the row's total its roto points", () => {
+  const s = cats({ by: "roto" });
+  assert.equal(S.MatchupLogic.on(s), false);
+  assert.equal(S.RotoLogic.on(s), true);
+  // The game so far: both episodes' lines added (each count twice, each rate the same).
+  const twice = (names) => Cats.categoryTotals(names.flatMap((x) => [linesIn(s)[cid(s, x)], linesIn(s)[cid(s, x)]]), CATS, DEFS);
+  const want = Cats.roto(new Map([["ann", twice(SIXERS_THREE.slice(0, 2))], ["bo", twice(CAVS_THREE.slice(0, 2))]]), CATS, DEFS);
+  const rows = S.computeScores(s);
+  assert.deepEqual(rows.map((r) => [r.playerId, r.total]), want.map((r) => [r.id, r.total]));
+  assert.deepEqual(rows[0].roto.points, want[0].points);
+  assert.equal(want.reduce((n, r) => n + r.total, 0), CATS.length * 3, "each category hands out 2 + 1");
+  // Nothing seen: every category tied, 1.5 each.
+  assert.deepEqual(S.computeScores(S.SpoilerLogic.viewThrough(s, 0)).map((r) => r.total), [CATS.length * 1.5, CATS.length * 1.5]);
+  assert.equal(G.specOf(s.settings).rank.by, "roto");
+});
+
+test("categories' playoffs: seeded by the record (categories won breaking a tie), a round by most categories, a tie to the better seed", () => {
+  const parts = { by: "categories", categories: ["PTS", "REB"], odd: "median", quiet: "skip", playoffs: { teams: 2, rounds: 1, from: 3 } };
+  const defs = { PTS: { better: "higher", group: "x" }, REB: { better: "higher", group: "x" } };
+  const t = (o) => new Map(Object.entries(o));
+  const played = [
+    { number: 1, totals: t({ a: { PTS: 10, REB: 5 }, b: { PTS: 8, REB: 6 }, c: { PTS: 1, REB: 1 } }) },
+    { number: 2, totals: t({ a: { PTS: 10, REB: 9 }, b: { PTS: 9, REB: 9 }, c: { PTS: 12, REB: 1 } }) },
+    // The final: the two seeds level in both categories, so the better seed wins it.
+    { number: 3, totals: t({ a: { PTS: 5, REB: 5 }, b: { PTS: 5, REB: 5 }, c: { PTS: 50, REB: 50 } }) },
+  ];
+  const w = Cats.categoryMatchups(played, { parts, defs, start: 1, from: 3, finale: null, ended: false, seatsAt: () => ["a", "b", "c"] });
+  assert.equal(w.weeks.length, 2);
+  assert.deepEqual(w.seeds.length, 2);
+  assert.equal(w.rounds[0].played, true);
+  assert.equal(w.champion, w.seeds[0]);
+  assert.equal(w.rounds[0].games[0].aPoints, 0, "level in both: no category won");
+  const r = w.records.get(w.seeds[0]);
+  assert.ok(r.wins * 2 + r.ties >= 1 && r.for >= r.wins - 0, "the record is the categories'");
 });

@@ -452,7 +452,8 @@ test("specWaitsFor: what a spec needs that isn't built, and the step that builds
   // A11 part 4: head to head plays on a show's draft; L3 part 2b, a sports spec's daily lock too (the engine's lock reads the day's
   // first start: ep.locksAt).
   assert.deepEqual(waits({ ...P["weekly-lineup"], rank: { by: "matchups" }, closes: "daily" }), []);
-  assert.deepEqual(waits({ ...P["weekly-lineup"], rank: { by: "categories" }, closes: "daily" }), ["rank.by:sports"]);
+  // L3 part 2d: ranked by categories on a show's moments plays nowhere (a categories rank needs a sport's categories: categoryProblems).
+  assert.deepEqual(waits({ ...P["weekly-lineup"], rank: { by: "categories" }, closes: "daily" }), ["rank.by:null"]);
   // L3 part 2: the engine scores a sport's stats; squares are still the sports branch's.
   assert.deepEqual(waits({ spec: 1, get: { by: "squares" }, score: { by: "stats", points: { PTS: 1 } } }), ["get.by:sports"]);
   assert.deepEqual(waits({ ...P.outlast, pool: { of: "cast", where: { group: "tribe-1" } } }), ["pool.where:later"]);

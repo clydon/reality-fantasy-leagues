@@ -147,13 +147,16 @@ function waiversOf(st, lineup, R) {
  * or head to head (draftRank 'matchups', A11 part 4), its playoffs and fallbacks in rankMatchups.
  * Each only when it's set, so a draft that has none reads as it always did. `lineup`: a lineup or best ball (worth is theirs).
  */
+// L3 part 2d: a sport's categories, head to head by each (draftRank 'categories', its playoffs and fallbacks as head to head's) or
+// roto (the categories are statScoring's).
+const DRAFT_RANKS = ['matchups', 'weeks', 'categories', 'roto'];
 function draftRankOf(st, lineup, copy) {
   const cut = Array.isArray(st.draftCut) && st.draftCut.length ? (copy ? clone(st.draftCut) : st.draftCut) : null;
-  const by = lineup && st.draftRank === 'worth' ? 'worth' : cut && st.draftRank === 'standing' ? 'standing' : st.draftRank === 'matchups' || st.draftRank === 'weeks' ? st.draftRank : 'total';
+  const by = lineup && st.draftRank === 'worth' ? 'worth' : cut && st.draftRank === 'standing' ? 'standing' : DRAFT_RANKS.includes(st.draftRank) ? st.draftRank : 'total';
   const rank = { by };
   tiesOf(st, rank);
   // A11 part 4: head to head's playoffs and fallbacks (rankMatchups), as the spec says them.
-  if (by === 'matchups') matchupsOf(st, rank, copy);
+  if (by === 'matchups' || by === 'categories') matchupsOf(st, rank, copy);
   if (isObj(st.draftRace)) rank.race = copy ? clone(st.draftRace) : st.draftRace;
   if (cut) rank.cut = cut;
   // A11 part 2: whether one left ends it (rankOneLeft), beside last one standing.
@@ -555,10 +558,10 @@ function settingsOf(spec) {
   // A10 part 3c: a lineup's or best ball's stock market ranked by worth; A11 part 1: a draft's last one standing, its race and its
   // cuts.
   // A11 part 4: a draft played head to head, its playoffs and fallbacks as the spec says them; part 4b, a game of questions'.
-  out.draftRank = type === 'active-roster' && s.rank.by === 'worth' ? 'worth' : draft && s.rank.by === 'standing' ? 'standing' : draft && (s.rank.by === 'matchups' || s.rank.by === 'weeks') ? s.rank.by : undefined;
+  out.draftRank = type === 'active-roster' && s.rank.by === 'worth' ? 'worth' : draft && s.rank.by === 'standing' ? 'standing' : draft && DRAFT_RANKS.includes(s.rank.by) ? s.rank.by : undefined;
   // C5: weeks won's tied week, whoever ranks by weeks won.
   out.rankTies = s.rank.by === 'weeks' && s.rank.ties !== undefined ? s.rank.ties : undefined;
-  const h2h = (draft || asks || pool) && s.rank.by === 'matchups' ? Object.fromEntries(MATCHUP_KEYS.filter((k) => s.rank[k] !== undefined).map((k) => [k, clone(s.rank[k])])) : null;
+  const h2h = (draft || asks || pool) && (s.rank.by === 'matchups' || (draft && s.rank.by === 'categories')) ? Object.fromEntries(MATCHUP_KEYS.filter((k) => s.rank[k] !== undefined).map((k) => [k, clone(s.rank[k])])) : null;
   out.rankMatchups = h2h && Object.keys(h2h).length ? h2h : undefined;
   out.draftRace = draft && isObj(s.rank.race) ? clone(s.rank.race) : undefined;
   // A11 part 5: teams of players, a draft's or a game of questions' (C2 part 4b: a pool's too), as the spec says them.

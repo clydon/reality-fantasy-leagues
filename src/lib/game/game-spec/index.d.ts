@@ -1071,7 +1071,7 @@ export function playsAs(spec: GameSpec): LeagueTypeId | null;
 /** The league type's flags, worked out from a whole spec. */
 export function flagsOf(spec: GameSpec): {
   hasRoster: boolean; hasActiveRoster: boolean; hasBestBall: boolean; hasGroupSlots: boolean; hasKeepers: boolean; hasWeeklyPicks: boolean; hasCalls: boolean; hasQuestions: boolean; hasDraftQuestions: boolean; hasBingo: boolean;
-  hasRace: boolean; hasCuts: boolean; hasAnswerLives: boolean; hasCoop: boolean; hasMatchups: boolean; hasWeeks: boolean; hasTeams: boolean; hasHandicap: boolean; hasStages: boolean;
+  hasRace: boolean; hasCuts: boolean; hasAnswerLives: boolean; hasCoop: boolean; hasMatchups: boolean; hasCategories: boolean; hasWeeks: boolean; hasTeams: boolean; hasHandicap: boolean; hasStages: boolean;
   supportsReplenish: boolean; supportsTrade: boolean; supportsFinalePredictions: boolean;
 };
 /**

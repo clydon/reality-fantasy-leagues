@@ -227,7 +227,7 @@ How what counts earns points. **`score.by`**:
 | `lines` | bingo lines | a card |
 | `answers` | right answers to the game's questions | `none` |
 | `stages` | a game in stages: its stages' tables (see Stages) | a game in stages only |
-| `stats` | a sport's stat keys at the game's table: each holding's stat line in an episode is its moments there (`sequence/stats.js` statMoments), so a lineup's starters, a captain, `times` and best ball's best n take it as they take moments (L3 part 2) | a draft (a lineup, best ball, or everyone drafted counting); a pick each episode by its stats and `categories` not yet (the sports branch) |
+| `stats` | a sport's stat keys at the game's table: each holding's stat line in an episode is its moments there (`sequence/stats.js` statMoments), so a lineup's starters, a captain, `times` and best ball's best n take it as they take moments (L3 part 2) | a draft (a lineup, best ball, or everyone drafted counting); with `categories`, its rank compares them (below); a pick each episode by its stats not yet (the sports branch) |
 | `squares` | each pay's points (`pays: [{ at: a period's end, 'half' or 'final', points }]`) to whoever holds the square of the two scores' last digits then; an empty square pays nobody or rolls on (`empty`), a period never read pays on the final or nobody (`unread`) (L4 part 2) | `squares`, ranked by the total, nothing beside it; the sports branch |
 
 Each one's own options:
@@ -578,7 +578,7 @@ How the table is ordered. **`rank.by`**:
 | `coop` | everyone wins or loses together, against the show | a game of questions with lives |
 | `matchups` | head to head each episode, more points wins it; the standings by wins | a draft, a game of questions or a pool (C2 part 4b: on what each episode's pick earned), with nobody racing, cut or losing a life beside it; a pick scored by moments (C5) |
 | `weeks` | weeks won (C5): each episode, whoever added the most points wins it; the most weeks won wins, ties to the points | wherever head to head plays, on the same series of totals and seats (teams of players: each team's), with nobody racing, cut or losing a life beside it |
-| `categories`, `roto` | a sport's categories (`score: { by: 'stats', categories }`): head to head by each category won (`categories`; `matchups` on a categories score: whoever wins more of them), or each category ranking everyone, points by rank (`roto`); the scorer `sequence/categories.js` (L4 part 1b) | a draft scored by a sport's categories (the sports branch: the engine's hook plays them) |
+| `categories`, `roto` | a sport's categories (`score: { by: 'stats', categories }`): head to head by each category won (`categories`; `matchups` on a categories score: whoever wins more of them), or each category ranking everyone, points by rank (`roto`); the scorer `sequence/categories.js` (L4 part 1b). Played since L3 part 2d: head to head each episode on each seat's counted holdings' totals then (its starters, or everyone drafted), the record the categories' (by each, or by most), the categories won breaking a tie, the playoffs a round by most categories, a tie to the better seed (`categoryMatchups`, MatchupLogic); roto over the game so far, the row's total its roto points (RotoLogic); the server hands the sport's stats over beside the lines (`state.statDefs`: Sport.categoryDefs, a rate's parts) | a draft's lineup or everyone drafted, scored by a sport's categories, with nobody racing or cut |
 
 Beside it:
 

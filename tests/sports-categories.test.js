@@ -217,7 +217,7 @@ test("the spec: categories on the score, ranked head to head by each one, by mos
   const cats = d.specs.categories.spec;
   assert.deepEqual(problems(cats, ctx), []);
   assert.deepEqual(problems(d.specs.roto.spec, ctx), []);
-  assert.deepEqual(specWaitsFor(cats).map((w) => w.at), ["rank.by"], "the sports branch's own: the engine's hook scores the stats and locks daily (L3 part 2), the rank still waits");
+  assert.deepEqual(specWaitsFor(cats).map((w) => w.at), [], "the engine's hook scores the stats, locks daily and ranks by categories (L3 part 2d)");
   const by = (score, rank, more = {}) => ({ ...cats, score: { by: "stats", ...score }, ...(rank ? { rank } : {}), ...more });
   // A categories score's rank when the spec leaves it out: head to head by each category.
   assert.equal(fullSpec({ ...cats, rank: undefined }).rank.by, "categories");

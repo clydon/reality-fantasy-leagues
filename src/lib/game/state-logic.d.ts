@@ -560,10 +560,24 @@ declare const StateLogic: {
     lineOf(state: LeagueState, ep: Episode | null | undefined, castawayId: string): import("./sequence/stats").Scored | null;
     /** The server's stamp, in place: each final episode's lines (and a card's bouts) by castaway, the cast's position groups, the
      *  episodes whose game is final (part 2c: ep.gameFinal). */
-    stamp(state: LeagueState, o: { lines?: Record<number, Record<string, Record<string, number>>>; bouts?: Record<number, Record<string, import("./sequence/stats").StatBout[]>>; groups?: Record<string, string>; finals?: number[] }): LeagueState;
+    stamp(state: LeagueState, o: { lines?: Record<number, Record<string, Record<string, number>>>; bouts?: Record<number, Record<string, import("./sequence/stats").StatBout[]>>; groups?: Record<string, string>; finals?: number[]; defs?: import("./sequence/categories").CategoryDefs }): LeagueState;
     unstamp(state: LeagueState): LeagueState;
     /** The keys a stamp writes (a save leaves them out). */
     stampedKeys(): string[];
+    /** L3 part 2d: a game ranked by a sport's categories, its parts (head to head by each, by most, or roto), or null. */
+    categories(state: LeagueState): import("./game-spec").CategoryParts | null;
+    /** Who of a seat's counts in an episode: its starters then, or its whole team. */
+    heldAt(state: LeagueState, ep: Episode, playerId: string): string[];
+    /** The game's episodes with their lines in, in order. */
+    played(state: LeagueState): Episode[];
+    /** Each seat's category totals over some episodes. */
+    totals(state: LeagueState, eps: Episode[], seats: string[], cats: string[]): Map<string, import("./sequence/categories").CategoryTotals>;
+  };
+  /** L3 part 2d: roto on a sport's categories: each category ranks everyone on the game so far, the row's total its roto points. */
+  RotoLogic: {
+    on(state: LeagueState): boolean;
+    table(state: LeagueState): { totals: Map<string, import("./sequence/categories").CategoryTotals>; rows: import("./sequence/categories").RotoRow[] };
+    apply<R extends { playerId: string; total: number }>(state: LeagueState, rows: R[]): R[];
   };
   ActiveRosterLogic: {
     /** C7: `episode`, the one it's scored in (only its card's moments count there: score.only 'card'). */

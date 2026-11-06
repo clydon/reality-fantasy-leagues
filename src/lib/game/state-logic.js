@@ -73,9 +73,9 @@
 // the database.
 (function(root, factory){
   // eslint-disable-next-line @typescript-eslint/no-require-imports -- CommonJS on purpose, see above
-  if(typeof module === 'object' && module.exports) module.exports = factory(require('./formats/index.js'), require('./game-spec/index.js'), require('./sequence/index.js'), require('./sequence/stats.js'));
-  else root.StateLogic = factory(root.GameFormats, root.GameSpec, root.GameSequence, root.GameStats);
-})(typeof self !== 'undefined' ? self : this, function(Formats, Spec, Seq, Stats){
+  if(typeof module === 'object' && module.exports) module.exports = factory(require('./formats/index.js'), require('./game-spec/index.js'), require('./sequence/index.js'), require('./sequence/stats.js'), require('./sequence/categories.js'));
+  else root.StateLogic = factory(root.GameFormats, root.GameSpec, root.GameSequence, root.GameStats, root.GameCategories);
+})(typeof self !== 'undefined' ? self : this, function(Formats, Spec, Seq, Stats, Cats){
 
 const PALETTE = ['#45a89a','#d9704a','#a76bb0','#5089c4','#86a34c','#c99a3e','#b0563f','#6b8fc9'];
 // No longer seeded into new leagues (see Migrations.defaultState) -- a fresh league starts with an
@@ -615,7 +615,8 @@ function rankKey(state, r){
   // A11 part 4: head to head, how far you went in the playoffs, then the standings: wins (a tie half), then the regular season's
   // points (MatchupLogic.apply puts them on its rows).
   // The playoffs' seats, level on all of it, by their seed (the one tie the seeding broke by who joined first).
-  if(g.rank.by === 'matchups' && MatchupLogic.on(state)) {
+  // L3 part 2d: head to head on a sport's categories (by each category) ranks the same way, its record the categories'.
+  if((g.rank.by === 'matchups' || g.rank.by === 'categories') && MatchupLogic.on(state)) {
     const m = r.matchups;
     return m ? Seq.recordKey(m) : [0, 0, r.total || 0, 0];
   }
@@ -801,6 +802,8 @@ class ScoringLogic {
       // same walk).
       return TeamLogic.on(view) ? TeamLogic.apply(view, out, run.teams ? run : null) : out;
     }
+    // L3 part 2d: roto, each category ranking everyone on the game so far (RotoLogic).
+    if(RotoLogic.on(view)) return RotoLogic.apply(view, rows);
     // A11 part 2b: a game of questions' walk, its points and who's out, as the server worked them out (AnswerLogic.walk).
     const walk = AnswerLogic.walkOf(view);
     // A11 part 4: head to head's records and playoffs (MatchupLogic); part 4b, on a game of questions' points from its walk. Part 5:
@@ -1032,7 +1035,13 @@ class KnockoutLogic {
 // last round), then the standings.
 let matchupsRunning = false;
 class MatchupLogic {
-  static parts(state){ return Spec.matchupParts(gameOf(state)); }
+  // L3 part 2d: head to head on a sport's categories too (by each category, or by most of them: StatsLogic.categories), its parts
+  // the same (odd, quiet, playoffs) with its categories.
+  static parts(state){
+    const g = gameOf(state);
+    const cats = g.score.by === 'stats' ? Spec.categoryParts(g) : null;
+    return cats ? (cats.by === 'roto' ? null : cats) : Spec.matchupParts(g);
+  }
   static on(state){ return !!MatchupLogic.parts(state); }
   // Whether the game places its playoffs by the game's end as the data has it (no `from` of its own): what the server stamps the
   // season's length for (state.seasonEpisodes, air-times.ts).
@@ -1149,6 +1158,15 @@ class MatchupLogic {
     // Nothing after the season's finale plays (a schedule that counts a reunion), the playoffs' rounds nor a regular-season week.
     const ended = seasonEnded(state);
     const finale = ended ? finaleEpisodeOf(state) : null;
+    // L3 part 2d: on categories, each episode's totals compared category by category (sequence/categories.js categoryMatchups).
+    if(parts.categories){
+      const sides = (state.players || []).map(p => p.id);
+      const played = StatsLogic.played(state).map(ep => ({ number: ep.number, totals: StatsLogic.totals(state, [ep], sides, parts.categories) }));
+      return Cats.categoryMatchups(played, {
+        parts, defs: state.statDefs || {}, start: startEpisode(state), from: MatchupLogic.playoffsFrom(state, parts),
+        finale: finale ? finale.number : null, ended, seatsAt: k => MatchupLogic.seatsAt(state, k),
+      });
+    }
     return Seq.matchups(MatchupLogic.series(state), {
       parts, start: startEpisode(state), from: MatchupLogic.playoffsFrom(state, parts), finale: finale ? finale.number : null, ended,
       // The sides: the seats, or (A11 part 5) the teams of players.
@@ -1282,6 +1300,36 @@ class MatchupLogic {
       if(from !== null && resultsAt(from)){ state.playoffsFrom = from; return from !== had; }
     }
     return had !== undefined;
+  }
+}
+
+// ---------- RotoLogic: roto on a sport's categories (docs/PLAN-start-a-game-gpt.md track L, L3 part 2d) ----------
+// The spec's rank.by 'roto' on score { by: 'stats', categories } (Spec.categoryParts): each seat's counted holdings' lines over the
+// game so far (each episode's starters then, or the whole team) add up into a total for each category (a rate from its parts added,
+// never an average), and each category ranks everyone, the best as many points as there are seats down to 1, the tied sharing
+// theirs (sequence/categories.js roto). The row's total is its roto points; `roto` carries each category's total and points. Worked
+// out from the stamped lines on every read, as far as the copy has them (a viewer's mark, a span's end).
+class RotoLogic {
+  static on(state){ const c = StatsLogic.categories(state); return !!c && c.by === 'roto'; }
+  static table(state){
+    const c = StatsLogic.categories(state);
+    const seats = (state.players || []).filter(p => !isGhost(p) && p.active !== false).map(p => p.id);
+    const totals = StatsLogic.totals(state, StatsLogic.played(state), seats, c.categories);
+    return { totals, rows: Cats.roto(totals, c.categories, state.statDefs || {}) };
+  }
+  // The score rows with their roto points as their total and `roto` ({ points: { [stat]: points }, totals: { [stat]: value } }),
+  // ranked by them (a tie keeps the seats' order); a row that's no seat keeps its own.
+  static apply(state, rows){
+    const { totals, rows: table } = RotoLogic.table(state);
+    const by = new Map(table.map((r, i) => [r.id, { ...r, i }]));
+    rows.forEach(r => {
+      const t = by.get(r.playerId);
+      if(!t) return;
+      r.total = t.total;
+      r.roto = { points: t.points, totals: totals.get(r.playerId) };
+    });
+    const at = id => (by.has(id) ? by.get(id).i : Number.MAX_SAFE_INTEGER);
+    return rows.sort((a,b) => b.total - a.total || at(a.playerId) - at(b.playerId));
   }
 }
 
@@ -3082,7 +3130,9 @@ function roundPoints(n){ return Seq.round(n); }
 // L3 part 2c: a game asking about a sport's games (its final, a stat in it: answers.js sportsVerdict, on the server's facts.games) is
 // stamped too, with each episode whose game is final (`ep.gameFinal`), so its episode has results as a show's does once its game is
 // over (the reveal, the week's results, a viewer's mark, a span's end), and the spoiler view drops it past a viewer's mark.
-const STAMPED = { episode: ['statLines', 'statBouts', 'gameFinal'], state: ['statGroups'] };
+// L3 part 2d: a categories game, the sport's stats as the engine reads them (`state.statDefs`: Sport.categoryDefs, each one's better,
+// group and a rate's parts), so it works a window's rates out without the sport's code.
+const STAMPED = { episode: ['statLines', 'statBouts', 'gameFinal'], state: ['statGroups', 'statDefs'] };
 // The settles a sport's game answers (L1 part 4b).
 const SPORTS_SETTLES = ['final', 'stat'];
 class StatsLogic {
@@ -3131,6 +3181,7 @@ class StatsLogic {
     });
     const groups = only(o && o.groups);
     if(Object.keys(groups).length) state.statGroups = groups;
+    if(o && o.defs && typeof o.defs === 'object') state.statDefs = o.defs;
     return state;
   }
   // Takes the stamp off, in place.
@@ -3141,6 +3192,25 @@ class StatsLogic {
   }
   // The keys a stamp writes, for a save that leaves them out (JSON.stringify's replacer: db.ts withLeagueLock).
   static stampedKeys(){ return [...STAMPED.episode, ...STAMPED.state]; }
+  // L3 part 2d: a game ranked by a sport's categories (Spec.categoryParts: head to head by each, by most, or roto), or null.
+  static categories(state){
+    const g = playedGame(state);
+    return g.score.by === 'stats' ? Spec.categoryParts(g) : null;
+  }
+  // Who of a seat's counts in an episode: its starters then, or (everyone drafted) its whole team.
+  static heldAt(state, ep, playerId){
+    return [...new Set(StatsLogic.wholeTeam(state) ? ActiveRosterLogic.teamFor(state, ep, playerId) : ActiveRosterLogic.lineupFor(state, ep.id, playerId))];
+  }
+  // The game's episodes with their lines in, in order (the span's, as far as this copy has them).
+  static played(state){
+    return (state.episodes || []).filter(e => inPlay(state, e.number) && e.statLines && typeof e.statLines === 'object').sort((a,b) => a.number - b.number);
+  }
+  // Each seat's category totals over some episodes (Cats.categoryTotals over each one's counted holdings' lines then): Map seat ->
+  // { [stat]: value | null }.
+  static totals(state, eps, seats, cats){
+    const defs = state.statDefs || {};
+    return new Map(seats.map(id => [id, Cats.categoryTotals(eps.flatMap(ep => StatsLogic.heldAt(state, ep, id).map(c => ep.statLines[c]).filter(Boolean)), cats, defs)]));
+  }
   // A draft whose whole team counts (count { all: true }: tonight's three, everyone you draft scoring), no lineups to set.
   static wholeTeam(state){
     const g = playedGame(state);
@@ -8981,7 +9051,7 @@ return {
   // the top of this file); SnakeDraftStrategy/BlindDraftStrategy/NoDraftStrategy and
   // EliminationOrderScoringStrategy/PickEmScoringStrategy are those pieces,
   // exported directly for code that wants to bypass the dispatch.
-  Core, ScoringLogic, DraftLogic, RosterLogic, WaiverLogic, EpisodeLogic, BetLogic, FinaleLogic, AnswerLogic, PickEmLogic, BlindDraftLogic, ActiveRosterLogic, StatsLogic, GroupSlotLogic, SetupLogic, RevealLogic, SpoilerLogic, GhostLogic, Migrations,
+  Core, ScoringLogic, DraftLogic, RosterLogic, WaiverLogic, EpisodeLogic, BetLogic, FinaleLogic, AnswerLogic, PickEmLogic, BlindDraftLogic, ActiveRosterLogic, StatsLogic, RotoLogic, GroupSlotLogic, SetupLogic, RevealLogic, SpoilerLogic, GhostLogic, Migrations,
   SpreadLogic, DrawLogic, PriceLogic, BudgetLogic, MarketLogic, AuctionLogic, KeeperLogic, KnockoutLogic, MatchupLogic, WeekLogic, TeamLogic, HandicapLogic, StageLogic, draftFits, draftFitsFor, rankKey,
   SnakeDraftStrategy, StagesScoringStrategy, EliminationOrderScoringStrategy, NoDraftStrategy, PickEmScoringStrategy, BlindDraftStrategy, ActiveRosterEventScoringStrategy, DrawDraftStrategy, AuctionDraftStrategy
 };

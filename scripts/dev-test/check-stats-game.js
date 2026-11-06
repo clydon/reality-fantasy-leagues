@@ -12,7 +12,7 @@
 // answers in game_answers: before the final's kept, their episode has no results and nothing's graded; once kept, a read marks the
 // opener's episode final (ep.gameFinal, no lines) and the server grades them on its games (answer-points.ts leagueAnswers,
 // answerStanding: the 76ers won; Maxey's 32 the most), the viewer at their mark (nothing seen) graded on nothing, and the row saved
-// by a write carries no mark.
+// by a write carries no mark. L3 part 2d: a categories league on it, read with the sport's stats (statDefs) and its matchup's record.
 // No app server: readyLeague is what GET /api/leagues/[id]/state and season-games.ts read through. Every row it makes is keyed
 // "zt-stats-game" (the show's slug, the league's slug) or provider "zt-espn-stats"; it removes them at the end (--keep leaves
 // them; the next run removes them first). Refuses a non-local database. Prints PASS/FAIL.
@@ -183,6 +183,19 @@ async function down() {
       const after = await withLeagueLock(asking.pickem, () => {});
       const row = (await pool.query("SELECT state FROM leagues WHERE id = $1", [asking.pickem])).rows[0].state;
       check(after.episodes.find((e) => e.number === 1).gameFinal === true && !row.episodes.some((e) => "gameFinal" in e), "a write hands back the mark and saves none of it");
+    }
+
+    // L3 part 2d: head to head by the NBA's nine categories on the same season (a lineup of two each, set before the final), its
+    // read stamped with the sport's stats (statDefs) beside the lines, the record the categories won and lost.
+    {
+      const q = structuredClone(state);
+      const cats = defaultsFor("basketball").categories.stats;
+      check(S.setGame(q, { ...spec, score: { by: "stats", categories: cats }, rank: { by: "categories" } }, { ctx: specContextOf(nba) }).length === 0, "a categories game written as a league's own");
+      const id = (await pool.query("INSERT INTO leagues (name, slug, join_code, state) VALUES ('ZT categories', $1, 'ZTCATS', $2) RETURNING id", [`${SLUG}-categories`, JSON.stringify(q)])).rows[0].id;
+      const c = await readyLeague(id, (await leagueStates([id])).get(id));
+      const rec = S.MatchupLogic.view(c, "ann").record;
+      check(!!c.statDefs && c.statDefs["FG%"]?.parts && rec.wins + rec.losses + rec.ties === cats.length, "categories: a read hands the sport's stats over beside the lines; the opener's matchup is each of the nine won, lost or tied", JSON.stringify(rec));
+      check(!s.statDefs, "a game by points per stat gets no statDefs");
     }
 
     // A show's league is never stamped (nothing asked of the sports tables).
