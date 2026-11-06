@@ -30,6 +30,7 @@ import { seasonHeaders } from "./show-space";
 // (POST go), and the bot's clock (cron/bot-research: one due job a call, when no research run is due), which also fills seasons
 // nobody has open. Our bot only: never the site's paid keys (docs/HOSTING.md, paid services contained).
 
+import { pasteScoresByItself, rulebookPrompt, scoreRulebookByItself } from "./desk-rulebooks";
 const ASK_STALE_MS = 6 * 60_000;
 const BUDGET_MS = 280_000;
 /** A step that asks our bot isn't started with less than this left: the next run carries on. */
@@ -78,6 +79,7 @@ function dueAt(r: FillRow): Date | null {
 async function factsOf(seasonId: string, row: Pick<FillRow, "episodes">): Promise<FillFacts & { aired: number }> {
   const { rows } = await pool.query(
     `SELECT s.kind, s.set_up_at IS NOT NULL AS set_up, ss.rulebook_id IS NOT NULL AS has_rulebook,
+            (SELECT r.provenance->>'ladderAt' FROM rulebooks r WHERE r.id = ss.rulebook_id) IS NOT NULL AS scored,
             (SELECT count(*)::int FROM season_cast c WHERE c.season_id = ss.id) AS cast
        FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id = $1`,
     [seasonId]
@@ -89,6 +91,7 @@ async function factsOf(seasonId: string, row: Pick<FillRow, "episodes">): Promis
     kind: r.kind,
     setUp: r.set_up,
     hasRulebook: r.has_rulebook,
+    scored: r.scored,
     cast: r.cast,
     games,
     episodes: row.episodes,
@@ -131,6 +134,15 @@ async function doStep(step: FillStep, row: FillRow, f: FillFacts, o: RunOpts, le
     if (made === "done") await photos(row.season_id, o.base);
     return made === "done" ? "next" : made === "needs" ? "needs" : "stop";
   }
+  if (step === "scores") {
+    // Every moment priced on the ladder, applied by itself: nobody plays it yet (docs/PLAN-rulebook-research.md).
+    if (!ask) return "stop";
+    if (!by) return "needs";
+    const rb = await rulebookIdOf(row.season_id);
+    if (!rb) return "next";
+    await scoreRulebookByItself(rb, by, o.bot, left() - 5_000);
+    return "next";
+  }
   if (step === "cast") {
     if (!ask) return "stop";
     if (!by) return "needs";
@@ -149,6 +161,8 @@ async function doStep(step: FillStep, row: FillRow, f: FillFacts, o: RunOpts, le
   }
   return "next";
 }
+
+const rulebookIdOf = async (seasonId: string): Promise<string | null> => (await pool.query("SELECT rulebook_id FROM show_seasons WHERE id = $1", [seasonId])).rows[0]?.rulebook_id ?? null;
 
 /** The cast's photos, looked up before its step is checked (the user, 2026-11-01: a check with one photo of 30 read as done). What
  *  the credits don't have stays the person's initial; it never holds the job up. */
@@ -417,9 +431,9 @@ async function pasteStep(seasonId: string): Promise<{ row: FillRow; f: FillFacts
   const step = await shownStep(row, f);
   if (!step) throw new HttpError(409, "It's all in already");
   // Only what this job gets: never a cast a game already has, nor episodes switched off.
-  const pastable = step === "episodes" ? stepAction(step, f) !== "skip" : step === "rules" ? !f.setUp : !f.setUp || stepAction(step, f) !== "skip";
+  const pastable = step === "episodes" || step === "scores" ? stepAction(step, f) !== "skip" : step === "rules" ? !f.setUp : !f.setUp || stepAction(step, f) !== "skip";
   if (!pastable) throw new HttpError(409, "Nothing to paste for that");
-  return { row, f, step, made: !f.setUp && step !== "episodes" };
+  return { row, f, step, made: !f.setUp && step !== "episodes" && step !== "scores" };
 }
 
 /** The question for the step it's on (GET .../fill?prompt=1), to ask in your own chat: free, always there, our bot or not. */
@@ -427,6 +441,12 @@ export async function fillPrompt(user: SessionUser, seasonId: string): Promise<{
   await mayFill(user.id, seasonId);
   const { step, made } = await pasteStep(seasonId);
   if (made) return { ...(await makePrompt(user, seasonId, step)), step };
+  if (step === "scores") {
+    const rb = await rulebookIdOf(seasonId);
+    if (!rb) throw new HttpError(409, "Nothing to paste for that");
+    const q = await rulebookPrompt(rb, "scores");
+    return { prompt: q.prompt, task: q.task, step };
+  }
   if (step === "cast") return { ...(await castQuestion(seasonId)), step };
   return { prompt: (await recapPromptFor(user, seasonId)).prompt, task: "finding out what happened in each episode", step };
 }
@@ -441,7 +461,11 @@ export async function fillPaste(user: SessionUser, seasonId: string, answer: unk
   await mayFill(user.id, seasonId);
   const { step, made } = await pasteStep(seasonId);
   if (made) await pasteMake(user, seasonId, null, { part: step, answer }, o.base);
-  else if (step === "cast") await castPastedByItself(seasonId, user, answer, o.base);
+  else if (step === "scores") {
+    const rb = await rulebookIdOf(seasonId);
+    if (!rb) throw new HttpError(409, "Nothing to paste for that");
+    await pasteScoresByItself(rb, user, answer);
+  } else if (step === "cast") await castPastedByItself(seasonId, user, answer, o.base);
   else {
     await pasteRecaps(user, seasonId, answer);
     await askResults(user.id, seasonId).catch((e) => console.error("[season-fill] results:", seasonId, e));

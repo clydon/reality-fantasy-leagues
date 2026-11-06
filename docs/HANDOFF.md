@@ -112,7 +112,9 @@ admin plays too), settling a row at a time (0434); Check for changes keeps Up to
 winner's rung includes the finalist it reaches, immunity includes the zero votes it brings: `chainsOf` and research's `implies`), and
 the fourth promise tested, the finale under two best weeks, in both ownership modes; then the shared step written into both halves (rarity counts double in a shared league),
 a unit on per-amount moments (the Below Deck tip scored per dollar: set its per to 1,000 and save as a fix), and the read-only "How the
-scoring is playing" row on the desk rulebook. The survivoR check wasn't run: the dataset isn't in the repo. **Stage two, built the same day:** the
+scoring is playing" row on the desk rulebook. The survivoR check wasn't run: the dataset isn't in the repo. **Then:** the numbers came out of the first prompt and What scores
+became a step of getting a show ready (0435; applied whole, nobody plays it yet); the desk's Save applies straight away, a fix plus
+"the show changed from Episode N" for a moment new to this season, so How it works never shows it early. **Stage two, built the same day:** the
 commissioner's own What scores in Backstage › Scoring rules on the couch's own copy (`our-scores.ts`; Accept · Adjust · Decline a row, the
 games scored again with Undo; held by their own mark). Check: `check-new-our-scores.js`. **Also the same day:** the Cast tab's story sheet reads by episode, newest first, one line a moment
 with its own points (cast-stats.ts events carry points and units now; DESIGN.md › A castaway's story). Scoring is a **ladder** of eleven rungs with

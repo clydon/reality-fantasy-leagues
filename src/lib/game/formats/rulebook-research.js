@@ -153,7 +153,7 @@ function buildRulebookPrompt({ show, season, airing = false, through = null, tem
     '    for sideTrip: "oneIsCalled": "a journey", "who": ' + choices('tripWho') + ', "canGet": ' + choices('canGet', { many: true }) + ',',
     '      "away": (one side trip at most) ' + choices('away'),
     '  } ],',
-    '  "customMoments": [ things that can happen and are worth scoring that the segments, ways out and twists don\'t already cover. Each one is something ONE person did or had done to them, that a recap would pin on them by name: never a happening of the show as a whole. Written the way a recap would say it ("Got in a fight"). Only what recaps report as yes or no, a count or an amount, never a judgement call ("funniest moment"): {',
+    '  "customMoments": [ things that can happen and are worth scoring that the segments, ways out and twists don\'t already cover (never a number of points: what each is worth is settled afterwards, on a ladder). Each one is something ONE person did or had done to them, that a recap would pin on them by name: never a happening of the show as a whole. Written the way a recap would say it ("Got in a fight"). Only what recaps report as yes or no, a count or an amount, never a judgement call ("funniest moment"): {',
     '    "id", "label",',
     '    "during": optional: { "segment": "<id>" } or { "twist": "<id>" } when it only happens there,',
     '    "counted": ' + choices('counted'),
@@ -162,7 +162,6 @@ function buildRulebookPrompt({ show, season, airing = false, through = null, tem
     '    "reliability": how reliably recaps report it, ' + choices('reliability') + ',',
     '    "exceptWinners": true when it happens during a segment someone wins and its winners can\'t have it (chosen to join a reward they didn\'t win)',
     '  } ],',
-    '  "points": optional: { "<a custom moment\'s id>": suggested points, a number (negative for bad things) },',
     '  "leftOut": ["anything that didn\'t fit the choices above, one sentence each, no names or results"],',
     '  "phaseStarts": only for a season already under way: { "<phase id>": the episode it started in }, for the phases it has reached',
     '}'

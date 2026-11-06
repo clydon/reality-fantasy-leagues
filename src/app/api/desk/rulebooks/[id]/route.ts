@@ -3,7 +3,7 @@ import { apiRoute } from "@/lib/server/api-route";
 import { botFor } from "@/lib/server/ask-bot";
 import { HttpError } from "@/lib/server/db";
 import { requireDesk } from "@/lib/server/desk";
-import { confirmPhase, deskRulebook, lockRulebook, pasteRulebookAnswer, researchKind, rulebookPrompt, saveAsTemplate, saveRulebook, scoringPlay, setLive, settleRulebookAnswer, settleSuggestion } from "@/lib/server/desk-rulebooks";
+import { applyScores, confirmPhase, deskRulebook, lockRulebook, pasteRulebookAnswer, researchKind, rulebookPrompt, saveAsTemplate, saveRulebook, scoringPlay, setLive, settleRulebookAnswer, settleSuggestion } from "@/lib/server/desk-rulebooks";
 import { deleteLibraryRulebook, setTemplate, takeOver } from "@/lib/server/desk-library";
 import { queueRulebook, takeOverQueue } from "@/lib/server/desk-research";
 import { settleNotice } from "@/lib/server/show-changes";
@@ -20,7 +20,9 @@ import { pool } from "@/lib/server/db";
 //   { action: "ask", kind, through? }            Ask our bot (docs/PLAN-rulebook-research.md): Check for changes or What scores,
 //                                                queued behind the other Run nows; its answer is staged for the page
 //   { action: "paste", kind, answer, through? }  an answer from Ask an AI, staged as our bot's is
-//   { action: "answer", answer, status: "used" | "dismissed" }   a staged answer settled (its changes went in the draft, or put away)
+//   { action: "answer", answer, status: "used" | "dismissed", ids?, declined? }   a staged answer settled (Check for changes whole; What scores by row)
+//   { action: "apply", answer, ids, declined }   What scores' Use: the rows picked saved, a fix, except a moment new to this season
+//                                                from Episode 2 on, saved as the show changing from its episode
 //   { action: "notice", notice, status: "added" | "not_new" }   a show change the couches split on, or sent here (6c part 2)
 //   { action: "takeOver" }   a player-made rulebook becomes the desk's (step 10 part 3)
 //   { action: "template" }   a season's: saved as a starting point ({ id }); a library one: offered as one. { action: "untemplate" }, { action: "delete" }
@@ -75,6 +77,13 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ id: str
       return NextResponse.json(await pasteRulebookAnswer(user, id, researchKind(body.kind), body.answer, body.through));
     case "answer":
       return NextResponse.json(await settleRulebookAnswer(user, id, body));
+    case "apply": {
+      // What scores' Use: the rows picked saved (a fix, and new-this-season moments from their episodes), then the page.
+      const ids = Array.isArray(body.ids) ? body.ids.filter((x): x is string => typeof x === "string") : null;
+      const declined = Array.isArray(body.declined) ? body.declined.filter((x): x is string => typeof x === "string") : [];
+      const applied = await applyScores(user.id, id, String(body.answer ?? ""), { ids, declined }, { everything: false });
+      return NextResponse.json({ ...applied, page: await deskRulebook(id, user) });
+    }
     case "suggestion":
       return NextResponse.json(await settleSuggestion(user, id, body));
     case "notice":

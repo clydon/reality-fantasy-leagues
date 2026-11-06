@@ -16,10 +16,11 @@
 //      Episode 9 it shows and settles, and the answer is done; Put away; settled twice refused.
 //   5. Ask our bot: What scores queued, asked (the stand-in gets the scores question), its answer staged; Check for changes the
 //      same (the rulebook question, this rulebook as its template); the bot down refused; a rulebook with no season refused;
-//      Check for changes asked up to Episode 3 (the run's episode, the question's scope, the answer's card).
+//      Check for changes asked up to Episode 3 (the run's episode, the question's scope, the answer's card). Apply: the rows
+//      picked saved as a fix and a moment new from Episode 2 as the show changing from Episode 2; past Episode 9 the held one.
 //   6. In the browser at --width: the Research rows; What scores' sheet, Ask our bot, asking (the spinner), the answer's
-//      card as it lands (polling) as a pick list (added first, then every moment, two declined), Use 7 changes (the draft has
-//      the seven, Discard); Paste it opens Ask an AI's
+//      card as it lands (polling) as a pick list (added first, then every moment, two declined), Save 7 changes (saved as a
+//      fix straight away); Paste it opens Ask an AI's
 //      sheet. Nothing wider than the screen; no page errors.
 //   7. Nothing real moved: no real rulebook's answers or runs.
 // Screenshots go to <outDir>.
@@ -312,10 +313,38 @@ async function main() {
     check((await post({ action: "ask", kind: "check", through: 99 })).status === 400, "asked past the last episode: refused");
     await post({ action: "answer", answer: b3.id, status: "dismissed" });
 
-    // 6. In the browser.
+    // Apply (the desk's Use): the rows picked saved as a fix, and a moment new to this season from Episode 2 as the show changing
+    // from Episode 2; the held one (Episode 9) keeps the answer open and lands from Episode 9 once reached.
+    const paste2 = scoresAnswer(page.now, "edge", {
+      except: { eliminationWon: "wonAlone" },
+      add: [
+        { id: "openingTwist", label: "Won the opening twist", rung: "earned", rarity: "onceOrTwice", known: "thisSeason", firstEpisode: 2 },
+        { id: "lateTwist", label: "Won the Redemption Arena", rung: "bigPlay", rarity: "onceOrTwice", known: "thisSeason", firstEpisode: 9 },
+      ],
+    });
+    r = await post({ action: "paste", kind: "scores", answer: paste2 });
+    const a2 = r.body.research.scores.answer;
+    const v0 = (await pool.query("SELECT version FROM rulebooks WHERE id = $1", [ids.rulebook])).rows[0].version;
+    r = await post({ action: "apply", answer: a2.id, ids: [...a2.rows.filter((x) => x.changed).map((x) => x.id), "openingTwist"], declined: [] });
+    check(r.status === 200 && r.body.fixed >= 1 && r.body.fromEpisodes.join() === "2" && r.body.page.research.scores.answer === null, "apply: a fix, and the opening twist from Episode 2; nothing left to see", JSON.stringify(r.body).slice(0, 200));
+    const { rows: edits } = await pool.query("SELECT from_episode, status, summary FROM rulebook_edits WHERE rulebook_id = $1 AND source = 'admin' ORDER BY from_episode", [ids.rulebook]);
+    const v1 = (await pool.query("SELECT version, provenance->>'ladderAt' AS at FROM rulebooks WHERE id = $1", [ids.rulebook])).rows[0];
+    check(edits.length === 1 && edits[0].from_episode === 2 && edits[0].status === "in_force" && /new from Episode 2/.test(edits[0].summary) && v1.version >= v0 + 2 && !!v1.at, "the show changed from Episode 2 (an edit in force), two saves, priced on the ladder", JSON.stringify({ edits, v0, v1 }));
+    check(!JSON.stringify(await read()).includes("Redemption") && (await pool.query("SELECT settled_at FROM rulebook_answers WHERE id = $1", [a2.id])).rows[0].settled_at === null, "the Redemption Arena still held, the answer open");
+    await pool.query("UPDATE show_follows SET seen_through = 9 WHERE user_id = $1 AND season_id = $2", [ids.desk, ids.season]);
+    const a3 = (await read()).research.scores.answer;
+    r = await post({ action: "apply", answer: a2.id, ids: a3.added.map((m) => m.id), declined: [] });
+    check(r.status === 200 && r.body.fromEpisodes.join() === "9" && (await pool.query("SELECT count(*)::int AS n FROM rulebook_edits WHERE rulebook_id = $1 AND from_episode = 9 AND status = 'in_force'", [ids.rulebook])).rows[0].n === 1, "past Episode 9: the Redemption Arena saved from Episode 9", JSON.stringify(r.body).slice(0, 160));
+    await pool.query("UPDATE show_follows SET seen_through = 3 WHERE user_id = $1 AND season_id = $2", [ids.desk, ids.season]);
+
+    // 6. In the browser. The rulebook holds the ladder's values from the applies above (everything edge, the elimination won
+    // alone, two moments from their episodes), so the stand-in's answer here moves everything to along, but one moment it
+    // leaves as it is (medically removed stays on edge) and one it adds.
+    const nowBlocks = (await read()).now;
+    const nowMoments = momentsFor(nowBlocks);
+    const N = nowMoments.length; // every moment but medically removed changes, plus one added: N picks
     bot.answer = (prompt, kind) => {
-      // Everything on edge (1) but the elimination (4) and medically removed (nothing: as it is), plus one added: 8 moments change.
-      if (kind === "scores") return scoresAnswer(page.now, "edge", { except: { eliminationWon: "wonAlone", medicallyRemoved: "nothing" }, add: [{ id: "calledOut", label: "Called out an opponent", rung: "earned", rarity: "someEpisodes", why: "rare", known: "pastSeasons", counted: "yesNo", answeredBy: "research", reliability: "usually" }] });
+      if (kind === "scores") return scoresAnswer(nowBlocks, "along", { except: { medicallyRemoved: "edge" }, add: [{ id: "calledOut", label: "Called out an opponent", rung: "earned", rarity: "someEpisodes", why: "rare", known: "pastSeasons", counted: "yesNo", answeredBy: "research", reliability: "usually" }] });
       throw new Error(`not asked here: ${kind}`);
     };
     const { page: web, errors, close } = await open({ user: U("desk"), pass: PASSWORD, width, headers });
@@ -341,27 +370,29 @@ async function main() {
     await web.locator('[data-research-answer]').waitFor({ timeout: 30_000 });
     check((await web.locator('[data-score-row="eliminationWon"]').count()) === 1 && (await web.locator('[data-score-added="calledOut"]').count()) === 1, "the answer's card lands in the open sheet: the rescored row and the added moment");
     check((await web.locator("[data-research-answer]").getAttribute("data-research-through")) === "all", "the card is the whole season's");
-    check(/won alone · most episodes/.test(await web.locator('[data-score-row="eliminationWon"]').innerText()) && /earned · some episodes/.test(await web.locator('[data-score-added="calledOut"]').innerText()), "the rung and rarity in words", await web.locator('[data-score-row="eliminationWon"]').innerText());
-    // The pick list: added first, then every moment; a row that changes nothing has no pick; Use counts what's accepted.
+    check(/along · most episodes/.test(await web.locator('[data-score-row="eliminationWon"]').innerText()) && /earned · some episodes/.test(await web.locator('[data-score-added="calledOut"]').innerText()), "the rung and rarity in words", await web.locator('[data-score-row="eliminationWon"]').innerText());
+    // The pick list: added first, then every moment; a row that changes nothing has no pick; Save counts what's accepted.
     const order = await web.locator("[data-score-picks] [data-score-added], [data-score-picks] [data-score-row]").evaluateAll((els) => els.map((e) => e.getAttribute("data-score-added") || e.getAttribute("data-score-row")));
-    check(order[0] === "calledOut" && order.length === 1 + moments.length, "added moments first, then every moment", order.join(","));
+    check(order[0] === "calledOut" && order.length === 1 + N, "added moments first, then every moment", order.join(","));
     check((await web.locator('[data-score-row="medicallyRemoved"][data-same]').count()) === 1 && (await web.locator('[data-score-row="medicallyRemoved"] [data-pick]').count()) === 0, "a moment left as it is has nothing to pick");
-    check((await web.locator("[data-pick][data-on]").count()) === 9 && /Use 9 changes/.test(await web.locator("[data-research-use]").innerText()), "every change accepted to start: Use 9 changes", await web.locator("[data-research-use]").innerText());
+    check((await web.locator("[data-pick][data-on]").count()) === N && new RegExp(`Save ${N} changes`).test(await web.locator("[data-research-use]").innerText()), `every change accepted to start: Save ${N} changes`, await web.locator("[data-research-use]").innerText());
     await web.locator('[data-pick="calledOut"]').click();
     await web.locator('[data-pick="eliminated"]').click();
-    check((await web.locator('[data-score-added="calledOut"][data-declined]').count()) === 1 && /Use 7 changes/.test(await web.locator("[data-research-use]").innerText()), "two declined: Use 7 changes", await web.locator("[data-research-use]").innerText());
+    check((await web.locator('[data-score-added="calledOut"][data-declined]').count()) === 1 && new RegExp(`Save ${N - 2} changes`).test(await web.locator("[data-research-use]").innerText()), `two declined: Save ${N - 2} changes`, await web.locator("[data-research-use]").innerText());
     await shot("4-answer");
     await noWider("the answer's sheet");
+    const versionBefore = Number(await web.locator("[data-desk-rulebook]").getAttribute("data-desk-rulebook"));
+    check(/^Save \d+ changes$/.test((await web.locator("[data-research-use]").innerText()).trim()), "the button says Save: What scores saves straight away, never through the draft");
     await web.locator('[data-research-use]').click();
-    await web.locator('[data-unsaved]').waitFor({ timeout: 10_000 });
+    // A fix, and a show change for the two moments earlier changes brought (their points can't live in the base): the version moves on by two.
+    await web.waitForFunction((v) => Number(document.querySelector("[data-desk-rulebook]")?.getAttribute("data-desk-rulebook")) > v, versionBefore, { timeout: 20_000 });
     await web.locator('[data-desk-row="research-scores"] [data-off]').waitFor({ state: "detached", timeout: 10_000 });
-    check((await web.locator('[data-research-sheet]').count()) === 0 && (await web.locator('[data-desk-row="research-scores"] [data-off]').count()) === 0, "Use 7 changes: the sheet closes, the draft has its changes, the row's dot is gone");
-    // The draft's footer counts edits (every point change is one), so the seven picked read as one line of seven moments.
-    const unsaved = await web.locator("[data-unsaved]").innerText();
-    check(/Suggested points: 7 moments/.test(unsaved) && !/New moment/.test(unsaved), "the draft has the 7 picked points, not the declined one or the declined addition", unsaved);
-    await shot("5-draft");
-    await web.locator('[data-discard]').click();
-    await web.locator('[data-unsaved]').waitFor({ state: "detached", timeout: 10_000 });
+    check((await web.locator('[data-research-sheet]').count()) === 0 && (await web.locator('[data-unsaved]').count()) === 0, `Save ${N - 2} changes: the sheet closes, saved as a fix (the version moved on), nothing in the draft`);
+    const { rows: fixed } = await pool.query("SELECT blocks FROM rulebooks WHERE id = $1", [ids.rulebook]);
+    const savedNow = momentsFor(fixed[0].blocks);
+    const worth = (id) => { const d = savedNow.find((m) => m.id === id)?.defaultPoints; return d && typeof d === "object" ? d.exclusive : d; };
+    check(worth("eliminationWon") === 0.5 && worth("eliminated") === 1 && !(fixed[0].blocks.customMoments || []).some((m) => m.id === "calledOut"), "the rulebook has the picked points, not the declined one or the declined addition", JSON.stringify({ won: worth("eliminationWon"), out: worth("eliminated") }));
+    await shot("5-saved");
     await web.locator('[data-desk-row="research-check"]').click();
     await web.locator('[data-research-sheet="check"] [data-research-paste]').waitFor({ timeout: 10_000 });
     check((await web.locator('[data-research-sheet="check"] [data-question="through"] [data-value]').innerText()).trim() === "3", "Check for changes: Up to episode, suggested from where the admin is");

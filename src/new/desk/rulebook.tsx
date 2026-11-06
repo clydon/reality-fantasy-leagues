@@ -443,9 +443,18 @@ export function RulebookPage({ id }: { id: string }) {
             toast(r.waits ? `${r.text} · ${r.waits}` : r.text);
           }}
           onUse={async (a, blocks, picks) => {
+            if (research.kind === "scores") {
+              // Saved straight away: a fix, and a moment new to this season from its episode (never in the draft, so How it
+              // works keeps it from anyone who hasn't reached it).
+              const r = (await post({ action: "apply", answer: a.id, ids: picks.ids ?? [], declined: picks.declined ?? [] }, "")) as { fixed: number; fromEpisodes: number[]; declined: number };
+              setResearch(null);
+              const bits = [r.fixed ? `${r.fixed} saved as a fix` : "", r.fromEpisodes.length ? `${r.fromEpisodes.length} from ${r.fromEpisodes.length === 1 ? `Episode ${r.fromEpisodes[0]}` : "their episodes"}` : ""].filter(Boolean);
+              toast(bits.length ? `Saved: ${bits.join(", ")}. Every couch is rescored.` : "Nothing to save");
+              return;
+            }
             setDraft(blocks);
             setResearch(null);
-            await post({ action: "answer", answer: a.id, status: "used", ...picks }, "Its changes are in your draft: look them over, then save");
+            await post({ action: "answer", answer: a.id, status: "used" }, "Its changes are in your draft: look them over, then save");
           }}
           onPutAway={(a, picks) => post({ action: "answer", answer: a.id, status: "dismissed", ...picks }, "Put away")}
         />
@@ -579,7 +588,7 @@ function ResearchSheet({
                 Put away
               </Btn>
               <Btn data-research-use tone="must" className="flex-1" disabled={busy || !a.blocks || !picked} onClick={() => void run(use)}>
-                {kind === "scores" && a.blocks ? `Use ${picked} ${picked === 1 ? "change" : "changes"}` : "Use these changes"}
+                {kind === "scores" && a.blocks ? `Save ${picked} ${picked === 1 ? "change" : "changes"}` : "Use these changes"}
               </Btn>
             </div>
           </div>

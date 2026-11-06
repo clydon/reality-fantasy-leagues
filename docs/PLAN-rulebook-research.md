@@ -105,6 +105,20 @@ fantasy team."
   per how much to check; most weeks most people tied; once the season is done, the last episode's best against a best
   earlier week, the fourth promise as it played). By the standing rule it moves nothing: what stands out is for next
   season's starting point, by hand.
+- **The numbers come out of the first prompt; What scores is a step of getting a show ready** (the user, 2026-11-06): the
+  rulebook prompt names the moments (it must: describing the show is one job) and never a number (its `points` field is
+  gone; custom moments start unscored). Getting it ready gains **what scores** after how it's played (`FILL_STEPS`,
+  season_fills.step widened, 0435): our bot asks the scores question for the season's rulebook and the answer is applied
+  whole (`applyScores` with no mark: nobody plays it yet), or pasted the free way; `rulebooks.provenance.ladderAt` marks
+  it priced and the step skips from then on. An answer with a problem is left staged for the desk's card.
+- **Use saves straight away, and new-this-season moments land from their episode.** The desk's What scores Save (and the
+  getting-ready apply) go through `applyScores`: the rows picked are saved as a fix, except a moment new to this season
+  that first applies from Episode 2 or later, saved as "the show changed from Episode N" (one per episode), which How it
+  works already keeps from anyone who hasn't reached N. So an added moment never reaches a player's How it works before
+  their place in the season, whoever added the show and whenever. The draft isn't involved; History has Undo for each
+  save. (A later change already in force past that episode folds the moment into a fix instead, said in History.) The
+  commissioner's settle still writes the copy's base: a held row only shows them once reached, so the gap is other couch
+  members behind them; noted, not built.
 - **A moment belongs to one person** (the user, 2026-11-05, Below Deck 13's first research had "the tip is revealed" and
   "a guest complains" as moments): the rulebook prompt says every custom moment is something one cast member did or had
   done to them, with a line for a reality series beside the talk-show and scripted ones. What scores says such a moment
