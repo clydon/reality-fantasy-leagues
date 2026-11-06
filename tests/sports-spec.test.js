@@ -34,8 +34,10 @@ test("every sport's default specs pass the game spec's own check against the spo
     for (const [name, { spec }] of Object.entries(d.specs)) {
       assert.deepEqual(problems(spec, ctx), [], `${sport.name} ${name}`);
       for (const w of specWaitsFor(spec)) assert.equal(w.step, "sports", `${sport.name} ${name}: ${w.at}`);
-      // A game scored by stats carries the sport's table (L4 part 1a's pick'em and pick a few are scored by their answers).
-      if (spec.score.by === "stats") {
+      // A game scored by stats carries the sport's table (L4 part 1a's pick'em and pick a few are scored by their answers), or its
+      // categories (L4 part 1b's categories and roto).
+      if (spec.score.categories) assert.deepEqual(spec.score.categories, d.categories.stats, `${sport.name} ${name}: the sport's categories`);
+      else if (spec.score.by === "stats") {
         assert.deepEqual(Object.keys(spec.score).filter((k) => k !== "by" && k !== "points"), Object.keys(d.scoring).filter((k) => k.startsWith("by")), `${sport.name} ${name}: the table's own ways`);
         for (const k of ["byPosition", "byPlace", "byFormat"]) if (d.scoring[k]) assert.deepEqual(spec.score[k], d.scoring[k]);
       }

@@ -418,7 +418,7 @@ How the table is ordered. **`rank.by`**:
 | `worth` | cash plus your team at today's prices | a stock market |
 | `coop` | everyone wins or loses together, against the show | a game of questions with lives |
 | `matchups` | head to head each episode, more points wins it; the standings by wins | a draft, a game of questions or a pool (C2 part 4b: on what each episode's pick earned), with nobody racing, cut or losing a life beside it |
-| `categories`, `roto` | sports formats | the sports branch |
+| `categories`, `roto` | a sport's categories (`score: { by: 'stats', categories }`): head to head by each category won (`categories`; `matchups` on a categories score: whoever wins more of them), or each category ranking everyone, points by rank (`roto`); the scorer `sequence/categories.js` (L4 part 1b) | a draft scored by a sport's categories (the sports branch: the engine's hook plays them) |
 
 Beside it:
 

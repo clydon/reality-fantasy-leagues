@@ -549,7 +549,7 @@ test("Baseball's defaults are data the spec reads: stat keys, slots of its posit
   assert.equal(season.count.start, starters, "the season's lineup is its slots");
   assert.equal(season.get.each, starters + d.slots.bench, "and its draft the slots and the bench");
   assert.equal(season.closes, d.closes);
-  for (const { spec } of Object.values(d.specs).filter((x) => x.spec.score.by === "stats")) {
+  for (const { spec } of Object.values(d.specs).filter((x) => x.spec.score.by === "stats" && !x.spec.score.categories)) {
     assert.equal(spec.spec, 1);
     assert.equal(spec.score.by, "stats");
     assert.deepEqual(spec.score.points, d.scoring.points);

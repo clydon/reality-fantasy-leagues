@@ -87,6 +87,10 @@
     "pickAFew": {
       "about": "Each game, before it starts: pick three players. 3 points for each one who has the most receiving yards in the game (tied, each of them), most points wins.",
       "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers" }, "rank": { "by": "total" }, "closes": "start", "ask": [{ "id": "few", "ask": "Pick three: who has the most receiving yards?", "answer": "person", "pick": 3, "from": "cast", "points": 3, "settle": { "by": "stat", "stat": "RECYDS", "take": "most" }, "asked": "each", "closes": "start" }] }
+    },
+    "bestBall": {
+      "about": "Best ball: draft a full roster and never set a lineup: each game, your best nine count, most points wins.",
+      "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "draft", "each": 15, "order": "snake", "own": "exclusive" }, "count": { "best": 9 }, "score": { "by": "stats", "points": { "PYDS": 0.04, "PTD": 4, "INT": -1, "RYDS": 0.1, "RTD": 6, "REC": 0.5, "RECYDS": 0.1, "RECTD": 6, "RETTD": 6, "FRTD": 6, "2PT": 2, "FUML": -2, "FGM0": 3, "FGM20": 3, "FGM30": 3, "FGM40": 4, "FGM50": 5, "XPM": 1, "DSTSACK": 1, "DSTINT": 2, "DSTFR": 2, "DSTTD": 6, "DSTSAF": 2, "DSTBLK": 2, "PA0": 10, "PA1_6": 7, "PA7_13": 4, "PA14_20": 1, "PA21_27": 0, "PA28_34": -1, "PA35": -4 } }, "rank": { "by": "total" }, "closes": "start" }
     }
   }
 }

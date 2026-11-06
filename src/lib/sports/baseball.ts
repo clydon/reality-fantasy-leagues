@@ -1,4 +1,4 @@
-import { TeamSport, addStats, count, headerTeams, idOf, inOrder, isFinal, num, ordinal, position as pos, ratio, str, val as n, type Box, type BoxPerson, type EspnPlay, type EspnSummary, type LockCadence, type Periods, type Play, type Position, type PositionGroup, type StatDef, type Stats } from "./sport";
+import { TeamSport, addStats, count, headerTeams, idOf, inOrder, isFinal, num, ordinal, position as pos, per, str, val as n, type Box, type BoxPerson, type EspnPlay, type EspnSummary, type LockCadence, type Periods, type Play, type Position, type PositionGroup, type StatDef, type Stats } from "./sport";
 
 // Baseball (the MLB; college baseball is CollegeBaseball, on its vocabulary and this reader): its vocabulary and ESPN's
 // readers. ESPN's per-player batting lines have no doubles, triples or total bases (its labels are H-AB AB R H RBI HR BB K #P
@@ -40,9 +40,9 @@ const STATS: StatDef[] = [
   count("SH", "Sacrifice bunts", "SH", "sacrifice bunt", BATTING),
   count("GIDP", "Grounded into double plays", "GIDP", "double play grounded into", BATTING, "lower"),
   count("NP", "Pitches seen", "#P", "pitch seen", BATTING),
-  { key: "AVG", label: "Batting average", short: "AVG", noun: "batting average", group: BATTING, better: "higher", kind: "rate", of: (s) => ratio(n(s, "H"), n(s, "AB")) },
-  { key: "OBP", label: "On-base percentage", short: "OBP", noun: "on-base percentage", group: BATTING, better: "higher", kind: "rate", of: (s) => ratio(n(s, "H") + n(s, "BB") + n(s, "HBP"), n(s, "AB") + n(s, "BB") + n(s, "HBP") + n(s, "SF")) },
-  { key: "SLG", label: "Slugging percentage", short: "SLG", noun: "slugging percentage", group: BATTING, better: "higher", kind: "rate", of: (s) => ratio(n(s, "H") + n(s, "2B") + 2 * n(s, "3B") + 3 * n(s, "HR"), n(s, "AB")) },
+  { key: "AVG", label: "Batting average", short: "AVG", noun: "batting average", group: BATTING, better: "higher", kind: "rate", ...per({ H: 1 }, { AB: 1 }) },
+  { key: "OBP", label: "On-base percentage", short: "OBP", noun: "on-base percentage", group: BATTING, better: "higher", kind: "rate", ...per({ H: 1, BB: 1, HBP: 1 }, { AB: 1, BB: 1, HBP: 1, SF: 1 }) },
+  { key: "SLG", label: "Slugging percentage", short: "SLG", noun: "slugging percentage", group: BATTING, better: "higher", kind: "rate", ...per({ H: 1, "2B": 1, "3B": 2, HR: 3 }, { AB: 1 }) },
 
   count("GS", "Games started", "GS", "start", PITCHING),
   count("OUTS", "Outs recorded", "Outs", "out recorded", PITCHING),
@@ -62,8 +62,8 @@ const STATS: StatDef[] = [
   count("BS", "Blown saves", "BS", "blown save", PITCHING, "lower", "final"),
   // A start of 6 innings or more with 3 earned runs or fewer: worked out game by game, then added (Sport.full).
   { key: "QS", label: "Quality starts", short: "QS", noun: "quality start", group: PITCHING, better: "higher", kind: "derived", of: (s) => (n(s, "GS") > 0 && n(s, "OUTS") >= 18 && n(s, "ER") <= 3 ? 1 : 0) },
-  { key: "ERA", label: "Earned run average", short: "ERA", noun: "earned run average", group: PITCHING, better: "lower", kind: "rate", of: (s) => ratio(27 * n(s, "ER"), n(s, "OUTS")) },
-  { key: "WHIP", label: "Walks and hits per inning", short: "WHIP", noun: "WHIP", group: PITCHING, better: "lower", kind: "rate", of: (s) => ratio(3 * (n(s, "PH") + n(s, "PBB")), n(s, "OUTS")) },
+  { key: "ERA", label: "Earned run average", short: "ERA", noun: "earned run average", group: PITCHING, better: "lower", kind: "rate", ...per({ ER: 27 }, { OUTS: 1 }) },
+  { key: "WHIP", label: "Walks and hits per inning", short: "WHIP", noun: "WHIP", group: PITCHING, better: "lower", kind: "rate", ...per({ PH: 3, PBB: 3 }, { OUTS: 1 }) },
 ];
 
 const GROUPS: PositionGroup[] = [

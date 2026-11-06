@@ -61,6 +61,10 @@
     "pickAFew": {
       "about": "Each match, before it starts: pick three players. 3 points for each one who scores the most goals in it (tied, each of them), most points wins.",
       "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers" }, "rank": { "by": "total" }, "closes": "start", "ask": [{ "id": "few", "ask": "Pick three: who has the most goals?", "answer": "person", "pick": 3, "from": "cast", "points": 3, "settle": { "by": "stat", "stat": "G", "take": "most" }, "asked": "each", "closes": "start" }] }
+    },
+    "bestBall": {
+      "about": "Best ball: draft a full roster and never set a lineup: each game, your best eleven count, most points wins.",
+      "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "draft", "each": 15, "order": "snake", "own": "exclusive" }, "count": { "best": 11 }, "score": { "by": "stats", "points": { "APP": 1, "MIN60": 1, "G": 5, "A": 3, "CS": 1, "GA2": 0, "SV3": 1, "PKSV": 5, "PKM": -2, "YC": -1, "RC": -3, "OG": -2 }, "byPosition": { "G": { "GK": 10, "DEF": 6, "MID": 5, "FWD": 4 }, "CS": { "GK": 4, "DEF": 4, "MID": 1, "FWD": 0 }, "GA2": { "GK": -1, "DEF": -1, "MID": 0, "FWD": 0 } } }, "rank": { "by": "total" }, "closes": "start" }
     }
   }
 }

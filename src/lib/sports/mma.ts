@@ -1,4 +1,4 @@
-import { BoutSport, count, idOf, inOrder, isoOf as iso, msOf, nonzero, num, ordinal, pair, position as pos, ratio, str, val as n, type Bout, type BoutAnswer, type BoutBox, type BoutCard, type BoutPlay, type BoutResult, type EspnBoutCompetition, type EspnBoutCompetitor, type EspnBoutCore, type EspnBoutPlay, type EspnBoutStatus, type FieldEntry, type Play, type Position, type PositionGroup, type StatDef, type Stats } from "./sport";
+import { BoutSport, count, idOf, inOrder, isoOf as iso, msOf, nonzero, num, ordinal, pair, position as pos, per, str, val as n, type Bout, type BoutAnswer, type BoutBox, type BoutCard, type BoutPlay, type BoutResult, type EspnBoutCompetition, type EspnBoutCompetitor, type EspnBoutCore, type EspnBoutPlay, type EspnBoutStatus, type FieldEntry, type Play, type Position, type PositionGroup, type StatDef, type Stats } from "./sport";
 
 // MMA (the UFC, the PFL and every promotion ESPN carries: `mma/<league>`): its vocabulary and ESPN's readers
 // (docs/PLAN-start-a-game-gpt.md track L, L5 part 4a).
@@ -97,13 +97,13 @@ const STATS: StatDef[] = [
   count("SCA", "Significant strikes attempted in the clinch", "CLINCHA", "significant strike attempted in the clinch", STRIKING),
   count("SGL", "Significant strikes landed on the ground", "GROUND", "significant strike on the ground", STRIKING),
   count("SGA", "Significant strikes attempted on the ground", "GROUNDA", "significant strike attempted on the ground", STRIKING),
-  { key: "SSACC", label: "Significant strike accuracy", short: "SS%", noun: "significant strike accuracy", group: STRIKING, better: "higher", kind: "rate", of: (s) => ratio(n(s, "SSL"), n(s, "SSA")) },
+  { key: "SSACC", label: "Significant strike accuracy", short: "SS%", noun: "significant strike accuracy", group: STRIKING, better: "higher", kind: "rate", ...per({ SSL: 1 }, { SSA: 1 }) },
 
   // Grappling.
   count("TDL", "Takedowns", "TD", "takedown", GRAPPLING),
   count("TDA", "Takedowns attempted", "TDA", "takedown attempted", GRAPPLING),
   count("SLAM", "Slams", "SLAM", "slam", GRAPPLING),
-  { key: "TDACC", label: "Takedown accuracy", short: "TD%", noun: "takedown accuracy", group: GRAPPLING, better: "higher", kind: "rate", of: (s) => ratio(n(s, "TDL"), n(s, "TDA")) },
+  { key: "TDACC", label: "Takedown accuracy", short: "TD%", noun: "takedown accuracy", group: GRAPPLING, better: "higher", kind: "rate", ...per({ TDL: 1 }, { TDA: 1 }) },
   count("SUBA", "Submission attempts", "SUBA", "submission attempt", GRAPPLING),
   count("REV", "Reversals", "REV", "reversal", GRAPPLING),
   count("ADV", "Advances", "ADV", "advance", GRAPPLING),

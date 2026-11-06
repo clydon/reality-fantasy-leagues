@@ -1,4 +1,4 @@
-import { TeamSport, addStats, cleanDeltas, count as stat, headerTeams, idOf, inOrder, isFinal, num, pair, position as pos, ratio, rosterOf, str, val as n, type Box, type BoxPerson, type EspnPlay, type EspnSummary, type LockCadence, type Periods, type Play, type Position, type PositionGroup, type StatDef, type Stats } from "./sport";
+import { TeamSport, addStats, cleanDeltas, count as stat, headerTeams, idOf, inOrder, isFinal, num, pair, position as pos, per, rosterOf, str, val as n, type Box, type BoxPerson, type EspnPlay, type EspnSummary, type LockCadence, type Periods, type Play, type Position, type PositionGroup, type StatDef, type Stats } from "./sport";
 
 // Basketball (the NBA and the WNBA; college basketball, its own feed, below): its vocabulary and ESPN's readers.
 //
@@ -24,13 +24,13 @@ const STATS: StatDef[] = [
   count("PTS", "Points", "PTS", "point"),
   count("FGM", "Field goals made", "FGM", "field goal made"),
   count("FGA", "Field goals attempted", "FGA", "field goal attempted"),
-  { key: "FG%", label: "Field goal percentage", short: "FG%", noun: "field goal percentage", group: BOX, better: "higher", kind: "rate", of: (s) => ratio(n(s, "FGM"), n(s, "FGA")) },
+  { key: "FG%", label: "Field goal percentage", short: "FG%", noun: "field goal percentage", group: BOX, better: "higher", kind: "rate", ...per({ FGM: 1 }, { FGA: 1 }) },
   count("3PM", "Three-pointers made", "3PM", "three-pointer made"),
   count("3PA", "Three-pointers attempted", "3PA", "three-pointer attempted"),
-  { key: "3P%", label: "Three-point percentage", short: "3P%", noun: "three-point percentage", group: BOX, better: "higher", kind: "rate", of: (s) => ratio(n(s, "3PM"), n(s, "3PA")) },
+  { key: "3P%", label: "Three-point percentage", short: "3P%", noun: "three-point percentage", group: BOX, better: "higher", kind: "rate", ...per({ "3PM": 1 }, { "3PA": 1 }) },
   count("FTM", "Free throws made", "FTM", "free throw made"),
   count("FTA", "Free throws attempted", "FTA", "free throw attempted"),
-  { key: "FT%", label: "Free throw percentage", short: "FT%", noun: "free throw percentage", group: BOX, better: "higher", kind: "rate", of: (s) => ratio(n(s, "FTM"), n(s, "FTA")) },
+  { key: "FT%", label: "Free throw percentage", short: "FT%", noun: "free throw percentage", group: BOX, better: "higher", kind: "rate", ...per({ FTM: 1 }, { FTA: 1 }) },
   judged(count("OREB", "Offensive rebounds", "OREB", "offensive rebound")),
   judged(count("DREB", "Defensive rebounds", "DREB", "defensive rebound")),
   judged(count("REB", "Rebounds", "REB", "rebound")),

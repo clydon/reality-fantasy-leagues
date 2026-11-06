@@ -124,8 +124,9 @@ export type SpecScore =
   | { by: "stages" }
   /** sports: the Sport's stat keys -> points */
   /** L1 part 4a: by a sport's stats (statScoreProblems): points each, and its table's points by position group, by place (a
-   *  place or a range, "4-10") and by a bout's format (its rounds or sets, "5"). */
-  | { by: "stats"; points?: Record<string, number>; byPosition?: Record<string, Record<string, number>>; byPlace?: Record<string, Record<string, number>>; byFormat?: Record<string, Record<string, number>> };
+   *  place or a range, "4-10") and by a bout's format (its rounds or sets, "5"). L4 part 1b: `categories` instead of points, the
+   *  sport's stat keys whose totals are compared (head to head or roto: categoryProblems, sequence/categories.js). */
+  | { by: "stats"; points?: Record<string, number>; byPosition?: Record<string, Record<string, number>>; byPlace?: Record<string, Record<string, number>>; byFormat?: Record<string, Record<string, number>>; categories?: string[] };
 
 /** A9: a parlay of a game of questions' plain questions (2 to 4, asked the same way), its multiplier when all are right. */
 export interface SpecParlay {
@@ -510,6 +511,9 @@ export interface SpecContext {
   /** The sport's stat keys (the Sport's, on the sports branch); a label is a singular noun ("home run"); `place`: its value is a
    *  place (golf's POS), scored only by place. */
   stats?: ({ key: string; label?: string; place?: boolean } | string)[];
+  /** L4 part 1b: the stats a categories game can name (the Sport's specCategories): every one but a place's, a rate's marked
+   *  (worked out over the window), and which way is better (a label is a singular noun: "turnover"). */
+  categories?: ({ key: string; label?: string; better?: "higher" | "lower"; rate?: boolean } | string)[];
   /** L1 part 4a: the sport's position groups (a stat's points by position name them; a label is plural: "Goalkeepers"), its
    *  bouts' formats (the rounds or sets they're scheduled for, { key: "5", label: "5 sets" }; a sport without bouts has none)
    *  and its standard roster (its lineup's starters and its bench), which raise a show's size limits. The sports'
@@ -811,6 +815,20 @@ export const MAX_PLAYOFF_TEAMS: number;
 /** The rank keys that are head to head's: playoffs, odd, quiet. */
 export const MATCHUP_KEYS: readonly ("playoffs" | "odd" | "quiet")[];
 export function playoffRounds(teams: number): number;
+/** L4 part 1b: how many categories a game compares; a categories game's ranks; a spec's categories (null when it has none). */
+export const MAX_CATEGORIES: number;
+export const CATEGORY_RANKS: readonly ("categories" | "matchups" | "roto")[];
+export function categoriesOf(spec: unknown): string[] | null;
+export interface CategoryParts {
+  by: "categories" | "matchups" | "roto";
+  categories: string[];
+  /** Head to head's (null for roto). */
+  odd: "median" | "bye" | null;
+  quiet: "skip" | "tie" | null;
+  playoffs: { teams: number; rounds: number; from: number | null } | null;
+}
+/** A game ranked by a sport's categories, read the one way from a whole spec; null for a game that isn't one. */
+export function categoryParts(spec: GameSpec | SpecInput | null | undefined): CategoryParts | null;
 export interface MatchupParts {
   odd: "median" | "bye";
   quiet: "skip" | "tie";

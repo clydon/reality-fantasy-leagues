@@ -1,4 +1,4 @@
-import { TeamSport, addStats, cleanDeltas, count, headerTeams, idOf, inOrder, isFinal, num, pair, position as pos, ratio, rosterOf, str, val as n, type Box, type BoxPerson, type BoxTeam, type EspnPlay, type EspnSummary, type EspnTable, type LockCadence, type Periods, type Play, type Position, type PositionGroup, type StatDef, type Stats } from "./sport";
+import { TeamSport, addStats, cleanDeltas, count, headerTeams, idOf, inOrder, isFinal, num, pair, position as pos, per, rosterOf, str, val as n, type Box, type BoxPerson, type BoxTeam, type EspnPlay, type EspnSummary, type EspnTable, type LockCadence, type Periods, type Play, type Position, type PositionGroup, type StatDef, type Stats } from "./sport";
 
 // Football (the NFL; college football's plays are written otherwise: college-football.ts reads them on this vocabulary and box
 // reader, through the same drives frame, readDrives): its vocabulary and ESPN's readers.
@@ -35,7 +35,7 @@ const TWO_POINT = "two-point";
 
 const judged = (def: StatDef): StatDef => ({ ...def, judged: true });
 const derived = (key: string, label: string, short: string, noun: string, group: string, of: (s: Stats) => number | null, better: "higher" | "lower" = "higher"): StatDef => ({ key, label, short, noun, group, better, kind: "derived", of });
-const rate = (key: string, label: string, short: string, noun: string, group: string, of: (s: Stats) => number | null, better: "higher" | "lower" = "higher"): StatDef => ({ key, label, short, noun, group, better, kind: "rate", of });
+const rate = (key: string, label: string, short: string, noun: string, group: string, top: Stats, bottom: Stats, better: "higher" | "lower" = "higher"): StatDef => ({ key, label, short, noun, group, better, kind: "rate", ...per(top, bottom) });
 /** Points allowed in a bracket, Yahoo's (0, 1-6, 7-13 ... 35 and more): 1 when a team defense's points allowed fall in it. */
 const allowed = (key: string, from: number, to: number | null) => {
   const label = to == null ? `${from}+ points allowed` : from === to ? "Shutouts" : `${from}-${to} points allowed`;
@@ -53,14 +53,14 @@ export const FOOTBALL_STATS: StatDef[] = [
   count("SACKYDS", "Sack yards lost", "SYL", "yard lost to a sack", PASSING, "lower"),
   count("P2PT", "Two-point passes", "2PT", "two-point pass", TWO_POINT),
   derived("NPYDS", "Net passing yards", "NET", "net passing yard", PASSING, (s) => n(s, "PYDS") - n(s, "SACKYDS")),
-  rate("CMP%", "Completion percentage", "PCT", "completion percentage", PASSING, (s) => ratio(n(s, "CMP"), n(s, "PATT"))),
-  rate("YPA", "Yards per pass attempt", "AVG", "yards per pass attempt", PASSING, (s) => ratio(n(s, "PYDS"), n(s, "PATT"))),
+  rate("CMP%", "Completion percentage", "PCT", "completion percentage", PASSING, { CMP: 1 }, { PATT: 1 }),
+  rate("YPA", "Yards per pass attempt", "AVG", "yards per pass attempt", PASSING, { PYDS: 1 }, { PATT: 1 }),
 
   count("RATT", "Rushing attempts", "CAR", "carry", RUSHING),
   count("RYDS", "Rushing yards", "YDS", "rushing yard", RUSHING),
   count("RTD", "Rushing touchdowns", "TD", "rushing touchdown", RUSHING),
   count("R2PT", "Two-point runs", "2PT", "two-point run", TWO_POINT),
-  rate("YPC", "Yards per carry", "AVG", "yards per carry", RUSHING, (s) => ratio(n(s, "RYDS"), n(s, "RATT"))),
+  rate("YPC", "Yards per carry", "AVG", "yards per carry", RUSHING, { RYDS: 1 }, { RATT: 1 }),
 
   count("REC", "Receptions", "REC", "reception", RECEIVING),
   count("RECYDS", "Receiving yards", "YDS", "receiving yard", RECEIVING),
@@ -69,7 +69,7 @@ export const FOOTBALL_STATS: StatDef[] = [
   // penalty wiped).
   judged(count("TGT", "Targets", "TGTS", "target", RECEIVING)),
   count("RE2PT", "Two-point catches", "2PT", "two-point catch", TWO_POINT),
-  rate("YPR", "Yards per reception", "AVG", "yards per reception", RECEIVING, (s) => ratio(n(s, "RECYDS"), n(s, "REC"))),
+  rate("YPR", "Yards per reception", "AVG", "yards per reception", RECEIVING, { RECYDS: 1 }, { REC: 1 }),
 
   count("FUM", "Fumbles", "FUM", "fumble", FUMBLES, "lower"),
   count("FUML", "Fumbles lost", "LOST", "fumble lost", FUMBLES, "lower"),
@@ -116,13 +116,13 @@ export const FOOTBALL_STATS: StatDef[] = [
   count("XPA", "Extra points attempted", "XPA", "extra point attempted", KICKING),
   derived("XPMISS", "Extra points missed", "XP MISS", "missed extra point", KICKING, (s) => n(s, "XPA") - n(s, "XPM"), "lower"),
   derived("KPTS", "Kicking points", "PTS", "kicking point", KICKING, (s) => 3 * n(s, "FGM") + n(s, "XPM")),
-  rate("FG%", "Field goal percentage", "PCT", "field goal percentage", KICKING, (s) => ratio(n(s, "FGM"), n(s, "FGA"))),
+  rate("FG%", "Field goal percentage", "PCT", "field goal percentage", KICKING, { FGM: 1 }, { FGA: 1 }),
 
   count("PUNT", "Punts", "NO", "punt", PUNTING),
   count("PUNTYDS", "Punt yards", "YDS", "punt yard", PUNTING),
   count("PUNTTB", "Punt touchbacks", "TB", "punt touchback", PUNTING, "lower"),
   count("PUNTIN20", "Punts inside the 20", "In 20", "punt inside the 20", PUNTING),
-  rate("PUNTAVG", "Yards per punt", "AVG", "yards per punt", PUNTING, (s) => ratio(n(s, "PUNTYDS"), n(s, "PUNT"))),
+  rate("PUNTAVG", "Yards per punt", "AVG", "yards per punt", PUNTING, { PUNTYDS: 1 }, { PUNT: 1 }),
 
   // A team's defense and special teams, as one line (defenseId): Yahoo's DEF. DSTG is its one game, so its line is there from
   // the kickoff (a shutout with nothing else to show is still a game).

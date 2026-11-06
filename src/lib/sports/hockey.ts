@@ -1,4 +1,4 @@
-import { TeamSport, addStats, cleanDeltas, count, headerTeams, idOf, inOrder, isFinal, num, position as pos, ratio, rosterOf, str, val as n, type Box, type BoxPerson, type EspnSummary, type LockCadence, type Periods, type Play, type Position, type PositionGroup, type StatDef, type Stats } from "./sport";
+import { TeamSport, addStats, cleanDeltas, count, headerTeams, idOf, inOrder, isFinal, num, position as pos, per, rosterOf, str, val as n, type Box, type BoxPerson, type EspnSummary, type LockCadence, type Periods, type Play, type Position, type PositionGroup, type StatDef, type Stats } from "./sport";
 
 // Hockey (the NHL): its vocabulary and ESPN's readers.
 //
@@ -41,7 +41,7 @@ const STATS: StatDef[] = [
   judged(count("GV", "Giveaways", "GV", "giveaway", SKATING, "lower")),
   count("FW", "Faceoffs won", "FW", "faceoff won", SKATING),
   count("FL", "Faceoffs lost", "FL", "faceoff lost", SKATING, "lower"),
-  { key: "FO%", label: "Faceoff percentage", short: "FO%", noun: "faceoff percentage", group: SKATING, better: "higher", kind: "rate", of: (s) => ratio(n(s, "FW"), n(s, "FW") + n(s, "FL")) },
+  { key: "FO%", label: "Faceoff percentage", short: "FO%", noun: "faceoff percentage", group: SKATING, better: "higher", kind: "rate", ...per({ FW: 1 }, { FW: 1, FL: 1 }) },
   count("SHFT", "Shifts", "SHFT", "shift", SKATING, "higher", "final"),
   // The shootout's own, from its plays (ESPN's box score leaves them at 0).
   count("SOGOAL", "Shootout goals", "SO G", "shootout goal", SKATING),
@@ -49,9 +49,9 @@ const STATS: StatDef[] = [
   count("GA", "Goals against", "GA", "goal against", GOALTENDING, "lower"),
   judged(count("SA", "Shots against", "SA", "shot against", GOALTENDING)),
   judged(count("SV", "Saves", "SV", "save", GOALTENDING)),
-  { key: "SV%", label: "Save percentage", short: "SV%", noun: "save percentage", group: GOALTENDING, better: "higher", kind: "rate", of: (s) => ratio(n(s, "SV"), n(s, "SA")) },
+  { key: "SV%", label: "Save percentage", short: "SV%", noun: "save percentage", group: GOALTENDING, better: "higher", kind: "rate", ...per({ SV: 1 }, { SA: 1 }) },
   // A full game's worth (60 minutes) of goals against, from the seconds on ice.
-  { key: "GAA", label: "Goals against average", short: "GAA", noun: "goals against average", group: GOALTENDING, better: "lower", kind: "rate", of: (s) => ratio(3600 * n(s, "GA"), n(s, "TOI")) },
+  { key: "GAA", label: "Goals against average", short: "GAA", noun: "goals against average", group: GOALTENDING, better: "lower", kind: "rate", ...per({ GA: 3600 }, { TOI: 1 }) },
   judged(count("ESSV", "Even-strength saves", "ESSV", "even-strength save", GOALTENDING)),
   judged(count("PPSV", "Power-play saves", "PPSV", "power-play save", GOALTENDING)),
   judged(count("SHSV", "Shorthanded saves", "SHSV", "shorthanded save", GOALTENDING)),

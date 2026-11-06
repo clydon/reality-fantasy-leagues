@@ -14,6 +14,8 @@
 // correction, that makes the plays' box score ESPN's own (a scoring change after the play, a pitcher's win). The proof, per
 // sport: for a recorded finished game, the plays alone reduce to ESPN's own box score (tests/sports-*.test.js).
 import { ordinal } from "@/lib/game/sports-stats";
+import { rateOf } from "@/lib/game/sequence/categories";
+import type { CategoryDefs, RateParts } from "@/lib/game/sequence/categories";
 
 export { ordinal };
 
@@ -54,6 +56,9 @@ export interface StatDef {
   judged?: true;
   /** A derived or rate stat from someone's counts; null when it can't be said (an AVG with no at-bats). */
   of?: (s: Stats) => number | null;
+  /** A rate's parts, as data (every rate has them, its `of` made from them: per): its weighted counts over its weighted counts, so
+   *  a window of games works it out from their counts added, never an average of each game's (a categories game: L4 part 1b). */
+  parts?: RateParts;
 }
 
 /** A group of positions that share stats and slots ("Batters", "Pitchers"; "Forwards", "Defense", "Goalies"). */
@@ -289,6 +294,9 @@ export const position = (key: string, label: string, group: string): Position =>
 export const val = (s: Stats, k: string) => s[k] ?? 0;
 /** A rate's fraction, null when there's nothing to divide by (an AVG with no at-bats). */
 export const ratio = (top: number, bottom: number) => (bottom > 0 ? top / bottom : null);
+/** A rate stat's parts (weighted counts over weighted counts: ERA's { ER: 27 } over { OUTS: 1 }) and its `of` from them, one
+ *  definition for a game's line and a window's (src/lib/game/sequence/categories.js rateOf). */
+export const per = (top: Stats, bottom: Stats): Pick<StatDef, "parts" | "of"> => ({ parts: { top, bottom }, of: (s) => rateOf({ top, bottom }, s) });
 
 /** Everyone in a game's box score, by ESPN's athlete id, to their team's id: who's on which side. */
 export function rosterOf(summary: EspnSummary): Map<string, string> {
@@ -379,6 +387,21 @@ export abstract class Sport {
    *  `place`: it scores only by place). */
   specStats(): { key: string; label: string; place?: true }[] {
     return this.stats.filter((s) => s.kind !== "rate").map((s) => ({ key: s.key, label: s.noun, ...(s.place ? { place: true as const } : {}) }));
+  }
+
+  /** What a categories game reads of each stat (L4 part 1b: src/lib/game/sequence/categories.js), every one but a place's: which
+   *  way is better, its stat group (a rate adds only its group's lines) and a rate's parts. The server hands them to the engine
+   *  beside a league's lines, so the engine works a window's rates out without the sport's code. */
+  categoryDefs(): CategoryDefs {
+    const out: CategoryDefs = {};
+    for (const s of this.stats) if (!s.place) out[s.key] = { better: s.better, group: s.group, ...(s.parts ? { parts: s.parts } : {}) };
+    return out;
+  }
+
+  /** The stats a categories game can name (ctx.categories: [{ key, label, better, rate? }]), every one but a place's: a rate's too,
+   *  worked out over the window. Its label is the stat's own ("Turnovers": a category is a total, said in a list). */
+  specCategories(): { key: string; label: string; better: Better; rate?: true }[] {
+    return this.stats.filter((s) => !s.place).map((s) => ({ key: s.key, label: s.label, better: s.better, ...(s.kind === "rate" ? { rate: true as const } : {}) }));
   }
 
   /** The formats its bouts are scheduled for (their rounds or sets: a spec's byFormat names them); none for a sport without

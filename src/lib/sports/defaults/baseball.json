@@ -60,6 +60,18 @@
     "pickAFew": {
       "about": "Each game, before it starts: pick three players. 3 points for each one who has the most total bases in the game (tied, each of them), most points wins.",
       "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers" }, "rank": { "by": "total" }, "closes": "start", "ask": [{ "id": "few", "ask": "Pick three: who has the most total bases?", "answer": "person", "pick": 3, "from": "cast", "points": 3, "settle": { "by": "stat", "stat": "TB", "take": "most" }, "asked": "each", "closes": "start" }] }
+    },
+    "categories": {
+      "about": "A season-long league by categories: draft a full roster, set a daily lineup, play someone head to head in Yahoo's 5x5's ten categories: each category you win is a win.",
+      "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "draft", "each": 23, "order": "snake", "own": "exclusive" }, "count": { "start": 18 }, "score": { "by": "stats", "categories": ["R", "HR", "RBI", "SB", "AVG", "W", "SV", "PK", "ERA", "WHIP"] }, "rank": { "by": "categories" }, "closes": "daily" }
+    },
+    "roto": {
+      "about": "A season-long league, roto-style: draft a full roster, set a daily lineup; each of Yahoo's 5x5's ten categories ranks everyone over the season, points by rank, most points wins.",
+      "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "draft", "each": 23, "order": "snake", "own": "exclusive" }, "count": { "start": 18 }, "score": { "by": "stats", "categories": ["R", "HR", "RBI", "SB", "AVG", "W", "SV", "PK", "ERA", "WHIP"] }, "rank": { "by": "roto" }, "closes": "daily" }
+    },
+    "bestBall": {
+      "about": "Best ball: draft a full roster and never set a lineup: each game, your best eighteen count, most points wins.",
+      "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "draft", "each": 23, "order": "snake", "own": "exclusive" }, "count": { "best": 18 }, "score": { "by": "stats", "points": { "R": 1, "TB": 1, "RBI": 1, "BB": 1, "K": -1, "SB": 1, "IP": 3, "PH": -1, "ER": -2, "PBB": -1, "PK": 1, "W": 2, "L": -2, "SV": 5, "HLD": 2 } }, "rank": { "by": "total" }, "closes": "start" }
     }
   }
 }

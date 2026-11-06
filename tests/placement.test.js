@@ -38,6 +38,12 @@ const OPENED = [
   { why: "a draft's teams knocked out by its cuts, or racing", test: (n) => /^(snake|blind|draw|auction|market)-[^|]+\|[^|]+\|(standing-cut-teams|total-race-teams)\|/.test(n), to: only },
 ];
 
+/** What track L refuses that only waited before (L4 part 1b, schema.js categoryProblems): a rank by roto on anything but a sport's
+ *  categories (score.by 'stats' with categories), the same wait with a problem. */
+const CLOSED = [
+  { why: "a rank by roto on no categories", test: (n) => /^[^|]+\|[^|]+\|roto\|/.test(n), to: (was) => `${was[0]}p${was[2]}` },
+];
+
 test("the placement corpus: every verdict as the seven shapes gave it, but the combinations part 4 opens", () => {
   const list = C.corpus();
   const was = C.record();
@@ -48,21 +54,23 @@ test("the placement corpus: every verdict as the seven shapes gave it, but the c
   const moved = [];
   list.forEach(([name], i) => {
     if (now[i] === was[i]) return;
-    const open = OPENED.find((o) => o.test(name));
+    const open = OPENED.find((o) => o.test(name)) || CLOSED.find((o) => o.test(name));
     assert.ok(open, `${name}: ${was[i]} -> ${now[i]}, and part 4 opens nothing there`);
     // Its refusal is lifted, nothing else (or, where nothing else holds it back, it plays).
     assert.equal(now[i], open.to(was[i], name, nowOf), `${name}: ${open.why}`);
     moved.push(i);
   });
   // Each opening moves something (the corpus reaches it).
-  for (const o of OPENED) assert.ok(moved.some((i) => o.test(list[i][0])), `the corpus reaches ${o.why}`);
+  for (const o of [...OPENED, ...CLOSED]) assert.ok(moved.some((i) => o.test(list[i][0])), `the corpus reaches ${o.why}`);
   // Part 4a's 169 (a game of questions' combinations), part 4b's 770: 150 play now (28 pools by their points, 14 games in stages
   // with a stage of one, 108 drafts whose teams are knocked out or race), and 620 lose only a problem while something else still
   // waits (questions beside a pool or a draft, a count that doesn't fit, a sport's piece). Part 4c's 854 (against part 4b's engine; 35
   // of them part 4b had moved already, so 819 more here): 744 play now (728 drafts asking their own questions, 16 games in stages with
   // a stage of one), and 110 lose only a wait or a problem while something else still holds them back (a count that doesn't fit, a
   // captain on best ball, a market's own problem, a wager with a share, their cuts or a race).
-  assert.equal(moved.length, 169 + 770 + 819);
+  // L4 part 1b's 354: a rank by roto on a show's game refused, as well as waiting for the sports branch (375 in all, 21 of them a
+  // draft's own questions part 4c had moved already, each refused the same way its twin asking nothing is).
+  assert.equal(moved.length, 169 + 770 + 819 + 354);
   // What plays: 933 before part 4, and every opening that plays now (none played before: each had a problem or a wait).
   assert.ok(moved.every((i) => !C.plays(was[i])));
   assert.equal(now.filter(C.plays).length, 933 + moved.filter((i) => C.plays(now[i])).length);

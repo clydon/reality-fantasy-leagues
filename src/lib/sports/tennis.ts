@@ -1,4 +1,4 @@
-import { BoutSport, addStats, cleanDeltas, count, idOf, isoOf as iso, msOf, num, ordinal, position as pos, ratio, str, val as n, type Bout, type BoutAnswer, type BoutBox, type BoutCard, type BoutPlay, type BoutResult, type BoutState, type DrawPlace, type EspnBoutCompetition, type EspnBoutCompetitor, type EspnLinescore, type FieldEntry, type Play, type Position, type PositionGroup, type SetScore, type StatDef, type Stats } from "./sport";
+import { BoutSport, addStats, cleanDeltas, count, idOf, isoOf as iso, msOf, num, ordinal, position as pos, per, str, val as n, type Bout, type BoutAnswer, type BoutBox, type BoutCard, type BoutPlay, type BoutResult, type BoutState, type DrawPlace, type EspnBoutCompetition, type EspnBoutCompetitor, type EspnLinescore, type FieldEntry, type Play, type Position, type PositionGroup, type SetScore, type StatDef, type Stats } from "./sport";
 
 // Tennis (the ATP's and the WTA's tours: `tennis/atp`, `tennis/wta`, all ESPN carries): its vocabulary and ESPN's reader
 // (docs/PLAN-start-a-game-gpt.md track L, L5 part 4b).
@@ -49,7 +49,7 @@ const STATS: StatDef[] = [
   count("MP", "Matches played", "MP", "match played", RESULT),
   count("W", "Matches won", "W", "match won", RESULT),
   count("L", "Matches lost", "L", "match lost", RESULT, "lower"),
-  { key: "WPCT", label: "Match win percentage", short: "W%", noun: "match win percentage", group: RESULT, better: "higher", kind: "rate", of: (s) => ratio(n(s, "W"), n(s, "W") + n(s, "L")) },
+  { key: "WPCT", label: "Match win percentage", short: "W%", noun: "match win percentage", group: RESULT, better: "higher", kind: "rate", ...per({ W: 1 }, { W: 1, L: 1 }) },
   count("STR", "Straight-sets wins", "STR", "straight-sets win", RESULT),
   count("WRET", "Wins by retirement", "WRET", "win by the opponent's retirement", RESULT),
   count("WRET1", "Wins by retirement in the 1st set", "RET1", "win by retirement in the 1st set", RESULT),
@@ -64,10 +64,10 @@ const STATS: StatDef[] = [
   // Sets and games: a match tiebreak is a set of one game; a set a retirement stopped counts its games, not the set.
   count("SW", "Sets won", "SW", "set won", SETS),
   count("SL", "Sets lost", "SL", "set lost", SETS, "lower"),
-  { key: "SPCT", label: "Set win percentage", short: "S%", noun: "set win percentage", group: SETS, better: "higher", kind: "rate", of: (s) => ratio(n(s, "SW"), n(s, "SW") + n(s, "SL")) },
+  { key: "SPCT", label: "Set win percentage", short: "S%", noun: "set win percentage", group: SETS, better: "higher", kind: "rate", ...per({ SW: 1 }, { SW: 1, SL: 1 }) },
   count("GW", "Games won", "GW", "game won", SETS),
   count("GL", "Games lost", "GL", "game lost", SETS, "lower"),
-  { key: "GPCT", label: "Game win percentage", short: "G%", noun: "game win percentage", group: SETS, better: "higher", kind: "rate", of: (s) => ratio(n(s, "GW"), n(s, "GW") + n(s, "GL")) },
+  { key: "GPCT", label: "Game win percentage", short: "G%", noun: "game win percentage", group: SETS, better: "higher", kind: "rate", ...per({ GW: 1 }, { GW: 1, GL: 1 }) },
   count("TBW", "Tiebreaks won", "TBW", "tiebreak won", SETS),
   count("TBL", "Tiebreaks lost", "TBL", "tiebreak lost", SETS, "lower"),
   // A bagel: a set won without losing a game (6-0, or a short set's 4-0); not a match tiebreak.

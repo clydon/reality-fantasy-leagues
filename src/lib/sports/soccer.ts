@@ -1,4 +1,4 @@
-import { TeamSport, addStats, cleanDeltas, count as stat, headerTeams, idOf, inOrder, isFinal, msOf, num, position as pos, ratio, str, val as n, type Box, type BoxPerson, type EspnSummary, type EspnTeam, type LockCadence, type Periods, type Play, type Position, type PositionGroup, type StatDef, type Stats } from "./sport";
+import { TeamSport, addStats, cleanDeltas, count as stat, headerTeams, idOf, inOrder, isFinal, msOf, num, position as pos, per, str, val as n, type Box, type BoxPerson, type EspnSummary, type EspnTeam, type LockCadence, type Periods, type Play, type Position, type PositionGroup, type StatDef, type Stats } from "./sport";
 
 // Soccer (every league ESPN carries: they write the same, checked on the Premier League, MLS, the Champions League, the
 // Carabao Cup and the DFB-Pokal, 2026-10-28): its vocabulary and ESPN's readers.
@@ -46,7 +46,7 @@ const STATS: StatDef[] = [
   judged(stat("A", "Assists", "A", "assist", ATTACKING)),
   judged(stat("SHOT", "Shots", "SH", "shot", ATTACKING)),
   judged(stat("SOG", "Shots on target", "ST", "shot on target", ATTACKING)),
-  { key: "SOG%", label: "Shots on target percentage", short: "ST%", noun: "shots on target percentage", group: ATTACKING, better: "higher", kind: "rate", of: (s) => ratio(n(s, "SOG"), n(s, "SHOT")) },
+  { key: "SOG%", label: "Shots on target percentage", short: "ST%", noun: "shots on target percentage", group: ATTACKING, better: "higher", kind: "rate", ...per({ SOG: 1 }, { SHOT: 1 }) },
   stat("PKG", "Penalties scored", "PKG", "penalty scored", ATTACKING),
   stat("PKA", "Penalties taken", "PKA", "penalty taken", ATTACKING),
   // Saved or missed: FPL's penalty miss.
@@ -64,7 +64,7 @@ const STATS: StatDef[] = [
   stat("PKSV", "Penalties saved", "PKSV", "penalty saved", KEEPING),
   // FPL's "+1 for every 3 saves".
   derived("SV3", "Every three saves", "SV3", "three saves", KEEPING, (s) => Math.floor(n(s, "SV") / 3)),
-  { key: "SV%", label: "Save percentage", short: "SV%", noun: "save percentage", group: KEEPING, better: "higher", kind: "rate", of: (s) => ratio(n(s, "SV"), n(s, "SV") + n(s, "GA")) },
+  { key: "SV%", label: "Save percentage", short: "SV%", noun: "save percentage", group: KEEPING, better: "higher", kind: "rate", ...per({ SV: 1 }, { SV: 1, GA: 1 }) },
 
   judged(stat("FC", "Fouls committed", "FC", "foul committed", DISCIPLINE, "lower")),
   judged(stat("FA", "Fouls suffered", "FS", "foul suffered", DISCIPLINE)),

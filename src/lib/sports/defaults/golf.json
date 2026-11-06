@@ -50,6 +50,10 @@
     "pickAFew": {
       "about": "Each tournament, before it starts: pick three golfers. 5 points if one of them wins, most points wins.",
       "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers" }, "rank": { "by": "total" }, "closes": "start", "ask": [{ "id": "few", "ask": "Pick three golfers: one of them wins?", "answer": "person", "pick": 3, "from": "cast", "points": 5, "settle": { "by": "final", "take": "winner" }, "asked": "each", "closes": "start" }] }
+    },
+    "bestBall": {
+      "about": "Best ball: draft a full roster and never set a lineup: each event, your best four count, most points wins.",
+      "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "draft", "each": 6, "order": "snake", "own": "exclusive" }, "count": { "best": 4 }, "score": { "by": "stats", "points": { "HIO": 5, "ALB": 15, "EAG": 9, "BIR": 3.5, "PAR": 0.5, "BOG": -1.3, "DBL": -5, "WORSE": -5, "BFR": 5, "BS3": 3, "BS4": 5, "BS5": 10, "BS6": 18 }, "byPlace": { "POS": { "1": 25, "2": 12, "3": 10, "4-10": 8, "11-20": 3 } } }, "rank": { "by": "total" }, "closes": "start" }
     }
   }
 }

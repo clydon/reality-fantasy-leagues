@@ -1111,7 +1111,7 @@ engine track; L brings each sport's data to it. Its screens wait for the UI trac
     grades them already) and lineup locks per sport from each sport's cadence and ESPN's starts (built 2026-11-06: As built
     below); part 1b, categories and roto (the spec's shape, the check, a pure scorer beside the sequence for the hook to call: each
     category over a window from summed counts, a rate from its parts) with head-to-head's and best ball's specs on the recorded
-    fixtures; part 2, squares (a sports way to `get`: a grid of the two sides' last digits, paid by period from the sport's
+    fixtures (built 2026-11-06: As built below); part 2, squares (a sports way to `get`: a grid of the two sides' last digits, paid by period from the sport's
     period scores) and brackets (A8's order on a draw: tennis's `draws()`, a playoff's series); live calls wait for A15 (not built
     yet: its clock is L2's), and every stats format plays once the hook does (written down for the engine lane below).
 - **L5. More of ESPN:** soccer; college and the WNBA; golf, racing, MMA and tennis (the field and bout shapes). A part per
@@ -3421,6 +3421,96 @@ calls, nothing stored).**
 - **Pick a few's stat is one per sport** (its headline: points, receiving yards, total bases, goals), so football's ignores a
   rusher. A stat the sport works out (scrimmage yards, touchdowns of any kind) would be a derived stat in football.ts. (G3 asks
   better ones; or L5's football.)
+
+**L4 part 1b as built: categories and roto, and head to head's and best ball's default specs (2026-11-06, `sports`, not merged; no
+migration, no ESPN calls, nothing stored).**
+- **The spec's shape** (`game-spec/schema.js`): the categories live on the score, `score: { by: 'stats', categories: ['FG%', 'REB',
+  ...] }` (1 to `MAX_CATEGORIES`, 20, each once, never beside a points table): what counts is the stats, and the rank says how
+  they're compared. `rank.by` `categories`: head to head, each category won a win, lost a loss, the same a tie (Yahoo's "each
+  category"), with head to head's playoffs, odd one out and quiet week (`matchupProblems` takes it); `matchups` on a categories
+  score: whoever wins more categories wins the matchup (Yahoo's "most categories"); `roto`: each category ranks everyone on the
+  game so far, points by rank. A categories score left without a rank is head to head by each category (`fullSpec`). Refused
+  (`categoryProblems`): a categories rank without a categories score (the corpus' 375 roto ranks on a show's game: the placement
+  test's `CLOSED`), a categories score ranked any other way, best ball's best few (best by what), a race, cuts, `oneLeft`, `allOut`,
+  teams of players, a handicap or questions beside it (all points), anything but a draft. `categoryParts(s)` reads it the one way
+  (`{ by, categories, odd, quiet, playoffs }`, head to head's from the same `h2hParts` as `matchupParts`, which now returns null for
+  a categories game: it isn't head to head on points). `categoriesOf`, `CATEGORY_RANKS`, the types (index.d.ts).
+- **Its check against the sport**: `ctx.categories` (`specContextOf`: the Sport's `specCategories`, every stat but a place's, a
+  rate's marked, which way is better, its label): a category is one of them (a rate too, though it never scores points), never a
+  place ("POS is a place").
+- **Rates as data** (`sport.ts`): every rate's `StatDef.parts` (`{ top, bottom }`, weighted counts over weighted counts: ERA's
+  `{ ER: 27 }` over `{ OUTS: 1 }`, GAA's `{ GA: 3600 }` over `{ TOI: 1 }`), its `of` made from them (`per`), so a game's line and a
+  window's agree; the nine sports' 24 rates now say theirs. `Sport.categoryDefs()` is what the engine reads of each stat (better,
+  group, parts), handed over by the server beside a league's lines, so the engine works a window's rates out without a sport's code.
+- **The scorer** (`src/lib/game/sequence/categories.js`, new, plain CommonJS with its types, beside `stats.js`): `categoryTotals`
+  (a seat's lines over a window, `windowLines` picking each episode's counted holdings: a count and a derived stat added, a rate from
+  its parts added over the lines in its own stat group, so a skater's time on ice is no goalie's, and a count in both parts added
+  once; null with nothing to divide by); `compareCategory` (lower better where the sport says; nothing to say loses, two of them
+  tie); `categoryMatchup` (each category won, lost or tied, and the result by most categories); `categoryWeek` (round r of the
+  sequence's `roundRobin`, the odd one out against everyone else's middle in each category or a bye, a quiet week skipped or tied);
+  `categoryRecords` (by each category or by each matchup); `roto` (points by rank, the best as many as there are seats, the tied
+  sharing their places', the most first, a tie keeping the seats' order).
+- **The words** (`describe.js`): "Nine categories: field goal percentage, ..., blocks and turnovers (fewer is better in turnovers)."
+  (a rate's "lower is better in earned run average"); "Each game you play one of the others head to head in every category: each one
+  you win is a win." / "whoever wins more categories wins it" / "Each category ranks everyone on their totals so far, the best earning
+  the most points: most points wins."; How it works (your starters' or everyone drafted's totals over the part or from the start, a
+  rate from what's added up and never an average, none last, the odd one out, a quiet part, the standings, the playoffs: their
+  sentences now shared with head to head on points, `playoffRule`, `finalRule`).
+- **The defaults**: `categories` and `roto` season specs for basketball (Yahoo's nine), hockey (Yahoo's ten) and baseball (Yahoo's
+  5x5), the season's draft, lineup and daily lock, the sport's `categories.stats`; `bestBall` for basketball, football, baseball,
+  hockey, soccer (the season's draft and table, its starters' number best) and golf (six drafted, the best four each event). Every
+  one passes the engine's check against its sport and waits only for the sports branch's pieces (`score.by` stats; categories and
+  roto; daily locks).
+- **Checks.** `tests/sports-categories.test.js` (new, 8): every rate's parts its `of`; **a week of basketball** (the 76ers' opener,
+  the WNBA's final, a men's and a women's college game: Maxey and three others against Mitchell and three) summed against ESPN's own
+  box scores, FG% and FT% the week's makes over attempts (not each game's averaged), the matchup category by category (Maxey and
+  Mitchell alone: 3-3-3, 32 points each a tie); a rate with nothing to divide by; FO% and OBP with a count in both parts; **GAA** on
+  Kings at Rangers (the Rangers' two goalies: 5 against over 3,485 seconds, the skaters' time left out); **baseball's 5x5 as roto**
+  over the Red Sox-Yankees series (ERA, WHIP and AVG from the series' counts, each category handing out 10 among four, better never
+  fewer points); roto's ties by hand; a week of categories with an odd one out, a bye, records both ways, a quiet week; the check's
+  refusals and `categoryParts`; the words; **best ball** on the 76ers' opener (thirteen held, the best ten through the sequence's
+  `best` and `episodeTotal`) and **head to head on points** (the season spec, the sequence's `matchups` over the opener and the
+  WNBA's final). `tests/placement.test.js`: `CLOSED`, the 354 roto ranks newly refused (375, 21 of them moved by part 4c already).
+  The sports' own tests and sports-spec's read a categories spec's categories, not a table. 1,732 unit tests; `tsc` clean; eslint
+  clean on src/lib/sports, src/lib/server/sports, src/lib/game/sequence, schema.js and describe.js. `check-finals.js` (all pass),
+  `check-matchup.js` (all pass), `check-live-event.js` (6 of 6).
+- `/code-review` on the diff (its fixes: a count in both of a rate's parts was added twice, FO%, OBP and tennis's win
+  percentages wrong; roto on a pick and questions beside categories passed the check; "fewer" said of a rate; "last" said of a
+  rate nobody has, now "tied with anyone else who has none"; the about lines' "each week" against a matchup a game; head to head's
+  parts and the playoffs' sentences read twice, now shared; the old "Ranked by category" fallbacks, dead, removed). Left for the hook
+  (below): `flagsOf`' `hasMatchups` and settings.js's `rankMatchups` don't read a categories game's head to head.
+- **For the engine lane (with L3 part 2's hook):**
+  - `schema.js` placement: `LINES.stats` for a categories score has no lines of points; its place is step 5's (the week's result)
+    and step 6's (rank): `rankPlace` takes `categories`, `matchups` and `roto` on a categories score (`categoryParts`), nothing
+    racing or cut (the check refuses them already).
+  - `state-logic.js`: `MatchupLogic` on `categoryParts` when it's head to head (by `categories` or `matchups`): each regular-season
+    episode's pairs from the same round robin (`categoryWeek` takes the sequence's `roundRobin`), each seat's totals over the
+    episode (`categoryTotals(windowLines(state.statLines, k, k, heldAt), cats, state.statDefs)`: a lineup's starters then, or the
+    whole team), the standings by `categoryRecords` (by each category or each matchup: wins, a tie half) with no points to break
+    ties (a later rule: the categories' own totals, or the head-to-head record); the playoffs a matchup each round by most
+    categories, the same number to the better seed; `endsAt` as head to head's. `roto`: the table by `roto` over the game so far
+    (from its first episode to the viewer's mark), its points the row's total. `flagsOf` `hasMatchups` and settings.js's
+    `rankMatchups` read a categories game's head to head too.
+  - The server hands `Sport.categoryDefs()` over beside `leagueGames`' `lines` (as `statDefs`, or whatever name the engine picks).
+  - VOCAB: `rank.by` `categories` and `roto` to 'now' with `score.by` stats.
+  - A matchup over a week of games (several episodes: a Tuesday-to-Monday window, `locks.ts`' week) is the window `windowLines`
+    takes; today each episode is one game, so a matchup is one game (as head to head on points is). A league's slate (L4 part
+    1a's Noticed) makes the week the natural window.
+
+**L4 part 1b noticed, not fixed:**
+- **A categories matchup is one game long** while a season is one game an episode (a team's schedule): Yahoo's are a week of a
+  whole league's games. The spec has no window of its own; the hook can take the week's episodes once a season is a league's slate
+  (L4 part 1a's Noticed, "Finding a game" or its own step). The about lines no longer say "each week".
+- **Head to head by categories has no tiebreak past the record** (a points game breaks ties on the points for). Yahoo breaks them on
+  the categories' own record; the hook's call, or the user's.
+- **A rate with too little behind it counts** (one at-bat's 1.000 AVG, a reliever's two outs' ERA): Yahoo and ESPN set minimums
+  (innings pitched a week, at-bats) below which a rate category is lost. A spec field for it (`minimums: { ERA: { OUTS: 60 } }`)
+  when a couch asks. (G3 or the user.)
+- **Hockey's goalie who played without facing a shot** has no goaltending counts, so his time on ice isn't in his team's GAA
+  (a rate adds only the lines with a count in its group, and a line keeps no zeros). Rare (a minute or two in relief). (A line
+  could keep a goalie's zero shots against.)
+- **The scorer compares rates at full precision**: Yahoo shows FG% to three places; two seats whose rates differ past the third
+  place aren't tied here. A rounding rule if a couch sees a "tie" lost. (U1's display, or the user.)
 
 **Open, from the sports plan:** head-to-head's schedule over a span, and playoffs; whether a sport's moves follow Weekly
 Lineup's waivers or need their own rhythm for daily sports; what a live call is worth, and how fast they open and close;
