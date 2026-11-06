@@ -74,6 +74,29 @@ https://claude.ai/artifact/3E6rgiMSJcP3MYJaQkS3rh. Seven flows; part 1's built s
   same pace use the standard way**: those who reveal that episode together (on the same episode at once) put in claims as a
   normal waiver week and the usual priority settles them, among whoever's on pace. Part 3b designs when "together" closes.
 
+## Exclusive teams: Watch it together (the user, 2026-11-06)
+
+Own pace is for **shared** games only (Survival Pool, Weekly Lineup, Outlast with shared teams, bingo, calls, trivia: parts 1–3a).
+Exclusive ownership needs one shared "now" (who's free, who claims first), so **exclusive on a season that's out is its own mode,
+synchronous: Watch it together**. The user's case: watching The Challenge with their wife, same episode, same night, so they can
+run a real draft and real waivers. Part 3b (exclusive at your own pace, asynchronous) is dropped.
+
+Mocked as flow 8 in the own-pace mock (https://claude.ai/artifact/3E6rgiMSJcP3MYJaQkS3rh):
+- **Start a game** on a season that's out asks one more thing first: *How do you watch?* **Each at our own pace** (the shared
+  games) or **Together** (every game, exclusive Outlast included: "Same episode, same night. Real drafts and waivers, like it's
+  airing").
+- **One clock for the game:** an episode "airs" for the game when anyone taps **We're watching it now** (moves and claims lock
+  for everyone, waivers settle); the next episode opens when everyone has revealed this one. The runner can skip someone who
+  drifted off (Backstage).
+- **The draft:** the usual draft room on the cast as it stood before the start, started by hand on draft night.
+- **Waivers:** as live, between episodes: the week opens once everyone has revealed and someone lost a castaway; claims settle at
+  the next "We're watching it now".
+- **Tonight:** one plate per game (Get set · Watch · Reveal) with who's set / who's revealed, and a Nudge while you wait on someone
+  (fair here: you agreed to watch together).
+- Engine direction: one league-wide mark (the classic design's catch-up pointer, `RevealLogic.revealedThroughEpisode`, which the
+  engine and `air-times.ts` already honour), the game's own airtime per episode stamped by "We're watching it now", waivers
+  read on the copy at the game's mark. To be planned in detail before it's built.
+
 ## How it reuses the engine
 
 | Need | What exists | What's new |
