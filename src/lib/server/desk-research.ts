@@ -586,6 +586,36 @@ export async function runNow(
 }
 
 /**
+ * A season with no bingo bank of its own gets one (docs/PLAN-own-pace-games.md: a game at your own pace on a season added after it
+ * aired has no episode banks, the bot writes those the day before an episode airs): queued like Run now's season bank, asked by
+ * whoever started the game, behind whatever's asking, the queue handed to a request of its own (handOn). Nothing when the season
+ * has its bank, one's already on its way, or the bot isn't answering (bingo just stays away, as it does today). Never throws; run
+ * it after the answer (start-game.ts), so starting the game never waits on it.
+ */
+export async function queueSeasonBingo(userId: string, seasonId: string, origin: string | null, now = new Date(), bot?: string): Promise<boolean> {
+  try {
+    const { rows: has } = await pool.query("SELECT EXISTS (SELECT 1 FROM bingo_squares WHERE season_id = $1 AND episode IS NULL AND status = 'live') AS has", [seasonId]);
+    if (has[0].has) return false;
+    if (!(await askBotStatus({ bot })).available) return false;
+    const season = await job(seasonId);
+    const aired = episodeAirTimes(season).filter((e) => e.at.getTime() <= now.getTime());
+    const episode = aired.length ? aired[aired.length - 1].episode + 1 : 1;
+    const { rowCount } = await pool.query(
+      `INSERT INTO desk_runs (season_id, episode_number, kind, for_season, asked_by, bot) VALUES ($1, $2, 'bingo', true, $3, $4)
+       ON CONFLICT (season_id, kind, episode_number, for_season) WHERE done_at IS NULL DO NOTHING`,
+      [seasonId, episode, userId, bot ?? null]
+    );
+    if (!rowCount) return false;
+    await logDesk(pool, { entity: "season", entityId: seasonId, action: "run", text: "Bingo, the season's bank: asked for a game at your own pace", userId });
+    if (origin) await handOn(origin);
+    return true;
+  } catch (e) {
+    console.error(`[desk-runs] couldn't ask for ${seasonId}'s bingo bank:`, e);
+    return false;
+  }
+}
+
+/**
  * Ask our bot for a season's cast (the Cast page, part 5a): queued like Run now, behind whatever's asking (one question at a
  * time), as episode 0; its answer is staged for the page's review (desk-cast-page.ts askCastNow). The same ask already queued
  * is joined. Answers what it waits behind.

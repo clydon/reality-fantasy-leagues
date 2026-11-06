@@ -189,6 +189,15 @@ The one-night games follow your episode on a show watched at your own pace (ever
 - Checked by `check-own-pace.js`: calls 5 open (alex on 5), 6 behind, 4 closed with verdicts and a call on it refused; the Games
   tab's "Your Episode 5" with its Call it row.
 
+## As built: bingo's bank at your own pace (2026-11-05)
+
+A season added after it aired has no episode banks (the bot writes those the day before an episode airs) and no season bank
+unless an admin ran Write squares now, so bingo showed nothing at your own pace. Now starting an own-pace game on a season with
+no bank of its own asks our bot for one (`desk-research.ts queueSeasonBingo`, after the answer: the desk's Run now queue, a
+season bank, asked by whoever started the game, logged on the desk), handed to a request of its own (`handOn`). Nothing when
+the season has its bank, one's on its way, or the bot isn't answering. A dev server's stand-in bot comes through the start
+route (`botFor`). `check-own-pace.js` proves it with a stand-in (never ChatGPT) and cleans what it made on the real season.
+
 ## Noticed, not fixed
 - The Play it card on a finished season offered Start a game and the sheet then refused it (the dead end that started this).
   Part 1 fixes it by making the start work; the Games tab's own Start row already hid itself.
@@ -196,7 +205,4 @@ The one-night games follow your episode on a show watched at your own pace (ever
   nobody new joins, as in a live game. At your own pace that can shut the door earlier than feels right; a rule for part 3.
 - The hub's Where everyone is on the couch's own-pace season reads `ownPace` through the home read's games (GameRef.ownPace):
   built, not looked at in a browser.
-- **Bingo needs a bank on a finished season.** A season added after it aired has no episode banks (the bot writes them the day
-  before an episode airs) and no season bank unless an admin runs Write squares now, so bingo shows nothing at your own pace
-  there. Next: when an own-pace game starts on a season with no bank, plan its `bingo@season` run (db/bot-research.js planRuns).
 - The finish plate's "Start another" from the mock is skipped (the user, 2026-11-05: nothing to point it at yet).

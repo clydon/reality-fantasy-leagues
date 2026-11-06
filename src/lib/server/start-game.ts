@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import StateLogic from "@/lib/game/state-logic.js";
 import { addBot, MAX_BOTS, type BotLevel } from "@/lib/game/computer-players";
 import { gameLine, gamesFor, noFitLine } from "@/lib/game/formats/rulebook-fits.js";
@@ -17,6 +18,7 @@ import { pool, HttpError } from "./db";
 import { followLeagueProgress } from "./follows";
 import { refused } from "./game-writes";
 import { EVERYTHING, seenThrough } from "./guard";
+import { queueSeasonBingo } from "./desk-research";
 import { linkProblem } from "./league-groups";
 import { leagueStates } from "./league-states";
 import { makeLeague } from "./new-game";
@@ -466,7 +468,10 @@ export async function startGame(
   seasonId: string,
   couchId: string | null,
   body: { game?: unknown; tell?: unknown; again?: unknown; from?: unknown; phase?: unknown; to?: unknown; bots?: unknown; level?: unknown; late?: unknown; questions?: unknown },
-  now = new Date()
+  now = new Date(),
+  origin: string | null = null,
+  /** A dev server's stand-in bot (ask-bot.ts botFor), for the season's bingo bank. */
+  bot?: string
 ): Promise<Started> {
   const againId = typeof body.again === "string" ? body.again : null;
   const start = typeof body.from === "number" ? body.from : null;
@@ -606,6 +611,8 @@ export async function startGame(
     return false;
   });
   await followLeagueProgress(user.id, leagueId);
+  // At your own pace, bingo needs a bank the season may not have (docs/PLAN-own-pace-games.md): asked of our bot, not waited on.
+  if (opts.ownPace) after(() => queueSeasonBingo(user.id, seasonId, origin, now, bot));
 
   // Tell the couch: one push to everyone else on it, to the show's Games tab (its own moment since step 15 part 2: On the couch).
   const audience = body.tell === false ? [] : (await couchMembers([couch])).get(couch)?.filter((m) => m.userId !== user.id).map((m) => m.userId) ?? [];

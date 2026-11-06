@@ -24,6 +24,8 @@ const fs = require("fs");
 const { Pool } = require("pg");
 const { api, open } = require("./browser");
 const fixture = require("./new-fixture");
+const fakeBot = require("./fake-bot");
+const bingo = require("./bingo-fixture");
 
 const DB = process.env.AUTH_DATABASE_URL || "";
 if (!/@(localhost|127\.0\.0\.1|\[::1\])[:/]/.test(DB)) throw new Error("check-own-pace runs against a local database only");
@@ -53,7 +55,20 @@ async function main() {
   if (!season) throw new Error("no finished season with accepted results in the local database: pass --season=<id>");
   const fx = await fixture.up(pool);
   const couch = fx.couchId;
-  const alex = await api({ user: fixture.username("alex"), pass: PASSWORD });
+  // A stand-in bot (never ChatGPT) for the season's bingo bank, which starting a game at your own pace asks for when the season
+  // has none: 30 squares written, every one passing the check. Only a season with no bank of its own is asked (and cleaned).
+  const fb = await fakeBot.start({
+    answer: (prompt) => {
+      if (fakeBot.kindOf(prompt) === "bingoCheck") {
+        const n = (prompt.match(/^\d+\. /gm) || []).length;
+        const checks = Array.from({ length: n }, (_, i) => ({ n: i + 1, seen: true, likely: true, scoring: false, spoiler: false, sameAs: null, likelihood: null, note: "" }));
+        return "```json\n" + JSON.stringify({ checks }) + "\n```";
+      }
+      return bingo.answer(bingo.squares({ likely: 10, maybe: 14, longshot: 6 }));
+    },
+  });
+  const hadBank = (await pool.query("SELECT EXISTS (SELECT 1 FROM bingo_squares WHERE season_id = $1 AND episode IS NULL) AS has", [season])).rows[0].has;
+  const alex = await api({ user: fixture.username("alex"), pass: PASSWORD, headers: { "x-gys-bot": fb.url } });
   const riley = await api({ user: fixture.username("riley"), pass: PASSWORD });
   let leagueId = null;
   try {
@@ -78,6 +93,16 @@ async function main() {
     r = await alex.call("POST", `/api/seasons/${season}/start?couch=${couch}`, { game: "survivalPool", tell: false, bots: 2, level: "normal" });
     check(r.status === 200 && r.body.leagueId, "started Survival Pool at alex's own pace with two computer players", r.body);
     leagueId = r.body.leagueId;
+    if (hadBank) console.log("info: the season has a bingo bank already: nothing to ask the bot for");
+    else {
+      // The season's bank, asked of the stand-in after the answer: in within a couple of minutes.
+      let live = 0;
+      for (let t = 0; t < 120 && !live; t++) {
+        await new Promise((res) => setTimeout(res, 1000));
+        live = (await pool.query("SELECT count(*)::int AS n FROM bingo_squares WHERE season_id = $1 AND episode IS NULL AND status = 'live'", [season])).rows[0].n;
+      }
+      check(live >= 16, "starting it asked our bot for the season's bingo bank, and it's in", { live, asked: fb.asked.length });
+    }
     check(r.body.from === 4, "from Episode 4", r.body.from);
     const stateOf = async () => (await pool.query("SELECT state FROM leagues WHERE id = $1", [leagueId])).rows[0].state;
     let s = await stateOf();
@@ -138,6 +163,10 @@ async function main() {
     gv = (r.body.games || []).find((g) => g.leagueId === leagueId);
     check(gv && gv.catchUp && gv.catchUp.week === 5 && gv.pace.others[0].week === 4, "alex: on 5, riley on 4", gv && gv.pace);
     check(gv && gv.catchUp && gv.catchUp.latest >= 5, "the game has results past 5 to play", gv && gv.catchUp);
+    if (!hadBank) {
+      r = await alex.call("GET", `/api/seasons/${season}/bingo/5?couch=${couch}`);
+      check(r.status === 200 && r.body.status === "open" && r.body.squares.length === 9, "alex's Episode 5 bingo card, dealt from the season's bank, open to tick", r.body && { status: r.body.status, n: r.body.squares?.length });
+    }
 
     // Part 2: the one-night games follow your episode. Call it for alex's next (5) is open on the honour system, the one after
     // waits, the one alex has seen is closed and says how the calls went.
@@ -265,8 +294,16 @@ async function main() {
       console.log(`screens in ${outDir}`);
     }
   } finally {
+    await fb.close();
     if (!keep) {
       if (leagueId) await pool.query("DELETE FROM leagues WHERE id = $1", [leagueId]);
+      // Only what this check made on the real season: its bingo bank (when it had none), its runs, the zt cards.
+      await pool.query("DELETE FROM bingo_cards WHERE season_id = $1 AND user_id = ANY($2::text[])", [season, Object.values(fx.users)]);
+      if (!hadBank) {
+        await pool.query("DELETE FROM bingo_squares WHERE season_id = $1 AND episode IS NULL", [season]);
+        await pool.query("DELETE FROM bot_research_runs WHERE season_id = $1 AND kind = 'bingo' AND (asked_by = ANY($2::text[]) OR asked_by IS NULL) AND started_at > now() - interval '1 hour'", [season, Object.values(fx.users)]);
+      }
+      await pool.query("DELETE FROM desk_runs WHERE season_id = $1 AND kind = 'bingo' AND for_season AND (asked_by = ANY($2::text[]) OR asked_by IS NULL) AND asked_at > now() - interval '1 hour'", [season, Object.values(fx.users)]);
       await pool.query("DELETE FROM show_follows WHERE season_id = $1 AND user_id = ANY($2::text[])", [season, Object.values(fx.users)]);
       await fixture.down(pool);
     }

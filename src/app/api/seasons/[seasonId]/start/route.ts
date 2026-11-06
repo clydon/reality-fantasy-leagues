@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireAuth } from "@/lib/server/auth-helpers";
+import { botFor } from "@/lib/server/ask-bot";
 import { startGame, startOptions } from "@/lib/server/start-game";
 
 // Start a game that fits (docs/PLAN-new-design.md step 10 part 2b; start-game.ts), on a couch (`?couch=`).
@@ -33,5 +34,5 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ seasonI
   const { seasonId } = await params;
   const user = await requireAuth(req);
   const body = (await req.json().catch(() => ({}))) as { game?: unknown; tell?: unknown; again?: unknown; from?: unknown; phase?: unknown; to?: unknown; bots?: unknown; level?: unknown; late?: unknown };
-  return NextResponse.json(await startGame(user, seasonId, new URL(req.url).searchParams.get("couch"), body));
+  return NextResponse.json(await startGame(user, seasonId, new URL(req.url).searchParams.get("couch"), body, new Date(), new URL(req.url).origin, botFor(req)));
 });
