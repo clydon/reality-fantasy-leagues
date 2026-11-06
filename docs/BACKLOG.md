@@ -401,7 +401,8 @@ Last updated 2026-10-27.
 39. **Production's log noise at start-up (noticed 2026-11-06, the C2 merge's live look).** Right after the deploy, one fresh
     server instance logged `[Better Auth]: Could not validate the database schema. Check your database connection.` on
     Backstage › Scoring rules: Better Auth's background schema check, run as an instance starts, couldn't reach the
-    database at that moment. It blocks nothing (the page loaded fine when opened again, nothing logged). If it keeps
+    database at that moment. It blocks nothing (the page loaded fine when opened again, nothing logged). Seen again a minute
+    after the next deploy (12:41 PM, Backstage › Results): it looks like every deploy's first instances. If it keeps
     showing up on cold starts, `advanced: { database: { validateSchema: false } }` in `src/lib/auth.ts` skips the check
     (`checksSchema` in @better-auth/core reads it) and saves a database round trip on every cold start. Also at error
     level in the same logs: pg's "SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases for 'verify-full'"
