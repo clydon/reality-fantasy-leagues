@@ -100,7 +100,10 @@ runs first: C1, the pieces guide ([GAME-PIECES.md](GAME-PIECES.md), every piece 
 current by every engine step) and the study of one scoring sequence, is done (2026-11-05); C2, one scoring sequence, is under way, in
 parts: part 1, the sequence and the drafts (2026-11-05: the six steps as a pure module, `src/lib/game/sequence/`, every draft scoring
 through it under `ScoringLogic.compute` with every read the same, proven against the scorers before it shape by shape and episode by
-episode), is built; part 2, the week's results, next; then C3 to C7, A14's later parts, and a stop before A15. The live-sports plan is
+episode), is built, and so is part 2, the week's results (2026-11-05: what each episode's totals make as the sequence's step 5, a
+pool's nights, the knockouts, head to head and its playoffs, teams of players and co-op's night, on a draft's one walk, its table the
+sequence at now and its series at each episode once its results are final; every golden and Survivor 51 rehearsal read the same, every blind game played through); part 3,
+outside the state, next; then C3 to C7, A14's later parts, and a stop before A15. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5, at
 high since 2026-11-05; C2 at xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: folded in here as track L; its file keeps the details)
 and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track S here).
@@ -5430,6 +5433,90 @@ A14 part 2 and before A14's other parts; every part keeps every golden and blind
     once); classic's right predictions a second copy of the bet rule (the sequence's lines); the record only hashes (now `--diff`
     against any ref, the scorers before C2 by default); two call shapes untested (now in each read); the module's global for a
     plain script missing (defined).
+
+  **As built (C2 part 2, the week's results, 2026-11-05; on `engine`, not merged; no migration).** One session (xhigh), after
+  `lane.js sync engine` (up to date) and `npm run migrate`.
+  - **Step 5 in the sequence** (`src/lib/game/sequence/index.js`, types in `index.d.ts`): what each episode's totals make, pure,
+    data in and out, moved out of the walks that had them and deciding exactly as they did: an episode's growth (`grown`); a pool's
+    tally a night at a time (`poolTally`; `poolPick`, a pick right, a mulligan, a life; `poolNight`, a night's right picks before
+    its wrong ones; `poolEmptied`, a buyback before its deadline or out; `poolSpare`, the night taken back); the night everyone
+    left goes out and one left (`allOut`, `lastLeft`); a race and the cuts (`raceWon`, `cut`, `cutsAfter`: the guillotine's
+    window, an episode, before a phase once data says where, a quiet night skipped) and the knockouts' walk over a series
+    (`knockouts`); head to head (`roundRobin`, `median`, `bracket`, and `matchups`: each week on what the episode added, an odd
+    seat's median or bye, a quiet night skipped or tied, the standings, the playoffs with byes and a tie to the better seed, the
+    season over first); a team's step (`teamStep`, summed or the mean); co-op's night (`saved`); and step 6's keys
+    (`standingKey`, last one standing; `recordKey`, head to head's record).
+  - **What reads them** (state-logic.js: the functions changed, for the merge with the own-pace session): `KnockoutLogic.walk`
+    (`Seq.knockouts`), `KnockoutLogic.cutAfter` (`Seq.cutsAfter`; `KnockoutLogic.cut` gone, cutAfter its only caller),
+    `MatchupLogic.walk` (`Seq.matchups`; `round`, `median` and `bracket` the sequence's), `TeamLogic.addStep` (`grown`,
+    `teamStep`) and `TeamLogic.standings` (`recordKey`), `PickEmLogic.stepper` (`poolTally`, `poolNight`, `poolEmptied`,
+    `poolSpare`) and `PickEmLogic.walk` (`allOut`, `lastLeft`), `PickEmScoringStrategy.standingKey` and `rankKey` (the keys), and
+    a game of questions' walk (`AnswerLogic.walk`: `raceWon`, `allOut`, `lastLeft`, `saved`, the same rules; the walk itself is part
+    3's). Also `ScoringLogic.walk` (new), `KnockoutLogic.series`, `EliminationOrderScoringStrategy.compute`,
+    `ActiveRosterEventScoringStrategy.compute` and `ActiveRosterLogic.episodeScore` (below).
+  - **One walk for a draft** (`ScoringLogic.walk(state, { series, now })`): the sequence at each episode the game has played once
+    its results are final (`series`, which `KnockoutLogic.series` now is: what a race, the cuts, head to head and the teams read)
+    and at now (`now`, what each seat's holdings stand at as the table counts them: both draft scorers read it), where each had a
+    walk of its own; it follows the game that's played (`playedGame`), as the table's scorer does. Part 1's Noticed, settled:
+    1. **A plain lineup's rounding: the episode total everywhere.** Its table adds up each episode's total
+       (`ActiveRosterLogic.episodeScore`), as its series, head to head, the reveal and the episode lines read it; it rounded the
+       running total after each moment. A cent apart on a half cent (0.5 points × 1.15 units, a sport's kind of count), never on a
+       show's halves (golden: every read the same).
+    2. **Who an Outlast counts: kept, one rule at two marks.** The table is the sequence at now (whoever holds someone now, a
+       pickup since the latest results at once), the series at each episode (who held them then).
+    3. **What the table counts that the series doesn't: kept,** the table at now counting what's known now and the week's
+       results waiting for final results: a newest episode's early results, a side bet marked right before its episode's results,
+       finale predictions graded at early results. **But an Outlast's castaway out with no place recorded** is settled to the
+       table's rule: nothing, in the series too from the episode they went out (it counted as still in there), so a cut or a race
+       never reads points the table doesn't show (a data error: nothing golden, blind or the rehearsal read reaches it).
+    And a holding counts once an episode however a stored lineup lists it (the old table's rule; the series and the reveal
+    counted a starter listed twice twice, which `validateLineup` refuses: the code review).
+  - **What reads differently:** the shapes' plain lineups (below: 180 reads, a cent each); nothing golden, blind or the Survivor 51
+    rehearsal read. Edge cases no data reached: a castaway out with no place (the series, as above), a starter listed twice (the
+    series, the reveal and the episode lines count them once), a league's fields reading as a game nothing plays (its series
+    scored as an Outlast, as its table always was).
+  - **Proof:** the shapes fixture (`tests/fixtures/scoring-shapes.js`) extended with the week's results on the same season, 28
+    shapes: knockouts (a race on an Outlast; a cut after an episode, a tie sending everyone tied; before a phase, taking half; the
+    guillotine skipping a quiet night and playing on; a race with cuts), head to head (playoffs from an episode, and placed by the
+    season's length; an odd seat by the median, and with a bye and quiet nights tied; on an Outlast), teams of players (drawn, by
+    the mean; chosen and summed, a seat moved mid-season; on an Outlast; head to head between teams) and pools (a streak; points a
+    pick; lives; a buyback until an episode and until a phase; a mulligan; a second pick void and counting; a pick that never
+    repeats, skipped and missed; last one standing ending it; the night everyone left goes out: back, sharing it, by points), each
+    read with its walk's own output too (`weekOf`: each history, who can pick, the knockouts' walk, head to head's walk and what
+    each seat sees of it, the teams' series and view, every seat's move problems): 50 shapes, **900 reads**, recorded from
+    d5222e68's engine (C1, before C2). Part 1's tree read all 900 the same; this tree reads all but **180, the plain lineups'
+    table rows** (15 shapes: lineup, lineup-early, handicap, race, matchups and the week's lineups, at the marks from Episode 3
+    on, the cent above), recorded again from this tree (`--diff` against d5222e68 lists them). `tests/sequence-week.test.js`
+    (13: each step-5 piece), `tests/scoring-walk.test.js` (5: the table the walk at now and the series at each episode on every
+    draft shape and mark; the two meeting wherever nothing's known now that wasn't then; a holding once; out with no place; what
+    only the table counts). Each piece changed in turn (25 changes: a night's order, a mulligan, a buyback's cost and deadline,
+    the night taken back, everyone out, one left, a race, a cut's tie, half, the guillotine's window, a quiet night skipped, a cut
+    before a phase, the median, a bye, a quiet night tied, the bracket, a playoff tie, the standings' points, a team's mean, both
+    keys, the series waiting for final results, out with no place, the hold at an episode) is caught. `npm test` 1389 of 1389;
+    `tsc` clean; eslint on the changed files (the `require()` style aside). `engine-capabilities.js --check`: up to date (no row
+    moves: part 2 opens nothing). `game-specs-flag.js check`: PASS (9 of 9 leagues, this lane's database).
+    Through the app (this lane's server, the zt_nd_ fixture): the week's results' API checks, `check-lineup-scoring.js` (a captain,
+    points that multiply by when, best ball, a reverse Outlast), `check-knockouts.js` (the guillotine, a race), `check-h2h.js` (head
+    to head and its playoffs), `check-teams.js` (teams of players), `check-pool-parts.js` (a pool's lives, buyback, mulligans and
+    second pick) and `check-pool-knockouts.js` (a pool's last one standing), ALL PASS; check-teams.js once its step on the hub's
+    power rankings read today's shape (it read `rankings.counted`, gone since power rankings became couch points on 2026-10-31:
+    the check's, now `all` and `h2h`); `check-new-reveal.js` (the reveal, which reads an episode's points), 49 of 49.
+  - **Golden replays:** `golden.js` (HEAD, C2 part 1, against the working tree; run before the code review's fixes and again
+    after them): 7 seasons, 160 games, **19,361 reads, every one the same**; against master's (`--before=master`, production's
+    engine): every one the same.
+  - **Blind replays:** (`blind.js run`, the five seasons, on the final code): **every game played through and over on all five**, as
+    after part 1: Survivor 49 140 of 140, The Challenge 41 110, 40 104, 39 112, The Traitors 4 99; every stand-in call filed, none
+    refused; nothing refused that the app offered, no score that isn't a number.
+  - **The Survivor 51 rehearsal:** (`season-forward.js rehearse --from=backups/prod-2026-10-30 --scenario=realistic,rough,dst
+    --before=master`, this lane's tree): every invariant holds in all three scenarios, flag off and on read the same (2,856 reads
+    each), and master's engine against this tree's reads the same in every one (2,856 reads, flag off and on).
+  - **The code review** (`/code-review` at high, before the long runs): eight findings. Taken: the walk followed the stored spec
+    where the table's scorer follows the game that's played (a fields' reading no game plays: now `playedGame`); a starter listed
+    twice counted twice by the episode's total (now once, as the old table did); a buyback told from going out by its value (now
+    by its key); the night taken back checked twice (now the sequence's check). Kept, saying so: an Outlast's castaway out with no
+    place counting nothing in the series (part 1's Noticed 3, settled on purpose and tested); the plain lineup's cent (documented,
+    no show reaches it); the walk run more than once in one read of a game with knockouts, head to head or teams (as before part
+    2: Noticed); the one-line wrappers left in state-logic.js (Noticed).
 - **C3. Multipliers on any condition.** One multiplier piece keyed by a condition: how a holding joined (drafted, a pickup,
   the Nth replacement), when it was picked, a captain, a streak, the legs of a parlay. Captain, by when, parlay and confidence
   become uses of it. Game 2's 1x, 0.5x, 0.25x, configurable.
@@ -6387,6 +6474,22 @@ From R1 part 2 (2026-10-30):
 - **For the hosting notes, at the merge:** `/api/me` (classic's sign-in and every classic load) now sends each league's settings, not its
   whole state (20-40 KB each): less Neon transfer than before. (The main folder: docs/HOSTING.md, with the merge.)
 
+From C2 part 2 (2026-11-05):
+- **The walk runs more than once in one read** of a game with knockouts, head to head or teams: the table's `now`, then the series
+  for the week's results, and the series again where `lastEpisode`, `spanView` and the knockouts' `apply` ask, as before part 2
+  (the table and the series were two passes then too: no read got slower). A memo for one `ScoringLogic.compute` (nothing writes
+  the state during it) would make it once; a walk inside a knockouts' run sees the game without its end (`knockoutsRunning`), so a
+  memo keys on that. (Part 3 or 4, with A11 part 4's memo item.)
+- **The one-line wrappers stay** (`MatchupLogic.round`, `median`, `bracket`, `PickEmScoringStrategy.standingKey` and
+  `compareKeys`, `KnockoutLogic.cutAfter`): their callers (state-logic.js's own, tests, scripts, `state-logic.d.ts`) keep their
+  names while the own-pace session edits state-logic.js; once it's merged, they can read the sequence directly. (After that
+  merge, or R3.)
+- **A pool has no series of totals:** its walk has each night's points, but head to head, teams of players or a handicap on a
+  pool's points (refused today: "its streak stays its rank's") need one, the shape `ScoringLogic.walk`'s series has, built from
+  the pool's histories. (C2 part 4, when it opens them.)
+- **No prompt changed and no migration** in this part; nothing for the hosting notes (no storage, no new reads: the table's walk
+  costs what it did).
+
 From C2 part 1 (2026-11-05):
 - **The table and the series read a draft two ways, kept as they were (every read the same), for part 2's one walk to settle:**
   1. **A plain lineup's rounding.** Its table rounds the running total after each moment; its episode totals (the knockouts'
@@ -6399,7 +6502,7 @@ From C2 part 1 (2026-11-05):
   3. **What the table counts that the series doesn't:** side bets marked right on an episode without results yet, finale
      predictions graded at early results, and an Outlast's castaway out with no place recorded (the table 0, the series still
      in). Edge cases (a bet graded early, a finale's early results, a data error); part 2's walk keeps or settles each, saying so.
-  (C2 part 2.)
+  (C2 part 2: settled there, 1 the episode total everywhere, 2 kept, 3 kept but an Outlast's castaway out with no place.)
 - **For C3 (multipliers on any condition):** step 3 takes a list of factors already (`Seq.multiply(raw, [captain, episode])`),
   and step 1's log says how each holding joined (each move's episode, what it added and what it let go: `heldAt`'s input). C3
   adds the holding's provenance (drafted, the Nth replacement, a keeper, a group slot) to the lines and a condition to each

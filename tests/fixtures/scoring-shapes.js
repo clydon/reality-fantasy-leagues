@@ -4,7 +4,9 @@
 // night (a double boot, a medevac, a quit, a night nobody went home, the finale with a fire-making loss, two losing finalists and
 // the winner), moments counted in units that leave float noise (3 x 1.1), lineups set, carried and left unset, captains named and
 // carried, two pickups (one after the last episode but one, so a mark sees the move before the series does), side bets (one paying,
-// one alone, one shared), finale predictions, group slots on the format's pairs, a handicap, a stock market's cash.
+// one alone, one shared), finale predictions, group slots on the format's pairs, a handicap, a stock market's cash. C2 part 2 adds
+// the week's results on the same season (weekShapes: knockouts, head to head, teams of players, pools with every piece), each
+// read with its walk's own output too (weekOf).
 //
 // What each read is (readOf): everything the engine scores a draft by, as a viewer sees it at a mark (nothing seen, each episode,
 // everything; GhostLogic.viewFor, as golden.js reads): the table's rows (every field, in its order), the knockouts' series
@@ -13,7 +15,10 @@
 //
 // The record (scoring-shapes.json) is the scorers' reads before C2 (made by the code at d5222e68, C1), a hash a read: the test
 // reads each again on the code as it stands and compares. Remake it only when a step changes how a draft scores on purpose, and
-// say which reads move and why:
+// say which reads move and why. Moved so far: C2 part 2, a plain lineup's table rows (15 shapes, 180 reads: lineup, lineup-early,
+// handicap, race, matchups and the week's lineups, at the marks from Episode 3 on), a cent each on the half-cent moments (0.5
+// points x 1.15 units), its table now adding up each episode's total as its series always did, where it rounded after each moment
+// (`--diff` against d5222e68 lists them):
 //   node tests/fixtures/scoring-shapes.js --write [--ref=<git ref>]      the record, from this tree's engine (or the ref's)
 //   node tests/fixtures/scoring-shapes.js --print <shape> <seat|-> <mark|-|all> [--ref=<git ref>]   one read, in full
 //   node tests/fixtures/scoring-shapes.js --diff [<shape>] [--ref=d5222e68]   where this tree's reads part from the ref's (the
@@ -63,6 +68,56 @@ function shapes(G) {
     ["matchups", lineup({ rank: { by: "matchups" }, extras: { bets: { points: 1 } } }), "exclusive"],
     ["market", lineup({ rank: { by: "worth" } }, { by: "draft", each: 3, order: "blind", own: "shared", budget: { total: 100, floor: 5, ceiling: 25, trade: { fee: 1 } } }), "shared", { market: true }],
     ["market-total", lineup({}, { by: "draft", each: 3, order: "blind", own: "shared", budget: { total: 100, floor: 5, ceiling: 25, trade: {} } }), "shared", { market: true }],
+    ...weekShapes(G, outlast, lineup),
+  ];
+}
+
+/**
+ * The week's results (C2 part 2): what each episode's totals make, on the same season. Each is read with its walk's own output
+ * too (weekOf: a pool's histories, the knockouts' walk, head to head's, the teams'). Knockouts on an Outlast and a lineup (a race,
+ * a cut after an episode with a tie sending everyone tied, a cut before a phase taking half, the guillotine skipping a quiet
+ * night and playing on to one left); head to head with playoffs (from an episode, and placed by the season's length), with an
+ * odd seat (the median, or a bye with a quiet night tied), on an Outlast; teams of players (drawn by the mean, chosen and summed
+ * with a move mid-season, on an Outlast, head to head between teams); and pools (a streak, points a pick, lives, a buyback until
+ * an episode and until a phase, a mulligan, a second pick void or counting, a pick that never repeats skipped or missed, last one
+ * standing ending it, and the night everyone left goes out: back, sharing it, by points).
+ */
+function weekShapes(G, outlast, lineup) {
+  const pool = (score = {}, get = null, rest = {}) => ({ preset: "survival-pool", score: { by: "survive", ...score }, ...(get ? { get: { by: "pick", each: 1, ...get } } : {}), ...rest });
+  const standing = (more = {}) => ({ rank: { by: "standing", ...more } });
+  const P = { week: true, pick: true };
+  const W = { week: true };
+  // ann and cy both out the night of Episode 4 (cy's pick c9 goes home): everyone left that night.
+  const allOut = { ...P, picks: { 4: { cy: ["c9"] } } };
+  return [
+    ["outlast-race", outlast({ rank: { by: "total", race: { to: 15 } } }), "exclusive", W],
+    ["outlast-cut-episode", outlast({ rank: { by: "standing", cut: [{ at: { episode: 3 }, out: 1, tie: "all" }] } }), "exclusive", W],
+    ["lineup-cut-phase", lineup({ rank: { by: "standing", cut: [{ at: { phase: "merged" }, out: "half" }] } }), "exclusive", { ...W, phaseStarts: { merged: 5 } }],
+    ["lineup-cut-quiet", lineup({ rank: { by: "standing", cut: [{ at: { every: 1 }, out: 1, quiet: "skip" }], oneLeft: "plays" } }), "exclusive", W],
+    ["lineup-race-cut", lineup({ rank: { by: "standing", race: { to: 14 }, cut: [{ at: { every: 2 }, out: 1 }] }, extras: { bets: { points: 1 } } }), "exclusive", W],
+    ["matchups-playoffs", lineup({ rank: { by: "matchups", playoffs: { teams: 4, from: 6 } }, extras: { bets: { points: 1 } } }), "exclusive", W],
+    ["matchups-placed", lineup({ rank: { by: "matchups", playoffs: { teams: 2 } } }), "exclusive", { ...W, seasonEpisodes: 7 }],
+    ["matchups-odd", lineup({ rank: { by: "matchups" } }), "exclusive", { ...W, seats: ["ann", "bo", "cy"] }],
+    ["matchups-bye", lineup({ rank: { by: "matchups", odd: "bye", quiet: "tie" } }), "exclusive", { ...W, seats: ["ann", "bo", "cy"] }],
+    ["matchups-outlast", outlast({ rank: { by: "matchups", quiet: "tie" }, extras: { bets: { points: 1 } } }), "exclusive", W],
+    ["teams-mean", lineup({ rank: { by: "total", teams: { of: 2 } }, extras: { bets: { points: 1 } } }), "exclusive", W],
+    ["teams-sum", lineup({ rank: { by: "total", teams: { of: 2, score: "sum", made: "choose" } } }), "exclusive", { ...W, teamSeats: true }],
+    ["teams-outlast", outlast({ rank: { by: "total", teams: { of: 2, score: "sum" } } }), "exclusive", W],
+    ["teams-matchups", lineup({ rank: { by: "matchups", teams: { of: 2 } } }), "exclusive", W],
+    ["pool", pool(), null, P],
+    ["pool-points", pool({ points: 2 }), null, P],
+    ["pool-lives", pool({ lives: 2 }, null, standing()), null, P],
+    ["pool-buyback", pool({ lives: 1, buyback: { times: 1, before: { episode: 6 }, cost: 2 } }, null, standing()), null, P],
+    ["pool-buyback-phase", pool({ lives: 1, buyback: { times: 2, before: { phase: "merged" } } }, null, standing()), null, { ...P, phaseStarts: { merged: 5 } }],
+    ["pool-mulligans", pool({ lives: 1, mulligans: 1 }, null, standing()), null, P],
+    ["pool-second", pool({}, { second: { fallback: "void" } }), null, P],
+    ["pool-second-counts", pool({ lives: 2 }, { second: { fallback: "counts" } }, standing()), null, P],
+    ["pool-never", pool({}, { repeat: "never", fallback: "skip" }), null, P],
+    ["pool-never-miss", pool({ lives: 2 }, { repeat: "never" }, standing()), null, P],
+    ["pool-last", pool({ lives: 1 }, null, standing({ oneLeft: "ends" })), null, P],
+    ["pool-allout-back", pool({ lives: 1 }, null, standing({ allOut: "back" })), null, allOut],
+    ["pool-allout-share", pool({ lives: 1 }, null, standing({ allOut: "share", oneLeft: "ends" })), null, allOut],
+    ["pool-allout-points", pool({ lives: 1 }, null, standing({ allOut: "points" })), null, allOut],
   ];
 }
 
@@ -133,24 +188,48 @@ const FINALE_PICKS = [
 // Group slots: the show's pairs at each episode's end (the format section's), and each seat's pick.
 const PAIRS = [["c0", "c4"], ["c1", "c5"], ["c2", "c7"], ["c8", "c11"]];
 const SLOT_PICKS = { 2: { ann: [0], bo: [1], cy: [0] }, 4: { di: [3] }, 5: { ann: [2, 1] } };
+// A pool's picks, [first, second] (C2 part 2): right and wrong, missed (bo on the quiet night, di in Episode 2), a second on a
+// night one goes (void) and on doubles (c4 right, c9 wrong), cy having picked everyone still in by the finale (a pick that never
+// repeats has nobody left), the finale where only the winner survives (bo's losing finalist).
+const POOL_PICKS = {
+  1: { ann: ["c0"], bo: ["c13"], cy: ["c5"], di: ["c2"] },
+  2: { ann: ["c1", "c4"], bo: ["c3"], cy: ["c0"] },
+  3: { ann: ["c2"], cy: ["c7"], di: ["c8"] },
+  4: { ann: ["c6", "c4"], bo: ["c4", "c9"], cy: ["c4"], di: ["c0", "c2"] },
+  5: { ann: ["c4"], bo: ["c1"], cy: ["c2", "c10"], di: ["c10"] },
+  6: { ann: ["c7"], bo: ["c2", "c8"], cy: ["c14"], di: ["c12"] },
+  7: { ann: ["c0"], bo: ["c4"], di: ["c0", "c7"] },
+};
+// Teams of players chosen (made 'choose'), kept from the start: di moved to ann's team from Episode 5.
+const TEAM_SEATS = { ann: [{ team: "t1", from: 1 }], bo: [{ team: "t2", from: 1 }], cy: [{ team: "t1", from: 1 }], di: [{ team: "t2", from: 1 }, { team: "t1", from: 5 }] };
 
 /** The league for one shape, its spec through its settings (as stored, the flag off), the whole season recorded. */
 function league(S, G, T, spec, own, o = {}) {
   const castaways = Array.from({ length: 15 }, (_, i) => ({
     id: `c${i}`, name: `C${i}`, status: "active", tribeId: i < 8 ? "t1" : "t2", ownerIds: [], placementOrder: null, exitMethod: null, exitEpisodeId: null,
   }));
+  // The seats (all four, or the first few: an odd number for head to head), and what's theirs.
+  const seats = o.seats || SEATS;
+  const mine = (byPlayer) => Object.fromEntries(Object.entries(byPlayer || {}).filter(([p]) => seats.includes(p)));
   const s = S.migrateLeagueState({
     settings: { ...G.settingsOf(spec), showFormat: "survivor", setupComplete: true },
-    players: SEATS.map((id, i) => ({ id, name: id.toUpperCase(), color: `#00${i}` })),
-    draftOrder: SEATS.slice(),
+    players: seats.map((id, i) => ({ id, name: id.toUpperCase(), color: `#00${i}` })),
+    draftOrder: seats.slice(),
     tribes: [{ id: "t1", name: "Toka", color: "#111" }, { id: "t2", name: "Vula", color: "#222" }],
     castaways,
     episodes: Array.from({ length: 7 }, (_, i) => ({ id: `e${i + 1}`, number: i + 1, events: [], scoringEvents: [], bets: [], picks: [], lineups: {} })),
   });
-  const team = TEAMS[own];
+  // A pool holds nobody: each seat's pick an episode (POOL_PICKS, a shape's own over them).
+  const team = o.pick ? {} : mine(TEAMS[own]);
   for (const [p, ids] of Object.entries(team)) ids.forEach((id) => s.castaways.find((c) => c.id === id).ownerIds.push(p));
   s.castaways.forEach((c) => { if (c.ownerIds.length) c.acquiredVia = "draft"; });
-  const moves = o.market ? MOVES.market : MOVES[own];
+  if (o.phaseStarts) s.phaseStarts = { ...o.phaseStarts };
+  if (o.seasonEpisodes) s.seasonEpisodes = o.seasonEpisodes;
+  if (o.teamSeats) {
+    s.teamSeats = JSON.parse(JSON.stringify(mine(TEAM_SEATS)));
+    s.teamDraw = { seed: "zt-teams", kept: true };
+  }
+  const moves = o.pick ? [] : (o.market ? MOVES.market : MOVES[own]).filter((m) => seats.includes(m.playerId));
   s.midSeason = { ...(s.midSeason || {}), log: moves.map((m) => ({ ...m })) };
   moves.forEach((m) => {
     const drop = s.castaways.find((c) => c.id === m.droppedCastawayId);
@@ -167,8 +246,12 @@ function league(S, G, T, spec, own, o = {}) {
     for (const [type, cid, units] of MOMENTS[n]) ep.scoringEvents.push({ id: `m${n}-${type}-${cid}`, type, castawayId: cid, ...(units ? { units } : {}) });
     for (const [cid, method, votes] of EXITS[n]) S.EpisodeLogic.addElimination(s, ep.id, cid, method, votes);
     if (!EXITS[n].length) ep.noExit = true;
-    const lu = LINEUPS[own][n];
-    if (lu) Object.entries(lu).forEach(([p, ids]) => { ep.lineups[p] = ids.slice(); });
+    if (o.pick) {
+      const picks = { ...mine(POOL_PICKS[n]), ...mine((o.picks || {})[n]) };
+      ep.picks = Object.entries(picks).map(([playerId, [castawayId, second]]) => ({ playerId, castawayId, ...(second ? { second } : {}) }));
+    }
+    const lu = o.pick ? null : LINEUPS[own][n];
+    if (lu) Object.entries(mine(lu)).forEach(([p, ids]) => { ep.lineups[p] = ids.slice(); });
     if (CAPTAINS[n]) ep.captains = { ...CAPTAINS[n] };
     ep.bets = (BETS[n] || []).map((b) => JSON.parse(JSON.stringify(b)));
     if (o.early === n) ep.resultsStage = "early";
@@ -197,12 +280,46 @@ function league(S, G, T, spec, own, o = {}) {
   return s;
 }
 
-/** Everything the engine scores a draft by, as one viewer sees it (`v`, a copy at a mark), as a string. */
-function readOf(S, v) {
+/** Plain data from a walk's Maps and Sets (each an array of its entries), for a read. */
+const plain = (x) => JSON.parse(JSON.stringify(x === undefined ? null : x, (k, val) => (val instanceof Map || val instanceof Set ? [...val] : val)));
+
+/**
+ * The week's results as one viewer sees them (C2 part 2): a pool's histories (every row, streak, life, mulligan, buyback, second
+ * pick) and where it ends, and who can pick next; the knockouts' walk (who's out when, where it ends); head to head's (each week's
+ * games, the records, the seeds, the bracket, the champion, how far each went) and what each seat sees of it; the teams' (their
+ * points episode by episode, what a seat sees); and why each seat can't make a move for each episode.
+ */
+function weekOf(S, v) {
+  const out = {};
+  const seats = (v.players || []).map((p) => p.id);
+  if (S.gameOf(v).get.by === "pick") {
+    out.pool = plain(S.PickEmLogic.histories(v));
+    out.ends = S.PickEmLogic.endsAt(v);
+    const next = S.PickEmLogic.upcomingEpisode(v);
+    out.eligible = next ? seats.map((p) => plain(S.PickEmLogic.eligibility(v, next.id, p)).available) : null;
+  }
+  if (S.KnockoutLogic.on(v)) {
+    const k = S.KnockoutLogic.run(v);
+    out.knockouts = { out: plain(k.out), ends: k.ends };
+  }
+  if (S.MatchupLogic.on(v)) {
+    out.matchups = plain(S.MatchupLogic.run(v));
+    out.views = seats.map((p) => plain(S.MatchupLogic.view(v, p)));
+  }
+  if (S.TeamLogic.on(v)) out.teams = { series: plain(S.TeamLogic.series(v)), view: plain(S.TeamLogic.view(v, "bo")) };
+  out.moves = seats.map((p) => [1, 2, 3, 4, 5, 6, 7, 8].map((n) => S.KnockoutLogic.moveProblem(v, p, n)));
+  return out;
+}
+
+/**
+ * Everything the engine scores a draft by, as one viewer sees it (`v`, a copy at a mark), as a string. `o`: the shape's own
+ * options; the week's shapes (o.week) add their walks' own output (weekOf), and a pool reads no draft's series.
+ */
+function readOf(S, v, o) {
   const g = S.gameOf(v);
   const ids = (list) => (list || []).map((c) => c.id);
   const rows = S.computeScores(v).map((r) => ({ ...r, roster: ids(r.roster), formerRoster: ids(r.formerRoster) }));
-  const series = S.KnockoutLogic.series(v).map((x) => ({ number: x.number, quiet: x.quiet, totals: [...x.totals], rows: [...x.rows] }));
+  const series = g.get.by !== "draft" ? null : S.KnockoutLogic.series(v).map((x) => ({ number: x.number, quiet: x.quiet, totals: [...x.totals], rows: [...x.rows] }));
   const played = (v.episodes || []).filter((e) => S.EpisodeLogic.hasResults(e)).sort((a, b) => a.number - b.number);
   const A = S.ActiveRosterLogic;
   const episodes = g.score.by === "moments" ? played.map((ep) => SEATS.map((p) => A.episodeScore(v, ep, p))) : null;
@@ -224,6 +341,7 @@ function readOf(S, v) {
     outs: [...S.KnockoutLogic.outs(v)].sort(),
     last: S.lastEpisode(v),
     over: S.gameOver(v),
+    ...(o && o.week ? { week: weekOf(S, v) } : {}),
   });
 }
 
@@ -236,7 +354,7 @@ function readAll(S, G, T, only) {
     out[name] = {};
     for (const seat of [null, "bo"]) {
       for (const mark of [null, 0, 1, 2, 3, 4, 5, 6, 7]) {
-        out[name][`${seat || "-"}@${mark === null ? "-" : mark}`] = readOf(S, S.GhostLogic.viewFor(JSON.parse(JSON.stringify(s)), seat, mark));
+        out[name][`${seat || "-"}@${mark === null ? "-" : mark}`] = readOf(S, S.GhostLogic.viewFor(JSON.parse(JSON.stringify(s)), seat, mark), o);
       }
     }
   }

@@ -184,6 +184,9 @@ declare const StateLogic: {
     ): { castaway?: Castaway; ambiguous?: string[] };
   };
   ScoringLogic: {
+    /** C2 part 2: a draft's one walk, the scoring sequence at each episode the game has played once its results are final (the
+     *  knockouts' series) and at now (each seat's holdings as the table counts them). */
+    walk(state: LeagueState, want?: { series?: boolean; now?: boolean }): { series: KnockoutEpisode[]; now: Map<string, { locked: number; banked: number }> };
     compute(state: LeagueState): ScoreRow[];
   };
   /** A Survival Pool's scoring; a pool with lives ranked by last one standing (step A10 part 2) by standingKey, compared from

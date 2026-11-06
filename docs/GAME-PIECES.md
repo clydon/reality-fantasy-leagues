@@ -605,19 +605,30 @@ Every game scores as one sequence of six steps, for each of you and each episode
 3. **Multipliers**: each line times whatever applies to it, in order (`multiply`): a captain's, then the episode's own
    (`score.times`).
 4. **Combine**: the lines into your total for the episode, all of them or your best n (`best`, `episodeTotal`).
-5. **The week's result**: what each episode's totals make: a running total (`add`); a streak, a life, a matchup or a cut are
-   the next part's (C2 part 2).
-6. **Rank**: the table in its order (`byTotal`, `byKey`), each row's total from its parts (`total`).
+5. **The week's result**: what each episode's totals make, once its results are final: a running total (`add`); a pool's
+   night on your streak and lives (its right picks first, then its wrong ones; a mulligan forgives one, a wrong one costs a
+   life, a buyback brings you back, or you're out: `poolNight`, `poolEmptied`), and the night everyone left goes out
+   (`allOut`); a race won, a cut, one left (`knockouts`, `cutsAfter`, `lastLeft`); a matchup won, the standings and the
+   playoffs (`matchups`, on what each episode added: `grown`); a team's points, its members' sum or mean (`teamStep`); co-op's
+   night (`saved`).
+6. **Rank**: the table in its order (`byTotal`, `byKey`, last one standing's `standingKey`, head to head's `recordKey`), each
+   row's total from its parts (`total`).
+
+A draft is walked once: its table is the sequence **at now**, and the series the week's results read is the same sequence **at
+each episode** once its results are final. They differ only by what's known now and wasn't then: an episode's early results,
+a side bet or finale predictions graded before their episode's results are final, and a pickup made since the latest results
+(the table counts each at once, the week's results from the next episode).
 
 Rounding (to the cent) is part of the sequence, where each game has always done it: an Outlast's places are whole and never
-rounded; a plain lineup rounds its running total after each moment; a lineup that combines (a captain, a multiplier, best
-ball, group slots) rounds each person's points as they add up, each line, each episode's total and the running total.
+rounded; a lineup rounds each person's points as they add up, each line, each episode's total and the running total (a plain
+lineup too, since C2 part 2: it rounded its running total after each moment, a cent apart on a half cent, which a sport's
+counts can make and a show's halves never do).
 
-What scores through it now (C2 part 1): every draft (an Outlast, a lineup, best ball, group slots, side bets, finale
-predictions, a handicap, a stock market's worth, and the knockouts' episode-by-episode totals). Still to come: the week's
-results (a pool's walk, knockouts, head to head, teams, co-op: part 2), what the server scores outside the league's state (a
-game of questions, Weekly Calls, bingo, a stage's table: part 3), and a spec playing by each piece's place in the sequence
-instead of by one of seven shapes (part 4). Each part keeps every game scoring exactly as before unless it says otherwise.
+What scores through it now (C2 parts 1 and 2): every draft (an Outlast, a lineup, best ball, group slots, side bets, finale
+predictions, a handicap, a stock market's worth), and the week's results (a pool's walk, the knockouts, head to head and its
+playoffs, teams of players, co-op's night). Still to come: what the server scores outside the league's state (a game of
+questions, Weekly Calls, bingo, a stage's table: part 3), and a spec playing by each piece's place in the sequence instead of
+by one of seven shapes (part 4). Each part keeps every game scoring exactly as before unless it says otherwise.
 
 ## Where it's still a menu
 
@@ -626,8 +637,8 @@ by three of the user's games tested on 2026-11-05:
 
 - **Seven shapes** (`playsAs`): a spec plays only when its parts match one of them. So a draft can't carry its own questions
   beyond finale predictions ("No game plays this way yet"), a pool can't play head to head or in teams, and a captain or a
-  multiplier by when lives only on a draft scored by moments. The sequence above is built under the drafts (C2 part 1); the
-  shapes give way to it in C2 part 4.
+  multiplier by when lives only on a draft scored by moments. The sequence above is built under the drafts and the week's
+  results (C2 parts 1 and 2); the shapes give way to it in C2 part 4.
 - **Combiners that exclude each other**: a wager plays alone; a parlay's legs are plain; a shrinking call has no share.
 - **One feature per multiplier**: captain, by when, parlay and the wager's double are four separate pieces.
 - **Ownership per game**: the draft and its pickups share one `own`.
@@ -643,7 +654,7 @@ is under C2's.
 
 | Step | The piece | What it opens |
 |---|---|---|
-| C2 | **One scoring sequence**: hold → score each line → multipliers → combine → the week's result → rank (above: part 1, the drafts, built). A spec plays when each piece it names has its place in the sequence | combiners that exclude each other today combine wherever the sequence allows; no seven shapes |
+| C2 | **One scoring sequence**: hold → score each line → multipliers → combine → the week's result → rank (above: parts 1 and 2, the drafts and the week's results, built). A spec plays when each piece it names has its place in the sequence | combiners that exclude each other today combine wherever the sequence allows; no seven shapes |
 | C3 | **Multipliers on any condition**: one piece keyed by how a holding joined (drafted, a pickup, the Nth replacement), when it was picked, a captain, a streak, a parlay's legs | captain, by when, parlay and confidence become uses of it; the user's 1x, 0.5x, 0.25x |
 | C4 | **Ownership per holding**: exclusive or shared for the draft, the pickups and the group slots each, and where a replacement comes from | an exclusive draft with shared replacements |
 | C5 | **The week as a result**: pick N each episode without a draft; a week's winner and ranking by weeks won; "only these moments count"; hits counted per objective or per pick; more than six stages, or each episode a round | the user's third game |

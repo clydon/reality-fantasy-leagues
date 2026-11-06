@@ -5,8 +5,11 @@
 // the guillotine; head to head; a stock market ranked by worth, and one by points) on one made-up season (tests/fixtures/
 // scoring-shapes.js), read as nobody and as a seat at every mark (nothing seen, each episode, everything): the table's rows,
 // the knockouts' series, each seat's episode scores, each castaway's place, the market, the finale's points, who's out and where
-// the game ends. Each read must be the one the scorers before the sequence gave (tests/fixtures/scoring-shapes.json, recorded at
-// d5222e68). Run with `npm test`.
+// the game ends. C2 part 2: the week's results on the same season (knockouts on an Outlast and a lineup, head to head with playoffs
+// and an odd seat, teams of players summed, by the mean and head to head, pools with lives, a buyback, mulligans, a second pick, a
+// pick that never repeats, last one standing and the night everyone left goes out), each with its walk's own output. Each read
+// must be the one the scorers before the sequence gave (tests/fixtures/scoring-shapes.json, recorded at d5222e68), but for a
+// plain lineup's table rows, which C2 part 2 moved by a cent on the half-cent moments (the fixture's header). Run with `npm test`.
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const F = require("./fixtures/scoring-shapes.js");
@@ -83,9 +86,9 @@ test("the screens read the sequence: an episode's points (episode lines, the rev
     for (const ep of s.episodes) {
       if (S.gameOf(s).score.by === "moments") {
         const shown = Object.fromEntries(episodePlayerPoints(s, ep.id).map((r) => [r.player.id, r.points]));
-        assert.deepEqual(shown, Object.fromEntries(F.SEATS.map((p) => [p, S.ActiveRosterLogic.episodeScore(s, ep, p).total])), `${name} episode ${ep.number}`);
+        assert.deepEqual(shown, Object.fromEntries(s.players.map((p) => [p.id, S.ActiveRosterLogic.episodeScore(s, ep, p.id).total])), `${name} episode ${ep.number}`);
       }
-      for (const p of F.SEATS) {
+      for (const p of s.players.map((x) => x.id)) {
         const paid = Seq.betLines(ep.bets).filter((l) => l.playerId === p).reduce((n, l) => n + l.points, 0);
         assert.equal(predictionsRight(s, ep, p).points, S.betsOn(s) ? paid : 0, `${name} episode ${ep.number} ${p}`);
       }
