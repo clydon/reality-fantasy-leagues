@@ -281,8 +281,13 @@ read of its league (the league poll's every 15 s included: `sports/score.ts` sta
 stamp per league and asks Neon only for a 32-byte fingerprint of the season's kept finals and cast on a read (one small query, two
 the first time an instance sees the season), reading the finals themselves (3-7 KB a game kept) only when one more is kept or the
 cast changes. Since L3 part 2c a game of questions a sport's game settles (pick'em, pick a few) is stamped the same way, with
-only which episodes' games are final (the same fingerprint query on a read; its grading reads the games as before). Nothing new is
-stored; a show's league asks nothing.
+only which episodes' games are final (the same fingerprint query on a read; its grading reads the games as before). Since L3 part
+2e squares are stamped the same way (each final game's score and periods, from the same cached read; each locked episode's digits an
+HMAC on the server, no query), the league keeping its deal and each episode's digits (~100 bytes each) at the next write (a read
+when they're due writes once, as a due draw does). A bracket question's answers and its questions' view read the draw as listed:
+the kept card once it's final, else the provider's card (one cached ESPN call, an hour until it's final: the same board the finals
+read), one query for the episode's event and cast a read. Nothing new is stored but the squares in the league; a show's league asks
+nothing.
 **A field's and a card's final (track L, L3 part 3, migration 0302; on the `sports` branch, not merged)**, kept the same way: once a
 linked golf tournament, race weekend, tennis event or fight card is final, the server asks the calls the phone's poller makes for
 it, once (`src/lib/server/sports/espn.ts` eventFinal, through `live-event.ts`'s feeds): golf's board and leaderboard (2 calls); a
@@ -700,6 +705,10 @@ never handles it: the user does the reset and the pasting.
 - **2026-11-06, `sports` branch (not merged).** L3 part 2c (no migration): a game of questions on a sport's games (pick'em, pick a
   few) plays; its league's reads take the same fingerprint query as a stats game's (which episodes' games are final, stamped, never
   stored). No new ESPN call or table.
+- **2026-11-06, `sports` branch (not merged).** L3 part 2e (no migration): squares play (the same fingerprint query on a read; each
+  league keeps its squares, deal and drawn digits in its state, a few KB at most); a bracket question plays, its answers and view
+  reading the draw as listed (an event's board, cached an hour before it's final: the same ESPN call the finals make, one small
+  query a read). No new table.
 - **2026-11-06, `sports` branch (not merged).** L3 part 2d (no migration): categories and roto play; a categories league's reads
   carry the sport's stats' definitions beside its lines (a couple of KB in the response, no query of their own). Nothing stored.
 - **2026-11-06, `sports` branch (not merged).** L8 part 1 (docs/PLAN-start-a-game-gpt.md track L; migration 0304): a league's slate,

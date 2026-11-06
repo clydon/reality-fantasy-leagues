@@ -33,7 +33,8 @@ function draftTurn(state: LeagueState) {
  * with bids still out (AuctionLogic, part 3b), settled the same way; and keepers whose draft has started (KeeperLogic, part 4),
  * locked the same way.
  *
- * L3 part 2: a game scored by a sport's stats gets its final games' lines stamped (sports/score.ts stampStats), never stored.
+ * L3 part 2: a game scored by a sport's stats gets its final games' lines stamped (sports/score.ts stampStats), never stored. Part
+ * 2e: a squares game's deal at its first lock, and each locked episode's digits, kept the same way as a draw's teams.
  */
 export async function readyLeague(leagueId: string, state: LeagueState): Promise<LeagueState> {
   await stampAirTimes(pool, state);
@@ -44,7 +45,9 @@ export async function readyLeague(leagueId: string, state: LeagueState): Promise
   const auctionDue = StateLogic.AuctionLogic.due(state, Date.now());
   // Keepers whose draft has started (step A10 part 4): withLeagueLock locks them.
   const keepersDue = StateLogic.KeeperLogic.due(state);
-  if (!StateLogic.ensureNextEpisode(structuredClone(state)) && !Bots.hasWork(state) && !waiverStepDue && !drawDue && !auctionDue && !keepersDue) return stampStats(state);
+  // A squares game whose first episode has locked (its deal) or an episode whose digits are drawn (L3 part 2e): withLeagueLock keeps them.
+  const squaresDue = StateLogic.SquaresLogic.due(state);
+  if (!StateLogic.ensureNextEpisode(structuredClone(state)) && !Bots.hasWork(state) && !waiverStepDue && !drawDue && !auctionDue && !keepersDue && !squaresDue) return stampStats(state);
   const before = draftTurn(state);
   const next = await withLeagueLock(leagueId, () => {});
   if (draftTurn(next) !== before) notifyDraftTurn(leagueId, next, null);

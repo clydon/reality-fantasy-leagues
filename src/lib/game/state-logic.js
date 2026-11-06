@@ -73,9 +73,9 @@
 // the database.
 (function(root, factory){
   // eslint-disable-next-line @typescript-eslint/no-require-imports -- CommonJS on purpose, see above
-  if(typeof module === 'object' && module.exports) module.exports = factory(require('./formats/index.js'), require('./game-spec/index.js'), require('./sequence/index.js'), require('./sequence/stats.js'), require('./sequence/categories.js'));
-  else root.StateLogic = factory(root.GameFormats, root.GameSpec, root.GameSequence, root.GameStats, root.GameCategories);
-})(typeof self !== 'undefined' ? self : this, function(Formats, Spec, Seq, Stats, Cats){
+  if(typeof module === 'object' && module.exports) module.exports = factory(require('./formats/index.js'), require('./game-spec/index.js'), require('./sequence/index.js'), require('./sequence/stats.js'), require('./sequence/categories.js'), require('./sequence/squares.js'));
+  else root.StateLogic = factory(root.GameFormats, root.GameSpec, root.GameSequence, root.GameStats, root.GameCategories, root.GameSquares);
+})(typeof self !== 'undefined' ? self : this, function(Formats, Spec, Seq, Stats, Cats, Sq){
 
 const PALETTE = ['#45a89a','#d9704a','#a76bb0','#5089c4','#86a34c','#c99a3e','#b0563f','#6b8fc9'];
 // No longer seeded into new leagues (see Migrations.defaultState) -- a fresh league starts with an
@@ -3132,7 +3132,10 @@ function roundPoints(n){ return Seq.round(n); }
 // over (the reveal, the week's results, a viewer's mark, a span's end), and the spoiler view drops it past a viewer's mark.
 // L3 part 2d: a categories game, the sport's stats as the engine reads them (`state.statDefs`: Sport.categoryDefs, each one's better,
 // group and a rate's parts), so it works a window's rates out without the sport's code.
-const STAMPED = { episode: ['statLines', 'statBouts', 'gameFinal'], state: ['statGroups', 'statDefs'] };
+// L3 part 2e: a squares game, each final game's score as the squares read it (`ep.gameScore`: its status, its two sides with their
+// scores, each period's end), the sport's regulation periods (`state.statPeriods`: halftime's), and each locked episode's digits as
+// the server drew them (`ep.squareDigits`: SquaresLogic.settle keeps them in the league at the next write).
+const STAMPED = { episode: ['statLines', 'statBouts', 'gameFinal', 'gameScore', 'squareDigits'], state: ['statGroups', 'statDefs', 'statPeriods'] };
 // The settles a sport's game answers (L1 part 4b).
 const SPORTS_SETTLES = ['final', 'stat'];
 class StatsLogic {
@@ -3142,7 +3145,7 @@ class StatsLogic {
   // questions', a draft's own).
   static reads(state){
     const g = playedGame(state);
-    return g.score.by === 'stats' || Spec.askOf(g).some(q => q && q.settle && SPORTS_SETTLES.includes(q.settle.by));
+    return g.score.by === 'stats' || g.score.by === 'squares' || Spec.askOf(g).some(q => q && q.settle && SPORTS_SETTLES.includes(q.settle.by));
   }
   // An episode's stat lines as its moments at the game's table ([{ castawayId, points }], one per holding that scored), or null
   // before its lines are in.
@@ -3163,8 +3166,9 @@ class StatsLogic {
   }
   // The server's stamp, in place: `o.lines` { [episode number]: { castawayId: counts } } (only the league's castaways are kept: no
   // one else can be held), `o.bouts` the same for a card's bouts, `o.groups` { castawayId: position group }, `o.finals` the episode
-  // numbers whose game is final (L3 part 2c). An episode left out keeps no lines (its game isn't final for this copy). Returns the
-  // state.
+  // numbers whose game is final (L3 part 2c); L3 part 2e, `o.games` { [episode number]: { status, sides, periods } } (a final game's
+  // score, a squares game's), `o.digits` { [episode number]: digits } (a locked episode's, drawn by the server) and `o.periods` (the
+  // sport's regulation periods). An episode left out keeps no lines (its game isn't final for this copy). Returns the state.
   static stamp(state, o){
     const cast = new Set((state.castaways || []).map(c => c.id));
     const only = rec => Object.fromEntries(Object.entries(rec || {}).filter(([id]) => cast.has(id)));
@@ -3172,8 +3176,12 @@ class StatsLogic {
     const lines = (o && o.lines) || {};
     const bouts = (o && o.bouts) || {};
     const finals = new Set((o && o.finals) || []);
+    const games = (o && o.games) || {};
+    const digits = (o && o.digits) || {};
     (state.episodes || []).forEach(ep => {
       if(finals.has(ep.number)) ep.gameFinal = true;
+      if(games[ep.number] && typeof games[ep.number] === 'object') ep.gameScore = games[ep.number];
+      if(digits[ep.number] && typeof digits[ep.number] === 'object') ep.squareDigits = digits[ep.number];
       const at = lines[ep.number];
       if(!at || typeof at !== 'object') return;
       ep.statLines = only(at);
@@ -3182,6 +3190,7 @@ class StatsLogic {
     const groups = only(o && o.groups);
     if(Object.keys(groups).length) state.statGroups = groups;
     if(o && o.defs && typeof o.defs === 'object') state.statDefs = o.defs;
+    if(o && Number.isInteger(o.periods) && o.periods > 0) state.statPeriods = o.periods;
     return state;
   }
   // Takes the stamp off, in place.
@@ -3215,6 +3224,166 @@ class StatsLogic {
   static wholeTeam(state){
     const g = playedGame(state);
     return g.score.by === 'stats' && g.get.by === 'draft' && Spec.countKind(g.count) === 'all';
+  }
+}
+// ---------- SquaresLogic: squares on a team game's two scores (docs/PLAN-start-a-game-gpt.md track L, L3 part 2e) ----------
+// The spec's `get: { by: 'squares', grid, take, each }` with `score: { by: 'squares', pays }` (game-spec schema.js squaresParts),
+// scored by sequence/squares.js. Everyone's squares are kept in the league (`state.squares`):
+//   picks   { playerId: { cells, from } }: a pick's squares (take 'pick'), first come, each one seat's, up to `each`, changed as often
+//           as you like until the game's first episode locks; then they're yours for the game. A seat with none then (a late joiner)
+//           takes squares left over, counting `from` the first episode still open (the pays before it were nobody's).
+//   dealt   { seats }: a deal's (take 'deal'), at the game's first lock, its seats then (sequence/squares.js dealSquares, seeded by the
+//           first episode's id: the same every read), kept at the next write (settle) so nobody joining later moves anyone's squares;
+//           until it's kept, the seats in the rotation now. A late joiner has none.
+//   digits  { [episode number]: { rows, cols } }: each episode's digits, drawn by the server at its lock from a secret nobody reads
+//           (sports/score.ts squareDigits: never in the league before then, so nobody picks a good number), stamped on the copy it
+//           reads (`ep.squareDigits`) and kept here at the next write, so a secret changed later moves no pay already drawn. A game of
+//           many episodes (a team's schedule) draws them again each episode.
+// Each episode's pays are its game's final score's (the server's stamp, `ep.gameScore`: each period's end, its final), at the
+// sport's regulation periods (`state.statPeriods`), so its results are in once its game is final (`ep.gameFinal`), and the spoiler
+// view takes them out past a viewer's mark as it does any result. The table is each seat's pays added up (SquaresScoringStrategy).
+class SquaresLogic {
+  static on(state){ return playedGame(state).get.by === 'squares'; }
+  // The spec's squares, read the one way (Spec.squaresParts: { grid, take, each, pays, empty, unread }), or null.
+  static parts(state){ return Spec.squaresParts(playedGame(state)); }
+  static data(state){ return state.squares && typeof state.squares === 'object' ? state.squares : {}; }
+  // The game's first episode, or null (none made yet, or the game waits for its phase).
+  static first(state){
+    const n = startEpisode(state);
+    return n === null ? null : (state.episodes || []).find(e => e.number === n) || null;
+  }
+  // The game's first episode has locked (or has results): squares are taken, the deal dealt.
+  static locked(state, now){
+    const ep = SquaresLogic.first(state);
+    return !!ep && (closedForPlay(ep, now) || EpisodeLogic.hasResults(ep));
+  }
+  // The seats a deal deals to now: everyone in the rotation.
+  static seats(state){ return (state.players || []).filter(inLeagueRotation).map(p => p.id); }
+  // Each seat's squares in episode `n`: { playerId: [cells] }.
+  static heldAt(state, n){
+    const p = SquaresLogic.parts(state);
+    if(!p) return {};
+    const d = SquaresLogic.data(state);
+    if(p.take === 'deal'){
+      const first = SquaresLogic.first(state);
+      if(!first || !SquaresLogic.locked(state)) return {};
+      const seats = d.dealt && Array.isArray(d.dealt.seats) ? d.dealt.seats : SquaresLogic.seats(state);
+      return Sq.dealSquares(first.id, seats, p.grid, p.each);
+    }
+    const out = {};
+    Object.entries(d.picks || {}).forEach(([id, pk]) => {
+      if(pk && Array.isArray(pk.cells) && pk.cells.length && (Number.isInteger(pk.from) ? pk.from : 0) <= n) out[id] = pk.cells.slice();
+    });
+    return out;
+  }
+  // A seat's squares as they stand (every one it holds, whatever episode they count from).
+  static mine(state, playerId){
+    const p = SquaresLogic.parts(state);
+    if(!p) return [];
+    if(p.take === 'deal') return SquaresLogic.heldAt(state, Infinity)[playerId] || [];
+    const pk = (SquaresLogic.data(state).picks || {})[playerId];
+    return pk && Array.isArray(pk.cells) ? pk.cells.slice() : [];
+  }
+  // The episode a square taken now counts from: the game's first before it locks; after, the first in play still open (no results,
+  // not locked), or null when none is.
+  static openFrom(state, now){
+    if(!SquaresLogic.locked(state, now)) return startEpisode(state);
+    const open = (state.episodes || []).filter(e => inPlay(state, e.number) && !closedForPlay(e, now) && !EpisodeLogic.hasResults(e)).sort((a, b) => a.number - b.number)[0];
+    return open ? open.number : null;
+  }
+  // Why a seat can't take these squares now, or null: a pick's (take 'pick'), a seat in the rotation, on the grid, each once, at most
+  // `each`, none another seat holds; before the game's first lock, or after it only a seat with none yet, while an episode's open.
+  // An empty list gives them all back (before the lock).
+  static takeProblem(state, playerId, cells, now){
+    const p = SquaresLogic.parts(state);
+    if(!p) return "This game isn't squares";
+    if(p.take !== 'pick') return 'Squares are dealt at random in this game';
+    if(!(state.players || []).some(pl => pl.id === playerId && inLeagueRotation(pl))) return "You're not playing this game";
+    const locked = SquaresLogic.locked(state, now);
+    if(locked && SquaresLogic.mine(state, playerId).length) return 'Squares are set once the game starts';
+    if(SquaresLogic.openFrom(state, now) === null) return 'There are no games left to take squares for';
+    if(Array.isArray(cells) && !cells.length) return locked ? 'Take at least one square' : null;
+    const taken = new Set();
+    Object.entries(SquaresLogic.data(state).picks || {}).forEach(([id, pk]) => {
+      if(id !== playerId && pk && Array.isArray(pk.cells)) pk.cells.forEach(c => taken.add(c));
+    });
+    return Sq.pickProblem(cells, p.grid, p.each, taken);
+  }
+  // Takes them, in place: the problem (nothing changed), or null.
+  static take(state, playerId, cells, now){
+    const why = SquaresLogic.takeProblem(state, playerId, cells, now);
+    if(why) return why;
+    const d = state.squares = SquaresLogic.data(state);
+    d.picks = d.picks || {};
+    if(!cells.length){ delete d.picks[playerId]; return null; }
+    d.picks[playerId] = { cells: cells.slice().sort((a, b) => a - b), from: SquaresLogic.openFrom(state, now) };
+    return null;
+  }
+  // An episode's digits, once it's locked (or has results): kept in the league, else the server's stamp; null before then.
+  static digitsAt(state, ep, now){
+    if(!ep || !(closedForPlay(ep, now) || EpisodeLogic.hasResults(ep))) return null;
+    const kept = (SquaresLogic.data(state).digits || {})[ep.number];
+    return kept || ep.squareDigits || null;
+  }
+  // The episodes in play whose digits the server draws now: locked (or with results) and not kept yet: [{ number, id }].
+  static toDraw(state, now){
+    if(!SquaresLogic.on(state)) return [];
+    const kept = SquaresLogic.data(state).digits || {};
+    return (state.episodes || []).filter(e => inPlay(state, e.number) && !kept[e.number] && (closedForPlay(e, now) || EpisodeLogic.hasResults(e))).map(e => ({ number: e.number, id: e.id }));
+  }
+  // An episode's pays (sequence/squares.js squaresPays: { pays, totals }), from its game's score as the server stamped it.
+  static pays(state, ep, now){
+    const p = SquaresLogic.parts(state);
+    if(!p || !ep) return { pays: [], totals: {} };
+    const holders = Sq.holdersOf(SquaresLogic.heldAt(state, ep.number));
+    return Sq.squaresPays(p, ep.gameScore || null, { digits: SquaresLogic.digitsAt(state, ep, now), holders, regulation: state.statPeriods });
+  }
+  // Each seat's points over the game's episodes in play: Map playerId -> points.
+  static totals(state){
+    const out = new Map((state.players || []).map(p => [p.id, 0]));
+    (state.episodes || []).filter(e => inPlay(state, e.number) && e.gameScore).forEach(ep => {
+      Object.entries(SquaresLogic.pays(state, ep).totals).forEach(([id, n]) => out.set(id, roundPoints((out.get(id) || 0) + n)));
+    });
+    return out;
+  }
+  // Whether the next write has something to keep: the deal's seats once the game's first episode locks, a locked episode's digits.
+  static due(state, now){
+    if(!SquaresLogic.on(state)) return false;
+    const p = SquaresLogic.parts(state);
+    if(p && p.take === 'deal' && SquaresLogic.locked(state, now) && !SquaresLogic.data(state).dealt) return true;
+    return SquaresLogic.toDraw(state, now).length > 0;
+  }
+  // Keeps it, in place (a write's: db.ts withLeagueLock): the deal's seats, each locked episode's digits as stamped. True when
+  // anything changed.
+  static settle(state, now){
+    if(!SquaresLogic.on(state)) return false;
+    const p = SquaresLogic.parts(state);
+    const d = SquaresLogic.data(state);
+    let changed = false;
+    if(p && p.take === 'deal' && SquaresLogic.locked(state, now) && !d.dealt){
+      d.dealt = { seats: SquaresLogic.seats(state) };
+      changed = true;
+    }
+    SquaresLogic.toDraw(state, now).forEach(({ number }) => {
+      const ep = state.episodes.find(e => e.number === number);
+      if(!ep || !ep.squareDigits) return;
+      d.digits = d.digits || {};
+      d.digits[number] = ep.squareDigits;
+      changed = true;
+    });
+    if(changed) state.squares = d;
+    return changed;
+  }
+}
+// The table of a squares game: each seat's pays added up (SquaresLogic.totals), most first.
+class SquaresScoringStrategy {
+  static compute(state){
+    const totals = SquaresLogic.totals(state);
+    const rows = state.players.map(p => {
+      const total = totals.get(p.id) || 0;
+      return { playerId: p.id, name: p.name, color: p.color, locked: total, bonus: 0, finale: 0, total, roster: [], formerRoster: [], squares: SquaresLogic.mine(state, p.id).length };
+    });
+    return rows.sort((a, b) => b.total - a.total);
   }
 }
 // A game whose lineups score moments: by the show's moments, or by a sport's stats (L3 part 2: its stat lines as its moments).
@@ -4466,6 +4635,13 @@ const LEAGUE_TYPES = {
     name: 'Weekly Bingo',
     description: 'No draft, no team -- a new bingo card every show, ticked as it happens. Most lines by the finale wins.'
   },
+  // Squares (docs/PLAN-start-a-game-gpt.md track L, L3 part 2e): a sport's, no draft and no team, squares on a grid of a game's two
+  // scores' last digits, each pay the square of the score's (SquaresLogic).
+  'squares': {
+    id: 'squares',
+    name: 'Squares',
+    description: "No draft, no team -- take squares on a grid of the two scores' last digits. The square of the score wins at each pay; most points wins."
+  },
   // A game in stages (docs/PLAN-start-a-game-gpt.md step A12 part 1): no draft and no team of its own, each stage a game played as a
   // league of its own (stages.ts), its table the overall from the stages' tables (StageLogic).
   'stages': {
@@ -4482,7 +4658,7 @@ const LEAGUE_TYPES = {
 // The flags, from each type's preset (its exclusive draft, for the two drafts: the shared variants below are the other).
 // A game of questions has no preset: its flags are any such game's (nothing held, scored by its own answers).
 // A game in stages (A12 part 1) has its own: nothing held, scored by its stages.
-Object.values(LEAGUE_TYPES).forEach(lt => Object.assign(lt, Spec.flagsOf(Spec.PRESETS[Spec.TYPE_PRESETS[lt.id]] || (lt.id === 'stages' ? { get: { by: 'none' }, count: null, score: { by: 'stages' }, ask: [] } : { get: { by: 'none' }, count: null, score: { by: 'answers' }, ask: [] }))));
+Object.values(LEAGUE_TYPES).forEach(lt => Object.assign(lt, Spec.flagsOf(Spec.PRESETS[Spec.TYPE_PRESETS[lt.id]] || (lt.id === 'stages' ? { get: { by: 'none' }, count: null, score: { by: 'stages' }, ask: [] } : lt.id === 'squares' ? { get: { by: 'squares' }, count: null, score: { by: 'squares', pays: [] }, ask: [] } : { get: { by: 'none' }, count: null, score: { by: 'answers' }, ask: [] }))));
 // NOT the catalog, and no longer a default either: a new league starts with showId null and the
 // commissioner picks from the catalog (defaultState / SetupLogic). The real catalog of shows and
 // seasons lives in Postgres (db/migrations/0006_shows_and_seasons.sql), is managed by a super-admin
@@ -4562,6 +4738,8 @@ const DRAFT_PIECES = { snake: SnakeDraftStrategy, blind: BlindDraftStrategy, dra
 const SCORE_PIECES = {
   place: EliminationOrderScoringStrategy, moments: ActiveRosterEventScoringStrategy, stats: ActiveRosterEventScoringStrategy, survive: PickEmScoringStrategy,
   answers: CallsScoringStrategy, lines: CallsScoringStrategy, stages: StagesScoringStrategy,
+  // L3 part 2e: squares, their pays.
+  squares: SquaresScoringStrategy,
 };
 let OUTLAST_GAME = null;
 // The game a league's pieces come from: its own, or (no game plays it) Outlast, drafted with the spec's ownership and, for a
@@ -8255,7 +8433,7 @@ class SpoilerLogic {
       ep.events = []; ep.scoringEvents = []; ep.exiled = []; ep.roles = []; ep.groups = []; delete ep.formatGroups;
       delete ep.resultsStage; delete ep.noExit;
       // L3 part 2: a sport's stat lines and its game's final (StatsLogic.stamp).
-      delete ep.statLines; delete ep.statBouts; delete ep.gameFinal;
+      delete ep.statLines; delete ep.statBouts; delete ep.gameFinal; delete ep.gameScore;
       ep.postMerge = visible ? !!visible.postMerge : false;
       (ep.bets || []).forEach(b => (b.predictions || []).forEach(p => { p.correct = null; }));
       ep.resultsHidden = true;
@@ -9051,7 +9229,7 @@ return {
   // the top of this file); SnakeDraftStrategy/BlindDraftStrategy/NoDraftStrategy and
   // EliminationOrderScoringStrategy/PickEmScoringStrategy are those pieces,
   // exported directly for code that wants to bypass the dispatch.
-  Core, ScoringLogic, DraftLogic, RosterLogic, WaiverLogic, EpisodeLogic, BetLogic, FinaleLogic, AnswerLogic, PickEmLogic, BlindDraftLogic, ActiveRosterLogic, StatsLogic, RotoLogic, GroupSlotLogic, SetupLogic, RevealLogic, SpoilerLogic, GhostLogic, Migrations,
+  Core, ScoringLogic, DraftLogic, RosterLogic, WaiverLogic, EpisodeLogic, BetLogic, FinaleLogic, AnswerLogic, PickEmLogic, BlindDraftLogic, ActiveRosterLogic, StatsLogic, RotoLogic, SquaresLogic, SquaresScoringStrategy, GroupSlotLogic, SetupLogic, RevealLogic, SpoilerLogic, GhostLogic, Migrations,
   SpreadLogic, DrawLogic, PriceLogic, BudgetLogic, MarketLogic, AuctionLogic, KeeperLogic, KnockoutLogic, MatchupLogic, WeekLogic, TeamLogic, HandicapLogic, StageLogic, draftFits, draftFitsFor, rankKey,
   SnakeDraftStrategy, StagesScoringStrategy, EliminationOrderScoringStrategy, NoDraftStrategy, PickEmScoringStrategy, BlindDraftStrategy, ActiveRosterEventScoringStrategy, DrawDraftStrategy, AuctionDraftStrategy
 };

@@ -207,9 +207,10 @@ function endsOf(st, rank, pool) {
   return rank;
 }
 
-/** Today's league types: the five presets', a game of questions (A4: no preset, its questions in settings.questions), and a game
- *  in stages (A12 part 1: its stages in settings.stages, its overall in settings.stageOverall). */
-const LEAGUE_TYPES = [...Object.keys(TYPE_PRESETS), 'questions', 'stages'];
+/** Today's league types: the five presets', a game of questions (A4: no preset, its questions in settings.questions), a game
+ *  in stages (A12 part 1: its stages in settings.stages, its overall in settings.stageOverall), and squares (L3 part 2e: a sport's,
+ *  its grid and take in settings.squaresGet, its pays in settings.squaresScore). */
+const LEAGUE_TYPES = [...Object.keys(TYPE_PRESETS), 'questions', 'stages', 'squares'];
 
 /**
  * The spec a league's settings play: its league type's mechanics, their parameters, its span, its questions and its extras.
@@ -355,6 +356,12 @@ function readSpec(st, copy) {
     // C6: a game of questions' bank (questionsBank, as its spec says it), only when it's set.
     if (type === 'questions' && isObj(st.questionsBank)) score.bank = copy ? clone(st.questionsBank) : st.questionsBank;
     Object.assign(spec, { get: { by: 'none' }, count: null, score, rank: type === 'questions' ? questionsRankOf(st, lives, copy) : { by: 'total' } });
+  } else if (type === 'squares') {
+    // L3 part 2e: squares (settings.squaresGet: the grid, the take, how many each; settings.squaresScore: the pays, an empty square's
+    // and an unread period's way), as the spec says them.
+    const get = isObj(st.squaresGet) ? (copy ? clone(st.squaresGet) : st.squaresGet) : {};
+    const score = isObj(st.squaresScore) ? (copy ? clone(st.squaresScore) : st.squaresScore) : { pays: [] };
+    Object.assign(spec, { get: { by: 'squares', ...get }, count: null, score: { by: 'squares', ...score }, rank: { by: 'total' } });
   } else {
     // Points per bingo line (A9: settings.linePoints), 1 when it's left out.
     const points = Number.isInteger(st.linePoints) && st.linePoints >= 1 ? st.linePoints : undefined;
@@ -577,6 +584,9 @@ function settingsOf(spec) {
   // A9: a game of questions' parlays; points per bingo line.
   out.parlays = type === 'questions' && Array.isArray(s.score.parlays) ? clone(s.score.parlays) : undefined;
   out.linePoints = type === 'weekly-bingo' && s.score.points !== undefined ? s.score.points : undefined;
+  // L3 part 2e: squares' grid and take, and their pays (each without `by`).
+  out.squaresGet = type === 'squares' ? clone(Object.fromEntries(Object.entries(s.get).filter(([k]) => k !== 'by'))) : undefined;
+  out.squaresScore = type === 'squares' ? clone(Object.fromEntries(Object.entries(s.score).filter(([k]) => k !== 'by'))) : undefined;
   // A9 part 2: best ball, a lineup's captain, points that multiply by when; Outlast in reverse.
   const lineup = type === 'active-roster';
   out.bestBall = lineup && s.count.best !== undefined ? true : undefined;
@@ -660,8 +670,8 @@ const PARTS = [
   { fields: ['stages', 'stageOverall'], read: (s) => [s.stages || null, s.overall || null] },
   // A12 part 2: how a game a format change moves takes the change.
   { fields: ['formatChanges'], read: (s) => (Array.isArray(s.stages) && isObj(s.extras) ? s.extras.changes || null : null) },
-  { fields: ['ownershipMode', 'teamSize', 'activeSlots', 'benchSlots', 'bestBall', 'countAll', 'groupSlots', 'poolSecond', 'poolRepeat', 'poolFallback', 'poolEach', 'draftDraw', 'draftAcross', 'draftAuction', 'draftBudget', 'draftKeep'], read: (s) => [s.get, s.count] },
-  { fields: ['eventPoints', 'statScoring', 'pickemCorrectPoints', 'poolSurvive', 'parlays', 'linePoints', 'captainTimes', 'pointsTimes', 'joinedTimes', 'reverseOrder', 'poolScore', 'scoreOnly', 'scoreHits', 'poolLives', 'poolBuyback', 'poolMulligans', 'questionsLives', 'questionsLivesOn', 'questionsSaves', 'questionsBank'], read: (s) => s.score },
+  { fields: ['ownershipMode', 'teamSize', 'activeSlots', 'benchSlots', 'bestBall', 'countAll', 'groupSlots', 'poolSecond', 'poolRepeat', 'poolFallback', 'poolEach', 'draftDraw', 'draftAcross', 'draftAuction', 'draftBudget', 'draftKeep', 'squaresGet'], read: (s) => [s.get, s.count] },
+  { fields: ['eventPoints', 'statScoring', 'pickemCorrectPoints', 'poolSurvive', 'parlays', 'linePoints', 'captainTimes', 'pointsTimes', 'joinedTimes', 'reverseOrder', 'poolScore', 'scoreOnly', 'scoreHits', 'poolLives', 'poolBuyback', 'poolMulligans', 'questionsLives', 'questionsLivesOn', 'questionsSaves', 'questionsBank', 'squaresScore'], read: (s) => s.score },
   { fields: ['poolRank', 'draftRank', 'draftRace', 'draftCut', 'rankOneLeft', 'rankAllOut', 'questionsRank', 'questionsRace', 'questionsCut', 'rankMatchups', 'rankTies', 'rankTeams', 'rankHandicap'], read: (s) => s.rank },
   { fields: ['allowLateJoiners', 'joinMode'], read: (s) => s.extras.join },
   { fields: ['lockedDown'], read: (s) => s.extras.lockedDown },

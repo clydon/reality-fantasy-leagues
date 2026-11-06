@@ -390,3 +390,125 @@ test("categories' playoffs: seeded by the record (categories won breaking a tie)
   const r = w.records.get(w.seeds[0]);
   assert.ok(r.wins * 2 + r.ties >= 1 && r.for >= r.wins - 0, "the record is the categories'");
 });
+
+// L3 part 2e: squares on the 76ers' opener, kept as the server keeps it (its quarters' ends 18-35, 45-69, 82-90 and the final 114-106,
+// the 76ers' "20" the rows, the Cavaliers' "5" the columns), the digits drawn plain (row r is r, column c is c) so a square's number
+// is its two digits.
+const SQUARES = defaultsFor("basketball").specs.squares.spec;
+const PLAIN = { rows: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((d) => [d]), cols: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((d) => [d]) };
+const OPENER_SCORE = (() => { const f = storedFacts(nba, kept, "final"); return { status: f.status, sides: f.sides, periods: f.periods }; })();
+/** A squares league of three (ann, bo, cy), Episodes 1 and 2 made, none locked. */
+function squaresLeague(spec = SQUARES) {
+  const s = S.defaultState();
+  s.players = ["ann", "bo", "cy"].map((id) => ({ id, name: id, color: "#000" }));
+  S.updateSettings(s, "setupComplete", true);
+  assert.deepEqual(S.setGame(s, spec, { ctx: CTX }), []);
+  for (let n = 1; n <= 2; n++) S.ensureEpisodeNumber(s, n, false);
+  return s;
+}
+
+test("squares: their place in the sequence, the settings round trip, and each default plays", () => {
+  assert.deepEqual(G.specProblems(SQUARES, CTX), []);
+  assert.deepEqual(G.specWaitsFor(SQUARES), [], "it plays now");
+  assert.equal(G.typeOf(SQUARES), "squares");
+  assert.equal(G.flagsOf(G.fullSpec(SQUARES)).hasSquares, true);
+  for (const sport of ["basketball", "football"]) assert.equal(G.typeOf(defaultsFor(sport).specs.squares.spec), "squares", sport);
+  // Ranked by anything but their points, or with questions beside them, they have no place (a stage alongside).
+  assert.equal(G.typeOf({ ...SQUARES, rank: { by: "matchups" } }), null);
+  assert.equal(G.typeOf({ ...SQUARES, ask: [{ id: "w", ask: "Who wins?", answer: "side", points: 1, asked: "each", closes: "start", settle: { by: "final", take: "winner" } }] }), null);
+  const st = G.withSpec(S.defaultState().settings, SQUARES);
+  assert.equal(st.leagueTypeId, "squares");
+  assert.deepEqual(G.specOf(st), { ...G.fullSpec(SQUARES), pool: { of: "cast", where: { stillIn: true } } });
+  const s = squaresLeague();
+  assert.equal(S.getLeagueType(s).id, "squares");
+  assert.equal(S.SquaresLogic.on(s), true);
+  assert.equal(S.StatsLogic.reads(s), true, "the server stamps its games");
+});
+
+test("squares taken: first come, up to each, changed until the first lock; then set, a late seat taking what's left from the next game", () => {
+  const s = squaresLeague({ ...SQUARES, get: { ...SQUARES.get, each: 3 } });
+  const L = S.SquaresLogic;
+  assert.equal(L.take(s, "ann", [85, 46]), null);
+  assert.equal(L.take(s, "bo", [46]), "Someone has that square already");
+  assert.equal(L.take(s, "bo", [59, 1, 2, 3]), "Take 3 at most");
+  assert.equal(L.take(s, "bo", [59, 100]), "Squares are numbered 0 to 99");
+  assert.equal(L.take(s, "bo", [59, 7]), null);
+  assert.equal(L.take(s, "bo", [59]), null, "changed as often as you like");
+  assert.equal(L.take(s, "zed", [1]), "You're not playing this game");
+  assert.deepEqual(L.heldAt(s, 1), { ann: [46, 85], bo: [59] });
+  // The first game locks: squares are set; cy, with none, takes what's left, counting from Episode 2.
+  ep(s, 1).lineupsLocked = true;
+  assert.equal(L.locked(s), true);
+  assert.equal(L.take(s, "ann", [85]), "Squares are set once the game starts");
+  assert.equal(L.take(s, "cy", [85]), "Someone has that square already");
+  assert.equal(L.take(s, "cy", [20]), null);
+  assert.deepEqual(L.heldAt(s, 1), { ann: [46, 85], bo: [59] });
+  assert.deepEqual(L.heldAt(s, 2), { ann: [46, 85], bo: [59], cy: [20] });
+  assert.equal(s.squares.picks.cy.from, 2);
+  // Dealt at random: nothing to take.
+  assert.equal(L.take(squaresLeague({ ...SQUARES, get: { by: "squares", grid: 10, take: "deal" } }), "ann", [1]), "Squares are dealt at random in this game");
+});
+
+test("squares paid on the 76ers opener: the square of each quarter's end and the final, the digits drawn at the lock, kept at the next write", () => {
+  const s = squaresLeague();
+  const L = S.SquaresLogic;
+  L.take(s, "ann", [85, 46]);
+  L.take(s, "bo", [59]);
+  // Before the lock: no digits, even stamped (the server draws none then), and nothing to draw.
+  S.StatsLogic.stamp(s, { digits: { 1: PLAIN } });
+  assert.equal(L.digitsAt(s, ep(s, 1)), null);
+  assert.deepEqual(L.toDraw(s), []);
+  ep(s, 1).lineupsLocked = true;
+  assert.deepEqual(L.toDraw(s).map((e) => e.number), [1]);
+  assert.equal(L.due(s), true);
+  // The final kept: its score stamped, the episode's results in.
+  S.StatsLogic.stamp(s, { finals: [1], games: { 1: OPENER_SCORE }, periods: 4, digits: { 1: PLAIN } });
+  assert.equal(S.EpisodeLogic.hasResults(ep(s, 1)), true);
+  const pays = L.pays(s, ep(s, 1));
+  assert.deepEqual(pays.pays.map((p) => [p.at, p.cell, p.state, p.seat]), [[1, 85, "paid", "ann"], [2, 59, "paid", "bo"], [3, 20, "empty", null], ["final", 46, "paid", "ann"]]);
+  assert.deepEqual(S.computeScores(s).map((r) => [r.playerId, r.total]), [["ann", 3], ["bo", 1], ["cy", 0]]);
+  // The viewer who hasn't seen it: nothing paid.
+  assert.deepEqual(S.computeScores(S.SpoilerLogic.viewThrough(s, 0)).map((r) => r.total), [0, 0, 0]);
+  // Kept at the next write: the digits in the league, so the stamp coming off (or the secret changing) moves nothing.
+  assert.equal(L.settle(s), true);
+  assert.deepEqual(s.squares.digits[1], PLAIN);
+  assert.equal(L.due(s), false);
+  const keys = new Set(S.StatsLogic.stampedKeys());
+  const saved = JSON.parse(JSON.stringify(s, (k, v) => (keys.has(k) ? undefined : v)));
+  assert.equal(saved.episodes.some((e) => e.gameScore || e.squareDigits), false, "the stamp is never saved");
+  assert.deepEqual(saved.squares.digits[1], PLAIN);
+  S.StatsLogic.stamp(saved, { finals: [1], games: { 1: OPENER_SCORE }, periods: 4, digits: { 1: { rows: PLAIN.cols, cols: PLAIN.rows.slice().reverse() } } });
+  assert.deepEqual(S.computeScores(saved).map((r) => r.total), [3, 1, 0], "the kept digits, not a new draw");
+  // An empty square's points rolled on to the next pay where the spec says so.
+  const next = squaresLeague({ ...SQUARES, score: { ...SQUARES.score, empty: "next" } });
+  L.take(next, "ann", [46]);
+  ep(next, 1).lineupsLocked = true;
+  S.StatsLogic.stamp(next, { finals: [1], games: { 1: OPENER_SCORE }, periods: 4, digits: { 1: PLAIN } });
+  assert.deepEqual(L.pays(next, ep(next, 1)).pays.map((p) => p.points), [1, 2, 3, 5], "every quarter empty: the final takes them all");
+  assert.equal(S.computeScores(next)[0].total, 5);
+});
+
+test("squares dealt at the first lock: evenly from the first game's id, kept at the next write so a later seat moves nobody's", () => {
+  const s = squaresLeague({ ...SQUARES, get: { by: "squares", grid: 10, take: "deal" } });
+  const L = S.SquaresLogic;
+  assert.deepEqual(L.heldAt(s, 1), {}, "nothing dealt before the lock");
+  ep(s, 1).lineupsLocked = true;
+  const dealt = L.heldAt(s, 1);
+  assert.deepEqual(Object.keys(dealt).sort(), ["ann", "bo", "cy"]);
+  assert.deepEqual(Object.values(dealt).map((c) => c.length), [33, 33, 33], "as many as go round evenly");
+  assert.equal(new Set(Object.values(dealt).flat()).size, 99);
+  assert.equal(L.due(s), true);
+  L.settle(s);
+  assert.deepEqual(s.squares.dealt.seats, ["ann", "bo", "cy"]);
+  s.players.push({ id: "dee", name: "dee", color: "#000" });
+  assert.deepEqual(L.heldAt(s, 2), dealt, "a late joiner has none");
+  assert.deepEqual(L.mine(s, "ann"), dealt.ann);
+});
+
+test("a bracket question plays: tennis's defaults are a game of questions now", () => {
+  for (const league of ["atp", "wta"]) {
+    const spec = defaultsFor("tennis", league).specs.bracket.spec;
+    assert.deepEqual(G.specWaitsFor(spec), [], league);
+    assert.equal(G.typeOf(spec), "questions", league);
+  }
+});

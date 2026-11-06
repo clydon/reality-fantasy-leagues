@@ -1,9 +1,15 @@
+import { createHmac } from "crypto";
 import StateLogic from "@/lib/game/state-logic.js";
+import Squares from "@/lib/game/sequence/squares.js";
+import Bracket from "@/lib/game/sequence/bracket.js";
+import type { BracketField } from "@/lib/game/sequence/bracket";
 import type { SportsGameFacts } from "@/lib/game/game-spec";
 import type { LeagueState } from "@/lib/game/types";
 import type { CategoryDefs } from "@/lib/game/sequence/categories";
 import { BoutSport, TeamSport, boutsOf, groupOf, renamed, sportOf, storedFacts, type StatBout, type StoredFinal, type StoredPeople, type StoredShape, type Stats } from "@/lib/sports";
 import { pool } from "../db";
+import { sportsProviders } from "./index";
+import type { SportsProvider } from "./types";
 
 // A league's sports games as the server reads them (docs/PLAN-start-a-game-gpt.md track L, L3 parts 1 and 3): each episode's game
 // or event (a field's, a card's), from the counts saved with it once it was final (finals.ts, sports_events.lines, people and
@@ -46,6 +52,8 @@ export interface LeagueGames {
   /** L3 part 2d: the sport's stats as the engine reads them for categories (Sport.categoryDefs: each one's better, group and a
    *  rate's parts), the season's games' sport's. */
   defs: CategoryDefs;
+  /** L3 part 2e: a team sport's regulation periods (Sport.periods: halftime's, for squares), or null. */
+  periods: number | null;
 }
 
 /** The season a league plays (its show's slug and season number), or null. */
@@ -89,16 +97,8 @@ export async function leagueGames(state: LeagueState, o: { mark?: number | null;
   if (!rows.length) return undefined;
   const now = (o.now ?? new Date()).getTime();
   const mark = o.mark ?? null;
-  // The league's castaways by name; each provider id's person, and their roster's position.
-  const byName = new Map<string, string>();
-  for (const c of state.castaways ?? []) if (!byName.has(c.name.toLowerCase())) byName.set(c.name.toLowerCase(), c.id);
-  const who = new Map<string, { id: string; role: string | null }>();
-  for (const c of cast) {
-    const id = byName.get(String(c.name).toLowerCase());
-    if (!id) continue;
-    for (const [provider, athlete] of Object.entries((c.provider_ids ?? {}) as Record<string, string>)) who.set(`${provider}:${athlete}`, { id, role: c.role ?? null });
-  }
-  const out: LeagueGames = { lines: new Map(), byGame: new Map(), slate: new Map(), groups: {}, bouts: new Map(), games: new Map(), sides: new Map(), defs: {} };
+  const who = peopleOf(state, cast);
+  const out: LeagueGames = { lines: new Map(), byGame: new Map(), slate: new Map(), groups: {}, bouts: new Map(), games: new Map(), sides: new Map(), defs: {}, periods: null };
   // L8: a slate's every episode is of several games (one with a single game listed so far too: its shape never changes as more are
   // linked).
   const slate = slated.length > 0;
@@ -127,6 +127,7 @@ export async function leagueGames(state: LeagueState, o: { mark?: number | null;
     const sport = sportOf(r.league);
     if (!sport) continue;
     if (!Object.keys(out.defs).length) out.defs = sport.categoryDefs();
+    if (out.periods === null && sport instanceof TeamSport) out.periods = sport.periods.regulation;
     if (mark !== null && n > mark) {
       setGame(n, event, { status: "pre", sides: teams.map((id) => ({ id, score: 0 })), lines: {}, teams: {} });
       continue;
@@ -167,6 +168,48 @@ export async function leagueGames(state: LeagueState, o: { mark?: number | null;
   return out;
 }
 
+/** The league's castaways by name, and each provider id's person (`provider:athlete`) with their roster's position. */
+function peopleOf(state: LeagueState, cast: { name: string; role: string | null; provider_ids: Record<string, string> | null }[]): Map<string, { id: string; role: string | null }> {
+  const byName = new Map<string, string>();
+  for (const c of state.castaways ?? []) if (!byName.has(c.name.toLowerCase())) byName.set(c.name.toLowerCase(), c.id);
+  const who = new Map<string, { id: string; role: string | null }>();
+  for (const c of cast) {
+    const id = byName.get(String(c.name).toLowerCase());
+    if (!id) continue;
+    for (const [provider, athlete] of Object.entries(c.provider_ids ?? {})) who.set(`${provider}:${athlete}`, { id, role: c.role ?? null });
+  }
+  return who;
+}
+
+/**
+ * L3 part 2e: a bracket question's draw for an episode's card (`cls` the draw: tennis's "MS"), as listed now, in the league's people
+ * (sequence/bracket.js bracketOf: who's in it, each round's matches and winners so far): the kept final's once it's final (`games`,
+ * the grader's, when it has them), else the provider's card as it stands (provider.game: cached an hour until it's final, cache.ts),
+ * so an answer made before the event starts is checked against the draw as listed then. Null for an episode with no card linked,
+ * or a card with none of that draw. `providers` is for checks.
+ */
+export async function drawNow(state: LeagueState, episode: number, cls: string, o: { games?: Map<number, SportsGameFacts>; providers?: SportsProvider[] } = {}): Promise<BracketField | null> {
+  const field = (f: SportsGameFacts | undefined) => (f?.bouts ? Bracket.bracketOf(f.bouts, cls) : null);
+  const known = field(o.games?.get(episode));
+  if (known && known.first !== null) return known;
+  const seasonId = await seasonIdOf(state);
+  if (!seasonId) return null;
+  const [{ rows }, { rows: cast }] = await Promise.all([
+    pool.query("SELECT provider, league, event_id FROM season_events WHERE season_id = $1 AND episode = $2 ORDER BY event_id LIMIT 1", [seasonId, episode]),
+    pool.query("SELECT name, role, provider_ids FROM season_cast WHERE season_id = $1 AND provider_ids IS NOT NULL", [seasonId]),
+  ]);
+  const r = rows[0];
+  const sport = r ? sportOf(r.league) : null;
+  const p = r ? (o.providers ?? sportsProviders()).find((x) => x.id === r.provider) : null;
+  if (!r || !sport || !(sport instanceof BoutSport) || !p) return null;
+  const g = await p.game(r.league, r.event_id);
+  if (!g || g.kind !== "card") return null;
+  const who = peopleOf(state, cast);
+  const f = storedFacts(sport, renamed(g, (athlete) => who.get(`${r.provider}:${athlete}`)?.id ?? `${r.provider}:${athlete}`), g.final ? "final" : "in");
+  const out = field(f);
+  return out && out.first !== null ? out : null;
+}
+
 /** A row's kept final as its sport keeps it: a team game's with its sides, a field's or a card's with its shape (one kept as none
  *  has an empty one). */
 function storedOf(sport: NonNullable<ReturnType<typeof sportOf>>, lines: Record<string, Stats>, people: StoredPeople, sides: { id: string; score: number }[], shape: StoredShape | null): StoredFinal {
@@ -191,8 +234,10 @@ export async function sidesFor(state: LeagueState, episode: number, games?: Map<
   return sides?.length ? new Set(sides) : null;
 }
 
+/** A final game's score as the squares read it (StatsLogic.stamp's `o.games`). */
+type GameScore = Pick<SportsGameFacts, "status" | "sides" | "periods">;
 /** What a stamp writes (StateLogic.StatsLogic.stamp's `o`). */
-type Stamp = { lines: Record<number, Record<string, Stats>>; bouts: Record<number, Record<string, StatBout[]>>; groups: Record<string, string>; finals: number[]; defs: CategoryDefs };
+type Stamp = { lines: Record<number, Record<string, Stats>>; bouts: Record<number, Record<string, StatBout[]>>; groups: Record<string, string>; finals: number[]; defs: CategoryDefs; games: Record<number, GameScore>; periods: number | null };
 // The league poll reads every 15 s (league-read.ts readyLeague), and a season's kept finals are big (everyone's counts, a game an
 // episode): each server instance keeps the last stamp it worked out for a league, with a fingerprint of what it read (32 bytes: the
 // season's kept finals, its cast's provider ids and positions, the league's castaways), and reads the finals again only when it moves.
@@ -236,14 +281,33 @@ export async function stampStats(state: LeagueState): Promise<LeagueState> {
     if (!g) return state;
     // An episode's one game final (a league's slate's episodes are 2f's: their lines are their final games' already).
     const finals = [...g.games].filter(([, f]) => f.status === "final").map(([n]) => n);
-    hit = { key, stamp: { lines: Object.fromEntries(g.lines), bouts: Object.fromEntries(g.bouts), groups: g.groups, finals, defs: g.defs } };
+    // L3 part 2e: each final game's score, for squares (its sides and each period's end).
+    const games = Object.fromEntries(finals.map((n) => { const f = g.games.get(n)!; return [n, { status: f.status, sides: f.sides, ...(f.periods ? { periods: f.periods } : {}) }]; }));
+    hit = { key, stamp: { lines: Object.fromEntries(g.lines), bouts: Object.fromEntries(g.bouts), groups: g.groups, finals, defs: g.defs, games, periods: g.periods } };
     stamps.delete(id);
     stamps.set(id, hit);
     if (stamps.size > MAX_STAMPS) stamps.delete(stamps.keys().next().value!);
   }
   // Each league its own copy of the lines (stamp keeps only its castaways' and the copy is the league's to change); a game of
-  // questions, its finals alone (the grader reads the games); the sport's stats' defs only for a game ranked by categories.
-  const { defs, ...lines } = hit.stamp;
-  const stamp = StateLogic.StatsLogic.on(state) ? { ...structuredClone(lines), ...(StateLogic.StatsLogic.categories(state) ? { defs } : {}) } : { finals: [...hit.stamp.finals] };
+  // questions, its finals alone (the grader reads the games); the sport's stats' defs only for a game ranked by categories; squares
+  // their finals' scores, the sport's periods and each locked episode's digits.
+  const { defs, games, periods, ...lines } = hit.stamp;
+  const stamp = StateLogic.SquaresLogic.on(state)
+    ? { finals: [...hit.stamp.finals], games: structuredClone(games), periods, digits: squareDigits(state) }
+    : StateLogic.StatsLogic.on(state)
+      ? { ...structuredClone(lines), ...(StateLogic.StatsLogic.categories(state) ? { defs } : {}) }
+      : { finals: [...hit.stamp.finals] };
   return StateLogic.StatsLogic.stamp(state, stamp);
+}
+
+/**
+ * L3 part 2e: a squares game's digits for each episode that has locked and hasn't kept its own yet (SquaresLogic.toDraw), each drawn
+ * from a secret only the server reads and the episode's id (an HMAC: the same every read, and nobody, the phone included, can work
+ * them out before the lock, so nobody picks a good number). SquaresLogic.settle keeps them in the league at the next write.
+ */
+function squareDigits(state: LeagueState): Record<number, { rows: number[][]; cols: number[][] }> {
+  const parts = StateLogic.SquaresLogic.parts(state);
+  if (!parts) return {};
+  const secret = process.env.BETTER_AUTH_SECRET || "gys-squares-dev";
+  return Object.fromEntries(StateLogic.SquaresLogic.toDraw(state).map((e: { number: number; id: string }) => [e.number, Squares.digitsOf(createHmac("sha256", secret).update(`squares|${e.id}`).digest("hex"), parts.grid)]));
 }

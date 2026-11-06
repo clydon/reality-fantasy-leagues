@@ -13,6 +13,13 @@
 // opener's episode final (ep.gameFinal, no lines) and the server grades them on its games (answer-points.ts leagueAnswers,
 // answerStanding: the 76ers won; Maxey's 32 the most), the viewer at their mark (nothing seen) graded on nothing, and the row saved
 // by a write carries no mark. L3 part 2d: a categories league on it, read with the sport's stats (statDefs) and its matchup's record.
+// L3 part 2e: a squares league on it (ann's squares the top half, bo's the bottom, taken before the opener locked): a read stamps the
+// opener's kept score and its digits (drawn by the server, the opener having locked), the read writes once to keep the digits (and
+// never the stamp), each pay goes to whoever holds its square, a seat with none takes what's left from the next game, and the viewer
+// at their mark is paid nothing. A bracket on the recorded 2026 US Open men's singles (tests/fixtures/espn/atp-189-2026.json, a second
+// season of the show): its draw as listed before the final (sports/score.ts drawNow, the provider's card: 128 in it, 64 first-round
+// matches, seven rounds, in the league's people), an answer checked against it, then the kept final's draw and the champion's pick
+// graded on it.
 // No app server: readyLeague is what GET /api/leagues/[id]/state and season-games.ts read through. Every row it makes is keyed
 // "zt-stats-game" (the show's slug, the league's slug) or provider "zt-espn-stats"; it removes them at the end (--keep leaves
 // them; the next run removes them first). Refuses a non-local database. Prints PASS/FAIL.
@@ -33,9 +40,12 @@ const { pool, withLeagueLock } = jiti("../../src/lib/server/db.ts");
 const { readyLeague } = jiti("../../src/lib/server/league-read.ts");
 const { leagueStates } = jiti("../../src/lib/server/league-states.ts");
 const { saveFinals } = jiti("../../src/lib/server/sports/finals.ts");
-const { stampStats } = jiti("../../src/lib/server/sports/score.ts");
+const { stampStats, drawNow, leagueGames } = jiti("../../src/lib/server/sports/score.ts");
 const { leagueAnswers, answerStanding } = jiti("../../src/lib/server/answer-points.ts");
-const { sportOf, storedGame, defaultsFor, specContextOf } = jiti("../../src/lib/sports/index.ts");
+const { sportOf, storedGame, storedCard, defaultsFor, specContextOf } = jiti("../../src/lib/sports/index.ts");
+const Sq = require("../../src/lib/game/sequence/squares.js");
+const G = require("../../src/lib/game/game-spec/index.js");
+const USOPEN = require("../../tests/fixtures/espn/atp-189-2026.json");
 const { statLine, cents } = require("../../src/lib/game/sequence/stats.js");
 const S = require("../../src/lib/game/state-logic.js");
 const SIXERS = require("../../tests/fixtures/espn/nba-401909093.json");
@@ -196,6 +206,90 @@ async function down() {
       const rec = S.MatchupLogic.view(c, "ann").record;
       check(!!c.statDefs && c.statDefs["FG%"]?.parts && rec.wins + rec.losses + rec.ties === cats.length, "categories: a read hands the sport's stats over beside the lines; the opener's matchup is each of the nine won, lost or tied", JSON.stringify(rec));
       check(!s.statDefs, "a game by points per stat gets no statDefs");
+    }
+
+    // L3 part 2e: squares on the same season. ann takes the top half, bo the bottom, before the opener locked (made before its air
+    // time was stamped); cy takes none.
+    {
+      const q = S.defaultState();
+      S.updateSettings(q, "showId", SLUG);
+      S.updateSettings(q, "wikiSeason", 1);
+      q.settings.game = null;
+      q.players = ["ann", "bo", "cy"].map((id) => ({ id, name: id, color: "#000" }));
+      S.updateSettings(q, "setupComplete", true);
+      const spec = defaultsFor("basketball").specs.squares.spec;
+      check(S.setGame(q, spec, { ctx: specContextOf(nba) }).length === 0 && S.getLeagueType(q).id === "squares", "a squares game written as a league's own");
+      for (let n = 1; n <= 2; n++) S.ensureEpisodeNumber(q, n, false);
+      const half = (from) => Array.from({ length: 50 }, (_, i) => from + i);
+      check(S.SquaresLogic.take(q, "ann", half(0)) === null && S.SquaresLogic.take(q, "bo", half(50)) === null, "squares taken before the lock");
+      const id = (await pool.query("INSERT INTO leagues (name, slug, join_code, state) VALUES ('ZT squares', $1, 'ZTSQRS', $2) RETURNING id", [`${SLUG}-squares`, JSON.stringify(q)])).rows[0].id;
+      const c = await readyLeague(id, (await leagueStates([id])).get(id));
+      const e1 = c.episodes.find((e) => e.number === 1);
+      const row = (await pool.query("SELECT state FROM leagues WHERE id = $1", [id])).rows[0].state;
+      const digits = row.squares?.digits?.["1"];
+      check(e1.gameScore?.status === "final" && e1.gameScore.periods?.length === 4 && c.statPeriods === 4, "a read stamps the opener's kept score, each quarter's end, and the sport's periods", JSON.stringify(e1.gameScore?.sides));
+      check(!!digits && digits.rows.length === 10 && !row.squares.digits["2"] && !row.episodes.some((e) => "gameScore" in e || "squareDigits" in e), "the read kept the opener's digits (drawn at its lock) and none of the stamp; the game still to play has none");
+      const holders = Sq.holdersOf({ ann: half(0), bo: half(50) });
+      const want = Sq.squaresPays(S.SquaresLogic.parts(c), e1.gameScore, { digits, holders, regulation: 4 }).totals;
+      const rows = S.computeScores(c);
+      const got = Object.fromEntries(rows.map((r) => [r.playerId, r.total]));
+      check(got.ann === (want.ann || 0) && got.bo === (want.bo || 0) && got.ann + got.bo === 5 && got.cy === 0, "each pay to whoever holds its square: 1, 1 and 1 a quarter and 2 for the final, all of them held", JSON.stringify(got));
+      const again = await readyLeague(id, (await leagueStates([id])).get(id));
+      check(JSON.stringify(again.episodes.find((e) => e.number === 1).squareDigits ?? again.squares.digits["1"]) === JSON.stringify(digits) && S.computeScores(again).every((r) => r.total === got[r.playerId]), "read again: the same digits, the same points");
+      check(S.computeScores(S.GhostLogic.viewFor(c, "ann", 0)).every((r) => r.total === 0), "the viewer's copy at their mark (nothing seen): nothing paid");
+      // After the lock: ann's are set; cy (none) can't take a held square, and the squares are all held.
+      let refused = null;
+      await withLeagueLock(id, (st) => { refused = S.SquaresLogic.take(st, "ann", [1]); });
+      check(refused === "Squares are set once the game starts", "after the lock, a seat's squares are set", refused);
+      await withLeagueLock(id, (st) => { refused = S.SquaresLogic.take(st, "cy", [7]); });
+      check(refused === "Someone has that square already", "a late seat can take only what's left", refused);
+    }
+
+    // L3 part 2e: a bracket on the US Open's men's singles, a second season of the show, its card as listed (not final), then kept.
+    {
+      const tennis = sportOf("tennis/atp");
+      const card = storedCard(tennis, USOPEN);
+      let final = false;
+      const tennisP = { id: P, name: "ZT ESPN", game: async (league, event) => (event === "189" ? { ...structuredClone(card), final } : null) };
+      const season2 = (await pool.query("INSERT INTO show_seasons (show_id, season_number) SELECT id, 2 FROM shows WHERE slug = $1 RETURNING id", [SLUG])).rows[0].id;
+      await pool.query("INSERT INTO season_episodes (season_id, number, air_at, source) VALUES ($1, 1, $2, 'listing')", [season2, iso(DAY)]);
+      await pool.query("INSERT INTO season_events (season_id, episode, provider, league, event_id, starts_at) VALUES ($1, 1, $2, 'tennis/atp', '189', $3)", [season2, P, iso(DAY)]);
+      await pool.query("INSERT INTO sports_events (provider, league, event_id, starts_at, state, final) VALUES ($1, 'tennis/atp', '189', $2, 'pre', false)", [P, iso(DAY)]);
+      // The final's winner, named in the league (its cast's provider id), and one of the first round's.
+      const box = tennis.readBox(USOPEN);
+      const title = box.bouts.find((b) => b.class === "MS" && b.place?.fromFinal === 1);
+      const titleResult = tennis.stateAt(USOPEN).bouts[title.id]?.result;
+      const winner = titleResult.winner;
+      const name = box.people[winner]?.name ?? "The champion";
+      await pool.query("INSERT INTO season_cast (season_id, name, role, provider_ids) VALUES ($1, $2, null, $3::jsonb)", [season2, name, JSON.stringify({ [P]: winner })]);
+      const q = S.defaultState();
+      S.updateSettings(q, "showId", SLUG);
+      S.updateSettings(q, "wikiSeason", 2);
+      q.settings.game = null;
+      S.addCastaway(q, name);
+      q.players = ["ann", "bo"].map((id) => ({ id, name: id, color: "#000" }));
+      S.updateSettings(q, "setupComplete", true);
+      const spec = defaultsFor("tennis").specs.bracket.spec;
+      check(S.setGame(q, spec, { ctx: specContextOf(tennis) }).length === 0 && G.typeOf(spec) === "questions", "a bracket game written as a league's own (a game of questions)");
+      S.ensureEpisodeNumber(q, 1, false);
+      const champId = q.castaways[0].id;
+      const listed = await drawNow(q, 1, "MS", { providers: [tennisP] });
+      check(listed?.first === 7 && Object.keys(listed.entrants).length === 128 && listed.matches[7]?.length === 64 && champId in listed.entrants, "the draw as listed before the final: 128 in it, 64 first-round matches, seven rounds, the league's own by its castaway", JSON.stringify({ first: listed?.first, n: Object.keys(listed?.entrants ?? {}).length }));
+      const qn = spec.ask[0];
+      check(G.answerProblem(qn, { 7: ["nobody"] }, listed) === "Pick only who's in the draw" && G.answerProblem(qn, { 7: [champId] }, listed) === null, "an answer checked against the draw as listed");
+      const id = (await pool.query("INSERT INTO leagues (name, slug, join_code, state) VALUES ('ZT bracket', $1, 'ZTBRKT', $2) RETURNING id", [`${SLUG}-bracket`, JSON.stringify(q)])).rows[0].id;
+      await pool.query("INSERT INTO game_answers (league_id, player_id, question, episode, answer) VALUES ($1, 'ann', 'bracket', 1, $2::jsonb), ($1, 'bo', 'bracket', 1, $3::jsonb)", [id, JSON.stringify({ 1: [champId] }), JSON.stringify({ 1: [`${P}:nobody`] })]);
+      // The event final and kept: the draw from the kept card, the champion's pick right.
+      final = true;
+      await pool.query("UPDATE sports_events SET state = 'post', final = true, final_at = $2 WHERE provider = $1 AND event_id = '189'", [P, iso(-3600_000)]);
+      const kept = await saveFinals({ providers: [tennisP], seasons: [season2], now: new Date(now) });
+      check(kept.saved === 1, "the US Open kept at its final", JSON.stringify(kept));
+      const st = await readyLeague(id, (await leagueStates([id])).get(id));
+      const games = (await leagueGames(st)).games;
+      const field = await drawNow(st, 1, "MS", { games });
+      check(field?.over === true && field.winners[1]?.[0] === champId, "the kept final's draw: over, its champion the league's own");
+      const calls = await leagueAnswers({ leagueId: id, state: st, playerId: "ann", mark: null });
+      check(calls.right("ann") === 64 && calls.right("bo") === 0, "the champion's pick graded right on the kept final: 64 (the first round's 1, doubling each round to the final)", `${calls.right("ann")}, ${calls.right("bo")}`);
     }
 
     // A show's league is never stamped (nothing asked of the sports tables).

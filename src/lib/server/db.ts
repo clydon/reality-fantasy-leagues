@@ -79,6 +79,9 @@ export async function withLeagueLock(
     await stampAirTimes(client, state);
     // L3 part 2: a game scored by a sport's stats, its final games' lines (read for its moves: a free agent's points), never saved.
     await stampStats(state);
+    // L3 part 2e: a squares game keeps what its first lock settled (a deal's seats) and each locked episode's digits as stamped, so a
+    // seat joining later or the secret changing moves nothing already dealt or drawn.
+    StateLogic.SquaresLogic.settle(state);
     const waiversBefore = waiverSnapshot(state);
     // Then the waiver clock, so the mutation sees the week as it stands now: a claim saved after its
     // week processed is refused rather than slipped in (waivers.js).

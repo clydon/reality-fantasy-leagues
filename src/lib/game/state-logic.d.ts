@@ -559,8 +559,9 @@ declare const StateLogic: {
     /** One holding's line in an episode at the game's table (its points and the stats that made them), or null. */
     lineOf(state: LeagueState, ep: Episode | null | undefined, castawayId: string): import("./sequence/stats").Scored | null;
     /** The server's stamp, in place: each final episode's lines (and a card's bouts) by castaway, the cast's position groups, the
-     *  episodes whose game is final (part 2c: ep.gameFinal). */
-    stamp(state: LeagueState, o: { lines?: Record<number, Record<string, Record<string, number>>>; bouts?: Record<number, Record<string, import("./sequence/stats").StatBout[]>>; groups?: Record<string, string>; finals?: number[]; defs?: import("./sequence/categories").CategoryDefs }): LeagueState;
+     *  episodes whose game is final (part 2c: ep.gameFinal); part 2e, a squares game's final scores (ep.gameScore), each locked
+     *  episode's digits (ep.squareDigits) and the sport's regulation periods (state.statPeriods). */
+    stamp(state: LeagueState, o: { lines?: Record<number, Record<string, Record<string, number>>>; bouts?: Record<number, Record<string, import("./sequence/stats").StatBout[]>>; groups?: Record<string, string>; finals?: number[]; defs?: import("./sequence/categories").CategoryDefs; games?: Record<number, Pick<import("./game-spec").SportsGameFacts, "status" | "sides" | "periods">>; digits?: Record<number, import("./sequence/squares").SquaresDigits>; periods?: number | null }): LeagueState;
     unstamp(state: LeagueState): LeagueState;
     /** The keys a stamp writes (a save leaves them out). */
     stampedKeys(): string[];
@@ -572,6 +573,36 @@ declare const StateLogic: {
     played(state: LeagueState): Episode[];
     /** Each seat's category totals over some episodes. */
     totals(state: LeagueState, eps: Episode[], seats: string[], cats: string[]): Map<string, import("./sequence/categories").CategoryTotals>;
+  };
+  /** L3 part 2e: squares on a team game's two scores: everyone's squares (picked, or dealt at the first lock), each locked episode's
+   *  digits, each episode's pays from its game's final score. */
+  SquaresLogic: {
+    on(state: LeagueState): boolean;
+    parts(state: LeagueState): import("./game-spec").SquaresParts | null;
+    /** The game's first episode has locked (or has results). */
+    locked(state: LeagueState, now?: number): boolean;
+    /** Each seat's squares in episode `n`. */
+    heldAt(state: LeagueState, n: number): Record<string, number[]>;
+    /** A seat's squares as they stand. */
+    mine(state: LeagueState, playerId: string): number[];
+    /** The episode a square taken now counts from, or null when none is open. */
+    openFrom(state: LeagueState, now?: number): number | null;
+    /** Why a seat can't take these squares now, or null. */
+    takeProblem(state: LeagueState, playerId: string, cells: unknown, now?: number): string | null;
+    /** Takes them, in place: the problem (nothing changed), or null. */
+    take(state: LeagueState, playerId: string, cells: number[], now?: number): string | null;
+    /** An episode's digits once it's locked, or null. */
+    digitsAt(state: LeagueState, ep: Episode, now?: number): import("./sequence/squares").SquaresDigits | null;
+    /** The episodes whose digits the server draws now (locked, not kept yet). */
+    toDraw(state: LeagueState, now?: number): { number: number; id: string }[];
+    /** An episode's pays and what each seat won there. */
+    pays(state: LeagueState, ep: Episode, now?: number): { pays: import("./sequence/squares").SquaresPay[]; totals: Record<string, number> };
+    /** Each seat's points over the game. */
+    totals(state: LeagueState): Map<string, number>;
+    /** Whether the next write has something to keep (the deal's seats, a locked episode's digits). */
+    due(state: LeagueState, now?: number): boolean;
+    /** Keeps it, in place: true when anything changed. */
+    settle(state: LeagueState, now?: number): boolean;
   };
   /** L3 part 2d: roto on a sport's categories: each category ranks everyone on the game so far, the row's total its roto points. */
   RotoLogic: {

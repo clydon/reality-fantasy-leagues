@@ -89,7 +89,7 @@ How each of you gets what you play with. Five ways (`get.by`):
 | `pick` | one person, picked fresh each episode | plays |
 | `card` | a bingo card, a new one each episode | plays |
 | `none` | nothing: you answer questions | plays |
-| `squares` | a grid of a team game's two scores' last digits (`grid` 10 or 5), its squares picked (`take: 'pick'`, up to `each`) or dealt at random (`deal`), the digits drawn at the lock (L4 part 2: `sequence/squares.js`) | scored by `squares` alone, nothing counting; the sports branch |
+| `squares` | a grid of a team game's two scores' last digits (`grid` 10 or 5), its squares picked (`take: 'pick'`, up to `each`, first come, changed until the game's first lock; a seat with none then takes what's left, from the next game) or dealt at random at the first lock (`deal`, evenly, the seats then kept), each episode's digits drawn by the server at its lock from a secret nobody reads, then kept in the league (L4 part 2: `sequence/squares.js`; played since L3 part 2e: `SquaresLogic`) | scored by `squares` alone, nothing counting |
 
 ### A draft: `{ by: "draft", each, order, own, ... }`
 
@@ -228,7 +228,7 @@ How what counts earns points. **`score.by`**:
 | `answers` | right answers to the game's questions | `none` |
 | `stages` | a game in stages: its stages' tables (see Stages) | a game in stages only |
 | `stats` | a sport's stat keys at the game's table: each holding's stat line in an episode is its moments there (`sequence/stats.js` statMoments), so a lineup's starters, a captain, `times` and best ball's best n take it as they take moments (L3 part 2) | a draft (a lineup, best ball, or everyone drafted counting); with `categories`, its rank compares them (below); a pick each episode by its stats not yet (the sports branch) |
-| `squares` | each pay's points (`pays: [{ at: a period's end, 'half' or 'final', points }]`) to whoever holds the square of the two scores' last digits then; an empty square pays nobody or rolls on (`empty`), a period never read pays on the final or nobody (`unread`) (L4 part 2) | `squares`, ranked by the total, nothing beside it; the sports branch |
+| `squares` | each pay's points (`pays: [{ at: a period's end, 'half' or 'final', points }]`) to whoever holds the square of the two scores' last digits then; an empty square pays nobody or rolls on (`empty`), a period never read pays on the final or nobody (`unread`) (L4 part 2). Played since L3 part 2e: each episode's pays from its game's kept final (the server's stamp: each period's end, the sport's regulation periods), the table their sum | `squares`, ranked by the total with nobody racing, cut, in teams or handicapped, nothing beside it |
 
 Each one's own options:
 
@@ -336,7 +336,7 @@ Limits: up to 12 questions a game; an `id` is letters, digits, `.`, `_` or `-`, 
 | `calls` | the show's two calls (Weekly Calls) | a game of its own |
 | `ticket` | a ticket (C6): the questions you put on it and a stake, `{ legs: [ids], stake }`, each leg your own answer to it | settled by its `legs` (below); `legs: { min, max }`, `pays`; a stake (`wager`) |
 | `side` | one of a team game's two sides (sports): its team's id, the faces the server's (`sidesFor`); `draw: true` takes a draw too (soccer's three ways) | settled `final` `winner` (L3 part 2c) |
-| `bracket` | a draw's winners round by round, by distance from the final (`{ "7": [...], ..., "1": [the champion] }`), each right pick worth the points, doubling each round (`rounds: 'double'`, the default, or `'same'`) (L4 part 2: `sequence/bracket.js`) | settled `final` `bracket` of a draw (tennis's `MS`, `WS`...); the sports branch |
+| `bracket` | a draw's winners round by round, by distance from the final (`{ "7": [...], ..., "1": [the champion] }`), each right pick worth the points, doubling each round (`rounds: 'double'`, the default, or `'same'`) (L4 part 2: `sequence/bracket.js`) | settled `final` `bracket` of a draw (tennis's `MS`, `WS`...); played since L3 part 2e: graded on the server's facts, an answer checked against the draw as listed then (`drawNow`: the kept card once final, else the provider's) |
 
 **One question about each person still in:** `each: "person"` with a `yesNo`, `number`, `overUnder` or `choice` answer, answered
 `{ castawayId: answer }`, each settled by that person's own moment or whether they go home or stay. Example: "each couple's
@@ -359,7 +359,7 @@ players' own mechanics below, which settle the game, never a fact about the show
 | `calls` | none | the show's calls (Weekly Calls) |
 | `players` | `majority`, `minority` | the players' own answers: see "The players' own mechanics" |
 | `legs` | none | a ticket's legs (C6): `{ by: "legs", of: [the game's question ids] }`, your own answers to them in the window |
-| `final` | `winner`, `total`, `margin` (`of`: a card's bout, `main` its main event) | a sport's game at its final (L3 part 2c): who won (extra time and penalties in it; a field's first, a bout's winner), both sides' points, the margin; a game called off, a tie or a bout with no winner is off. `bracket`, a draw's winners round by round, is the sports branch's still (L4 part 2) |
+| `final` | `winner`, `total`, `margin` (`of`: a card's bout, `main` its main event) | a sport's game at its final (L3 part 2c): who won (extra time and penalties in it; a field's first, a bout's winner), both sides' points, the margin; a game called off, a tie or a bout with no winner is off. `bracket`, a draw's winners round by round (L4 part 2; played since L3 part 2e) |
 | `stat` | `most`, `least`, `value` (`stat`: a sport's stat key; `of`: a player or a team) | a stat in a sport's game (L3 part 2c): who has the most (a tie, all of them), the fewest, or a value (a team's players' added; asked once over a span, its games' added up) |
 
 A sport's game settles its questions from the server's facts (`facts.games`: each episode's game as of the viewer's mark, its
@@ -833,7 +833,8 @@ Every game scores as one sequence of six steps, for each of you and each episode
 1. **Hold**: what of yours counts for that episode. A draft's team as it stood then (a pickup counts from the episode after
    it's made; `heldAt`), a lineup's starters, best ball's whole team, a group slot's group. Someone two of you hold (a shared
    draft's, or since C4 a shared replacement in an exclusive draft) is on each team, each by its own holding. Since C7, the card's
-   lines that episode (`cardLines`): the questions on it it asks, and the moments that count.
+   lines that episode (`cardLines`): the questions on it it asks, and the moments that count. Since L3 part 2e, a seat's squares
+   that episode (`SquaresLogic.heldAt`: a late seat's count from the game they took them for).
 2. **Score each line**: a line is one holding's points in one episode, from one source (since C5, a pick scored by moments holds
    that episode's picks, each a line as a lineup's starter is). An Outlast's line is a **place**, a
    value rather than points earned while held (whoever holds someone now has their whole place: `placed`, `stillIn`); a
@@ -848,6 +849,8 @@ Every game scores as one sequence of six steps, for each of you and each episode
    first episode. Which answers are right, and how many right ones each has, is
    the grading's (the settles above), never the sequence's. A right call (Weekly Calls) and a bingo line are lines too, counted
    (`tally`). A draft's own questions (since C2 part 4c) are graded the same way, their sum a line of the draft's beside its team's.
+   A pay of squares (since L3 part 2e) is a line for whoever holds the square of the score then (`squaresPays`), and a sport's
+   stat line a holding's moments (L3 part 2: `statMoments`).
 3. **Multipliers**: each line times whatever applies to it, in order (`multiply`), each a factor of the one multiplier piece
    keyed by its condition (`factorOf`, since C3): a captain's, then the episode's own (`score.times`), then how the holding
    joined your team (`score.multiply`, from its stint: `stints`); a parlay's on what each of its windows gave you (after the

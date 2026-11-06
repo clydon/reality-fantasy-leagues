@@ -1,6 +1,6 @@
 import StateLogic from "@/lib/game/state-logic.js";
 import * as Spec from "@/lib/game/game-spec/index.js";
-import type { AnswerFacts, FormatGroups, Question, SpecContext, Verdict } from "@/lib/game/game-spec/index.js";
+import type { AnswerFacts, FormatGroups, Question, SpecContext, SportsGameFacts, Verdict } from "@/lib/game/game-spec/index.js";
 import type { RulebookBlocks } from "@/lib/game/formats/rulebook-schema";
 import type { LeagueState } from "@/lib/game/types";
 import type { CallBook } from "@/lib/game/calls";
@@ -16,7 +16,7 @@ import { seasonBook } from "./calls";
 import { gamesHere, type GameHere } from "./season-games";
 import { playedInSheet, triviaWritten } from "./trivia-key";
 import { factContextForSeason } from "./episode-facts";
-import { sidesFor } from "./sports/score";
+import { drawNow, sidesFor } from "./sports/score";
 
 // A game's questions (docs/PLAN-start-a-game-gpt.md step A4; migration 0200 game_answers):
 //   GET  /api/seasons/[id]/answers?league=&episode=   the game's questions as you may see them: this week's (asked each
@@ -119,6 +119,11 @@ export interface QuestionView {
   /** Who a person answer can name: who's still in as far as you've seen (or, from your own team, yours); a group answer, the groups
    *  someone still in is on; a question about each person, who it asks about. */
   faces: QuestionFace[] | null;
+  /** L3 part 2e: a bracket's draw as listed (sports/score.ts drawNow), the draw as it was made and nothing it's played since (no
+   *  spoiler): how many rounds it is (`first`, the first round's distance from the final), its first round's matches, and who's in
+   *  it, each with the round they enter in (a seed with a bye later). Null for any other question, a draw not listed yet, or while
+   *  you're behind. */
+  draw: { first: number; matches: [QuestionFace, QuestionFace][]; entrants: (QuestionFace & { enters: number })[] } | null;
   /** F3 part 2: why a group question has nothing to pick this episode on a season played in pairs (who is with whom going in
    *  isn't sure, or nobody is in a group): it doesn't count either way. A13: why a trivia round has none (yet). Null otherwise. */
   offWhy: string | null;
@@ -205,6 +210,20 @@ function offWhy(q: Question, fg: FormatGroups | null | undefined): string | null
 function castFace(view: LeagueState, id: string): QuestionFace {
   const c = view.castaways.find((x) => x.id === id);
   return { id, name: c?.name ?? "Someone", photo: c ? publicMediaSrc(c.photoUrl) : null };
+}
+
+/** L3 part 2e: a bracket question's draw for its window, as listed (QuestionView.draw: as it was made, none of what's been played),
+ *  or null. */
+async function drawView(view: LeagueState, state: LeagueState, q: Question, episode: number, games?: Map<number, SportsGameFacts>): Promise<QuestionView["draw"]> {
+  const of = (q.settle as { of?: string }).of;
+  const field = of ? await drawNow(state, episode, of, { games }) : null;
+  if (!field || field.first === null) return null;
+  const first = field.first;
+  return {
+    first,
+    matches: (field.matches[first] ?? []).map(([a, b]) => [castFace(view, a), castFace(view, b)] as [QuestionFace, QuestionFace]),
+    entrants: Object.entries(field.entrants).map(([id, enters]) => ({ ...castFace(view, id), enters })).sort((a, b) => b.enters - a.enters || a.name.localeCompare(b.name)),
+  };
 }
 
 /** One of your games on a season, by league: 404 when you don't play it. */
@@ -465,6 +484,7 @@ async function readQuestions(r: Read, episodeIn?: unknown): Promise<GameQuestion
       closesAt: airAt,
       // A pairs question's faces are its pairs'.
       faces: namesSomeone(q) && q.answer !== "pairs" && !behind ? facesFor(view, q, me, facts.formatGroups?.get(ep)) : null,
+      draw: q.answer === "bracket" && !behind ? await drawView(view, h.state, q, ep || (StateLogic.startEpisode(h.state) ?? 1), facts.games) : null,
       offWhy: !behind ? (triviaOff ?? offWhy(q, facts.formatGroups?.get(ep))) : null,
       trivia: round,
       mine,
@@ -609,7 +629,10 @@ export async function answerQuestions(user: SessionUser, seasonId: string, leagu
               : q.answer === "side"
                 ? // L3 part 1: a side is one of its game's teams (a question asked once: the game's first).
                   await sidesFor(h.state, ep || (StateLogic.startEpisode(h.state) ?? 1), r.facts.games)
-                : null;
+                : q.answer === "bracket"
+                  ? // L3 part 2e: a bracket, its draw as listed now (who's in it, its matches so far).
+                    await drawNow(h.state, ep || (StateLogic.startEpisode(h.state) ?? 1), (q.settle as { of?: string }).of ?? "", { games: r.facts.games })
+                  : null;
       let most: number | undefined;
       if (Spec.drawsOnBank(q, bank)) {
         room ??= await stakeRoom(r);

@@ -1133,7 +1133,7 @@ engine track; L brings each sport's data to it. Its screens wait for the UI trac
     game of questions on the sports settles (pick'em and pick a few: `final`, `stat`, the `side` answer to 'now', an episode's game
     final as its results: built 2026-11-06, As built below); 2d, categories and roto (`MatchupLogic` on `categoryParts`, the server handing `statDefs` over, `rank.by`
     categories and roto to 'now': built 2026-11-06, As built below); 2e, squares and a bracket question (the squares themselves, their pays from the facts, a
-    bracket's faces on the server); 2f, a week's slate (a per-game bonus summed per game, a question per game of an episode). Each
+    bracket's faces on the server: built 2026-11-06, As built below); 2f, a week's slate (a per-game bonus summed per game, a question per game of an episode). Each
     part's proof a sports game played end to end on the recorded fixtures.
 - **L4. The formats, as the engine's pieces with sports data:** head-to-head, categories and roto (A11), best ball (A9),
   pick'em and pick a few (A4's questions with the sports settles), brackets (A8), squares (a sports way to `get`), live calls
@@ -3451,6 +3451,68 @@ in the placement corpus with the roto refusal kept on the 7 of them ranked roto)
   engine before against this tree's the same (2,856 reads each). The blind replays (`blind.js run` on each season loaded here): every
   game played through, Survivor 49 156 of 156, The Challenge 40 115 of 115, The Traitors 4 110 of 110.
 
+**L3 part 2e as built: squares and a bracket question (2026-11-06, `sports`, not merged; no migration; HOSTING.md updated).**
+- **The spec** (`schema.js`): VOCAB `get.by` and `score.by` `squares` and `ask.answer` `bracket` to 'now'. Squares' place in the
+  sequence: `holdOf` 'squares' (a hold of its own, nothing counted), `LINES.squares` (its lines are its pays, for whoever holds the
+  square), `askPlace` nothing beside them (a stage alongside, as bingo's and a pool's), `rankPlace` the total with nobody racing or
+  cut, in no teams and with no handicap (`squaresProblems` refuses the rest). `shapeOf` 'squares', `flagsOf` `hasSquares`. A bracket
+  question plays wherever a show's question does (`playable` takes it: its line is `bracketPoints`, through `pointsFor` already). The
+  settings say it (`settings.js`: league type `squares`, `squaresGet` its grid, take and each, `squaresScore` its pays, empty and
+  unread, each as the spec says them, without `by`), so every sport's squares default reads back from its fields.
+- **The engine** (`state-logic.js` `SquaresLogic` and `SquaresScoringStrategy`, new; LEAGUE_TYPES `squares`, "Squares"): everyone's
+  squares kept in the league (`state.squares`): a pick's (`take`, `takeProblem`: a seat in the rotation, `pickProblem` against the
+  others' squares, first come, changed as often as you like until the game's first episode locks, an empty list giving them back;
+  after it a seat's squares are set, and a seat with none takes what's left, counting from the first episode still open: `from`);
+  a deal's at the first lock (`dealSquares` seeded by the first episode's id, the seats in the rotation then, kept at the next
+  write: `dealt`, so a seat joining later moves nobody's; a late joiner has none); each episode's digits once it locks (`digitsAt`:
+  kept in the league, else the server's stamp, never before the lock), drawn again each episode of a game of many. Each episode's
+  pays are `squaresPays` on its game's final score (the stamp's `ep.gameScore`: its sides and each period's end) at the sport's
+  regulation periods (`state.statPeriods`), so its results are its game's final (`ep.gameFinal`) and the spoiler view takes them out
+  past a viewer's mark (`viewThrough` drops `gameScore`); the table each seat's pays added up, most first (SCORE_PIECES.squares).
+  `settle` keeps the deal's seats and each locked episode's stamped digits (`due` says a write has some to keep).
+- **Decisions** (mine, the sports orchestrator's to overrule): **the digits come from the server, not a seed in the league** (L4
+  part 2's plan had a seed kept as DrawLogic's: the league's state goes to every phone, so a seed there could be worked out before the
+  lock): an HMAC of the server's secret (`BETTER_AUTH_SECRET`) and the episode's id, the same every read, drawn only once the episode
+  locks, and kept in the league at the next write (a read that finds them due writes once, as a due draw does), so the secret
+  changing later moves no pay already drawn. A late seat in a game of picked squares takes what's left from the next open game (the
+  pays before it were nobody's); in a dealt game, none. Squares rank by their points only (teams of players or a handicap on squares
+  would need their own series: a later step if a couch asks).
+- **The server** (`sports/score.ts`): `stampStats` stamps a squares league (`StatsLogic.reads` takes squares) with its finals, each
+  final game's score (`games`, from the same cached read: `leagueGames`' `periods`, the sport's regulation periods, new) and each
+  locked episode's digits (`squareDigits`, outside the cache: an HMAC each, no query). `db.ts` withLeagueLock settles the squares
+  after the load's stamp; `league-read.ts` readyLeague writes once when they're due. `PUT /api/leagues/[id]/squares` (new): a seat's
+  squares (`cells`), its own or anyone's for whoever runs the game, the engine saying why it refuses. **A bracket's faces** (`drawNow`,
+  new): the draw for an episode's card as listed now, in the league's people (`bracketOf` over the kept final's bouts once it's
+  final, else the provider's card as it stands: `provider.game`, cached an hour until final), handed to `answerProblem` when an answer
+  is made (`server/answers.ts`), so an answer before the event is checked against the draw as listed then; the questions' view
+  carries `draw` (the draw as made: its rounds, its first round's matches, who's in it with the round they enter: nothing it's played
+  since, no spoiler).
+- **Checks.** `tests/sports-hook.test.js` (18 now): squares' place, the settings round trip, every default plays; taken first come,
+  up to each, changed until the lock, then set, a late seat from the next game; paid on the 76ers' opener with the digits drawn plain
+  (85, 59, 20 and 46: ann 3, bo 1, the third quarter's square empty), nothing before the lock, the viewer at their mark paid nothing,
+  kept at the next write and read back with a different stamp the same (the kept digits win), an empty square rolled on; dealt at the
+  lock, evenly (33 each of 99), kept, a late joiner with none; a bracket plays. `sports-squares.test.js` and `game-spec.test.js` say
+  they play. `scripts/dev-test/check-stats-game.js` (41 now, all pass): a squares league read through `readyLeague` (the opener's kept
+  score and periods stamped, its digits drawn at its lock and kept by the read's write, none of the stamp saved, each pay to whoever
+  holds its square, read again the same, the viewer paid nothing, a seat's squares set after the lock, a late seat only what's left);
+  a bracket on the recorded US Open men's singles as a second season (`drawNow` before the final from the provider's card: 128 in
+  it, 64 first-round matches, seven rounds, the league's own by its castaway; an answer checked against it; kept, the draw over and
+  the champion's pick worth 64). The placement corpus' 69 more (recorded from 6b8b1269's engine with a squares score and a bracket
+  ask: squares by their squares playing as squares; the bracket as its twin asking who goes home, 22 playing now). GAME-PIECES.md's
+  squares and bracket rows and the sequence's steps 1 and 2. 1,841 unit tests pass; `tsc` clean; eslint clean on the files changed.
+
+**L3 part 2e noticed, not fixed:**
+- **The server pays squares on kept finals only**: a quarter's end pays once the game's final is kept (the listings job, then a read),
+  not as it happens. Live pays are the phone's (`TeamSport.periodScores` on the summary it polls: L2's), or the live poller's (L5 part
+  4's queue) if the screens want the server to say them.
+- **The bots take no squares** (a computer player in a game of picked squares holds none; a dealt game deals to it). A bots step.
+- **The screens** (U1, through impeccable): the grid to take squares on (the route is there), each episode's pays (`SquaresLogic.pays`:
+  each pay's square, score and who won it), the digits once drawn; a bracket's picker on the view's `draw` (its later rounds' matches,
+  for a viewer who's seen them, aren't in it: the screen builds them from the picks).
+- **A partial bracket is refused against the draw** (a round's winners must be among the round before's picks): picking only the
+  champion needs a path to them. As L4 part 2 built it; a screen fills the path from the picks, or the check could take a champion
+  alone (a "pick the champion" question is `final` `winner` on a card's main event, already).
+
 **L3 part 2d noticed, not fixed:**
 - **A categories game's table shows a total of 0 for head to head** (its rows' points are a stats table's, and categories have
   none): the record (`r.matchups`) and roto's `r.roto` are what to show; the screens' (U1, through impeccable): a W-L-T record, each
@@ -3827,7 +3889,7 @@ little more: HOSTING.md).**
   C3 to C5 and C4b, not yet synced here, so against master the engine's own changes would show): Survivor 49, The Traitors US 4
   and The Challenge 40, 74 games, 9,548 reads, every one the same. blind.js and the rehearsal not run: no show's game plays squares
   or asks a bracket (the only specs whose check changed besides the corpus' 15), and every read is kept the same (golden alone).
-- **For the engine lane (with L3 part 2's hook):**
+- **For the engine lane (with L3 part 2's hook): all built in L3 part 2e (2026-11-06, As built above), but the server's digits from its secret rather than a seed in the league (its Decisions).**
   - `schema.js` placement: `holdOf` 'squares' (a hold of its own), `LINES.squares` (its lines are its pays: `squaresPays`' totals
     each episode), `rankPlace` total only (the check refuses the rest). A bracket question in a game of questions: `playable` takes it
     (its line is `bracketPoints`, through `pointsFor` already).

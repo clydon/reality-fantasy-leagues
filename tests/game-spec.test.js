@@ -81,6 +81,8 @@ const GAME_FIELDS = {
   // A12 part 1: a game in stages' stages and overall.
   // A12 part 2: how a game a format change moves takes the change.
   stages: ["stages", "stageOverall", "formatChanges"],
+  // L3 part 2e: squares' grid and take, and their pays.
+  squares: ["squaresGet", "squaresScore"],
 };
 // A10 part 4b: a team two people share, wherever a seat has something to share (not a call or a bingo card).
 GAME_FIELDS["classic-draft"].push("seatPeople");
@@ -454,8 +456,8 @@ test("specWaitsFor: what a spec needs that isn't built, and the step that builds
   assert.deepEqual(waits({ ...P["weekly-lineup"], rank: { by: "matchups" }, closes: "daily" }), []);
   // L3 part 2d: ranked by categories on a show's moments plays nowhere (a categories rank needs a sport's categories: categoryProblems).
   assert.deepEqual(waits({ ...P["weekly-lineup"], rank: { by: "categories" }, closes: "daily" }), ["rank.by:null"]);
-  // L3 part 2: the engine scores a sport's stats; squares are still the sports branch's.
-  assert.deepEqual(waits({ spec: 1, get: { by: "squares" }, score: { by: "stats", points: { PTS: 1 } } }), ["get.by:sports"]);
+  // L3 part 2: the engine scores a sport's stats; L3 part 2e, squares too (scored by their own pays: by stats, no place).
+  assert.deepEqual(waits({ spec: 1, get: { by: "squares" }, score: { by: "stats", points: { PTS: 1 } } }), ["score.by:null"]);
   assert.deepEqual(waits({ ...P.outlast, pool: { of: "cast", where: { group: "tribe-1" } } }), ["pool.where:later"]);
   // Every part built, but no game plays a draft where everyone scores moments without a lineup: C2 part 4 says which piece has no
   // place in the scoring sequence, and why.

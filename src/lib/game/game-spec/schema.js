@@ -198,7 +198,8 @@ const EpisodeFacts = require('../formats/episode-facts.js');
 
 /** Who builds each value. A value not listed isn't one. */
 const VOCAB = {
-  'get.by': { draft: 'now', pick: 'now', card: 'now', none: 'now', squares: 'sports' },
+  // L3 part 2e: squares on a team game's two scores (state-logic.js SquaresLogic on sequence/squares.js).
+  'get.by': { draft: 'now', pick: 'now', card: 'now', none: 'now', squares: 'now' },
   'get.order': { snake: 'now', blind: 'now', draw: 'now', auction: 'now' },
   'get.own': { exclusive: 'now', shared: 'now' },
   // C5: a pick that repeats freely (anyone still in, every episode): a pick of several scored by what they do, or a pool.
@@ -207,7 +208,7 @@ const VOCAB = {
   'get.fallback': { miss: 'now', skip: 'now' },
   count: { start: 'now', all: 'now', pick: 'now', best: 'now' },
   // A12 part 1: a game in stages scores by its stages (StageLogic).
-  'score.by': { moments: 'now', place: 'now', survive: 'now', lines: 'now', answers: 'now', stages: 'now', stats: 'now', squares: 'sports' },
+  'score.by': { moments: 'now', place: 'now', survive: 'now', lines: 'now', answers: 'now', stages: 'now', stats: 'now', squares: 'now' },
   'score.means': { staysIn: 'now', scores: 'now' },
   // A11 part 3: co-op, the couch against the show (a game of questions whose lives are everyone's together: won or lost by all).
   // A11 part 4: head to head (matchups), a draft's on a show (each episode's points against someone's, with playoffs); L4 brings it
@@ -232,8 +233,9 @@ const VOCAB = {
     order: 'now', confidence: 'now', chips: 'now', split: 'now', pairs: 'now',
     // L3 part 2c: one of a team game's two sides (the server's faces: sports/score.ts sidesFor), settled by its final.
     side: 'now',
-    // L4 part 2: a draw's winners, round by round (tennis's), before it starts: sequence/bracket.js.
-    bracket: 'sports',
+    // L4 part 2: a draw's winners, round by round (tennis's), before it starts: sequence/bracket.js. L3 part 2e: graded on the
+    // server's facts.games (answers.js), checked against the draw as listed (server/answers.ts, sports/score.ts drawNow).
+    bracket: 'now',
     // A13: the episode's trivia, settled by its key (the bot's trivia research).
     trivia: 'now',
     // C6 part 2: a ticket a player builds from the game's other questions (its legs), settled by them.
@@ -1870,6 +1872,8 @@ function holdOf(s) {
     return count === 'pick' ? 'pick' : 'count';
   }
   if (get.by === 'none' || get.by === 'card') return !count ? get.by : 'count';
+  // L3 part 2e: squares on a grid of a team game's two scores (nothing else counts).
+  if (get.by === 'squares') return !count ? 'squares' : 'count';
   return null;
 }
 /** C2 part 4: step 2's lines (score.by), each with what it needs held: [at, why] when it has no place, else null. `s` whole, `held`
@@ -1887,6 +1891,8 @@ const LINES = {
   survive: (s, held) => (held !== 'pick' ? ['score.by', 'surviving scores a pick each episode'] : s.get.each === 1 ? null : ['get.each', "a pool's pick is one each episode: several each episode are scored by what they do (score.by moments)"]),
   answers: (s, held) => (held === 'none' ? null : ['score.by', 'a game of questions holds nothing']),
   lines: (s, held) => (held === 'card' ? null : ['score.by', "bingo lines are a card's"]),
+  // L3 part 2e: squares' lines are their pays, each episode's (sequence/squares.js squaresPays' totals), for whoever holds the square.
+  squares: (s, held) => (held === 'squares' ? null : ['score.by', 'squares pay whoever holds them: get squares']),
   // L3 part 2: a sport's stats, each holding's stat line at the game's table as its moments (sequence/stats.js statMoments), so a
   // lineup's or best ball's steps take it from there (a whole team counting as best ball with all of it). A pick each episode by
   // its stats has no place yet. L3 part 2d: categories (each stat's total compared, not points) have no line of points: their place
@@ -1907,6 +1913,7 @@ function askPlace(s) {
   if (by === 'place' || by === 'moments' || by === 'stats') return draftAskPlace(s);
   if (by === 'survive') return none ? null : ['ask', "a pool's picks are its game: questions beside them play in a stage alongside it"];
   if (by === 'lines') return none ? null : ['ask', 'a bingo card is its game: questions beside it play in a stage alongside it'];
+  if (by === 'squares') return none ? null : ['ask', 'squares are their game: questions beside them play in a stage alongside it'];
   if (by === 'answers') {
     if (none) return ['ask', 'a game of questions asks at least one'];
     if (callsAsk(s.ask)) return null;
@@ -1990,6 +1997,11 @@ function rankPlace(s) {
     return ['rank.by', 'a game of questions ranks by its points, last one standing when it knocks players out, co-op on its lives, or head to head (or weeks won) with nobody racing, cut or losing a life'];
   }
   if (lines === 'lines') return by === 'total' ? null : ['rank.by', 'bingo lines are counted outside the game: most lines wins'];
+  // L3 part 2e: squares rank by what they've won, nobody racing or cut, no teams or handicap (squaresProblems refuses the rest).
+  if (lines === 'squares') {
+    const plain = rank.race === undefined && !cuts && rank.teams === undefined && rank.handicap === undefined;
+    return by === 'total' && plain ? null : ['rank.by', "squares rank by the points they've won, nobody racing or cut, in no teams and with no handicap"];
+  }
   return null;
 }
 /**
@@ -2003,8 +2015,8 @@ function noPlace(s) {
   // What every game shares: a span, the cast still in, a list of questions, moves locking at the start.
   if (!plainParts(s)) return [{ at: '', why: 'every game plays a span of episodes, from the cast still in, its moves locking as each starts' }];
   const held = holdOf(s);
-  if (!held) return [{ at: 'get', why: 'a game holds a draft (its whole team, a lineup or its best few counting), a pick each episode, nothing or a bingo card' }];
-  if (held === 'count') return [{ at: 'count', why: 'a draft counts its whole team, a lineup or its best few; a pick, the pick; nothing held or a card, nothing' }];
+  if (!held) return [{ at: 'get', why: 'a game holds a draft (its whole team, a lineup or its best few counting), a pick each episode, nothing, a bingo card or squares' }];
+  if (held === 'count') return [{ at: 'count', why: 'a draft counts its whole team, a lineup or its best few; a pick, the pick; nothing held, a card or squares, nothing' }];
   const by = isObj(s.score) ? s.score.by : undefined;
   const line = Object.prototype.hasOwnProperty.call(LINES, by) ? LINES[by](s, held) : ['score.by', 'what it scores by has no lines yet'];
   if (line) return [{ at: line[0], why: line[1] }];
@@ -2043,7 +2055,7 @@ function shapeOf(s) {
   if (by === 'answers') return callsAsk(s.ask) ? 'weekly-calls' : 'questions';
   // C5: a pick each episode scored by what they do is a pick's game, as a pool is (its picks, made each episode).
   if (momentsPick(s)) return 'pickem';
-  return { place: 'classic-draft', moments: 'active-roster', stats: 'active-roster', survive: 'pickem', lines: 'weekly-bingo' }[by] || null;
+  return { place: 'classic-draft', moments: 'active-roster', stats: 'active-roster', survive: 'pickem', lines: 'weekly-bingo', squares: 'squares' }[by] || null;
 }
 /** The parts every game today shares: a span (from an episode, or a phase), the cast still in, a list of questions (each
  *  game says which it plays), moves locking at the start. */
@@ -2170,6 +2182,8 @@ function flagsOf(s) {
     // C2 part 4c: a draft's own questions beyond its finale predictions (their answers kept as a game of questions' are).
     hasDraftQuestions: get.by === 'draft' && draftQuestions(s).length > 0,
     hasBingo: score.by === 'lines',
+    // L3 part 2e: squares on a team game's scores.
+    hasSquares: get.by === 'squares',
     supportsReplenish: waivers,
     supportsTrade: waivers,
     supportsFinalePredictions: finaleFits(s),

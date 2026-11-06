@@ -3,7 +3,7 @@
 // period's end read from the plays (TeamSport.periodScores, kept with the final: final.ts) on the recorded fixtures: the 76ers'
 // opener's quarters, an NFL game's, a hockey game won in a shootout. Brackets: a draw's winners round by round, before it starts
 // (sequence/bracket.js, graded by answers.js), on the 2026 US Open's recorded draws, the live card's way and the kept final's. Each
-// sport's default squares or bracket passes the engine's check against its sport. Run with `npm test`.
+// sport's default squares or bracket passes the engine's check against its sport, and plays (L3 part 2e). Run with `npm test`.
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const path = require("path");
@@ -143,11 +143,11 @@ test("squares taken: dealt at random from a seed, evenly, the rest nobody's; pic
   assert.equal(Sq.pickProblem([4], 10, null, new Set([4])), "Someone has that square already");
 });
 
-test("the squares spec: each sport's default passes against its sport, waiting only for the sports branch; what the check refuses", () => {
+test("the squares spec: each sport's default passes against its sport and plays (L3 part 2e); what the check refuses", () => {
   for (const [sport, league, ctxLeague] of [["basketball", "nba", "basketball/nba"], ["basketball", "wnba", "basketball/wnba"], ["basketball", "mens-college-basketball", "basketball/mens-college-basketball"], ["basketball", "womens-college-basketball", "basketball/womens-college-basketball"], ["football", "nfl", "football/nfl"], ["football", "college-football", "football/college-football"]]) {
     const s = spec(sport, "squares", league);
     assert.deepEqual(problems(s, specContextOf(sportOf(ctxLeague), league)), [], ctxLeague);
-    assert.deepEqual(specWaitsFor(s).map((w) => `${w.at}:${w.step}`), ["get.by:sports", "score.by:sports"], ctxLeague);
+    assert.deepEqual(specWaitsFor(s), [], ctxLeague);
   }
   // Men's college basketball is two halves: by quarter is refused there, halftime anywhere with an even number of periods.
   assert.deepEqual(squaresParts(spec("basketball", "squares", "mens-college-basketball")).pays.map((p) => p.at), [1, "final"]);
@@ -272,11 +272,11 @@ test("a bracket answer checked against the draw: in it, a round's winners from t
   assert.equal(answerProblem(q, { 7: ["anyone"] }, null), null);
 });
 
-test("the bracket spec: tennis's passes against tennis, waiting only for the sports branch; what the check refuses; its words", () => {
+test("the bracket spec: tennis's passes against tennis and plays (L3 part 2e); what the check refuses; its words", () => {
   for (const league of ["atp", "wta"]) {
     const s = spec("tennis", "bracket", league);
     assert.deepEqual(problems(s, specContextOf(tennis)), [], league);
-    assert.deepEqual(specWaitsFor(s).map((w) => `${w.at}:${w.step}`), ["ask[0]:sports"]);
+    assert.deepEqual(specWaitsFor(s), [], league);
   }
   const s = spec("tennis", "bracket");
   const q = s.ask[0];

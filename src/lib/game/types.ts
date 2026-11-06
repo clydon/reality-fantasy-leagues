@@ -178,6 +178,10 @@ export interface Episode {
   /** L3 part 2c: a game reading a sport's games (scored by their stats, or asking a question one settles), once this episode's game
    *  is final and kept: its results are in. Stamped as statLines are (StateLogic.StatsLogic.stamp), never stored. */
   gameFinal?: boolean;
+  /** L3 part 2e: a squares game, its game's final score as the squares read it (its sides and each period's end), and its digits once
+   *  it's locked (the server's draw): stamped as statLines are, never stored (SquaresLogic.settle keeps the digits in state.squares). */
+  gameScore?: Pick<import("./game-spec").SportsGameFacts, "status" | "sides" | "periods">;
+  squareDigits?: import("./sequence/squares").SquaresDigits;
   /**
    * Both optional and both filled in only by the wiki connector's eliminations import, which gets them
    * for free off the episode guide. Never overwritten once set, and absent on every hand-created
@@ -1151,6 +1155,11 @@ export interface LeagueState {
   /** L3 part 2: a game scored by a sport's stats, each castaway's position group from their roster (StatsLogic.stamp): never
    *  stored. */
   statGroups?: Record<string, string>;
+  /** L3 part 2e: a squares game's sport's regulation periods (halftime's), stamped with its scores: never stored. */
+  statPeriods?: number;
+  /** L3 part 2e: a squares game's squares (StateLogic.SquaresLogic): each seat's picks and the episode they count from, a deal's
+   *  seats at the first lock, each locked episode's digits as the server drew them. */
+  squares?: { picks?: Record<string, { cells: number[]; from: number | null }>; dealt?: { seats: string[] }; digits?: Record<number, import("./sequence/squares").SquaresDigits> };
   /** Step A12 part 1: a game in stages' stages' tables as the server read them (stages.ts stageWalk, StateLogic.StageLogic.withWalk):
    *  never stored; a copy cut at a mark cuts it too. */
   stageWalk?: import("./state-logic.js").StageWalk;
