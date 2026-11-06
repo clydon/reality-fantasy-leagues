@@ -246,8 +246,10 @@ race weekend's board and its core's lists and statistics (~135 calls an F1 weeke
 each round's calls together); a tennis event's board (1 call); a card's board and FightCenter, its rounds, each bout's plays and
 each fighter's statistics (~36 calls a 12-bout UFC card). Kept with the event for good (`sports_events.lines`, `people` and `shape`:
 golf ~29 KB, an F1 weekend ~5.5 KB, a NASCAR race ~9 KB, a UFC card ~11 KB, a WTA 500 ~40 KB, a Grand Slam's draws ~240 KB: the
-US Open's 625 matches with qualifying and doubles, each kept as its sides, sets and winner only; a team game's `shape` is empty
-but for a soccer match level after a penalty shootout: its shootout score, a few bytes, L4 part 1a), and cached a day in `sports_cache`
+US Open's 625 matches with qualifying and doubles, each kept as its sides, sets and winner only, and since L4 part 2 a main-draw
+match's round, ~5.5 KB more a Grand Slam, for a bracket; a team game's `shape` is its periods' ends since L4 part 2, for squares:
+~100 bytes a basketball or football game, ~160 an MLB game's nine innings; and a soccer match level after a penalty shootout its
+shootout score, a few bytes, L4 part 1a), and cached a day in `sports_cache`
 (the same size). To know when it's final, the daily listings job now also reads the first day's scoreboard of each linked field's or
 card's event the app reads, for 16 days from its start (a Grand Slam's fortnight; one call per league and day, cached as before).
 At most 10 fields or cards a run; one whose later call ESPN fails is asked whole again the next run. Nothing polls, nothing new

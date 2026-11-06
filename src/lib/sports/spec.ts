@@ -18,7 +18,8 @@ export type { Scored, StatBout, StatPart, StatScore };
 /** A card as its scoring and grading read it: each bout's id, sides, rounds or sets and whether it's the main event (a BoutCard,
  *  or a kept one: final.ts StoredCard). */
 export interface CardBouts {
-  bouts: Pick<Bout, "id" | "sides" | "rounds" | "main">[];
+  /** L4 part 2: a bout's draw (`class`) and distance from its final (`place`, a live card's; `fromFinal`, a kept one's): a bracket's. */
+  bouts: (Pick<Bout, "id" | "sides" | "rounds" | "main"> & { class?: string | null; place?: Bout["place"]; fromFinal?: number })[];
 }
 
 /** A place or a range of them ("1", "4-10"), as { min, max }; null when it isn't one: the game spec's own, so the check and the
@@ -78,7 +79,7 @@ export function boutsOf(card: CardBouts, byBout: Record<string, Record<string, S
 export function gameFacts(
   sport: Sport,
   state: GameState | FieldState | BoutState,
-  o: { status: SportsGameFacts["status"]; sides?: string[]; people?: Record<string, { team?: string | null }>; card?: CardBouts | null; shootout?: Record<string, number> },
+  o: { status: SportsGameFacts["status"]; sides?: string[]; people?: Record<string, { team?: string | null }>; card?: CardBouts | null; shootout?: Record<string, number>; periods?: Record<string, number>[] },
 ): SportsGameFacts {
   const team = sport instanceof TeamSport;
   const lines = Object.fromEntries(Object.entries(state.lines).map(([id, l]) => [id, team ? sport.full(l) : l]));
@@ -91,10 +92,14 @@ export function gameFacts(
     if (!o.card) throw new Error("A card's facts need the card");
     out.bouts = Object.fromEntries((o.card?.bouts ?? []).map((b) => {
       const r = state.bouts[b.id]?.result ?? null;
-      return [b.id, { sides: b.sides, winner: r?.winner ?? null, outcome: r?.outcome ?? null, main: b.main }];
+      // L4 part 2: its draw and distance from the draw's final, where it's in one (a bracket's).
+      const fromFinal = b.fromFinal ?? b.place?.fromFinal ?? null;
+      return [b.id, { sides: b.sides, winner: r?.winner ?? null, outcome: r?.outcome ?? null, main: b.main, ...(b.class ? { class: b.class } : {}), ...(fromFinal != null ? { fromFinal } : {}) }];
     }));
   } else {
     out.sides = (o.sides ?? Object.keys(state.score)).map((id) => ({ id, score: state.score[id] ?? 0 }));
+    // L4 part 2: each period's end as far as it's read (squares' pays: the kept final's, or TeamSport.periodScores live).
+    if (o.periods?.length) out.periods = o.periods;
     // L4 part 1a: level with a penalty shootout (its kicks are never the score: soccer.ts), each side's shootout goals, so a cup
     // tie won on penalties has a winner and only a match that ends level is a draw: ESPN's own (`o.shootout`, the header's, as a
     // kept final has it), else its players' kicks added up (the phone's, from the plays).

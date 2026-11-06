@@ -1112,7 +1112,8 @@ engine track; L brings each sport's data to it. Its screens wait for the UI trac
     below); part 1b, categories and roto (the spec's shape, the check, a pure scorer beside the sequence for the hook to call: each
     category over a window from summed counts, a rate from its parts) with head-to-head's and best ball's specs on the recorded
     fixtures (built 2026-11-06: As built below); part 2, squares (a sports way to `get`: a grid of the two sides' last digits, paid by period from the sport's
-    period scores) and brackets (A8's order on a draw: tennis's `draws()`, a playoff's series); live calls wait for A15 (not built
+    period scores) and brackets (A8's order on a draw: tennis's `draws()`, a playoff's series) (built 2026-11-06: As built below; a
+    playoff's series waits for a season of a league's playoffs: its Noticed); live calls wait for A15 (not built
     yet: its clock is L2's), and every stats format plays once the hook does (written down for the engine lane below).
 - **L5. More of ESPN:** soccer; college and the WNBA; golf, racing, MMA and tennis (the field and bout shapes). A part per
   session: part 1, soccer (built 2026-10-28: As built below); part 2, college (basketball, football, baseball, hockey) and the
@@ -3515,6 +3516,128 @@ migration, no ESPN calls, nothing stored).**
   could keep a goalie's zero shots against.)
 - **The scorer compares rates at full precision**: Yahoo shows FG% to three places; two seats whose rates differ past the third
   place aren't tied here. A rounding rule if a couch sees a "tie" lost. (U1's display, or the user.)
+
+**L4 part 2 as built: squares and brackets (2026-11-06, `sports`, not merged; no migration, no ESPN calls; a kept final keeps a
+little more: HOSTING.md).**
+- **Squares' spec** (`game-spec/schema.js`): `get: { by: 'squares', grid?, take?, each? }` (a grid of a team game's two scores'
+  last digits, 10 by 10 or 5 by 5, `grid` 10 the default; its squares picked, `take: 'pick'` the default, up to `each`, first come
+  and a square one person's, or dealt at random, `deal`, `each` each or as many as go round evenly), `count` null, `score: { by:
+  'squares', pays: [{ at, points }], empty?, unread? }` (each pay at a period's end, `at` its number, halftime `'half'` or the final
+  score `'final'`; `empty` what a square nobody holds does: `void`, nobody, the default, or `next`, rolled on to the next pay;
+  `unread` what a period whose end was never read does: `final`, paid on the final score, the default, or `void`), ranked by the
+  total, nothing beside it, closing at the start. VOCAB `score.by` `squares` as 'sports' (`get.by`'s was already). `squaresProblems`
+  (the grid, the take, `each` within the grid, 1 to `MAX_PAYS` (10) pays in the order they're paid and each once, points 1 to 100,
+  `empty` and `unread`, rank total, no race, cut, teams, handicap or head to head, no questions beside it: a stage alongside, as
+  bingo's and a pool's) and, against the sport, `settleProblems`: a team game only (`ctx.shape`: "a field has none"), a pay's period
+  one of its regulation ones (`ctx.periods`, new in `specContextOf`: the Sport's `periods`), halftime only on an even number of them,
+  never beside the same period's end, and between its two halves' pays. `squaresParts` reads it the one way with `SQUARES`' defaults.
+  Scoring by stats no longer takes squares (it did: the corpus' 15, below).
+- **Decisions** (mine, the sports orchestrator's to overrule): the digits are drawn at the lock, once everyone has their squares, so
+  nobody picks a good number; on a game of many episodes (a team's schedule) your squares are yours for the game and the digits are
+  drawn again each episode (a seed of the game's and the episode's, the engine's to keep); the rows are the first side in ESPN's
+  header (the home side), the columns the second; `'final'` is ESPN's final score, overtime in it, a hockey shootout's winning goal in
+  it (ESPN's final has it) and a soccer shootout's kicks never; a period's pay at the end of the 4th is regulation's, the final's
+  overtime's. The defaults pay a point at the end of each of the first three quarters and two for the final (the Super Bowl pools'
+  usual 20/20/20/40).
+- **Each period's end** (`sport.ts`, new): `periodEnds(plays, sides, { final, ended })`, each side's score after each finished
+  period's last play: one a later period's play has begun after, or `ended` (ESPN's status between periods, `STATUS_HALFTIME` and
+  `STATUS_END_PERIOD`, as the recordings show them: halftime's pay comes when halftime does, not with the third quarter's first
+  play), and once final every period its plays reached (every sport's feed has plays in each period played: soccer's a half's
+  start, hockey's a period's; a shootout's never a period's), the last of them the final's corrected score unless a shootout followed.
+  A game called before a regulation period has no end read for it, nor does a summary with no plays: `unread` says what then.
+  `TeamSport.periodScores(summary, at?)` reads them as of a moment (now with the status, earlier by the plays alone). Kept with the
+  final (`StoredGame.periods`, `sports_events.shape` `{ kind: 'team', shootout?, periods? }`: ~100 bytes a basketball or football
+  game, ~160 an MLB game's; HOSTING.md), read back (`score.ts` storedOf) and handed to the grader's facts (`gameFacts`' `periods`,
+  `SportsGameFacts.periods`).
+- **The scorer** (`src/lib/game/sequence/squares.js`, new, plain CommonJS with its types): `digitsOf(seed, grid)` (each side's digits
+  shuffled from a seed and cut into the grid's rows or columns), `cellOf`, `dealSquares(seed, seats, grid, each)` (a square each in
+  turn in the seed's order of seats, evenly, the rest nobody's), `pickProblem` (a move's squares: on the grid, each once, at most
+  `each`, none taken), `payScore` (where a pay's score stands: known, waiting, unread, off), `squaresPays(parts, game, { digits,
+  holders, regulation })` (each pay in the order they come, paid, empty, void, waiting or off, its score, square and holder, what was
+  rolled on to it; the totals), `holdersOf`.
+- **Brackets, as a question** (A4's, beside A8's kinds): `answer: 'bracket'`, `settle: { by: 'final', take: 'bracket', of }` (`of`
+  the draw: the sport's key, tennis's `MS`, `WS`...), its `points` each right pick's in the first round, `rounds: 'double'` (the
+  default: each round's worth twice the one before, ESPN's Tournament Challenge) or `'same'`. An answer is each round's winners by its
+  distance from the final (`{ "7": [64 ids], ..., "1": [the champion] }`); a pick is right when they won a match of that round (a
+  consistent bracket's picks for a round come from their own matches' halves, so counting a round's right picks is grading it match by
+  match). VOCAB `ask.answer` `bracket` 'sports'; `final`'s takes `bracket`. The check: `of` named, nothing shared, rolled over,
+  shrunk, staked or asked about each person; against the sport, a card whose bouts are in draws (`ctx.draws`, new: a sport with
+  `draws()`, tennis's positions), never a team game, a field or MMA's card, and `of` one of them. **Graded** by `answers.js` through
+  `sequence/bracket.js` (new: `bracketOf`, the draw from a card's facts, its first round, who enters where, each round's matches and
+  winners so far; `bracketProblem`; `bracketPoints`; `roundWorth`): known once the card is final, the draw so far live; `pointsFor`;
+  `isRight` when any pick is (A8's kinds' way); `answerProblem` with the draw as its `faces` (who's in it, a round's winners among
+  the round before's picks or entering there with a bye, one winner a match, no more than the round has). A card's facts carry each
+  bout's `class` and `fromFinal` (`gameFacts`), the kept card each main-draw bout's `fromFinal` (`StoredBout`: ~5.5 KB a Grand Slam).
+- **Tennis's rounds before they're listed** (`tennis.ts`, the review's find): "Round 1" to "Round 4" counted back from the draw's
+  last listed, so before a Grand Slam's second round was on the board its first round read 4 from the final, not 7. Now, until a
+  draw's quarterfinals are on the board, its first round is also at least `ceil(log2 m) + rid` from its rounds' matches (a round of
+  m matches is that far from the final at least), so the board at the draw's making numbers a bracket's rounds right; once they're
+  listed, ESPN's ids alone as before (some events' "Round 1" holds two rounds: counting would misread them). Every cached finished
+  board reads as before (324 events, 21,138 matches in rounds 1 to 4: none moved).
+- **The defaults**: basketball's and football's `squares` (by quarter: the NBA, WNBA, women's college basketball, the NFL and college
+  football), men's college basketball's at halftime and the final (a league's own, `leagues`); tennis's `bracket` (men's singles,
+  the WTA's women's singles: a league's own). Each passes the engine's check against its sport and waits only for the sports
+  branch's pieces.
+- **The words** (`describe.js`): "everyone takes squares on a 10-by-10 grid of the two scores' last digits ... The square of the two
+  scores' last digits wins 1 point at the end of the first quarter, ... and 2 points at the final score. Most points wins."; How it
+  works (picked or dealt, the digits drawn after, each pay, overtime in the final, an empty square, a period never read, the digits
+  drawn again each game of many); a bracket's "Pick the winner of every match of the men's singles draw, round by round to the final:
+  1 point for each one right in the first round, doubling each round after it." `ordinalWord` (schema.js) for both.
+- **Checks.** `tests/sports-squares.test.js` (new, 11): each period's end from the plays on the 76ers' opener's quarters (18-35,
+  45-69, 82-90, 114-106), an NFL game's, Kings' shootout (3-3 after overtime, the shootout's goal only the final's), men's college
+  basketball's double overtime, a World Cup tie's penalties; live, an earlier moment's and ESPN's halftime status; a game called after
+  five innings; squares paid by quarter on the opener and the NFL game, live and kept alike, empty squares void and rolled on (past a
+  void pay too), a drawn grid and a 5 by 5; halftime live, the shootout, a kept final without periods (on the final, or void), a game
+  off or not started; the deal and the picks' check; the spec's check and each default against its sport; the words; **a bracket on
+  the US Open's men's singles** (64, 32, ... 1 winners, the perfect bracket 448, the wrong champion 384, the champion alone 64, 127
+  the same each round; live and from the kept final alike; waiting live; a draw not on the card off; the WTA's women's singles), the
+  board at the draw's making (64 first-round matches, seven from the final), an answer checked against the draw, the bracket spec's
+  check and words; a kept final's size. `tests/placement.test.js`: `CLOSED`, squares scored by anything but their squares (15 newly
+  refused: by moments, by moments multiplied in the finale or by stats, ranked by the total, asking nothing or the corpus' four).
+  `sports-formats.test.js` (a kept final's shape has its periods now), `sports-settles.test.js` (the `of` words). `check-finals.js`
+  (+2, all pass: the opener's quarters kept in its shape and read back, the men's singles draw read back round by round),
+  `check-matchup.js` (all pass), `check-live-event.js` (6 of 6). 1,743 unit tests; `tsc` clean; eslint clean on src/lib/sports,
+  src/lib/server/sports, src/lib/game/sequence, schema.js, describe.js and answers.js.
+- `/code-review` on the diff (its fixes: a Grand Slam's first round read 4 from the final until the later rounds were listed
+  (tennis.ts, above); a final game's periods filled to regulation, so a called game's unplayed innings paid on the final whatever
+  `unread` said, now only the periods its plays reached; points rolled on lost at a void pay; `squaresParts`' sort that didn't sort
+  halftime, now the check keeps the pays in order; `isRight` false for every bracket; two docs above the wrong function; two copies
+  of the ordinal words; a dead guard. Declined: the server's bracket faces, null today (the hook's: below); finals kept before this
+  step lacking a bout's round or a game's periods (nothing in production keeps finals before L6's release; a lane database's old ones
+  read as off or unread)).
+- **For the engine lane (with L3 part 2's hook):**
+  - `schema.js` placement: `holdOf` 'squares' (a hold of its own), `LINES.squares` (its lines are its pays: `squaresPays`' totals
+    each episode), `rankPlace` total only (the check refuses the rest). A bracket question in a game of questions: `playable` takes it
+    (its line is `bracketPoints`, through `pointsFor` already).
+  - `state-logic.js`: the squares themselves: a move taking squares (`pickProblem` against everyone's, first come), or the deal at
+    the lock (`dealSquares`), and the digits drawn there (`digitsOf(seed + episode, grid)`), the seed kept and recorded as DrawLogic's
+    (`state.squares`: its seed and when); each episode's pays from the game's facts (`facts.games`' periods and sides: the server's
+    from the kept final, the phone's from `TeamSport.periodScores`) with the sport's regulation periods (the server hands
+    `Sport.periods` over beside the facts); the totals the table's. A late joiner takes squares left over (a pick) or none (a deal).
+  - The server's answers (`server/answers.ts`): a bracket's `faces` is the draw as listed at the time (`bracketOf` over the card's
+    facts' bouts and `of`), handed to `answerProblem`; today they're null for it (only the shape is checked). The engine's
+    `AnswerLogic.faces` doesn't read a card.
+  - VOCAB: `score.by` `squares` and `ask.answer` `bracket` to 'now' with it.
+
+**L4 part 2 noticed, not fixed:**
+- **A playoff's series as a bracket** (the NBA's, the NHL's) needs a season made of a league's playoffs (each series its games): the
+  same gap as a league's slate (L4 part 1a's Noticed, L7 or its own step). `bracketOf` takes a series as a bout once something gives
+  each one its class and distance from the final.
+- **A rolling bracket** (each round picked as it comes, from who's still in) needs a lock for each round inside one episode (a Grand
+  Slam is one): an episode a round, or a lock per round (A15's clock, or its own step).
+- **A draw with a group stage** (the ATP Finals): its bracket is the semifinals and the final, whose sides aren't known until the
+  groups end, so an answer at the event's start can't be checked against the draw (nobody's in it yet). A lock after the groups, or
+  picks by group.
+- **A seed with a bye** isn't on the board until the second round's matches are listed, so a bracket answered before then can't name
+  them ("Pick only who's in the draw"). A Grand Slam's 128 has none; a 28 or 96 draw's has. ESPN's listing at the lock decides.
+- **Squares' other ways** (reverse squares, paying the digits the other way round too; every score change paying; new digits each
+  quarter; a pot split as money) aren't built: spec fields when a couch asks (G3).
+- **Some events' "Round 1" holds two rounds** (the 2025 Winston-Salem Open's men's singles: 32 matches, then an 8-match "Round 2";
+  two other events' draws are as uneven), so their first rounds' distance from the final, counted back from ESPN's ids, is one short
+  for the first of the two, and a bracket on such a draw would number them so. A tennis reader's fix when a couch plays one (L5's).
+- **ESPN's status at the end of the 4th quarter** had no period in the NFL recording ("End of 4th Quarter", period missing), so a
+  game level after regulation pays the 4th's end at overtime's first play, not when regulation ends. Small; the status's detail could
+  say it.
 
 **Open, from the sports plan:** head-to-head's schedule over a span, and playoffs; whether a sport's moves follow Weekly
 Lineup's waivers or need their own rhythm for daily sports; what a live call is worth, and how fast they open and close;

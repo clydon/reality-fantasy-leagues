@@ -176,6 +176,20 @@
     "pickem": {
       "about": "Each tournament, before it starts: who wins the final? 5 points if you're right (a draw or no contest counts for nobody), most points wins.",
       "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers" }, "rank": { "by": "total" }, "closes": "start", "ask": [{ "id": "winner", "ask": "Who wins the final?", "answer": "person", "from": "cast", "points": 5, "settle": { "by": "final", "take": "winner", "of": "main" }, "asked": "each", "closes": "start" }] }
+    },
+    "bracket": {
+      "about": "Each tournament, before it starts: pick the winner of every match of the men's singles draw, round by round to the final. A point for each right pick in the first round, doubling each round after it (64 for the champion of a Grand Slam's 128), most points wins.",
+      "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers" }, "rank": { "by": "total" }, "closes": "start", "ask": [{ "id": "bracket", "ask": "Who wins each round of the men's singles?", "answer": "bracket", "points": 1, "rounds": "double", "settle": { "by": "final", "take": "bracket", "of": "MS" }, "asked": "each", "closes": "start" }] }
+    }
+  },
+  "leagues": {
+    "wta": {
+      "specs": {
+        "bracket": {
+          "about": "Each tournament, before it starts: pick the winner of every match of the women's singles draw, round by round to the final. A point for each right pick in the first round, doubling each round after it (64 for the champion of a Grand Slam's 128), most points wins.",
+          "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers" }, "rank": { "by": "total" }, "closes": "start", "ask": [{ "id": "bracket", "ask": "Who wins each round of the women's singles?", "answer": "bracket", "points": 1, "rounds": "double", "settle": { "by": "final", "take": "bracket", "of": "WS" }, "asked": "each", "closes": "start" }] }
+        }
+      }
     }
   }
 }

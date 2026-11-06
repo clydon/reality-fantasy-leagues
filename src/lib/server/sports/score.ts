@@ -129,8 +129,12 @@ export async function leagueGames(state: LeagueState, o: { mark?: number | null;
 /** A row's kept final as its sport keeps it: a team game's with its sides, a field's or a card's with its shape (one kept as none
  *  has an empty one). */
 function storedOf(sport: NonNullable<ReturnType<typeof sportOf>>, lines: Record<string, Stats>, people: StoredPeople, sides: { id: string; score: number }[], shape: StoredShape | null): StoredFinal {
-  // A team game's shape is only a shootout's goals (L4 part 1a: ESPN's, never in the score).
-  if (sport instanceof TeamSport) return { final: true, sides: shape?.kind === "team" ? sides.map((s) => (typeof shape.shootout[s.id] === "number" ? { ...s, shootout: shape.shootout[s.id] } : s)) : sides, lines, people };
+  // A team game's shape is a shootout's goals (L4 part 1a: ESPN's, never in the score) and its periods' ends (L4 part 2).
+  if (sport instanceof TeamSport) {
+    const t = shape?.kind === "team" ? shape : null;
+    const so = t?.shootout ?? {};
+    return { final: true, sides: sides.map((s) => (typeof so[s.id] === "number" ? { ...s, shootout: so[s.id] } : s)), ...(t?.periods?.length ? { periods: t.periods } : {}), lines, people };
+  }
   if (sport instanceof BoutSport) {
     const s = shape?.kind === "card" ? shape : { card: { event: "", bouts: [], field: [] }, byBout: {}, results: [] };
     return { kind: "card", final: true, card: s.card, byBout: s.byBout, results: s.results, lines, people };

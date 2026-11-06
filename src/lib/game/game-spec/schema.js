@@ -38,7 +38,12 @@
 //            (a second pick that counted included), and its fallback for a night you've picked everyone still in: miss (it's a
 //            missed pick: the streak breaks and, with lives, it costs one) | skip (nothing counts that night for you: no
 //            points, no life lost, the streak holds)) | { by: 'card' }
-//            (bingo) | { by: 'none' }; sports: { by: 'squares' }
+//            (bingo) | { by: 'none' }; sports: { by: 'squares', grid?, take?, each? } (L4 part 2: a grid of a team game's two
+//            scores' last digits, the first side's down the rows and the second's across, 10 by 10 or 5 by 5 (grid: 10, the
+//            default, or 5); everyone picks their squares before it starts (take 'pick', the default, up to `each`: first come,
+//            a square one person's) or is dealt them at random (take 'deal': `each` each, else as many as go round evenly); the
+//            digits drawn at random onto the rows and columns at the lock, after everyone has theirs; nothing counts but the
+//            squares (count null): squaresProblems, sequence/squares.js)
 //   count    what of yours counts each episode: { start: n } (your lineup) | { all: true } | { pick: true } | { best: n }
 //            (A9 part 2: best ball, your best n each episode, no lineups; shows and sports) | null (nothing held)
 //   score    { by: 'moments', points, captain?, times? } (points: moment id -> points over the rulebook's own; null = its
@@ -62,6 +67,13 @@
 //            answered | all of them; COOP's default one); sports: { by: 'stats', points: { HR: 5 }, byPosition?, byPlace?,
 //            byFormat? } (the Sport's stat keys: statScoreProblems) | { by: 'stats', categories: ['FG%', 'REB', ...] } (L4 part
 //            1b: no points; each category's total over a window, compared: categoryProblems, sequence/categories.js)
+//            | { by: 'squares', pays: [{ at, points }], empty?, unread? } (L4 part 2, squares': at each pay, the end of a period
+//            (at: its number, a regulation one), halftime ('half': a sport with an even number of them) or the final score
+//            ('final': overtime in it; a shootout as the sport's final has it, hockey's winner's goal and never soccer's kicks),
+//            the square of the two scores' last digits wins `points` for whoever holds it; a square nobody holds pays nobody
+//            (empty 'void', the default) or rolls its points on to the next pay ('next'); a period whose end was never read (a
+//            game called before it) pays on the final score (unread 'final', the default) or nobody ('void'). Ranked by the
+//            total, nothing beside it: squaresProblems, sequence/squares.js)
 //   rank     { by: 'total' } | { by: 'streak' } (longest, ties to the total) | { by: 'standing' } (A10 part 2, a pool with lives:
 //            last one standing, whoever's still in first, then whoever went out last; ties to the total, then lives left)
 //            | { by: 'worth' } (A10 part 3c, a stock market: cash plus the team at today's prices; ties to the total);
@@ -188,7 +200,7 @@ const VOCAB = {
   'get.fallback': { miss: 'now', skip: 'now' },
   count: { start: 'now', all: 'now', pick: 'now', best: 'now' },
   // A12 part 1: a game in stages scores by its stages (StageLogic).
-  'score.by': { moments: 'now', place: 'now', survive: 'now', lines: 'now', answers: 'now', stages: 'now', stats: 'sports' },
+  'score.by': { moments: 'now', place: 'now', survive: 'now', lines: 'now', answers: 'now', stages: 'now', stats: 'sports', squares: 'sports' },
   'score.means': { staysIn: 'now', scores: 'now' },
   // A11 part 3: co-op, the couch against the show (a game of questions whose lives are everyone's together: won or lost by all).
   // A11 part 4: head to head (matchups), a draft's on a show (each episode's points against someone's, with playoffs); L4 brings it
@@ -199,6 +211,8 @@ const VOCAB = {
   'ask.answer': {
     person: 'now', group: 'now', yesNo: 'now', number: 'now', overUnder: 'now', choice: 'now', calls: 'now',
     order: 'now', confidence: 'now', chips: 'now', split: 'now', pairs: 'now', side: 'sports',
+    // L4 part 2: a draw's winners, round by round (tennis's), before it starts: sequence/bracket.js.
+    bracket: 'sports',
     // A13: the episode's trivia, settled by its key (the bot's trivia research).
     trivia: 'now',
   },
@@ -426,7 +440,7 @@ const TAKES = {
   trivia: [],
   fact: ['who'],
   players: ['majority', 'minority'],
-  final: ['winner', 'total', 'margin'],
+  final: ['winner', 'total', 'margin', 'bracket'],
   stat: ['most', 'least', 'value'],
 };
 /** The settles that are the season's (known at its end): asked once, in a game that runs to the season's end. */
@@ -447,6 +461,8 @@ const SETTLES_FOR = {
   split: ['results:split'],
   pairs: ['results:outlast'],
   side: ['final:winner'],
+  // L4 part 2: a draw's winners, round by round.
+  bracket: ['final:bracket'],
   yesNo: ['moment:happened', 'phase:happened', ...PLAYERS_TAKES],
   // A number is a count, or an episode (which one a phase starts in, or a moment first happens in).
   number: [...NUMBERS, 'moment:first'],
@@ -494,6 +510,18 @@ const MAX_CATEGORIES = 20;
 const CATEGORY_RANKS = ['categories', 'matchups', 'roto'];
 /** A spec scored by a sport's categories (score.by 'stats' with categories): their keys, else null. */
 const categoriesOf = (s) => (isObj(s) && isObj(s.score) && s.score.by === 'stats' && Array.isArray(s.score.categories) ? s.score.categories : null);
+/** L4 part 2: a squares grid's sizes (10 by 10, a digit a row; 5 by 5, two), how squares are taken (picked, or dealt at random), what
+ *  a square nobody holds does (pays nobody, or rolls on to the next pay), and what a period whose end was never read does (pays on
+ *  the final score, or nobody); a game's most pays (baseball's nine innings and the final) and a pay's latest period. */
+const SQUARE_GRIDS = [10, 5];
+const SQUARE_TAKES = ['pick', 'deal'];
+const SQUARE_EMPTY = ['void', 'next'];
+const SQUARE_UNREAD = ['final', 'void'];
+const SQUARES = { grid: 10, take: 'pick', empty: 'void', unread: 'final' };
+const MAX_PAYS = 10;
+const MAX_PAY_PERIOD = 9;
+/** L4 part 2: a bracket's right picks, worth doubling round by round from the first (ESPN's Tournament Challenge), or the same. */
+const BRACKET_ROUNDS = ['double', 'same'];
 const MAX_PARLAYS = 6;
 /** A9 part 2: the most windows a draft's points multiply in (score.times), and what each one says when it is. */
 const MAX_WHEN = 8;
@@ -743,6 +771,25 @@ function categoryParts(s) {
   if (!cats || !isObj(s.rank) || !CATEGORY_RANKS.includes(s.rank.by)) return null;
   const r = s.rank;
   return { by: r.by, categories: cats.slice(), ...(r.by === 'roto' ? { odd: null, quiet: null, playoffs: null } : h2hParts(r)) };
+}
+/**
+ * L4 part 2: a squares game, read the one way from a whole spec: { grid, take, each (null: as many as anyone likes, or as go round
+ * evenly), pays: [{ at, points }] (in the order they're paid: the check says so), empty, unread } with SQUARES' defaults, or null
+ * for a game that isn't one.
+ */
+function squaresParts(s) {
+  if (!isObj(s) || !isObj(s.get) || s.get.by !== 'squares' || !isObj(s.score) || s.score.by !== 'squares' || !Array.isArray(s.score.pays)) return null;
+  const g = s.get;
+  const sc = s.score;
+  const pays = sc.pays.filter((p) => isObj(p)).map((p) => ({ at: p.at, points: p.points }));
+  return {
+    grid: SQUARE_GRIDS.includes(g.grid) ? g.grid : SQUARES.grid,
+    take: SQUARE_TAKES.includes(g.take) ? g.take : SQUARES.take,
+    each: isInt(g.each, 1) ? g.each : null,
+    pays,
+    empty: SQUARE_EMPTY.includes(sc.empty) ? sc.empty : SQUARES.empty,
+    unread: SQUARE_UNREAD.includes(sc.unread) ? sc.unread : SQUARES.unread,
+  };
 }
 /** A rank's said end value, else the default. */
 const endOf = (rank, key, dflt) => (isObj(rank) && own(VOCAB[`rank.${key}`], rank[key]) ? rank[key] : dflt[key]);
@@ -1894,7 +1941,9 @@ function specProblems(spec, ctx, opts) {
   if (score.by === 'answers' && score.parlays !== undefined) parlayProblems(score.parlays, s).forEach(([at, p]) => add(`score.parlays${at}`, p));
   // A11 part 2b: lives on a game of questions' answers.
   if (score.by === 'answers' && (score.lives !== undefined || score.livesOn !== undefined)) answerLivesProblems(score, s).forEach(([at, p]) => add(`score${at}`, p));
-  if ((score.by === 'moments' || score.by === 'stats') && !['draft', 'pick', 'squares'].includes(get.by)) add('score.by', `Scoring ${score.by} needs someone of yours: a draft or a pick`);
+  if ((score.by === 'moments' || score.by === 'stats') && !['draft', 'pick'].includes(get.by)) add('score.by', `Scoring ${score.by} needs someone of yours: a draft or a pick`);
+  // L4 part 2: squares.
+  if (get.by === 'squares' || score.by === 'squares') squaresProblems(s, count).forEach(([at, p]) => add(at, p));
   if (score.by === 'place' && !(get.by === 'draft' && count === 'all')) add('score.by', 'Scoring by place counts everyone drafted: a draft, { all: true }');
   if (score.by === 'survive' && get.by !== 'pick') add('score.by', 'Surviving scores a pick');
   if (score.by === 'answers' && get.by !== 'none') add('score.by', 'A game scored by its answers has nothing to hold: get none');
@@ -2004,7 +2053,7 @@ function questionProblems(q, at, s, ids, league) {
   else ids.add(q.id);
   if (typeof q.ask !== 'string' || !q.ask.trim()) add('ask', 'A question asks something');
   else if (q.ask.length > 200) add('ask', 'A question is 200 characters at most');
-  if (!one('ask.answer', q.answer)) add('answer', 'The answer is a person, group, side, yesNo, number, overUnder, choice, calls, order, confidence, chips, split, pairs or trivia');
+  if (!one('ask.answer', q.answer)) add('answer', 'The answer is a person, group, side, yesNo, number, overUnder, choice, calls, order, confidence, chips, split, pairs, trivia or bracket');
   if (!(isNum(q.points) && q.points >= 0 && (league || q.points <= MAX_QUESTION_POINTS))) add('points', `A right answer is worth 0 to ${MAX_QUESTION_POINTS}`);
   if (!one('ask.asked', q.asked)) add('asked', 'A question is asked once, each episode, every few episodes, or once a phase');
   // A7's windows: every N episodes (asked every), over the next N (asked each).
@@ -2091,7 +2140,7 @@ function questionProblems(q, at, s, ids, league) {
   // says whose: a stat's player or team, a card's bout.
   if ((st.by === 'final' || st.by === 'stat') && windowed(q)) add('asked', `A game's ${st.by === 'final' ? 'final is' : 'stats are'} that game's or the whole game's: ask it each episode, or once`);
   if (st.of !== undefined && (st.by === 'stat' || st.by === 'final')) {
-    if (!(st.by === 'stat' || st.take === 'winner')) add('settle.of', "Only a stat, or who wins a card's bout, says whose");
+    if (!(st.by === 'stat' || st.take === 'winner' || st.take === 'bracket')) add('settle.of', "Only a stat, who wins a card's bout, or a draw's bracket says whose");
     else if (typeof st.of !== 'string' || !st.of) add('settle.of', "Whose: a player's or a team's id (a card's bout: 'main' or its id)");
   }
   if (st.by === 'results' && (st.take === 'placed' || st.take === 'top') && !isInt(st.place, 1)) add('settle.place', 'Which place: 1 or more');
@@ -2174,6 +2223,17 @@ function questionProblems(q, at, s, ids, league) {
   if (q.answer === 'overUnder') {
     if (q.line !== null && q.line !== undefined && !isNum(q.line)) add('line', 'The line is a number, or null (or left out) for the wizard to ask');
   } else if (q.line !== undefined) add('line', "Only an over/under has a line");
+  // L4 part 2: a bracket, a draw's winners round by round (its draw named: `of`, the sport's key for it), its right picks worth the
+  // same each round or doubling (rounds); one answer for the whole draw, its points each right pick's.
+  if (how === 'final:bracket' && q.answer !== 'bracket') add('answer', "Only a bracket answer is graded by a draw's bracket");
+  if (q.answer === 'bracket') {
+    if (typeof st.of !== 'string' || !st.of) add('settle.of', "Which draw it's the bracket of: its key (tennis's MS, WS...)");
+    if (q.share !== undefined || q.rollover !== undefined || q.shrink !== undefined || each) add('', "A bracket's points are each right pick's: no share, rollover, shrink or each");
+  }
+  if (q.rounds !== undefined) {
+    if (q.answer !== 'bracket') add('rounds', "Only a bracket's rounds are worth more as they go");
+    else if (!BRACKET_ROUNDS.includes(q.rounds)) add('rounds', 'A right pick is worth double each round (double) or the same (same)');
+  }
   // L4 part 1a: a draw is an answer too (a soccer match's three ways: either side or a draw), on who wins a team game.
   if (q.draw !== undefined) {
     if (q.draw !== true) add('draw', 'A draw is one of the answers (draw: true), or leave it out');
@@ -2223,14 +2283,15 @@ const KEYS = {
   span: ['from', 'to'],
   from: ['phase', 'at'],
   pool: ['of', 'where'],
-  get: { draft: ['by', 'each', 'order', 'own', 'groups', 'across', 'budget', 'keep'], pick: ['by', 'each', 'repeat', 'second', 'fallback'], card: ['by'], none: ['by'], squares: ['by'] },
+  get: { draft: ['by', 'each', 'order', 'own', 'groups', 'across', 'budget', 'keep'], pick: ['by', 'each', 'repeat', 'second', 'fallback'], card: ['by'], none: ['by'], squares: ['by', 'grid', 'take', 'each'] },
   groups: ['slots', 'own', 'swap', 'fallback', 'points'],
   keep: ['each', 'from', 'cost', 'fallback'],
   across: ['of', 'then'],
   budget: ['total', 'floor', 'ceiling', 'gone', 'fallback', 'trade', 'left'],
   trade: ['fee'],
   second: ['fallback'],
-  score: { moments: ['by', 'points', 'captain', 'times'], place: ['by', 'reverse'], survive: ['by', 'means', 'points', 'lives', 'buyback', 'mulligans'], lines: ['by', 'points'], answers: ['by', 'parlays', 'lives', 'livesOn', 'saves'], stages: ['by'], stats: ['by', 'points', 'byPosition', 'byPlace', 'byFormat', 'categories'] },
+  score: { moments: ['by', 'points', 'captain', 'times'], place: ['by', 'reverse'], survive: ['by', 'means', 'points', 'lives', 'buyback', 'mulligans'], lines: ['by', 'points'], answers: ['by', 'parlays', 'lives', 'livesOn', 'saves'], stages: ['by'], stats: ['by', 'points', 'byPosition', 'byPlace', 'byFormat', 'categories'], squares: ['by', 'pays', 'empty', 'unread'] },
+  pay: ['at', 'points'],
   buyback: ['times', 'before', 'cost'],
   before: ['phase', 'episode'],
   parlay: ['of', 'times'],
@@ -2251,7 +2312,7 @@ const KEYS = {
   windows: ['schedule', 'every', 'swaps'],
   draft: ['at', 'timer', 'away', 'opens'],
   bets: ['points'],
-  question: ['id', 'ask', 'answer', 'points', 'settle', 'asked', 'closes', 'pick', 'from', 'line', 'options', 'each', 'every', 'over', 'within', 'chips', 'pairs', 'wager', 'share', 'rollover', 'shrink', 'fallback', 'beat', 'draw'],
+  question: ['id', 'ask', 'answer', 'points', 'settle', 'asked', 'closes', 'pick', 'from', 'line', 'options', 'each', 'every', 'over', 'within', 'chips', 'pairs', 'wager', 'share', 'rollover', 'shrink', 'fallback', 'beat', 'draw', 'rounds'],
   settle: ['by', 'take', 'moment', 'role', 'phase', 'stat', 'place', 'fact', 'of', 'tie'],
   beat: ['by', 'none'],
 };
@@ -2282,6 +2343,7 @@ function unknownKeys(s) {
   if (isObj(s.score)) {
     check(s.score, own(KEYS.score, s.score.by), 'score');
     if (Array.isArray(s.score.parlays)) s.score.parlays.forEach((p, i) => check(p, KEYS.parlay, `score.parlays[${i}]`));
+    if (s.score.by === 'squares' && Array.isArray(s.score.pays)) s.score.pays.forEach((p, i) => check(p, KEYS.pay, `score.pays[${i}]`));
     if (s.score.by === 'moments') {
       check(s.score.captain, KEYS.captain, 'score.captain');
       if (Array.isArray(s.score.times)) s.score.times.forEach((t, i) => check(t, KEYS.when, `score.times[${i}]`));
@@ -2372,6 +2434,53 @@ function statScoreProblems(score) {
     return out;
   }
   if (!out.length && !size(score.points) && !size(score.byPlace) && !size(score.byPosition) && !size(score.byFormat)) out.push(['points', 'Stats score as stat key to points: name one']);
+  return out;
+}
+
+/**
+ * L4 part 2: a squares game, as [[at, problem]]: its grid (10 or 5), how squares are taken (pick or deal) and how many each, nothing
+ * counting but them, scored by them alone (1 to MAX_PAYS pays, each { at: a period's number, 'half' or 'final', points }, each
+ * moment once; empty, unread), ranked by the total with nothing beside it, its squares taken before it starts. Whether the sport
+ * has two scores and those periods is settleProblems' (ctx.shape, ctx.periods).
+ */
+function squaresProblems(s, count) {
+  const out = [];
+  const get = isObj(s.get) ? s.get : {};
+  const score = isObj(s.score) ? s.score : {};
+  const rank = isObj(s.rank) ? s.rank : {};
+  if (get.by !== 'squares') return [['get.by', 'Squares pay whoever holds them: get squares']];
+  if (score.by !== 'squares') out.push(['score.by', 'Squares pay on their squares alone: score by squares']);
+  if (get.grid !== undefined && !SQUARE_GRIDS.includes(get.grid)) out.push(['get.grid', 'The grid is 10 by 10 (10) or 5 by 5 (5)']);
+  if (get.take !== undefined && !SQUARE_TAKES.includes(get.take)) out.push(['get.take', "Squares are picked (pick: first come, first served) or dealt at random (deal)"]);
+  const cells = (SQUARE_GRIDS.includes(get.grid) ? get.grid : SQUARES.grid) ** 2;
+  if (get.each !== undefined && !(isInt(get.each, 1) && get.each <= cells)) out.push(['get.each', `Each takes 1 to ${cells} squares`]);
+  if (count !== null) out.push(['count', 'Nothing counts but your squares: count null']);
+  if (score.by === 'squares') {
+    const pays = score.pays;
+    if (!(Array.isArray(pays) && pays.length >= 1 && pays.length <= MAX_PAYS)) out.push(['score.pays', `Squares pay 1 to ${MAX_PAYS} times: [{ at, points }], at a period's end (its number), halftime ('half') or the final ('final')`]);
+    else {
+      const seen = new Set();
+      pays.forEach((p, i) => {
+        if (!isObj(p)) return out.push([`score.pays[${i}]`, 'A pay is { at, points }']);
+        const ok = p.at === 'half' || p.at === 'final' || (isInt(p.at, 1) && p.at <= MAX_PAY_PERIOD);
+        if (!ok) out.push([`score.pays[${i}].at`, `A pay is at a period's end (1 to ${MAX_PAY_PERIOD}), halftime ('half') or the final ('final')`]);
+        else if (seen.has(p.at)) out.push([`score.pays[${i}].at`, 'Each moment pays once']);
+        else {
+          // In the order they're paid: each period's end, the final last (halftime among the periods: settleProblems, with the sport).
+          const before = pays.slice(0, i).filter((x) => isObj(x));
+          if (before.some((x) => x.at === 'final') || (isInt(p.at, 1) && before.some((x) => isInt(x.at, 1) && x.at > p.at))) out.push([`score.pays[${i}].at`, "Pays come in the order they're paid: each period's end, then the final"]);
+          seen.add(p.at);
+        }
+        if (!(isInt(p.points, 1) && p.points <= MAX_QUESTION_POINTS)) out.push([`score.pays[${i}].points`, `A pay is worth 1 to ${MAX_QUESTION_POINTS} points`]);
+      });
+    }
+    if (score.empty !== undefined && !SQUARE_EMPTY.includes(score.empty)) out.push(['score.empty', 'A square nobody holds pays nobody (void) or rolls on to the next pay (next)']);
+    if (score.unread !== undefined && !SQUARE_UNREAD.includes(score.unread)) out.push(['score.unread', "A period whose end was never read pays on the final score (final) or nobody (void)"]);
+  }
+  if (rank.by !== 'total') out.push(['rank.by', 'Squares rank by what they win: most points wins (total)']);
+  for (const k of ['race', 'cut', 'oneLeft', 'allOut', 'teams', 'handicap', ...MATCHUP_KEYS]) if (rank[k] !== undefined) out.push([`rank.${k}`, 'Squares rank by what they win, nothing else: most points wins']);
+  if (Array.isArray(s.ask) && s.ask.length) out.push(['ask', 'Squares are their own game: questions beside them play in a stage alongside it']);
+  if (s.closes !== undefined && s.closes !== 'start') out.push(['closes', 'Squares are taken before the game starts: closes start']);
   return out;
 }
 
@@ -3060,6 +3169,19 @@ function settleProblems(s, ctx, opts) {
     }
   }
   if (score.by === 'stats') statScoreSettles(score, ctx, stats).forEach((x) => out.push(x));
+  // L4 part 2: squares are a team game's two scores (ctx.shape), paid at its periods (ctx.periods: the sport's regulation ones).
+  if (get.by === 'squares' && (ctx.shape === 'field' || ctx.shape === 'card')) out.push(['get.by', `Squares need a game's two scores: a ${ctx.shape} has none`]);
+  if (score.by === 'squares' && Array.isArray(score.pays) && isObj(ctx.periods) && isInt(ctx.periods.regulation, 1)) {
+    const per = ctx.periods;
+    const n = per.regulation;
+    score.pays.forEach((p, i) => {
+      if (!isObj(p)) return;
+      if (isInt(p.at, 1) && p.at > n) out.push([`score.pays[${i}].at`, `A game has ${n} ${n === 1 ? per.word : per.plural || per.word}: pay at the end of one of them, halftime or the final`]);
+      if (p.at === 'half' && n % 2) out.push([`score.pays[${i}].at`, `${n} ${per.plural || per.word} have no halftime: pay at the end of one of them, or the final`]);
+      if (p.at === 'half' && score.pays.some((x) => isObj(x) && x.at === n / 2)) out.push([`score.pays[${i}].at`, `Halftime is the end of the ${ordinalWord(n / 2)} ${per.word}: it pays once`]);
+      else if (p.at === 'half' && score.pays.some((x, j) => isObj(x) && isInt(x.at, 1) && (j < i ? x.at > n / 2 : x.at < n / 2))) out.push([`score.pays[${i}].at`, `Pays come in the order they're paid: halftime after the ${ordinalWord(n / 2)} ${per.word}'s end and before the ${ordinalWord(n / 2 + 1)}'s`]);
+    });
+  }
   // A10 part 2: a pool's buyback until a phase is one of the season's, never its first (where it starts is data: the desk
   // confirms it); a second pick needs results that say who goes home (a night two go is known only from them).
   if (score.by === 'survive' && isObj(score.buyback) && isObj(score.buyback.before) && typeof score.buyback.before.phase === 'string' && score.buyback.before.phase && Array.isArray(ctx.phases)) {
@@ -3130,7 +3252,12 @@ function settleProblems(s, ctx, opts) {
     // What a sport's final says (ctx.shape, the sports' specContextOf): a team game's, who wins (a side), the total and the margin;
     // a field's and a card's, who wins (a person: a card's bout by `of`). A final asked once is one game's: a game of just one.
     const shape = ctx.shape;
-    if (st.by === 'final' && (shape === 'team' || shape === 'field' || shape === 'card')) {
+    // L4 part 2: a bracket is a card's draw's (tennis's: ctx.draws), named by its key.
+    if (st.by === 'final' && st.take === 'bracket' && (shape === 'team' || shape === 'field' || shape === 'card')) {
+      const draws = (Array.isArray(ctx.draws) ? ctx.draws : []).map((d) => (isObj(d) ? d.key : d));
+      if (shape !== 'card' || !draws.length) out.push([`ask[${i}].settle`, shape === 'card' ? "A bracket is a draw's, and this card's bouts aren't in one" : `A bracket is a draw's (tennis's): a ${shape === 'team' ? 'team game' : 'field'} has none`]);
+      else if (typeof st.of === 'string' && st.of && !draws.includes(st.of)) out.push([`ask[${i}].settle.of`, `"${st.of}" isn't one of the draws: ${draws.join(', ')}`]);
+    } else if (st.by === 'final' && (shape === 'team' || shape === 'field' || shape === 'card')) {
       if (shape !== 'team' && st.take !== 'winner') out.push([`ask[${i}].settle.take`, `A ${shape}'s final says who wins: no total or margin`]);
       if (st.take === 'winner' && q && (q.answer === 'side' || q.answer === 'person') && q.answer !== (shape === 'team' ? 'side' : 'person')) out.push([`ask[${i}].answer`, shape === 'team' ? 'A team game is won by a side: answer side' : `A ${shape} is won by someone: answer person`]);
       if (st.of !== undefined && shape !== 'card') out.push([`ask[${i}].settle.of`, "Only a card's bout says whose win: a game has one winner"]);
@@ -3161,6 +3288,8 @@ function settleProblems(s, ctx, opts) {
   });
   return out;
 }
+/** L4 part 2: "first", "second"... for a period's end in words (squares' pays: the check's and How it works'), "10th" past ninth. */
+const ordinalWord = (n) => ['first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth', 'ninth'][n - 1] || `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th'}`;
 /** A moment's own points for the draft's ownership (a format may give { exclusive, shared }). */
 const defaultOf = (d, shared) => (isObj(d) ? d[shared ? 'shared' : 'exclusive'] || 0 : d || 0);
 
@@ -3194,7 +3323,7 @@ function specWaitsFor(spec) {
   if (isObj(s.get) && isObj(s.get.budget)) val('get.budget.left', 'get.budget.left', s.get.budget.left, "Bidding on waivers with the draft's money left over");
   const count = countKind(s.count);
   if (count) val('count', 'count', count, 'Best ball');
-  if (isObj(s.score)) val('score.by', 'score.by', s.score.by, 'Scoring by stats');
+  if (isObj(s.score)) val('score.by', 'score.by', s.score.by, s.score.by === 'squares' ? 'Paying squares' : 'Scoring by stats');
   if (isObj(s.rank)) val('rank.by', 'rank.by', s.rank.by, `Ranking by ${s.rank.by}`);
   val('closes', 'closes', s.closes, `Locking ${s.closes}`);
   (Array.isArray(s.ask) ? s.ask : []).forEach((q, i) => {
@@ -3463,6 +3592,7 @@ module.exports = {
   MAX_RACE, MAX_CUTS, MAX_CUT_OUT, CUT, CUT_AT, knockoutParts, DRAFT_END, POOL_END, ANSWERS_END, COOP, answerParts, livesQuestion, questionsGame, isPool, poolByPoints,
   MATCHUPS, MATCHUP_KEYS, MAX_PLAYOFF_TEAMS, playoffRounds, matchupParts, TEAMS, MAX_PLAYER_TEAMS, MAX_TEAM_NAME, teamParts,
   MAX_CATEGORIES, CATEGORY_RANKS, categoriesOf, categoryParts,
+  SQUARE_GRIDS, SQUARE_TAKES, SQUARE_EMPTY, SQUARE_UNREAD, SQUARES, MAX_PAYS, BRACKET_ROUNDS, squaresParts, ordinalWord,
   HANDICAP, MAX_HANDICAP, handicapParts,
   REPLACE_RULES, WINDOW_SCHEDULES, WAIVER_FEELS, WAIVER_ORDERS, WAIVER_HOURS, DRAFT_TIMERS, MAX_BET_POINTS, JOINS, ORDER_OF,
   MAX_TEAM, MAX_STARTERS, MAX_BENCH, MAX_LINEUP_TEAM, MAX_QUESTIONS, MAX_PICK, MAX_QUESTION_POINTS, MAX_OPTIONS, YES_NO,

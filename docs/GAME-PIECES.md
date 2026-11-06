@@ -88,7 +88,7 @@ How each of you gets what you play with. Five ways (`get.by`):
 | `pick` | one person, picked fresh each episode | plays |
 | `card` | a bingo card, a new one each episode | plays |
 | `none` | nothing: you answer questions | plays |
-| `squares` | a sports squares grid | the sports branch |
+| `squares` | a grid of a team game's two scores' last digits (`grid` 10 or 5), its squares picked (`take: 'pick'`, up to `each`) or dealt at random (`deal`), the digits drawn at the lock (L4 part 2: `sequence/squares.js`) | scored by `squares` alone, nothing counting; the sports branch |
 
 ### A draft: `{ by: "draft", each, order, own, ... }`
 
@@ -203,6 +203,7 @@ How what counts earns points. **`score.by`**:
 | `answers` | right answers to the game's questions | `none` |
 | `stages` | a game in stages: its stages' tables (see Stages) | a game in stages only |
 | `stats` | a sport's stat keys | the sports branch |
+| `squares` | each pay's points (`pays: [{ at: a period's end, 'half' or 'final', points }]`) to whoever holds the square of the two scores' last digits then; an empty square pays nobody or rolls on (`empty`), a period never read pays on the final or nobody (`unread`) (L4 part 2) | `squares`, ranked by the total, nothing beside it; the sports branch |
 
 Each one's own options:
 
@@ -261,6 +262,7 @@ Limits: up to 12 questions a game; an `id` is letters, digits, `.`, `_` or `-`, 
 | `trivia` | the round's trivia questions (the episode before) | asked each episode |
 | `calls` | the show's two calls (Weekly Calls) | a game of its own |
 | `side` | a team (sports) | the sports branch |
+| `bracket` | a draw's winners round by round, by distance from the final (`{ "7": [...], ..., "1": [the champion] }`), each right pick worth the points, doubling each round (`rounds: 'double'`, the default, or `'same'`) (L4 part 2: `sequence/bracket.js`) | settled `final` `bracket` of a draw (tennis's `MS`, `WS`...); the sports branch |
 
 **One question about each person still in:** `each: "person"` with a `yesNo`, `number`, `overUnder` or `choice` answer, answered
 `{ castawayId: answer }`, each settled by that person's own moment or whether they go home or stay. Example: "each couple's
@@ -282,7 +284,7 @@ players' own mechanics below, which settle the game, never a fact about the show
 | `trivia` | none | the episode's trivia key (the bot writes a round after each episode) |
 | `calls` | none | the show's calls (Weekly Calls) |
 | `players` | `majority`, `minority` | the players' own answers: see "The players' own mechanics" |
-| `final`, `stat` | | a sport's finals and stats (the sports branch) |
+| `final`, `stat` | | a sport's finals and stats (the sports branch); `final`'s `bracket`, a draw's winners round by round (L4 part 2) |
 
 Which answers each settle can grade (`SETTLES_FOR` in the schema): a `person` by anything that names people (`results` out,
 stays, winner, placed, top; `moment` who, most, first; `role` who, end; `points` most; `fact` who; `players`); a `group` by

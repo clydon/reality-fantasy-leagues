@@ -139,13 +139,17 @@ export function defaultsFor(sportId: string, league?: string): SportDefaults | n
  * marked, and which way is better), its position groups (a stat's points by position name them),
  * its bouts' formats (byFormat) and its standard roster from its defaults (the lineup's starters and the bench), which raise a
  * show's size limits; and its shape, what its games' finals say (a team game's a side's win, a total and a margin; a field's
- * and a card's someone's win). `league` as defaultsFor's (racing's F1); else the sport's own first.
+ * and a card's someone's win). L4 part 2: its periods (squares pay at their ends) and, a sport whose cards are draws (tennis's),
+ * the draws a bracket can be of. `league` as defaultsFor's (racing's F1); else the sport's own first.
  */
-export function specContextOf(sport: AnySport, league?: string): { stats: { key: string; label: string; place?: true }[]; categories: { key: string; label: string; better: "higher" | "lower"; rate?: true }[]; positions: { key: string; label: string }[]; formats: { key: string; label: string }[]; shape: "team" | "field" | "card"; sizes?: { starters: number; bench: number } } {
+export function specContextOf(sport: AnySport, league?: string): { stats: { key: string; label: string; place?: true }[]; categories: { key: string; label: string; better: "higher" | "lower"; rate?: true }[]; positions: { key: string; label: string }[]; formats: { key: string; label: string }[]; shape: "team" | "field" | "card"; periods: { word: string; plural: string; regulation: number }; draws?: { key: string; label: string }[]; sizes?: { starters: number; bench: number } } {
   const d = defaultsFor(sport.id, league ?? sport.leagues?.[0]);
   const positions = sport.groups.map((g) => ({ key: g.key, label: g.label }));
   // What a game's final says (L1 part 4b): a team game's sides have a total and a margin; a field and a card have a winner.
   const shape = sport instanceof TeamSport ? ("team" as const) : sport instanceof FieldSport ? ("field" as const) : ("card" as const);
-  const ctx = { stats: sport.specStats(), categories: sport.specCategories(), positions, formats: sport.formats.map((n) => ({ key: String(n), label: `${n} ${sport.periods.plural}` })), shape };
+  const periods = { word: sport.periods.word, plural: sport.periods.plural, regulation: sport.periods.regulation };
+  // A card whose bouts are in draws (tennis's: Tennis.draws) has its draws, the sport's positions (men's singles...), for a bracket.
+  const draws = typeof (sport as { draws?: unknown }).draws === "function" ? sport.positions.map((p) => ({ key: p.key, label: p.label })) : null;
+  const ctx = { stats: sport.specStats(), categories: sport.specCategories(), positions, formats: sport.formats.map((n) => ({ key: String(n), label: `${n} ${sport.periods.plural}` })), shape, periods, ...(draws ? { draws } : {}) };
   return d ? { ...ctx, sizes: { starters: d.slots.lineup.reduce((n, s) => n + s.n, 0), bench: d.slots.bench } } : ctx;
 }

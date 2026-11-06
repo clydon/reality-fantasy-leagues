@@ -70,6 +70,8 @@ const { YES_NO, NAMES, NUMBERS, optionRange, isBeat } = require('./schema.js');
 // C2 part 3 (docs/PLAN-start-a-game-gpt.md track C): a window's points are the scoring sequence's lines and combines; the grading
 // (which answers are right, and how many right ones each has) is here.
 const Seq = require('../sequence/index.js');
+// L4 part 2: a bracket's draw, its answers' check and their points.
+const Bracket = require('../sequence/bracket.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const WAITING = Object.freeze({ state: 'waiting' });
@@ -462,6 +464,12 @@ function sportsVerdict(q, episode, facts) {
   if (!g || g.status === 'pre') return WAITING;
   if (g.status === 'off') return off("The game wasn't played: it doesn't count either way");
   const st = q.settle;
+  // L4 part 2: a bracket, its draw's winners round by round (sequence/bracket.js), known once the card is final; live, the draw so far.
+  if (st.by === 'final' && st.take === 'bracket') {
+    const field = Bracket.bracketOf(g.bouts, st.of);
+    if (field.first === null) return g.status === 'final' ? off("That draw isn't on the card: it doesn't count either way") : WAITING;
+    return g.status === 'final' ? { ...known([]), bracket: field } : { state: 'waiting', live: { bracket: field } };
+  }
   const now = standingIn(st, g, q);
   if (g.status === 'final') return now.off ? off(now.off) : known(now.right || [], now.value);
   if (st.by === 'final' && st.take === 'total' && q.answer === 'overUnder' && isNum(q.line) && isNum(now.value) && now.value > q.line) return { ...known([], now.value), early: true };
@@ -860,6 +868,14 @@ function pointsFor(q, v, answers, facts) {
     }
     return out;
   }
+  // L4 part 2: a bracket's right picks, round by round.
+  if (q.answer === 'bracket') {
+    for (const a of answers) {
+      const n = Bracket.bracketPoints(q, v.bracket || null, a.answer);
+      if (n) out.set(a.playerId, (out.get(a.playerId) || 0) + n);
+    }
+    return out;
+  }
   if (MORE.includes(q.answer)) {
     for (const a of answers) {
       const n = earned(q, v, a.answer, facts);
@@ -919,6 +935,8 @@ function isRight(q, v, mine, answers, facts) {
   }
   // A8's kinds: anything earned (an order's place, a confidence pick or a chip on someone right, the split).
   if (MORE.includes(q.answer)) return earned({ ...q, points: 1 }, v, mine.answer, facts) > 0;
+  // L4 part 2: a bracket, as A8's kinds: any right pick.
+  if (q.answer === 'bracket') return Bracket.bracketPoints({ ...q, points: 1 }, v.bracket || null, mine.answer) > 0;
   if (q.wager) {
     const bet = betOf(q, mine.answer);
     return !!bet && !!isRight(unwagered(q), v, { playerId: mine.playerId, answer: bet.answer }, [], facts);
@@ -1076,6 +1094,8 @@ function answerProblem(q, value, faces, o) {
       if (faces && Object.entries(value).some(([k, id]) => !faces.has(`${k}:${id}`))) return 'Name one of the pair';
       return null;
     }
+    // L4 part 2: each round's winners ({ round: [ids] }), `faces` the draw as it stands (bracketOf's), or none: the shape alone.
+    case 'bracket': return Bracket.bracketProblem(value, isObj(faces) && !(faces instanceof Set) ? faces : null);
     case 'trivia': {
       // A13: { [trivia question id]: one of its options }, `faces` each of the round's questions' "id:option" (none: no round yet).
       if (!isObj(value) || !Object.keys(value).length) return 'Answer one of its questions: { question: option }';

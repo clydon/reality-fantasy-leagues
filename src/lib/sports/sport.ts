@@ -186,7 +186,8 @@ export interface EspnSummary {
       status?: {
         /** The period it's in or ended in (past regulation: extra time, a shootout). */
         period?: number;
-        type?: { state?: string; completed?: boolean; detail?: string };
+        /** `name`: ESPN's status ("STATUS_HALFTIME", "STATUS_END_PERIOD": between periods). */
+        type?: { state?: string; completed?: boolean; detail?: string; name?: string };
         /** A finished hockey game's goalies of record ("winningGoalie", "losingGoalie"). */
         featuredAthletes?: { name?: string; athlete?: { id?: string | number }; team?: { id?: string | number } }[];
       };
@@ -538,6 +539,48 @@ export abstract class TeamSport extends Sport {
   stateAt(summary: EspnSummary, at?: string | number | Date | null): GameState {
     return this.reduce(this.timeline(summary), at, headerTeams(summary).map((t) => t.id));
   }
+
+  /**
+   * Each period's end as of a moment (squares' pays: L4 part 2), from ESPN's summary: periodEnds over its timeline up to `at`. Now
+   * (no `at`), ESPN's status between periods (halftime, the end of a period) ends the one it's in, so a pay comes when the period
+   * does, not with the next one's first play; as of an earlier moment, only the plays say.
+   */
+  periodScores(summary: EspnSummary, at?: string | number | Date | null): Record<string, number>[] {
+    const sides = headerTeams(summary).map((t) => t.id);
+    const now = at == null || at === Infinity;
+    const until = now ? null : msOf(at);
+    if (!now && until == null) return [];
+    const plays = this.timeline(summary).filter((p) => now || (msOf(p.at) != null && msOf(p.at)! <= until!));
+    const st = summary.header?.competitions?.[0]?.status;
+    const between = now && (st?.type?.name === "STATUS_HALFTIME" || st?.type?.name === "STATUS_END_PERIOD") ? num(st?.period) : null;
+    return periodEnds(plays, sides, { final: plays.some((p) => p.final), ended: between });
+  }
+}
+
+/**
+ * Each period's end (squares' pays: L4 part 2), each side's score then, in order, for every period the game has finished: one a
+ * later period's play has begun after, or `ended` (ESPN's status between periods: halftime, the end of the 3rd), and once it's
+ * final, every period its plays reached (every sport's feed has plays in each period played: soccer's a half's start, hockey's a
+ * period's; a shootout's aren't a period's). A game called before a regulation period has no end read for it, nor does a summary
+ * with no plays (unread: a squares spec says what then). A period's end is the score after its last play; the final's correction
+ * makes the last period's the final score, unless a shootout followed it (hockey's: the shootout's winning goal is the final's,
+ * never a period's).
+ */
+export function periodEnds(plays: Play[], sides: string[], o: { final: boolean; ended?: number | null }): Record<string, number>[] {
+  const real = plays.filter((p) => !p.final && !p.shootout);
+  if (!real.length) return [];
+  const begun = Math.max(...real.map((p) => p.period));
+  const through = o.final ? begun : Math.max(begun - 1, Math.min(o.ended ?? 0, begun));
+  const out: Record<string, number>[] = [];
+  let score: Record<string, number> = Object.fromEntries(sides.map((id) => [id, 0]));
+  let i = 0;
+  for (let n = 1; n <= through; n++) {
+    while (i < real.length && real[i].period <= n) score = { ...score, ...real[i++].score };
+    out.push({ ...score });
+  }
+  const fin = plays.find((p) => p.final);
+  if (o.final && fin && !fin.shootout) out[through - 1] = { ...out[through - 1], ...fin.score };
+  return out;
 }
 
 /** The box score's two sides from its header: each team's id, name, home or away, score and winner. */

@@ -18,7 +18,7 @@
 //
 // Pure CommonJS, like ./schema.js.
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
-const { PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, spanEnd, spanEndPhase, playsAs, callsAsk, finaleIn, draftQuestions, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion, matchupParts, categoryParts, questionsGame, poolByPoints, teamParts, handicapParts, stageOn, ON_CHANGE, nextStageAts, fallsTo, stageSide, mainCount, stageAlongside, stageSeason, seasonKey, isPlayers, isBeat } = require('./schema.js');
+const { PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, spanEnd, spanEndPhase, playsAs, callsAsk, finaleIn, draftQuestions, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion, matchupParts, categoryParts, squaresParts, ordinalWord, questionsGame, poolByPoints, teamParts, handicapParts, stageOn, ON_CHANGE, nextStageAts, fallsTo, stageSide, mainCount, stageAlongside, stageSeason, seasonKey, isPlayers, isBeat } = require('./schema.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const NUMBER_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
@@ -56,6 +56,9 @@ function wordsOf(ctx) {
     // L1 part 4a: a sport's position groups ("Goalkeepers") and its bouts' formats ("5 sets"), for a stats score's tables.
     positions: new Map((Array.isArray(c.positions) ? c.positions : []).map((x) => (isObj(x) ? [x.key, x.label || x.key] : [x, x]))),
     formats: new Map((Array.isArray(c.formats) ? c.formats : []).map((x) => (isObj(x) ? [String(x.key), x.label || String(x.key)] : [String(x), String(x)]))),
+    // L4 part 2: a sport's word for its periods (squares pay at their ends), and the draws a bracket can be of ("Men's singles").
+    period: isObj(c.periods) && c.periods.word ? { word: c.periods.word, plural: c.periods.plural || `${c.periods.word}s` } : { word: 'period', plural: 'periods' },
+    draws: new Map((Array.isArray(c.draws) ? c.draws : []).map((x) => (isObj(x) ? [x.key, x.label || x.key] : [x, x]))),
     phases: new Map((Array.isArray(c.phases) ? c.phases : []).filter(isObj).map((p) => [p.id, p.name || p.id])),
     // A12 part 2, inside a game in stages: a stage a format change starts says where it starts in these words, and the stage
     // before it runs until then.
@@ -253,7 +256,11 @@ function sentenceParts(s, w) {
   } else if (by === 'card') {
     put(`a new bingo card every ${w.part}`, 'get');
   } else if (by === 'squares') {
-    put('everyone takes squares on the grid', 'get');
+    // L4 part 2: squares, picked or dealt.
+    const sq = squaresParts(s);
+    const grid = sq ? `${sq.grid}-by-${sq.grid}` : '10-by-10';
+    put(sq && sq.take === 'deal' ? `everyone is dealt squares at random on a ${grid} grid of the two scores' last digits` : `everyone takes squares on a ${grid} grid of the two scores' last digits`, 'get');
+    if (sq && sq.take === 'pick' && sq.each) put(`, up to ${say(sq.each)} each`, 'get');
   } else if (s.score.by === 'answers' && callsAsk(s.ask)) {
     put(`two calls before every ${w.part}`, 'get');
   } else if (s.score.by === 'answers') {
@@ -293,6 +300,7 @@ function sentenceParts(s, w) {
   else if (sc.by === 'answers' && callsAsk(s.ask)) put(' Most right by the finale wins.', 'score');
   else if (sc.by === 'lines') put(isNum(sc.points) && sc.points !== 1 ? ` ${cap(pointsWord(sc.points))} a line; most points by the finale wins.` : ' Most lines by the finale wins.', 'score');
   else if (sc.by === 'stats' && categoryParts(s)) put(` ${categoryPhrase(categoryParts(s), w)}`, 'score');
+  else if (sc.by === 'squares' && squaresParts(s)) put(` ${squaresPayPhrase(squaresParts(s), w)} Most points wins.`, 'score');
   else if (sc.by === 'stats' && statScoreWords(sc, w)) put(` Scored ${statScoreWords(sc, w)}.`, 'score');
   else if (sc.by === 'answers') answersPhrases(s.ask, parlaysOf(sc), put);
   // C2 part 4c: a draft's own questions, their points beside the team's.
@@ -385,6 +393,14 @@ function questionRule(q, w, each, ask) {
     if (q.answer === 'pairs') earn = ` ${cap(say(q.pairs))} ${q.pairs === 1 ? 'pair' : 'pairs'}, the same for everyone: ${pointsWord(pts)} for each one you call.`;
     // A13: the round of trivia before each one, about the one before it.
     if (q.answer === 'trivia') earn = ` A few questions about the ${w.part} before it and the season so far, the same for everyone: ${pointsWord(pts)} for each one right.`;
+    // L4 part 2: a draw's bracket.
+    if (q.answer === 'bracket') {
+      const of = isObj(q.settle) && typeof q.settle.of === 'string' ? w.draws.get(q.settle.of) || q.settle.of : null;
+      const draw = of ? `the ${of.charAt(0).toLowerCase()}${of.slice(1)} draw` : 'the draw';
+      earn = q.rounds === 'same'
+        ? ` Pick the winner of every match of ${draw}, round by round to the final: ${pointsWord(pts)} for each one right.`
+        : ` Pick the winner of every match of ${draw}, round by round to the final: ${pointsWord(pts)} for each one right in the first round, doubling each round after it.`;
+    }
   }
   // A14 part 2: played against the bot's own call, and its fallback (an episode fact's own, below, still said).
   if (isBeat(q) && pts !== null) earn = beatWords(q, pts);
@@ -903,6 +919,38 @@ function drawRules(s, w) {
   return out;
 }
 
+/** L4 part 2: when a squares pay comes, in the sport's words: "the end of the first quarter", "halftime", "the final score". */
+function payWhen(at, w) {
+  if (at === 'final') return 'the final score';
+  if (at === 'half') return 'halftime';
+  return `the end of the ${ordinalWord(at)} ${w.period.word}`;
+}
+/** L4 part 2: what a squares game's pays are worth, in a sentence. */
+function squaresPayPhrase(sq, w) {
+  return `The square of the two scores' last digits wins ${listOf(sq.pays.map((p) => `${pointsWord(p.points)} at ${payWhen(p.at, w)}`))}.`;
+}
+/** L4 part 2: a squares game's How it works. */
+function squaresRules(s, w) {
+  const sq = squaresParts(s);
+  if (!sq) return ['Take your squares on the grid before it starts.'];
+  const out = [];
+  const grid = `${sq.grid} by ${sq.grid}`;
+  out.push(sq.take === 'deal'
+    ? `Before it starts, everyone is dealt ${sq.each ? say(sq.each) : 'the same number of'} squares at random on a grid ${grid}${sq.each ? '' : ': as many as go round evenly'}.`
+    : `Before it starts, take your squares on a grid ${grid}: ${sq.each ? `up to ${say(sq.each)} each` : 'as many as you like'}, first come, first served.`);
+  out.push(sq.grid === 10
+    ? "Then the digits 0 to 9 are drawn at random onto the rows (the first team's score) and the columns (the other's), so nobody picks a good number."
+    : "Then the digits 0 to 9 are drawn at random onto the rows (the first team's score) and the columns (the other's), two to a row and two to a column, so nobody picks a good number.");
+  out.push(squaresPayPhrase(sq, w).replace(/^The square/, 'Each time, the square'));
+  if (sq.pays.some((p) => p.at === 'final')) out.push('The final score counts overtime.');
+  out.push(sq.empty === 'next' ? 'A square nobody holds rolls its points on to the next pay.' : 'A square nobody holds pays nobody.');
+  if (sq.pays.some((p) => p.at !== 'final')) out.push(sq.unread === 'void' ? `If the score at the end of a ${w.period.word} isn't known (a game called early), that pay goes to nobody.` : `If the score at the end of a ${w.period.word} isn't known (a game called early), that pay goes on the final score.`);
+  const span = s.span;
+  if (!(isObj(span) && Number.isInteger(span.from) && span.to === span.from)) out.push(`Your squares are yours for every ${w.part}; the digits are drawn again before each one.`);
+  out.push('Most points wins.');
+  return out;
+}
+
 /** How it works: today's five games say what the Rules sheet says (game-rules.ts), the rest in the same voice. */
 function rulesOf(s, w) {
   const rules = [];
@@ -1025,7 +1073,7 @@ function rulesOf(s, w) {
     rules.push('A square counts once the couch agrees it happened: two of you ticking it, or saying so, settles it.');
     rules.push(isNum(s.score.points) && s.score.points !== 1 ? `Each line is worth ${pointsWord(s.score.points)}. Most points by the finale wins.` : 'Most lines by the finale wins.');
   } else if (by === 'squares') {
-    rules.push('Take your squares on the grid before it starts.');
+    rules.push(...squaresRules(s, w));
   }
   if (s.score.by === 'answers' && !callsAsk(s.ask)) {
     const each = s.ask.some((q) => q.asked !== 'once');

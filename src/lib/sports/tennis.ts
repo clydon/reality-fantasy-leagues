@@ -283,13 +283,34 @@ export class Tennis extends BoutSport {
     const all = this.matches(answer, issues);
     // A main-draw round's distance from the final, by ESPN's ids: the quarterfinal, semifinal and final are 5, 6 and 7 whatever the
     // draw's size (and whether the board lists them yet); "Round 1" to "Round 4" count back from the quarterfinal by the draw's
-    // last of them.
+    // last of them. Until its quarterfinals are on the board (L4 part 2: a bracket answered at the draw's making, when only the first
+    // round is), also by how many matches a round has: a round of m matches is at least ceil(log2 m) + 1 from the final (a Grand
+    // Slam's 64 first-round matches, 7). Once they're listed ESPN's ids alone: some events' "Round 1" holds two rounds (Winston-Salem's
+    // 32 matches before an 8-match "Round 2"), which counting would misread.
     const lastRound = new Map<string, number>();
+    const counts = new Map<string, number>();
+    const later = new Set<string>();
     for (const { c, draw } of all) {
       const rid = Number(idOf(c.round?.id));
-      if (rid >= 1 && rid <= 4) lastRound.set(draw, Math.max(lastRound.get(draw) ?? 0, rid));
+      if (rid >= 5 && rid <= 7) later.add(draw);
+      if (rid >= 1 && rid <= 4) {
+        lastRound.set(draw, Math.max(lastRound.get(draw) ?? 0, rid));
+        counts.set(`${draw}:${rid}`, (counts.get(`${draw}:${rid}`) ?? 0) + 1);
+      }
     }
-    const fromFinal = (draw: string, rid: string) => (!MAIN_ROUNDS.has(rid) ? null : Number(rid) >= 5 ? 8 - Number(rid) : 3 + (lastRound.get(draw) ?? Number(rid)) - Number(rid) + 1);
+    // Each draw's first round's distance from the final.
+    const first = new Map<string, number>();
+    for (const [draw, last] of lastRound) {
+      let n = last + 3;
+      if (!later.has(draw)) {
+        for (let rid = 1; rid <= 4; rid++) {
+          const m = counts.get(`${draw}:${rid}`) ?? 0;
+          if (m) n = Math.max(n, Math.ceil(Math.log2(m)) + rid);
+        }
+      }
+      first.set(draw, n);
+    }
+    const fromFinal = (draw: string, rid: string) => (!MAIN_ROUNDS.has(rid) ? null : Number(rid) >= 5 ? 8 - Number(rid) : (first.get(draw) ?? Number(rid) + 3) - Number(rid) + 1);
     const rs: MatchRead[] = all.map(({ c, draw }, index) => {
       const id = idOf(c.id);
       const sorted = (c.competitors ?? []).filter((x) => !tbd(x)).sort((a, b) => (num(a.order) ?? 9) - (num(b.order) ?? 9));

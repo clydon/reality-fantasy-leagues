@@ -32,6 +32,7 @@ const SLUG = "zt-finals";
 const { pool } = jiti("../../src/lib/server/db.ts");
 const { saveFinals } = jiti("../../src/lib/server/sports/finals.ts");
 const { leagueGames, sidesFor } = jiti("../../src/lib/server/sports/score.ts");
+const { bracketOf } = require("../../src/lib/game/sequence/bracket.js");
 const { sportOf, storedGame, storedField, storedCard, statePoints, defaultsFor, groupOf } = jiti("../../src/lib/sports/index.ts");
 const { statMoments } = require("../../src/lib/game/sequence/stats.js");
 const { verdictOf, pointsFor } = require("../../src/lib/game/game-spec/index.js");
@@ -123,7 +124,7 @@ async function down() {
     const r1 = await saveFinals({ providers, seasons: [seasonId], now: new Date(now) });
     const row = (event) => pool.query("SELECT lines, people, shape, lines_at FROM sports_events WHERE provider = $1 AND event_id = $2", [P, event]).then((x) => x.rows[0]);
     const opener = await row("401909093");
-    check(r1.saved === 5 && opener.shape === null && opener.lines?.[athlete("Tyrese Maxey")]?.PTS === 32 && opener.people?.[athlete("Tyrese Maxey")]?.team === "20" && !!opener.lines_at, "the opener's counts saved with it (Maxey's 32, his team)", JSON.stringify(r1));
+    check(r1.saved === 5 && opener.shape?.kind === "team" && opener.shape.periods?.length === 4 && opener.shape.periods[3]["20"] === 114 && !opener.shape.shootout && opener.lines?.[athlete("Tyrese Maxey")]?.PTS === 32 && opener.people?.[athlete("Tyrese Maxey")]?.team === "20" && !!opener.lines_at, "the opener's counts saved with it (Maxey's 32, his team), its quarters' ends in its shape (L4 part 2)", JSON.stringify(r1));
     const none = await row("zt-none");
     check(JSON.stringify(none.lines) === "{}" && !!none.lines_at, "a final the provider has nothing for two days on: kept as none");
     check(JSON.stringify((await row("zt-bad")).lines) === "{}" && r1.errors.some((e) => e.includes("zt-bad")), "an answer the reader can't read: said, kept as none once old, never holding up the rest");
@@ -163,6 +164,10 @@ async function down() {
     const zPts = statMoments(g.lines.get(9), tennisScore, null, (id) => g.bouts.get(9)?.[id]).find((m) => m.castawayId === "c-zverev")?.points;
     const zPhone = statePoints(tennis, tennisScore, tennis.stateAt(USOPEN), { card: tennis.card(USOPEN) })[zverev].points;
     check((g.bouts.get(9)?.["c-zverev"]?.length ?? 0) > 1 && zPts === zPhone, "Zverev's matches each at their format, as the phone scores them", `${zPts} vs ${zPhone}`);
+    // L4 part 2: squares' periods and a bracket's rounds, read back with the kept finals.
+    check(JSON.stringify(game.periods?.map((e) => [e["20"], e["5"]])) === "[[18,35],[45,69],[82,90],[114,106]]", "the opener's quarters' ends read back (squares' pays)", JSON.stringify(game.periods));
+    const draw = bracketOf(ev.bouts, "MS");
+    check(draw.first === 7 && draw.winners[7]?.length === 64 && draw.winners[1]?.length === 1 && draw.over, "the men's singles draw read back round by round (a bracket's)", JSON.stringify([draw.first, draw.winners[1]]));
     const seen = await leagueGames(state, { mark: 0, now: new Date(now) });
     check(seen.games.get(1)?.status === "pre" && !seen.lines.has(1), "a game past the viewer's mark: still to play for them");
 

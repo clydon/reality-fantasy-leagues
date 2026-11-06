@@ -37,7 +37,7 @@ test("the check: a sports question is a game's (asked each episode, or once in a
   assert.deepEqual(problems(quiz([q("side", { by: "final", take: "winner" }, { asked: "each" })], season), ctx), []);
   assert.ok(problems(quiz([q("number", { by: "stat", stat: "PTS", take: "value" }, { asked: "each", over: 3 })], season), ctx).some((p) => /that game's/.test(p)), "never over a window");
   assert.deepEqual(problems(quiz([q("overUnder", { by: "stat", stat: "PTS", take: "value", of: "4431679" }, { line: 25.5 })]), ctx), [], "a player's line");
-  assert.ok(problems(quiz([q("number", { by: "final", take: "total", of: "20" })]), ctx).includes("ask[0].settle.of: Only a stat, or who wins a card's bout, says whose"));
+  assert.ok(problems(quiz([q("number", { by: "final", take: "total", of: "20" })]), ctx).includes("ask[0].settle.of: Only a stat, who wins a card's bout, or a draw's bracket says whose"));
   assert.ok(problems(quiz([q("person", { by: "stat", stat: "PTS", take: "most", of: "" })]), ctx).some((p) => /Whose:/.test(p)));
   assert.ok(problems(quiz([q("person", { by: "stat", stat: "XYZ", take: "most" })]), ctx).some((p) => /Nothing counts "XYZ"/.test(p)));
   assert.ok(problems(quiz([q("person", { by: "moment", moment: "m", stat: "PTS", take: "happened" })]), ctx).includes("ask[0].settle.stat: Only a stat settles by a stat"));

@@ -38,10 +38,13 @@ const OPENED = [
   { why: "a draft's teams knocked out by its cuts, or racing", test: (n) => /^(snake|blind|draw|auction|market)-[^|]+\|[^|]+\|(standing-cut-teams|total-race-teams)\|/.test(n), to: only },
 ];
 
-/** What track L refuses that only waited before (L4 part 1b, schema.js categoryProblems): a rank by roto on anything but a sport's
- *  categories (score.by 'stats' with categories), the same wait with a problem. */
+/** What track L refuses that only waited before, the same wait with a problem: a rank by roto on anything but a sport's categories
+ *  (L4 part 1b, schema.js categoryProblems: score.by 'stats' with categories); squares scored by anything but their squares (L4
+ *  part 2, squaresProblems: score.by 'squares', which the corpus never says; scoring by stats, which the check took beside squares
+ *  before, needs a draft or a pick). */
 const CLOSED = [
   { why: "a rank by roto on no categories", test: (n) => /^[^|]+\|[^|]+\|roto\|/.test(n), to: (was) => `${was[0]}p${was[2]}` },
+  { why: "squares scored by anything but their squares", test: (n) => /^squares\|/.test(n), to: (was) => `${was[0]}p${was[2]}` },
 ];
 
 test("the placement corpus: every verdict as the seven shapes gave it, but the combinations part 4 opens", () => {
@@ -69,8 +72,10 @@ test("the placement corpus: every verdict as the seven shapes gave it, but the c
   // a stage of one), and 110 lose only a wait or a problem while something else still holds them back (a count that doesn't fit, a
   // captain on best ball, a market's own problem, a wager with a share, their cuts or a race).
   // L4 part 1b's 354: a rank by roto on a show's game refused, as well as waiting for the sports branch (375 in all, 21 of them a
-  // draft's own questions part 4c had moved already, each refused the same way its twin asking nothing is).
-  assert.equal(moved.length, 169 + 770 + 819 + 354);
+  // draft's own questions part 4c had moved already, each refused the same way its twin asking nothing is). L4 part 2's 15: squares
+  // scored by moments (five of them multiplied in the finale) or stats and ranked by the total, refused as well as waiting (the
+  // rest of the corpus' squares had a problem already).
+  assert.equal(moved.length, 169 + 770 + 819 + 354 + 15);
   // What plays: 933 before part 4, and every opening that plays now (none played before: each had a problem or a wait).
   assert.ok(moved.every((i) => !C.plays(was[i])));
   assert.equal(now.filter(C.plays).length, 933 + moved.filter((i) => C.plays(now[i])).length);

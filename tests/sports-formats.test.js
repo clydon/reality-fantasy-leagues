@@ -73,13 +73,13 @@ test("soccer's pick'em: a league match that ends level is a draw; a cup tie won 
   // The kept final reads the same: the server's way (storedFacts), the shootout from its kept lines.
   const kept = JSON.parse(JSON.stringify(storedGame(soccer, require("./fixtures/espn/wc-760499.json"))));
   assert.deepEqual(verdictOf(q, 1, factsOf(storedFacts(soccer, kept, "final"))).right, [teamOf(wc.box, "Egypt")]);
-  assert.deepEqual(shapeOf(kept), { kind: "team", shootout: { [teamOf(wc.box, "Australia")]: 2, [teamOf(wc.box, "Egypt")]: 4 } }, "kept as ESPN's header says it");
+  assert.deepEqual(shapeOf(kept).shootout, { [teamOf(wc.box, "Australia")]: 2, [teamOf(wc.box, "Egypt")]: 4 }, "kept as ESPN's header says it");
   // ESPN's own shootout score is read over the players' kicks: a kept final whose kicks went missing still has Egypt through.
   const bare = { ...kept, lines: Object.fromEntries(Object.entries(kept.lines).map(([id, l]) => [id, { ...l, SOGOAL: 0 }])) };
   assert.deepEqual(verdictOf(q, 1, factsOf(storedFacts(soccer, bare, "final"))).right, [teamOf(wc.box, "Egypt")]);
   const keptDraw = JSON.parse(JSON.stringify(storedGame(soccer, require("./fixtures/espn/mls-761901.json"))));
   assert.deepEqual(verdictOf(q, 1, factsOf(storedFacts(soccer, keptDraw, "final"))).right, [DRAW]);
-  assert.equal(shapeOf(keptDraw), null, "a draw with no shootout keeps no shape");
+  assert.deepEqual(Object.keys(shapeOf(keptDraw)), ["kind", "periods"], "a draw with no shootout keeps only its periods' ends (L4 part 2)");
 });
 
 test("pick a few: three names, each one who leads the game scoring; the 76ers' opener's tie at the top, Bermuda's winner", () => {

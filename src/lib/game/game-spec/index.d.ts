@@ -83,8 +83,9 @@ export type SpecGet =
   | { by: "pick"; each: 1; repeat: "cycle" | "never"; second?: { fallback: "void" | "counts" }; fallback?: "miss" | "skip" }
   | { by: "card" }
   | { by: "none" }
-  /** sports */
-  | { by: "squares" };
+  /** sports. L4 part 2: a grid of a team game's two scores' last digits (10 by 10 or 5 by 5), its squares picked (up to `each`)
+   *  or dealt at random, the digits drawn at the lock (squaresProblems, sequence/squares.js). */
+  | { by: "squares"; grid?: 10 | 5; take?: "pick" | "deal"; each?: number };
 
 export type SpecCount =
   | { start: number }
@@ -126,7 +127,25 @@ export type SpecScore =
   /** L1 part 4a: by a sport's stats (statScoreProblems): points each, and its table's points by position group, by place (a
    *  place or a range, "4-10") and by a bout's format (its rounds or sets, "5"). L4 part 1b: `categories` instead of points, the
    *  sport's stat keys whose totals are compared (head to head or roto: categoryProblems, sequence/categories.js). */
-  | { by: "stats"; points?: Record<string, number>; byPosition?: Record<string, Record<string, number>>; byPlace?: Record<string, Record<string, number>>; byFormat?: Record<string, Record<string, number>>; categories?: string[] };
+  | { by: "stats"; points?: Record<string, number>; byPosition?: Record<string, Record<string, number>>; byPlace?: Record<string, Record<string, number>>; byFormat?: Record<string, Record<string, number>>; categories?: string[] }
+  /** L4 part 2: squares', each pay's points to whoever holds the square of the two scores' last digits then; a square nobody holds
+   *  pays nobody or rolls on; a period whose end was never read pays on the final, or nobody. */
+  | { by: "squares"; pays: SquaresPayAt[]; empty?: "void" | "next"; unread?: "final" | "void" };
+
+/** L4 part 2: a squares pay: at a period's end (its number), halftime or the final score. */
+export interface SquaresPayAt {
+  at: number | "half" | "final";
+  points: number;
+}
+/** L4 part 2: a squares game, read the one way (squaresParts), its defaults in. */
+export interface SquaresParts {
+  grid: 10 | 5;
+  take: "pick" | "deal";
+  each: number | null;
+  pays: SquaresPayAt[];
+  empty: "void" | "next";
+  unread: "final" | "void";
+}
 
 /** A9: a parlay of a game of questions' plain questions (2 to 4, asked the same way), its multiplier when all are right. */
 export interface SpecParlay {
@@ -196,7 +215,7 @@ export type SpecSettle =
    *  (majority) or fewest (minority); on a tie, nobody's right ('none', the default) or each tied one is ('all'). */
   | { by: "players"; take: "majority" | "minority"; of?: string; tie?: "none" | "all" }
   /** L1 part 4b: a sport's game's final (a card's bout: `of` 'main' or its id). */
-  | { by: "final"; take: "winner" | "total" | "margin"; of?: string }
+  | { by: "final"; take: "winner" | "total" | "margin" | "bracket"; of?: string }
   /** L1 part 4b: a stat in a sport's game, `of` a player or a team (else the game's). */
   | { by: "stat"; stat: string; take: "most" | "least" | "value"; of?: string };
 
@@ -207,7 +226,9 @@ export interface SpecQuestion {
   ask: string;
   /** group: a tribe or team (A6). order, confidence, chips, split, pairs (A8). side: sports. calls: the show's calls (Weekly
    *  Calls'). trivia (A13): the round before each episode, from its trivia key, answered { [trivia question id]: option }. */
-  answer: "person" | "group" | "side" | "yesNo" | "number" | "overUnder" | "choice" | "calls" | "order" | "confidence" | "chips" | "split" | "pairs" | "trivia";
+  answer: "person" | "group" | "side" | "yesNo" | "number" | "overUnder" | "choice" | "calls" | "order" | "confidence" | "chips" | "split" | "pairs" | "trivia" | "bracket";
+  /** L4 part 2: a bracket's right picks, worth double each round from the first (the default) or the same. */
+  rounds?: "double" | "same";
   /** A8: an order scores each one within this many places of right (0: exactly). */
   within?: number;
   /** A8: a chips answer's chips to spread. */
@@ -273,7 +294,10 @@ export interface SportsGameFacts {
   places?: Record<string, number | null>;
   /** The stats whose values are places (a missing one: out of the places). */
   placed?: string[];
-  bouts?: Record<string, { sides: string[]; winner: string | null; outcome: string | null; main: boolean }>;
+  /** L4 part 2: a bout's draw (the sport's key: tennis's MS) and how many rounds it is from the draw's final, where it's in one. */
+  bouts?: Record<string, { sides: string[]; winner: string | null; outcome: string | null; main: boolean; class?: string | null; fromFinal?: number | null }>;
+  /** L4 part 2: a team game's periods' ends, each side's score then, in order (regulation's and any extra), as far as they're read. */
+  periods?: Record<string, number>[];
 }
 /** What a game's results say, for grading its questions (answers.js). */
 export interface AnswerFacts {
@@ -649,7 +673,8 @@ export function rightAnswers(q: Question, v: Verdict, facts?: AnswerFacts): stri
 export function pointsFor(q: Question, v: Verdict, answers: { playerId: string; answer: unknown }[], facts?: AnswerFacts): Map<string, number>;
 export function isRight(q: Question, v: Verdict, mine: { playerId: string; answer: unknown }, answers: { playerId: string; answer: unknown }[], facts?: AnswerFacts): boolean | null;
 /** o.most: a wager of any of your points (A9), your points as they stand. */
-export function answerProblem(q: Question, value: unknown, faces?: Set<string> | null, o?: { most?: number }): string | null;
+/** L4 part 2: a bracket's `faces` is its draw as it stands (sequence/bracket.js bracketOf). */
+export function answerProblem(q: Question, value: unknown, faces?: Set<string> | import("../sequence/bracket").BracketField | null, o?: { most?: number }): string | null;
 /** A9: what each answer earns on one window with its ways of combining (a split pot, only the only right one, a rollover's worth,
  *  a shrinking call). */
 export function windowPoints(
@@ -829,6 +854,16 @@ export interface CategoryParts {
 }
 /** A game ranked by a sport's categories, read the one way from a whole spec; null for a game that isn't one. */
 export function categoryParts(spec: GameSpec | SpecInput | null | undefined): CategoryParts | null;
+/** L4 part 2: squares' grids, ways to take them, what an empty square and an unread period do, the defaults, the most pays; a
+ *  bracket's rounds' worth; a squares game read the one way (null for a game that isn't one). */
+export const SQUARE_GRIDS: readonly (10 | 5)[];
+export const SQUARE_TAKES: readonly ("pick" | "deal")[];
+export const SQUARE_EMPTY: readonly ("void" | "next")[];
+export const SQUARE_UNREAD: readonly ("final" | "void")[];
+export const SQUARES: { grid: 10; take: "pick"; empty: "void"; unread: "final" };
+export const MAX_PAYS: number;
+export const BRACKET_ROUNDS: readonly ("double" | "same")[];
+export function squaresParts(spec: GameSpec | SpecInput | null | undefined): SquaresParts | null;
 export interface MatchupParts {
   odd: "median" | "bye";
   quiet: "skip" | "tie";

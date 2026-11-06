@@ -22,6 +22,9 @@ export interface StoredGame {
   /** Each team's id and score, in ESPN's header's order; `shootout`, a soccer match's penalty shootout goals as ESPN's header
    *  says them (never in the score: L4 part 1a). */
   sides: { id: string; score: number; shootout?: number }[];
+  /** L4 part 2: each period's end, each side's score then, in order (TeamSport.periodScores: squares' pays); left out when the
+   *  summary had no plays to read them from. */
+  periods?: Record<string, number>[];
   /** Each person's counts (raw: derived stats are the read's, Sport.full), in the sport's keys; a team's own (football's
    *  defense) under its id. */
   lines: Record<string, Stats>;
@@ -41,7 +44,10 @@ export interface StoredField {
 
 /** A bout as it's kept: what the reads need (its sides, its rounds or sets for a table by format, the main event, its class). A
  *  Grand Slam's 600-odd matches with their draws' places, seeds and starts would be ~180 KB; so they're ~55 KB. */
-export type StoredBout = Pick<Bout, "id" | "order" | "sides" | "rounds" | "main" | "class">;
+export type StoredBout = Pick<Bout, "id" | "order" | "sides" | "rounds" | "main" | "class"> & {
+  /** L4 part 2: how many rounds it is from its draw's final, for a bout in a draw's main rounds (tennis's: a bracket's). */
+  fromFinal?: number;
+};
 /** A result as it's kept: how it ended and who won (the grader's; how they won is in their line: MMA's KO, SUB, DEC). */
 export type StoredResult = Pick<BoutResult, "bout" | "outcome" | "winner" | "loser">;
 
@@ -61,8 +67,9 @@ export interface StoredCard {
 export type StoredFinal = StoredGame | StoredField | StoredCard;
 
 /** What the kept final's shape has besides its lines and people (sports_events.shape: a field's and a card's; a team game's
- *  sides are the row's own, so its shape is null, or only a penalty shootout's goals by side: L4 part 1a). */
-export type StoredShape = Pick<StoredField, "kind" | "event" | "standings"> | Pick<StoredCard, "kind" | "card" | "byBout" | "results"> | { kind: "team"; shootout: Record<string, number> };
+ *  sides are the row's own, so its shape is a penalty shootout's goals by side (L4 part 1a) and its periods' ends (L4 part 2), or
+ *  null with neither). */
+export type StoredShape = Pick<StoredField, "kind" | "event" | "standings"> | Pick<StoredCard, "kind" | "card" | "byBout" | "results"> | { kind: "team"; shootout?: Record<string, number>; periods?: Record<string, number>[] };
 
 /** A team game's summary as it's kept: its counts at the end of its timeline, its people, its score; null without a box score. */
 export function storedGame(sport: TeamSport, summary: EspnSummary): StoredGame | null {
@@ -77,7 +84,9 @@ export function storedGame(sport: TeamSport, summary: EspnSummary): StoredGame |
   const plain = headerTeams(summary).map((t) => ({ id: t.id, score: state.score[t.id] ?? 0 }));
   const level = plain.length === 2 && plain[0].score === plain[1].score && plain.every((s) => typeof so.get(s.id) === "number");
   const sides = level ? plain.map((s) => ({ ...s, shootout: so.get(s.id) as number })) : plain;
-  return { final: box.final, sides, lines: state.lines, people };
+  // L4 part 2: each period's end (squares' pays), as far as the plays say.
+  const periods = sport.periodScores(summary);
+  return { final: box.final, sides, ...(periods.length ? { periods } : {}), lines: state.lines, people };
 }
 
 /** A field's answer (the pollers' calls, asked once: live-event.ts) as it's kept: its counts and standings at the end of its
@@ -97,7 +106,8 @@ export function storedCard(sport: BoutSport, answer: BoutAnswer): StoredCard | n
   const box = sport.readBox(answer);
   if (!box) return null;
   const state = sport.stateAt(answer);
-  const bouts = box.bouts.map((b) => ({ id: b.id, order: b.order, sides: b.sides, rounds: b.rounds, main: b.main, class: b.class }));
+  // L4 part 2: a bout's distance from its draw's final (a bracket's), only for a draw's main rounds.
+  const bouts = box.bouts.map((b) => ({ id: b.id, order: b.order, sides: b.sides, rounds: b.rounds, main: b.main, class: b.class, ...(b.place?.fromFinal != null ? { fromFinal: b.place.fromFinal } : {}) }));
   const people: StoredPeople = {};
   for (const b of box.bouts) for (const id of b.sides) people[id] ??= { team: null, position: b.class };
   const results = state.results.map((r) => ({ bout: r.bout, outcome: r.outcome, winner: r.winner, loser: r.loser }));
@@ -108,9 +118,11 @@ export function storedCard(sport: BoutSport, answer: BoutAnswer): StoredCard | n
 export function shapeOf(g: StoredFinal): StoredShape | null {
   if (g.kind === "field") return { kind: "field", event: g.event, standings: g.standings };
   if (g.kind === "card") return { kind: "card", card: g.card, byBout: g.byBout, results: g.results };
-  // A team game's sides are the row's own; only a shootout's goals aren't (L4 part 1a).
+  // A team game's sides are the row's own; only a shootout's goals (L4 part 1a) and its periods' ends (L4 part 2) aren't.
   const shootout = Object.fromEntries(g.sides.flatMap((s) => (typeof s.shootout === "number" ? [[s.id, s.shootout]] : [])));
-  return Object.keys(shootout).length ? { kind: "team", shootout } : null;
+  const periods = g.periods?.length ? g.periods : null;
+  if (!Object.keys(shootout).length && !periods) return null;
+  return { kind: "team", ...(Object.keys(shootout).length ? { shootout } : {}), ...(periods ? { periods } : {}) };
 }
 
 /** A kept team game as the sport's state at its end (the reduce's shape: what statePoints and gameFacts read). */
@@ -134,7 +146,7 @@ export function finalState(g: StoredFinal): GameState | FieldState | BoutState {
 export function storedFacts(sport: Sport, g: StoredFinal, status: SportsGameFacts["status"]): SportsGameFacts {
   if (g.kind) return gameFacts(sport, finalState(g), { status, people: g.people, card: g.kind === "card" ? g.card : null });
   const shootout = Object.fromEntries(g.sides.flatMap((s) => (typeof s.shootout === "number" ? [[s.id, s.shootout]] : [])));
-  return gameFacts(sport, storedState(g), { status, sides: g.sides.map((s) => s.id), people: g.people, ...(Object.keys(shootout).length ? { shootout } : {}) });
+  return gameFacts(sport, storedState(g), { status, sides: g.sides.map((s) => s.id), people: g.people, ...(Object.keys(shootout).length ? { shootout } : {}), ...(g.periods?.length ? { periods: g.periods } : {}) });
 }
 
 /**
