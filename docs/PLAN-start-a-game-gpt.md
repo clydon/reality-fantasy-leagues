@@ -3479,6 +3479,10 @@ migration, no ESPN calls, nothing stored).**
   rate nobody has, now "tied with anyone else who has none"; the about lines' "each week" against a matchup a game; head to head's
   parts and the playoffs' sentences read twice, now shared; the old "Ranked by category" fallbacks, dead, removed). Left for the hook
   (below): `flagsOf`' `hasMatchups` and settings.js's `rankMatchups` don't read a categories game's head to head.
+- **The long checks, last, on `c6d7b424`:** `golden.js --before=master` (master `54d58239`, nothing new in the engine's files since
+  `e4f3441d`): Survivor 49, The Traitors US 4 and The Challenge 40, 74 games, 9,548 reads, every one the same. blind.js and the
+  rehearsal not run: no show's game is scored by categories or ranked roto (the only show specs whose check changed), and every read
+  is kept the same (golden alone).
 - **For the engine lane (with L3 part 2's hook):**
   - `schema.js` placement: `LINES.stats` for a categories score has no lines of points; its place is step 5's (the week's result)
     and step 6's (rank): `rankPlace` takes `categories`, `matchups` and `roto` on a categories score (`categoryParts`), nothing
