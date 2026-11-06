@@ -474,6 +474,9 @@ function Heat({ d, people, onTap }: ViewProps) {
 
 // ---------- a castaway's story, two side by side ----------
 
+/** "+2", "−1", "0": a moment's points as the standings write them. */
+const pts = (n: number) => `${n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(n)}`;
+
 function useKept<T>(value: T | null): T | null {
   const [kept, setKept] = useState(value);
   if (value && value !== kept) setKept(value);
@@ -510,29 +513,43 @@ function StorySheet({ d, name, title, onClose, onFlag }: { d: SeasonStats; name:
                 )}
               </p>
             )}
-            {Array.from({ length: d.through }, (_, k) => k + 1).map((e) => {
-              const ev = c.events.filter(([ep]) => ep === e).map(([, k]) => names.get(k) ?? k);
+            {Array.from({ length: d.through }, (_, k) => d.through - k).map((e) => {
+              // Newest first (the research sheet's order): what was recorded, each with what it scored.
+              const ev = c.events.filter(([ep]) => ep === e).map(([, k, points, units]) => ({ key: k, name: names.get(k) ?? k, points, units: d.stats.find((s) => s.key === k)?.unit === "" ? units : 1 }));
               const gone = c.out !== null && e > c.out;
               const left = c.out === e;
               const unsure = d.unsure?.[e]?.[c.name];
+              const total = gone ? null : c.perEp[e - 1];
+              const quiet = !gone && !ev.length && !left;
               return (
-                <div key={e} data-story-ep={e} className="flex min-h-11 items-center gap-2.5 border-b border-border py-1.5 text-[13px] leading-snug">
-                  <span className="type-num grid size-[26px] flex-none place-items-center rounded-[3px] bg-secondary text-[15px]">{e}</span>
-                  <span className="flex-1">
-                    {[...ev, left ? (c.how ?? "Left the game") : null].filter(Boolean).join(" · ") || (gone ? "Already out" : "Nothing recorded")}
+                <section key={e} data-story-ep={e} className={`border-t border-border py-2 first:border-t-0 ${gone ? "opacity-55" : ""}`}>
+                  <header className="flex min-h-9 items-center gap-2">
+                    <b className="type-caption text-[14px] tracking-[0.04em] text-muted-foreground">Episode {e}</b>
                     {unsure && (
-                      <i data-unsure={unsure} className="ml-1.5 whitespace-nowrap rounded-[2px] bg-secondary px-1.5 py-px text-[11px] font-bold not-italic text-muted-foreground">
+                      <i data-unsure={unsure} className="whitespace-nowrap rounded-[2px] bg-secondary px-1.5 py-px text-[11px] font-bold not-italic text-muted-foreground">
                         {unsure === "disputed" ? "Disputed" : "1 source"}
                       </i>
                     )}
-                  </span>
-                  <b className="type-num text-base">{gone ? "" : c.perEp[e - 1]}</b>
-                  {onFlag && !gone && (ev.length > 0 || left) && (
-                    <button type="button" data-story-flag={e} aria-label={`Something wrong in Episode ${e}`} onClick={() => onFlag(e, c.name)} className="-mr-2 grid size-11 flex-none place-items-center text-muted-foreground">
-                      <Ellipsis className="size-5" aria-hidden />
-                    </button>
-                  )}
-                </div>
+                    <span className="flex-1" />
+                    {total !== null && <b className={`type-num text-[22px] leading-none ${total > 0 ? "" : total < 0 ? "text-live" : "text-muted-foreground"}`}>{pts(total)}</b>}
+                    {onFlag && !gone && (ev.length > 0 || left) && (
+                      <button type="button" data-story-flag={e} aria-label={`Something wrong in Episode ${e}`} onClick={() => onFlag(e, c.name)} className="-mr-2 grid size-11 flex-none place-items-center text-muted-foreground">
+                        <Ellipsis className="size-5" aria-hidden />
+                      </button>
+                    )}
+                  </header>
+                  {ev.map((x, i) => (
+                    <div key={`${x.key}-${i}`} data-story-moment={x.key} className={`flex min-h-8 items-center gap-3 text-[14px] leading-snug ${x.points ? "" : "text-muted-foreground"}`}>
+                      <span className="min-w-0 flex-1">
+                        {x.name}
+                        {x.units !== 1 && <span className="text-muted-foreground"> · {x.units.toLocaleString()}</span>}
+                      </span>
+                      <span className="type-num flex-none text-[15px]">{pts(x.points)}</span>
+                    </div>
+                  ))}
+                  {left && <div data-story-left className="flex min-h-8 items-center text-[14px] leading-snug text-muted-foreground">{c.how ?? "Left the game"}</div>}
+                  {(quiet || gone) && <div className="flex min-h-8 items-center text-[14px] text-muted-foreground">{gone ? "Already out" : "Nothing recorded"}</div>}
+                </section>
               );
             })}
           </div>

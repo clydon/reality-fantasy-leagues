@@ -15,6 +15,8 @@ import { SEASON_NAME, logDesk, type DeskLine } from "./desk";
 import { seasonBot, usualReach } from "./desk-bot";
 import { dayGap, fmt, mdIn, plural, timeIn, ymd } from "./desk-dates";
 import { askCastNow } from "./desk-cast-page";
+import { askRulebookNow, RESEARCH_NAME, throughArg, type ResearchKind } from "./desk-rulebooks";
+import { leagueSeason } from "./push-events";
 import { waitingEpisodes } from "./desk-episode";
 import { deskSetup, type SeasonDelete } from "./desk-setup";
 
@@ -584,6 +586,36 @@ export async function runNow(
 }
 
 /**
+ * A season with no bingo bank of its own gets one (docs/PLAN-own-pace-games.md: a game at your own pace on a season added after it
+ * aired has no episode banks, the bot writes those the day before an episode airs): queued like Run now's season bank, asked by
+ * whoever started the game, behind whatever's asking, the queue handed to a request of its own (handOn). Nothing when the season
+ * has its bank, one's already on its way, or the bot isn't answering (bingo just stays away, as it does today). Never throws; run
+ * it after the answer (start-game.ts), so starting the game never waits on it.
+ */
+export async function queueSeasonBingo(userId: string, seasonId: string, origin: string | null, now = new Date(), bot?: string): Promise<boolean> {
+  try {
+    const { rows: has } = await pool.query("SELECT EXISTS (SELECT 1 FROM bingo_squares WHERE season_id = $1 AND episode IS NULL AND status = 'live') AS has", [seasonId]);
+    if (has[0].has) return false;
+    if (!(await askBotStatus({ bot })).available) return false;
+    const season = await job(seasonId);
+    const aired = episodeAirTimes(season).filter((e) => e.at.getTime() <= now.getTime());
+    const episode = aired.length ? aired[aired.length - 1].episode + 1 : 1;
+    const { rowCount } = await pool.query(
+      `INSERT INTO desk_runs (season_id, episode_number, kind, for_season, asked_by, bot) VALUES ($1, $2, 'bingo', true, $3, $4)
+       ON CONFLICT (season_id, kind, episode_number, for_season) WHERE done_at IS NULL DO NOTHING`,
+      [seasonId, episode, userId, bot ?? null]
+    );
+    if (!rowCount) return false;
+    await logDesk(pool, { entity: "season", entityId: seasonId, action: "run", text: "Bingo, the season's bank: asked for a game at your own pace", userId });
+    if (origin) await handOn(origin);
+    return true;
+  } catch (e) {
+    console.error(`[desk-runs] couldn't ask for ${seasonId}'s bingo bank:`, e);
+    return false;
+  }
+}
+
+/**
  * Ask our bot for a season's cast (the Cast page, part 5a): queued like Run now, behind whatever's asking (one question at a
  * time), as episode 0; its answer is staged for the page's review (desk-cast-page.ts askCastNow). The same ask already queued
  * is joined. Answers what it waits behind.
@@ -610,6 +642,42 @@ export async function queueCast(user: SessionUser, id: string, o: { bot?: string
   await logDesk(pool, { entity: "season", entityId: id, action: "cast", text: "Asked our bot for the cast", userId: user.id });
   after(() => drainDeskRuns(o.origin));
   return { text: waits ? `Queued: ${what}` : `Asking ChatGPT for ${what} · about a minute`, waits };
+}
+
+/**
+ * Ask our bot about a rulebook (docs/PLAN-rulebook-research.md): Check for changes (`check`, a run of kind `rulebook`) or
+ * What scores (`scores`), queued like Run now behind whatever's asking, as episode 0 of the rulebook's season; its answer
+ * is staged for the rulebook page's review (desk-rulebooks.ts askRulebookNow). A library rulebook has no season, so no
+ * queue: it takes a paste. The same ask already queued is joined. Answers what it waits behind.
+ */
+export async function queueRulebook(user: SessionUser, id: string, kind: ResearchKind, through: unknown, o: { bot?: string; origin: string }): Promise<{ text: string; waits: string | null }> {
+  if (!isUuid(id)) throw new HttpError(404, "Rulebook not found");
+  const { rows } = await pool.query("SELECT season_id, league_id, name FROM rulebooks WHERE id = $1 AND status <> 'archived'", [id]);
+  if (!rows.length) throw new HttpError(404, "Rulebook not found");
+  // A season's rulebook, or a couch's own copy (its league's season).
+  const seasonId: string | null = rows[0].season_id ?? (rows[0].league_id ? (await leagueSeason(rows[0].league_id)).seasonId : null);
+  if (!seasonId) throw new HttpError(400, "Our bot asks about a season's rulebook. Ask an AI yourself and paste its answer here.");
+  const { rows: ss } = await pool.query("SELECT episode_count FROM show_seasons WHERE id = $1", [seasonId]);
+  // Through an episode (nothing later in the answer): the run's episode; 0 is the whole season.
+  const upTo = throughArg(through, ss[0]?.episode_count ?? null);
+  if (!(await askBotStatus({ bot: o.bot })).available) throw new HttpError(503, "Our bot isn't answering right now. Try again in a while, or paste it.");
+  const runKind = kind === "scores" ? "scores" : "rulebook";
+  const what = `${RESEARCH_NAME[kind]} on ${rows[0].name}${upTo ? ` up to Episode ${upTo}` : ""}`;
+  // An ask the page stopped waiting on (its driver cut off long ago): failed, so this one goes in.
+  await pool.query(
+    "UPDATE desk_runs SET done_at = now(), ok = false, message = 'Cut off before it finished: ask again' WHERE rulebook_id = $1 AND kind = $2 AND done_at IS NULL AND asked_at < now() - interval '15 minutes'",
+    [id, runKind]
+  );
+  const waits = await waitLine(seasonId);
+  const { rowCount } = await pool.query(
+    `INSERT INTO desk_runs (season_id, episode_number, kind, asked_by, bot, rulebook_id) VALUES ($1, $6, $2, $3, $4, $5)
+     ON CONFLICT (season_id, kind, episode_number, for_season) WHERE done_at IS NULL DO NOTHING`,
+    [seasonId, runKind, user.id, o.bot ?? null, id, upTo ?? 0]
+  );
+  if (!rowCount) return { text: `Already asking: ${what}`, waits };
+  await logDesk(pool, { entity: "rulebook", entityId: id, action: "research", text: `${RESEARCH_NAME[kind]}${upTo ? ` up to Episode ${upTo}` : ""}: asked our bot`, userId: user.id });
+  after(() => drainDeskRuns(o.origin));
+  return { text: waits ? `Queued: ${what}` : `Asking ChatGPT: ${what} · about 2 minutes`, waits };
 }
 
 /** A queue nobody's driving (its driver was cut off): a page's read takes it over, after its answer (as Research's read does). */
@@ -684,6 +752,12 @@ export async function drainDeskRuns(origin: string): Promise<void> {
     // The cast (part 5a): our bot's answer is staged for the Cast page's review, not filed as a run's result.
     if (head.kind === "cast") {
       const c = await askCastNow(head.season_id, head.asked_by, bot, 280_000);
+      await done(c.ok, c.message);
+      return handOn(origin);
+    }
+    // A rulebook's research (Check for changes, What scores): staged for the rulebook page's review, the same way.
+    if (head.kind === "rulebook" || head.kind === "scores") {
+      const c = head.rulebook_id ? await askRulebookNow(head.rulebook_id, head.kind === "scores" ? "scores" : "check", head.asked_by, bot, 280_000, head.episode_number || null) : { ok: false, message: "The rulebook's gone" };
       await done(c.ok, c.message);
       return handOn(origin);
     }

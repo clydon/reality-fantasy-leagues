@@ -24,6 +24,9 @@ const fs = require("fs");
 const { Pool } = require("pg");
 const { api, open } = require("./browser");
 const fixture = require("./new-fixture");
+const fakeBot = require("./fake-bot");
+const S2 = require("../../src/lib/game/state-logic.js");
+const bingo = require("./bingo-fixture");
 
 const DB = process.env.AUTH_DATABASE_URL || "";
 if (!/@(localhost|127\.0\.0\.1|\[::1\])[:/]/.test(DB)) throw new Error("check-own-pace runs against a local database only");
@@ -53,9 +56,31 @@ async function main() {
   if (!season) throw new Error("no finished season with accepted results in the local database: pass --season=<id>");
   const fx = await fixture.up(pool);
   const couch = fx.couchId;
-  const alex = await api({ user: fixture.username("alex"), pass: PASSWORD });
+  // A stand-in bot (never ChatGPT) for the season's bingo bank, which starting a game at your own pace asks for when the season
+  // has none: 30 squares written, every one passing the check. Only a season with no bank of its own is asked (and cleaned).
+  const fb = await fakeBot.start({
+    answer: (prompt) => {
+      if (fakeBot.kindOf(prompt) === "bingoCheck") {
+        const n = (prompt.match(/^\d+\. /gm) || []).length;
+        const checks = Array.from({ length: n }, (_, i) => ({ n: i + 1, seen: true, likely: true, scoring: false, spoiler: false, sameAs: null, likelihood: null, note: "" }));
+        return "```json\n" + JSON.stringify({ checks }) + "\n```";
+      }
+      return bingo.answer(bingo.squares({ likely: 10, maybe: 14, longshot: 6 }));
+    },
+  });
+  const hadBank = (await pool.query("SELECT EXISTS (SELECT 1 FROM bingo_squares WHERE season_id = $1 AND episode IS NULL) AS has", [season])).rows[0].has;
+  const alex = await api({ user: fixture.username("alex"), pass: PASSWORD, headers: { "x-gys-bot": fb.url } });
   const riley = await api({ user: fixture.username("riley"), pass: PASSWORD });
   let leagueId = null;
+  let lineupId = null;
+  let outlastId = null;
+  // Part 3a's screens, after the rest (numbered on from 20).
+  let shotN = 20;
+  const shotAs = async (page, name) => {
+    fs.mkdirSync(outDir, { recursive: true });
+    await page.waitForTimeout(600);
+    await page.screenshot({ path: path.join(outDir, `${++shotN}-${name}.png`) });
+  };
   try {
     // alex is up to Episode 3 of the finished season; riley hasn't started it.
     let r = await alex.call("PUT", `/api/me/follows/${season}`, { following: true, seenThrough: 3 });
@@ -70,7 +95,11 @@ async function main() {
     check(o.from === 4, "starts where alex is by default", o.from);
     const pool_ = (o.games || []).find((g) => g.key === "survivalPool");
     check(pool_ && pool_.fits && pool_.bots, "Survival Pool fits, with computer players", pool_);
-    check((o.games || []).filter((g) => g.key !== "survivalPool").every((g) => !g.fits), "the other games wait (for now)", o.games.map((g) => [g.key, g.fits]));
+    check(
+      ["survivalPool", "outlast", "weeklyLineup"].every((k) => !(o.games || []).some((g) => g.key === k) || o.games.find((g) => g.key === k).fits) && (o.games || []).filter((g) => !["survivalPool", "outlast", "weeklyLineup"].includes(g.key)).every((g) => !g.fits),
+      "Survival Pool, Outlast and Weekly Lineup play at your own pace; the rest wait (for now)",
+      (o.games || []).map((g) => [g.key, g.fits])
+    );
     r = await alex.call("GET", `/api/seasons/${season}/start?couch=${couch}&start=1`);
     check(r.status === 200 && r.body.from === 1 && r.body.ownPace === true, "from the top is a start too", r.body.from);
 
@@ -78,6 +107,16 @@ async function main() {
     r = await alex.call("POST", `/api/seasons/${season}/start?couch=${couch}`, { game: "survivalPool", tell: false, bots: 2, level: "normal" });
     check(r.status === 200 && r.body.leagueId, "started Survival Pool at alex's own pace with two computer players", r.body);
     leagueId = r.body.leagueId;
+    if (hadBank) console.log("info: the season has a bingo bank already: nothing to ask the bot for");
+    else {
+      // The season's bank, asked of the stand-in after the answer: in within a couple of minutes.
+      let live = 0;
+      for (let t = 0; t < 120 && !live; t++) {
+        await new Promise((res) => setTimeout(res, 1000));
+        live = (await pool.query("SELECT count(*)::int AS n FROM bingo_squares WHERE season_id = $1 AND episode IS NULL AND status = 'live'", [season])).rows[0].n;
+      }
+      check(live >= 16, "starting it asked our bot for the season's bingo bank, and it's in", { live, asked: fb.asked.length });
+    }
     check(r.body.from === 4, "from Episode 4", r.body.from);
     const stateOf = async () => (await pool.query("SELECT state FROM leagues WHERE id = $1", [leagueId])).rows[0].state;
     let s = await stateOf();
@@ -105,7 +144,7 @@ async function main() {
     r = await alex.call("GET", `/api/seasons/${season}/games?couch=${couch}`);
     let gv = (r.body.games || []).find((g) => g.leagueId === leagueId);
     check(gv && gv.catchUp && gv.catchUp.week === 4, "alex's week is Episode 4", gv && gv.catchUp);
-    check(gv && gv.catchUp && Array.isArray(gv.catchUp.others) && gv.catchUp.others.length === 1 && gv.catchUp.others[0].week === 4, "the others: riley on 4 (no bots in it)", gv && gv.catchUp && gv.catchUp.others);
+    check(gv && gv.ownPace === true && gv.pace && gv.pace.others.length === 1 && gv.pace.others[0].week === 4 && gv.pace.last >= 5, "the others: riley on 4 (no bots in it); the season's last episode", gv && gv.pace);
     check(gv && gv.pick && !gv.pick.pick, "a pick to make for Episode 4", gv && gv.pick);
     // alex picks: the first castaway offered.
     const ep4 = s.episodes.find((e) => e.number === 4);
@@ -133,11 +172,31 @@ async function main() {
     // riley's strip: alex · Ep 5. alex's: riley · Ep 4, and revealing 5 would be two ahead.
     r = await riley.call("GET", `/api/seasons/${season}/games?couch=${couch}`);
     gv = (r.body.games || []).find((g) => g.leagueId === leagueId);
-    check(gv && gv.catchUp && gv.catchUp.week === 4 && gv.catchUp.others[0].week === 5, "riley: on 4, alex on 5", gv && gv.catchUp);
+    check(gv && gv.catchUp && gv.catchUp.week === 4 && gv.pace.others[0].week === 5, "riley: on 4, alex on 5", gv && gv.pace);
     r = await alex.call("GET", `/api/seasons/${season}/games?couch=${couch}`);
     gv = (r.body.games || []).find((g) => g.leagueId === leagueId);
-    check(gv && gv.catchUp && gv.catchUp.week === 5 && gv.catchUp.others[0].week === 4, "alex: on 5, riley on 4", gv && gv.catchUp);
+    check(gv && gv.catchUp && gv.catchUp.week === 5 && gv.pace.others[0].week === 4, "alex: on 5, riley on 4", gv && gv.pace);
     check(gv && gv.catchUp && gv.catchUp.latest >= 5, "the game has results past 5 to play", gv && gv.catchUp);
+    if (!hadBank) {
+      r = await alex.call("GET", `/api/seasons/${season}/bingo/5?couch=${couch}`);
+      check(r.status === 200 && r.body.status === "open" && r.body.squares.length === 9, "alex's Episode 5 bingo card, dealt from the season's bank, open to tick", r.body && { status: r.body.status, n: r.body.squares?.length });
+    }
+
+    // Part 2: the one-night games follow your episode. Call it for alex's next (5) is open on the honour system, the one after
+    // waits, the one alex has seen is closed and says how the calls went.
+    r = await alex.call("GET", `/api/seasons/${season}/calls/5?couch=${couch}`);
+    check(r.status === 200 && r.body.status === "open" && r.body.paced === true && r.body.questions.length > 0, "Call it for Episode 5 (aired, alex's next) is open", r.body && { status: r.body.status, paced: r.body.paced, q: r.body.questions?.length });
+    const q5 = r.body.questions && r.body.questions[0];
+    if (q5) {
+      const x = await alex.call("POST", `/api/seasons/${season}/calls/5?couch=${couch}`, { calls: { [q5.key]: q5.options[0].key } });
+      check(x.status === 200 && x.body.mine[q5.key] === q5.options[0].key, "alex calls Episode 5", x.body);
+    }
+    r = await alex.call("GET", `/api/seasons/${season}/calls/6?couch=${couch}`);
+    check(r.status === 200 && r.body.status === "behind" && r.body.catchUp === 5, "Episode 6's calls wait for 5", r.body && { status: r.body.status, catchUp: r.body.catchUp });
+    r = await alex.call("GET", `/api/seasons/${season}/calls/4?couch=${couch}`);
+    check(r.status === 200 && r.body.status === "closed" && !!r.body.verdicts, "Episode 4 (seen) is closed, with how the calls went", r.body && { status: r.body.status, verdicts: !!r.body.verdicts });
+    r = await alex.call("POST", `/api/seasons/${season}/calls/4?couch=${couch}`, { calls: { out: null } });
+    check(r.status === 409, "a call on an episode alex has seen is refused", r.body);
 
     if (shots) {
       fs.mkdirSync(outDir, { recursive: true });
@@ -146,52 +205,269 @@ async function main() {
         await page.waitForTimeout(600);
         await page.screenshot({ path: path.join(outDir, `${String(++n).padStart(2, "0")}-${name}.png`) });
       };
-      // alex: the Games tab's row, Start a game's sheet, Tonight's strip and the catch-up sheet with the gap words.
+      const RILEY = fixture.username("riley");
+      // alex: the Games tab's row, Start a game's sheet (the mock: no banner, no AI card, no How long; number-first starts and the
+      // pace line), then Tonight's plate: asking once before a reveal with no pick, then picked, the gap words, the reveal.
       const a = await open({ user: fixture.username("alex"), pass: PASSWORD, width: 390, height: 844 });
       a.page.setDefaultTimeout(15000);
       try {
         await a.page.goto(`${a.BASE}/show/${season}/games`);
         await a.page.locator("[data-start-row='pace']").waitFor();
-        await shot(a.page, "games-tab-row");
+        await a.page.locator("[data-this-week]").waitFor();
+        check((await a.page.getByText("Your Episode 5", { exact: true }).count()) === 1, "the Games tab says Your Episode 5, not This week");
+        // One of its calls made (there may be two): the row is there for Episode 5, made or not.
+        check((await a.page.locator("[data-this-week] [data-call-row='5']").count()) === 1, "with Call it for Episode 5");
+        await a.page.locator("[data-this-week]").scrollIntoViewIfNeeded();
+        await shot(a.page, "games-your-episode");
         await a.page.locator("[data-start-row='pace']").click();
-        await a.page.locator("[data-own-pace]").waitFor();
-        await shot(a.page, "start-sheet-top");
-        const sheet = a.page.locator("[data-start-sheet]");
-        await sheet.locator("[data-start-from]").scrollIntoViewIfNeeded();
-        await shot(a.page, "start-sheet-starts");
-        check((await a.page.locator("[data-start-from-choice='here']").count()) === 1 && (await a.page.locator("[data-start-from-choice='top']").count()) === 1, "the sheet shows Where you are and From the top");
+        await a.page.locator("[data-start-pace-line]").waitFor();
+        await shot(a.page, "start-sheet");
+        check((await a.page.locator("[data-start-from-choice='here']").count()) === 1 && (await a.page.locator("[data-start-from-choice='top']").count()) === 1, "Start from: where you are, and from the top");
+        const here = await a.page.locator("[data-start-from-choice='here']").textContent();
+        // alex has revealed 4 by now (above), so where alex is is 5.
+        check(/Episode 5 · where you are/.test(here || "") && /You've seen 1 to 4/.test(here || ""), "the tile reads number first and says what you've seen", here);
+        check((await a.page.locator("[data-start-span], [data-no-fit]").count()) === 0 && (await a.page.getByText("Create a game with AI").count()) === 0, "no AI card, no How long, no doesn't-fit line at your own pace");
         await a.page.keyboard.press("Escape");
+
         await a.page.goto(`${a.BASE}/show/${season}/tonight`);
-        await a.page.locator(`[data-catchup='${leagueId}']`).waitFor();
-        await shot(a.page, "tonight-strip");
-        const strip = await a.page.locator(`[data-catchup='${leagueId}'] [data-pace-where]`).textContent();
-        check(/riley · Ep 4/.test(strip || ""), "the strip says riley · Ep 4", strip);
-        await a.page.locator(`[data-catchup='${leagueId}']`).click();
-        await a.page.locator("[data-catchup-reveal]").waitFor();
-        await shot(a.page, "catchup-sheet-ahead");
-        const ahead = await a.page.locator("[data-catchup-reveal]").getAttribute("data-pace-ahead");
+        const plate = a.page.locator(`[data-pace-plate='${leagueId}']`);
+        await plate.waitFor();
+        check((await a.page.locator(`[data-catchup='${leagueId}']`).count()) === 0, "no catching-up strip for an own-pace game");
+        check((await a.page.locator("[data-phase]").count()) === 0, "no episode heading saying it again");
+        check(/Pick who survives/.test((await plate.textContent()) || ""), "the plate asks for the pick first");
+        await shot(a.page, "tonight-plate-pick");
+        await plate.locator("[data-pace-watched]").click();
+        await plate.locator("[data-pace-ask]").waitFor();
+        await shot(a.page, "tonight-plate-ask");
+        // The pick, through the API (the moves sheet is its own check's), then the plate's next step.
+        const g5 = ((await alex.call("GET", `/api/seasons/${season}/games?couch=${couch}`)).body.games || []).find((g) => g.leagueId === leagueId);
+        const ep5 = (await stateOf()).episodes.find((e) => e.number === 5);
+        r = await alex.call("PUT", `/api/leagues/${leagueId}/episodes/${ep5.id}/picks`, { playerId: g5.playerId, castawayId: g5.pick.available[0] });
+        check(r.status === 200, "alex picks for Episode 5", r.body);
+        await a.page.reload();
+        await plate.locator("[data-pace-reveal]").waitFor();
+        await shot(a.page, "tonight-plate-watch");
+        const ahead = await plate.locator("[data-pace-reveal]").getAttribute("data-pace-ahead");
         // Names are as the couch shows them everywhere (couchMembers: the username).
-        check(ahead === `you'll be 2 ahead of ${fixture.username("riley")}`, "the reveal button says you'll be 2 ahead of riley", ahead);
+        check(ahead === `you'll be 2 ahead of ${RILEY}`, "the reveal button says you'll be 2 ahead of riley", ahead);
+        await plate.locator("[data-pace-reveal]").click();
+        await a.page.locator("[data-pace-revealed='5']").waitFor();
+        await shot(a.page, "revealed-sheet");
+        check((await a.page.locator("[data-pace-next]").textContent())?.includes("Pick for Episode 6"), "the way on is Pick for Episode 6");
+        check((await a.page.locator("[data-pace-later]").count()) === 1, "and Done for now");
       } finally {
         await a.close();
       }
-      // riley: the join sheet (before joining there'd be one; riley's in already, so the strip saying alex is ahead).
-      const b = await open({ user: fixture.username("riley"), pass: PASSWORD, width: 390, height: 844 });
+
+      // riley: Tonight's plate on Episode 4, quiet about alex (ahead).
+      const b = await open({ user: RILEY, pass: PASSWORD, width: 390, height: 844 });
       b.page.setDefaultTimeout(15000);
       try {
         await b.page.goto(`${b.BASE}/show/${season}/tonight`);
-        await b.page.locator(`[data-catchup='${leagueId}']`).waitFor();
-        await shot(b.page, "riley-strip");
-        const strip = await b.page.locator(`[data-catchup='${leagueId}'] [data-pace-where]`).textContent();
-        check(/alex · Ep 5/.test(strip || ""), "riley's strip says alex · Ep 5", strip);
+        const plate = b.page.locator(`[data-pace-plate='${leagueId}']`);
+        await plate.waitFor();
+        check((await plate.getAttribute("data-pace-week")) === "4", "riley's plate is on Episode 4");
+        check((await plate.locator("[data-pace-near]").count()) === 0, "nobody's behind riley: no line about it");
+        await shot(b.page, "riley-plate");
       } finally {
         await b.close();
       }
+
+      // jordan (not in it): the join sheet, a statement with who's playing and where.
+      const c = await open({ user: fixture.username("jordan"), pass: PASSWORD, width: 390, height: 844 });
+      c.page.setDefaultTimeout(15000);
+      try {
+        await c.page.goto(`${c.BASE}/show/${season}/games`);
+        await c.page.locator(`[data-league='${leagueId}'] [data-join-button]`).click();
+        await c.page.locator("[data-join-pace]").waitFor();
+        await c.page.locator("[data-join-playing]").waitFor();
+        await shot(c.page, "join-sheet");
+        const who = (await c.page.locator("[data-join-playing]").textContent()) || "";
+        check(/Keeps pace/.test(who) && /On Episode 6/.test(who) && /On Episode 4/.test(who), "who's playing: alex on 6, riley on 4, the computers keep pace", who);
+      } finally {
+        await c.close();
+      }
+
+      // alex plays to the end (reveals with no pick): the finish plate.
+      for (let k = 0; k < 40; k++) {
+        const x = await alex.call("POST", `/api/seasons/${season}/catchup`, { leagueId, couch });
+        if (x.status !== 200 || x.body.next === null) break;
+      }
+      const d = await open({ user: fixture.username("alex"), pass: PASSWORD, width: 390, height: 844 });
+      d.page.setDefaultTimeout(15000);
+      try {
+        await d.page.goto(`${d.BASE}/show/${season}/tonight`);
+        const fin = d.page.locator(`[data-pace-finish='${leagueId}']`);
+        await fin.waitFor();
+        const text = (await fin.textContent()) || "";
+        check(/You finished it/.test(text) && /of 4/.test(text) && new RegExp(`${RILEY} is on Episode 4`).test(text), "the finish plate: your place of 4 (two computers), riley still on 4 with it hidden", text);
+        await shot(d.page, "finish-plate");
+      } finally {
+        await d.close();
+      }
       console.log(`screens in ${outDir}`);
     }
+
+    // Part 3a: a Weekly Lineup at your own pace (shared teams). jordan, who hasn't started the season, starts one from Episode 1
+    // with a computer player: no draft, the bot's team picked at once, jordan's on Tonight's plate first, then the lineup step.
+    const jordan = await api({ user: fixture.username("jordan"), pass: PASSWORD, headers: { "x-gys-bot": fb.url } });
+    r = await jordan.call("POST", `/api/seasons/${season}/start?couch=${couch}`, { game: "weeklyLineup", tell: false, bots: 1, level: "normal" });
+    check(r.status === 200 && r.body.from === 1, "jordan starts a Weekly Lineup at their own pace from Episode 1, with a computer player", r.body);
+    lineupId = r.body.leagueId;
+    const ls = (await pool.query("SELECT state FROM leagues WHERE id = $1", [lineupId])).rows[0].state;
+    const lbot = ls.players.find((p) => p.automated);
+    check(!!ls.blindDraft?.revealedAt, "no draft to run: the blind draft reads as done");
+    check(lbot && ls.castaways.filter((c) => (c.ownerIds || []).includes(lbot.id)).length === 5, "the computer player's team of five is in");
+    let lg = ((await jordan.call("GET", `/api/seasons/${season}/games?couch=${couch}`)).body.games || []).find((g) => g.leagueId === lineupId);
+    check(lg && lg.pace && lg.pace.team && lg.pace.team.need === 5 && lg.pace.team.pool.length >= 5, "jordan's team to pick: five, from who was in before Episode 1", lg && lg.pace);
+    r = await jordan.call("POST", `/api/seasons/${season}/catchup`, { leagueId: lineupId, couch });
+    check(r.status === 400 && /team first/.test(JSON.stringify(r.body)), "no reveal before a team", r.body);
+    check((await jordan.call("GET", `/api/seasons/${season}/draft?couch=${couch}`)).body?.games?.some?.((g) => g.leagueId === lineupId) !== true, "no draft room for it");
+    if (shots) {
+      const e = await open({ user: fixture.username("jordan"), pass: PASSWORD, width: 390, height: 844 });
+      e.page.setDefaultTimeout(15000);
+      try {
+        await e.page.goto(`${e.BASE}/show/${season}/tonight`);
+        await e.page.locator(`[data-pace-team-plate='${lineupId}']`).waitFor();
+        await shotAs(e.page, "lineup-team-plate");
+        await e.page.locator("[data-pace-team-open]").click();
+        await e.page.locator("[data-pace-team-pick]").waitFor();
+        for (const id of lg.pace.team.pool.slice(0, 5)) await e.page.locator(`[data-pace-team-pick] [data-castaway='${id}']`).click();
+        await shotAs(e.page, "lineup-team-sheet");
+        await e.page.locator("[data-pace-team-save]").click();
+        await e.page.locator(`[data-pace-plate='${lineupId}']`).waitFor();
+        check(/Set your lineup/.test((await e.page.locator(`[data-pace-plate='${lineupId}']`).textContent()) || ""), "with a team, the plate asks for the lineup");
+        await shotAs(e.page, "lineup-plate");
+      } finally {
+        await e.close();
+      }
+    } else {
+      r = await jordan.call("POST", `/api/leagues/${lineupId}/team`, { castawayIds: lg.pace.team.pool.slice(0, 5) });
+      check(r.status === 200, "jordan picks a team", r.body);
+    }
+    lg = ((await jordan.call("GET", `/api/seasons/${season}/games?couch=${couch}`)).body.games || []).find((g) => g.leagueId === lineupId);
+    check(lg && !lg.pace.team && lg.lineup && lg.lineup.episode === 1, "team in: Episode 1's lineup to set", lg && { team: lg.pace.team, lineup: lg.lineup && lg.lineup.episode });
+    r = await jordan.call("PUT", `/api/leagues/${lineupId}/episodes/${lg.lineup.epId}/lineups/${lg.playerId}`, { castawayIds: lg.lineup.roster.slice(0, lg.lineup.slots) });
+    check(r.status === 200, "jordan sets Episode 1's lineup (aired long ago, open in their copy)", r.body);
+    r = await jordan.call("POST", `/api/seasons/${season}/catchup`, { leagueId: lineupId, couch });
+    check(r.status === 200 && r.body.episode === 1, "jordan reveals Episode 1", r.body);
+    const ls2 = (await pool.query("SELECT state FROM leagues WHERE id = $1", [lineupId])).rows[0].state;
+    const ep1 = ls2.episodes.find((x) => x.number === 1);
+    check(((ep1.lineups || {})[lbot.id] || []).length === lg.lineup.slots, "the computer player set its Episode 1 lineup as jordan revealed it", ep1.lineups);
+
+    // Exclusive teams: two sync points. sam starts an Outlast at their own pace from Episode 1 with a computer player; jordan
+    // joins before the draft; they draft together; waivers on; sam reveals ahead to a waiver moment (the wait, in words), then
+    // jordan gets there and the waiver week is on.
+    const sam = await api({ user: fixture.username("sam"), pass: PASSWORD, headers: { "x-gys-bot": fb.url } });
+    r = await sam.call("GET", `/api/seasons/${season}/start?couch=${couch}&start=1`);
+    check(r.status === 200 && (r.body.games || []).some((g) => g.key === "outlast" && g.fits), "Outlast plays at your own pace", r.body.games && r.body.games.map((g) => [g.key, g.fits]));
+    r = await sam.call("POST", `/api/seasons/${season}/start?couch=${couch}`, { game: "outlast", tell: false, bots: 1, level: "normal", from: 1 });
+    check(r.status === 200 && r.body.from === 1, "sam starts an Outlast at their own pace from Episode 1", r.body);
+    outlastId = r.body.leagueId;
+    const stateOfO = async () => (await pool.query("SELECT state FROM leagues WHERE id = $1", [outlastId])).rows[0].state;
+    let os = await stateOfO();
+    check(os.settings.ownPace === true && !(os.blindDraft && os.blindDraft.revealedAt) && !S2.isDraftStarted(os), "own pace, exclusive: a draft to come (no blind draft stamped)");
+    r = await jordan.call("GET", `/api/couches/${couch}/games/${outlastId}`);
+    check(r.status === 200 && r.body.drafts === true && r.body.starts && r.body.starts.live === 1 && r.body.team === 0, "jordan would join for the draft, at Episode 1 with everyone", r.body && { drafts: r.body.drafts, starts: r.body.starts, team: r.body.team });
+    r = await jordan.call("POST", `/api/couches/${couch}/games/${outlastId}`, { action: "join" });
+    check(r.status === 200, "jordan joins before the draft", r.body);
+    if (shots) {
+      const t = await open({ user: fixture.username("sam"), pass: PASSWORD, width: 390, height: 844 });
+      t.page.setDefaultTimeout(15000);
+      try {
+        await t.page.goto(`${t.BASE}/show/${season}/tonight`);
+        await t.page.locator(`[data-pace-draft-plate='${outlastId}'] [data-pace-draft-start]`).waitFor();
+        await shotAs(t.page, "outlast-draft-plate");
+      } finally {
+        await t.close();
+      }
+    }
+    r = await sam.call("POST", `/api/seasons/${season}/draft`, { leagueId: outlastId, action: "start" });
+    check(r.status === 200, "sam starts the draft", r.body);
+    r = await riley.call("GET", `/api/couches/${couch}/games/${outlastId}`);
+    check(r.status === 200 && r.body.game.mode === "locked" && r.body.starts === null, "once the draft's started, nobody new", r.body && { mode: r.body.game && r.body.game.mode });
+    // The draft, through its route: whoever's up picks the first free who was in before Episode 1 (the computer picks itself).
+    const seatOf = async (who) => (await pool.query("SELECT player_id FROM league_memberships WHERE league_id = $1 AND user_id = $2", [outlastId, who])).rows[0]?.player_id;
+    const samSeat = await seatOf(fx.users.sam);
+    const jordanSeat = await seatOf(fx.users.jordan);
+    for (let k = 0; k < 40; k++) {
+      os = await stateOfO();
+      const turn = S2.currentDraftTurn(os);
+      if (!turn || turn.isComplete) break;
+      const who = turn.playerId === samSeat ? sam : turn.playerId === jordanSeat ? jordan : null;
+      if (!who) break;
+      const pool1 = S2.GhostLogic.draftPool(os, 1, true);
+      r = await who.call("POST", `/api/seasons/${season}/draft`, { leagueId: outlastId, action: "pick", castawayId: pool1[0], n: turn.overallPickNumber });
+      if (r.status !== 200) {
+        check(false, "a draft pick", r.body);
+        break;
+      }
+    }
+    os = await stateOfO();
+    check(S2.GhostLogic.draftDone(os), "the draft's done (the computer picked its own turns)");
+    check(os.players.every((p) => os.castaways.some((c) => (c.ownerIds || []).includes(p.id))), "everyone has a team");
+    // Waivers on (the runner's Backstage setting; set here on the zt league's state).
+    S2.setGame(os, { ...S2.gameOf(os), extras: { ...S2.gameOf(os).extras, waivers: { ...require("../../src/lib/game/game-spec/index.js").NO_WAIVERS, replace: "always" } } });
+    await pool.query("UPDATE leagues SET state = $2 WHERE id = $1", [outlastId, JSON.stringify(os)]);
+    // sam reveals ahead until one of anyone's people goes home: a waiver moment, with jordan still at the start.
+    let gather = null;
+    for (let k = 0; k < 14 && !gather; k++) {
+      r = await sam.call("POST", `/api/seasons/${season}/catchup`, { leagueId: outlastId, couch });
+      if (r.status !== 200) break;
+      const g = ((await sam.call("GET", `/api/seasons/${season}/games?couch=${couch}`)).body.games || []).find((x) => x.leagueId === outlastId);
+      gather = g && g.pace && g.pace.gather;
+    }
+    check(!!gather && gather.waiting.includes(fixture.username("jordan")) && !gather.open, "sam reached a waiver moment ahead of jordan: wait, in words", gather);
+    if (gather && shots) {
+      const t = await open({ user: fixture.username("sam"), pass: PASSWORD, width: 390, height: 844 });
+      t.page.setDefaultTimeout(15000);
+      try {
+        await t.page.goto(`${t.BASE}/show/${season}/tonight`);
+        await t.page.locator(`[data-pace-gather='${outlastId}']`).waitFor();
+        await shotAs(t.page, "outlast-gather-wait");
+        await t.page.locator("[data-pace-gather-go]").click();
+        await t.page.locator(`[data-pace-plate='${outlastId}']`).waitFor();
+        check(true, "Go on still works: words only");
+      } finally {
+        await t.close();
+      }
+    }
+    if (gather) {
+      // jordan reveals up to it: everyone's there, the waiver week opens on the cast as it stood then.
+      for (let k = 0; k < gather.episode; k++) {
+        r = await jordan.call("POST", `/api/seasons/${season}/catchup`, { leagueId: outlastId, couch });
+        if (r.status !== 200 || r.body.episode >= gather.episode) break;
+      }
+      const g = ((await sam.call("GET", `/api/seasons/${season}/games?couch=${couch}`)).body.games || []).find((x) => x.leagueId === outlastId);
+      check(g && g.pace.gather && g.pace.gather.open && g.pace.gather.episode === gather.episode, "jordan's there: the waiver week is on", g && g.pace.gather);
+      os = await stateOfO();
+      const week = S2.WaiverLogic.current(os);
+      check(week && week.episode === gather.episode && week.phase === "open", "the week is that episode's, not the season's end", week && { episode: week.episode, phase: week.phase });
+      if (shots) {
+        const t = await open({ user: fixture.username("sam"), pass: PASSWORD, width: 390, height: 844 });
+        t.page.setDefaultTimeout(15000);
+        try {
+          await t.page.goto(`${t.BASE}/show/${season}/tonight`);
+          await t.page.locator(`[data-pace-waivers='${outlastId}']`).waitFor();
+          await shotAs(t.page, "outlast-waivers-on");
+        } finally {
+          await t.close();
+        }
+      }
+    }
   } finally {
+    await fb.close();
     if (!keep) {
       if (leagueId) await pool.query("DELETE FROM leagues WHERE id = $1", [leagueId]);
+      if (lineupId) await pool.query("DELETE FROM leagues WHERE id = $1", [lineupId]);
+      if (outlastId) await pool.query("DELETE FROM leagues WHERE id = $1", [outlastId]);
+      // Only what this check made on the real season: its bingo bank (when it had none), its runs, the zt cards.
+      await pool.query("DELETE FROM bingo_cards WHERE season_id = $1 AND user_id = ANY($2::text[])", [season, Object.values(fx.users)]);
+      if (!hadBank) {
+        await pool.query("DELETE FROM bingo_squares WHERE season_id = $1 AND episode IS NULL", [season]);
+        await pool.query("DELETE FROM bot_research_runs WHERE season_id = $1 AND kind = 'bingo' AND (asked_by = ANY($2::text[]) OR asked_by IS NULL) AND started_at > now() - interval '1 hour'", [season, Object.values(fx.users)]);
+      }
+      await pool.query("DELETE FROM desk_runs WHERE season_id = $1 AND kind = 'bingo' AND for_season AND (asked_by = ANY($2::text[]) OR asked_by IS NULL) AND asked_at > now() - interval '1 hour'", [season, Object.values(fx.users)]);
       await pool.query("DELETE FROM show_follows WHERE season_id = $1 AND user_id = ANY($2::text[])", [season, Object.values(fx.users)]);
       await fixture.down(pool);
     }

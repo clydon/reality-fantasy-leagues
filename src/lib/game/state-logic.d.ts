@@ -426,6 +426,18 @@ declare const StateLogic: {
     anyCatchingUp(state: LeagueState): boolean;
     /** Every seat starts catching up at `from` (the results in already), their mark the episode before; sets settings.ownPace. */
     paceAll(state: LeagueState, from: number): void;
+    /** Exclusive teams at your own pace: they draft together at the game's start (sync point 1). */
+    draftsTogether(state: LeagueState): boolean;
+    /** The game's draft is complete. */
+    draftDone(state: LeagueState): boolean;
+    /** A seat joining an exclusive own-pace game before its draft; a reason on refusal, else null. */
+    paceSeat(state: LeagueState, playerId: string): string | null;
+    /** A seat at your own pace in a game with teams that has none yet. */
+    needsTeam(state: LeagueState, playerId: string): boolean;
+    /** That seat picks its team from who was in before its start; a reason on refusal, else null. */
+    pickTeam(state: LeagueState, playerId: string, castawayIds: string[]): string | null;
+    /** A late joiner's team from `start`, checked; writes nothing. */
+    teamAt(state: LeagueState, playerId: string, start: number, castawayIds: string[] | null, opts?: { freeAgents?: boolean }): { error: string } | { ids: string[]; paid: number | null };
     convert(state: LeagueState, playerId: string): boolean;
     /** The league as one viewer may see it; `full` keeps their week's results for the reveal. */
     viewFor(state: LeagueState, viewerId: string | null, seenThrough: number | null | undefined, opts?: { full?: boolean }): LeagueState;

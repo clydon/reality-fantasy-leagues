@@ -31,6 +31,7 @@ import { Face } from "./parts";
 
 const TITLE: Record<FillStep, (w: FillState["words"]) => string> = {
   rules: () => "How it's played",
+  scores: () => "What scores",
   cast: (w) => `The ${w.people.toLowerCase()}`,
   episodes: (w) => `${w.episodes}`,
 };
@@ -348,6 +349,8 @@ export function FillPasteSheet({ f, open, onOpenChange }: { f: FillState; open: 
   const what =
     step === "rules"
       ? `Ask an AI how ${f.label} works: what happens in an episode, how people leave and what could score. Then paste its whole answer back here.`
+      : step === "scores"
+        ? `Ask an AI to put every moment of ${f.label} on our ladder, the same moment on the same rung every time, and to find what's missing. Then paste its whole answer back here.`
       : step === "cast"
         ? `Ask an AI who's in ${f.label}: their names, photos and the groups they start in. Then paste its whole answer back here.`
         : `Ask an AI what happened in each ${f.words.episode.toLowerCase()} of ${f.label} that's out. Then paste its whole answer back here.`;
@@ -512,7 +515,7 @@ export function CastComing({ f }: { f: FillState }) {
         <button type="button" data-cast-coming-open onClick={() => openGettingReady(f.seasonId)} className="py-1.5 text-[13px] font-semibold underline underline-offset-2">
           How it&rsquo;s going
         </button>
-        {(f.step === "cast" || f.step === "rules") &&
+        {(f.step === "cast" || f.step === "rules" || f.step === "scores") &&
           (f.away ? (
             <Btn tone="must" wide data-cast-coming-paste className="mt-1" onClick={paste.open}>
               <Copy className="size-4" aria-hidden />

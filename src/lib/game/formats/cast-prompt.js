@@ -31,7 +31,7 @@ function buildCastPrompt(format, { seasonName, showName, year, known } = {}) {
 
   const row = {
     name: 'Full name, as the show credits them',
-    photoUrl: 'A direct image file URL (official cast photo, press kit, or the show\'s own site). An empty string "" if you can\'t find one -- never a page URL, never a guess.',
+    photoUrl: 'A direct image file URL of their official cast photo for THIS season, from the same page as everyone else\'s. An empty string "" if that page has none -- never a page URL, never a guess.',
   };
   if (hasGroups) row.startingGroup = `Their starting ${group.toLowerCase()} at the very start of the season, exactly as the show names it`;
   if (roles.length) row.startingRole = `Their role at the start of the season: exactly one of ${roles.map((r) => `"${r}"`).join(', ')}`;
@@ -48,11 +48,15 @@ function buildCastPrompt(format, { seasonName, showName, year, known } = {}) {
       : year
         ? `  - Make sure it's the season that premiered in ${year}: an older season with the same name is a different cast.`
         : null,
-    '  - Search for and read the official cast announcement, the show\'s own site and a fan wiki. Name every page you',
-    '    actually read in sources.',
+    `  - Take the names from a reputable wiki: the Wikipedia article for this season of "${show}" (its cast or crew`,
+    '    section), else the show\'s own fan wiki\'s page for the season. Read it, and list exactly the people it credits as',
+    '    this season\'s cast: nobody from an earlier season who isn\'t in it, however well known. Check against the official',
+    '    cast announcement or the show\'s own site if you like. Name every page you actually read in sources.',
     '  - One row per person. Use their full name as the show credits them.',
-    '  - photoUrl must be a URL that ends in an image file (.jpg, .png, .webp...) you actually found. Leave it "" rather',
-    '    than invent one.',
+    `  - The photos must match: all from ONE page of this season\'s official cast photos (the network\'s or the show\'s`,
+    `    "meet the cast" page for ${season}, else the wiki\'s page for it). Never a photo from an earlier season, however`,
+    '    familiar the person. photoUrl must be a URL that ends in an image file (.jpg, .png, .webp...) you actually found',
+    '    on that page. Leave it "" when the page has none for them: the TV listings fill those in.',
     hasGroups ? `  - startingGroup is the ${group.toLowerCase()} they STARTED in, not where they ended up.` : null,
     roles.length
       ? `  - startingRole is a hidden role. Only give "${roles.slice(1).join('" or "')}" for someone the show or its coverage has confirmed; everyone else is "${roles[0]}".`

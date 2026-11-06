@@ -111,3 +111,160 @@ test("the words: where the others are, all here, and the gap in the reveal butto
   // Two at the same gap, named together; the furthest behind decides the number.
   assert.equal(aheadWords(6, [{ name: "riley", week: 3 }, { name: "casey", week: 3 }, { name: "jo", week: 5 }]), "you'll be 4 ahead of riley and casey");
 });
+
+// ---- part 3a: shared teams (Outlast, Weekly Lineup) ----
+
+/** A Weekly Lineup (shared, blind: a team of 5, 3 start) played out over `eps` episodes, made own-pace from `from`, as
+ *  start-game.ts makes it: teams shared, no waivers, then paceAll and the bots' teams. */
+function finishedLineup({ n = 12, eps = 8, people = ["ann", "bo"], bot = true, from = 3, preset = "weekly-lineup" } = {}) {
+  const s = S.defaultState();
+  S.updateSettings(s, "showId", "survivor");
+  S.updateSettings(s, "leagueTypeId", preset === "outlast" ? "classic-draft" : "active-roster");
+  for (let i = 0; i < n; i++) S.addCastaway(s, `C${i}`);
+  s.players = people.map((id) => ({ id, name: id, color: "#000", active: true, disabled: false }));
+  if (bot) s.players.push({ id: "bot", name: "Bot", color: "#00f", active: true, disabled: false, automated: true });
+  S.updateSettings(s, "setupComplete", true);
+  const spec = { preset, span: { from, to: null }, get: { by: "draft", each: preset === "outlast" ? 3 : 5, order: "blind", own: "shared" } };
+  assert.deepEqual(S.setGame(s, spec, { ctx: CTX }), []);
+  for (let k = 1; k <= eps; k++) {
+    S.ensureEpisodeNumber(s, k, false);
+    S.addElimination(s, s.episodes.find((e) => e.number === k).id, s.castaways[k - 1].id, "Voted Out");
+  }
+  GhostLogic.paceAll(s, from);
+  return s;
+}
+const ownedBy = (s, pid) => s.castaways.filter((c) => (c.ownerIds || []).includes(pid)).map((c) => c.id);
+
+test("3a: no draft is asked for, and the bot picks its team from who was in before the start", () => {
+  const s = finishedLineup();
+  assert.equal(S.BlindDraftLogic.isRevealed(s), true, "the blind draft reads as done");
+  assert.equal(GhostLogic.needsTeam(s, "ann"), true);
+  assert.equal(GhostLogic.needsTeam(s, "bot"), true);
+  assert.equal(Bots.paceTeams(s), 1);
+  const mine = ownedBy(s, "bot");
+  assert.equal(mine.length, 5);
+  const goneBefore3 = new Set([s.castaways[0].id, s.castaways[1].id]);
+  assert.ok(mine.every((id) => !goneBefore3.has(id)), "nobody who'd already gone");
+  assert.equal(GhostLogic.needsTeam(s, "bot"), false);
+  assert.equal(Bots.paceTeams(s), 0, "once");
+});
+
+test("3a: pickTeam takes who was in before your start, the right number, once; shared, so two can have the same person", () => {
+  const s = finishedLineup();
+  const ids = (k) => k.map((i) => s.castaways[i].id);
+  assert.equal(GhostLogic.pickTeam(s, "ann", ids([0, 2, 3, 4, 5])), "Pick from who was still in the game", "C0 went home in Episode 1");
+  assert.equal(GhostLogic.pickTeam(s, "ann", ids([2, 3, 4])), "Pick 5");
+  assert.equal(GhostLogic.pickTeam(s, "ann", ids([2, 3, 4, 5, 6])), null);
+  assert.equal(GhostLogic.pickTeam(s, "ann", ids([7, 8, 9, 10, 11])), "You have a team");
+  assert.equal(GhostLogic.pickTeam(s, "bo", ids([2, 3, 4, 5, 6])), null, "the same five, shared");
+  assert.deepEqual(GhostLogic.lateJoinOf(s, "ann"), { startEpisode: 3, catchingUp: true, seenThrough: 2 }, "the start left as it was");
+});
+
+test("3a: a catching-up bot sets its lineup for each week it plays, on its own copy", () => {
+  const s = finishedLineup();
+  Bots.paceTeams(s);
+  Bots.catchUpTo(s, 4);
+  for (const k of [3, 4]) {
+    const ep = s.episodes.find((e) => e.number === k);
+    const lineup = S.activeRosterLineupFor(s, ep.id, "bot");
+    assert.equal(lineup.length, 3, `three start in Episode ${k}`);
+    const gone = s.castaways.slice(0, k - 1).map((c) => c.id);
+    assert.ok(lineup.every((id) => !gone.includes(id)), `nobody out before Episode ${k} starts`);
+  }
+});
+
+test("3a: someone who started after your week holds nobody in your copy", () => {
+  const s = finishedLineup({ preset: "outlast" });
+  Bots.paceTeams(s);
+  // A later joiner, from Episode 6, with a team from who was in then.
+  const p = S.addPlayer(s, "cy");
+  assert.equal(GhostLogic.begin(s, p.id, 6, s.castaways.slice(5, 8).map((c) => c.id)), null);
+  GhostLogic.convert(s, p.id);
+  const view = GhostLogic.viewFor(s, "ann", 2);
+  assert.equal(view.castaways.filter((c) => (c.ownerIds || []).includes(p.id)).length, 0, "ann (on 3) doesn't see cy's team");
+  assert.equal(view.castaways.filter((c) => (c.ownerIds || []).includes("bot")).length, 3, "the bot started with ann: its team shows");
+});
+
+// ---- exclusive teams: two sync points (docs/PLAN-own-pace-games.md) ----
+
+const G2 = require("../src/lib/game/game-spec/index.js");
+const Waivers = require("../src/lib/server/waivers.js");
+
+/** An exclusive Outlast (snake, 2 each) made own-pace from `from` on a played-out season, waivers on when `waivers`. */
+function exclusiveOutlast({ from = 3, waivers = false, n = 12, eps = 8 } = {}) {
+  const s = S.defaultState();
+  S.updateSettings(s, "showId", "survivor");
+  S.updateSettings(s, "leagueTypeId", "classic-draft");
+  for (let i = 0; i < n; i++) S.addCastaway(s, `C${i}`);
+  s.players = [
+    { id: "ann", name: "ann", color: "#000", active: true, disabled: false },
+    { id: "bot", name: "Bot", color: "#00f", active: true, disabled: false, automated: true },
+  ];
+  S.updateSettings(s, "setupComplete", true);
+  const spec = { preset: "outlast", span: { from, to: null }, get: { by: "draft", each: 2, order: "snake", own: "exclusive" } };
+  if (waivers) spec.extras = { waivers: { ...G2.NO_WAIVERS, replace: "always" } };
+  assert.deepEqual(S.setGame(s, spec, { ctx: CTX }), []);
+  for (let k = 1; k <= eps; k++) {
+    S.ensureEpisodeNumber(s, k, false);
+    S.addElimination(s, s.episodes.find((e) => e.number === k).id, s.castaways[k - 1].id, "Voted Out");
+  }
+  GhostLogic.paceAll(s, from);
+  return s;
+}
+
+test("sync point 1: exclusive teams draft together, the bot drafting from the cast as it stood before the start", () => {
+  const s = exclusiveOutlast();
+  assert.equal(GhostLogic.draftsTogether(s), true);
+  assert.equal(GhostLogic.needsTeam(s, "ann"), false, "no team of your own to pick: it's the draft's");
+  assert.equal(GhostLogic.pickTeam(s, "ann", []), "Teams here come from the draft");
+  assert.equal(GhostLogic.draftDone(s), false);
+  s.draftOrder = ["bot", "ann"];
+  s.draftForceStarted = true;
+  assert.equal(Bots.run(s), 1, "the bot's first pick");
+  const first = ownedBy(s, "bot")[0];
+  assert.ok(first, "it picked someone");
+  assert.ok(![s.castaways[0].id, s.castaways[1].id].includes(first), "not anyone who'd gone before Episode 3");
+  const free = () => s.castaways.slice(2).find((c) => !(c.ownerIds || []).length).id;
+  S.draftToCurrentTurn(s, free());
+  S.draftToCurrentTurn(s, free());
+  Bots.run(s);
+  assert.equal(GhostLogic.draftDone(s), true, "two each, done");
+  assert.equal(ownedBy(s, "ann").length, 2);
+  assert.equal(ownedBy(s, "bot").length, 2);
+});
+
+test("sync point 2: a waiver moment opens a week on the cast as it stood then, only once everyone's there, and settles", async () => {
+  const s = exclusiveOutlast({ waivers: true });
+  s.draftOrder = ["ann", "bot"];
+  s.draftForceStarted = true;
+  // ann takes C3 (goes home in Episode 4) and someone still free who lasts (C8 on: past the episodes played here); the bot its two.
+  S.draftToCurrentTurn(s, s.castaways[3].id);
+  Bots.run(s);
+  S.draftToCurrentTurn(s, s.castaways.slice(8).find((c) => !(c.ownerIds || []).length).id);
+  Bots.run(s);
+  assert.equal(GhostLogic.draftDone(s), true);
+  const client = { query: async () => ({ rows: [] }) };
+  // Nobody's past Episode 2 yet: nothing to open.
+  assert.deepEqual(await Waivers.syncWaivers(client, "L", s, Date.now()), []);
+  // ann reveals 3 and 4 (C3 goes home in 4): ann's there, so the week opens at 4 (the bot keeps pace).
+  GhostLogic.lateJoinOf(s, "ann").seenThrough = 4;
+  Bots.catchUpTo(s, 4);
+  const ev = await Waivers.syncWaivers(client, "L", s, Date.now());
+  assert.deepEqual(ev.map((e) => [e.type, e.episode]), [["opened", 4]]);
+  const week = S.WaiverLogic.current(s);
+  assert.equal(week.episode, 4, "the week is Episode 4's, not the season's end");
+  assert.equal(S.WaiverLogic.replacementsOwed(Waivers.pacedCopy(s), "ann", week).count, 1, "ann owes one, on the cast at 4");
+  // Its time runs out (no claim): it settles.
+  const later = Date.now() + 48 * 3600 * 1000;
+  const ev2 = await Waivers.syncWaivers(client, "L", s, later);
+  assert.ok(ev2.some((e) => e.type === "processed" && e.episode === 4), JSON.stringify(ev2));
+  // Everyone moves on past it: the week closes, ann's empty spot filled from who was still in.
+  GhostLogic.lateJoinOf(s, "ann").seenThrough = 5;
+  Bots.catchUpTo(s, 5);
+  const ev3 = await Waivers.syncWaivers(client, "L", s, later + 60 * 1000);
+  assert.ok(ev3.some((e) => e.type === "closed" && e.episode === 4), JSON.stringify(ev3));
+  const mine = ownedBy(s, "ann");
+  assert.equal(mine.length, 2, "two again");
+  const goneBy5 = s.castaways.slice(0, 5).map((c) => c.id);
+  assert.ok(mine.every((id) => !goneBy5.includes(id)), "the replacement was still in");
+});

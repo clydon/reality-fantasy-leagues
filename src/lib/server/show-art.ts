@@ -20,7 +20,7 @@ import {
   type TmdbImages,
 } from "@/lib/game/show-art";
 import { pool, withLeagueLock } from "./db";
-import { episodeGuestCast, ListingsUnavailable, seasonListing, showListing } from "./listings";
+import { episodeGuestCast, ListingsUnavailable, seasonListing, showCast, showListing } from "./listings";
 import { applyApprovedCastToLeagues, seasonCastRows } from "./season-cast";
 
 // Show and season art and cast photos, found on their own (docs/RESEARCH-show-art-and-cast-photos.md; migration 0139; the
@@ -279,6 +279,41 @@ async function tvmazeSeasonCredits(s: SeasonRow, base?: string): Promise<Credit[
   }
 }
 
+/** TMDB's cast of the whole show (`/tv/{id}/aggregate_credits`, hosts and guests left out): a photo of the right person is
+ *  right whichever season it was taken for, once the name's matched. Never who's in this season. */
+async function tmdbShowCredits(s: SeasonRow): Promise<Credit[]> {
+  if (!s.tmdb_id) return [];
+  const r = await tmdb<{ cast?: TmdbAggregateCast[] }>(`/tv/${s.tmdb_id}/aggregate_credits`);
+  return tmdbCredits(r?.cast);
+}
+
+/** TVmaze's cast of the whole show (`/shows/{id}/cast`): everyone who was ever its main cast, the same way, photos only. */
+async function tvmazeShowCredits(s: SeasonRow, base?: string): Promise<Credit[]> {
+  if (!s.tvmaze_id) return [];
+  try {
+    return tvmazeCredits(await showCast(s.tvmaze_id, base));
+  } catch (e) {
+    if (e instanceof ListingsUnavailable) return [];
+    throw e;
+  }
+}
+
+/**
+ * Where a cast's photos come from, in order, each looked up only while someone's still without one (the user, 2026-11-05:
+ * Below Deck 13's ten crew got three photos, TMDB's season had three, and TVmaze's cast of the show had the rest): this
+ * season's credits (TMDB's, then TVmaze's premiere guest cast), then the whole show's (TMDB's, then TVmaze's). A tier that
+ * fails is skipped. `from` is the service, for the desk's count of where photos came from.
+ */
+function photoTiers(s: SeasonRow, listingsBase?: string): { from: string; read: () => Promise<Credit[]> }[] {
+  const safe = (read: () => Promise<Credit[]>) => () => read().catch((e) => (console.error("[show-art] credits:", s.id, e), [] as Credit[]));
+  return [
+    { from: "tmdb", read: safe(() => (s.tmdb_id && tmdbOn() ? tmdbSeasonCredits(s) : Promise.resolve([]))) },
+    { from: "tvmaze", read: safe(() => tvmazeSeasonCredits(s, listingsBase)) },
+    { from: "tmdb", read: safe(() => (s.tmdb_id && tmdbOn() ? tmdbShowCredits(s) : Promise.resolve([]))) },
+    { from: "tvmaze", read: safe(() => tvmazeShowCredits(s, listingsBase)) },
+  ];
+}
+
 interface WikiPage {
   title: string;
   missing?: boolean;
@@ -387,9 +422,9 @@ export interface PhotosFound {
 }
 
 /**
- * Photos for a season's cast (season_cast) where there's none yet or only a finder's worse one: TMDB's credits, then TVmaze's
- * premiere guest cast; a sport's from Wikipedia. Then every league on the season gets them (an approved cast only, as an
- * admin's photo change would).
+ * Photos for a season's cast (season_cast) where there's none yet or only a finder's worse one: photoTiers (this season's
+ * credits, then the whole show's); a sport's from Wikipedia. Then every league on the season gets them (an approved cast only,
+ * as an admin's photo change would).
  */
 export async function fillCastPhotos(seasonId: string, listingsBase?: string, opts: { roster?: boolean; only?: string[] } = {}): Promise<PhotosFound> {
   const result: PhotosFound = { looked: 0, found: 0, from: {} };
@@ -406,15 +441,15 @@ export async function fillCastPhotos(seasonId: string, listingsBase?: string, op
       const people = want.map((c) => ({ name: c.name as string, group: (c.tribe_name as string | null) ?? null }));
       for (const [name, url] of await sportPhotos(s, people, opts.roster ? SEARCHES_A_ROSTER : SEARCHES_A_SWEEP)) found.set(name, { url, from: "wikipedia" });
     } else {
-      const match = (credits: Credit[], from: string) => {
+      for (const tier of photoTiers(s, listingsBase)) {
+        if (!want.some((c) => !found.has(c.name))) break;
+        const credits = await tier.read();
         for (const c of want) {
           if (found.has(c.name)) continue;
           const hit = matchCredit(c.name, credits);
-          if (hit?.photo) found.set(c.name, { url: hit.photo, from });
+          if (hit?.photo) found.set(c.name, { url: hit.photo, from: tier.from });
         }
-      };
-      if (s.tmdb_id && tmdbOn()) match(await tmdbSeasonCredits(s), "tmdb");
-      if (want.some((c) => !found.has(c.name))) match(await tvmazeSeasonCredits(s, listingsBase), "tvmaze");
+      }
     }
   }
   let changed = 0;
@@ -438,13 +473,13 @@ export async function fillCastPhotos(seasonId: string, listingsBase?: string, op
   return result;
 }
 
-/** A season's credits as castPhotosFor reads them: TMDB's, and TVmaze's once a name needed them. Kept a few minutes. */
-const credited = new Map<string, { at: number; season: SeasonRow | null; tmdb: Credit[]; tvmaze: Credit[] | null }>();
+/** A season's credits as castPhotosFor reads them: each of photoTiers' once a name needed it. Kept a few minutes. */
+const credited = new Map<string, { at: number; season: SeasonRow | null; tiers: (Credit[] | null)[] }>();
 const CREDITS_KEPT_MS = 10 * 60_000;
 
 /**
- * Photos for a cast nobody has saved yet (Make it a game's review, before Looks right): each name's photo from the season's
- * credits, found the way fillCastPhotos finds them (TMDB's, then TVmaze's premiere guest cast), by name. Nothing is written
+ * Photos for a cast nobody has saved yet (Make it a game's review, before Looks right): each name's photo from the credits,
+ * found the way fillCastPhotos finds them (photoTiers: this season's, then the whole show's), by name. Nothing is written
  * but the show's TMDB link. A sport's are left to the sweep (a Wikipedia search each). Never throws: none found is an empty map.
  */
 export async function castPhotosFor(seasonId: string, names: string[], listingsBase?: string): Promise<Map<string, string>> {
@@ -455,22 +490,20 @@ export async function castPhotosFor(seasonId: string, names: string[], listingsB
     if (!kept || Date.now() - kept.at > CREDITS_KEPT_MS) {
       const season = await linkedSeason(seasonId, listingsBase);
       const usable = !!season && !season.art_off && season.kind !== "sport";
-      kept = { at: Date.now(), season: usable ? season : null, tmdb: usable && season!.tmdb_id && tmdbOn() ? await tmdbSeasonCredits(season!) : [], tvmaze: null };
+      kept = { at: Date.now(), season: usable ? season : null, tiers: [] };
       if (credited.size > 50) credited.clear();
       credited.set(seasonId, kept);
     }
     if (!kept.season) return out;
-    const match = (credits: Credit[]) => {
+    const tiers = photoTiers(kept.season, listingsBase);
+    for (const [i, tier] of tiers.entries()) {
+      if (!names.some((n) => !out.has(n))) break;
+      kept.tiers[i] ??= await tier.read();
       for (const n of names) {
         if (out.has(n)) continue;
-        const hit = matchCredit(n, credits);
+        const hit = matchCredit(n, kept.tiers[i]!);
         if (hit?.photo) out.set(n, hit.photo);
       }
-    };
-    match(kept.tmdb);
-    if (names.some((n) => !out.has(n))) {
-      kept.tvmaze ??= await tvmazeSeasonCredits(kept.season, listingsBase);
-      match(kept.tvmaze);
     }
   } catch (e) {
     console.error("[show-art] cast photos for a review:", e);

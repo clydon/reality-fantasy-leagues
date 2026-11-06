@@ -9,6 +9,9 @@
 // animation in the page: see motion.js. Default on, as users see it.
 //
 // `BASE` (default http://localhost:3000) is the dev server; start it with `npm run dev` first.
+//
+// Off Windows (a cloud session's Linux container): Playwright is whatever `require("playwright")` resolves to, and the
+// browser is `PLAYWRIGHT_CHROME` or /opt/pw-browsers/chromium when that exists, else Playwright's own.
 const fs = require("fs");
 const path = require("path");
 
@@ -17,22 +20,33 @@ const BASE = process.env.BASE || "http://localhost:3000";
 const motionTools = require("./motion");
 
 function findPlaywright() {
-  const npx = path.join(LOCAL, "npm-cache", "_npx");
-  for (const d of fs.readdirSync(npx)) {
-    const p = path.join(npx, d, "node_modules", "playwright");
-    if (fs.existsSync(p)) return require(p);
+  if (LOCAL) {
+    const npx = path.join(LOCAL, "npm-cache", "_npx");
+    if (fs.existsSync(npx))
+      for (const d of fs.readdirSync(npx)) {
+        const p = path.join(npx, d, "node_modules", "playwright");
+        if (fs.existsSync(p)) return require(p);
+      }
   }
-  throw new Error("playwright not in the npx cache: run `npx playwright --version` once");
+  try {
+    return require("playwright");
+  } catch {
+    throw new Error("playwright not found: run `npx playwright --version` once (Windows), or install it where `require(\"playwright\")` finds it");
+  }
 }
 
+/** The browser to launch: a path, or null for Playwright's own. */
 function findChrome() {
+  for (const exe of [process.env.PLAYWRIGHT_CHROME, "/opt/pw-browsers/chromium"]) if (exe && fs.existsSync(exe)) return exe;
+  if (!LOCAL) return null;
   const root = path.join(LOCAL, "ms-playwright");
+  if (!fs.existsSync(root)) return null;
   const dirs = fs.readdirSync(root).filter((d) => /^chromium-\d+$/.test(d)).sort((a, b) => parseInt(b.slice(9)) - parseInt(a.slice(9)));
   for (const d of dirs) {
     const exe = path.join(root, d, "chrome-win64", "chrome.exe");
     if (fs.existsSync(exe)) return exe;
   }
-  throw new Error("no Chromium under " + root);
+  return null;
 }
 
 // `headers` go with every request the page makes (a check's stand-ins: { "x-gys-listings": tv.url }, fake-listings.js).
@@ -40,7 +54,8 @@ function findChrome() {
 // it is (the gys_tour=off cookie: the home read counts it as seen) unless it asks for the tour with `tour: true`
 // (check-new-tour.js).
 async function open({ user, pass, width = 390, height = 844, motion = process.env.MOTION || "on", watch = !!process.env.MOTION_WATCH, headers, tour = false } = {}) {
-  const browser = await findPlaywright().chromium.launch({ executablePath: findChrome() });
+  const exe = findChrome();
+  const browser = await findPlaywright().chromium.launch(exe ? { executablePath: exe } : {});
   const context = await browser.newContext({
     viewport: { width, height },
     deviceScaleFactor: 2,

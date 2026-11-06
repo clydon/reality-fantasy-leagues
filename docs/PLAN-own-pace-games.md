@@ -49,6 +49,53 @@ below.
   at airtime today, meaningless when people are on different episodes): part 3b.
 - Words: "at your own pace" to people (the app's existing words for a finished season); "catching up" stays the engine's.
 
+## The UI, mocked (2026-11-05; the user's picks)
+
+Mocked with /impeccable: `.impeccable/mocks/own-pace/index.html` (gitignored), published privately at
+https://claude.ai/artifact/3E6rgiMSJcP3MYJaQkS3rh. Seven flows; part 1's built screens get tightened to match.
+
+- **Tonight = one plate per own-pace game (the user picked it).** "Episode 3 of 14 · Survival Pool", a Pick · Watch · Reveal
+  steps bar, your pick with Change, and one button that's always the next step (Pick who survives → I've watched it · Reveal,
+  the gap words small inside it past one ahead). Revealing without a pick asks once on the plate ("No pick for Episode 3 · Pick
+  first / Reveal anyway"). It replaces the catch-up strip, the episode heading and the Your moves card for that game. One quiet
+  line under it only when someone's behind or on the same one. Watch it together and the episode's bingo card sit under it. The
+  reveal sheet ends with "Pick for Episode 4" (primary) and "Done for now". "Catching up" never shows in an own-pace game.
+  Live late joiners keep today's strip (not asked to change).
+- **Start a game:** no banner, no "for now" line, no AI card, no How long at your own pace; subtitle "all 14 episodes are out";
+  starts read number first ("Episode 3 · where you are" / "Episode 1 · from the top", sub lines "You've seen 1 and 2" /
+  "A rewatch"); the pace sentence sits under them. Games that can't play at your own pace yet aren't listed.
+- **Join:** "You start at Episode N" on a plate, who's playing and where (computer players "Keeps pace"), one Join button.
+- **Finish:** a "You finished it" plate (your place; anyone behind still has it hidden) and Start another.
+- **Part 2:** the Games tab's "This week" becomes "Your Episode N" (bingo, Who goes home?, trivia on what you've seen, Watch it
+  together); calls close when you reveal that episode.
+- **Part 4:** the Prediction Sheet uses the same plate, first step "Answer N questions" (the questions listed on it).
+- **Exclusive teams, replacements (the user, 2026-11-05):** replace on reveal: when you reveal an episode and lose someone, you
+  pick a replacement right there from who's still in and on nobody's team; first to get there picks first. **But people on the
+  same pace use the standard way**: those who reveal that episode together (on the same episode at once) put in claims as a
+  normal waiver week and the usual priority settles them, among whoever's on pace. Part 3b designs when "together" closes.
+
+## Exclusive teams: own pace with two sync points (the user, 2026-11-06)
+
+Exclusive ownership needs everyone on the same episode only twice, so **exclusive teams play at your own pace with two sync
+points**, and everything else stays as built. The use case (the user): a group starting a season late, a couple of episodes
+behind (live or finished), drafting at an episode (Episode 1, before the season, or wherever they are), playing forward at their
+own pace, maybe catching up to live, maybe not.
+
+- **Sync point 1, the draft:** everyone in an exclusive game starts at the same episode and drafts together in the usual draft
+  room, on the cast as it stood before that episode. Joining closes once the draft starts (as a live Outlast). Whoever runs the
+  game starts the draft.
+- **Sync point 2, a waiver moment:** an episode where someone's team lost a person, in a game with waivers on. Whoever reaches it
+  first sees **"Wait for everyone else before watching more episodes, so the waivers are fair."** **Words only** (the user's pick):
+  nothing stops them going on. Once every human has revealed that episode, a normal waiver week runs on the cast as it stood then
+  (the usual order, claims, auto-fill); it settles when everyone's claims are in, or when its time runs out. Then everyone carries
+  on at their own pace.
+- Shared games never wait. A group that catches up to live just plays live.
+- **Dropped (2026-11-06, the user: "too niche"):** a separate "Watch it together" mode with one game clock ("We're watching it
+  now" locking everyone's moves). Designed and mocked the same day, never built; what carried over: the draft room on the cast
+  as it stood before the start, waivers settled before newer results, and warn-don't-lock words.
+- Mocked as flow 8 (https://claude.ai/artifact/3E6rgiMSJcP3MYJaQkS3rh): the Draft together plate, the waiver moment's wait
+  (OK, I'll wait; Episode 6 quiet below with Go on), and Everyone's here: waivers.
+
 ## How it reuses the engine
 
 | Need | What exists | What's new |
@@ -122,12 +169,110 @@ new-fixture's couch and a real finished season in the local database) and `tests
   "at your own pace" (`played` leaves them out: show-space.tsx, where.ts, where-sheet.tsx, hub sections.tsx).
 - Names in the words are the couch's (`couchMembers`: the username), as the standings show them.
 
+## As built: part 1's UI to the mock (2026-11-05)
+
+The mock's part 1 screens, built and checked at 390px (`check-own-pace.js`, nine screens: the Games tab's row, Start a game,
+Tonight's plate asking for the pick / asking once before a reveal with none / picked with the gap words, the revealed sheet,
+riley's plate, the join sheet, the finish plate).
+
+- **Tonight's plate** (`src/new/show/pace-plate.tsx`, `OwnPacePlates`): one per own-pace game, first on Tonight. Tag "Episode N
+  of M · Survival Pool", the step as its title, a Pick · Watch · Reveal bar, your pick's face with Change, one button that's the
+  next step (the gap words small inside the reveal button), "I've already watched it" asking once ("No pick for Episode N · Pick
+  first / Reveal anyway"), and one quiet line only when someone's behind you or on the same one. The reveal opens a sheet
+  (`CatchUpResult`, shared with the late joiner's sheet) with your place so far, "Pick for Episode N+1" and "Done for now", or
+  "See how you finished". Once you've seen the last episode the plate is the finish plate (your place of how many, who's still
+  behind with it hidden, See the standings). Tonight leaves out the episode heading and that game's Your moves card (no block at
+  all when it's the only game). Late joiners in live games keep the strip (`CatchUpStrips` skips own-pace games).
+- **Data:** `GameView.ownPace` (from `Game.ownPace` through `refOf`) and `GameView.pace` (`others`, `last`) for every own-pace
+  game, caught up or not; `catchUp.others` is gone. `JoinOptions.playing` (name, computer, episode) for an own-pace game.
+- **Start a game:** no banner, no AI card, no How long at your own pace, no doesn't-fit line (`noFit` null); the subtitle on a
+  finished season is "Survivor 49 · all 13 episodes are out"; "Start from" tiles read number first ("Episode 5 · where you are",
+  "You've seen 1 to 4." / "Episode 1 · from the top", "A rewatch.") with the pace line under them.
+- **Join:** a plate ("You start at Episode N", what you've seen or that the game starts there), Who's playing with each episode
+  (computers "Keeps pace"), one Join button.
+- **Play it's line** on a finished show: "Every episode is out. Pick who survives before you watch each one, reveal after."
+- Not built from the mock yet: the finish plate's "Start another" (no next all-out show is read for it), Watch it together and
+  the bingo row on the plate (part 2).
+
+## As built: part 2 (2026-11-05)
+
+The one-night games follow your episode on a show watched at your own pace (every episode out, or a streaming drop).
+
+- **Call it** (`calls.ts`): `pacedSeason` (finished, every listed episode aired, or a binge drop) and `pacedOpen`: an aired
+  episode's calls are **open to whoever is on it** (has seen the one before, not it), on the honour system like bingo's ticks;
+  "behind" before that; closed once you've seen it ("You've seen Episode N: its calls are closed"). `EpisodeCalls.paced` turns
+  the sheet's words from airtime to "until you've seen it" / "until they've watched it". Live seasons are unchanged.
+- **Games tab:** "This week" reads **"Your Episode N · Before you watch"** at your own pace, with Call it for that episode (bingo
+  already dealt your next episode's card: `bingoEpisode`). Trivia was already about what you've seen.
+- **Tonight:** Extras reads "Extras · Episode N" and offers your next episode's calls (`paceNext`, `toCall`). The watch along
+  under the plate is the mock's "Watch it together" (no second row); your episode's bingo card stays in Extras.
+- **Watch along's end** (`EndPanel`): on an episode an own-pace game of yours is on, "Reveal it on Tonight to see how your pick
+  did" with **Back to Tonight to reveal it**, where the plate's Reveal is the first thing.
+- Checked by `check-own-pace.js`: calls 5 open (alex on 5), 6 behind, 4 closed with verdicts and a call on it refused; the Games
+  tab's "Your Episode 5" with its Call it row.
+
+## As built: bingo's bank at your own pace (2026-11-05)
+
+A season added after it aired has no episode banks (the bot writes those the day before an episode airs) and no season bank
+unless an admin ran Write squares now, so bingo showed nothing at your own pace. Now starting an own-pace game on a season with
+no bank of its own asks our bot for one (`desk-research.ts queueSeasonBingo`, after the answer: the desk's Run now queue, a
+season bank, asked by whoever started the game, logged on the desk), handed to a request of its own (`handOn`). Nothing when
+the season has its bank, one's on its way, or the bot isn't answering. A dev server's stand-in bot comes through the start
+route (`botFor`). `check-own-pace.js` proves it with a stand-in (never ChatGPT) and cleans what it made on the real season.
+
+## As built: part 3a, shared teams (2026-11-05)
+
+Outlast and Weekly Lineup play at your own pace with **shared** teams (the user, 2026-11-05: Outlast counts the whole season, as
+it always does, so a later joiner keeps the head start of picking from who was still in).
+
+- **Engine:** `paceAll` stamps a blind draft as revealed in a game with teams (no draft room or Your move ever asks for one);
+  `GhostLogic.teamAt`/`takeTeam` (begin's team checks pulled out), `needsTeam`, `pickTeam` (a seat whose start is set picks its team
+  once, from `draftPool`); `viewFor` leaves out the team of anyone who started after your week (it would say who survives).
+  `bot-logic.js`: `paceTeams` (each bot picks its team on the copy before its start: ratings, the tribe spread, any cap),
+  `lineupFor` split out of `lineups`, and `catchUpTo` sets a Weekly Lineup's lineup for each week a bot plays.
+- **Server:** `start-game.ts` lets Outlast and Weekly Lineup fit at your own pace (`PACED`), forces `own: shared, order: blind`,
+  fits Outlast's team size on the copy before the start, and runs `Bots.paceTeams` after `paceAll`. `POST
+  /api/leagues/[id]/team` ({ castawayIds }: `pickTeam`). `markRevealed` refuses a reveal before your team ("Pick your team
+  first"). `GameView.pace.team` ({ need, pool }). No draft room for own-pace games (`season-draft.ts`).
+- **UI:** Tonight's plate starts with **Pick your team** (`TeamPlate`, "5 from who was still in before Episode 1. They're yours
+  for the whole game.") and a face grid sheet (`TeamSheet`: tap to take, "Pick 2 more", "This is my team"); then the plate's
+  usual steps (Weekly Lineup: Set · Watch · Reveal; Outlast: Watch · Reveal). Joiners pick theirs in the join sheet, as before.
+- Checked: `tests/own-pace.test.js` (four 3a cases), `check-own-pace.js` (jordan's Weekly Lineup: no draft, the bot's team, the
+  team plate and sheet at 390px, the lineup step, a lineup on an aired episode, the bot's lineup set at the reveal).
+
+## As built: exclusive teams, two sync points (2026-11-06)
+
+Outlast at your own pace is exclusive again (as Outlast is everywhere: 3a's forced sharing taken out), with the two sync points;
+Weekly Lineup stays shared (its preset). Everything else at your own pace is unchanged.
+
+- **Sync point 1, the draft:** `GhostLogic.draftsTogether` (own pace, exclusive, a team), `draftDone`, `paceSeat` (a joiner
+  before the draft: a seat in it at the game's start with everyone, no ghost). `joinMode` is open until the draft starts, locked
+  after. The draft room runs as usual: `draftView` never sends you to reveal first in an own-pace game and reads the cast on the
+  copy before the start; `startDraft` checks that copy; `pickInDraft` refuses anyone who wasn't in before the start or is taken;
+  bots draft on that copy (`bot-logic.js draftCopy`; `run`/`hasWork` count catching-up bots). `markRevealed` refuses "Draft
+  together first". `needsTeam`/`pickTeam` are the shared games' only. `season-draft.ts` shows the draft room for exclusive
+  own-pace games. Joining: `joinOptions` says `drafts` (start = the game's, no team to pick), `joinGame` uses `paceSeat`.
+- **Sync point 2, a waiver moment:** `waivers.js` runs an own-pace exclusive game's waivers on the league **as it stood at the
+  episode everyone has reached** (`pacedMark`: the lowest of its people's marks; computer players keep pace; `pacedCopy`), and
+  folds what the week did back (`foldBack`: the waiver weeks and log, who owns whom). A week opens there only at a waiver moment
+  (`lossAt`: someone on a team went home in that episode, not replaced), settles once everyone owed a replacement has a claim in
+  (`owedIn`, also right after a claim's saved) or when its time runs out, and closes when everyone has moved past it (auto-fill as
+  usual). Claims are checked on the same copy (`saveClaim`). Bots claim on the copy (their `waiverClaim`).
+- **Words:** `GameView.pace.draft` ("waiting" / "live") and `pace.gather` ({ episode, lost (who, whose team, yours), waiting,
+  open }). Tonight's `DraftPlate` ("Draft together": who's in, Start the draft for the runner, Go to the draft once it's on),
+  `GatherPlate` ("Waivers after Episode N": who went home from whose team, "Wait for everyone else before watching more
+  episodes, so the waivers are fair", waiting on whom, **OK, I'll wait**, and **Go on to Episode N+1 anyway**: words only), then
+  "Everyone's here: waivers" with Go to waivers. The join sheet says "You'll draft your team together with everyone".
+- Checked: `tests/own-pace.test.js` (the draft on the cast before the start; a waiver week opening only once everyone's there,
+  at that episode, settling and auto-filling from who was still in), `check-own-pace.js` (sam's Outlast with jordan and a computer:
+  the draft plate, joining before the draft, nobody after, the draft through its route, waivers on, sam ahead at a waiver moment
+  with the wait and Go on, jordan arriving and the week on at that episode; three screens at 390px).
+
 ## Noticed, not fixed
 - The Play it card on a finished season offered Start a game and the sheet then refused it (the dead end that started this).
   Part 1 fixes it by making the start work; the Games tab's own Start row already hid itself.
 - A pool with lives: once anyone's out for good (`GhostLogic.someoneOut`, bots included, which run ahead of a slower joiner),
   nobody new joins, as in a live game. At your own pace that can shut the door earlier than feels right; a rule for part 3.
-- The Games tab's "This week" is empty on a finished season (bingo, calls, trivia key on the live episode): part 2.
-- The watch-along End panel's "Reveal your scores" doesn't open the catch-up reveal: part 2.
 - The hub's Where everyone is on the couch's own-pace season reads `ownPace` through the home read's games (GameRef.ownPace):
   built, not looked at in a browser.
+- The finish plate's "Start another" from the mock is skipped (the user, 2026-11-05: nothing to point it at yet).

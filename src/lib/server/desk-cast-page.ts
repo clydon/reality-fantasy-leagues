@@ -139,7 +139,7 @@ async function reviewOf(id: string): Promise<Review> {
   const s = await seasonRow(id);
   const [ours, answer, games, format] = await Promise.all([castOf(id), latestAnswer(id), gamesOn(id), castFormat(s)]);
   const pending = answer && !answer.sent_at ? answer : null;
-  const changes = pending ? castChanges(ours, pending.people, { groups: hasGroups(format, ours) }) : [];
+  const changes = pending ? castChanges(ours, pending.people, { groups: hasGroups(format, ours), photos: true }) : [];
   const first = !s.cast_approved_at && ours.length > 0;
   const open = first || (!!pending && changes.length > 0);
   return { s, terms: termsOf(s), ours, answer, pending, changes, first, open, games };
@@ -381,7 +381,8 @@ async function readAnswer(s: SeasonRow, answer: string): Promise<TheirCastaway[]
 async function stage(s: SeasonRow, source: "bot" | "paste", answer: string, people: TheirCastaway[], by: string | null): Promise<string> {
   const ours = await castOf(s.id);
   const terms = termsOf(s);
-  const changes = castChanges(ours, people, { groups: hasGroups(await castFormat(s), ours) });
+  // Photos count (the user, 2026-11-05: an answer bringing this season's photos read as "nothing changed" and was settled unseen).
+  const changes = castChanges(ours, people, { groups: hasGroups(await castFormat(s), ours), photos: true });
   const groups = new Set(people.map((p) => p.group).filter(Boolean)).size;
   const what = !ours.length
     ? `${plural(people.length, terms.person, terms.people)}${groups ? ` in ${plural(groups, terms.group, terms.groups)}` : ""}, not sent`
@@ -500,6 +501,7 @@ export async function sendCast(
     const lines: MoveLine[] = [
       ...plan.rename.map((x) => ({ face: face(x.id), icon: null, label: x.from, change: `Renamed ${first(x.to)}` })),
       ...plan.regroup.map((x) => ({ face: face(x.id), icon: null, label: first(x.name), change: `Starts on ${x.to}` })),
+      ...plan.rephoto.map((x) => ({ face: { name: x.name, photo: publicMediaSrc(x.to) }, icon: null, label: first(x.name), change: "This season's photo" })),
       ...(plan.add.length > 4
         ? [{ face: null, icon: "plus" as const, label: plural(plan.add.length, `new ${terms.person}`, `new ${terms.people}`), change: "Join as nobody's" }]
         : plan.add.map((x) => ({ face: null, icon: "plus" as const, label: x.name, change: "Joins as nobody's" }))),
@@ -509,13 +511,15 @@ export async function sendCast(
     ];
     return { lines, title: r.games ? `Send to its ${plural(r.games, "game")}?` : "Send it?" };
   }
-  // Photos for people joining with none: the season's credits' (TMDB's, else TVmaze's).
+  // Photos for people joining with none: the season's credits' (show-art.ts castPhotosFor). The answer's own come first: the
+  // listings keep one headshot a person, however old, and the answer's are this season's (the user, 2026-11-05).
   const want = plan.add.filter((a) => !a.photo).map((a) => a.name);
   const found = want.length ? await castPhotosFor(id, want, o.listings) : new Map<string, string>();
   const summary = [
     plan.rename.length && plural(plan.rename.length, "rename"),
     plan.add.length && `${plan.add.length} joining`,
     plan.regroup.length && plural(plan.regroup.length, `starting ${terms.group}`, `starting ${terms.groups}`),
+    plan.rephoto.length && plural(plan.rephoto.length, "photo"),
   ]
     .filter(Boolean)
     .join(", ");
@@ -541,6 +545,11 @@ export async function sendCast(
         await c.query("UPDATE season_cast SET tribe_name = $3 WHERE id = $1 AND season_id = $2", [x.id, id, x.to]);
         await log(x.id, "tribe", x.from, x.to);
       }
+      for (const x of plan.rephoto) {
+        // Only over the photo it was compared with: one chosen since stays.
+        const { rowCount } = await c.query("UPDATE season_cast SET photo_url = $3 WHERE id = $1 AND season_id = $2 AND photo_url IS NOT DISTINCT FROM $4", [x.id, id, x.to, x.from]);
+        if (rowCount) await log(x.id, "photo", x.from, x.to);
+      }
       for (const x of plan.add) {
         const { rows } = await c.query(
           `INSERT INTO season_cast (season_id, name, tribe_name, photo_url, sort_order)
@@ -564,7 +573,7 @@ export async function sendCast(
       entityId: id,
       action: "cast",
       text,
-      undo: { type: "castSend", seasonId: id, answerId: r.pending?.id ?? null, renamed: plan.rename, regrouped: plan.regroup, added, approved: !!s.cast_approved_at },
+      undo: { type: "castSend", seasonId: id, answerId: r.pending?.id ?? null, renamed: plan.rename, regrouped: plan.regroup, rephotoed: plan.rephoto, added, approved: !!s.cast_approved_at },
       userId: user.id,
     });
   });
@@ -593,6 +602,7 @@ export async function restoreCastSend(u: Record<string, unknown>, changeId: stri
   if (later.length) throw new HttpError(409, "The cast's been sent again since: undo that first");
   const renamed = (u.renamed ?? []) as { id: string; from: string; to: string }[];
   const regrouped = (u.regrouped ?? []) as { id: string; name: string; from: string | null; to: string }[];
+  const rephotoed = (u.rephotoed ?? []) as { id: string; name: string; from: string | null; to: string }[];
   const approved = !!u.approved;
   const added = (u.added ?? []) as string[];
   // Before its first send nobody in it was in a game: all of them go back out of the games (the cast it had stays, staged).
@@ -614,6 +624,10 @@ export async function restoreCastSend(u: Record<string, unknown>, changeId: stri
     for (const x of regrouped) {
       const { rowCount } = await c.query("UPDATE season_cast SET tribe_name = $3 WHERE id = $1 AND season_id = $2 AND tribe_name IS NOT DISTINCT FROM $4", [x.id, id, x.from, x.to]);
       if (!rowCount) throw new HttpError(409, `${x.name} has started somewhere else since: change it from their page`);
+    }
+    for (const x of rephotoed) {
+      // Back to the listing's, unless someone chose another since.
+      await c.query("UPDATE season_cast SET photo_url = $3 WHERE id = $1 AND season_id = $2 AND photo_url = $4", [x.id, id, x.from, x.to]);
     }
     if (added.length) await c.query("DELETE FROM season_cast WHERE id = ANY($1::uuid[]) AND season_id = $2", [added, id]);
     if (u.answerId) await c.query("UPDATE season_cast_answers SET sent_at = NULL, sent_by = NULL WHERE id = $1", [u.answerId]);

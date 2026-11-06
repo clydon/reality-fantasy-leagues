@@ -1,9 +1,10 @@
 // Getting it ready (docs/PLAN-getting-it-ready.md): the pure part, shared by the job (server/season-fill.ts), the page that shows
 // it (new/show/getting-ready.tsx) and their tests (tests/season-fill.test.js). A season someone adds is got ready by itself, in
-// order: how it's played (its rulebook), who's in it (its cast), then what happened in each aired episode (recaps, and results
-// where they're ours to look up). Each step is skipped when what it gets is there already, or isn't ours to get.
+// order: how it's played (its rulebook), what scores (every moment priced on the ladder, docs/PLAN-rulebook-research.md: the
+// first prompt names the moments and never a number), who's in it (its cast), then what happened in each aired episode
+// (recaps, and results where they're ours to look up). Each step is skipped when what it gets is there already, or isn't ours.
 
-export const FILL_STEPS = ["rules", "cast", "episodes"] as const;
+export const FILL_STEPS = ["rules", "scores", "cast", "episodes"] as const;
 export type FillStep = (typeof FILL_STEPS)[number];
 
 /** What a season has, as the job sees it before each step. */
@@ -14,6 +15,8 @@ export interface FillFacts {
   setUp: boolean;
   /** The season has its own rulebook (show_seasons.rulebook_id). */
   hasRulebook: boolean;
+  /** Its moments have been priced on the ladder (rulebooks.provenance.ladderAt). */
+  scored: boolean;
   /** People in the season's cast. */
   cast: number;
   /** Games on the season: its cast is theirs (the desk's and whoever runs them), never ours to send. */
@@ -38,6 +41,8 @@ export function stepAction(step: FillStep, f: FillFacts): StepAction {
     // A brand-new show: Make it a game, by itself (how it works, then who's in it, in one go).
     return "bot";
   }
+  // What scores: once there's a rulebook and it hasn't been priced; a sport plays by its own rules.
+  if (step === "scores") return sport || !f.hasRulebook || f.scored ? "skip" : "bot";
   if (step === "cast") return sport || !f.setUp || f.cast > 0 || f.games > 0 || f.kind === "talk" ? "skip" : "bot";
   if (!f.episodes) return "skip";
   if (f.recapsMissing > 0) return "bot";
@@ -86,6 +91,7 @@ export function fillLine(
   if (o.status !== "going") return "All set";
   if (o.away) return "Waiting for our bot to come back";
   if (o.step === "rules") return "Reading how it's played";
+  if (o.step === "scores") return "Scoring every moment on the ladder";
   if (o.step === "cast") return `Finding the ${w.people.toLowerCase()}`;
   if (o.tiles.length) {
     const n = o.tiles.length;
@@ -104,7 +110,7 @@ export function fillLine(
 
 /** What a step usually takes (our bot's asks, measured on production's VM: how a brand-new show works ~1 min, its cast ~1 min,
  *  every aired episode's recap in one ask ~1.5 min), and each episode's results on the bot's clock (~3 min). */
-export const EXPECT_MS: Record<FillStep, number> = { rules: 70_000, cast: 70_000, episodes: 90_000 };
+export const EXPECT_MS: Record<FillStep, number> = { rules: 70_000, scores: 100_000, cast: 70_000, episodes: 90_000 };
 export const RESULT_MS = 180_000;
 
 /** How far along a step looks, 0 to 1, from how long it's been going against what it usually takes: steadily to 85% by then,

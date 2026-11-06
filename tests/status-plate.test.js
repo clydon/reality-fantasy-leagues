@@ -7,10 +7,17 @@ const jiti = require("jiti")(__filename, { alias: { "@": path.join(__dirname, ".
 const StateLogic = require("../src/lib/game/state-logic.js");
 const { statusPlate } = jiti("../src/lib/game/status-plate.ts");
 
-const DAY = 86_400_000;
 // The real clock: StateLogic.isDraftStarted compares a scheduled draft with Date.now(), so a fixed date
 // would make "before the draft" go stale.
 const NOW = Date.now();
+// n calendar days from today, at noon here: the plate counts calendar days in the viewer's zone, and n × 24 hours
+// isn't n days when the clocks change (just after midnight the night before they go back, 48 hours on is tomorrow).
+function daysOn(n) {
+  const d = new Date(NOW);
+  d.setDate(d.getDate() + n);
+  d.setHours(12, 0, 0, 0);
+  return d.getTime();
+}
 
 function league() {
   const s = StateLogic.defaultState();
@@ -18,13 +25,13 @@ function league() {
   s.players = ["Ana", "Ben", "Cy"].map((name, i) => ({ id: `p${i + 1}`, name, color: "#f00", active: true, disabled: false }));
   s.draftOrder = ["p1", "p2", "p3"];
   s.castaways = Array.from({ length: 12 }, (_, i) => ({ id: `c${i}`, name: `Cast ${i}`, tribeId: null, ownerIds: [], status: "active" }));
-  s.episodes = [{ id: "e1", number: 1, events: [], bets: [], picks: [], airsAt: new Date(NOW + 3 * DAY).toISOString() }];
+  s.episodes = [{ id: "e1", number: 1, events: [], bets: [], picks: [], airsAt: new Date(daysOn(3)).toISOString() }];
   return s;
 }
 
 test("before the draft: when it is and where you pick", () => {
   const s = league();
-  s.settings.draftScheduledAt = new Date(NOW + 2 * DAY).toISOString();
+  s.settings.draftScheduledAt = new Date(daysOn(2)).toISOString();
   const p = statusPlate(s, { me: "p2", isCommissioner: false, now: NOW });
   assert.equal(p.tag, "Draft");
   assert.match(p.detail, /^In 2 days · you pick 2nd$/);

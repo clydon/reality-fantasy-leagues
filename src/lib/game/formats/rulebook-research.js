@@ -44,7 +44,7 @@ function shown(template) {
   return rest;
 }
 
-function buildRulebookPrompt({ show, season, airing = false, template, change } = {}) {
+function buildRulebookPrompt({ show, season, airing = false, through = null, template, change } = {}) {
   const what = [show, season].filter(Boolean).join(', ');
   const parts = [];
   parts.push(
@@ -60,6 +60,7 @@ function buildRulebookPrompt({ show, season, airing = false, template, change } 
     '- "segments" are the regular parts of a typical episode. A one-time event (a special vote, a mutiny, the opening day) isn\'t a segment: mention it in a phase\'s summary or in "leftOut". A tie, a revote or a tiebreaker is part of its segment, not one of its own. A contest won first as a group and later alone (a tribe\'s immunity, then individual immunity after the merge) is one segment with "takesPart": "groupsThenEach", not two.',
     '- The vote or decision that crowns the winner is "season.finale", not a segment. A final duel that only happens near the end (a fire-making challenge, a final race) is a segment with "often": "onePhase" and "phase": "finale".',
     '- For a talk, variety or awards show: the moments are what might or might not happen tonight, so people can call them (someone breaks character, a surprise cameo, the host sings, a winner cries), never what happens every show (the monologue airs). They\'re answered by "league".',
+    '- For a reality series (Below Deck, Real Housewives): a moment is something ONE cast member did or had done to them, that a recap would pin on them by name ("Got in an argument", "Was named in a guest complaint", "Got the captain\'s praise", "Was sent home by the captain"). Things that happen to the show as a whole (the tip is revealed, a guest complains, the weather turns, the crew stays up late) are not moments: leave them out, or write them as what a person did.',
     '- For a scripted series: the moments are what happens to the characters that anyone watching could say yes or no to (in the episode, at the centre of the story, a big reveal about them, in danger and survives, a romance starts or ends), and the comings and goings are written out, killed off and new characters. "segments" are the regular parts of the episode\'s structure (a cold open, the ending), not its themes.',
     '- For a sport or live event: "segments" are the parts of one event that decide something (qualifying, the race; for a team sport, the game itself), never each inning, quarter or lap. What competitors do in it (a home run, a goal, a fastest lap, places gained) are "customMoments", counted "eachTime" or "perUnit". "waysOut" are only withdrawals (injured, ejected, did not finish); winning or losing an event is its segment\'s result, and winning the title is the finale.',
     '- "twists" are things that recur or last, and each is one of the four types. Similar advantages that score alike are one twist ("Idols and advantages"), with their kinds listed in its summary. Anything else goes in "leftOut".',
@@ -71,6 +72,13 @@ function buildRulebookPrompt({ show, season, airing = false, template, change } 
   if (airing) {
     parts.push(
       'This season is still airing. Describe the game as the show has set it up and as it has aired so far. Never guess what hasn\'t happened: a phase that hasn\'t started keeps its usual condition ("remaining" or "announced"), and leave out anything not yet shown or announced.',
+      ''
+    );
+  }
+  // Through an episode (docs/PLAN-rulebook-research.md): only that far is read, so nothing later is given away.
+  if (Number.isInteger(through) && through > 0) {
+    parts.push(
+      `Only Episodes 1 to ${through} of this season have been watched. Describe the game as the show has set it up and as it has aired through Episode ${through}: search only those episodes' recaps, treat Episode ${through} as the latest aired, never add a segment, a twist, a way out or a phase that first appears after it, and give "phaseStarts" only for phases reached by then.`,
       ''
     );
   }
@@ -145,15 +153,15 @@ function buildRulebookPrompt({ show, season, airing = false, template, change } 
     '    for sideTrip: "oneIsCalled": "a journey", "who": ' + choices('tripWho') + ', "canGet": ' + choices('canGet', { many: true }) + ',',
     '      "away": (one side trip at most) ' + choices('away'),
     '  } ],',
-    '  "customMoments": [ things that can happen and are worth scoring that the segments, ways out and twists don\'t already cover. Written the way a recap would say it ("Got in a fight"). Only what recaps report as yes or no, a count or an amount, never a judgement call ("funniest moment"): {',
+    '  "customMoments": [ things that can happen and are worth scoring that the segments, ways out and twists don\'t already cover (never a number of points: what each is worth is settled afterwards, on a ladder). Each one is something ONE person did or had done to them, that a recap would pin on them by name: never a happening of the show as a whole. Written the way a recap would say it ("Got in a fight"). Only what recaps report as yes or no, a count or an amount, never a judgement call ("funniest moment"): {',
     '    "id", "label",',
     '    "during": optional: { "segment": "<id>" } or { "twist": "<id>" } when it only happens there,',
     '    "counted": ' + choices('counted'),
+    '    "per": only when counted is perUnit, how much one unit is (a tip share in dollars: 1000): ' + choices('per'),
     '    "answeredBy": ' + choices('answeredBy'),
     '    "reliability": how reliably recaps report it, ' + choices('reliability') + ',',
     '    "exceptWinners": true when it happens during a segment someone wins and its winners can\'t have it (chosen to join a reward they didn\'t win)',
     '  } ],',
-    '  "points": optional: { "<a custom moment\'s id>": suggested points, a number (negative for bad things) },',
     '  "leftOut": ["anything that didn\'t fit the choices above, one sentence each, no names or results"],',
     '  "phaseStarts": only for a season already under way: { "<phase id>": the episode it started in }, for the phases it has reached',
     '}'

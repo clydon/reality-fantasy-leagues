@@ -6,7 +6,8 @@ and S2 (both parts, 2026-10-28) are built and merged into master** (their As bui
 them next (the user's, in production). **Merged and live in production (2026-10-30):** A1–A11 part 5b with F1–F4 (9:29 AM,
 `df527fe6`, migrations 0200–0202), then A11 part 5c, A12 part 1 and R1 parts 1–2 (2:59 PM, `46b77bba`, migration 0203), and
 **the game-specs flag is on** (R2, 2:39 PM: every league carries its spec), then the rest of A12 (parts 2–4c) and R1 part 3
-(2026-10-31, 12:31 AM, `075d193e`, no migration); later parts (A13 on) stay on `engine` until the main folder merges them, after each
+(2026-10-31, 12:31 AM, `075d193e`, no migration), then A13 (2026-11-05, 9:26 PM, `1d4b20a0`, migrations 0204 and 0436); later parts (A14
+on) stay on `engine` until the main folder merges them, after each
 lettered step. A1–A4 are built on `engine` (A4 in two parts: the engine and storage, then the Prediction Sheet's screens, built before
 the screens moved to U1), merged and live since 2026-10-30 (above).
 A5 to A9 built on `engine` (2026-10-28: the tracker and the engine lab; questions about who and about each; time; more
@@ -4818,7 +4819,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
   and checked as now); episode facts (who said the title quote) through new research questions rated reliable (Our check). In parts:
   part 1, trivia (below); part 2, episode facts (below); part 2b, episode facts' own short run (below). A13 is done.
 
-  **As built (A13 part 1, trivia in a game, 2026-10-30, on `engine`, not merged; no migration).** One session, after `lane.js sync engine`
+  **As built (A13 part 1, trivia in a game, 2026-10-30, on `engine`; merged and live 2026-11-05, `1d4b20a0`; no migration).** One session, after `lane.js sync engine`
   (nothing new from master; 1207 tests). A trivia question in a game of questions: the round before each episode, answered from the
   episode's trivia key, the bot's trivia research exactly as it's written and checked today (no prompt change), its points for each
   one right, void from the start when the key is missing. Every default and everything a person sees is the user's (Noticed, below).
@@ -4900,7 +4901,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     premiere void, every other round graded, the seats' habits scoring about chance (the Drive-By 18 to 25 on The Challenge). The study
     doc's "A13 part 1".
 
-  **As built (A13 part 2, episode facts, 2026-10-31, on `engine`, not merged; no migration).** One session, after `lane.js sync engine`
+  **As built (A13 part 2, episode facts, 2026-10-31, on `engine`; merged and live 2026-11-05, `1d4b20a0`; no migration).** One session, after `lane.js sync engine`
   (master's tune-in screens; 1216 tests). A fact about the episode itself, in every show's research, and a question a game asks each
   episode settled by it: who says the episode's title quote. Ridden on data with its fallback from the start (void when research can't
   say for sure), and our check takes it only where research says it reliably on the show, rated from what research returned. It doesn't
@@ -4972,7 +4973,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     results finding 20's 3, 2 and 2; the three fact games refused on every season by the rating, as live they would be (Survivor patchy,
     the others unrated); each episode's re-asked facts filed in its research (the record's `facts`). The study doc's "A13 part 2".
 
-  **As built (A13 part 2b, episode facts' own short run, 2026-10-31, on `engine`, not merged; migration 0204).** One session, after `lane.js
+  **As built (A13 part 2b, episode facts' own short run, 2026-10-31, on `engine`; merged and live 2026-11-05, `1d4b20a0`; migration 0204).** One session, after `lane.js
   sync engine` (master's swipe screens; 1227 tests). Part 2's first Noticed item, built: what an episode's stored research isn't sure of,
   asked on its own after the morning's full run, filed into that answer as a second pass fills in, and a fact game waiting for it until the
   episode's final results instead of voiding the week. Ridden on data with its fallback from the start (still unsure at the final results:

@@ -77,6 +77,8 @@ export interface CatalogSeason {
   label: string;
   /** "Season 51", or the season's own name. */
   season: string;
+  /** Its number (Where are you's season picker starts from it); null for a season with none. */
+  seasonNumber: number | null;
   /** Its cards' art, carrying its framing (src/lib/art-frame.ts). */
   artUrl: string | null;
   /** Where the art's crop centres (its framing's point: shows.art_style), for a plain img. */
@@ -130,6 +132,7 @@ export async function catalog(now = new Date()): Promise<CatalogSeason[]> {
       show,
       label: `${show}${r.season_number ? ` ${r.season_number}` : ""}`,
       season: r.name && !/^\s*$/.test(r.name) && !r.name.startsWith(r.show_name) ? r.name : `Season ${r.season_number}`,
+      seasonNumber: r.season_number ?? null,
       artUrl: framedUrl(r.art_url || null, framed),
       artPosition: `${frame.x}% ${frame.y}%`,
       status: r.status,

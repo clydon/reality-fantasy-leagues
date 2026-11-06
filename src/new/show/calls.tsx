@@ -86,7 +86,9 @@ function CallSheet({ target, onOpenChange }: { target: CallTarget | null; onOpen
   const subtitle = !target
     ? undefined
     : d?.status === "open"
-      ? "Private until it airs · see who got it after"
+      ? d.paced
+        ? "Private until they've watched it · see who got it after"
+        : "Private until it airs · see who got it after"
       : d?.verdicts
         ? `${target.label} · how the calls went`
         : target.label;
@@ -129,7 +131,8 @@ function OpenCalls({ target, d, onDone }: { target: CallTarget; d: EpisodeCalls;
   const [picked, setPicked] = useState<Record<string, string>>(() => ({ ...d.mine }));
   const [saving, setSaving] = useState(false);
   const changed = d.questions.filter((q) => (picked[q.key] ?? null) !== (d.mine[q.key] ?? null));
-  const until = d.airAt ? airTime(Date.parse(d.airAt)) : "it airs";
+  // At your own pace it's aired already: calls stay yours to change until you've seen it.
+  const until = d.paced ? "you've seen it" : d.airAt ? airTime(Date.parse(d.airAt)) : "it airs";
   const save = async () => {
     if (!changed.length) return onDone();
     setSaving(true);
@@ -176,8 +179,8 @@ function OpenCalls({ target, d, onDone }: { target: CallTarget; d: EpisodeCalls;
       <p data-call-count className="mt-4 text-[13px] text-muted-foreground">
         {d.scope === "couch"
           ? d.called
-            ? `${d.called} on the couch ${d.called === 1 ? "has" : "have"} called it · nobody sees a call until it airs`
-            : "Nobody on the couch has called it yet · nobody sees a call until it airs"
+            ? `${d.called} on the couch ${d.called === 1 ? "has" : "have"} called it · nobody sees a call until ${d.paced ? "they've watched it" : "it airs"}`
+            : `Nobody on the couch has called it yet · nobody sees a call until ${d.paced ? "they've watched it" : "it airs"}`
           : "Just for you: see how you did once you've watched it"}
       </p>
       <Btn tone={changed.length ? "must" : "optional"} wide className="mt-3" disabled={saving} onClick={save} data-call-save>
@@ -334,7 +337,7 @@ export function CallRow({ target, icon }: { target: CallTarget; icon?: boolean }
     d.status === "behind"
       ? `See Episode ${d.catchUp} first`
       : done
-        ? `Change until ${d.airAt ? airTime(Date.parse(d.airAt)) : "it airs"}`
+        ? `Change until ${d.paced ? "you've seen it" : d.airAt ? airTime(Date.parse(d.airAt)) : "it airs"}`
         : `${of === 1 ? "One quick call" : "Two quick calls"} · see who got it after`;
   const state = d.status === "behind" ? "" : done ? "Called" : made ? `${made} of ${of}` : "Call";
   return (

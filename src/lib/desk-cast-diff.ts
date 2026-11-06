@@ -9,6 +9,8 @@ export interface OurCastaway {
   name: string;
   group: string | null;
   locked: boolean;
+  /** Their photo now (only read with `photos`: a listing's may make way for the answer's). */
+  photo?: string | null;
 }
 export interface TheirCastaway {
   name: string;
@@ -24,7 +26,10 @@ export type CastChange =
   /** Someone the cast doesn't have: joins every game as nobody's. */
   | { k: "add"; key: string; name: string; group: string | null; photo: string | null }
   /** Someone the answer no longer lists: said, never taken out. */
-  | { k: "gone"; key: string; id: string; name: string };
+  | { k: "gone"; key: string; id: string; name: string }
+  /** The answer's photo of someone we have whose photo is a TV listing's or none (the user, 2026-11-05: a lineup all from
+   *  this season, where the listings keep one old headshot a person): replaced on Send. */
+  | { k: "photo"; key: string; id: string; name: string; from: string | null; to: string };
 
 export type CastPicks = Record<string, "same" | "new" | "ours" | "theirs">;
 
@@ -81,7 +86,14 @@ function nearness(a: string, b: string): number | null {
  * The changes an answer makes to the cast. `groups`: the show has starting groups (an answer's group means something);
  * without them, or where the answer leaves someone's group empty, a group is never a change.
  */
-export function castChanges(ours: OurCastaway[], theirs: TheirCastaway[], o: { groups: boolean }): CastChange[] {
+/** A photo the listings gave (TMDB's, TVmaze's, a wiki's icon) or none: an answer's own may take its place. One someone chose
+ *  (our own files, any other address, the answer's own from before) never does. */
+export const listingPhoto = (url: string | null | undefined): boolean => {
+  const u = (url ?? "").trim();
+  return !u || /^https?:\/\/(image\.tmdb\.org|static\.tvmaze\.com|static\.wikia\.nocookie\.net)\//i.test(u);
+};
+
+export function castChanges(ours: OurCastaway[], theirs: TheirCastaway[], o: { groups: boolean; photos?: boolean }): CastChange[] {
   const seen = new Set<string>();
   const list = theirs.filter((t) => {
     const k = t.name.trim().toLowerCase();
@@ -124,6 +136,10 @@ export function castChanges(ours: OurCastaway[], theirs: TheirCastaway[], o: { g
     if (c.locked) continue;
     if (!same(c.name, t.name)) out.push({ k: "spell", key: `spell:${c.id}`, id: c.id, from: c.name, to: t.name.trim(), group: o.groups ? t.group : null, photo: t.photo });
     if (o.groups && t.group?.trim() && !same(c.group, t.group)) out.push({ k: "group", key: `group:${c.id}`, id: c.id, name: c.name, from: c.group, to: t.group.trim() });
+    const photo = t.photo?.trim();
+    if (o.photos && photo && /^https?:\/\//i.test(photo) && photo !== (c.photo ?? "") && listingPhoto(c.photo)) {
+      out.push({ k: "photo", key: `photo:${c.id}`, id: c.id, name: c.name, from: c.photo ?? null, to: photo });
+    }
   }
   for (const c of ours) if (left.has(c.id)) out.push({ k: "gone", key: `gone:${c.id}`, id: c.id, name: c.name });
   return out;
@@ -137,6 +153,7 @@ export function castPlan(changes: CastChange[], picks: CastPicks = {}) {
   const rename: { id: string; from: string; to: string }[] = [];
   const add: { name: string; group: string | null; photo: string | null }[] = [];
   const regroup: { id: string; name: string; from: string | null; to: string }[] = [];
+  const rephoto: { id: string; name: string; from: string | null; to: string }[] = [];
   for (const c of changes) {
     const p = pickOf(c, picks);
     if (c.k === "spell") {
@@ -144,8 +161,9 @@ export function castPlan(changes: CastChange[], picks: CastPicks = {}) {
       else rename.push({ id: c.id, from: c.from, to: c.to });
     } else if (c.k === "group" && p === "theirs") regroup.push({ id: c.id, name: c.name, from: c.from, to: c.to });
     else if (c.k === "add") add.push({ name: c.name, group: c.group, photo: c.photo });
+    else if (c.k === "photo") rephoto.push({ id: c.id, name: c.name, from: c.from, to: c.to });
   }
-  return { rename, add, regroup };
+  return { rename, add, regroup, rephoto };
 }
 
 const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -157,6 +175,7 @@ export function changesLine(changes: CastChange[], words: { group: string; group
     n("spell") && count(n("spell"), "new spelling", "new spellings"),
     n("group") && count(n("group"), `starting ${words.group}`, `starting ${words.groups}`),
     n("add") && `${n("add")} new`,
+    n("photo") && count(n("photo"), "photo", "photos"),
     n("gone") && `${n("gone")} not listed`,
   ]
     .filter(Boolean)

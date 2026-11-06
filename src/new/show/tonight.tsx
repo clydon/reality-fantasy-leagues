@@ -22,6 +22,7 @@ import { doneCards, isRequired, moveCard, openMoves, type MoveCard } from "./mov
 import { Block, Face } from "./parts";
 import { WaiversRanPlate } from "./waivers";
 import { CatchUpSheet, CatchUpStrips } from "../couch/join-game";
+import { OwnPacePlates } from "./pace-plate";
 import { openStartGame } from "../couch/start-game";
 import { openCouchSheet } from "../couch/couch-sheets";
 import { knownMark } from "../couch/where";
@@ -66,11 +67,13 @@ export function Tonight({ seasonId, show }: { seasonId: string; show: ShowData }
     <>
       <BingoLink show={show} />
       {playing && <WaiversRanPlate seasonId={seasonId} show={show} />}
+      {playing && <OwnPacePlates show={show} />}
       {playing && <CatchUpStrips show={show} onOpen={setCatchUp} />}
       <CatchUpSheet show={show} game={catchUp} onOpenChange={(o) => !o && setCatchUp(null)} />
       <DropPlate show={show} />
       {!playing && <SeenItCard show={show} />}
-      <PhaseHead show={show} />
+      {/* A game at your own pace's plate names your episode: no heading saying it again (docs/PLAN-own-pace-games.md). */}
+      {!(show.ownPace && (show.play ?? []).some((g) => g.ownPace)) && <PhaseHead show={show} />}
       {playing && <RemindRow seasonId={seasonId} show={show} />}
       {!playing && <UpNext seasonId={seasonId} show={show} />}
       {!playing && <Following show={show} />}
@@ -313,7 +316,11 @@ function WhosWatching({ show }: { show: ShowData }) {
 function YourMoves({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const up = show.upNext;
   const t = up?.airAt ? Date.parse(up.airAt) : null;
-  const open = show.moves.filter(isRequired);
+  // A game at your own pace has its plate (pace-plate.tsx): its move isn't a card here too. Nothing else to set: no block at all.
+  const paced = new Set((show.play ?? []).filter((g) => g.ownPace).map((g) => g.leagueId));
+  const open = show.moves.filter((m) => isRequired(m) && !paced.has(m.leagueId));
+  const others = (show.play ?? []).filter((g) => !paced.has(g.leagueId));
+  if (paced.size && !open.length && !others.length) return null;
   const kinds = open.map((m) => m.kind);
   // A move whose game is waiting on results you haven't revealed says so, and its button is the reveal.
   const waitsOn = (leagueId: string) => show.play?.find((g) => g.leagueId === leagueId)?.revealFirst ?? null;
@@ -324,7 +331,7 @@ function YourMoves({ seasonId, show }: { seasonId: string; show: ShowData }) {
     const when = m.deadline ? ` · ${c.tab === "lineup" ? "locks" : "closes"} ${airTime(Date.parse(m.deadline))}` : "";
     return { ...c, line: `After you reveal Episode ${n}${when}`, action: `Reveal Episode ${n}`, reveal: n };
   });
-  const done = show.play ? doneCards(show.play) : [];
+  const done = show.play ? doneCards(others) : [];
   // Weekly Calls' cards open Call it for their episode (step 12 part 2), Weekly Bingo's its card (part 3).
   const onCall = (episode: number) => openCall({ seasonId, couchId: show.couch?.id ?? null, episode, label: showLabel(show), solo: show.solo });
   const onBingo = (episode: number) => openBingo({ seasonId, couchId: show.couch?.id ?? null, episode, label: showLabel(show), solo: show.solo });
@@ -721,12 +728,23 @@ function latestSeen(show: ShowData): number | null {
 function toCall(show: ShowData): number | null {
   const up = show.upNext;
   const playing = show.games.some((g) => g.yourRole);
-  if (!show.header || !show.ready || !up || up.live || (!show.following && !playing)) return null;
+  if (!show.header || !show.ready || (!show.following && !playing)) return null;
+  // At your own pace (every episode out: docs/PLAN-own-pace-games.md part 2), your next episode's calls, open until you've seen it.
+  const next = paceNext(show);
+  if (next !== null) return sheetAsks(show, next) ? null : next;
+  if (!up || up.live) return null;
   if (show.games.some((g) => g.yourRole && g.gameType === "weekly-calls" && asksFor(g, up.number))) return null;
   // A Prediction Sheet here asks about it already (step A4 part 2): the couch answers its sheet, not Call it as well.
   if (sheetAsks(show, up.number)) return null;
   return up.number;
 }
+
+/** At your own pace, your next episode (your mark plus one) while there is one out; else null. */
+export const paceNext = (show: ShowData): number | null => {
+  if (!show.ownPace) return null;
+  const n = (show.seenThrough ?? 0) + 1;
+  return n <= show.latestAired ? n : null;
+};
 
 /** A Prediction Sheet of yours here asks about episode `n` this week (its questions for it, as the Games read says). */
 export const sheetAsks = (show: ShowData, n: number) => (show.play ?? []).some((g) => g.gameType === "questions" && !g.archived && g.sheet?.episode === n);
@@ -750,7 +768,7 @@ function Extras({ show }: { show: ShowData }) {
   const sheets = seen && show.header ? show.games.filter((g) => g.yourRole && g.gameType === "questions" && !g.archived) : [];
   if (up?.live || (!predictions.length && !call && !seen && !bingo && !open && !finales.length)) return null;
   return (
-    <Block title="Extras this week" aside="Optional">
+    <Block title={paceNext(show) !== null ? `Extras · Episode ${paceNext(show)}` : "Extras this week"} aside="Optional">
       {predictions.map((m) => (
         <ExtraRow key={m.leagueId} title={m.text} line={`Closes at airtime · ${m.leagueName}`} state="Open" onClick={() => openMoves("predict")} />
       ))}

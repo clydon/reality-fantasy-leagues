@@ -51,10 +51,19 @@ const answerFrom = (id, show) => `Here's the rulebook:\n\`\`\`json\n${JSON.strin
 const castAnswer = (people) => `\`\`\`json\n${JSON.stringify({ castaways: people.map(([name, group]) => ({ name, photoUrl: "", startingGroup: group })), sources: ["https://example.invalid/cast"] })}\n\`\`\``;
 /** What happened, for every episode the recap prompt lists. */
 const recapAnswer = (prompt) => JSON.stringify({ episodes: [...prompt.matchAll(/^- \w+ (\d+)/gm)].map((m) => ({ number: Number(m[1]), summary: `In episode ${m[1]} things happened and someone left.` })) });
+/** The ladder's answer for whatever moments the question lists: edge, most episodes; plus one moment the show has had before. */
+const scoresAnswer = (prompt) =>
+  JSON.stringify({
+    schema: 1,
+    scores: Object.fromEntries([...prompt.matchAll(/^- "([A-Za-z0-9]+)": /gm)].map((m) => [m[1], { rung: "edge", rarity: "mostEpisodes", why: "the stand-in says so" }])),
+    add: [{ id: "ztLadderMoment", label: "Did the ZT ladder thing", rung: "earned", rarity: "someEpisodes", known: "pastSeasons", firstEpisode: 1, counted: "yesNo", answeredBy: "research", reliability: "usually" }],
+    leftOut: [],
+  });
 const SHACK = [["Gia Heart", null], ["Hal Rose", null], ["Ivy Kiss", null], ["Jon Date", null], ["Kay Vow", null], ["Lou Ring", null], ["Max Flirt", null]];
 const ANSWERS = {
   "ZT Love Shack": { setup: () => answerFrom("the-amazing-race", "ZT Love Shack"), cast: () => castAnswer(SHACK) },
-  "ZT Yacht Life": { setup: () => answerFrom("below-deck", "ZT Yacht Life") },
+  // A reality series' cast is asked of the chat too (a898437, 2026-11-05: names from the wiki, photos from the listings).
+  "ZT Yacht Life": { setup: () => answerFrom("below-deck", "ZT Yacht Life"), cast: () => castAnswer([["Pia Deck", null], ["Quin Stew", null], ["Rae Bosun", null]]) },
   "ZT Drop Show": { setup: () => answerFrom("scrubs", "ZT Drop Show") },
 };
 const showIn = (prompt) => Object.keys(ANSWERS).find((name) => prompt.includes(name));
@@ -72,6 +81,8 @@ const showIn = (prompt) => Object.keys(ANSWERS).find((name) => prompt.includes(n
         return "I couldn't find anything about that.";
       }
       if (kind === "other" && /Search the web for what happened/.test(prompt)) return recapAnswer(prompt);
+      // What scores (the step after how it's played): every moment the question lists, on "edge", one added.
+      if (kind === "scores") return scoresAnswer(prompt);
       const fn = ANSWERS[showIn(prompt)]?.[kind];
       if (!fn) throw new Error(`no answer for ${kind} about ${showIn(prompt) ?? "?"}`);
       return fn();
@@ -181,18 +192,21 @@ const showIn = (prompt) => Object.keys(ANSWERS).find((name) => prompt.includes(n
     } else {
       shack = await add("alex", 990001, 1);
       const s = await post("alex", shack, { action: "start", episodes: true });
-      check(s.status === 200 && s.body.status === "going" && s.body.steps.map((x) => x.key).join() === "rules,cast,episodes", "started: going, three steps", JSON.stringify(s.body).slice(0, 200));
+      check(s.status === 200 && s.body.status === "going" && s.body.steps.map((x) => x.key).join() === "rules,scores,cast,episodes", "started: going, four steps", JSON.stringify(s.body).slice(0, 200));
     }
 
     // ---- what it made ----
     const s1 = await until(shack, (s) => (s.steps[1]?.state === "done" && s.episodes.length > 0 && s.episodes.every((e) => e.state === "half")) || s.status === "stuck");
-    check(s1.steps.map((x) => x.state).join() === "done,done,working", "the brand-new show: how it's played and the cast in, the episodes' results still to come", JSON.stringify(s1.steps));
+    check(s1.steps.map((x) => x.state).join() === "done,done,done,working", "the brand-new show: how it's played, what scores and the cast in, the episodes' results still to come", JSON.stringify(s1.steps));
+    const scored = (await pool.query("SELECT r.provenance->>'ladderAt' AS at, r.blocks FROM rulebooks r JOIN show_seasons ss ON ss.rulebook_id = r.id WHERE ss.id = $1", [shack])).rows[0];
+    check(!!scored?.at && (scored.blocks.customMoments || []).some((m) => m.id === "ztLadderMoment") && Object.values(scored.blocks.points || {}).some((v) => v === 1 || (v && v.exclusive === 1)), "what scores: priced on the ladder by itself, the added moment in, provenance says when", JSON.stringify(scored && { at: scored.at, points: scored.blocks.points }).slice(0, 200));
     const show1 = await showOf(shack);
     check(!!show1.set_up_at && show1.kind === "competition", "it's a game now, by itself", `${show1.set_up_at} ${show1.kind}`);
     const { rows: book } = await pool.query("SELECT r.review_status, r.provenance FROM rulebooks r JOIN show_seasons ss ON ss.rulebook_id = r.id WHERE ss.id = $1", [shack]);
     check(book[0]?.review_status === "unreviewed" && book[0].provenance.auto === true, "its rulebook: new until another couch checks it, made by itself", JSON.stringify(book[0]));
-    const { rows: hist } = await pool.query("SELECT text FROM admin_changes WHERE entity = 'rulebook' ORDER BY created_at DESC LIMIT 1");
-    check(/ZT Love Shack 1 made a game \(by itself, as it was added\)/.test(hist[0]?.text ?? ""), "the desk's History says so", hist[0]?.text);
+    // Its own line, then What scores' (the ladder's values, applied by itself) on top of it.
+    const { rows: hist } = await pool.query("SELECT text FROM admin_changes WHERE entity = 'rulebook' ORDER BY created_at DESC LIMIT 4");
+    check(hist.some((h) => /ZT Love Shack 1 made a game \(by itself, as it was added\)/.test(h.text)) && hist.some((h) => /Fixed a mistake: What scores: the ladder's values/.test(h.text)), "the desk's History says so, and that the ladder priced it", hist.map((h) => h.text).join(" | "));
     check((await castOf(shack)).length === 7 && s1.cast.count === 7 && s1.cast.faces[0].name === "Gia Heart", "its cast: all 7, the call sheet's faces too");
     check((await summaries(shack)) === 3, "what happened in each of the 3 aired episodes, filled in");
     const { rows: asks } = await pool.query("SELECT episode_number FROM research_asks WHERE season_id = $1 ORDER BY 1", [shack]);
@@ -230,7 +244,7 @@ const showIn = (prompt) => Object.keys(ANSWERS).find((name) => prompt.includes(n
     const asked0 = bot.asked.length;
     await post("alex", shack, { action: "start", episodes: false });
     const s2 = await until(shack, (s) => s.status !== "going");
-    check(s2.status === "done" && (await castOf(shack)).length === 7 && s2.steps.map((x) => x.key).join() === "rules,cast", "our bot found who's in it and it was sent (the episodes left)", JSON.stringify(s2.steps));
+    check(s2.status === "done" && (await castOf(shack)).length === 7 && s2.steps.map((x) => x.key).join() === "rules,scores,cast", "our bot found who's in it and it was sent (the episodes left)", JSON.stringify(s2.steps));
     check(bot.asked.slice(asked0).map((q) => q.kind).join() === "cast", "it asked only for the cast", bot.asked.slice(asked0).map((q) => q.kind).join());
     const { rows: ans } = await pool.query("SELECT source, sent_at IS NOT NULL AS sent FROM season_cast_answers WHERE season_id = $1", [shack]);
     check(ans.length === 1 && ans[0].source === "bot" && ans[0].sent, "the answer is kept, sent, as the desk's would be");
@@ -275,9 +289,16 @@ const showIn = (prompt) => Object.keys(ANSWERS).find((name) => prompt.includes(n
     const q4 = (await as.alex.call("GET", `/api/seasons/${drop}/fill?prompt=1`)).body;
     check(q4.step === "rules" && /ZT Drop Show/.test(q4.prompt ?? ""), "its question is how it works", (q4.prompt ?? JSON.stringify(q4)).slice(0, 80));
     await post("alex", drop, { action: "paste", answer: answerFrom("scrubs", "ZT Drop Show") });
-    const s4b = await until(drop, (s) => s.step === "episodes" || s.status !== "going");
+    const s4a = await until(drop, (s) => s.step === "scores" || s.status !== "going");
     const show4 = await showOf(drop);
     check(!!show4.set_up_at && (await castOf(drop)).length === 2, "pasted how it works: its characters from the TV listing, a game with no bot", `${show4.set_up_at} ${(await castOf(drop)).join()}`);
+    check(s4a.step === "scores" && s4a.away, "then what scores waits for our bot too", JSON.stringify({ step: s4a.step, away: s4a.away }));
+    const q4b = (await as.alex.call("GET", `/api/seasons/${drop}/fill?prompt=1`)).body;
+    check(q4b.step === "scores" && /which rung of the ladder below each moment stands on/.test(q4b.prompt ?? ""), "what scores' question: the ladder", (q4b.prompt ?? "").slice(0, 80));
+    await post("alex", drop, { action: "paste", answer: scoresAnswer(q4b.prompt) });
+    const scored4 = (await pool.query("SELECT r.provenance->>'ladderAt' AS at FROM rulebooks r JOIN show_seasons ss ON ss.rulebook_id = r.id WHERE ss.id = $1", [drop])).rows[0];
+    check(!!scored4?.at, "pasted what scores: priced on the ladder, no bot", JSON.stringify(scored4));
+    const s4b = await until(drop, (s) => s.step === "episodes" || s.status !== "going");
     check(s4b.step === "episodes" && s4b.away, "then the episodes wait for our bot too", JSON.stringify({ step: s4b.step, away: s4b.away }));
     const q5 = (await as.alex.call("GET", `/api/seasons/${drop}/fill?prompt=1`)).body;
     check(q5.step === "episodes" && /Search the web for what happened/.test(q5.prompt ?? ""), "the episodes' question", (q5.prompt ?? "").slice(0, 80));

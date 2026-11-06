@@ -306,7 +306,9 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
           : o
             ? again
               ? `${o.label}${to === null ? "" : ` · ${spanName(o.from, to, o.part)}`} · the same ${again.gameName} as ${again.label}`
-              : `${o.show} · ${phase ? `when ${phase.name} starts` : to === null ? `from ${partAt(o)}` : spanName(o.from, to, o.part)}${o.ownPace ? ", at your own pace" : ""}`
+              : o.pace && !o.starts.length
+                ? `${o.label} · all ${o.pace.aired} ${o.part.plural} are out`
+                : `${o.show} · ${phase ? `when ${phase.name} starts` : to === null ? `from ${partAt(o)}` : spanName(o.from, to, o.part)}${o.ownPace ? ", at your own pace" : ""}`
             : undefined
       }
     >
@@ -364,7 +366,6 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
           </>
         ) : (
           <>
-            {o.ownPace && <OwnPaceStrip />}
             {fits.map((g, i) => {
               const on = g.key === pick;
               return (
@@ -396,7 +397,7 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
                 <span>{o.noFit}</span>
               </p>
             )}
-            {!again && <ComingSoonAI />}
+            {!again && !o.ownPace && <ComingSoonAI />}
             {startable.length > 0 && o.onAir && (
               <button
                 type="button"
@@ -427,7 +428,7 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
                 </span>
               </button>
             )}
-            {startable.length > 0 && !o.late && (o.starts.length > 1 || o.phases.length > 0 || (o.pace && o.starts.length === 0 && o.pace.here !== null && o.pace.here !== 1) || (o.pace?.here && o.starts.length > 0)) && (
+            {startable.length > 0 && !o.late && (o.starts.length > 1 || o.phases.length > 0 || (!!o.pace && (o.starts.length === 0 || o.pace.here !== null))) && (
               <Starts
                 o={o}
                 phase={phase?.id ?? null}
@@ -443,7 +444,8 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
                 }}
               />
             )}
-            {startable.length > 0 && !phase && (o.spans.length > 1 || o.ends.length > 0) && <HowLong o={o} to={to} setTo={setTo} />}
+            {/* At your own pace it's the rest of the season: a span on a rewatch is an edge nobody casual needs (the mock). */}
+            {startable.length > 0 && !phase && !o.ownPace && (o.spans.length > 1 || o.ends.length > 0) && <HowLong o={o} to={to} setTo={setTo} />}
             {botsHere && <Computers n={bots} setN={setBots} level={level} setLevel={setLevel} />}
             {sheet && <SheetQuestions o={o} on={askOn} toEnd={toEnd} setOn={setAsks} />}
             {startable.length > 0 && (
@@ -477,16 +479,6 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
   );
 }
 
-/** A game at your own pace (docs/PLAN-own-pace-games.md): what's different, in one line, before the games. */
-function OwnPaceStrip() {
-  return (
-    <p data-own-pace className="flex items-center gap-2 rounded-[3px] bg-secondary py-2 pl-2 pr-3 text-[13px] font-semibold leading-snug">
-      <span className="type-caption flex-none rounded-[2px] bg-foreground px-1.5 py-0.5 text-[11px] tracking-[0.06em] text-background">Your own pace</span>
-      Everyone plays one episode at a time, whenever they watch. Nobody waits for anyone.
-    </p>
-  );
-}
-
 /** "Sat, Nov 22": a later episode's day, weeks out, where a weekday alone wouldn't say which. */
 const dateOf = (t: number) => new Date(t).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 
@@ -495,6 +487,10 @@ const episodeLine = (o: StartOptions, e: { number: number; title: string | null 
   const P = o.part.singular.replace(/^./, (c) => c.toUpperCase());
   return e.title?.toLowerCase().startsWith(`${o.part.singular} ${e.number}`) ? e.title : `${P} ${e.number}${e.title ? ` · ${e.title}` : ""}`;
 };
+
+/** What you've seen, so nobody has to remember it: "You haven't watched any yet.", "You've seen 1 and 2.", "You've seen 1 to 6." */
+const seenWords = (n: number, P: string) =>
+  n <= 0 ? "You haven't watched any yet." : n === 1 ? `You've seen ${P} 1.` : n === 2 ? "You've seen 1 and 2." : `You've seen 1 to ${n}.`;
 
 /**
  * Where the game starts (docs/PLAN-start-a-game-gpt.md step A3): with the next episode to air, when a phase of the season still to
@@ -515,30 +511,33 @@ function Starts({ o, phase, setAt, setPhase }: { o: StartOptions; phase: string 
       {pace.here !== null && (
         <button type="button" role="radio" aria-checked={o.ownPace && o.from === pace.here} data-start-from-choice="here" onClick={() => setAt(pace.here)} className={tile(o.ownPace && o.from === pace.here)}>
           <b className="block text-[15px]">
-            Where you are · {P} {pace.here}
-            {!finished && <span className={o.ownPace && o.from === pace.here ? "text-plate-muted" : "text-muted-foreground"}> · at your own pace</span>}
+            {P} {pace.here}
+            {pace.here === 1 && finished ? "" : " · where you are"}
           </b>
           <small className={sub(o.ownPace && o.from === pace.here)}>
-            {pace.here === 1 ? `Nothing seen yet: from the first ${o.part.singular}.` : `You're up to ${P} ${pace.here - 1}.`}
-            {finished ? " Pick before you watch each one, reveal after." : " Catch up one at a time, then play live with everyone."}
+            {seenWords(pace.here - 1, P)}
+            {finished ? "" : " Catch up one at a time, then play live with everyone."}
           </small>
         </button>
       )}
       {finished && pace.here !== 1 && (
         <button type="button" role="radio" aria-checked={o.from === pace.top} data-start-from-choice="top" onClick={() => setAt(pace.top)} className={tile(o.from === pace.top)}>
           <b className="block text-[15px]">
-            From the top · {P} {pace.top}
+            {P} {pace.top} · from the top
           </b>
-          <small className={sub(o.from === pace.top)}>{pace.here === null ? "You've seen it all: a rewatch, one at a time." : "A rewatch from the start."}</small>
+          <small className={sub(o.from === pace.top)}>{pace.here === null ? "You've seen it all: a rewatch." : "A rewatch."}</small>
         </button>
       )}
     </>
   );
   if (finished) {
     return (
-      <section data-start-from className="mt-1 flex flex-col gap-1.5 border-t border-border pt-3" role="radiogroup" aria-label="Starts">
-        <b className="text-[15px] font-semibold">Starts</b>
+      <section data-start-from className="mt-1 flex flex-col gap-1.5 border-t border-border pt-3" role="radiogroup" aria-label="Start from">
+        <b className="text-[15px] font-semibold">Start from</b>
         {paceTiles}
+        <small data-start-pace-line className="text-[13px] leading-snug text-muted-foreground">
+          Everyone plays one {o.part.singular} at a time, whenever they watch. Friends who join start wherever they are.
+        </small>
       </section>
     );
   }

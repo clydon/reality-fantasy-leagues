@@ -226,6 +226,8 @@ export interface GameRefIn {
   solo?: "public" | "practice" | null;
   /** Archived (step 10 part 2b): its table as it stood; nothing scores it. */
   archived?: boolean;
+  /** A game at your own pace (docs/PLAN-own-pace-games.md): Tonight shows it as one plate (Pick · Watch · Reveal). */
+  ownPace?: boolean;
 }
 
 /** A public pool's table: the top ten, you and whoever's either side of you (it can hold hundreds). */
@@ -267,10 +269,22 @@ export interface GameView extends GameRefIn {
   revealFirst: number | null;
   /** A late joiner playing their own season (GhostLogic): their week is the episode after their mark. */
   catchingUp: boolean;
-  /** Catching up (step 9): the episode they're on (their week), and the latest the game has results for ("Episode 2 of 4"). In a
-   *  game at your own pace (docs/PLAN-own-pace-games.md) `others`: everyone else in it (not its computer players) and the episode
-   *  they're on, null once they've finished; the server fills it (season-games.ts). */
-  catchUp: { week: number; latest: number; others?: { name: string; week: number | null }[] } | null;
+  /** Catching up (step 9): the episode they're on (their week), and the latest the game has results for ("Episode 2 of 4"). */
+  catchUp: { week: number; latest: number } | null;
+  /** A game at your own pace (docs/PLAN-own-pace-games.md): everyone else in it (not its computer players) and the episode
+   *  they're on, null once they've finished; the season's last episode. The server fills it (season-games.ts); null otherwise. */
+  pace: {
+    others: { name: string; week: number | null }[];
+    last: number;
+    /** A game with teams where yours isn't picked yet (part 3a): how many, from whom (castaway ids of `cast`, who was in before
+     *  your start). */
+    team: { need: number; pool: string[] } | null;
+    /** Exclusive teams, drafted together at the start (sync point 1), while that draft isn't done: waiting, or on. */
+    draft: "waiting" | "live" | null;
+    /** A waiver moment you've reached (sync point 2): an episode where someone's team lost a person, in a game with waivers.
+     *  `waiting`: who isn't there yet; `open`: everyone is, and its waiver week is on. Null otherwise. */
+    gather: { episode: number; lost: { name: string; team: string; yours: boolean }[]; waiting: string[]; open: boolean } | null;
+  } | null;
   /** Step A11 part 3: a co-op game's lives (the couch's together) and its result, won or lost by all, as far as you've seen (its
    *  walk on your copy); null for any other game. What it shows is U1's. */
   coop: CoopWalk | null;
@@ -340,6 +354,7 @@ export function gameView(game: GameRefIn, full: LeagueState, playerId: string | 
     revealFirst: hidden.length && !catchingUp && seat ? hidden[0].number : null,
     catchingUp,
     catchUp,
+    pace: null,
     coop: calls?.walk?.coop ?? null,
     matchups: seat ? StateLogic.MatchupLogic.view(view, me) : null,
     // The teams as the table ranked them (each row's side), not worked out again.

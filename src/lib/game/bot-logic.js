@@ -206,6 +206,13 @@ function draftOrderFor(state, playerId, candidateIds, alreadyMine) {
 
 // ---- moves ----
 
+/** The league a draft reads: at your own pace, the cast as it stood before the game's start; else the league itself. */
+function draftCopy(state) {
+  if (!StateLogic.GhostLogic.ownPace(state)) return state;
+  const start = StateLogic.startEpisode(state) ?? 1;
+  return StateLogic.SpoilerLogic.viewThrough(state, Math.max(0, start - 1));
+}
+
 function snakeDraft(state) {
   // A blind draft's bots lock in (blindSubmissions), an auction's bid (auctionBids); a draw's deals itself (no turn comes up).
   if (BlindDraftLogic.on(state) || !piecesOf(state).hasRoster) return 0;
@@ -214,12 +221,15 @@ function snakeDraft(state) {
   for (let guard = 0; guard < 500; guard++) {
     const turn = DraftLogic.currentTurn(state);
     if (!turn || turn.isComplete || !isBot(Core.getPlayer(state, turn.playerId))) break;
-    const free = state.castaways.filter((c) => c.status === "active" && !(c.ownerIds || []).length).map((c) => c.id);
+    // A game at your own pace drafts together at its start (docs/PLAN-own-pace-games.md, sync point 1): on the cast as it stood
+    // before it, never the season's later statuses (on a finished season only the winner is still in).
+    const on = draftCopy(state);
+    const free = on.castaways.filter((c) => c.status === "active" && !(c.ownerIds || []).length).map((c) => c.id);
     // A draft spread across the cast's groups (step A10 part 3) or under a salary cap (part 3b): only who keeps the team spread
     // and within it, read over every free agent as the pick's own checks read it (else whoever keeps it that this list lacks).
-    const fits = StateLogic.draftFitsFor(state, turn.playerId);
+    const fits = StateLogic.draftFitsFor(on, turn.playerId);
     const mine = free.filter((id) => fits.includes(id));
-    const best = draftOrderFor(state, turn.playerId, mine.length ? mine : fits, Core.ownedCastawayIds(state, turn.playerId))[0];
+    const best = draftOrderFor(on, turn.playerId, mine.length ? mine : fits, Core.ownedCastawayIds(state, turn.playerId))[0];
     if (!best) break;
     const before = state.draftPicksMade;
     DraftLogic.pick(state, best);
@@ -285,19 +295,22 @@ function lineups(state) {
   // Step A11 part 1: nobody knocked out of the game sets one (validateLineup would refuse it).
   const outs = StateLogic.KnockoutLogic.outs(state);
   botIds(state).forEach((pid) => {
-    if (outs.has(pid)) return;
-    const mine = state.castaways.filter((c) => c.status === "active" && (c.ownerIds || []).includes(pid)).map((c) => c.id);
-    if (!mine.length) return;
-    const best = ranked(state, pid, mine, "points").slice(0, slots);
-    const current = ActiveRosterLogic.lineupFor(state, ep.id, pid);
-    // A game with a captain (A9 part 2): the best of them wears it.
-    const captainOk = !ActiveRosterLogic.captainTimes(state) || ActiveRosterLogic.captainFor(state, ep.id, pid) === best[0];
-    if (!ActiveRosterLogic.lineupIsCarried(state, ep.id, pid) && sameSet(best, current) && captainOk) return;
-    let set = ActiveRosterLogic.setLineup(state, ep.id, pid, best);
-    if (ActiveRosterLogic.captainTimes(state) && ActiveRosterLogic.setCaptain(state, ep.id, pid, best[0])) set = true;
-    if (set) made++;
+    if (!outs.has(pid)) made += lineupFor(state, ep, pid, slots);
   });
   return made;
+}
+// One bot's lineup (and captain) for `ep`, on `state`: the league's, or a catching-up bot's own copy (catchUpTo).
+function lineupFor(state, ep, pid, slots) {
+  const mine = state.castaways.filter((c) => c.status === "active" && (c.ownerIds || []).includes(pid)).map((c) => c.id);
+  if (!mine.length) return 0;
+  const best = ranked(state, pid, mine, "points").slice(0, slots);
+  const current = ActiveRosterLogic.lineupFor(state, ep.id, pid);
+  // A game with a captain (A9 part 2): the best of them wears it.
+  const captainOk = !ActiveRosterLogic.captainTimes(state) || ActiveRosterLogic.captainFor(state, ep.id, pid) === best[0];
+  if (!ActiveRosterLogic.lineupIsCarried(state, ep.id, pid) && sameSet(best, current) && captainOk) return 0;
+  let set = ActiveRosterLogic.setLineup(state, ep.id, pid, best);
+  if (ActiveRosterLogic.captainTimes(state) && ActiveRosterLogic.setCaptain(state, ep.id, pid, best[0])) set = true;
+  return set ? 1 : 0;
 }
 
 // Group slots (docs/PLAN-start-a-game-gpt.md step A10 part 1; computer players fill them since A11 part 5c): a slot with nothing in
@@ -374,7 +387,7 @@ function eliminatorPickFor(state, ep, pid) {
 // when someone reveals episode `n` (reveal.ts markRevealed, under the league lock): every bot still behind it plays each week
 // up to `n` on the copy a late joiner at that mark sees (StateLogic.GhostLogic.applyAs: nothing past the week exists in it, so
 // a bot never reads ahead), then its mark is `n`. A bot already past `n` (someone else revealed further) does nothing.
-// Deterministic like run(): a second call changes nothing. Survival Pool's pick for now (the drafts come with part 3).
+// Deterministic like run(): a second call changes nothing. Survival Pool's pick, and a Weekly Lineup's lineup (part 3a).
 function catchUpTo(state, n) {
   const G = StateLogic.GhostLogic;
   let made = 0;
@@ -389,6 +402,10 @@ function catchUpTo(state, n) {
           const vEp = view.episodes.find((e) => e.number === week);
           if (!vEp || !inPlay(view, week) || closedForPlay(vEp) || PickEmLogic.decided(vEp, view)) return;
           if (piecesOf(view).hasWeeklyPicks) made += eliminatorPickFor(view, vEp, p.id);
+          if (piecesOf(view).hasActiveRoster && !ActiveRosterLogic.isLineupLocked(view, vEp.id)) {
+            const slots = ActiveRosterLogic.activeSlots(view);
+            if (slots) made += lineupFor(view, vEp, p.id, slots);
+          }
         });
       }
       lj.seenThrough = week;
@@ -471,7 +488,8 @@ function finalePicks(state) {
 // Every move any bot has waiting, applied to `state` in place. Returns how many it made (0 = nothing
 // to do). Repeats until quiet, because one move can open another: a finished draft opens lineups.
 function run(state) {
-  if (!botIds(state).length) return 0;
+  // Any computer player: one catching up at your own pace still drafts with everyone (snakeDraft reads its turn).
+  if (!state.players.some(isBot)) return 0;
   let total = 0;
   for (let pass = 0; pass < 5; pass++) {
     const made = snakeDraft(state) + lineups(state) + groupSlotPicks(state) + eliminatorPicks(state) + finalePicks(state);
@@ -481,10 +499,32 @@ function run(state) {
   return total;
 }
 
+// A game at your own pace with teams (docs/PLAN-own-pace-games.md part 3a): each computer player with none picks its own from who
+// was in before its start, on what was known then (ratings on that copy, the tribe spread and any cap as a draft's), then
+// GhostLogic.pickTeam. Returns how many teams it picked.
+function paceTeams(state) {
+  const G = StateLogic.GhostLogic;
+  let made = 0;
+  state.players.filter((p) => isBot(p) && G.needsTeam(state, p.id)).forEach((p) => {
+    const start = p.lateJoin.startEpisode;
+    const view = StateLogic.SpoilerLogic.viewThrough(state, Math.max(0, start - 1));
+    const pool = G.draftPool(state, start, !G.sharedJoin(state));
+    const size = Math.min(G.teamSize(state), pool.length);
+    const picks = [];
+    for (let i = 0; i < size; i++) {
+      const next = draftOrderFor(view, p.id, StateLogic.draftFits(view, picks, pool.filter((id) => !picks.includes(id))), picks)[0];
+      if (!next) break;
+      picks.push(next);
+    }
+    if (!G.pickTeam(state, p.id, picks)) made++;
+  });
+  return made;
+}
+
 // Whether any bot has a move waiting, without touching `state`.
 function hasWork(state) {
-  if (!botIds(state).length) return false;
+  if (!state.players.some(isBot)) return false;
   return blindSubmissions(state).length > 0 || auctionBids(state).length > 0 || run(structuredClone(state)) > 0;
 }
 
-module.exports = { LEVELS, DEFAULT_LEVEL, isBot, botIds, ratings, run, hasWork, catchUpTo, blindSubmissions, auctionBids, waiverClaim, groupSlotPicks };
+module.exports = { LEVELS, DEFAULT_LEVEL, isBot, botIds, ratings, run, hasWork, catchUpTo, paceTeams, blindSubmissions, auctionBids, waiverClaim, groupSlotPicks };

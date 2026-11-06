@@ -19,6 +19,7 @@ import type { GameSettings, ScoringRules, WaiverAdminGame, WaiverAction } from "
 import type { CouchMoments } from "@/lib/server/couch-answers";
 import type { ShowChange } from "@/lib/server/show-changes";
 import type { Members, OutPreview } from "@/lib/server/backstage-members";
+import type { RemindPreview, RemindResult } from "@/lib/server/backstage-remind";
 import type { AskRun, Ways } from "@/lib/server/results-ways";
 import type { SeasonDraft } from "@/lib/server/season-draft";
 import type { CouchHub } from "@/lib/server/couch-hub";
@@ -73,6 +74,7 @@ export type { OurRules } from "@/lib/server/ours";
 export type { CouchMoments } from "@/lib/server/couch-answers";
 export type { ShowChange } from "@/lib/server/show-changes";
 export type { Member, MemberGame, Members, OutPreview } from "@/lib/server/backstage-members";
+export type { RemindPreview, RemindResult } from "@/lib/server/backstage-remind";
 export type { BotSeat, GameBots } from "@/lib/server/computer-players";
 export type { AskRun, Ways } from "@/lib/server/results-ways";
 export type { DraftClock, DraftFace, DraftGame, DraftPick, DraftSeat } from "@/lib/game/draft-view";
@@ -752,6 +754,8 @@ export const useWaiversAdmin = (seasonId: string, couchId: string | null) => use
 export const useGameSettings = (seasonId: string, couchId: string | null) => useBs<{ games: GameSettings[] }>("settings", seasonId, couchId);
 export const useScoringRules = (seasonId: string, couchId: string | null) => useBs<ScoringRules>("rules", seasonId, couchId);
 export const useMembers = (seasonId: string, couchId: string | null) => useBs<Members>("members", seasonId, couchId);
+/** Backstage home's Reminders card (backstage-remind.ts): who still has a move open in the games you run here, and who heard lately. */
+export const useRemindPreview = (seasonId: string, couchId: string | null, enabled = true) => useBs<RemindPreview>("remind", seasonId, couchId, enabled);
 
 async function sendJson<T>(url: string, method: "PUT" | "PATCH" | "POST", body: unknown): Promise<T> {
   const res = await fetch(url, { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
@@ -772,6 +776,8 @@ export const gameAdmin = {
   /** Its current episode's lineups or picks, locked or unlocked by hand (past its start too): backstage-games.ts lockWrite. */
   lock: (seasonId: string, couchId: string, leagueId: string, closed: boolean) =>
     sendJson<{ closed: boolean }>(seasonUrl(seasonId, "/backstage/settings", { couch: couchId }), "PATCH", { leagueId, lock: closed }),
+  /** Remind everyone (backstage-remind.ts): one push to each person with a move still open in a game you run here. */
+  remind: (seasonId: string, couchId: string) => sendJson<RemindResult>(seasonUrl(seasonId, "/backstage/remind", { couch: couchId }), "POST", {}),
   /** Lock it down (step 15 part 4): competitive mode for every game you run here, one batch. */
   lockDown: (seasonId: string, couchId: string, on: boolean) =>
     sendJson<{ batch: string | null; games: number }>(seasonUrl(seasonId, "/backstage/settings", { couch: couchId }), "PATCH", { lockDown: on }),
@@ -801,6 +807,31 @@ export const ourRules = {
   points: (seasonId: string, couchId: string, leagueId: string, points: Record<string, number>, preview = false) =>
     post<Moved & Batch>(rulesUrl(seasonId, couchId), { action: "points", leagueId, points, preview }),
 };
+
+// ---- What scores on the couch's own copy (docs/PLAN-rulebook-research.md, stage two; src/lib/server/our-scores.ts) ----
+import type { OurScores } from "@/lib/server/our-scores";
+export type { OurScores };
+export type { RulebookAnswerCard } from "@/lib/server/desk-rulebooks";
+const scoresUrl = (seasonId: string, couchId: string) => seasonUrl(seasonId, "/backstage/rules/scores", { couch: couchId });
+export const ourScores = {
+  prompt: (seasonId: string, couchId: string) => get<{ prompt: string | null; task: string }>(seasonUrl(seasonId, "/backstage/rules/scores", { couch: couchId, prompt: "1" })),
+  ask: (seasonId: string, couchId: string) => post<{ text: string; waits: string | null }>(scoresUrl(seasonId, couchId), { action: "ask" }),
+  paste: (seasonId: string, couchId: string, answer: string) => post<OurScores>(scoresUrl(seasonId, couchId), { action: "paste", answer }),
+  settle: (seasonId: string, couchId: string, answer: string, accept: Record<string, number>, declined: string[], preview = false) =>
+    post<Moved & Batch & { saved?: number; declined?: number }>(scoresUrl(seasonId, couchId), { action: "settle", answer, accept, declined, preview }),
+  putAway: (seasonId: string, couchId: string, answer: string) => post<OurScores>(scoresUrl(seasonId, couchId), { action: "putAway", answer }),
+};
+/** Polls (every 4 s) while our bot is asking, so the answer lands in the open sheet. */
+export function useOurScores(seasonId: string, couchId: string | null, enabled = true) {
+  return useQuery({
+    queryKey: ["new-design", "our-scores", seasonId, couchId],
+    queryFn: () => get<OurScores>(scoresUrl(seasonId, couchId!)),
+    enabled: !!couchId && enabled,
+    staleTime: 15_000,
+    refetchInterval: (q) => (q.state.data?.asking ? 4000 : false),
+    retry: (n, e) => (e as { status?: number }).status !== 403 && n < 2,
+  });
+}
 
 /** The couch's own moments in an episode you've seen, with your answer and what's settled (none: the couch has none). */
 export function useCouchMoments(seasonId: string, couchId: string | null, episode: number, enabled = true) {
@@ -1115,19 +1146,21 @@ export function useListingSearch(q: string) {
   });
 }
 
-/** One listing's season: what adding it would follow, and how much of it has aired (for where you are). */
-export function useListingSeason(tvmazeId: number | null) {
+/** One listing's season: what adding it would follow (or `season`, one picked by number), how much of it has aired (for where
+ *  you are), and every season it has (the picker). A season just picked keeps the last one's answer in view while it's read. */
+export function useListingSeason(tvmazeId: number | null, season: number | null = null) {
   return useQuery({
-    queryKey: ["new-design", "listing", tvmazeId],
-    queryFn: () => get<ListingSeason>(`/api/listings/${tvmazeId}`),
+    queryKey: ["new-design", "listing", tvmazeId, season],
+    queryFn: () => get<ListingSeason>(`/api/listings/${tvmazeId}${season != null ? `?season=${season}` : ""}`),
     enabled: tvmazeId != null,
     staleTime: 3600_000,
+    placeholderData: keepPreviousData,
   });
 }
 
 export const watching = {
-  /** Add a show from its listing or by name, at where you are. */
-  add: (body: ({ listing: number } | { name: string }) & { seenThrough?: number; live?: boolean }) => post<AddedShow>("/api/me/shows", body),
+  /** Add a show from its listing (its season on now, or `season` by number) or by name, at where you are. */
+  add: (body: ({ listing: number; season?: number } | { name: string }) & { seenThrough?: number; live?: boolean }) => post<AddedShow>("/api/me/shows", body),
   /** Follow (or stop following) a season here, watch it privately, say where you are, answer the nudge, or how it keeps up. */
   follow: (seasonId: string, change: { following?: boolean; private?: boolean; seenThrough?: number; nudgeOff?: boolean; keepUp?: KeepUp; notYet?: number }) =>
     sendJson<{ seenThrough: number; following: boolean; private: boolean; keepUp: KeepUp; notYet: number | null }>(`/api/me/follows/${seasonId}`, "PUT", change),
@@ -1366,6 +1399,8 @@ export function useEndGames(seasonId: string, couchId: string | null, enabled = 
 }
 
 export const gamesApi = {
+  /** A game at your own pace with teams (docs/PLAN-own-pace-games.md part 3a): your team, from who was in before your start. */
+  team: (leagueId: string, castawayIds: string[]) => post<unknown>(`/api/leagues/${leagueId}/team`, { castawayIds }),
   /** `to`: the last episode it plays (a span, step 6 of docs/PLAN-sports-data.md); null to the season's end. */
   start: (
     seasonId: string,

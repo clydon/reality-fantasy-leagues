@@ -426,6 +426,17 @@ function DiffSheet({ open, onClose, d, picks, setPicks, onSend }: { open: boolea
         </>
       );
     if (c.k === "add") return head(c.name, `New${c.group ? ` · starts on ${c.group}` : ""}: joins every game as nobody's`);
+    if (c.k === "photo")
+      return (
+        <div className="flex items-center gap-3">
+          <Face src={photo} name={c.name} className="size-11 flex-none rounded-[3px] text-base opacity-50" />
+          <Face src={c.to} name={c.name} className="size-11 flex-none rounded-[3px] text-base" />
+          <span className="min-w-0 flex-1">
+            <b className="block text-[16px] font-semibold leading-snug">{`This season's photo of ${firstOf(c.name)}`}</b>
+            <small className="block text-[14px] leading-snug text-muted-foreground">{c.from ? "In place of the TV listing's" : "They had none"}</small>
+          </span>
+        </div>
+      );
     return head(c.name, "Not in this answer. They stay in every game: remove them from their page if they shouldn't be here");
   };
   const many = r.changes.filter((c) => c.change.k === "add").length > 6;

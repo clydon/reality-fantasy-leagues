@@ -3,7 +3,7 @@
 // segment's answers build its moments, and so do twists, ways out and the finale; moments added by hand
 // come on top. Nobody writes a rule: R2's compiler turns these into the engine's events and rules.
 //
-//   momentsFor(blocks) -> [{ id, label, from, defaultPoints, ask?, auto?, custom?, answeredBy, reliability?, tags?, off? }]
+//   momentsFor(blocks) -> [{ id, label, from, defaultPoints, ask?, auto?, custom?, answeredBy, reliability?, tags?, off?, per? }]
 //
 //   from          where it comes from: { segment } | { twist } | { wayOut } | { finale: true }, plus { custom }
 //                 for a moment added by hand (with its segment or twist when it happens during one)
@@ -232,9 +232,12 @@ function customMoment(m, blocks) {
   const key = typeof m.uses === 'string' && m.uses ? m.uses : m.id;
   // Not for whoever won the segment it happens during, alone or in the group that won (chosen to join a reward).
   const winners = m.exceptWinners === true && seg ? [wonAskOf(seg, blocks), groupAskOf(seg, blocks)].filter(Boolean) : [];
+  // Per amount: how much one unit is (the amount research answers is divided by it before it scores).
+  const per = m.counted === 'perUnit' && Number.isFinite(m.per) && m.per > 0 && m.per !== 1 ? m.per : null;
   return {
     id: m.id, label: m.label, from, defaultPoints: 0, custom: true, ask: { key, type, question }, answeredBy: m.answeredBy,
     ...(key !== m.id ? { uses: key } : {}), ...(m.reliability ? { reliability: m.reliability } : {}), ...(winners.length ? { unless: winners } : {}),
+    ...(per ? { per } : {}),
   };
 }
 

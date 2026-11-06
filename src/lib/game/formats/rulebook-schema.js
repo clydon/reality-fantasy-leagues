@@ -11,7 +11,7 @@
 //                  groupWin?, places?, skippedBy? }],
 //     waysOut:  [{ id, name, means, cause?: { segment } | ownChoice | medical | removed | story, winnerToo? }],
 //     twists:   [{ id, type, name, summary?, ...that type's answers (an advantage's cancelled?, a side trip's away?) }],
-//     customMoments: [{ id, label, question?, uses?, during?: { segment } | { twist }, counted, answeredBy, reliability?, exceptWinners? }],
+//     customMoments: [{ id, label, question?, uses?, during?: { segment } | { twist }, counted, per?, answeredBy, reliability?, exceptWinners? }],
 //       (uses: the key of a question the rulebook already asks, scored instead of asking one of its own:
 //       "−0.5 a vote received at the Round Table" on roundTableVotesReceived; docs/PLAN-maker-scoring.md)
 //     points:   { [momentId]: number | { exclusive, shared } },   suggested-point overrides
@@ -245,6 +245,14 @@ const OPT = {
     ['eachTime', 'Each time it happens', ''],
     ['perUnit', 'Per amount', 'Each $1,000, each point, each day.'],
   ],
+  // Per amount: how much one unit is. Research answers the raw amount; the engine divides by this before it scores (a tip
+  // share of $2,083 at +1 per $1,000 is 2.08, not 2,083: the user, 2026-11-05).
+  per: [
+    ['1', 'Each one', 'Each point, each day, each dollar.'],
+    ['10', 'Each 10', ''],
+    ['100', 'Each 100', ''],
+    ['1000', 'Each 1,000', 'Each $1,000.'],
+  ],
   answeredBy: [
     ['research', 'Research', 'Answered the morning after, from recaps.'],
     ['league', 'The league', "For things recaps won't mention. Someone in the league says when it happens."],
@@ -341,7 +349,7 @@ const QUESTIONS = {
   },
   moment: {
     label: 'What happens?', during: 'Where does it happen?', counted: 'How is it counted?', answeredBy: 'Who answers it?',
-    reliability: 'How reliably do recaps report it?', points: 'Suggested points', exceptWinners: 'Leave out whoever won it?',
+    reliability: 'How reliably do recaps report it?', points: 'Suggested points', exceptWinners: 'Leave out whoever won it?', per: 'Per how much?',
   },
 };
 
@@ -624,6 +632,10 @@ function blocksProblems(blocks) {
       if (!ok) add(`${at}.during`, `${name}: where it happens isn't one of the segments or twists`);
     }
     oneOf(`${at}.counted`, name, 'counted', m.counted, 'how it is counted');
+    if (m.per !== undefined) {
+      if (m.counted !== 'perUnit') add(`${at}.per`, `${name}: per how much only goes with a moment counted per amount`);
+      else if (!(Number.isFinite(m.per) && m.per > 0)) add(`${at}.per`, `${name}: per how much should be a number above 0`);
+    }
     oneOf(`${at}.answeredBy`, name, 'answeredBy', m.answeredBy, 'who answers it');
     if (m.reliability !== undefined) oneOf(`${at}.reliability`, name, 'reliability', m.reliability, 'how reliably recaps report it');
     if (m.exceptWinners !== undefined) {

@@ -146,6 +146,56 @@ export function pickSeason(seasons: TvSeason[], now = new Date()): TvSeason | nu
   return [...seasons].sort((a, b) => a.number - b.number)[0] ?? null;
 }
 
+/** One season of a listed show, as Where are you's season picker lists it (the user, 2026-11-05: Below Deck came up as its 13th
+ *  season, with no way to an earlier one). */
+export interface SeasonChoice {
+  number: number;
+  /** The season's own name, when TVmaze has one ("Battle of the Eras"); null for a plain number. */
+  name: string | null;
+  status: SeasonStatus;
+  premiere: string | null;
+  episodeCount: number | null;
+  /** The season's own poster (medium), when it has one: the row's art while it's picked. */
+  art: string | null;
+}
+
+/** Every season of a listed show, latest first, each with its name, status and when it aired; a number listed twice is kept once. */
+export function seasonChoices(seasons: TvSeason[], now = new Date()): SeasonChoice[] {
+  const byNumber = new Map<number, SeasonChoice>();
+  for (const s of [...seasons].sort((a, b) => a.number - b.number)) {
+    if (!Number.isInteger(s.number) || byNumber.has(s.number)) continue;
+    const status = seasonStatus(s, now);
+    byNumber.set(s.number, {
+      number: s.number,
+      name: s.name?.trim() || null,
+      status,
+      premiere: s.premiereDate ?? null,
+      episodeCount: s.episodeOrder && s.episodeOrder > 0 ? s.episodeOrder : null,
+      art: s.image?.medium ?? null,
+    });
+  }
+  return [...byNumber.values()].sort((a, b) => b.number - a.number);
+}
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** "Season 13 · On now · 18 episodes", "Season 12 · 2024 · 18 episodes", "Season 3: Battle of the Eras · 2024", "Season 14 · Coming Jan 2027":
+ *  one season as the picker's option, short enough for a phone's picker. */
+export function seasonChoiceLine(c: SeasonChoice): string {
+  const head = `Season ${c.number}${c.name ? `: ${c.name}` : ""}`;
+  const m = c.premiere ? /^(\d{4})-(\d{2})/.exec(c.premiere) : null;
+  const when =
+    c.status === "airing"
+      ? "On now"
+      : c.status === "upcoming"
+        ? m
+          ? `Coming ${MONTHS[Number(m[2]) - 1] ?? ""} ${m[1]}`.replace(/\s+/g, " ")
+          : "Coming up"
+        : (m?.[1] ?? "Finished");
+  const count = c.episodeCount ? `${c.episodeCount} episode${c.episodeCount === 1 ? "" : "s"}` : null;
+  return [head, when, count].filter(Boolean).join(" · ");
+}
+
 export interface ListedEpisode {
   number: number;
   /** UTC ISO start. */

@@ -54,6 +54,33 @@ async function seatsIn(userId: string, leagueIds: string[]) {
 }
 
 /**
+ * A waiver moment you've reached (docs/PLAN-own-pace-games.md, sync point 2): the earliest episode up to your mark where someone's
+ * team lost a person and its waiver week hasn't settled, in a game with exclusive teams and waivers. Who isn't there yet (its
+ * people, by their marks; computer players keep pace), and whether its week is on.
+ */
+function gatherOf(state: LeagueState, mark: number | null, me: string): NonNullable<GameView["pace"]>["gather"] {
+  const G = StateLogic.GhostLogic;
+  const W = StateLogic.WaiverLogic;
+  if (!G.draftsTogether(state) || !G.draftDone(state) || !W.enabled(state) || mark === null) return null;
+  const start = StateLogic.startEpisode(state) ?? 1;
+  const periods = W.periods(state);
+  for (let n = start; n <= mark; n++) {
+    const ep = state.episodes.find((e) => e.number === n);
+    if (!ep) continue;
+    const week = periods.find((p) => p.episode === n);
+    if (week && week.phase !== "open") continue;
+    const lost = state.castaways.filter((c) => c.exitEpisodeId === ep.id && (c.ownerIds ?? []).length && !c.replenishClaimed);
+    if (!lost.length) continue;
+    const waiting = state.players
+      .filter((p) => p.id !== me && !p.automated && !p.disabled && p.lateJoin && (p.lateJoin.seenThrough ?? (p.lateJoin.startEpisode ?? 1) - 1) < n)
+      .map((p) => p.name);
+    const teamOf = (c: (typeof lost)[number]) => state.players.find((p) => p.id === (c.ownerIds ?? [])[0])?.name ?? "someone";
+    return { episode: n, lost: lost.map((c) => ({ name: c.name, team: teamOf(c), yours: (c.ownerIds ?? []).includes(me) })), waiting, open: !!week && !waiting.length };
+  }
+  return null;
+}
+
+/**
  * A game at your own pace (docs/PLAN-own-pace-games.md): everyone else in it (not its computer players, which are never behind
  * anyone) and the episode they're on, null once they've finished. The words a strip and the reveal button make of it are the
  * sheet's (src/new/couch/pace.ts); nothing here locks.
@@ -198,8 +225,20 @@ export async function viewWithCalls(user: SessionUser, seasonId: string, h: Game
     return null;
   });
   const view = gameView(h.ref, h.state, h.readOnly ? null : h.playerId, h.mark, h.userOf, calls ?? undefined);
-  // A game at your own pace: where the others are, for its strip and its reveal button (docs/PLAN-own-pace-games.md).
-  if (view.catchUp && !h.readOnly && StateLogic.GhostLogic.ownPace(h.state)) view.catchUp.others = othersIn(h.state, h.playerId, h.marks);
+  // A game at your own pace: where the others are, for its plate and its reveal button, and the season's last episode
+  // (docs/PLAN-own-pace-games.md).
+  if (!h.readOnly && StateLogic.GhostLogic.ownPace(h.state)) {
+    const G = StateLogic.GhostLogic;
+    const start = G.lateJoinOf(h.state, h.playerId)?.startEpisode;
+    const pool = G.needsTeam(h.state, h.playerId) && Number.isInteger(start) ? G.draftPool(h.state, start as number, !G.sharedJoin(h.state)) : null;
+    view.pace = {
+      others: othersIn(h.state, h.playerId, h.marks),
+      last: Math.max(0, ...h.state.episodes.map((e) => e.number)),
+      team: pool ? { need: Math.min(G.teamSize(h.state), pool.length), pool } : null,
+      draft: G.draftsTogether(h.state) && !G.draftDone(h.state) ? (StateLogic.DraftLogic.isStarted(h.state) ? "live" : "waiting") : null,
+      gather: gatherOf(h.state, h.mark, h.playerId),
+    };
+  }
   // A game that starts when a phase does (step A3 of docs/PLAN-start-a-game-gpt.md): the phase by name, from its rulebook.
   const phase = StateLogic.startPhase(h.state);
   if (phase) view.phase = (await leaguePhases(pool, h.game.leagueId, seasonId)).find((p) => p.id === phase)?.name ?? phase;
@@ -214,7 +253,7 @@ export async function viewWithCalls(user: SessionUser, seasonId: string, h: Game
 }
 
 function refOf(g: Game): GameRefIn {
-  return { leagueId: g.leagueId, name: g.name, gameType: g.gameType, gameName: g.gameName, yourRole: g.yourRole, solo: g.solo, archived: g.archived };
+  return { leagueId: g.leagueId, name: g.name, gameType: g.gameType, gameName: g.gameName, yourRole: g.yourRole, solo: g.solo, archived: g.archived, ownPace: g.ownPace };
 }
 
 /**
