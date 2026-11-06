@@ -594,7 +594,7 @@ function rankKey(state, r){
     return by === 'wins' ? [r.wins || 0, r.placePoints || 0, r.stagePoints || 0] : by === 'places' ? [r.placePoints || 0, r.stagePoints || 0] : [r.total || 0];
   }
   // C2 part 4b: a pool ranked by its points, or head to head on them, ranks as any game does below (its points, its teams', its record).
-  if(g.get.by === 'pick' && !Spec.poolByPoints(g)) return g.rank.by === 'standing' ? PickEmScoringStrategy.standingKey(r) : [r.longestStreak || 0, r.total];
+  if(Spec.isPool(g) && !Spec.poolByPoints(g)) return g.rank.by === 'standing' ? PickEmScoringStrategy.standingKey(r) : [r.longestStreak || 0, r.total];
   if(g.rank.by === 'worth' && MarketLogic.on(state)) return [r.worth || 0, r.total];
   // C2 part 4b: teams knocked out (a draft's cuts on the teams' totals), last team standing: every member shares their team's place
   // (in before out, out later first, then its points: TeamLogic.label puts its `out` on the row's team); someone on no team after
@@ -614,6 +614,12 @@ function rankKey(state, r){
   if(g.rank.by === 'matchups' && MatchupLogic.on(state)) {
     const m = r.matchups;
     return m ? Seq.recordKey(m) : [0, 0, r.total || 0, 0];
+  }
+  // C5: weeks won, then the points in those weeks (a team's, between teams of players: WeekLogic.apply puts them on its rows), then
+  // the row's own; a row in nobody's weeks (someone on no team) after everyone who was.
+  if(g.rank.by === 'weeks' && WeekLogic.on(state)) {
+    const w = r.weeks;
+    return w ? [1, w.won, w.points, r.total || 0] : [0, 0, 0, r.total || 0];
   }
   return [r.total];
 }
@@ -797,6 +803,11 @@ class ScoringLogic {
     if(MatchupLogic.on(view)){
       const own = walk ? AnswerLogic.walkRows(rows, walk) : rows;
       return MatchupLogic.apply(view, TeamLogic.on(view) ? TeamLogic.label(view, own) : own);
+    }
+    // C5: weeks won, on the same series of totals head to head reads (a team's, between teams of players).
+    if(WeekLogic.on(view)){
+      const own = walk ? AnswerLogic.walkRows(rows, walk) : rows;
+      return WeekLogic.apply(view, TeamLogic.on(view) ? TeamLogic.label(view, own) : own);
     }
     const scored = walk ? AnswerLogic.applyWalk(view, rows, walk) : rows;
     // A11 part 5: teams of players, ranked by their teams' points.
@@ -1093,7 +1104,8 @@ class MatchupLogic {
   // pool's, from its picks (PickEmLogic.series).
   static seatSeries(state){
     const g = gameOf(state);
-    if(g.get.by === 'pick') return PickEmLogic.series(state);
+    // C5: a pick scored by what they do walks as a lineup does (the draft's walk, each episode its picks' moments).
+    if(Spec.isPool(g)) return PickEmLogic.series(state);
     if(!Spec.questionsGame(g)) return KnockoutLogic.series(state);
     const walk = AnswerLogic.walkOf(state);
     return walk && Array.isArray(walk.series) ? walk.series.map(x => ({ number: x.number, totals: new Map(Object.entries(x.totals)) })) : [];
@@ -1265,6 +1277,41 @@ class MatchupLogic {
       if(from !== null && resultsAt(from)){ state.playoffsFrom = from; return from !== had; }
     }
     return had !== undefined;
+  }
+}
+
+// ---------- WeekLogic: weeks won (docs/PLAN-start-a-game-gpt.md track C, C5) ----------
+// The spec's rank.by 'weeks' (Spec.weekParts): each episode, whoever of the seats in the game then added the most points to their total
+// wins the week; the season by weeks won, then the points in those weeks. On the same series of totals head to head reads
+// (MatchupLogic.series: a draft's walk, a game of questions' answers' walk, a pool's picks, a pick scored by moments; between teams of
+// players, each team's), and the same seats (MatchupLogic.seatsAt: playing the league's own season from when it joined, a team
+// with someone on it then), so someone joining late plays the weeks from theirs. A week two or more top: each of them wins it (ties
+// 'all', the default: the user's), they share one (split), or nobody does (none); a week nobody scored anything (a quiet night, a
+// format change that voided everything) is won by nobody, and the game carries on. Nothing after the season's finale counts. Worked
+// out from the data on every read, as head to head is.
+class WeekLogic {
+  static parts(state){ return Spec.weekParts(gameOf(state)); }
+  static on(state){ return !!WeekLogic.parts(state); }
+  // { weeks: [{ number, winners, top }], won: Map side -> weeks won, points: Map side -> its points in the weeks it was in }, or null.
+  static run(state){
+    const parts = WeekLogic.parts(state);
+    if(!parts) return null;
+    const finale = seasonEnded(state) ? finaleEpisodeOf(state) : null;
+    return Seq.weeks(MatchupLogic.series(state), { ties: parts.ties, finale: finale ? finale.number : null, seatsAt: k => MatchupLogic.seatsAt(state, k) });
+  }
+  // The score rows with each one's `weeks` ({ won, points, last: the latest week's winners }: their side's: a team's, between teams of
+  // players; null for a row in nobody's weeks), ranked as rankKey ranks them.
+  static apply(state, rows){
+    const w = WeekLogic.run(state);
+    if(!w) return rows;
+    const sideOf = MatchupLogic.sideOf(state);
+    const last = w.weeks.length ? w.weeks[w.weeks.length - 1] : null;
+    rows.forEach(r => {
+      const side = sideOf(r.playerId);
+      if(side === null || !w.points.has(side)){ r.weeks = null; return; }
+      r.weeks = { won: w.won.get(side) || 0, points: w.points.get(side) || 0, last: last ? { episode: last.number, won: last.winners.includes(side) } : null };
+    });
+    return rows.sort((a,b) => PickEmScoringStrategy.compareKeys(rankKey(state, b), rankKey(state, a)) || b.total - a.total);
   }
 }
 
@@ -3032,6 +3079,10 @@ class ActiveRosterLogic {
   static pointsFor(state, type){
     if(state.settings && state.settings.rulebook && !formatOf(state).events.some(e => e.id === type)) return 0;
     const score = gameOf(state).score;
+    // C5: only these moments count (score.only), and hits counted (score.hits): each moment's worth (Spec.momentWorth).
+    if(score.by === 'moments' && (score.only !== undefined || score.hits !== undefined)){
+      return Spec.momentWorth(score, type, defaultPointsFor(formatOf(state).events.find(e => e.id === type), ownershipModeOf(state)));
+    }
     const configured = score.by === 'moments' && score.points ? score.points[type] : undefined;
     if(typeof configured === 'number' && Number.isFinite(configured)) return configured;
     const def = formatOf(state).events.find(e => e.id === type);
@@ -3055,7 +3106,19 @@ class ActiveRosterLogic {
   // An episode's moments (episodeEvents) as the scoring sequence reads them: each { castawayId, points } at the game's points, in
   // order. Worked out once an episode for every seat (compute's `pre.scored`).
   static scoredEvents(state, events){
+    // C5: counting each objective once (score.hits 'pick' or 'objective'), each moment's id and what a hit on it is worth.
+    const hits = ActiveRosterLogic.hits(state);
+    if(hits === 'pick' || hits === 'objective'){
+      const worth = new Map();
+      const of = ev => { if(!worth.has(ev.type)) worth.set(ev.type, ev.couch && !formatOf(state).events.some(e => e.id === ev.type) ? 0 : ActiveRosterLogic.pointsFor(state, ev.type)); return worth.get(ev.type); };
+      return events.map(ev => ({ castawayId: ev.castawayId, points: ActiveRosterLogic.eventPoints(state, ev), type: ev.type, worth: of(ev) }));
+    }
     return events.map(ev => ({ castawayId: ev.castawayId, points: ActiveRosterLogic.eventPoints(state, ev) }));
+  }
+  // C5: how a game scored by moments counts hits (score.hits: every, pick, objective), or null (by points, every game before C5).
+  static hits(state){
+    const score = gameOf(state).score;
+    return score.by === 'moments' && score.hits !== undefined ? score.hits : null;
   }
   // A lineup's starters (the spec's count.start) and its bench (the rest of the team); none outside a Weekly Lineup.
   static activeSlots(state){
@@ -3134,11 +3197,13 @@ class ActiveRosterLogic {
   static episodeScore(state, ep, playerId, pre){
     const best = ActiveRosterLogic.bestOf(state);
     // Each holding once (C2 part 2: a stored lineup listing a starter twice, which validateLineup refuses, scores them once).
-    const ids = [...new Set(best ? ActiveRosterLogic.teamFor(state, ep, playerId) : ActiveRosterLogic.lineupFor(state, ep.id, playerId))];
+    // C5: a pick each episode scored by what they do holds that episode's picks.
+    const held = gameOf(state).get.by === 'pick' ? PickEmLogic.picked(PickEmLogic.pickFor(state, ep.id, playerId)) : best ? ActiveRosterLogic.teamFor(state, ep, playerId) : ActiveRosterLogic.lineupFor(state, ep.id, playerId);
+    const ids = [...new Set(held)];
     const captain = best ? null : ActiveRosterLogic.captainFor(state, ep.id, playerId);
     const times = pre && pre.times !== undefined ? pre.times : ActiveRosterLogic.timesFor(state, ep.number);
     const scored = (pre && pre.scored) || ActiveRosterLogic.scoredEvents(state, (pre && pre.events) || ActiveRosterLogic.episodeEvents(state, ep));
-    const raw = Seq.momentRaw(ids, scored);
+    const raw = Seq.momentRaw(ids, scored, ActiveRosterLogic.hits(state));
     // The captain's factor (C3: the one multiplier piece, on 'captain').
     const cap = { on: 'captain', times: captain ? ActiveRosterLogic.captainTimes(state) : 1 };
     const joined = pre && pre.joined !== undefined ? pre.joined : joinedFactors(state);
@@ -3750,6 +3815,10 @@ class PickEmLogic {
     const ep = PickEmLogic.findEpisode(state, epId);
     return ep ? (ep.picks||[]).find(pk=>pk.playerId===playerId) || null : null;
   }
+  // C5: everyone a pick names, in order: its first (castawayId) and, in a game picking several each episode, the rest (`more`).
+  static picked(pick){ return pick ? [pick.castawayId, ...(Array.isArray(pick.more) ? pick.more : [])].filter(Boolean) : []; }
+  // C5: a pick scored by what they do in the episode (score.by 'moments'), one person or several, rather than whether they stay in.
+  static byMoments(state){ return Spec.momentsPick(gameOf(state)); }
   // The episode picks are being made for. See the module-level currentEpisode() -- shared with
   // Active Roster's lineup grid and Overview's side bets.
   static upcomingEpisode(state){ return currentEpisode(state); }
@@ -3759,6 +3828,8 @@ class PickEmLogic {
   // sport, settings.poolSurvive 'scores': docs/PLAN-new-design.md step 10 part 2b) is decided once its scores are in.
   static decided(ep, state){
     if(!ep) return false;
+    // C5: a pick scored by what they do is decided once the episode's results are in (its moments), as a lineup's.
+    if(PickEmLogic.byMoments(state)) return EpisodeLogic.hasResults(ep);
     if(ep.noExit || (ep.events||[]).length > 0) return true;
     return PickEmLogic.byScore(state) && (ep.scoringEvents||[]).length > 0;
   }
@@ -3801,17 +3872,21 @@ class PickEmLogic {
       const out = PickEmLogic.history(state, playerId, parts).out;
       if(out !== null && out < ep.number) return { available: [], blocked, out };
     }
+    // C5: a pick that repeats freely (repeat 'any'): anyone still in, every episode.
+    const repeat = gameOf(state).get.repeat;
+    if(repeat === 'any') return { available: remaining, blocked };
     const prior = [...state.episodes]
       .filter(e => e.number < ep.number)
       .sort((a,b) => a.number - b.number)
       .flatMap(e => {
         const pick = (e.picks||[]).find(pk => pk.playerId === playerId);
         if(!pick) return [];
-        const made = [{ number: e.number, castawayId: pick.castawayId }];
+        // C5: each of several picks an episode, in order.
+        const made = PickEmLogic.picked(pick).map(id => ({ number: e.number, castawayId: id }));
         if(pick.second && PickEmLogic.secondCounted(state, e, parts)) made.push({ number: e.number, castawayId: pick.second });
         return made;
       });
-    if(parts && parts.never){
+    if((parts && parts.never) || repeat === 'never'){
       // Only the picks their own season played (from their start, in the game's span), as history counts them.
       const from = GhostLogic.startFor(state, playerId);
       const picked = new Map(prior.filter(x => from !== null && x.number >= from && inPlay(state, x.number)).map(x => [x.castawayId, x.number]));
@@ -3836,6 +3911,16 @@ class PickEmLogic {
     if(!available.length && last.length){
       available = last.map(x => x.castawayId);
       last.forEach(x => { delete blocked[x.castawayId]; });
+    }
+    // C5: a pick of several that the rules leave short of a full set (late in a season, fewer still in than two episodes' picks):
+    // back to back is let go first, then the cycle, so a full pick can always be made while that many are still in.
+    const each = gameOf(state).get.each;
+    if(each > 1 && available.length < each){
+      for(const reason of ['backToBack', 'cycle']){
+        if(available.length >= each) break;
+        remaining.forEach(id => { if(blocked[id] && blocked[id].reason === reason) delete blocked[id]; });
+        available = remaining.filter(id => !blocked[id]);
+      }
     }
     return { available, blocked };
   }
@@ -4094,9 +4179,31 @@ class PickEmLogic {
     const player = Core.getPlayer(state, playerId);
     if(!ep || !c || !player || c.status!=='active' || !inPlay(state, ep.number)) return;
     if(closedForPlay(ep) || PickEmLogic.decided(ep, state)) return; // picks close when the episode starts (or its lock says)
-    if(!PickEmLogic.eligibility(state, epId, playerId).available.includes(castawayId)) return;
+    const available = PickEmLogic.eligibility(state, epId, playerId).available;
+    if(!available.includes(castawayId)) return;
     ep.picks = ep.picks || [];
     const existing = ep.picks.find(pk=>pk.playerId===playerId);
+    // C5: a game picking several each episode (get.each): `opts.picks` the whole pick at once (each still in and theirs to pick,
+    // none twice, up to `each`), else `castawayId` added to the pick while it has room.
+    const each = gameOf(state).get.each;
+    if(each > 1 && !(opts && opts.second)){
+      let ids;
+      if(opts && Array.isArray(opts.picks)){
+        ids = opts.picks;
+        if(ids[0] !== castawayId || ids.length > each || new Set(ids).size !== ids.length || !ids.every(id => available.includes(id))) return;
+      } else {
+        const now = PickEmLogic.picked(existing);
+        if(now.includes(castawayId) || now.length >= each) return;
+        ids = [...now, castawayId];
+      }
+      const pick = existing || { playerId };
+      pick.castawayId = ids[0];
+      if(ids.length > 1) pick.more = ids.slice(1);
+      else delete pick.more;
+      if(!existing) ep.picks.push(pick);
+      return;
+    }
+    if(opts && Array.isArray(opts.picks) && !(opts.picks.length === 1 && opts.picks[0] === castawayId)) return;
     if(opts && opts.second){
       const parts = PickEmLogic.parts(state);
       if(!parts || !parts.second || !existing || existing.castawayId === castawayId) return;
@@ -4117,9 +4224,23 @@ class PickEmLogic {
     if(!ep) return;
     const parts = PickEmLogic.parts(state);
     if(parts && parts.second && (closedForPlay(ep) || PickEmLogic.decided(ep, state))) return;
+    // C5: a pick scored by what they do, cleared after its lock, would take back what it scored (a negative week, or a week won).
+    if(PickEmLogic.byMoments(state) && (closedForPlay(ep) || PickEmLogic.decided(ep, state))) return;
     if(opts && opts.second){
       const existing = (ep.picks||[]).find(pk=>pk.playerId===playerId);
       if(existing) delete existing.second;
+      return;
+    }
+    // C5: one of several picks (`opts.castawayId`), the rest kept in order: not once the episode's locked or decided.
+    if(opts && opts.castawayId){
+      if(closedForPlay(ep) || PickEmLogic.decided(ep, state)) return;
+      const existing = (ep.picks||[]).find(pk=>pk.playerId===playerId);
+      const ids = PickEmLogic.picked(existing).filter(id => id !== opts.castawayId);
+      if(!existing) return;
+      if(!ids.length){ ep.picks = ep.picks.filter(pk=>pk.playerId!==playerId); return; }
+      existing.castawayId = ids[0];
+      if(ids.length > 1) existing.more = ids.slice(1);
+      else delete existing.more;
       return;
     }
     ep.picks = (ep.picks||[]).filter(pk=>pk.playerId!==playerId);
@@ -7469,7 +7590,8 @@ class AnswerLogic {
     const finale = parts.matchups && seasonEnded(state) ? finaleEpisodeOf(state) : null;
     const endAt = parts.matchups ? MatchupLogic.endsAt(state) : null;
     const stop = finale && (endAt === null || finale.number < endAt) ? finale.number : endAt;
-    const aboutOne = parts.matchups ? [...qs.values()].filter(Spec.livesQuestion) : [];
+    // C5: weeks won waits on them too (a week isn't won on part of an episode).
+    const aboutOne = parts.matchups || parts.weeks ? [...qs.values()].filter(Spec.livesQuestion) : [];
     // A11 part 5b: a handicap, each newcomer's points through each episode walked.
     const tally = parts.handicap ? HandicapLogic.tally(state, eps.map(e => e.number)) : null;
     // The facts as they stood once each episode was in, worked out once each.
@@ -7491,8 +7613,8 @@ class AnswerLogic {
       if(k === newest){
         // (A question the players settle waits only for its episode, its answers or not: none passed here.)
         let waiting = lifeQs.some(q => Spec.verdictOf(q, k, fk).state === 'waiting');
-        if(parts.matchups && !waiting) waiting = aboutOne.some(q => Spec.verdictOf(q, k, fk).state === 'waiting');
-        if(waiting || ((parts.race || parts.cuts.length || parts.matchups) && EpisodeLogic.resultsStage(ep) === 'early')){ walkedAll = false; break; }
+        if((parts.matchups || parts.weeks) && !waiting) waiting = aboutOne.some(q => Spec.verdictOf(q, k, fk).state === 'waiting');
+        if(waiting || ((parts.race || parts.cuts.length || parts.matchups || parts.weeks) && EpisodeLogic.resultsStage(ep) === 'early')){ walkedAll = false; break; }
       }
       nights.push({
         number: k,
@@ -7592,7 +7714,8 @@ class AnswerLogic {
       shared: [...run.shared],
       totals,
       // A11 part 4b: head to head's episodes, for MatchupLogic.series; part 5, teams of players' (TeamLogic, through seatSeries).
-      ...(parts.matchups || parts.teams ? { series: [...series].map(([number, t]) => ({ number, totals: Object.fromEntries(t) })) } : {}),
+      // C5: weeks won's too (WeekLogic, through MatchupLogic.series).
+      ...(parts.matchups || parts.teams || parts.weeks ? { series: [...series].map(([number, t]) => ({ number, totals: Object.fromEntries(t) })) } : {}),
       // A11 part 5b: each one's handicap, as their points have it.
       ...(parts.handicap ? { handicap: handicaps } : {}),
     };
@@ -8701,7 +8824,7 @@ return {
   // EliminationOrderScoringStrategy/PickEmScoringStrategy are those pieces,
   // exported directly for code that wants to bypass the dispatch.
   Core, ScoringLogic, DraftLogic, RosterLogic, WaiverLogic, EpisodeLogic, BetLogic, FinaleLogic, AnswerLogic, PickEmLogic, BlindDraftLogic, ActiveRosterLogic, GroupSlotLogic, SetupLogic, RevealLogic, SpoilerLogic, GhostLogic, Migrations,
-  SpreadLogic, DrawLogic, PriceLogic, BudgetLogic, MarketLogic, AuctionLogic, KeeperLogic, KnockoutLogic, MatchupLogic, TeamLogic, HandicapLogic, StageLogic, draftFits, draftFitsFor, rankKey,
+  SpreadLogic, DrawLogic, PriceLogic, BudgetLogic, MarketLogic, AuctionLogic, KeeperLogic, KnockoutLogic, MatchupLogic, WeekLogic, TeamLogic, HandicapLogic, StageLogic, draftFits, draftFitsFor, rankKey,
   SnakeDraftStrategy, StagesScoringStrategy, EliminationOrderScoringStrategy, NoDraftStrategy, PickEmScoringStrategy, BlindDraftStrategy, ActiveRosterEventScoringStrategy, DrawDraftStrategy, AuctionDraftStrategy
 };
 

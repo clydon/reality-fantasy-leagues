@@ -34,7 +34,8 @@
 // in tests/multipliers.test.js; the 1,998 before them stay. C4's (ownShapes: replacements and swaps from anyone still in, so a
 // castaway two teams hold in an exclusive draft) likewise, from C4's engine, proven by hand in tests/ownership.test.js, and each
 // read the same as the engine before C4 gives on the same holdings with no `own` (which nothing scored reads); the 2,088 before
-// them stay:
+// them stay. C5's (weekWonShapes: a pick each episode scored by what they do, only some moments and hits, weeks won) likewise, from
+// C5's engine, proven by hand in tests/weeks.test.js; the 2,124 before them stay:
 //   node tests/fixtures/scoring-shapes.js --write [--ref=<git ref>]      the record, from this tree's engine (or the ref's)
 //   node tests/fixtures/scoring-shapes.js --print <shape> <seat|-> <mark|-|all> [--ref=<git ref>]   one read, in full
 //   node tests/fixtures/scoring-shapes.js --diff [<shape>] [--ref=d5222e68]   where this tree's reads part from the ref's (the
@@ -100,6 +101,29 @@ function shapes(G) {
     ...askShapes(outlast, lineup),
     ...multiplyShapes(G, outlast, lineup),
     ...ownShapes(G, outlast, lineup),
+    ...weekWonShapes(outlast, lineup),
+  ];
+}
+
+/**
+ * C5: the week as a result, on the same season: a pick each episode scored by what they do (POOL_PICKS, a pick's second person its
+ * `more`: o.more), by its points, weeks won and in teams; only some moments, counted as hits per objective; and weeks won on a
+ * lineup (a tie split), an Outlast and a pool by its points (a tie to nobody). No engine before C5 plays them (it refuses a pick
+ * scored by moments, score.only, score.hits and rank.by weeks), so their reads are new (from C5's engine), the mechanics proven by
+ * hand in tests/weeks.test.js; the 2,124 before them stay.
+ */
+function weekWonShapes(outlast, lineup) {
+  const pick = (score = {}, rank = { by: "total" }) => ({ get: { by: "pick", each: 2 }, count: { pick: true }, score: { by: "moments", points: null, ...score }, rank });
+  const pool = (rank) => ({ preset: "survival-pool", score: { by: "survive", means: "staysIn", points: 1 }, rank });
+  const P = { week: true, pick: true, more: true };
+  return [
+    ["w-pick", pick(), null, P],
+    ["w-pick-weeks", pick({ times: [{ times: 2, finale: true }] }, { by: "weeks" }), null, P],
+    ["w-pick-hits", pick({ only: ["individualImmunity", "idolFound", "idolPlayed", "tribeImmunity"], hits: "objective" }, { by: "weeks" }), null, P],
+    ["w-pick-teams", pick({ only: ["individualImmunity", "tribeImmunity"], hits: "pick" }, { by: "weeks", teams: { of: 2, made: "choose", score: "sum" } }), null, { ...P, teamSeats: true }],
+    ["w-lineup", lineup({ score: { by: "moments", points: null, hits: "every" }, rank: { by: "weeks", ties: "split" } }), "exclusive", { week: true }],
+    ["w-outlast", outlast({ rank: { by: "weeks" } }), "exclusive", { week: true }],
+    ["w-pool", pool({ by: "weeks", ties: "none" }), null, { week: true, pick: true }],
   ];
 }
 
@@ -569,7 +593,8 @@ function league(S, G, T, spec, own, o = {}) {
     if (!EXITS[n].length) ep.noExit = true;
     if (o.pick) {
       const picks = { ...mine(POOL_PICKS[n]), ...mine((o.picks || {})[n]) };
-      ep.picks = Object.entries(picks).map(([playerId, [castawayId, second]]) => ({ playerId, castawayId, ...(second ? { second } : {}) }));
+      // C5: a pick of several each episode carries its second person as `more` (o.more), a pool's as its second pick.
+      ep.picks = Object.entries(picks).map(([playerId, [castawayId, second]]) => ({ playerId, castawayId, ...(second ? (o.more ? { more: [second] } : { second }) : {}) }));
     }
     const lu = holds ? LINEUPS[own][n] : null;
     if (lu) Object.entries(mine(lu)).forEach(([p, ids]) => { ep.lineups[p] = ids.slice(); });

@@ -2570,13 +2570,19 @@
         "rulebook": "survivor"
       },
       "words": "Each week everyone has a shared set of objectives (several individual moments). Each player picks x cast members that they think will achieve as many objectives as possible. Player with most objectives hit wins the week.",
-      "step": "C7",
+      "spec": {
+        "get": { "by": "pick", "each": 3 },
+        "count": { "pick": true },
+        "score": { "by": "moments", "points": null, "only": ["individualImmunity", "rewardWin", "idolFound", "idolPlayed", "zeroVotesSafe"], "hits": "pick" },
+        "rank": { "by": "weeks" }
+      },
+      "step": "C5",
       "dials": [
         "what",
         "score",
         "win"
       ],
-      "note": "the user's third game (2026-11-05, track C): x cast members picked fresh each episode without a draft, only the week's objectives counting, the week's winner and the season ranked by weeks won (C5: the week as a result; today a pick is one person and stages stop at six), each week's objectives from one generator (C7: a new card each week, or a fixed list). Nearest today: a game of questions with a 'name x' question per objective, each settled by its moment (each question's picks separate), or up to six one-week stages with overall 'wins'. Open (the user's): distinct objectives your picks hit, or every hit counted; who writes each week's objectives (the bot from research, the maker, a fixed list)?"
+      "note": "the user's third game (2026-11-05, track C), playing since C5: three castaways picked fresh each episode without a draft (get.by pick, each 3, repeat any by default), only the week's objectives counting (score.only, a fixed list: the spec's own, until C7's new card each week), each a hit worth a point counted per pick (score.hits 'pick': each objective once for each of your picks that hit it; 'objective' counts it once for you, 'every' every time), the week's winner and the season ranked by weeks won (rank.by weeks, a tied week won by each of them: rank.ties all). Open (the user's): distinct objectives your picks hit ('objective'), each pick's ('pick', the lane's default) or every hit ('every'); who writes each week's objectives (C7: the bot from research, the maker; a fixed list until then); a tied week (all, split or none)."
     },
     {
       "id": "p13",

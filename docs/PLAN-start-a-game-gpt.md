@@ -121,8 +121,10 @@ on what each one earns while it's yours, an Outlast's lines included; the user's
 built: **C3 is done**. C4, ownership per holding (2026-11-06: exclusive or shared for the draft, its group slots and each waiver
 move, `extras.waivers.own: { replace, swap }`, so a replacement can come from anyone still in beside an exclusive draft, on both teams
 then; the count per holding; someone two seats hold, each owed a replacement once they're gone home in C4's games; the user's second
-game whole, tracker row p11), is built: **C4 is done**. C5 (the week as a result) is next, then C6, C7, A14's later parts, and a stop
-before A15. The live-sports plan is
+game whole, tracker row p11), is built: **C4 is done**. C5, the week as a result (2026-11-06: a pick of 1 to 8 each episode without a
+draft, scored by what they do; only these moments counting and hits counted every time, per pick or per objective; weeks won,
+each episode a round, wherever head to head plays; the user's third game whole, tracker row p12, a fixed list of objectives until
+C7), is built: **C5 is done**. C6 (money) is next, then C7, A14's later parts, and a stop before A15. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5, at
 high since 2026-11-05; C2 at xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: folded in here as track L; its file keeps the details)
 and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track S here).
@@ -6131,6 +6133,98 @@ A14 part 2 and before A14's other parts; every part keeps every golden and blind
     draft's own (Noticed: U1).
 - **C5. The week as a result.** Pick N each episode without a draft; a week's winner, and ranking by weeks won; "only these
   moments count"; hits counted per objective or per pick; more than six stages (or each episode a round). Game 3.
+
+  **As built (C5, 2026-11-06; not merged).** One session, at high.
+  - **The pieces** (schema.js): a pick each episode scored by what they do, `get: { by: "pick", each: 1 to 8 }` beside
+    `score.by: "moments"` (`momentsPick`; a pool's pick stays one: "A pool's pick is one an episode: several each episode are scored by
+    what they do"), its `repeat` `cycle`, `never` or the new `any` (anyone still in, every episode: a moments pick's default, `fullSpec`;
+    a pool can say it too; a spec naming the Survival Pool preset takes the preset's `cycle`); `score.only` (1 to 40 of the show's
+    moments: only they count) and `score.hits` (`every`, `pick`, `objective`: each moment that counts an objective hit worth 1; with
+    no `only`, every moment the game scores more than 0, a penalty no objective; points never weight a hit, since a league read from
+    its settings carries the rulebook's points filled in and a weight couldn't be told from a default: `momentWorth`); `rank.by:
+    "weeks"` with `rank.ties` (`all`, the default `WEEKS`; `split`; `none`) wherever head to head plays (`perEpisode`: a draft, a game
+    of questions, a pool by its points, a moments pick; `weekParts`). VOCAB: `get.repeat.any`, `rank.by.weeks`, `rank.ties`,
+    `score.hits`; KEYS `score.moments` `only`, `hits`, `rank` `ties`; `MAX_PICKS` 8, `MAX_ONLY` 40; `flagsOf` `hasWeeks`.
+  - **Today's specs as uses of them:** nothing a stored spec says changes: a pool's pick is still one person (`each` 1, `cycle`), a
+    lineup still scores its moments' points, every rank as it was; a game without `only`, `hits` or `weeks` reads exactly as before
+    (`momentWorth` returns the points it always did; `pointsFor` reaches it only when the game says `only` or `hits`).
+  - **Their place in the sequence** (playing by placement): step 1 holds a moments pick's picks for that episode (`holdOf`: 1 to 8,
+    any repeat); step 2's moment lines for a pick held (`LINES.moments`), each of its people a line as a lineup's starter is, only
+    some moments or each a hit (`Seq.momentRaw(ids, events, hits)`: per pick each objective once a holding, per objective once for
+    you, credited to the first holding that hit it so the lines still add up); steps 5 and 6 weeks won on the series head to head
+    reads (`Seq.weeks`), a moments pick ranking by its points, head to head or weeks won (`rankPlace`). Refused, each with why: a
+    pool picking several; a moments pick knocked out or racing ("a draft's or a game of questions' for now": its moves would need
+    the knockouts' move checks); questions beside a moments pick (a stage alongside, as a pool's); `hits: "objective"` beside a
+    captain, best ball, a multiplier on how a holding joined (it's no one holding's); per pick or per objective beside group slots (a
+    slot's group counts every hit: `Seq.groupRaw`); weeks won on Weekly Calls, bingo, co-op, a pool with lives, or beside a race or
+    cuts; `rank.ties` without weeks won; a moment in `only` that data can't settle ("Take it out of the moments that count", at
+    `score.only[i]`). The placement corpus: 225 verdicts move (42 play now, 21 a captain still refuses, 162 lose only a problem while
+    their questions or a sport's rank wait: tests/placement.test.js's OPENED).
+  - **The engine** (state-logic.js; the functions changed, for the own-pace merge): `rankKey` (a pool's streak only for a pool:
+    `Spec.isPool`; weeks won's key: weeks, the points in them, the total), `ScoringLogic.compute` (weeks won beside head to head),
+    `MatchupLogic.seatSeries` (a moments pick walks as a draft does), the new `WeekLogic` (`parts`, `on`, `run`, `apply`: each row's
+    `weeks: { won, points, last }`, a team's between teams of players) just before TeamLogic, `ActiveRosterLogic.pointsFor` (`only`,
+    `hits`), `scoredEvents` (each moment's type and worth where hits count once) and the new `hits`, `episodeScore` (a pick's people;
+    hits), `PickEmLogic.picked` and `byMoments` (new), `decided` (a moments pick once its episode has results), `eligibility` (`any`;
+    every one of several picks in the cycle and back to back; a pick of several short of a full set lets back to back go, then the
+    cycle), `setPick` (`opts.picks`, the whole set; one `castawayId` added while there's room), `removePick` (`opts.castawayId`, one
+    of several; a moments pick's whole pick can't be cleared once locked or decided), `AnswerLogic.walk` (a game of questions ranked by
+    weeks hands over its series and waits for an episode's full results, as head to head's). Elsewhere: sequence/index.js (`momentRaw`,
+    `weeks`), schema.js, settings.js (`poolScore`, `poolEach`, `poolRepeat` `any`, `scoreOnly`, `scoreHits`, `rankTies`, `weeks` in
+    `poolRank`, `draftRank` and `questionsRank`), describe.js, bot-logic.js (`eliminatorPickFor`: a moments pick's bots take their top
+    `each` by points), game-view.ts (`tableOf`: a moments pick's week is its picks' points, as a lineup's), the picks routes (PUT
+    `castawayIds`, DELETE `?castawayId=`), types.ts, both d.ts.
+  - **Fallbacks for a format change nobody announced:** a pick names people still in at each lock (eligibility reads who's in then),
+    so a swap, a merge or a re-pairing changes nothing it holds; a week nobody scores in (a quiet night, a format change that voids
+    everything) is won by nobody and the game carries on; a tied week follows `rank.ties`; a pick of several the rules leave short
+    lets back to back go, then the cycle (fewer picks score nothing more). Nothing reads a group, so nothing waits on research's
+    format state.
+  - **What the league's writes read:** the picks live on each episode as a pool's do (`episode.picks`: `{ playerId, castawayId, more }`,
+    the first person where a pool's reader expects it), public as a pool's always were; they lock as each episode starts
+    (`closedForPlay`) and are decided once it has results. The bots' picks, the Games tab's table, the state route all read them.
+  - **Words** (`describe.js`): "everyone picks three castaways each episode", "Only two moments count: won immunity and found an
+    idol.", "Each is an objective: a point for each one each of your castaways hits, once each however often they do it.", "Each
+    episode, the one with the most points wins it; most episodes won wins." (`weekPhrase`, `weekRules`, `countRules`), and a pool
+    that repeats freely: "Pick anyone still in, every episode: the same castaway as last time too."
+  - **More than six stages:** each episode a round is weeks won (no stages needed); seven or more real stages stay refused (nothing
+    asked for them yet: Noticed).
+  - **The tracker** (`node scripts/engine-capabilities.js`): p12 (the user's third game: three picks, only immunity, a reward win,
+    idols and zero votes, hits per pick, weeks won) turns ✅ with its spec: 213 ✅ · 49 ⏳ (C7 off p12: its fixed list plays now, C7
+    brings a new card each week). No other row moves.
+  - **Proof.** Unit tests: `tests/weeks.test.js` (seven tests, every number by hand: the shape, words, settings both ways and the
+    refusals; several picks at once, one added, one taken back, anyone still in, decided, a cycle's blocks; one made-up season scored
+    per pick, per objective and every hit, by points with only, a tie split or to nobody, ranked by points or head to head; weeks won on
+    a pool and between teams; a game of questions by weeks, waiting on early results; the bots' picks; the code review's catches):
+    1,547 pass. The shapes fixture: seven new shapes (`weekWonShapes`: a moments pick by points, by weeks with the finale doubled, by
+    weeks counting objectives, in teams; a lineup by weeks counting every hit with a split tie; an Outlast by weeks; a pool by weeks
+    with ties to nobody), 126 new reads from this engine, proven by hand (w-pick-hits: ann's Episode 1 pick c0 hits two objectives,
+    di's c2 one; Episode 2 ann and cy tie at one, both win; Episode 7 nobody hits one, nobody wins; w-pick-teams: team t1 takes 1, 3
+    and 5; w-pick-weeks: the finale's 5.5 doubled to 11; w-lineup: Episode 1 ann 3.1 (immunity at 1.1 units and a tribe immunity, a
+    tribe immunity), bo 2, cy's sat-out a penalty and no hit; Episode 4 split); `--diff --ref=HEAD` shows only them: the 2,124 before
+    byte-identical. The placement corpus' OPENED list (above). `game-specs-flag.js check`: PASS. `engine-capabilities.js --check`: up
+    to date. `npx tsc --noEmit -p .` clean; eslint, nothing new. Through the API (a zt- fixture): `check-weeks.js` (new, on
+    new-fixture's couch: the couch's pool made the user's third game through setGame with the show's ctx, its fields; Episodes 1 to 3
+    with picks and moments, alex's week, riley's, alex and jordan's, the Games tab ranking by weeks won then points; riley's three
+    through PUT `castawayIds` in order, a fourth not added, someone gone home refused, one taken back through DELETE `?castawayId=`,
+    one added back; the state route carrying them), ALL PASS; `check-pool-knockouts.js`, `check-pool-parts.js`, `check-pool-series.js`
+    and `check-engine-lab.js <outDir> --api`, all pass. Not run: `check-new-start-game.js` (no preset's words changed). The long
+    checks, once, after the review's fixes (the step uncommitted): the golden replays (`--before=master`): seven seasons, 160 games,
+    19,361 reads, every one the same; the blind replays (`blind.js run`): every game played through and over on all five seasons,
+    Survivor 49 one more (153: p12's game, whose moments are Survivor's), The Challenge 39 122, 40 114, 41 120, The Traitors 4 109,
+    the seven games of questions on The Challenge's seasons still noting their wait on early results (playtest finding 20), none of
+    them C5's; the Survivor 51 rehearsal (`season-forward.js rehearse --from=backups/prod-2026-10-30 --scenario=realistic,rough,dst
+    --before=master`): every invariant holds in all three scenarios, flag off and on the same, master's engine against this tree's the
+    same (2,856 reads each).
+  - **The code review** (`/code-review` at high, before the long runs): ten findings. Taken: the Games tab's table read a moments
+    pick's week as a pool's (its first pick staying in; now its picks' points, as a lineup's: `tableOf`); a whole moments pick could be
+    cleared after its results (taking back a week); a cycle of several left a full pick impossible late in a season (back to back,
+    then the cycle, let go); a penalty moment counted as a hit (now no objective); a pool repeating freely still told the cycle rule;
+    the docs said a hit's worth could be its points (now said everywhere: never weighted); a moment in `only` data can't settle was
+    told "Score it 0", which can't clear it (now "Take it out", at `score.only[i]`); a split week's shares rounded as they added
+    (three thirds 0.99: now rounded once); per-pick hits beside group slots counted two ways (refused); `PickEmLogic.byMoments`
+    repeating the schema's predicate without the pick (now `Spec.momentsPick`). Kept, saying so: `pointsFor` keeps its own lookup for
+    a game without `only` or `hits` (routing every game through `momentWorth` would read a stored points map with a non-number in it
+    differently: every read kept).
 - **C6. Money.** A starting balance, stakes drawn from it, payouts (even money or odds), a bank that can run out; staked
   parlays and tickets a player builds, the payout growing with the legs. Game 1's bank and wagers.
 - **C7. A new card each week.** One generator for each episode's set of questions or objectives: from the show's own data (as
@@ -7080,6 +7174,27 @@ From R1 part 2 (2026-10-30):
   (R3, or whoever next works in Game settings.)
 - **For the hosting notes, at the merge:** `/api/me` (classic's sign-in and every classic load) now sends each league's settings, not its
   whole state (20-40 KB each): less Neon transfer than before. (The main folder: docs/HOSTING.md, with the merge.)
+
+From C5 (2026-11-06):
+- **The lane's defaults for the user's third game, the user's to overrule** (each a setting): hits counted per pick (`score.hits:
+  "pick"`, each objective once for each of your picks that hit it; `objective`, once for you however many hit it; `every`, every
+  time); a tied week won by each of them (`rank.ties: "all"`; `split` shares one, `none` gives it to nobody); a week nobody scores in
+  won by nobody; a pick scored by moments repeating freely (`repeat: "any"`); the season's tie to the points. Who writes each week's
+  objectives is C7's (the bot from research, the maker; until then the spec's own fixed list). Recommended: as built; the user may
+  find per objective ("most objectives hit") closer to their words, at the cost of more tied weeks. (The user, with U0's wizard.)
+- **Points never weight a hit** (a deliberate limit): a league read from its settings carries the rulebook's points filled in, so
+  "immunity counts as three objectives" can't be told from a default. If a weighted objective is wanted, it's a field of its own
+  (`hits: { worth: { id: n } }`, say), not `points`. (Whoever next works on moments, if asked.)
+- **The screens don't know a moments pick yet** (U1): Up next's pick (`game-view.ts pickOf`: one `pick`, a streak from
+  `pickEmHistory`, which grades staying in), the pick page (`pick-page.tsx`: one person), the pool's views (`pool-view.ts`,
+  `pickem-rows.ts`), the reveal and Recent changes read a pick as a pool's: one person, right or wrong by staying in. The engine, the
+  table (`tableOf`), the routes and the bots are right; a moments pick is made only through the GPT or the engine lab until U1 shows
+  it. Nor does anything show `weeks` on a row (a week's winner, weeks won). (U1, with the screens.)
+- **A moments pick knocked out or racing** (refused for now): the knockouts' move checks (`KnockoutLogic.moveProblem`, `isOut`) read a
+  draft's moves; a pick's writes would need them too. Small once asked for. (Whoever next works in the knockouts.)
+- **Seven or more stages** stay refused: each episode a round is weeks won, so nothing asked for more yet. (A12's successor, if asked.)
+- **For the hosting notes, at the merge:** nothing stored beyond a pick's `more` and a few settings fields; no new reads, no prompt
+  changed, no migration.
 
 From C4 (2026-11-06):
 - **A shared game's two holders: one replacing settles it for both** (the code review's catch; the user's call). In every game before

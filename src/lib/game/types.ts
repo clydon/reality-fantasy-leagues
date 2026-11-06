@@ -146,6 +146,8 @@ export interface PickEmPick {
   castawayId: string;
   /** A pool's second pick (step A10 part 2, get.second): counts on a night two or more go home. */
   second?: string;
+  /** C5: a game picking several each episode (get.each), the rest after the first, in order. */
+  more?: string[];
 }
 
 export interface Episode {
@@ -1243,6 +1245,9 @@ export interface ScoreRow {
    *  against, the playoff seed (null: not in them, or before they're seeded), how far they went (rankKey's first number), still
    *  in the playoffs, the champion. */
   matchups?: MatchupRecord & { seed: number | null; tier: number; alive: boolean; champion: boolean };
+  /** C5, weeks won (WeekLogic.apply): the weeks won (a split one's share), the points in the weeks played, and the latest week (did
+   *  their side win it); a team's, between teams of players; null for a row in nobody's weeks. */
+  weeks?: { won: number; points: number; last: { episode: number; won: boolean } | null } | null;
   /** Teams of players (step A11 part 5: TeamLogic.label): the team the seat plays for (its last), the team's points and place (a
    *  tie "T1"), and whether the seat is on it now; null on none. C2 part 4b: teams knocked out or racing, `out` (the last episode that
    *  counts for the team, null while it's in). */

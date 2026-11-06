@@ -19,6 +19,9 @@ export interface PlaceMark {
 export interface ScoredEvent {
   castawayId: string;
   points: number;
+  /** C5: the moment's id, and what a hit on it is worth (1, or 0: no objective), where the game counts hits per pick or objective. */
+  type?: string;
+  worth?: number;
 }
 
 /** C3: the Nth of each kind of move, counted for the seat (nth) or along a roster slot (line). */
@@ -69,7 +72,7 @@ export function heldIn(s: Stint, n: number): boolean;
 export function placed(placement: number, mark: Pick<PlaceMark, "size" | "reverse">): number;
 export function stillIn(mark: PlaceMark): number;
 export function earnedWhileHeld(s: Stint, n: number, valueAt: (m: number) => number): number;
-export function momentRaw(ids: string[], events: ScoredEvent[]): Map<string, number>;
+export function momentRaw(ids: string[], events: ScoredEvent[], hits?: "every" | "pick" | "objective" | null): Map<string, number>;
 export function groupRaw(members: string[], size: number, events: ScoredEvent[], how: "sum" | "mean" | string): number;
 export function betLines<B extends { points?: number; predictions?: { playerId: string; correct: boolean | null }[] }>(bets: B[] | null | undefined): { playerId: string; points: number; bet: B }[];
 /** C2 part 3, outside the state: a window's lines (each answer's right ones at its worth), a shrinking call's worth, a rollover's
@@ -185,6 +188,12 @@ export function knockouts(series: (SeriesEpisode | WalkNight)[], o: {
 export function roundRobin(ids: string[], r: number): [string, string | null][];
 export function median(values: number[]): number;
 export function bracket(size: number): number[];
+/** C5: a week's winner on the sides' series of totals (rank.by 'weeks'). */
+export function weeks(series: SeriesEpisode[], o: { ties: "all" | "split" | "none"; finale?: number | null; seatsAt: (k: number) => string[] }): {
+  weeks: { number: number; winners: string[]; top: number }[];
+  won: Map<string, number>;
+  points: Map<string, number>;
+};
 export function matchups(series: SeriesEpisode[], o: {
   parts: { odd: "median" | "bye"; quiet: "skip" | "tie"; playoffs: { teams: number; rounds: number } | null };
   start: number;

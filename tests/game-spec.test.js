@@ -55,7 +55,7 @@ const WAIVER_FIELDS = ["replaceRule", "replenishAt", "waiverWindows", "waiverFee
 // part 4, head to head's playoffs and fallbacks.
 // A12 part 1: when the draft room opens.
 // C2 part 4c: a draft's own questions (draftQuestions).
-const DRAFT_FIELDS = ["ownershipMode", "draftScheduledAt", "draftTimer", "draftAway", "draftOpens", "finalePredictionsEnabled", "finaleTop3Points", "finaleWinnerPoints", "finalePredictionScope", "draftQuestions", "draftDraw", "draftAcross", "draftAuction", "draftBudget", "draftKeep", "draftRank", "draftRace", "draftCut", "rankOneLeft", "rankMatchups", "rankTeams", "rankHandicap"];
+const DRAFT_FIELDS = ["ownershipMode", "draftScheduledAt", "draftTimer", "draftAway", "draftOpens", "finalePredictionsEnabled", "finaleTop3Points", "finaleWinnerPoints", "finalePredictionScope", "draftQuestions", "draftDraw", "draftAcross", "draftAuction", "draftBudget", "draftKeep", "draftRank", "draftRace", "draftCut", "rankOneLeft", "rankMatchups", "rankTeams", "rankHandicap", "rankTies"];
 const GAME_FIELDS = {
   // A12 part 1: an end at a phase.
   every: ["leagueTypeId", "startEpisode", "startPhase", "endEpisode", "endPhase", "allowLateJoiners", "joinMode", "lockedDown", "bonusEnabled", "defaultBetPoints"],
@@ -63,16 +63,18 @@ const GAME_FIELDS = {
   // ranked by worth.
   // C3: a multiplier on how a holding joined (joinedTimes), an Outlast's or a lineup's.
   "classic-draft": [...DRAFT_FIELDS, "teamSize", "reverseOrder", "joinedTimes"],
-  "active-roster": [...DRAFT_FIELDS, "activeSlots", "benchSlots", "eventPoints", "hideStartersUntilLock", "bestBall", "captainTimes", "pointsTimes", "groupSlots", "joinedTimes"],
+  "active-roster": [...DRAFT_FIELDS, "activeSlots", "benchSlots", "eventPoints", "hideStartersUntilLock", "bestBall", "captainTimes", "pointsTimes", "groupSlots", "joinedTimes", "scoreOnly", "scoreHits"],
   // A10 part 2: a pool's lives, buyback, mulligans, second pick and last one standing. A11 part 2: a pick that never repeats and
   // its fallback; last one standing's end.
-  pickem: ["pickemCorrectPoints", "poolSurvive", "calls", "poolLives", "poolBuyback", "poolMulligans", "poolSecond", "poolRank", "seatPeople", "poolRepeat", "poolFallback", "rankOneLeft", "rankAllOut"],
+  // C5: a pick scored by what they do (poolScore, its points eventPoints and by when pointsTimes, several each episode poolEach),
+  // only these moments and hits counted; weeks won's tied week.
+  pickem: ["pickemCorrectPoints", "poolSurvive", "calls", "poolLives", "poolBuyback", "poolMulligans", "poolSecond", "poolRank", "seatPeople", "poolRepeat", "poolFallback", "rankOneLeft", "rankAllOut", "poolScore", "poolEach", "eventPoints", "pointsTimes", "scoreOnly", "scoreHits", "rankTies"],
   "weekly-calls": [],
   // A9: points per line; a game of questions' parlays.
   "weekly-bingo": ["linePoints"],
   // A11 part 2b: a game of questions' lives (on which questions), race and cuts, and its end; part 3, co-op and who saves a night;
   // part 4b, head to head's playoffs and fallbacks (a draft's too: DRAFT_FIELDS); part 5, teams of players (a draft's too).
-  questions: ["questions", "lateLockHours", "parlays", "seatPeople", "questionsLives", "questionsLivesOn", "questionsRace", "questionsCut", "rankOneLeft", "rankAllOut", "questionsRank", "questionsSaves", "rankMatchups", "rankTeams", "rankHandicap"],
+  questions: ["questions", "lateLockHours", "parlays", "seatPeople", "questionsLives", "questionsLivesOn", "questionsRace", "questionsCut", "rankOneLeft", "rankAllOut", "questionsRank", "questionsSaves", "rankMatchups", "rankTeams", "rankHandicap", "rankTies"],
   // A12 part 1: a game in stages' stages and overall.
   // A12 part 2: how a game a format change moves takes the change.
   stages: ["stages", "stageOverall", "formatChanges"],

@@ -161,9 +161,26 @@ function earnedWhileHeld(s, n, valueAt) {
  * Each holding's moments in one episode (score.by 'moments'): `ids` the holdings that count, in order; `events` the episode's
  * moments in order, each { castawayId, points } (its points by the game's rules, a count's units in them). Map id -> raw: each
  * holding's points added up moment by moment, each sum rounded.
+ * C5: hits counted (score.hits), each moment then an objective hit, worth its `worth` (1, or 0 for one that isn't an objective): 'every'
+ * counts every hit (its points, as without hits); 'pick' each objective once for each holding that hit it, however often; and
+ * 'objective' each objective once for you, however many of your holdings hit it, on the first of `ids` (in order) that did, so
+ * the lines still add up to the total. A moment worth nothing (one the game doesn't count: score.only) is no hit.
  */
-function momentRaw(ids, events) {
+function momentRaw(ids, events, hits) {
   const raw = new Map(ids.map((id) => [id, 0]));
+  if (hits === "pick" || hits === "objective") {
+    const order = new Map(ids.map((id, i) => [id, i]));
+    // Each objective's hit: per holding, or (objective) the holding first in `ids` that did it.
+    const got = new Map();
+    events.forEach((ev) => {
+      if (!raw.has(ev.castawayId) || !ev.worth) return;
+      const key = hits === "pick" ? ev.castawayId + "\u0000" + ev.type : ev.type;
+      const was = got.get(key);
+      if (!was || order.get(ev.castawayId) < order.get(was.castawayId)) got.set(key, ev);
+    });
+    got.forEach((ev) => raw.set(ev.castawayId, round(raw.get(ev.castawayId) + ev.worth)));
+    return raw;
+  }
   events.forEach((ev) => {
     if (raw.has(ev.castawayId)) raw.set(ev.castawayId, round(raw.get(ev.castawayId) + ev.points));
   });
@@ -743,6 +760,38 @@ function matchups(series, o) {
   return out;
 }
 
+/**
+ * A week's winner (C5: rank.by 'weeks'), each episode on the sides' series of totals (`series`, as matchups reads it): whoever of
+ * those in it then (`o.seatsAt(k)`) added the most that episode wins the week (less lost, where points can be lost); ties as `o.ties` says (all: each tied wins it; split:
+ * a share of one each; none: nobody does); a week nobody in it scored anything is won by nobody; nothing after the season's finale
+ * (`o.finale`) counts. Returns { weeks: [{ number, winners, top }], won: Map id -> weeks won (a split's shares rounded), points: Map
+ * id -> what they scored in the weeks they were in it }.
+ */
+function weeks(series, o) {
+  const won = new Map();
+  const points = new Map();
+  const out = [];
+  let before = null;
+  for (const x of series) {
+    const k = x.number;
+    const was = before;
+    before = x;
+    if (o.finale !== null && o.finale !== undefined && k > o.finale) continue;
+    const seats = o.seatsAt(k);
+    const pts = new Map(seats.map((id) => [id, grown(x.totals, was ? was.totals : null, id)]));
+    seats.forEach((id) => points.set(id, round((points.get(id) || 0) + pts.get(id))));
+    const top = seats.length ? Math.max(...seats.map((id) => pts.get(id))) : 0;
+    let winners = seats.some((id) => pts.get(id)) ? seats.filter((id) => pts.get(id) === top) : [];
+    if (winners.length > 1 && o.ties === "none") winners = [];
+    const share = o.ties === "split" && winners.length ? 1 / winners.length : 1;
+    // A split's shares add up unrounded (three thirds make a whole week), rounded once at the end.
+    winners.forEach((id) => won.set(id, (won.get(id) || 0) + share));
+    out.push({ number: k, winners, top });
+  }
+  won.forEach((n, id) => won.set(id, round(n)));
+  return { weeks: out, won, points };
+}
+
 // Teams of players (rank.teams) and co-op (rank.by 'coop').
 
 /** One episode added to each team's points (`run`, Map team -> points): its members' growth then (`grown`, Map team -> [points],
@@ -874,6 +923,7 @@ const api = {
   median,
   bracket,
   matchups,
+  weeks,
   teamStep,
   saved,
   coop,

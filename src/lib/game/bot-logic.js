@@ -365,6 +365,15 @@ function eliminatorPickFor(state, ep, pid) {
   const parts = PickEmLogic.parts(state);
   let made = 0;
   const { available } = PickEmLogic.eligibility(state, ep.id, pid);
+  // C5: a pick scored by what they do takes whoever looks likeliest to score, as many as the game picks each episode.
+  if (PickEmLogic.byMoments(state)) {
+    const want = ranked(state, pid, available, "points").slice(0, Math.max(1, StateLogic.gameOf(state).get.each || 1));
+    if (!want.length) return 0;
+    const had = PickEmLogic.picked(PickEmLogic.pickFor(state, ep.id, pid));
+    if (had.length === want.length && had.every((id, i) => id === want[i])) return 0;
+    PickEmLogic.setPick(state, ep.id, pid, want[0], { picks: want });
+    return PickEmLogic.picked(PickEmLogic.pickFor(state, ep.id, pid))[0] === want[0] ? 1 : 0;
+  }
   const order = ranked(state, pid, available, "safety");
   const best = order[0];
   if (!best) return 0;

@@ -18,7 +18,7 @@
 //
 // Pure CommonJS, like ./schema.js.
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
-const { PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, spanEnd, spanEndPhase, playsAs, callsAsk, finaleIn, draftQuestions, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion, matchupParts, questionsGame, poolByPoints, teamParts, handicapParts, stageOn, ON_CHANGE, nextStageAts, fallsTo, stageSide, mainCount, stageAlongside, stageSeason, seasonKey, isPlayers, isBeat, waiverOwnOf, waiverMoves } = require('./schema.js');
+const { PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, spanEnd, spanEndPhase, playsAs, callsAsk, finaleIn, draftQuestions, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion, matchupParts, questionsGame, poolByPoints, teamParts, handicapParts, stageOn, ON_CHANGE, nextStageAts, fallsTo, stageSide, mainCount, stageAlongside, stageSeason, seasonKey, isPlayers, isBeat, waiverOwnOf, waiverMoves, weekParts, momentsPick } = require('./schema.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const NUMBER_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
@@ -151,7 +151,8 @@ function nameOf(s) {
   // (part 3c) is still its draft's game.
   // A11 part 1: a draft that knocks players out is still its draft's game; part 4, one played head to head. C2 part 4b: a pool ranked
   // by its points, or head to head, is still a Survival Pool.
-  const rank = p && (p.rank.by === s.rank.by || (s.score.by === 'survive' && (s.rank.by === 'standing' || s.rank.by === 'total' || s.rank.by === 'matchups')) || (s.get.by === 'draft' && (s.rank.by === 'worth' || s.rank.by === 'standing' || s.rank.by === 'matchups')));
+  // C5: weeks won too.
+  const rank = p && (p.rank.by === s.rank.by || (s.score.by === 'survive' && (s.rank.by === 'standing' || s.rank.by === 'total' || s.rank.by === 'matchups' || s.rank.by === 'weeks')) || (s.get.by === 'draft' && (s.rank.by === 'worth' || s.rank.by === 'standing' || s.rank.by === 'matchups' || s.rank.by === 'weeks')));
   const same = p && p.get.by === s.get.by && countKind(p.count) === countKind(s.count) && p.score.by === s.score.by && rank && !s.score.reverse;
   return same ? PRESET_LABELS[s.preset] : null;
 }
@@ -266,6 +267,12 @@ function sentenceParts(s, w) {
     // C2 part 4c: its own questions beside the team.
     const asks = draftQuestions(s);
     if (asks.length) put(`, and answers ${say(asks.length)} ${asks.length === 1 ? 'question' : 'questions'} before ${askWhen(asks, w)}: ${listOf(asks.map(questionPhrase))}`, 'ask');
+  } else if (by === 'pick' && momentsPick(s)) {
+    // C5: a pick each episode, one or several, scored by what they do.
+    const n = s.get.each;
+    put(`everyone picks ${n === 1 ? `one ${w.castaway}` : `${say(n)} ${w.castaways}`} each ${w.part}`, 'get');
+    if (s.get.repeat === 'never') put(', never the same one twice', 'get');
+    if (s.get.repeat === 'cycle') put(", nobody again until they've used everyone still in", 'get');
   } else if (by === 'pick') {
     put(`everyone picks one ${w.castaway} to ${s.score.means === 'scores' ? 'score' : 'stay in'} each ${w.part}`, 'get');
     // A10 part 2: a second pick.
@@ -297,6 +304,8 @@ function sentenceParts(s, w) {
   if (sc.by === 'moments') {
     const changed = changedPoints(sc.points, s.get.own, w.moments);
     put(changed === null ? ` Scored by ${rules}, with the game's own points.` : changed ? ` Scored by ${rules}, with ${say(changed)} ${changed === 1 ? "moment's" : "moments'"} points changed.` : ` Scored by ${rules}.`, 'score');
+    // C5: only these moments count, and hits counted.
+    for (const rule of countRules(sc, w)) put(` ${rule}`, 'score');
     // A9 part 2: when the points multiply.
     for (const rule of timesRules(sc, w)) put(` ${rule}`, 'score');
     // C3: how a holding joined.
@@ -339,7 +348,9 @@ function sentenceParts(s, w) {
   const handicap = handicapParts(s);
   if (handicap) put(` ${handicapPhrase(handicap, w)}`, 'rank');
   // C2 part 4b: a pool ranked by its points says who wins (its teams say it themselves).
-  const rank = h2h ? ` ${matchupPhrase(h2h, w, !!teams)}` : poolByPoints(s) && !teams ? ' Most points wins.' : { worth: " Most worth wins: cash plus the team at today's prices.", matchups: ' Played head to head.', categories: ' Ranked by category.', roto: ' Ranked roto-style.' }[s.rank.by];
+  // C5: weeks won.
+  const weeks = weekParts(s);
+  const rank = h2h ? ` ${matchupPhrase(h2h, w, !!teams)}` : weeks ? ` ${weekPhrase(weeks, w, !!teams)}` : (poolByPoints(s) || momentsPick(s)) && !teams ? ' Most points wins.' : { worth: " Most worth wins: cash plus the team at today's prices.", matchups: ' Played head to head.', categories: ' Ranked by category.', roto: ' Ranked roto-style.' }[s.rank.by];
   if (rank) put(rank, 'rank');
   // A10 part 4b: a team two people share.
   if (seatPeople(s) > 1) put(` Up to ${say(seatPeople(s))} of you can share a team.`, 'extras');
@@ -682,6 +693,37 @@ function teamRules(s, w, h2h) {
   if (!h2h) out.push('The team with the most points wins: everyone on it shares the win.');
   return out;
 }
+/** C5: the sentence's words for weeks won: "Each episode's most points wins it; most episodes won wins." */
+function weekPhrase(wk, w, teams) {
+  const tie = wk.ties === 'split' ? ' (tied, they share it)' : wk.ties === 'none' ? ' (tied, nobody does)' : '';
+  return `Each ${w.part}, the ${teams ? 'team' : 'one'} with the most points wins it${tie}; most ${w.parts} won wins.`;
+}
+/** C5: How it works for weeks won (schema.js weekParts), as the engine plays it (state-logic.js WeekLogic). */
+function weekRules(s, w) {
+  const wk = weekParts(s);
+  if (!wk) return [];
+  const teams = !!teamParts(s);
+  const tie = { all: `Tied for the most, ${teams ? 'each team' : 'each of you'} wins it.`, split: 'Tied for the most, you share it: half a win each for two.', none: 'Tied for the most, nobody wins it.' }[wk.ties];
+  return [
+    `Each ${w.part}, ${teams ? 'the team with' : 'whoever has'} the most points in it wins it. ${tie}`,
+    `${cap(article(w.part))} ${w.part} nobody scores in goes to nobody.`,
+    `Most ${w.parts} won wins the game; a tie goes to the most points.`,
+  ];
+}
+/** C5: only these moments count (score.only) and hits counted (score.hits), as the sentence and How it works say them. */
+function countRules(sc, w) {
+  const out = [];
+  const label = (id) => {
+    const m = Array.isArray(w.moments) ? w.moments.find((x) => x && x.id === id) : null;
+    return m && m.label ? m.label.toLowerCase() : id;
+  };
+  if (Array.isArray(sc.only) && sc.only.length) out.push(`Only ${sc.only.length === 1 ? 'one moment counts' : `${say(sc.only.length)} moments count`}: ${listOf(sc.only.map(label))}.`);
+  const worth = 'a point';
+  if (sc.hits === 'every') out.push(`Each time one happens is a hit, worth ${worth}.`);
+  if (sc.hits === 'pick') out.push(`Each is an objective: ${worth} for each one each of your ${w.castaways} hits, once each however often they do it.`);
+  if (sc.hits === 'objective') out.push(`Each is an objective: ${worth} for each one any of your ${w.castaways} hits, once however many of them do.`);
+  return out;
+}
 /** How it works for head to head (A11 part 4: schema.js matchupParts), as the engine plays it (state-logic.js MatchupLogic). Part 4b:
  *  a game of questions' episodes' points are what its answers settled by then add (AnswerLogic.walk's series). */
 function matchupRules(s, w) {
@@ -928,7 +970,7 @@ function rulesOf(s, w) {
     }
     // A11 part 5: teams of players; C2 part 4b: said first when they're knocked out or race, whose rules say who wins.
     const teamsOut = !!teamParts(s) && !!knockoutParts(s);
-    const teams = teamRules(s, w, !!matchupParts(s) || teamsOut);
+    const teams = teamRules(s, w, !!matchupParts(s) || !!weekParts(s) || teamsOut);
     if (teamsOut) rules.push(...teams);
     // A11 part 1: players knocked out, and a race.
     rules.push(...knockoutRules(s, w));
@@ -937,6 +979,23 @@ function rulesOf(s, w) {
     if (!teamsOut) rules.push(...teams);
     // A11 part 4: head to head, with playoffs.
     rules.push(...matchupRules(s, w));
+    // C5: weeks won.
+    rules.push(...weekRules(s, w));
+  } else if (by === 'pick' && momentsPick(s)) {
+    // C5: a pick each episode, one or several, scored by what they do in it.
+    const n = s.get.each;
+    rules.push(`No draft. Before each ${w.part}, pick ${n === 1 ? `one ${w.castaway}` : `${say(n)} ${w.castaways}`} still in: ${n === 1 ? 'they score' : 'each scores'} what they do in it.`);
+    rules.push(...countRules(s.score, w));
+    rules.push(...timesRules(s.score, w));
+    if (s.get.repeat === 'never') rules.push(`You can't pick the same ${w.castaway} twice, all season.`);
+    else if (s.get.repeat === 'cycle') rules.push(`You can't pick the same ${w.castaway} again until you've used everyone still in, and never two ${w.parts} in a row.`);
+    else rules.push(`Pick anyone still in, every ${w.part}: the same ${n === 1 ? w.castaway : w.castaways} as last time too.`);
+    rules.push(`Picks lock when the ${w.part} starts. Change yours as often as you like until then.`);
+    rules.push(...handicapRules(s, w));
+    rules.push(...teamRules(s, w, !!matchupParts(s) || !!weekParts(s)));
+    rules.push(...matchupRules(s, w));
+    rules.push(...weekRules(s, w));
+    if (!teamParts(s) && !matchupParts(s) && !weekParts(s)) rules.push('Most points wins.');
   } else if (by === 'pick') {
     rules.push(s.score.means === 'scores'
       ? `No draft. Before each ${w.part}, pick one ${w.castaway} you think scores in it.`
@@ -961,13 +1020,16 @@ function rulesOf(s, w) {
       rules.push(never.fallback === 'skip'
         ? `Once you've picked everyone still in, ${article(w.part)} ${w.part} you've nobody left to pick doesn't count for you, either way.`
         : `Once you've picked everyone still in, you've nobody left to pick: that counts as a missed pick.`);
-    } else rules.push(`You can't pick the same ${w.castaway} again until you've used everyone still in, and never two ${w.parts} in a row.`);
+    } else if (s.get.repeat === 'any') rules.push(`Pick anyone still in, every ${w.part}: the same ${w.castaway} as last time too.`);
+    else rules.push(`You can't pick the same ${w.castaway} again until you've used everyone still in, and never two ${w.parts} in a row.`);
     if (points) {
       // Its handicap, its teams and head to head say themselves (and who wins, when they decide it).
       rules.push(...handicapRules(s, w));
-      rules.push(...teamRules(s, w, !!matchupParts(s)));
+      rules.push(...teamRules(s, w, !!matchupParts(s) || !!weekParts(s)));
       rules.push(...matchupRules(s, w));
-      if (!teamParts(s) && !matchupParts(s)) rules.push('Most points wins.');
+      // C5: weeks won.
+      rules.push(...weekRules(s, w));
+      if (!teamParts(s) && !matchupParts(s) && !weekParts(s)) rules.push('Most points wins.');
     } else rules.push(s.rank.by === 'standing'
       ? "Last one standing wins: whoever's still in, then whoever went out last. Ties go to the most points."
       : 'Longest streak wins; ties go to the most right picks.');
@@ -1007,8 +1069,10 @@ function rulesOf(s, w) {
     // A11 part 5b: a handicap.
     rules.push(...handicapRules(s, w));
     // A11 part 5: teams of players say who wins themselves, unless head to head does.
-    rules.push(...teamRules(s, w, !!(asks && asks.matchups)));
+    rules.push(...teamRules(s, w, !!(asks && (asks.matchups || asks.weeks))));
     if (asks && asks.matchups) rules.push(...matchupRules(s, w));
+    // C5: weeks won.
+    else if (asks && asks.weeks) rules.push(...weekRules(s, w));
     else if (asks && (asks.race || asks.cuts.length || asks.lives !== null)) rules.push(...answerKnockoutRules(s, w));
     else if (!(asks && asks.teams)) rules.push('Most points wins.');
   }

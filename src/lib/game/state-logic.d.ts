@@ -242,6 +242,10 @@ declare const StateLogic: {
     wentHome(state: LeagueState, ep: Episode, castawayId: string): boolean;
     secondCounted(state: LeagueState, ep: Episode, parts?: PoolParts | null): boolean;
     canBuyBack(state: LeagueState, buyback: PoolParts["buyback"], number: number): boolean;
+    /** C5: everyone a pick names, in order (a game picking several each episode: its first, then `more`). */
+    picked(pick: { castawayId: string; more?: string[] } | null | undefined): string[];
+    /** C5: a pick scored by what they do in the episode (score.by 'moments'). */
+    byMoments(state: LeagueState): boolean;
   };
   DraftLogic: {
     currentTurn(state: LeagueState): DraftTurn | null;
@@ -916,6 +920,13 @@ declare const StateLogic: {
   /** Step A11 part 4: head to head (rank.by 'matchups'): a round robin of the seats each episode on that episode's points, the
    *  standings by wins, and the playoffs over the game's last episodes; worked out from the data on every read, all but where the
    *  playoffs began once they have (settle, on every write). */
+  /** C5: weeks won (rank.by 'weeks'): each episode's most points wins the week, on head to head's series of totals and seats. */
+  WeekLogic: {
+    parts(state: LeagueState): import("./game-spec/index.js").WeekParts | null;
+    on(state: LeagueState): boolean;
+    run(state: LeagueState): { weeks: { number: number; winners: string[]; top: number }[]; won: Map<string, number>; points: Map<string, number> } | null;
+    apply<R extends ScoreRow>(state: LeagueState, rows: R[]): R[];
+  };
   MatchupLogic: {
     parts(state: LeagueState): import("./game-spec/index.js").MatchupParts | null;
     on(state: LeagueState): boolean;
@@ -1125,9 +1136,9 @@ declare const StateLogic: {
    */
   currentEpisode(state: LeagueState): Episode | null;
   /** opts.second: a pool's second pick, beside a first already made (step A10 part 2). */
-  setPickEmPick(state: LeagueState, epId: string, playerId: string, castawayId: string, opts?: { second?: boolean }): void;
+  setPickEmPick(state: LeagueState, epId: string, playerId: string, castawayId: string, opts?: { second?: boolean; picks?: string[] }): void;
   /** opts.second: only the second pick; else the whole pick. */
-  removePickEmPick(state: LeagueState, epId: string, playerId: string, opts?: { second?: boolean }): void;
+  removePickEmPick(state: LeagueState, epId: string, playerId: string, opts?: { second?: boolean; castawayId?: string }): void;
   /** Whether this Survival Pool takes a weekly Who goes home? call (settings.calls): the person's Call it (calls.ts). */
   pickEmCallsOn(state: LeagueState): boolean;
   BetLogic: {
