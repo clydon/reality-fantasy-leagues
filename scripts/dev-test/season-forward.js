@@ -1000,12 +1000,14 @@ async function lookAt(n, r, o) {
     for (const [name, url, sel] of LOOK_PAGES(r.seasonId, n).filter(([x]) => !o.only || o.only.includes(x))) {
       try {
         if (name === "reveal") {
-          const btn = page.locator(`[data-results-in='${n}']`).getByRole("button", { name: new RegExp(`Reveal Episode ${n}`) });
+          // Up next's plate (docs/PLAN-up-next.md): I watched it, then Yes, show me.
+          const btn = page.locator(`[data-results-in='${n}'] [data-up-next-watched]`);
           if (!(await btn.first().waitFor({ timeout: 20000 }).then(() => true, () => false))) {
             found.push({ name, missing: "no Reveal button" });
             continue;
           }
           await btn.first().click();
+          await page.locator("[data-watched-yes]").click();
           await page.waitForURL(/\?page=reveal/, { timeout: 15000 });
           // Its beats, tapped through as check-new-reveal.js plays them, each shot; the last is the table.
           const reveal = page.locator("[role=dialog][aria-label='The reveal']");
@@ -1024,16 +1026,17 @@ async function lookAt(n, r, o) {
           continue;
         }
         if (name === "moves") {
-          // The dock's button (on every tab but Tonight): "All set for Episode N", or what's still to do with "Locks ...".
+          // On Games (the look before), a game's card under its name (since 2026-10-31; your-move.ts), else the dock's button
+          // where a move's due.
           await page.waitForLoadState("networkidle", { timeout: 20000 }).catch(() => {});
-          const dock = page.locator("button", { hasText: /All set for Episode|Locks |Due |Change until/ }).last();
-          if (!(await dock.waitFor({ timeout: 20000 }).then(() => true, () => false))) {
-            found.push({ name, missing: "no dock button" });
+          const dock = page.locator("[data-your-move]").first().or(page.locator("button.nd-dock", { hasText: /Locks |Due / }).last());
+          if (!(await dock.first().waitFor({ timeout: 20000 }).then(() => true, () => false))) {
+            found.push({ name, missing: "no card or dock" });
             continue;
           }
           // It opens Your moves (a sheet), or the page its first move is on (a waiver to make: the waivers page).
           const from = page.url();
-          await dock.click();
+          await dock.first().click();
           const opened = await Promise.race([
             page.locator("[data-sheet-handle]").first().waitFor({ timeout: 15000 }).then(() => "sheet"),
             page.waitForURL((u) => u.toString() !== from, { timeout: 15000 }).then(() => "page"),

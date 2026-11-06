@@ -1,26 +1,29 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useCouchHub, useCurrentCouch, useHome, type Couch, type CouchHub, type Home } from "../data";
 import { CouchPages, MoreOnTheCouch } from "../hub/couch-pages";
 import { Guide } from "../hub/guide";
 import { StreamingRail } from "../hub/streaming";
 import { ProfileSheet } from "../hub/profile";
-import { BothWatch, CouchWatching, Feed, Foot, GetGoing, GrowNote, nextShow, OnNow, StatusLine, UpNext, YourShows } from "../hub/sections";
+import { BothWatch, CouchRow, CouchWatching, Feed, Foot, GetGoing, GrowNote, nextShow, OnNow, StatusLine, UpNext, YourShows } from "../hub/sections";
 import { SoloHub } from "../hub/solo-hub";
 import { NotesBell } from "../hub/notes";
 import { useMe } from "../session";
+import { usePracticeReveal, withPracticeReveal } from "../tour/practice-shows";
+import { Tour } from "../tour/tour";
 import { TopBar } from "../ui/bars";
 import { Loaded } from "../ui/loaded";
 import { Btn, EmptyState } from "../ui/parts";
 
 // The hub (/home; the mock's refine.js wireHub), in its two shapes, or solo (on no couch: hub/solo-hub.tsx, step 9 part 3):
 //   grows with you: a new member's first week, or a couch with no games yet. The status line, Get the couch going
-//     (a new couch), Up next, your shows, the "you both watch" nudge, the guide and the streaming rail (step 14), what the couch
-//     is watching (step 10: where games start), the feed, and a note of what shows up as the couch plays.
-//   focus first: the status line, Up next, who's on now (step 13 part 2), your shows, the "you both watch" nudge, the guide, the
-//     streaming rail, what the couch is watching, the feed, and More on the couch (six pages, one tap each).
+//     (a new couch), the couch's faces, Up next, your shows, the "you both watch" nudge, the guide and the streaming rail (step
+//     14), what the couch is watching (step 10: where games start), the feed, and a note of what shows up as the couch plays.
+//   focus first: the status line, the couch's faces (2026-11-01: each opens what they watch and how far they are), Up next,
+//     who's on now (step 13 part 2), your shows, the "you both watch" nudge, the guide, the streaming rail, what the couch is
+//     watching, the feed, and More on the couch (six pages, one tap each).
 // The couch's own numbers (rankings, trophies, the feed, your numbers: couch-hub.ts) come in one read beside the home's.
 // `?hub=focus`, `?hub=grow` (a new member) or `?hub=new` (a brand-new couch) shows that shape, for a look; with no couch
 // it's always the solo hub.
@@ -35,7 +38,10 @@ function grows(couch: Couch | null, meId: string) {
 
 export function HomeScreen() {
   const me = useMe();
-  const { data: home, error, refetch } = useHome();
+  const { data: read, error, refetch } = useHome();
+  // The tour's reveal step: Home as it is when results are waiting (tour/practice-shows.ts), for that step alone.
+  const practiceReveal = usePracticeReveal();
+  const home = useMemo(() => (read && practiceReveal ? withPracticeReveal(read, practiceReveal) : read), [read, practiceReveal]);
   const couch = useCurrentCouch(home);
   const { data: hub } = useCouchHub(couch?.id ?? null);
   const asked = useSearchParams().get("hub");
@@ -57,6 +63,8 @@ export function HomeScreen() {
           ) : (
             <FocusHub home={home} couch={couch} hub={hub} />
           )}
+          {/* The first-time tour (docs/PLAN-first-time-tour.md): once Home's shown, the first time, or asked for from Settings. */}
+          <Tour home={home} hub={hub} solo={shape === "solo"} />
         </Loaded>
       )}
       <ProfileSheet open={profile} onOpenChange={setProfile} me={me} couch={couch} hub={hub} />
@@ -70,6 +78,7 @@ function FocusHub({ home, couch, hub }: { home: Home; couch: Couch | null; hub: 
   return (
     <>
       <StatusLine home={home} />
+      <CouchRow home={home} couch={couch} />
       {up && <UpNext home={home} show={up} couch={couch} />}
       <OnNow home={home} couch={couch} />
       <YourShows home={home} hub={hub} />
@@ -90,6 +99,7 @@ function GrowHub({ home, couch, hub, newCouch }: { home: Home; couch: Couch | nu
     <>
       <StatusLine home={home} />
       {newCouch && <GetGoing home={home} couch={couch} />}
+      <CouchRow home={home} couch={couch} />
       {up && <UpNext home={home} show={up} couch={couch} />}
       <YourShows home={home} hub={hub} />
       <BothWatch home={home} couch={couch} />

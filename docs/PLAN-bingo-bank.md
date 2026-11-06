@@ -20,7 +20,7 @@ Bingo should be its own game, not the stats again: the things a couch actually s
 
 ## The rules (what a person reads)
 
-- Your card is three by three, the centre free. Its squares are things that **might** happen this episode:
+- Your card is three by three, nine squares, nothing free (the free centre went 2026-11-02, the user: "makes it too easy"; a card dealt before keeps it). Its squares are things that **might** happen this episode:
   "It rains", "Someone goes fishing", "A chat at the water well", "Jeff says 'I'll go tally the votes'".
 - Tick a square when you see it. Changed your mind? Tap it again to untick (undo always works).
 - **Three in a row is BINGO.** When a tick finishes a line you're asked to check it: the line's three

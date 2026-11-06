@@ -102,7 +102,7 @@ const DOT = "[aria-label='Needs you']";
     const order = ["Notifications", "Invite a friend", "How it works", "Where you are", "Everything else"].map((t) => samRows.findIndex((r) => r.startsWith(t)));
     check(order.every((i, k) => i >= 0 && (k === 0 || i > order[k - 1])), "sam: Notifications, Invite a friend, How it works, Where you are, Everything else", samRows.join(" | "));
     const whereRow = samRows.find((r) => /^Where you are/.test(r)) ?? "";
-    check(/Spoiler-safe · you're on Ep 3$/.test(whereRow), "Where you are is a plain row saying where he is (Episode 3)", whereRow);
+    check(/Spoiler-safe · you're up to Ep 3$/.test(whereRow), "Where you are is a plain row saying where he is (Episode 3)", whereRow);
     check((await sam.page.locator("[data-guard-card]").count()) === 0, "no spoiler card any more");
     check(FROM_THE_TABS.every((re) => !has(samRows, re)), "nothing the tabs already carry: no Start a game, Make it a game or Add to my shows row", samRows.join(" | "));
     check(!has(samRows, /^Backstage/) && !has(samRows, /This season in Admin/) && (await sam.page.locator("[data-backstage-plate]").count()) === 0, "a player: no Backstage, no Admin");

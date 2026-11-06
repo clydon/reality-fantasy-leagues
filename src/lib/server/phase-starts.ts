@@ -162,12 +162,13 @@ export async function settleLeague(client: PoolClient, leagueId: string, state: 
 export async function settleSeasonStarts(seasonId: string, now = new Date()): Promise<number> {
   // Games that start at a phase, games of questions that ask by phase (step A7: their phase starts and windows), drafts
   // whose points multiply in a phase (A9 part 2: settings.pointsTimes, their phase starts), pools whose buyback lasts until a
-  // phase (A10 part 2: settings.poolBuyback, their phase starts), and drafts that cut players before a phase (A11 part 1:
-  // settings.draftCut, their phase starts).
+  // phase (A10 part 2: settings.poolBuyback, their phase starts), drafts that cut players before a phase (A11 part 1:
+  // settings.draftCut, their phase starts), and drafts whose waivers start when a phase does (settings.waiverStartPhase).
   const byPhase = `(l.state->'settings'->'questions' @> '[{"asked":"phase"}]'::jsonb OR l.state->'settings'->'questions' @> '[{"settle":{"by":"phase"}}]'::jsonb
                     OR COALESCE(jsonb_path_exists(l.state->'settings'->'pointsTimes', '$[*].phase'), false)
                     OR COALESCE(jsonb_path_exists(l.state->'settings'->'poolBuyback', '$.before.phase'), false)
-                    OR COALESCE(jsonb_path_exists(l.state->'settings'->'draftCut', '$[*].at.phase'), false))`;
+                    OR COALESCE(jsonb_path_exists(l.state->'settings'->'draftCut', '$[*].at.phase'), false)
+                    OR COALESCE(l.state->'settings'->>'waiverStartPhase', '') <> '')`;
   const { rows: leagues } = await pool.query(
     `SELECT l.id, s.episode_term, l.state->'settings'->'startEpisode' AS start_episode, ${byPhase} AS by_phase,
             l.state->'settings'->>'endPhase' AS end_phase, l.state->'settings'->'endEpisode' AS end_episode

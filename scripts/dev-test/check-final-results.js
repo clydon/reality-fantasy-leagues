@@ -95,8 +95,8 @@ function fullAnswer(prompt) {
     for (let i = 0; i < 30 && !(await notes("jordan", R)).length; i++) await wait(500);
     const je = (await notes("jordan", R))[0];
     const re = (await notes("riley", R))[0];
-    check(je?.title === "Episode 6 results are in" && /Reveal when you've watched/.test(je?.body), "jordan's early notice: that they're in, no names", JSON.stringify(je));
-    check(re?.title === `Episode 6: ${OUT6} went home` && BY.test(re?.body ?? ""), "riley's: who went home, and when the final results come", re?.body);
+    check(je?.title === "Ep 6 results are in" && /Reveal when you've watched/.test(je?.body), "jordan's early notice: that they're in, no names", JSON.stringify(je));
+    check(re?.title === `Ep 6: ${OUT6} went home` && BY.test(re?.body ?? ""), "riley's: who went home, and when the final results come", re?.body);
     // alex reveals it while it's early (the morning update waits on its final results).
     r = await as.alex.call("POST", `/api/seasons/${sid}/reveal`, { episode: 6, couch: fx.couchId });
     check(r.status === 200 && r.body.stage === "early" && r.body.finalAt === finalAt.toISOString(), "alex reveals Episode 6 early; the reveal knows its final time", JSON.stringify({ stage: r.body.stage, finalAt: r.body.finalAt }));
@@ -140,7 +140,7 @@ function fullAnswer(prompt) {
     await finalResults(pool, season, leagues, at(5 * 60_000), {});
     const told = (await pool.query("SELECT user_id, title, body, link FROM notifications WHERE key = $1", [F])).rows;
     const of = (who) => told.find((t) => t.user_id === U[who]);
-    check(["alex", "riley", "jordan", "sam"].every((w) => of(w)?.title === "Episode 6 final results are in"), "at their time: everyone on the games, Episode 6 final results are in", JSON.stringify(told));
+    check(["alex", "riley", "jordan", "sam"].every((w) => of(w)?.title === "Ep 6 final results are in"), "at their time: everyone on the games, Episode 6 final results are in", JSON.stringify(told));
     check(/Reveal when you've watched/.test(of("jordan")?.body) && !JSON.stringify(of("jordan")).includes("Cristian"), "jordan's (seen through 5): no names, reveal when you've watched", JSON.stringify(of("jordan")));
     check(/Watch the final results/.test(of("riley")?.body) && of("riley")?.link === `/show/${sid}/tonight?page=reveal&ep=6`, "riley's: Watch the final results, to the reveal again", JSON.stringify(of("riley")));
     await finalResults(pool, season, leagues, at(65 * 60_000), {});

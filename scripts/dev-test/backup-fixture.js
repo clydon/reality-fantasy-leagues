@@ -108,6 +108,8 @@ async function up(pool) {
   await pool.query(`INSERT INTO draft_queues (league_id, player_id, castaway_ids) VALUES ($1, $2, '["k3", "k1"]')`, [classic, players[0].id]);
   await pool.query(`INSERT INTO game_join_requests (league_id, user_id, decided_at, decided_by, outcome) VALUES ($1, $2, now(), $3, 'let-in')`, [classic, ann, me]);
   await pool.query(`INSERT INTO episode_team_notes (league_id, episode_number, player_id, why_text) VALUES ($1, 1, $2, 'zt: why')`, [classic, players[0].id]);
+  // A game's answers (0200, step A4): the tester's on Episode 1.
+  await pool.query(`INSERT INTO game_answers (league_id, player_id, question, episode, answer, answered_by) VALUES ($1, $2, 'zt-q', 1, '"yes"', $3)`, [classic, players[0].id, me]);
   const msg = (await one(`INSERT INTO chat_messages (league_id, user_id, author_name, type, text) VALUES ($1, $2, $3, 'message', 'zt hi') RETURNING id`, [classic, me, linked.USERNAME])).id;
   await pool.query(`INSERT INTO chat_messages (league_id, user_id, author_name, type, text, edited_at) VALUES ($1, $2, $3, 'message', 'zt hey', now())`, [poolLeague, ann, ANN]);
   await pool.query(`INSERT INTO chat_reactions (message_id, user_id, emoji) VALUES ($1, $2, '🔥')`, [msg, ann]);
@@ -173,6 +175,11 @@ async function up(pool) {
   await pool.query(`INSERT INTO watch_plan_people (plan_id, user_id, answer, invited, answered_at) VALUES ($1, $2, 'in', false, now()), ($1, $3, 'in', true, now())`, [night, ann, me]);
   // Rate it (0128): the tester's stars and take for Episode 1, ann's stars.
   await pool.query(`INSERT INTO episode_ratings (user_id, season_id, episode, stars, take) VALUES ($1, $3, 1, 4, 'zt: a good one'), ($2, $3, 1, 3, NULL)`, [me, ann, season]);
+  // React with a GIF (0162): the tester's GIF for Episode 1.
+  await pool.query(
+    `INSERT INTO episode_gifs (user_id, season_id, episode, gif) VALUES ($1, $2, 1, '{"id":"ztbackup","url":"https://static.klipy.com/zt/backup.gif","w":200,"h":150,"title":"zt"}')`,
+    [me, season]
+  );
   // Call it (0129): the tester's two calls on Episode 2, what ann said happened in Episode 1, and ann's poll with a vote each.
   await pool.query(`INSERT INTO episode_calls (user_id, season_id, episode, question, answer) VALUES ($1, $2, 2, 'out', 'zt-cast'), ($1, $2, 2, 'm:idolPlayed', 'yes')`, [me, season]);
   await pool.query(`INSERT INTO episode_call_says (user_id, season_id, episode, question, happened) VALUES ($1, $2, 1, 'm:hostSings', true)`, [ann, season]);

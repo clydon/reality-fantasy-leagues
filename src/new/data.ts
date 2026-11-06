@@ -29,6 +29,7 @@ import type { ListingHit } from "@/lib/game/listing";
 import type { AddedShow } from "@/lib/server/add-show";
 import type { KeepUp } from "@/lib/server/keep-up";
 import type { RecapState } from "@/lib/server/episode-recaps";
+import type { FillState } from "@/lib/server/season-fill";
 import type { ScoringPage } from "@/lib/server/maker-scoring";
 import type { Roster } from "@/lib/server/rosters";
 import type { StepEpisode } from "@/lib/server/schedule";
@@ -39,7 +40,7 @@ import type { DeletePreview, EndGame } from "@/lib/server/end-game";
 import type { HiddenShow, WeekEpisode } from "@/lib/server/guide";
 import type { WeekListing } from "@/lib/game/tv-listings";
 import type { PlanAnswerOut, PlanHow, PlanOptions, WatchPlan } from "@/lib/server/watch-plans";
-import type { EpisodeVerdict, ShowVerdict } from "@/lib/server/ratings";
+import type { EpisodeGifs } from "@/lib/server/episode-gifs";
 import type { EpisodeCalls } from "@/lib/server/calls";
 import type { GameQuestions } from "@/lib/server/answers";
 import type { Poll, SeasonPolls, ThisWeekShow } from "@/lib/server/polls";
@@ -90,8 +91,7 @@ export type { SheetMove } from "@/lib/game/game-view";
 export type { DeletePreview, EndGame } from "@/lib/server/end-game";
 export type { HiddenShow, WeekEpisode } from "@/lib/server/guide";
 export type { PlanAnswer, PlanEpisode, PlanHow, PlanOptions, PlanPerson, WatchPlan } from "@/lib/server/watch-plans";
-export type { EpisodeVerdict, EpisodeVerdictLine, RatingFace, ShowVerdict } from "@/lib/server/ratings";
-export type { Taste, Twin } from "@/lib/game/ratings";
+export type { EpisodeGifFace, EpisodeGifLine, EpisodeGifs } from "@/lib/server/episode-gifs";
 export type { CallPerson, CallSay, EpisodeCalls } from "@/lib/server/calls";
 export type { CallOption, CallQuestion, Verdict } from "@/lib/game/calls";
 export type { Poll, PollOption, SeasonPolls, ThisWeekShow } from "@/lib/server/polls";
@@ -148,6 +148,10 @@ export interface SeasonHeader {
   dropAt?: string | null;
   /** Set up as a game (step 10): false is "Not a game yet", a show someone added to follow. */
   ready?: boolean;
+  /** Getting it ready (docs/PLAN-getting-it-ready.md): its rules, cast or episodes being got now, stopped partway, or a show
+   *  that's a game with nobody in this season's cast and nothing getting it yet (the show's page starts it for someone who
+   *  follows it); else null. */
+  filling?: "going" | "stuck" | "missing" | null;
   show: {
     id: string;
     slug: string;
@@ -233,8 +237,9 @@ export interface CouchShow extends SeasonHeader {
 }
 
 export interface Home {
-  /** You: your face, and your Appearance (step 15 part 4). */
-  user: { id: string; name: string; colour: string | null; picture: number | null; theme: Theme };
+  /** You: your face, and your Appearance (step 15 part 4); whether you've seen the first-time tour (docs/PLAN-first-time-tour.md);
+   *  whether you share Where I am (What your couch sees), for your own person sheet. */
+  user: { id: string; name: string; colour: string | null; picture: number | null; theme: Theme; tourSeen?: boolean; shareWhere?: boolean };
   couches: Couch[];
   shows: HomeShow[];
   /** The couches' shows you don't follow (step 10: The couch is watching); who watches each is in the couches' members. */
@@ -322,12 +327,13 @@ export function useSeasonEpisodes(seasonId: string, couchId: string | null, enab
   });
 }
 
-/** The one reveal: episode n in every game of yours on the show, at once; answers its beats (POST .../reveal). */
-export async function revealEpisode(seasonId: string, couchId: string | null, episode: number): Promise<SeasonReveal> {
+/** The one reveal: episode n in every game of yours on the show, at once; answers its beats (POST .../reveal). `replay` (the
+ *  first-time tour's) plays one you've revealed again and writes nothing. */
+export async function revealEpisode(seasonId: string, couchId: string | null, episode: number, { replay = false }: { replay?: boolean } = {}): Promise<SeasonReveal> {
   const res = await fetch(`/api/seasons/${seasonId}/reveal`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ episode, couch: couchId }),
+    body: JSON.stringify({ episode, couch: couchId, ...(replay ? { replay: true } : {}) }),
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(body.error || `Couldn't reveal (${res.status})`);
@@ -351,8 +357,10 @@ async function chatSend<T = unknown>(url: string, method: "POST" | "PATCH" | "DE
 }
 
 /** Post to the couch's chat about this show: Share this, the reveal's Post to the couch, and the composer. */
-export async function postToCouch(seasonId: string, couchId: string, text: string): Promise<ChatLine> {
-  return (await chatSend<{ message: ChatLine }>(chatUrl(seasonId, couchId), "POST", { text })).message;
+export async function postToCouch(seasonId: string, couchId: string, text: string, gif?: GifHit): Promise<ChatLine> {
+  // A GIF goes as Watch along's do: its kept fields only (no preview), checked on the server (0156).
+  const body = gif ? { gif: { id: gif.id, url: gif.url, w: gif.w, h: gif.h, title: gif.title } } : { text };
+  return (await chatSend<{ message: ChatLine }>(chatUrl(seasonId, couchId), "POST", body)).message;
 }
 
 export type ChatRead = CouchChat | { out: true };
@@ -418,8 +426,8 @@ export function useChatActions(seasonId: string, couchId: string | null) {
   const refresh = () => client.invalidateQueries({ queryKey: ["new-design", "chat", seasonId, couchId] });
   const at = (id: string, rest = "") => chatUrl(seasonId, couchId as string, `/${encodeURIComponent(id)}${rest}`);
   return {
-    async post(text: string) {
-      const line = await postToCouch(seasonId, couchId as string, text);
+    async post(text: string, gif?: GifHit) {
+      const line = await postToCouch(seasonId, couchId as string, text, gif);
       await refresh();
       return line;
     },
@@ -1027,6 +1035,22 @@ export function useAfterProfile() {
 /** After joining or leaving a couch or a game: everything the new design reads moves on. */
 export const useAfterCouch = useAfterReveal;
 
+/**
+ * The first-time tour finished or skipped (docs/PLAN-first-time-tour.md; /api/me/tour): Home stops asking at once, and the
+ * account keeps it (the furthest step it got to). A write that fails leaves it to play again next time.
+ */
+export function useTourSeen() {
+  const qc = useQueryClient();
+  return useCallback(
+    (reached: number) => {
+      qc.setQueryData<Home>(HOME_KEY, (h) => (h ? { ...h, user: { ...h.user, tourSeen: true } } : h));
+      // keepalive: it's sent even if the page is left or reloaded straight after.
+      return fetch("/api/me/tour", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ reached }), keepalive: true }).catch(() => null);
+    },
+    [qc]
+  );
+}
+
 // ---- notifications (step 15 part 2; notify-prefs.ts): the bell, read when it opens (its count rides on the home read, never
 // polled), and a show's own switches, read when its sheet opens ----
 
@@ -1171,6 +1195,34 @@ export const recaps = {
   ask: (seasonId: string) => post<RecapState>(`/api/seasons/${seasonId}/recaps`, { action: "ask" }),
   paste: (seasonId: string, answer: string) => post<RecapState & { filled: number }>(`/api/seasons/${seasonId}/recaps`, { answer }),
   prompt: (seasonId: string) => get<{ prompt: string }>(`/api/seasons/${seasonId}/recaps?prompt=1`),
+};
+
+// ---- Getting it ready (docs/PLAN-getting-it-ready.md, season-fill.ts): a season's rules, cast and episodes, got by itself ----
+
+export type { FillState } from "@/lib/server/season-fill";
+
+/** A season getting ready: each step, its cast once it's in, each aired episode's tile. Read every 4 s while it's going (only
+ *  while the page shows: React Query pauses a hidden tab's). */
+export function useFill(seasonId: string | null, enabled = true) {
+  return useQuery({
+    queryKey: ["new-design", "fill", seasonId],
+    queryFn: () => get<FillState>(`/api/seasons/${seasonId}/fill`),
+    enabled: enabled && seasonId != null,
+    staleTime: 10_000,
+    retry: false,
+    refetchInterval: (q) => (q.state.data?.status === "going" ? 4000 : false),
+  });
+}
+
+export const fill = {
+  /** Start it (after Add; the show's page for a season missing its rules or cast). `episodes` false leaves the episodes. */
+  start: (seasonId: string, episodes = true) => post<FillState>(`/api/seasons/${seasonId}/fill`, { action: "start", episodes }),
+  retry: (seasonId: string) => post<FillState>(`/api/seasons/${seasonId}/fill`, { action: "retry" }),
+  /** The page that's open carries on a run that stopped partway. */
+  go: (seasonId: string) => post<FillState>(`/api/seasons/${seasonId}/fill`, { action: "go" }),
+  /** Copy and paste, the free way: the step it's on as a question, and its answer pasted back. */
+  prompt: (seasonId: string) => get<{ prompt: string; task: string; step: "rules" | "cast" | "episodes" }>(`/api/seasons/${seasonId}/fill?prompt=1`),
+  paste: (seasonId: string, answer: string) => post<FillState>(`/api/seasons/${seasonId}/fill`, { action: "paste", answer }),
 };
 export type { StepEpisode } from "@/lib/server/schedule";
 
@@ -1340,7 +1392,7 @@ export function usePlanOptions(seasonId: string | null, couchId: string | null, 
 }
 
 export const plansApi = {
-  plan: (seasonId: string, couchId: string, body: { episode: number; how: PlanHow; startsAt?: string; invite: string[] }) =>
+  plan: (seasonId: string, couchId: string, body: { episode: number; how: PlanHow; startsAt?: string; invite: string[]; now?: boolean }) =>
     post<PlanAnswerOut & { told: number }>(seasonUrl(seasonId, "/plans", { couch: couchId }), body),
   answer: (planId: string, answer: "in" | "out") => post<PlanAnswerOut>(`/api/plans/${planId}`, { answer }),
   cancel: (planId: string, cancel: boolean) => post<PlanAnswerOut>(`/api/plans/${planId}`, { cancel }),
@@ -1360,45 +1412,37 @@ export function useSetPlans() {
   );
 }
 
-// ---- Rate it (step 12 part 1; ratings.ts): one to five stars and a take for an episode you've seen, and the couch verdict.
-// Each episode's verdict comes with the Episodes read; the rate sheet reads its episode when it opens, Couch verdicts its
-// page when that opens. Nothing polls. ----
+// ---- React with a GIF (docs/PLAN-gif-reactions.md; episode-gifs.ts), in place of Rate it's stars: your GIF for an episode
+// you've seen, and the couch's. Each episode's come with the Episodes read; the GIF sheet and the reveal's slide read their
+// episode when they open. Nothing polls. ----
 
-/** One episode's verdict, for the rate sheet (GET .../ratings/[n]). */
-export function useEpisodeVerdict(seasonId: string | null, couchId: string | null, episode: number | null, enabled = true) {
+/** One episode's GIFs as the server answers them, and whether GIF search is set up here. */
+export type EpisodeGifsRead = EpisodeGifs & { search: boolean };
+
+/** One episode's GIFs (GET .../gifs/[n]): yours and the couch's. */
+export function useEpisodeGifs(seasonId: string | null, couchId: string | null, episode: number | null, enabled = true) {
   return useQuery({
-    queryKey: ["new-design", "verdict", seasonId, couchId, episode],
-    queryFn: () => get<EpisodeVerdict>(seasonUrl(seasonId!, `/ratings/${episode}`, couchId ? { couch: couchId } : {})),
+    queryKey: ["new-design", "episode-gifs", seasonId, couchId, episode],
+    queryFn: () => get<EpisodeGifsRead>(seasonUrl(seasonId!, `/gifs/${episode}`, couchId ? { couch: couchId } : {})),
     enabled: enabled && !!seasonId && !!episode,
     staleTime: 30_000,
   });
 }
 
-/** Couch verdicts: the latest episode you've seen of each show you've started, and how the couch rated it. */
-export function useCouchVerdicts(couchId: string | null, enabled = true) {
-  return useQuery({
-    queryKey: ["new-design", "verdicts", couchId],
-    queryFn: () => get<{ shows: ShowVerdict[] }>(`/api/couches/${couchId}/verdicts`),
-    enabled: enabled && !!couchId,
-    staleTime: 30_000,
-  });
-}
-
-export const ratingsApi = {
-  rate: (seasonId: string, couchId: string | null, episode: number, body: { stars: number; take?: string }) =>
-    post<EpisodeVerdict>(seasonUrl(seasonId, `/ratings/${episode}`, couchId ? { couch: couchId } : {}), body),
+export const episodeGifsApi = {
+  /** Your GIF for the episode (again), or null to take it back. */
+  react: (seasonId: string, couchId: string | null, episode: number, gif: GifHit | null) =>
+    post<EpisodeGifsRead>(seasonUrl(seasonId, `/gifs/${episode}`, couchId ? { couch: couchId } : {}), { gif }),
 };
 
-/** After a rating: the sheet's answer put in place, and what shows it read again (the episodes' verdicts, the hub's taste,
- *  Couch verdicts). */
-export function useAfterRating() {
+/** After your GIF: the answer put in place, and what shows it read again (Episodes' stacks and Tonight's row, the hub's points). */
+export function useAfterGif() {
   const client = useQueryClient();
   return useCallback(
-    (v: EpisodeVerdict, couchId: string | null) => {
-      client.setQueryData(["new-design", "verdict", v.seasonId, couchId, v.episode], v);
+    (v: EpisodeGifsRead, couchId: string | null) => {
+      client.setQueryData(["new-design", "episode-gifs", v.seasonId, couchId, v.episode], v);
       void client.invalidateQueries({ queryKey: ["new-design", "episodes", v.seasonId] });
       void client.invalidateQueries({ queryKey: ["new-design", "couch-hub"] });
-      void client.invalidateQueries({ queryKey: ["new-design", "verdicts"] });
     },
     [client]
   );

@@ -3,12 +3,13 @@
 import { startTransition, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ArrowLeftRight, ChevronDown, ChevronRight, Ellipsis, Send, Users, Zap } from "lucide-react";
-import { chatCouch, postToCouch, useSeasonStats, type CastStat, type Pattern, type SeasonStats } from "../data";
+import { chatCouch, postToCouch, useFill, useSeasonStats, type CastStat, type Pattern, type SeasonStats } from "../data";
 import type { ShowData } from "../screens/show-space";
 import { Flip } from "../ui/flip";
 import { EmptyState } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
+import { CastComing, EpisodesComing } from "./getting-ready";
 import { Face } from "./parts";
 import { RecapsCard } from "./recaps";
 import { ScoringLink } from "./scoring";
@@ -42,6 +43,9 @@ export function Cast({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const asked = params.get("rank");
   const couchId = show.couch?.id ?? null;
   const full = useSeasonStats(seasonId, couchId);
+  // Getting it ready (getting-ready.tsx): while the cast is coming, its frames instead of "No cast yet".
+  const filling = show.readOnly ? null : (show.header?.filling ?? null);
+  const fillState = useFill(seasonId, !!filling).data;
   const [range, setRange] = useState<[number, number] | null>(() => askedRange(params));
   const ranged = useSeasonStats(seasonId, couchId, range, !!range);
   const [view, setView] = useState<View>(asked ? "rank" : "faces");
@@ -59,6 +63,7 @@ export function Cast({ seasonId, show }: { seasonId: string; show: ShowData }) {
   if (!full.data) return <div className="mx-4 mt-5 h-72 animate-pulse rounded-[4px] bg-card" aria-busy />;
   const all = full.data;
   if (!all.cast.length) {
+    if (fillState && (fillState.status === "going" || fillState.status === "stuck")) return <CastComing f={fillState} />;
     // A sport nobody's made a game of has its roster instead (show/roster.tsx, with Fill in who's playing).
     const people = show.words.people.toLowerCase();
     return <EmptyState icon={Users} title={`No ${people} yet`} line={`The ${people} show up here once the season's cast is in.`} />;
@@ -71,7 +76,8 @@ export function Cast({ seasonId, show }: { seasonId: string; show: ShowData }) {
     const w = show.words;
     return (
       <>
-        <RecapsCard seasonId={seasonId} show={show} eps={null} />
+        {/* While it's getting ready, the same filmstrip as Episodes (the user found the old card ugly here, 2026-11-01). */}
+        {fillState?.status === "going" && fillState.steps.some((s) => s.key === "episodes") ? <EpisodesComing f={fillState} /> : <RecapsCard seasonId={seasonId} show={show} eps={null} />}
         <section data-explorer data-no-stats className="mx-4 mt-5 pb-4">
           <p className="mb-1 text-[13.5px] leading-snug text-muted-foreground">
             {all.seenThrough === 0

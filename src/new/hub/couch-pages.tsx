@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { ChartColumn, ChevronRight, CircleQuestionMark, Crown, Grid3x3, Plus, Repeat, RotateCcw, Shield, ShieldCheck, Star, Trophy, Tv, Zap, type LucideIcon } from "lucide-react";
+import { ArrowDown, ArrowUp, ChartColumn, ChevronRight, CircleQuestionMark, Crown, Gamepad2, Grid3x3, Plus, Repeat, RotateCcw, Shield, ShieldCheck, Trophy, Tv, Zap, type LucideIcon } from "lucide-react";
+import { COUCH_POINTS, joinNames, leadWorthNaming, POINT_GROUPS, type PointGroup } from "@/lib/game/couch-standings";
 import {
   useCouchGames,
   useCouchThisWeek,
-  useCouchVerdicts,
   useMyTrivia,
   useSeasonEpisodes,
   useSeasonStats,
@@ -19,9 +19,7 @@ import {
   type JoinGame,
   type Plaque,
   type RankRow,
-  type Rankings,
   type SeasonStats,
-  type ShowVerdict,
 } from "../data";
 import { JoinGameRow, JoinGameSheet } from "../couch/join-game";
 import { openStartGame } from "../couch/start-game";
@@ -31,12 +29,10 @@ import { NavLink } from "../nav";
 import { paths } from "../routes";
 import { HubStatsPage, statBoard, statOf, unitFor, useStatsPage } from "../show/stats";
 import { Face } from "../show/parts";
-import { openRate } from "../show/rate";
 import { openCall } from "../show/calls";
 import { openPoll, pollWords } from "../show/polls";
 import { openBingo } from "../show/bingo";
 import { openTrivia } from "../show/trivia";
-import { verdictText } from "@/lib/game/ratings";
 import { Avatar } from "../ui/bars";
 import { PushedPage, usePushedPage } from "../ui/page";
 import { Row, SectionHead } from "../ui/parts";
@@ -47,15 +43,15 @@ import { movesByDue } from "./sections";
 // (?page=), so the back gesture closes it. Real since step 8 (Hub I), from the couch's own games as you may see them
 // (couch-hub.ts): power rankings, Commercial break's games, By the numbers (cast stats since step 3, the couch's
 // accolades now), Previously on (each show's story up to where you are) and the trophy shelf (once a season has ended).
-// Couch verdicts are real since step 12 part 1 (the couch's ratings, ratings.ts); Commercial break's This week only has each
+// Couch verdicts (step 12 part 1) went with Rate it's stars on 2026-11-01 (docs/PLAN-gif-reactions.md); Commercial break's This week only has each
 // show's Call it and the couch's polls since part 2 (calls.ts, polls.ts couchThisWeek), and each show's bingo card and this week's
-// trivia since part 3 (bingo.ts, trivia.ts).
+// trivia since part 3 (bingo.ts, trivia.ts). Commercial break is called All games since 2026-10-31 (the user), with a gamepad
+// for its icon; its key and ?page= stay "break".
 
 const PAGES = {
-  rankings: { title: "Power rankings", line: "Where everyone stands this year", icon: Trophy },
-  break: { title: "Commercial break", line: "Every game on the couch · join any", icon: Zap },
+  rankings: { title: "Power rankings", line: "Couch points: who joins in most", icon: Trophy },
+  break: { title: "All games", line: "Every game on the couch · join any", icon: Gamepad2 },
   numbers: { title: "By the numbers", line: "Who leads every stat, up to where you are", icon: ChartColumn },
-  verdicts: { title: "Couch verdicts", line: "How the couch rated each episode", icon: Star },
   previously: { title: "Previously on", line: "The story so far, up to where you are", icon: Tv },
   trophies: { title: "Trophy shelf", line: "Every season the couch has finished", icon: Crown },
 } as const satisfies Record<string, { title: string; line: string; icon: LucideIcon }>;
@@ -81,15 +77,14 @@ function standing(rows: RankRow[], me: string): string | null {
   return `You're ${ordinal(mine.place)} · ${rows[0].total - mine.total} back of ${rows[0].name}`;
 }
 
-/** What each row says now: your place, your games, your titles. */
+/** What each row says now: your place in Couch points (this year's once there's a year before it), your games, your titles. */
 function rowLines(home: Home, hub: CouchHub | undefined): Partial<Record<PageKey, string>> {
-  const said = hub?.rankings ? standing(hub.rankings.year, home.user.id) : null;
+  const r = hub?.rankings;
+  const said = r ? standing(r.year ?? r.all, home.user.id) : null;
   const n = hub?.games.filter((g) => !g.ended).length ?? 0;
   const t = hub?.trophies;
-  const rated = hub?.taste.shows ?? 0;
   return {
-    verdicts: rated ? `How the couch rated ${rated} ${rated === 1 ? "show" : "shows"}` : undefined,
-    rankings: said ? (said === "You lead the couch" ? "You lead the couch this year" : said) : undefined,
+    rankings: said ? (said === "You lead the couch" && r?.year ? "You lead the couch this year" : said) : undefined,
     break: hub ? (n ? `${n} ${n === 1 ? "game" : "games"} you're in · join any` : undefined) : undefined,
     trophies: t ? `${t.titles} ${t.titles === 1 ? "title" : "titles"} · ${t.seasons} ${t.seasons === 1 ? "season" : "seasons"} played` : undefined,
   };
@@ -106,7 +101,7 @@ function MoreRow({ k, line }: { k: PageKey; line?: string }) {
 }
 
 /**
- * The rows, each only once it has something: power rankings after the first scored episode, Previously on once you've
+ * The rows, each only once it has something: power rankings once there's a couch (joining it is Couch points), Previously on once you've
  * started a show, the trophy shelf once a season the couch played has ended.
  */
 export function MoreOnTheCouch({ home, hub }: { home: Home; hub: CouchHub | undefined }) {
@@ -116,12 +111,11 @@ export function MoreOnTheCouch({ home, hub }: { home: Home; hub: CouchHub | unde
     ...(hub?.rankings ? (["rankings"] as const) : []),
     "break",
     "numbers",
-    "verdicts",
     ...(started ? (["previously"] as const) : []),
     ...(hub?.trophies ? (["trophies"] as const) : []),
   ];
   return (
-    <section className="mt-8">
+    <section className="mt-8" data-more-couch>
       <SectionHead title="More on the couch" aside="When you want it" />
       <div className="flex flex-col border-b border-border px-4">
         {keys.map((k) => (
@@ -158,9 +152,6 @@ export function CouchPages({ home, couch, hub }: { home: Home | undefined; couch
         <ByTheNumbers shows={shows} couch={couch} accolades={hub?.accolades ?? null} />
       </CouchPage>
       <HubStatsPage couchId={couch?.id ?? null} names={new Map(shows.map((s) => [s.seasonId, s.show.name]))} />
-      <CouchPage k="verdicts">
-        <Verdicts couch={couch} hub={hub} />
-      </CouchPage>
       <CouchPage k="previously">
         <PreviouslyOn shows={shows} couch={couch} />
       </CouchPage>
@@ -196,17 +187,6 @@ function SpoilerSafe() {
   );
 }
 
-function How({ icon: Icon, lead, children }: { icon: LucideIcon; lead: string; children: ReactNode }) {
-  return (
-    <div className="mx-3 mt-6 flex items-start gap-3 rounded-[4px] bg-card p-3.5">
-      <Icon className="mt-0.5 size-5 flex-none text-muted-foreground" aria-hidden />
-      <p className="text-sm leading-normal text-muted-foreground">
-        <b className="text-foreground">{lead}</b> {children}
-      </p>
-    </div>
-  );
-}
-
 function Loading() {
   return (
     <div aria-busy className="animate-pulse px-3 pt-5">
@@ -230,17 +210,22 @@ function Empty({ icon: Icon, title, line }: { icon: LucideIcon; title: string; l
 
 // ---------- Power rankings ----------
 
-/** Each show's colour in the bars, in the order its points rank (the mock's Survivor orange, Traitors red, Challenge blue first). */
-const SHOW_COLOURS = ["#f2804b", "#c23a4b", "#5089c9", "#35b5a5", "#a76bb0", "#e0b23a", "#9aa0a6"];
+/** The bar's colour for each kind of joining in (the chart set). */
+const GROUP_COLOURS: Record<PointGroup, string> = { play: "#f2804b", watch: "#5089c9", talk: "#a76bb0", here: "#35b5a5" };
 
-function RankList({ rows, r, me, max }: { rows: RankRow[]; r: Rankings; me: string; max: number }) {
-  const colour = (showId: string) => SHOW_COLOURS[Math.max(0, r.shows.findIndex((s) => s.showId === showId)) % SHOW_COLOURS.length];
+/** A row's points by group, in the bar's order. */
+const byGroup = (row: RankRow) =>
+  POINT_GROUPS.map(({ group }) => ({ group, points: row.byKind.filter((k) => COUCH_POINTS.find((p) => p.kind === k.kind)?.group === group).reduce((n, k) => n + k.points, 0) })).filter((g) => g.points > 0);
+
+function RankList({ rows, me }: { rows: RankRow[]; me: string }) {
+  const max = rows[0]?.total ?? 0;
+  const groups = POINT_GROUPS.filter(({ group }) => rows.some((row) => byGroup(row).some((g) => g.group === group)));
   return (
     <div className="px-3">
       {rows.map((row) => {
         const mine = row.userId === me;
         return (
-          <div key={row.userId} data-rank-row={row.name} className={`flex h-[58px] items-center gap-3 ${mine ? "-mx-2 rounded-[3px] bg-plate px-2 text-plate-foreground" : ""}`}>
+          <div key={row.userId} data-rank-row={row.name} data-rank={row.rank} className={`flex h-[58px] items-center gap-3 ${mine ? "-mx-2 rounded-[3px] bg-plate px-2 text-plate-foreground" : ""}`}>
             <span className={`type-num w-7 text-[22px] ${row.place === 1 || mine ? "" : "text-muted-foreground"}`}>{row.rank}</span>
             <Avatar id={row.userId} name={row.name} size={30} />
             <span className="min-w-0 flex-1">
@@ -248,14 +233,14 @@ function RankList({ rows, r, me, max }: { rows: RankRow[]; r: Rankings; me: stri
                 <span className="truncate">{row.name}</span>
                 {mine && <span className="type-caption rounded-[2px] bg-plate-foreground px-1.5 py-0.5 text-[10px] text-plate">You</span>}
                 {row.move && (
-                  <span data-move={row.move} className={`ml-auto text-xs ${row.move === "up" ? "text-good" : mine ? "text-plate-muted" : "text-muted-foreground"}`} aria-label={row.move === "up" ? "Moved up" : "Moved down"}>
-                    {row.move === "up" ? "▲" : "▼"}
+                  <span data-move={row.move} className={`ml-auto ${row.move === "up" ? "text-good" : mine ? "text-plate-muted" : "text-muted-foreground"}`} aria-label={row.move === "up" ? "Up since last week" : "Down since last week"}>
+                    {row.move === "up" ? <ArrowUp className="size-3.5" strokeWidth={2.5} aria-hidden /> : <ArrowDown className="size-3.5" strokeWidth={2.5} aria-hidden />}
                   </span>
                 )}
               </span>
               <span className="mt-1.5 flex h-1 overflow-hidden rounded-full" style={{ width: `${max ? (row.total / max) * 100 : 0}%` }}>
-                {row.byShow.map((s) => (
-                  <i key={s.showId} className="block h-full" style={{ width: `${row.total ? (s.points / row.total) * 100 : 0}%`, background: colour(s.showId) }} />
+                {byGroup(row).map((g) => (
+                  <i key={g.group} className="block h-full" style={{ width: `${row.total ? (g.points / row.total) * 100 : 0}%`, background: GROUP_COLOURS[g.group] }} />
                 ))}
               </span>
             </span>
@@ -263,11 +248,11 @@ function RankList({ rows, r, me, max }: { rows: RankRow[]; r: Rankings; me: stri
           </div>
         );
       })}
-      <div className="mt-3 flex flex-wrap gap-x-3.5 gap-y-1.5 text-xs text-muted-foreground">
-        {r.shows.map((s) => (
-          <span key={s.showId} className="flex items-center gap-1.5">
-            <i className="size-2.5 rounded-[2px]" style={{ background: colour(s.showId) }} aria-hidden />
-            {s.name}
+      <div className="mt-3 flex flex-wrap gap-x-3.5 gap-y-1.5 text-xs text-muted-foreground" data-rank-legend>
+        {groups.map(({ group, name }) => (
+          <span key={group} className="flex items-center gap-1.5">
+            <i className="size-2.5 rounded-[2px]" style={{ background: GROUP_COLOURS[group] }} aria-hidden />
+            {name}
           </span>
         ))}
       </div>
@@ -275,19 +260,48 @@ function RankList({ rows, r, me, max }: { rows: RankRow[]; r: Rankings; me: stri
   );
 }
 
-/** The couch's one table for the year (or all-time), your place as the big number; head to head against each of them. */
+/** COUCH_POINTS by what each is worth, most first: How you earn them. */
+const TIERS = [...new Set(COUCH_POINTS.map((p) => p.points as number))].map((points) => ({ points, ways: COUCH_POINTS.filter((p) => p.points === points) }));
+
+function HowYouEarn() {
+  return (
+    <section className="mt-8 px-3" data-how-earn>
+      <SectionHead title="How you earn them" aside="Points each" flush />
+      {TIERS.map(({ points, ways }) => (
+        <div key={points} data-earn={points} className="flex gap-3 border-t border-border py-3">
+          <b className="type-num w-8 flex-none text-[26px] leading-none">{points}</b>
+          <ul className="min-w-0 flex-1 space-y-1 text-[15px] leading-snug">
+            {ways.map((w) => (
+              <li key={w.kind}>
+                {w.says}
+                {"cap" in w && <span className="text-muted-foreground"> · up to {w.cap}</span>}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </section>
+  );
+}
+
+/** Couch points (this year, once the couch has a year before it, and all time), your place as the big number; head to head
+ *  against each of them from the games. */
 function RankingsPage({ hub, me }: { hub: CouchHub | undefined; me: string }) {
-  const [tab, setTab] = useState<"year" | "all" | "h2h">("year");
+  const [picked, setTab] = useState<"year" | "all" | "h2h" | null>(null);
   if (!hub) return <Loading />;
   const r = hub.rankings;
-  if (!r) return <Empty icon={Trophy} title="Rankings start with your first scored episode" line="Every game on the couch counts toward one table for the year." />;
-  const rows = tab === "all" ? r.all : r.year;
+  if (!r) return <Empty icon={Trophy} title="No Couch points yet" line="Everyone earns them by joining in: playing, watching and talking on the couch." />;
+  // This year only once the couch has done something before it; till then it opens on all time.
+  const tab = picked === "h2h" || picked === "all" || (picked === "year" && r.year) ? picked : r.year ? "year" : "all";
+  const rows = (tab === "year" && r.year) || r.all;
   const mine = rows.find((x) => x.userId === me);
   const lead = rows[0];
   const won = r.h2h.reduce((n, h) => n + h.won, 0);
   const lost = r.h2h.reduce((n, h) => n + h.lost, 0);
   const said = standing(rows, me);
   const gap = mine && lead ? lead.total - mine.total : 0;
+  const week = mine?.week ? ` +${mine.week} this week.` : "";
+  const tabs = [...(r.year ? ([["year", "This year"]] as const) : []), ["all", "All time"], ["h2h", "Head to head"]] as const;
   return (
     <>
       {tab === "h2h" ? (
@@ -295,20 +309,18 @@ function RankingsPage({ hub, me }: { hub: CouchHub | undefined; me: string }) {
       ) : mine ? (
         <BigHero
           big={placeWord(mine.rank, mine.place)}
-          label={`${tab === "all" ? "All-time" : "This year"} · of ${rows.length}`}
-          line={!said || said.startsWith("You lead") || said.startsWith("You're tied") ? `${said ?? "You lead the couch"}.` : `${gap} back of ${lead.name}. ${gap <= 9 ? "A good week puts you level." : "A good week moves you up."}`}
+          label={`Couch points${tab === "year" ? " this year" : ""} · of ${rows.length}`}
+          line={
+            !said || said.startsWith("You lead") || said.startsWith("You're tied")
+              ? `${said ?? "You lead the couch"}.${week}`
+              : `${gap} back of ${lead.name}.${week || " A move or an episode's GIF gets you going."}`
+          }
         />
       ) : (
-        <BigHero big="–" label={tab === "all" ? "All-time" : "This year"} line={rows.length ? "You haven't played a game that's scored yet." : "Nothing has scored this year yet."} />
+        <BigHero big="–" label="Couch points" line="You're not on this couch's table." />
       )}
-      <div role="tablist" className="mx-3 mb-1 mt-4 grid grid-cols-3 gap-1 rounded-[3px] bg-card p-1">
-        {(
-          [
-            ["year", "This year"],
-            ["all", "All-time"],
-            ["h2h", "Head to head"],
-          ] as const
-        ).map(([k, label]) => (
+      <div role="tablist" className={`mx-3 mb-1 mt-4 grid gap-1 rounded-[3px] bg-card p-1 ${tabs.length === 3 ? "grid-cols-3" : "grid-cols-2"}`}>
+        {tabs.map(([k, label]) => (
           <button
             key={k}
             type="button"
@@ -341,12 +353,14 @@ function RankingsPage({ hub, me }: { hub: CouchHub | undefined; me: string }) {
           ))}
         </div>
       ) : (
-        <RankList rows={rows} r={r} me={me} max={lead?.total ?? 0} />
+        <>
+          <p className="mx-3 mb-1 mt-2.5 text-[13px] leading-snug text-muted-foreground" data-rank-explainer>
+            Points for joining in, not for winning.
+          </p>
+          <RankList rows={rows} me={me} />
+          <HowYouEarn />
+        </>
       )}
-      <How icon={Trophy} lead="One table for every game on the couch.">
-        Each game you play adds points by where you placed: 10 for first down to 1 for last, however many play it, so a Survivor title and a Traitors pool both count. A game
-        still going counts where it stands, as far as you&apos;ve seen. The bar shows where your points came from.
-      </How>
     </>
   );
 }
@@ -391,7 +405,7 @@ function CommercialBreak({ hub, home, couch }: { hub: CouchHub | undefined; home
           ))}
         </span>
         <div className="relative mx-3 mb-4 rounded-[3px] bg-plate px-3.5 py-2.5 text-plate-foreground shadow-plate">
-          <b className="type-caption block text-[34px]">Commercial break</b>
+          <b className="type-caption block text-[34px]">All games</b>
           <small className="mt-1 block text-[13px] text-plate-muted">Every game on the couch. Join any, or none.</small>
         </div>
       </section>
@@ -550,6 +564,7 @@ function StatCard({
   onClick?: () => void;
   className?: string;
   "data-accolade"?: string;
+  "data-deck-stat"?: string;
 }) {
   const Tag = onClick ? "button" : "div";
   return (
@@ -592,6 +607,20 @@ function AccoladeCard({ a, className }: { a: Accolade; className?: string }) {
   );
 }
 
+/** Two sharing a lead in one 38px square, a half each, so the row's words stay in line with a lone leader's. `face` draws one at
+ *  38px; its half shows the middle of it. */
+function Pair<T>({ two, face }: { two: T[]; face: (item: T) => ReactNode }) {
+  return (
+    <span aria-hidden data-faces={two.length} className="grid size-[38px] flex-none grid-cols-2 gap-0.5 overflow-hidden rounded-[3px]">
+      {two.map((item, i) => (
+        <span key={i} className="relative overflow-hidden">
+          <span className="absolute left-1/2 top-0 -translate-x-1/2">{face(item)}</span>
+        </span>
+      ))}
+    </span>
+  );
+}
+
 /** Today's couch accolades for the deck: "now and then", so one or two, a different pair each day. */
 function todays(accolades: Accolade[]): Accolade[] {
   if (accolades.length <= 2) return accolades;
@@ -611,16 +640,23 @@ function ByTheNumbers({ shows, couch, accolades }: { shows: HomeShow[]; couch: C
   const counted = shows
     .map((s, i) => ({ s, d: reads[i]?.data }))
     .filter((x): x is { s: HomeShow; d: SeasonStats } => !!x.d && x.d.through > 0 && x.d.stats.length > 1);
-  // The deck: each show's featured stats whose leader has two or more, a show at a time, five at most.
-  const decks = counted.map(({ s, d }) => d.featured.map((key) => ({ s, stat: statOf(d, key), top: statBoard(d, key)[0] })).filter((c) => c.top && c.top.n >= 2));
+  // The deck: each show's featured stats with one leader alone on two or more (a headline names one person, so never a tie), a
+  // show at a time, five at most.
+  const decks = counted.map(({ s, d }) =>
+    d.featured
+      .map((key) => ({ s, stat: statOf(d, key), board: statBoard(d, key) }))
+      .filter(({ board }) => board[0]?.n >= 2 && (board[1]?.n ?? 0) < board[0].n)
+      .map(({ s, stat, board }) => ({ s, stat, top: board[0] }))
+  );
   const deck = Array.from({ length: Math.max(0, ...decks.map((x) => x.length)) }, (_, i) => decks.map((x) => x[i]).filter(Boolean))
     .flat()
     .slice(0, 5);
-  const couchCards = todays(accolades ?? []);
+  const couchCards = todays((accolades ?? []).filter((a) => !a.tied));
   const loading = reads.some((r) => r.isPending && r.fetchStatus !== "idle") || accolades === null;
   const cards: ReactNode[] = deck.map(({ s, stat, top }) => (
     <StatCard
       key={`${s.seasonId}-${stat.key}`}
+      data-deck-stat={`${s.seasonId}:${stat.key}`}
       onClick={() => page.openAt(stat.key, s.seasonId)}
       photo={
         top.c.photo ? (
@@ -664,43 +700,70 @@ function ByTheNumbers({ shows, couch, accolades }: { shows: HomeShow[]; couch: C
       {!loading && !counted.length && (
         <p className="mx-3 mt-6 text-sm leading-normal text-muted-foreground">Cast stats fill in as you watch: every number is counted up to the episode you&apos;re on in each show.</p>
       )}
-      {counted.map(({ s, d }) => (
-        <section key={s.seasonId} className="mt-6 px-3" data-numbers-show={s.seasonId}>
-          <SectionHead title={showLabel(s)} aside={`Up to Ep ${d.through}`} flush />
-          {d.stats
-            .filter((st) => st.key !== "points")
-            .map((st) => ({ st, top: statBoard(d, st.key)[0] }))
-            .filter((r) => r.top)
-            .map(({ st, top }) => (
+      {counted.map(({ s, d }) => {
+        // Each stat's lead, named only when it says something (leadWorthNaming, the season's cast the field); the rest fold into
+        // one line that opens every stat.
+        const leads = d.stats
+          .filter((st) => st.key !== "points")
+          .map((st) => {
+            const board = statBoard(d, st.key);
+            return { st, top: board.filter((r) => r.n === board[0]?.n) };
+          })
+          .filter((r) => r.top.length);
+        const named = leads.filter((r) => leadWorthNaming(r.top.length, r.top[0].n, d.cast.length));
+        const unnamed = leads.length - named.length;
+        return (
+          <section key={s.seasonId} className="mt-6 px-3" data-numbers-show={s.seasonId}>
+            <SectionHead title={showLabel(s)} aside={`Up to Ep ${d.through}`} flush />
+            {named.map(({ st, top }) => (
               <button
                 key={st.key}
                 type="button"
                 data-numbers-row={st.key}
+                data-leaders={top.length}
                 onClick={() => page.openAt(st.key, s.seasonId)}
                 className="flex min-h-[58px] w-full items-center gap-3 border-t border-border text-left"
               >
-                {top.c.photo ? (
-                  // eslint-disable-next-line @next/next/no-img-element -- cast photos come from anywhere a show's cast was imported from
-                  <img src={top.c.photo} alt="" className="size-[38px] flex-none rounded-[3px] object-cover [object-position:center_20%]" />
+                {top.length === 1 ? (
+                  <Face src={top[0].c.photo} name={top[0].c.first} className="size-[38px] flex-none rounded-[3px]" />
                 ) : (
-                  <span className="type-caption grid size-[38px] flex-none place-items-center rounded-[3px] bg-secondary text-muted-foreground">{top.c.first.slice(0, 1)}</span>
+                  <Pair two={top.map((r) => r.c)} face={(c) => <Face src={c.photo} name={c.first} className="block size-[38px]" />} />
                 )}
                 <span className="min-w-0 flex-1">
                   <b className="block text-[15px] leading-snug">{st.name}</b>
-                  <small className="block text-[12.5px] text-muted-foreground">{top.c.first} leads</small>
+                  <small className="block text-[12.5px] leading-snug text-muted-foreground" data-numbers-who>
+                    {top.length === 1 ? `${top[0].c.first} leads` : `${joinNames(top.map((r) => r.c.first))} lead`}
+                  </small>
                 </span>
-                <b className="type-num text-[24px]">{top.n}</b>
+                <b className="type-num text-[24px]">{top[0].n}</b>
                 <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />
               </button>
             ))}
-        </section>
-      ))}
+            {unnamed > 0 && (
+              <button
+                type="button"
+                data-numbers-more={unnamed}
+                onClick={() => page.openAt(null, s.seasonId)}
+                className="flex min-h-12 w-full items-center gap-3 border-t border-border text-left text-[13px] text-muted-foreground"
+              >
+                <span className="min-w-0 flex-1">
+                  {unnamed} more {unnamed === 1 ? "stat" : "stats"} with no clear lead yet
+                </span>
+                <span className="font-semibold text-foreground">See all</span>
+                <ChevronRight className="-ml-2 size-5 flex-none" aria-hidden />
+              </button>
+            )}
+          </section>
+        );
+      })}
       {!!accolades?.length && (
         <section className="mt-6 px-3" data-accolades>
           <SectionHead title="On the couch" aside="Who stands out" flush />
           {accolades.map((a) => (
             <div key={a.key} data-accolade-row={a.key} className="flex min-h-[58px] items-center gap-3 border-t border-border">
-              {a.userId ? (
+              {a.tied ? (
+                <Pair two={a.tied} face={(p) => <Avatar id={p.userId} name={p.name} size={38} />} />
+              ) : a.userId ? (
                 <Avatar id={a.userId} name={a.who} size={38} />
               ) : (
                 <span className="grid size-[38px] flex-none place-items-center rounded-[3px] bg-secondary text-muted-foreground">
@@ -718,97 +781,6 @@ function ByTheNumbers({ shows, couch, accolades }: { shows: HomeShow[]; couch: C
         </section>
       )}
     </>
-  );
-}
-
-// ---------- Couch verdicts (step 12 part 1: the couch's ratings, ratings.ts) ----------
-
-/**
- * Couch verdicts (the mock's couchpages.js verdictsPage): a critics' panel per show you've started, for the latest episode
- * you've seen: the big score, everyone's stars (yours, or Rate), a take on a plate, the score episode by episode; then your
- * taste twin and the couch's contrarian. Read when the page opens; nothing past where you are in each show.
- */
-function Verdicts({ couch, hub }: { couch: Couch | null; hub: CouchHub | undefined }) {
-  const open = usePushedPage("verdicts").open;
-  const v = useCouchVerdicts(couch?.id ?? null, open);
-  const twin = hub?.taste.twin ?? null;
-  const contrarian = hub?.accolades.find((a) => a.key === "contrarian") ?? null;
-  return (
-    <>
-      <SpoilerSafe />
-      {!v.data ? (
-        <div aria-busy className="mx-3 mt-[22px] h-[260px] animate-pulse rounded-[4px] bg-card" />
-      ) : v.data.shows.length ? (
-        v.data.shows.map((s) => <VerdictPanel key={s.seasonId} s={s} couchId={couch?.id ?? null} />)
-      ) : (
-        <p className="mx-3 mt-6 text-sm leading-normal text-muted-foreground">
-          Once you&apos;ve seen an episode, rate it from the show&apos;s Tonight: the couch&apos;s verdict for each show you watch lands here.
-        </p>
-      )}
-      <How icon={Star} lead={twin ? `Taste twin: ${twin.name}.` : "Taste twins."}>
-        {twin ? `${twin.line}.` : "Rate a few episodes the couch watches too, and whoever rates most like you shows up here."}
-        {contrarian && ` ${contrarian.who} is the couch's contrarian: ${contrarian.line}.`}
-      </How>
-    </>
-  );
-}
-
-function VerdictPanel({ s, couchId }: { s: ShowVerdict; couchId: string | null }) {
-  // You're first among them once you've rated it.
-  const others = s.mine !== null ? s.people.slice(1) : s.people;
-  const rate = () => openRate({ seasonId: s.seasonId, couchId, episode: s.episode, label: s.label, solo: false });
-  const top = Math.max(...s.byEpisode.map((b) => b.avg ?? 0), 0);
-  return (
-    <section data-verdict-show={s.seasonId} className="mx-3 mt-[22px] border-b border-border pb-5">
-      <div className="relative isolate flex min-h-[150px] items-end overflow-hidden rounded-[4px] p-3">
-        <ShowArt seasonId={s.seasonId} artUrl={s.artUrl} name={s.label} className="absolute inset-0 -z-[2] size-full" />
-        <span aria-hidden className="absolute inset-0 -z-[1] bg-[linear-gradient(90deg,rgba(16,14,21,.95)_35%,rgba(16,14,21,.2))]" />
-        <div>
-          <span className="type-caption block text-[13px] tracking-[0.06em] text-muted-foreground">
-            {s.label} · Episode {s.episode}
-          </span>
-          <b data-verdict-score className="type-num mt-1.5 block text-[84px] leading-[.78]">
-            {verdictText(s.avg)}
-          </b>
-          <small className="mt-1 block text-[13px] text-muted-foreground">{s.n ? `★ couch rating · from ${s.n}` : "Nobody's rated it yet"}</small>
-        </div>
-      </div>
-      <div className="mt-3 flex flex-wrap items-center gap-x-3.5 gap-y-2.5">
-        {s.mine === null && (
-          <button type="button" data-verdict-rate onClick={rate} className="nd-press flex h-11 items-center rounded-[3px] px-3.5 text-sm font-bold outline-1 -outline-offset-1 outline-input">
-            Rate Episode {s.episode}
-          </button>
-        )}
-        {s.people.map((p) => (
-          <button key={p.userId} type="button" onClick={rate} data-verdict-person={p.name} className="flex min-h-11 items-center gap-1.5" aria-label={`${p.name}: ${p.stars} stars`}>
-            <Avatar id={p.userId} name={p.name} size={30} />
-            <b className="type-num text-[17px]">★ {p.stars}</b>
-          </button>
-        ))}
-      </div>
-      {s.take && (
-        <div data-verdict-take className="mt-3 flex min-h-12 items-stretch overflow-hidden rounded-[3px] bg-plate text-plate-foreground shadow-plate">
-          <span className="type-caption -mr-[13px] flex items-center bg-secondary py-0 pl-[11px] pr-[22px] text-[13px] text-foreground [clip-path:polygon(0_0,100%_0,calc(100%_-_13px)_100%,0_100%)]">
-            {s.take.name}
-          </span>
-          <span className="flex flex-1 items-center py-2 pl-5 pr-2.5 text-sm [overflow-wrap:anywhere]">&ldquo;{s.take.text}&rdquo;</span>
-        </div>
-      )}
-      {s.byEpisode.length > 1 && (
-        <div className="mt-3.5 flex h-16 items-end gap-1.5" aria-label="Couch rating by episode" data-verdict-bars>
-          {s.byEpisode.map((b, i) => (
-            <span key={b.episode} className="flex h-full flex-1 flex-col items-center justify-end gap-1" title={b.avg === null ? `Episode ${b.episode}: not rated` : `Episode ${b.episode}: ${verdictText(b.avg)}`}>
-              <i
-                className={`block min-h-1 w-full rounded-t-[2px] ${i === s.byEpisode.length - 1 ? "bg-foreground" : "bg-input"}`}
-                style={{ height: b.avg === null || !top ? "4px" : `${Math.max(8, ((b.avg - 1) / 4) * 100)}%` }}
-              />
-              <small className="text-[11px] text-muted-foreground">{b.episode}</small>
-            </span>
-          ))}
-        </div>
-      )}
-      {others.length === 0 && s.mine !== null && <p className="mt-2 text-[13px] text-muted-foreground">You&apos;re first · the couch verdict fills in as they rate</p>}
-    </section>
   );
 }
 

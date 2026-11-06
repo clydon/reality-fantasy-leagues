@@ -115,7 +115,7 @@ if (typeof window !== "undefined" && !(window as { __gysReadOnly?: boolean }).__
 }
 
 /**
- * What would change something, as the show space marks it (the mock's DG_WRITE): Reveal, Rate it, a flag, an answer, It's
+ * What would change something, as the show space marks it (the mock's DG_WRITE): Reveal, React with a GIF, a flag, an answer, It's
  * new, Fill in what happened, Looks right to us, Suggest a fix, Change the scoring, a call, a bingo square, typing. Looking
  * around (the tabs, a person's team, a castaway, the explorer, the rules, an episode, where you are) works.
  */
@@ -123,10 +123,10 @@ const WRITES = [
   "[data-reveal-plate]",
   "[data-ep-hidden]",
   "[data-as-of]",
-  "[data-episode-rate]",
-  "[data-rate-row]",
-  "[data-star]",
-  "[data-take-save]",
+  "[data-episode-gif]",
+  "[data-gif-row]",
+  "[data-watch-gif]",
+  "[data-gifs-add]",
   "[data-something-wrong]",
   "[data-story-flag]",
   "[data-dispute-send]",

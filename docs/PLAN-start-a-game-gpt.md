@@ -1119,7 +1119,7 @@ session or bout.
   order them, reviewed on generated screens (V2, V3). Deterministic at run time: nothing composes a page with AI when someone
   opens it (no paid service, and the bot is never in a page's path).
 
-## Steps (each its own session, Opus 5.5 at xhigh)
+## Steps (each its own session, Opus 5.5; at high since 2026-11-05, the user's call, C2 at xhigh)
 
 **S. Survivor off built-ins** (master). This is time-bound: the proof needs two airing episodes of Survivor 51. The details are
 in `PLAN-researched-survivor.md`'s "What the switch needs", with this plan's decision.
@@ -1140,7 +1140,8 @@ in `PLAN-researched-survivor.md`'s "What the switch needs", with this plan's dec
     names: `tribalGroupProblems`' key, `notableTwist`, and the episode editor's finalist exits); part 2, the shared-code
     clean-up (moment tags, stored answers by rulebook, `ensureSeasonRulebook`, maker scoring).
 - **S3. The switch.** After two episodes with every table matching at today's points, the three real games move onto the data
-  rules (with the user's OK). Then `survivor.js`'s code half, `BUILT_IN_READERS` and legacy freezing go, and Traitors' and the
+  rules (with the user's OK). **2026-10-31:** production's test couch was removed (the user), so the proof moves to the local
+  shadow leagues after Episode 7 airs (the user's pick); the three games carry the rulebook with `reader: "survivor"` until then. Then `survivor.js`'s code half, `BUILT_IN_READERS` and legacy freezing go, and Traitors' and the
   Challenge's built-ins with them once nothing plays them.
 
 **S1 as built (2026-10-27, `survivor-data`; merged and live 2026-10-28, `eb1e19f0`; no migration).** Survivor's blocks, compiled with no base and the generic
@@ -5229,6 +5230,52 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     - **Marks the episode itself gives:** opening credits, ad breaks and the end credits as anchors that games can use and a
       drifting clock can snap to.
     - **Joining a room late:** you start at the room's clock, and the games' answered questions show as "missed".
+
+**C. Pieces that compose** (the user, 2026-11-05: "I want almost anything to be possible; not by hard coding all these
+scenarios but by having a way to abstract these ideas and the ability to piece them together"). Three new games, tested
+against the engine on 2026-11-05, showed where it composes and where it is still a menu: questions compose (answer x settle x
+window x combiner x fallback), and so do stages and the ways to win, but `playsAs` is a list of seven shapes, combiners
+exclude each other ("a wager plays alone"), each multiplier is its own feature (captain, by when, parlay, confidence),
+ownership is per game, and stages stop at six. Track C makes holdings and scoring compose the way questions do. It runs after
+A14 part 2 and before A14's other parts; every part keeps every golden and blind read the same unless it says which and why.
+- **C1. The pieces guide, then the study** (one session). `docs/GAME-PIECES.md`, written for a person thinking up games (the
+  user: so new ideas don't need the code re-read for the bigger picture): every piece of a game (what you hold and from what
+  pool, ownership, windows, questions as answer x settle, combiners, how you win, lives and saves, stages and format changes,
+  fallbacks, the players' own mechanics), each with its options, what it combines with, what our check refuses and why, and
+  an example; today's games written as specs; how a request becomes a spec (the tracker, our check, the words); the pieces
+  this track adds, as planned. Every later engine step keeps it current. Then the study: every one of today's shapes and
+  combiners mapped onto one scoring sequence (hold, score each line, multipliers, combine, the week's result, rank), what each
+  becomes in it and what stays as it is; the three games below as tracker rows, with their open questions.
+- **C2. One scoring sequence** (xhigh: it touches every game). The study's sequence built under today's games with every read
+  the same (golden, blind, the Survivor 51 rehearsal). A spec plays when each piece it names has its place in the sequence,
+  not when it matches one of seven shapes; combiners that exclude each other today combine wherever the sequence allows.
+- **C3. Multipliers on any condition.** One multiplier piece keyed by a condition: how a holding joined (drafted, a pickup,
+  the Nth replacement), when it was picked, a captain, a streak, the legs of a parlay. Captain, by when, parlay and confidence
+  become uses of it. Game 2's 1x, 0.5x, 0.25x, configurable.
+- **C4. Ownership per holding.** Exclusive or shared for each way of holding (the draft, pickups, group slots) instead of one
+  for the game, and where a replacement comes from (free agents only, or anyone still in). Game 2's shared replacements.
+- **C5. The week as a result.** Pick N each episode without a draft; a week's winner, and ranking by weeks won; "only these
+  moments count"; hits counted per objective or per pick; more than six stages (or each episode a round). Game 3.
+- **C6. Money.** A starting balance, stakes drawn from it, payouts (even money or odds), a bank that can run out; staked
+  parlays and tickets a player builds, the payout growing with the legs. Game 1's bank and wagers.
+- **C7. A new card each week.** One generator for each episode's set of questions or objectives: from the show's own data (as
+  Weekly Calls rotate the show's moments) or written by the bot and checked (as trivia and bingo squares are), data-settled
+  only. Calls, trivia, bingo squares, a weekly prediction sheet and weekly objectives all come from it. Games 1 and 3.
+
+The three games (the user, 2026-11-05), each a request in the tracker:
+1. "For show X, have a starting bank of 500 units, have a prediction sheet generated each week that players can wager on,
+   more wagers multiply scored earnings." Open: does "more wagers multiply" mean a parlay (picks combined pay more) or that
+   the number of wagers placed multiplies the week; even money or odds; a bank at zero, out?
+2. "Have an exclusive draft initially, these players score 1x points. If you need to replace one you can pick as if the cast
+   was open and shared but the new player who replaces your lost one scores 0.5x, if you need to replace another it scores
+   0.25x. Those multiplications are configurable." Open: after the list, does the last repeat or keep halving; per roster
+   slot or per team; do voluntary swaps count, or only replacing someone gone?
+3. "Each week everyone has a shared set of objectives (several individual moments). Each player picks x cast members that
+   they think will achieve as many objectives as possible. Player with most objectives hit wins the week." Open: distinct
+   objectives your picks hit, or every hit counted; who writes each week's objectives (the bot from research, the maker, a
+   fixed list)?
+Each part builds its piece general, with an open question a setting where that's cheap (the lane's recommended default
+first), and proves it on these games and on the tracker's other rows that use it.
 
 **R. Today's games on the new engine** (after the engine track, before the UI).
 - **R1.** Today's five games and their extras (waivers, side bets, finale predictions, calls) rebuilt as compositions of the

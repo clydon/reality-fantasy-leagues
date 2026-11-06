@@ -3,14 +3,14 @@ import StateLogic from "./state-logic.js";
 import type { LeagueState } from "./types";
 
 // Bingo (docs/PLAN-new-design.md step 12 part 3, docs/PLAN-bingo-bank.md; the mock's index.html bingoSheet, show.js's bingo job,
-// episode.js "sam got a line first", rulebook.js Weekly Bingo): a card per person and episode, three by three with the centre free,
-// its squares dealt from the episode's bank (things a couch shouts at the TV, written by an AI before it airs: db/bingo-research.js),
+// episode.js "sam got a line first", rulebook.js Weekly Bingo): a card per person and episode, three by three, nine squares (no free
+// centre since 2026-11-02, the user: "makes it too easy"; a card dealt before keeps its own), its squares dealt from the episode's bank (things a couch shouts at the TV, written by an AI before it airs: db/bingo-research.js),
 // a mix of how likely each is to come up. Ticked while watching; a square counts once it happened (two on the couch saying so, or
 // alone your word) and you ticked it, and a line counts once its three squares do. Pure: src/lib/server/bingo.ts deals, reads and
 // writes the cards; tests/bingo.test.js.
 //
-// A bank with fewer than eight squares leaves free squares besides the centre, placed so every line still needs one of the bank's;
-// one with fewer than four deals no card (a line could be all free).
+// A bank with fewer than nine squares leaves free squares in the gaps, placed so every line still needs one of the bank's; one with
+// fewer than four deals no card.
 
 export interface BingoSquare {
   /**
@@ -32,7 +32,7 @@ export interface BankSquare extends BingoSquare {
 
 /** How many of each likelihood a card is dealt: eight round the centre, mostly ones that come up, one long shot. A show's own one day. */
 export type BingoMix = Record<Likelihood, number>;
-export const DEFAULT_MIX: BingoMix = { likely: 3, maybe: 4, longshot: 1 };
+export const DEFAULT_MIX: BingoMix = { likely: 4, maybe: 4, longshot: 1 };
 
 /** A likelihood a bank is short of is made up from these, nearest first. */
 const STAND_IN: Record<Likelihood, Likelihood[]> = { likely: ["maybe", "longshot"], maybe: ["likely", "longshot"], longshot: ["maybe", "likely"] };
@@ -49,10 +49,10 @@ export function pointsPerLine(state: LeagueState): number {
 
 export const FREE_KEY = "free";
 export const FREE: BingoSquare = { key: FREE_KEY, label: "Free" };
-/** Three by three, the centre free. */
+/** Three by three, nine squares (a card dealt before 2026-11-02 has its centre free: FREE). */
 export const SQUARES = 9;
 export const CENTRE = 4;
-/** The fewest squares a card can be dealt from: four, one for each line through the centre. */
+/** The fewest squares a card can be dealt from (fewer, and too much of the card would be free). */
 export const MIN_MOMENTS = 4;
 export const LINES: readonly (readonly [number, number, number])[] = [
   [0, 1, 2],
@@ -69,12 +69,12 @@ export const LINES: readonly (readonly [number, number, number])[] = [
 const isFree = (s: BingoSquare | undefined) => s?.key === FREE_KEY;
 const tidy = (label: string) => label.replace(/\.\s*$/, "");
 
-/** Cells in an order whose first four leave no line without one of them (a fallback when a shuffle can't). */
-const COVER = [1, 3, 8, 6, 0, 2, 5, 7];
+/** Cells in an order whose first three leave no line without one of them (a fallback when a shuffle can't). */
+const COVER = [4, 0, 8, 2, 6, 1, 3, 5, 7];
 
 /**
- * Which eight (or as many as there are) of a bank's squares a card gets: `mix` of each likelihood, a likelihood the bank is short of
- * made up from the nearest one (STAND_IN), and a mix short of eight topped up from what's left, maybe first. A square without a
+ * Which nine (or as many as there are) of a bank's squares a card gets: `mix` of each likelihood, a likelihood the bank is short of
+ * made up from the nearest one (STAND_IN), and a mix short of nine topped up from what's left, maybe first. A square without a
  * likelihood counts as maybe.
  */
 function pick(unique: (BingoSquare & { likelihood?: Likelihood })[], mix: BingoMix, next: () => number): BingoSquare[] {
@@ -94,21 +94,21 @@ function pick(unique: (BingoSquare & { likelihood?: Likelihood })[], mix: BingoM
       short.set(l, short.get(l)! - got.length);
     }
   }
-  for (const l of ["maybe", "likely", "longshot"] as const) picked.push(...take(l, SQUARES - 1 - picked.length));
-  return picked.slice(0, SQUARES - 1).map(({ key, label }) => ({ key, label }));
+  for (const l of ["maybe", "likely", "longshot"] as const) picked.push(...take(l, SQUARES - picked.length));
+  return picked.slice(0, SQUARES).map(({ key, label }) => ({ key, label }));
 }
 
 /**
- * A card from a bank, dealt the same way for the same seed (seedOf: a person, a season, an episode, a reroll): eight of its squares
- * by likelihood (`mix`) in a random order round the free centre, or (fewer than eight) free squares in the gaps, never a whole line
- * of them. Null under four.
+ * A card from a bank, dealt the same way for the same seed (seedOf: a person, a season, an episode, a reroll): nine of its squares
+ * by likelihood (`mix`) in a random order, or (fewer than nine) free squares in the gaps, never a whole line of them. Null under
+ * four.
  */
 export function dealCard(bank: (BingoSquare & { likelihood?: Likelihood })[], seed: string, mix: BingoMix = DEFAULT_MIX): BingoSquare[] | null {
   const unique = bank.filter((m, i) => !isFree(m) && bank.findIndex((x) => x.key === m.key) === i).map((m) => ({ ...m, label: tidy(m.label) }));
   if (unique.length < MIN_MOMENTS) return null;
   const next = randomFrom(seed);
   const picked = pick(unique, mix, next);
-  const cells = [0, 1, 2, 3, 5, 6, 7, 8];
+  const cells = [0, 1, 2, 3, 4, 5, 6, 7, 8];
   const lay = (at: number[]) => {
     const card: BingoSquare[] = Array.from({ length: SQUARES }, () => FREE);
     at.forEach((cell, i) => (card[cell] = picked[i]));

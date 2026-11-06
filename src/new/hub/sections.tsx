@@ -26,6 +26,7 @@ import {
   type WeekProgress,
 } from "../data";
 import { openCouchSheet } from "../couch/couch-sheets";
+import { plainName } from "../couch/where";
 import { openStartGame } from "../couch/start-game";
 import { midLine, useFinalLine } from "../final-words";
 import { ordinal } from "../games";
@@ -36,8 +37,10 @@ import { usePushedPage } from "../ui/page";
 import { Btn, SectionHead } from "../ui/parts";
 import { ShowArt } from "../ui/show-bar";
 import { toast } from "../ui/toast";
+import { NoSignal } from "../show/getting-ready";
 import { openWatching } from "../watching/sheets";
 import { useOpenTogether } from "../show/watch-along";
+import { usePracticeShows } from "../tour/practice-shows";
 import { showWords } from "@/lib/game/show-words";
 
 // The hub's sections (the mock's index.html hub, refine.js wireHub, hubplus.js, watching.js, fresh.js), in the order
@@ -263,6 +266,7 @@ export function UpNext({ home, show, couch }: { home: Home; show: HomeShow; couc
           <NavLink
             href={href}
             channel
+            data-upnext-plate={kind}
             className="nd-press relative z-[1] flex min-h-14 w-full items-stretch overflow-hidden rounded-[3px] bg-plate text-left text-plate-foreground shadow-plate"
           >
             <span
@@ -401,6 +405,51 @@ export function OnNow({ home, couch }: { home: Home; couch: Couch | null }) {
   );
 }
 
+// ---------- The couch ----------
+
+/**
+ * The couch's faces (the user's pick F of the 2026-11-01 "Where everyone is" mocks: the hub had no view of the whole couch):
+ * one line under the status line, the couch's name then everyone on it, you first and ringed, a dot on whoever's watching along
+ * right now. A face opens what that person watches and how far they are in each (couch/person-sheet.tsx), shows you don't watch
+ * included; their name is in the sheet (and the face's label), not under it. One 44px line, no heading or names, so Your shows'
+ * posters stay whole on a phone's first screen (the user, 2026-11-01). Not on a couch of one.
+ */
+export function CouchRow({ home, couch }: { home: Home; couch: Couch | null }) {
+  const shown = !!couch && couch.members.length > 1;
+  const { data: on } = useOnNow(shown ? couch.id : null);
+  if (!shown) return null;
+  const me = home.user.id;
+  const people = [...couch.members.filter((m) => m.userId === me), ...couch.members.filter((m) => m.userId !== me)];
+  const live = new Set((on?.now ?? []).map((w) => w.userId));
+  return (
+    <section className="-mt-1 mb-1 flex min-h-11 items-center gap-2 pl-4" data-couch-row>
+      <h2 className="type-caption max-w-[40%] flex-none truncate text-[17px]">{couch.name}</h2>
+      <div className="flex min-w-0 flex-1 items-center overflow-x-auto pr-3 [scrollbar-width:none]">
+        {people.map((m) => {
+          const you = m.userId === me;
+          return (
+            <button
+              key={m.userId}
+              type="button"
+              data-couch-face={m.name}
+              data-you={you || undefined}
+              data-live={live.has(m.userId) || undefined}
+              onClick={() => openCouchSheet({ kind: "person", couchId: couch.id, userId: m.userId })}
+              aria-label={`${you ? "You" : m.name}${live.has(m.userId) ? ", watching along now" : ""}: what ${you ? "the couch sees of you" : "they watch and how far they are"}`}
+              className="nd-press grid size-11 flex-none place-items-center"
+            >
+              <span className={`relative rounded-[3px] ${you ? "outline-2 outline-offset-1 outline-foreground" : ""}`}>
+                <Avatar id={m.userId} name={m.name} size={32} />
+                {live.has(m.userId) && <i className="absolute -right-1 -top-1 size-2.5 rounded-full bg-good shadow-[0_0_0_2px_var(--background)]" aria-hidden />}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 // ---------- Your shows ----------
 
 /** "T2" → 2. */
@@ -435,10 +484,18 @@ function Poster({ show, due, places }: { show: HomeShow; due: boolean; places: P
         <div className={face} aria-hidden={flipped} inert={flipped}>
           <NavLink href={paths.show(show.seasonId)} channel className="nd-press relative isolate flex size-full flex-col justify-end p-[11px] text-white">
             <ShowArt seasonId={show.seasonId} artUrl={show.show.artUrl} name={show.show.name} className="absolute inset-0 -z-[2] size-full" />
+            {/* Getting it ready (show/getting-ready.tsx): a no-signal card until its rules, cast and episodes are in. */}
+            {show.filling === "going" && <NoSignal seasonId={show.seasonId} />}
             <span aria-hidden className="absolute inset-0 -z-[1] bg-[linear-gradient(180deg,rgba(10,8,14,0)_35%,rgba(10,8,14,.9)_100%)]" />
             {best && (
               <span data-best className="type-caption absolute left-[9px] top-[9px] bg-plate py-1 pl-[7px] pr-3 text-xs text-plate-foreground [clip-path:polygon(0_0,100%_0,calc(100%_-_7px)_100%,0_100%)]">
                 Best {ordinal(best)}
+              </span>
+            )}
+            {/* One the first-time tour's practice added (tour/practice-shows.ts): here for the tour, not saved. */}
+            {show.seasonId.startsWith("tour-") && (
+              <span data-practice-tag className="type-caption absolute left-[9px] top-[9px] bg-quiet-tag py-1 pl-[7px] pr-3 text-xs text-quiet-tag-foreground [clip-path:polygon(0_0,100%_0,calc(100%_-_7px)_100%,0_100%)]">
+                Practice
               </span>
             )}
             {due && <i className="absolute right-[11px] top-[11px] size-2.5 rounded-full bg-live" aria-label="A move is due" />}
@@ -509,11 +566,14 @@ function shelfOrder(shows: HomeShow[]) {
 
 export function YourShows({ home, hub }: { home: Home; hub: CouchHub | undefined }) {
   const due = new Set(home.moves.map((m) => showOfMove(home, m)?.seasonId).filter(Boolean));
+  // The first-time tour's demo shows (tour/practice-shows.ts), on the shelf while it shows where shows you add go.
+  const practice = usePracticeShows();
+  const shows = practice.length ? [...home.shows, ...practice] : home.shows;
   return (
-    <section className="mt-8">
-      <SectionHead title="Your shows" aside={home.shows.length ? "Tap to open" : undefined} />
+    <section className="mt-8" data-your-shows>
+      <SectionHead title="Your shows" aside={shows.length ? "Tap to open" : undefined} />
       <div className="flex gap-3 overflow-x-auto px-4 pb-[18px] pt-1 [scroll-snap-type:x_mandatory] [scrollbar-width:none]">
-        {shelfOrder(home.shows).map((s) => (
+        {shelfOrder(shows).map((s) => (
           <Poster key={s.seasonId} show={s} due={due.has(s.seasonId)} places={(hub?.games ?? []).filter((p) => p.seasonId === s.seasonId)} />
         ))}
         <button
@@ -540,9 +600,6 @@ export function namesOf(who: string[]) {
   if (who.length <= 2) return who.join(" and ");
   return `${who.slice(0, 2).join(", ")} and ${who.length - 2} more`;
 }
-
-/** As people say a show: "The Traitors", not "The Traitors (US)". */
-const plainName = (name: string) => name.replace(/\s*\([^)]*\)\s*$/, "").trim() || name;
 
 /** Who else on the couch openly watches a season (and shares Where I am: guard.ts; each member's `at` says how far they are). */
 export const watchersOn = (couch: Couch | null, meId: string, seasonId: string) => (couch?.members ?? []).filter((m) => m.userId !== meId && m.watching.includes(seasonId));
@@ -773,7 +830,12 @@ function FeedRow({ e }: { e: FeedItem }) {
         )}
         {e.kind === "said" && (
           <>
-            <span className="mt-[5px] block break-words rounded-[3px] bg-card px-2.5 py-2 text-[15px]">{e.text}</span>
+            {e.gif ? (
+              // eslint-disable-next-line @next/next/no-img-element -- a GIF from KLIPY's own hosts (0156)
+              <img src={e.gif.url} alt={e.gif.title || "GIF"} data-feed-gif className="mt-[5px] block max-h-[120px] w-[150px] rounded-[3px] object-cover" style={{ aspectRatio: `${e.gif.w} / ${e.gif.h}` }} />
+            ) : (
+              <span className="mt-[5px] block break-words rounded-[3px] bg-card px-2.5 py-2 text-[15px]">{e.text}</span>
+            )}
             <span className="mt-0.5 block text-xs text-muted-foreground">{e.label}</span>
             {!!e.reactions?.length && (
               <span className="mt-2 flex flex-wrap gap-1.5">
@@ -933,16 +995,18 @@ export function GetGoing({ home, couch }: { home: Home; couch: Couch | null }) {
 /** One of the grow note's lines: a promise until it's arrived, then a way to the page it promised. */
 function GrowLine({ page, icon: Icon, ready, text }: { page: string; icon: typeof Trophy; ready: string | null; text: string }) {
   const p = usePushedPage(page);
+  // Couch points' row is the first-time tour's to light (docs/PLAN-first-time-tour.md), promised or there.
+  const tour = page === "rankings" ? "rankings" : undefined;
   if (!ready) {
     return (
-      <li className="flex min-h-11 items-center gap-2.5 text-[13.5px] text-muted-foreground">
+      <li data-tour={tour} className="flex min-h-11 items-center gap-2.5 text-[13.5px] text-muted-foreground">
         <Icon className="size-4 flex-none" aria-hidden />
         {text}
       </li>
     );
   }
   return (
-    <li>
+    <li data-tour={tour}>
       <button type="button" data-grow={page} onClick={p.show} className="flex min-h-11 w-full items-center gap-2.5 text-left text-[13.5px]">
         <Icon className="size-4 flex-none" aria-hidden />
         <span className="flex-1">{ready}</span>
@@ -953,18 +1017,18 @@ function GrowLine({ page, icon: Icon, ready, text }: { page: string; icon: typeo
 }
 
 /**
- * The grows-with-you hub's note of what shows up as the couch plays: power rankings after the first scored episode, By
- * the numbers once the stats come in, the trophy shelf when a season ends. Each turns into a way to its page once it's
- * there.
+ * The grows-with-you hub's note of what shows up as the couch plays: power rankings (Couch points, there from the start since
+ * 2026-10-31), By the numbers once the stats come in, the trophy shelf when a season ends. Each turns into a way to its page
+ * once it's there.
  */
 export function GrowNote({ home, hub }: { home: Home; hub: CouchHub | undefined }) {
-  const me = hub?.rankings?.year.find((r) => r.userId === home.user.id) ?? hub?.rankings?.all.find((r) => r.userId === home.user.id);
+  const me = (hub?.rankings?.year ?? hub?.rankings?.all)?.find((r) => r.userId === home.user.id);
   const stats = home.shows.some((s) => s.following && s.seenThrough !== 0);
   return (
     <section className="mx-4 mt-8 p-3.5" data-grow-note>
       <b className="type-caption text-base">More shows up as the couch plays</b>
       <ul className="mt-1.5 flex flex-col">
-        <GrowLine page="rankings" icon={Trophy} text="Power rankings, after your first scored episode" ready={hub?.rankings ? (me ? `Power rankings: you're ${me.rank.startsWith("T") ? `tied ${ordinal(me.place)}` : ordinal(me.place)}` : "Power rankings are in") : null} />
+        <GrowLine page="rankings" icon={Trophy} text="Power rankings: Couch points for joining in" ready={hub?.rankings ? (me ? `Power rankings: you're ${me.rank.startsWith("T") ? `tied ${ordinal(me.place)}` : ordinal(me.place)}` : "Power rankings are in") : null} />
         <GrowLine page="numbers" icon={ChartColumn} text="By the numbers, once the stats come in" ready={stats ? "By the numbers: who leads every stat" : null} />
         <GrowLine page="trophies" icon={Crown} text="The trophy shelf, when a season ends" ready={hub?.trophies ? "The trophy shelf: every season the couch has finished" : null} />
       </ul>

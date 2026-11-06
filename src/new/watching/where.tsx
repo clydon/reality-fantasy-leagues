@@ -15,6 +15,8 @@ import { whereCap, whereLabel } from "../way-in";
 // "Seen it?", so nothing opens until you say.
 
 export type WhereSeason = Pick<CatalogSeason, "seasonId" | "label" | "show" | "artUrl" | "artPosition" | "aired" | "status" | "premiere"> & {
+  /** Its show's TV listing, when it has one (Add a show adds from it if the season's gone since the list was read). */
+  tvmazeId?: number | null;
   /** Its aired episodes, when the caller has them (a TV listing's); else read for a season that's here. */
   episodes?: StepEpisode[];
   /** What the show calls an episode ("Game": lib/game/show-words.ts); Episode when not known. */
@@ -78,6 +80,7 @@ export function WhereAsk({
   keepUp = "off",
   cta,
   busy,
+  lookUp,
   onSave,
 }: {
   s: WhereSeason;
@@ -86,11 +89,15 @@ export function WhereAsk({
   keepUp?: KeepUp;
   cta: string;
   busy?: boolean;
-  onSave: (seen: number, live: boolean) => void;
+  /** Add a show's: ask whether to look up the episodes that are out (Getting it ready, docs/PLAN-getting-it-ready.md). */
+  lookUp?: boolean;
+  /** `episodes`: look up the ones that are out (on unless switched off). */
+  onSave: (seen: number, live: boolean, episodes: boolean) => void;
 }) {
   const cap = whereCap(s.aired);
   const [seen, setSeen] = useState(Math.min(start, cap));
   const [live, setLive] = useState(keepUp === "ask");
+  const [lookAll, setLookAll] = useState(true);
   const read = useAiredEpisodes(!plays && !s.episodes && isUuid(s.seasonId) && s.aired !== 0 ? s.seasonId : null);
   const episodes = s.episodes ?? read.data?.episodes;
   // Live is for a season still on: a finished one has nothing new to ask about.
@@ -141,8 +148,20 @@ export function WhereAsk({
             />
           </div>
         ))}
+      {/* The user (2026-11-01): with several out, you should be asked to get them all, not one at a time as you watch. */}
+      {lookUp && !!s.aired && (
+        <div className="mt-2">
+          <SwitchRow
+            data="where-look-up"
+            on={lookAll}
+            title={s.aired === 1 ? `Look up the ${(s.episodeWord ?? "Episode").toLowerCase()} that's out` : `Look up all ${s.aired} that are out`}
+            line={lookAll ? "What happened in each, there once you've seen it. It takes a few minutes; you can carry on" : "Off: look them up later from its Episodes"}
+            onChange={setLookAll}
+          />
+        </div>
+      )}
       <p className="mt-2 text-[13px] leading-normal text-muted-foreground">Nothing past where you are shows: results, stats, the couch&rsquo;s chat. Change it any time.</p>
-      <Btn tone="must" wide className="mt-4" data-where-save disabled={busy} onClick={() => onSave(seen, canLive && keepUp !== "auto" && live)}>
+      <Btn tone="must" wide className="mt-4" data-where-save disabled={busy} onClick={() => onSave(seen, canLive && keepUp !== "auto" && live, !!lookUp && lookAll)}>
         {busy ? "Saving…" : cta}
       </Btn>
     </div>

@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { usePathname } from "next/navigation";
-import { BookOpen, Ellipsis, EyeOff, Eye, KeyRound, Bell, Lock, LogOut, RotateCcw, ShieldCheck, Tv, UserPlus, Users, X } from "lucide-react";
+import { BookOpen, ChevronRight, Ellipsis, EyeOff, Eye, KeyRound, Bell, Lock, LogOut, RotateCcw, ShieldCheck, Tv, UserPlus, Users, X } from "lucide-react";
 import { airTime, calm, justAired, ticks } from "../clock";
-import { chatCouch, gameAdmin, useAfterReveal, useAfterWatching, watching, useBackstage, useChatBadge, useCouchForSeason, useHome, useSeasonDraft, useSeasonEpisodes, useSeasonGames, useSpace, type Couch, type DraftGame, type GameRef, type GameView, type Need, type OutPreview, type SeasonEpisodes, type SeasonHeader, type Space } from "../data";
+import { chatCouch, fill, gameAdmin, useFill, useAfterReveal, useAfterWatching, watching, useBackstage, useChatBadge, useCouchForSeason, useHome, useSeasonDraft, useSeasonEpisodes, useSeasonGames, useSpace, type Couch, type DraftGame, type GameRef, type GameView, type Need, type OutPreview, type SeasonEpisodes, type SeasonHeader, type Space } from "../data";
 import { leaveToDesk, ReadOnlyPanel, useReadOnly, type ReadOnlyGame } from "../read-only";
 import { READ_ONLY_SAYS } from "@/lib/read-only";
 import { movesByDue } from "../hub/sections";
@@ -34,8 +35,10 @@ import { CaptionPlate, EmptyState, GuardChip, Row } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { ShowBar, TabBar } from "../ui/show-bar";
 import { openCouchSheet } from "../couch/couch-sheets";
+import { atEnd, caughtUpLine, knownMark, marksOf, plainName, type Mark, type Pace, type Where } from "../couch/where";
 import { PoolPage } from "../show/solo";
 import { MakeGamePage } from "../show/make-game";
+import { GettingReadySheet, ReadyChip, ReadyLine, useFillSync } from "../show/getting-ready";
 import { openWatching, type WhereTarget } from "../watching/sheets";
 import { openPlan, PlanIcon } from "../couch/watch-plans";
 import { WatchAlongPage } from "../show/watch-along";
@@ -134,9 +137,6 @@ function readOnlyCouch(ro: ReadOnlyGame, space: Space | undefined): Couch {
   };
 }
 
-/** As people say a show: "The Traitors", not "The Traitors (US)". */
-const plainName = (name: string) => name.replace(/\s*\([^)]*\)\s*$/, "").trim() || name;
-
 /** Where you are in this show, for the where sheet (step 10: watching/sheets.tsx). */
 export function whereTarget(show: ShowData): WhereTarget | null {
   const h = show.header;
@@ -227,6 +227,24 @@ export function SpaceFrame({ seasonId, children }: { seasonId: string; children:
   useEffect(() => {
     if (settled) tunedIn(seasonId);
   }, [settled, seasonId]);
+  // Getting it ready (show/getting-ready.tsx): while its rules, cast or episodes are being got, the header's chip and line say
+  // so; a season you follow of a show that's a game, with nobody in its cast and nothing getting it, is started here, once a visit.
+  const filling = ro ? null : (show.header?.filling ?? null);
+  const fillRead = useFill(seasonId, !!filling);
+  const f = fillRead.data;
+  useFillSync(seasonId, f);
+  const qc = useQueryClient();
+  const started = useRef(false);
+  const mine = show.following || show.plays;
+  useEffect(() => {
+    if (filling !== "missing" || started.current || !mine) return;
+    started.current = true;
+    fill
+      .start(seasonId)
+      .then((s) => qc.setQueryData(["new-design", "fill", seasonId], s))
+      .catch(() => undefined);
+  }, [filling, mine, seasonId, qc]);
+  const fillOn = !!f && (f.status === "going" || f.status === "stuck");
 
   if (show.notFound) {
     return <EmptyState icon={Tv} title="Show not found" line="It may have been removed." />;
@@ -251,7 +269,8 @@ export function SpaceFrame({ seasonId, children }: { seasonId: string; children:
                   onClick: () => nav.back(paths.home, undefined, startTuneBack(seasonId) ? "tune" : undefined, (p) => p.startsWith(`/show/${seasonId}/`)),
                 }
           }
-          status={status}
+          status={fillOn ? <ReadyChip f={f} /> : status}
+          progress={fillOn ? <ReadyLine f={f} /> : undefined}
           menu={ro ? <ReadOnlyMenu /> : <ShowMenu seasonId={seasonId} show={show} />}
           below={<CouchLine show={show} />}
         />
@@ -274,6 +293,7 @@ export function SpaceFrame({ seasonId, children }: { seasonId: string; children:
           <RemindSheet show={show} />
           <RevealScreen show={show} seasonId={seasonId} />
           <MorningSheet show={show} seasonId={seasonId} />
+          <GettingReadySheet seasonId={seasonId} />
         </>
       )}
       {show.header && (
@@ -308,9 +328,32 @@ function ReadOnlyMenu() {
  *  watches it (the mock's "2 on the couch watch"), "Streaming" on a season that drops at once (step 14), and "Not a game yet"
  *  on a show nobody's set up. */
 function CouchLine({ show }: { show: ShowData }) {
+  const me = useMe();
   const games = show.games.length;
   const watchers = games ? null : (show.people ?? []).filter((p) => p.watching || p.playing.length);
   const faces = watchers ?? show.people;
+  // Where everyone is (the user's pick B, 2026-11-01): once anyone else here shares how far they are and something has aired,
+  // the faces move into the numbered line under this one (WhereLine). Until the space read is in, the home read's couch says the
+  // same (its members' shared marks, guard.ts visibleFollows), so the header doesn't grow under you when it lands.
+  const seasonId = show.header?.seasonId ?? null;
+  const people: ShowData["people"] =
+    show.people ??
+    (seasonId && show.couch
+      ? show.couch.members.map((m) => ({ userId: m.userId, name: m.name, role: m.role, watching: m.watching.includes(seasonId), seen: m.userId === me.id ? null : (m.at?.[seasonId] ?? null), playing: [] }))
+      : null);
+  const { known, quiet } = marksOf(people, { id: me.id, name: me.name, seen: knownMark(show) });
+  const where = !show.readOnly && !show.solo && !!show.couch && !!seasonId && show.latestAired > 0 && known.some((w) => !w.you);
+  const pace: Pace = { aired: show.latestAired, total: show.header?.episodeCount ?? 0, ownPace: show.ownPace };
+  return (
+    <>
+      <CouchText show={show} faces={where ? null : faces} watchers={watchers} games={games} />
+      {where && show.couch && seasonId && <WhereLine known={known} quiet={quiet} pace={pace} couchId={show.couch.id} seasonId={seasonId} />}
+    </>
+  );
+}
+
+/** The couch line's own words (and, without the numbered line under it, its faces). */
+function CouchText({ show, faces, watchers, games }: { show: ShowData; faces: ShowData["people"]; watchers: ShowData["people"]; games: number }) {
   return (
     <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 px-2 pt-2.5 text-[13px] font-semibold" data-couch-line>
       {faces && faces.length > 0 && (
@@ -342,6 +385,56 @@ function CouchLine({ show }: { show: ShowData }) {
         </span>
       )}
     </div>
+  );
+}
+
+/**
+ * The couch on this show, numbered (the user's pick B of the 2026-11-01 mocks): each face with the last episode they've seen
+ * under it (yours ringed, the caught-up in bold, "–" not started), then whoever plays here without their place shown, dimmed and
+ * unnumbered; then "3 caught up" over "2 catching up". It opens where everyone is (couch/where-sheet.tsx). On the show's art, so
+ * its words are white on a dark glass, never muted grey (DESIGN.md Show Art).
+ */
+function WhereLine({ known, quiet, pace, couchId, seasonId }: { known: Where[]; quiet: Mark[]; pace: Pace; couchId: string; seasonId: string }) {
+  const all = [...known, ...quiet.map((m) => ({ ...m, seen: null }))];
+  const shown = all.slice(0, all.length > 6 ? 5 : 6);
+  const { top, under } = caughtUpLine(known, pace);
+  return (
+    <button
+      type="button"
+      data-where-line
+      onClick={() => openCouchSheet({ kind: "where", couchId, seasonId })}
+      aria-label={`Where everyone is: ${top}${under ? `, ${under}` : ""}`}
+      className="nd-press mx-2 mt-2.5 flex min-h-[60px] items-center gap-3 rounded-[4px] bg-[rgba(16,14,21,.6)] px-2.5 py-2 text-left backdrop-blur-sm"
+    >
+      <span className="flex flex-none gap-1.5" aria-hidden>
+        {shown.map((w) => (
+          <span
+            key={w.userId}
+            data-where-face={w.you ? "you" : w.name}
+            data-where-seen={w.seen ?? undefined}
+            data-where-quiet={w.seen == null || undefined}
+            className="flex w-6 flex-col items-center gap-1"
+          >
+            <span className={`rounded-[3px] ${w.you ? "outline-2 outline-offset-1 outline-white" : ""} ${w.seen == null ? "opacity-45 grayscale" : ""}`}>
+              <Avatar id={w.userId} name={w.name} size={24} />
+            </span>
+            <span className={`type-num text-[12px] leading-none ${w.seen != null && atEnd(w.seen, pace) ? "font-bold text-white" : "text-white/85"}`}>
+              {w.seen == null ? " " : w.seen > 0 ? w.seen : "–"}
+            </span>
+          </span>
+        ))}
+        {all.length > shown.length && (
+          <span className="flex w-6 flex-col items-center gap-1">
+            <span className="type-num grid size-6 place-items-center rounded-[3px] bg-white/15 text-[11px]">+{all.length - shown.length}</span>
+          </span>
+        )}
+      </span>
+      <span className="min-w-0 flex-1">
+        <b className="block truncate text-[14px] font-semibold">{top}</b>
+        {under && <small className="block truncate text-[12.5px] text-white/85">{under}</small>}
+      </span>
+      <ChevronRight className="size-5 flex-none text-white/85" aria-hidden />
+    </button>
   );
 }
 
@@ -543,7 +636,7 @@ function ShowMenu({ seasonId, show }: { seasonId: string; show: ShowData }) {
             <Row
               icon={ShieldCheck}
               title="Where you are"
-              detail={`Spoiler-safe · ${show.seenThrough ? `you're on ${show.words.ep} ${show.seenThrough}` : "not started yet"}`}
+              detail={`Spoiler-safe · ${show.seenThrough ? `you're up to ${show.words.ep} ${show.seenThrough}` : "not started yet"}`}
               onClick={() => {
                 setOpen(false);
                 openWhere(show);

@@ -12,6 +12,9 @@
 //     tab further off slides there, a short drag springs back and picks nothing, the ends stretch, the peek is remembered;
 //   - reduced motion: the arrow keys still change the week; Your moves' tabs still change the game;
 //   - Tonight's "Your night" and an episode page's game lines open the Games tab at that game;
+//   - each game's card under its name (your-move.ts) says your move as /games and /waivers have it (a lineup set or due, a pick, a
+//     mid-season draft due), a dot on the pill of each game whose card is due, no dock on Games; a card opens Your moves on its
+//     game, or its game's page (Waivers, the draft room); the dock still sits over Episodes while a move's due;
 //   - nothing wider than the screen, no page errors.
 // Screenshots go to <outDir>.
 //
@@ -315,6 +318,61 @@ const signed = (n) => (n > 0 ? `+${round(n)}` : n < 0 ? `−${round(-n)}` : "0")
     await shot("moves-swiped");
     await page.keyboard.press("Escape");
     await page.waitForTimeout(500);
+
+    // ---- each game's card: your move under its name (your-move.ts); no dock on Games, the dock on Episodes while one's due ----
+    await page.goto(`${BASE}/show/${sid}/games`, { waitUntil: "networkidle" });
+    await page.locator("[data-your-move]").first().waitFor({ timeout: 30_000 });
+    await page.waitForTimeout(800);
+    const cardIn = (leagueId) => page.locator(`[data-table="${leagueId}"] [data-your-move]`);
+    const kindOf = async (leagueId) => ((await cardIn(leagueId).count()) ? await cardIn(leagueId).getAttribute("data-your-move") : null);
+    const dueOf = async (leagueId) => (await cardIn(leagueId).getAttribute("data-due")) === "true";
+    check((await page.locator(".nd-dock").count()) === 0, "no dock on Games: each game's card says your move");
+    const wlGame = play.find((x) => x.gameType === "active-roster");
+    const poolGame = play.find((x) => x.gameType === "pickem");
+    const outlastGame = play.find((x) => x.gameType === "classic-draft");
+    const wvGames = (await (await page.request.get(`${BASE}/api/seasons/${sid}/waivers?couch=${couch.id}`)).json()).games ?? [];
+    const claimDue = (leagueId) => {
+      const w = wvGames.find((x) => x.leagueId === leagueId);
+      return !!w && !w.revealFirst && w.stage === "open" && w.replace.length > 0 && !w.nobodyFree && !w.replace.every((id) => w.spots.find((sp) => sp.dropId === id)?.addIds.length);
+    };
+    if (wlGame.lineup && !claimDue(wlGame.leagueId)) {
+      check((await kindOf(wlGame.leagueId)) === "lineup" && (await dueOf(wlGame.leagueId)) === !wlGame.lineup.set, `Weekly Lineup's card: your lineup, ${wlGame.lineup.set ? "set (Edit)" : "due (Set)"}`, await cardIn(wlGame.leagueId).innerText());
+    }
+    if (poolGame?.pick?.open && !claimDue(poolGame.leagueId)) {
+      check((await kindOf(poolGame.leagueId)) === "pick" && (await dueOf(poolGame.leagueId)) === !poolGame.pick.pick, `Survival Pool's card: your pick, ${poolGame.pick.pick ? "made" : "due"}`, await cardIn(poolGame.leagueId).innerText());
+    }
+    if (outlastGame && claimDue(outlastGame.leagueId)) {
+      check((await kindOf(outlastGame.leagueId)) === "waivers" && (await dueOf(outlastGame.leagueId)) && /^Replace /.test(await cardIn(outlastGame.leagueId).innerText()), "Outlast's card: someone of yours to replace, due (the mid-season draft)", await cardIn(outlastGame.leagueId).innerText());
+    }
+    const dueCards = await page.locator('[data-your-move][data-due="true"]').count();
+    check((await page.locator("[data-pill-due]").count()) === dueCards, "a dot on the pill of each game whose card is due", `${await page.locator("[data-pill-due]").count()} dots, ${dueCards} due`);
+    await shot("games-your-move-cards");
+    await fits("Games with the cards");
+    // A card opens Your moves on its game, or its game's page.
+    const opensSheetOn = async (leagueId, tabName) => {
+      await cardIn(leagueId).click();
+      await dialog().getByText("Your moves").waitFor({ timeout: 10_000 });
+      await page.waitForTimeout(500);
+      const on = (await dialog().locator('[role="tab"][aria-selected="true"]').innerText().catch(() => "")).trim();
+      await page.keyboard.press("Escape");
+      await page.waitForTimeout(500);
+      return on === tabName;
+    };
+    if ((await kindOf(wlGame.leagueId)) === "lineup") check(await opensSheetOn(wlGame.leagueId, "Weekly Lineup"), "Weekly Lineup's card opens Your moves on Weekly Lineup");
+    if (poolGame && (await kindOf(poolGame.leagueId)) === "pick") check(await opensSheetOn(poolGame.leagueId, "Survival Pool"), "Survival Pool's card opens Your moves on Survival Pool");
+    const paged = page.locator('[data-your-move="waivers"], [data-your-move="draft"], [data-your-move="swaps"]').first();
+    if (await paged.count()) {
+      const leagueId = await paged.evaluate((el) => el.closest("[data-table]").dataset.table);
+      await paged.click();
+      await page.waitForURL((u) => /\/(waivers|draft|blind)$/.test(u.pathname), { timeout: 15_000 }).catch(() => {});
+      check(page.url().includes(`game=${leagueId}`), "a draft or mid-season draft card opens its game's own page", page.url());
+      await page.goBack();
+      await page.locator("[data-your-move]").first().waitFor({ timeout: 15_000 });
+    }
+    const dueNow = (await (await page.request.get(`${BASE}/api/me/home`)).json()).moves.filter((m) => play.some((x) => x.leagueId === m.leagueId)).length;
+    await page.goto(`${BASE}/show/${sid}/episodes`, { waitUntil: "networkidle" });
+    await page.waitForTimeout(1200);
+    check((await page.locator(".nd-dock").count()) === (dueNow ? 1 : 0), dueNow ? "the dock still sits over Episodes while a move's due" : "all set: no dock over Episodes", `${dueNow} due`);
 
     // ---- reduced motion: the weeks still change (a fade) ----
     const still = await open({ user: fixture.username("alex"), pass: fixture.PASSWORD, width, height: 844, motion: "reduce" });

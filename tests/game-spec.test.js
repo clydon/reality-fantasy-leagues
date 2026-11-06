@@ -49,7 +49,7 @@ const demo = (type, after) => {
 
 // What each kind of game is made of, written here apart from the spec's own code, so a field the spec forgets is caught:
 // the round trip takes these out of a league and writes them back from its spec alone.
-const WAIVER_FIELDS = ["replaceRule", "replenishAt", "waiverWindows", "waiverFeel", "autoFill", "replenishOrderBy", "waiverProcessHours", "freeAgencyEnabled", "replenishEnabled", "tradeEnabled", "swapEvery"];
+const WAIVER_FIELDS = ["replaceRule", "replenishAt", "waiverWindows", "waiverFeel", "autoFill", "replenishOrderBy", "waiverProcessHours", "freeAgencyEnabled", "waiverStartPhase", "replenishEnabled", "tradeEnabled", "swapEvery"];
 // A10 part 3: a draw and a draft spread across the cast's groups; part 3b: an auction and a draft's prices; part 4: keepers.
 // A11 part 1: a draft's rank (a stock market's worth, or last one standing), its race and its cuts; part 2, whether one left ends it;
 // part 4, head to head's playoffs and fallbacks.

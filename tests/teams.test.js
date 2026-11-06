@@ -451,9 +451,9 @@ test("the couch: one team in the field, each member credited with its place, tea
   assert.equal(placePoints(1, fieldOf(standingRows)), 10);
   const game = { leagueId: "l1", name: "L", gameName: "Weekly Lineup", gameType: "active-roster", seasonId: "s1", showId: "sh", showName: "Survivor", label: "Survivor 51", artUrl: null, year: 2026, through: 1, ended: true, rows: standingRows, before: null, teams: true };
   const people = [...PLAYERS.map((p) => ({ userId: `u-${p}`, name: p })), { userId: "u-di2", name: "di2" }];
-  const r = rankingsOf([game], people, "u-ann", 2026);
+  // Power rankings are Couch points since 2026-10-31; head to head still reads the teams' places.
+  const r = rankingsOf([game], people, "u-ann", [], true);
   assert.deepEqual(r.h2h.map((h) => [h.userId, h.won, h.lost, h.tied]), [["u-cy", 1, 0, 0], ["u-di", 1, 0, 0], ["u-di2", 1, 0, 0]], "bo, a teammate, isn't there");
-  assert.deepEqual(r.all.map((x) => [x.userId, x.total]).slice(0, 2), [["u-ann", 10], ["u-bo", 10]]);
   const shelf = trophiesOf([game], people, "u-cy");
   assert.deepEqual(shelf.plaques[0].winners.map((w) => w.userId), ["u-ann", "u-bo"], "the winning team's members");
   assert.equal(shelf.plaques[0].by, null, "no margin in anyone's own points");

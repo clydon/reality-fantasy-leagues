@@ -286,11 +286,13 @@ function check(ok, what, detail = "") {
     // ---------- Part 2: answering in the browser, before Episode 6 airs ----------
     if (!apiOnly) {
       const page = await browser();
-      await page.goto(`${BASE}/show/${sid}/games`, { waitUntil: "load" });
+      // The dock (on Episodes: Games has each game's card instead, since 2026-10-31) says the sheet's due.
+      await page.goto(`${BASE}/show/${sid}/episodes`, { waitUntil: "load" });
       const dock = page.locator(".nd-dock");
       await dock.waitFor({ timeout: 30000 });
       await page.waitForTimeout(800);
       check(/your sheet/i.test((await dock.textContent()) ?? ""), "the dock says the sheet's due", (await dock.textContent()) ?? "");
+      await page.goto(`${BASE}/show/${sid}/games`, { waitUntil: "load" });
       const row = page.locator(`[data-sheet-row="${QS}"]`);
       // This week's row comes from the Games read, which can land after the dock (a dev server compiling the route first).
       await row.waitFor({ state: "visible", timeout: 20000 }).catch(() => {});

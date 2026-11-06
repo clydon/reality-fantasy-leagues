@@ -21,7 +21,7 @@ function roleChoices(format) {
 }
 
 /** The prompt to paste into any web-searching chat. */
-function buildCastPrompt(format, { seasonName, showName } = {}) {
+function buildCastPrompt(format, { seasonName, showName, year, known } = {}) {
   const person = text(format && format.terms && format.terms.castaway) || 'Castaway';
   const group = text(format && format.terms && format.terms.tribe) || 'Tribe';
   const season = text(seasonName) || 'the current season';
@@ -37,10 +37,17 @@ function buildCastPrompt(format, { seasonName, showName } = {}) {
   if (roles.length) row.startingRole = `Their role at the start of the season: exactly one of ${roles.map((r) => `"${r}"`).join(', ')}`;
   const shape = { castaways: [row], sources: ['Every URL you actually read'] };
 
+  // Who the TV listings credit in this season (show-art.ts castAnchor): a season named like an older one is still this one.
+  const credited = Array.isArray(known) ? known.map(text).filter(Boolean).slice(0, 60) : [];
   const lines = [
-    `List the full starting cast of ${season} of "${show}" -- every ${person.toLowerCase()} who began the season.`,
+    `List the full starting cast of ${season} of "${show}"${year ? `, the season that premiered in ${year}` : ''} -- every ${person.toLowerCase()} who began the season.`,
     '',
     'RULES',
+    credited.length
+      ? `  - The TV listings credit these people in this season (some may only have appeared in it): ${credited.join(', ')}. Your list must be this season's, so most of its people are among these; an older season with the same name is a different cast.`
+      : year
+        ? `  - Make sure it's the season that premiered in ${year}: an older season with the same name is a different cast.`
+        : null,
     '  - Search for and read the official cast announcement, the show\'s own site and a fan wiki. Name every page you',
     '    actually read in sources.',
     '  - One row per person. Use their full name as the show credits them.',

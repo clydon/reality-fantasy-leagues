@@ -19,7 +19,7 @@ free plan stops being enough, choosing the cheapest fit is arithmetic, not resea
 | Resend | Sign-up and password emails, and the desk's Let in ("You're in", one per account let in: docs/PLAN-desk-parity.md step 2) | Free: 3,000 emails a month, 100 a day (third-party sources, 2026; Pro $20 for 50,000) | $0 |
 | **TVmaze** API (`api.tvmaze.com`, new design step 10 part 1, on the branch) | TV listings for Add a show: the show search as you type, a show's seasons and episode air times when someone adds it, and its cast when someone makes a series or talk show a game (step 10 part 2a). Since step 11 part 2, also once a day by the listings job (the week's schedules for the guide's Also on, what changed, new seasons): about 17-20 calls a day, on the bot clock's calls, never on a timer of its own | Free, no key. Data is CC BY-SA (credited with a link back on Add a show and the guide's listing and evening sheets); at least 20 calls every 10 seconds per IP, else HTTP 429 (the job spaces its calls 0.7 s apart); posters hotlinked from its image CDN (allowed) | $0 |
 | Google Cloud OAuth client (**not made yet**: the user's, step 9 part 2) | Continue with Google on the new design's way in. Off until `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set (no keys, no button) | Free (sign-in only: the email, profile and openid scopes, no verification review needed) | $0 |
-| **GIPHY** API (**no key yet**: the user's, new design step 13 part 1, on the branch) | GIFs in a watch along: what's trending and a search, asked by our server (`/api/gifs`, kept at the edge an hour per search); the pictures load from GIPHY's media CDN straight into the browser. Off until `GIPHY_API_KEY` is set (no key, no GIF button). Tenor, the other choice, closed its API on 2026-06-30 | Free. A new key is a beta key: 100 calls an hour (each distinct search, and trending, at most once an hour per edge region); past that, GIPHY's production key (applied for from its dashboard, reviewed, and they may talk pricing). "Powered by GIPHY" shown under the picker; ratings PG-13 at most | $0 |
+| **KLIPY** API (`KLIPY_API_KEY` set in Vercel Production on 2026-10-31, the user's; test or production key not recorded; GIPHY until 2026-10-31, the user's pick of the free options) | GIFs in a watch along, the couch chat and React with a GIF (since 2026-11-01: one GIF per person per episode): what's featured and a search, asked by our server (`/api/gifs`, kept at the edge an hour per search); the pictures load from KLIPY's media hosts (static.klipy.com) straight into the browser. Off until `KLIPY_API_KEY` is set (no key, no GIF button). Tenor closed its API on 2026-06-30; GIPHY's free key stays at 100 calls an hour and its production key is paid | Free. A new key is a test key: 100 calls an hour (each distinct search, and featured, at most once an hour per edge region); its production key (no limit) is requested in KLIPY's Partner Panel, no fee published (its ads are optional; we show none). "Powered by KLIPY" shown under the picker; PG-13 at most (`contentfilter=low`). Chat GIFs: a jsonb column on `chat_messages` (0156, ~150 bytes a GIF); episode GIFs: `episode_gifs` (0162, ~300 bytes a row). If everyone's GIF searches after an episode hit the test key's 100 an hour, the picker says "Too many GIF searches this hour": then ask KLIPY for the production key | $0 |
 | **TMDB** API (`api.themoviedb.org`, show art and cast photos, 2026-10-26, on the branch) | Show posters, header images (backdrops) and logos, season posters, and a season's cast photos by name (`src/lib/server/show-art.ts`). Images hotlinked from `image.tmdb.org`, stored as plain URLs. Off until `TMDB_READ_TOKEN` is set (the user's; in `.env.local`, and Vercel needs it too) | Free key, **non-commercial only**: charging users (or ads) needs TMDB's written agreement, price on request. Data kept at most 6 months (the daily job re-asks at 150 days); on a licence ending, everything on `image.tmdb.org` must go: `UPDATE ... WHERE url LIKE 'https://image.tmdb.org/%'`. Attribution: its logo and notice on Settings › Credits. About 40 requests a second allowed | $0 |
 | **Wikipedia / Wikidata** API and **Jolpica** (`api.jolpi.ca`, F1) (2026-10-26, on the branch) | Athletes' photos for sport shows: Wikipedia's page image API returns only freely licensed (Commons) photos; Jolpica gives Formula 1's field with Wikipedia links | Free, no keys. Wikipedia rate-limits bursts (a probe got 429s after ~15 quick calls): batched, one call at a time, at most 30 searches a sweep. Commons photos need their photographer's credit | $0 |
 | **ESPN** (`site.api.espn.com`, `site.web.api.espn.com`, `sports.core.api.espn.com`; sports data, 2026-10-27, local only) | A sport season's games (each day's scoreboard), linked to its episodes; each team's roster with headshots, the Players tab's players (headshots hotlinked from `a.espncdn.com` through ESPN's resizer); a game's box score in the sport's own columns and a player's regular-season line, the Players tab's stats (or a race's places, from its scoreboard); its search (which league a season's teams are in) (`src/lib/server/sports/`, docs/PLAN-sports-data.md). Asked by our server only; every answer cached in Neon (`sports_cache`) | Free, no key, but **unofficial and undocumented**: no published terms or rate limit, and it can change without notice. Asked little (cached hard), credited in Settings › Credits and under the Players tab's roster, other sources planned for when it fails (docs/BACKLOG.md). It refuses a User-Agent with a URL in it (403), so ours is a bare `GameYourShow/1.0` | $0 |
@@ -87,6 +87,7 @@ scales up under load). So what matters is how often something wakes it, not how 
 | Researched trivia runs (2026-10-26; in the default schedule) | one call a day before each episode (two ChatGPT asks, ~2 min), up to 3 tries | a few minutes per episode, ~0.1 per show airing |
 | Tie-break runs (new design, step 6c; off until switched on in desk › Settings) | one call a day after a dispute, up to 3 tries | a few minutes per disputed episode |
 | Results someone asked for (2026-10-27, migration 0152: Fill in what happened on a show made a game that nobody plays) | two clock calls per asked episode (who went home, ~25-50 s; then the full research, ~2.5-4 min), back to back with the clock's minute tick between, 2 tries for the full one; each run writes its progress every few seconds (0153); the asker's card polls every 4 s while an answer is coming | a season's catch-up of 7 episodes is ~25-35 min awake once; then nothing. On the VM, Chrome stays open 10 min after a question (~300 MB of its 1 GB) |
+| Getting it ready (2026-11-01, migration 0160: every show someone adds) | up to three bot asks per show added, in a row after Add's answer (a brand-new show's how it works ~1-2 min and its cast ~1 min, else just the cast; then one recap ask for every aired episode, ~1-3 min), then that season's results one episode at a time on the clock as above (only for a show nobody plays). A run cut off by the 300 s limit, or with the bot away, is carried on by the open page or the clock (`next` counts it; tried again after 30 s, 3 min after a failure, 2 min while the bot's away; 3 tries a step) | a few minutes awake per show added, plus its results' catch-up; nothing once it's done |
 | The listings job (new design, step 11 part 2) | none of its own: it runs after a bot clock call that ran no bot job, which had woken the database already; ~10-30 s of queries once a day | ~0 (a backstop Vercel cron, if ever needed, ~0.6) |
 | Bot research clock, before (a call every 2 min) | around the clock | ~180 (over the allowance) |
 | People with the app open (classic, or a new-design show space: its Chat badge polls) | while they're on it, plus 5 minutes | the rest: ~20 in Oct 1-24 (35.4 total, less ~11 for the hourly job until it stopped and ~3 for the clock's first night) |
@@ -175,6 +176,13 @@ a couple of KB per open). The browser lays the week out and moves the clock on e
 from guide** is one small row per hidden show per person (`guide_hidden`, migration 0125, ~100 bytes), written when someone
 hides one.
 
+**Getting it ready (2026-11-01, `src/lib/server/season-fill.ts`, migration 0160; docs/PLAN-getting-it-ready.md)** runs the asks
+below by itself when someone adds a show: a brand-new show's Make it a game (applied when our check passes), a new season's cast
+for a show that's a game, and Fill in what happened for every aired episode (switch on Add). Our bot only, never the paid keys;
+asking ChatGPT yourself (the /b/ brief, then paste) does every step free. While one's going, the show's page and Home's poster poll
+`GET /api/seasons/[id]/fill` every 4 s (a few KB: the steps, the cast's names and photo URLs, a state per aired episode), only
+while the page is visible; nothing polls once it's done. Storage: one small `season_fills` row per season added.
+
 **Fill in what happened (2026-10-27, `src/lib/server/episode-recaps.ts`, migration 0143)** is one bot ask per season when someone
 taps it (only aired episodes with no recap, so a season is asked about again only for new ones), run after the response like Make
 it a game's (`maxDuration` 300, the bot's ~1-3 min). While it asks, the Episodes tab polls `/api/seasons/[id]/recaps` every 4 s
@@ -247,7 +255,15 @@ when it opens (`/api/seasons/[id]/plans`: the season's header and schedule, the 
 An answer, a plan or calling one off answers with your couches' plans, put into the cached home, so the home isn't read
 again. Backed up with the couch's games (`backup-leagues.js`).
 
-**Rate it and the couch verdict (new design, step 12 part 1)** poll nothing and run nothing on a schedule. A rating is one small
+**React with a GIF (2026-11-01, in place of Rate it)** polls nothing and runs nothing on a schedule. A GIF is one row (`episode_gifs`,
+migration 0162, ~300 bytes: the GIF's id, KLIPY link, size and title), one per person per episode, changed in place: a couch of four
+reacting to every episode of five weekly shows is about a thousand rows a year (~0.3 MB). Posting one sends nothing to anyone (no
+push). The reads: the Episodes read's one small query (each episode's count and first three links through your mark); the GIF sheet
+and the reveal's slide read their episode when they open (two small queries); the picker's searches are KLIPY's (above, the stack),
+edge-cached an hour, and the pictures load from KLIPY's hosts, not through us. Backed up with the couch's games (`backup-leagues.js`).
+The paragraph below is Rate it as it was: shelved the same day, its rows kept and no longer read but by Couch points.
+
+**Rate it and the couch verdict (new design, step 12 part 1; shelved 2026-11-01)** poll nothing and run nothing on a schedule. A rating is one small
 row (`episode_ratings`, migration 0128, ~100 bytes, ~250 with a take): a couch of four rating every episode of five weekly shows
 is about a thousand rows a year (~0.2 MB). Rating sends nothing to anyone (no push). The reads: the Episodes read gains one small
 grouped query (each episode's average and count through your mark: a few bytes an episode); the rate sheet reads its episode
@@ -304,9 +320,10 @@ on season, episode, couch and runtime); the season's air times are kept in the s
 An hour's episode watched start to finish is ~720 polls (Vercel invocations) and well under 1 MB from Neon, and it keeps Neon awake
 while it's open, as an open chat does. Tonight's Watch along card reads once when the show opens (`/api/seasons/[id]/watch`: the
 episode to watch along and the couch's count, two small queries). Saying something is one insert (at most 12 in ten seconds,
-1,500 an episode, per person). **GIFs** are GIPHY's: the picker asks `/api/gifs` (what's trending when it opens, then a search as you
-type, 350 ms after you stop), which our server asks GIPHY once per search an hour (edge-cached, `s-maxage=3600`), and the pictures
-load from GIPHY's CDN in the browser (not through us: no Vercel bandwidth). No push, nothing on a schedule. Backed up with the
+1,500 an episode, per person). **GIFs** are KLIPY's (GIPHY's until 2026-10-31; the couch chat has them too): the picker asks
+`/api/gifs` (what's featured when it opens, then a search as you type, 350 ms after you stop), which our server asks KLIPY once per
+search an hour (edge-cached, `s-maxage=3600`), and the pictures load from KLIPY's hosts in the browser (not through us: no Vercel
+bandwidth). No push, nothing on a schedule. Backed up with the
 couch's games (`backup-leagues.js`).
 
 **Who's on now (new design, step 13 part 2)** adds no poll of its own. Each open watch along's clock is kept in `watch_sessions` (migration
@@ -529,6 +546,16 @@ never handles it: the user does the reset and the pasting.
   now. Vercel's function logs have one `[listings]` line per run.
 
 ## Changelog
+
+- **2026-11-01, branch `reactions`.** React with a GIF in place of Rate it's stars (migration 0162: `episode_gifs`, ~300 bytes a
+  row, backed up; `user_settings.share_gifs`). Nothing polls, nothing runs on a schedule, no push. The one service it leans on is
+  KLIPY, already set up for the chat (its key is in Vercel Production since 2026-10-31): more searches right after an episode, each
+  kept at the edge an hour. Rate it's reads are gone (the hub's taste query, Couch verdicts, the rate sheet), so Neon reads a
+  little less.
+- **2026-11-01, branch `ready`.** Getting it ready (migration 0160): adding a show asks our bot up to three things by itself (above,
+  What uses each limit), where before it asked nothing until someone tapped. At the couch's size that's a few shows a week, a few
+  minutes of the bot and of Neon awake each. At scale it's the bot's capacity that runs out first (one browser, one question at a
+  time): asking ChatGPT yourself is the free way that doesn't need it, offered on every step.
 
 - **2026-10-30, local only.** The PC's bot asks **Codex** (the Codex CLI, the user's ChatGPT plan, no API key, no cost beyond
   the plan): a `codex` provider in llm-browser-api, web search only (the shell, files, browser and computer use, apps, plugins
@@ -841,9 +868,9 @@ never handles it: the user does the reset and the pasting.
 - **2026-10-26, on the `new-design` branch (not deployed).** Step 13 part 1, watch along on your own time. **One new poll, only
   while someone watches along with its clock running** (`/api/seasons/[id]/watch/[n]?at=&since=` every 5 s: the reactions since the
   runtime it has, under 1 KB when nothing's new; paused, before you start or in a hidden tab, nothing); nothing runs on a schedule.
-  Migration 0131: `watch_reactions` (~150-400 bytes a reaction; backed up). A new service once the user makes a key: **GIPHY**
-  (`GIPHY_API_KEY`; no key, no GIFs): searches asked by our server and kept at the edge an hour, pictures loaded from GIPHY's CDN in
-  the browser; a beta key allows 100 calls an hour. Tonight reads one more small thing when a show opens (its Watch along card). No
+  Migration 0131: `watch_reactions` (~150-400 bytes a reaction; backed up). A new service once the user makes a key: **KLIPY**
+  (`KLIPY_API_KEY`, since 2026-10-31; GIPHY's before; no key, no GIFs): searches asked by our server and kept at the edge an hour,
+  pictures loaded from KLIPY's hosts in the browser; a test key allows 100 calls an hour, a production key (free on request) no limit. Tonight reads one more small thing when a show opens (its Watch along card). No
   pushes.
 - **2026-10-26, on the `new-design` branch (not deployed).** Step 13 part 2, who's on now and the live airing. **No new poll, nothing on a
   schedule.** Migration 0132: `watch_sessions` and `watch_session_people` (one small row each per person, episode and couch watched along;
@@ -966,3 +993,16 @@ never handles it: the user does the reset and the pasting.
   format change starts, or a side stage, adds its league mid-season, and a stage on another show is a league on that
   show's season. Only the engine's API and lab make such games so far (no screen does), so production has none; after each
   season sync, one query asks for the ids of the season's leagues whose stages a change or a grouping starts (none today).
+- **2026-10-31, pushed to master (`e06e0e31`, migration 0157).** Power rankings are Couch points. **Nothing polls, nothing
+  scheduled, no new service.** A new table, `user_days` (0157: one row a person a day they open the app, ~40 bytes; not backed
+  up), written in the same statement as `user_last_seen` (a CTE, so no extra round trip; at most once a minute a person, as
+  before). The hub's read (`/api/couches/[id]/hub`, when it opens) gains one query: a count by person and kind over the couch's
+  memberships, games, moves, chats, polls, plans, reactions and its people's follows, trivia, bingo, calls, ratings and days
+  (11 ms on the local copy's live couch), returning a few dozen small rows. The same afternoon, the moves kept in the games'
+  states count too (couch-moves.ts): read from the states the hub already loads, plus one tiny read of the couch's games'
+  `created_at`. No new table.
+- **2026-10-31, pushed to master (migration 0158).** The first-time tour (docs/PLAN-first-time-tour.md).
+  **Nothing polls, nothing scheduled, no new service, no new table.** `user_settings` gains `tour_seen_at` and `tour_reached`
+  (0158; null on every existing row, backed up with the table). The home read selects one more column from the join it
+  already makes; one small POST an account when the tour ends (`/api/me/tour`, keepalive), and again only when someone
+  replays it from Settings. Its pictures are static files (`public/tour/`, 80 KB), loaded only while it plays.

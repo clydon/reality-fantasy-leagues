@@ -253,7 +253,7 @@ const S2 = castAnswer([["Eve One", "Red"], ["Fay Two", "Red"], ["Gus Three", "Bl
 
     // ---- 3. Paste it ----
     const qn = await as.desk.call("GET", `${P(ids.s1)}/question`);
-    check(qn.status === 200 && /List the full starting cast of ZT DC Show 1 of "ZT DC Show"/.test(qn.body.prompt) && /startingGroup/.test(qn.body.prompt) && /tribe/i.test(qn.body.prompt), "its question: our bot's cast prompt, with tribes", (qn.body.prompt || "").slice(0, 200));
+    check(qn.status === 200 && /List the full starting cast of season 1 of "ZT DC Show"/.test(qn.body.prompt) && /startingGroup/.test(qn.body.prompt) && /tribe/i.test(qn.body.prompt), "its question: our bot's cast prompt, with tribes", (qn.body.prompt || "").slice(0, 200));
     let r = await post(ids.s1, { paste: PASTE });
     check(r.status === 200 && r.body.text === "Pasted: 1 new spelling, 1 starting tribe, 1 new, 1 not listed, not sent", "pasted: staged, saying what it changes", JSON.stringify(r.body));
     check(JSON.stringify(await castNames(ids.s1)) === JSON.stringify(CAST), "nothing written into the cast");
@@ -263,7 +263,7 @@ const S2 = castAnswer([["Eve One", "Red"], ["Fay Two", "Red"], ["Gus Three", "Bl
     check(JSON.stringify(kinds) === JSON.stringify(["group:Brady Booker", "spell:Kristian Chavez", "add:Zed Newman", "gone:Devin Way"]), "a tribe, a new spelling, someone new, someone not listed", JSON.stringify(kinds));
     const brady = c1.review.changes.find((x) => x.change.k === "group");
     check(brady.change.from === "Savu" && brady.change.to === "Toka" && brady.note === "We have Savu." && !!brady.photo, "the tribe: what we have", JSON.stringify(brady));
-    check(/^From a paste · pasted (today|just now)/i.test(c1.meta) && /sent \w{3} \d{1,2} to 1 game$/.test(c1.meta), "where it came from: a paste, and when it was sent", c1.meta);
+    check(/^From a paste · pasted (today|tonight|just now)/i.test(c1.meta) && /sent \w{3} \d{1,2} to 1 game$/.test(c1.meta), "where it came from: a paste, and when it was sent", c1.meta);
     check(c1.history[0]?.text === "Pasted: 1 new spelling, 1 starting tribe, 1 new, 1 not listed, not sent" && c1.history[0].who === U("desk"), "its History line", JSON.stringify(c1.history[0]));
     sp = (await as.desk.call("GET", `/api/desk/seasons/${ids.s1}`)).body;
     check(sp.castRow.need && sp.castRow.line === "Your paste: 1 new spelling, 1 starting tribe, 1 new, 1 not listed · not sent to its games", "the season page's row: its dot and what changed", JSON.stringify(sp.castRow));
@@ -319,7 +319,7 @@ const S2 = castAnswer([["Eve One", "Red"], ["Fay Two", "Red"], ["Gus Three", "Bl
     check(again.status === 200 && /^Already asking for ZT DC Show 2's cast/.test(again.body.text), "the same ask again: joined", JSON.stringify(again.body));
     check((await read(ids.s2)).asking !== null, "the page says it's asking");
     check(await drained(), "the queue drained");
-    check(bot.asked.filter((a) => a.kind === "cast").length === 1 && /ZT DC Show 2/.test(bot.asked[0].prompt), "our bot was asked once, for Season 2's cast");
+    check(bot.asked.filter((a) => a.kind === "cast").length === 1 && /season 2 of "ZT DC Show"/.test(bot.asked[0].prompt), "our bot was asked once, for Season 2's cast");
     let c2b = await read(ids.s2);
     check(c2b.state === "review" && c2b.review.title === "Our bot's answer: 5 changes, not sent" && c2b.review.changes.every((x) => x.change.k === "add") && c2b.asking === null, "its answer staged: everyone new", JSON.stringify({ s: c2b.state, t: c2b.review?.title }));
     check(c2b.history.map((h) => h.text).join(" / ") === "Our bot's answer: 5 castaways in 2 tribes, not sent / Asked our bot for the cast", "History: the ask, and its answer", c2b.history.map((h) => h.text).join(" / "));

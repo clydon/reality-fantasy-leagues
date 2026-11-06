@@ -266,6 +266,101 @@ test("when weeks open: every episode for replacements that don't wait; otherwise
   assert.equal(W.nextWindowEpisode(manual, 3), null);
 });
 
+test("waivers that start when a phase does: none before it, a window replacing everyone out after its first episode, then the usual schedule", () => {
+  const G = require("../src/lib/game/game-spec/index.js");
+  const PHASES = [{ id: "tribes", from: 1 }, { id: "merged", from: 5 }];
+  const merges = (s, at = 5) => S.settlePhases(s, { phases: [{ id: "tribes", from: 1 }, { id: "merged", from: at }], open: at });
+  const out = (s, ep, id) => S.addElimination(s, `ep${ep}`, id, "Voted Out");
+  // An Outlast with no replacements and windows only when opened, starting with the merge (the couch's S51 Outlast).
+  const s = league({ settings: { replaceRule: "never", waiverWindows: { schedule: "manual", every: 3, swaps: 1 } } });
+  assert.equal(S.readsPhases(s), false);
+  assert.deepEqual(S.updateSettings(s, "waiverStartPhase", "merged"), []);
+  assert.deepEqual(S.gameOf(s).extras.waivers.from, { phase: "merged" }, "the spec says it");
+  assert.equal(S.readsPhases(s), true, "so the settle passes record the merge's start");
+  assert.equal(W.enabled(s), true, "on: the merge opens a window, whatever the rule");
+  out(s, 3, "jelly");
+  assert.deepEqual(W.startsAt(s), { phase: "merged", at: null });
+  assert.equal(W.due(s, T0), null, "waiting: nobody knows when the merge is yet");
+  assert.equal(merges(s), true);
+  assert.deepEqual(W.startsAt(s), { phase: "merged", at: 5 });
+  out(s, 4, "mike");
+  assert.equal(W.due(s, T0), null, "Episode 4 is before it");
+  out(s, 5, "carter");
+  assert.equal(W.due(s, T0), "open", "the merge's first episode is in");
+  const p = W.open(s, T0);
+  assert.deepEqual([p.episode, p.window, p.replace, p.swaps, p.starts], [5, true, true, 1, "merged"], "a window replacing everyone, with the windows' swaps");
+  assert.deepEqual(W.replacementsOwed(s, "sam", p).lossIds, ["jelly"], "losses from before the merge too");
+  assert.deepEqual(W.replacementsOwed(s, "kim", p).lossIds, ["mike"]);
+  W.process(s, {}, { now: T0 + HOUR });
+  W.close(s, T0 + 2 * HOUR);
+  out(s, 6, "k2");
+  assert.equal(W.due(s, T0 + 3 * HOUR), null, "then the usual: no replacements, windows only when opened");
+
+  // Replacements every 3 episodes: from the merge's window, counted from it.
+  const every = league({ settings: { replaceRule: "windows", waiverWindows: { schedule: "every", every: 3, swaps: 0 }, waiverStartPhase: "merged" } });
+  assert.equal(W.isWindowEpisode(every, 3), false, "nothing while the merge isn't known");
+  assert.equal(W.nextWindowEpisode(every, 1), null);
+  merges(every);
+  assert.deepEqual([3, 5, 6, 7, 8, 11].map((n) => W.isWindowEpisode(every, n)), [false, false, false, false, true, true], "the merge's own window is opensAtStart's; then every 3 from it");
+  assert.equal(W.opensAtStart(every, 5), true);
+  assert.equal(W.nextWindowEpisode(every, 5), 8);
+
+  // Replace right away: a plain week after every episode from the merge on, its first the window.
+  const always = league({ settings: { replaceRule: "always", waiverStartPhase: "merged" } });
+  merges(always);
+  out(always, 3, "jelly");
+  out(always, 4, "mike");
+  assert.equal(W.due(always, T0), null, "no weeks before the merge, whatever the rule");
+  out(always, 5, "carter");
+  // Results came in faster than the clock: the merge's window opens on the latest episode.
+  out(always, 6, "k2");
+  assert.equal(W.opensAtStart(always, 6), true);
+  const first = W.open(always, T0);
+  assert.deepEqual([first.episode, first.window, first.replace, first.starts], [6, true, true, "merged"]);
+  W.process(always, {}, { now: T0 + HOUR });
+  W.close(always, T0 + 2 * HOUR);
+  out(always, 7, "k3");
+  assert.equal(W.due(always, T0 + 3 * HOUR), "open");
+  const next = W.open(always, T0 + 3 * HOUR);
+  assert.deepEqual([next.episode, next.window, next.replace, next.starts], [7, false, undefined, undefined], "then the usual weeks");
+
+  // One the commissioner opened at the merge was it: the clock opens no second.
+  const byHand = league({ settings: { replaceRule: "never", waiverWindows: { schedule: "manual", every: 3, swaps: 1 }, waiverStartPhase: "merged" } });
+  merges(byHand);
+  out(byHand, 5, "jelly");
+  assert.equal(W.openWindow(byHand, 1, T0, { replace: true }).error, undefined);
+  W.process(byHand, {}, { now: T0 + HOUR });
+  W.close(byHand, T0 + 2 * HOUR);
+  out(byHand, 6, "mike");
+  assert.equal(W.opensAtStart(byHand, 6), false);
+  assert.equal(W.due(byHand, T0 + 3 * HOUR), null);
+
+  // A merge before the game's own start holds nothing back.
+  const late = league({ settings: { replaceRule: "always", waiverStartPhase: "merged", startEpisode: 3 } });
+  merges(late, 2);
+  out(late, 3, "jelly");
+  assert.equal(W.waiting(late, 3), false);
+  assert.equal(W.opensAtStart(late, 3), false);
+  assert.equal(W.due(late, T0), "open");
+  assert.equal(W.open(late, T0).starts, undefined);
+
+  // Back to from the start: the spec drops it, and nothing reads the phases for it.
+  assert.deepEqual(S.updateSettings(always, "waiverStartPhase", null), []);
+  assert.equal(S.gameOf(always).extras.waivers.from, undefined);
+  assert.equal(always.settings.waiverStartPhase, undefined);
+  assert.equal(W.startsAt(always), null);
+
+  // The data rule: one of the season's phases, never its first; the shape.
+  const spec = G.specOf(s.settings);
+  const ats = (sp, ctx) => G.specProblems(sp, ctx).map((x) => x.at);
+  assert.deepEqual(ats(spec, { phases: PHASES }), []);
+  const at = (phase) => ats({ ...spec, extras: { ...spec.extras, waivers: { ...spec.extras.waivers, from: { phase } } } }, { phases: PHASES });
+  assert.deepEqual(at("tribes"), ["extras.waivers.from.phase"], "the first phase is from the start");
+  assert.deepEqual(at("jury"), ["extras.waivers.from.phase"]);
+  assert.deepEqual(at(""), ["extras.waivers.from"]);
+  assert.match(G.describeSpec(spec, { phases: [{ id: "merged", name: "Merged" }] }).details.find((d) => d.id === "waivers").value, /^From when Merged starts: no replacements · /);
+});
+
 // ---- Replacement rules ----
 
 test("replacement rules: always, only when short, only in windows, never", () => {

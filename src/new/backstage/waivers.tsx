@@ -225,7 +225,9 @@ function GameWaivers({ seasonId, couchId, g }: { seasonId: string; couchId: stri
                 ? `${p.line || "Replace who's out"}${p.due ? ` · due ${airTime(Date.parse(p.due))}` : ""}`
                 : p
                   ? `After Episode ${p.episode}${p.until ? ` · until ${airTime(Date.parse(p.until))}` : ""}`
-                  : "Players replace who's out when one opens"}
+                  : g.how.starts
+                    ? `${g.how.starts}, then a window to replace everyone who's out`
+                    : "Players replace who's out when one opens"}
             </small>
           </span>
         </div>
@@ -527,8 +529,34 @@ function SettingsSheet({
     }
   };
   const set = (k: string, v: unknown) => write({ action: "set", set: { [k]: v } }, "Saved · the couch sees it in How it works");
+  const st = g.start;
+  // When they start: from the start, or with a later phase of the season (only where the season has one, or one's set).
+  const starts: [string | null, string, string][] = [
+    [null, "From the start", "As set below, from the game's first episode"],
+    ...st.phases.map((x): [string, string, string] => [
+      x.id,
+      `When ${x.name} starts`,
+      `Nothing before it. ${st.phase === x.id && st.at !== null ? `Episode ${st.at}` : "Its first episode"} opens a window to replace everyone who's out, then as set below`,
+    ]),
+  ];
   return (
     <Sheet open={open} onOpenChange={onOpenChange} title="Waivers settings" subtitle={`${g.gameName} · ${g.name}`}>
+      {(st.phases.length > 0 || st.phase) && (
+        <div data-bs-start className="mb-4 flex flex-col gap-2">
+          <p className="type-caption text-[14px] text-muted-foreground">When they start</p>
+          {starts.map(([k, t, d]) => (
+            <button key={k ?? "start"} type="button" data-start={k ?? "start"} aria-pressed={st.phase === k} disabled={!can} onClick={() => st.phase !== k && set("waiverStartPhase", k)} className="flex items-center gap-3 rounded-[3px] bg-background p-2.5 text-left">
+              <i className={`grid size-5 flex-none place-items-center rounded-full border-2 ${st.phase === k ? "border-foreground" : "border-input"}`} aria-hidden>
+                {st.phase === k && <i className="size-2.5 rounded-full bg-foreground" />}
+              </i>
+              <span>
+                <b className="block text-[15px]">{t}</b>
+                <small className="text-[13px] text-muted-foreground">{d}</small>
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
       <div data-bs-feel-sheet>
         <p className="mb-2.5 text-[14px] text-muted-foreground">{can ? "Pick a feel. It sets everything below; your players see it in How it works." : "Only a Commissioner changes how waivers work."}</p>
         <div className="flex flex-col gap-2">

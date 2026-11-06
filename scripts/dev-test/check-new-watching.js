@@ -353,10 +353,11 @@ async function newcomer(pool, who, approved = true) {
       await sheet(page).locator("[data-add-name]").waitFor();
       await shot("add-by-name", page);
       await sheet(page).locator("[data-add-name-go]").click();
-      check(/ZT Brand Spanking 1 added to your shows · not a game yet/.test(await toasted(/Brand Spanking/, page)), "added by name: not a game yet", await toasted(/added/, page));
-      await sheet(page).locator("[data-add-input]").waitFor();
-      check((await sheet(page).locator("[data-add-input]").inputValue()) === "ZT Brand Spanking", "back on the search, the sheet still open");
-      await page.keyboard.press("Escape");
+      // Getting it ready (check-getting-ready.js has the rest): a brand-new show plays the call sheet as it's added (our bot is
+      // away here: the check's stand-in listings never reach a real one).
+      await sheet(page).locator("[data-added-ready]").waitFor({ timeout: 15000 });
+      check(/ZT Brand Spanking 1 is on your shows/.test(await sheet(page).innerText()) && (await sheet(page).locator('[data-slate="rules"]').count()) === 1, "added by name: getting it ready");
+      await sheet(page).locator("[data-added-done]").click();
       await sheetGone(page);
       check((await pool.query("SELECT 1 FROM shows WHERE name = 'ZT Brand Spanking' AND created_by = $1", [fx.users.alex])).rows.length === 1, "made, alex's");
       // A listing from the search: Add a show asks where you are from the listing.
@@ -376,8 +377,9 @@ async function newcomer(pool, who, approved = true) {
         await sheet(page).locator("[data-where-line]").innerText()
       );
       await sheet(page).locator("[data-where-save]").click();
-      check(/ZT Late Bloomer 1 added to your shows · not a game yet/.test(await toasted(/Late Bloomer/, page)), "added from the listing", await toasted(/added/, page));
-      await page.keyboard.press("Escape");
+      await sheet(page).locator("[data-added-ready]").waitFor({ timeout: 15000 });
+      check(/ZT Late Bloomer 1 is on your shows/.test(await sheet(page).innerText()), "added from the listing: getting it ready");
+      await sheet(page).locator("[data-added-done]").click();
       await sheetGone(page);
       const bloom = await showOf(990006);
       const bloomSeason = bloom ? (await pool.query("SELECT id FROM show_seasons WHERE show_id = $1", [bloom.id])).rows[0] : null;
@@ -393,7 +395,7 @@ async function newcomer(pool, who, approved = true) {
       await page.locator("[data-whos-watching] [data-watcher]").nth(1).waitFor({ timeout: 15000 }).catch(() => {});
       const line = await page.locator("[data-couch-line]").innerText();
       check(/2 on the couch watch/.test(line) && /Not a game yet/i.test(line), "the couch line: who watches it, Not a game yet", line);
-      check(/you're on Ep 3/.test(await page.locator("[data-following]").innerText()), "the spoiler chip: he's on Episode 3");
+      check(/you're up to Ep 3/.test(await page.locator("[data-following]").innerText()), "the spoiler chip: he's on Episode 3");
       const watchers = await page.locator("[data-whos-watching] [data-watcher]").evaluateAll((els) => els.map((e) => e.getAttribute("data-watcher")));
       check(watchers.join() === "zt_nd_alex,zt_nd_riley", "Who's watching: him, then riley (never how far)", watchers.join());
       check((await page.locator('[data-play-it="make"] [data-make-it]').count()) === 1, "Make it a game (real since step 10 part 2a)");
@@ -430,9 +432,9 @@ async function newcomer(pool, who, approved = true) {
       await sheet(page).getByRole("button", { name: "Earlier in ZT Love Shack 1" }).click();
       await sheet(page).getByRole("button", { name: "Earlier in ZT Love Shack 1" }).click();
       await sheet(page).locator("[data-where-save]").click();
-      check(/Saved · you're on Episode 1/.test(await toasted(/Saved/, page)), "where you are, moved back to Episode 1");
-      await page.waitForFunction(() => /you're on Ep 1/.test(document.querySelector("[data-following]")?.textContent || ""), null, { timeout: 10000 }).catch(() => {});
-      check(/you're on Ep 1/.test(await page.locator("[data-following]").innerText()), "the chip follows");
+      check(/Saved · you're up to Episode 1/.test(await toasted(/Saved/, page)), "where you are, moved back to Episode 1");
+      await page.waitForFunction(() => /you're up to Ep 1/.test(document.querySelector("[data-following]")?.textContent || ""), null, { timeout: 10000 }).catch(() => {});
+      check(/you're up to Ep 1/.test(await page.locator("[data-following]").innerText()), "the chip follows");
       await page.goto(`${BASE}/show/${ss.id}/episodes`);
       await page.locator("[data-ep-aired]").first().waitFor({ timeout: 30_000 });
       const aired = await page.locator("[data-ep-aired]").evaluateAll((els) => els.map((e) => `${e.getAttribute("data-ep-aired")}:${e.getAttribute("data-watched")}`));

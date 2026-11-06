@@ -7,6 +7,7 @@ import { noLinkFor } from "@/lib/desk-seat-words";
 import { LAST_ACTIVE } from "./last-active";
 import { isUuid, type SessionUser } from "./auth-helpers";
 import { freeSeat, takeOut } from "./backstage-members";
+import { dropBlindPicksForPlayer } from "./blind-draft";
 import { recordChange, type MemberUndo } from "./change-log";
 import { joinedLeague, stayedOnCouch } from "./couches";
 import { likeOf, pool, withLeagueLock, HttpError } from "./db";
@@ -633,6 +634,29 @@ export async function removeSeat(user: SessionUser, leagueId: string, playerId: 
     });
   });
   return { changeId, text: `${name}'s seat is out of ${g.name}` };
+}
+
+/**
+ * Erases a seat that's out of the game (tier 3, no Undo; the user, 2026-10-31): someone who left after a draft, or whose account
+ * was deleted, kept in the standings unplayed until now. Their team, picks and scores leave the game as if they never played, and
+ * the tables recount without them; a castaway only they had goes back undrafted. Never a seat someone's signed in to.
+ */
+export async function eraseSeat(user: SessionUser, leagueId: string, playerId: string): Promise<{ text: string }> {
+  const g = await gameOf(leagueId);
+  let name = "";
+  await withLeagueLock(leagueId, async (s, client) => {
+    const seat = players(s).find((p) => p.id === playerId);
+    if (!seat || !seat.disabled) throw new HttpError(409, "Only a seat that's out of the game can be erased");
+    const { rows } = await client.query("SELECT 1 FROM league_memberships WHERE league_id = $1 AND player_id = $2 FOR UPDATE", [leagueId, playerId]);
+    if (rows.length) throw new HttpError(409, "Someone's signed in to that seat now");
+    name = seat.formerName || seat.name;
+    StateLogic.removePlayer(s, playerId);
+    await dropBlindPicksForPlayer(client, leagueId, playerId);
+    StateLogic.BlindDraftLogic.setLockedPlayerIds(s, StateLogic.BlindDraftLogic.lockedPlayerIds(s).filter((id) => id !== playerId));
+    await recordChange(client, leagueId, null, { userId: user.id, kind: "member", tier: 3, text: `Erased ${name}'s seat: their team and scores left the game`, batch: crypto.randomUUID() });
+    await logDesk(client, { entity: "game", entityId: leagueId, action: "erase-seat", text: `Erased ${name}'s seat`, before: { playerId, name }, userId: user.id });
+  });
+  return { text: `${name}'s seat is erased from ${g.name}` };
 }
 
 // ---------- Undo ----------

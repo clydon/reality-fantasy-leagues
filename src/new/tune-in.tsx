@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useSyncExternalStore } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { showWords } from "@/lib/game/show-words";
 import { splitFrame, UNFRAMED } from "@/lib/art-frame";
@@ -125,7 +125,7 @@ function textBox(el: Element | null): DOMRect | null {
 
 const colours = new Map<string, string>();
 /** The show's colour, from its banner: the saturated pixels' hue, brightened; never yellow (the One Chyron Rule). */
-function colourOf(seasonId: string, src: string | null): Promise<string> {
+export function colourOf(seasonId: string, src: string | null): Promise<string> {
   const fallback = FALLBACK[[...seasonId].reduce((t, c) => t + c.charCodeAt(0), 0) % FALLBACK.length];
   if (colours.has(seasonId)) return Promise.resolve(colours.get(seasonId)!);
   if (!src) return Promise.resolve(fallback);
@@ -583,4 +583,17 @@ export function TuneIn() {
       />
     </div>
   );
+}
+
+/** The show's colour (colourOf), for anything else that wears it (Getting it ready's slates): a palette colour until it's read. */
+export function useShowColour(seasonId: string, src: string | null): string {
+  const [colour, setColour] = useState(() => colours.get(seasonId) ?? FALLBACK[[...seasonId].reduce((t, c) => t + c.charCodeAt(0), 0) % FALLBACK.length]);
+  useEffect(() => {
+    let live = true;
+    colourOf(seasonId, src).then((c) => live && setColour(c));
+    return () => {
+      live = false;
+    };
+  }, [seasonId, src]);
+  return colour;
 }

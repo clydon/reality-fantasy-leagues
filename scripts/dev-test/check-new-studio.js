@@ -334,7 +334,8 @@ const AUDIT = async (shot) => {
         await a.ready();
         check((await pg.locator("[data-preview]").count()) === 0, "Settings: nothing in Preview any more");
         const choices = await pg.locator("[data-settings-appearance] [role=radio]").allInnerTexts();
-        check(choices.join("|") === "Night|Studio|Match phone", "Appearance: Night · Studio · Match phone", choices.join("|"));
+        // Each with its plain word under it since the 2026-10-31 redesign (Quick settings): Dark, Light, Auto.
+        check(choices.map((c) => c.replace(/\s+/g, " ").trim()).join("|") === "Night Dark|Studio Light|Match phone Auto", "Appearance: Night (Dark) · Studio (Light) · Match phone (Auto)", choices.join("|"));
         check((await pg.locator('[data-theme-choice="night"]').getAttribute("aria-checked")) === "true", "Night is on");
         await pg.locator("[data-settings-appearance]").scrollIntoViewIfNeeded();
         await a.shot("appearance-night");
@@ -421,7 +422,7 @@ const AUDIT = async (shot) => {
         ["hub-profile-sheet", "alex", "/home?hub=focus", (pg) => tap(pg, pg.locator("header button[aria-label*='rofile'], [data-profile-face], header button").first())],
         ["hub-bell", "alex", "/home?hub=focus", (pg) => tap(pg, pg.locator("[data-bell]"))],
         ["tonight", "alex", `/show/${sid}/tonight`],
-        ["games-your-moves", "alex", `/show/${sid}/games`, (pg) => tap(pg, pg.locator("button.nd-dock"))],
+        ["games-your-moves", "alex", `/show/${sid}/games`, (pg) => tap(pg, pg.locator('[data-your-move="lineup"]'))],
         ["episodes", "alex", `/show/${sid}/episodes`],
         ["episode-page", "alex", `/show/${sid}/episodes?page=ep4`],
         ["games", "alex", `/show/${sid}/games`],

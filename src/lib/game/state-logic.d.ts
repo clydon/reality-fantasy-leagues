@@ -318,6 +318,12 @@ declare const StateLogic: {
     /** Player ids in waivers: active seats, not late joiners still catching up. */
     rotation(state: LeagueState): string[];
     isWindowEpisode(state: LeagueState, episode: number): boolean;
+    /** Waivers that start when a phase does: the phase, and its first episode once that's known; null: from the start. */
+    startsAt(state: LeagueState): { phase: string; at: number | null } | null;
+    /** After episode n, waivers are still waiting for the phase they start with. */
+    waiting(state: LeagueState, episode: number): boolean;
+    /** Episode n's results open the window waivers start with. */
+    opensAtStart(state: LeagueState, episode: number): boolean;
     /** A window with swaps opens after this episode (pre-v2's add/drop week). */
     isAddDropEpisode(state: LeagueState, episode: number): boolean;
     nextWindowEpisode(state: LeagueState, after: number, total?: number): number | null;

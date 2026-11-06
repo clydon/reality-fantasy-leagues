@@ -21,7 +21,9 @@ export interface ParsedCast {
   sources: string[];
 }
 
-export function buildCastPrompt(format: CastFormat, opts?: { seasonName?: string; showName?: string }): string;
+/** `year`: when the season premiered; `known`: who the TV listings credit in it (server/show-art.ts castAnchor), so an older season
+ *  with the same name isn't the answer. */
+export function buildCastPrompt(format: CastFormat, opts?: { seasonName?: string; showName?: string; year?: number | null; known?: string[] }): string;
 export function parseCastImport(raw: unknown, format: CastFormat): ParsedCast;
 export function toCastImport(parsed: ParsedCast): {
   tribes: { name: string }[];

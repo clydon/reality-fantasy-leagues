@@ -303,16 +303,15 @@ test("the Games tab's table: one shared place, the result on the view; the couch
   assert.deepEqual(view.coop, { lives: 0, of: 1, lost: [{ episode: 1, question: "banished" }], result: "lost" });
   // The couch's standings: power rankings, head to head and finishes are against each other, so a co-op game isn't in them; the
   // trophy shelf keeps it, everyone its winners when it was won, nobody when it was lost; it's no title.
-  const { rankingsOf, trophiesOf, yourNumbers } = jiti("../src/lib/game/couch-standings.ts");
+  const { rankingsOf, headToHead, trophiesOf, yourNumbers } = jiti("../src/lib/game/couch-standings.ts");
   const people = ["ann", "bo", "cy"].map((n) => ({ userId: n, name: n }));
   const tied = ["ann", "bo", "cy"].map((u) => ({ userId: u, name: u, place: 1, rank: "T1", total: 0 }));
   const g = (over) => ({ leagueId: over.leagueId, name: "G", gameName: "Questions", gameType: "questions", seasonId: over.seasonId, showId: "tr", showName: "Traitors", label: over.label, span: null, artUrl: null, year: 2026, through: 5, ended: true, rows: over.rows, before: null, coop: over.coop });
   const won = g({ leagueId: "w", seasonId: "t4", label: "Traitors 4", rows: tied, coop: { result: "won", lives: 2, of: 5 } });
   const lost = g({ leagueId: "x", seasonId: "t5", label: "Traitors 5", rows: tied, coop: { result: "lost", lives: 0, of: 5 } });
   const versus = g({ leagueId: "v", seasonId: "t5", label: "Traitors 5", rows: [{ userId: "bo", name: "bo", place: 1, rank: "1", total: 9 }, { userId: "ann", name: "ann", place: 2, rank: "2", total: 4 }], coop: null });
-  assert.equal(rankingsOf([won, lost], people, "ann", 2026), null, "co-op alone ranks nobody");
-  const r = rankingsOf([won, lost, versus], people, "ann", 2026);
-  assert.deepEqual(r.all.map((x) => [x.userId, x.total, x.games]), [["bo", 10, 1], ["ann", 1, 1]]);
+  assert.deepEqual(headToHead([won, lost], people, "ann"), [], "co-op alone: nobody played anybody");
+  const r = rankingsOf([won, lost, versus], people, "ann", [], true);
   assert.deepEqual(r.h2h.map((h) => [h.userId, h.games]), [["bo", 1]], "only the game they played against each other");
   const t = trophiesOf([won, lost, versus], people, "ann");
   // A versus game after a co-op one the couch won isn't anyone running it back (everyone "won" the co-op one).

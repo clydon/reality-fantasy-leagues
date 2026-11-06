@@ -299,6 +299,8 @@ export interface LeagueSettings {
   waiverProcessHours?: number;
   /** Free agency between processing and airtime; on unless false. */
   freeAgencyEnabled?: boolean;
+  /** Waivers start when this phase of the season does ("When Merged starts": WaiverLogic.startsAt); unset: from the start. */
+  waiverStartPhase?: string;
   /**
    * Catch-up mode (StateLogic.RevealLogic): null = live, an integer = this league may only see
    * episodes 1..n. Absent on every league that predates it, which reads as null.
@@ -1013,6 +1015,8 @@ export interface WaiverPeriod {
   swaps?: number;
   /** This window's own say on replacements (Open a waiver window's toggle); unset: the league's rule decides. */
   replace?: boolean;
+  /** The window waivers start with, when their phase starts (WaiverLogic.startsAt): the phase. */
+  starts?: string;
   /** The commissioner opened or changed this window (Open a waiver window). */
   openedBy?: "commissioner";
   /** The commissioner turned the window off and nothing else ran this week: closed without a run. */
@@ -1188,6 +1192,8 @@ export interface ChatMessage {
   /** "system": the retired automated result lines (no longer shown). "reveal": "conor revealed episode 9". */
   type: "message" | "system" | "reveal";
   text: string;
+  /** A GIF message's picture (migration 0156; its text is "GIF"). */
+  gif?: { id: string; url: string; w: number; h: number; title: string } | null;
   created_at: string;
   edited_at: string | null;
   reactions: Record<string, ChatReaction>;

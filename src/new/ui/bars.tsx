@@ -64,7 +64,7 @@ export function TopBar({ me, onProfile, bell }: { me: { id: string; name: string
       <Wordmark />
       <div className="flex items-center gap-1.5">
         {bell}
-        <button type="button" onClick={onProfile} aria-label="Your profile" className="nd-press grid size-11 place-items-center rounded-[3px]">
+        <button type="button" onClick={onProfile} aria-label="Your profile" data-tour="you" className="nd-press grid size-11 place-items-center rounded-[3px]">
           <Avatar id={me.id} name={me.name} />
         </button>
       </div>
