@@ -44,6 +44,8 @@ test("the guide's size limits are the schema's", () => {
     ["A bank", `1 to ${n(G.MAX_BANK)} to start`],
     // C6 part 2: a ticket's legs and payout.
     ["A ticket", `2 to ${G.MAX_TICKET_LEGS} legs; pays up to ${n(G.MAX_PAYS)} times its stake`],
+    // C7: a new card each week.
+    ["A card", `1 to ${G.MAX_CARD} lines an episode, from 1 to ${G.MAX_ONLY} moments`],
     // C5: a pick of several each episode, and only these moments.
     ["A pick each episode", `1 (a pool); 1 to ${G.MAX_PICKS} scored by what they do`],
     ["Only these moments", `1 to ${G.MAX_ONLY}`],

@@ -746,7 +746,7 @@ class ScoringLogic {
       if(!outlast && (w.now || final)){
         const events = ActiveRosterLogic.episodeEvents(state, ep);
         if(events.length){
-          const pre = { times: ActiveRosterLogic.timesFor(state, ep.number), slots, scored: ActiveRosterLogic.scoredEvents(state, events), joined, stints: stintsOf };
+          const pre = { times: ActiveRosterLogic.timesFor(state, ep.number), slots, scored: ActiveRosterLogic.scoredEvents(state, events, ep.number), joined, stints: stintsOf };
           players.forEach(p => running.set(p.id, Seq.add(running.get(p.id), ActiveRosterLogic.episodeScore(state, ep, p.id, pre).total)));
         }
       }
@@ -2427,7 +2427,7 @@ class PriceLogic {
     (state.episodes || []).forEach(ep => {
       if(ep.resultsHidden || !EpisodeLogic.hasResults(ep) || (through != null && ep.number > through)) return;
       ActiveRosterLogic.episodeEvents(state, ep).forEach(ev => {
-        if(out.has(ev.castawayId)) out.set(ev.castawayId, out.get(ev.castawayId) + ActiveRosterLogic.eventPoints(state, ev));
+        if(out.has(ev.castawayId)) out.set(ev.castawayId, out.get(ev.castawayId) + ActiveRosterLogic.eventPoints(state, ev, ep.number));
       });
     });
     out.forEach((v, k) => out.set(k, roundPoints(v)));
@@ -3076,12 +3076,15 @@ class ActiveRosterLogic {
   // its points say: a couch's own copy that stopped counting a moment (docs/PLAN-new-design.md step 6b part 3)
   // keeps the results it recorded, so counting it again is only switching it back on. Leagues on a show's format
   // or a ruleset copy are as they always were.
-  static pointsFor(state, type){
+  // C7: `episode`, the episode it's scored in (only the card's moments that week count, score.only 'card': Spec.onlyAt; left out,
+  // every moment the card's list names).
+  static pointsFor(state, type, episode){
     if(state.settings && state.settings.rulebook && !formatOf(state).events.some(e => e.id === type)) return 0;
-    const score = gameOf(state).score;
+    const game = gameOf(state);
+    const score = game.score;
     // C5: only these moments count (score.only), and hits counted (score.hits): each moment's worth (Spec.momentWorth).
     if(score.by === 'moments' && (score.only !== undefined || score.hits !== undefined)){
-      return Spec.momentWorth(score, type, defaultPointsFor(formatOf(state).events.find(e => e.id === type), ownershipModeOf(state)));
+      return Spec.momentWorth(score, type, defaultPointsFor(formatOf(state).events.find(e => e.id === type), ownershipModeOf(state)), Spec.onlyAt(game, episode));
     }
     const configured = score.by === 'moments' && score.points ? score.points[type] : undefined;
     if(typeof configured === 'number' && Number.isFinite(configured)) return configured;
@@ -3091,12 +3094,12 @@ class ActiveRosterLogic {
   // Points for one recorded or implied event: its type's points, times its units when it counts more
   // than one (a `per` rule's count, formats/rules.js: 3 home runs, 6.67 innings). One unit is the type's
   // points exactly.
-  static eventPoints(state, ev){
+  static eventPoints(state, ev, episode){
     // One of a couch's own moments (Make it ours) counts only while the league's rules have it: following the
     // season's rulebook again leaves the couch's answers in place, scoring nothing, so Undo can count them again.
     if(ev && ev.couch && !formatOf(state).events.some(e => e.id === ev.type)) return 0;
     const units = ev && Number.isFinite(ev.units) && ev.units > 0 ? ev.units : 1;
-    const points = ActiveRosterLogic.pointsFor(state, ev.type);
+    const points = ActiveRosterLogic.pointsFor(state, ev.type, episode);
     if(units === 1) return points;
     // A per-amount moment's unit (the rulebook's `per`, compiled as the event's `unit`): the amount counts per that many.
     const def = formatOf(state).events.find(e => e.id === ev.type);
@@ -3105,15 +3108,16 @@ class ActiveRosterLogic {
   }
   // An episode's moments (episodeEvents) as the scoring sequence reads them: each { castawayId, points } at the game's points, in
   // order. Worked out once an episode for every seat (compute's `pre.scored`).
-  static scoredEvents(state, events){
+  // C7: `episode`, the one they're in (its card's moments, where only they count).
+  static scoredEvents(state, events, episode){
     // C5: counting each objective once (score.hits 'pick' or 'objective'), each moment's id and what a hit on it is worth.
     const hits = ActiveRosterLogic.hits(state);
     if(hits === 'pick' || hits === 'objective'){
       const worth = new Map();
-      const of = ev => { if(!worth.has(ev.type)) worth.set(ev.type, ev.couch && !formatOf(state).events.some(e => e.id === ev.type) ? 0 : ActiveRosterLogic.pointsFor(state, ev.type)); return worth.get(ev.type); };
-      return events.map(ev => ({ castawayId: ev.castawayId, points: ActiveRosterLogic.eventPoints(state, ev), type: ev.type, worth: of(ev) }));
+      const of = ev => { if(!worth.has(ev.type)) worth.set(ev.type, ev.couch && !formatOf(state).events.some(e => e.id === ev.type) ? 0 : ActiveRosterLogic.pointsFor(state, ev.type, episode)); return worth.get(ev.type); };
+      return events.map(ev => ({ castawayId: ev.castawayId, points: ActiveRosterLogic.eventPoints(state, ev, episode), type: ev.type, worth: of(ev) }));
     }
-    return events.map(ev => ({ castawayId: ev.castawayId, points: ActiveRosterLogic.eventPoints(state, ev) }));
+    return events.map(ev => ({ castawayId: ev.castawayId, points: ActiveRosterLogic.eventPoints(state, ev, episode) }));
   }
   // C5: how a game scored by moments counts hits (score.hits: every, pick, objective), or null (by points, every game before C5).
   static hits(state){
@@ -3202,7 +3206,7 @@ class ActiveRosterLogic {
     const ids = [...new Set(held)];
     const captain = best ? null : ActiveRosterLogic.captainFor(state, ep.id, playerId);
     const times = pre && pre.times !== undefined ? pre.times : ActiveRosterLogic.timesFor(state, ep.number);
-    const scored = (pre && pre.scored) || ActiveRosterLogic.scoredEvents(state, (pre && pre.events) || ActiveRosterLogic.episodeEvents(state, ep));
+    const scored = (pre && pre.scored) || ActiveRosterLogic.scoredEvents(state, (pre && pre.events) || ActiveRosterLogic.episodeEvents(state, ep), ep.number);
     const raw = Seq.momentRaw(ids, scored, ActiveRosterLogic.hits(state));
     // The captain's factor (C3: the one multiplier piece, on 'captain').
     const cap = { on: 'captain', times: captain ? ActiveRosterLogic.captainTimes(state) : 1 };
@@ -3570,7 +3574,7 @@ class GroupSlotLogic {
    */
   static episodeLines(state, ep, playerId, events, times, ix){
     if(!GroupSlotLogic.config(state)) return [];
-    return GroupSlotLogic.scoredLines(state, ep, playerId, ActiveRosterLogic.scoredEvents(state, events || ActiveRosterLogic.episodeEvents(state, ep)), times, ix);
+    return GroupSlotLogic.scoredLines(state, ep, playerId, ActiveRosterLogic.scoredEvents(state, events || ActiveRosterLogic.episodeEvents(state, ep), ep.number), times, ix);
   }
   /** episodeLines on the episode's moments already at the game's points (`scored`: ActiveRosterLogic.scoredEvents), as
    *  episodeScore has them: the scoring sequence's steps 2 and 3 for a slot (C2 part 1), its group's raw points times the
@@ -3836,7 +3840,7 @@ class PickEmLogic {
   // Nobody goes home in a sport: a pick survives an event by scoring in it (a driver in the points), not by staying in.
   static byScore(state){ return gameOf(state).score.means === 'scores'; }
   static scored(state, ep, castawayId){
-    const points = ActiveRosterLogic.episodeEvents(state, ep).filter(ev => ev.castawayId === castawayId).reduce((n, ev) => n + ActiveRosterLogic.eventPoints(state, ev), 0);
+    const points = ActiveRosterLogic.episodeEvents(state, ep).filter(ev => ev.castawayId === castawayId).reduce((n, ev) => n + ActiveRosterLogic.eventPoints(state, ev, ep.number), 0);
     return points > 0;
   }
 
@@ -6799,7 +6803,7 @@ class WaiverLogic {
     state.episodes.forEach(ep => {
       if(!inPlay(state, ep.number)) return;
       ActiveRosterLogic.episodeEvents(state, ep).forEach(ev => {
-        if(ev.castawayId === castawayId) total += ActiveRosterLogic.eventPoints(state, ev);
+        if(ev.castawayId === castawayId) total += ActiveRosterLogic.eventPoints(state, ev, ep.number);
       });
     });
     return roundPoints(total);
@@ -7275,7 +7279,7 @@ class AnswerLogic {
           const m = who.get(ev.type);
           m.set(ev.castawayId, (m.get(ev.castawayId) || 0) + n);
           // Each person's points by the game's rules (A8: a points leaderboard), as the engine scores a moment.
-          points.set(ev.castawayId, (points.get(ev.castawayId) || 0) + ActiveRosterLogic.eventPoints(state, ev));
+          points.set(ev.castawayId, (points.get(ev.castawayId) || 0) + ActiveRosterLogic.eventPoints(state, ev, ep.number));
         });
         roleOf = new Map(roles ? cast.map(c => [c.id, role.has(c.id) ? roles.roleFor(role.get(c.id)) : roles.default]) : []);
       }
@@ -7325,7 +7329,9 @@ class AnswerLogic {
       .map(x => x.id);
   }
   // The spec's questions, whole (each with its defaults).
-  static questions(state){ return gameOf(state).ask; }
+  // C7: each question on the card one for each of its lines (Spec.askOf), so everything that answers, grades or reads them sees the
+  // lines as questions; a game without a card, its spec's own list.
+  static questions(state){ return Spec.askOf(gameOf(state)); }
   // Who was in at the game's first episode (A8: a pairs question's pairs are drawn from them, by the grader and the server
   // alike): nobody who'd left in an episode before it. None while it waits for its phase.
   static startIn(state){

@@ -132,7 +132,11 @@ results (Wed Nov 11). C6, money, is under way, in parts: part 1, a bank and stak
 starts with, every stake drawn from it, one that can run out; a stake's odds, even money or the pool's; a stake as a line of its own
 beside a share, a rollover, a shrink or a parlay; tracker row p24), is built, and so is part 2, a ticket a player builds (2026-11-06:
 a staked parlay of the legs a player chooses from the game's questions, the payout growing with the legs; tracker row p26, the user's
-first game with a fixed sheet): **C6 is done**. C7 (a new card each week) is next, then A14's later parts, and a stop before A15. The live-sports plan is
+first game with a fixed sheet): **C6 is done**. C7, a new card each week, is under way, in parts: part 1, a card from the show's
+moments (2026-11-06: `card: { from: 'moments', each, of }`, drawn in turn as Weekly Calls' moments are, read by a question on it,
+`card: true`, one for each line, a ticket built from its lines, and by the moments that count each week, `score.only: 'card'`;
+tracker rows p10 and p12, the user's first and third games), is built; part 2, the bot writing the week's card, is next, then A14's
+later parts, and a stop before A15. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5, at
 high since 2026-11-05; C2 at xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: folded in here as track L; its file keeps the details)
 and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track S here).
@@ -6433,6 +6437,87 @@ A14 part 2 and before A14's other parts; every part keeps every golden and blind
   Weekly Calls rotate the show's moments) or written by the bot and checked (as trivia and bingo squares are), data-settled
   only. Calls, trivia, bingo squares, a weekly prediction sheet and weekly objectives all come from it. Games 1 and 3.
 
+  **As built (C7 part 1, a card from the show's moments, 2026-11-06; not merged).** One session, at high. Part 2, the bot writing
+  the week's card, is the next session's.
+  - **The piece** (schema.js): **a card**, `card: { from: 'moments', each: 1 to MAX_CARD (12), of: [1 to MAX_ONLY (40) of the
+    show's moments, at least each, none twice] }` (KEYS.top `card`, KEYS.card; VOCAB `card.from` `moments`; CARD's default `from`;
+    `cardOf` reads it, `cardEach` its lines when they're 1 to 12). Each episode it's the next `each` of its list, round and round
+    (`drawInTurn`, `cardLines`: Episode 1 the first `each`). Two things read it: **a question on the card**, `card: true` (KEYS
+    question `card`), asked for each of its lines, one question each (`askOf`: `sheet` is `sheet.1` to `sheet.<each>`, each knowing
+    its card and line, `isCardLine`, `cardMoment`; a ticket built from it takes its lines as legs), settled by its line's moment that
+    episode (`{ by: 'moment', take: happened | count | who | most }`, no moment of its own; CARD_TAKES, CARD_ANSWERS: yes or no, a
+    count, a person or a group); and **the moments that count each week**, `score.only: 'card'` (`onlyCard`, `onlyAt`: the card's
+    lines that episode, worked out once per card and episode; `momentWorth` takes them). `linesAsked` and `questionLines` count a
+    card question as its lines (at most 12 questions an episode). Refused, each with why: a card nothing reads, `from` other than
+    moments, `each` out of range or more than `of` has, a moment twice or not the show's or the couch's word (settleProblems, with
+    ctx: `card.of[i]`); a question on the card without a card, outside a game of questions (a draft's own), asked other than each
+    episode, settled other than by its line's moment or with a moment of its own, answered other than yes or no, a count, a person
+    or a group, rolled over, against the bot or about each person, an id that leaves no room for its lines' numbers (an answer is
+    stored by 40 characters), a line's id another question's; a parlay of it ("build a ticket from them"), the players' own answers
+    about it, a life on it (`lifeRides`: a life rides on the game's own questions; `livesQuestion` is unchanged, so a line is still
+    about its episode alone for head to head's wait); `score.only: 'card'` without a card.
+  - **The decisions (the lane's, the user's to overrule: Noticed):** where a card lives: nowhere, for a card from the show's moments
+    (it's the spec and the episode: the same on every read, never changed once answered, nothing private); a table of its own for
+    one the bot writes (part 2), as trivia's and bingo's are. Its fallback: none needed here (a list the check passed always draws);
+    part 2's bot card falls back to the spec's list in turn, or the week void. In turn from the list's start at Episode 1 (Weekly
+    Calls' rotation exactly; a game from Episode 6 starts part way round). A line that didn't happen is a no; who did a moment
+    nobody did is off (no points either way).
+  - **Today's games as uses of it:** a game's own questions are a card that's the same every week (the spec's list: nothing changes);
+    Weekly Calls' moment call is the show's callable moments drawn in turn, now with the same `drawInTurn` (`calls.ts`
+    `callQuestions`: the same calls, tests/calls.test.js); trivia's round and bingo's squares are cards the bot writes and a second
+    ask checks, each episode's in a table of their own (`trivia_questions`, the bingo bank), as they were. Every stored spec plays
+    exactly as before (no stored spec has a card; `AnswerLogic.questions` hands back the spec's own list, the same array, without one).
+  - **Its place in the sequence:** step 1, the card's lines that episode: the questions it asks (each line a question, graded on its
+    moment that episode: answers.js `plainVerdict`, then a line like any question's, its stake, share and a ticket's legs as C6 has
+    them) and the moments that count (step 2's `momentRaw` at `momentWorth`'s points for that episode). Nothing else moves.
+  - **The engine** (state-logic.js; the functions changed, for the own-pace merge): `AnswerLogic.questions` (`Spec.askOf`),
+    `ActiveRosterLogic.pointsFor`, `eventPoints` and `scoredEvents` (an episode, where only its card counts), and the episode passed
+    in `ScoringLogic.walk`, `PriceLogic.points`, `ActiveRosterLogic.episodeScore`, `GroupSlotLogic.episodeLines`,
+    `PickEmLogic.scored`, `WaiverLogic.castawayPoints` and `AnswerLogic.facts`. Elsewhere: schema.js (the piece, its checks,
+    `lifeRides`), answers.js (`plainVerdict`), describe.js (`cardPhrase`, `cardSentence`, `momentWord`, `cardLegs`, a ticket's legs
+    from its lines), settings.js (`gameCard`, `scoreOnly` `'card'`, both ways), index.d.ts, calls.ts, answers.ts (a line's read:
+    `card` { from, moment, label }, its words the line's own: "This week's sheet: Found an idol"), backstage-games.ts (Game settings
+    edits the spec's own questions, not their lines), and the episode passed where the screens read a moment's points
+    (active-roster-rows.ts, cast-stats.ts, team-episode-breakdown.ts, active-roster-detail.tsx, episode-active-roster-section.tsx,
+    research-rows.tsx).
+  - **Fallbacks for a format change nobody announced:** a card names moments, never a group or a person, so a swap, a split or a new
+    phase changes nothing it draws; a moment that can't happen any more (tribal immunity after the merge) comes round as an easy
+    no (Noticed); a "who" line answered with a group reads the format's groups as any group question does.
+  - **What the league's writes read:** each line's answers are `game_answers` rows by the line's id (`sheet.1`), private until its
+    lock as every answer is; the server grades them (`answer-points.ts`, unchanged) and hands the walk its totals. The card itself
+    is the spec's (`settings.gameCard`, beside `settings.game`).
+  - **Words** (`describe.js`): p10, "everyone answers five questions before each episode: who goes home and whether each of the
+    card's four moments happens, all season. Each episode's card is the next four of got an idol or advantage, ..., in turn, so
+    it's new each episode. ... Build a ticket from who goes home and the card's four lines ..."; How it works: "This week's sheet:
+    for each of the four moments on that episode's card, whether it happens: each its own question." p12: "Only the moments on
+    each episode's card count. Each episode's card is the next five of ..., in turn, so it's new each episode."
+  - **The tracker** (`node scripts/engine-capabilities.js`): p10, the user's first game (a bank of 500, a sheet of four moments
+    each week beside who goes home, a ticket from them all), ✅; p12, the user's third, now the week's objectives from a card
+    (five of ten moments each week; a fixed list still plays): 216 ✅ · 47 ⏳ of 291.
+  - **The 1:40 PM note (a pool's stored eventPoints):** decided, a pool ignores them, as before (a pool survives; since C5 a pick
+    scored by moments reads them, and a pool's spec has none). The round trip's failure on the sports lane's database was the test's
+    own reading, which listed the moment ids from the stored settings: it now lists those the rules have and the game scores, and
+    two cases are added (a pool with its own moment points, and one played with points for a moment its rules don't have).
+  - **Proof.** Unit tests: `tests/card.test.js` (seven tests, every number by hand: the draw, the questions as they're answered, the
+    shape and every refusal, settings both ways, the words, a sheet and who-does-it on the card graded with a ticket from its lines
+    and a bank, the week's objectives from a card over three episodes and its weeks won), the round trip's two cases: 1,573 pass.
+    The shapes fixture: q-card (a sheet staked from a bank, who does it, a ticket from the lines: ann 43, bo 13, cy 37, di 17) and
+    w-pick-card (two picks, only the card's moments, weeks won: ann 3 and three weeks), 36 new reads from this engine, proven by
+    hand (the fixture's comment); `--diff --ref=HEAD` shows only them: the 2,340 before byte-identical. `engine-capabilities.js
+    --check`: up to date. `game-specs-flag.js check`: PASS. `npx tsc --noEmit -p .` clean. Through the API (a zt- fixture):
+    `check-card.js` (new, on new-fixture's couch: the user's first game, a bank of 100, who goes home and a sheet of two lines
+    on a card of three moments, a ticket from them; the read's lines and their moments for Episodes 6 and 7, a ticket naming the
+    sheet itself or a line the card doesn't have refused, Episode 6 graded by hand, the Games tab), ALL PASS; `check-money.js`,
+    `check-questions-scoring.js`, `check-questions.js --api` and `check-engine-lab.js --api`, all pass.
+  - **The code review** (`/code-review` at high, before the commit): nine findings, all taken. A line's id could pass 40
+    characters (the answers' column holds 40: now refused); a card's `each` far past 12 was looped over before it was refused (now
+    bounded first: `cardEach`); leaving card questions out of `livesQuestion` also left their lines out of head to head's and
+    weeks won's wait for an episode's questions (now `livesQuestion` is as it was and `lifeRides` leaves the card out only where a
+    life rides); the screens' per-moment points read without the episode (now passed where it's known); the questions read gave
+    every line the same words (now each says its moment); the card's lines were worked out for every moment of every seat (now once
+    an episode); one count of a card question's lines (`questionLines`) where four copies differed; one moment-words helper; an
+    unused parameter.
+
 The three games (the user, 2026-11-05), each a request in the tracker:
 1. "For show X, have a starting bank of 500 units, have a prediction sheet generated each week that players can wager on,
    more wagers multiply scored earnings." Open: does "more wagers multiply" mean a parlay (picks combined pay more) or that
@@ -7380,6 +7465,33 @@ From R1 part 2 (2026-10-30):
   (R3, or whoever next works in Game settings.)
 - **For the hosting notes, at the merge:** `/api/me` (classic's sign-in and every classic load) now sends each league's settings, not its
   whole state (20-40 KB each): less Neon transfer than before. (The main folder: docs/HOSTING.md, with the merge.)
+
+From C7 part 1 (2026-11-06):
+- **The bot writing the week's card (C7 part 2, the next session):** recommended, the bot chooses the episode's `each` lines from the
+  card's own list before its lock (what's likely to matter that week: a journey coming, idols in play, the phase), stored per
+  season and episode in a table of its own (as trivia's batches are, keyed on the season so every game on it reads the same),
+  checked (each line one of the card's `of`, none twice, the right count) and read at the lock; its fallback from the start, the
+  spec's list in turn (`fallback: 'spec'`, the default) or the week void (`'void'`). The other way, the bot writing new yes-or-no
+  questions that research then answers after the episode, is the custom-moments path (a feasibility ask, a question research asks
+  each episode): bigger, and its reliability bar is the user's (the Decisions table, "Custom moments"). Either is a prompt change:
+  on this branch only, the user's to approve at the merge. (C7 part 2.)
+- **A card drawn in turn, no shuffle:** the list's order, from its start at Episode 1 (Weekly Calls' rotation), so a game from
+  Episode 6 starts part way round, and a moment that can't happen any more (tribal immunity after the merge) still comes round as
+  an easy no. A phase filter (only moments the season's current phase has) or the bot's choice (part 2) would fix it; the lane's
+  default is as built. (C7 part 2, or the user with the merge's look.)
+- **The card's defaults (the lane's, the user's to overrule):** its lines from the spec's list in turn; a line that didn't happen
+  is a no; who did a moment nobody did is off; a card's lines carry no life, parlay or question about the players' own answers;
+  a question on a card is a game of questions' (not a draft's own). Recommended: as built. (The user, with the merge's look.)
+- **The screens don't know a card** (U1): the read sends each line's `card` (the question it's from, its moment, its words) and
+  says the moment in the line's own words; Game settings lists the card question as one row; nothing shows the card itself, and
+  Start a game can't make one (the GPT and the engine lab can). A refusal about a line names the card question's words ("Answer
+  "This week's sheet" first"), not the line's. The classic screens' moment points beside a card that only counts its moments
+  (scoring-table.tsx, rules-section.tsx, setup-tab.tsx: a moment's points without an episode) show every moment of the card's list
+  as counting. (U1, with the screens.)
+- **A ticket's legs from a card** are any of its lines that window (and the game's other questions it names): its most legs count
+  the card's lines (`questionLines`). A ticket naming the card question itself, not a line, is refused at the answer. (As built.)
+- **No prompt changed and no migration** in this part (a card is a spec field; its lines' answers are `game_answers` rows);
+  nothing for the hosting notes.
 
 From C6 part 2 (2026-11-06):
 - **A ticket's defaults (the lane's, the user's to overrule):** at least two legs, as many as it's built from (up to six); each leg

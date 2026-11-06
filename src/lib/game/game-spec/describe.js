@@ -18,7 +18,7 @@
 //
 // Pure CommonJS, like ./schema.js.
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
-const { PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, spanEnd, spanEndPhase, playsAs, callsAsk, finaleIn, draftQuestions, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion, matchupParts, questionsGame, poolByPoints, teamParts, handicapParts, stageOn, ON_CHANGE, nextStageAts, fallsTo, stageSide, mainCount, stageAlongside, stageSeason, seasonKey, isPlayers, isBeat, waiverOwnOf, waiverMoves, weekParts, momentsPick, bankOf, isTicket, ticketOf } = require('./schema.js');
+const { PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, spanEnd, spanEndPhase, playsAs, callsAsk, finaleIn, draftQuestions, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion, matchupParts, questionsGame, poolByPoints, teamParts, handicapParts, stageOn, ON_CHANGE, nextStageAts, fallsTo, stageSide, mainCount, stageAlongside, stageSeason, seasonKey, isPlayers, isBeat, waiverOwnOf, waiverMoves, weekParts, momentsPick, bankOf, isTicket, ticketOf, cardOf, isCardQuestion, onlyCard, questionLines, lifeRides, askOf: linesOf } = require('./schema.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const NUMBER_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
@@ -127,6 +127,38 @@ const statsWords = (points, w) => listOf(Object.entries(points).map(([k, p]) => 
 
 /** A question's words, or its id while it has none yet. */
 const askOf = (q) => String(q.ask || q.id || 'A question').trim();
+/** A moment by its words, as the show calls it (its id when the context doesn't say). */
+const momentWord = (w) => (id) => {
+  const m = Array.isArray(w && w.moments) ? w.moments.find((x) => x && x.id === id) : null;
+  return m && m.label ? m.label.replace(/\.\s*$/, '').toLowerCase() : id;
+};
+/** C7: what a question on the card asks of each line, by how its moment settles it. */
+const CARD_ASKS = { happened: 'whether it happens', count: 'how many times it happens', who: 'who does it', most: 'who does it most' };
+/** C7: a question on the card as a phrase in a list: "whether each of the card's four moments happens". */
+function cardPhrase(q, c) {
+  const n = c && Number.isInteger(c.each) ? c.each : 0;
+  const them = n === 1 ? "the card's moment" : `each of the card's ${say(n)} moments`;
+  const take = isObj(q.settle) ? q.settle.take : null;
+  if (take === 'who') return `who does ${them}`;
+  if (take === 'most') return `who does ${them} most`;
+  if (take === 'count') return `how many times ${them} happens`;
+  return `whether ${them} happens`;
+}
+/** C7: the card itself, as the sentence and How it works say it: what it's drawn from and how. */
+function cardSentence(c, w) {
+  const list = c.of.map(momentWord(w));
+  if (c.each >= c.of.length) return `Each ${w.part}'s card: ${listOf(list)}.`;
+  return `Each ${w.part}'s card is the next ${say(c.each)} of ${listOf(list)}, in turn, so it's new each ${w.part}.`;
+}
+/** C7: the questions a ticket is built from, as the spec names them (a question on the card once, for all its lines). */
+const legsOf = (q, all) => (isObj(q.settle) && Array.isArray(q.settle.of) ? q.settle.of : []).map((id) => all.find((x) => x.id === id)).filter(Boolean);
+/** C7: a card's lines, as a ticket's legs are said. */
+const cardLegs = (s) => {
+  const c = s ? cardOf(s) : null;
+  return c && Number.isInteger(c.each) ? `the card's ${say(c.each)} lines` : "the card's lines";
+};
+/** C7: a ticket's parts with a card's lines as its legs (the game's questions as they're answered: askOf). */
+const ticketIn = (q, s) => ticketOf((s ? linesOf(s) : []).find((x) => x.id === q.id) || q);
 /** A question as a phrase in a list: "who wins", "total points: over or under (237.5)". */
 function questionPhrase(q) {
   const text = askOf(q).replace(/\?$/, '');
@@ -289,9 +321,11 @@ function sentenceParts(s, w) {
   } else if (s.score.by === 'answers') {
     // C6 part 2: a ticket is built from the questions, said with the points (answersPhrases), not as one of them.
     const asks = s.ask.filter((q) => !isTicket(q));
-    const n = asks.length;
+    // C7: each line of the card a question.
+    const card = cardOf(s);
+    const n = asks.reduce((k, q) => k + questionLines(q, s), 0);
     put(`everyone answers ${say(n)} ${n === 1 ? 'question' : 'questions'} before ${one ? `${w.Part} ${first}` : askWhen(asks, w)}`, 'ask');
-    if (n) put(`: ${listOf(asks.map(questionPhrase))}`, 'ask');
+    if (n) put(`: ${listOf(asks.map((q) => (isCardQuestion(q) ? cardPhrase(q, card) : questionPhrase(q))))}`, 'ask');
     spanSaid = one;
   } else {
     put('nothing to pick', 'get');
@@ -301,13 +335,16 @@ function sentenceParts(s, w) {
     put(spanWords(s.span, w), 'span');
   }
   put('.');
+  // C7: the card its questions are on, new each episode (one the moments that count are on: countRules).
+  const lined = cardOf(s);
+  if (lined && lined.of.length && Number.isInteger(lined.each) && s.ask.some(isCardQuestion)) put(` ${cardSentence(lined, w)}`, 'ask');
   const rules = w.show ? `${w.show}'s rules` : "the show's rules";
   const sc = s.score;
   if (sc.by === 'moments') {
     const changed = changedPoints(sc.points, s.get.own, w.moments);
     put(changed === null ? ` Scored by ${rules}, with the game's own points.` : changed ? ` Scored by ${rules}, with ${say(changed)} ${changed === 1 ? "moment's" : "moments'"} points changed.` : ` Scored by ${rules}.`, 'score');
     // C5: only these moments count, and hits counted.
-    for (const rule of countRules(sc, w)) put(` ${rule}`, 'score');
+    for (const rule of countRules(sc, w, cardOf(s))) put(` ${rule}`, 'score');
     // A9 part 2: when the points multiply.
     for (const rule of timesRules(sc, w)) put(` ${rule}`, 'score');
     // C3: how a holding joined.
@@ -333,7 +370,7 @@ function sentenceParts(s, w) {
   else if (sc.by === 'answers' && callsAsk(s.ask)) put(' Most right by the finale wins.', 'score');
   else if (sc.by === 'lines') put(isNum(sc.points) && sc.points !== 1 ? ` ${cap(pointsWord(sc.points))} a line; most points by the finale wins.` : ' Most lines by the finale wins.', 'score');
   else if (sc.by === 'stats' && isObj(sc.points)) put(` Scored ${statsWords(sc.points, w)}.`, 'score');
-  else if (sc.by === 'answers') answersPhrases(s.ask, parlaysOf(sc), put, bankOf(s));
+  else if (sc.by === 'answers') answersPhrases(s.ask, parlaysOf(sc), put, bankOf(s), s);
   // C2 part 4c: a draft's own questions, their points beside the team's.
   if (by === 'draft' && draftQuestions(s).length) answersPhrases(draftQuestions(s), [], (text) => put(text, 'ask'));
   // A11 part 5: teams of players (head to head between them, when it's that); C2 part 4b: said first when they're knocked out or race.
@@ -387,23 +424,23 @@ function ticketPays(t) {
   return t.payouts.map((x, i) => `${x} ${i === 0 ? `times your stake for ${say(t.min + i)}` : `for ${say(t.min + i)}`}`).join(', ');
 }
 /** C6 part 2: a ticket as the sentence says it: what it's built from, how many legs, the stake and what it pays. */
-function ticketWords(q, all, bank) {
-  const t = ticketOf(q);
-  const legs = t.of.map((id) => all.find((x) => x.id === id)).filter(Boolean).map(questionPhrase);
+function ticketWords(q, all, bank, s) {
+  const t = ticketIn(q, s);
+  const legs = legsOf(q, all).map((x) => (isCardQuestion(x) ? cardLegs(s) : questionPhrase(x)));
   const many = t.min === t.max ? say(t.min) : `${say(t.min)} to ${say(t.max)}`;
   return `Build a ticket from ${listOf(legs)}: put ${many} of your calls on it and stake ${ticketStake(q, bank)}; all of them right wins ${ticketPays(t)}.`;
 }
 /** C6 part 2: a ticket as How it works says it, with its fallbacks. */
-function ticketRule(q, all, bank) {
-  const t = ticketOf(q);
-  const legs = t.of.map((id) => all.find((x) => x.id === id)).filter(Boolean).map((x) => `"${askOf(x)}"`);
+function ticketRule(q, all, bank, s) {
+  const t = ticketIn(q, s);
+  const legs = legsOf(q, all).map((x) => (isCardQuestion(x) ? cardLegs(s) : `"${askOf(x)}"`));
   const many = t.min === t.max ? say(t.min) : `${say(t.min)} to ${say(t.max)}`;
   return `Build a ticket: from ${listOf(legs)}, put ${many} of your answers on it and stake ${ticketStake(q, bank)} on all of them being right. All right, you win ${ticketPays(t)}; one wrong, or left blank, you lose your stake. A leg that doesn't count drops out and the ticket rides on the rest (none left: your stake back).`;
 }
 /** What a game's questions earn, as its sentence says it (`ask`: a game of questions', or a draft's own, C2 part 4c), each phrase
  *  through `put`: their points, A9's ways of combining as far as they're all of them's, the bot's call, a rollover, a shrinking call
  *  and the parlays. C6: every stake (stakeWords), said after a share it goes beside, and a bank (`bank`: bankOf's, or null). */
-function answersPhrases(given, parlays, put, bank) {
+function answersPhrases(given, parlays, put, bank, s) {
   // C6 part 2: a ticket is said on its own, after the questions' points and stakes.
   const ask = given.filter((q) => !isTicket(q));
   const tickets = given.filter(isTicket);
@@ -427,7 +464,7 @@ function answersPhrases(given, parlays, put, bank) {
   put(said, 'score');
   // C6: a stake beside a share, its own after it; a bank everyone starts with.
   if (staked && !stakeSaid) put(` ${stakeWords(ask, bank)}`, 'score');
-  for (const t of tickets) put(` ${ticketWords(t, given, bank)}`, 'score');
+  for (const t of tickets) put(` ${ticketWords(t, given, bank, s)}`, 'score');
   if (bank) put(` Everyone starts with a bank of ${pointsWord(bank.start)}.${bank.out ? " Run out and you're out." : ''}`, 'score');
   // A14 part 2: some of them played against the bot (or all, sharing their points): the bot makes its call too.
   if (some(isBeat) && !all((q) => isBeat(q) && q.share === undefined)) {
@@ -448,9 +485,9 @@ function whenWords(q, w, each) {
   return q.closes === 'finale' ? 'Before the finale: ' : each ? 'Before it starts: ' : '';
 }
 /** One question as How it works says it: when it's asked, what it is, and what a right answer earns. */
-function questionRule(q, w, each, ask, bank) {
+function questionRule(q, w, each, ask, bank, s) {
   // C6 part 2: a ticket, its own rule.
-  if (isTicket(q)) return `${whenWords(q, w, each)}${ticketRule(q, ask, bank)}`;
+  if (isTicket(q)) return `${whenWords(q, w, each)}${ticketRule(q, ask, bank, s)}`;
   const when = whenWords(q, w, each);
   const pts = typeof q.points === 'number' ? q.points : null;
   let earn = pts === null ? '' : ` ${cap(pointsWord(pts))} if you're right.`;
@@ -491,7 +528,11 @@ function questionRule(q, w, each, ask, bank) {
     wager = ` Stake ${what} on it:${pays}`;
   }
   const apart = q.wager !== undefined && (q.share !== undefined || q.rollover || isObj(q.shrink)) ? " Your stake stays yours: it isn't shared, carried over or shrunk." : '';
-  return `${when}${askOf(q)}${line}${from}${earn}${wager}${combineWords(q, w)}${apart}`;
+  // C7: a question on the card, asked for each of its lines.
+  const c = isCardQuestion(q) && s ? cardOf(s) : null;
+  const ended = /[.?!]$/.test(askOf(q));
+  const lined = c && Number.isInteger(c.each) ? `${ended ? ' For' : ': for'} each of the ${c.each === 1 ? 'moment' : `${say(c.each)} moments`} on that ${w.part}'s card, ${CARD_ASKS[q.settle && q.settle.take] || CARD_ASKS.happened}: each its own question.` : '';
+  return `${when}${askOf(q)}${lined}${line}${from}${earn}${wager}${combineWords(q, w)}${apart}`;
 }
 /** A14 part 1: what a question the players settle earns, as How it works says it: the answer most (or fewest) of you give, to it or
  *  to the question it's about (`of`, among the game's `ask`), and when it doesn't count. */
@@ -596,7 +637,7 @@ function coopRules(s, a, w) {
 }
 /** The questions a life rides on as quoted asks, or null when it's every one asked each episode about it alone. */
 function livesAsks(s, a) {
-  const all = s.ask.filter(livesQuestion).map((q) => q.id);
+  const all = s.ask.filter(lifeRides).map((q) => q.id);
   if (a.on.length === all.length && a.on.every((id) => all.includes(id))) return null;
   const asks = a.on.map((id) => s.ask.find((q) => q.id === id)).filter(Boolean).map((q) => `"${q.ask}"`);
   return asks.length ? asks : null;
@@ -763,12 +804,11 @@ function weekRules(s, w) {
   ];
 }
 /** C5: only these moments count (score.only) and hits counted (score.hits), as the sentence and How it works say them. */
-function countRules(sc, w) {
+function countRules(sc, w, card) {
   const out = [];
-  const label = (id) => {
-    const m = Array.isArray(w.moments) ? w.moments.find((x) => x && x.id === id) : null;
-    return m && m.label ? m.label.toLowerCase() : id;
-  };
+  // C7: only the moments on each episode's card.
+  if (onlyCard(sc) && card && card.of.length && Number.isInteger(card.each)) out.push(`Only the moments on each ${w.part}'s card count. ${cardSentence(card, w)}`);
+  const label = momentWord(w);
   if (Array.isArray(sc.only) && sc.only.length) out.push(`Only ${sc.only.length === 1 ? 'one moment counts' : `${say(sc.only.length)} moments count`}: ${listOf(sc.only.map(label))}.`);
   const worth = 'a point';
   if (sc.hits === 'every') out.push(`Each time one happens is a hit, worth ${worth}.`);
@@ -1037,7 +1077,7 @@ function rulesOf(s, w) {
     // C5: a pick each episode, one or several, scored by what they do in it.
     const n = s.get.each;
     rules.push(`No draft. Before each ${w.part}, pick ${n === 1 ? `one ${w.castaway}` : `${say(n)} ${w.castaways}`} still in: ${n === 1 ? 'they score' : 'each scores'} what they do in it.`);
-    rules.push(...countRules(s.score, w));
+    rules.push(...countRules(s.score, w, cardOf(s)));
     rules.push(...timesRules(s.score, w));
     if (s.get.repeat === 'never') rules.push(`You can't pick the same ${w.castaway} twice, all season.`);
     else if (s.get.repeat === 'cycle') rules.push(`You can't pick the same ${w.castaway} again until you've used everyone still in, and never two ${w.parts} in a row.`);
@@ -1106,10 +1146,13 @@ function rulesOf(s, w) {
   if (s.score.by === 'answers' && !callsAsk(s.ask)) {
     const each = s.ask.some((q) => q.asked !== 'once');
     // C6 part 2: a ticket is built from the questions, not one of them (its rule says so).
-    const asked = s.ask.filter((q) => !isTicket(q)).length;
+    // C7: each line of the card a question, the card said first.
+    const card = cardOf(s);
+    const asked = s.ask.filter((q) => !isTicket(q)).reduce((n, q) => n + questionLines(q, s), 0);
     rules.push(`${teamParts(s) ? 'No draft.' : 'No draft, no team.'} Answer ${say(asked)} ${asked === 1 ? 'question' : 'questions'}${each ? '' : ' before it starts'}:`);
+    if (card && card.of.length && Number.isInteger(card.each) && s.ask.some(isCardQuestion)) rules.push(cardSentence(card, w));
     const bank = bankOf(s);
-    for (const q of s.ask) rules.push(questionRule(q, w, each, s.ask, bank));
+    for (const q of s.ask) rules.push(questionRule(q, w, each, s.ask, bank, s));
     // A9's parlays.
     for (const p of parlaysOf(s.score)) {
       const legs = p.of.map((id) => s.ask.find((q) => q.id === id)).filter(Boolean);

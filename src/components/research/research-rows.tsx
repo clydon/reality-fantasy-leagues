@@ -70,7 +70,7 @@ export function buildRows(state: LeagueState, aired: LeagueState["episodes"], wi
       for (const sev of StateLogic.ActiveRosterLogic.episodeEvents(state, ep)) {
         if (sev.castawayId !== c.id) continue;
         if (tagsOf(sev.type).includes("safety")) line.safe++;
-        const pts = StateLogic.ActiveRosterLogic.eventPoints(state, sev);
+        const pts = StateLogic.ActiveRosterLogic.eventPoints(state, sev, ep.number);
         line.points = StateLogic.roundPoints(line.points + pts);
         // An event this league scores at 0 is noise in the breakdown.
         if (pts !== 0) line.events.push({ type: sev.type, label: label(sev.type), points: pts });

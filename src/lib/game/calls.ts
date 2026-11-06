@@ -1,6 +1,7 @@
 import { goingHomeEachEpisode } from "./formats/rulebook-fits.js";
 import { momentsFor, type Moment } from "./formats/rulebook-moments.js";
 import { kindOf, partWord } from "./formats/rulebook-schema.js";
+import { drawInTurn } from "./game-spec/index.js";
 import type { RulebookAliases, RulebookBlocks } from "./formats/rulebook-schema";
 
 // Call it (docs/PLAN-new-design.md step 12 part 2; the mock's watching.js callSheet, show.js predictSheet and rulebook.js's
@@ -13,7 +14,8 @@ import type { RulebookAliases, RulebookBlocks } from "./formats/rulebook-schema"
 //                        with nobody going home, and on a talk show ("Tonight? A surprise cameo"), which has no results
 //
 // The moment changes from episode to episode, round the show's most callable ones (a twist's first: idols, shields, journeys;
-// else what the rulebook added for this show; else a segment that doesn't run every episode). Never a moment research can't
+// else what the rulebook added for this show; else a segment that doesn't run every episode), drawn in turn as a game's new card
+// each week is (docs/PLAN-start-a-game-gpt.md step C7: game-spec drawInTurn, the one generator). Never a moment research can't
 // answer (the couch's own), one that gives a secret role away, or a way out (Who goes home? is the way out).
 //
 // Settled from the season's shared results (the same facts every game scores from): Who goes home? once who went home is in
@@ -120,11 +122,8 @@ export function callQuestions(book: CallBook, episode: number, stillIn: CallFace
     out.push({ key: "out", kind: "cast", lead: "Who goes home?", what: null, options: stillIn.map((c) => ({ key: c.id, label: c.name, photo: c.photo })), by: "results" });
   }
   const step = CALLS_PER_EPISODE - out.length;
-  const moments = callMoments(book, step);
-  const want = Math.min(step, moments.length);
-  const start = want ? ((Math.max(1, episode) - 1) * step) % moments.length : 0;
-  for (let i = 0; i < want; i++) {
-    const m = moments[(start + i) % moments.length];
+  // C7: the card's draw, the show's callable moments in turn.
+  for (const m of drawInTurn(callMoments(book, step), step, episode)) {
     out.push({ key: `m:${m.id}`, kind: "yesno", lead: talk ? "Tonight?" : `Anyone this ${part}?`, what: tidy(m.label), options: YES_NO, by: talk ? "couch" : "results" });
   }
   return out;

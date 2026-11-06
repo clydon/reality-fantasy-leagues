@@ -2534,13 +2534,25 @@
         "rulebook": "survivor"
       },
       "words": "For show X, have a starting bank of 500 units, have a prediction sheet generated each week that players can wager on, more wagers multiply scored earnings.",
+      "spec": {
+        "get": { "by": "none" },
+        "count": null,
+        "score": { "by": "answers", "bank": { "start": 500 } },
+        "rank": { "by": "total" },
+        "card": { "from": "moments", "each": 4, "of": ["idolFound", "idolPlayed", "votesNegated", "wentOnJourney", "learnedOfAdvantage", "advantageTargeted", "rewardWin", "tribeImmunity"] },
+        "ask": [
+          { "id": "boot", "ask": "Who goes home?", "answer": "person", "points": 0, "asked": "each", "wager": "total", "settle": { "by": "results", "take": "out" } },
+          { "id": "sheet", "ask": "This week's sheet", "answer": "yesNo", "points": 0, "asked": "each", "wager": "total", "card": true, "settle": { "by": "moment", "take": "happened" } },
+          { "id": "ticket", "ask": "Build a ticket", "answer": "ticket", "points": 0, "asked": "each", "wager": "total", "settle": { "by": "legs", "of": ["boot", "sheet"] } }
+        ]
+      },
       "step": "C7",
       "dials": [
         "answer",
         "score",
         "win"
       ],
-      "note": "the user's first game (2026-11-05, track C): a bank of 500 that stakes are drawn from and payouts go into (built, C6 part 1: score.bank { start: 500 }, wager 'total' on each line), a prediction sheet written each week (C7: a new card each week; today a game's questions are its spec's), and more wagers multiplying the week (built, C6 part 2: a ticket a player builds from the sheet's lines, its payout growing with its legs; the spec's own parlays take a staked leg since C6; p26 is this game with a fixed sheet). Open (settings with the lane's defaults, the user's to overrule): a ticket (the default) or the number of wagers placed multiplying the week; even money (the default) or the pool's odds; a bank at zero plays on (the default) or is out."
+      "note": "the user's first game (2026-11-05, track C), playing since C7: a bank of 500 that stakes are drawn from and payouts go into (C6 part 1: score.bank { start: 500 }, wager 'total' on each line), a prediction sheet written each week (C7: a new card each week, card { from: 'moments', each: 4, of: eight of the show's moments research answers }, drawn in turn as Weekly Calls' moments are, and a question on it, card: true, asked for each of its lines beside who goes home), and more wagers multiplying the week (C6 part 2: a ticket a player builds from the sheet's lines, its payout growing with its legs; p26 is this game with a fixed sheet). The bot writing the week's card (choosing among the show's moments, or a question research then answers) is C7's later part. Open (settings with the lane's defaults, the user's to overrule): a ticket (the default) or the number of wagers placed multiplying the week; even money (the default) or the pool's odds; a bank at zero plays on (the default) or is out."
     },
     {
       "id": "p11",
@@ -2573,16 +2585,17 @@
       "spec": {
         "get": { "by": "pick", "each": 3 },
         "count": { "pick": true },
-        "score": { "by": "moments", "points": null, "only": ["individualImmunity", "rewardWin", "idolFound", "idolPlayed", "zeroVotesSafe"], "hits": "pick" },
-        "rank": { "by": "weeks" }
+        "score": { "by": "moments", "points": null, "only": "card", "hits": "pick" },
+        "rank": { "by": "weeks" },
+        "card": { "from": "moments", "each": 5, "of": ["individualImmunity", "rewardWin", "idolFound", "idolPlayed", "zeroVotesSafe", "wentOnJourney", "votesNegated", "survivedVotes", "challengeRunnerUp", "learnedOfAdvantage"] }
       },
-      "step": "C5",
+      "step": "C7",
       "dials": [
         "what",
         "score",
         "win"
       ],
-      "note": "the user's third game (2026-11-05, track C), playing since C5: three castaways picked fresh each episode without a draft (get.by pick, each 3, repeat any by default), only the week's objectives counting (score.only, a fixed list: the spec's own, until C7's new card each week), each a hit worth a point counted per pick (score.hits 'pick': each objective once for each of your picks that hit it; 'objective' counts it once for you, 'every' every time), the week's winner and the season ranked by weeks won (rank.by weeks, a tied week won by each of them: rank.ties all). Open (the user's): distinct objectives your picks hit ('objective'), each pick's ('pick', the lane's default) or every hit ('every'); who writes each week's objectives (C7: the bot from research, the maker; a fixed list until then); a tied week (all, split or none)."
+      "note": "the user's third game (2026-11-05, track C), playing since C5: three castaways picked fresh each episode without a draft (get.by pick, each 3, repeat any by default), only the week's objectives counting (since C7, a new card each week: score.only 'card', the card five of ten of the show's moments in turn, card { from: 'moments', each: 5, of }; a fixed list, score.only [ids], still plays), each a hit worth a point counted per pick (score.hits 'pick': each objective once for each of your picks that hit it; 'objective' counts it once for you, 'every' every time), the week's winner and the season ranked by weeks won (rank.by weeks, a tied week won by each of them: rank.ties all). Open (the user's): distinct objectives your picks hit ('objective'), each pick's ('pick', the lane's default) or every hit ('every'); who writes each week's objectives (C7: the show's moments in turn from the maker's list; the bot choosing them is C7's later part); a tied week (all, split or none)."
     },
     {
       "id": "p13",

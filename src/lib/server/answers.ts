@@ -91,6 +91,9 @@ export interface QuestionView {
   /** Step C6 part 2, a ticket: the questions it's built from, how many legs it takes, and its stake's winnings for each number of
    *  legs right from its least (answered { legs: [question ids], stake }, each leg your own answer to it there); null for any other. */
   ticket: { of: string[]; min: number; max: number; pays: number[] } | null;
+  /** Step C7, a line of the game's card (a question on it, asked for each of its lines: `<id>.<n>`): the question it's from, and the
+   *  moment it's about this window, in the league's rules' words; null for any other question. */
+  card: { from: string; moment: string; label: string } | null;
   pairs: { key: string; faces: [QuestionFace, QuestionFace] }[] | null;
   /** A9: how its points combine. share: split (a pot split between everyone right) or only (only the only right one scores);
    *  rollover: a window nobody earns anything on carries its points into the next (`jackpot`: what's carried into this one, once
@@ -281,6 +284,16 @@ function ticketView(q: Question): QuestionView["ticket"] {
   return { of: t.of, min: t.min, max: t.max, pays: t.payouts };
 }
 
+/** Step C7: a line of the game's card at a window: the question it's from and the moment it's about there (as the league's rules
+ *  say it), or null for any other question (or a window with no line). */
+function cardView(state: LeagueState, q: Question, ep: number): QuestionView["card"] {
+  if (!Spec.isCardLine(q) || !q.card || q.card === true) return null;
+  const moment = Spec.cardMoment(q, ep);
+  if (!moment) return null;
+  const label = (StateLogic.formatOf(state).events.find((e) => e.id === moment)?.label ?? moment).replace(/\.\s*$/, "");
+  return { from: q.card.from, moment, label };
+}
+
 /** The game's bank (step C6: score.bank), or null: beside one, every stake is drawn from it (Spec.drawsOnBank). */
 const bankOf = (state: LeagueState) => Spec.bankOf(StateLogic.gameOf(state));
 
@@ -415,9 +428,11 @@ async function readQuestions(r: Read, episodeIn?: unknown): Promise<GameQuestion
       });
     }
     const triviaOff = round && !round.length ? (v?.state === "off" ? v.why : "No trivia questions for this round yet") : null;
+    // Step C7: a line of the card says its moment this window, its words the line's own ("This week's sheet: Found an idol").
+    const line = cardView(view, q, ep);
     const view1: QuestionView = {
       id: q.id,
-      ask: q.ask,
+      ask: line ? `${q.ask}: ${line.label}` : q.ask,
       answer: q.answer,
       settle: q.settle,
       points: q.points,
@@ -432,6 +447,7 @@ async function readQuestions(r: Read, episodeIn?: unknown): Promise<GameQuestion
       wager: q.wager ?? null,
       odds: q.wager !== undefined && !Spec.isTicket(q) ? (q.odds ?? Spec.ODDS) : null,
       ticket: ticketView(q),
+      card: line,
       share: q.share ?? null,
       rollover: !!q.rollover,
       jackpot: q.rollover && graded.worth.has(`${q.id}|${ep}`) ? (graded.worth.get(`${q.id}|${ep}`) ?? q.points) - q.points : null,

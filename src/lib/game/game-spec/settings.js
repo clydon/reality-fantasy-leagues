@@ -33,6 +33,8 @@ const REPEATS = ['cycle', 'never', 'any'];
 /** C5: only these moments count and hits counted (scoreOnly, scoreHits), a game scored by moments', each only when it's set. */
 function countsOf(st, score, copy) {
   if (Array.isArray(st.scoreOnly) && st.scoreOnly.length) score.only = copy ? clone(st.scoreOnly) : st.scoreOnly;
+  // C7: only the card's moments each week.
+  else if (st.scoreOnly === 'card') score.only = 'card';
   if (Object.prototype.hasOwnProperty.call(VOCAB['score.hits'], st.scoreHits)) score.hits = st.scoreHits;
 }
 /** C5: weeks won's tied week (rankTies), only when it's set. */
@@ -362,6 +364,8 @@ function readSpec(st, copy) {
     const asks = Array.isArray(st.draftQuestions) && st.draftQuestions.length ? (copy ? clone(st.draftQuestions) : st.draftQuestions) : null;
     spec.ask = asks ? [...finale, ...asks] : finale;
   } else spec.ask = [];
+  // C7: a new card each week (settings.gameCard, as its spec says it), only when it's set.
+  if (isObj(st.gameCard)) spec.card = copy ? clone(st.gameCard) : st.gameCard;
   spec.closes = 'start';
 
   // Who can join (GhostLogic.joinMode): classic's late-joiner switch off locks it; open only where castaways can be on
@@ -565,7 +569,9 @@ function settingsOf(spec) {
   out.captainTimes = lineup && isObj(s.score.captain) ? s.score.captain.times : undefined;
   out.pointsTimes = (lineup || pickMoments) && Array.isArray(s.score.times) ? clone(s.score.times) : undefined;
   // C5: only these moments count, and hits counted (a lineup's, best ball's or a pick's scored by moments).
-  out.scoreOnly = (lineup || pickMoments) && Array.isArray(s.score.only) ? clone(s.score.only) : undefined;
+  out.scoreOnly = (lineup || pickMoments) && (Array.isArray(s.score.only) || s.score.only === 'card') ? clone(s.score.only) : undefined;
+  // C7: a new card each week.
+  out.gameCard = isObj(s.card) ? clone(s.card) : undefined;
   out.scoreHits = (lineup || pickMoments) && s.score.hits !== undefined ? s.score.hits : undefined;
   out.reverseOrder = type === 'classic-draft' && s.score.reverse === true ? true : undefined;
   // C3: a draft's multiplier on how a holding joined (an Outlast's or a lineup's).
@@ -653,6 +659,8 @@ const PARTS = [
   // C2 part 4c: a draft's own questions beyond its finale predictions.
   { fields: ['draftQuestions'], read: (s) => (s.get.by === 'draft' ? draftQuestions(s) : null) },
   { fields: ['lateLockHours'], read: (s) => s.extras.lateLock },
+  // C7: a new card each week.
+  { fields: ['gameCard'], read: (s) => s.card || null },
   { fields: ['hideStartersUntilLock'], read: (s) => s.extras.hideStarters },
   { fields: ['calls'], read: (s) => s.extras.calls },
   { fields: WAIVER_FIELDS, read: (s) => s.extras.waivers, written: (out) => delete out.waiverFit },

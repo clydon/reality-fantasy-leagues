@@ -37,7 +37,9 @@
 // them stay. C5's (weekWonShapes: a pick each episode scored by what they do, only some moments and hits, weeks won) likewise, from
 // C5's engine, proven by hand in tests/weeks.test.js; the 2,124 before them stay. C6's (in outsideShapes: a stake beside a split
 // pot, a parlay's staked leg, a bank at the pool's odds, a bank that runs out; part 2, a ticket) likewise, from C6's engine, proven
-// by hand below and in tests/money.test.js; the 2,250 before them stay:
+// by hand below and in tests/money.test.js; the 2,250 before them stay. C7's (a new card each week: q-card in outsideShapes, a sheet
+// on the card staked from a bank with a ticket from its lines; w-pick-card in weekWonShapes, only the card's moments counting)
+// likewise, from C7's engine, proven by hand below and in tests/card.test.js; the 2,340 before them stay:
 //   node tests/fixtures/scoring-shapes.js --write [--ref=<git ref>]      the record, from this tree's engine (or the ref's)
 //   node tests/fixtures/scoring-shapes.js --print <shape> <seat|-> <mark|-|all> [--ref=<git ref>]   one read, in full
 //   node tests/fixtures/scoring-shapes.js --diff [<shape>] [--ref=d5222e68]   where this tree's reads part from the ref's (the
@@ -122,6 +124,8 @@ function weekWonShapes(outlast, lineup) {
     ["w-pick", pick(), null, P],
     ["w-pick-weeks", pick({ times: [{ times: 2, finale: true }] }, { by: "weeks" }), null, P],
     ["w-pick-hits", pick({ only: ["individualImmunity", "idolFound", "idolPlayed", "tribeImmunity"], hits: "objective" }, { by: "weeks" }), null, P],
+    // C7: only the moments on each episode's card count (two of the four in turn, CARD.CARD), each a hit per pick, weeks won.
+    ["w-pick-card", { ...pick({ only: "card", hits: "pick" }, { by: "weeks" }), card: CARD.CARD }, null, P],
     ["w-pick-teams", pick({ only: ["individualImmunity", "tribeImmunity"], hits: "pick" }, { by: "weeks", teams: { of: 2, made: "choose", score: "sum" } }), null, { ...P, teamSeats: true }],
     ["w-lineup", lineup({ score: { by: "moments", points: null, hits: "every" }, rank: { by: "weeks", ties: "split" } }), "exclusive", { week: true }],
     ["w-outlast", outlast({ rank: { by: "weeks" } }), "exclusive", { week: true }],
@@ -310,6 +314,21 @@ const Q = {
 const BOT = { beat: { by: "bot" } };
 // C6, money: stakes ({ answer, stake }) beside a split pot, as a parlay's leg, from a bank at the pool's odds, from a bank that runs out.
 const bet = (answer, stake) => ({ answer, stake });
+/** C7: a sheet on the card and a ticket from its lines (q-card). As game_answers holds them: each line's own id (askOf's). */
+const CARD = {
+  CARD: { each: 2, of: ["individualImmunity", "idolPlayed", "idolFound", "tribeImmunity"] },
+  SHEET: { id: "sheet", ask: "This week's sheet", answer: "yesNo", points: 1, asked: "each", wager: "total", card: true, settle: { by: "moment", take: "happened" } },
+  WHO: { id: "who", ask: "Who does it?", answer: "person", points: 2, asked: "each", card: true, settle: { by: "moment", take: "who" } },
+  TICKET: { id: "cardticket", ask: "Build a ticket", answer: "ticket", points: 0, asked: "each", wager: "total", settle: { by: "legs", of: ["sheet"] } },
+  LINES: ["sheet.1", "sheet.2", "who.1", "who.2", "cardticket"].map((id) => ({ id })),
+  SAID: {
+    "sheet.1": { 1: { ann: bet("yes", 5), bo: bet("no", 4), cy: bet("yes", 0) }, 3: { ann: bet("yes", 4) }, 4: { cy: bet("yes", 3) } },
+    "sheet.2": { 1: { ann: bet("no", 3), bo: bet("yes", 2) }, 3: { di: bet("yes", 5) }, 4: { cy: bet("no", 3) } },
+    "who.1": { 1: { ann: "c0", bo: "c4" }, 3: { di: "c2" }, 4: { cy: "c11" } },
+    "who.2": { 1: { ann: "c4" } },
+    cardticket: { 1: { ann: { legs: ["sheet.1", "sheet.2"], stake: 2 }, bo: { legs: ["sheet.1", "sheet.2"], stake: 1 } }, 4: { cy: { legs: ["sheet.1", "sheet.2"], stake: 2 } } },
+  },
+};
 const STAKE = {
   POT: { ...BOOT, id: "stakepot", ask: "Who goes home? Stake up to 5, the pot split", points: 10, wager: 5, share: "split" },
   LEG: { ...BOOT, id: "stakeleg", ask: "Who goes home? Stake up to 3", wager: 3 },
@@ -485,6 +504,15 @@ function outsideShapes() {
     // bo's boot and idol right (3 x 2 = 6), ann's boot wrong (3 lost), di's boot left blank (1 lost). Episode 4: ann's boot and idol
     // right (3 x 2 = 6), bo's idol left blank (2 lost).
     shape("q-ticket", game([BOOT, IMMUNE, IDOL, STAKE.TICKET], { bank: { start: 50 } }), [BOOT, IMMUNE, IDOL, STAKE.TICKET], { over: STAKE.SAID }),
+    // C7, a new card each week: a sheet on the card (whether each of its two moments happens, staked from a bank of 20; who does it,
+    // 2 points) and a ticket from its lines. The card is two of immunity, an idol played, an idol found and tribal immunity in turn:
+    // Episode 1 immunity (c0) and an idol played (nobody), 3 immunity (c2) and an idol played, 4 an idol found (c11) and tribal
+    // immunity (nobody). Episode 1: ann right on both lines (1 + 5, 1 + 3), on who's immune (2), her ticket of both for 2 won (3 x 2 =
+    // 6): 18; bo wrong on both (4 and 2 lost), his ticket for 1 lost: -7; cy right on the first, staking nothing: 1. Episode 3: ann
+    // right (1 + 4); di wrong on the idol (5 lost), right on who's immune (2). Episode 4: cy right on both (1 + 3 each), on who found
+    // the idol (2), a ticket of both for 2 (6): 16. With the bank: ann 43, bo 13, cy 37, di 17 (no engine before C7 plays it: its
+    // reads are new, proven by hand here and in tests/card.test.js).
+    shape("q-card", game([CARD.SHEET, CARD.WHO, CARD.TICKET], { bank: { start: 20 } }, undefined, { card: CARD.CARD }), CARD.LINES, { over: CARD.SAID }),
     ["calls", { preset: "weekly-calls" }, null, { none: true, outside: { each: 1 } }],
     ["bingo", { preset: "weekly-bingo", score: { by: "lines", points: 2 } }, null, { none: true, outside: { each: 2 } }],
     ["stages-points", stages("points"), null, { none: true, stages: true }],

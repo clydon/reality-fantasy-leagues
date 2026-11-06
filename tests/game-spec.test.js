@@ -63,18 +63,18 @@ const GAME_FIELDS = {
   // ranked by worth.
   // C3: a multiplier on how a holding joined (joinedTimes), an Outlast's or a lineup's.
   "classic-draft": [...DRAFT_FIELDS, "teamSize", "reverseOrder", "joinedTimes"],
-  "active-roster": [...DRAFT_FIELDS, "activeSlots", "benchSlots", "eventPoints", "hideStartersUntilLock", "bestBall", "captainTimes", "pointsTimes", "groupSlots", "joinedTimes", "scoreOnly", "scoreHits"],
+  "active-roster": [...DRAFT_FIELDS, "activeSlots", "benchSlots", "eventPoints", "hideStartersUntilLock", "bestBall", "captainTimes", "pointsTimes", "groupSlots", "joinedTimes", "scoreOnly", "scoreHits", "gameCard"],
   // A10 part 2: a pool's lives, buyback, mulligans, second pick and last one standing. A11 part 2: a pick that never repeats and
   // its fallback; last one standing's end.
   // C5: a pick scored by what they do (poolScore, its points eventPoints and by when pointsTimes, several each episode poolEach),
   // only these moments and hits counted; weeks won's tied week.
-  pickem: ["pickemCorrectPoints", "poolSurvive", "calls", "poolLives", "poolBuyback", "poolMulligans", "poolSecond", "poolRank", "seatPeople", "poolRepeat", "poolFallback", "rankOneLeft", "rankAllOut", "poolScore", "poolEach", "eventPoints", "pointsTimes", "scoreOnly", "scoreHits", "rankTies"],
+  pickem: ["pickemCorrectPoints", "poolSurvive", "calls", "poolLives", "poolBuyback", "poolMulligans", "poolSecond", "poolRank", "seatPeople", "poolRepeat", "poolFallback", "rankOneLeft", "rankAllOut", "poolScore", "poolEach", "eventPoints", "pointsTimes", "scoreOnly", "scoreHits", "rankTies", "gameCard"],
   "weekly-calls": [],
   // A9: points per line; a game of questions' parlays.
   "weekly-bingo": ["linePoints"],
   // A11 part 2b: a game of questions' lives (on which questions), race and cuts, and its end; part 3, co-op and who saves a night;
   // part 4b, head to head's playoffs and fallbacks (a draft's too: DRAFT_FIELDS); part 5, teams of players (a draft's too).
-  questions: ["questions", "lateLockHours", "parlays", "seatPeople", "questionsLives", "questionsLivesOn", "questionsRace", "questionsCut", "rankOneLeft", "rankAllOut", "questionsRank", "questionsSaves", "rankMatchups", "rankTeams", "rankHandicap", "rankTies", "questionsBank"],
+  questions: ["questions", "lateLockHours", "parlays", "seatPeople", "questionsLives", "questionsLivesOn", "questionsRace", "questionsCut", "rankOneLeft", "rankAllOut", "questionsRank", "questionsSaves", "rankMatchups", "rankTeams", "rankHandicap", "rankTies", "questionsBank", "gameCard"],
   // A12 part 1: a game in stages' stages and overall.
   // A12 part 2: how a game a format change moves takes the change.
   stages: ["stages", "stageOverall", "formatChanges"],
@@ -90,7 +90,11 @@ function readings(state) {
   const W = S.WaiverLogic;
   const A = S.ActiveRosterLogic;
   const st = state.settings;
-  const ids = [...new Set([...Object.keys(st.eventPoints || {}), ...S.formatOf(state).events.map((e) => e.id)])].sort();
+  // The moments the game scores: the rules' own, and any the game gives points (a game scored by moments: its spec's). A pool's stored
+  // eventPoints are leftovers nothing reads (a pool survives; the sports lane's catch, 2026-11-06), so they aren't a reading.
+  const score = S.gameOf(state).score;
+  const given = score.by === "moments" && score.points ? Object.keys(score.points) : [];
+  const ids = [...new Set([...given, ...S.formatOf(state).events.map((e) => e.id)])].sort();
   const finale = S.finalePredictionsAvailable(state);
   return {
     type: [t.id, S.piecesOf(state).draft.name, S.piecesOf(state).scorer.name],
@@ -210,6 +214,10 @@ test("every kind of league round-trips through its spec", () => {
     }),
     "Survival Pool": made("pickem"),
     "Survival Pool, played": demo("pickem"),
+    // A pool stored with a moment's points of its own (a local shadow league's; the sports lane, 2026-11-06): a pool survives, so they
+    // count for nothing, and they stay as stored (since C5 a pick scored by moments reads them: a pool's is its spec's field too).
+    "Survival Pool, its own moment points": made("pickem", (s) => S.updateSettings(s, "eventPoints", { ...s.settings.eventPoints, votedOut: -7, idolFound: 9 })),
+    "Survival Pool, played, with points for moments its rules don't have": demo("pickem", (s) => S.updateSettings(s, "eventPoints", { ...s.settings.eventPoints, idolFound: 9, notAMoment: 4 })),
     "the public pool (a weekly call)": made("pickem", (s) => { s.settings.calls = true; }),
     "a sport's pool (survive by scoring)": made("pickem", (s) => { s.settings.poolSurvive = "scores"; }),
     "Survival Pool, nobody new": made("pickem", (s) => S.updateSettings(s, "joinMode", "locked")),

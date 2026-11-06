@@ -126,7 +126,7 @@ export type SpecScore =
    *  name each episode, whose points multiply by `times`; and when the points multiply (`times`). C3: how a holding joined. */
   /** C5: only (only these moments count) and hits (each moment an objective hit, worth 1: every hit, each objective once per
    *  holding, or once for you; points never weight a hit, they only say which moments count). */
-  | { by: "moments"; points: Record<string, number> | null; captain?: { times: number }; times?: SpecWhen[]; multiply?: SpecJoined[]; only?: string[]; hits?: "every" | "pick" | "objective" }
+  | { by: "moments"; points: Record<string, number> | null; captain?: { times: number }; times?: SpecWhen[]; multiply?: SpecJoined[]; only?: string[] | "card"; hits?: "every" | "pick" | "objective" }
   /** A9 part 2's reverse: the earlier they go home the more (1, plus 1 for everyone who outlasts them). C3: how a holding joined
    *  (never in reverse), its lines then what each one earns while it's yours. */
   | { by: "place"; reverse?: true; multiply?: SpecJoined[] }
@@ -252,6 +252,9 @@ export interface SpecQuestion {
   /** C6 part 2, a ticket: the legs it takes (2 to the most it's built from), and its stake's winnings for each number of legs from 2. */
   legs?: { min?: number; max?: number };
   pays?: number[];
+  /** C7: true, a question on the game's card: asked for each of its lines, each line's moment settling it that episode (askOf makes
+   *  them `<id>.1` to `<id>.<each>`). As askOf makes a line: its card's list and lines a week, its line (from 0), the question it's from. */
+  card?: true | { of: string[]; each: number; line: number; from: string };
   /** A9: split, a pot for each window split between everyone right (by what each would have earned); only, a right answer scores
    *  only when nobody else's does. */
   share?: "split" | "only";
@@ -457,6 +460,19 @@ export interface GameSpec {
   /** A12 part 1: a game in stages' stages (2 to MAX_STAGES) and how they add up; its own parts are then what fullStaged fills. */
   stages?: SpecStage[];
   overall?: SpecOverall;
+  /** C7: a new card each week: `each` of the show's moments `of` names, drawn in turn, for questions on it and the moments that
+   *  count each week. */
+  card?: SpecCard;
+}
+
+/** C7: a game's card each episode. */
+export interface SpecCard {
+  /** moments: the show's own, the list in turn (Weekly Calls' rotation). */
+  from?: "moments";
+  /** Its lines each episode, 1 to MAX_CARD. */
+  each: number;
+  /** The show's moments it's drawn from, 1 to MAX_ONLY, at least `each`. */
+  of: string[];
 }
 
 /** A spec as written: anything left out is the preset's, or the defaults (fullSpec). */
@@ -876,7 +892,22 @@ export function weekParts(spec: GameSpec | SpecInput | null | undefined): WeekPa
 /** C5: a pick each episode scored by what they do (score.by "moments"). */
 export function momentsPick(spec: unknown): boolean;
 /** C5: what one moment counts in a game scored by moments (score.only, score.hits), `dflt` the rulebook's own points. */
-export function momentWorth(score: { points?: Record<string, number> | null; only?: string[]; hits?: string }, id: string, dflt: number): number;
+export function momentWorth(score: { points?: Record<string, number> | null; only?: string[] | "card"; hits?: string }, id: string, dflt: number, at?: string[]): number;
+/** C7: a new card each week. */
+export const MAX_CARD: number;
+export const CARD: { from: "moments" };
+export const CARD_TAKES: string[];
+export const CARD_ANSWERS: string[];
+export function drawInTurn<T>(list: T[], each: number, episode: number): T[];
+export function cardOf(s: unknown): { from: string; each: number; of: string[] } | null;
+export function cardLines(card: { of: string[]; each: number } | null, episode: number): string[];
+export function isCardQuestion(q: unknown): boolean;
+export function isCardLine(q: unknown): boolean;
+export function cardMoment(q: Question, episode: number): string | null;
+export function onlyCard(score: unknown): boolean;
+export function onlyAt(s: unknown, episode?: number): string[] | undefined;
+export function askOf(s: unknown): Question[];
+export function linesAsked(s: unknown): number;
 /** A game of questions: nothing held, scored by its own questions (not Weekly Calls' calls). */
 export function questionsGame(spec: unknown): boolean;
 /** A pool: a pick each episode, scored by whether it stays in (or scores). */

@@ -62,7 +62,7 @@
 //   factsThrough(facts, k)        the facts as they stood once episode k was in (A11 part 2b's walk)
 //   answerProblem(q, value, faces) why an answer can't be given (null: it can), faces: who (or which groups) it can name
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
-const { YES_NO, NAMES, NUMBERS, optionRange, isBeat, ODDS, ticketOf } = require('./schema.js');
+const { YES_NO, NAMES, NUMBERS, optionRange, isBeat, ODDS, ticketOf, isCardLine, cardMoment } = require('./schema.js');
 // C2 part 3 (docs/PLAN-start-a-game-gpt.md track C): a window's points are the scoring sequence's lines and combines; the grading
 // (which answers are right, and how many right ones each has) is here.
 const Seq = require('../sequence/index.js');
@@ -466,6 +466,12 @@ const beatCall = (q, v, o) =>
   isBeat(q) && o && o.bot !== undefined && o.bot !== null && !(v && v.state === 'known' && voided(q, v, o.bot)) ? o.bot : undefined;
 
 function plainVerdict(q, episode, facts, answers) {
+  // C7: a line of the card is a question about its moment that episode (the card drawn in turn: cardMoment), graded as one.
+  if (isCardLine(q)) {
+    const m = cardMoment(q, episode);
+    if (!m) return off("There's no line on the card for it: it doesn't count either way");
+    return plainVerdict({ ...q, card: undefined, settle: { ...q.settle, moment: m } }, episode, facts, answers);
+  }
   const st = q && q.settle;
   if (st && st.by === 'players') return playersVerdict(q, episode, facts, answers);
   if (st && st.by === 'trivia') return triviaVerdict(episode, facts);
