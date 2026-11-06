@@ -1025,3 +1025,7 @@ never handles it: the user does the reset and the pasting.
 - **2026-11-06, pushed to master (`abfa4a74`, no migration).** The engine's C6 and C7 part 1. **Nothing new is stored, runs or
   polls:** a week's card is worked out from the spec and the episode on each read, and stakes and tickets are answers
   like any other (`game_answers`).
+- **2026-11-06, pushed to master (`9d74258d`, migration 0208).** The engine's C7 part 2. **One small new table
+  (`card_choices`, a row a season-episode) and a new bot research run kind, `card`: one bot ask per season per episode,
+  two days before it airs, only for seasons with a live game whose card the bot chooses** (none yet). It goes through the
+  same bot (ChatGPT on the VM) as research's other runs; no paid key, no new service or schedule beyond the hourly job's.

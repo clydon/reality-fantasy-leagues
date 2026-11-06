@@ -8,7 +8,8 @@ them next (the user's, in production). **Merged and live in production (2026-10-
 **the game-specs flag is on** (R2, 2:39 PM: every league carries its spec), then the rest of A12 (parts 2–4c) and R1 part 3
 (2026-10-31, 12:31 AM, `075d193e`, no migration), then A13 (2026-11-05, 9:26 PM, `1d4b20a0`, migrations 0204 and 0436), then A14 parts 1-2, C1 and C2
 (2026-11-06, 9:33 AM, `e450fcd4`, migrations 0205 and 0206), then C3, C4, C4b and C5 (2026-11-06, 12:37 PM, `f22c9753`, migration
-0207), then C6 and C7 part 1 (2026-11-06, 3:53 PM, `abfa4a74`, no migration); later parts (C7 part 2 on) stay on `engine` until the main folder merges them, after each
+0207), then C6 and C7 part 1 (2026-11-06, 3:53 PM, `abfa4a74`, no migration), then C7 part 2 (2026-11-06, 5:57 PM, `9d74258d`, migration 0208); later parts (A14 part 2b on) stay on
+`engine` until the main folder merges them, after each
 lettered step. A1–A4 are built on `engine` (A4 in two parts: the engine and storage, then the Prediction Sheet's screens, built before
 the screens moved to U1), merged and live since 2026-10-30 (above).
 A5 to A9 built on `engine` (2026-10-28: the tracker and the engine lab; questions about who and about each; time; more
@@ -6672,7 +6673,7 @@ A14 part 2 and before A14's other parts; every part keeps every golden and blind
     none of them C7's; the Survivor 51 rehearsal (`--scenario=realistic,rough,dst --before=master`): every invariant holds in all
     three scenarios, flag off and on the same, master's engine against this tree's the same (2,856 reads each).
 
-  **As built (C7 part 2, a card the bot chooses, 2026-11-06; not merged).** One session, at high, after part 1 in the same lane day.
+  **As built (C7 part 2, a card the bot chooses, 2026-11-06; on `engine`; merged and live 2026-11-06, `9d74258d`).** One session, at high, after part 1 in the same lane day.
   - **The piece** (schema.js): `card.from: 'bot'` (VOCAB `card.from` `bot`; `card.fallback`: `spec`, the list's next `each` in turn,
     the default, CARD's, or `void`, that episode has no card; KEYS.card `fallback`; refused on a card in turn, or anything else).
     Before each episode the AI ranks the moments the season's cards are drawn from (best first: could go either way, matters to where
