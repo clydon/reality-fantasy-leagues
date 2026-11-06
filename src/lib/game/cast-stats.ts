@@ -231,7 +231,7 @@ export function castStats(state: LeagueState, opts: { seen: number; book: StatsB
     for (const ev of StateLogic.ActiveRosterLogic.episodeEvents(state, ep)) {
       const list = did.get(ev.castawayId);
       if (!list || (secret.has(ev.type) && out.get(ev.castawayId) === null)) continue;
-      list.push({ ep: ep.number, type: ev.type, units: ev.units ?? 1, points: StateLogic.ActiveRosterLogic.eventPoints(state, ev) });
+      list.push({ ep: ep.number, type: ev.type, units: ev.units ?? 1, points: StateLogic.ActiveRosterLogic.eventPoints(state, ev, ep.number) });
     }
   }
 

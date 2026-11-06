@@ -24,7 +24,7 @@ function scoredByCastaway(state: LeagueState, ep: Episode) {
   for (const sev of StateLogic.ActiveRosterLogic.episodeEvents(state, ep)) {
     const entry = byCastaway.get(sev.castawayId) ?? { events: [], points: 0 };
     entry.events.push(sev);
-    entry.points = StateLogic.roundPoints(entry.points + StateLogic.ActiveRosterLogic.eventPoints(state, sev));
+    entry.points = StateLogic.roundPoints(entry.points + StateLogic.ActiveRosterLogic.eventPoints(state, sev, ep.number));
     byCastaway.set(sev.castawayId, entry);
   }
   return byCastaway;
@@ -152,7 +152,7 @@ export function EpisodeActiveRosterSection({ ep, state }: { ep: Episode; state: 
         {isOpen && scored && (
           <ul className="mb-1.5 ml-[46px] flex flex-col border-l border-border pl-3">
             {scored.events.map((sev) => {
-              const pts = StateLogic.ActiveRosterLogic.eventPoints(state, sev);
+              const pts = StateLogic.ActiveRosterLogic.eventPoints(state, sev, ep.number);
               return (
                 <li key={sev.id} className="flex min-h-9 items-center gap-2 text-[14px]">
                   <span className="min-w-0 flex-1 text-muted-foreground">{events.find((e) => e.id === sev.type)?.label || sev.type}</span>

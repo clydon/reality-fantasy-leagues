@@ -550,11 +550,12 @@ declare const StateLogic: {
   /** The season is over: its winner crowned, or, in a format nobody wins, nobody left in it. */
   seasonEnded(state: LeagueState): boolean;
   ActiveRosterLogic: {
-    pointsFor(state: LeagueState, type: string): number;
+    /** C7: `episode`, the one it's scored in (only its card's moments count there: score.only 'card'). */
+    pointsFor(state: LeagueState, type: string, episode?: number): number;
     /** One event's points: its type's, times its units (a count research reported). */
-    eventPoints(state: LeagueState, ev: Pick<ScoringEvent, "type" | "units">): number;
+    eventPoints(state: LeagueState, ev: Pick<ScoringEvent, "type" | "units">, episode?: number): number;
     /** An episode's moments at the game's points, in order: what the scoring sequence reads (C2 part 1). */
-    scoredEvents(state: LeagueState, events: ScoringEvent[]): { castawayId: string; points: number }[];
+    scoredEvents(state: LeagueState, events: ScoringEvent[], episode?: number): { castawayId: string; points: number }[];
     activeSlots(state: LeagueState): number;
     benchSlots(state: LeagueState): number;
     /** This episode's lineup, or (if never set for it) the most recent earlier one, still-owned and capped. */
