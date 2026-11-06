@@ -453,7 +453,7 @@ test("Golf's defaults are data the spec reads: Yahoo's points per hole and round
   assert.equal(d.specs.season.spec.count.start, sum(d.slots.lineup.map((s) => s.n)));
   for (const s of d.slots.lineup) for (const t of s.takes) assert.ok(golf.groups.some((g) => g.key === t) || golf.position(t), t);
   assert.equal(d.closes, golf.lock);
-  for (const spec of Object.values(d.specs)) assert.deepEqual(spec.spec.score.points, d.scoring.points);
+  for (const spec of Object.values(d.specs).filter((x) => x.spec.score.by === "stats")) assert.deepEqual(spec.spec.score.points, d.scoring.points);
   // Scored by the table on a recorded tournament: Smotherman's 54 holes (the playoff's score nothing).
   const line = golf.stateAt(BERMUDA).lines[idOf(golf.readBox(BERMUDA), "Austin Smotherman")];
   const pts = Object.entries(d.scoring.points).reduce((a, [k, v]) => a + (line[k] ?? 0) * v, 0);

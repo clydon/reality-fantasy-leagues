@@ -172,6 +172,10 @@
         },
         "closes": "start"
       }
+    },
+    "pickem": {
+      "about": "Each tournament, before it starts: who wins the final? 5 points if you're right (a draw or no contest counts for nobody), most points wins.",
+      "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers" }, "rank": { "by": "total" }, "closes": "start", "ask": [{ "id": "winner", "ask": "Who wins the final?", "answer": "person", "from": "cast", "points": 5, "settle": { "by": "final", "take": "winner", "of": "main" }, "asked": "each", "closes": "start" }] }
     }
   }
 }

@@ -86,6 +86,8 @@ const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
 const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
 const ORDINAL = (n) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th'}`;
 const NOBODY = "It didn't happen";
+/** L4 part 1a: a draw, the answer a question that takes one (`draw: true`) has right on a tie: never a team's id. */
+const DRAW = 'draw';
 
 /** The game's episodes from its start, in order, as far as its results go (to its end once it's over). */
 function spanEpisodes(facts) {
@@ -370,7 +372,7 @@ function factVerdict(q, episode, facts) {
  * no winner, nobody with the stat). A final: who wins (a team game's side, a field's first, a card's bout's winner), both sides'
  * points, the margin. A stat: of a player, theirs; of a team, among its players (its players' added, for a value); else the game's.
  */
-function standingIn(st, g) {
+function standingIn(st, g, q) {
   const lines = isObj(g.lines) ? g.lines : {};
   if (st.by === 'final') {
     if (isObj(g.bouts)) {
@@ -392,7 +394,10 @@ function standingIn(st, g) {
     const [a, b] = sides;
     if (st.take === 'total') return { value: a.score + b.score };
     if (st.take === 'margin') return { value: Math.abs(a.score - b.score) };
-    if (a.score === b.score) return { off: "A tie: it doesn't count either way" };
+    // L4 part 1a: who wins is who the final says won, extra time and penalties included (a sportsbook's three ways settle at 90
+    // minutes: not ours): level after a shootout, its winner. A question that takes a draw has it right on a tie; else it's off.
+    if (a.score === b.score && isNum(a.shootout) && isNum(b.shootout) && a.shootout !== b.shootout) return { right: [a.shootout > b.shootout ? a.id : b.id] };
+    if (a.score === b.score) return q && q.draw === true ? { right: [DRAW] } : { off: "A tie: it doesn't count either way" };
     return { right: [a.score > b.score ? a.id : b.id] };
   }
   const teams = isObj(g.teams) ? g.teams : {};
@@ -457,7 +462,7 @@ function sportsVerdict(q, episode, facts) {
   if (!g || g.status === 'pre') return WAITING;
   if (g.status === 'off') return off("The game wasn't played: it doesn't count either way");
   const st = q.settle;
-  const now = standingIn(st, g);
+  const now = standingIn(st, g, q);
   if (g.status === 'final') return now.off ? off(now.off) : known(now.right || [], now.value);
   if (st.by === 'final' && st.take === 'total' && q.answer === 'overUnder' && isNum(q.line) && isNum(now.value) && now.value > q.line) return { ...known([], now.value), early: true };
   return now.off ? WAITING : { state: 'waiting', live: now };
@@ -1038,7 +1043,7 @@ function answerProblem(q, value, faces, o) {
     // L1 part 4b: a side of the game (a team's id), `faces` its sides.
     case 'side': {
       if (typeof value !== 'string' || !value) return 'Pick a side';
-      return faces && !faces.has(value) ? 'Pick one of the sides' : null;
+      return faces && !faces.has(value) && !(q.draw === true && value === DRAW) ? (q.draw === true ? 'Pick one of the sides, or a draw' : 'Pick one of the sides') : null;
     }
     case 'number': return isNum(value) && value >= 0 && value <= 100000 ? null : 'A number, 0 or more';
     case 'overUnder': return value === 'over' || value === 'under' ? null : 'Over or under';
@@ -1108,4 +1113,4 @@ function factsThrough(facts, k) {
   };
 }
 
-module.exports = { WAITING, readsTimeline, verdictOf, rightAnswers, pointsFor, windowPoints, allRight, shrunk, isRight, answerProblem, spanEpisodes, pairsFrom, pairKey, windowOf, factsThrough, botKey, botCall, botRight };
+module.exports = { WAITING, DRAW, readsTimeline, verdictOf, rightAnswers, pointsFor, windowPoints, allRight, shrunk, isRight, answerProblem, spanEpisodes, pairsFrom, pairKey, windowOf, factsThrough, botKey, botCall, botRight };

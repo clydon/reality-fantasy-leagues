@@ -164,6 +164,10 @@ export interface Episode {
    *  (src/lib/server/air-times.ts), absent without a schedule or while catching up. Lineups and
    *  picks lock at this moment. */
   airsAt?: string;
+  /** A sport's lineup lock (ISO) when the game's spec closes daily or weekly (docs/PLAN-start-a-game-gpt.md L4 part 1a): its
+   *  day's or week's first start, from the games' own starts. Stamped by the server (air-times.ts stampSportLocks); the engine's
+   *  lock reads it once its hook does (L4's "For the engine lane"). */
+  locksAt?: string;
   /**
    * Both optional and both filled in only by the wiki connector's eliminations import, which gets them
    * for free off the episode guide. Never overwritten once set, and absent on every hand-created

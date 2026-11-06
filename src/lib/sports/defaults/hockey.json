@@ -47,6 +47,14 @@
         "rank": { "by": "total" },
         "closes": "start"
       }
+    },
+    "pickem": {
+      "about": "Each game, before it starts: who wins? A point for each one right, most points wins (a tie counts for nobody).",
+      "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers" }, "rank": { "by": "total" }, "closes": "start", "ask": [{ "id": "winner", "ask": "Who wins?", "answer": "side", "points": 1, "settle": { "by": "final", "take": "winner" }, "asked": "each", "closes": "start" }] }
+    },
+    "pickAFew": {
+      "about": "Each game, before it starts: pick three players. 3 points for each one who has the most points (goals and assists) in the game (tied, each of them), most points wins.",
+      "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers" }, "rank": { "by": "total" }, "closes": "start", "ask": [{ "id": "few", "ask": "Pick three: who has the most points (goals and assists)?", "answer": "person", "pick": 3, "from": "cast", "points": 3, "settle": { "by": "stat", "stat": "PTS", "take": "most" }, "asked": "each", "closes": "start" }] }
     }
   }
 }

@@ -78,7 +78,7 @@ export function boutsOf(card: CardBouts, byBout: Record<string, Record<string, S
 export function gameFacts(
   sport: Sport,
   state: GameState | FieldState | BoutState,
-  o: { status: SportsGameFacts["status"]; sides?: string[]; people?: Record<string, { team?: string | null }>; card?: CardBouts | null },
+  o: { status: SportsGameFacts["status"]; sides?: string[]; people?: Record<string, { team?: string | null }>; card?: CardBouts | null; shootout?: Record<string, number> },
 ): SportsGameFacts {
   const team = sport instanceof TeamSport;
   const lines = Object.fromEntries(Object.entries(state.lines).map(([id, l]) => [id, team ? sport.full(l) : l]));
@@ -93,7 +93,18 @@ export function gameFacts(
       const r = state.bouts[b.id]?.result ?? null;
       return [b.id, { sides: b.sides, winner: r?.winner ?? null, outcome: r?.outcome ?? null, main: b.main }];
     }));
-  } else out.sides = (o.sides ?? Object.keys(state.score)).map((id) => ({ id, score: state.score[id] ?? 0 }));
+  } else {
+    out.sides = (o.sides ?? Object.keys(state.score)).map((id) => ({ id, score: state.score[id] ?? 0 }));
+    // L4 part 1a: level with a penalty shootout (its kicks are never the score: soccer.ts), each side's shootout goals, so a cup
+    // tie won on penalties has a winner and only a match that ends level is a draw: ESPN's own (`o.shootout`, the header's, as a
+    // kept final has it), else its players' kicks added up (the phone's, from the plays).
+    const [a, b] = out.sides;
+    if (out.sides.length === 2 && a.score === b.score) {
+      const so = (side: string) => o.shootout?.[side] ?? Object.entries(lines).reduce((n, [id, l]) => n + (teams[id] === side ? (l.SOGOAL ?? 0) : 0), 0);
+      const [x, y] = [so(a.id), so(b.id)];
+      if (x || y) out.sides = [{ ...a, shootout: x }, { ...b, shootout: y }];
+    }
+  }
   return out;
 }
 

@@ -361,7 +361,7 @@ test("MMA's defaults are data the spec reads: DraftKings' MMA, six fighters, loc
   assert.match(d.scoring.source, /DraftKings/);
   assert.deepEqual(d.scoring.points, { TSL: 0.2, SSL: 0.2, CTRL: 0.03, TDL: 5, REV: 5, KD: 10, WR1: 90, WR2: 70, WR3: 45, WR4: 40, WR5: 40, DEC: 30, QW: 25 });
   for (const k of Object.keys(d.scoring.points)) assert.ok(mma.stat(k), k);
-  for (const spec of Object.values(d.specs)) assert.deepEqual(spec.spec.score.points, d.scoring.points);
+  for (const spec of Object.values(d.specs).filter((x) => x.spec.score.by === "stats")) assert.deepEqual(spec.spec.score.points, d.scoring.points);
   assert.equal(d.specs.season.spec.get.each, sum(d.slots.lineup.map((x) => x.n)) + d.slots.bench);
   for (const slot of d.slots.lineup) for (const t of slot.takes) assert.ok(mma.groups.some((g) => g.key === t), t);
   assert.equal(d.closes, mma.lock);

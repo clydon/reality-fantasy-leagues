@@ -243,6 +243,8 @@ export interface SpecQuestion {
   from?: "cast" | "team";
   /** overUnder's line; null: the wizard asks (or ESPN's, the sports branch). */
   line?: number | null;
+  /** L4 part 1a: a side answer on who wins that takes a draw too (a soccer match's three ways): `DRAW` is right on a tie. */
+  draw?: true;
   /** choice's options. */
   options?: string[];
   /** A6: asked about each person still in when it closes, answered { castawayId: answer } (a yes or no, a number, an over/under or
@@ -263,7 +265,8 @@ export type Question = SpecQuestion & { asked: "once" | "each" | "every" | "phas
 /** L1 part 4b: a sport's game as the grader reads it (src/lib/sports/spec.ts gameFacts builds it). */
 export interface SportsGameFacts {
   status: "pre" | "in" | "final" | "off";
-  sides: { id: string; score: number }[];
+  /** `shootout`: L4 part 1a, each side's penalty shootout goals when the score is level after one (never in the score). */
+  sides: { id: string; score: number; shootout?: number }[];
   lines: Record<string, Record<string, number>>;
   teams: Record<string, string>;
   places?: Record<string, number | null>;
@@ -633,6 +636,8 @@ export const MAX_QUESTION_POINTS: number;
 /** Grading (answers.js): how a question stands, what each answer earns, whether one was right, why one can't be given. */
 /** `answers` (A14 part 1): the window's answers that settle a question the players settle (its own, or its `of` question's). */
 export function verdictOf(q: Question, episode: number, facts: AnswerFacts, answers?: { playerId: string; answer: unknown }[]): Verdict;
+/** L4 part 1a: the answer a question that takes a draw has right on a tie. */
+export const DRAW: "draw";
 /** F3 part 2: whether a group question reads its groups from the format's state over time where the season has them (asked
  *  each episode, about the one episode). */
 export function readsTimeline(q: Question): boolean;

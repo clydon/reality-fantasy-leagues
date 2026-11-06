@@ -405,7 +405,7 @@ test("tennis's defaults are data the spec reads: DraftKings' tennis, best of thr
   assert.deepEqual({ MP: d.scoring.points.MP, GW: d.scoring.points.GW, SW: d.scoring.points.SW, W: d.scoring.points.W }, { MP: 30, GW: 2.5, SW: 6, W: 6 });
   assert.deepEqual({ GW: d.scoring.byFormat["5"].GW, GL: d.scoring.byFormat["5"].GL, WRET4: d.scoring.byFormat["5"].WRET4 }, { GW: 2, GL: -1.6, WRET4: 3 });
   assert.match(d.scoring.source, /ace/i, "what ESPN can't score is said");
-  for (const spec of Object.values(d.specs)) assert.deepEqual(spec.spec.score.points, d.scoring.points);
+  for (const spec of Object.values(d.specs).filter((x) => x.spec.score.by === "stats")) assert.deepEqual(spec.spec.score.points, d.scoring.points);
   assert.equal(d.slots.lineup[0].n, 6);
   assert.deepEqual(d.slots.lineup[0].takes, ["players"]);
   // Scored by the table on a match's own line (its format's): Zverev's final (best of five), Rybakina's (best of three).

@@ -1105,6 +1105,15 @@ engine track; L brings each sport's data to it. Its screens wait for the UI trac
 - **L4. The formats, as the engine's pieces with sports data:** head-to-head, categories and roto (A11), best ball (A9),
   pick'em and pick a few (A4's questions with the sports settles), brackets (A8), squares (a sports way to `get`), live calls
   (A15); lineup locks per sport.
+  - **Split (2026-11-06), on what's there:** a season here is one game (or one event) an episode (a team's schedule, a series, a
+    listing: `season_events`' key is the episode), and a stats game doesn't play on the server until the engine's hook (L3 part 2)
+    lands, so L4 builds first what doesn't wait on it. Part 1a, pick'em and pick a few as data on the sports settles (the server
+    grades them already) and lineup locks per sport from each sport's cadence and ESPN's starts (built 2026-11-06: As built
+    below); part 1b, categories and roto (the spec's shape, the check, a pure scorer beside the sequence for the hook to call: each
+    category over a window from summed counts, a rate from its parts) with head-to-head's and best ball's specs on the recorded
+    fixtures; part 2, squares (a sports way to `get`: a grid of the two sides' last digits, paid by period from the sport's
+    period scores) and brackets (A8's order on a draw: tennis's `draws()`, a playoff's series); live calls wait for A15 (not built
+    yet: its clock is L2's), and every stats format plays once the hook does (written down for the engine lane below).
 - **L5. More of ESPN:** soccer; college and the WNBA; golf, racing, MMA and tennis (the field and bout shapes). A part per
   session: part 1, soccer (built 2026-10-28: As built below); part 2, college (basketball, football, baseball, hockey) and the
   WNBA; then golf and racing (FieldSport); then MMA and tennis (BoutSport).
@@ -3337,6 +3346,70 @@ checked by its own rule). Nothing plays a stats game yet: the engine's hook is p
   U1.)
 - **A phone's live points for a card scored by format need the poller's card** (`shape`): `livePoints` throws without it, as
   `statePoints` does; a screen always has it once the poller's answered (U1).
+
+**L4 part 1a as built: pick'em, pick a few and lineup locks per sport (2026-11-06, `sports`, not merged; no migration, no ESPN
+calls, nothing stored).**
+- **Pick'em and pick a few, as data** (`src/lib/sports/defaults/*.json`: `pickem`, `pickAFew` beside each sport's `season` and
+  `short`; racing's F1 and IndyCar too): games of questions (A4: `get.by: none`, `score.by: answers`), asked each episode, closing
+  at its start. Pick'em: who wins (a team game's side, a point each; a field's or a card's main event's person, 5); pick a few:
+  three names, each one who leads the game in the sport's headline stat scoring (points; receiving yards; total bases, worked
+  out from the plays' counts; points for hockey; goals), a field's three to win (5 if one does); MMA and tennis have the
+  pick'em only (a card's main event, a tournament's final). Each passes the engine's check against its sport's ctx and waits only
+  for the sports branch's own pieces (VOCAB's `final`, `stat`, `side`: the hook's flips). `defaultsFor` with a league now lays its
+  specs over the sport's one by one (F1's and IndyCar's own season and short beside racing's pick'em), not the whole set.
+- **A draw is an answer** (L1 part 4b's Noticed; `game-spec/schema.js`, `answers.js`, the engine's, small and contained): a side
+  question on who wins can say `draw: true` (soccer's pick'em does: a match's three ways); the check takes it only there and only on
+  a team game; on a level final its right answer is `DRAW` ('draw', exported), else a tie is off as before; `answerProblem` takes it
+  beside the sides (the server's faces check reads the question, so it does too).
+- **Who wins is who the final says won** (a decision: extra time and penalties included; a sportsbook's three ways settle at 90
+  minutes, not ours): a shootout's kicks are never the score (soccer.ts), so a cup tie level after one read as a tie, off. Now
+  `gameFacts` (spec.ts) gives each side its shootout goals (`sides[i].shootout`, the players' SOGOAL by team) when the score is
+  level and a shootout was taken, and the grader gives the winner on penalties: ESPN's own shootout score where it's given
+  (`o.shootout`), else the players' kicks added up (the phone's, from the plays). The kept final keeps ESPN's (its header's
+  `shootoutScore`) on its sides when the final is level, and in `sports_events.shape` (`{ kind: 'team', shootout }`, a few bytes,
+  no migration: a team game's shape was always null; HOSTING.md), read back onto its sides (score.ts storedOf), so a kept final
+  whose kicks went missing still has the winner. The total and the margin stay the match's goals.
+- **Lineup locks per sport** (`src/lib/sports/locks.ts`, new, pure): `locksOf(starts, closes)`, each episode's lock from its
+  game's start: `start` its own; `daily` its Eastern day's first start (DraftKings' slates: the NBA, NHL, MLB and tennis);
+  `weekly` its week's first, a week Tuesday to Monday in Eastern time (Yahoo's football week: Thursday night to Monday night;
+  football and soccer); never after its own start; an episode with no start has none. A sport's cadence is `Sport.lock`, carried
+  into a spec by `specCloses` (an event's: `start`). **The server's side** (`air-times.ts`): `sportLocks(db, seasonId, closes,
+  span)` reads the season's linked games' starts within the game's own episodes (`season_events.starts_at`: ESPN's, not a
+  listing's air time; a game that starts on Sunday never locks with Thursday's) and `stampAirTimes` stamps `ep.locksAt` (new on
+  Episode, `types.ts`) beside `airsAt` for a league whose spec closes daily or weekly (asking the database nothing otherwise). Nothing reads it yet: `gameOf` reads such a spec only once VOCAB's `closes` daily and weekly flip,
+  and `closedForPlay` is the engine's (below).
+- **Checks.** `tests/sports-formats.test.js` (new, 4): every sport's pick'em and pick a few pass, the draw's refusals; soccer's
+  pick'em on the recorded matches (San Diego 2-2 Seattle a draw, off for a question without draws; Australia 1-1 Egypt and Kiel 1-1
+  Hoffenheim won on penalties; Spain 1-0 Argentina after extra time; the kept final's way too); pick a few on the 76ers' opener
+  (Maxey and Mitchell tied on 32: both right), Bermuda's winner, an MLB game's total bases; each sport's cadence; an NFL week's locks
+  by start, day and week. `tests/dst.test.js` (+1): daily and weekly locks across the November 1 change (Saturday 10:30 PM EDT is
+  Saturday's). The nine sports' own tests and sports-spec's read only their stats specs as tables. `check-matchup.js` (+1, all pass):
+  the series' locks from the database. `check-finals.js` (26) and `check-live-event.js` (6 of 6) pass. 1,724 unit tests; `tsc` clean;
+  eslint clean on src/lib/sports, src/lib/server/sports, src/lib/game/sequence, air-times.ts and the two spec files.
+- `/code-review` on the diff (its fixes: the locks ignored the game's span, so a game made on Friday from Sunday would lock with
+  Thursday's game, already past; a penalty winner read only from the players' kicks, a kept final whose kicks went missing a draw,
+  now ESPN's own shootout score kept with it; the season looked up twice; racing's three copies of the new specs, now one with
+  `defaultsFor` merging a league's specs; the doubleheader and the database's week checks, which tested the function with itself.
+  Declined: college hockey's ties after a shootout (college hockey isn't read: L5 part 2a), `locksAt` unread until the hook (by
+  design, below), soccer's Tuesday week (Noticed)).
+- **For the engine lane (with L3 part 2's hook):**
+  - `closedForPlay` (state-logic.js) locks at `ep.locksAt` when it's earlier than `airsAt` (or there's no `airsAt`), so a daily
+    or weekly game's episodes lock together; the hand overrides (`lineupsLocked`, `openPastAir`) as they are. VOCAB's `closes`
+    `daily` and `weekly` to 'now' with it. A lineup carried across a day's or a week's episodes (set once for them all) is a rule
+    question for then: today each episode keeps its own lineup, locked at the shared moment.
+  - VOCAB's `draw` needs nothing: it's a question's key, and the grader and `answerProblem` read it.
+
+**L4 part 1a noticed, not fixed:**
+- **Pick'em over a week's slate** ("NFL pick'em with confidence points") needs a season of a whole league's games, several an
+  episode or a week of them: `season_events` keys one game to an episode, and `leagueGames` reads one. It's the same gap as a
+  season-long fantasy league over a league (the default `season` specs: "play someone head to head each week"); it waits for a
+  season made of a league's slate ("Finding a game", or its own step: the main session's call).
+- **A week is Tuesday to Monday for soccer too**, so a team's midweek match locks with the weekend's if they share one (FPL's
+  gameweeks are rounds, which ESPN's scoreboard doesn't number). With one team's games an episode it's rare; a league's slate
+  would want the round.
+- **Pick a few's stat is one per sport** (its headline: points, receiving yards, total bases, goals), so football's ignores a
+  rusher. A stat the sport works out (scrimmage yards, touchdowns of any kind) would be a derived stat in football.ts. (G3 asks
+  better ones; or L5's football.)
 
 **Open, from the sports plan:** head-to-head's schedule over a span, and playoffs; whether a sport's moves follow Weekly
 Lineup's waivers or need their own rhythm for daily sports; what a live call is worth, and how fast they open and close;

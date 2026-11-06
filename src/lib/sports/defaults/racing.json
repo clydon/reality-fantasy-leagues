@@ -226,6 +226,14 @@
         },
         "closes": "start"
       }
+    },
+    "pickem": {
+      "about": "Each race weekend, before it starts: who wins? 5 points if you're right, most points wins.",
+      "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers" }, "rank": { "by": "total" }, "closes": "start", "ask": [{ "id": "winner", "ask": "Who wins?", "answer": "person", "from": "cast", "points": 5, "settle": { "by": "final", "take": "winner" }, "asked": "each", "closes": "start" }] }
+    },
+    "pickAFew": {
+      "about": "Each race weekend, before it starts: pick three drivers. 5 points if one of them wins, most points wins.",
+      "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers" }, "rank": { "by": "total" }, "closes": "start", "ask": [{ "id": "few", "ask": "Pick three drivers: one of them wins?", "answer": "person", "pick": 3, "from": "cast", "points": 5, "settle": { "by": "final", "take": "winner" }, "asked": "each", "closes": "start" }] }
     }
   },
   "leagues": {

@@ -19,8 +19,9 @@ export interface StoredGame {
   kind?: undefined;
   /** ESPN's box score says it's over: the lines are the final's (its correction in them). */
   final: boolean;
-  /** Each team's id and score, in ESPN's header's order. */
-  sides: { id: string; score: number }[];
+  /** Each team's id and score, in ESPN's header's order; `shootout`, a soccer match's penalty shootout goals as ESPN's header
+   *  says them (never in the score: L4 part 1a). */
+  sides: { id: string; score: number; shootout?: number }[];
   /** Each person's counts (raw: derived stats are the read's, Sport.full), in the sport's keys; a team's own (football's
    *  defense) under its id. */
   lines: Record<string, Stats>;
@@ -59,9 +60,9 @@ export interface StoredCard {
 /** A game's or an event's final as it's kept. */
 export type StoredFinal = StoredGame | StoredField | StoredCard;
 
-/** What the kept final's shape has besides its lines and people (sports_events.shape: a field's and a card's; null a team
- *  game's, whose sides are the row's own). */
-export type StoredShape = Pick<StoredField, "kind" | "event" | "standings"> | Pick<StoredCard, "kind" | "card" | "byBout" | "results">;
+/** What the kept final's shape has besides its lines and people (sports_events.shape: a field's and a card's; a team game's
+ *  sides are the row's own, so its shape is null, or only a penalty shootout's goals by side: L4 part 1a). */
+export type StoredShape = Pick<StoredField, "kind" | "event" | "standings"> | Pick<StoredCard, "kind" | "card" | "byBout" | "results"> | { kind: "team"; shootout: Record<string, number> };
 
 /** A team game's summary as it's kept: its counts at the end of its timeline, its people, its score; null without a box score. */
 export function storedGame(sport: TeamSport, summary: EspnSummary): StoredGame | null {
@@ -70,7 +71,12 @@ export function storedGame(sport: TeamSport, summary: EspnSummary): StoredGame |
   const state = sport.stateAt(summary);
   const people = Object.fromEntries(Object.values(box.people).map((p) => [p.id, { team: p.team || null, position: p.position }]));
   // The timeline's last score: a final's is the box score's own (its correction carries it).
-  const sides = headerTeams(summary).map((t) => ({ id: t.id, score: state.score[t.id] ?? 0 }));
+  // Level at the end, a shootout's goals as ESPN's header has them (soccer's box: its teams' SOGOAL), over the kicks the plays
+  // counted (L4 part 1a).
+  const so = new Map(box.teams.map((t) => [t.id, t.stats.SOGOAL]));
+  const plain = headerTeams(summary).map((t) => ({ id: t.id, score: state.score[t.id] ?? 0 }));
+  const level = plain.length === 2 && plain[0].score === plain[1].score && plain.every((s) => typeof so.get(s.id) === "number");
+  const sides = level ? plain.map((s) => ({ ...s, shootout: so.get(s.id) as number })) : plain;
   return { final: box.final, sides, lines: state.lines, people };
 }
 
@@ -102,7 +108,9 @@ export function storedCard(sport: BoutSport, answer: BoutAnswer): StoredCard | n
 export function shapeOf(g: StoredFinal): StoredShape | null {
   if (g.kind === "field") return { kind: "field", event: g.event, standings: g.standings };
   if (g.kind === "card") return { kind: "card", card: g.card, byBout: g.byBout, results: g.results };
-  return null;
+  // A team game's sides are the row's own; only a shootout's goals aren't (L4 part 1a).
+  const shootout = Object.fromEntries(g.sides.flatMap((s) => (typeof s.shootout === "number" ? [[s.id, s.shootout]] : [])));
+  return Object.keys(shootout).length ? { kind: "team", shootout } : null;
 }
 
 /** A kept team game as the sport's state at its end (the reduce's shape: what statePoints and gameFacts read). */
@@ -125,7 +133,8 @@ export function finalState(g: StoredFinal): GameState | FieldState | BoutState {
 /** A kept final as the game spec's grader reads it (facts.games' one, answers.js sportsVerdict), at `status`: the server's view. */
 export function storedFacts(sport: Sport, g: StoredFinal, status: SportsGameFacts["status"]): SportsGameFacts {
   if (g.kind) return gameFacts(sport, finalState(g), { status, people: g.people, card: g.kind === "card" ? g.card : null });
-  return gameFacts(sport, storedState(g), { status, sides: g.sides.map((s) => s.id), people: g.people });
+  const shootout = Object.fromEntries(g.sides.flatMap((s) => (typeof s.shootout === "number" ? [[s.id, s.shootout]] : [])));
+  return gameFacts(sport, storedState(g), { status, sides: g.sides.map((s) => s.id), people: g.people, ...(Object.keys(shootout).length ? { shootout } : {}) });
 }
 
 /**

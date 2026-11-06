@@ -375,7 +375,7 @@ test("Racing's defaults are data the spec reads: DraftKings' NASCAR, F1 Fantasy'
   for (const s of allSports().filter((x) => x instanceof Racing)) {
     const own = defaultsFor("racing", s.leagues[0]);
     for (const k of [...Object.keys(own.scoring.points), ...Object.keys(own.scoring.byPlace ?? {})]) assert.ok(s.stat(k), `${s.name}: ${k}`);
-    for (const spec of Object.values(own.specs)) assert.deepEqual(spec.spec.score.points, own.scoring.points, s.name);
+    for (const spec of Object.values(own.specs).filter((x) => x.spec.score.by === "stats")) assert.deepEqual(spec.spec.score.points, own.scoring.points, s.name);
     assert.equal(own.specs.season.spec.get.each, sum(own.slots.lineup.map((x) => x.n)) + own.slots.bench);
     for (const slot of own.slots.lineup) for (const t of slot.takes) assert.ok(s.groups.some((g) => g.key === t), t);
     assert.equal(own.closes, s.lock);

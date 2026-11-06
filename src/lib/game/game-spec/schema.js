@@ -2146,6 +2146,11 @@ function questionProblems(q, at, s, ids, league) {
   if (q.answer === 'overUnder') {
     if (q.line !== null && q.line !== undefined && !isNum(q.line)) add('line', 'The line is a number, or null (or left out) for the wizard to ask');
   } else if (q.line !== undefined) add('line', "Only an over/under has a line");
+  // L4 part 1a: a draw is an answer too (a soccer match's three ways: either side or a draw), on who wins a team game.
+  if (q.draw !== undefined) {
+    if (q.draw !== true) add('draw', 'A draw is one of the answers (draw: true), or leave it out');
+    else if (!(q.answer === 'side' && st.by === 'final' && st.take === 'winner')) add('draw', 'Only who wins a game (a side answer) takes a draw as an answer');
+  }
   if (q.answer === 'choice') {
     const opts = q.options;
     // Matched to a yes or no (whether it happened; each person's going home or staying), a count's range, or names.
@@ -2218,7 +2223,7 @@ const KEYS = {
   windows: ['schedule', 'every', 'swaps'],
   draft: ['at', 'timer', 'away', 'opens'],
   bets: ['points'],
-  question: ['id', 'ask', 'answer', 'points', 'settle', 'asked', 'closes', 'pick', 'from', 'line', 'options', 'each', 'every', 'over', 'within', 'chips', 'pairs', 'wager', 'share', 'rollover', 'shrink', 'fallback', 'beat'],
+  question: ['id', 'ask', 'answer', 'points', 'settle', 'asked', 'closes', 'pick', 'from', 'line', 'options', 'each', 'every', 'over', 'within', 'chips', 'pairs', 'wager', 'share', 'rollover', 'shrink', 'fallback', 'beat', 'draw'],
   settle: ['by', 'take', 'moment', 'role', 'phase', 'stat', 'place', 'fact', 'of', 'tie'],
   beat: ['by', 'none'],
 };
@@ -3058,6 +3063,7 @@ function settleProblems(s, ctx, opts) {
       if (shape !== 'team' && st.take !== 'winner') out.push([`ask[${i}].settle.take`, `A ${shape}'s final says who wins: no total or margin`]);
       if (st.take === 'winner' && q && (q.answer === 'side' || q.answer === 'person') && q.answer !== (shape === 'team' ? 'side' : 'person')) out.push([`ask[${i}].answer`, shape === 'team' ? 'A team game is won by a side: answer side' : `A ${shape} is won by someone: answer person`]);
       if (st.of !== undefined && shape !== 'card') out.push([`ask[${i}].settle.of`, "Only a card's bout says whose win: a game has one winner"]);
+      if (q && q.draw === true && shape !== 'team') out.push([`ask[${i}].draw`, `A ${shape}'s winner is someone: no draw to pick`]);
       if (q && q.asked === 'once' && !oneGame) out.push([`ask[${i}].asked`, "A final is one game's: ask it each episode, or once in a game of just one"]);
     }
     if (st.by === 'results' && ctx.results === false) out.push([`ask[${i}].settle`, "The show's results don't say who goes home or wins"]);

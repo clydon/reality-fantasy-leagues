@@ -41,6 +41,7 @@ export * from "./live-event";
 export * from "./spec";
 export * from "./final";
 export * from "./points";
+export * from "./locks";
 export { Baseball } from "./baseball";
 export { CollegeBaseball } from "./college-baseball";
 export { Basketball, CollegeBasketball } from "./basketball";
@@ -106,7 +107,7 @@ export interface SportDefaults {
   closes: LockCadence;
   specs: Record<string, { about: string; spec: Record<string, unknown> }>;
   /** A league's own, where its standard game differs from the sport's (racing's F1 and IndyCar from NASCAR's): each part given
-   *  replaces the sport's (defaultsFor with the league). */
+   *  replaces the sport's, and its specs each of the sport's of the same name (defaultsFor with the league). */
   leagues?: Record<string, Partial<Pick<SportDefaults, "about" | "scoring" | "categories" | "slots" | "specs">>>;
 }
 
@@ -128,7 +129,8 @@ export function defaultsFor(sportId: string, league?: string): SportDefaults | n
   const d = DEFAULTS[sportId];
   if (!d) return null;
   const own = league ? d.leagues?.[String(league).split("/").pop()!] : undefined;
-  return own ? { ...d, ...own } : d;
+  // A league's specs over the sport's, one by one (L4 part 1a: F1's own season and short beside racing's pick'em).
+  return own ? { ...d, ...own, ...(own.specs ? { specs: { ...d.specs, ...own.specs } } : {}) } : d;
 }
 
 /**

@@ -34,8 +34,11 @@ test("every sport's default specs pass the game spec's own check against the spo
     for (const [name, { spec }] of Object.entries(d.specs)) {
       assert.deepEqual(problems(spec, ctx), [], `${sport.name} ${name}`);
       for (const w of specWaitsFor(spec)) assert.equal(w.step, "sports", `${sport.name} ${name}: ${w.at}`);
-      assert.deepEqual(Object.keys(spec.score).filter((k) => k !== "by" && k !== "points"), Object.keys(d.scoring).filter((k) => k.startsWith("by")), `${sport.name} ${name}: the table's own ways`);
-      for (const k of ["byPosition", "byPlace", "byFormat"]) if (d.scoring[k]) assert.deepEqual(spec.score[k], d.scoring[k]);
+      // A game scored by stats carries the sport's table (L4 part 1a's pick'em and pick a few are scored by their answers).
+      if (spec.score.by === "stats") {
+        assert.deepEqual(Object.keys(spec.score).filter((k) => k !== "by" && k !== "points"), Object.keys(d.scoring).filter((k) => k.startsWith("by")), `${sport.name} ${name}: the table's own ways`);
+        for (const k of ["byPosition", "byPlace", "byFormat"]) if (d.scoring[k]) assert.deepEqual(spec.score[k], d.scoring[k]);
+      }
       assert.ok(["start", specCloses(sport.lock)].includes(spec.closes), `${sport.name} ${name} closes ${spec.closes}`);
     }
     if (d.specs.season) assert.equal(d.specs.season.spec.closes, specCloses(sport.lock), `${sport.name}: a season locks as the sport does`);

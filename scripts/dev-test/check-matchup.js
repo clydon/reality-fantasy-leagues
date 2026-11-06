@@ -10,7 +10,8 @@
 //   the matchup keyed by its event, both teams' players from their rosters with ESPN's ids, and the game's facts kept: its
 //   sides, its final (the 76ers won, 220, under the 237.5 line from its summary);
 //   asked again: the same season, nothing made; a series and the next game: more seasons of the same show, numbered on, the
-//   next game's line from its day's scoreboard;
+//   next game's line from its day's scoreboard; the series' lineup locks (L4 part 1a: air-times.ts sportLocks) by its games' own starts,
+//   by day and by the week;
 //   the daily job's part (refreshSportsEvents): a line moved before the game is taken, the final once it's played (its line
 //   kept), the season's status from its games, a linked game first seen after it ended given its summary's line; a matchup's
 //   people come from its teams even once its league's show is a game.
@@ -36,6 +37,7 @@ const { makeMatchup, refreshSportsEvents } = jiti("../../src/lib/server/sports/m
 const { sportsProviders } = jiti("../../src/lib/server/sports/index.ts");
 const { castable } = jiti("../../src/lib/server/sports/cast.ts");
 const { finalOf } = jiti("../../src/lib/sports/matchup.ts");
+const { sportLocks } = jiti("../../src/lib/server/air-times.ts");
 
 let failures = 0;
 function check(ok, what, detail = "") {
@@ -139,6 +141,21 @@ const forget = () => pool.query("DELETE FROM sports_cache WHERE key LIKE 'zt-sta
     const g3 = await fact("zt-g3");
     const g4 = await fact("zt-g4");
     check(g3?.state === "pre" && g3.odds?.overUnder === 230.5 && !g3.final && g4 && g4.odds === null, "the next game's line from its day's scoreboard; none where the scoreboard has none", JSON.stringify({ g3, g4 }));
+
+    // L4 part 1a: the series' lineup locks from its games' own starts (air-times.ts sportLocks): each its own start, by day (two
+    // days apart), and by the week (the earlier start of the two when they share a Tuesday-to-Monday week).
+    const starts = (await pool.query("SELECT episode, starts_at FROM season_events WHERE season_id = $1 ORDER BY episode", [series.seasonId])).rows.map((r) => r.starts_at.toISOString());
+    const lockAt = async (closes) => [...(await sportLocks(pool, series.seasonId, closes)).entries()].sort((a, b) => a[0] - b[0]).map(([, at]) => at);
+    const [byStart, byDay, byWeek] = [await lockAt("start"), await lockAt("daily"), await lockAt("weekly")];
+    // The same Tuesday-to-Monday week in Eastern time, worked out here on its own: days from the first's Tuesday to the second.
+    const day = (at) => new Date(`${new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(new Date(at))}T00:00:00Z`);
+    const [d1, d2] = starts.map(day);
+    const sameWeek = (d1.getUTCDay() - 2 + 7) % 7 + (d2 - d1) / DAY < 7;
+    check(
+      starts.length === 2 && byStart.join() === starts.join() && byDay.join() === starts.join() && byWeek.join() === (sameWeek ? [starts[0], starts[0]] : starts).join(),
+      "the series' lineup locks: each game's own start, by day, and by the week",
+      JSON.stringify({ starts, byStart, byDay, byWeek, sameWeek })
+    );
 
     // The daily job's part: a line moved before the game is taken; the final once it's played, its line kept.
     const e3 = espn.events.find((e) => e.id === "zt-g3");

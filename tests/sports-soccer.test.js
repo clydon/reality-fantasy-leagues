@@ -378,7 +378,7 @@ test("Soccer's defaults are data the spec reads: FPL's points (by position besid
   assert.equal(d.specs.season.spec.count.start, starters, "the season's lineup is its slots");
   assert.equal(d.specs.season.spec.get.each, starters + d.slots.bench, "and its draft the slots and the bench");
   assert.equal(Object.values(d.slots.squad).reduce((a, b) => a + b, 0), d.specs.season.spec.get.each, "FPL's squad of 15");
-  for (const { spec } of Object.values(d.specs)) {
+  for (const { spec } of Object.values(d.specs).filter((x) => x.spec.score.by === "stats")) {
     assert.equal(spec.spec, 1);
     assert.equal(spec.score.by, "stats");
     assert.deepEqual(spec.score.points, d.scoring.points);
