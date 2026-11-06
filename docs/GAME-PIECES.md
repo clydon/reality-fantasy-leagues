@@ -335,7 +335,7 @@ Limits: up to 12 questions a game; an `id` is letters, digits, `.`, `_` or `-`, 
 | `trivia` | the round's trivia questions (the episode before) | asked each episode |
 | `calls` | the show's two calls (Weekly Calls) | a game of its own |
 | `ticket` | a ticket (C6): the questions you put on it and a stake, `{ legs: [ids], stake }`, each leg your own answer to it | settled by its `legs` (below); `legs: { min, max }`, `pays`; a stake (`wager`) |
-| `side` | a team (sports) | the sports branch |
+| `side` | one of a team game's two sides (sports): its team's id, the faces the server's (`sidesFor`); `draw: true` takes a draw too (soccer's three ways) | settled `final` `winner` (L3 part 2c) |
 | `bracket` | a draw's winners round by round, by distance from the final (`{ "7": [...], ..., "1": [the champion] }`), each right pick worth the points, doubling each round (`rounds: 'double'`, the default, or `'same'`) (L4 part 2: `sequence/bracket.js`) | settled `final` `bracket` of a draw (tennis's `MS`, `WS`...); the sports branch |
 
 **One question about each person still in:** `each: "person"` with a `yesNo`, `number`, `overUnder` or `choice` answer, answered
@@ -359,12 +359,19 @@ players' own mechanics below, which settle the game, never a fact about the show
 | `calls` | none | the show's calls (Weekly Calls) |
 | `players` | `majority`, `minority` | the players' own answers: see "The players' own mechanics" |
 | `legs` | none | a ticket's legs (C6): `{ by: "legs", of: [the game's question ids] }`, your own answers to them in the window |
-| `final`, `stat` | | a sport's finals and stats (the sports branch); `final`'s `bracket`, a draw's winners round by round (L4 part 2) |
+| `final` | `winner`, `total`, `margin` (`of`: a card's bout, `main` its main event) | a sport's game at its final (L3 part 2c): who won (extra time and penalties in it; a field's first, a bout's winner), both sides' points, the margin; a game called off, a tie or a bout with no winner is off. `bracket`, a draw's winners round by round, is the sports branch's still (L4 part 2) |
+| `stat` | `most`, `least`, `value` (`stat`: a sport's stat key; `of`: a player or a team) | a stat in a sport's game (L3 part 2c): who has the most (a tie, all of them), the fewest, or a value (a team's players' added; asked once over a span, its games' added up) |
+
+A sport's game settles its questions from the server's facts (`facts.games`: each episode's game as of the viewer's mark, its
+kept final once it's final; answer-points.ts serverFacts), and its episode has results once its game is final: the server stamps
+`ep.gameFinal` on the copy it reads (sports/score.ts stampStats, StateLogic.StatsLogic: never stored), so the reveal, the week's
+results, a viewer's mark and a span's end read it as a show's results, and the spoiler view drops it past the mark (L3 part 2c).
 
 Which answers each settle can grade (`SETTLES_FOR` in the schema): a `person` by anything that names people (`results` out,
-stays, winner, placed, top; `moment` who, most, first; `role` who, end; `points` most; `fact` who; `players`); a `group` by
+stays, winner, placed, top; `moment` who, most, first; `role` who, end; `points` most; `fact` who; `players`; a sport's `stat` most, least and `final` winner, a field's first or a
+bout's winner); a `side` by `final` winner; a `group` by
 `results` out, `moment` who, `fact` who, `players`; a `yesNo` by `moment` happened, `phase` happened, `players`; a `number` by
-a count (`moment` count, `role` count, `phase` starts, `moment` first); an `overUnder` by those or `players`; an `order` by
+a count (`moment` count, `role` count, `phase` starts, `moment` first; a sport's `final` total, margin, `stat` value); an `overUnder` by those or `players`; an `order` by
 `results`, `moment` or `points` order; `confidence` and `chips` by anything that names people; `split` by `results` split;
 `pairs` by `results` outlast; a `choice` by anything (its options matched to the verdict).
 

@@ -187,7 +187,7 @@ export async function sidesFor(state: LeagueState, episode: number, games?: Map<
 }
 
 /** What a stamp writes (StateLogic.StatsLogic.stamp's `o`). */
-type Stamp = { lines: Record<number, Record<string, Stats>>; bouts: Record<number, Record<string, StatBout[]>>; groups: Record<string, string> };
+type Stamp = { lines: Record<number, Record<string, Stats>>; bouts: Record<number, Record<string, StatBout[]>>; groups: Record<string, string>; finals: number[] };
 // The league poll reads every 15 s (league-read.ts readyLeague), and a season's kept finals are big (everyone's counts, a game an
 // episode): each server instance keeps the last stamp it worked out for a league, with a fingerprint of what it read (32 bytes: the
 // season's kept finals, its cast's provider ids and positions, the league's castaways), and reads the finals again only when it moves.
@@ -199,12 +199,14 @@ const seasons = new Map<string, string>();
 /**
  * L3 part 2, the engine's hook: a game scored by a sport's stats, its games' lines stamped on `state` in place (StateLogic.StatsLogic
  * .stamp): each final, kept game's lines by castaway on its episode, a card's bouts, the cast's position groups, so the engine's
- * scoring sequence scores them as each holding's moments. As it stands (every final game: the viewer's copy is cut at their mark
- * by the spoiler view, as any result is). Never stored: withLeagueLock leaves the stamped keys out of what it saves. Any other game,
- * or one whose season links no games, is left as it is. Returns the state.
+ * scoring sequence scores them as each holding's moments. Part 2c: a game asking a question a sport's game settles (its final, a
+ * stat in it) gets each episode whose game is final (`finals`: its results are in; the grader reads the games themselves,
+ * answer-points.ts serverFacts), a game scored by stats those too. As it stands (every final game: the viewer's copy is cut at their
+ * mark by the spoiler view, as any result is). Never stored: withLeagueLock leaves the stamped keys out of what it saves. Any other
+ * game, or one whose season links no games, is left as it is. Returns the state.
  */
 export async function stampStats(state: LeagueState): Promise<LeagueState> {
-  if (!StateLogic.StatsLogic.on(state)) return state;
+  if (!StateLogic.StatsLogic.reads(state)) return state;
   const s = (state.settings ?? {}) as { showId?: string; wikiSeason?: unknown };
   const which = `${s.showId}/${s.wikiSeason}`;
   const seasonId = seasons.get(which) ?? (await seasonIdOf(state));
@@ -227,11 +229,15 @@ export async function stampStats(state: LeagueState): Promise<LeagueState> {
   if (!hit || hit.key !== key) {
     const g = await leagueGames(state);
     if (!g) return state;
-    hit = { key, stamp: { lines: Object.fromEntries(g.lines), bouts: Object.fromEntries(g.bouts), groups: g.groups } };
+    // An episode's one game final (a league's slate's episodes are 2f's: their lines are their final games' already).
+    const finals = [...g.games].filter(([, f]) => f.status === "final").map(([n]) => n);
+    hit = { key, stamp: { lines: Object.fromEntries(g.lines), bouts: Object.fromEntries(g.bouts), groups: g.groups, finals } };
     stamps.delete(id);
     stamps.set(id, hit);
     if (stamps.size > MAX_STAMPS) stamps.delete(stamps.keys().next().value!);
   }
-  // Each league its own copy of the lines (stamp keeps only its castaways' and the copy is the league's to change).
-  return StateLogic.StatsLogic.stamp(state, structuredClone(hit.stamp));
+  // Each league its own copy of the lines (stamp keeps only its castaways' and the copy is the league's to change); a game of
+  // questions, its finals alone (the grader reads the games).
+  const stamp = StateLogic.StatsLogic.on(state) ? structuredClone(hit.stamp) : { finals: [...hit.stamp.finals] };
+  return StateLogic.StatsLogic.stamp(state, stamp);
 }

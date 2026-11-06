@@ -1131,7 +1131,7 @@ engine track; L brings each sport's data to it. Its screens wait for the UI trac
     scored by a sport's stats; a card's bouts at their formats: built 2026-11-06, As built below); 2b, the daily and weekly locks
     (`closedForPlay` reading `locksAt`, `closes` daily and weekly to 'now', their words: built 2026-11-06, As built below); 2c, a
     game of questions on the sports settles (pick'em and pick a few: `final`, `stat`, the `side` answer to 'now', an episode's game
-    final as its results); 2d, categories and roto (`MatchupLogic` on `categoryParts`, the server handing `statDefs` over, `rank.by`
+    final as its results: built 2026-11-06, As built below); 2d, categories and roto (`MatchupLogic` on `categoryParts`, the server handing `statDefs` over, `rank.by`
     categories and roto to 'now'); 2e, squares and a bracket question (the squares themselves, their pays from the facts, a
     bracket's faces on the server); 2f, a week's slate (a per-game bonus summed per game, a question per game of an episode). Each
     part's proof a sports game played end to end on the recorded fixtures.
@@ -3304,7 +3304,7 @@ checked by its own rule). Nothing plays a stats game yet: the engine's hook is p
     **L3 part 3a adds** a card's bouts: `leagueGames`' `bouts` (each episode's, by castaway: each bout's own line at its rounds or
     sets) as `statMoments`' fourth argument (`boutsOf`), so a table by format (tennis's default) scores on the server as on the phone;
     and a field's and a card's games, read the same way (their lines with places in them, `facts.games`' places and bouts).
-  - VOCAB: `score.by: stats` to 'now' once the hook scores it; `settle.by` `final` and `stat` and the `side` answer to 'now' once a
+  - VOCAB (done: 2a's `score.by: stats`, 2c's settles and `side`): `score.by: stats` to 'now' once the hook scores it; `settle.by` `final` and `stat` and the `side` answer to 'now' once a
     game of questions plays them (the server grades them now: `playable` would take them, and the reveal's "results are in" for
     a matchup's episode is the engine's to say: a game final for the viewer).
 
@@ -3388,6 +3388,40 @@ in the placement corpus with the roto refusal kept on the 7 of them ranked roto)
   engine before against this tree's the same (2,856 reads each). The blind replays (`blind.js run` on each season loaded here; The
   Challenge 39 and 41 aren't in this lane's database): every game played through and over, Survivor 49 156 of 156, The Challenge
   40 115 of 115, The Traitors 4 110 of 110.
+
+**L3 part 2c as built: a game of questions on a sport's games (2026-11-06, `sports`, not merged; no migration; HOSTING.md updated).**
+- **The spec** (`schema.js`): VOCAB `ask.settle` `final` and `stat` and `ask.answer` `side` to 'now', so `playable` takes them and
+  every sport's `pickem` and `pickAFew` (src/lib/sports/defaults) plays as a game of questions; a draft may ask them too (its own
+  questions, C2 part 4c). `final`'s `bracket` and the `bracket` answer stay the sports branch's (2e). The 76ers opener's example
+  (tests/fixtures/game-specs.js) waits only for its pool of the two teams' players.
+- **Its episode's results** (`state-logic.js` StatsLogic): `StatsLogic.reads` (a game scored by stats, or asking a `final` or `stat`
+  question: a game of questions', a draft's own), and the stamp's `finals`, each episode whose one game is final, as
+  `ep.gameFinal` (`STAMPED`: never saved). `EpisodeLogic.hasResults` reads it, so the reveal, the week's results, a viewer's mark
+  (`latestWithResults`), `gameOver` at a span's end (a one-game pick'em is over at its final) and `AnswerLogic.facts`' episodes know
+  it; `SpoilerLogic.viewThrough` drops it past the mark. The grading is as it was (answers.js sportsVerdict on the server's
+  facts.games, as of the viewer's mark), plus **`factsThrough` cuts `games` at k** (`answers.js`), so a walk's week k (a race, cuts,
+  lives, a draft's own questions' lines) never grades a later game's question.
+- **The server** (`sports/score.ts` stampStats): stamps any league that `reads` (the same fingerprint and cache), a game of questions
+  with its `finals` alone (no lines: the grader reads the games), a game scored by stats with both. A league's slate's episodes get
+  none (their games are each kept apart, `slate`: 2f's).
+- **Checks.** `tests/sports-hook.test.js` (10 now): every sport's pick'em and pick a few plays; `reads`; pick'em graded on the opener
+  (the 76ers won), the game still to play waiting; the stamp's mark, its results, the spoiler view, unstamp; `factsThrough`'s cut;
+  a one-game pick'em over at its final (not for a viewer who hasn't seen it); pick a few on the opener (Maxey and Mitchell tied on
+  32: both right, 3 each). `scripts/dev-test/check-stats-game.js` (23 checks now, all pass): the NBA's pick'em and pick a few as
+  leagues on the zt season, answers in game_answers: before the final's kept no results and nothing graded; kept, a read marks the
+  opener final (no lines), `leagueAnswers` grades them (1-0, 6-0), the viewer at their mark sees neither, `answerStanding` is through
+  the opener, a write hands back the mark and saves none of it. The placement corpus' 198 more (its three new sports asks, recorded
+  from 6b8b1269's engine with the rest: each as its twin asking who goes home). GAME-PIECES.md's `side`, `final` and `stat`. 1,833
+  unit tests pass (2 more here); `tsc` clean; eslint clean on the src files changed.
+
+**L3 part 2c noticed, not fixed:**
+- **A game called off never has results** (`status: 'off'`: ESPN's over without a final): its questions are off (void), but its
+  episode has no `gameFinal`, so a one-game pick'em on a postponed game never ends. Whether a postponed game's episode is over, or
+  waits for the game's new date, is L3 part 3b's (postponed, suspended and moved games, on a recorded postponement).
+- **Nothing pushes "results are in" for a sport's episode**: the shows' pushes come from results written (decision-apply.ts), and a
+  sport's results are a read's stamp. The listings job that keeps a final could say it (L6, with the release's jobs).
+- **A side answer's faces are team ids** ("20"): the Prediction Sheet's options for a `side` question need the teams' names and
+  logos from the season's games (U1's, through impeccable).
 
 **L3 part 2b noticed, not fixed:**
 - **The screens' lock badges and times read the episode's own start** (`week.tsx`'s locked badge `hasAired`, `status-plate.ts`'s

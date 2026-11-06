@@ -3079,10 +3079,21 @@ function roundPoints(n){ return Seq.round(n); }
 // result (SpoilerLogic.viewThrough), and a game's span cuts them at its end (spanView). The scoring sequence's step 2 reads them as
 // each holding's moments at the game's table (scored: sequence/stats.js statMoments), so a lineup's starters, a captain, the
 // episode's multiplier and best ball's best n take it from there (ActiveRosterLogic.episodeScore).
-const STAMPED = { episode: ['statLines', 'statBouts'], state: ['statGroups'] };
+// L3 part 2c: a game asking about a sport's games (its final, a stat in it: answers.js sportsVerdict, on the server's facts.games) is
+// stamped too, with each episode whose game is final (`ep.gameFinal`), so its episode has results as a show's does once its game is
+// over (the reveal, the week's results, a viewer's mark, a span's end), and the spoiler view drops it past a viewer's mark.
+const STAMPED = { episode: ['statLines', 'statBouts', 'gameFinal'], state: ['statGroups'] };
+// The settles a sport's game answers (L1 part 4b).
+const SPORTS_SETTLES = ['final', 'stat'];
 class StatsLogic {
   // The game that's played scores by a sport's stats.
   static on(state){ return playedGame(state).score.by === 'stats'; }
+  // L3 part 2c: the game that's played reads a sport's games: scored by their stats, or asking a question one settles (a game of
+  // questions', a draft's own).
+  static reads(state){
+    const g = playedGame(state);
+    return g.score.by === 'stats' || Spec.askOf(g).some(q => q && q.settle && SPORTS_SETTLES.includes(q.settle.by));
+  }
   // An episode's stat lines as its moments at the game's table ([{ castawayId, points }], one per holding that scored), or null
   // before its lines are in.
   static scored(state, ep){
@@ -3101,15 +3112,18 @@ class StatsLogic {
     return Stats.statLine(playedGame(state).score, line, { group: groups[castawayId] || null, bouts: bouts || undefined });
   }
   // The server's stamp, in place: `o.lines` { [episode number]: { castawayId: counts } } (only the league's castaways are kept: no
-  // one else can be held), `o.bouts` the same for a card's bouts, `o.groups` { castawayId: position group }. An episode left out
-  // keeps no lines (its game isn't final for this copy). Returns the state.
+  // one else can be held), `o.bouts` the same for a card's bouts, `o.groups` { castawayId: position group }, `o.finals` the episode
+  // numbers whose game is final (L3 part 2c). An episode left out keeps no lines (its game isn't final for this copy). Returns the
+  // state.
   static stamp(state, o){
     const cast = new Set((state.castaways || []).map(c => c.id));
     const only = rec => Object.fromEntries(Object.entries(rec || {}).filter(([id]) => cast.has(id)));
     StatsLogic.unstamp(state);
     const lines = (o && o.lines) || {};
     const bouts = (o && o.bouts) || {};
+    const finals = new Set((o && o.finals) || []);
     (state.episodes || []).forEach(ep => {
+      if(finals.has(ep.number)) ep.gameFinal = true;
       const at = lines[ep.number];
       if(!at || typeof at !== 'object') return;
       ep.statLines = only(at);
@@ -6968,8 +6982,9 @@ class EpisodeLogic {
   static hasResults(ep){
     return !!ep && (!!ep.noExit || (ep.events||[]).length > 0 || (ep.scoringEvents||[]).length > 0 || (ep.exiled||[]).length > 0
       || (ep.roles||[]).length > 0 || (ep.groups||[]).length > 0
-      // L3 part 2: a game scored by a sport's stats, once its game's lines are in (StatsLogic.stamp).
-      || (!!ep.statLines && typeof ep.statLines === 'object'));
+      // L3 part 2: a game scored by a sport's stats, once its game's lines are in (StatsLogic.stamp); part 2c, any game reading a
+      // sport's, once its game is final.
+      || (!!ep.statLines && typeof ep.statLines === 'object') || ep.gameFinal === true);
   }
   // Nobody went home in this episode (on), or that's taken back (off). Only the season sync's shared
   // "nobody went home" fact sets it (decision-apply.ts).
@@ -8169,8 +8184,8 @@ class SpoilerLogic {
       if(!ids.has(ep.id)) return;
       ep.events = []; ep.scoringEvents = []; ep.exiled = []; ep.roles = []; ep.groups = []; delete ep.formatGroups;
       delete ep.resultsStage; delete ep.noExit;
-      // L3 part 2: a sport's stat lines (StatsLogic.stamp).
-      delete ep.statLines; delete ep.statBouts;
+      // L3 part 2: a sport's stat lines and its game's final (StatsLogic.stamp).
+      delete ep.statLines; delete ep.statBouts; delete ep.gameFinal;
       ep.postMerge = visible ? !!visible.postMerge : false;
       (ep.bets || []).forEach(b => (b.predictions || []).forEach(p => { p.correct = null; }));
       ep.resultsHidden = true;

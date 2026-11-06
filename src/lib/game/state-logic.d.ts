@@ -552,12 +552,15 @@ declare const StateLogic: {
   /** L3 part 2: a game scored by a sport's stats, from the lines the server stamps on the copy it reads (never stored). */
   StatsLogic: {
     on(state: LeagueState): boolean;
+    /** L3 part 2c: the game reads a sport's games (scored by their stats, or asking a question one settles). */
+    reads(state: LeagueState): boolean;
     /** An episode's stat lines as its moments at the game's table, or null before its lines are in. */
     scored(state: LeagueState, ep: Episode | null | undefined): { castawayId: string; points: number }[] | null;
     /** One holding's line in an episode at the game's table (its points and the stats that made them), or null. */
     lineOf(state: LeagueState, ep: Episode | null | undefined, castawayId: string): import("./sequence/stats").Scored | null;
-    /** The server's stamp, in place: each final episode's lines (and a card's bouts) by castaway, the cast's position groups. */
-    stamp(state: LeagueState, o: { lines?: Record<number, Record<string, Record<string, number>>>; bouts?: Record<number, Record<string, import("./sequence/stats").StatBout[]>>; groups?: Record<string, string> }): LeagueState;
+    /** The server's stamp, in place: each final episode's lines (and a card's bouts) by castaway, the cast's position groups, the
+     *  episodes whose game is final (part 2c: ep.gameFinal). */
+    stamp(state: LeagueState, o: { lines?: Record<number, Record<string, Record<string, number>>>; bouts?: Record<number, Record<string, import("./sequence/stats").StatBout[]>>; groups?: Record<string, string>; finals?: number[] }): LeagueState;
     unstamp(state: LeagueState): LeagueState;
     /** The keys a stamp writes (a save leaves them out). */
     stampedKeys(): string[];

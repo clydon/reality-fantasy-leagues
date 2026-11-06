@@ -135,6 +135,11 @@ const ASKS = [
   ["finale-boot", [...FINALE, boot()]],
   ["beat", [boot({ beat: { by: "bot" } })]],
   ["beat-split", [boot({ beat: { by: "bot" }, share: "split" })]],
+  // L3 part 2c: the sports settles (a game's final, a stat in it) and the side answer: the sports defaults' pick'em and pick a few,
+  // and the total over or under.
+  ["sports-pickem", [{ id: "winner", ask: "Who wins?", answer: "side", points: 1, asked: "each", closes: "start", settle: { by: "final", take: "winner" } }]],
+  ["sports-few", [{ id: "few", ask: "Pick three: who has the most points?", answer: "person", pick: 3, from: "cast", points: 3, asked: "each", closes: "start", settle: { by: "stat", stat: "PTS", take: "most" } }]],
+  ["sports-total", [{ id: "total", ask: "Total points: over or under?", answer: "overUnder", line: 220.5, points: 1, asked: "each", closes: "start", settle: { by: "final", take: "total" } }]],
 ];
 /** The asks crossed with every hold, score and rank (the rest go with the games of questions only: below). */
 const EVERYWHERE = ["none", "finale", "boot", "boot-imm", "calls", "finale-boot"];

@@ -168,13 +168,16 @@ export interface Episode {
   airsAt?: string;
   /** A sport's lineup lock (ISO) when the game's spec closes daily or weekly (docs/PLAN-start-a-game-gpt.md L4 part 1a): its
    *  day's or week's first start, from the games' own starts. Stamped by the server (air-times.ts stampSportLocks); the engine's
-   *  lock reads it once its hook does (L4's "For the engine lane"). */
+   *  lock reads it (closedForPlay: L3 part 2b). */
   locksAt?: string;
   /** L3 part 2: a game scored by a sport's stats, its game's lines by castaway once it's final and kept (counts, derived stats
    *  worked out), and on a card each one's bouts: stamped by the server on the copy it reads (sports/score.ts stampStats,
    *  StateLogic.StatsLogic.stamp), never stored; the spoiler view drops them past a viewer's mark. */
   statLines?: Record<string, Record<string, number>>;
   statBouts?: Record<string, import("./sequence/stats").StatBout[]>;
+  /** L3 part 2c: a game reading a sport's games (scored by their stats, or asking a question one settles), once this episode's game
+   *  is final and kept: its results are in. Stamped as statLines are (StateLogic.StatsLogic.stamp), never stored. */
+  gameFinal?: boolean;
   /**
    * Both optional and both filled in only by the wiki connector's eliminations import, which gets them
    * for free off the episode guide. Never overwritten once set, and absent on every hand-created

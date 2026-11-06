@@ -8,6 +8,11 @@
 //   are its starters' stat lines at the table with the captain's doubled, as the phone's scorer gives them; the viewer's copy at
 //   their mark (nothing seen) has no lines and no points; a write (db.ts withLeagueLock: a lineup for the next game) hands back a
 //   stamped state and saves none of the stamp; a show's league is never stamped.
+// L3 part 2c: two games of questions on the same season, the NBA's own pick'em and pick a few (src/lib/sports/defaults), their
+// answers in game_answers: before the final's kept, their episode has no results and nothing's graded; once kept, a read marks the
+// opener's episode final (ep.gameFinal, no lines) and the server grades them on its games (answer-points.ts leagueAnswers,
+// answerStanding: the 76ers won; Maxey's 32 the most), the viewer at their mark (nothing seen) graded on nothing, and the row saved
+// by a write carries no mark.
 // No app server: readyLeague is what GET /api/leagues/[id]/state and season-games.ts read through. Every row it makes is keyed
 // "zt-stats-game" (the show's slug, the league's slug) or provider "zt-espn-stats"; it removes them at the end (--keep leaves
 // them; the next run removes them first). Refuses a non-local database. Prints PASS/FAIL.
@@ -29,6 +34,7 @@ const { readyLeague } = jiti("../../src/lib/server/league-read.ts");
 const { leagueStates } = jiti("../../src/lib/server/league-states.ts");
 const { saveFinals } = jiti("../../src/lib/server/sports/finals.ts");
 const { stampStats } = jiti("../../src/lib/server/sports/score.ts");
+const { leagueAnswers, answerStanding } = jiti("../../src/lib/server/answer-points.ts");
 const { sportOf, storedGame, defaultsFor, specContextOf } = jiti("../../src/lib/sports/index.ts");
 const { statLine, cents } = require("../../src/lib/game/sequence/stats.js");
 const S = require("../../src/lib/game/state-logic.js");
@@ -41,7 +47,7 @@ function check(ok, what, detail = "") {
 }
 
 async function down() {
-  const leagues = await pool.query("DELETE FROM leagues WHERE slug = $1", [SLUG]);
+  const leagues = await pool.query("DELETE FROM leagues WHERE slug = $1 OR slug LIKE $2", [SLUG, `${SLUG}-%`]);
   const shows = await pool.query("DELETE FROM shows WHERE slug = $1", [SLUG]);
   const events = await pool.query("DELETE FROM sports_events WHERE provider = $1", [P]);
   return leagues.rowCount + shows.rowCount + events.rowCount;
@@ -104,6 +110,40 @@ async function down() {
     const read = async () => readyLeague(leagueId, (await leagueStates([leagueId])).get(leagueId));
     const total = (s, who) => S.computeScores(s).find((r) => r.playerId === who).total;
 
+    // L3 part 2c: the NBA's pick'em and pick a few on the same season, each with ann's and bo's answers for the opener.
+    const asking = {};
+    for (const name of ["pickem", "pickAFew"]) {
+      const q = S.defaultState();
+      S.updateSettings(q, "showId", SLUG);
+      S.updateSettings(q, "wikiSeason", 1);
+      q.settings.game = null;
+      for (const id of [...ann, ...bo]) S.addCastaway(q, box.people[id].name);
+      q.players = ["ann", "bo"].map((id) => ({ id, name: id, color: "#000" }));
+      S.updateSettings(q, "setupComplete", true);
+      const wrong = S.setGame(q, defaultsFor("basketball").specs[name].spec, { ctx: specContextOf(nba) });
+      check(wrong.length === 0 && q.settings.game?.score?.by === "answers", `the NBA's ${name} written as a league's own`, JSON.stringify(wrong));
+      for (let n = 1; n <= 2; n++) S.ensureEpisodeNumber(q, n, false);
+      const id = (await pool.query("INSERT INTO leagues (name, slug, join_code, state) VALUES ($1, $2, $3, $4) RETURNING id", [`ZT ${name}`, `${SLUG}-${name.toLowerCase()}`, `ZT${name.slice(-3).toUpperCase()}`, JSON.stringify(q)])).rows[0].id;
+      const cidIn = (athlete) => q.castaways.find((c) => c.name === box.people[athlete].name).id;
+      // The 76ers won; the Cavaliers' and 76ers' top scorers (Maxey and Mitchell tied on 32) are each side's first.
+      const rows = name === "pickem"
+        ? [["ann", "winner", "20"], ["bo", "winner", "5"]]
+        : [["ann", "few", [cidIn(ann[0]), cidIn(bo[0]), cidIn(ann[2])]], ["bo", "few", [cidIn(ann[1]), cidIn(bo[1]), cidIn(bo[2])]]];
+      for (const [who, question, answer] of rows) {
+        await pool.query("INSERT INTO game_answers (league_id, player_id, question, episode, answer) VALUES ($1, $2, $3, 1, $4::jsonb)", [id, who, question, JSON.stringify(answer)]);
+      }
+      asking[name] = id;
+    }
+    const readQ = async (name) => readyLeague(asking[name], (await leagueStates([asking[name]])).get(asking[name]));
+    const graded = async (name, st, mark = null) => {
+      const calls = await leagueAnswers({ leagueId: asking[name], state: st, playerId: "ann", mark });
+      return [calls.right("ann"), calls.right("bo")];
+    };
+    {
+      const q = await readQ("pickem");
+      check(!S.EpisodeLogic.hasResults(q.episodes.find((e) => e.number === 1)) && (await graded("pickem", q)).join() === "0,0", "a game of questions, before the final's kept: no results, nothing graded");
+    }
+
     // Before the final's counts are kept: nothing scored, no results.
     let s = await read();
     check(!s.episodes.some((e) => e.statLines) && total(s, "ann") === 0 && !S.EpisodeLogic.hasResults(s.episodes.find((e) => e.number === 1)), "before the final's kept: no lines, no points, no results");
@@ -128,6 +168,22 @@ async function down() {
     check(!!after.episodes.find((e) => e.number === 1).statLines && total(after, "ann") === annWant, "a write hands back the league stamped (its points as they are)");
     const row = (await pool.query("SELECT state FROM leagues WHERE id = $1", [leagueId])).rows[0].state;
     check(!row.episodes.some((e) => "statLines" in e || "statBouts" in e) && !("statGroups" in row) && row.episodes.find((e) => e.number === 2).lineups?.ann?.length === 2, "the row it saved has the lineup and none of the stamp");
+
+    // L3 part 2c: the games of questions, once the final's kept.
+    for (const [name, want] of [["pickem", "1,0"], ["pickAFew", "6,0"]]) {
+      const q = await readQ(name);
+      const e1 = q.episodes.find((e) => e.number === 1);
+      check(e1.gameFinal === true && !e1.statLines && S.EpisodeLogic.hasResults(e1) && !S.EpisodeLogic.hasResults(q.episodes.find((e) => e.number === 2)), `${name}: a read marks the opener's episode final (no lines); the game still to play has no results`);
+      check((await graded(name, q)).join() === want, `${name}: graded on the kept final as it stands`, (await graded(name, q)).join());
+      check((await graded(name, S.GhostLogic.viewFor(q, "ann", 0), 0)).join() === "0,0" && !S.GhostLogic.viewFor(q, "ann", 0).episodes.some((e) => e.gameFinal), `${name}: the viewer's copy at their mark (nothing seen): no results, nothing graded`);
+      const st = await answerStanding({ leagueId: asking[name], state: q, playerId: "ann", mark: null });
+      check(st.through === 1 && st.right("ann") === Number(want[0]), `${name}: the hub's standing is through the opener`, JSON.stringify({ through: st.through }));
+    }
+    {
+      const after = await withLeagueLock(asking.pickem, () => {});
+      const row = (await pool.query("SELECT state FROM leagues WHERE id = $1", [asking.pickem])).rows[0].state;
+      check(after.episodes.find((e) => e.number === 1).gameFinal === true && !row.episodes.some((e) => "gameFinal" in e), "a write hands back the mark and saves none of it");
+    }
 
     // A show's league is never stamped (nothing asked of the sports tables).
     const plain = S.defaultState();

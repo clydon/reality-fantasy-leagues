@@ -1242,6 +1242,8 @@ function factsThrough(facts, k) {
     seen: Number.isInteger(facts.seen) ? Math.min(facts.seen, k) : k,
     ...(facts.formatGroups ? { formatGroups: upTo(facts.formatGroups) } : {}),
     ...(facts.episodeFacts ? { episodeFacts: upTo(facts.episodeFacts) } : {}),
+    // L3 part 2c: a sport's games, as known through k (a walk's week k never grades a later game's question).
+    ...(facts.games instanceof Map ? { games: upTo(facts.games) } : {}),
   };
 }
 

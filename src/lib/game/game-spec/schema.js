@@ -226,7 +226,9 @@ const VOCAB = {
   'pool.where': { stillIn: 'now', teams: 'sports', group: 'later' },
   'ask.answer': {
     person: 'now', group: 'now', yesNo: 'now', number: 'now', overUnder: 'now', choice: 'now', calls: 'now',
-    order: 'now', confidence: 'now', chips: 'now', split: 'now', pairs: 'now', side: 'sports',
+    order: 'now', confidence: 'now', chips: 'now', split: 'now', pairs: 'now',
+    // L3 part 2c: one of a team game's two sides (the server's faces: sports/score.ts sidesFor), settled by its final.
+    side: 'now',
     // L4 part 2: a draw's winners, round by round (tennis's), before it starts: sequence/bracket.js.
     bracket: 'sports',
     // A13: the episode's trivia, settled by its key (the bot's trivia research).
@@ -235,7 +237,10 @@ const VOCAB = {
     ticket: 'now',
   },
   // A14 part 1: the players' own answers (the answer most of you give, or fewest), as data: the couch never decides what happened.
-  'ask.settle': { results: 'now', moment: 'now', role: 'now', phase: 'now', points: 'now', calls: 'now', trivia: 'now', fact: 'now', players: 'now', legs: 'now', final: 'sports', stat: 'sports' },
+  'ask.settle': { results: 'now', moment: 'now', role: 'now', phase: 'now', points: 'now', calls: 'now', trivia: 'now', fact: 'now', players: 'now', legs: 'now',
+    // L3 part 2c: a sport's game, its final (who wins, the total, the margin) or a stat in it (answers.js sportsVerdict, on the server's
+    // facts.games), its episode's results once it's final (StatsLogic.stamp's gameFinal).
+    final: 'now', stat: 'now' },
   // A14 part 1: a question the players' own answers settle, on a tie for the most (or the fewest): nobody's right (void, no points
   // either way), or each of the tied answers is.
   'ask.settle.tie': { none: 'now', all: 'now' },

@@ -3,12 +3,14 @@
 // stampStats), never stored; the scoring sequence's step 2 reads them as each holding's moments (sequence/stats.js statMoments),
 // so a lineup's starters, a captain, the episode's multiplier, best ball's best n and everyone drafted count them as a show's
 // moments count. On the recorded 76ers opener (tests/fixtures/espn/nba-401909093.json) kept as the server keeps it: each seat's
-// points are the phone's scorer's on the same lines. Run with `npm test`.
+// points are the phone's scorer's on the same lines. Part 2c: a game of questions on the sports settles (each sport's pick'em and
+// pick a few), its episode's results once its game is final (the stamp's ep.gameFinal), graded on the server's facts.games. Run
+// with `npm test`.
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const path = require("path");
 const jiti = require("jiti")(__filename, { alias: { "@": path.join(__dirname, "..", "src") } });
-const { sportOf, defaultsFor, specContextOf, storedGame } = jiti("../src/lib/sports/index.ts");
+const { sportOf, defaultsFor, specContextOf, storedGame, storedFacts, renamed } = jiti("../src/lib/sports/index.ts");
 const { statLine, cents } = require("../src/lib/game/sequence/stats.js");
 const S = require("../src/lib/game/state-logic.js");
 const G = require("../src/lib/game/game-spec/index.js");
@@ -227,4 +229,78 @@ test("a day's or a week's lock: each episode locks at its day's or week's first 
   assert.equal(rule(base({ closes: "weekly" })), "Lineups lock when the week's first game starts, for every game that week. Change yours as often as you like until then.");
   assert.equal(rule(base({ closes: "daily" })), "Lineups lock when the day's first game starts, for every game that day. Change yours as often as you like until then.");
   assert.equal(rule(base()), "Lineups lock when the game starts. Change yours as often as you like until then.");
+});
+
+/** L3 part 2c: a league playing one of the sport's own games of questions (its defaults' pickem or pickAFew), on the six, with
+ *  facts.games as the server reads it: the opener (Episode 1) kept in the league's people, Episode 2 still to play. */
+function questions(name, span = { from: 1, to: null }) {
+  const s = league({ ...defaultsFor("basketball").specs[name].spec, span });
+  s.castaways.forEach((c) => { c.ownerIds = []; });
+  const idOf = (athlete) => s.castaways.find((c) => c.name === box.people[athlete]?.name)?.id ?? `espn:${athlete}`;
+  const games = new Map([
+    [1, storedFacts(nba, renamed(kept, idOf), "final")],
+    [2, { status: "pre", sides: [{ id: "20", score: 0 }, { id: "5", score: 0 }], lines: {}, teams: {} }],
+  ]);
+  const facts = (st) => ({ ...S.AnswerLogic.facts(st), games });
+  return { s, games, facts };
+}
+
+test("a game of questions on a sport's games: pick'em and pick a few play, graded on its games, its episode's results its final", () => {
+  for (const sport of ["basketball", "football", "baseball", "hockey", "soccer", "golf", "racing", "mma", "tennis"]) {
+    for (const [name, d] of Object.entries(defaultsFor(sport).specs)) {
+      if (name !== "pickem" && name !== "pickAFew") continue;
+      assert.deepEqual(G.specWaitsFor(d.spec), [], `${sport}'s ${name} plays now`);
+      assert.equal(G.typeOf(d.spec), "questions");
+    }
+  }
+  const { s, games, facts } = questions("pickem");
+  assert.equal(S.StatsLogic.reads(s), true, "it reads the sport's games");
+  assert.equal(S.StatsLogic.on(s), false, "but isn't scored by their stats");
+  assert.equal(S.StatsLogic.reads(league(LINEUP)), true);
+  assert.equal(S.StatsLogic.reads(S.defaultState()), false, "a show's game reads none");
+  const answers = [{ playerId: "ann", question: "winner", episode: 1, answer: "20" }, { playerId: "bo", question: "winner", episode: 1, answer: "5" },
+    { playerId: "ann", question: "winner", episode: 2, answer: "5" }];
+  // Graded on its games (the 76ers won), whatever the stamp says; the game still to play waits.
+  const g = S.AnswerLogic.grade(s, answers, facts(s));
+  assert.equal(g.points.get("ann"), 1);
+  assert.equal(g.points.get("bo") || 0, 0);
+  assert.equal(g.verdicts.get("winner|2").state, "waiting");
+  // Before the stamp the opener's episode has no results; stamped with its final, it has, and only its own.
+  assert.equal(S.EpisodeLogic.hasResults(ep(s, 1)), false);
+  S.StatsLogic.stamp(s, { finals: [1] });
+  assert.equal(ep(s, 1).gameFinal, true);
+  assert.equal(S.EpisodeLogic.hasResults(ep(s, 1)), true);
+  assert.equal(S.EpisodeLogic.hasResults(ep(s, 2)), false);
+  assert.equal(S.SpoilerLogic.latestWithResults(s), 1);
+  assert.ok(!ep(s, 1).statLines, "no lines for a game of questions");
+  // The spoiler view drops it past a viewer's mark; the stamp comes off whole.
+  const unseen = S.SpoilerLogic.viewThrough(s, 0);
+  assert.equal(unseen.episodes.some((e) => e.gameFinal || S.EpisodeLogic.hasResults(e)), false);
+  assert.ok(S.StatsLogic.stampedKeys().includes("gameFinal"));
+  S.StatsLogic.unstamp(s);
+  assert.equal(ep(s, 1).gameFinal, undefined);
+  // A walk's week k never grades a later game's question.
+  assert.deepEqual([...G.factsThrough({ ...facts(s), games }, 1).games.keys()], [1]);
+});
+
+test("one game's pick'em is over at its final; pick a few on the opener: Maxey and Mitchell tied on 32, both right", () => {
+  const one = questions("pickem", { from: 1, to: 1 });
+  assert.equal(S.gameOver(one.s), false);
+  S.StatsLogic.stamp(one.s, { finals: [1] });
+  assert.equal(S.gameOver(one.s), true, "its one game final: the game is over");
+  assert.equal(S.gameOver(S.SpoilerLogic.viewThrough(one.s, 0)), false, "not for a viewer who hasn't seen it");
+  const { s, facts } = questions("pickAFew");
+  S.StatsLogic.stamp(s, { finals: [1] });
+  const [maxey, mitchell] = ["Tyrese Maxey", "Donovan Mitchell"].map((n) => cid(s, n));
+  const [third, fourth] = s.castaways.map((c) => c.id).filter((id) => id !== maxey && id !== mitchell);
+  const answers = [
+    { playerId: "ann", question: "few", episode: 1, answer: [maxey, mitchell, third] },
+    { playerId: "bo", question: "few", episode: 1, answer: [maxey, third, fourth] },
+  ];
+  const g = S.AnswerLogic.grade(s, answers, facts(s));
+  assert.equal(g.points.get("ann"), 6, "two right, three points each");
+  assert.equal(g.points.get("bo"), 3);
+  // At the viewer's mark the server's games are still to play (leagueGames' mark): nothing graded.
+  const pre = new Map([[1, { status: "pre", sides: [], lines: {}, teams: {} }]]);
+  assert.equal(S.AnswerLogic.grade(S.SpoilerLogic.viewThrough(s, 0), answers, { ...S.AnswerLogic.facts(S.SpoilerLogic.viewThrough(s, 0)), games: pre }).points.get("ann") || 0, 0);
 });

@@ -280,7 +280,9 @@ only for a game that asks one). Since L3 part 2 (the engine's hook, no migration
 read of its league (the league poll's every 15 s included: `sports/score.ts` stampStats), so each server instance keeps the last
 stamp per league and asks Neon only for a 32-byte fingerprint of the season's kept finals and cast on a read (one small query, two
 the first time an instance sees the season), reading the finals themselves (3-7 KB a game kept) only when one more is kept or the
-cast changes. Nothing new is stored; a show's league asks nothing.
+cast changes. Since L3 part 2c a game of questions a sport's game settles (pick'em, pick a few) is stamped the same way, with
+only which episodes' games are final (the same fingerprint query on a read; its grading reads the games as before). Nothing new is
+stored; a show's league asks nothing.
 **A field's and a card's final (track L, L3 part 3, migration 0302; on the `sports` branch, not merged)**, kept the same way: once a
 linked golf tournament, race weekend, tennis event or fight card is final, the server asks the calls the phone's poller makes for
 it, once (`src/lib/server/sports/espn.ts` eventFinal, through `live-event.ts`'s feeds): golf's board and leaderboard (2 calls); a
@@ -695,6 +697,9 @@ never handles it: the user does the reset and the pasting.
   a sport's stats plays, its kept finals' lines stamped on each read of its league (never stored); a 32-byte fingerprint query on
   each read of such a league (the poll's too), the finals read again only when one more is kept (each instance keeps the last
   stamp). No new ESPN call or table; a show's league asks nothing.
+- **2026-11-06, `sports` branch (not merged).** L3 part 2c (no migration): a game of questions on a sport's games (pick'em, pick a
+  few) plays; its league's reads take the same fingerprint query as a stats game's (which episodes' games are final, stamped, never
+  stored). No new ESPN call or table.
 - **2026-11-06, `sports` branch (not merged).** L8 part 1 (docs/PLAN-start-a-game-gpt.md track L; migration 0304): a league's slate,
   a season of a whole league's games, several an episode (`sports_slates`; `season_events` keyed by episode and event; `game_lines`
   by event). Three new kinds of ESPN call: a league's bare scoreboard and its season's types (its calendar, a day), and a month's
