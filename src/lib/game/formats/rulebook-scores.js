@@ -17,6 +17,14 @@
 // and a negative one gains nothing (a rare disaster is no worse than a common one, so the worst week stays under the best). It's fixed when the moment is scored, from the show's history:
 // what actually happened this season never moves a value in play.
 //
+// Outcomes, not moments (the user, 2026-11-05/06): where one moment always brings another with it for the same person in
+// the same episode (the winner reaches the final; immunity means no votes against you), the engine pays both, so the
+// bigger one is priced as its rung MINUS what comes along: the two together are worth the rung, never stacked. The
+// chains come from the rulebook's structure first (chainsOf: a finalist way out the winner reaches too; a safety win at
+// the vote it protects) and from research's `implies` second. The fourth promise follows: everything the winner collects
+// in the last episode is under two of the biggest weekly wins, so a lucky draft of the winner never takes a team from
+// rags to riches (SHARED_RARITY: in a shared league the rarity step counts double, and the promise holds there too).
+//
 // Spoilers (the same day): research reads the whole season, so nothing is missed, and what it adds carries whether the
 // show has done this kind of thing in earlier seasons (anyone who's watched before expects it) and the first episode it
 // applies from. A new-this-season moment past where the reader is (their Where I am mark) is held: not in the rows, the
@@ -33,7 +41,7 @@
 //
 // Plain CommonJS, browser-safe, like everything in formats/.
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see index.js */
-const { OPT, SCHEMA_VERSION, blocksProblems, camelId, partWord } = require('./rulebook-schema.js');
+const { OPT, SCHEMA_VERSION, blocksProblems, camelId, partWord, winsOf } = require('./rulebook-schema.js');
 const { momentsFor } = require('./rulebook-moments.js');
 const { parseRulebookAnswer } = require('./rulebook-research.js');
 const { diffBlocks, opLines } = require('./rulebook-patch.js');
@@ -67,6 +75,8 @@ const RARITY = [
 /** A moment counted per amount (each point, each $1,000) isn't on the ladder: it's scored per unit, a small number. */
 /** The least a rung is worth for rarity to count: earned and up, what one or two people get. */
 const RARITY_FROM = 2;
+/** In a shared league (several teams can hold the same person) the rarity step counts this many times over. */
+const SHARED_RARITY = 2;
 const PER_UNIT = { id: 'perUnit', min: 0.01, max: 2 };
 /** Where what it adds comes from: the show's own repertoire, or this season's. */
 const KNOWN = ['pastSeasons', 'thisSeason'];
@@ -108,7 +118,7 @@ function buildScoresPrompt({ show, season, airing = false, aired = 0, episodeCou
     '',
     'Four rules:',
     "1. No names and no results, anywhere. People read this before they've watched: never name anyone in the cast, and never say what happened in a particular episode. Describe what can happen, not what happened.",
-    "2. Score by the ladder, nothing else. Every moment stands on one rung, chosen by the rung's test; its points are the rung's, plus its rarity step on earned or above. Judge what the moment is and how often the show produces it, never how a season or a person is going: the same moment stands on the same rung with the same rarity today, tomorrow and next season. A moment that isn't something one person did or had done to them (the tip is revealed, a guest complains, the weather turns) stands on nothing, and its why says so: it says nothing about anyone.",
+    "2. Score by the ladder, nothing else. Every moment stands on one rung, chosen by the rung's test; its points are the rung's, plus its rarity step on earned or above. Judge what the moment is and how often the show produces it, never how a season or a person is going: the same moment stands on the same rung with the same rarity today, tomorrow and next season. A moment that isn't something one person did or had done to them (the tip is revealed, a guest complains, the weather turns) stands on nothing, and its why says so: it says nothing about anyone. When a moment always brings another with it for the same person in the same episode (winning the season means reaching the final; winning immunity means no votes against you at that vote), list the other's id in \"implies\": we price the bigger one so the two together are worth its rung, so never lower a rung for that yourself.",
     "3. A missing moment is something a recap reliably reports about one person as yes or no, a count or an amount, in the show's own words (\"Got in a fight\", \"Called out an opponent\", \"Eliminated in a purge\"). Never a judgement call (\"funniest moment\"), never something these moments already cover, never something that can't happen on this show. Up to 12, the most telling first. For each, say whether this kind of moment has happened in earlier seasons of the show (anyone who's watched before would expect it) or is new to this season, and the first episode of this season it could happen in under the show's rules.",
     '4. Anything that doesn\'t fit goes in "leftOut", one sentence each, with no names or results either, each with the first episode it concerns.',
     '',
@@ -140,7 +150,7 @@ function buildScoresPrompt({ show, season, airing = false, aired = 0, episodeCou
     'The shape:',
     '{',
     `  "schema": ${SCHEMA_VERSION},`,
-    '  "scores": { for EVERY moment listed above, by its id: { "rung": "<a rung id>", "rarity": "<a rarity id>", "points": only for perUnit, "why": "one short line: which part of the test it meets" } },',
+    '  "scores": { for EVERY moment listed above, by its id: { "rung": "<a rung id>", "rarity": "<a rarity id>", "points": only for perUnit, "implies": optional, ["<ids of moments this one always brings with it>"], "why": "one short line: which part of the test it meets" } },',
     '  "add": [ what\'s missing: {',
     '    "id", "label": "the way a recap would say it",',
     '    "rung": "<a rung id>", "rarity": "<a rarity id>", "points": only for perUnit, "why": "one short line",',
@@ -216,6 +226,32 @@ function pointsOf(entry) {
   return { problem: `"${entry.rung}" isn't a rung of the ladder` };
 }
 
+/**
+ * What a moment brings with it for the same person in the same episode, from the rulebook's structure:
+ *   - a way out meaning winner brings a finalist way out the winner reaches too (winnerToo);
+ *   - winning a segment that's played for safety brings zero votes at every vote by the cast that sends someone home and
+ *     that the win protects at (the vote it skips, or any when none is named): the winner is there with none against them.
+ * A map of moment id -> the ids it brings. Research's `implies` adds to it, never replaces it.
+ */
+function chainsOf(blocks) {
+  const b = isObj(blocks) ? blocks : {};
+  const out = new Map();
+  const add = (from, to) => {
+    if (from === to) return;
+    if (!out.has(from)) out.set(from, new Set());
+    out.get(from).add(to);
+  };
+  const ways = list(b.waysOut);
+  const finalists = ways.filter((w) => w.means === 'finalist' && w.winnerToo === true);
+  for (const w of ways) if (w.means === 'winner') for (const f of finalists) add(w.id, f.id);
+  const votes = list(b.segments).filter((v) => v.decidedBy === 'vote' && v.voters === 'cast' && v.onTheLine === 'goingHome');
+  for (const s of list(b.segments)) {
+    if (s.onTheLine !== 'safety' || !winsOf(s)) continue;
+    for (const v of votes) if (!v.skippedBy || v.skippedBy === s.id) add(`${s.id}Won`, `${v.id}ZeroVotes`);
+  }
+  return out;
+}
+
 /** Whether someone up to `mark` may see something that first concerns `firstEpisode`: no mark, or the whole season, sees everything. */
 function visibleAt(firstEpisode, mark) {
   if (!Number.isFinite(mark) || mark <= 0) return true;
@@ -242,8 +278,51 @@ function reviewScores(answer, blocks, { castNames = [], mark = null, episodeCoun
   const held = [];
   const drops = [];
   const moments = momentsFor(b);
+  const byId = new Map(moments.map((m) => [m.id, m]));
   const scores = isObj(a.scores) ? a.scores : {};
   const points = isObj(b.points) ? b.points : {};
+  // What each moment brings with it: the structure's chains, plus research's `implies` (ids it knows, never itself).
+  const chains = chainsOf(b);
+  for (const [id, entry] of Object.entries(scores)) {
+    if (!byId.has(id) || !isObj(entry)) continue;
+    for (const other of list(entry.implies)) {
+      if (typeof other !== 'string' || other === id) continue;
+      if (!byId.has(other)) {
+        warnings.push({ at: `scores.${id}.implies`, message: `${byId.get(id).label}: "${other}" isn't one of the rulebook's moments` });
+        continue;
+      }
+      if (!chains.has(id)) chains.set(id, new Set());
+      chains.get(id).add(other);
+    }
+  }
+  // Each scored moment's rung value (the rung plus rarity, or perUnit's own number), before pricing.
+  const scored = new Map();
+  for (const m of moments) {
+    if (done[m.id]) continue;
+    const entry = scores[m.id];
+    if (entry === undefined) continue;
+    const got = pointsOf(entry);
+    if (!got.problem) scored.set(m.id, got);
+  }
+  // Outcome pricing: a moment is worth its rung MINUS what it brings along (priced first), so the two together are worth
+  // the rung. What isn't scored, or is dropped, is worth what it is now; a cycle is cut where it closes.
+  const priced = new Map();
+  const walking = new Set();
+  const dropsAhead = new Set(moments.filter((m) => m.custom && scored.get(m.id)?.rung === 'nothing').map((m) => m.id));
+  const valueOf = (id) => {
+    if (priced.has(id)) return priced.get(id);
+    if (dropsAhead.has(id)) return 0;
+    const got = scored.get(id);
+    if (!got) return pointsNow(byId.get(id)?.defaultPoints ?? 0);
+    if (got.rung === PER_UNIT.id || walking.has(id)) return got.points;
+    walking.add(id);
+    let along = 0;
+    for (const other of chains.get(id) ?? []) along += valueOf(other);
+    walking.delete(id);
+    const v = along > 0 && got.points > 0 ? Math.max(0, Math.round((got.points - along) * 100) / 100) : got.points;
+    priced.set(id, v);
+    return v;
+  };
   for (const m of moments) {
     if (done[m.id]) continue;
     const now = pointsNow(m.defaultPoints);
@@ -267,9 +346,13 @@ function reviewScores(answer, blocks, { castNames = [], mark = null, episodeCoun
       rows.push({ id: m.id, label: m.label, before: now, beforeWord: pointsWord(m.defaultPoints), after: 0, rung: got.rung, rarity: got.rarity, why: got.why, changed: true, drop: true });
       continue;
     }
-    const changed = got.points !== now || (isObj(m.defaultPoints) && m.defaultPoints.shared !== got.points);
-    if (changed) points[m.id] = isObj(m.defaultPoints) ? { exclusive: got.points, shared: got.points } : got.points;
-    rows.push({ id: m.id, label: m.label, before: now, beforeWord: pointsWord(m.defaultPoints), after: got.points, rung: got.rung, rarity: got.rarity, why: got.why, changed, drop: false });
+    const value = valueOf(m.id);
+    const brings = [...(chains.get(m.id) ?? [])].filter((o) => byId.has(o));
+    const outcome = brings.length && value !== got.points ? { outcome: got.points, includes: brings } : {};
+    if (brings.length && got.points > 0 && value === 0) warnings.push({ at: `scores.${m.id}`, message: `${m.label}: its rung is no more than what it brings along (${brings.map((o) => byId.get(o).label).join(', ')}), so it's worth 0 on top` });
+    const changed = value !== now || (isObj(m.defaultPoints) && m.defaultPoints.shared !== value);
+    if (changed) points[m.id] = isObj(m.defaultPoints) ? { exclusive: value, shared: value } : value;
+    rows.push({ id: m.id, label: m.label, before: now, beforeWord: pointsWord(m.defaultPoints), after: value, rung: got.rung, rarity: got.rarity, why: got.why, changed, drop: false, ...outcome });
   }
   for (const id of Object.keys(scores)) if (!moments.some((m) => m.id === id)) warnings.push({ at: `scores.${id}`, message: `"${id}" isn't one of the rulebook's moments` });
 
@@ -373,4 +456,4 @@ function pickScores(blocks, review, declined = []) {
   return b;
 }
 
-module.exports = { LADDER, RARITY, RARITY_FROM, PER_UNIT, KNOWN, buildScoresPrompt, parseScoresAnswer, reviewScores, pickScores };
+module.exports = { LADDER, RARITY, RARITY_FROM, SHARED_RARITY, PER_UNIT, KNOWN, chainsOf, buildScoresPrompt, parseScoresAnswer, reviewScores, pickScores };

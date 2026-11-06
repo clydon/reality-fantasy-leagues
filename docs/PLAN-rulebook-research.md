@@ -77,6 +77,16 @@ fantasy team."
   blocks or the lines, with no trace of it, until they're past that episode; "didn't fit" notes carry a first episode too.
   No mark (or seeing results straight away) holds nothing. The sheet carries one fixed line whatever is held, so its being
   there says nothing. The desk is the one place this applies: the admin plays too.
+- **Outcomes, not moments** (the user, 2026-11-05/06: drafting the winner mustn't take a poor team from rags to riches;
+  "reach the final" and "win" stacked to 11 where a best week is 4 or 5). Where one moment always brings another with it
+  for the same person in the same episode, the engine pays both, so the review prices the bigger one as its rung minus
+  what comes along: the pair is worth the rung. Chains come from the structure first (`chainsOf`: a winner way out brings
+  a finalist way out the winner reaches too; a safety segment's win brings zero votes at the vote by the cast it protects)
+  and from research's `implies` second (the prompt asks for it and says never to lower a rung for it). A row priced this
+  way says so ("3 · 7 in all with Finalist"). **The fourth promise**, tested with the other three in both ownership modes:
+  everything the winner collects in the last episode (the wonSeason rung, finalist and all) is under two of the biggest
+  weekly wins, so a season of ordinary scoring always outweighs the title. `SHARED_RARITY` (2): in a shared league the
+  rarity step counts double; the review doesn't write it yet (step 3).
 - **A moment belongs to one person** (the user, 2026-11-05, Below Deck 13's first research had "the tip is revealed" and
   "a guest complains" as moments): the rulebook prompt says every custom moment is something one cast member did or had
   done to them, with a line for a reality series beside the talk-show and scripted ones. What scores says such a moment

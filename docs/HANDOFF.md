@@ -108,7 +108,10 @@ the row as what they'd change (What scores' as a **pick list**: additions first,
 or decline, Use N changes puts the accepted ones in the draft; Put away). **2026-11-05:** rarity on the ladder (mostEpisodes +0,
 someEpisodes +0.5, onceOrTwice +1, on earned and above only; never from this season's counts); What scores reads the whole season and
 **holds** a new-this-season moment past the admin's own Where I am mark with no trace of it (the desk's one spoiler-safe place: the
-admin plays too), settling a row at a time (0434); Check for changes keeps Up to episode (0433). **Stage two, built the same day:** the
+admin plays too), settling a row at a time (0434); Check for changes keeps Up to episode (0433). **2026-11-06:** outcomes priced, not stacked (a
+winner's rung includes the finalist it reaches, immunity includes the zero votes it brings: `chainsOf` and research's `implies`), and
+the fourth promise tested, the finale under two best weeks, in both ownership modes; next: the shared step written into split values,
+then a unit on per-amount moments (the Below Deck tip scored per dollar), then an advisory "how the scoring is playing" view. **Stage two, built the same day:** the
 commissioner's own What scores in Backstage › Scoring rules on the couch's own copy (`our-scores.ts`; Accept · Adjust · Decline a row, the
 games scored again with Undo; held by their own mark). Check: `check-new-our-scores.js`. **Also the same day:** the Cast tab's story sheet reads by episode, newest first, one line a moment
 with its own points (cast-stats.ts events carry points and units now; DESIGN.md › A castaway's story). Scoring is a **ladder** of eleven rungs with

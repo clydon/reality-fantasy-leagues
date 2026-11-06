@@ -12,6 +12,10 @@ export const LADDER: Rung[];
 export const RARITY: { id: string; bump: number; test: string }[];
 /** The least a rung is worth for rarity to count. */
 export const RARITY_FROM: number;
+/** In a shared league the rarity step counts this many times over. */
+export const SHARED_RARITY: number;
+/** What each moment brings with it (moment id -> the ids it brings), from the rulebook's structure. */
+export function chainsOf(blocks: RulebookBlocks): Map<string, Set<string>>;
 export const PER_UNIT: { id: "perUnit"; min: number; max: number };
 export const KNOWN: ["pastSeasons", "thisSeason"];
 
@@ -30,6 +34,9 @@ export interface ScoresRow {
   changed: boolean;
   /** Added by hand and worth nothing: the review proposes dropping it (accepted: taken out; declined: kept as it is). */
   drop: boolean;
+  /** Priced as an outcome: the rung's total, of which `after` is this moment's share on top of what it brings (`includes`). */
+  outcome?: number;
+  includes?: string[];
 }
 export interface ScoresAdded {
   id: string;

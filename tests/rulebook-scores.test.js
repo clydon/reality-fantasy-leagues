@@ -17,17 +17,23 @@ const wrap = (o) => "Sure, here it is:\n```json\n" + JSON.stringify(o) + "\n```\
 /** Every moment of `blocks` on `rung` at `rarity`, `except` by id. */
 const allOn = (blocks, rung, rarity = "mostEpisodes", except = {}) => Object.fromEntries(momentsFor(blocks).map((m) => [m.id, { rung, rarity, ...(except[m.id] || {}) }]));
 
-test("the ladder keeps the three promises by construction, at every rarity", () => {
+test("the ladder keeps the four promises by construction, at every rarity, in exclusive and shared leagues", () => {
   const p = Object.fromEntries(S.LADDER.map((r) => [r.id, r.points]));
   // Rarity counts from earned up: a small edge is still a small edge, so the promises hold at every rarity.
   assert.ok(p.edge < S.RARITY_FROM && p.earned >= S.RARITY_FROM);
-  for (const { bump } of S.RARITY) {
-    // The week's biggest win beats any two small edges, and an earned plus an edge, at the same rarity.
-    assert.ok(p.wonAlone + bump > p.edge * 2 && p.wonAlone + bump > p.earned + bump + p.edge, `rarity +${bump}`);
+  for (const mode of [1, S.SHARED_RARITY]) {
+    for (const { bump: b } of S.RARITY) {
+      const bump = b * mode;
+      // 1. The week's biggest win beats any two small edges, and an earned plus an edge, at the same rarity.
+      assert.ok(p.wonAlone + bump > p.edge * 2 && p.wonAlone + bump > p.earned + bump + p.edge, `mode ${mode}, rarity +${bump}`);
+      // 4. The outcome is a bonus on a season already earned: everything the winner collects in the last episode (priced as
+      //    the wonSeason rung, finalist and all) is under two of the biggest weekly wins.
+      assert.ok(p.wonSeason + bump < 2 * (p.wonAlone + bump), `mode ${mode}, rarity +${bump}: the finale`);
+    }
   }
-  // What most people get each week stays under what one or two get.
+  // 3. What most people get each week stays under what one or two get.
   assert.ok(p.along < p.earned && p.edge < p.earned);
-  // The worst week (the worst way out, plus a slip; rarity adds nothing to a loss) is under one biggest win.
+  // 2. The worst week (the worst way out, plus a slip; rarity adds nothing to a loss) is under one biggest win.
   assert.ok(Math.abs(p.ownFault + p.slip) < p.wonAlone && Math.abs(p.ownFault + p.slip * 2) <= p.wonAlone);
   // Top to bottom, strictly falling, the season's win on top; rarity's steps rising from 0.
   for (let i = 1; i < S.LADDER.length; i++) assert.ok(S.LADDER[i].points < S.LADDER[i - 1].points, S.LADDER[i].id);
@@ -236,6 +242,43 @@ test("picking: declined rows and additions stay as they are, the rest go in, and
   assert.deepEqual(S.pickScores(blocks, r), r.blocks);
   assert.deepEqual(S.pickScores(blocks, r, [...r.rows.map((x) => x.id), ...r.added.map((x) => x.id)]), blocks);
   assert.deepEqual(blocks, challenge(), "the rulebook given isn't touched");
+});
+
+test("outcomes, not moments: what a moment brings with it is priced inside its rung, from the structure or research's implies", () => {
+  const blocks = survivor();
+  // The structure's chains: the winner reaches the finalist way out; immunity means zero votes at the Tribal it protects.
+  const chains = S.chainsOf(blocks);
+  assert.deepEqual([...chains.get("soleSurvivor")], ["finalist"]);
+  assert.deepEqual([...chains.get("immunityChallengeWon")], ["tribalCouncilZeroVotes"]);
+  assert.equal(S.chainsOf(challenge()).size, 0, "The Challenge: the winner isn't a finalist too, the elimination isn't a vote");
+  const scores = allOn(blocks, "edge");
+  Object.assign(scores, {
+    soleSurvivor: { rung: "wonSeason", rarity: "onceOrTwice" },
+    finalist: { rung: "bigPlay", rarity: "onceOrTwice" },
+    immunityChallengeWon: { rung: "wonAlone", rarity: "mostEpisodes" },
+    tribalCouncilZeroVotes: { rung: "along", rarity: "mostEpisodes" },
+  });
+  const r = S.reviewScores({ schema: 1, scores, add: [] }, blocks);
+  const row = (id) => r.rows.find((x) => x.id === id);
+  assert.deepEqual([row("finalist").after, row("soleSurvivor").after, row("soleSurvivor").outcome, row("soleSurvivor").includes], [4, 3, 7, ["finalist"]], "the winner: 3 on top of the finalist's 4, 7 in all");
+  assert.deepEqual([row("tribalCouncilZeroVotes").after, row("immunityChallengeWon").after, row("immunityChallengeWon").outcome], [0.5, 3.5, 4], "immunity: 3.5 on top of the zero votes it brings, 4 in all");
+  assert.equal(row("finalist").outcome, undefined, "what's brought along is priced as itself");
+  assert.deepEqual(r.blocks.points.soleSurvivor, { exclusive: 3, shared: 3 });
+  assert.match(S.buildScoresPrompt({ show: "Survivor", blocks }), /list the other's id in "implies": we price the bigger one/);
+  // Research's implies adds a chain the structure can't see; an id it doesn't know is a warning; itself is ignored.
+  const more = { ...scores, rewardChallengeWon: { rung: "earned", rarity: "mostEpisodes", implies: ["immunityChallengeSecond", "rewardChallengeWon", "nope"] } };
+  const r2 = S.reviewScores({ schema: 1, scores: more, add: [] }, blocks);
+  const reward = r2.rows.find((x) => x.id === "rewardChallengeWon");
+  assert.deepEqual([reward.after, reward.outcome, reward.includes], [1, 2, ["immunityChallengeSecond"]], "research's chain: 1 on top of the 1 it brings");
+  assert.ok(r2.warnings.some((w) => w.at === "scores.rewardChallengeWon.implies" && /"nope"/.test(w.message)));
+  // A rung no more than what it brings: worth 0 on top, said plainly.
+  const low = { ...scores, soleSurvivor: { rung: "earned", rarity: "mostEpisodes" } };
+  const r3 = S.reviewScores({ schema: 1, scores: low, add: [] }, blocks);
+  assert.equal(r3.rows.find((x) => x.id === "soleSurvivor").after, 0);
+  assert.ok(r3.warnings.some((w) => /Sole Survivor: its rung is no more than what it brings along/.test(w.message)));
+  // Declining the finalist's row keeps the winner's priced value: the pair still lands on the rung.
+  const picked = S.pickScores(blocks, r, ["finalist"]);
+  assert.deepEqual(picked.points.soleSurvivor, { exclusive: 3, shared: 3 });
 });
 
 test("an added-by-hand moment worth nothing is proposed for dropping; accepted it goes, declined it stays", () => {

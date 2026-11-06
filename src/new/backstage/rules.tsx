@@ -781,6 +781,7 @@ function OurScoresSheet({ seasonId, couchId, state, onClose, onPaste, done }: { 
                     <small className="block text-[12px] leading-snug text-muted-foreground">
                       {r.drop ? "Not about one person: drop it, so nobody is asked about it" : r.rung ? words(r.rung) : ""}
                       {!r.drop && r.rarity ? ` · ${words(r.rarity)}` : ""}
+                      {r.outcome !== undefined && r.includes ? ` · ${r.outcome} in all with ${r.includes.map((id) => (a.rows ?? []).find((x) => x.id === id)?.label ?? id).join(", ")}` : ""}
                     </small>
                   </span>
                   <span className="flex-none text-[14px] text-muted-foreground">{pts(r.before)}</span>
