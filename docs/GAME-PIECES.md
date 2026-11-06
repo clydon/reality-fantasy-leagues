@@ -524,12 +524,23 @@ everyone, and every line of it is settled by data:
 episode."
 
 - `from`: `moments`, the show's own moments its list names, drawn in turn: Episode 1 the first `each`, Episode 2 the next, round
-  and round the list (`drawInTurn`: Weekly Calls' rotation, the same function). The bot writing the week's card is C7's later part.
+  and round the list (`drawInTurn`: Weekly Calls' rotation, the same function). Or `bot` (C7 part 2): before each episode the AI
+  ranks the moments for it (could go either way, matters to where the season is; those that can't happen in it last), and the card
+  is the first `each` of its list in that order: "Each episode's card is four of ..., picked by the AI from what's in play that
+  episode. It's out by 12 hours before the episode airs. If the AI hasn't picked by then, it's the next four in turn."
+- `fallback` (a card the bot chooses only): `spec`, the list's next `each` in turn (the default), or `void`, that episode has no
+  card ("nothing scores for it either way"), when the AI hasn't picked by the time the card's out.
 - `each`: its lines each episode, 1 to 12. `of`: the moments it's drawn from, 1 to 40, at least `each`, none twice; each one the
   show's and one research answers (the data-can-settle rule: "Cried is the couch's word: research doesn't answer it, so data can't
   settle it").
-- Nothing is stored: a card drawn from the spec's own list is worked out from the spec and the episode (`cardLines`), so it's the
-  same on every read and never changes once someone's answered it.
+- Nothing is stored for a card in turn: it's worked out from the spec and the episode (`cardLines`), the same on every read. A card
+  the bot chooses (`db/card-research.js`): one ask for the season before each episode (bot research's card run, two days before it
+  airs, three tries, never once the card's out), every game on the season reading the same ranking of their lists together, kept in
+  `card_choices`, checked (each moment one it was asked about, none twice, at least one ranked, the episode the one asked about); the
+  card is out once the AI picks, else 12 hours before the episode airs (`CARD_OUT_HOURS`; at once when its air time isn't known), on
+  its fallback, filed then so it stands. Each league's episodes are stamped with it as the air times are (`episode.cardChoice`), so
+  everything reads it from the league; once out it never changes, so a line answered never changes its moment. Before it's out, its
+  lines wait ("This episode's card isn't out yet. It's out by 12 hours before the episode airs: answer it then.").
 
 Two things read it:
 
@@ -936,9 +947,9 @@ tracker row (`docs/ENGINE-CAPABILITIES.md`, p13 to p25) with the step that bring
 - **Six stages at most**: each week its own round is weeks won (C5), so only a game of seven real stages waits.
 - **A ticket's legs are one window's**: a ticket is built from questions asked when it is, each window its own (a ticket across
   episodes, or a leg that's a pot split, a ranking or a question about each person, isn't built).
-- **A card is the show's moments in turn** (C7): the bot writing the week's card (choosing its moments, or a question research
-  then answers) is C7's later part; a card's lines ride no parlay, life or question about the players' own answers, and a
-  question on it is a game of questions' (not a draft's own).
+- **A card is the show's moments** (C7): in turn, or chosen by the AI before each episode (part 2); the bot writing new questions
+  that research then answers is the custom-moments path, the user's; a card's lines ride no parlay, life or question about the
+  players' own answers, and a question on it is a game of questions' (not a draft's own).
 - **Refused for their own reasons** (not a menu: the sequence wouldn't make them sensible): co-op on a draft (a night needs a
   right or wrong for each of you, which a draft's points don't give), group slots on an Outlast (a group has no place), a pool
   with lives ranked by its points or head to head (its lives knock players out: it ranks by its streak or last one standing), a
@@ -961,7 +972,7 @@ The study of the sequence is in the plan (track C, C1's As built); what's built 
 | C4 | **Ownership per holding** (built): exclusive or shared for the draft, its group slots and each waiver move (a replacement, a swap), so where a replacement comes from: someone on nobody's team, or anyone still in | an exclusive draft with shared replacements (the user's second game, whole); someone two teams hold, each owed a replacement once they're gone home |
 | C5 | **The week as a result** (built): pick 1 to 8 each episode without a draft, scored by what they do; weeks won (each episode a round); only these moments count; hits counted every time, per pick or per objective | the user's third game, whole (tracker row p12, a fixed list of objectives until C7) |
 | C6 | **Money** (built): a bank everyone starts with, every stake drawn from it, one that can run out (`score.bank`); a stake's odds, even money or the pool's (`ask[].odds`); a stake as a line of its own, beside a share, a rollover, a shrink or a parlay (part 1); a ticket a player builds, a staked parlay of the legs they choose, the payout growing with the legs (part 2) | the user's first game (its bank, stakes and tickets; its weekly sheet is C7's); p24 |
-| C7 | **A new card each week** (part 1 built): one generator for each episode's questions or objectives (`card`), the show's moments in turn from the spec's list, read by questions on it (`card: true`, a ticket from its lines) and the moments that count each week (`score.only: 'card'`); written by the bot and checked, the later part | the user's first game (p10: a sheet written each week, staked from a bank, a ticket from its lines) and third (p12: the week's objectives); Weekly Calls' rotation is its draw |
+| C7 | **A new card each week** (built): one generator for each episode's questions or objectives (`card`), the show's moments in turn from the spec's list, or (part 2) chosen by the AI before each episode with a fallback (`from: 'bot'`, `fallback`), read by questions on it (`card: true`, a ticket from its lines) and the moments that count each week (`score.only: 'card'`) | the user's first game (p10: a sheet written each week, staked from a bank, a ticket from its lines) and third (p12: the week's objectives); Weekly Calls' rotation is its draw |
 
 ---
 
@@ -995,13 +1006,13 @@ that players can wager on, more wagers multiply scored earnings."*
   ticket a player builds from the sheet's lines, its payout growing with its legs: built (C6 part 2), a `ticket` question built
   from the sheet's (the spec's own `parlays` take a staked leg too), or the number of wagers multiplying the week (the other
   reading: the lane's default is the ticket). A sheet
-  generated each week: built (C7), a card of the show's moments drawn in turn (`"card": { "from": "moments", "each": 4, "of": [...] }`)
+  generated each week: built (C7), a card of the show's moments the AI picks before each episode (`"card": { "from": "bot", "each": 4, "of": [...] }`, part 2; `"from": "moments"`, in turn)
   and a question on it (`"card": true`, asked for each line, staked from the bank), beside who goes home, a ticket built from them
   all (`"of": ["boot", "sheet"]`).
 - Win: the most units (`total`), or the bank's own end: `out: true`, whoever runs out is out, last one standing (the lane's default:
   a bank at zero plays on).
-- Plays now (tracker row p10, since C7): `{ "get": { "by": "none" }, "score": { "by": "answers", "bank": { "start": 500 } }, "card":
-  { "from": "moments", "each": 4, "of": [eight of the show's moments] }, "ask": [who goes home, { "id": "sheet", "answer": "yesNo",
+- Plays now (tracker row p10, since C7; the AI's card since part 2): `{ "get": { "by": "none" }, "score": { "by": "answers", "bank": { "start": 500 } }, "card":
+  { "from": "bot", "each": 4, "of": [eight of the show's moments] }, "ask": [who goes home, { "id": "sheet", "answer": "yesNo",
   "card": true, "wager": "total", "settle": { "by": "moment", "take": "happened" } }, { "id": "ticket", "answer": "ticket",
   "settle": { "by": "legs", "of": ["boot", "sheet"] } }] }`: "everyone answers five questions before each episode: who goes home
   and whether each of the card's four moments happens".
@@ -1031,7 +1042,7 @@ picks x cast members that they think will achieve as many objectives as possible
 - Act: before each episode. Hold: x people picked fresh each episode, no draft: `get: { by: "pick", each: 3 }` (C5; anyone still
   in, every episode).
 - Score: only the week's objectives count, `score.only: "card"` (since C7: each episode's card, the show's moments in turn from the
-  maker's list; a fixed list, `score.only: [ids]`, still plays), each a hit
+  maker's list, or since part 2 the AI's pick of them; a fixed list, `score.only: [ids]`, still plays), each a hit
   worth a point, `hits`: `pick` (each objective once for each of your picks that hit it: the lane's default), `objective` (once for
   you, however many of your picks hit it) or `every` (every time).
 - Win: the week's winner, the season by weeks won, `rank: { by: "weeks" }` (a tied week: each of them wins it, `ties: "all"`).
@@ -1039,7 +1050,7 @@ picks x cast members that they think will achieve as many objectives as possible
   "only": "card", "hits": "pick" }, "rank": { "by": "weeks" }, "card": { "from": "moments", "each": 5, "of": [ten of the show's
   moments] } }`.
 - Open: the defaults are the user's (hits per pick, a tied week to each of them); who writes each week's objectives (built: the
-  show's moments in turn from the maker's list; the bot choosing them is C7's later part).
+  show's moments in turn from the maker's list, or the AI's pick of them, `"from": "bot"`; the default is the user's).
 
 ---
 

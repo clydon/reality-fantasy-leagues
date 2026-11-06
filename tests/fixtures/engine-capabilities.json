@@ -2539,7 +2539,7 @@
         "count": null,
         "score": { "by": "answers", "bank": { "start": 500 } },
         "rank": { "by": "total" },
-        "card": { "from": "moments", "each": 4, "of": ["idolFound", "idolPlayed", "votesNegated", "wentOnJourney", "learnedOfAdvantage", "advantageTargeted", "rewardWin", "tribeImmunity"] },
+        "card": { "from": "bot", "each": 4, "of": ["idolFound", "idolPlayed", "votesNegated", "wentOnJourney", "learnedOfAdvantage", "advantageTargeted", "rewardWin", "tribeImmunity"] },
         "ask": [
           { "id": "boot", "ask": "Who goes home?", "answer": "person", "points": 0, "asked": "each", "wager": "total", "settle": { "by": "results", "take": "out" } },
           { "id": "sheet", "ask": "This week's sheet", "answer": "yesNo", "points": 0, "asked": "each", "wager": "total", "card": true, "settle": { "by": "moment", "take": "happened" } },
@@ -2552,7 +2552,7 @@
         "score",
         "win"
       ],
-      "note": "the user's first game (2026-11-05, track C), playing since C7: a bank of 500 that stakes are drawn from and payouts go into (C6 part 1: score.bank { start: 500 }, wager 'total' on each line), a prediction sheet written each week (C7: a new card each week, card { from: 'moments', each: 4, of: eight of the show's moments research answers }, drawn in turn as Weekly Calls' moments are, and a question on it, card: true, asked for each of its lines beside who goes home), and more wagers multiplying the week (C6 part 2: a ticket a player builds from the sheet's lines, its payout growing with its legs; p26 is this game with a fixed sheet). The bot writing the week's card (choosing among the show's moments, or a question research then answers) is C7's later part. Open (settings with the lane's defaults, the user's to overrule): a ticket (the default) or the number of wagers placed multiplying the week; even money (the default) or the pool's odds; a bank at zero plays on (the default) or is out."
+      "note": "the user's first game (2026-11-05, track C), playing since C7: a bank of 500 that stakes are drawn from and payouts go into (C6 part 1: score.bank { start: 500 }, wager 'total' on each line), a prediction sheet generated each week (C7: a new card each week, and a question on it, card: true, asked for each of its lines beside who goes home; part 2, card { from: 'bot', each: 4, of: eight of the show's moments research answers }: before each episode the AI ranks them for it, and the card is the first four, out 12 hours before the episode, else the next four in turn), and more wagers multiplying the week (C6 part 2: a ticket a player builds from the sheet's lines, its payout growing with its legs; p26 is this game with a fixed sheet). The other way to generate it, the bot writing new questions research then answers, is the custom-moments path (the user's). Open (settings with the lane's defaults, the user's to overrule): a ticket (the default) or the number of wagers placed multiplying the week; even money (the default) or the pool's odds; a bank at zero plays on (the default) or is out."
     },
     {
       "id": "p11",

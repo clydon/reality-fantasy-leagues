@@ -135,8 +135,10 @@ a staked parlay of the legs a player chooses from the game's questions, the payo
 first game with a fixed sheet): **C6 is done**. C7, a new card each week, is under way, in parts: part 1, a card from the show's
 moments (2026-11-06: `card: { from: 'moments', each, of }`, drawn in turn as Weekly Calls' moments are, read by a question on it,
 `card: true`, one for each line, a ticket built from its lines, and by the moments that count each week, `score.only: 'card'`;
-tracker rows p10 and p12, the user's first and third games), is built; part 2, the bot writing the week's card, is next, then A14's
-later parts, and a stop before A15. The live-sports plan is
+tracker rows p10 and p12, the user's first and third games), is built, and so is part 2, a card the bot chooses (2026-11-06: `card:
+{ from: 'bot', fallback }`, the AI ranking the season's cards' moments before each episode, one ask for the season, kept in
+`card_choices`, migration 0208, stamped on each league's episodes, out by 12 hours before the episode on its fallback; tracker row
+p10): **C7 is done**. A14's later parts are next (2b, the bot's own run, and the rest), then a stop before A15. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5, at
 high since 2026-11-05; C2 at xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: folded in here as track L; its file keeps the details)
 and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track S here).
@@ -6524,6 +6526,89 @@ A14 part 2 and before A14's other parts; every part keeps every golden and blind
     none of them C7's; the Survivor 51 rehearsal (`--scenario=realistic,rough,dst --before=master`): every invariant holds in all
     three scenarios, flag off and on the same, master's engine against this tree's the same (2,856 reads each).
 
+  **As built (C7 part 2, a card the bot chooses, 2026-11-06; not merged).** One session, at high, after part 1 in the same lane day.
+  - **The piece** (schema.js): `card.from: 'bot'` (VOCAB `card.from` `bot`; `card.fallback`: `spec`, the list's next `each` in turn,
+    the default, CARD's, or `void`, that episode has no card; KEYS.card `fallback`; refused on a card in turn, or anything else).
+    Before each episode the AI ranks the moments the season's cards are drawn from (best first: could go either way, matters to where
+    the season is; `cannot`, what the format rules out that episode), and each card is the first `each` of its own list in that order
+    (`rankedLines`: its ranking, then the rest of its list in turn from the episode's place, `turnOf`, which `drawInTurn` now uses
+    too, then what can't happen). `cardLines(card, episode, choice)` reads the episode's choice: its ranking, its fallback
+    (`CARD_FALLBACK`), or null while the card isn't out (its lines wait: `cardWaiting`; `cardMoment` and `onlyAt` take the choice).
+    A line knows its card is the bot's (askOf: `card.by`, `card.fallback`). Data-settled as any card: every moment of `of` one
+    research answers (settleProblems, unchanged).
+  - **Where the choice lives** (the decision: the seed said "the server reads it into the grade's facts, never the state"; the lane
+    stamps it on the state instead, the user's to overrule): `card_choices` (migration 0208, this lane's range; bot_research_runs'
+    kind check every kind before plus `card`, 0204's list read first), keyed on the season and episode, every row kept (`live`,
+    `dropped` with why, and `fallback`). A card's lines aren't private (players answer or pick for them before the episode), and
+    the moments that count each week are scored by the state engine on the server and in the browser (ActiveRosterLogic, the
+    classic screens), which never see the grade's facts: so, as the air times are, each league's episodes are stamped with it
+    (`episode.cardChoice`: `src/lib/server/card-choices.ts` from `stampAirTimes`, on every read and write; `db/card-research.js`
+    `stampChoices`, pure, and `stampLeague`), and the grader reads it from there (`AnswerLogic.facts` → `facts.cardChoices`; an
+    episode with results and nothing stamped reads as its fallback, `cardChoiceAt`). In a write, the write's own client in a
+    savepoint (the code review: the app's pool from inside withLeagueLock could starve). A card from the show's moments reads
+    nothing stamped: its pure path is exactly as it was (the 2,376 shapes reads byte-identical).
+  - **When it's out, and its fallback:** an episode's card is its first decided row (a live choice, or a fallback), oldest first.
+    It's out once the AI picks, or `CARD_OUT_HOURS` (12) before the episode airs by the broadcast's clock (at once when its air time
+    isn't known, or for a league whose season the catalog hasn't: no run can be planned), when the first read files its fallback
+    (status `fallback`, made_by `app`); once out it never changes (the code review: an air date moved would otherwise change a card
+    already answered), and the run never files once it's out. Only the episodes the game plays are stamped (`inPlay`: a game made
+    mid-season files nothing for the episodes before it, which the API check caught). Before it's out, a line's read says it waits
+    (`card: { from, moment: null, label: null, waiting: true }`) and an answer to it is refused (409: "This episode's card isn't out
+    yet. It's out by 12 hours before the episode airs: answer it then."). The week void: its lines off ("The AI didn't pick this
+    episode's card in time: it doesn't count either way"); the objectives that week: none.
+  - **The bot's run** (`db/bot-research.js`: `planCards`, `cardNext`, `cardJob`, slot and kind `card`): not any season's schedule
+    (as tie-breaks and asked results aren't): every season with a game whose card the bot chooses (`cardSeasons`), each episode not
+    yet out and not decided, due two days before it airs (`CARD_BEFORE`) and no sooner than three hours after the one before ends
+    (`CARD_AFTER_PREV`, for its recaps), unless that's too late (back to back: two days before, from what's known then), three
+    tries 20 minutes apart, never once the card's out. It asks about every moment the season's live bot-card games list (one ask,
+    at most 60), checks the answer (`parseCardAnswer`: a JSON object; the episode the one asked about when it says; every id one it
+    was asked about, none twice; an id in both lists in neither; at least one ranked) and files it live or dropped (a dropped answer
+    is a failed try). No second ask: the choice settles nothing (each line is settled by research after the episode), and what it
+    can get wrong that matters, an id or the episode, the parse catches; a wrong ranking only orders the card.
+  - **The prompt** (`buildCardPrompt`, new, a prompt change on this branch only: **the user's to approve at the merge**), proven on
+    the local bot (127.0.0.1:8765 directly, never the app's askBot; the bot idle before each question): Survivor 51 Episode 8 (still
+    to air: the first live test), Survivor 49 Episodes 3 and 10. 3 of 3 live, every one of 12 moments placed once, nothing unknown,
+    19 to 27 seconds each. Episode 8: tribal immunity, fire-making and the jury vote can't happen (right: merged, not the finale),
+    its why naming the first post-merge vote and a pairing twist. Survivor 49 Episode 3: individual immunity, fire-making and the
+    jury vote can't happen (right, before the merge). Episode 10: nothing said can't happen (a miss: tribal immunity couldn't; it
+    ranked it tenth of twelve, so a card of four never drew it). A taped episode lets the AI see what happened (Episode 3's first
+    pick was a medevac, its preview's headline): only a live season tests the "before it airs" honestly.
+  - **Words** (`describe.js` `cardSentence`, through impeccable's clarify): "Each episode's card is four of ..., picked by the AI from
+    what's in play that episode. It's out by 12 hours before the episode airs. If the AI hasn't picked by then, it's the next four in
+    turn." (void: "..., that episode has no card: nothing scores for it either way.")
+  - **The tracker:** p10, the user's first game ("a prediction sheet generated each week"), now the AI's card (`from: 'bot'`, eight
+    moments, four a week); 216 ✅ · 47 ⏳, unchanged.
+  - **The engine** (state-logic.js; the functions changed, for the own-pace merge): `cardChoiceAt` (new, beside `gameOf`),
+    `ActiveRosterLogic.pointsFor` (a bot card's choice for the episode), `AnswerLogic.cardChoices` (new) and `AnswerLogic.facts`
+    (`cardChoices`). Elsewhere: schema.js (above), answers.js (`plainVerdict`: waits, the void's reason), describe.js, index.d.ts,
+    types.ts (`episode.cardChoice`), answers.ts (`cardView`, the refusal), air-times.ts, card-choices.ts (new), db/card-research.js
+    (new, with its .d.ts), db/bot-research.js, the migration.
+  - **Fallbacks for a format change nobody announced:** the AI's choice is made from the format as it stands (its `cannot` reads the
+    phase: Survivor 51's merge), so a change before the episode reaches the card itself; a card out on its fallback is the list in
+    turn, as part 1's; nothing reads a group.
+  - **Proof.** Unit tests: `tests/card-bot.test.js` (seven tests, every number by hand: the ranking, the fallback, waiting; the shape,
+    settings both ways, words; grading a stamped choice, a fallback and waiting, the week void; the objectives by the episode's
+    choice; the prompt and every refusal of the answer's check; the stamp, an air date moved, an unknown air time, a game from
+    Episode 2; when the run is due, weekly, nightly and back to back), part 1's one refusal changed: 1,582 pass. The shapes fixture:
+    q-card-bot and q-card-bot-void (Episode 1 stamped, 2 on its fallback, 3 stamped with what can't happen: ann 5, di 2, cy 1, bo 0;
+    void, ann 3), 36 new reads proven by hand (the fixture's comment); `--diff --ref=HEAD` only them, the 2,376 before byte-identical.
+    `engine-capabilities.js --check` up to date; `game-specs-flag.js check` PASS; `npx tsc --noEmit -p .` clean. Through the API:
+    `check-card-bot.js` (new, reusable, on new-fixture's couch: the lines wait and an answer is refused before the run; the planner
+    has Episode 6's run two days before it airs; `runJob` with a stand-in's answer asks about the card's three moments and files it
+    live; the read's lines in the AI's order; a second choice changes nothing; Episode 6 graded by hand, 2, 1, 0, on the Games tab;
+    the choice stands when the season's clock moves four days; Episode 7 waits, no fallback filed early), ALL PASS; `check-card.js`,
+    `check-money.js`, `check-questions-scoring.js`, `check-questions.js --api`, `check-engine-lab.js --api`, all pass. The blind
+    replays' stand-in (`blind.js standInCard`): each episode's choice before anything's answered, the moments from the list's end,
+    filed an hour before the card was out by the season's clock.
+  - **The code review** (`/code-review` at high, before the commit): ten findings, all taken (seven fixed, three noted). A card out on
+    its fallback could change after it was answered when its air date moved (now its first decided row stands, the fallback filed);
+    an episode with no known air time waited forever (now out at once on its fallback); the stamp read with the app's pool from inside
+    a write's lock (now the write's client, in a savepoint); a cached episode lookup went stale when an episode was added (gone: the
+    lookup is only for a game whose card the bot chooses); back-to-back episodes got no run (now two days ahead); the words said
+    "comes out 12 hours before" though the AI's pick shows sooner ("It's out by"); one rotation for the draw and the ranking
+    (`turnOf`); CARD's type. Noted (Noticed): a waiting line on the screens; the stamp's extra queries on every read; the planner's
+    scan of every league each tick; the desk's Run now and labels for a card run.
+
 The three games (the user, 2026-11-05), each a request in the tracker:
 1. "For show X, have a starting bank of 500 units, have a prediction sheet generated each week that players can wager on,
    more wagers multiply scored earnings." Open: does "more wagers multiply" mean a parlay (picks combined pay more) or that
@@ -7472,8 +7557,49 @@ From R1 part 2 (2026-10-30):
 - **For the hosting notes, at the merge:** `/api/me` (classic's sign-in and every classic load) now sends each league's settings, not its
   whole state (20-40 KB each): less Neon transfer than before. (The main folder: docs/HOSTING.md, with the merge.)
 
+From C7 part 2 (2026-11-06):
+- **The card prompt is the user's to approve at the merge** (8:30 PM note: a prompt change): `db/card-research.js`
+  `buildCardPrompt`, with `card_choices`' shape and the run's timing. Proven on three episodes at the local bot (C7's As built).
+  Recommended: approve as built, then watch Survivor 51's first live runs on the desk's run list. (The user, at the merge.)
+- **Where the choice lives (the lane's call, the user's to overrule):** the seed said the server reads it into the grade's facts,
+  never the state; the lane stamps it on each league's episodes (`episode.cardChoice`) as the air times are, because the moments that
+  count each week are scored by the state engine on the server and in the browser, which never see the grade's facts, and the card
+  isn't private. `card_choices` is what the stamp is read from, on every read and write. Recommended: as built. (The user, at the
+  merge.)
+- **The card's defaults (the lane's, the user's to overrule):** its fallback the list in turn (`spec`, not `void`); out by 12 hours
+  before the episode; the run two days before it (no sooner than three hours after the one before ends); one ask for the season over
+  every bot-card game's list; and what the AI ranks for: "could really go either way and matter to where the season is now". For the
+  user's third game (objectives you pick people to hit), "most likely to happen" may suit better: a `card.by` setting (either way, or
+  likely) would be cheap. Recommended: as built until a game asks otherwise. (The user, with the merge's look.)
+- **The other way the bot writes a card** (new yes-or-no questions it writes before the episode, that research then answers after
+  it) is the custom-moments path (the Decisions table, "Custom moments": a feasibility ask, then research asks it each episode, its
+  reliability bar the user's); not built, and not to be built before the user says. (The user.)
+- **The screens don't know a card the bot chooses** (U1): the read sends a waiting line (`card.waiting`, no moment or label) and its
+  ask is the question's own words, so a sheet before the card's out shows its lines as identical rows whose answers are refused
+  (409, with the reason); nothing shows the AI's why (`card_choices.note`) or that the card is the AI's; Start a game can't make one
+  (the GPT and the engine lab can). (U1, with impeccable.)
+- **The desk doesn't know a card run** (the desk lane, or the main folder with the merge): its runs are bot_research_runs rows (kind
+  and slot `card`) but not any season's schedule, so the desk's rail doesn't list them, a "Run now" of a card is refused (bot-research
+  `KINDS`), and the run list labels it with the bare kind. Recommended: a row on a season's rail when a game on it has a card the bot
+  chooses, and Run now for the next episode, before the card's out. (The desk lane.)
+- **The stamp's and the planner's cost** (a performance pass, or R3): a bot-card game reads its season and its card rows on every
+  `stampAirTimes`, which a read and a write each run two to four times; the planner scans every league's settings for a bot card on
+  every `planRuns` (twice a run, and the cron's look). Fine at today's size (production has six leagues); at hundreds, read the season
+  once in `stampAirTimes` and pass it on, and keep the card seasons in a column or an index. For docs/HOSTING.md at the merge. (The
+  main folder, at the merge; a later performance pass.)
+- **A card the bot chooses on a season that's aired** (a game at your own pace, or one made late): nothing was chosen before those
+  episodes aired unless a game on the season had a bot card then, so every card is its fallback, in turn; the words don't say so.
+  Recommended: Start a game says it, or offers the list in turn, for an aired season. (U0, with the wizard.)
+- **The prompt's one miss:** Survivor 49 Episode 10 said nothing can't happen when tribal immunity couldn't (it ranked it tenth of
+  twelve). The season's phase (F3's format state, the rulebook's phases) could be given in the prompt ("the tribes merged in Episode
+  7"), or `cannot` checked against the phase's moments. Recommended: watch Survivor 51's live runs first. (A small part, when the
+  live runs show misses.)
+- **The blind replays' cards are stand-ins**, never the AI's (the moments from the list's end, an hour before each card was out): the
+  replay proves the plumbing and that every game plays through, not how well the AI picks. A recorded card answer per taped episode
+  (tapes.js `card` kind) would let replays use the AI's own. (The playtest lane, if the user wants the AI's picks judged.)
+
 From C7 part 1 (2026-11-06):
-- **The bot writing the week's card (C7 part 2, the next session):** recommended, the bot chooses the episode's `each` lines from the
+- **The bot writing the week's card (C7 part 2): built** (2026-11-06, as recommended; its As built). Was: recommended, the bot chooses the episode's `each` lines from the
   card's own list before its lock (what's likely to matter that week: a journey coming, idols in play, the phase), stored per
   season and episode in a table of its own (as trivia's batches are, keyed on the season so every game on it reads the same),
   checked (each line one of the card's `of`, none twice, the right count) and read at the lock; its fallback from the start, the
@@ -7484,7 +7610,9 @@ From C7 part 1 (2026-11-06):
 - **A card drawn in turn, no shuffle:** the list's order, from its start at Episode 1 (Weekly Calls' rotation), so a game from
   Episode 6 starts part way round, and a moment that can't happen any more (tribal immunity after the merge) still comes round as
   an easy no. A phase filter (only moments the season's current phase has) or the bot's choice (part 2) would fix it; the lane's
-  default is as built. (C7 part 2, or the user with the merge's look.)
+  default is as built. (C7 part 2, or the user with the merge's look.) **Part 2:** the AI's card puts what the format rules out last
+  (its `cannot`), so a card of the AI's addresses it; a card in turn is as it was (no phase filter: the lane's call, a small part
+  of its own if the user wants one).
 - **The card's defaults (the lane's, the user's to overrule):** its lines from the spec's list in turn; a line that didn't happen
   is a no; who did a moment nobody did is off; a card's lines carry no life, parlay or question about the players' own answers;
   a question on a card is a game of questions' (not a draft's own). Recommended: as built. (The user, with the merge's look.)

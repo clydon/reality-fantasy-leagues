@@ -254,7 +254,7 @@ export interface SpecQuestion {
   pays?: number[];
   /** C7: true, a question on the game's card: asked for each of its lines, each line's moment settling it that episode (askOf makes
    *  them `<id>.1` to `<id>.<each>`). As askOf makes a line: its card's list and lines a week, its line (from 0), the question it's from. */
-  card?: true | { of: string[]; each: number; line: number; from: string };
+  card?: true | { of: string[]; each: number; line: number; from: string; by?: "bot"; fallback?: "spec" | "void" };
   /** A9: split, a pot for each window split between everyone right (by what each would have earned); only, a right answer scores
    *  only when nobody else's does. */
   share?: "split" | "only";
@@ -340,6 +340,8 @@ export interface AnswerFacts {
   /** A13: the trivia key of the round before each episode (the batch written after the one before it), by episode: the server's
    *  (answer-points.ts triviaKeyFor). A round with none has no entry; no map at all, a trivia question waits. */
   trivia?: Map<number, TriviaKeyItem[]>;
+  /** C7 part 2: a card the bot chooses, each episode's choice as the league's stamp has it (AnswerLogic.cardChoices). */
+  cardChoices?: Map<number, CardChoice>;
   /** A13 part 2: what research said of each episode fact, by episode, for each episode whose stored research has the section: the
    *  server's (episode-facts.ts episodeFactsFor). No map at all, a fact question waits. */
   episodeFacts?: Map<number, Record<string, FactOutcome>>;
@@ -467,8 +469,10 @@ export interface GameSpec {
 
 /** C7: a game's card each episode. */
 export interface SpecCard {
-  /** moments: the show's own, the list in turn (Weekly Calls' rotation). */
-  from?: "moments";
+  /** moments: the show's own, the list in turn (Weekly Calls' rotation); bot (part 2): the bot ranks them before each episode. */
+  from?: "moments" | "bot";
+  /** Part 2, a card the bot chooses: an episode it hasn't chosen by the time the card's out plays the list in turn (spec) or is void. */
+  fallback?: "spec" | "void";
   /** Its lines each episode, 1 to MAX_CARD. */
   each: number;
   /** The show's moments it's drawn from, 1 to MAX_ONLY, at least `each`. */
@@ -895,17 +899,31 @@ export function momentsPick(spec: unknown): boolean;
 export function momentWorth(score: { points?: Record<string, number> | null; only?: string[] | "card"; hits?: string }, id: string, dflt: number, at?: string[]): number;
 /** C7: a new card each week. */
 export const MAX_CARD: number;
-export const CARD: { from: "moments" };
+export const CARD: { from: "moments"; fallback: "spec" };
 export const CARD_TAKES: string[];
 export const CARD_ANSWERS: string[];
 export function drawInTurn<T>(list: T[], each: number, episode: number): T[];
-export function cardOf(s: unknown): { from: string; each: number; of: string[] } | null;
-export function cardLines(card: { of: string[]; each: number } | null, episode: number): string[];
+export function cardOf(s: unknown): { from: string; each: number; of: string[]; fallback?: string } | null;
+/** C7: a card's lines for an episode; part 2, a card the bot chooses reads the episode's choice, and is null while it isn't out. */
+export function cardLines(card: { from?: string; of: string[]; each: number; fallback?: string } | null, episode: number, choice?: CardChoice | null): string[] | null;
 export function isCardQuestion(q: unknown): boolean;
 export function isCardLine(q: unknown): boolean;
-export function cardMoment(q: Question, episode: number): string | null;
+export function cardMoment(q: Question, episode: number, choice?: CardChoice | null): string | null;
+/** C7 part 2: whether a line's card isn't out yet at an episode (a card the bot chooses, nothing stamped for it). */
+export function cardWaiting(q: Question, episode: number, choice?: CardChoice | null): boolean;
+/** C7 part 2: a card the bot chooses. */
+export function botCard(card: unknown): boolean;
+/** C7 part 2: `each` of `of` for an episode as the bot ranked the season's moments. */
+export function rankedLines(of: string[], each: number, episode: number, choice: CardChoice): string[];
+/** C7 part 2: how many hours before its episode airs a card the bot chooses is out. */
+export const CARD_OUT_HOURS: number;
+/** C7 part 2: an episode whose card came out without the bot's choice. */
+export const CARD_FALLBACK: CardChoice;
+/** C7 part 2: an episode's stamp for a card the bot chooses (episode.cardChoice): the bot's ranking of the season's moments, or the
+ *  card's fallback once it came out without one. */
+export type CardChoice = { moments?: string[]; cannot?: string[]; fallback?: true };
 export function onlyCard(score: unknown): boolean;
-export function onlyAt(s: unknown, episode?: number): string[] | undefined;
+export function onlyAt(s: unknown, episode?: number, choice?: CardChoice | null): string[] | undefined;
 export function askOf(s: unknown): Question[];
 export function linesAsked(s: unknown): number;
 /** A game of questions: nothing held, scored by its own questions (not Weekly Calls' calls). */

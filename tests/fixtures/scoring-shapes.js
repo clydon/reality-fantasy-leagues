@@ -39,7 +39,9 @@
 // pot, a parlay's staked leg, a bank at the pool's odds, a bank that runs out; part 2, a ticket) likewise, from C6's engine, proven
 // by hand below and in tests/money.test.js; the 2,250 before them stay. C7's (a new card each week: q-card in outsideShapes, a sheet
 // on the card staked from a bank with a ticket from its lines; w-pick-card in weekWonShapes, only the card's moments counting)
-// likewise, from C7's engine, proven by hand below and in tests/card.test.js; the 2,340 before them stay:
+// likewise, from C7's engine, proven by hand below and in tests/card.test.js; the 2,340 before them stay. C7 part 2's (a card the bot
+// chooses: q-card-bot and q-card-bot-void in outsideShapes, each episode's choice stamped on the league as the server stamps it)
+// likewise, from part 2's engine, proven by hand below and in tests/card-bot.test.js; the 2,376 before them stay:
 //   node tests/fixtures/scoring-shapes.js --write [--ref=<git ref>]      the record, from this tree's engine (or the ref's)
 //   node tests/fixtures/scoring-shapes.js --print <shape> <seat|-> <mark|-|all> [--ref=<git ref>]   one read, in full
 //   node tests/fixtures/scoring-shapes.js --diff [<shape>] [--ref=d5222e68]   where this tree's reads part from the ref's (the
@@ -328,6 +330,15 @@ const CARD = {
     "who.2": { 1: { ann: "c4" } },
     cardticket: { 1: { ann: { legs: ["sheet.1", "sheet.2"], stake: 2 }, bo: { legs: ["sheet.1", "sheet.2"], stake: 1 } }, 4: { cy: { legs: ["sheet.1", "sheet.2"], stake: 2 } } },
   },
+  // C7 part 2: the same four moments, chosen by the bot before each episode (the stamps: CARD.CHOICES), a point a line.
+  BOT: { from: "bot", each: 2, of: ["individualImmunity", "idolPlayed", "idolFound", "tribeImmunity"] },
+  BOTSHEET: { id: "botsheet", ask: "This week's sheet", answer: "yesNo", points: 1, asked: "each", card: true, settle: { by: "moment", take: "happened" } },
+  BOTLINES: ["botsheet.1", "botsheet.2"].map((id) => ({ id })),
+  CHOICES: { 1: { moments: ["idolFound", "idolPlayed"], cannot: [] }, 3: { moments: ["individualImmunity"], cannot: ["tribeImmunity"] } },
+  BOTSAID: {
+    "botsheet.1": { 1: { ann: "yes", bo: "no" }, 2: { ann: "no", cy: "yes" }, 3: { ann: "yes", di: "yes" } },
+    "botsheet.2": { 1: { ann: "no", bo: "yes" }, 2: { ann: "no", cy: "no" }, 3: { ann: "yes", di: "no" } },
+  },
 };
 const STAKE = {
   POT: { ...BOOT, id: "stakepot", ask: "Who goes home? Stake up to 5, the pot split", points: 10, wager: 5, share: "split" },
@@ -513,6 +524,14 @@ function outsideShapes() {
     // the idol (2), a ticket of both for 2 (6): 16. With the bank: ann 43, bo 13, cy 37, di 17 (no engine before C7 plays it: its
     // reads are new, proven by hand here and in tests/card.test.js).
     shape("q-card", game([CARD.SHEET, CARD.WHO, CARD.TICKET], { bank: { start: 20 } }, undefined, { card: CARD.CARD }), CARD.LINES, { over: CARD.SAID }),
+    // C7 part 2, a card the bot chooses (a point a line). Episode 1 stamped (an idol found, an idol played): c4 found one, nobody
+    // played one. Episode 2 nothing stamped, its results in: the fallback, the list in turn (an idol found, tribal immunity): neither
+    // happened. Episode 3 stamped (immunity; tribal immunity can't happen): immunity, then the list from its start less tribal
+    // immunity, an idol played: c2 immune, nobody played one. Episode 1: ann yes, no (2), bo no, yes (0). Episode 2: ann no, no (2),
+    // cy yes, no (1). Episode 3: ann yes, yes (1), di yes, no (2). ann 5, bo 0, cy 1, di 2. With the week void instead, Episode 2's
+    // lines are off: ann 3, cy 0 (no engine before C7 part 2 plays them: their reads are new).
+    shape("q-card-bot", game([CARD.BOTSHEET], {}, undefined, { card: CARD.BOT }), CARD.BOTLINES, { over: CARD.BOTSAID, o: { cardChoices: CARD.CHOICES } }),
+    shape("q-card-bot-void", game([CARD.BOTSHEET], {}, undefined, { card: { ...CARD.BOT, fallback: "void" } }), CARD.BOTLINES, { over: CARD.BOTSAID, o: { cardChoices: CARD.CHOICES } }),
     ["calls", { preset: "weekly-calls" }, null, { none: true, outside: { each: 1 } }],
     ["bingo", { preset: "weekly-bingo", score: { by: "lines", points: 2 } }, null, { none: true, outside: { each: 2 } }],
     ["stages-points", stages("points"), null, { none: true, stages: true }],
@@ -666,6 +685,8 @@ function league(S, G, T, spec, own, o = {}) {
     if (CAPTAINS[n]) ep.captains = { ...CAPTAINS[n] };
     ep.bets = (BETS[n] || []).map((b) => JSON.parse(JSON.stringify(b)));
     if (o.early === n) ep.resultsStage = "early";
+    // C7 part 2: a card the bot chooses, its choice for the episode as the server stamps it (card-choices.ts).
+    if (o.cardChoices && o.cardChoices[n]) ep.cardChoice = JSON.parse(JSON.stringify(o.cardChoices[n]));
   }
   s.finalePredictions = FINALE_PICKS.map((f) => JSON.parse(JSON.stringify(f)));
   if (o.stages) s.stageWalk = JSON.parse(JSON.stringify(STAGE_WALK));
