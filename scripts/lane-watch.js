@@ -13,7 +13,8 @@
 //   STEP <lane> | <step> | done <time> | $<cost> | next: <step or none> | log: <path>, then the session's final message
 //        (its hand-off block left out), indented
 //   SHOTS <lane> | <session> | <n> new, then each screenshot's full path, indented
-//   KEEPER <a new line of .session-loop/keeper.log> (its "running" lines left out)
+//   KEEPER <a new line of .session-loop/keeper.log> (its "running" lines left out, and words already said about a lane
+//        since its last step: the keepers repeat them every tick)
 //   STOPPED <lane> | ... a lane whose loop was running and hasn't been for 15 minutes, with why (state.json: waiting for
 //        the user, done, the weekly limit, a step handed off)
 //   TAPES ... the recorder stopped, or its last three questions failed
@@ -162,6 +163,8 @@ function look(state, now) {
     const history = st.history || [];
     // A lane first seen now (a new worktree) starts from now, as the first watch does: its past isn't news.
     const mem = (state.lanes[l.name] ||= { history: history.length, shots: screenshots(l), lastRunningAt: null, stopSaid: false });
+    // A new step: what the keepers say about this lane is news again.
+    if (history.length > mem.history) mem.keeperSaid = [];
     for (const e of history.slice(mem.history)) {
       events.push(
         `STEP ${l.name} | ${e.name} | done ${when(e.at)} | $${Number(e.cost || 0).toFixed(2)} | next: ${st.next?.name || st.pending?.name || "none"} | log: ${path.join(l.dir, e.log || "")}\n` +
@@ -187,7 +190,19 @@ function look(state, now) {
     }
   }
   const kl = keeperLines();
-  for (const line of kl.slice(state.keeperLines)) if (!/:\s+running$/.test(line)) events.push(`KEEPER ${line}`);
+  for (const line of kl.slice(state.keeperLines)) {
+    if (/:\s+running$/.test(line)) continue;
+    // Each keeper logs the same words every tick while a lane stays as it is ("done: nothing handed off", "leaving it"):
+    // said once a lane until its next step.
+    const msg = line.replace(/^[\d/]+, [\d:]+ [AP]M\s+/, "");
+    const mem = state.lanes[msg.split(":")[0]];
+    if (mem) {
+      mem.keeperSaid ||= [];
+      if (mem.keeperSaid.includes(msg)) continue;
+      mem.keeperSaid.push(msg);
+    }
+    events.push(`KEEPER ${line}`);
+  }
   state.keeperLines = kl.length;
   if (procs) {
     if (state.keeperRunning && !procs.keeper) events.push("KEEPER the keeper (lane.js keep) isn't running any more");
