@@ -334,6 +334,27 @@ it doesn't go in the menu.** The audit (checked in the code, 2026-10-30), per ol
   full target first (A5, the capability tracker, then A6–A15), today's games rebuilt on it (R1–R3), the UI last (U0–U1), the
   GPT's words alongside (G1), and live sports folded in as track L. Lanes (worktree + branch + database + port + session loop):
   [PARALLEL-SESSIONS.md](PARALLEL-SESSIONS.md); season tapes and playtests: [PLAN-playtests.md](PLAN-playtests.md).
+- **Merged and pushed 2026-11-05, 9:26 PM: the engine's A13, trivia and episode facts** (`1d4b20a0`, merging the engine's `2a4607dc`;
+  migrations 0204 and 0436, rehearsed on the Neon branch `rehearse-a13-2026-11-05`; the snapshot to roll back to is
+  `pre-a13-2026-11-05`, auto-deleted after 7 days). Part 1: trivia in a game (the round before each episode from the bot's
+  batch written after the episode before, options shuffled the same for everyone; the trivia sheet holds a batch back from
+  a trivia game's players until their round closes, and a batch rewritten after its round closed is added to). Part 2:
+  episode facts, who says the title quote: a section of every show's research (its words approved by the user,
+  2026-11-05), a game's fact question accepted only where research's measured rate on the show is reliable (Survivor
+  today). Part 2b: the facts run, 12 h 30 min after an episode ends, asking only what research wasn't sure of. **The merge
+  found** that 0204 and What scores' 0432 each set desk_runs' kind check with their own list (0204 would have dropped
+  'rulebook' and 'scores'): 0204 now lists every kind, and 0436 sets the full list wherever the files ran in another order.
+  Checked on the merged tree (rfl-merge, branch merge-a13, on origin's What scores commits): unit tests 1303, eslint on the
+  18 changed source files, `next build` with its type-check, `golden.js --before=origin/master` (7 seasons, 160 games,
+  19,361 reads, every one the same), the Survivor 51 rehearsal (`season-forward.js rehearse --scenario=realistic,rough,dst
+  --before=origin/master` from the 2026-10-30 backup: every invariant holds, flag off and on read the same, and the live
+  engine and the merge read every one of 2,856 reads a scenario the same), and the Neon rehearsal (0204
+  and 0436 applied, `[check] all good`, rulebooks backfilled, the game-specs check PASS on all 5 leagues). **Noticed:** the
+  rulebooks check (its flag stays off) now FAILs on 5 leagues' season rulebooks (v2/v3: scores, events, catalog) and on 3
+  seasons (their rulebook isn't the format research reads), where on 2026-10-30 only the test couch's 3 games did: the
+  points changed through What scores, not A13; for What scores' owner. Also in the push: the status plate's test made safe
+  across clock changes, and track C in the plan. **The user's call:** whether Survivor 51's own schedule gets the facts run
+  (the desk's Inbox lists it as missing; the lane recommends a few weeks of it before setting the reliability bar).
 - **Merged and pushed 2026-10-31, 12:31 AM: the engine's A12 (parts 2–4c) and R1 part 3** (`075d193e`, merging the engine's
   `bebf4101`; no migration, so no Neon rehearsal). R1 part 3 is the user's pool finale: only the winner survives it (on a night the
   results record a winner, everyone else in the episode went home, `nightOf`), which changes Survivor 51's Survival Pool on
@@ -431,10 +452,10 @@ it doesn't go in the menu.** The audit (checked in the code, 2026-10-30), per ol
   **Waiting on the user:** restart the main bot (8765) on the new code, then the tapes move back to it and 8766 goes. The
   playtest branch is merged into master (`2c945d31`).
 - **Neon is on Launch** since 2026-10-28 (the user upgraded it at 98.3% of the free transfer; about $5 a month; HOSTING.md).
-- **On branches, not merged:** the engine from A13 on (`engine`: A13 done, A14 parts 1-2 done, part 2b next), track L's live
-  sports (`sports`: L5 done, its next session after the weekly usage reset, Thu 2026-11-05 3 PM ET). **The lanes are held
-  by the usage cap until then** (the user, 2026-10-31: lanes pause at 75% of the week; a probe found 88% on 2026-11-01:
-  [PARALLEL-SESSIONS.md](PARALLEL-SESSIONS.md), "The usage cap"). Waiting on the
+- **On branches, not merged:** the engine from A14 on (`engine`: A14 parts 1-2 built; since 2026-11-05 track C first, then
+  A14's rest), track L's live sports (`sports`: L5 done, restarting after the weekly usage reset). The lanes run at high
+  since 2026-11-05 (the user; C2 at xhigh) under the usage cap ([PARALLEL-SESSIONS.md](PARALLEL-SESSIONS.md), "The usage
+  cap"). Waiting on the
   user: S3 after two matching episodes; which rule a preset meets (open until the engine is complete: the user, 2026-10-30);
   the format-change design session after A12 (A12's Noticed lists); the watch along's concept before A15; and the rule
   questions in the plan's "Where the engine is headed". Decided 2026-10-30 and live: a pool's finale, only the winner

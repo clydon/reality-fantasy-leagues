@@ -1008,3 +1008,9 @@ never handles it: the user does the reset and the pasting.
   (0158; null on every existing row, backed up with the table). The home read selects one more column from the join it
   already makes; one small POST an account when the tour ends (`/api/me/tour`, keepalive), and again only when someone
   replays it from Settings. Its pictures are static files (`public/tour/`, 80 KB), loaded only while it plays.
+- **2026-11-05, pushed to master (`1d4b20a0`, migrations 0204 and 0436).** The engine's A13, trivia and episode facts. **One more
+  bot run per episode; nothing else new polls or is scheduled; no new service, no new table.** Bot research has a `facts`
+  run 12 h 30 min after each episode ends, on seasons that follow our usual schedule (Survivor 51 keeps its own saved one),
+  and it asks the bot (ChatGPT on the VM) only when the episode's stored research wasn't sure of a fact; the answer is
+  filed into that stored research (a few hundred bytes). The trivia sheet's read also checks the player's trivia games (one
+  small query). 0204 and 0436 widen two kind checks; no data moves.
