@@ -6,8 +6,8 @@ and S2 (both parts, 2026-10-28) are built and merged into master** (their As bui
 them next (the user's, in production). **Merged and live in production (2026-10-30):** A1–A11 part 5b with F1–F4 (9:29 AM,
 `df527fe6`, migrations 0200–0202), then A11 part 5c, A12 part 1 and R1 parts 1–2 (2:59 PM, `46b77bba`, migration 0203), and
 **the game-specs flag is on** (R2, 2:39 PM: every league carries its spec), then the rest of A12 (parts 2–4c) and R1 part 3
-(2026-10-31, 12:31 AM, `075d193e`, no migration), then A13 (2026-11-05, 9:26 PM, `1d4b20a0`, migrations 0204 and 0436); later parts (A14
-on) stay on `engine` until the main folder merges them, after each
+(2026-10-31, 12:31 AM, `075d193e`, no migration), then A13 (2026-11-05, 9:26 PM, `1d4b20a0`, migrations 0204 and 0436), then A14 parts 1-2, C1 and C2
+(2026-11-06, 9:33 AM, `e450fcd4`, migrations 0205 and 0206); later parts (C3 on) stay on `engine` until the main folder merges them, after each
 lettered step. A1–A4 are built on `engine` (A4 in two parts: the engine and storage, then the Prediction Sheet's screens, built before
 the screens moved to U1), merged and live since 2026-10-30 (above).
 A5 to A9 built on `engine` (2026-10-28: the tracker and the engine lab; questions about who and about each; time; more
@@ -5066,7 +5066,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
   scorer's twist and a rotating host's questions, and numbers from a vetted outside source (an episode's TVmaze rating), as the parts
   find their boundaries.
 
-  **As built (A14 part 1, the players' own answers and their vote, 2026-10-31, on `engine`, not merged; migration 0205).** One session,
+  **As built (A14 part 1, the players' own answers and their vote, 2026-10-31, on `engine`; merged and live 2026-11-06, `e450fcd4`; migration 0205).** One session,
   after `lane.js sync engine` (nothing new from master; 1235 tests). What the players answer that depends on each other, in two pieces: a
   question the players' own answers settle (match the majority, or the minority), and the players' vote on a format change (A12 part 2's
   `extras.changes.ok 'vote'`, which waited for it). Data settles both: the couch's own answers and votes as data, never what happened on
@@ -5149,7 +5149,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
   - **The Survivor 51 rehearsal** isn't run for this part: no existing game scores differently (none settles by the players or votes;
     golden every read the same).
 
-  **As built (A14 part 2, the bot's call as an opponent, 2026-10-31, on `engine`, not merged; migration 0206).** One session, after
+  **As built (A14 part 2, the bot's call as an opponent, 2026-10-31, on `engine`; merged and live 2026-11-06, `e450fcd4`; migration 0206).** One session, after
   `lane.js sync engine` (nothing new from master; 1247 tests). "Beat the bot" (the dial rows settle.bot and win.bot, the request s35: "the AI
   makes its call too; you score when you're right and it's wrong"), as a piece of a question, in two halves like A13 part 2 and 2b: this part
   is the piece, where the bot's call is kept, how it's graded and read, and its fallback, proven with **stand-in calls**; part 2b is the
@@ -5267,7 +5267,7 @@ A14 part 2 and before A14's other parts; every part keeps every golden and blind
   combiners mapped onto one scoring sequence (hold, score each line, multipliers, combine, the week's result, rank), what each
   becomes in it and what stays as it is; the three games below as tracker rows, with their open questions.
 
-  **As built (C1, 2026-11-05; on `engine`, not merged).** One session; no engine code changed.
+  **As built (C1, 2026-11-05; on `engine`; merged and live 2026-11-06, `e450fcd4`).** One session; no engine code changed.
   - **The pieces guide**, [GAME-PIECES.md](GAME-PIECES.md), for someone thinking up games: the span, the pool, what you hold (a
     draft and its group slots, spread, prices and keepers; a pick; a card; nothing), ownership, what counts, how it scores,
     questions (how you answer × what settles it × its window, and how a question's points combine, with what excludes what
@@ -5374,7 +5374,7 @@ A14 part 2 and before A14's other parts; every part keeps every golden and blind
   the same (golden, blind, the Survivor 51 rehearsal). A spec plays when each piece it names has its place in the sequence,
   not when it matches one of seven shapes; combiners that exclude each other today combine wherever the sequence allows.
 
-  **As built (C2 part 1, the sequence and the drafts, 2026-11-05; on `engine`, not merged; no migration).** One session (xhigh),
+  **As built (C2 part 1, the sequence and the drafts, 2026-11-05; on `engine`; merged and live 2026-11-06, `e450fcd4`; no migration).** One session (xhigh),
   after `lane.js sync engine` (up to date) and `npm run migrate`.
   - **The sequence** (`src/lib/game/sequence/index.js`, types in `index.d.ts`): a pure CommonJS module beside game-spec, which
     `state-logic.js` requires (`Seq`) and the server and the screens can import; the six steps as functions with data in and
@@ -5446,7 +5446,7 @@ A14 part 2 and before A14's other parts; every part keeps every golden and blind
     against any ref, the scorers before C2 by default); two call shapes untested (now in each read); the module's global for a
     plain script missing (defined).
 
-  **As built (C2 part 2, the week's results, 2026-11-05; on `engine`, not merged; no migration).** One session (xhigh), after
+  **As built (C2 part 2, the week's results, 2026-11-05; on `engine`; merged and live 2026-11-06, `e450fcd4`; no migration).** One session (xhigh), after
   `lane.js sync engine` (up to date) and `npm run migrate`.
   - **Step 5 in the sequence** (`src/lib/game/sequence/index.js`, types in `index.d.ts`): what each episode's totals make, pure,
     data in and out, moved out of the walks that had them and deciding exactly as they did: an episode's growth (`grown`); a pool's
@@ -5530,7 +5530,7 @@ A14 part 2 and before A14's other parts; every part keeps every golden and blind
     no show reaches it); the walk run more than once in one read of a game with knockouts, head to head or teams (as before part
     2: Noticed); the one-line wrappers left in state-logic.js (Noticed).
 
-  **As built (C2 part 3, outside the state, 2026-11-06; on `engine`, not merged; no migration).** One session (xhigh), after `lane.js
+  **As built (C2 part 3, outside the state, 2026-11-06; on `engine`; merged and live 2026-11-06, `e450fcd4`; no migration).** One session (xhigh), after `lane.js
   sync engine` (master's own-pace games parts 2 to 3a and their two sync points, What scores and the rulebook research: the
   conflicts in state-logic.js, its d.ts, game-view.ts, bot-logic.js and the own-pace files resolved to master's own-pace code with
   C2's changes kept, every one of master's state-logic.js lines checked in; the plan to the lane's newer Status and master's
@@ -5612,7 +5612,7 @@ A14 part 2 and before A14's other parts; every part keeps every golden and blind
     part 4 composes, as part 2's `add` and `allOut` are); the newest episode's life questions read once more for its waiting check
     (one verdict a question, once a walk); `each = bingo ? pointsPerLine(state) : 1` in three files (as before part 3: Noticed).
 
-  **As built (C2 part 4a, playing by placement and the questions' combinations, 2026-11-06; on `engine`, not merged; no
+  **As built (C2 part 4a, playing by placement and the questions' combinations, 2026-11-06; on `engine`; merged and live 2026-11-06, `e450fcd4`; no
   migration).** One session (xhigh), after `lane.js sync engine` (up to date) and `npm run migrate` (up to date). Part 4 is split:
   4a here (the check by placement, and the combinations a game of questions opens where the sequence's order settles them), 4b (a
   pool's series of totals, so head to head, teams and a handicap on a pool; teams knocked out and a race between teams: step 5 on a
@@ -5713,7 +5713,7 @@ A14 part 2 and before A14's other parts; every part keeps every golden and blind
     a read's); the worth the server sends for a shrinking call that's shared (worth before the share, as a pot's points are: a
     screen's words, Noticed); a parlay leg that pays only the only one right counting as right when you weren't alone (Noticed).
 
-  **As built (C2 part 4b, a pool's series of totals and teams knocked out, 2026-11-06; on `engine`, not merged; no migration).** One
+  **As built (C2 part 4b, a pool's series of totals and teams knocked out, 2026-11-06; on `engine`; merged and live 2026-11-06, `e450fcd4`; no migration).** One
   session (xhigh), after `lane.js sync engine` (up to date) and `npm run migrate` (up to date).
   - **A pool's series of totals** (`PickEmLogic.series`): the shape a draft's (`ScoringLogic.walk`'s series) and a game of questions'
     walk have, `[{ number, quiet, totals }]`, each episode the game plays that the pool has decided (who went home: its early results
@@ -5821,7 +5821,7 @@ A14 part 2 and before A14's other parts; every part keeps every golden and blind
     the knockouts again for the teams (the run handed on); the eligibility's end a second copy of the game's (`KnockoutLogic.endsAt`);
     `TableRow.side` without its `out`; a pool's rank saying only its teams or a handicap read as its streak (now its points). Kept,
     saying so: the pool's screens ranking it by its streak (U1's: Noticed).
-  **As built (C2 part 4c, a draft's own questions, 2026-11-06; on `engine`, not merged; no migration).** One session (xhigh), after
+  **As built (C2 part 4c, a draft's own questions, 2026-11-06; on `engine`; merged and live 2026-11-06, `e450fcd4`; no migration).** One session (xhigh), after
   `lane.js sync engine` (up to date) and `npm run migrate` (up to date). It ends C2: **C2 is done.**
   - **A draft's own questions** (`schema.js`): a draft's questions are its finale predictions, first as Start a game makes them
     (`finaleIn`: its first two, exactly as `finaleQuestions` makes them; `finaleOf` stays the exact pair), then its own

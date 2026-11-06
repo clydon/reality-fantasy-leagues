@@ -343,6 +343,26 @@ it doesn't go in the menu.** The audit (checked in the code, 2026-10-30), per ol
   full target first (A5, the capability tracker, then A6–A15), today's games rebuilt on it (R1–R3), the UI last (U0–U1), the
   GPT's words alongside (G1), and live sports folded in as track L. Lanes (worktree + branch + database + port + session loop):
   [PARALLEL-SESSIONS.md](PARALLEL-SESSIONS.md); season tapes and playtests: [PLAN-playtests.md](PLAN-playtests.md).
+- **Merged and pushed 2026-11-06, 9:33 AM: the engine's A14 parts 1-2, C1 and C2** (`e450fcd4`, merging the engine's `5df8dd49`;
+  migrations 0205 and 0206, rehearsed on the Neon branch `rehearse-c2-2026-11-06`; the snapshot to roll back to is
+  `pre-c2-2026-11-06`, auto-deleted after 7 days). A14 part 1: a question the players' own answers settle (match the
+  majority) and the players' vote on a format change (0205, `stage_change_votes`). A14 part 2: beat the bot, a question
+  played against the bot's own call, hidden until the lock (0206, `bot_calls`; the bot's own run is part 2b, so only
+  stand-in calls exist yet). C1: the pieces guide, [GAME-PIECES.md](GAME-PIECES.md). C2: one scoring sequence (hold, score
+  each line, multipliers, combine, the week's result, rank) under every game, a spec playing when each piece it names has
+  its place rather than matching one of seven shapes; new combinations it opened (a shared shrinking call, a parlay's legs
+  that roll over or shrink, a pool by points, head to head, in teams or with a handicap, a draft's teams knocked out or
+  racing, a draft's own questions) play in the engine and the tracker (209 rows), not yet from a screen. Nothing new
+  reaches players: no route takes a spec from a request, and no preset makes a vote or a bot game. Checked: the lane's
+  long checks on `5df8dd49`, the commit merged, with origin bringing nothing new to the engine's files (golden 19,361 reads
+  the same against master; blind, every game played through on five seasons; the Survivor 51 rehearsal, 2,856 reads the
+  same in all three scenarios), so not run again (the user, 2026-11-06: the long checks once per step); on the merged tree
+  (rfl-merge, branch merge-c2): unit tests 1513, eslint on the changed source files, `next build` with its type-check, and
+  the Neon rehearsal (0205 and 0206 applied, `[check] all good`, rulebooks backfilled, the game-specs check PASS on all 6
+  leagues, and the rulebooks check's expected differences from the built-ins). Also in the push: `check-new-start-game.js`
+  brought up to master (a reality series'
+  cast from our bot; a finished season starts at your own pace), the A13 entry's rulebooks correction, and the session
+  loop's rule for the long checks.
 - **Merged and pushed 2026-11-05, 9:26 PM: the engine's A13, trivia and episode facts** (`1d4b20a0`, merging the engine's `2a4607dc`;
   migrations 0204 and 0436, rehearsed on the Neon branch `rehearse-a13-2026-11-05`; the snapshot to roll back to is
   `pre-a13-2026-11-05`, auto-deleted after 7 days). Part 1: trivia in a game (the round before each episode from the bot's
@@ -462,8 +482,8 @@ it doesn't go in the menu.** The audit (checked in the code, 2026-10-30), per ol
   **Waiting on the user:** restart the main bot (8765) on the new code, then the tapes move back to it and 8766 goes. The
   playtest branch is merged into master (`2c945d31`).
 - **Neon is on Launch** since 2026-10-28 (the user upgraded it at 98.3% of the free transfer; about $5 a month; HOSTING.md).
-- **On branches, not merged:** the engine from A14 on (`engine`: A14 parts 1-2 built; since 2026-11-05 track C first, then
-  A14's rest), track L's live sports (`sports`: L5 done, restarting after the weekly usage reset). The lanes run at high
+- **On branches, not merged:** the engine from C3 on (`engine`: track C's C3 to C7, then A14's rest), track L's live
+  sports (`sports`: L1, L2 and L5 done; L3 next, on C2's sequence). The lanes run at high
   since 2026-11-05 (the user; C2 at xhigh) under the usage cap ([PARALLEL-SESSIONS.md](PARALLEL-SESSIONS.md), "The usage
   cap"). Waiting on the
   user: S3 after two matching episodes; which rule a preset meets (open until the engine is complete: the user, 2026-10-30);
