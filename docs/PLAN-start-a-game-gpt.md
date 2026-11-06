@@ -3444,6 +3444,13 @@ in the placement corpus with the roto refusal kept on the 7 of them ranked roto)
   verdict before to compare; their placement is the hook test's**); game-spec.test.js and sports-categories.test.js say they play.
   GAME-PIECES.md's categories row. 1,836 unit tests pass; `tsc` clean; eslint clean on the src files changed.
 
+- **The long checks, last, on `7365d989` (parts 2c and 2d together; they touch state-logic.js):** `golden.js --before=c89f424f`
+  (part 2b, the code before them): Survivor 49, The Challenge 40 and The Traitors US 4, 74 games, 9,548 reads, every one the same. The
+  Survivor 51 rehearsal (`season-forward.js rehearse --from=../reality-fantasy-leagues/backups/prod-2026-10-30
+  --scenario=realistic,rough,dst --before=c89f424f`): every invariant holds in all three scenarios, flag off and on the same, the
+  engine before against this tree's the same (2,856 reads each). The blind replays (`blind.js run` on each season loaded here): every
+  game played through, Survivor 49 156 of 156, The Challenge 40 115 of 115, The Traitors 4 110 of 110.
+
 **L3 part 2d noticed, not fixed:**
 - **A categories game's table shows a total of 0 for head to head** (its rows' points are a stats table's, and categories have
   none): the record (`r.matchups`) and roto's `r.roto` are what to show; the screens' (U1, through impeccable): a W-L-T record, each
