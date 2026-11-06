@@ -36,6 +36,12 @@ const OPENED = [
   { why: "a game in stages with a stage of a pool ranked by its points", test: (n) => /^stages\|(pool-total\|[^|]+|[^|]+\|pool-total)$/.test(n), to: () => "s--" },
   // Teams of players knocked out by a draft's cuts, or racing (part 4b: the week's result on the teams' totals).
   { why: "a draft's teams knocked out by its cuts, or racing", test: (n) => /^(snake|blind|draw|auction|market)-[^|]+\|[^|]+\|(standing-cut-teams|total-race-teams)\|/.test(n), to: only },
+  // C5: a pick each episode, one or several, cycling or never repeating, scored by what they do, ranked by its points or head to head
+  // (in teams, with a handicap): asking nothing beside it, it plays as a pick's game (a captain is a lineup's: still a problem); with
+  // questions beside it, only they wait (a stage alongside), as beside a pool.
+  { why: "a pick each episode, one or several, scored by what they do", test: (n) => /^pick(-never|-two)?\|moments(-cap|-times)?\|(total|total-teams|total-hc|matchups|matchups-po|matchups-teams|matchups-hc)\|/.test(n),
+    to: (was, n) => (n.endsWith("|none") ? (n.includes("|moments-cap|") ? "pp-" : "p--") : ".-w") },
+  { why: "two picks each episode scored by what they do, ranked a sport's way", test: (n) => /^pick-two\|moments(-times)?\|roto\|/.test(n), to: () => ".-w" },
 ];
 
 test("the placement corpus: every verdict as the seven shapes gave it, but the combinations part 4 opens", () => {
@@ -61,8 +67,11 @@ test("the placement corpus: every verdict as the seven shapes gave it, but the c
   // waits (questions beside a pool or a draft, a count that doesn't fit, a sport's piece). Part 4c's 854 (against part 4b's engine; 35
   // of them part 4b had moved already, so 819 more here): 744 play now (728 drafts asking their own questions, 16 games in stages with
   // a stage of one), and 110 lose only a wait or a problem while something else still holds them back (a count that doesn't fit, a
-  // captain on best ball, a market's own problem, a wager with a share, their cuts or a race).
-  assert.equal(moved.length, 169 + 770 + 819);
+  // captain on best ball, a market's own problem, a wager with a share, their cuts or a race). C5's 225: a pick each episode, one or
+  // two, scored by what they do: 42 play now (asking nothing, ranked by its points or head to head, in teams or with a handicap), 21
+  // a captain still refuses (a lineup's), and 162 lose only a problem while their questions (a stage alongside) or a sport's rank
+  // still wait.
+  assert.equal(moved.length, 169 + 770 + 819 + 225);
   // What plays: 933 before part 4, and every opening that plays now (none played before: each had a problem or a wait).
   assert.ok(moved.every((i) => !C.plays(was[i])));
   assert.equal(now.filter(C.plays).length, 933 + moved.filter((i) => C.plays(now[i])).length);
@@ -83,7 +92,8 @@ test("a piece with no place says which, and why", () => {
   };
   // Step 2: the lines and what they need held, and the questions beside them.
   one({ ...P["weekly-lineup"], count: { all: true } }, "count", "scoring by moments counts a lineup");
-  one({ ...P["survival-pool"], score: { by: "moments", points: null }, rank: { by: "total" } }, "score.by", "a pick each episode scores by staying in .* C5");
+  // C5: a pick each episode scored by what they do plays (it was refused: "picks scored by what they do come with C5").
+  assert.equal(G.typeOf({ ...P["survival-pool"], score: { by: "moments", points: null }, rank: { by: "total" } }), "pickem");
   // C2 part 4c: a draft's own questions play beside it, but not a stake of any of your points (money, C6), beside its cuts or a race,
   // or beside a stock market ranked by its worth.
   assert.deepEqual([G.typeOf({ ...P.outlast, ask: [boot] }), G.typeOf({ ...P["weekly-lineup"], ask: [boot] })], ["classic-draft", "active-roster"]);

@@ -31,8 +31,9 @@
 // Rounding is part of the sequence, exactly where each game has always done it and nowhere else (the study's "What C2 has to
 // keep exactly"; tests/sequence-agree.test.js holds every draft's reads to the scorers' before it):
 //   - an Outlast's places are whole numbers, never rounded; its row's total isn't either (its side bets and finale points are
-//     whole too) unless its own questions are in it (C2 part 4c: their points can be a pot's share, cents); a handicap on it rounds
-//     the total it's added to;
+//     whole too) unless its own questions are in it (C2 part 4c: their points can be a pot's share, cents) or it has a multiplier on
+//     how a holding joined (C3: each line, what a holding earns while held times its factor, rounds as it's multiplied, and so do
+//     their sum and the total); a handicap on it rounds the total it's added to;
 //   - a plain lineup (no captain, best ball, multiplier or group slots) rounds its running total after each moment, with no line
 //     of its own (each moment is its line);
 //   - a lineup that combines rounds each holding's raw points as its moments add up, each line (raw × captain × the episode's
@@ -69,6 +70,62 @@ function heldAt(now, log, playerId, n) {
   }
   return held;
 }
+/**
+ * How each of a seat's holdings joined it (C3, for a multiplier on how a holding joined: factorOf's 'joined'), from the same log
+ * heldAt reads: [{ id, from, to, ended, kind, nth, line }], one a stint (a holding held without a break), oldest first. The team
+ * before any move (`now` with every one of its moves taken back) is the draft's (keepers included): kind 'draft', from null. Each
+ * move's add is a stint of its own, from the move's episode (null: a move from before the game, which stands): kind 'replacement'
+ * (a pickup for someone gone: the log's 'replenish') or 'swap' (for someone still in: 'trade'); a move's drop ends the stint it
+ * let go (`to` its episode, `ended`). `nth`: the stint's place among the seat's moves of its kind, and among all its pickups
+ * (Map-like { replacement, swap, pickup }: 1 the first); `line`: the same counted along the roster slot it fills (the stint it
+ * dropped's, plus this move), so a replacement's replacement is the second on that slot. Held at mark n (heldAt's): from < n
+ * (or from null) and, once ended, n <= to.
+ */
+function stints(now, log, playerId) {
+  const mine = (log || []).filter((tx) => tx.playerId === playerId);
+  const first = new Set(now);
+  for (let i = mine.length - 1; i >= 0; i--) {
+    if (mine[i].addedCastawayId) first.delete(mine[i].addedCastawayId);
+    if (mine[i].droppedCastawayId) first.add(mine[i].droppedCastawayId);
+  }
+  const zero = () => ({ replacement: 0, swap: 0, pickup: 0 });
+  const out = [];
+  const open = new Map();
+  for (const id of first) {
+    const s = { id, from: null, to: null, ended: false, kind: "draft", nth: zero(), line: zero() };
+    out.push(s);
+    open.set(id, s);
+  }
+  const count = zero();
+  for (const tx of mine) {
+    const at = Number.isInteger(tx.episode) ? tx.episode : null;
+    const kind = tx.type === "trade" ? "swap" : "replacement";
+    const gone = tx.droppedCastawayId ? open.get(tx.droppedCastawayId) : null;
+    if (gone) {
+      gone.to = at;
+      gone.ended = true;
+      open.delete(gone.id);
+    }
+    // Only a move that brought someone in counts toward the Nth.
+    if (!tx.addedCastawayId) continue;
+    count[kind]++;
+    count.pickup++;
+    const base = gone ? gone.line : zero();
+    const nth = zero();
+    nth[kind] = count[kind];
+    nth.pickup = count.pickup;
+    const line = { ...base, [kind]: base[kind] + 1, pickup: base.pickup + 1 };
+    const s = { id: tx.addedCastawayId, from: at, to: null, ended: false, kind, nth, line };
+    out.push(s);
+    open.set(s.id, s);
+  }
+  return out;
+}
+/** Whether a stint counts at mark n (an episode's number, or Infinity: now), as heldAt has it. */
+function heldIn(s, n) {
+  if (s.from !== null && n <= s.from) return false;
+  return !s.ended || (s.to !== null && n <= s.to);
+}
 
 // ---- 2. Score each line ----
 
@@ -85,14 +142,45 @@ function placed(placement, mark) {
 function stillIn(mark) {
   return mark.reverse ? mark.size - mark.out : mark.out + 1;
 }
+/**
+ * C3: an Outlast's line as what a holding earns while it's yours, in a game with a multiplier on how a holding joined (the user's
+ * decision, the plan's Decisions table, "A replacement's multiplier"): a stint's (stints) place as a value where it ended (let go,
+ * or mark n, whichever is first) less its value at the mark it joined (a stint from before the game: from nothing), never below 0.
+ * `valueAt(m)`: the castaway's place as a value at mark m (placed, stillIn, or 0 out with no place recorded). So one drafted and
+ * held all along earns its whole place, as without a multiplier; a pickup, the boots it outlasts while yours; someone let go keeps
+ * for you what they earned until then. Whole, until its multiplier (multiply).
+ */
+function earnedWhileHeld(s, n, valueAt) {
+  // Not joined by mark n, or let go before the game.
+  if ((s.from !== null && n <= s.from) || (s.ended && s.to === null)) return 0;
+  const end = s.ended ? Math.min(n, s.to) : n;
+  return Math.max(0, valueAt(end) - (s.from === null ? 0 : valueAt(s.from)));
+}
 
 /**
  * Each holding's moments in one episode (score.by 'moments'): `ids` the holdings that count, in order; `events` the episode's
  * moments in order, each { castawayId, points } (its points by the game's rules, a count's units in them). Map id -> raw: each
  * holding's points added up moment by moment, each sum rounded.
+ * C5: hits counted (score.hits), each moment then an objective hit, worth its `worth` (1, or 0 for one that isn't an objective): 'every'
+ * counts every hit (its points, as without hits); 'pick' each objective once for each holding that hit it, however often; and
+ * 'objective' each objective once for you, however many of your holdings hit it, on the first of `ids` (in order) that did, so
+ * the lines still add up to the total. A moment worth nothing (one the game doesn't count: score.only) is no hit.
  */
-function momentRaw(ids, events) {
+function momentRaw(ids, events, hits) {
   const raw = new Map(ids.map((id) => [id, 0]));
+  if (hits === "pick" || hits === "objective") {
+    const order = new Map(ids.map((id, i) => [id, i]));
+    // Each objective's hit: per holding, or (objective) the holding first in `ids` that did it.
+    const got = new Map();
+    events.forEach((ev) => {
+      if (!raw.has(ev.castawayId) || !ev.worth) return;
+      const key = hits === "pick" ? ev.castawayId + "\u0000" + ev.type : ev.type;
+      const was = got.get(key);
+      if (!was || order.get(ev.castawayId) < order.get(was.castawayId)) got.set(key, ev);
+    });
+    got.forEach((ev) => raw.set(ev.castawayId, round(raw.get(ev.castawayId) + ev.worth)));
+    return raw;
+  }
   events.forEach((ev) => {
     if (raw.has(ev.castawayId)) raw.set(ev.castawayId, round(raw.get(ev.castawayId) + ev.points));
   });
@@ -184,7 +272,58 @@ function counted(n, points) {
   return n * points;
 }
 
-/** A line times each factor that applies to it, left to right (a captain's, then the episode's), rounded. */
+/**
+ * C3: one multiplier piece keyed by a condition. Every multiplier a game has is a factor { on, times, ...its condition } (game-spec
+ * schema.js multipliersOf: a captain's on 'captain', each of score.times on 'when', each of score.multiply on 'joined', each parlay
+ * on 'legs'; a confidence ranking's weights are on 'rank', its answer's own), and a line's `facts` say which hold:
+ *   captain  facts.captain, the line is the captain's;
+ *   when     facts.episode in its window (inWindow): an episode, a run (from, to), a phase (facts.phase(id)), the finale (facts.finale());
+ *   joined   facts.stint, how the holding joined (stints), is of the kind it names (joinedTimes);
+ *   legs     facts.legs, every leg of the parlay right;
+ *   rank     facts.rank, the weight itself (a confidence ranking's place from the bottom).
+ * The factor's times when its condition holds, else 1 (a factor of 1 changes no line: x × 1 is x exactly).
+ */
+function factorOf(f, facts) {
+  switch (f.on) {
+    case "captain": return facts.captain ? f.times : 1;
+    case "when": return inWindow(f, facts) ? f.times : 1;
+    case "joined": return joinedTimes(f, facts.stint);
+    case "legs": return facts.legs ? f.times : 1;
+    case "rank": return Number.isFinite(facts.rank) ? facts.rank : 1;
+    default: return 1;
+  }
+}
+/** Whether an episode (facts.episode) is in a 'when' factor's window: its episode, its run (to null or left out: the season's end),
+ *  its phase (facts.phase(id), as the data has it), or the finale (facts.finale(): the episode that ended the season, or null). */
+function inWindow(t, facts) {
+  const n = facts.episode;
+  if (Number.isInteger(t.episode)) return n === t.episode;
+  if (Number.isInteger(t.from)) return n >= t.from && (t.to === undefined || t.to === null || n <= t.to);
+  if (typeof t.phase === "string") return !!facts.phase && facts.phase(t.phase);
+  if (t.finale === true) return !!facts.finale && n === facts.finale();
+  return false;
+}
+/**
+ * A 'joined' factor's times for a stint (stints): 1 unless the stint joined the way it names (draft: drafted or kept; pickup: any
+ * move; replacement: a pickup for someone gone; swap: for someone still in). Its `times` a number, or a list for the Nth of its
+ * kind: per team (the stint's nth, the seat's Nth such move) or per slot (its line, the Nth along the roster slot it fills); past
+ * the list, the last again (then 'repeat', the default) or on by the list's last step (then 'ratio': [0.5, 0.25] goes on 0.125).
+ */
+function joinedTimes(f, s) {
+  if (!s) return 1;
+  const k = f.joined;
+  if (k === "draft" ? s.kind !== "draft" : k === "pickup" ? s.kind === "draft" : s.kind !== k) return 1;
+  if (!Array.isArray(f.times)) return f.times;
+  const n = (f.per === "slot" ? s.line : s.nth)[k] || 1;
+  const list = f.times;
+  if (n <= list.length) return list[n - 1];
+  const last = list[list.length - 1];
+  if (f.then !== "ratio") return last;
+  const step = list.length > 1 ? last / list[list.length - 2] : last;
+  return last * Math.pow(step, n - list.length);
+}
+
+/** A line times each factor that applies to it, left to right (a captain's, then the episode's, then how it joined), rounded. */
 function multiply(raw, factors) {
   let x = raw;
   for (const f of factors) x = x * f;
@@ -621,6 +760,38 @@ function matchups(series, o) {
   return out;
 }
 
+/**
+ * A week's winner (C5: rank.by 'weeks'), each episode on the sides' series of totals (`series`, as matchups reads it): whoever of
+ * those in it then (`o.seatsAt(k)`) added the most that episode wins the week (less lost, where points can be lost); ties as `o.ties` says (all: each tied wins it; split:
+ * a share of one each; none: nobody does); a week nobody in it scored anything is won by nobody; nothing after the season's finale
+ * (`o.finale`) counts. Returns { weeks: [{ number, winners, top }], won: Map id -> weeks won (a split's shares rounded), points: Map
+ * id -> what they scored in the weeks they were in it }.
+ */
+function weeks(series, o) {
+  const won = new Map();
+  const points = new Map();
+  const out = [];
+  let before = null;
+  for (const x of series) {
+    const k = x.number;
+    const was = before;
+    before = x;
+    if (o.finale !== null && o.finale !== undefined && k > o.finale) continue;
+    const seats = o.seatsAt(k);
+    const pts = new Map(seats.map((id) => [id, grown(x.totals, was ? was.totals : null, id)]));
+    seats.forEach((id) => points.set(id, round((points.get(id) || 0) + pts.get(id))));
+    const top = seats.length ? Math.max(...seats.map((id) => pts.get(id))) : 0;
+    let winners = seats.some((id) => pts.get(id)) ? seats.filter((id) => pts.get(id) === top) : [];
+    if (winners.length > 1 && o.ties === "none") winners = [];
+    const share = o.ties === "split" && winners.length ? 1 / winners.length : 1;
+    // A split's shares add up unrounded (three thirds make a whole week), rounded once at the end.
+    winners.forEach((id) => won.set(id, (won.get(id) || 0) + share));
+    out.push({ number: k, winners, top });
+  }
+  won.forEach((n, id) => won.set(id, round(n)));
+  return { weeks: out, won, points };
+}
+
 // Teams of players (rank.teams) and co-op (rank.by 'coop').
 
 /** One episode added to each team's points (`run`, Map team -> points): its members' growth then (`grown`, Map team -> [points],
@@ -709,8 +880,11 @@ function recordKey(m) {
 const api = {
   round,
   heldAt,
+  stints,
+  heldIn,
   placed,
   stillIn,
+  earnedWhileHeld,
   momentRaw,
   groupRaw,
   betLines,
@@ -720,6 +894,9 @@ const api = {
   carry,
   tally,
   counted,
+  factorOf,
+  inWindow,
+  joinedTimes,
   multiply,
   best,
   episodeTotal,
@@ -746,6 +923,7 @@ const api = {
   median,
   bracket,
   matchups,
+  weeks,
   teamStep,
   saved,
   coop,

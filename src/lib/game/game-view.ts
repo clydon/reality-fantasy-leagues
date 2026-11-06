@@ -378,7 +378,9 @@ export function poolTop(rows: TableRow[]): TableRow[] {
  *  table); none read, none counted. */
 export function tableOf(view: LeagueState, me: string, userOf: UserOf, right: (playerId: string) => number = () => 0): TableRow[] {
   const pieces = StateLogic.piecesOf(view);
-  const pool = pieces.hasWeeklyPicks;
+  // C5: a pick scored by what they do has a week as a lineup does (its picks' points that episode), not a pool's.
+  const byMoments = !!pieces.hasWeeklyPicks && StateLogic.PickEmLogic.byMoments(view);
+  const pool = pieces.hasWeeklyPicks && !byMoments;
   // Weekly Calls, Weekly Bingo and a game of questions (A4) rank by what `right` counts: calls, lines, points.
   const callsGame = !!pieces.hasCalls || !!pieces.hasBingo || !!pieces.hasQuestions;
   const calls = StateLogic.pickEmCallsOn(view) || callsGame;
@@ -406,11 +408,11 @@ export function tableOf(view: LeagueState, me: string, userOf: UserOf, right: (p
   // Step A11 part 5b: a handicap's points on each row (read once a table).
   const handicapOn = StateLogic.HandicapLogic.on(view);
   // Best ball (step A9 part 2) has a week as a lineup does; its "last" is who counted, as it has no lineups.
-  const lastEp = pieces.hasActiveRoster || pieces.hasBestBall ? latestScoredEpisode(view) : null;
+  const lastEp = pieces.hasActiveRoster || pieces.hasBestBall || byMoments ? latestScoredEpisode(view) : null;
   const lastOf = (playerId: string) =>
     !lastEp
       ? []
-      : pieces.hasBestBall
+      : pieces.hasBestBall || byMoments
         ? StateLogic.ActiveRosterLogic.episodeScore(view, lastEp, playerId).lines.filter((l) => l.counted).map((l) => l.castawayId)
         : StateLogic.activeRosterLineupFor(view, lastEp.id, playerId);
   return rows.map((r, i) => {
@@ -425,7 +427,7 @@ export function tableOf(view: LeagueState, me: string, userOf: UserOf, right: (p
       rank: `${tied ? "T" : ""}${first + 1}`,
       place: first + 1,
       total: callsGame ? right(r.playerId) : streak ? (r.longestStreak ?? 0) : worth ? (r.worth ?? 0) : r.total,
-      week: streak ? (r.currentStreak ?? 0) : pool ? poolWeek(r.playerId) : lastEp ? teamEpisodeBreakdown(view, lastEp.id, r.playerId).total : null,
+      week: streak ? (r.currentStreak ?? 0) : pool ? poolWeek(r.playerId) : lastEp ? (byMoments ? StateLogic.ActiveRosterLogic.episodeScore(view, lastEp, r.playerId).total : teamEpisodeBreakdown(view, lastEp.id, r.playerId).total) : null,
       points: r.total,
       team: pieces.hasRoster ? teamOrder(r.roster).map((c) => c.id) : [],
       last: lastOf(r.playerId),

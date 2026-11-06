@@ -44,9 +44,15 @@
 //   score    { by: 'moments', points, captain?, times? } (points: moment id -> points over the rulebook's own; null = its
 //            own. A9 part 2: captain { times }, a lineup's captain, one of your starters you name each episode, whose points
 //            multiply; times [{ times, episode | from (to) | phase | finale }], an episode, a run of them, a phase of the
-//            season or its finale whose points multiply: "double in the finale", "the first three count triple")
-//            | { by: 'place', reverse? } (Outlast: 1, plus 1 for every boot outlasted; A9 part 2's reverse: true, the
-//            earlier they go home the more, 1 plus 1 for everyone who outlasts them) | { by: 'survive', means: staysIn | scores,
+//            season or its finale whose points multiply: "double in the finale", "the first three count triple"; C3's
+//            multiply [{ times, joined, then?, per? }], a draft's (a lineup, best ball or an Outlast) multiplier on how a holding
+//            joined your team: drafted, a pickup, a replacement (for someone gone) or a swap (for someone still in), times a
+//            number, or a list for the Nth (per team or per slot; past the list the last again, or on by its last step), on
+//            what each one earns while it's yours: "replacements score half, the second a quarter")
+//            | { by: 'place', reverse?, multiply? } (Outlast: 1, plus 1 for every boot outlasted; A9 part 2's reverse: true, the
+//            earlier they go home the more, 1 plus 1 for everyone who outlasts them; C3's multiply as a lineup's, an Outlast's
+//            lines then what each holding earns while it's yours: its place where it was let go, or now, less its place when
+//            it joined) | { by: 'survive', means: staysIn | scores,
 //            points, lives?, buyback?, mulligans? } (Survival Pool. A10 part 2: lives n, a wrong pick (or none) costs one and at
 //            none you're out, no more picks; buyback { times, before: { phase } | { episode } | null, cost }, someone out in an
 //            episode before then is back in from the next with one life, `cost` points off their total, `times` in a game;
@@ -179,7 +185,8 @@ const VOCAB = {
   'get.by': { draft: 'now', pick: 'now', card: 'now', none: 'now', squares: 'sports' },
   'get.order': { snake: 'now', blind: 'now', draw: 'now', auction: 'now' },
   'get.own': { exclusive: 'now', shared: 'now' },
-  'get.repeat': { cycle: 'now', never: 'now' },
+  // C5: a pick that repeats freely (anyone still in, every episode): a pick of several scored by what they do, or a pool.
+  'get.repeat': { cycle: 'now', never: 'now', any: 'now' },
   // A11 part 2: a pick that never repeats, on a night you've picked everyone still in: a missed pick, or nothing that night.
   'get.fallback': { miss: 'now', skip: 'now' },
   count: { start: 'now', all: 'now', pick: 'now', best: 'now' },
@@ -189,7 +196,13 @@ const VOCAB = {
   // A11 part 3: co-op, the couch against the show (a game of questions whose lives are everyone's together: won or lost by all).
   // A11 part 4: head to head (matchups), a draft's on a show (each episode's points against someone's, with playoffs); L4 brings it
   // to sports (their stats score it).
-  'rank.by': { total: 'now', streak: 'now', standing: 'now', worth: 'now', coop: 'now', matchups: 'now', categories: 'sports', roto: 'sports' },
+  // C5: weeks won (each episode's most points wins it; the season by weeks won, then the points), wherever head to head plays.
+  'rank.by': { total: 'now', streak: 'now', standing: 'now', worth: 'now', coop: 'now', matchups: 'now', weeks: 'now', categories: 'sports', roto: 'sports' },
+  // C5: a week two or more top: each of them wins it, they share one, or nobody does.
+  'rank.ties': { all: 'now', split: 'now', none: 'now' },
+  // C5: a game scored by moments counting hits (each moment an objective, worth 1: momentWorth): every hit, each objective once
+  // for each holding that hit it, or each objective once for you however many of yours hit it.
+  'score.hits': { every: 'now', pick: 'now', objective: 'now' },
   closes: { start: 'now', daily: 'sports', weekly: 'sports' },
   'pool.where': { stillIn: 'now', teams: 'sports', group: 'later' },
   'ask.answer': {
@@ -220,11 +233,24 @@ const VOCAB = {
   'ask.fallback': { void: 'now', 'carry-on': 'now', 'next-stage': 'now' },
   // A9 part 2: when a draft's points multiply (score.times): an episode, a run of them, a phase of the season, its finale.
   'score.times': { episode: 'now', from: 'now', phase: 'now', finale: 'now' },
+  // C3: one multiplier piece keyed by a condition (multipliersOf): a captain (score.captain), when (score.times), how a holding
+  // joined (score.multiply), a parlay's legs (score.parlays), a confidence ranking's place (its answer's own weight). A streak
+  // (a pool's points growing with it) and when a holding was picked (a draft's round) are later.
+  'multiply.on': { captain: 'now', when: 'now', joined: 'now', legs: 'now', rank: 'now', streak: 'later', picked: 'later' },
+  // C3: how a holding joined (score.multiply's joined): drafted (or kept), any pickup, a replacement (a pickup for someone gone)
+  // or a swap (for someone still in); a list's Nth counted per team (your Nth such move) or per slot (the Nth along the roster
+  // slot it fills); past the list, the last again or on by the list's last step.
+  'score.multiply.joined': { draft: 'now', pickup: 'now', replacement: 'now', swap: 'now' },
+  'score.multiply.per': { team: 'now', slot: 'now' },
+  'score.multiply.then': { repeat: 'now', ratio: 'now' },
   // A10 part 1: group slots (get.groups), a draft's +1 or +2 slot that holds a pair or a team the show forms, read from the
   // format's state over time: whether two people can hold the same group, what a slot does when the groups at its lock or as
   // the episode was played aren't sure (void that episode for the slot, or follow the people), and how a group's points are
   // its members' (their mean: the slot scores like one more person; or their sum).
   'get.groups.own': { shared: 'now', exclusive: 'now' },
+  // C4: ownership per holding. Whom a waiver move brings in (extras.waivers.own: { replace, swap }, each left out the draft's
+  // get.own): exclusive, only someone on nobody's team (a free agent); shared, anyone still in who isn't yours already.
+  'extras.waivers.own': { exclusive: 'now', shared: 'now' },
   'get.groups.fallback': { void: 'now', 'carry-on': 'now', 'next-stage': 'now' },
   'get.groups.points': { mean: 'now', sum: 'now' },
   // A10 part 2: what a pool's second pick does on a night only one goes home (void: no points either way; counts: scored like
@@ -483,6 +509,9 @@ const MAX_PARLAYS = 6;
 /** A9 part 2: the most windows a draft's points multiply in (score.times), and what each one says when it is. */
 const MAX_WHEN = 8;
 const WHEN = ['episode', 'from', 'phase', 'finale'];
+/** C3: a multiplier on how a holding joined (score.multiply): the most in a list for the Nth, and its defaults. */
+const MAX_JOINED = 6;
+const JOINED = { per: 'team', then: 'repeat' };
 /** A10 part 1: a draft's most group slots (the user's "+1 or +2"), and a slot's defaults when the spec leaves them out (the
  *  user's to set: the plan's Noticed for A10). */
 const MAX_GROUP_SLOTS = 2;
@@ -703,7 +732,7 @@ const playoffRounds = (teams) => Math.ceil(Math.log2(teams));
  * questions' (part 4b, its episodes' points from its answers' walk) and (C2 part 4b) a pool's, on what each episode's pick earned.
  */
 function matchupParts(s) {
-  if (!isObj(s) || !isObj(s.rank) || s.rank.by !== 'matchups' || !isObj(s.get) || !(s.get.by === 'draft' || questionsGame(s) || poolByPoints(s))) return null;
+  if (!isObj(s) || !isObj(s.rank) || s.rank.by !== 'matchups' || !isObj(s.get) || !perEpisode(s)) return null;
   const r = s.rank;
   const p = isObj(r.playoffs) && isInt(r.playoffs.teams, 2) && r.playoffs.teams <= MAX_PLAYOFF_TEAMS ? r.playoffs : null;
   return {
@@ -711,6 +740,40 @@ function matchupParts(s) {
     quiet: own(VOCAB['rank.quiet'], r.quiet) ? r.quiet : MATCHUPS.quiet,
     playoffs: p ? { teams: p.teams, rounds: playoffRounds(p.teams), from: isInt(p.from, 1) ? p.from : null } : null,
   };
+}
+// C5: a week's winner's fallback when the spec leaves it out (the user's to set: Noticed): a week two or more top, each of them wins
+// it. Read by weekParts, never filled in. A pick of several each episode takes up to MAX_PICKS; `only` names up to MAX_ONLY moments.
+const WEEKS = { ties: 'all' };
+const MAX_PICKS = 8;
+const MAX_ONLY = 40;
+/** C5: a pick each episode scored by what they do (score.by 'moments'), one person or several: its series of totals is the draft's
+ *  walk's (each episode its picks' moments), so it ranks as a lineup does: by its points, weeks won or head to head. */
+const momentsPick = (s) => isObj(s) && isObj(s.get) && s.get.by === 'pick' && isObj(s.score) && s.score.by === 'moments';
+/** C5: whether a game plays weeks won or head to head on its series of totals: a draft, a game of questions, a pool by its points,
+ *  a pick scored by moments. */
+const perEpisode = (s) => s.get.by === 'draft' || questionsGame(s) || poolByPoints(s) || momentsPick(s);
+/**
+ * C5: weeks won (rank.by 'weeks'), read the one way from a whole spec: { ties: all | split | none }, the default WEEKS; null for a
+ * game that doesn't rank by weeks won, or one the engine doesn't play it on (perEpisode's, as head to head).
+ */
+function weekParts(s) {
+  if (!isObj(s) || !isObj(s.rank) || s.rank.by !== 'weeks' || !isObj(s.get) || !perEpisode(s)) return null;
+  return { ties: own(VOCAB['rank.ties'], s.rank.ties) ? s.rank.ties : WEEKS.ties };
+}
+/**
+ * C5: what one moment counts in a game scored by moments: its points (the spec's, else the rulebook's own `dflt`), and nothing for
+ * one score.only leaves out; with hits counted (score.hits), a hit is a hit, worth 1: every moment score.only names, or with no list
+ * every one the game scores points for (more than 0: a penalty is no objective). Points never weight a hit, they only say which
+ * moments count: a league read from its settings carries the rulebook's points filled in, so a weight couldn't be told from the
+ * default. A game with neither reads exactly as before.
+ */
+function momentWorth(score, id, dflt) {
+  const only = Array.isArray(score.only) ? score.only : null;
+  if (only && !only.includes(id)) return 0;
+  const given = pointsMap(score.points) && Object.prototype.hasOwnProperty.call(score.points, id) && isNum(score.points[id]) ? score.points[id] : undefined;
+  const points = given !== undefined ? given : dflt;
+  if (score.hits !== undefined) return only || points > 0 ? 1 : 0;
+  return points;
 }
 /** A rank's said end value, else the default. */
 const endOf = (rank, key, dflt) => (isObj(rank) && own(VOCAB[`rank.${key}`], rank[key]) ? rank[key] : dflt[key]);
@@ -729,7 +792,7 @@ const isPool = (s) => isObj(s) && isObj(s.get) && s.get.by === 'pick' && isObj(s
 /** C2 part 4b: a pool ranked by its points (a right pick's: rank 'total') or head to head on them ('matchups'), with nobody knocked
  *  out: no lives (they knock players out, and rank by the streak or last one standing), no race, no cuts. Its series of totals is
  *  its picks' (state-logic.js PickEmLogic.series), so teams of players and a handicap play on it too. */
-const poolByPoints = (s) => isPool(s) && isObj(s.rank) && (s.rank.by === 'total' || s.rank.by === 'matchups') && s.score.lives === undefined && s.rank.race === undefined && s.rank.cut === undefined;
+const poolByPoints = (s) => isPool(s) && isObj(s.rank) && (s.rank.by === 'total' || s.rank.by === 'matchups' || s.rank.by === 'weeks') && s.score.lives === undefined && s.rank.race === undefined && s.rank.cut === undefined;
 /** Why a pool with lives can't rank by its points or head to head: the one sentence every check says it in. */
 const POOL_LIVES = "A pool with lives knocks players out, so it ranks by its streak or last one standing: head to head plays everyone each week, and ranked by points someone out would just stop scoring";
 /** A question a life can ride on (A11 part 2b): asked each episode, about that episode alone, so it's right or wrong once that
@@ -757,7 +820,9 @@ function answerParts(s) {
   const teams = teamParts(s);
   // A11 part 5b: a handicap, whose points the walk adds episode by episode, so a game of questions with one is walked too.
   const handicap = handicapParts(s);
-  if (!race && !cuts.length && lives === null && !matchups && !teams && !handicap) return null;
+  // C5: weeks won, each episode's points what its answers settled by then add (the walk's series), as head to head's.
+  const weeks = weekParts(s);
+  if (!race && !cuts.length && lives === null && !matchups && !teams && !handicap && !weeks) return null;
   const on = lives === null ? [] : Array.isArray(s.score.livesOn) ? s.score.livesOn.filter((id) => typeof id === 'string') : s.ask.filter(livesQuestion).map((q) => q.id);
   const coop = lives !== null && rank.by === 'coop' ? { saves: own(VOCAB['score.saves'], s.score.saves) ? s.score.saves : COOP.saves } : null;
   return {
@@ -768,6 +833,7 @@ function answerParts(s) {
     matchups,
     teams,
     handicap,
+    weeks,
   };
 }
 // A11 part 5: teams of players' defaults when the spec leaves them out (the user's to set: Noticed): drawn at the game's start, a
@@ -808,8 +874,11 @@ function teamParts(s) {
  */
 function teamsFit(s) {
   const r = s.rank;
-  if (s.get.by === 'draft') return r.by === 'total' || (r.by === 'matchups' && r.race === undefined) || (r.by === 'standing' && Array.isArray(r.cut) && r.cut.length > 0);
-  if (questionsGame(s)) return (r.by === 'total' || r.by === 'matchups') && r.race === undefined;
+  // C5: weeks won between the teams wherever head to head between them plays.
+  const h2h = r.by === 'matchups' || r.by === 'weeks';
+  if (s.get.by === 'draft') return r.by === 'total' || (h2h && r.race === undefined) || (r.by === 'standing' && Array.isArray(r.cut) && r.cut.length > 0);
+  if (questionsGame(s)) return (r.by === 'total' || h2h) && r.race === undefined;
+  if (momentsPick(s)) return (r.by === 'total' || h2h) && r.race === undefined && r.cut === undefined;
   return poolByPoints(s);
 }
 // A11 part 5b: a handicap's defaults when the spec leaves them out (the user's to set: Noticed): for newcomers, new to the couch. Read
@@ -1225,7 +1294,8 @@ function fullSpec(spec) {
   }
   if (by === 'pick') {
     if (s.get.each === undefined) s.get.each = 1;
-    if (s.get.repeat === undefined) s.get.repeat = 'cycle';
+    // C5: a pick scored by what they do repeats freely (the same star every week is the game); a pool's cycles.
+    if (s.get.repeat === undefined) s.get.repeat = isObj(s.score) && s.score.by === 'moments' ? 'any' : 'cycle';
     // A10 part 2: a second pick says what it leaves out as the defaults (SECOND_PICK).
     if (isObj(s.get.second)) for (const [k, v] of Object.entries(SECOND_PICK)) if (s.get.second[k] === undefined) s.get.second[k] = v;
     // A11 part 2: a pick that never repeats says its fallback, else the default (NEVER).
@@ -1422,7 +1492,7 @@ function holdOf(s) {
     return count === 'all' || count === 'start' || count === 'best' ? 'draft' : 'count';
   }
   if (get.by === 'pick') {
-    if (!(get.each === 1 && (get.repeat === 'cycle' || get.repeat === 'never'))) return null;
+    if (!(isInt(get.each, 1) && get.each <= MAX_PICKS && own(VOCAB['get.repeat'], get.repeat) === 'now')) return null;
     return count === 'pick' ? 'pick' : 'count';
   }
   if (get.by === 'none' || get.by === 'card') return !count ? get.by : 'count';
@@ -1435,9 +1505,12 @@ const LINES = {
   moments: (s, held) => {
     if (held === 'draft' && (countKind(s.count) === 'start' || countKind(s.count) === 'best')) return null;
     if (held === 'draft') return ['count', 'scoring by moments counts a lineup ({ start: n }) or your best few ({ best: n }): to count the whole team, best ball with all of it'];
-    return ['score.by', held === 'pick' ? 'a pick each episode scores by staying in (or scoring): picks scored by what they do come with C5 (pick N each episode)' : 'scoring by moments needs someone of yours: a draft'];
+    // C5: a pick each episode (one or several) scored by what they do in it.
+    if (held === 'pick') return null;
+    return ['score.by', 'scoring by moments needs someone of yours: a draft, or a pick each episode'];
   },
-  survive: (s, held) => (held === 'pick' ? null : ['score.by', 'surviving scores a pick each episode']),
+  // C5: a pool's pick is one each episode (and a second on a night two go home); several are scored by what they do.
+  survive: (s, held) => (held !== 'pick' ? ['score.by', 'surviving scores a pick each episode'] : s.get.each === 1 ? null : ['get.each', "a pool's pick is one each episode: several each episode are scored by what they do (score.by moments)"]),
   answers: (s, held) => (held === 'none' ? null : ['score.by', 'a game of questions holds nothing']),
   lines: (s, held) => (held === 'card' ? null : ['score.by', "bingo lines are a card's"]),
 };
@@ -1445,6 +1518,8 @@ const LINES = {
 function askPlace(s) {
   const none = s.ask.length === 0;
   const by = s.score.by;
+  // C5: a pick each episode scored by what they do: its picks are its game, as a pool's are.
+  if (by === 'moments' && isObj(s.get) && s.get.by === 'pick') return none ? null : ['ask', "a pick's picks are its game: questions beside them play in a stage alongside it"];
   if (by === 'place' || by === 'moments') return draftAskPlace(s);
   if (by === 'survive') return none ? null : ['ask', "a pool's picks are its game: questions beside them play in a stage alongside it"];
   if (by === 'lines') return none ? null : ['ask', 'a bingo card is its game: questions beside it play in a stage alongside it'];
@@ -1495,25 +1570,33 @@ function rankPlace(s) {
   const by = rank.by;
   const lines = s.score.by;
   const cuts = Array.isArray(rank.cut) && rank.cut.length > 0;
+  // C5: weeks won wherever head to head plays, on the same series of totals.
+  const h2h = by === 'matchups' || by === 'weeks';
+  // C5: a pick each episode scored by what they do: its points, weeks won or head to head (knocking players out reads a draft's
+  // moves or a game of questions' walk: not a pick's yet).
+  if (lines === 'moments' && isObj(s.get) && s.get.by === 'pick') {
+    if ((by === 'total' || h2h) && rank.race === undefined && rank.cut === undefined) return null;
+    return ['rank.by', "a pick each episode scored by what they do ranks by its points, weeks won or head to head: knocking players out, or a race, is a draft's or a game of questions' for now"];
+  }
   if (lines === 'place' || lines === 'moments') {
-    if (by === 'total' || (by === 'standing' && cuts) || (by === 'matchups' && rank.race === undefined && rank.cut === undefined)) return null;
+    if (by === 'total' || (by === 'standing' && cuts) || (h2h && rank.race === undefined && rank.cut === undefined)) return null;
     if (by === 'worth') return lines === 'moments' && marketOf(s) ? null : ['rank.by', "ranking by worth is a stock market's on a lineup (a draft scored by moments): an Outlast's places aren't priced each week"];
-    return ['rank.by', "a draft ranks by its points, last one standing when it cuts, or head to head with nobody racing or cut"];
+    return ['rank.by', "a draft ranks by its points, last one standing when it cuts, or head to head (or weeks won) with nobody racing or cut"];
   }
   // C2 part 4b: a pool by its points or head to head too (its series of totals, from its picks), with nobody knocked out.
   if (lines === 'survive') {
     if (by === 'streak' || by === 'standing') return null;
-    if (by === 'total' || by === 'matchups') {
+    if (by === 'total' || h2h) {
       if (s.score.lives !== undefined) return ['rank.by', `${POOL_LIVES[0].toLowerCase()}${POOL_LIVES.slice(1)}`];
       return rank.race === undefined && rank.cut === undefined ? null : ['rank.by', 'a pool ranks by its points or head to head with nobody racing or cut: it knocks players out with its lives'];
     }
-    return ['rank.by', 'a pool ranks by its streak, its points, last one standing or head to head'];
+    return ['rank.by', 'a pool ranks by its streak, its points, last one standing, head to head or weeks won'];
   }
   if (lines === 'answers' && callsAsk(s.ask)) return by === 'total' ? null : ['rank.by', "the show's calls are counted outside the game: most right wins"];
   if (lines === 'answers') {
     const knocks = isInt(s.score.lives, 1) || cuts;
-    if (by === 'total' || (by === 'standing' && knocks) || (by === 'coop' && isInt(s.score.lives, 1)) || (by === 'matchups' && !knocks && rank.race === undefined)) return null;
-    return ['rank.by', 'a game of questions ranks by its points, last one standing when it knocks players out, co-op on its lives, or head to head with nobody racing, cut or losing a life'];
+    if (by === 'total' || (by === 'standing' && knocks) || (by === 'coop' && isInt(s.score.lives, 1)) || (h2h && !knocks && rank.race === undefined)) return null;
+    return ['rank.by', 'a game of questions ranks by its points, last one standing when it knocks players out, co-op on its lives, or head to head (or weeks won) with nobody racing, cut or losing a life'];
   }
   if (lines === 'lines') return by === 'total' ? null : ['rank.by', 'bingo lines are counted outside the game: most lines wins'];
   return null;
@@ -1567,6 +1650,8 @@ function shapeOf(s) {
   if (s.stages !== undefined) return 'stages';
   const by = isObj(s.score) ? s.score.by : undefined;
   if (by === 'answers') return callsAsk(s.ask) ? 'weekly-calls' : 'questions';
+  // C5: a pick each episode scored by what they do is a pick's game, as a pool is (its picks, made each episode).
+  if (momentsPick(s)) return 'pickem';
   return { place: 'classic-draft', moments: 'active-roster', survive: 'pickem', lines: 'weekly-bingo' }[by] || null;
 }
 /** The parts every game today shares: a span (from an episode, or a phase), the cast still in, a list of questions (each
@@ -1677,6 +1762,8 @@ function flagsOf(s) {
     hasCoop: !!(asks && asks.coop),
     // A11 part 4: head to head, with playoffs.
     hasMatchups: !!matchupParts(s),
+    // C5: weeks won (each episode's most points wins it).
+    hasWeeks: !!weekParts(s),
     // A11 part 5: teams of players.
     hasTeams: !!teamParts(s),
     // A11 part 5b: a handicap.
@@ -1814,8 +1901,11 @@ function specProblems(spec, ctx, opts) {
     if (get.keep !== undefined) keepProblems(get.keep, s).forEach(([at, p]) => add(`get.keep${at}`, p));
   }
   if (get.by === 'pick') {
-    if (get.each !== 1) add('get.each', 'A pick is one an episode');
-    if (!one('get.repeat', get.repeat)) add('get.repeat', "A pick's repeats: cycle (nobody again until you've picked everyone still in) or never (nobody twice)");
+    // C5: several each episode, scored by what they do; a pool's pick is one.
+    const byMoments = isObj(s.score) && s.score.by === 'moments';
+    if (byMoments && !(isInt(get.each, 1) && get.each <= MAX_PICKS)) add('get.each', `Pick 1 to ${MAX_PICKS} each episode`);
+    else if (!byMoments && get.each !== 1) add('get.each', "A pool's pick is one an episode: several each episode are scored by what they do (score.by moments)");
+    if (!one('get.repeat', get.repeat)) add('get.repeat', "A pick's repeats: cycle (nobody again until you've picked everyone still in), never (nobody twice) or any (anyone still in, every episode)");
     // A11 part 2: only a pick that never repeats can run out of people to pick.
     if (get.fallback !== undefined) {
       if (get.repeat !== 'never') add('get.fallback', "Only a pick that never repeats runs out of people to pick: repeat 'never'");
@@ -1846,7 +1936,11 @@ function specProblems(spec, ctx, opts) {
     else if (count !== 'start') add('score.captain', 'A captain is one of your starters, named each episode: a lineup ({ start: n })');
   }
   if (score.by === 'moments' && score.times !== undefined) timesProblems(score.times, s, league).forEach(([at, p]) => add(`score.times${at}`, p));
+  // C5: only these moments count, and hits counted.
+  if (score.by === 'moments' && (score.only !== undefined || score.hits !== undefined)) countProblems(score, s).forEach(([at, p]) => add(`score${at}`, p));
   if (score.by === 'place' && score.reverse !== undefined && score.reverse !== true) add('score.reverse', 'reverse is true, or leave it out');
+  // C3: a multiplier on how a holding joined, a draft's.
+  if ((score.by === 'moments' || score.by === 'place') && score.multiply !== undefined) multiplyProblems(score.multiply, s).forEach(([at, p]) => add(`score.multiply${at}`, p));
   if (score.by === 'stats' && !(pointsMap(score.points) && Object.keys(score.points).length)) add('score.points', 'Stats score as stat key to points');
   if (score.by === 'survive') {
     if (!one('score.means', score.means)) add('score.means', 'A pick survives by staying in (staysIn) or by scoring (scores)');
@@ -1865,7 +1959,7 @@ function specProblems(spec, ctx, opts) {
   if (score.by === 'lines' && get.by !== 'card') add('score.by', 'Lines are a bingo card\'s: get card');
   if (score.by === 'answers' && !(Array.isArray(s.ask) && s.ask.length)) add('ask', 'A game scored by answers asks at least one question');
   const rank = isObj(s.rank) ? s.rank : {};
-  if (!one('rank.by', rank.by)) add('rank.by', 'How it ranks: total, streak, standing, worth, coop, matchups, categories or roto');
+  if (!one('rank.by', rank.by)) add('rank.by', 'How it ranks: total, streak, standing, worth, coop, matchups, weeks, categories or roto');
   if (rank.by === 'streak' && score.by !== 'survive') add('rank.by', 'A streak is a Survival Pool\'s');
   // A11 part 1: last one standing is also a draft's that knocks players out (rank.cut); part 2b, a game of questions' that does
   // (its cuts, or its lives).
@@ -1883,6 +1977,8 @@ function specProblems(spec, ctx, opts) {
   if (rank.oneLeft !== undefined || rank.allOut !== undefined) endProblems(rank, s).forEach(([at, p]) => add(`rank${at}`, p));
   // A11 part 4: head to head, with playoffs.
   if (rank.by === 'matchups' || MATCHUP_KEYS.some((k) => rank[k] !== undefined)) matchupProblems(rank, s, league).forEach(([at, p]) => add(at, p));
+  // C5: weeks won.
+  if (rank.by === 'weeks' || rank.ties !== undefined) weekProblems(rank, s).forEach(([at, p]) => add(at, p));
   // A11 part 5: teams of players.
   if (rank.teams !== undefined) teamProblems(rank, s).forEach(([at, p]) => add(at, p));
   // A11 part 5b: a handicap.
@@ -2177,14 +2273,15 @@ const KEYS = {
   budget: ['total', 'floor', 'ceiling', 'gone', 'fallback', 'trade', 'left'],
   trade: ['fee'],
   second: ['fallback'],
-  score: { moments: ['by', 'points', 'captain', 'times'], place: ['by', 'reverse'], survive: ['by', 'means', 'points', 'lives', 'buyback', 'mulligans'], lines: ['by', 'points'], answers: ['by', 'parlays', 'lives', 'livesOn', 'saves'], stages: ['by'], stats: ['by', 'points'] },
+  score: { moments: ['by', 'points', 'captain', 'times', 'multiply', 'only', 'hits'], place: ['by', 'reverse', 'multiply'], survive: ['by', 'means', 'points', 'lives', 'buyback', 'mulligans'], lines: ['by', 'points'], answers: ['by', 'parlays', 'lives', 'livesOn', 'saves'], stages: ['by'], stats: ['by', 'points'] },
   buyback: ['times', 'before', 'cost'],
   before: ['phase', 'episode'],
   parlay: ['of', 'times'],
   captain: ['times'],
   when: ['times', 'episode', 'from', 'to', 'phase', 'finale'],
+  multiply: ['times', 'joined', 'then', 'per'],
   shrink: ['points', 'per'],
-  rank: ['by', 'race', 'cut', 'oneLeft', 'allOut', ...MATCHUP_KEYS, 'teams', 'handicap'],
+  rank: ['by', 'race', 'cut', 'oneLeft', 'allOut', ...MATCHUP_KEYS, 'ties', 'teams', 'handicap'],
   race: ['to'],
   teams: ['of', 'made', 'score', 'unplaced', 'names'],
   handicap: ['points', 'who', 'newTo'],
@@ -2194,7 +2291,8 @@ const KEYS = {
   extras: ['waivers', 'bets', 'calls', 'draft', 'join', 'hideStarters', 'lockedDown', 'lateLock', 'seats'],
   lateLock: ['hours'],
   seats: ['people'],
-  waivers: ['feel', 'replace', 'short', 'windows', 'order', 'hours', 'freeAgency', 'autoFill', 'from'],
+  waivers: ['feel', 'replace', 'short', 'windows', 'order', 'hours', 'freeAgency', 'autoFill', 'from', 'own'],
+  waiverOwn: ['replace', 'swap'],
   windows: ['schedule', 'every', 'swaps'],
   draft: ['at', 'timer', 'away', 'opens'],
   bets: ['points'],
@@ -2229,6 +2327,7 @@ function unknownKeys(s) {
   if (isObj(s.score)) {
     check(s.score, own(KEYS.score, s.score.by), 'score');
     if (Array.isArray(s.score.parlays)) s.score.parlays.forEach((p, i) => check(p, KEYS.parlay, `score.parlays[${i}]`));
+    if ((s.score.by === 'moments' || s.score.by === 'place') && Array.isArray(s.score.multiply)) s.score.multiply.forEach((m, i) => check(m, KEYS.multiply, `score.multiply[${i}]`));
     if (s.score.by === 'moments') {
       check(s.score.captain, KEYS.captain, 'score.captain');
       if (Array.isArray(s.score.times)) s.score.times.forEach((t, i) => check(t, KEYS.when, `score.times[${i}]`));
@@ -2263,6 +2362,7 @@ function unknownKeys(s) {
     for (const k of ['waivers', 'draft', 'bets', 'lateLock', 'seats']) check(e[k], KEYS[k], `extras.${k}`);
     if (isObj(e.waivers)) check(e.waivers.windows, KEYS.windows, 'extras.waivers.windows');
     if (isObj(e.waivers)) check(e.waivers.from, ['phase'], 'extras.waivers.from');
+    if (isObj(e.waivers)) check(e.waivers.own, KEYS.waiverOwn, 'extras.waivers.own');
   }
   return out;
 }
@@ -2389,7 +2489,7 @@ function poolProblems(score, s, league) {
   if (score.mulligans !== undefined && !(isInt(score.mulligans, 1) && score.mulligans <= MAX_MULLIGANS)) out.push(['.mulligans', `A pool forgives 1 to ${MAX_MULLIGANS} wrong picks`]);
   // C2 part 4b: ranked by its points (or head to head on them), a wrong pick costs nothing a mulligan could forgive (no streak
   // counts, no life is lost), and a right pick worth nothing would score nobody anything.
-  if (isObj(s.rank) && (s.rank.by === 'total' || s.rank.by === 'matchups')) {
+  if (isObj(s.rank) && (s.rank.by === 'total' || s.rank.by === 'matchups' || s.rank.by === 'weeks')) {
     if (score.mulligans !== undefined) out.push(['.mulligans', 'Ranked by its points, a wrong pick costs nothing to forgive: mulligans are for a pool ranked by its streak or last one standing']);
     if (isNum(score.points) && score.points === 0) out.push(['.points', 'Ranked by its points, a right pick is worth more than 0']);
   }
@@ -2434,7 +2534,7 @@ function knockoutProblems(rank, s, league) {
   if (rank.cut === undefined) return out;
   const list = rank.cut;
   if (!Array.isArray(list) || !list.length || list.length > MAX_CUTS) return [...out, ['.cut', `Players knocked out is a list of 1 to ${MAX_CUTS} cuts`]];
-  if (!draft) out.push(['.cut', isObj(s.get) && s.get.by === 'pick' ? "A pool knocks players out with its lives (a wrong pick costs one, and at none you're out): score.lives" : "Knocking players out by their points is a draft's or a game of questions'"]);
+  if (!draft) out.push(['.cut', isPool(s) ? "A pool knocks players out with its lives (a wrong pick costs one, and at none you're out): score.lives" : "Knocking players out by their points is a draft's or a game of questions'"]);
   else if (rank.by !== 'standing') out.push(['.by', "A game that knocks players out ranks last one standing: whoever's still in, then whoever went out last"]);
   const first = isObj(s.span) ? spanStart(s.span) : null;
   const last = isObj(s.span) ? spanEnd(s.span) : null;
@@ -2540,7 +2640,7 @@ function matchupProblems(rank, s, league) {
   const out = [];
   const on = rank.by === 'matchups';
   // C2 part 4b: a pool's too, on what each episode's pick earned, with no lives (they knock players out).
-  if (on && !(isObj(s.get) && s.get.by === 'draft') && !questionsGame(s) && !(isPool(s) && s.score.lives === undefined)) {
+  if (on && !(isObj(s.get) && s.get.by === 'draft') && !questionsGame(s) && !(isPool(s) && s.score.lives === undefined) && !momentsPick(s)) {
     const why = isPool(s)
       ? POOL_LIVES
       : Array.isArray(s.ask) && callsAsk(s.ask)
@@ -2581,6 +2681,62 @@ function matchupProblems(rank, s, league) {
 }
 
 /**
+ * C5: weeks won (rank.by 'weeks', rank.ties), as [[at, problem]]: each episode whoever scored the most wins the week, the season by
+ * weeks won, then the points. Wherever head to head plays (perEpisode: a draft's, a game of questions', a pool's by its points, a
+ * pick scored by what they do), with nobody racing, cut or losing a life beside it (the same refusals as head to head's: the knockouts,
+ * the end and the lives check their own). ties: all | split | none, only beside it.
+ */
+function weekProblems(rank, s) {
+  const out = [];
+  const on = rank.by === 'weeks';
+  if (on && isObj(s.get) && !perEpisode(s)) {
+    const why = isPool(s)
+      ? POOL_LIVES
+      : Array.isArray(s.ask) && callsAsk(s.ask)
+        ? "Weekly Calls' calls are counted outside the game: weeks won is a draft's, a game of questions', a pool's or a pick's"
+        : s.get.by === 'card'
+          ? "Bingo lines are counted outside the game: weeks won is a draft's, a game of questions', a pool's or a pick's"
+          : "Weeks won plays each episode's points against everyone's: a draft's, a game of questions', a pool's or a pick's";
+    out.push(['rank.by', why]);
+  }
+  if (on && isObj(s.rank) && (s.rank.race !== undefined || (Array.isArray(s.rank.cut) && s.rank.cut.length > 0))) {
+    out.push(['rank.by', "Weeks won ranks by the weeks each of you won: a race, or players knocked out, rank by the points or last one standing"]);
+  }
+  if (rank.ties !== undefined) {
+    if (!on) out.push(['rank.ties', "A week two of you top is weeks won's: rank.by 'weeks'"]);
+    else if (own(VOCAB['rank.ties'], rank.ties) === undefined) out.push(['rank.ties', 'A week two or more of you top: all (each of you wins it), split (you share one) or none (nobody does)']);
+  }
+  return out;
+}
+
+/**
+ * C5: only these moments count (score.only) and hits counted (score.hits), a game scored by moments', as [[at, problem]]. only: a
+ * list of 1 to MAX_ONLY moment ids, none twice (with ctx, each one the show's: settleProblems); every other moment scores nothing.
+ * hits: every | pick | objective, each moment that counts an objective hit, worth 1. Counting each
+ * objective once for you however many of yours hit it ('objective') sums across your holdings, so it can't go beside what scores a
+ * holding on its own: a captain, best ball's best few, a multiplier on how a holding joined. Neither it nor 'pick' goes beside group
+ * slots (a slot's group scores its members' moments every time they happen: Seq.groupRaw).
+ */
+function countProblems(score, s) {
+  const out = [];
+  if (score.only !== undefined) {
+    const list = Array.isArray(score.only) ? score.only : null;
+    if (!list || !list.length || list.length > MAX_ONLY || !list.every((id) => typeof id === 'string' && id)) out.push(['.only', `Only these moments count: a list of 1 to ${MAX_ONLY} of the show's moments`]);
+    else if (new Set(list).size !== list.length) out.push(['.only', 'A moment is named twice']);
+  }
+  if (score.hits !== undefined) {
+    if (own(VOCAB['score.hits'], score.hits) === undefined) out.push(['.hits', 'Hits count every time (every), each objective once for each of yours that hit it (pick), or each objective once for you (objective)']);
+    else if (score.hits !== 'every' && isObj(s.get) && isObj(s.get.groups)) out.push(['.hits', "A group slot's group scores its members' moments every time they happen: count every hit beside group slots"]);
+    else if (score.hits === 'objective') {
+      if (score.captain !== undefined) out.push(['.hits', "Each objective once for you counts across your team, so a captain's points can't multiply one of them: count hits per pick"]);
+      else if (countKind(s.count) === 'best') out.push(['.hits', "Each objective once for you counts across your team, not each of your best few: count hits per pick"]);
+      else if (score.multiply !== undefined) out.push(['.hits', 'Each objective once for you counts across your team, so how one of them joined it can\'t multiply it: count hits per pick']);
+    }
+  }
+  return out;
+}
+
+/**
  * Teams of players (A11 part 5: rank.teams), as [[at, problem]]: { of: 2 to MAX_PLAYER_TEAMS, made: draw | choose, score: sum |
  * mean, unplaced: smallest | none, names?: one a team at most, each 1 to MAX_TEAM_NAME characters, none twice }. Part 5c: teams that
  * follow the show's own groups (made 'group') are refused: a team of players is the couch's own and lasts the game, while the show's
@@ -2612,10 +2768,15 @@ function teamProblems(rank, s) {
   const get = isObj(s.get) ? s.get : {};
   const draft = get.by === 'draft';
   const cuts = Array.isArray(rank.cut) && rank.cut.length > 0;
+  // C5: weeks won between the teams, wherever head to head between them plays.
+  const h2h = rank.by === 'matchups' || rank.by === 'weeks';
   if (isPool(s)) {
     // C2 part 4b: a pool's teams, on its points or head to head (its series of totals, from its picks).
-    if (s.score.lives !== undefined && (rank.by === 'total' || rank.by === 'matchups')) out.push(['rank.teams', POOL_LIVES]);
-    else if (rank.by !== 'total' && rank.by !== 'matchups') out.push(['rank.teams', "A pool's streak, and who's still standing, are each of you's own: teams of players rank a pool by its points (total) or head to head (matchups)"]);
+    if (s.score.lives !== undefined && (rank.by === 'total' || h2h)) out.push(['rank.teams', POOL_LIVES]);
+    else if (rank.by !== 'total' && !h2h) out.push(['rank.teams', "A pool's streak, and who's still standing, are each of you's own: teams of players rank a pool by its points (total), head to head (matchups) or weeks won"]);
+  } else if (momentsPick(s)) {
+    // C5: a pick each episode scored by what they do, its teams on its points, head to head or weeks won.
+    if (rank.by !== 'total' && !h2h) out.push(['rank.teams', 'Teams of players rank a pick scored by what they do by their points (total), head to head (matchups) or weeks won']);
   } else if (!(draft || questionsGame(s))) {
     const why = Array.isArray(s.ask) && callsAsk(s.ask)
       ? "Weekly Calls' calls are counted outside the game: teams of players play a draft, a game of questions or a pool"
@@ -2629,8 +2790,8 @@ function teamProblems(rank, s) {
     out.push(['rank.teams', "Teams knocked out are a draft's for now: a game of questions works each night's points out from who's out so far, seat by seat, so its teams rank by their points (total) or head to head (matchups)"]);
   } else if (rank.by === 'standing' && !cuts) {
     out.push(['rank.teams', 'Last team standing is knocked out by its cuts: rank.cut, on the teams\' points']);
-  } else if (rank.by !== 'total' && rank.by !== 'matchups' && rank.by !== 'standing') {
-    out.push(['rank.teams', 'Teams of players rank by their points (total), head to head between the teams (matchups) or last team standing (a draft\'s cuts)']);
+  } else if (rank.by !== 'total' && !h2h && rank.by !== 'standing') {
+    out.push(['rank.teams', 'Teams of players rank by their points (total), head to head between the teams (matchups), weeks won or last team standing (a draft\'s cuts)']);
   } else if (rank.race !== undefined && !draft) {
     out.push(['rank.teams', "A race between teams is a draft's for now: a game of questions works each night's points out from who's out so far, seat by seat"]);
   }
@@ -2657,10 +2818,10 @@ function handicapProblems(rank, s) {
   if (h.newTo !== undefined && !one('rank.handicap.newTo', h.newTo)) out.push(['rank.handicap.newTo', 'New to what: the couch (no game on it before this season) or the show (no game of it on the couch before this season)']);
   const get = isObj(s.get) ? s.get : {};
   if (isPool(s)) {
-    // C2 part 4b: a pool's, ranked by its points or head to head (its series of totals).
-    if (rank.by !== 'total' && rank.by !== 'matchups') out.push(['rank.handicap', "A pool ranked by its streak (or who's still standing) isn't ranked by points: a handicap would only break ties. Rank it by its points (total) or head to head (matchups)"]);
+    // C2 part 4b: a pool's, ranked by its points or head to head (its series of totals); C5, weeks won too.
+    if (rank.by !== 'total' && rank.by !== 'matchups' && rank.by !== 'weeks') out.push(['rank.handicap', "A pool ranked by its streak (or who's still standing) isn't ranked by points: a handicap would only break ties. Rank it by its points (total) or head to head (matchups)"]);
     else if (s.score.lives !== undefined) out.push(['rank.handicap', POOL_LIVES]);
-  } else if (!(get.by === 'draft' || questionsGame(s))) {
+  } else if (!(get.by === 'draft' || questionsGame(s) || momentsPick(s))) {
     const why = Array.isArray(s.ask) && callsAsk(s.ask)
       ? "Weekly Calls' calls are counted outside the game: a handicap plays a draft, a game of questions or a pool ranked by its points"
       : get.by === 'card'
@@ -2703,7 +2864,59 @@ function waiverProblems(w, s) {
   if (typeof w.autoFill !== 'boolean') out.push(['.autoFill', 'autoFill is true or false']);
   // Waivers that start when a phase of the season does: which phase is the data rule's (settleProblems).
   if (w.from !== undefined && !(isObj(w.from) && typeof w.from.phase === 'string' && w.from.phase)) out.push(['.from', 'Waivers start { phase }: when which phase of the season starts, or leave it out for from the start']);
+  if (w.own !== undefined) waiverOwnProblems(w.own, s).forEach(([at, p]) => out.push([`.own${at}`, p]));
   return out;
+}
+
+/**
+ * C4: ownership per holding. Whom a waiver move brings in, { replace?, swap? } (a replacement for someone gone home, a swap for
+ * someone still in), each exclusive (only someone on nobody's team) or shared (anyone still in who isn't yours already), each left
+ * out the draft's own. A move can be shared where the draft is exclusive (the user's second game: an exclusive draft whose
+ * replacements are picked as if the cast was open), never exclusive where the draft is shared (most of a shared draft's cast is on
+ * someone's team), and a stock market buys at its draft's own.
+ */
+function waiverOwnProblems(o, s) {
+  if (!isObj(o) || !Object.keys(o).length) return [['', "Where a pickup comes from is { replace, swap }, each exclusive (only someone on nobody's team) or shared (anyone still in who isn't yours already): leave it out for the draft's own"]];
+  const out = [];
+  for (const k of KEYS.waiverOwn) {
+    if (o[k] === undefined) continue;
+    if (own(VOCAB['extras.waivers.own'], o[k]) !== 'now') out.push([`.${k}`, `A ${k === 'replace' ? 'replacement' : 'swap'} brings in someone exclusive (on nobody's team) or shared (anyone still in who isn't yours already)`]);
+    else if (o[k] === 'exclusive' && s.get.own === 'shared') out.push([`.${k}`, `In a shared draft anyone can be on more than one team, so ${k === 'replace' ? 'a replacement' : 'a swap'} can be too: only someone on nobody's team goes with an exclusive draft`]);
+  }
+  if (marketOf(s)) out.push(['', "A stock market buys at its draft's own: make the draft shared for buying someone another team holds"]);
+  return out;
+}
+
+/**
+ * C4: an exclusive draft's waivers that replace someone gone home only with someone on nobody's team, where nothing ever frees
+ * anyone: no swaps (a swap lets someone still in go) and nobody knocked out (a cut frees an exclusive draft's castaways:
+ * KnockoutLogic.frees). With a draft that takes everyone, nobody is ever free to come in.
+ */
+function freeNeverComes(s) {
+  const moves = waiverMoves(s);
+  if (!moves || waiverOwnOf(s, 'replace') !== 'exclusive') return false;
+  const cuts = isObj(s.rank) && Array.isArray(s.rank.cut) && s.rank.cut.length > 0;
+  return moves.replaces && !moves.swaps && !cuts;
+}
+
+/**
+ * C4: the moves a draft's waivers make on their own, { replaces, swaps }, or null with no waivers: replacements unless they never
+ * replace (or a window at a phase's start replaces everyone out: `from`), swaps when their windows have any. (Whoever runs the game
+ * can still open a window that does either: WaiverLogic.openWindow.)
+ */
+function waiverMoves(spec) {
+  const w = isObj(spec) && isObj(spec.extras) && isObj(spec.extras.waivers) ? spec.extras.waivers : null;
+  if (!w) return null;
+  return { replaces: w.replace !== 'never' || isObj(w.from), swaps: isObj(w.windows) && isInt(w.windows.swaps, 1) };
+}
+
+/** C4: how a waiver move of `kind` ('replace' | 'swap') holds whom it brings in: the waivers' own for it, else the draft's. */
+function waiverOwnOf(spec, kind) {
+  const w = isObj(spec) && isObj(spec.extras) && isObj(spec.extras.waivers) ? spec.extras.waivers : null;
+  const said = w && isObj(w.own) ? w.own[kind] : undefined;
+  if (said === 'shared' || said === 'exclusive') return said;
+  // The draft's own (state-logic.js ownershipModeOf's rule: a game with no draft holds nobody, so exclusive).
+  return isObj(spec) && isObj(spec.get) && spec.get.by === 'draft' && spec.get.own === 'shared' ? 'shared' : 'exclusive';
 }
 
 /**
@@ -2786,6 +2999,69 @@ function timesProblems(list, s, league) {
   return out;
 }
 
+/**
+ * C3: a multiplier on how a holding joined (score.multiply), as [[at, problem]]: 1 to 3 of { joined, times, per?, then? }, each kind
+ * once (a pickup is a replacement or a swap, so not beside them); times more than 0, up to MAX_TIMES and not 1, or (a pickup, a
+ * replacement or a swap) a list of 1 to MAX_JOINED for the first, second and so on (1 allowed in it, not every one), whose per and
+ * then say how it counts the Nth and what comes after it (then 'ratio' on a list that never grows). On a draft only (a lineup, best
+ * ball or an Outlast, not in reverse, not a stock market), and a pickup's needs waivers that make that move.
+ */
+function multiplyProblems(list, s) {
+  const one = (key, v) => own(VOCAB[key], v) !== undefined;
+  if (!Array.isArray(list) || !list.length || list.length > 3) return [['', 'A multiplier on how a holding joined is a list of 1 to 3: { joined, times }']];
+  const out = [];
+  if (!(isObj(s.get) && s.get.by === 'draft')) return [['', 'A multiplier on how a holding joined is a draft\'s: who you drafted, and who joined your team after']];
+  if (s.score.by === 'place' && s.score.reverse === true) return [['', "In reverse, a place is 1 plus everyone who outlasts them, which nobody earns while they're yours: a multiplier on how they joined needs Outlast's own order"]];
+  if (marketOf(s) || (isObj(s.rank) && s.rank.by === 'worth')) return [['', "A stock market's worth is its prices, not its points: nothing it holds earns points to multiply"]];
+  const w = isObj(s.extras) && isObj(s.extras.waivers) ? s.extras.waivers : null;
+  const replaces = !!w && w.replace !== 'never';
+  const swaps = !!w && isObj(w.windows) && isInt(w.windows.swaps, 1);
+  const kinds = new Set();
+  list.forEach((m, i) => {
+    const at = `[${i}]`;
+    if (!isObj(m)) return out.push([at, 'Each is { joined, times }']);
+    if (!one('score.multiply.joined', m.joined)) return out.push([`${at}.joined`, 'How they joined: draft, pickup, replacement (for someone gone) or swap (for someone still in)']);
+    if (kinds.has(m.joined) || (m.joined === 'pickup' && (kinds.has('replacement') || kinds.has('swap'))) || (m.joined !== 'pickup' && m.joined !== 'draft' && kinds.has('pickup'))) out.push([`${at}.joined`, 'Say each way of joining once (a pickup is a replacement or a swap: pickups, or each of them)']);
+    kinds.add(m.joined);
+    const many = Array.isArray(m.times);
+    if (many) {
+      if (m.joined === 'draft') out.push([`${at}.times`, 'Everyone drafted joined the same way: one number for them']);
+      else if (!(m.times.length >= 1 && m.times.length <= MAX_JOINED && m.times.every((t) => isNum(t) && t > 0 && t <= MAX_TIMES))) out.push([`${at}.times`, `A list for the first, the second and so on: 1 to ${MAX_JOINED} of them, each more than 0 (half is 0.5), up to ${MAX_TIMES}`]);
+      else if (m.times.every((t) => t === 1)) out.push([`${at}.times`, 'Every one is 1, so nothing multiplies: leave it out']);
+      else if (m.then === 'ratio' && (m.times.some((t, j) => j > 0 && t > m.times[j - 1]) || (m.times.length === 1 ? m.times[0] >= 1 : m.times[m.times.length - 1] === m.times[m.times.length - 2]))) out.push([`${at}.then`, 'Going on by its last step needs a list that shrinks at the end, never grows (0.5, 0.25: then 0.125)']);
+    } else if (!(isNum(m.times) && m.times > 0 && m.times !== 1 && m.times <= MAX_TIMES)) out.push([`${at}.times`, `Points multiply by more than 0 (half is 0.5), up to ${MAX_TIMES}, and not 1: or a list for the first, the second and so on`]);
+    if (m.per !== undefined && !(many && one('score.multiply.per', m.per))) out.push([`${at}.per`, many ? 'Counted per team (your Nth) or per slot (the Nth on that roster spot)' : 'Only a list counts the Nth (per team or per slot)']);
+    if (m.then !== undefined && !(many && one('score.multiply.then', m.then))) out.push([`${at}.then`, many ? 'Past the list: repeat (the last again) or ratio (on by its last step)' : 'Only a list has an after (then)']);
+    // What the game's waivers can make.
+    if (m.joined === 'replacement' && !replaces) out.push([`${at}.joined`, 'This game never replaces anyone: its waivers make no replacements']);
+    if (m.joined === 'swap' && !swaps) out.push([`${at}.joined`, "This game's waivers make no swaps"]);
+    if ((m.joined === 'pickup' || m.joined === 'draft') && !replaces && !swaps) out.push([`${at}.joined`, "Nobody joins a team after the draft in this game: give it waivers that replace or swap"]);
+  });
+  return out;
+}
+/**
+ * C3: every multiplier a spec has, as one piece keyed by a condition (the sequence's factorOf): [{ on, times, ...condition }]. A
+ * lineup's captain (score.captain, on 'captain'), each of score.times ('when', its window), each of score.multiply ('joined', with
+ * its per and then filled in) and each parlay ('legs', its questions). A confidence ranking's weights are its answer's own ('rank',
+ * graded with the answer). The fields stay where each was said: a stored spec reads exactly as before.
+ */
+function multipliersOf(spec) {
+  const sc = isObj(spec) && isObj(spec.score) ? spec.score : {};
+  const out = [];
+  if (sc.by === 'moments' && isObj(sc.captain) && isNum(sc.captain.times)) out.push({ on: 'captain', times: sc.captain.times });
+  if (sc.by === 'moments' && Array.isArray(sc.times)) sc.times.forEach((t) => { if (isObj(t)) out.push({ on: 'when', ...t }); });
+  if ((sc.by === 'moments' || sc.by === 'place') && Array.isArray(sc.multiply)) {
+    sc.multiply.forEach((m) => {
+      if (!isObj(m)) return;
+      const f = { on: 'joined', joined: m.joined, times: m.times };
+      if (Array.isArray(m.times)) Object.assign(f, { per: m.per || JOINED.per, then: m.then || JOINED.then });
+      out.push(f);
+    });
+  }
+  if (sc.by === 'answers' && Array.isArray(sc.parlays)) sc.parlays.forEach((p) => { if (isObj(p)) out.push({ on: 'legs', of: p.of, times: p.times }); });
+  return out;
+}
+
 // The data-can-settle rule (the user's decision, 2026-10-27): only what data can settle. Sports: box scores and
 // scoreboards (the Sport's stat keys, finals). Shows: the results research, which counts as data.
 function settleProblems(s, ctx, opts) {
@@ -2833,6 +3109,10 @@ function settleProblems(s, ctx, opts) {
     // A10 part 3c: an exclusive stock market needs someone left over to buy, or nobody can ever trade (the count where it drafts;
     // as people go home a replacement waits for someone free, as an exclusive draft's waivers do).
     out.push(['get.own', `${teams.said} × ${get.each} ${get.each === 1 ? 'pick' : 'picks'} takes all ${ctx.pool} who can be drafted, so nobody's left to buy: make it shared, so two of you can hold the same one${get.order === 'auction' ? ' (a salary cap: prices from the data, no bidding)' : ''}`]);
+  } else if (!opts.league && get.by === 'draft' && get.own === 'exclusive' && !marketOf(s) && isInt(get.each, 1) && isInt(ctx.pool, 0) && teams && teams.n * get.each >= ctx.pool && freeNeverComes(s)) {
+    // C4: the count per holding. An exclusive draft that takes everyone, whose waivers replace someone gone home with only someone
+    // on nobody's team and nothing else ever frees anyone (no swaps, nobody knocked out), never has anyone to replace them with.
+    out.push(['extras.waivers.own', `${teams.said} × ${get.each} ${get.each === 1 ? 'pick' : 'picks'} takes all ${ctx.pool} who can be drafted, so nobody's ever free to replace someone gone home with: make the replacements shared ({ "replace": "shared" }), so one can be someone on another team`]);
   }
   // A11 part 4: the playoffs take no more than the couch has teams (a bracket short of seeds gives the top ones byes, so fewer is
   // fine: the engine's fallback for a couch that shrinks).
@@ -2873,13 +3153,18 @@ function settleProblems(s, ctx, opts) {
       // Every moment that scores, by the spec's points for it or else the rulebook's own (ActiveRosterLogic.pointsFor); one
       // the rulebook switched off scores nothing whatever the points say (it isn't among the rules' events).
       for (const m of moments) {
-        const pts = m.off ? 0 : Object.prototype.hasOwnProperty.call(given, m.id) ? given[m.id] : defaultOf(m.defaultPoints, shared);
-        if (pts !== 0 && !byData(m)) out.push([`score.points.${m.id}`, `${couchWord(m)}. Score it 0`]);
+        // C5: a moment score.only leaves out counts nothing; with hits counted, each counts its worth (momentWorth).
+        const pts = m.off ? 0 : momentWorth(score, m.id, Object.prototype.hasOwnProperty.call(given, m.id) ? given[m.id] : defaultOf(m.defaultPoints, shared));
+        // One score.only names counts whatever its points say: take it out of the list.
+        const listed = Array.isArray(score.only) ? score.only.indexOf(m.id) : -1;
+        if (pts !== 0 && !byData(m)) out.push(listed >= 0 ? [`score.only[${listed}]`, `${couchWord(m)}. Take it out of the moments that count`] : [`score.points.${m.id}`, `${couchWord(m)}. Score it 0`]);
       }
       // ...and every moment the spec gives points is the show's.
       for (const [id, pts] of Object.entries(given)) {
         if (pts !== 0 && !momentById.has(id)) out.push([`score.points.${id}`, `"${id}" isn't one of the show's moments`]);
       }
+      // C5: ...and so is every moment the game counts only.
+      if (Array.isArray(score.only)) score.only.forEach((id, i) => { if (typeof id === 'string' && !momentById.has(id)) out.push([`score.only[${i}]`, `"${id}" isn't one of the show's moments`]); });
     }
   }
   if (score.by === 'stats' && pointsMap(score.points)) {
@@ -3267,13 +3552,14 @@ function stagedWaits(s) {
 
 module.exports = {
   SPEC_VERSION, VOCAB, TAKES, SETTLES_FOR, SEASON_TAKES, EACH_SETTLES_FOR, NAMES, NUMBERS, MAX_WINDOW, LATE_HOURS, windowed,
-  RANKS, MAX_ORDER, MAX_WITHIN, MAX_CHIPS, MAX_PAIRS, WAGERS, WAGER_TOTAL, SHARES, SHRINK_PER, LEGS, MAX_LEGS, MAX_TIMES, MAX_WHEN, WHEN, PRESETS, PRESET_TYPES, TYPE_PRESETS, PRESET_LABELS, NO_WAIVERS, DRAFT_ROOM,
+  RANKS, MAX_ORDER, MAX_WITHIN, MAX_CHIPS, MAX_PAIRS, WAGERS, WAGER_TOTAL, SHARES, SHRINK_PER, LEGS, MAX_LEGS, MAX_TIMES, MAX_WHEN, WHEN, MAX_JOINED, JOINED, multipliersOf, PRESETS, PRESET_TYPES, TYPE_PRESETS, PRESET_LABELS, NO_WAIVERS, DRAFT_ROOM,
   MAX_GROUP_SLOTS, GROUP_SLOTS, covers, MAX_LIVES, MAX_BUYBACKS, MAX_MULLIGANS, MAX_BUYBACK_COST, BUYBACK, SECOND_PICK, NEVER, poolParts,
   DRAFT_ACROSS, DRAW_OWN, spreadBounds, MAX_BUDGET, BUDGET, CAP, AUCTION, MAX_BIDS, ceilingFor, budgetParts, TRADE, MARKET_LEFT,
-  marketWaivers, marketOf, KEEP, keepParts, SEATS, MAX_SEAT_PEOPLE, seatPeople, teamsOf,
+  marketWaivers, marketOf, waiverOwnOf, waiverMoves, KEEP, keepParts, SEATS, MAX_SEAT_PEOPLE, seatPeople, teamsOf,
   MAX_RACE, MAX_CUTS, MAX_CUT_OUT, CUT, CUT_AT, knockoutParts, DRAFT_END, POOL_END, ANSWERS_END, COOP, answerParts, livesQuestion, questionsGame, isPool, poolByPoints,
   MATCHUPS, MATCHUP_KEYS, MAX_PLAYOFF_TEAMS, playoffRounds, matchupParts, TEAMS, MAX_PLAYER_TEAMS, MAX_TEAM_NAME, teamParts,
   HANDICAP, MAX_HANDICAP, handicapParts,
+  WEEKS, MAX_PICKS, MAX_ONLY, momentsPick, weekParts, momentWorth,
   REPLACE_RULES, WINDOW_SCHEDULES, WAIVER_FEELS, WAIVER_ORDERS, WAIVER_HOURS, DRAFT_TIMERS, MAX_BET_POINTS, JOINS, ORDER_OF,
   MAX_TEAM, MAX_STARTERS, MAX_BENCH, MAX_LINEUP_TEAM, MAX_QUESTIONS, MAX_PICK, MAX_QUESTION_POINTS, MAX_OPTIONS, YES_NO,
   CALLS, finaleQuestions, finaleOf, finaleIn, draftQuestions, draftPlayable, isCalls, isTrivia, isFact, isPlayers, PLAYERS, isBeat, BEAT, BEATS, callsAsk, fullQuestion, optionRange, playable,

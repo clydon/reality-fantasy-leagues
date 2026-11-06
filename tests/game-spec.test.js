@@ -49,29 +49,32 @@ const demo = (type, after) => {
 
 // What each kind of game is made of, written here apart from the spec's own code, so a field the spec forgets is caught:
 // the round trip takes these out of a league and writes them back from its spec alone.
-const WAIVER_FIELDS = ["replaceRule", "replenishAt", "waiverWindows", "waiverFeel", "autoFill", "replenishOrderBy", "waiverProcessHours", "freeAgencyEnabled", "waiverStartPhase", "replenishEnabled", "tradeEnabled", "swapEvery"];
+const WAIVER_FIELDS = ["replaceRule", "replenishAt", "waiverWindows", "waiverFeel", "autoFill", "replenishOrderBy", "waiverProcessHours", "freeAgencyEnabled", "waiverStartPhase", "waiverOwn", "replenishEnabled", "tradeEnabled", "swapEvery"];
 // A10 part 3: a draw and a draft spread across the cast's groups; part 3b: an auction and a draft's prices; part 4: keepers.
 // A11 part 1: a draft's rank (a stock market's worth, or last one standing), its race and its cuts; part 2, whether one left ends it;
 // part 4, head to head's playoffs and fallbacks.
 // A12 part 1: when the draft room opens.
 // C2 part 4c: a draft's own questions (draftQuestions).
-const DRAFT_FIELDS = ["ownershipMode", "draftScheduledAt", "draftTimer", "draftAway", "draftOpens", "finalePredictionsEnabled", "finaleTop3Points", "finaleWinnerPoints", "finalePredictionScope", "draftQuestions", "draftDraw", "draftAcross", "draftAuction", "draftBudget", "draftKeep", "draftRank", "draftRace", "draftCut", "rankOneLeft", "rankMatchups", "rankTeams", "rankHandicap"];
+const DRAFT_FIELDS = ["ownershipMode", "draftScheduledAt", "draftTimer", "draftAway", "draftOpens", "finalePredictionsEnabled", "finaleTop3Points", "finaleWinnerPoints", "finalePredictionScope", "draftQuestions", "draftDraw", "draftAcross", "draftAuction", "draftBudget", "draftKeep", "draftRank", "draftRace", "draftCut", "rankOneLeft", "rankMatchups", "rankTeams", "rankHandicap", "rankTies"];
 const GAME_FIELDS = {
   // A12 part 1: an end at a phase.
   every: ["leagueTypeId", "startEpisode", "startPhase", "endEpisode", "endPhase", "allowLateJoiners", "joinMode", "lockedDown", "bonusEnabled", "defaultBetPoints"],
   // A9 part 2: Outlast in reverse; best ball, a lineup's captain, points that multiply by when. A10 part 3c: a stock market
   // ranked by worth.
-  "classic-draft": [...DRAFT_FIELDS, "teamSize", "reverseOrder"],
-  "active-roster": [...DRAFT_FIELDS, "activeSlots", "benchSlots", "eventPoints", "hideStartersUntilLock", "bestBall", "captainTimes", "pointsTimes", "groupSlots"],
+  // C3: a multiplier on how a holding joined (joinedTimes), an Outlast's or a lineup's.
+  "classic-draft": [...DRAFT_FIELDS, "teamSize", "reverseOrder", "joinedTimes"],
+  "active-roster": [...DRAFT_FIELDS, "activeSlots", "benchSlots", "eventPoints", "hideStartersUntilLock", "bestBall", "captainTimes", "pointsTimes", "groupSlots", "joinedTimes", "scoreOnly", "scoreHits"],
   // A10 part 2: a pool's lives, buyback, mulligans, second pick and last one standing. A11 part 2: a pick that never repeats and
   // its fallback; last one standing's end.
-  pickem: ["pickemCorrectPoints", "poolSurvive", "calls", "poolLives", "poolBuyback", "poolMulligans", "poolSecond", "poolRank", "seatPeople", "poolRepeat", "poolFallback", "rankOneLeft", "rankAllOut"],
+  // C5: a pick scored by what they do (poolScore, its points eventPoints and by when pointsTimes, several each episode poolEach),
+  // only these moments and hits counted; weeks won's tied week.
+  pickem: ["pickemCorrectPoints", "poolSurvive", "calls", "poolLives", "poolBuyback", "poolMulligans", "poolSecond", "poolRank", "seatPeople", "poolRepeat", "poolFallback", "rankOneLeft", "rankAllOut", "poolScore", "poolEach", "eventPoints", "pointsTimes", "scoreOnly", "scoreHits", "rankTies"],
   "weekly-calls": [],
   // A9: points per line; a game of questions' parlays.
   "weekly-bingo": ["linePoints"],
   // A11 part 2b: a game of questions' lives (on which questions), race and cuts, and its end; part 3, co-op and who saves a night;
   // part 4b, head to head's playoffs and fallbacks (a draft's too: DRAFT_FIELDS); part 5, teams of players (a draft's too).
-  questions: ["questions", "lateLockHours", "parlays", "seatPeople", "questionsLives", "questionsLivesOn", "questionsRace", "questionsCut", "rankOneLeft", "rankAllOut", "questionsRank", "questionsSaves", "rankMatchups", "rankTeams", "rankHandicap"],
+  questions: ["questions", "lateLockHours", "parlays", "seatPeople", "questionsLives", "questionsLivesOn", "questionsRace", "questionsCut", "rankOneLeft", "rankAllOut", "questionsRank", "questionsSaves", "rankMatchups", "rankTeams", "rankHandicap", "rankTies"],
   // A12 part 1: a game in stages' stages and overall.
   // A12 part 2: how a game a format change moves takes the change.
   stages: ["stages", "stageOverall", "formatChanges"],

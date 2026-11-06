@@ -483,15 +483,32 @@ class EliminationOrderScoringStrategy {
       if(asks) results[p.id].questions = at.questions;
     });
     state.castaways.forEach(c=>{
-      // Dropped via replenish/trade: no longer counts, but still shown (grayed out) for history.
+      // Dropped via replenish/trade: no longer counts (C3: with a multiplier on how a holding joined, what they earned while
+      // that seat held them still does), but still shown (grayed out) for history, under the last seat to let them go.
       if(c.formerOwnerId && results[c.formerOwnerId]){
         results[c.formerOwnerId].formerRoster.push(c);
       }
     });
     const bets = addSideLayers(state, results);
-    Object.values(results).forEach(r=> r.total = Seq.total(r, bets, asks));
+    // Rounded once its own questions (a pot's share) or a multiplier on how a holding joined (C3: half a place) are in it.
+    const rounded = asks || !!joinedFactors(state);
+    Object.values(results).forEach(r=> r.total = Seq.total(r, bets, rounded));
     return Seq.byTotal(Object.values(results));
   }
+}
+// C3: a draft's multipliers on how a holding joined (score.multiply, read as the one multiplier piece: Spec.multipliersOf), or null
+// for none: a lineup's, best ball's or an Outlast's (never in reverse: our check refuses it there). Each holding's line is what it
+// earns while it's yours times the factor for how it joined (Seq.stints, from the mid-season log).
+function joinedFactors(state){
+  // The game that's played (as the walk reads it: a spec no game plays is scored as a plain Outlast).
+  const g = playedGame(state);
+  if(!g.get || g.get.by !== 'draft' || !(g.score.by === 'moments' || (g.score.by === 'place' && g.score.reverse !== true))) return null;
+  const list = Spec.multipliersOf(g).filter(f => f.on === 'joined' && (typeof f.times === 'number' || Array.isArray(f.times)));
+  return list.length ? list : null;
+}
+// What a stint's line multiplies by: each factor on how it joined that names it (at most one does: each way of joining is said once).
+function joinedTimesOf(factors, stint){
+  return factors.reduce((x, f) => x * Seq.factorOf(f, { stint }), 1);
 }
 // C2 part 4c: whether the game that's played has a draft's own questions (beyond its finale predictions), whose points are a line of
 // their own on its rows (`questions`).
@@ -577,7 +594,7 @@ function rankKey(state, r){
     return by === 'wins' ? [r.wins || 0, r.placePoints || 0, r.stagePoints || 0] : by === 'places' ? [r.placePoints || 0, r.stagePoints || 0] : [r.total || 0];
   }
   // C2 part 4b: a pool ranked by its points, or head to head on them, ranks as any game does below (its points, its teams', its record).
-  if(g.get.by === 'pick' && !Spec.poolByPoints(g)) return g.rank.by === 'standing' ? PickEmScoringStrategy.standingKey(r) : [r.longestStreak || 0, r.total];
+  if(Spec.isPool(g) && !Spec.poolByPoints(g)) return g.rank.by === 'standing' ? PickEmScoringStrategy.standingKey(r) : [r.longestStreak || 0, r.total];
   if(g.rank.by === 'worth' && MarketLogic.on(state)) return [r.worth || 0, r.total];
   // C2 part 4b: teams knocked out (a draft's cuts on the teams' totals), last team standing: every member shares their team's place
   // (in before out, out later first, then its points: TeamLogic.label puts its `out` on the row's team); someone on no team after
@@ -597,6 +614,12 @@ function rankKey(state, r){
   if(g.rank.by === 'matchups' && MatchupLogic.on(state)) {
     const m = r.matchups;
     return m ? Seq.recordKey(m) : [0, 0, r.total || 0, 0];
+  }
+  // C5: weeks won, then the points in those weeks (a team's, between teams of players: WeekLogic.apply puts them on its rows), then
+  // the row's own; a row in nobody's weeks (someone on no team) after everyone who was.
+  if(g.rank.by === 'weeks' && WeekLogic.on(state)) {
+    const w = r.weeks;
+    return w ? [1, w.won, w.points, r.total || 0] : [0, 0, 0, r.total || 0];
   }
   return [r.total];
 }
@@ -651,7 +674,10 @@ class ScoringLogic {
   // each episode's total as ActiveRosterLogic.episodeScore counts it (the starters or best ball's team, their moments, a captain's
   // and the episode's multiplier, best ball's best n, the group slots beside them), added up episode by episode (Seq.add). C2 part 4c:
   // a draft's own questions, a line of their own beside them, their points as the server graded them on this copy (AnswerLogic.lines:
-  // through each episode, and now); a copy without them scores them as nothing.
+  // through each episode, and now); a copy without them scores them as nothing. C3: with a multiplier on how a holding joined
+  // (joinedFactors), each holding's line is what it earns while it's yours (Seq.stints: drafted, or the move that brought it, until
+  // the move that let it go), times its factor: an Outlast's, its place where it was let go (or at the mark) less its place when it
+  // joined (Seq.earnedWhileHeld), each line rounded and their sum; a lineup's, each moment line times it too (episodeScore).
   static walk(state, want){
     const w = want || { series: true, now: true };
     const game = gameOf(state);
@@ -670,7 +696,27 @@ class ScoringLogic {
     // recorded, from the start); a boot outlasted, gone with a place recorded.
     const goneBy = (c, k) => c.status === 'eliminated' && (numberOf.has(c.exitEpisodeId) ? numberOf.get(c.exitEpisodeId) : 0) <= k;
     const markAt = k => ({ size: cast.length, out: cast.filter(c => goneBy(c, k) && typeof c.placementOrder === 'number').length, reverse });
+    // C3: how each seat's holdings joined it, and each one's place as a value at a mark (out by then: their place, or nothing with
+    // none recorded; still in, 1 plus the boots so far), for a multiplier on how a holding joined.
+    const joined = joinedFactors(state);
+    const stintsOf = joined ? new Map(players.map(p => [p.id, Seq.stints(Core.ownedCastawayIds(state, p.id), log, p.id)])) : null;
+    const marks = new Map();
+    const markOf = k => { if(!marks.has(k)) marks.set(k, markAt(k)); return marks.get(k); };
+    const valueAt = (c, m) => goneBy(c, m) ? (typeof c.placementOrder === 'number' ? Seq.placed(c.placementOrder, markOf(m)) : 0) : Seq.stillIn(markOf(m));
     const placesAt = (playerId, k, mark) => {
+      if(joined){
+        // Banked: what can't change any more (one out by then, or let go).
+        let locked = 0, banked = 0;
+        stintsOf.get(playerId).forEach(s => {
+          const c = Core.getCastaway(state, s.id);
+          const earned = c ? Seq.earnedWhileHeld(s, k, m => valueAt(c, m)) : 0;
+          if(!earned) return;
+          const pts = Seq.multiply(earned, [joinedTimesOf(joined, s)]);
+          locked += pts;
+          if(goneBy(c, k) || (s.ended && s.to < k)) banked += pts;
+        });
+        return { locked: Seq.round(locked), banked: Seq.round(banked) };
+      }
       const stillIn = Seq.stillIn(mark);
       let locked = 0, banked = 0;
       Seq.heldAt(Core.ownedCastawayIds(state, playerId), log, playerId, k).forEach(id => {
@@ -700,7 +746,7 @@ class ScoringLogic {
       if(!outlast && (w.now || final)){
         const events = ActiveRosterLogic.episodeEvents(state, ep);
         if(events.length){
-          const pre = { times: ActiveRosterLogic.timesFor(state, ep.number), slots, scored: ActiveRosterLogic.scoredEvents(state, events) };
+          const pre = { times: ActiveRosterLogic.timesFor(state, ep.number), slots, scored: ActiveRosterLogic.scoredEvents(state, events), joined, stints: stintsOf };
           players.forEach(p => running.set(p.id, Seq.add(running.get(p.id), ActiveRosterLogic.episodeScore(state, ep, p.id, pre).total)));
         }
       }
@@ -757,6 +803,11 @@ class ScoringLogic {
     if(MatchupLogic.on(view)){
       const own = walk ? AnswerLogic.walkRows(rows, walk) : rows;
       return MatchupLogic.apply(view, TeamLogic.on(view) ? TeamLogic.label(view, own) : own);
+    }
+    // C5: weeks won, on the same series of totals head to head reads (a team's, between teams of players).
+    if(WeekLogic.on(view)){
+      const own = walk ? AnswerLogic.walkRows(rows, walk) : rows;
+      return WeekLogic.apply(view, TeamLogic.on(view) ? TeamLogic.label(view, own) : own);
     }
     const scored = walk ? AnswerLogic.applyWalk(view, rows, walk) : rows;
     // A11 part 5: teams of players, ranked by their teams' points.
@@ -1053,7 +1104,8 @@ class MatchupLogic {
   // pool's, from its picks (PickEmLogic.series).
   static seatSeries(state){
     const g = gameOf(state);
-    if(g.get.by === 'pick') return PickEmLogic.series(state);
+    // C5: a pick scored by what they do walks as a lineup does (the draft's walk, each episode its picks' moments).
+    if(Spec.isPool(g)) return PickEmLogic.series(state);
     if(!Spec.questionsGame(g)) return KnockoutLogic.series(state);
     const walk = AnswerLogic.walkOf(state);
     return walk && Array.isArray(walk.series) ? walk.series.map(x => ({ number: x.number, totals: new Map(Object.entries(x.totals)) })) : [];
@@ -1225,6 +1277,41 @@ class MatchupLogic {
       if(from !== null && resultsAt(from)){ state.playoffsFrom = from; return from !== had; }
     }
     return had !== undefined;
+  }
+}
+
+// ---------- WeekLogic: weeks won (docs/PLAN-start-a-game-gpt.md track C, C5) ----------
+// The spec's rank.by 'weeks' (Spec.weekParts): each episode, whoever of the seats in the game then added the most points to their total
+// wins the week; the season by weeks won, then the points in those weeks. On the same series of totals head to head reads
+// (MatchupLogic.series: a draft's walk, a game of questions' answers' walk, a pool's picks, a pick scored by moments; between teams of
+// players, each team's), and the same seats (MatchupLogic.seatsAt: playing the league's own season from when it joined, a team
+// with someone on it then), so someone joining late plays the weeks from theirs. A week two or more top: each of them wins it (ties
+// 'all', the default: the user's), they share one (split), or nobody does (none); a week nobody scored anything (a quiet night, a
+// format change that voided everything) is won by nobody, and the game carries on. Nothing after the season's finale counts. Worked
+// out from the data on every read, as head to head is.
+class WeekLogic {
+  static parts(state){ return Spec.weekParts(gameOf(state)); }
+  static on(state){ return !!WeekLogic.parts(state); }
+  // { weeks: [{ number, winners, top }], won: Map side -> weeks won, points: Map side -> its points in the weeks it was in }, or null.
+  static run(state){
+    const parts = WeekLogic.parts(state);
+    if(!parts) return null;
+    const finale = seasonEnded(state) ? finaleEpisodeOf(state) : null;
+    return Seq.weeks(MatchupLogic.series(state), { ties: parts.ties, finale: finale ? finale.number : null, seatsAt: k => MatchupLogic.seatsAt(state, k) });
+  }
+  // The score rows with each one's `weeks` ({ won, points, last: the latest week's winners }: their side's: a team's, between teams of
+  // players; null for a row in nobody's weeks), ranked as rankKey ranks them.
+  static apply(state, rows){
+    const w = WeekLogic.run(state);
+    if(!w) return rows;
+    const sideOf = MatchupLogic.sideOf(state);
+    const last = w.weeks.length ? w.weeks[w.weeks.length - 1] : null;
+    rows.forEach(r => {
+      const side = sideOf(r.playerId);
+      if(side === null || !w.points.has(side)){ r.weeks = null; return; }
+      r.weeks = { won: w.won.get(side) || 0, points: w.points.get(side) || 0, last: last ? { episode: last.number, won: last.winners.includes(side) } : null };
+    });
+    return rows.sort((a,b) => PickEmScoringStrategy.compareKeys(rankKey(state, b), rankKey(state, a)) || b.total - a.total);
   }
 }
 
@@ -2470,7 +2557,7 @@ class BudgetLogic {
     // empty (the same one autoPick would fill it with).
     const drop = dropId ? Core.getCastaway(state, dropId) : null;
     if(!drop || drop.status !== 'active'){
-      const cheapest = Math.min(...MidSeasonLogic.availableFor(state, playerId).map(c => p.get(c.id) || 0));
+      const cheapest = Math.min(...MidSeasonLogic.availableFor(state, playerId, 'replace').map(c => p.get(c.id) || 0));
       if((p.get(addId) || 0) <= cheapest) return null;
     }
     const c = Core.getCastaway(state, addId);
@@ -2992,6 +3079,10 @@ class ActiveRosterLogic {
   static pointsFor(state, type){
     if(state.settings && state.settings.rulebook && !formatOf(state).events.some(e => e.id === type)) return 0;
     const score = gameOf(state).score;
+    // C5: only these moments count (score.only), and hits counted (score.hits): each moment's worth (Spec.momentWorth).
+    if(score.by === 'moments' && (score.only !== undefined || score.hits !== undefined)){
+      return Spec.momentWorth(score, type, defaultPointsFor(formatOf(state).events.find(e => e.id === type), ownershipModeOf(state)));
+    }
     const configured = score.by === 'moments' && score.points ? score.points[type] : undefined;
     if(typeof configured === 'number' && Number.isFinite(configured)) return configured;
     const def = formatOf(state).events.find(e => e.id === type);
@@ -3015,7 +3106,19 @@ class ActiveRosterLogic {
   // An episode's moments (episodeEvents) as the scoring sequence reads them: each { castawayId, points } at the game's points, in
   // order. Worked out once an episode for every seat (compute's `pre.scored`).
   static scoredEvents(state, events){
+    // C5: counting each objective once (score.hits 'pick' or 'objective'), each moment's id and what a hit on it is worth.
+    const hits = ActiveRosterLogic.hits(state);
+    if(hits === 'pick' || hits === 'objective'){
+      const worth = new Map();
+      const of = ev => { if(!worth.has(ev.type)) worth.set(ev.type, ev.couch && !formatOf(state).events.some(e => e.id === ev.type) ? 0 : ActiveRosterLogic.pointsFor(state, ev.type)); return worth.get(ev.type); };
+      return events.map(ev => ({ castawayId: ev.castawayId, points: ActiveRosterLogic.eventPoints(state, ev), type: ev.type, worth: of(ev) }));
+    }
     return events.map(ev => ({ castawayId: ev.castawayId, points: ActiveRosterLogic.eventPoints(state, ev) }));
+  }
+  // C5: how a game scored by moments counts hits (score.hits: every, pick, objective), or null (by points, every game before C5).
+  static hits(state){
+    const score = gameOf(state).score;
+    return score.by === 'moments' && score.hits !== undefined ? score.hits : null;
   }
   // A lineup's starters (the spec's count.start) and its bench (the rest of the team); none outside a Weekly Lineup.
   static activeSlots(state){
@@ -3042,13 +3145,14 @@ class ActiveRosterLogic {
   // part 1): compute's own path. A plain lineup keeps the arithmetic it always had.
   static combines(state){
     const g = gameOf(state);
-    return g.score.by === 'moments' && (!!ActiveRosterLogic.bestOf(state) || !!ActiveRosterLogic.captainTimes(state) || Array.isArray(g.score.times) || !!GroupSlotLogic.config(state));
+    return g.score.by === 'moments' && (!!ActiveRosterLogic.bestOf(state) || !!ActiveRosterLogic.captainTimes(state) || Array.isArray(g.score.times) || !!GroupSlotLogic.config(state) || !!joinedFactors(state));
   }
   // What an episode's points multiply by (the spec's score.times): each window it's in, together -- an episode, a run of them,
   // a phase of the season, the finale -- else 1. A phase counts from where data says it starts (state.phaseStarts, the desk's:
   // RosterLogic.settlePhases) to where the next one known does, once this copy is up to the episode before its start (as a
   // phase window shows: nobody behind learns a phase began); the finale is the episode that ended the season (finaleEpisodeOf),
-  // known once its results are. Scoring only reads episodes with results, so the guard never changes a score.
+  // known once its results are. Scoring only reads episodes with results, so the guard never changes a score. C3: each window is a
+  // factor of the one multiplier piece, on 'when' (Spec.multipliersOf, Seq.factorOf: Seq.inWindow says whether it's in it).
   static timesFor(state, number){
     const list = gameOf(state).score.times;
     if(!Array.isArray(list) || gameOf(state).score.by !== 'moments') return 1;
@@ -3065,15 +3169,9 @@ class ActiveRosterLogic {
       if(finale === undefined){ const f = finaleEpisodeOf(state); finale = f ? f.number : null; }
       return finale;
     };
+    const facts = { episode: number, phase: inPhase, finale: finaleNumber };
     let x = 1;
-    list.forEach(t => {
-      const hit = Number.isInteger(t.episode) ? number === t.episode
-        : Number.isInteger(t.from) ? number >= t.from && (t.to === undefined || t.to === null || number <= t.to)
-        : typeof t.phase === 'string' ? inPhase(t.phase)
-        : t.finale === true ? number === finaleNumber()
-        : false;
-      if(hit) x *= t.times;
-    });
+    Spec.multipliersOf(gameOf(state)).forEach(f => { if(f.on === 'when') x *= Seq.factorOf(f, facts); });
     return x;
   }
   // The team a player held for an episode (best ball, which has no lineups to store it): who they hold now, with every move
@@ -3094,18 +3192,25 @@ class ActiveRosterLogic {
   // multiplier (timesFor) on all of it. `pre`: what the caller has worked out already for the episode (compute, every player):
   // its multiplier, its moments at the game's points (`scored`: scoredEvents; else its `events`, scored here), group slots' index.
   // The scoring sequence's steps 1 to 4 for one seat and one episode (C2 part 1): what counts (the starters, or best ball's whole
-  // team), each holding's moments, times its captain's and the episode's multiplier, then best ball's best n with the group
-  // slots' lines beside them.
+  // team), each holding's moments, times its captain's and the episode's multiplier (C3: and the factor for how it joined, where the
+  // game has one: `pre.joined`, `pre.stints` the walk's), then best ball's best n with the group slots' lines beside them.
   static episodeScore(state, ep, playerId, pre){
     const best = ActiveRosterLogic.bestOf(state);
     // Each holding once (C2 part 2: a stored lineup listing a starter twice, which validateLineup refuses, scores them once).
-    const ids = [...new Set(best ? ActiveRosterLogic.teamFor(state, ep, playerId) : ActiveRosterLogic.lineupFor(state, ep.id, playerId))];
+    // C5: a pick each episode scored by what they do holds that episode's picks.
+    const held = gameOf(state).get.by === 'pick' ? PickEmLogic.picked(PickEmLogic.pickFor(state, ep.id, playerId)) : best ? ActiveRosterLogic.teamFor(state, ep, playerId) : ActiveRosterLogic.lineupFor(state, ep.id, playerId);
+    const ids = [...new Set(held)];
     const captain = best ? null : ActiveRosterLogic.captainFor(state, ep.id, playerId);
     const times = pre && pre.times !== undefined ? pre.times : ActiveRosterLogic.timesFor(state, ep.number);
     const scored = (pre && pre.scored) || ActiveRosterLogic.scoredEvents(state, (pre && pre.events) || ActiveRosterLogic.episodeEvents(state, ep));
-    const raw = Seq.momentRaw(ids, scored);
-    const cap = captain ? ActiveRosterLogic.captainTimes(state) : 1;
-    const lines = ids.map(id => ({ castawayId: id, points: Seq.multiply(raw.get(id), [id === captain ? cap : 1, times]), counted: false, captain: id === captain }));
+    const raw = Seq.momentRaw(ids, scored, ActiveRosterLogic.hits(state));
+    // The captain's factor (C3: the one multiplier piece, on 'captain').
+    const cap = { on: 'captain', times: captain ? ActiveRosterLogic.captainTimes(state) : 1 };
+    const joined = pre && pre.joined !== undefined ? pre.joined : joinedFactors(state);
+    const mine = joined ? ((pre && pre.stints && pre.stints.get(playerId)) || Seq.stints(Core.ownedCastawayIds(state, playerId), state.midSeason && state.midSeason.log, playerId)) : null;
+    const joinedOf = id => { const s = mine.find(x => x.id === id && Seq.heldIn(x, ep.number)); return s ? joinedTimesOf(joined, s) : 1; };
+    const factors = id => joined ? [Seq.factorOf(cap, { captain: id === captain }), times, joinedOf(id)] : [Seq.factorOf(cap, { captain: id === captain }), times];
+    const lines = ids.map(id => ({ castawayId: id, points: Seq.multiply(raw.get(id), factors(id)), counted: false, captain: id === captain }));
     // Best ball: the n highest count (a tie can't change the total; the cast's order breaks it). A lineup: every starter.
     Seq.best(lines, best);
     const slots = GroupSlotLogic.scoredLines(state, ep, playerId, scored, times, pre && pre.slots);
@@ -3710,6 +3815,10 @@ class PickEmLogic {
     const ep = PickEmLogic.findEpisode(state, epId);
     return ep ? (ep.picks||[]).find(pk=>pk.playerId===playerId) || null : null;
   }
+  // C5: everyone a pick names, in order: its first (castawayId) and, in a game picking several each episode, the rest (`more`).
+  static picked(pick){ return pick ? [pick.castawayId, ...(Array.isArray(pick.more) ? pick.more : [])].filter(Boolean) : []; }
+  // C5: a pick scored by what they do in the episode (score.by 'moments'), one person or several, rather than whether they stay in.
+  static byMoments(state){ return Spec.momentsPick(gameOf(state)); }
   // The episode picks are being made for. See the module-level currentEpisode() -- shared with
   // Active Roster's lineup grid and Overview's side bets.
   static upcomingEpisode(state){ return currentEpisode(state); }
@@ -3719,6 +3828,8 @@ class PickEmLogic {
   // sport, settings.poolSurvive 'scores': docs/PLAN-new-design.md step 10 part 2b) is decided once its scores are in.
   static decided(ep, state){
     if(!ep) return false;
+    // C5: a pick scored by what they do is decided once the episode's results are in (its moments), as a lineup's.
+    if(PickEmLogic.byMoments(state)) return EpisodeLogic.hasResults(ep);
     if(ep.noExit || (ep.events||[]).length > 0) return true;
     return PickEmLogic.byScore(state) && (ep.scoringEvents||[]).length > 0;
   }
@@ -3761,17 +3872,21 @@ class PickEmLogic {
       const out = PickEmLogic.history(state, playerId, parts).out;
       if(out !== null && out < ep.number) return { available: [], blocked, out };
     }
+    // C5: a pick that repeats freely (repeat 'any'): anyone still in, every episode.
+    const repeat = gameOf(state).get.repeat;
+    if(repeat === 'any') return { available: remaining, blocked };
     const prior = [...state.episodes]
       .filter(e => e.number < ep.number)
       .sort((a,b) => a.number - b.number)
       .flatMap(e => {
         const pick = (e.picks||[]).find(pk => pk.playerId === playerId);
         if(!pick) return [];
-        const made = [{ number: e.number, castawayId: pick.castawayId }];
+        // C5: each of several picks an episode, in order.
+        const made = PickEmLogic.picked(pick).map(id => ({ number: e.number, castawayId: id }));
         if(pick.second && PickEmLogic.secondCounted(state, e, parts)) made.push({ number: e.number, castawayId: pick.second });
         return made;
       });
-    if(parts && parts.never){
+    if((parts && parts.never) || repeat === 'never'){
       // Only the picks their own season played (from their start, in the game's span), as history counts them.
       const from = GhostLogic.startFor(state, playerId);
       const picked = new Map(prior.filter(x => from !== null && x.number >= from && inPlay(state, x.number)).map(x => [x.castawayId, x.number]));
@@ -3796,6 +3911,16 @@ class PickEmLogic {
     if(!available.length && last.length){
       available = last.map(x => x.castawayId);
       last.forEach(x => { delete blocked[x.castawayId]; });
+    }
+    // C5: a pick of several that the rules leave short of a full set (late in a season, fewer still in than two episodes' picks):
+    // back to back is let go first, then the cycle, so a full pick can always be made while that many are still in.
+    const each = gameOf(state).get.each;
+    if(each > 1 && available.length < each){
+      for(const reason of ['backToBack', 'cycle']){
+        if(available.length >= each) break;
+        remaining.forEach(id => { if(blocked[id] && blocked[id].reason === reason) delete blocked[id]; });
+        available = remaining.filter(id => !blocked[id]);
+      }
     }
     return { available, blocked };
   }
@@ -4054,9 +4179,31 @@ class PickEmLogic {
     const player = Core.getPlayer(state, playerId);
     if(!ep || !c || !player || c.status!=='active' || !inPlay(state, ep.number)) return;
     if(closedForPlay(ep) || PickEmLogic.decided(ep, state)) return; // picks close when the episode starts (or its lock says)
-    if(!PickEmLogic.eligibility(state, epId, playerId).available.includes(castawayId)) return;
+    const available = PickEmLogic.eligibility(state, epId, playerId).available;
+    if(!available.includes(castawayId)) return;
     ep.picks = ep.picks || [];
     const existing = ep.picks.find(pk=>pk.playerId===playerId);
+    // C5: a game picking several each episode (get.each): `opts.picks` the whole pick at once (each still in and theirs to pick,
+    // none twice, up to `each`), else `castawayId` added to the pick while it has room.
+    const each = gameOf(state).get.each;
+    if(each > 1 && !(opts && opts.second)){
+      let ids;
+      if(opts && Array.isArray(opts.picks)){
+        ids = opts.picks;
+        if(ids[0] !== castawayId || ids.length > each || new Set(ids).size !== ids.length || !ids.every(id => available.includes(id))) return;
+      } else {
+        const now = PickEmLogic.picked(existing);
+        if(now.includes(castawayId) || now.length >= each) return;
+        ids = [...now, castawayId];
+      }
+      const pick = existing || { playerId };
+      pick.castawayId = ids[0];
+      if(ids.length > 1) pick.more = ids.slice(1);
+      else delete pick.more;
+      if(!existing) ep.picks.push(pick);
+      return;
+    }
+    if(opts && Array.isArray(opts.picks) && !(opts.picks.length === 1 && opts.picks[0] === castawayId)) return;
     if(opts && opts.second){
       const parts = PickEmLogic.parts(state);
       if(!parts || !parts.second || !existing || existing.castawayId === castawayId) return;
@@ -4077,9 +4224,23 @@ class PickEmLogic {
     if(!ep) return;
     const parts = PickEmLogic.parts(state);
     if(parts && parts.second && (closedForPlay(ep) || PickEmLogic.decided(ep, state))) return;
+    // C5: a pick scored by what they do, cleared after its lock, would take back what it scored (a negative week, or a week won).
+    if(PickEmLogic.byMoments(state) && (closedForPlay(ep) || PickEmLogic.decided(ep, state))) return;
     if(opts && opts.second){
       const existing = (ep.picks||[]).find(pk=>pk.playerId===playerId);
       if(existing) delete existing.second;
+      return;
+    }
+    // C5: one of several picks (`opts.castawayId`), the rest kept in order: not once the episode's locked or decided.
+    if(opts && opts.castawayId){
+      if(closedForPlay(ep) || PickEmLogic.decided(ep, state)) return;
+      const existing = (ep.picks||[]).find(pk=>pk.playerId===playerId);
+      const ids = PickEmLogic.picked(existing).filter(id => id !== opts.castawayId);
+      if(!existing) return;
+      if(!ids.length){ ep.picks = ep.picks.filter(pk=>pk.playerId!==playerId); return; }
+      existing.castawayId = ids[0];
+      if(ids.length > 1) existing.more = ids.slice(1);
+      else delete existing.more;
       return;
     }
     ep.picks = (ep.picks||[]).filter(pk=>pk.playerId!==playerId);
@@ -5512,15 +5673,22 @@ function restoreFields(c, was, keys){
   keys.forEach(k => { if(was && Object.prototype.hasOwnProperty.call(was, k)) c[k] = was[k]; else delete c[k]; });
 }
 class MidSeasonLogic {
-  static isShared(state){ return ownershipModeOf(state) === 'shared'; }
-  static availableFor(state, playerId){
-    const aside = MidSeasonLogic.isShared(state) ? null : ownersAside(state);
-    return state.castaways.filter(c => c.status === 'active' && (MidSeasonLogic.isShared(state)
+  // C4: ownership per holding. A move's `kind` ('replace': for someone gone home; 'swap': for someone still in) holds whom it
+  // brings in as the waivers say (the spec's extras.waivers.own: { replace, swap }), each left out the draft's (get.own); no kind,
+  // the draft's. Exclusive: only someone on nobody's team (a free agent); shared: anyone still in who isn't yours already.
+  static ownOf(state, kind){ return kind ? Spec.waiverOwnOf(gameOf(state), kind) : ownershipModeOf(state); }
+  static isShared(state, kind){ return MidSeasonLogic.ownOf(state, kind) === 'shared'; }
+  // Who `playerId` can bring in by a move of `kind`; with no kind, by either move (a shared one's people include an exclusive
+  // one's), so a list for both says everyone either could take.
+  static availableFor(state, playerId, kind){
+    const shared = kind ? MidSeasonLogic.isShared(state, kind) : MidSeasonLogic.isShared(state, 'replace') || MidSeasonLogic.isShared(state, 'swap');
+    const aside = shared ? null : ownersAside(state);
+    return state.castaways.filter(c => c.status === 'active' && (shared
       ? !ownerListOf(c).includes(playerId)
       : leagueOwnersOf(state, c, aside).length === 0));
   }
-  static isAvailableFor(state, castawayId, playerId){
-    return MidSeasonLogic.availableFor(state, playerId).some(c => c.id === castawayId);
+  static isAvailableFor(state, castawayId, playerId, kind){
+    return MidSeasonLogic.availableFor(state, playerId, kind).some(c => c.id === castawayId);
   }
   // Reverse draft order: last pick in the draft gets first dibs. A shared (blind) draft has no pick
   // order, so the player list stands in for it.
@@ -5588,7 +5756,7 @@ class MidSeasonLogic {
   static applyPickup(state, playerId, addId, lossId, extra){
     const add = Core.getCastaway(state, addId);
     const lost = lossId ? Core.getCastaway(state, lossId) : null;
-    const shared = MidSeasonLogic.isShared(state);
+    const shared = MidSeasonLogic.isShared(state, 'replace');
     const prev = { added: fieldsOf(add, ADDED_KEYS), dropped: lost ? fieldsOf(lost, DROPPED_KEYS) : null };
     if(shared) Core.addOwner(state, addId, playerId);
     else Core.setOwner(state, addId, playerId);
@@ -5598,8 +5766,9 @@ class MidSeasonLogic {
       // formerOwnerId stays a single id (history display only, not scoring).
       lost.formerOwnerId = playerId;
       lost.departedVia = 'replenish';
-      // Shared: only this player lets go; anyone else who owns them keeps them.
-      if(shared) Core.removeOwner(state, lost.id, playerId);
+      // Only this player lets go; anyone else who holds them keeps them (a shared game's, or C4's: someone in an exclusive draft
+      // another team took on as a shared replacement).
+      if(shared || leagueOwnersOf(state, lost).some(id => id !== playerId)) Core.removeOwner(state, lost.id, playerId);
       else Core.setOwner(state, lost.id, null);
     }
     return MidSeasonLogic.log(state, { type:'replenish', playerId, addedCastawayId: addId, droppedCastawayId: lost ? lost.id : null, prev, ...extra });
@@ -5610,7 +5779,7 @@ class MidSeasonLogic {
     drop.formerOwnerId = playerId;
     drop.departedVia = 'trade';
     Core.removeOwner(state, dropId, playerId);
-    if(MidSeasonLogic.isShared(state)) Core.addOwner(state, addId, playerId);
+    if(MidSeasonLogic.isShared(state, 'swap')) Core.addOwner(state, addId, playerId);
     else Core.setOwner(state, addId, playerId);
     add.acquiredVia = 'trade';
     return MidSeasonLogic.log(state, { type:'trade', playerId, addedCastawayId: addId, droppedCastawayId: dropId, prev, ...extra });
@@ -6061,6 +6230,48 @@ class WaiverLogic {
   // can be replaced in it whatever the rule; off, none can. And nothing's owed while nobody is free to
   // come in (every castaway still in on a team: late in a season, the five left all drafted), so no
   // screen asks for a replacement nobody can make; { ..., nobodyFree: true } says that's why.
+  // C4: whether someone gone home counts as replaced for `playerId`. Replacing someone marks them (replenishClaimed; formerOwnerId:
+  // whoever replaced them last, who let them go). The mark is only its maker's (per holder): anyone still holding them is still
+  // owed a replacement (two seats in a shared game, or C4's: someone in an exclusive draft another team took on as a shared
+  // replacement). The user's rule (2026-11-06, the Decisions table's "A shared game's two holders"): every game is per holder,
+  // except an exit a game had already played when the rule came in. A game made before it carries its cutover
+  // (settings.perHolderFrom, written once by migration 0207: the first episode it hadn't played), and an exit before that episode
+  // (or one with no episode to tell by) keeps the old rule, the mark counting for every holder, so no past loss is owed again,
+  // whatever its game becomes later (its waivers saying where each move comes from, C4's, included). A game with no cutover (every
+  // game made since, C4's among them) is per holder throughout. A mark naming nobody (a league from before formerOwnerId) counts
+  // for everyone.
+  static perHolderFrom(state){
+    const from = state && state.settings && state.settings.perHolderFrom;
+    return Number.isInteger(from) ? from : null;
+  }
+  /** Whether `c`'s exit is replaced per holder (WaiverLogic.perHolderFrom); with no `c`, whether every exit is. */
+  static perHolder(state, c){
+    const from = WaiverLogic.perHolderFrom(state);
+    if(from == null) return true;
+    const ep = c && c.exitEpisodeId ? (state.episodes || []).find(e => e.id === c.exitEpisodeId) : null;
+    return !!ep && ep.number >= from;
+  }
+  static replacedFor(state, c, playerId){
+    if(!c || !c.replenishClaimed) return false;
+    return !(c.formerOwnerId && c.formerOwnerId !== playerId && WaiverLogic.perHolder(state, c));
+  }
+  /** The cutover a game made before the per-holder rule takes (migration 0207's, as data): the first episode it hasn't played, the
+   *  latest with results plus one; at your own pace, the furthest any seat has played (a seat still catching up, its mark; any
+   *  other, the latest with results), so nothing a seat has played changes. */
+  static cutoverAt(state){
+    const latest = SpoilerLogic.latestWithResults(state);
+    if(!GhostLogic.ownPace(state)) return latest + 1;
+    const marks = (state.players || []).map(p => {
+      const lj = p.lateJoin;
+      return lj && lj.catchingUp && Number.isInteger(lj.seenThrough) ? Math.min(lj.seenThrough, latest) : latest;
+    });
+    return Math.max(0, ...marks) + 1;
+  }
+  /** Someone who went home on a team and isn't replaced yet for whoever still holds them (WaiverLogic.replacedFor). */
+  static lossOpen(state, c){
+    const holders = ownerListOf(c);
+    return holders.length > 0 && holders.some(id => !WaiverLogic.replacedFor(state, c, id));
+  }
   static replacementsOwed(state, playerId, period){
     const none = { count: 0, lossIds: [], outIds: [] };
     let rule = WaiverLogic.replaceRule(state);
@@ -6073,7 +6284,7 @@ class WaiverLogic {
     if(!inLeagueRotation(Core.getPlayer(state, playerId))) return none;
     if(rule === 'windows' && !WaiverLogic.isWindow(period)) return none;
     const losses = state.castaways
-      .filter(c => ownerListOf(c).includes(playerId) && c.status === 'eliminated' && !c.replenishClaimed && !isWinnerExit(state, c.exitMethod))
+      .filter(c => ownerListOf(c).includes(playerId) && c.status === 'eliminated' && !WaiverLogic.replacedFor(state, c, playerId) && !isWinnerExit(state, c.exitMethod))
       .sort((a,b) => (a.placementOrder || 0) - (b.placementOrder || 0))
       .map(c => c.id);
     let count = losses.length;
@@ -6082,7 +6293,7 @@ class WaiverLogic {
       const at = WaiverLogic.shortAt(state);
       count = Math.min(losses.length, inGame <= at ? at + 1 - inGame : 0);
     }
-    if(count && !MidSeasonLogic.availableFor(state, playerId).length) return { ...none, nobodyFree: true };
+    if(count && !MidSeasonLogic.availableFor(state, playerId, 'replace').length) return { ...none, nobodyFree: true };
     return { count, lossIds: losses.slice(0, count), outIds: count ? losses : [] };
   }
   /** replacementsOwed in the week running now (pre-v2's "pickups owed"). */
@@ -6269,7 +6480,8 @@ class WaiverLogic {
       if(!owed.count) return 'You can’t replace anyone this week';
       if(!owed.outIds.includes(drop.id)) return `${drop.name} can’t be replaced`;
     }
-    if(!MidSeasonLogic.isAvailableFor(state, pair.addId, playerId)) return 'Claim free agents only';
+    // C4: whom it brings in is held as its kind of move says (a replacement's, a swap's).
+    if(!MidSeasonLogic.isAvailableFor(state, pair.addId, playerId, drop.status === 'active' ? 'swap' : 'replace')) return 'Claim free agents only';
     // A10 part 3b: within a salary cap at today's prices, or no further over (`prices`: read once a claim).
     return BudgetLogic.moveProblem(state, playerId, pair.dropId, pair.addId, prices);
   }
@@ -6383,7 +6595,9 @@ class WaiverLogic {
     const at = new Date((opts && opts.now) || Date.now()).toISOString();
     const meta = { via: 'waivers', periodId: p.id, episode: p.episode, at };
     const orderBefore = MidSeasonLogic.order(state, WaiverLogic.rotation(state));
-    const shared = MidSeasonLogic.isShared(state);
+    // C4: each kind of move holds as the waivers say (MidSeasonLogic.ownOf).
+    const moveOf = kind => (kind === 'pickup' ? 'replace' : 'swap');
+    const sharedFor = { pickup: MidSeasonLogic.isShared(state, 'replace'), addDrop: MidSeasonLogic.isShared(state, 'swap') };
     const results = [];
     const movers = new Set();
     const firstTaker = {};
@@ -6409,7 +6623,8 @@ class WaiverLogic {
       const drop = Core.getCastaway(state, x.dropId);
       if(!drop || !ownerListOf(drop).includes(pid)) return { silent: true };
       if(drop.status !== 'active' ? r.repLeft <= 0 : r.swapLeft <= 0) return { silent: true };
-      if((shared || !justDropped.has(x.addId)) && MidSeasonLogic.isAvailableFor(state, x.addId, pid)){
+      const kind = kindOf(x);
+      if((sharedFor[kind] || !justDropped.has(x.addId)) && MidSeasonLogic.isAvailableFor(state, x.addId, pid, moveOf(kind))){
         return prices && BudgetLogic.moveProblem(state, pid, x.dropId, x.addId, prices) ? { castawayId: x.addId, reason: market ? 'cash' : 'cap' } : null;
       }
       if(r.mine.has(x.addId)) return { castawayId: x.addId, reason: 'yours' };
@@ -6507,6 +6722,8 @@ class WaiverLogic {
     if(drop.status !== 'active'){
       if(!owed.count) return 'You can’t replace anyone this week';
       if(!owed.outIds.includes(drop.id)) return `${drop.name} can’t be replaced`;
+      // C4: a replacement brings in whom the waivers' replacements can hold (above: either move's).
+      if(!MidSeasonLogic.isAvailableFor(state, addId, playerId, 'replace')) return 'They’re not a free agent any more';
       // A10 part 3b: within a salary cap at today's prices, or no further over; part 3c: a stock market's, within cash.
       const over = BudgetLogic.moveProblem(state, playerId, drop.id, addId, prices);
       if(over) return over;
@@ -6515,6 +6732,7 @@ class WaiverLogic {
     }
     if(!WaiverLogic.swapsAllowed(p)) return 'No swaps this week';
     if(!WaiverLogic.swapsLeft(state, p, playerId)) return 'You’ve used this window’s swaps';
+    if(!MidSeasonLogic.isAvailableFor(state, addId, playerId, 'swap')) return 'They’re not a free agent any more';
     const over = BudgetLogic.moveProblem(state, playerId, dropId, addId, prices);
     if(over) return over;
     MidSeasonLogic.applyAddDrop(state, playerId, dropId, addId, entryOf(dropId));
@@ -6550,7 +6768,7 @@ class WaiverLogic {
     return p;
   }
   static autoPick(state, period, playerId, n, dropId){
-    let pool = MidSeasonLogic.availableFor(state, playerId).map(c => c.id).sort();
+    let pool = MidSeasonLogic.availableFor(state, playerId, 'replace').map(c => c.id).sort();
     if(!pool.length) return null;
     // A10 part 3b: a salary cap fills with someone who keeps the team within it (or no further over); with nobody who does, the
     // cheapest, so nobody plays short (the cap's fallback: it never leaves a place empty). Part 3c: a stock market fills only
@@ -7299,7 +7517,8 @@ class AnswerLogic {
       }
     });
     // A9: the parlays, each window their questions share.
-    (gameOf(state).score.parlays || []).forEach(p => {
+    // C3: each a factor of the one multiplier piece, on 'legs' (Spec.multipliersOf), its times when every leg is right.
+    Spec.multipliersOf(gameOf(state)).filter(f => f.on === 'legs').forEach(p => {
       const legs = p.of.map(id => qs.get(id));
       if(legs.some(q => !q)) return;
       const eps = new Set([...groups.values()].filter(g => g.q === legs[0]).map(g => g.ep));
@@ -7309,7 +7528,7 @@ class AnswerLogic {
         const right = Spec.allRight(legs.map((q, i) => ({ q, v: verdicts.get(keys[i]), answers: groups.get(keys[i]).list })), f);
         right.forEach(pid => keys.forEach(k => {
           const m = earned.get(k);
-          if(m && m.has(pid)) m.set(pid, Seq.multiply(m.get(pid), [p.times]));
+          if(m && m.has(pid)) m.set(pid, Seq.multiply(m.get(pid), [Seq.factorOf(p, { legs: true })]));
         }));
       });
     });
@@ -7394,7 +7613,8 @@ class AnswerLogic {
     const finale = parts.matchups && seasonEnded(state) ? finaleEpisodeOf(state) : null;
     const endAt = parts.matchups ? MatchupLogic.endsAt(state) : null;
     const stop = finale && (endAt === null || finale.number < endAt) ? finale.number : endAt;
-    const aboutOne = parts.matchups ? [...qs.values()].filter(Spec.livesQuestion) : [];
+    // C5: weeks won waits on them too (a week isn't won on part of an episode).
+    const aboutOne = parts.matchups || parts.weeks ? [...qs.values()].filter(Spec.livesQuestion) : [];
     // A11 part 5b: a handicap, each newcomer's points through each episode walked.
     const tally = parts.handicap ? HandicapLogic.tally(state, eps.map(e => e.number)) : null;
     // The facts as they stood once each episode was in, worked out once each.
@@ -7416,8 +7636,8 @@ class AnswerLogic {
       if(k === newest){
         // (A question the players settle waits only for its episode, its answers or not: none passed here.)
         let waiting = lifeQs.some(q => Spec.verdictOf(q, k, fk).state === 'waiting');
-        if(parts.matchups && !waiting) waiting = aboutOne.some(q => Spec.verdictOf(q, k, fk).state === 'waiting');
-        if(waiting || ((parts.race || parts.cuts.length || parts.matchups) && EpisodeLogic.resultsStage(ep) === 'early')){ walkedAll = false; break; }
+        if((parts.matchups || parts.weeks) && !waiting) waiting = aboutOne.some(q => Spec.verdictOf(q, k, fk).state === 'waiting');
+        if(waiting || ((parts.race || parts.cuts.length || parts.matchups || parts.weeks) && EpisodeLogic.resultsStage(ep) === 'early')){ walkedAll = false; break; }
       }
       nights.push({
         number: k,
@@ -7517,7 +7737,8 @@ class AnswerLogic {
       shared: [...run.shared],
       totals,
       // A11 part 4b: head to head's episodes, for MatchupLogic.series; part 5, teams of players' (TeamLogic, through seatSeries).
-      ...(parts.matchups || parts.teams ? { series: [...series].map(([number, t]) => ({ number, totals: Object.fromEntries(t) })) } : {}),
+      // C5: weeks won's too (WeekLogic, through MatchupLogic.series).
+      ...(parts.matchups || parts.teams || parts.weeks ? { series: [...series].map(([number, t]) => ({ number, totals: Object.fromEntries(t) })) } : {}),
       // A11 part 5b: each one's handicap, as their points have it.
       ...(parts.handicap ? { handicap: handicaps } : {}),
     };
@@ -8626,7 +8847,7 @@ return {
   // EliminationOrderScoringStrategy/PickEmScoringStrategy are those pieces,
   // exported directly for code that wants to bypass the dispatch.
   Core, ScoringLogic, DraftLogic, RosterLogic, WaiverLogic, EpisodeLogic, BetLogic, FinaleLogic, AnswerLogic, PickEmLogic, BlindDraftLogic, ActiveRosterLogic, GroupSlotLogic, SetupLogic, RevealLogic, SpoilerLogic, GhostLogic, Migrations,
-  SpreadLogic, DrawLogic, PriceLogic, BudgetLogic, MarketLogic, AuctionLogic, KeeperLogic, KnockoutLogic, MatchupLogic, TeamLogic, HandicapLogic, StageLogic, draftFits, draftFitsFor, rankKey,
+  SpreadLogic, DrawLogic, PriceLogic, BudgetLogic, MarketLogic, AuctionLogic, KeeperLogic, KnockoutLogic, MatchupLogic, WeekLogic, TeamLogic, HandicapLogic, StageLogic, draftFits, draftFitsFor, rankKey,
   SnakeDraftStrategy, StagesScoringStrategy, EliminationOrderScoringStrategy, NoDraftStrategy, PickEmScoringStrategy, BlindDraftStrategy, ActiveRosterEventScoringStrategy, DrawDraftStrategy, AuctionDraftStrategy
 };
 

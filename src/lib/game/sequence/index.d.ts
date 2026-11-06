@@ -3,6 +3,8 @@
 /** A mid-season move, as the log records it: made after episode `episode`'s results, so it counts from the next. */
 export interface SequenceMove {
   playerId: string;
+  /** C3: 'replenish' (a pickup for someone gone) or 'trade' (a swap for someone still in). */
+  type?: string;
   episode?: number | null;
   addedCastawayId?: string | null;
   droppedCastawayId?: string | null;
@@ -17,13 +19,60 @@ export interface PlaceMark {
 export interface ScoredEvent {
   castawayId: string;
   points: number;
+  /** C5: the moment's id, and what a hit on it is worth (1, or 0: no objective), where the game counts hits per pick or objective. */
+  type?: string;
+  worth?: number;
+}
+
+/** C3: the Nth of each kind of move, counted for the seat (nth) or along a roster slot (line). */
+export interface JoinCounts {
+  replacement: number;
+  swap: number;
+  pickup: number;
+}
+/** C3: a holding held without a break, and how it joined (stints). */
+export interface Stint {
+  id: string;
+  from: number | null;
+  to: number | null;
+  ended: boolean;
+  kind: "draft" | "replacement" | "swap";
+  nth: JoinCounts;
+  line: JoinCounts;
+}
+/** C3: one multiplier, keyed by its condition (game-spec multipliersOf). */
+export interface Factor {
+  on: "captain" | "when" | "joined" | "legs" | "rank";
+  times?: number | number[];
+  episode?: number;
+  from?: number;
+  to?: number | null;
+  phase?: string;
+  finale?: boolean;
+  joined?: "draft" | "pickup" | "replacement" | "swap";
+  then?: "repeat" | "ratio";
+  per?: "team" | "slot";
+  of?: string[];
+}
+/** C3: what a line is, for a factor's condition. */
+export interface FactorFacts {
+  captain?: boolean;
+  episode?: number;
+  phase?: (id: string) => boolean;
+  finale?: () => number | null;
+  stint?: Stint | null;
+  legs?: boolean;
+  rank?: number;
 }
 
 export function round(n: unknown): number;
 export function heldAt(now: string[], log: SequenceMove[] | null | undefined, playerId: string, n: number): Set<string>;
+export function stints(now: string[], log: SequenceMove[] | null | undefined, playerId: string): Stint[];
+export function heldIn(s: Stint, n: number): boolean;
 export function placed(placement: number, mark: Pick<PlaceMark, "size" | "reverse">): number;
 export function stillIn(mark: PlaceMark): number;
-export function momentRaw(ids: string[], events: ScoredEvent[]): Map<string, number>;
+export function earnedWhileHeld(s: Stint, n: number, valueAt: (m: number) => number): number;
+export function momentRaw(ids: string[], events: ScoredEvent[], hits?: "every" | "pick" | "objective" | null): Map<string, number>;
 export function groupRaw(members: string[], size: number, events: ScoredEvent[], how: "sum" | "mean" | string): number;
 export function betLines<B extends { points?: number; predictions?: { playerId: string; correct: boolean | null }[] }>(bets: B[] | null | undefined): { playerId: string; points: number; bet: B }[];
 /** C2 part 3, outside the state: a window's lines (each answer's right ones at its worth), a shrinking call's worth, a rollover's
@@ -35,6 +84,9 @@ export function carry(worth: number, got: Map<string, number>): number;
 export function tally(lines: { id: string; episode: number; n: number }[], byEpisode?: Map<number, Map<string, number>>): Map<string, number>;
 /** C2 part 3: a count's points (right calls or bingo lines at a line's points), never rounded. */
 export function counted(n: number, points: number): number;
+export function factorOf(f: Factor, facts: FactorFacts): number;
+export function inWindow(t: Factor, facts: FactorFacts): boolean;
+export function joinedTimes(f: Factor, s: Stint | null | undefined): number;
 export function multiply(raw: number, factors: number[]): number;
 export function best<T extends { points: number; counted?: boolean }>(lines: T[], n: number): T[];
 export function episodeTotal(lines: { points: number; counted?: boolean }[], slots?: { points: number }[]): number;
@@ -136,6 +188,12 @@ export function knockouts(series: (SeriesEpisode | WalkNight)[], o: {
 export function roundRobin(ids: string[], r: number): [string, string | null][];
 export function median(values: number[]): number;
 export function bracket(size: number): number[];
+/** C5: a week's winner on the sides' series of totals (rank.by 'weeks'). */
+export function weeks(series: SeriesEpisode[], o: { ties: "all" | "split" | "none"; finale?: number | null; seatsAt: (k: number) => string[] }): {
+  weeks: { number: number; winners: string[]; top: number }[];
+  won: Map<string, number>;
+  points: Map<string, number>;
+};
 export function matchups(series: SeriesEpisode[], o: {
   parts: { odd: "median" | "bye"; quiet: "skip" | "tie"; playoffs: { teams: number; rounds: number } | null };
   start: number;

@@ -70,7 +70,15 @@ const one = async (sql, params) => (await pool.query(sql, params)).rows[0] ?? nu
 function readBackup(dir) {
   if (!dir || !fs.existsSync(path.join(dir, "leagues.json"))) throw new Error(`--from must be a backup folder (scripts/backup-leagues.js): ${dir}`);
   const read = (t) => (fs.existsSync(path.join(dir, `${t}.json`)) ? JSON.parse(fs.readFileSync(path.join(dir, `${t}.json`), "utf8")) : []);
-  const state = (r) => (typeof r.state === "string" ? JSON.parse(r.state) : r.state);
+  // A backup from before migration 0207 (its manifest says which ran) reads as that migration leaves it: each game with its
+  // cutover for the per-holder rule (settings.perHolderFrom, WaiverLogic.cutoverAt), as production's games carry it since.
+  const manifest = fs.existsSync(path.join(dir, "manifest.json")) ? JSON.parse(fs.readFileSync(path.join(dir, "manifest.json"), "utf8")) : null;
+  const before0207 = !(manifest?.migrations ?? []).includes("0207_per_holder_from.sql");
+  const state = (r) => {
+    const s = typeof r.state === "string" ? JSON.parse(r.state) : r.state;
+    if (before0207 && s?.settings && !("perHolderFrom" in s.settings)) s.settings.perHolderFrom = S.WaiverLogic.cutoverAt(s);
+    return s;
+  };
   return { dir, leagues: read("leagues").map((r) => ({ ...r, state: state(r) })), memberships: read("league_memberships"), users: read("user"), follows: read("show_follows") };
 }
 
