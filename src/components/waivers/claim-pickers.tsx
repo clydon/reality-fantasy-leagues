@@ -77,6 +77,12 @@ function useRankedFreeAgents(state: LeagueState, fa: Castaway[]) {
 
 // ---- One spot's claim: replace Patt, or swap Lewis ----
 
+// C4: a move's kind by whom it drops (someone gone home: a replacement; still in: a swap), so the list is who that move can bring in.
+function moveKind(state: LeagueState, dropId: string | null): "replace" | "swap" | undefined {
+  const c = dropId ? StateLogic.getCastaway(state, dropId) : undefined;
+  return c ? (c.status === "active" ? "swap" : "replace") : undefined;
+}
+
 export function SpotPicker({ dropId, forId }: { dropId: string | null; forId: string | null }) {
   const router = useRouter();
   const base = useWaiversBase();
@@ -88,7 +94,7 @@ export function SpotPicker({ dropId, forId }: { dropId: string | null; forId: st
   const [picked, setPicked] = useState<string[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const fa = period && subject ? StateLogic.availableFor(state, subject) : [];
+  const fa = period && subject ? StateLogic.availableFor(state, subject, moveKind(state, dropId)) : [];
   const { ranked, detail, controls } = useRankedFreeAgents(state, fa);
 
   if (w.stage === "hidden") return <Closed>Reveal Episode {w.period!.episode} first: who you can replace would give it away.</Closed>;
@@ -207,19 +213,20 @@ export function FreeAgencyPicker({ forId, dropId }: { forId: string | null; drop
   const [add, setAdd] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const fa = period && subject ? StateLogic.availableFor(state, subject) : [];
+  const W = StateLogic.WaiverLogic;
+  const owed = period && subject ? W.replacementsOwed(state, subject, period) : { count: 0, lossIds: [] as string[], outIds: [] as string[] };
+  const swapsLeft = period && subject ? W.swapsLeft(state, period, subject) : 0;
+  // Who may go: anyone out you can still replace, and (with a swap left) anyone still in.
+  const drops = subject ? state.castaways.filter((c) => c.ownerIds.includes(subject) && (c.status === "active" ? swapsLeft > 0 : owed.count > 0 && owed.outIds.includes(c.id))) : [];
+  const dd = drop && drops.some((c) => c.id === drop) ? drop : drops.length === 1 ? drops[0].id : null;
+  // C4: who the move for that drop can bring in (a replacement's or a swap's own).
+  const fa = period && subject ? StateLogic.availableFor(state, subject, moveKind(state, dd)) : [];
   const { ranked, detail, controls } = useRankedFreeAgents(state, fa);
 
   if (w.stage === "hidden") return <Closed>Reveal Episode {w.period!.episode} first.</Closed>;
   if (!period || !subject) return <Closed>Free agency opens once claims are processed.</Closed>;
   if (!StateLogic.WaiverLogic.freeAgencyOn(state)) return <Closed>This league has no free agency.</Closed>;
 
-  const W = StateLogic.WaiverLogic;
-  const owed = W.replacementsOwed(state, subject, period);
-  const swapsLeft = W.swapsLeft(state, period, subject);
-  // Who may go: anyone out you can still replace, and (with a swap left) anyone still in.
-  const drops = state.castaways.filter((c) => c.ownerIds.includes(subject) && (c.status === "active" ? swapsLeft > 0 : owed.count > 0 && owed.outIds.includes(c.id)));
-  const dd = drop && drops.some((c) => c.id === drop) ? drop : drops.length === 1 ? drops[0].id : null;
   const a = add && fa.some((c) => c.id === add) ? add : null;
   const dropC = dd ? StateLogic.getCastaway(state, dd) : undefined;
 

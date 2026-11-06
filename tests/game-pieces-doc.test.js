@@ -26,6 +26,7 @@ test("the guide's size limits are the schema's", () => {
     ["A window (every, over, a cut's every)", `2 to ${G.MAX_WINDOW} episodes (a cut, 1 to ${G.MAX_WINDOW})`],
     ["Parlays", `6, each 2 to ${G.MAX_LEGS} legs; multipliers more than 1, up to ${G.MAX_TIMES}`],
     ["When points multiply", `${G.MAX_WHEN}`],
+    ["How a holding joined", `1 to 3; a list of 1 to ${G.MAX_JOINED}`],
     ["Stages", `2 to ${G.MAX_STAGES}, a name up to ${G.MAX_STAGE_NAME} characters; copies of a stage a change starts, ${G.MAX_COPIES}`],
     ["A side stage's grouping", `held 1 to ${G.MAX_HELD} episodes`],
     ["The overall's points for places", `1 to ${G.MAX_PLACES} places`],
@@ -39,6 +40,9 @@ test("the guide's size limits are the schema's", () => {
     ["Group slots", `1 or ${G.MAX_GROUP_SLOTS}`],
     ["Side bets", `1 to ${G.MAX_BET_POINTS} points`],
     ["A race", `1 to ${n(G.MAX_RACE)} points`],
+    // C5: a pick of several each episode, and only these moments.
+    ["A pick each episode", `1 (a pool); 1 to ${G.MAX_PICKS} scored by what they do`],
+    ["Only these moments", `1 to ${G.MAX_ONLY}`],
   ];
   for (const [what, limit] of rows) assert.ok(DOC.includes(`| ${what} | ${limit} |`), `docs/GAME-PIECES.md's size limits: "| ${what} | ${limit} |"`);
 });

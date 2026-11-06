@@ -26,7 +26,18 @@ const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
 const clone = (v) => (v === undefined ? undefined : JSON.parse(JSON.stringify(v)));
 /** C2 part 4b: the ranks a pool's settings say (poolRank): last one standing (A10 part 2), its points, head to head; its streak is
  *  the default, said by none. */
-const POOL_RANKS = ['standing', 'total', 'matchups'];
+const POOL_RANKS = ['standing', 'total', 'matchups', 'weeks'];
+/** C5: a pick's repeats as its settings say them (poolRepeat); a pool's default cycles, a pick scored by moments' repeats freely. */
+const REPEATS = ['cycle', 'never', 'any'];
+/** C5: only these moments count and hits counted (scoreOnly, scoreHits), a game scored by moments', each only when it's set. */
+function countsOf(st, score, copy) {
+  if (Array.isArray(st.scoreOnly) && st.scoreOnly.length) score.only = copy ? clone(st.scoreOnly) : st.scoreOnly;
+  if (Object.prototype.hasOwnProperty.call(VOCAB['score.hits'], st.scoreHits)) score.hits = st.scoreHits;
+}
+/** C5: weeks won's tied week (rankTies), only when it's set. */
+function tiesOf(st, rank) {
+  if (rank.by === 'weeks' && Object.prototype.hasOwnProperty.call(VOCAB['rank.ties'], st.rankTies)) rank.ties = st.rankTies;
+}
 
 /** Settings fields that aren't the game: what it's about and how it's run, never what it is. */
 const OUTSIDE = [
@@ -34,6 +45,7 @@ const OUTSIDE = [
   'seasonRuleChanges', 'adoptedRuleChanges', 'declinedRuleChanges', 'wikiSeason',
   'revealedThroughEpisode', 'setupComplete', 'archivedAt', 'archivedBy', // what it's seen, setting it up, archiving it
   'expectedTeams', 'waiverFit', // the waiver recommendation's own bookkeeping (WaiverLogic.recommendFor, refit)
+  'perHolderFrom', // when a game made before the per-holder rule took it (migration 0207, WaiverLogic.perHolderFrom): history
   'bonusCategories', // pre-bets predictions, removed by migrateLeagueState
   'shadowOf', 'shadowFrom', // a local shadow league's source (scripts/dev-test/shadow-leagues.js)
   'game', // the spec itself, once A2 stores it
@@ -89,6 +101,17 @@ function legacyWaivers(st, lineup) {
     windows: st.tradeEnabled === true ? { schedule: n === 1 ? 'everyEpisode' : 'every', every, swaps: 1 } : { schedule: 'manual', every, swaps: 0 },
   };
 }
+/** C4: settings.waiverOwn as the waivers' `own`, { own } or {} (nothing it can't be: see waiversOf). */
+function ownFromSettings(st) {
+  if (!isObj(st.waiverOwn)) return {};
+  const out = {};
+  for (const k of ['replace', 'swap']) {
+    const v = st.waiverOwn[k];
+    if (v === 'shared' || (v === 'exclusive' && st.ownershipMode !== 'shared')) out[k] = v;
+  }
+  return Object.keys(out).length ? { own: out } : {};
+}
+
 /** A draft's waivers, from its settings (lineup: it has starters; R: its team). The spec's extras.waivers. */
 function waiversOf(st, lineup, R) {
   const legacy = legacyWaivers(st, lineup);
@@ -108,6 +131,10 @@ function waiversOf(st, lineup, R) {
     // Waivers that start when a phase of the season does (settings.waiverStartPhase: "When Merged starts"), only when it's
     // set, so a stored spec without it reads as it always did.
     ...(typeof st.waiverStartPhase === 'string' && st.waiverStartPhase ? { from: { phase: st.waiverStartPhase } } : {}),
+    // C4: whom a replacement or a swap brings in (settings.waiverOwn, as the spec says it), only when it's set, so a stored spec
+    // without it reads as it always did (each move the draft's own). Only what a move can be: an exclusive one beside a draft made
+    // shared since (settings.ownershipMode) is the draft's own again.
+    ...ownFromSettings(st),
   };
 }
 
@@ -119,8 +146,9 @@ function waiversOf(st, lineup, R) {
  */
 function draftRankOf(st, lineup, copy) {
   const cut = Array.isArray(st.draftCut) && st.draftCut.length ? (copy ? clone(st.draftCut) : st.draftCut) : null;
-  const by = lineup && st.draftRank === 'worth' ? 'worth' : cut && st.draftRank === 'standing' ? 'standing' : st.draftRank === 'matchups' ? 'matchups' : 'total';
+  const by = lineup && st.draftRank === 'worth' ? 'worth' : cut && st.draftRank === 'standing' ? 'standing' : st.draftRank === 'matchups' || st.draftRank === 'weeks' ? st.draftRank : 'total';
   const rank = { by };
+  tiesOf(st, rank);
   // A11 part 4: head to head's playoffs and fallbacks (rankMatchups), as the spec says them.
   if (by === 'matchups') matchupsOf(st, rank, copy);
   if (isObj(st.draftRace)) rank.race = copy ? clone(st.draftRace) : st.draftRace;
@@ -154,8 +182,9 @@ function questionsRankOf(st, lives, copy) {
   const cut = Array.isArray(st.questionsCut) && st.questionsCut.length ? (copy ? clone(st.questionsCut) : st.questionsCut) : null;
   // A co-op or head-to-head game keeps whatever else its settings say (a race, cuts, lives, an end), so our check refuses them
   // rather than losing them.
-  const by = st.questionsRank === 'matchups' ? 'matchups' : lives && st.questionsRank === 'coop' ? 'coop' : cut || lives ? 'standing' : 'total';
+  const by = st.questionsRank === 'matchups' || st.questionsRank === 'weeks' ? st.questionsRank : lives && st.questionsRank === 'coop' ? 'coop' : cut || lives ? 'standing' : 'total';
   const rank = { by };
+  tiesOf(st, rank);
   if (by === 'matchups') matchupsOf(st, rank, copy);
   if (isObj(st.questionsRace)) rank.race = copy ? clone(st.questionsRace) : st.questionsRace;
   if (cut) rank.cut = cut;
@@ -238,6 +267,8 @@ function readSpec(st, copy) {
   if (type === 'classic-draft') {
     R = st.teamSize;
     const score = st.reverseOrder === true ? { by: 'place', reverse: true } : { by: 'place' };
+    // C3: a multiplier on how a holding joined (settings.joinedTimes, as the spec says it).
+    if (Array.isArray(st.joinedTimes) && st.joinedTimes.length) score.multiply = copy ? clone(st.joinedTimes) : st.joinedTimes;
     Object.assign(spec, { get: drafted(st.teamSize), count: { all: true }, score, rank: draftRankOf(st, false, copy) });
   } else if (type === 'active-roster') {
     const start = st.activeSlots || 0;
@@ -245,6 +276,8 @@ function readSpec(st, copy) {
     const score = { by: 'moments', points: isObj(st.eventPoints) ? (copy ? clone(st.eventPoints) : st.eventPoints) : null };
     if (typeof st.captainTimes === 'number' && Number.isFinite(st.captainTimes) && st.captainTimes > 1) score.captain = { times: st.captainTimes };
     if (Array.isArray(st.pointsTimes) && st.pointsTimes.length) score.times = copy ? clone(st.pointsTimes) : st.pointsTimes;
+    if (Array.isArray(st.joinedTimes) && st.joinedTimes.length) score.multiply = copy ? clone(st.joinedTimes) : st.joinedTimes;
+    countsOf(st, score, copy);
     // A10 part 1: group slots beside the draft (settings.groupSlots, as the spec says them).
     const get = drafted(R);
     if (isObj(st.groupSlots)) get.groups = copy ? clone(st.groupSlots) : st.groupSlots;
@@ -258,14 +291,24 @@ function readSpec(st, copy) {
   } else if (type === 'pickem') {
     // A10 part 2: a pool's lives (poolLives), buyback (poolBuyback, as the spec says it), mulligans (poolMulligans), second pick
     // (poolSecond) and last one standing (poolRank). Each only when it's set, so a pool that has none reads as it always did.
-    const score = { by: 'survive', means: st.poolSurvive === 'scores' ? 'scores' : 'staysIn', points: typeof st.pickemCorrectPoints === 'number' ? st.pickemCorrectPoints : 1 };
+    // C5: a pick scored by what they do (poolScore 'moments': its points eventPoints, points by when pointsTimes, scoreOnly,
+    // scoreHits), picking poolEach each episode.
+    const moments = st.poolScore === 'moments';
+    const score = moments
+      ? { by: 'moments', points: isObj(st.eventPoints) ? (copy ? clone(st.eventPoints) : st.eventPoints) : null }
+      : { by: 'survive', means: st.poolSurvive === 'scores' ? 'scores' : 'staysIn', points: typeof st.pickemCorrectPoints === 'number' ? st.pickemCorrectPoints : 1 };
+    if (moments) {
+      if (Array.isArray(st.pointsTimes) && st.pointsTimes.length) score.times = copy ? clone(st.pointsTimes) : st.pointsTimes;
+      countsOf(st, score, copy);
+    }
     if (Number.isInteger(st.poolLives) && st.poolLives >= 1) score.lives = st.poolLives;
     if (isObj(st.poolBuyback)) score.buyback = copy ? clone(st.poolBuyback) : st.poolBuyback;
     if (Number.isInteger(st.poolMulligans) && st.poolMulligans >= 1) score.mulligans = st.poolMulligans;
     // A11 part 2: a pick that never repeats (poolRepeat), its fallback (poolFallback, else the default), and last one standing's
     // end (rankOneLeft, rankAllOut).
     const never = st.poolRepeat === 'never';
-    const get = { by: 'pick', each: 1, repeat: never ? 'never' : 'cycle' };
+    const each = moments && Number.isInteger(st.poolEach) && st.poolEach >= 1 ? st.poolEach : 1;
+    const get = { by: 'pick', each, repeat: REPEATS.includes(st.poolRepeat) ? st.poolRepeat : moments ? 'any' : 'cycle' };
     if (isObj(st.poolSecond)) get.second = copy ? clone(st.poolSecond) : st.poolSecond;
     if (never) get.fallback = st.poolFallback === 'skip' ? 'skip' : NEVER.fallback;
     // C2 part 4b: or by its points, or head to head on them (poolRank 'total' | 'matchups', its playoffs and fallbacks in
@@ -273,6 +316,7 @@ function readSpec(st, copy) {
     const by = POOL_RANKS.includes(st.poolRank) ? st.poolRank : 'streak';
     const rank = { by };
     if (by === 'matchups') matchupsOf(st, rank, copy);
+    tiesOf(st, rank);
     if (by === 'standing') endsOf(st, rank, true);
     teamsOf(st, rank, copy);
     handicapOf(st, rank, copy);
@@ -440,6 +484,7 @@ function settingsOf(spec) {
         waiverProcessHours: w.hours,
         freeAgencyEnabled: w.freeAgency,
         waiverStartPhase: isObj(w.from) ? w.from.phase : undefined,
+        waiverOwn: isObj(w.own) ? { ...w.own } : undefined,
         // The pre-v2 switches, kept in step for whatever still reads them (WaiverLogic.mirrorLegacy).
         replenishEnabled: w.replace !== 'never',
         tradeEnabled: w.windows.schedule !== 'manual' && w.windows.swaps > 0,
@@ -447,9 +492,14 @@ function settingsOf(spec) {
       });
     }
   }
+  // C5: a pick scored by what they do (poolScore 'moments', its points eventPoints), picking poolEach each episode.
+  const pickMoments = type === 'pickem' && s.score.by === 'moments';
   if (type === 'pickem') {
-    Object.assign(out, { pickemCorrectPoints: s.score.points, poolSurvive: s.score.means === 'scores' ? 'scores' : undefined, calls: e.calls === true });
+    Object.assign(out, pickMoments
+      ? { poolScore: 'moments', eventPoints: s.score.points === null ? undefined : clone(s.score.points), calls: e.calls === true }
+      : { pickemCorrectPoints: s.score.points, poolSurvive: s.score.means === 'scores' ? 'scores' : undefined, calls: e.calls === true });
   }
+  out.poolEach = pickMoments && s.get.each > 1 ? s.get.each : undefined;
   // A10 part 2: a pool's lives, buyback, mulligans, second pick and last one standing.
   const pool = type === 'pickem';
   const draft = s.get.by === 'draft';
@@ -460,7 +510,8 @@ function settingsOf(spec) {
   // C2 part 4b: a pool ranked by its points, or head to head (a pool's streak, the default, is said by none).
   out.poolRank = pool && POOL_RANKS.includes(s.rank.by) ? s.rank.by : undefined;
   // A11 part 2: a pick that never repeats and its fallback; last one standing's end (a pool's or a draft's that cuts).
-  out.poolRepeat = pool && s.get.repeat === 'never' ? 'never' : undefined;
+  // C5: and one that repeats freely ('any'); a pick scored by moments says cycle too (its default is any).
+  out.poolRepeat = pool && (s.get.repeat === 'never' || s.get.repeat === 'any' || (pickMoments && s.get.repeat === 'cycle')) ? s.get.repeat : undefined;
   out.poolFallback = pool && s.get.repeat === 'never' ? s.get.fallback : undefined;
   out.rankOneLeft = s.rank.by === 'standing' && s.rank.oneLeft !== undefined ? s.rank.oneLeft : undefined;
   // A11 part 2b: a game of questions with lives, as a pool with them.
@@ -473,14 +524,16 @@ function settingsOf(spec) {
   // A11 part 3: co-op (lives the couch's together) is said, as last one standing isn't (lives alone imply it), with who saves a night.
   const coop = askLives && s.rank.by === 'coop';
   // A11 part 4b: head to head is said too (its playoffs and fallbacks in rankMatchups, as a draft's).
-  out.questionsRank = coop ? 'coop' : asks && s.rank.by === 'matchups' ? 'matchups' : undefined;
+  out.questionsRank = coop ? 'coop' : asks && (s.rank.by === 'matchups' || s.rank.by === 'weeks') ? s.rank.by : undefined;
   out.questionsSaves = coop && s.score.saves !== undefined ? s.score.saves : undefined;
   out.questionsRace = asks && isObj(s.rank.race) ? clone(s.rank.race) : undefined;
   out.questionsCut = asks && Array.isArray(s.rank.cut) ? clone(s.rank.cut) : undefined;
   // A10 part 3c: a lineup's or best ball's stock market ranked by worth; A11 part 1: a draft's last one standing, its race and its
   // cuts.
   // A11 part 4: a draft played head to head, its playoffs and fallbacks as the spec says them; part 4b, a game of questions'.
-  out.draftRank = type === 'active-roster' && s.rank.by === 'worth' ? 'worth' : draft && s.rank.by === 'standing' ? 'standing' : draft && s.rank.by === 'matchups' ? 'matchups' : undefined;
+  out.draftRank = type === 'active-roster' && s.rank.by === 'worth' ? 'worth' : draft && s.rank.by === 'standing' ? 'standing' : draft && (s.rank.by === 'matchups' || s.rank.by === 'weeks') ? s.rank.by : undefined;
+  // C5: weeks won's tied week, whoever ranks by weeks won.
+  out.rankTies = s.rank.by === 'weeks' && s.rank.ties !== undefined ? s.rank.ties : undefined;
   const h2h = (draft || asks || pool) && s.rank.by === 'matchups' ? Object.fromEntries(MATCHUP_KEYS.filter((k) => s.rank[k] !== undefined).map((k) => [k, clone(s.rank[k])])) : null;
   out.rankMatchups = h2h && Object.keys(h2h).length ? h2h : undefined;
   out.draftRace = draft && isObj(s.rank.race) ? clone(s.rank.race) : undefined;
@@ -501,8 +554,13 @@ function settingsOf(spec) {
   const lineup = type === 'active-roster';
   out.bestBall = lineup && s.count.best !== undefined ? true : undefined;
   out.captainTimes = lineup && isObj(s.score.captain) ? s.score.captain.times : undefined;
-  out.pointsTimes = lineup && Array.isArray(s.score.times) ? clone(s.score.times) : undefined;
+  out.pointsTimes = (lineup || pickMoments) && Array.isArray(s.score.times) ? clone(s.score.times) : undefined;
+  // C5: only these moments count, and hits counted (a lineup's, best ball's or a pick's scored by moments).
+  out.scoreOnly = (lineup || pickMoments) && Array.isArray(s.score.only) ? clone(s.score.only) : undefined;
+  out.scoreHits = (lineup || pickMoments) && s.score.hits !== undefined ? s.score.hits : undefined;
   out.reverseOrder = type === 'classic-draft' && s.score.reverse === true ? true : undefined;
+  // C3: a draft's multiplier on how a holding joined (an Outlast's or a lineup's).
+  out.joinedTimes = (type === 'classic-draft' || lineup) && Array.isArray(s.score.multiply) ? clone(s.score.multiply) : undefined;
   // A10 part 1: a lineup's or best ball's group slots.
   out.groupSlots = lineup && isObj(s.get.groups) ? clone(s.get.groups) : undefined;
   // A10 part 3: a draw, and a draft spread across the cast's groups.
@@ -563,7 +621,7 @@ function withSpec(settings, spec) {
 }
 
 // The spec's parts and the settings fields each writes (OWNED is all of them).
-const WAIVER_FIELDS = ['replaceRule', 'replenishAt', 'waiverWindows', 'waiverFeel', 'autoFill', 'replenishOrderBy', 'waiverProcessHours', 'freeAgencyEnabled', 'waiverStartPhase', 'replenishEnabled', 'tradeEnabled', 'swapEvery'];
+const WAIVER_FIELDS = ['replaceRule', 'replenishAt', 'waiverWindows', 'waiverFeel', 'autoFill', 'replenishOrderBy', 'waiverProcessHours', 'freeAgencyEnabled', 'waiverStartPhase', 'waiverOwn', 'replenishEnabled', 'tradeEnabled', 'swapEvery'];
 const PARTS = [
   { fields: ['leagueTypeId'], read: (s) => typeOf(s) },
   { fields: ['startEpisode', 'startPhase', 'endEpisode', 'endPhase'], read: (s) => s.span },
@@ -571,9 +629,9 @@ const PARTS = [
   { fields: ['stages', 'stageOverall'], read: (s) => [s.stages || null, s.overall || null] },
   // A12 part 2: how a game a format change moves takes the change.
   { fields: ['formatChanges'], read: (s) => (Array.isArray(s.stages) && isObj(s.extras) ? s.extras.changes || null : null) },
-  { fields: ['ownershipMode', 'teamSize', 'activeSlots', 'benchSlots', 'bestBall', 'groupSlots', 'poolSecond', 'poolRepeat', 'poolFallback', 'draftDraw', 'draftAcross', 'draftAuction', 'draftBudget', 'draftKeep'], read: (s) => [s.get, s.count] },
-  { fields: ['eventPoints', 'pickemCorrectPoints', 'poolSurvive', 'parlays', 'linePoints', 'captainTimes', 'pointsTimes', 'reverseOrder', 'poolLives', 'poolBuyback', 'poolMulligans', 'questionsLives', 'questionsLivesOn', 'questionsSaves'], read: (s) => s.score },
-  { fields: ['poolRank', 'draftRank', 'draftRace', 'draftCut', 'rankOneLeft', 'rankAllOut', 'questionsRank', 'questionsRace', 'questionsCut', 'rankMatchups', 'rankTeams', 'rankHandicap'], read: (s) => s.rank },
+  { fields: ['ownershipMode', 'teamSize', 'activeSlots', 'benchSlots', 'bestBall', 'groupSlots', 'poolSecond', 'poolRepeat', 'poolFallback', 'poolEach', 'draftDraw', 'draftAcross', 'draftAuction', 'draftBudget', 'draftKeep'], read: (s) => [s.get, s.count] },
+  { fields: ['eventPoints', 'pickemCorrectPoints', 'poolSurvive', 'parlays', 'linePoints', 'captainTimes', 'pointsTimes', 'joinedTimes', 'reverseOrder', 'poolScore', 'scoreOnly', 'scoreHits', 'poolLives', 'poolBuyback', 'poolMulligans', 'questionsLives', 'questionsLivesOn', 'questionsSaves'], read: (s) => s.score },
+  { fields: ['poolRank', 'draftRank', 'draftRace', 'draftCut', 'rankOneLeft', 'rankAllOut', 'questionsRank', 'questionsRace', 'questionsCut', 'rankMatchups', 'rankTies', 'rankTeams', 'rankHandicap'], read: (s) => s.rank },
   { fields: ['allowLateJoiners', 'joinMode'], read: (s) => s.extras.join },
   { fields: ['lockedDown'], read: (s) => s.extras.lockedDown },
   { fields: ['seatPeople'], read: (s) => seatPeople(s) },

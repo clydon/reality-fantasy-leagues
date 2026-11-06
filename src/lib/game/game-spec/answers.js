@@ -833,7 +833,8 @@ function earned(q, v, a, facts) {
   if (q.answer === 'confidence') {
     const list = Array.isArray(a) ? a : [];
     const top = isInt(q.pick) ? q.pick : list.length;
-    return list.reduce((n, id, i) => n + (right.has(id) ? (top - i) * pts : 0), 0);
+    // Each right one's weight is the one multiplier piece's 'rank' (C3): its place from the bottom.
+    return list.reduce((n, id, i) => n + (right.has(id) ? Seq.factorOf({ on: 'rank' }, { rank: top - i }) * pts : 0), 0);
   }
   if (q.answer === 'chips') return isObj(a) ? Object.entries(a).reduce((n, [id, c]) => n + (right.has(id) && isInt(c) ? c * pts : 0), 0) : 0;
   return 0;

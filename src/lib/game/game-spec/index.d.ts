@@ -80,7 +80,9 @@ export type SpecGet =
    *  counts like the first, on a night only one goes). */
   /** A11 part 2: repeat "never", nobody picked twice in the game, and its fallback for a night you've picked everyone still in
    *  (miss: a missed pick; skip: nothing counts that night). */
-  | { by: "pick"; each: 1; repeat: "cycle" | "never"; second?: { fallback: "void" | "counts" }; fallback?: "miss" | "skip" }
+  /** C5: `each` 1 to MAX_PICKS when the pick scores by what they do (score.by "moments"), a pool's one; repeat "any" (anyone still
+   *  in, every episode: a pick scored by moments' default). */
+  | { by: "pick"; each: number; repeat: "cycle" | "never" | "any"; second?: { fallback: "void" | "counts" }; fallback?: "miss" | "skip" }
   | { by: "card" }
   | { by: "none" }
   /** sports. L4 part 2: a grid of a team game's two scores' last digits (10 by 10 or 5 by 5), its squares picked (up to `each`)
@@ -104,12 +106,31 @@ export type SpecWhen = { times: number } & (
   | { finale: true }
 );
 
+/** C3: a multiplier on how a holding joined your team (drafted, any pickup, a replacement for someone gone, a swap for someone
+ *  still in), on what each one earns while it's yours: a number, or a list for the Nth (per team or per slot; past the list the
+ *  last again, or on by its last step). */
+export type SpecJoined = {
+  joined: "draft" | "pickup" | "replacement" | "swap";
+  times: number | number[];
+  per?: "team" | "slot";
+  then?: "repeat" | "ratio";
+};
+/** C3: one multiplier, keyed by its condition (multipliersOf). */
+export type SpecFactor =
+  | { on: "captain"; times: number }
+  | ({ on: "when" } & SpecWhen)
+  | { on: "joined"; joined: SpecJoined["joined"]; times: number | number[]; per?: "team" | "slot"; then?: "repeat" | "ratio" }
+  | { on: "legs"; of: string[]; times: number };
+
 export type SpecScore =
   /** points: moment id -> points over the rulebook's own; null = its own. A9 part 2: a lineup's captain, one of your starters you
-   *  name each episode, whose points multiply by `times`; and when the points multiply (`times`). */
-  | { by: "moments"; points: Record<string, number> | null; captain?: { times: number }; times?: SpecWhen[] }
-  /** A9 part 2's reverse: the earlier they go home the more (1, plus 1 for everyone who outlasts them). */
-  | { by: "place"; reverse?: true }
+   *  name each episode, whose points multiply by `times`; and when the points multiply (`times`). C3: how a holding joined. */
+  /** C5: only (only these moments count) and hits (each moment an objective hit, worth 1: every hit, each objective once per
+   *  holding, or once for you; points never weight a hit, they only say which moments count). */
+  | { by: "moments"; points: Record<string, number> | null; captain?: { times: number }; times?: SpecWhen[]; multiply?: SpecJoined[]; only?: string[]; hits?: "every" | "pick" | "objective" }
+  /** A9 part 2's reverse: the earlier they go home the more (1, plus 1 for everyone who outlasts them). C3: how a holding joined
+   *  (never in reverse), its lines then what each one earns while it's yours. */
+  | { by: "place"; reverse?: true; multiply?: SpecJoined[] }
   /** A10 part 2: lives (a wrong pick costs one, out at none), a buyback (someone out before `before` is back in from the next
    *  episode with one life, `cost` points off their total, `times` in a game), mulligans (the first n wrong picks forgiven). */
   | { by: "survive"; means: "staysIn" | "scores"; points: number; lives?: number; buyback?: PoolBuyback; mulligans?: number }
@@ -158,7 +179,10 @@ export interface SpecRank {
    *  cash plus the team at today's prices; coop (A11 part 3): a game of questions the couch plays together against the show, won
    *  or lost by all; matchups (A11 part 4): head to head, a draft's (each episode's points against someone's), with playoffs (L4
    *  brings it to sports). sports: categories, roto. */
-  by: "total" | "streak" | "standing" | "worth" | "coop" | "matchups" | "categories" | "roto";
+  by: "total" | "streak" | "standing" | "worth" | "coop" | "matchups" | "weeks" | "categories" | "roto";
+  /** C5, weeks won (rank.by "weeks": each episode's most points wins the week): a week two or more top, each wins it (all, WEEKS'
+   *  default), they share one (split), or nobody does (none). */
+  ties?: "all" | "split" | "none";
   /** A11 part 1, beside a draft (part 2b, a game of questions too): a race (the first to `to` points wins, the game ending there)
    *  and players knocked out. */
   race?: { to: number };
@@ -416,6 +440,9 @@ export interface SpecWaivers {
   autoFill: boolean;
   /** Waivers that start when this phase of the season does (none before it); left out: from the start. */
   from?: { phase: string };
+  /** C4: whom a replacement or a swap brings in, each left out the draft's own: exclusive (only someone on nobody's team) or
+   *  shared (anyone still in who isn't yours already). Shared beside an exclusive draft, never exclusive beside a shared one. */
+  own?: { replace?: "exclusive" | "shared"; swap?: "exclusive" | "shared" };
 }
 
 export interface SpecExtras {
@@ -632,6 +659,10 @@ export function finaleOf(ask: SpecQuestion[] | null | undefined): { top3: number
  *  game); and whether a question is one a draft plays. */
 export function finaleIn(ask: SpecQuestion[] | null | undefined): { top3: number; winner: number; from: "any" | "own" } | null;
 export function draftQuestions(spec: Partial<GameSpec> | null | undefined): Question[];
+/** C3: every multiplier a spec has, as one piece keyed by a condition; the most in a list for the Nth, and its defaults. */
+export function multipliersOf(spec: Partial<GameSpec> | null | undefined): SpecFactor[];
+export const MAX_JOINED: number;
+export const JOINED: { per: "team"; then: "repeat" };
 export function draftPlayable(q: SpecQuestion): boolean;
 /** The answers that name someone (a person) or something (a group), `pick` of them (A6). */
 export const NAMES: readonly SpecQuestion["answer"][];
@@ -804,6 +835,8 @@ export interface AnswerParts {
   teams: TeamParts | null;
   /** A11 part 5b: a handicap, as handicapParts reads it; null otherwise. */
   handicap: HandicapParts | null;
+  /** C5: weeks won, as weekParts reads it; null otherwise. */
+  weeks: WeekParts | null;
 }
 export function answerParts(spec: GameSpec | SpecInput | null | undefined): AnswerParts | null;
 /** A11 part 5: teams of players' defaults (drawn at the game's start, a team's points its members' mean, someone unplaced onto the
@@ -873,6 +906,18 @@ export interface MatchupParts {
 /** Head to head as the engine plays it, read the one way from a whole spec; null for a game that isn't (a draft's, and a game of
  *  questions' since A11 part 4b). */
 export function matchupParts(spec: GameSpec | SpecInput | null | undefined): MatchupParts | null;
+/** C5: weeks won (rank.by "weeks"), its fallback for a tied week. */
+export interface WeekParts { ties: "all" | "split" | "none" }
+export const WEEKS: WeekParts;
+/** C5: a pick of several each episode takes up to MAX_PICKS; score.only names up to MAX_ONLY moments. */
+export const MAX_PICKS: number;
+export const MAX_ONLY: number;
+/** C5: weeks won as the engine plays it, read the one way from a whole spec; null for a game that doesn't rank by it. */
+export function weekParts(spec: GameSpec | SpecInput | null | undefined): WeekParts | null;
+/** C5: a pick each episode scored by what they do (score.by "moments"). */
+export function momentsPick(spec: unknown): boolean;
+/** C5: what one moment counts in a game scored by moments (score.only, score.hits), `dflt` the rulebook's own points. */
+export function momentWorth(score: { points?: Record<string, number> | null; only?: string[]; hits?: string }, id: string, dflt: number): number;
 /** A game of questions: nothing held, scored by its own questions (not Weekly Calls' calls). */
 export function questionsGame(spec: unknown): boolean;
 /** A pool: a pick each episode, scored by whether it stays in (or scores). */
@@ -926,6 +971,8 @@ export const TRADE: { fee: number };
 export const MARKET_LEFT: "cash";
 export function marketWaivers(each: number): SpecWaivers;
 export function marketOf(spec: unknown): boolean;
+/** C4: how a waiver move of `kind` holds whom it brings in: the waivers' own for it, else the draft's. */
+export function waiverOwnOf(spec: unknown, kind: "replace" | "swap"): "exclusive" | "shared";
 export function budgetParts(spec: GameSpec | SpecInput | null | undefined): BudgetParts | null;
 /** A10 part 4: keepers' defaults, and keepers read from a whole spec (null: none). */
 export const KEEP: { each: number; fallback: "best" | "none" };
@@ -947,7 +994,7 @@ export function playsAs(spec: GameSpec): LeagueTypeId | null;
 /** The league type's flags, worked out from a whole spec. */
 export function flagsOf(spec: GameSpec): {
   hasRoster: boolean; hasActiveRoster: boolean; hasBestBall: boolean; hasGroupSlots: boolean; hasKeepers: boolean; hasWeeklyPicks: boolean; hasCalls: boolean; hasQuestions: boolean; hasDraftQuestions: boolean; hasBingo: boolean;
-  hasRace: boolean; hasCuts: boolean; hasAnswerLives: boolean; hasCoop: boolean; hasMatchups: boolean; hasTeams: boolean; hasHandicap: boolean; hasStages: boolean;
+  hasRace: boolean; hasCuts: boolean; hasAnswerLives: boolean; hasCoop: boolean; hasMatchups: boolean; hasWeeks: boolean; hasTeams: boolean; hasHandicap: boolean; hasStages: boolean;
   supportsReplenish: boolean; supportsTrade: boolean; supportsFinalePredictions: boolean;
 };
 /**

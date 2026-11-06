@@ -242,6 +242,10 @@ declare const StateLogic: {
     wentHome(state: LeagueState, ep: Episode, castawayId: string): boolean;
     secondCounted(state: LeagueState, ep: Episode, parts?: PoolParts | null): boolean;
     canBuyBack(state: LeagueState, buyback: PoolParts["buyback"], number: number): boolean;
+    /** C5: everyone a pick names, in order (a game picking several each episode: its first, then `more`). */
+    picked(pick: { castawayId: string; more?: string[] } | null | undefined): string[];
+    /** C5: a pick scored by what they do in the episode (score.by 'moments'). */
+    byMoments(state: LeagueState): boolean;
   };
   DraftLogic: {
     currentTurn(state: LeagueState): DraftTurn | null;
@@ -368,6 +372,16 @@ declare const StateLogic: {
     /** How many this player may replace in `period`; lossIds: the oldest that many; outIds: every loss a claim may name. */
     /** Nothing owed while nobody's free to come in (`nobodyFree`: a loss that would be, if someone were). */
     replacementsOwed(state: LeagueState, playerId: string, period: WaiverPeriod | null | undefined): { count: number; lossIds: string[]; outIds: string[]; nobodyFree?: true };
+    /** A game made before the per-holder rule: its cutover (settings.perHolderFrom), or null (none: per holder throughout). */
+    perHolderFrom(state: LeagueState): number | null;
+    /** Whether `c`'s exit is replaced per holder (a replacement's mark only its maker's); with no `c`, whether every exit is. */
+    perHolder(state: LeagueState, c?: Castaway | null): boolean;
+    /** Someone gone home counts as replaced for this player (their own replacement; before a game's cutover, anyone's). */
+    replacedFor(state: LeagueState, c: Castaway, playerId: string): boolean;
+    /** The cutover migration 0207 gives a game: the first episode it hasn't played (at your own pace, past the furthest seat). */
+    cutoverAt(state: LeagueState): number;
+    /** Someone gone home on a team, not replaced yet for whoever still holds them. */
+    lossOpen(state: LeagueState, c: Castaway): boolean;
     /** replacementsOwed in the week running now (pre-v2 name). */
     pickupsOwed(state: LeagueState, playerId: string): { count: number; lossIds: string[]; outIds: string[]; nobodyFree?: true };
     maxPickupClaims(owed: number): number;
@@ -792,8 +806,9 @@ declare const StateLogic: {
   nextPlacementOrder(state: LeagueState): number;
   updateBet(state: LeagueState, epId: string, betId: string, field: string, value: unknown): void;
   removeBetPrediction(state: LeagueState, epId: string, betId: string, predId: string): void;
-  /** Who this player may add in a pickup or add/drop: free agents (exclusive) or anyone still in the game not already theirs (shared). */
-  availableFor(state: LeagueState, playerId: string): Castaway[];
+  /** Who this player may add in a pickup or add/drop: free agents (exclusive) or anyone still in the game not already theirs (shared).
+   *  C4: by a replacement's or a swap's own (the spec's extras.waivers.own); no kind, by either. */
+  availableFor(state: LeagueState, playerId: string, kind?: "replace" | "swap"): Castaway[];
   /** Active Roster: how many replenish picks this player is owed right now. */
   replenishNeed(state: LeagueState, playerId: string): number;
   MidSeasonLogic: {
@@ -808,6 +823,10 @@ declare const StateLogic: {
     seasonOver(state: LeagueState): boolean;
     priorityList(state: LeagueState): string[];
     order(state: LeagueState, playerIds: string[]): string[];
+    /** C4: how a move of `kind` holds whom it brings in (the waivers' own for it, else the draft's); no kind, the draft's. */
+    ownOf(state: LeagueState, kind?: "replace" | "swap"): "exclusive" | "shared";
+    isShared(state: LeagueState, kind?: "replace" | "swap"): boolean;
+    isAvailableFor(state: LeagueState, castawayId: string, playerId: string, kind?: "replace" | "swap"): boolean;
   };
   setFinalePick(state: LeagueState, playerId: string, idx: number, value: string | null): void;
   setFinaleWinnerPick(state: LeagueState, playerId: string, value: string | null): void;
@@ -905,6 +924,13 @@ declare const StateLogic: {
   /** Step A11 part 4: head to head (rank.by 'matchups'): a round robin of the seats each episode on that episode's points, the
    *  standings by wins, and the playoffs over the game's last episodes; worked out from the data on every read, all but where the
    *  playoffs began once they have (settle, on every write). */
+  /** C5: weeks won (rank.by 'weeks'): each episode's most points wins the week, on head to head's series of totals and seats. */
+  WeekLogic: {
+    parts(state: LeagueState): import("./game-spec/index.js").WeekParts | null;
+    on(state: LeagueState): boolean;
+    run(state: LeagueState): { weeks: { number: number; winners: string[]; top: number }[]; won: Map<string, number>; points: Map<string, number> } | null;
+    apply<R extends ScoreRow>(state: LeagueState, rows: R[]): R[];
+  };
   MatchupLogic: {
     parts(state: LeagueState): import("./game-spec/index.js").MatchupParts | null;
     on(state: LeagueState): boolean;
@@ -1114,9 +1140,9 @@ declare const StateLogic: {
    */
   currentEpisode(state: LeagueState): Episode | null;
   /** opts.second: a pool's second pick, beside a first already made (step A10 part 2). */
-  setPickEmPick(state: LeagueState, epId: string, playerId: string, castawayId: string, opts?: { second?: boolean }): void;
+  setPickEmPick(state: LeagueState, epId: string, playerId: string, castawayId: string, opts?: { second?: boolean; picks?: string[] }): void;
   /** opts.second: only the second pick; else the whole pick. */
-  removePickEmPick(state: LeagueState, epId: string, playerId: string, opts?: { second?: boolean }): void;
+  removePickEmPick(state: LeagueState, epId: string, playerId: string, opts?: { second?: boolean; castawayId?: string }): void;
   /** Whether this Survival Pool takes a weekly Who goes home? call (settings.calls): the person's Call it (calls.ts). */
   pickEmCallsOn(state: LeagueState): boolean;
   BetLogic: {
