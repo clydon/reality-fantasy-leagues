@@ -3910,6 +3910,9 @@ of ESPN call: HOSTING.md).** The data side of adding a whole league by its name,
   `check-matchup.js`, `check-finals.js`, `check-sports-links.js` and `check-live-event.js` (6 of 6) pass. 1,798 unit tests, the one
   round-trip failure aside (master's, as before); `tsc` clean; eslint clean on src/lib/sports, src/lib/server/sports,
   src/lib/game/sequence and src/app/api/sports. The routes read right on this lane's dev server against the real ESPN.
+- **The long checks, last, on `33b8e6de`:** `golden.js --before=55c985d8` (the step before): Survivor 49, The Traitors US 4 and The
+  Challenge 40, 74 games, 9,548 reads, every one the same. blind.js and the rehearsal not run: the step changes no game's read
+  (golden alone).
 
 **L8 part 2 noticed, not fixed:**
 - **The day's cap is soft**: counted before a slate is made, outside the transaction that makes it (as add-show's and the matchups'
