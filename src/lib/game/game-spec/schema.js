@@ -252,6 +252,9 @@ const VOCAB = {
   'score.multiply.joined': { draft: 'now', pickup: 'now', replacement: 'now', swap: 'now' },
   'score.multiply.per': { team: 'now', slot: 'now' },
   'score.multiply.then': { repeat: 'now', ratio: 'now' },
+  // A14 part 3: a bounty (score.bounty), points that move between seats by what the results say: one of yours votes out one of
+  // someone else's, and you take its points from them (votedOut: research's who voted for whom, at a vote that sent someone home).
+  'score.bounty.on': { votedOut: 'now' },
   // A10 part 1: group slots (get.groups), a draft's +1 or +2 slot that holds a pair or a team the show forms, read from the
   // format's state over time: whether two people can hold the same group, what a slot does when the groups at its lock or as
   // the episode was played aren't sure (void that episode for the slot, or follow the people), and how a group's points are
@@ -534,6 +537,9 @@ const WHEN = ['episode', 'from', 'phase', 'finale'];
 /** C3: a multiplier on how a holding joined (score.multiply): the most in a list for the Nth, and its defaults. */
 const MAX_JOINED = 6;
 const JOINED = { per: 'team', then: 'repeat' };
+/** A14 part 3: a bounty's most points (in halves), and what it's on when the spec leaves it out. */
+const MAX_BOUNTY = 10;
+const BOUNTY = { on: 'votedOut' };
 /** A10 part 1: a draft's most group slots (the user's "+1 or +2"), and a slot's defaults when the spec leaves them out (the
  *  user's to set: the plan's Noticed for A10). */
 const MAX_GROUP_SLOTS = 2;
@@ -2161,6 +2167,8 @@ function sizesOf(s) {
  *                it's one. Absent: there are none
  *   ctx.grouped  false when nobody on the show is in a group (its cast has no groups): no group answers
  *   ctx.jury     false when no jury decides the finale: no jury vote split (A8)
+ *   ctx.votes    (A14 part 3) false when nobody on the show is voted out by the others' votes (a cast's vote that sends someone
+ *                home): no bounty
  *   ctx.games    (A10 part 4) the couch's games on the show's earlier seasons (ids, or { id }): keepers come from one of them
  *   ctx.pool     (A10 part 1) how many can be drafted where the game drafts (the cast still in then), and ctx.couch how many
  *                people are on its couch: an exclusive draft has to cover every pick (covers: the 9:10 PM decision), else it's
@@ -2294,6 +2302,8 @@ function specProblems(spec, ctx, opts) {
   if (score.by === 'place' && score.reverse !== undefined && score.reverse !== true) add('score.reverse', 'reverse is true, or leave it out');
   // C3: a multiplier on how a holding joined, a draft's.
   if ((score.by === 'moments' || score.by === 'place') && score.multiply !== undefined) multiplyProblems(score.multiply, s).forEach(([at, p]) => add(`score.multiply${at}`, p));
+  // A14 part 3: a bounty, a draft's.
+  if ((score.by === 'moments' || score.by === 'place') && score.bounty !== undefined) bountyProblems(score.bounty, s).forEach(([at, p]) => add(`score.bounty${at}`, p));
   if (score.by === 'stats' && !(pointsMap(score.points) && Object.keys(score.points).length)) add('score.points', 'Stats score as stat key to points');
   if (score.by === 'survive') {
     if (!one('score.means', score.means)) add('score.means', 'A pick survives by staying in (staysIn) or by scoring (scores)');
@@ -2654,7 +2664,7 @@ const KEYS = {
   budget: ['total', 'floor', 'ceiling', 'gone', 'fallback', 'trade', 'left'],
   trade: ['fee'],
   second: ['fallback'],
-  score: { moments: ['by', 'points', 'captain', 'times', 'multiply', 'only', 'hits'], place: ['by', 'reverse', 'multiply'], survive: ['by', 'means', 'points', 'lives', 'buyback', 'mulligans'], lines: ['by', 'points'], answers: ['by', 'parlays', 'lives', 'livesOn', 'saves', 'bank'], stages: ['by'], stats: ['by', 'points'] },
+  score: { moments: ['by', 'points', 'captain', 'times', 'multiply', 'only', 'hits', 'bounty'], place: ['by', 'reverse', 'multiply', 'bounty'], survive: ['by', 'means', 'points', 'lives', 'buyback', 'mulligans'], lines: ['by', 'points'], answers: ['by', 'parlays', 'lives', 'livesOn', 'saves', 'bank'], stages: ['by'], stats: ['by', 'points'] },
   buyback: ['times', 'before', 'cost'],
   before: ['phase', 'episode'],
   parlay: ['of', 'times'],
@@ -2663,6 +2673,7 @@ const KEYS = {
   captain: ['times'],
   when: ['times', 'episode', 'from', 'to', 'phase', 'finale'],
   multiply: ['times', 'joined', 'then', 'per'],
+  bounty: ['points', 'on'],
   shrink: ['points', 'per'],
   rank: ['by', 'race', 'cut', 'oneLeft', 'allOut', ...MATCHUP_KEYS, 'ties', 'teams', 'handicap'],
   race: ['to'],
@@ -2713,6 +2724,7 @@ function unknownKeys(s) {
     if (Array.isArray(s.score.parlays)) s.score.parlays.forEach((p, i) => check(p, KEYS.parlay, `score.parlays[${i}]`));
     if (isObj(s.score.bank)) check(s.score.bank, KEYS.bank, 'score.bank');
     if ((s.score.by === 'moments' || s.score.by === 'place') && Array.isArray(s.score.multiply)) s.score.multiply.forEach((m, i) => check(m, KEYS.multiply, `score.multiply[${i}]`));
+    if (s.score.by === 'moments' || s.score.by === 'place') check(s.score.bounty, KEYS.bounty, 'score.bounty');
     if (s.score.by === 'moments') {
       check(s.score.captain, KEYS.captain, 'score.captain');
       if (Array.isArray(s.score.times)) s.score.times.forEach((t, i) => check(t, KEYS.when, `score.times[${i}]`));
@@ -3433,6 +3445,29 @@ function multiplyProblems(list, s) {
   return out;
 }
 /**
+ * A14 part 3: a bounty (score.bounty), as [[at, problem]]: { points, on? }, points 0.5 to MAX_BOUNTY in halves, on what the results
+ * say (votedOut, the only one: one of yours voted for someone of someone else's who went home by that vote). A draft's (a lineup,
+ * best ball or an Outlast): the people you hold are who vote and who go home. Not a stock market's (its worth is prices, not
+ * points), and not beside cuts yet (someone knocked out still holds their people, so it would take points from a team that's
+ * out). Whether the show votes anyone out is the data-can-settle rule's (ctx.votes).
+ */
+function bountyProblems(b, s) {
+  if (!isObj(b)) return [['', 'A bounty is { points }: what you take from someone when one of your castaways votes out one of theirs']];
+  const out = [];
+  if (!(isNum(b.points) && b.points >= 0.5 && b.points <= MAX_BOUNTY && Number.isInteger(b.points * 2))) out.push(['.points', `A bounty is 0.5 to ${MAX_BOUNTY} points, in halves`]);
+  if (b.on !== undefined && own(VOCAB['score.bounty.on'], b.on) === undefined) out.push(['.on', 'A bounty is on a vote: votedOut, one of yours voting out one of theirs']);
+  if (!(isObj(s.get) && s.get.by === 'draft')) out.push(['', 'A bounty moves points between teams, so it needs a draft: each of you holds castaways who vote and get voted out']);
+  else if (marketOf(s) || (isObj(s.rank) && s.rank.by === 'worth')) out.push(['', 'A stock market scores by prices, not points, so a bounty has no points to move']);
+  else if (isObj(s.rank) && Array.isArray(s.rank.cut) && s.rank.cut.length) out.push(['', "A bounty can't go beside cuts yet: a team knocked out still holds its castaways, so it would keep losing points. Take out the cuts, or the bounty"]);
+  return out;
+}
+/** A14 part 3: a spec's bounty with what it's on filled in ({ points, on }), or null for none. */
+function bountyOf(spec) {
+  const sc = isObj(spec) && isObj(spec.score) ? spec.score : {};
+  if (!(sc.by === 'moments' || sc.by === 'place') || !isObj(sc.bounty) || !isNum(sc.bounty.points)) return null;
+  return { ...BOUNTY, ...sc.bounty };
+}
+/**
  * C3: every multiplier a spec has, as one piece keyed by a condition (the sequence's factorOf): [{ on, times, ...condition }]. A
  * lineup's captain (score.captain, on 'captain'), each of score.times ('when', its window), each of score.multiply ('joined', with
  * its per and then filled in) and each parlay ('legs', its questions). A confidence ranking's weights are its answer's own ('rank',
@@ -3573,6 +3608,12 @@ function settleProblems(s, ctx, opts) {
     else if (at === 0) out.push(['score.buyback.before.phase', 'The first phase starts with Episode 1: nobody is out before it']);
   }
   if (get.by === 'pick' && get.second !== undefined && ctx.results === false) out.push(['get.second', "The show's results don't say who goes home, so nothing says a night sent two"]);
+  // A14 part 3: a bounty needs a vote that sends someone home, with who voted for whom (research's, at Survivor's Tribal Council or
+  // The Traitors' Round Table).
+  if ((score.by === 'moments' || score.by === 'place') && score.bounty !== undefined) {
+    if (ctx.results === false) out.push(['score.bounty', "The show's results don't say who goes home, so nothing says who voted someone out"]);
+    else if (ctx.votes === false) out.push(['score.bounty', "Nobody on this show is voted out by the others, so there's no vote for a bounty"]);
+  }
   // A11 part 1: a cut before a phase is one of the season's, never its first (that starts with Episode 1: nobody has played); where
   // it starts is data (the desk confirms it). A night nobody goes home skipped needs results that say who goes home.
   if (isObj(s.rank) && Array.isArray(s.rank.cut)) {
@@ -3953,7 +3994,7 @@ function stagedWaits(s) {
 
 module.exports = {
   SPEC_VERSION, VOCAB, TAKES, SETTLES_FOR, SEASON_TAKES, EACH_SETTLES_FOR, NAMES, NUMBERS, MAX_WINDOW, LATE_HOURS, windowed,
-  RANKS, MAX_ORDER, MAX_WITHIN, MAX_CHIPS, MAX_PAIRS, WAGERS, WAGER_TOTAL, ODDS, MAX_BANK, BANK, bankOf, drawsOnBank, isTicket, ticketOf, MAX_TICKET_LEGS, MAX_PAYS, TICKET, SHARES, SHRINK_PER, LEGS, MAX_LEGS, MAX_TIMES, MAX_WHEN, WHEN, MAX_JOINED, JOINED, multipliersOf, PRESETS, PRESET_TYPES, TYPE_PRESETS, PRESET_LABELS, NO_WAIVERS, DRAFT_ROOM,
+  RANKS, MAX_ORDER, MAX_WITHIN, MAX_CHIPS, MAX_PAIRS, WAGERS, WAGER_TOTAL, ODDS, MAX_BANK, BANK, bankOf, drawsOnBank, isTicket, ticketOf, MAX_TICKET_LEGS, MAX_PAYS, TICKET, SHARES, SHRINK_PER, LEGS, MAX_LEGS, MAX_TIMES, MAX_WHEN, WHEN, MAX_JOINED, JOINED, multipliersOf, MAX_BOUNTY, BOUNTY, bountyOf, PRESETS, PRESET_TYPES, TYPE_PRESETS, PRESET_LABELS, NO_WAIVERS, DRAFT_ROOM,
   MAX_GROUP_SLOTS, GROUP_SLOTS, covers, MAX_LIVES, MAX_BUYBACKS, MAX_MULLIGANS, MAX_BUYBACK_COST, BUYBACK, SECOND_PICK, NEVER, poolParts,
   DRAFT_ACROSS, DRAW_OWN, spreadBounds, MAX_BUDGET, BUDGET, CAP, AUCTION, MAX_BIDS, ceilingFor, budgetParts, TRADE, MARKET_LEFT,
   marketWaivers, marketOf, waiverOwnOf, waiverMoves, KEEP, keepParts, SEATS, MAX_SEAT_PEOPLE, seatPeople, teamsOf,

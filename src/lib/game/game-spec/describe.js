@@ -263,6 +263,23 @@ function sharedMovesRule(m, w) {
   if (m.replace) return `Lose someone? Their replacement can be ${anyone}${m.swaps ? " A swap brings in only someone on nobody's team." : ''}`;
   return `A swap can bring in ${anyone}${m.replaces ? " A replacement is someone on nobody's team." : ''}`;
 }
+/** A14 part 3: a bounty, the sentence's and How it works' first rule: "Bounties: when one of your castaways votes out someone else's,
+ *  you take 2 points from them." Null for none. */
+function bountySentence(sc, w) {
+  const b = isObj(sc.bounty) && isNum(sc.bounty.points) ? sc.bounty : null;
+  return b ? `Bounties: when one of your ${w.castaways} votes out someone else's, you take ${pointsWord(b.points)} from them.` : null;
+}
+/** A14 part 3: How it works' rules for a bounty, after its sentence: each vote counts, what an unclear episode does, a lineup's
+ *  starters, a shared draft's holders. */
+function bountyRules(s, w) {
+  const said = bountySentence(s.score, w);
+  if (!said) return [];
+  const pts = pointsWord(s.score.bounty.points);
+  const out = [said, `Every one of yours who voted for who went home takes ${pts}. If the ${w.part}'s votes aren't clear, no bounty that ${w.part}.`];
+  if (countKind(s.count) === 'start') out.push('Only starters count, voting or voted out.');
+  if (isObj(s.get) && s.get.own === 'shared') out.push(`Share a ${w.castaway} with someone? You each take the bounty, and everyone who had who went home pays it.`);
+  return out;
+}
 /** C3: what a multiplied holding counts, said once: an Outlast's what they earn while they're yours, not their whole place. */
 const joinedHow = (sc) => (sc.by === 'place'
   ? `Each counts the boots they outlast while they're yours (one you drafted, their whole place), and keeps for you what they earned before you let them go.`
@@ -356,11 +373,14 @@ function sentenceParts(s, w) {
     for (const rule of timesRules(sc, w)) put(` ${rule}`, 'score');
     // C3: how a holding joined.
     for (const rule of joinedRules(sc)) put(` ${rule}`, 'score');
-  } else if (sc.by === 'place' && sc.reverse === true) put(' Each scores more the earlier they go home: the first one out carries you.', 'score');
-  else if (sc.by === 'place') {
-    put(' Each scores by how long they last: the last one standing carries you.', 'score');
+    // A14 part 3: a bounty.
+    if (bountySentence(sc, w)) put(` ${bountySentence(sc, w)}`, 'score');
+  } else if (sc.by === 'place') {
+    put(sc.reverse === true ? ' Each scores more the earlier they go home: the first one out carries you.' : ' Each scores by how long they last: the last one standing carries you.', 'score');
     // C3: how a holding joined.
-    for (const rule of joinedRules(sc)) put(` ${rule}`, 'score');
+    if (sc.reverse !== true) for (const rule of joinedRules(sc)) put(` ${rule}`, 'score');
+    // A14 part 3: a bounty.
+    if (bountySentence(sc, w)) put(` ${bountySentence(sc, w)}`, 'score');
   }
   else if (sc.by === 'survive') {
     // A10 part 2: lives, a buyback, mulligans; last one standing.
@@ -1039,17 +1059,21 @@ function rulesOf(s, w) {
     // C3: a multiplier on how a holding joined.
     const joinedSaid = s.score.by === 'moments' || s.score.by === 'place' ? joinedRules(s.score) : [];
     if (joinedSaid.length && s.score.by === 'moments') rules.push(...joinedSaid, joinedHow(s.score));
+    // A14 part 3: a bounty (an Outlast's after how a place scores, below).
+    if (s.score.by === 'moments') rules.push(...bountyRules(s, w));
     if (count === 'start') rules.push(`Lineups lock when the ${w.part} starts. Change yours as often as you like until then.`);
     rules.push(...groupSlotRules(s, w));
     if (s.score.by === 'place' && s.score.reverse === true) {
       rules.push(`Each ${w.castaway} earns 1 point, plus 1 for everyone who outlasts them.`);
       rules.push('So the first one out scores the most and the winner 1: the earlier yours go home, the better.');
       rules.push("While they're still in, they count what they'd score if they went home next.");
+      rules.push(...bountyRules(s, w));
       rules.push('No lineups to set. Just watch.');
     } else if (s.score.by === 'place') {
       rules.push(`Each ${w.castaway} earns 1 point, plus 1 for every boot they outlast.`);
       rules.push('So they end on their place in the boot order: the last one standing carries you.');
       if (joinedSaid.length) rules.push(...joinedSaid, joinedHow(s.score));
+      rules.push(...bountyRules(s, w));
       rules.push('No lineups to set. Just watch.');
     }
     // A10 part 3c: a stock market's moves are its trades (drawRules says them).

@@ -114,6 +114,8 @@ export type SpecJoined = {
   per?: "team" | "slot";
   then?: "repeat" | "ratio";
 };
+/** A14 part 3: a bounty, points that move to you from someone else when one of yours votes out one of theirs. */
+export type SpecBounty = { points: number; on?: "votedOut" };
 /** C3: one multiplier, keyed by its condition (multipliersOf). */
 export type SpecFactor =
   | { on: "captain"; times: number }
@@ -126,10 +128,10 @@ export type SpecScore =
    *  name each episode, whose points multiply by `times`; and when the points multiply (`times`). C3: how a holding joined. */
   /** C5: only (only these moments count) and hits (each moment an objective hit, worth 1: every hit, each objective once per
    *  holding, or once for you; points never weight a hit, they only say which moments count). */
-  | { by: "moments"; points: Record<string, number> | null; captain?: { times: number }; times?: SpecWhen[]; multiply?: SpecJoined[]; only?: string[] | "card"; hits?: "every" | "pick" | "objective" }
+  | { by: "moments"; points: Record<string, number> | null; captain?: { times: number }; times?: SpecWhen[]; multiply?: SpecJoined[]; only?: string[] | "card"; hits?: "every" | "pick" | "objective"; bounty?: SpecBounty }
   /** A9 part 2's reverse: the earlier they go home the more (1, plus 1 for everyone who outlasts them). C3: how a holding joined
    *  (never in reverse), its lines then what each one earns while it's yours. */
-  | { by: "place"; reverse?: true; multiply?: SpecJoined[] }
+  | { by: "place"; reverse?: true; multiply?: SpecJoined[]; bounty?: SpecBounty }
   /** A10 part 2: lives (a wrong pick costs one, out at none), a buyback (someone out before `before` is back in from the next
    *  episode with one life, `cost` points off their total, `times` in a game), mulligans (the first n wrong picks forgiven). */
   | { by: "survive"; means: "staysIn" | "scores"; points: number; lives?: number; buyback?: PoolBuyback; mulligans?: number }
@@ -565,6 +567,8 @@ export interface SpecContext {
   grouped?: boolean;
   /** false when no jury decides the finale: no jury vote split (A8). */
   jury?: boolean;
+  /** A14 part 3: false when nobody on the show is voted out by the others' votes: no bounty. */
+  votes?: boolean;
   /** A13: false when the season's research writes no trivia (its trivia run off): no trivia question. Left out: it's written. */
   trivia?: boolean;
   /** A13 part 2: what research returned of each episode fact on the show (the season tapes' measure and the show's stored
@@ -638,6 +642,10 @@ export function draftQuestions(spec: Partial<GameSpec> | null | undefined): Ques
 /** C3: every multiplier a spec has, as one piece keyed by a condition; the most in a list for the Nth, and its defaults. */
 export function multipliersOf(spec: Partial<GameSpec> | null | undefined): SpecFactor[];
 export const MAX_JOINED: number;
+/** A14 part 3: a bounty's most points, its defaults, and a spec's with them filled in (null for none). */
+export const MAX_BOUNTY: number;
+export const BOUNTY: { on: "votedOut" };
+export function bountyOf(spec: Partial<GameSpec> | null | undefined): Required<SpecBounty> | null;
 export const JOINED: { per: "team"; then: "repeat" };
 export function draftPlayable(q: SpecQuestion): boolean;
 /** The answers that name someone (a person) or something (a group), `pick` of them (A6). */

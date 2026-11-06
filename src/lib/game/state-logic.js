@@ -495,6 +495,8 @@ class EliminationOrderScoringStrategy {
       results[p.id].locked = at.locked;
       results[p.id].banked = at.banked;
       if(asks) results[p.id].questions = at.questions;
+      // A14 part 3: a bounty's points, a gain or a loss.
+      if(at.bounty !== undefined) results[p.id].bounty = at.bounty;
     });
     state.castaways.forEach(c=>{
       // Dropped via replenish/trade: no longer counts (C3: with a multiplier on how a holding joined, what they earned while
@@ -504,8 +506,9 @@ class EliminationOrderScoringStrategy {
       }
     });
     const bets = addSideLayers(state, results);
-    // Rounded once its own questions (a pot's share) or a multiplier on how a holding joined (C3: half a place) are in it.
-    const rounded = asks || !!joinedFactors(state);
+    // Rounded once its own questions (a pot's share), a multiplier on how a holding joined (C3: half a place) or a bounty (A14 part
+    // 3: half a point) are in it.
+    const rounded = asks || !!joinedFactors(state) || !!BountyLogic.of(state);
     Object.values(results).forEach(r=> r.total = Seq.total(r, bets, rounded));
     return Seq.byTotal(Object.values(results));
   }
@@ -660,6 +663,54 @@ class StagesScoringStrategy {
     return rows.sort((a, b) => PickEmScoringStrategy.compareKeys(rankKey(state, b), rankKey(state, a)));
   }
 }
+// ---------- BountyLogic: points that move between seats by what the results say (docs/PLAN-start-a-game-gpt.md step A14 part 3) ----------
+// The spec's score.bounty ({ points, on: 'votedOut' }), a draft's: one of yours votes out one of someone else's, and you take the
+// bounty's points from them. Who voted for whom is research's, stamped on each episode with results as its record
+// (`episode.voteRecord`: { sure, why?, votes: [[voterId, votedForId]], out }, vote-records.ts from the season's stored research,
+// formats/votes.js recordOf), on every read and write as the air times are (and saved with a write, read again on the next). Its
+// fallback is void: an
+// episode whose record isn't sure (research's votes don't add up to its own count against who went home, a name off the cast, a
+// double boot asked as one vote each), or whose league results say someone else went home by a vote than research does, moves
+// nothing. Worked out on every read, as the rest of a draft's walk is, so a corrected result or a re-researched episode works it
+// out again.
+class BountyLogic {
+  /** The game's bounty ({ points, on }), or null: the game that's played's (a spec no game plays scores as a plain Outlast). */
+  static of(state){ return Spec.bountyOf(playedGame(state)); }
+  /** Every way of leaving the show's votes cause (formats/votes.js), as a Set: worked out once a walk. */
+  static exitsOf(state){ return new Set(Formats.voteExits(formatOf(state))); }
+  /** The episode's votes a bounty reads: [[voterId, votedForId]], each for someone this league's results say went home by a vote
+   *  there, when the record is sure and says the same people did; [] for anything else (void). `exits`: exitsOf's. */
+  static votesAt(state, ep, exits){
+    const rec = ep && ep.voteRecord;
+    if(!rec || rec.sure !== true || !Array.isArray(rec.votes)) return [];
+    exits = exits || BountyLogic.exitsOf(state);
+    const out = new Set((ep.events || []).filter(e => exits.has(e.method)).map(e => e.castawayId));
+    if(!out.size) return [];
+    const said = new Set(Array.isArray(rec.out) ? rec.out : []);
+    if(said.size !== out.size || [...out].some(id => !said.has(id))) return [];
+    return rec.votes.filter(v => Array.isArray(v) && out.has(v[1]) && v[0] !== v[1]);
+  }
+  /** Who of a seat's counts for an episode (step 1, as episodeScore holds them): a lineup's starters, best ball's or an Outlast's
+   *  team as it stood then. */
+  static heldFor(state, ep, playerId){
+    if(playedGame(state).score.by === 'place' || ActiveRosterLogic.bestOf(state)) return ActiveRosterLogic.teamFor(state, ep, playerId);
+    return ActiveRosterLogic.lineupFor(state, ep.id, playerId);
+  }
+  /** One episode's bounties for every seat: Map playerId -> points (a gain or a loss, rounded), or null when nothing moves. */
+  static episodeLines(state, ep, bounty, exits){
+    const votes = BountyLogic.votesAt(state, ep, exits);
+    if(!votes.length) return null;
+    const holders = new Map();
+    (state.players || []).forEach(p => new Set(BountyLogic.heldFor(state, ep, p.id)).forEach(id => {
+      if(!holders.has(id)) holders.set(id, []);
+      holders.get(id).push(p.id);
+    }));
+    const out = new Map();
+    Seq.bountyLines(votes, id => holders.get(id) || [], bounty.points).forEach(l => out.set(l.playerId, Seq.round((out.get(l.playerId) || 0) + l.points)));
+    return out.size ? out : null;
+  }
+}
+
 // Thin dispatcher -- see "The pieces" comment near the top of this file. Delegates to the scorer the
 // spec's score.by names (scorePiece): EliminationOrderScoringStrategy (the boot order: Outlast),
 // ActiveRosterEventScoringStrategy (moments: Weekly Lineup, best ball), PickEmScoringStrategy (who
@@ -691,7 +742,9 @@ class ScoringLogic {
   // through each episode, and now); a copy without them scores them as nothing. C3: with a multiplier on how a holding joined
   // (joinedFactors), each holding's line is what it earns while it's yours (Seq.stints: drafted, or the move that brought it, until
   // the move that let it go), times its factor: an Outlast's, its place where it was let go (or at the mark) less its place when it
-  // joined (Seq.earnedWhileHeld), each line rounded and their sum; a lineup's, each moment line times it too (episodeScore).
+  // joined (Seq.earnedWhileHeld), each line rounded and their sum; a lineup's, each moment line times it too (episodeScore). A14
+  // part 3: a bounty's lines (BountyLogic.episodeLines: each vote moving points from who went home's seats to their voter's), added
+  // up episode by episode beside them (`bounty`, on each row and now: a gain or a loss), never multiplied.
   static walk(state, want){
     const w = want || { series: true, now: true };
     const game = gameOf(state);
@@ -753,10 +806,18 @@ class ScoringLogic {
     const lines = asks ? AnswerLogic.linesOf(state) : null;
     const askedAt = (at, id) => (at && typeof at[id] === 'number' ? at[id] : 0);
     const bets = new Map(players.map(p => [p.id, 0]));
+    // A14 part 3: a bounty's points through each episode, and now.
+    const bounty = BountyLogic.of(state);
+    const taken = bounty ? new Map(players.map(p => [p.id, 0])) : null;
+    const exits = bounty ? BountyLogic.exitsOf(state) : null;
     let finaleIn = false;
     const series = [];
     for(const ep of episodes){
       const final = !(EpisodeLogic.resultsStage(ep) === 'early' && ep.number === newest);
+      if(bounty && (w.now || final)){
+        const moved = BountyLogic.episodeLines(state, ep, bounty, exits);
+        if(moved) moved.forEach((pts, id) => { if(taken.has(id)) taken.set(id, Seq.round(taken.get(id) + pts)); });
+      }
       if(!outlast && (w.now || final)){
         const events = ActiveRosterLogic.episodeEvents(state, ep);
         if(events.length){
@@ -781,8 +842,10 @@ class ScoringLogic {
         const row = { locked, banked, bonus, finale: fin };
         if(asks) row.questions = q;
         if(tally) row.handicap = handicap;
+        const b = bounty ? taken.get(p.id) : 0;
+        if(bounty) row.bounty = b;
         rows.set(p.id, row);
-        totals.set(p.id, Seq.round(locked + bonus + fin + handicap + q));
+        totals.set(p.id, Seq.round(locked + bonus + fin + handicap + q + b));
       });
       series.push({ number: ep.number, quiet: !!ep.noExit, totals, rows });
     }
@@ -792,6 +855,7 @@ class ScoringLogic {
       players.forEach(p => {
         const at = outlast ? placesAt(p.id, Infinity, mark) : { locked: running.get(p.id), banked: 0 };
         if(asks) at.questions = askedAt(lines && lines.now, p.id);
+        if(bounty) at.bounty = taken.get(p.id);
         now.set(p.id, at);
       });
     }
@@ -3798,6 +3862,8 @@ class ActiveRosterEventScoringStrategy {
     state.players.forEach(p=>{
       results[p.id].locked = now.get(p.id).locked;
       if(asks) results[p.id].questions = now.get(p.id).questions;
+      // A14 part 3: a bounty's points, a gain or a loss.
+      if(now.get(p.id).bounty !== undefined) results[p.id].bounty = now.get(p.id).bounty;
     });
     // The same optional layers classic-draft carries: side bets and finale predictions are orthogonal
     // to how the main score is earned, so an Active Roster league can still use them.
@@ -8110,6 +8176,8 @@ class SpoilerLogic {
     s.episodes.forEach(ep => {
       if(!ids.has(ep.id)) return;
       ep.events = []; ep.scoringEvents = []; ep.exiled = []; ep.roles = []; ep.groups = []; delete ep.formatGroups;
+      // A14 part 3: who voted for whom says who went home.
+      delete ep.voteRecord;
       delete ep.resultsStage; delete ep.noExit;
       ep.postMerge = visible ? !!visible.postMerge : false;
       (ep.bets || []).forEach(b => (b.predictions || []).forEach(p => { p.correct = null; }));
@@ -8907,7 +8975,7 @@ return {
   // EliminationOrderScoringStrategy/PickEmScoringStrategy are those pieces,
   // exported directly for code that wants to bypass the dispatch.
   Core, ScoringLogic, DraftLogic, RosterLogic, WaiverLogic, EpisodeLogic, BetLogic, FinaleLogic, AnswerLogic, PickEmLogic, BlindDraftLogic, ActiveRosterLogic, GroupSlotLogic, SetupLogic, RevealLogic, SpoilerLogic, GhostLogic, Migrations,
-  SpreadLogic, DrawLogic, PriceLogic, BudgetLogic, MarketLogic, AuctionLogic, KeeperLogic, KnockoutLogic, MatchupLogic, WeekLogic, TeamLogic, HandicapLogic, StageLogic, draftFits, draftFitsFor, rankKey,
+  SpreadLogic, DrawLogic, PriceLogic, BudgetLogic, MarketLogic, AuctionLogic, KeeperLogic, KnockoutLogic, MatchupLogic, WeekLogic, TeamLogic, HandicapLogic, StageLogic, BountyLogic, draftFits, draftFitsFor, rankKey,
   SnakeDraftStrategy, StagesScoringStrategy, EliminationOrderScoringStrategy, NoDraftStrategy, PickEmScoringStrategy, BlindDraftStrategy, ActiveRosterEventScoringStrategy, DrawDraftStrategy, AuctionDraftStrategy
 };
 

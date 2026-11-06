@@ -2,7 +2,7 @@
 // scores as one sequence of six steps, for each seat and each episode (or window) it plays:
 //   1. Hold: what of yours counts for that episode (heldAt).
 //   2. Score each line: a line is one holding's points in one episode, from one source: its place (placed, stillIn), its moments
-//      (momentLines), a group slot's group (groupRaw), a side bet (betLines), an answer's right ones at what its window is worth
+//      (momentLines), a group slot's group (groupRaw), a side bet (betLines), a bounty (bountyLines), an answer's right ones at what its window is worth
 //      (windowLines: a rollover's jackpot in it, jackpot and carry; a shrinking call's less, shrink), a right call or a bingo line
 //      (tally); a finale prediction and a handicap are lines of their own, worked out where they're settled.
 //   3. Multipliers: each line times whatever applies to it, in order (multiply: a captain, then the episode's own multiplier; a
@@ -206,6 +206,29 @@ function betLines(bets) {
     if ((bet.predictions || []).length < 2) return;
     bet.predictions.forEach((pred) => {
       if (pred.correct === true) out.push({ playerId: pred.playerId, points: bet.points || 0, bet });
+    });
+  });
+  return out;
+}
+/**
+ * One episode's bounties as lines (A14 part 3, score.bounty): points that move between seats by what the results say. `votes`:
+ * [[voterId, votedForId]], each a vote for someone the episode's results say went home by it (the state's to find); `holdersOf(id)`:
+ * the seats that castaway counts for that episode (step 1's holdings, a shared draft's several). Each vote moves `points` from each
+ * seat holding who went home to each other seat holding who voted them out: [{ playerId, points, vote }], a seat's gain and the
+ * other's loss, so the lines always add up to nothing. A seat holding both takes nothing from itself. Not multiplied (a factor on
+ * one side alone would make points from nothing) and added beside the episode's total, outside best ball's best n.
+ */
+function bountyLines(votes, holdersOf, points) {
+  const out = [];
+  (votes || []).forEach((vote) => {
+    const hunters = holdersOf(vote[0]) || [];
+    const marks = holdersOf(vote[1]) || [];
+    hunters.forEach((h) => {
+      marks.forEach((t) => {
+        if (h === t) return;
+        out.push({ playerId: h, points, vote });
+        out.push({ playerId: t, points: -points, vote });
+      });
     });
   });
   return out;
@@ -886,7 +909,7 @@ function coop(series, o) {
  * whole places).
  */
 function total(row, bets, rounded) {
-  const t = row.locked + (bets ? row.bonus : 0) + row.finale + (row.questions || 0);
+  const t = row.locked + (bets ? row.bonus : 0) + row.finale + (row.questions || 0) + (row.bounty || 0);
   return rounded ? round(t) : t;
 }
 /** Two keys compared from their first number on (positive when `a` is higher): sort with compareKeys(key(b), key(a)). */
@@ -931,6 +954,7 @@ const api = {
   momentRaw,
   groupRaw,
   betLines,
+  bountyLines,
   windowLines,
   shrink,
   jackpot,

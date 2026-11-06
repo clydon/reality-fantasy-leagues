@@ -9,8 +9,8 @@ A row plays now when its spec passes the validator (`specProblems`, with what it
 needs waits (`specWaitsFor`); it then says the game in the engine's own words (`describeSpec`). A show the tracker has no
 rules for is checked against a show of its kind, and says so.
 
-**Now:** 216 ✅ · 47 ⏳ · 1 🆕 · 4 ❓ · 23 💬, of 291.
-**Waiting, by step:** A14 8 · A15 15 · L3 7 · L4 13 · G1 4.
+**Now:** 217 ✅ · 46 ⏳ · 1 🆕 · 4 ❓ · 23 💬, of 291.
+**Waiting, by step:** A14 7 · A15 15 · L3 7 · L4 13 · G1 4.
 
 ## The dials
 
@@ -213,7 +213,7 @@ Requests that push the dials, from fantasy leagues, beyond them, and live with t
 | ✅ | s13 | Survivor 51 | Draft the boot order before the premiere; points for every boot within 2 spots. | what | A game for Survivor 51: everyone answers one question before it starts: the boot order, all season. 2 points for each right answer. |
 | ✅ | s14 | Survivor 51 | Predict the leaderboard each week. | what | A game for Survivor 51: everyone answers one question before each episode: this week's leaderboard: the top five by points, all season. A point for each right answer. |
 | ✅ | s15 | Survivor 51 | Parlay: who goes home AND who wins immunity, triple if both. | score | A game for Survivor 51: everyone answers two questions before each episode: who goes home and who wins immunity, all season. 2 points for each right answer. Right on who goes home and who wins immunity together: triple the points. |
-| ⏳ | s16 | Survivor 51 | Bounties: if your castaway votes out mine, you steal 2. | score | A14 |
+| ✅ | s16 | Survivor 51 | Bounties: if your castaway votes out mine, you steal 2. | score | An Outlast for Survivor 51: everyone drafts 3, all season. Each scores by how long they last: the last one standing carries you. Bounties: when one of your people votes out someone else's, you take 2 points from them. |
 | ✅ | s17 | The Challenge 42 | Dynasty: keep 2 of your players when they come back next season. | shape | An Outlast for The Challenge 42: everyone drafts 3, keeping up to two of last season's team who come back, all season. Each scores by how long they last: the last one standing carries you. |
 | ✅ | s18 | Survivor 51 | My partner and I share one team. | who | A Weekly Lineup for Survivor 51: everyone drafts 5 and starts 3 each episode, all season. Scored by Survivor 51's rules. Up to two of you can share a team. |
 | ✅ | s19 | Survivor 51 | Newcomers get 5 bonus points a week. | who | A Weekly Lineup for Survivor 51: everyone drafts 5 and starts 3 each episode, all season. Scored by Survivor 51's rules. Newcomers get 5 points an episode: anyone with no game on this couch from an earlier season. |

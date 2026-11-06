@@ -3515,10 +3515,15 @@
         "rulebook": "survivor"
       },
       "words": "Bounties: if your castaway votes out mine, you steal 2.",
+      "spec": {
+        "preset": "outlast",
+        "score": { "by": "place", "bounty": { "points": 2 } }
+      },
       "step": "A14",
       "dials": [
         "score"
-      ]
+      ],
+      "note": "a bounty (A14 part 3: score.bounty), points that move between seats by what the results say: research's who voted for whom, at a vote that sent someone home, read only when research's own count agrees (else void: nothing moves that episode)."
     },
     {
       "id": "s17",

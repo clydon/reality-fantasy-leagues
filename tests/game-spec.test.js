@@ -62,8 +62,9 @@ const GAME_FIELDS = {
   // A9 part 2: Outlast in reverse; best ball, a lineup's captain, points that multiply by when. A10 part 3c: a stock market
   // ranked by worth.
   // C3: a multiplier on how a holding joined (joinedTimes), an Outlast's or a lineup's.
-  "classic-draft": [...DRAFT_FIELDS, "teamSize", "reverseOrder", "joinedTimes"],
-  "active-roster": [...DRAFT_FIELDS, "activeSlots", "benchSlots", "eventPoints", "hideStartersUntilLock", "bestBall", "captainTimes", "pointsTimes", "groupSlots", "joinedTimes", "scoreOnly", "scoreHits", "gameCard"],
+  // A14 part 3: a bounty (bounty), an Outlast's or a lineup's.
+  "classic-draft": [...DRAFT_FIELDS, "teamSize", "reverseOrder", "joinedTimes", "bounty"],
+  "active-roster": [...DRAFT_FIELDS, "activeSlots", "benchSlots", "eventPoints", "hideStartersUntilLock", "bestBall", "captainTimes", "pointsTimes", "groupSlots", "joinedTimes", "bounty", "scoreOnly", "scoreHits", "gameCard"],
   // A10 part 2: a pool's lives, buyback, mulligans, second pick and last one standing. A11 part 2: a pick that never repeats and
   // its fallback; last one standing's end.
   // C5: a pick scored by what they do (poolScore, its points eventPoints and by when pointsTimes, several each episode poolEach),

@@ -220,6 +220,9 @@ export interface Episode {
   /** Step C7 part 2: a card the bot chooses, its choice for this episode as it stood when the card came out (stamped with the air
    *  times from card_choices: card-choices.ts), or { fallback: true } once it came out without one; none while it isn't out. */
   cardChoice?: { moments?: string[]; cannot?: string[]; fallback?: true };
+  /** Step A14 part 3, stamped on every read and write for a game with a bounty (vote-records.ts; the engine only reads it): who
+   *  voted for whom in the episode as its research says, by the league's castaway ids, and whether research is sure of it. */
+  voteRecord?: { sure: boolean; why?: string; votes: [string, string][]; out: string[] };
   /** Kept open past its start by whoever runs the game (Backstage › Settings' lock; StateLogic.closedForPlay). */
   openPastAir?: boolean;
 }
@@ -340,6 +343,8 @@ export interface LeagueSettings {
   pointsTimes?: import("./game-spec/index.js").SpecWhen[];
   /** Step C3, absent unless a game says it: a draft's multiplier on how a holding joined (the spec's score.multiply). */
   joinedTimes?: import("./game-spec/index.js").SpecJoined[];
+  /** Step A14 part 3, absent unless a game says it: a draft's bounty (the spec's score.bounty). */
+  bounty?: import("./game-spec/index.js").SpecBounty;
   reverseOrder?: boolean;
   /** Step A10 part 1, absent unless a game says it: a lineup's or best ball's group slots (the spec's get.groups). */
   groupSlots?: import("./game-spec/index.js").GroupSlots;

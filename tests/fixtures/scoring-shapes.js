@@ -41,7 +41,9 @@
 // on the card staked from a bank with a ticket from its lines; w-pick-card in weekWonShapes, only the card's moments counting)
 // likewise, from C7's engine, proven by hand below and in tests/card.test.js; the 2,340 before them stay. C7 part 2's (a card the bot
 // chooses: q-card-bot and q-card-bot-void in outsideShapes, each episode's choice stamped on the league as the server stamps it)
-// likewise, from part 2's engine, proven by hand below and in tests/card-bot.test.js; the 2,376 before them stay:
+// likewise, from part 2's engine, proven by hand below and in tests/card-bot.test.js; the 2,376 before them stay. A14 part 3's (a
+// bounty: bountyShapes, each episode's record of who voted for whom stamped on the league as the server stamps it, VOTES) likewise,
+// from part 3's engine, proven by hand in tests/bounty.test.js; the 2,412 before them stay:
 //   node tests/fixtures/scoring-shapes.js --write [--ref=<git ref>]      the record, from this tree's engine (or the ref's)
 //   node tests/fixtures/scoring-shapes.js --print <shape> <seat|-> <mark|-|all> [--ref=<git ref>]   one read, in full
 //   node tests/fixtures/scoring-shapes.js --diff [<shape>] [--ref=d5222e68]   where this tree's reads part from the ref's (the
@@ -108,6 +110,30 @@ function shapes(G) {
     ...multiplyShapes(G, outlast, lineup),
     ...ownShapes(G, outlast, lineup),
     ...weekWonShapes(outlast, lineup),
+    ...bountyShapes(G, outlast, lineup),
+  ];
+}
+
+/**
+ * A14 part 3: a bounty (score.bounty), on the same season with its records of who voted for whom (VOTES, o.votes): Episode 1's boot
+ * nobody holds (nothing moves), Episode 4's double boot not sure (void), 5's own-team vote and a medevac beside it, 6's pickup not
+ * held yet, the finale's two votes out. No engine before part 3 plays them (it refuses score.bounty), so their reads are new (from
+ * part 3's engine): an Outlast with its finale predictions and side bets, early results at the finale and a race; a shared Outlast;
+ * a lineup (starters only) and head to head on it; shared best ball.
+ */
+function bountyShapes(G, outlast, lineup) {
+  const B = { votes: VOTES };
+  const shared = { by: "draft", each: 3, order: "blind", own: "shared" };
+  const place = (points) => ({ by: "place", bounty: { points } });
+  const moments = (points) => ({ by: "moments", points: null, bounty: { points } });
+  return [
+    ["b-outlast", outlast({ score: place(2), ask: FINALE(G), extras: { bets: { points: 1 } } }), "exclusive", B],
+    ["b-outlast-early", outlast({ score: place(2) }), "exclusive", { ...B, early: 7 }],
+    ["b-outlast-race", outlast({ score: place(2), rank: { by: "total", race: { to: 30 } } }), "exclusive", { ...B, week: true }],
+    ["b-outlast-shared", outlast({ get: shared, score: place(1) }), "shared", B],
+    ["b-lineup", lineup({ score: moments(1.5), ask: FINALE(G) }), "exclusive", B],
+    ["b-lineup-matchups", lineup({ score: moments(1), rank: { by: "matchups" } }), "exclusive", { ...B, week: true }],
+    ["b-best-ball-shared", lineup({ count: { best: 2 }, score: moments(2) }, shared), "shared", B],
   ];
 }
 
@@ -550,6 +576,18 @@ const EXITS = {
   6: [["c11", "Voted Out"], ["c12", "Quit"], ["c8", "Voted Out"]],
   7: [["c14", "Voted Out"], ["c7", "Voted Out"], ["c5", "Lost Fire-Making"], ["c4", "Lost Final Tribal (Jury Vote)", 2], ["c2", "Lost Final Tribal (Jury Vote)", 0], ["c0", "Sole Survivor", 5]],
 };
+// A14 part 3: each episode's record of who voted for whom (as vote-records.ts stamps it), for a bounty's shapes: 1, the boot nobody
+// holds; 2, bo's c3 by ann's c0 and c1, di's c9 and bo's own c4; 4, the double boot research isn't sure of; 5, di's c10 by ann's c2,
+// cy's c7 and di's own c11 (c1's medevac beside it, nobody's vote); 6, c11 and c8 (c14, cy's pickup after 6, not held yet); 7, the
+// finale's c14 and c7.
+const VOTES = {
+  1: { sure: true, votes: [["c0", "c13"], ["c4", "c13"], ["c7", "c13"], ["c13", "c0"]], out: ["c13"] },
+  2: { sure: true, votes: [["c0", "c3"], ["c1", "c3"], ["c9", "c3"], ["c4", "c3"], ["c3", "c9"]], out: ["c3"] },
+  4: { sure: false, why: "The votes research named don't add up to the count against who went home", votes: [["c2", "c6"], ["c5", "c9"]], out: ["c6", "c9"] },
+  5: { sure: true, votes: [["c2", "c10"], ["c7", "c10"], ["c11", "c10"], ["c10", "c2"]], out: ["c10"] },
+  6: { sure: true, votes: [["c0", "c11"], ["c4", "c11"], ["c5", "c8"], ["c7", "c8"], ["c14", "c8"]], out: ["c11", "c8"] },
+  7: { sure: true, votes: [["c0", "c14"], ["c2", "c7"], ["c4", "c7"], ["c5", "c14"]], out: ["c14", "c7"] },
+};
 const MOMENTS = {
   1: [["individualImmunity", "c0", 1.1], ["idolFound", "c4"], ["satOut", "c8"], ["rewardWin", "c5"], ["tribeImmunity", "c0"], ["tribeImmunity", "c1"], ["tribeImmunity", "c2"]],
   2: [["challengeRunnerUp", "c1", 1.3], ["idolPlayed", "c4"], ["chosenForReward", "c7"], ["survivedVotes", "c2"], ["rewardWin", "c12"], ["idolPlayed", "c0", 1.004], ["wentOnJourney", "c0", 1.004]],
@@ -687,6 +725,8 @@ function league(S, G, T, spec, own, o = {}) {
     if (o.early === n) ep.resultsStage = "early";
     // C7 part 2: a card the bot chooses, its choice for the episode as the server stamps it (card-choices.ts).
     if (o.cardChoices && o.cardChoices[n]) ep.cardChoice = JSON.parse(JSON.stringify(o.cardChoices[n]));
+    // A14 part 3: who voted for whom, as the server stamps it (vote-records.ts).
+    if (o.votes && o.votes[n]) ep.voteRecord = JSON.parse(JSON.stringify(o.votes[n]));
   }
   s.finalePredictions = FINALE_PICKS.map((f) => JSON.parse(JSON.stringify(f)));
   if (o.stages) s.stageWalk = JSON.parse(JSON.stringify(STAGE_WALK));

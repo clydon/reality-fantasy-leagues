@@ -905,6 +905,14 @@ declare const StateLogic: {
     worth(state: LeagueState, playerId: string, prices?: Map<string, number>): number;
     view(state: LeagueState): { prices: Record<string, number>; cash: Record<string, number>; worth: Record<string, number> } | null;
   };
+  /** Step A14 part 3: a draft's bounty (score.bounty), from each episode's stamped record of who voted for whom. */
+  BountyLogic: {
+    of(state: LeagueState): { points: number; on: "votedOut" } | null;
+    exitsOf(state: LeagueState): Set<string>;
+    votesAt(state: LeagueState, ep: Episode, exits?: Set<string>): [string, string][];
+    heldFor(state: LeagueState, ep: Episode, playerId: string): string[];
+    episodeLines(state: LeagueState, ep: Episode, bounty: { points: number }, exits?: Set<string>): Map<string, number> | null;
+  };
   /** Step A11 part 1: a draft's race (rank.race: the first to N points wins, and the game ends there) and players knocked out
    *  (rank.cut), worked out from the data on every read. `out`: the last episode that counts for someone knocked out. */
   KnockoutLogic: {

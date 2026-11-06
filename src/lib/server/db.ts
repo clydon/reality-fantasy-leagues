@@ -3,6 +3,7 @@ import { Pool, type PoolClient } from "pg";
 import type { LeagueState } from "@/lib/game/types";
 import { HttpError } from "./http-error";
 import { stampAirTimes, stampSeasonLength } from "./air-times";
+import { stampVoteRecords } from "./vote-records";
 import { runBots } from "./bots";
 import { syncWaivers } from "./waivers";
 import { justProcessed, sendProcessed, snapshot as waiverSnapshot } from "./waiver-pushes";
@@ -93,6 +94,9 @@ export async function withLeagueLock(
     const sharedBefore = settleStageDraft(state);
     const before = change ? structuredClone(state) : null;
     await mutatorFn(state, client);
+    // A bounty (step A14 part 3, vote-records.ts): an episode whose results the mutation just applied gets its record of who voted for
+    // whom now, so the waiver clock after it (an order by the standings) and the rest of the write read its bounty.
+    await stampVoteRecords(client, state);
     // A mutation that turned group slots on reads them now; one that turned them off clears them (settle keeps none).
     if (slots) StateLogic.GroupSlotLogic.settle(state, slots);
     else if (StateLogic.GroupSlotLogic.config(state)) await settleGroupSlots(client, state, true);

@@ -140,8 +140,10 @@ tracker rows p10 and p12, the user's first and third games), is built, and so is
 `card_choices`, migration 0208, stamped on each league's episodes, out by 12 hours before the episode on its fallback; tracker row
 p10): **C7 is done**. A14 part 2b, the bot's own run for its calls (2026-11-06: before each lock of a question played against the bot,
 the bot's call from only what anyone could know then, one ask per game per lock six hours before the episode, filed and checked as a
-seat's answer is; migration 0209), is built. A14's other parts are next (bounties, secret roles, the top scorer's twist, a rotating
-host's questions, a number from a vetted outside source), then a stop before A15. The live-sports plan is
+seat's answer is; migration 0209), is built, and so is part 3, bounties (2026-11-06: `score.bounty: { points }` on a draft, one of your
+castaways votes out someone else's and you take its points from them, who voted for whom from research's stored answer, void on an
+episode research isn't sure of; tracker row s16; no migration). A14's other parts are next (secret roles, the top scorer's twist, a
+rotating host's questions, a number from a vetted outside source), then a stop before A15. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5, at
 high since 2026-11-05; C2 at xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: folded in here as track L; its file keeps the details)
 and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track S here).
@@ -5325,6 +5327,63 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     the same**. Blind and the Survivor 51 rehearsal weren't run: no game in either plays against the bot, and neither reaches the call run
     (blind files its stand-in calls through `fileCalls`, unchanged; the rehearsal's bot runs are the quick and full research), so golden
     answers whether anything moved.
+
+  **As built (A14 part 3, bounties, 2026-11-06, on `engine`; no migration).** One session, after `lane.js sync engine` (nothing new from
+  master; 1587 tests). Points that move between seats by what the results say, as a piece that composes: a line of its own in the
+  scoring sequence (step 2), a transfer between seats that always adds up to nothing, on any draft's place or moments. No screen; no
+  prompt change (research already asks who voted for whom); every game that played before scores the same (the rows carry `bounty`
+  only in a game with one).
+  - **The piece** (game-spec `schema.js`): `score.bounty: { points, on }` on a draft scored by `place` or `moments` (an Outlast, in reverse
+    too, a lineup, best ball; shared or exclusive), `points` 0.5 to `MAX_BOUNTY` (10) in halves, `on` 'votedOut' (VOCAB
+    `score.bounty.on`, the only value, the default: `BOUNTY`; `bountyOf` fills it in). Refused (`bountyProblems`, the words through
+    impeccable's clarify): anything but a draft, a stock market, beside cuts (a team knocked out still holds its castaways), and by the
+    data-can-settle rule a show whose results don't say who goes home or nobody's voted out on (`ctx.votes`, question-choices.ts
+    `votesSomeoneOut`: a cast's vote with a way out it causes and either its majority's two moments or the show's secret roles, exactly
+    when the compiled rules have research answer who voted for whom; The Challenge's is false). `settings.bounty` both ways
+    (settings.js; tests/game-spec.test.js GAME_FIELDS).
+  - **Who voted for whom** (`formats/votes.js`, new; exported from formats/index.js): `votesOf(format)` reads the format's own vote rules
+    (rules.js's votedForLeaver, votedForLeavers and voteByRole, each naming its answer and the exit it causes: Survivor's `votedFor` and
+    'Voted Out', The Traitors' `votedFor` and 'Banished', a compiled rulebook's `<segment>VotedFor` with its `<segment>VotesReceived`), so
+    no show is named in code. `recordOf(payload, format, resolve)` makes an episode's record from research's answer: `{ sure, why?, votes:
+    [[voterId, votedForId]], out }`, sure only when every name is on the cast and each person voted out has exactly as many votes naming
+    them as research counted against them. **Measured on the season tapes** (every recorded full answer, 2026-11-06; internal agreement,
+    there's no outside truth on tape): Survivor 48 sure on 11 of 13 episodes with a vote-out, Survivor 49 11 of 13, Survivor 50 8 of 13,
+    The Traitors 2 3 of 8, 3 5 of 8, 4 4 of 10 (counts the bot didn't give, a list of votes for a finale's several banishments, votes
+    missing). A double boot asked as one vote each never agrees.
+  - **The stamp** (`src/lib/server/vote-records.ts`, new): `stampVoteRecords`, from `stampAirTimes` (every read and write) and again after a
+    write's mutation (db.ts `withLeagueLock`, so the waiver clock after it reads the new episode's bounty), for a game with a bounty only
+    (any other: a stale stamp taken off, no query): one query for the season's combined research rows of the episodes the league has
+    exits for, each stamped as `episode.voteRecord`; the query in a savepoint inside a write, the reading outside it (a bad answer is
+    logged and that episode left without a record). The league's state route sends the whole state and the browser trims it to each
+    viewer's mark: `SpoilerLogic.viewThrough` takes the record off a hidden episode with its results.
+  - **The lines** (the sequence's `bountyLines`): each vote moves `points` from each seat holding who went home to each other seat holding
+    the voter, a seat holding both taking nothing from itself; never multiplied (a factor on one side alone would make points from
+    nothing); added beside the episode's total, outside best ball's best n. `Seq.total` adds a row's `bounty`.
+  - **state-logic.js** (for the own-pace merge, the functions changed): `BountyLogic` (new: `of`, `exitsOf`, `votesAt`, `heldFor`,
+    `episodeLines`), `ScoringLogic.walk` (each episode's bounty added up, `bounty` on each series row and on now, in the totals),
+    `EliminationOrderScoringStrategy.compute` and `ActiveRosterEventScoringStrategy.compute` (the row's `bounty`; an Outlast's total
+    rounded with one), `SpoilerLogic.viewThrough` (the record off a hidden episode). `votesAt` reads only a sure record, and only for
+    whoever the league's own results say went home by a vote there when research says the same people did (its fallback: void, nothing
+    moves that episode); `heldFor` is what counts that episode (a lineup's starters, best ball's or an Outlast's team then).
+  - **The words** (describe.js `bountySentence`, `bountyRules`, through impeccable's clarify): "Bounties: when one of your castaways votes
+    out someone else's, you take 2 points from them." How it works adds "Every one of yours who voted for who went home takes 2 points.
+    If the episode's votes aren't clear, no bounty that episode.", a lineup's "Only starters count, voting or voted out." and a shared
+    draft's "Share a castaway with someone? You each take the bounty, and everyone who had who went home pays it."
+  - **The tracker:** s16 plays ("Bounties: if your castaway votes out mine, you steal 2.", an Outlast with `bounty: { points: 2 }`): 217
+    ✅ · 46 ⏳ (A14 7 waiting). `engine-capabilities.js --check` current; `game-specs-flag.js check`: PASS.
+  - **Proof:** `tests/bounty.test.js` (new, 7): the shape, defaults, words, settings both ways and every refusal; the record (sure, a count
+    that differs, no count, a name off the cast, a double boot, a medevac, The Traitors' lists, nothing to record); the lines (one way,
+    one's own, shared, nobody holding either: adding up to nothing); an Outlast's table and series by hand (ann +4, bo −6, cy +2, then the
+    next boot); the fallback (unsure, research and the league disagreeing, a medevac, no record yet); a lineup's starters only; the
+    spoiler view. `tests/game-pieces-doc.test.js`: the limit's row. `npm test` 1601; `tsc` clean. The shapes fixture: seven bounty
+    shapes (`bountyShapes`: an Outlast with finale predictions and side bets, its early results and a race, a shared Outlast, a lineup and
+    head to head on it, shared best ball, on `VOTES`: a boot nobody holds, an unsure double boot, an own-team vote beside a medevac, a
+    pickup not held yet, the finale's two), 126 new reads, the 2,412 before them byte-identical: 2,538. **API check:**
+    `scripts/dev-test/check-bounty.js` (new), ALL PASS (17): Couch Cup refused beside cuts, then given a bounty of 2 through setGame
+    with the show's ctx; Episode 6's research stored as the season's combined answer and its result through the season sync; the Games
+    tab as alex, riley and jordan read it the engine's table on each copy, the goner's holder 4 down and each other voter's holder 2 up
+    (riley −4, jordan +2, sam +2: the own team's and the free agent's votes moved nothing); sam (through 3) none of it, and the state
+    route's record trimmed off sam's copy; re-researched with a count that doesn't add up, the next read void; the flag's check.
 - **A15. Live and replay** (with the watch along, docs/PLAN-couch-and-episode-night.md §6, and the sports branch's
   `GameClock`). It needs A7. The watch along is in its infancy (the user, 2026-10-28): its concept, how it's built and how it
   connects to games are all open, so A15 is where the games shape it, not only where they plug into it.
@@ -7642,6 +7701,36 @@ From R1 part 2 (2026-10-30):
   (R3, or whoever next works in Game settings.)
 - **For the hosting notes, at the merge:** `/api/me` (classic's sign-in and every classic load) now sends each league's settings, not its
   whole state (20-40 KB each): less Neon transfer than before. (The main folder: docs/HOSTING.md, with the merge.)
+
+From A14 part 3 (2026-11-06):
+- **For the user, in the design session (decide nothing a person sees), each built with a recommendation:**
+  1. **Per vote, per holder.** Built: each vote out is its own bounty (three of yours voting mine out take 6), and in a shared draft every
+     team holding the voter takes it from every team holding who went home. Options: one bounty per boot, split among whoever voted
+     them out; or per voter's team, once. Recommended: as built (what "if your castaway votes out mine" says, and it adds up to
+     nothing).
+  2. **Starters only.** Built: a lineup's bench neither takes nor pays. Option: the whole team. Recommended: as built (what counts is
+     what's started, as every moment).
+  3. **A steal, never from the bank.** Built: nobody holds who went home, nothing moves. Option: a bounty for voting out a free agent
+     (points from nowhere). Recommended: as built ("you steal 2").
+  4. **The bounty's size.** The tracker's 2; the check allows 0.5 to 10. Recommended: 2 on an Outlast (a boot is worth 1 a place),
+     1 on a lineup.
+- **Not beside cuts yet**: a team knocked out still holds its castaways (and an exclusive draft's go back to the pool), so a bounty would
+  keep taking from a team that's out. Building it needs the knockouts' walk to tell the bounty who's out at each episode (the walk reads
+  the bounty's totals, so a loop to untie). Recommended: when a game asks for it. (Whoever next works on the knockouts.)
+- **Only a vote that sent someone home**: who beat whom in The Challenge's elimination, or who the Traitors murdered, isn't in the results
+  (a murder is the Traitors' together). Each would be a new `on` with its research asked for it: a prompt change, the user's OK at its
+  merge. Recommended: The Challenge's elimination (winner over loser) first, since its research already says who went in. (A14 later,
+  or a game that asks.)
+- **Research isn't always sure of the votes** (the tapes: Survivor 50 8 of 13, The Traitors 3 to 5 of 8 to 10): the void fallback keeps a
+  bounty honest, but a season like those plays few. A double boot asked as one vote each never agrees: asking each vote's own answer
+  (a list per Tribal, as The Traitors' finale has) would settle it. A prompt change, the user's OK at its merge. Recommended: ask it
+  before a bounty game is offered on a show by default. (Whoever next changes the research prompt.)
+- **The screens don't show a bounty** (U1): a row's `bounty` (a gain or a loss) is in its total, and nothing shows who took what from whom
+  or why an episode was void (the record's `why`). (U1.)
+- **The hourly waiver job reads the record saved with the last write** (db/waivers.js has no stamp of its own): a re-research since then
+  reaches its waiver order at the next read or write. (Waivers, if a bounty game orders by the standings.)
+- **For the hosting notes, at the merge:** a read or write of a game with a bounty runs one query for its season's stored research of the
+  episodes it has exits for (the castaways' answers only); none for any other game. (The main folder: docs/HOSTING.md.)
 
 From A14 part 2b (2026-11-06):
 - **The call prompt is the user's to approve at the merge** (8:30 PM note: a prompt change): `db/call-research.js` `buildCallPrompt`, with

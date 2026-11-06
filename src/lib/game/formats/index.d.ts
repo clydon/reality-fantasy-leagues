@@ -171,6 +171,15 @@ export function formatForRulebook(data: FormatData, reader?: string | null): Gam
 export function momentTags(format: GameFormat): (eventId: string) => readonly MomentTag[];
 /** The votes one group goes to at a time (research.groupVotes), the family's for data from before it said so. */
 export function groupVotesOf(format: GameFormat): { attended: string; say: string }[];
+/** A14 part 3 (votes.js): the format's votes (each answer research gives as a vote, its count's key and the exits it causes), every
+ *  exit a vote causes, and one episode's record of who voted for whom from its research answer. */
+export function votesOf(format: GameFormat): { key: string; count: string | null; exitMethods: string[] }[];
+export function voteExits(format: GameFormat): string[];
+export function voteRecordOf(
+  payload: { castaways?: Record<string, unknown>[] } | null | undefined,
+  format: GameFormat,
+  resolve: (name: string) => string | null
+): { sure: boolean; why?: string; votes: [string, string][]; out: string[] } | null;
 export function formatOptions(): { id: string; name: string }[];
 /** Why a format's data half isn't usable: [] when it is. */
 export function formatProblems(data: unknown): string[];

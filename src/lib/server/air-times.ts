@@ -3,6 +3,7 @@ import type { LeagueState } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
 import * as Air from "@/lib/game/air-schedule.js";
 import { stampCardChoices } from "./card-choices";
+import { stampVoteRecords } from "./vote-records";
 
 // Stamps each episode with when it airs (ep.airsAt), from the league's season schedule in the
 // catalog (show_seasons' premiere/air time/zone, overridden by the wiki's own per-episode dates --
@@ -19,6 +20,8 @@ export async function stampAirTimes(db: Pool | PoolClient, state: LeagueState): 
   // Step C7 part 2: a card the bot chooses, each episode's choice as it stood when the card came out (card-choices.ts), by the
   // broadcast's clock, so a league at its own pace has it too.
   await stampCardChoices(db, state);
+  // Step A14 part 3: a bounty, who voted for whom in each episode the league has results for, as research says it (vote-records.ts).
+  await stampVoteRecords(db, state);
   const clear = () => state.episodes.forEach((ep) => delete ep.airsAt);
   const { showId, wikiSeason } = state.settings;
   if (!showId || wikiSeason == null || StateLogic.RevealLogic.isCatchingUp(state)) return clear();
