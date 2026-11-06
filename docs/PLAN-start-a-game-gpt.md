@@ -7736,7 +7736,7 @@ From A14 part 3 (2026-11-06):
 - **A steal needs someone to steal from**: on The Traitors 4's blind replay (four seats of three, 12 of 23 drafted) all four episodes
   research was sure of sent home someone nobody had drafted, so the bounty game ended exactly as a plain Outlast. Item 3's option
   (points for voting out a free agent too) would make a bounty matter more in a small draft. (The user, with item 3.)
-- **The blind records share one folder across lanes**: this run's Survivor 49 record on file (`rfl-tapeseplayslind\survivor-49.json`)
+- **The blind records share one folder across lanes**: this run's Survivor 49 record on file (`rfl-tapes/replays/blind/survivor-49.json`)
   is another lane's run at the same time (master's tracker, 149 games, no s16); this lane's run counted 157 played through (its
   log). A lane's own TAPES_DIR for its records, or a lane name in the file, would keep them apart. (Whoever next works on blind.js.)
 - **The screens don't show a bounty** (U1): a row's `bounty` (a gain or a loss) is in its total, and nothing shows who took what from whom
