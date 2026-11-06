@@ -5321,6 +5321,10 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     groups again in `fileCalls` (two small queries a run, a few runs a week) and the castaway word worked out inline as the card's, trivia's
     and bingo's are (a shared helper with the show's plural words, 0429, for every run: Noticed); `callNext` and `cardNext` kept apart (the
     same shape, different rules at the cut).
+  - **The long checks** (once, last, on `65f31103`): golden (`golden.js --before=master`): 7 seasons, 160 games, **19,361 reads, every one
+    the same**. Blind and the Survivor 51 rehearsal weren't run: no game in either plays against the bot, and neither reaches the call run
+    (blind files its stand-in calls through `fileCalls`, unchanged; the rehearsal's bot runs are the quick and full research), so golden
+    answers whether anything moved.
 - **A15. Live and replay** (with the watch along, docs/PLAN-couch-and-episode-night.md §6, and the sports branch's
   `GameClock`). It needs A7. The watch along is in its infancy (the user, 2026-10-28): its concept, how it's built and how it
   connects to games are all open, so A15 is where the games shape it, not only where they plug into it.
