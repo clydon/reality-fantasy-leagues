@@ -358,12 +358,13 @@ it doesn't go in the menu.** The audit (checked in the code, 2026-10-30), per ol
   19,361 reads, every one the same), the Survivor 51 rehearsal (`season-forward.js rehearse --scenario=realistic,rough,dst
   --before=origin/master` from the 2026-10-30 backup: every invariant holds, flag off and on read the same, and the live
   engine and the merge read every one of 2,856 reads a scenario the same), and the Neon rehearsal (0204
-  and 0436 applied, `[check] all good`, rulebooks backfilled, the game-specs check PASS on all 5 leagues). **Noticed:** the
-  rulebooks check (its flag stays off) now FAILs on 5 leagues' season rulebooks (v2/v3: scores, events, catalog) and on 3
-  seasons (their rulebook isn't the format research reads), where on 2026-10-30 only the test couch's 3 games did: the
-  points changed through What scores, not A13; for What scores' owner. Also in the push: the status plate's test made safe
-  across clock changes, and track C in the plan. **The user's call:** whether Survivor 51's own schedule gets the facts run
-  (the desk's Inbox lists it as missing; the lane recommends a few weeks of it before setting the reliability bar).
+  and 0436 applied, `[check] all good`, rulebooks backfilled, the game-specs check PASS on all 5 leagues). The rehearsal's
+  rulebooks check lists 5 leagues' season rulebooks (v2/v3) and 3 seasons as differing from the built-in rules: expected,
+  since production is on the rulebooks (the desk: Games on their season's rulebook, every season; Survivor 51's rulebook
+  version 3, edited through What scores, its games play by it), so the check compares the edited rulebooks with the old
+  built-ins. (Corrected 2026-11-05: this entry first called it a flag that stays off.) Also in the push: the status
+  plate's test made safe across clock changes, and track C in the plan. Survivor 51's facts run: already on its schedule
+  (our usual six), the first one after Episode 8 (Thu Nov 12, 10 AM).
 - **Merged and pushed 2026-10-31, 12:31 AM: the engine's A12 (parts 2–4c) and R1 part 3** (`075d193e`, merging the engine's
   `bebf4101`; no migration, so no Neon rehearsal). R1 part 3 is the user's pool finale: only the winner survives it (on a night the
   results record a winner, everyone else in the episode went home, `nightOf`), which changes Survivor 51's Survival Pool on
