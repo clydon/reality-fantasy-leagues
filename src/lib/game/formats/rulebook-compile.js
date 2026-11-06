@@ -168,7 +168,8 @@ function compileRulebook(blocks, { aliases = {}, id, reader, base, phaseStarts =
     seenIds.set(eid, m.id);
     // Its tags always, [] for none: only data from before tags reads the built-ins' by id (index.js momentTags), never a moment
     // added by hand whose id happens to be one of theirs.
-    fromBlocks.push({ id: eid, label: m.label, defaultPoints: m.defaultPoints, ...(isImplied(m) ? { implied: true } : {}), tags: m.tags || [] });
+    // `unit`: a per-amount moment's per how much (the engine divides the amount by it: state-logic eventPoints).
+    fromBlocks.push({ id: eid, label: m.label, defaultPoints: m.defaultPoints, ...(isImplied(m) ? { implied: true } : {}), ...(m.per ? { unit: m.per } : {}), tags: m.tags || [] });
   }
   const pts = new Map(fromBlocks.map((e) => [e.id, e.defaultPoints]));
   const events = legacy

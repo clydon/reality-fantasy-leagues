@@ -3012,7 +3012,11 @@ class ActiveRosterLogic {
     if(ev && ev.couch && !formatOf(state).events.some(e => e.id === ev.type)) return 0;
     const units = ev && Number.isFinite(ev.units) && ev.units > 0 ? ev.units : 1;
     const points = ActiveRosterLogic.pointsFor(state, ev.type);
-    return units === 1 ? points : points * units;
+    if(units === 1) return points;
+    // A per-amount moment's unit (the rulebook's `per`, compiled as the event's `unit`): the amount counts per that many.
+    const def = formatOf(state).events.find(e => e.id === ev.type);
+    const unit = def && Number.isFinite(def.unit) && def.unit > 0 ? def.unit : 1;
+    return Math.round(points * units / unit * 1000) / 1000;
   }
   // A lineup's starters (the spec's count.start) and its bench (the rest of the team); none outside a Weekly Lineup.
   static activeSlots(state){

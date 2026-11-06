@@ -132,7 +132,7 @@ function buildScoresPrompt({ show, season, airing = false, aired = 0, episodeCou
     '',
     "The ladder. Why it is built this way, so you never need to adjust a value: the week's biggest win (4) beats any two small edges (1 + 1), so whoever won the week is the week's top earner; the worst anyone can lose in a week (-3, plus a slip) is under one biggest win, and whoever leaves earns nothing more, so one bad week is at most one good week undone; what most of the field gets each week is small, and what one or two people get is 2 or more, so weekly totals differ instead of bunching.",
     ...LADDER.map((r) => `  ${r.id}: ${r.points > 0 ? '+' : ''}${r.points}. ${r.test}`),
-    `  ${PER_UNIT.id}: for a moment counted per amount (each point, each $1,000, each day) only: give "points" per unit, between ${PER_UNIT.min} and ${PER_UNIT.max}, so a typical ${part}'s total for whoever does best lands on earned (2) or wonAlone (4), and say the typical amount in "why". No rarity step.`,
+    `  ${PER_UNIT.id}: for a moment counted per amount (each point, each $1,000, each day) only: give "points" per unit (the moment says per how much: "per 1,000" is per $1,000), between ${PER_UNIT.min} and ${PER_UNIT.max}, so a typical ${part}'s total for whoever does best lands on earned (2) or wonAlone (4), and say the typical amount in "why". No rarity step.`,
     '',
     'Rarity, for every moment, from how the show has played across its seasons: a moment on earned or above gains this on top of its rung, so a rare thing earned beats a common one; a small edge gains nothing (it is still a small edge), and a moment worth 0 or less gains nothing, so a rare disaster is no worse than a common one.',
     ...RARITY.map((r) => `  ${r.id}: +${r.bump}. ${r.test}`),
@@ -147,7 +147,7 @@ function buildScoresPrompt({ show, season, airing = false, aired = 0, episodeCou
   else if (episodeCount) parts.push(`This season has ${episodeCount} episodes.`);
   parts.push('', `The moments, each with its id, where it comes from, how it's counted, who answers it, and what it's worth now:`);
   for (const m of moments) {
-    const how = m.ask && m.ask.type === 'integer' && !m.ask.when ? 'each time' : m.ask && m.ask.type === 'number' ? 'per unit' : 'once';
+    const how = m.ask && m.ask.type === 'integer' && !m.ask.when ? 'each time' : m.ask && m.ask.type === 'number' ? `per ${m.per ? m.per.toLocaleString('en-US') : 'unit'}` : 'once';
     const who = m.auto ? 'known from how the game went' : m.answeredBy === 'league' ? 'the league says' : 'research';
     parts.push(`- "${m.id}": ${m.label} · from ${fromWord(m, b)} · ${how} · ${who} · now ${pointsWord(m.defaultPoints)}`);
   }
@@ -166,6 +166,7 @@ function buildScoresPrompt({ show, season, airing = false, aired = 0, episodeCou
     '    "firstEpisode": the first episode of this season in which it could happen under the show\'s rules: 1 if any episode, the episode a mechanic is introduced, the final\'s episode for the final. Never the episode it first did happen in.',
     '    "during": optional: { "segment": "<id>" } or { "twist": "<id>" } when it only happens there,',
     `    "counted": one of ${choices('counted')},`,
+    '    "per": only when counted perUnit: how much one unit is, 1, 10, 100 or 1000 (a tip share in dollars: 1000),',
     `    "answeredBy": one of ${choices('answeredBy')},`,
     `    "reliability": only when answered by research, one of ${choices('reliability')},`,
     "    \"exceptWinners\": true when it happens during a segment someone wins and its winners can't have it",
@@ -412,6 +413,7 @@ function reviewScores(answer, blocks, { castNames = [], mark = null, episodeCoun
     const answeredBy = OPT.answeredBy.some(([v]) => v === raw.answeredBy) ? raw.answeredBy : 'research';
     if (answeredBy !== raw.answeredBy) warnings.push({ at: `add.${id}.answeredBy`, message: `${label}: answered by research (it said "${raw.answeredBy}")` });
     const m = { id, label, counted, answeredBy };
+    if (counted === 'perUnit' && [10, 100, 1000].includes(Number(raw.per))) m.per = Number(raw.per);
     if (answeredBy === 'research') m.reliability = OPT.reliability.some(([v]) => v === raw.reliability) ? raw.reliability : 'usually';
     if (isObj(raw.during)) {
       if (typeof raw.during.segment === 'string' && list(b.segments).some((s) => s.id === raw.during.segment)) m.during = { segment: raw.during.segment };

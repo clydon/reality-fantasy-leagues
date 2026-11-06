@@ -1272,7 +1272,8 @@ function CustomSheet({ draft, id, onDone, onClose }: { draft: RulebookBlocks; id
             set("during", v === "anywhere" ? undefined : lst<Obj>(draft.segments).some((s) => s.id === v) ? { segment: v } : { twist: v })
           }
         />
-        <Choice data="counted" label={q.counted} value={str(item.counted)} options={opts("counted")} onChange={(v) => set("counted", v)} />
+        <Choice data="counted" label={q.counted} value={str(item.counted)} options={opts("counted")} onChange={(v) => { set("counted", v); if (v !== "perUnit") set("per", undefined); }} />
+        {item.counted === "perUnit" && <Choice data="per" label={q.per} value={String(item.per ?? 1)} options={opts("per")} onChange={(v) => set("per", Number(v) === 1 ? undefined : Number(v))} />}
         <Choice data="answeredBy" label={q.answeredBy} value={str(item.answeredBy)} options={opts("answeredBy")} onChange={(v) => { set("answeredBy", v); if (v === "league") set("reliability", undefined); }} />
         {item.answeredBy === "research" && <Choice data="reliability" label={q.reliability} value={str(item.reliability)} options={opts("reliability")} onChange={(v) => set("reliability", v)} />}
         <Footer onClose={onClose} disabled={!str(item.label).trim()} onDone={() => onDone(save())} onRemove={isNew ? undefined : () => onDone(remove())} />

@@ -157,6 +157,7 @@ function buildRulebookPrompt({ show, season, airing = false, through = null, tem
     '    "id", "label",',
     '    "during": optional: { "segment": "<id>" } or { "twist": "<id>" } when it only happens there,',
     '    "counted": ' + choices('counted'),
+    '    "per": only when counted is perUnit, how much one unit is (a tip share in dollars: 1000): ' + choices('per'),
     '    "answeredBy": ' + choices('answeredBy'),
     '    "reliability": how reliably recaps report it, ' + choices('reliability') + ',',
     '    "exceptWinners": true when it happens during a segment someone wins and its winners can\'t have it (chosen to join a reward they didn\'t win)',

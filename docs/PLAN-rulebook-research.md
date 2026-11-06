@@ -89,6 +89,15 @@ fantasy team."
   rarity step counts double, and the review writes both halves of a value (a pair where they differ, or where the rulebook
   kept a pair; priced through the same chains per half), shown as "· 5 shared" on the sheets; a commissioner's accepted row
   keeps the pair unless adjusted.
+- **A per-amount moment says per how much** (step four; the Below Deck tip scored per dollar, 2,083 points a share): a custom
+  moment counted per amount carries `per` (1, 10, 100 or 1,000; `OPT.per`, the editor's "Per how much?"), the moment and the
+  compiled event carry it (`per`, `unit`), and the engine divides the amount research answers by it before it scores
+  (state-logic `eventPoints`: $2,083 at +1 per $1,000 is 2.083). Existing moments have no `per`, which is 1, today's
+  behaviour: the Below Deck tip moves only when its `per` is set to 1,000 and the rulebook saved as a fix. What scores'
+  question says each per-amount moment's per how much, and an added per-amount moment may say it.
+- **The survivoR check (step five) wasn't run:** the dataset (`dev/xlsx/survivoR.xlsx`, from the October research) isn't in
+  the repo. The four promises hold the arithmetic in tests; the check is rerunnable from docs/RESEARCH-scoring-values.md's
+  method whenever the dataset is to hand.
 - **A moment belongs to one person** (the user, 2026-11-05, Below Deck 13's first research had "the tip is revealed" and
   "a guest complains" as moments): the rulebook prompt says every custom moment is something one cast member did or had
   done to them, with a line for a reality series beside the talk-show and scripted ones. What scores says such a moment
