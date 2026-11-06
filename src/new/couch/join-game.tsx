@@ -217,7 +217,9 @@ export function JoinGameSheet({ couchId, game, onOpenChange }: { couchId: string
                   ? `You've seen up to Episode ${o.starts.live - 1}.`
                   : "You haven't watched any yet."
                 : `The game starts at Episode ${o.starts.live}.`}{" "}
-              {game.teamSize ? "Pick your team, then pick" : "Pick"} before each episode, reveal after you&rsquo;ve watched.
+              {o.drafts
+                ? "You'll draft your team together with everyone, then play one episode at a time."
+                : `${game.teamSize ? "Pick your team, then pick" : "Pick"} before each episode, reveal after you've watched.`}
             </span>
           </div>
           {!!o.playing?.length && (

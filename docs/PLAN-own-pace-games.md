@@ -82,7 +82,8 @@ behind (live or finished), drafting at an episode (Episode 1, before the season,
 own pace, maybe catching up to live, maybe not.
 
 - **Sync point 1, the draft:** everyone in an exclusive game starts at the same episode and drafts together in the usual draft
-  room, on the cast as it stood before that episode. Joining closes once the draft starts (as a live Outlast).
+  room, on the cast as it stood before that episode. Joining closes once the draft starts (as a live Outlast). Whoever runs the
+  game starts the draft.
 - **Sync point 2, a waiver moment:** an episode where someone's team lost a person, in a game with waivers on. Whoever reaches it
   first sees **"Wait for everyone else before watching more episodes, so the waivers are fair."** **Words only** (the user's pick):
   nothing stops them going on. Once every human has revealed that episode, a normal waiver week runs on the cast as it stood then
@@ -238,6 +239,34 @@ it always does, so a later joiner keeps the head start of picking from who was s
   usual steps (Weekly Lineup: Set · Watch · Reveal; Outlast: Watch · Reveal). Joiners pick theirs in the join sheet, as before.
 - Checked: `tests/own-pace.test.js` (four 3a cases), `check-own-pace.js` (jordan's Weekly Lineup: no draft, the bot's team, the
   team plate and sheet at 390px, the lineup step, a lineup on an aired episode, the bot's lineup set at the reveal).
+
+## As built: exclusive teams, two sync points (2026-11-06)
+
+Outlast at your own pace is exclusive again (as Outlast is everywhere: 3a's forced sharing taken out), with the two sync points;
+Weekly Lineup stays shared (its preset). Everything else at your own pace is unchanged.
+
+- **Sync point 1, the draft:** `GhostLogic.draftsTogether` (own pace, exclusive, a team), `draftDone`, `paceSeat` (a joiner
+  before the draft: a seat in it at the game's start with everyone, no ghost). `joinMode` is open until the draft starts, locked
+  after. The draft room runs as usual: `draftView` never sends you to reveal first in an own-pace game and reads the cast on the
+  copy before the start; `startDraft` checks that copy; `pickInDraft` refuses anyone who wasn't in before the start or is taken;
+  bots draft on that copy (`bot-logic.js draftCopy`; `run`/`hasWork` count catching-up bots). `markRevealed` refuses "Draft
+  together first". `needsTeam`/`pickTeam` are the shared games' only. `season-draft.ts` shows the draft room for exclusive
+  own-pace games. Joining: `joinOptions` says `drafts` (start = the game's, no team to pick), `joinGame` uses `paceSeat`.
+- **Sync point 2, a waiver moment:** `waivers.js` runs an own-pace exclusive game's waivers on the league **as it stood at the
+  episode everyone has reached** (`pacedMark`: the lowest of its people's marks; computer players keep pace; `pacedCopy`), and
+  folds what the week did back (`foldBack`: the waiver weeks and log, who owns whom). A week opens there only at a waiver moment
+  (`lossAt`: someone on a team went home in that episode, not replaced), settles once everyone owed a replacement has a claim in
+  (`owedIn`, also right after a claim's saved) or when its time runs out, and closes when everyone has moved past it (auto-fill as
+  usual). Claims are checked on the same copy (`saveClaim`). Bots claim on the copy (their `waiverClaim`).
+- **Words:** `GameView.pace.draft` ("waiting" / "live") and `pace.gather` ({ episode, lost (who, whose team, yours), waiting,
+  open }). Tonight's `DraftPlate` ("Draft together": who's in, Start the draft for the runner, Go to the draft once it's on),
+  `GatherPlate` ("Waivers after Episode N": who went home from whose team, "Wait for everyone else before watching more
+  episodes, so the waivers are fair", waiting on whom, **OK, I'll wait**, and **Go on to Episode N+1 anyway**: words only), then
+  "Everyone's here: waivers" with Go to waivers. The join sheet says "You'll draft your team together with everyone".
+- Checked: `tests/own-pace.test.js` (the draft on the cast before the start; a waiver week opening only once everyone's there,
+  at that episode, settling and auto-filling from who was still in), `check-own-pace.js` (sam's Outlast with jordan and a computer:
+  the draft plate, joining before the draft, nobody after, the draft through its route, waivers on, sam ahead at a waiver moment
+  with the wait and Go on, jordan arriving and the week on at that episode; three screens at 390px).
 
 ## Noticed, not fixed
 - The Play it card on a finished season offered Start a game and the sheet then refused it (the dead end that started this).

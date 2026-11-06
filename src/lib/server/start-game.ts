@@ -567,9 +567,8 @@ export async function startGame(
         if (spec.get.by === "draft") spec.get = { ...spec.get, own: "shared", order: "blind" };
         if (spec.score.by === "survive") spec.score = { ...spec.score, means: "scores" };
       }
-      // At your own pace teams are shared (part 3a): each seat picks its own from who was in before its start, nothing to share
-      // out, so no draft (the presets' waivers are none already; an exclusive team at your own pace is part 3b's).
-      if (opts.ownPace && spec.get.by === "draft") spec.get = { ...spec.get, own: "shared", order: "blind" };
+      // At your own pace each game keeps its ownership (docs/PLAN-own-pace-games.md): Weekly Lineup's shared teams are picked by
+      // each seat on its own (part 3a); Outlast's exclusive ones are drafted together at the start (sync point 1).
       if (choice.key === "outlast" && spec.get.by === "draft") {
         // One team each from who's still in (at your own pace, who was in before its start): fitted to the couch, so everyone on
         // it could play (Game settings changes it).

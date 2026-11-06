@@ -7774,6 +7774,8 @@ class GhostLogic {
   // late joiners is locked, and the recommended one for its ownership otherwise (shared open, exclusive ask). An exclusive
   // game is never open (its castaways are one team's each), so it falls back to ask.
   static joinMode(state){
+    // Exclusive teams at your own pace (sync point 1): anyone on the couch joins until the draft starts, nobody after.
+    if(GhostLogic.draftsTogether(state)) return DraftLogic.isStarted(state) || !GhostLogic.allowed(state) ? 'locked' : 'open';
     // Classic's late-joiner switch off closes it, whatever was chosen here (the spec reads it as locked: extras.join).
     if(!GhostLogic.allowed(state)) return 'locked';
     const m = gameOf(state).extras.join;
@@ -7890,10 +7892,32 @@ class GhostLogic {
   // start; a joiner picks theirs as they join, begin).
   static needsTeam(state, playerId){
     const p = Core.getPlayer(state, playerId);
-    return !!p && GhostLogic.ownPace(state) && !!p.lateJoin && GhostLogic.teamSize(state) > 0 && !Core.ownedCastawayIds(state, playerId).length;
+    return !!p && GhostLogic.ownPace(state) && GhostLogic.sharedJoin(state) && !!p.lateJoin && GhostLogic.teamSize(state) > 0 && !Core.ownedCastawayIds(state, playerId).length;
+  }
+  // Exclusive teams at your own pace draft together at the game's start (sync point 1: docs/PLAN-own-pace-games.md): nobody plays
+  // an episode before the draft's done.
+  static draftsTogether(state){
+    return GhostLogic.ownPace(state) && !GhostLogic.sharedJoin(state) && GhostLogic.teamSize(state) > 0;
+  }
+  static draftDone(state){
+    const turn = DraftLogic.currentTurn(state);
+    return !!(turn && turn.isComplete);
+  }
+  // Someone joining an exclusive game at your own pace before its draft: a seat in the draft, on the game's start with everyone
+  // (no ghost, no late joiner's own start). A reason, or null.
+  static paceSeat(state, playerId){
+    const p = Core.getPlayer(state, playerId);
+    if(!p) return 'No such seat';
+    if(DraftLogic.isStarted(state)) return "The draft's started: nobody new joins";
+    const start = Math.max(1, startEpisode(state) || 1);
+    delete p.ghost;
+    p.active = true;
+    p.lateJoin = { startEpisode: start, catchingUp: start - 1 < SpoilerLogic.latestWithResults(state), seenThrough: start - 1 };
+    return null;
   }
   // That seat picks its team from who was in before its start: begin's checks, its start left as it is. A reason, or null.
   static pickTeam(state, playerId, castawayIds){
+    if(GhostLogic.draftsTogether(state)) return 'Teams here come from the draft';
     if(!GhostLogic.needsTeam(state, playerId)) return GhostLogic.ownPace(state) ? 'You have a team' : 'Not a game at your own pace';
     const p = Core.getPlayer(state, playerId);
     const team = GhostLogic.teamAt(state, playerId, p.lateJoin.startEpisode, castawayIds, { freeAgents: !GhostLogic.sharedJoin(state) });

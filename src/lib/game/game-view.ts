@@ -268,6 +268,11 @@ export interface GameView extends GameRefIn {
     /** A game with teams where yours isn't picked yet (part 3a): how many, from whom (castaway ids of `cast`, who was in before
      *  your start). */
     team: { need: number; pool: string[] } | null;
+    /** Exclusive teams, drafted together at the start (sync point 1), while that draft isn't done: waiting, or on. */
+    draft: "waiting" | "live" | null;
+    /** A waiver moment you've reached (sync point 2): an episode where someone's team lost a person, in a game with waivers.
+     *  `waiting`: who isn't there yet; `open`: everyone is, and its waiver week is on. Null otherwise. */
+    gather: { episode: number; lost: { name: string; team: string; yours: boolean }[]; waiting: string[]; open: boolean } | null;
   } | null;
   /** Step A11 part 3: a co-op game's lives (the couch's together) and its result, won or lost by all, as far as you've seen (its
    *  walk on your copy); null for any other game. What it shows is U1's. */

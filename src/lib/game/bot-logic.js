@@ -206,6 +206,13 @@ function draftOrderFor(state, playerId, candidateIds, alreadyMine) {
 
 // ---- moves ----
 
+/** The league a draft reads: at your own pace, the cast as it stood before the game's start; else the league itself. */
+function draftCopy(state) {
+  if (!StateLogic.GhostLogic.ownPace(state)) return state;
+  const start = StateLogic.startEpisode(state) ?? 1;
+  return StateLogic.SpoilerLogic.viewThrough(state, Math.max(0, start - 1));
+}
+
 function snakeDraft(state) {
   // A blind draft's bots lock in (blindSubmissions), an auction's bid (auctionBids); a draw's deals itself (no turn comes up).
   if (BlindDraftLogic.on(state) || !piecesOf(state).hasRoster) return 0;
@@ -214,12 +221,15 @@ function snakeDraft(state) {
   for (let guard = 0; guard < 500; guard++) {
     const turn = DraftLogic.currentTurn(state);
     if (!turn || turn.isComplete || !isBot(Core.getPlayer(state, turn.playerId))) break;
-    const free = state.castaways.filter((c) => c.status === "active" && !(c.ownerIds || []).length).map((c) => c.id);
+    // A game at your own pace drafts together at its start (docs/PLAN-own-pace-games.md, sync point 1): on the cast as it stood
+    // before it, never the season's later statuses (on a finished season only the winner is still in).
+    const on = draftCopy(state);
+    const free = on.castaways.filter((c) => c.status === "active" && !(c.ownerIds || []).length).map((c) => c.id);
     // A draft spread across the cast's groups (step A10 part 3) or under a salary cap (part 3b): only who keeps the team spread
     // and within it, read over every free agent as the pick's own checks read it (else whoever keeps it that this list lacks).
-    const fits = StateLogic.draftFitsFor(state, turn.playerId);
+    const fits = StateLogic.draftFitsFor(on, turn.playerId);
     const mine = free.filter((id) => fits.includes(id));
-    const best = draftOrderFor(state, turn.playerId, mine.length ? mine : fits, Core.ownedCastawayIds(state, turn.playerId))[0];
+    const best = draftOrderFor(on, turn.playerId, mine.length ? mine : fits, Core.ownedCastawayIds(state, turn.playerId))[0];
     if (!best) break;
     const before = state.draftPicksMade;
     DraftLogic.pick(state, best);
@@ -478,7 +488,8 @@ function finalePicks(state) {
 // Every move any bot has waiting, applied to `state` in place. Returns how many it made (0 = nothing
 // to do). Repeats until quiet, because one move can open another: a finished draft opens lineups.
 function run(state) {
-  if (!botIds(state).length) return 0;
+  // Any computer player: one catching up at your own pace still drafts with everyone (snakeDraft reads its turn).
+  if (!state.players.some(isBot)) return 0;
   let total = 0;
   for (let pass = 0; pass < 5; pass++) {
     const made = snakeDraft(state) + lineups(state) + groupSlotPicks(state) + eliminatorPicks(state) + finalePicks(state);
@@ -512,7 +523,7 @@ function paceTeams(state) {
 
 // Whether any bot has a move waiting, without touching `state`.
 function hasWork(state) {
-  if (!botIds(state).length) return false;
+  if (!state.players.some(isBot)) return false;
   return blindSubmissions(state).length > 0 || auctionBids(state).length > 0 || run(structuredClone(state)) > 0;
 }
 

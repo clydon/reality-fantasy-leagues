@@ -421,6 +421,12 @@ declare const StateLogic: {
     anyCatchingUp(state: LeagueState): boolean;
     /** Every seat starts catching up at `from` (the results in already), their mark the episode before; sets settings.ownPace. */
     paceAll(state: LeagueState, from: number): void;
+    /** Exclusive teams at your own pace: they draft together at the game's start (sync point 1). */
+    draftsTogether(state: LeagueState): boolean;
+    /** The game's draft is complete. */
+    draftDone(state: LeagueState): boolean;
+    /** A seat joining an exclusive own-pace game before its draft; a reason on refusal, else null. */
+    paceSeat(state: LeagueState, playerId: string): string | null;
     /** A seat at your own pace in a game with teams that has none yet. */
     needsTeam(state: LeagueState, playerId: string): boolean;
     /** That seat picks its team from who was in before its start; a reason on refusal, else null. */

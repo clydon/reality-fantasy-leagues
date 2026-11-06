@@ -25,6 +25,7 @@ const { Pool } = require("pg");
 const { api, open } = require("./browser");
 const fixture = require("./new-fixture");
 const fakeBot = require("./fake-bot");
+const S2 = require("../../src/lib/game/state-logic.js");
 const bingo = require("./bingo-fixture");
 
 const DB = process.env.AUTH_DATABASE_URL || "";
@@ -72,6 +73,7 @@ async function main() {
   const riley = await api({ user: fixture.username("riley"), pass: PASSWORD });
   let leagueId = null;
   let lineupId = null;
+  let outlastId = null;
   // Part 3a's screens, after the rest (numbered on from 20).
   let shotN = 20;
   const shotAs = async (page, name) => {
@@ -352,11 +354,113 @@ async function main() {
     const ls2 = (await pool.query("SELECT state FROM leagues WHERE id = $1", [lineupId])).rows[0].state;
     const ep1 = ls2.episodes.find((x) => x.number === 1);
     check(((ep1.lineups || {})[lbot.id] || []).length === lg.lineup.slots, "the computer player set its Episode 1 lineup as jordan revealed it", ep1.lineups);
+
+    // Exclusive teams: two sync points. sam starts an Outlast at their own pace from Episode 1 with a computer player; jordan
+    // joins before the draft; they draft together; waivers on; sam reveals ahead to a waiver moment (the wait, in words), then
+    // jordan gets there and the waiver week is on.
+    const sam = await api({ user: fixture.username("sam"), pass: PASSWORD, headers: { "x-gys-bot": fb.url } });
+    r = await sam.call("GET", `/api/seasons/${season}/start?couch=${couch}&start=1`);
+    check(r.status === 200 && (r.body.games || []).some((g) => g.key === "outlast" && g.fits), "Outlast plays at your own pace", r.body.games && r.body.games.map((g) => [g.key, g.fits]));
+    r = await sam.call("POST", `/api/seasons/${season}/start?couch=${couch}`, { game: "outlast", tell: false, bots: 1, level: "normal", from: 1 });
+    check(r.status === 200 && r.body.from === 1, "sam starts an Outlast at their own pace from Episode 1", r.body);
+    outlastId = r.body.leagueId;
+    const stateOfO = async () => (await pool.query("SELECT state FROM leagues WHERE id = $1", [outlastId])).rows[0].state;
+    let os = await stateOfO();
+    check(os.settings.ownPace === true && !(os.blindDraft && os.blindDraft.revealedAt) && !S2.isDraftStarted(os), "own pace, exclusive: a draft to come (no blind draft stamped)");
+    r = await jordan.call("GET", `/api/couches/${couch}/games/${outlastId}`);
+    check(r.status === 200 && r.body.drafts === true && r.body.starts && r.body.starts.live === 1 && r.body.team === 0, "jordan would join for the draft, at Episode 1 with everyone", r.body && { drafts: r.body.drafts, starts: r.body.starts, team: r.body.team });
+    r = await jordan.call("POST", `/api/couches/${couch}/games/${outlastId}`, { action: "join" });
+    check(r.status === 200, "jordan joins before the draft", r.body);
+    if (shots) {
+      const t = await open({ user: fixture.username("sam"), pass: PASSWORD, width: 390, height: 844 });
+      t.page.setDefaultTimeout(15000);
+      try {
+        await t.page.goto(`${t.BASE}/show/${season}/tonight`);
+        await t.page.locator(`[data-pace-draft-plate='${outlastId}'] [data-pace-draft-start]`).waitFor();
+        await shotAs(t.page, "outlast-draft-plate");
+      } finally {
+        await t.close();
+      }
+    }
+    r = await sam.call("POST", `/api/seasons/${season}/draft`, { leagueId: outlastId, action: "start" });
+    check(r.status === 200, "sam starts the draft", r.body);
+    r = await riley.call("GET", `/api/couches/${couch}/games/${outlastId}`);
+    check(r.status === 200 && r.body.game.mode === "locked" && r.body.starts === null, "once the draft's started, nobody new", r.body && { mode: r.body.game && r.body.game.mode });
+    // The draft, through its route: whoever's up picks the first free who was in before Episode 1 (the computer picks itself).
+    const seatOf = async (who) => (await pool.query("SELECT player_id FROM league_memberships WHERE league_id = $1 AND user_id = $2", [outlastId, who])).rows[0]?.player_id;
+    const samSeat = await seatOf(fx.users.sam);
+    const jordanSeat = await seatOf(fx.users.jordan);
+    for (let k = 0; k < 40; k++) {
+      os = await stateOfO();
+      const turn = S2.currentDraftTurn(os);
+      if (!turn || turn.isComplete) break;
+      const who = turn.playerId === samSeat ? sam : turn.playerId === jordanSeat ? jordan : null;
+      if (!who) break;
+      const pool1 = S2.GhostLogic.draftPool(os, 1, true);
+      r = await who.call("POST", `/api/seasons/${season}/draft`, { leagueId: outlastId, action: "pick", castawayId: pool1[0], n: turn.overallPickNumber });
+      if (r.status !== 200) {
+        check(false, "a draft pick", r.body);
+        break;
+      }
+    }
+    os = await stateOfO();
+    check(S2.GhostLogic.draftDone(os), "the draft's done (the computer picked its own turns)");
+    check(os.players.every((p) => os.castaways.some((c) => (c.ownerIds || []).includes(p.id))), "everyone has a team");
+    // Waivers on (the runner's Backstage setting; set here on the zt league's state).
+    S2.setGame(os, { ...S2.gameOf(os), extras: { ...S2.gameOf(os).extras, waivers: { ...require("../../src/lib/game/game-spec/index.js").NO_WAIVERS, replace: "always" } } });
+    await pool.query("UPDATE leagues SET state = $2 WHERE id = $1", [outlastId, JSON.stringify(os)]);
+    // sam reveals ahead until one of anyone's people goes home: a waiver moment, with jordan still at the start.
+    let gather = null;
+    for (let k = 0; k < 14 && !gather; k++) {
+      r = await sam.call("POST", `/api/seasons/${season}/catchup`, { leagueId: outlastId, couch });
+      if (r.status !== 200) break;
+      const g = ((await sam.call("GET", `/api/seasons/${season}/games?couch=${couch}`)).body.games || []).find((x) => x.leagueId === outlastId);
+      gather = g && g.pace && g.pace.gather;
+    }
+    check(!!gather && gather.waiting.includes(fixture.username("jordan")) && !gather.open, "sam reached a waiver moment ahead of jordan: wait, in words", gather);
+    if (gather && shots) {
+      const t = await open({ user: fixture.username("sam"), pass: PASSWORD, width: 390, height: 844 });
+      t.page.setDefaultTimeout(15000);
+      try {
+        await t.page.goto(`${t.BASE}/show/${season}/tonight`);
+        await t.page.locator(`[data-pace-gather='${outlastId}']`).waitFor();
+        await shotAs(t.page, "outlast-gather-wait");
+        await t.page.locator("[data-pace-gather-go]").click();
+        await t.page.locator(`[data-pace-plate='${outlastId}']`).waitFor();
+        check(true, "Go on still works: words only");
+      } finally {
+        await t.close();
+      }
+    }
+    if (gather) {
+      // jordan reveals up to it: everyone's there, the waiver week opens on the cast as it stood then.
+      for (let k = 0; k < gather.episode; k++) {
+        r = await jordan.call("POST", `/api/seasons/${season}/catchup`, { leagueId: outlastId, couch });
+        if (r.status !== 200 || r.body.episode >= gather.episode) break;
+      }
+      const g = ((await sam.call("GET", `/api/seasons/${season}/games?couch=${couch}`)).body.games || []).find((x) => x.leagueId === outlastId);
+      check(g && g.pace.gather && g.pace.gather.open && g.pace.gather.episode === gather.episode, "jordan's there: the waiver week is on", g && g.pace.gather);
+      os = await stateOfO();
+      const week = S2.WaiverLogic.current(os);
+      check(week && week.episode === gather.episode && week.phase === "open", "the week is that episode's, not the season's end", week && { episode: week.episode, phase: week.phase });
+      if (shots) {
+        const t = await open({ user: fixture.username("sam"), pass: PASSWORD, width: 390, height: 844 });
+        t.page.setDefaultTimeout(15000);
+        try {
+          await t.page.goto(`${t.BASE}/show/${season}/tonight`);
+          await t.page.locator(`[data-pace-waivers='${outlastId}']`).waitFor();
+          await shotAs(t.page, "outlast-waivers-on");
+        } finally {
+          await t.close();
+        }
+      }
+    }
   } finally {
     await fb.close();
     if (!keep) {
       if (leagueId) await pool.query("DELETE FROM leagues WHERE id = $1", [leagueId]);
       if (lineupId) await pool.query("DELETE FROM leagues WHERE id = $1", [lineupId]);
+      if (outlastId) await pool.query("DELETE FROM leagues WHERE id = $1", [outlastId]);
       // Only what this check made on the real season: its bingo bank (when it had none), its runs, the zt cards.
       await pool.query("DELETE FROM bingo_cards WHERE season_id = $1 AND user_id = ANY($2::text[])", [season, Object.values(fx.users)]);
       if (!hadBank) {

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Check } from "lucide-react";
-import { couches, gamesApi, useAfterCouch, type CatchUpReveal, type GameView } from "../data";
+import { couches, draftAct, gamesApi, useAfterCouch, type CatchUpReveal, type GameView } from "../data";
 import { CatchUpResult } from "../couch/join-game";
 import { aheadWords, allHere } from "../couch/pace";
 import { namesLine } from "../couch/where";
@@ -49,8 +49,12 @@ export function OwnPacePlates({ show }: { show: ShowData }) {
   return (
     <section className="mt-4 flex flex-col gap-3 px-4">
       {games.map((g) =>
-        g.pace?.team ? (
+        g.pace?.draft ? (
+          <DraftPlate key={g.leagueId} show={show} g={g} />
+        ) : g.pace?.team ? (
           <TeamPlate key={g.leagueId} g={g} />
+        ) : g.pace?.gather ? (
+          <GatherPlate key={g.leagueId} show={show} g={g} onRevealed={(reveal) => setDone({ game: g, reveal })} />
         ) : g.catchUp ? (
           <PacePlate key={g.leagueId} show={show} g={g} onRevealed={(reveal) => setDone({ game: g, reveal })} />
         ) : (
@@ -161,6 +165,113 @@ function PacePlate({ show, g, onRevealed }: { show: ShowData; g: GameView; onRev
         <small data-pace-near className="-mb-0.5 text-[13px] leading-snug text-plate-muted">
           {near}
         </small>
+      )}
+    </div>
+  );
+}
+
+/** Exclusive teams at your own pace (sync point 1): before anyone plays, everyone drafts together in the usual draft room, on the
+ *  cast as it stood before the start. Whoever runs the game starts it; then it's the draft room for everyone. */
+function DraftPlate({ show, g }: { show: ShowData; g: GameView }) {
+  const nav = useNav();
+  const after = useAfterCouch();
+  const [busy, setBusy] = useState(false);
+  const week = g.catchUp?.week ?? 1;
+  const runs = g.yourRole === "commissioner" || g.yourRole === "admin";
+  const live = g.pace!.draft === "live";
+  const seasonId = show.header?.seasonId ?? "";
+  const go = () => nav.push(paths.showPage(seasonId, "draft"));
+  const start = async () => {
+    setBusy(true);
+    try {
+      await draftAct(seasonId, g.leagueId, { action: "start" });
+      await after();
+      go();
+    } catch (e) {
+      toast.quiet((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const people = [{ name: "You", bot: false }, ...g.pace!.others.map((o) => ({ name: o.name, bot: false }))];
+  const bots = g.table.filter((r) => r.bot).map((r) => r.name);
+  return (
+    <div data-pace-draft-plate={g.leagueId} data-pace-draft={g.pace!.draft} className="flex flex-col gap-2.5 rounded-[4px] bg-plate p-3.5 text-plate-foreground shadow-plate">
+      <span className={TAG}>
+        Before Episode {week} · {g.gameName}
+      </span>
+      <b className="type-caption text-[28px] leading-none">{live ? "The draft's on" : "Draft together"}</b>
+      <p className="text-[14px] leading-snug text-plate-muted">
+        Take turns picking from who was still in before Episode {week}. Each person on one team. Then everyone plays at their own pace.
+      </p>
+      <p className="text-[13px] leading-snug text-plate-muted">
+        {namesLine([...people.map((p) => p.name), ...bots.map((b) => `${b} (computer)`)], 5)}
+      </p>
+      {live || !runs ? (
+        <Btn tone={live ? "must" : "ink"} wide data-pace-draft-go onClick={go}>
+          {live ? "Go to the draft" : "See the draft room"}
+        </Btn>
+      ) : (
+        <Btn tone="must" wide data-pace-draft-start disabled={busy} onClick={start}>
+          {busy ? "Starting…" : "Start the draft"}
+        </Btn>
+      )}
+      {!live && !runs && <small className="text-[13px] text-plate-muted">Whoever started the game starts the draft, once you&rsquo;re all here.</small>}
+    </div>
+  );
+}
+
+/**
+ * A waiver moment (sync point 2): someone's team lost a person in an episode you've reached. Until everyone's there, it asks you
+ * to wait, in words only (the user's pick): "OK, I'll wait", and the next episode's plate stays a tap away under Go on. Once
+ * everyone's there, its waiver week is on: the usual waivers page.
+ */
+function GatherPlate({ show, g, onRevealed }: { show: ShowData; g: GameView; onRevealed: (r: CatchUpReveal) => void }) {
+  const nav = useNav();
+  const [goOn, setGoOn] = useState(false);
+  const [waits, setWaits] = useState(false);
+  const gather = g.pace!.gather!;
+  const lost = gather.lost.map((l) => `${first(l.name)} went home from ${l.yours ? "your" : `${l.team}'s`} team`).join(" · ");
+  if (gather.open) {
+    return (
+      <div data-pace-waivers={g.leagueId} className="flex flex-col gap-2.5 rounded-[4px] bg-plate p-3.5 text-plate-foreground shadow-plate">
+        <span className={TAG}>
+          After Episode {gather.episode} · {g.gameName}
+        </span>
+        <b className="type-caption text-[28px] leading-none">Everyone&rsquo;s here: waivers</b>
+        <p className="text-[14px] leading-snug text-plate-muted">{lost}. Claims settle once everyone owed a replacement has put theirs in.</p>
+        {show.header && (
+          <Btn tone="must" wide data-pace-waivers-go onClick={() => nav.push(paths.showPage(show.header!.seasonId, "waivers"))}>
+            Go to waivers
+          </Btn>
+        )}
+      </div>
+    );
+  }
+  if (goOn && g.catchUp) return <PacePlate show={show} g={g} onRevealed={onRevealed} />;
+  return (
+    <div data-pace-gather={g.leagueId} data-pace-gather-episode={gather.episode} className="flex flex-col gap-2.5 rounded-[4px] bg-plate p-3.5 text-plate-foreground shadow-plate">
+      <span className={TAG}>
+        After Episode {gather.episode} · {g.gameName}
+      </span>
+      <b className="type-caption text-[28px] leading-none">Waivers after Episode {gather.episode}</b>
+      <p className="text-[14px] leading-snug text-plate-muted">
+        {lost}. Wait for everyone else before watching more episodes, so the waivers are fair.
+      </p>
+      <p className="text-[13px] leading-snug text-plate-muted">
+        Waiting on {namesLine(gather.waiting)}.
+      </p>
+      {waits ? (
+        <small className="text-[13px] text-plate-muted">Thanks: the waivers open once everyone&rsquo;s on Episode {gather.episode}.</small>
+      ) : (
+        <Btn tone="ink" wide data-pace-gather-wait onClick={() => setWaits(true)}>
+          OK, I&rsquo;ll wait
+        </Btn>
+      )}
+      {g.catchUp && (
+        <button type="button" data-pace-gather-go onClick={() => setGoOn(true)} className="min-h-11 text-[14px] font-semibold text-plate-muted">
+          Go on to Episode {g.catchUp.week} anyway
+        </button>
       )}
     </div>
   );

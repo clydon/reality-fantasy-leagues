@@ -230,10 +230,12 @@ export function draftView(
     commissioner: role === "commissioner",
     phase,
     scheduledAt: full.settings.draftScheduledAt ?? null,
-    castReady: full.castaways.some((c) => c.status === "active"),
+    castReady: view.castaways.some((c) => c.status === "active"),
     size,
     cast,
-    revealFirst: phase !== "done" && leftUnseen ? hidden[0].number : null,
+    // A game at your own pace drafts together at its start, on the cast as it stood then (sync point 1): what's past it never
+    // shuts the room.
+    revealFirst: phase !== "done" && leftUnseen && !StateLogic.GhostLogic.ownPace(full) ? hidden[0].number : null,
     ...draftTimer(full),
     owners,
     queue: own.queue.filter((id) => faces.has(id)),

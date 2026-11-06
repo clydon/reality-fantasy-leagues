@@ -444,6 +444,8 @@ export interface JoinOptions {
   dealt?: boolean;
   /** A game at your own pace: who's in it and the episode they're on (null once finished; computer players keep pace). */
   playing?: { name: string; bot: boolean; week: number | null }[];
+  /** Exclusive teams at your own pace: your team comes from the draft everyone does together at the start. */
+  drafts?: boolean;
   pool: { id: string; name: string; photo: string | null; tribe: { name: string; colour: string } | null }[];
 }
 
@@ -459,11 +461,15 @@ export async function joinOptions(user: SessionUser, couchId: string, leagueId: 
   const first = G.startChoices(state)[0] ?? 1;
   // A game at your own pace (docs/PLAN-own-pace-games.md): you start where you are (never before the game's start, never behind
   // what you've seen), one episode at a time; nothing to choose.
-  const paced = G.ownPace(state) ? ownPaceStart(state, seen, live) : null;
+  // Exclusive teams at your own pace draft together at the game's start (sync point 1): you start there with everyone, and your
+  // team comes from the draft (nothing to pick here); once the draft's started, nobody new.
+  const together = G.draftsTogether(state);
+  if (together && StateLogic.DraftLogic.isStarted(state)) return { game: { ...join, mode: "locked" }, starts: null, seen, start: null, team: 0, pool: [] };
+  const paced = together ? (StateLogic.startEpisode(state) ?? 1) : G.ownPace(state) ? ownPaceStart(state, seen, live) : null;
   const starts = paced !== null ? { live: paced, catchUp: null } : { live, catchUp: join.shared && first < live ? first : null };
   const n = paced !== null ? paced : Number(startAsked);
   const start = Number.isInteger(n) && (n === starts.live || n === starts.catchUp) ? n : null;
-  const team = G.teamSize(state);
+  const team = together ? 0 : G.teamSize(state);
   // A game whose teams came out of a hat deals yours as you join (StateLogic.DrawLogic.lateDeal): nothing to pick.
   const dealt = !!team && StateLogic.DrawLogic.dealsLate(state);
   // Who's in an own-pace game and where (the join sheet shows it before you join); computer players keep pace, so no episode.
@@ -477,7 +483,7 @@ export async function joinOptions(user: SessionUser, couchId: string, leagueId: 
             return { name: p.name, bot: !!p.automated, week: lj?.catchingUp && mark !== null ? mark + 1 : null };
           })
       : undefined;
-  const more = { ...(dealt ? { dealt } : {}), ...(playing ? { playing } : {}) };
+  const more = { ...(dealt ? { dealt } : {}), ...(playing ? { playing } : {}), ...(together ? { drafts: true } : {}) };
   if (start === null || !team || dealt) return { game: join, starts, seen, start, team, ...more, pool: [] };
   return { game: join, starts, seen, start, team, ...more, pool: poolFrom(state, start, !join.shared) };
 }
@@ -661,8 +667,14 @@ export async function joinGame(user: SessionUser, couchId: string, leagueId: str
   const latest = join.latest;
   const live = latest + 1;
   const seasonMark = game.seasonId ? await seenThrough(user.id, game.seasonId) : 0;
-  // A game at your own pace: where you are, whatever was asked.
-  const start = G.ownPace(state) ? ownPaceStart(state, seasonMark === EVERYTHING ? latest : seasonMark, live) : Number(body.start);
+  // A game at your own pace: where you are, whatever was asked; exclusive teams, the game's start with everyone (sync point 1).
+  const together = G.draftsTogether(state);
+  if (together && StateLogic.DraftLogic.isStarted(state)) throw new HttpError(409, "The draft's started: nobody new joins");
+  const start = together
+    ? (StateLogic.startEpisode(state) ?? 1)
+    : G.ownPace(state)
+      ? ownPaceStart(state, seasonMark === EVERYTHING ? latest : seasonMark, live)
+      : Number(body.start);
   const catchUpFrom = join.shared ? (G.startChoices(state)[0] ?? 1) : null;
   if (!Number.isInteger(start) || (start !== live && start !== catchUpFrom && !G.ownPace(state))) {
     throw new HttpError(400, join.shared ? `Start from Episode ${live}, or catch up from Episode ${catchUpFrom}` : `New players start from Episode ${live}`);
@@ -680,10 +692,11 @@ export async function joinGame(user: SessionUser, couchId: string, leagueId: str
       if (there.length) throw new HttpError(409, "You're already in it");
       const p = StateLogic.addPlayer(s, name);
       if (!p.lateJoin) throw new HttpError(409, "Nobody new can join this game");
-      const problem = G.begin(s, p.id, start, team, { freeAgents: !join.shared });
+      // Exclusive at your own pace: a seat in the draft, with everyone; else the late joiner's start and team.
+      const problem = together ? G.paceSeat(s, p.id) : G.begin(s, p.id, start, team, { freeAgents: !join.shared });
       if (problem) throw new HttpError(400, problem);
       // Seen at once: on the couch, a new player plays in the open (classic's ghosts are its own join's).
-      G.convert(s, p.id);
+      if (!together) G.convert(s, p.id);
       const lj = G.lateJoinOf(s, p.id);
       if (lj) lj.seenThrough = mark;
       await client.query("INSERT INTO league_memberships (league_id, user_id, player_id, role, results_seen_through) VALUES ($1, $2, $3, 'member', $4)", [
