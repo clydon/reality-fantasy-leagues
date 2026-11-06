@@ -536,6 +536,9 @@ class PickEmScoringStrategy {
     });
     const rows = Object.values(results);
     if(parts && parts.standing) return rows.sort((a,b) => PickEmScoringStrategy.compareKeys(PickEmScoringStrategy.standingKey(b), PickEmScoringStrategy.standingKey(a)));
+    // C2 part 4b: a pool ranked by its points (or head to head on them, its teams and handicap: their own apply ranks them after) by
+    // its points.
+    if(Spec.poolByPoints(gameOf(state))) return Seq.byTotal(rows);
     return rows.sort((a,b)=> b.longestStreak - a.longestStreak || b.total - a.total);
   }
   // Last one standing's order, as a key compared from its first number on (higher first): whoever's still in before whoever's
@@ -555,8 +558,13 @@ function rankKey(state, r){
     const by = g.overall && g.overall.by;
     return by === 'wins' ? [r.wins || 0, r.placePoints || 0, r.stagePoints || 0] : by === 'places' ? [r.placePoints || 0, r.stagePoints || 0] : [r.total || 0];
   }
-  if(g.get.by === 'pick') return g.rank.by === 'standing' ? PickEmScoringStrategy.standingKey(r) : [r.longestStreak || 0, r.total];
+  // C2 part 4b: a pool ranked by its points, or head to head on them, ranks as any game does below (its points, its teams', its record).
+  if(g.get.by === 'pick' && !Spec.poolByPoints(g)) return g.rank.by === 'standing' ? PickEmScoringStrategy.standingKey(r) : [r.longestStreak || 0, r.total];
   if(g.rank.by === 'worth' && MarketLogic.on(state)) return [r.worth || 0, r.total];
+  // C2 part 4b: teams knocked out (a draft's cuts on the teams' totals), last team standing: every member shares their team's place
+  // (in before out, out later first, then its points: TeamLogic.label puts its `out` on the row's team); someone on no team after
+  // every team, by their own points.
+  if(g.rank.by === 'standing' && TeamLogic.on(state)) return r.team ? [1, ...Seq.standingKey({ out: r.team.out, total: r.team.points })] : [0, 0, 0, r.total || 0];
   // A11 part 1: a draft that knocks players out, last one standing (its rows carry `out`: KnockoutLogic.apply); part 2b, a game of
   // questions' (AnswerLogic.applyWalk).
   if((g.get.by === 'draft' || g.score.by === 'answers') && g.rank.by === 'standing') return PickEmScoringStrategy.standingKey(r);
@@ -702,7 +710,13 @@ class ScoringLogic {
     const view = spanView(state);
     // A11 part 5b: a draft's handicap on its rows (a game of questions' is on its walk), before anything below ranks them.
     const rows = HandicapLogic.apply(view, scorePiece(state).compute(view));
-    if(KnockoutLogic.on(view)) return KnockoutLogic.apply(view, rows);
+    if(KnockoutLogic.on(view)){
+      const run = KnockoutLogic.run(view);
+      const out = KnockoutLogic.apply(view, rows, run);
+      // C2 part 4b: teams knocked out or racing, each row its team (TeamLogic.label), ranked as the game ranks the teams (on the
+      // same walk).
+      return TeamLogic.on(view) ? TeamLogic.apply(view, out, run.teams ? run : null) : out;
+    }
     // A11 part 2b: a game of questions' walk, its points and who's out, as the server worked them out (AnswerLogic.walk).
     const walk = AnswerLogic.walkOf(view);
     // A11 part 4: head to head's records and playoffs (MatchupLogic); part 4b, on a game of questions' points from its walk. Part 5:
@@ -759,7 +773,7 @@ class KnockoutLogic {
   // way (a read inside it sees the game as its span has it).
   static run(state){
     const parts = KnockoutLogic.parts(state);
-    if(!parts || knockoutsRunning) return { out: new Map(), ends: null, series: [] };
+    if(!parts || knockoutsRunning) return { out: new Map(), ends: null, series: [], teams: null };
     knockoutsRunning = true;
     try { return KnockoutLogic.walk(state, parts); }
     finally { knockoutsRunning = false; }
@@ -767,8 +781,10 @@ class KnockoutLogic {
   // The week's results on the draft's series (C2 part 2: the scoring sequence's step 5, Seq.knockouts): a race won ends it, its cuts
   // fall, one left of everyone (whatever their start; someone catching up counts) ends it unless the game plays on (A11 part 2:
   // oneLeft 'plays'). Who can be cut, or finish a race, after episode k: in, started by then, and caught up.
+  // C2 part 4b: in teams of players, on the teams' totals (teamWalk). `teams`: what the teams' walk found (null without teams).
   static walk(state, parts){
     const series = KnockoutLogic.series(state);
+    if(TeamLogic.on(state)) return KnockoutLogic.teamWalk(state, parts, series);
     const everyone = (state.players || []).filter(p => !isGhost(p) && !p.disabled && p.active !== false);
     const { out, ends } = Seq.knockouts(series, {
       start: Spec.spanStart(gameOf(state).span),
@@ -777,7 +793,44 @@ class KnockoutLogic {
       startOf: new Map(everyone.map(p => [p.id, GhostLogic.startFor(state, p.id)])),
       race: parts.race, cuts: parts.cuts, oneLeft: parts.oneLeft, phaseStarts: state.phaseStarts,
     });
-    return { out, ends, series };
+    return { out, ends, series, teams: null };
+  }
+  // C2 part 4b: teams of players knocked out, or racing: the week's results on the teams' totals, each night's worked out as the walk
+  // goes (as a game of questions' are: Seq.knockouts reads them from who's out so far), its members' growth that episode summed or
+  // their mean (TeamLogic.addStep), a night's quiet the seats'. A team's out is every seat's on it at the episode it went out
+  // (TeamLogic.teamAt then: a move made for a later episode doesn't take anyone out of a cut), and someone out adds nothing to any
+  // team after it; so who's out, their moves, their points frozen there and an exclusive draft's castaways back in the pool are per
+  // seat as ever, and a team out keeps its points as they stood then. The teams in it: each anyone is ever on, from the first episode
+  // someone was (TeamLogic.firsts), playing an episode only when someone still in the game is on it then (as a seat that left the
+  // game is in no walk: a team nobody plays for then can't be cut, finish a race or be the one left). A team's cut, or one team left, ends it as a seat's would; a race ends after the
+  // episode a team reaches `to`. `teams`: { out: Map team -> the last episode that counts for it, sides: the teams in it, walked:
+  // [{ number, quiet, totals: Map team -> points }] }.
+  static teamWalk(state, parts, series){
+    const tp = TeamLogic.parts(state);
+    const seats = (state.players || []).filter(p => !isGhost(p) && p.active !== false);
+    const firsts = TeamLogic.firsts(state);
+    const sides = [...firsts.keys()];
+    // A team plays an episode when someone still in the game is on it then (as a seat that left the game is in no walk).
+    const playing = (t, k) => seats.some(p => !p.disabled && TeamLogic.teamAt(state, p.id, k) === t);
+    const out = new Map();
+    const outWith = (teamOut) => teamOut.forEach((n, t) => seats.forEach(p => {
+      if(!out.has(p.id) && TeamLogic.teamAt(state, p.id, n) === t) out.set(p.id, n);
+    }));
+    const run = new Map(TeamLogic.ids(state).map(t => [t, 0]));
+    let before = null;
+    const nights = series.map(x => ({ number: x.number, quiet: x.quiet, totals: (teamOut) => {
+      outWith(teamOut);
+      TeamLogic.addStep(state, tp, x.totals, before, x.number, run, out);
+      before = x.totals;
+      return new Map(run);
+    } }));
+    const k = Seq.knockouts(nights, {
+      start: Spec.spanStart(gameOf(state).span), everyone: sides, catching: new Set(), startOf: firsts, playing,
+      race: parts.race, cuts: parts.cuts, oneLeft: parts.oneLeft, phaseStarts: state.phaseStarts,
+    });
+    // The last night's cut (no night after it read who's out).
+    outWith(k.out);
+    return { out, ends: k.ends, series, teams: { out: k.out, sides, walked: k.walked } };
   }
   // Where the game ends early: the episode a race was won or one was left, else null. A11 part 2: a pool's too, where one or none
   // left ends it (PickEmLogic.endsAt), so lastEpisode, gameOver, spanView and endedBefore read both; part 2b, a game of questions'
@@ -822,9 +875,10 @@ class KnockoutLogic {
     return g.get.by === 'draft' && g.get.own === 'exclusive' && Array.isArray(g.rank.cut) && g.rank.cut.length > 0;
   }
   // The score rows with each one's `out` (the last episode that counts for them, null while in) and their points frozen there;
-  // ranked last one standing when it cuts (standingKey: whoever's still in by their points, then whoever went out last).
-  static apply(state, rows){
-    const { out, series } = KnockoutLogic.run(state);
+  // ranked last one standing when it cuts (standingKey: whoever's still in by their points, then whoever went out last). `run`: the
+  // walk when the caller has it (C2 part 4b: ScoringLogic.compute hands it to the teams too).
+  static apply(state, rows, run){
+    const { out, series } = run || KnockoutLogic.run(state);
     const at = new Map(series.map(x => [x.number, x]));
     rows.forEach(r => {
       const k = out.get(r.playerId);
@@ -960,9 +1014,12 @@ class MatchupLogic {
   static series(state){
     return TeamLogic.on(state) ? TeamLogic.series(state) : MatchupLogic.seatSeries(state);
   }
-  // Each seat's points through each episode played, whatever the sides: a draft's, or a game of questions' walk's.
+  // Each seat's points through each episode played, whatever the sides: a draft's, a game of questions' walk's, or (C2 part 4b) a
+  // pool's, from its picks (PickEmLogic.series).
   static seatSeries(state){
-    if(!Spec.questionsGame(gameOf(state))) return KnockoutLogic.series(state);
+    const g = gameOf(state);
+    if(g.get.by === 'pick') return PickEmLogic.series(state);
+    if(!Spec.questionsGame(g)) return KnockoutLogic.series(state);
     const walk = AnswerLogic.walkOf(state);
     return walk && Array.isArray(walk.series) ? walk.series.map(x => ({ number: x.number, totals: new Map(Object.entries(x.totals)) })) : [];
   }
@@ -1254,10 +1311,12 @@ class TeamLogic {
     return [...TeamLogic.membersAt(state, n)].filter(([, m]) => m.length).map(([t]) => t);
   }
   // Adds one step's points to each team (`run`, Map team -> points): each member on a team at episode k, what they earned since
-  // `before` (Map playerId -> points; null: from nothing), summed or their mean.
-  static addStep(state, parts, now, before, k, run){
+  // `before` (Map playerId -> points; null: from nothing), summed or their mean. `out` (C2 part 4b: teams knocked out): the seats
+  // out before k (Map playerId -> the last episode that counts for them), who add nothing.
+  static addStep(state, parts, now, before, k, run, out){
     const by = new Map();
     (state.players || []).forEach(p => {
+      if(out && out.has(p.id) && out.get(p.id) < k) return;
       const t = TeamLogic.teamAt(state, p.id, k);
       if(!t || !run.has(t)) return;
       if(!by.has(t)) by.set(t, []);
@@ -1267,10 +1326,13 @@ class TeamLogic {
     Seq.teamStep(run, by, parts.score);
   }
   // Each episode the game has played, with each team's points through it ({ number, totals: Map team -> points }): head to head's
-  // series between the teams (MatchupLogic.series), an episode's points a team's growth.
+  // series between the teams (MatchupLogic.series), an episode's points a team's growth. C2 part 4b: teams knocked out or racing,
+  // the knockouts' walk's (someone out adding nothing after).
   static series(state){
     const parts = TeamLogic.parts(state);
     if(!parts) return [];
+    const ko = TeamLogic.knocked(state);
+    if(ko) return ko.teams.walked.map(x => ({ number: x.number, totals: new Map(x.totals) }));
     const run = new Map(TeamLogic.ids(state).map(t => [t, 0]));
     const out = [];
     let before = null;
@@ -1281,38 +1343,82 @@ class TeamLogic {
     }
     return out;
   }
+  // C2 part 4b: each team anyone is ever on, in order, with the first episode someone is (Map team -> episode): what a team knocked
+  // out or racing is in the knockouts' walk from (KnockoutLogic.teamWalk). A kept spell's start, or a draw's before it's kept (the
+  // game's start).
+  static firsts(state){
+    const ids = TeamLogic.ids(state);
+    const start = startEpisode(state);
+    const first = new Map();
+    const at = (t, n) => { if(ids.includes(t) && Number.isInteger(n) && !(first.get(t) <= n)) first.set(t, n); };
+    const kept = TeamLogic.kept(state) || {};
+    const drawn = !TeamLogic.fixed(state) && TeamLogic.parts(state).made === 'draw' && start !== null ? TeamLogic.drawn(state) : null;
+    (state.players || []).forEach(p => {
+      const spells = kept[p.id];
+      if(Array.isArray(spells) && spells.length) spells.forEach(s => at(s.team, s.from));
+      else if(drawn && drawn.has(p.id)) at(drawn.get(p.id), start);
+    });
+    return new Map(ids.filter(t => first.has(t)).map(t => [t, first.get(t)]));
+  }
+  // C2 part 4b: whether a game's teams are knocked out or race (on the knockouts' walk: KnockoutLogic.teamWalk).
+  static knocks(state){ return KnockoutLogic.on(state) && TeamLogic.on(state); }
+  // C2 part 4b: the knockouts' walk of the teams (KnockoutLogic.run: `out` the seats', `teams` { out, sides, walked }, `series` the
+  // seats'), or null in a game whose teams nobody knocks out or races (or inside a walk already under way).
+  static knocked(state){
+    const run = TeamLogic.knocks(state) ? KnockoutLogic.run(state) : null;
+    return run && run.teams ? run : null;
+  }
   // The teams as they stand, given the score rows (each one's points as the table shows them): [{ id, name, points, place, rank,
   // members: [playerId] (on it now), played: [playerId] (whose team it is: sideOf) }], best first, ties sharing a place: by their
   // points, or head to head (MatchupLogic) as it ranks them (how far in the playoffs, then wins, then the regular season's points,
-  // then the seed).
-  static standings(state, rows){
+  // then the seed). C2 part 4b: teams knocked out or racing (knocked) carry `out` (the last episode that counts for the team, null
+  // while it's in), a team out keeping its points as they stood there; teams knocked out rank last team standing (in before out, out
+  // later first, then their points; a team nobody plays for after them all), on the knockouts' walk (`knocked`: the caller's, else
+  // worked out), someone out adding nothing after.
+  static standings(state, rows, knocked){
     const parts = TeamLogic.parts(state);
     if(!parts) return null;
     const ids = TeamLogic.ids(state);
     const run = new Map(ids.map(t => [t, 0]));
-    const base = MatchupLogic.seatSeries(state);
+    const ko = knocked === undefined ? TeamLogic.knocked(state) : knocked;
     let before = null;
-    for(const x of base){
-      TeamLogic.addStep(state, parts, x.totals, before, x.number, run);
-      before = x.totals;
+    let last = null;
+    if(ko){
+      const night = ko.teams.walked[ko.teams.walked.length - 1];
+      if(night){
+        night.totals.forEach((v, t) => run.set(t, v));
+        const seat = ko.series.find(x => x.number === night.number);
+        before = seat ? seat.totals : null;
+        last = night.number;
+      }
+    } else {
+      const base = MatchupLogic.seatSeries(state);
+      for(const x of base){
+        TeamLogic.addStep(state, parts, x.totals, before, x.number, run);
+        before = x.totals;
+      }
+      last = base.length ? base[base.length - 1].number : null;
     }
-    // What's been earned since the last episode walked, as the table has it, on the team each is on then.
+    // What's been earned since the last episode walked, as the table has it, on the team each is on then (nobody who's out).
     const start = startEpisode(state);
-    const last = base.length ? base[base.length - 1].number : null;
     const k = last !== null ? last + 1 : start !== null ? start : 1;
     const now = new Map((rows || []).map(r => [r.playerId, Number(r.total) || 0]));
-    TeamLogic.addStep(state, parts, now, before, k, run);
+    TeamLogic.addStep(state, parts, now, before, k, run, ko ? ko.out : null);
     const members = TeamLogic.membersAt(state, k);
     const played = new Map(ids.map(t => [t, []]));
     (state.players || []).forEach(p => { const t = TeamLogic.sideOf(state, p.id); if(t && played.has(t)) played.get(t).push(p.id); });
     const w = MatchupLogic.on(state) ? MatchupLogic.run(state) : null;
+    // C2 part 4b: each team's out (a team out keeps its points as they stood then: nobody on it adds anything after).
+    const outOf = id => (ko && ko.teams.out.has(id) ? ko.teams.out.get(id) : null);
+    const cutting = !!ko && KnockoutLogic.parts(state).cuts.length > 0;
     const keyOf = t => {
+      if(cutting) return ko.teams.sides.includes(t.id) ? Seq.standingKey({ out: t.out, total: t.points }) : [-1];
       if(!w) return [t.points];
       const r = w.records.get(t.id) || { wins: 0, ties: 0, for: 0 };
       const seed = w.seeds ? w.seeds.indexOf(t.id) + 1 : 0;
       return Seq.recordKey({ tier: w.tiers.get(t.id) || 0, wins: r.wins, ties: r.ties, for: r.for, seed });
     };
-    const list = ids.map((id, i) => ({ id, name: parts.names[i], points: run.get(id) || 0, members: members.get(id) || [], played: played.get(id) || [] }));
+    const list = ids.map((id, i) => ({ id, name: parts.names[i], points: run.get(id) || 0, members: members.get(id) || [], played: played.get(id) || [], ...(ko ? { out: outOf(id) } : {}) }));
     const keys = new Map(list.map(t => [t.id, keyOf(t)]));
     const cmp = (a, b) => PickEmScoringStrategy.compareKeys(keys.get(b.id), keys.get(a.id));
     const sorted = [...list].sort((a, b) => cmp(a, b) || ids.indexOf(a.id) - ids.indexOf(b.id));
@@ -1330,13 +1436,14 @@ class TeamLogic {
     const byId = new Map(st.map(t => [t.id, t]));
     rows.forEach(r => {
       const t = byId.get(TeamLogic.sideOf(state, r.playerId));
-      r.team = t ? { id: t.id, name: t.name, points: t.points, place: t.place, rank: t.rank, now: t.members.includes(r.playerId) } : null;
+      r.team = t ? { id: t.id, name: t.name, points: t.points, place: t.place, rank: t.rank, now: t.members.includes(r.playerId), ...('out' in t ? { out: t.out } : {}) } : null;
     });
     return rows;
   }
-  // The score rows with their teams, ranked as the game ranks (rankKey: the team's points), then by their own points.
-  static apply(state, rows){
-    TeamLogic.label(state, rows);
+  // The score rows with their teams, ranked as the game ranks (rankKey: the team's points), then by their own points. `knocked`: the
+  // knockouts' walk of the teams when the caller has it (C2 part 4b: ScoringLogic.compute's).
+  static apply(state, rows, knocked){
+    TeamLogic.label(state, rows, knocked === undefined ? undefined : TeamLogic.standings(state, rows, knocked));
     return rows.sort((a, b) => PickEmScoringStrategy.compareKeys(rankKey(state, b), rankKey(state, a)) || b.total - a.total);
   }
   // What a seat sees of the teams (the Games tab's, game-view.ts), from their own copy: how they're made and scored, whether
@@ -1352,7 +1459,7 @@ class TeamLogic {
       made: parts.made, score: parts.score, of: parts.of,
       set: TeamLogic.fixed(state),
       yours: playerId ? TeamLogic.sideOf(state, playerId) : null,
-      teams: st.map(t => ({ id: t.id, name: t.name, members: t.members.slice(), points: t.points, place: t.place, rank: t.rank })),
+      teams: st.map(t => ({ id: t.id, name: t.name, members: t.members.slice(), points: t.points, place: t.place, rank: t.rank, ...('out' in t ? { out: t.out } : {}) })),
     };
   }
   // The teams as labelled rows say them (label's `team` on each, as compute ranked them): each team its points, place and rank,
@@ -1362,17 +1469,19 @@ class TeamLogic {
     if(!parts) return null;
     const ids = TeamLogic.ids(state);
     const seen = new Map();
+    // C2 part 4b: teams knocked out or racing carry their `out` (a team nobody plays for, never in it: null).
+    const ko = TeamLogic.knocks(state);
     rows.forEach(r => {
       const t = r && r.team;
       if(!t || !ids.includes(t.id)) return;
-      if(!seen.has(t.id)) seen.set(t.id, { id: t.id, name: t.name, points: t.points, place: t.place, rank: t.rank, members: [], played: [] });
+      if(!seen.has(t.id)) seen.set(t.id, { id: t.id, name: t.name, points: t.points, place: t.place, rank: t.rank, members: [], played: [], ...(ko ? { out: t.out === undefined ? null : t.out } : {}) });
       const x = seen.get(t.id);
       x.played.push(r.playerId);
       if(t.now) x.members.push(r.playerId);
     });
     const after = seen.size ? Math.max(...[...seen.values()].map(x => x.place)) + 1 : 1;
     const empty = ids.filter(id => !seen.has(id));
-    empty.forEach((id) => seen.set(id, { id, name: parts.names[ids.indexOf(id)], points: 0, place: after, rank: `${empty.length > 1 ? 'T' : ''}${after}`, members: [], played: [] }));
+    empty.forEach((id) => seen.set(id, { id, name: parts.names[ids.indexOf(id)], points: 0, place: after, rank: `${empty.length > 1 ? 'T' : ''}${after}`, members: [], played: [], ...(ko ? { out: null } : {}) }));
     return [...seen.values()].sort((a, b) => a.place - b.place || ids.indexOf(a.id) - ids.indexOf(b.id));
   }
   // The first episode that hasn't been played or locked: from the latest with results on, past any that has locked (closedForPlay),
@@ -1407,6 +1516,9 @@ class TeamLogic {
     if(p.active === false) return "They aren't in the game yet";
     if(p.disabled) return "They've left the game";
     if(!TeamLogic.ids(state).includes(team)) return 'No such team';
+    // C2 part 4b: a team knocked out takes nobody.
+    const ko = TeamLogic.knocked(state);
+    if(ko && ko.teams.out.has(team)) return 'That team is out of the game';
     if(startEpisode(state) === null) return "This game hasn't started: it waits for its phase of the season";
     const now = opts && opts.now;
     const started = TeamLogic.started(state, now);
@@ -1466,10 +1578,12 @@ class TeamLogic {
       });
       return n;
     };
+    // C2 part 4b: never onto a team knocked out.
+    const ko = TeamLogic.knocked(state);
     const place = () => {
       if(parts.unplaced === 'none') return null;
       const n = size();
-      return ids.reduce((best, t) => (best === null || n.get(t) < n.get(best) ? t : best), null);
+      return ids.filter(t => !(ko && ko.teams.out.has(t))).reduce((best, t) => (best === null || n.get(t) < n.get(best) ? t : best), null);
     };
     // Those with a team already (kept, or the draw's) first, so whoever's placed is counted against them.
     const all = TeamLogic.seats(state, true);
@@ -1575,12 +1689,14 @@ class HandicapLogic {
       })
       .filter(x => x.from !== null);
   }
-  // The game's episodes with results, in order (its span's: what a handicap counts on).
+  // The game's episodes with results, in order (its span's: what a handicap counts on). C2 part 4b: a pool's, those it has decided
+  // (who went home, its early results too: PickEmLogic.decided), as its picks are graded.
   static played(state){
     const from = startEpisode(state);
     if(from === null) return [];
     const to = endEpisode(state);
-    return (state.episodes || []).filter(e => e.number >= from && (to === null || e.number <= to) && EpisodeLogic.hasResults(e)).map(e => e.number).sort((a,b) => a - b);
+    const pool = gameOf(state).get.by === 'pick';
+    return (state.episodes || []).filter(e => e.number >= from && (to === null || e.number <= to) && (pool ? PickEmLogic.decided(e, state) : EpisodeLogic.hasResults(e))).map(e => e.number).sort((a,b) => a - b);
   }
   // Each newcomer's handicap through each of `numbers` (the game's episodes walked): (k) => Map playerId -> points through episode
   // k (Infinity: all of them); null when nobody gets one. Nothing after the season's finale (a reunion with results of its own, as
@@ -1600,10 +1716,11 @@ class HandicapLogic {
       return out;
     };
   }
-  // A draft's score rows with each one's handicap on them (`handicap`, in `total`), ranked by their points again; any other game's
-  // as they are (a game of questions' handicap is on its walk).
+  // A draft's score rows with each one's handicap on them (`handicap`, in `total`), ranked by their points again, and (C2 part 4b) a
+  // pool's ranked by its points; any other game's as they are (a game of questions' handicap is on its walk).
   static apply(state, rows){
-    if(!HandicapLogic.on(state) || gameOf(state).get.by !== 'draft') return rows;
+    const by = gameOf(state).get.by;
+    if(!HandicapLogic.on(state) || !(by === 'draft' || by === 'pick')) return rows;
     const tally = HandicapLogic.tally(state, HandicapLogic.played(state));
     const all = tally ? tally(Infinity) : new Map();
     rows.forEach(r => {
@@ -3597,7 +3714,8 @@ class PickEmLogic {
     const blocked = {};
     if(!ep) return { available: remaining, blocked };
     const parts = PickEmLogic.parts(state);
-    const ended = parts && parts.oneLeft === 'ends' ? PickEmLogic.endsAt(state) : null;
+    // Where the game ends early (KnockoutLogic.endsAt: one or none left; C2 part 4b, head to head's final): nobody picks after it.
+    const ended = KnockoutLogic.endsAt(state);
     if(ended !== null && ep.number > ended) return { available: [], blocked, ended };
     if(parts && parts.lives !== null){
       const out = PickEmLogic.history(state, playerId, parts).out;
@@ -3843,6 +3961,37 @@ class PickEmLogic {
   static endsAt(state){
     const parts = PickEmLogic.parts(state);
     return parts && parts.oneLeft === 'ends' ? PickEmLogic.walk(state, parts).ends : null;
+  }
+  // C2 part 4b: the pool's series of totals, the shape a draft's (ScoringLogic.walk's series) and a game of questions' walk have:
+  // [{ number, quiet, totals: Map playerId -> points through it }], each episode the game plays that the pool has decided, in order
+  // (a pool grades on who went home, so an episode's early results decide it, as its own walk does: HandicapLogic.played), from each
+  // seat's history (its pick's points, a second pick's that counted, less what a buyback cost, in the order its tally adds them), a
+  // handicap's points through it added (HandicapLogic.tally) as the table adds them (HandicapLogic.apply). What head to head
+  // (MatchupLogic.seatSeries) and teams of players read a pool by; its last entry is the table's total.
+  static series(state){
+    const all = PickEmLogic.histories(state);
+    const numbers = HandicapLogic.played(state);
+    const tally = HandicapLogic.tally(state, numbers);
+    const players = state.players || [];
+    const run = new Map(players.map(p => [p.id, 0]));
+    const rowsAt = new Map(players.map(p => [p.id, new Map(((all.get(p.id) || {}).rows || []).map(r => [r.episode, r]))]));
+    const quiet = new Map((state.episodes || []).map(e => [e.number, !!e.noExit]));
+    return numbers.map(n => {
+      const handicaps = tally ? tally(n) : null;
+      const totals = new Map();
+      players.forEach(p => {
+        const r = rowsAt.get(p.id).get(n);
+        let t = run.get(p.id);
+        if(r){
+          t += r.points;
+          if(r.second) t += r.second.points;
+          if(r.boughtBack) t -= r.boughtBack;
+        }
+        run.set(p.id, t);
+        totals.set(p.id, handicaps ? Seq.add(t, handicaps.get(p.id) || 0) : t);
+      });
+      return { number: n, quiet: quiet.get(n) || false, totals };
+    });
   }
 
   // Silently no-ops on an invalid request (unknown episode/castaway/player, an already-eliminated

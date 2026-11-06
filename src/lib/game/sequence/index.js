@@ -427,14 +427,17 @@ function livesNight(lives, lost, o) {
  * `lives(ids, out)` says what the night cost each of those who could lose one (once no race has ended it), both read before anything
  * that night moves anyone.
  *   o: { start, everyone: [id] (in it: whatever their start), catching: Set (still catching up), startOf: Map id -> their start (null:
- *   the game's), race: { to } | null, cuts, oneLeft, phaseStarts, lives: { of (each one's at the start), allOut } | null }
+ *   the game's), race: { to } | null, cuts, oneLeft, phaseStarts, lives: { of (each one's at the start), allOut } | null, playing?:
+ *   (id, k) => whether a side plays episode k (C2 part 4b: a team someone still in the game is on then; left out, every side does):
+ *   one that doesn't can't be cut or finish a race then, and isn't left when one left ends it }
  * Returns { out: Map id -> the last episode that counts for them, ends: the episode the game ended at, or null, lives: Map id -> left
  * (null without lives), shared: Set (out together, sharing it), walked: [{ number, quiet, totals }] (each episode walked, its
  * totals a Map) }.
  */
 function knockouts(series, o) {
   const out = new Map();
-  const inAt = (k) => o.everyone.filter((id) => !out.has(id) && !o.catching.has(id) && (o.startOf.get(id) || o.start) <= k);
+  const plays = (id, k) => !o.playing || o.playing(id, k);
+  const inAt = (k) => o.everyone.filter((id) => !out.has(id) && !o.catching.has(id) && (o.startOf.get(id) || o.start) <= k && plays(id, k));
   const lives = o.lives ? new Map(o.everyone.map((id) => [id, o.lives.of])) : null;
   const shared = new Set();
   const walked = [];
@@ -456,7 +459,7 @@ function knockouts(series, o) {
       return x ? x.totals : null;
     };
     cutsAfter(o.cuts, { k, start: o.start, quiet: night.quiet, inAt, total, before, out, phaseStarts: o.phaseStarts });
-    if ((lives || o.cuts.length) && o.oneLeft === "ends" && lastLeft(o.everyone, (id) => !out.has(id))) ends = k;
+    if ((lives || o.cuts.length) && o.oneLeft === "ends" && lastLeft(o.everyone, (id) => !out.has(id) && plays(id, k))) ends = k;
   }
   return { out, ends, lives, shared, walked };
 }

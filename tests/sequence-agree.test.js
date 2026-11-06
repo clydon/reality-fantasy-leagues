@@ -11,7 +11,8 @@
 // what the server scores outside the state (a game of questions with every way its points combine, a pot split, only the only one
 // right, a rollover, chips, a shrinking call, a wager, a parlay, trivia, an episode fact, the players' answers and the bot's calls,
 // and every walk on it, lives, last one standing, everyone out each way, a race, cuts, co-op with each `saves`, head to head, teams,
-// a handicap, a span; Weekly Calls and bingo; a game in stages by points, places and wins), each read as the server reads it. Each
+// a handicap, a span; Weekly Calls and bingo; a game in stages by points, places and wins), each read as the server reads it. C2 part
+// 4b: a pool by its points, head to head, in teams and with a handicap; teams knocked out and racing (new reads, part 4b's). Each
 // read must be the one the scorers before the sequence gave (tests/fixtures/scoring-shapes.json, recorded at d5222e68, part 3's
 // shapes from part 3's parent), but for a plain lineup's table rows, which C2 part 2 moved by a cent on the half-cent moments (the
 // fixture's header). Run with `npm test`.
@@ -40,7 +41,7 @@ for (const [name] of F.shapes(G)) {
 test("the shapes read what they're meant to: every game played, each kind of line in it", () => {
   const read = (name, seat = null, mark = null) => {
     const [, spec, own, o] = F.shapes(G).find(([n]) => n === name);
-    return JSON.parse(F.readOf(S, S.GhostLogic.viewFor(F.league(S, G, T, spec, own, o), seat, mark)));
+    return JSON.parse(F.readOf(S, S.GhostLogic.viewFor(F.league(S, G, T, spec, own, o), seat, mark), o));
   };
   // Every shape plays the game its spec says, and carries it whole.
   for (const [name, spec, own, o] of F.shapes(G)) {
@@ -78,6 +79,27 @@ test("the shapes read what they're meant to: every game played, each kind of lin
   assert.ok(read("race").last < 7);
   // A market's worth beside its points.
   assert.ok(read("market").rows.every((r) => typeof r.worth === "number" && typeof r.cash === "number"));
+  // C2 part 4b: a pool by its points (its second picks counting); head to head on it, over at its final (Episode 6: cy beats di), its
+  // Episode 7 picks counting nothing; the handicap's 2 an episode for bo and di; the series a pool's head to head, teams and
+  // handicap read, its last entry each row's total.
+  assert.deepEqual(read("pool-total").rows.map((r) => [r.playerId, r.total]), [["ann", 8], ["cy", 6], ["di", 5], ["bo", 2]]);
+  const h2h = read("pool-matchups");
+  assert.deepEqual([h2h.last, h2h.rows[0].playerId, h2h.rows[0].matchups.champion, h2h.rows.find((r) => r.playerId === "ann").total], [6, "cy", true, 5]);
+  assert.deepEqual(read("pool-handicap").rows.map((r) => [r.playerId, r.handicap, r.total]), [["di", 14, 18], ["bo", 14, 16], ["ann", 0, 6], ["cy", 0, 6]]);
+  for (const name of ["pool-matchups", "pool-teams", "pool-handicap"]) {
+    const r = read(name, null, null);
+    // As the table stands: at the game's last episode (head to head's final), else the newest.
+    const at = r.week.series.filter((x) => r.last === null || x.number <= r.last).pop();
+    for (const row of r.rows) assert.equal(new Map(at.totals).get(row.playerId), row.total, `${name}: ${row.playerId}`);
+  }
+  // Teams knocked out: the guillotine cuts t3 (cy) after 2 and t2 (bo) after 4, one team left; an Outlast's teams cut after 3 play on
+  // with one left; a race between teams over after 2.
+  const g = read("teams-guillotine");
+  assert.deepEqual([g.week.knockouts.teams.out, g.outs, g.last], [[["t3", 2], ["t2", 4]], [["bo", 4], ["cy", 2]], 4]);
+  assert.deepEqual(g.rows.map((r) => [r.playerId, r.team.out, r.team.place]), [["ann", null, 1], ["di", null, 1], ["bo", 4, 2], ["cy", 2, 3]]);
+  const o = read("teams-cut-outlast");
+  assert.deepEqual([o.week.knockouts.teams.out, o.week.knockouts.ends, o.over], [[["t1", 3]], null, true]);
+  assert.deepEqual([read("teams-race").last, read("teams-race").week.knockouts.teams.out], [2, []]);
 });
 
 test("the screens read the sequence: an episode's points (episode lines, the reveal) and the side bets that paid", () => {

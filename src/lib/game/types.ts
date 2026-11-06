@@ -351,7 +351,7 @@ export interface LeagueSettings {
   poolBuyback?: import("./game-spec/index.js").PoolBuyback;
   poolMulligans?: number;
   poolSecond?: { fallback: "void" | "counts" };
-  poolRank?: "standing";
+  poolRank?: "standing" | "total" | "matchups";
   /**
    * The episode this league starts playing at (default 1): a league formed mid-season drafts and picks
    * from here, and nothing in earlier episodes scores. Read it through StateLogic.startEpisode. A game that starts when a
@@ -1235,8 +1235,9 @@ export interface ScoreRow {
    *  in the playoffs, the champion. */
   matchups?: MatchupRecord & { seed: number | null; tier: number; alive: boolean; champion: boolean };
   /** Teams of players (step A11 part 5: TeamLogic.label): the team the seat plays for (its last), the team's points and place (a
-   *  tie "T1"), and whether the seat is on it now; null on none. */
-  team?: { id: string; name: string | null; points: number; place: number; rank: string; now: boolean } | null;
+   *  tie "T1"), and whether the seat is on it now; null on none. C2 part 4b: teams knocked out or racing, `out` (the last episode that
+   *  counts for the team, null while it's in). */
+  team?: { id: string; name: string | null; points: number; place: number; rank: string; now: boolean; out?: number | null } | null;
   /** A handicap (step A11 part 5b: HandicapLogic): the points it has given the seat so far, in `total` already (0 for someone it
    *  doesn't name); absent in a game without one. */
   handicap?: number;

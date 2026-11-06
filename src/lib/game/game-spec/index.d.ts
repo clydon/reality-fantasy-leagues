@@ -783,6 +783,11 @@ export interface MatchupParts {
 export function matchupParts(spec: GameSpec | SpecInput | null | undefined): MatchupParts | null;
 /** A game of questions: nothing held, scored by its own questions (not Weekly Calls' calls). */
 export function questionsGame(spec: unknown): boolean;
+/** A pool: a pick each episode, scored by whether it stays in (or scores). */
+export function isPool(spec: unknown): boolean;
+/** C2 part 4b: a pool ranked by its points or head to head on them, with nobody knocked out (no lives, race or cuts): its series of
+ *  totals is its picks', so teams of players and a handicap play on it too. */
+export function poolByPoints(spec: unknown): boolean;
 /** A question a life can ride on: asked each episode, about that episode alone. */
 export function livesQuestion(q: unknown): boolean;
 /** A10 part 2: a pool's lives (null: none, nobody's out), mulligans (0: none), buyback (with lives, its defaults filled), second

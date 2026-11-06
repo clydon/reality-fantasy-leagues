@@ -63,7 +63,7 @@ export interface TableRow {
   record: { wins: number; losses: number; ties: number; for: number; against: number; seed: number | null; alive: boolean; champion: boolean } | null;
   /** Step A11 part 5: teams of players, the team the seat plays for (its points and place: every member shares it; `now`, whether
    *  the seat is on it now); null for any other game, or a seat on no team. */
-  side: { id: string; name: string | null; points: number; place: number; rank: string; now: boolean } | null;
+  side: { id: string; name: string | null; points: number; place: number; rank: string; now: boolean; out?: number | null } | null;
   /** Step A11 part 5b: a handicap's points so far (in `total` already), 0 for someone it doesn't name; null without one. */
   handicap: number | null;
   /** Weekly Lineup (and best ball): each scored episode as far as you've seen, oldest first (weeksOf); [] for any other game. */
@@ -382,6 +382,9 @@ export function tableOf(view: LeagueState, me: string, userOf: UserOf, right: (p
   // The engine's own order (StateLogic.rankKey): a pool with lives by who's still standing (step A10 part 2), else its streak; a
   // stock market ranked by worth (part 3c), cash plus the team at today's prices; else the points.
   const worth = !pool && !callsGame && StateLogic.gameOf(view).rank.by === "worth";
+  // C2 part 4b: a pool ranked by its points (or head to head on them) shows its points, not its streak.
+  const rankBy = StateLogic.gameOf(view).rank.by;
+  const streak = pool && (rankBy === "streak" || rankBy === "standing");
   // Step A11 part 2b: a game of questions that races or knocks players out ranks as the engine does, its rows carrying its walk
   // (who's out, their points frozen there).
   const walked = !!StateLogic.AnswerLogic.walkOf(view);
@@ -389,6 +392,12 @@ export function tableOf(view: LeagueState, me: string, userOf: UserOf, right: (p
   const rows = [...StateLogic.computeScores(view)].sort((a, b) => StateLogic.PickEmScoringStrategy.compareKeys(key(b), key(a)));
   // A pool's seasons, read once (step A11 part 2: a pool that walks everyone together walks once for the table).
   const histories = pool ? StateLogic.PickEmLogic.histories(view) : null;
+  // C2 part 4b: a pool ranked by its points, its week the latest episode it decided: that pick's points (a second's that counted, less
+  // what a buyback cost).
+  const poolWeek = (playerId: string): number => {
+    const row = [...(histories?.get(playerId)?.rows ?? [])].reverse().find((x) => x.correct !== null || x.skipped);
+    return row ? row.points + (row.second?.points ?? 0) - (row.boughtBack ?? 0) : 0;
+  };
   const keys = rows.map((r) => key(r).join(","));
   // Step A11 part 5b: a handicap's points on each row (read once a table).
   const handicapOn = StateLogic.HandicapLogic.on(view);
@@ -411,8 +420,8 @@ export function tableOf(view: LeagueState, me: string, userOf: UserOf, right: (p
       you,
       rank: `${tied ? "T" : ""}${first + 1}`,
       place: first + 1,
-      total: callsGame ? right(r.playerId) : pool ? (r.longestStreak ?? 0) : worth ? (r.worth ?? 0) : r.total,
-      week: pool ? (r.currentStreak ?? 0) : lastEp ? teamEpisodeBreakdown(view, lastEp.id, r.playerId).total : null,
+      total: callsGame ? right(r.playerId) : streak ? (r.longestStreak ?? 0) : worth ? (r.worth ?? 0) : r.total,
+      week: streak ? (r.currentStreak ?? 0) : pool ? poolWeek(r.playerId) : lastEp ? teamEpisodeBreakdown(view, lastEp.id, r.playerId).total : null,
       points: r.total,
       team: pieces.hasRoster ? teamOrder(r.roster).map((c) => c.id) : [],
       last: lastOf(r.playerId),

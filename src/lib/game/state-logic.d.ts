@@ -52,6 +52,27 @@ interface KnockoutEpisode {
   totals: Map<string, number>;
   rows: Map<string, { locked: number; banked: number; bonus: number; finale: number }>;
 }
+/** C2 part 4b: a series of totals with no score rows (a pool's, from its picks; the teams' the knockouts walk). */
+interface SideEpisode {
+  number: number;
+  quiet: boolean;
+  totals: Map<string, number>;
+}
+/** C2 part 4b: teams of players knocked out or racing, as the knockouts' walk has them: each team's out (the last episode that counts
+ *  for it), the teams in it (each from the first episode anyone's on it), and each episode it walked, with the teams' totals. */
+interface TeamKnockouts {
+  out: Map<string, number>;
+  sides: string[];
+  walked: SideEpisode[];
+}
+/** The knockouts' walk (KnockoutLogic.run): who's out (each seat's last episode that counts), where it ends, the seats' series, and
+ *  (C2 part 4b) the teams' walk. */
+interface KnockoutRun {
+  out: Map<string, number>;
+  ends: number | null;
+  series: KnockoutEpisode[];
+  teams: TeamKnockouts | null;
+}
 
 interface PickEmOutcome {
   correct: boolean | null;
@@ -209,6 +230,9 @@ declare const StateLogic: {
     /** Every player's history at once, one walk where the pool walks everyone together (the table's). */
     histories(state: LeagueState): Map<string, PickEmHistory>;
     endsAt(state: LeagueState): number | null;
+    /** C2 part 4b: the pool's series of totals: each episode it has decided, every seat's points through it (a handicap's added),
+     *  what head to head and teams of players read a pool by. */
+    series(state: LeagueState): SideEpisode[];
     /** Whether two or more went home in an episode (a winner's exit isn't one): a night a second pick counts. */
     double(state: LeagueState, ep: Episode): boolean;
     /** R1 part 3: whether a pick went home in an episode, as a pool that stays in grades it (on the finale, anyone but the
@@ -865,7 +889,8 @@ declare const StateLogic: {
     parts(state: LeagueState): { race: { to: number } | null; cuts: { at: { every?: number; episode?: number; phase?: string }; out: number | "half"; tie: "keep" | "all"; quiet: "cut" | "skip" }[]; oneLeft: "ends" | "plays" } | null;
     on(state: LeagueState): boolean;
     series(state: LeagueState): KnockoutEpisode[];
-    run(state: LeagueState): { out: Map<string, number>; ends: number | null; series: KnockoutEpisode[] };
+    /** `teams`: C2 part 4b, teams of players knocked out or racing (null without teams). */
+    run(state: LeagueState): KnockoutRun;
     endsAt(state: LeagueState): number | null;
     outs(state: LeagueState): Map<string, number>;
     outOf(state: LeagueState, playerId: string): number | null;
@@ -873,7 +898,7 @@ declare const StateLogic: {
     moveProblem(state: LeagueState, playerId: string, number: number): string | null;
     endedBefore(state: LeagueState, number: number): boolean;
     frees(state: LeagueState): boolean;
-    apply(state: LeagueState, rows: ScoreRow[]): ScoreRow[];
+    apply(state: LeagueState, rows: ScoreRow[], run?: KnockoutRun): ScoreRow[];
   };
   /** Step A11 part 4: head to head (rank.by 'matchups'): a round robin of the seats each episode on that episode's points, the
    *  standings by wins, and the playoffs over the game's last episodes; worked out from the data on every read, all but where the
@@ -922,10 +947,18 @@ declare const StateLogic: {
     sideOf(state: LeagueState, playerId: string): string | null;
     membersAt(state: LeagueState, n: number): Map<string, string[]>;
     teamsAt(state: LeagueState, n: number): string[];
+    /** C2 part 4b: teams knocked out or racing, the knockouts' walk's (someone out adding nothing after). */
     series(state: LeagueState): { number: number; totals: Map<string, number> }[];
-    standings(state: LeagueState, rows: { playerId: string; total: number }[]): TeamStanding[] | null;
+    /** C2 part 4b: each team anyone is ever on, with the first episode someone is. */
+    firsts(state: LeagueState): Map<string, number>;
+    /** C2 part 4b: whether a game's teams are knocked out or race; the knockouts' walk of them (null in a game whose teams nobody
+     *  knocks out or races). */
+    knocks(state: LeagueState): boolean;
+    knocked(state: LeagueState): (KnockoutRun & { teams: TeamKnockouts }) | null;
+    /** `knocked`: the knockouts' walk of the teams when the caller has it (C2 part 4b). */
+    standings(state: LeagueState, rows: { playerId: string; total: number }[], knocked?: KnockoutRun | null): TeamStanding[] | null;
     label(state: LeagueState, rows: ScoreRow[], standings?: TeamStanding[] | null): ScoreRow[];
-    apply(state: LeagueState, rows: ScoreRow[]): ScoreRow[];
+    apply(state: LeagueState, rows: ScoreRow[], knocked?: KnockoutRun | null): ScoreRow[];
     view(state: LeagueState, playerId: string | null, rows?: { playerId: string; total: number }[]): TeamView | null;
     openFor(state: LeagueState, playerId: string, now?: number): number | null;
     chooseProblem(state: LeagueState, playerId: string, team: string, opts?: { by?: "self" | "runs"; now?: number }): string | null;
@@ -1314,6 +1347,8 @@ export interface TeamStanding {
   rank: string;
   members: string[];
   played: string[];
+  /** C2 part 4b: teams knocked out or racing, the last episode that counts for the team (null while it's in); absent otherwise. */
+  out?: number | null;
 }
 /** A11 part 5: what a seat sees of teams of players (the Games tab's): how they're made and scored, whether they're set (kept, once
  *  the game has started), the seat's own (null: none, or no seat), and each team as it stands. What it shows is U1's. */
@@ -1323,7 +1358,7 @@ export interface TeamView {
   of: number;
   set: boolean;
   yours: string | null;
-  teams: { id: string; name: string | null; members: string[]; points: number; place: number; rank: string }[];
+  teams: { id: string; name: string | null; members: string[]; points: number; place: number; rank: string; out?: number | null }[];
 }
 
 export default StateLogic;

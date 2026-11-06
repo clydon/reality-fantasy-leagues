@@ -24,6 +24,9 @@ const {
 
 const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
 const clone = (v) => (v === undefined ? undefined : JSON.parse(JSON.stringify(v)));
+/** C2 part 4b: the ranks a pool's settings say (poolRank): last one standing (A10 part 2), its points, head to head; its streak is
+ *  the default, said by none. */
+const POOL_RANKS = ['standing', 'total', 'matchups'];
 
 /** Settings fields that aren't the game: what it's about and how it's run, never what it is. */
 const OUTSIDE = [
@@ -265,8 +268,14 @@ function readSpec(st, copy) {
     const get = { by: 'pick', each: 1, repeat: never ? 'never' : 'cycle' };
     if (isObj(st.poolSecond)) get.second = copy ? clone(st.poolSecond) : st.poolSecond;
     if (never) get.fallback = st.poolFallback === 'skip' ? 'skip' : NEVER.fallback;
-    const rank = { by: st.poolRank === 'standing' ? 'standing' : 'streak' };
-    if (rank.by === 'standing') endsOf(st, rank, true);
+    // C2 part 4b: or by its points, or head to head on them (poolRank 'total' | 'matchups', its playoffs and fallbacks in
+    // rankMatchups, as a draft's), in teams of players and with a handicap (rankTeams, rankHandicap). Each only when it's set.
+    const by = POOL_RANKS.includes(st.poolRank) ? st.poolRank : 'streak';
+    const rank = { by };
+    if (by === 'matchups') matchupsOf(st, rank, copy);
+    if (by === 'standing') endsOf(st, rank, true);
+    teamsOf(st, rank, copy);
+    handicapOf(st, rank, copy);
     Object.assign(spec, {
       get,
       count: { pick: true },
@@ -442,7 +451,8 @@ function settingsOf(spec) {
   out.poolBuyback = pool && isObj(s.score.buyback) ? clone(s.score.buyback) : undefined;
   out.poolMulligans = pool && s.score.mulligans !== undefined ? s.score.mulligans : undefined;
   out.poolSecond = pool && isObj(s.get.second) ? clone(s.get.second) : undefined;
-  out.poolRank = pool && s.rank.by === 'standing' ? 'standing' : undefined;
+  // C2 part 4b: a pool ranked by its points, or head to head (a pool's streak, the default, is said by none).
+  out.poolRank = pool && POOL_RANKS.includes(s.rank.by) ? s.rank.by : undefined;
   // A11 part 2: a pick that never repeats and its fallback; last one standing's end (a pool's or a draft's that cuts).
   out.poolRepeat = pool && s.get.repeat === 'never' ? 'never' : undefined;
   out.poolFallback = pool && s.get.repeat === 'never' ? s.get.fallback : undefined;
@@ -465,13 +475,13 @@ function settingsOf(spec) {
   // cuts.
   // A11 part 4: a draft played head to head, its playoffs and fallbacks as the spec says them; part 4b, a game of questions'.
   out.draftRank = type === 'active-roster' && s.rank.by === 'worth' ? 'worth' : draft && s.rank.by === 'standing' ? 'standing' : draft && s.rank.by === 'matchups' ? 'matchups' : undefined;
-  const h2h = (draft || asks) && s.rank.by === 'matchups' ? Object.fromEntries(MATCHUP_KEYS.filter((k) => s.rank[k] !== undefined).map((k) => [k, clone(s.rank[k])])) : null;
+  const h2h = (draft || asks || pool) && s.rank.by === 'matchups' ? Object.fromEntries(MATCHUP_KEYS.filter((k) => s.rank[k] !== undefined).map((k) => [k, clone(s.rank[k])])) : null;
   out.rankMatchups = h2h && Object.keys(h2h).length ? h2h : undefined;
   out.draftRace = draft && isObj(s.rank.race) ? clone(s.rank.race) : undefined;
-  // A11 part 5: teams of players, a draft's or a game of questions', as the spec says them.
-  out.rankTeams = (draft || asks) && isObj(s.rank.teams) ? clone(s.rank.teams) : undefined;
-  // A11 part 5b: a handicap, a draft's or a game of questions', as the spec says it.
-  out.rankHandicap = (draft || asks) && isObj(s.rank.handicap) ? clone(s.rank.handicap) : undefined;
+  // A11 part 5: teams of players, a draft's or a game of questions' (C2 part 4b: a pool's too), as the spec says them.
+  out.rankTeams = (draft || asks || pool) && isObj(s.rank.teams) ? clone(s.rank.teams) : undefined;
+  // A11 part 5b: a handicap, a draft's or a game of questions' (C2 part 4b: a pool's too), as the spec says it.
+  out.rankHandicap = (draft || asks || pool) && isObj(s.rank.handicap) ? clone(s.rank.handicap) : undefined;
   out.draftCut = draft && Array.isArray(s.rank.cut) ? clone(s.rank.cut) : undefined;
   if (type === 'questions') out.questions = clone(s.ask);
   out.lateLockHours = type === 'questions' && e.lateLock ? e.lateLock.hours : undefined;

@@ -18,7 +18,7 @@
 //
 // Pure CommonJS, like ./schema.js.
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
-const { PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, spanEnd, spanEndPhase, playsAs, callsAsk, finaleOf, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion, matchupParts, questionsGame, teamParts, handicapParts, stageOn, ON_CHANGE, nextStageAts, fallsTo, stageSide, mainCount, stageAlongside, stageSeason, seasonKey, isPlayers, isBeat } = require('./schema.js');
+const { PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, spanEnd, spanEndPhase, playsAs, callsAsk, finaleOf, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion, matchupParts, questionsGame, poolByPoints, teamParts, handicapParts, stageOn, ON_CHANGE, nextStageAts, fallsTo, stageSide, mainCount, stageAlongside, stageSeason, seasonKey, isPlayers, isBeat } = require('./schema.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const NUMBER_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
@@ -149,8 +149,9 @@ function nameOf(s) {
   const p = presetOf(s);
   // A pool with lives ranked by who's still standing (A10 part 2) is still a Survival Pool; a draft's stock market ranked by worth
   // (part 3c) is still its draft's game.
-  // A11 part 1: a draft that knocks players out is still its draft's game; part 4, one played head to head.
-  const rank = p && (p.rank.by === s.rank.by || (s.score.by === 'survive' && s.rank.by === 'standing') || (s.get.by === 'draft' && (s.rank.by === 'worth' || s.rank.by === 'standing' || s.rank.by === 'matchups')));
+  // A11 part 1: a draft that knocks players out is still its draft's game; part 4, one played head to head. C2 part 4b: a pool ranked
+  // by its points, or head to head, is still a Survival Pool.
+  const rank = p && (p.rank.by === s.rank.by || (s.score.by === 'survive' && (s.rank.by === 'standing' || s.rank.by === 'total' || s.rank.by === 'matchups')) || (s.get.by === 'draft' && (s.rank.by === 'worth' || s.rank.by === 'standing' || s.rank.by === 'matchups')));
   const same = p && p.get.by === s.get.by && countKind(p.count) === countKind(s.count) && p.score.by === s.score.by && rank && !s.score.reverse;
   return same ? PRESET_LABELS[s.preset] : null;
 }
@@ -246,7 +247,9 @@ function sentenceParts(s, w) {
   else if (sc.by === 'survive') {
     // A10 part 2: lives, a buyback, mulligans; last one standing.
     for (const said of poolPhrases(s, w)) put(` ${said}`, 'score');
-    put(s.rank.by === 'standing' ? ' Last one standing wins.' : ' Longest streak wins.', 'rank');
+    // C2 part 4b: ranked by its points, or head to head on them: what a right pick is worth (who wins is said with the rank, below).
+    if (poolByPoints(s)) put(` ${isNum(sc.points) && sc.points !== 1 ? cap(pointsWord(sc.points)) : 'A point'} for each right pick.`, 'score');
+    else put(s.rank.by === 'standing' ? ' Last one standing wins.' : ' Longest streak wins.', 'rank');
     // A11 part 2: last one standing's end, as far as the spec says it.
     const { oneLeft, allOut } = poolOf(s);
     if (oneLeft === 'ends') put(" Once one of you is left, it's over.", 'rank');
@@ -287,18 +290,21 @@ function sentenceParts(s, w) {
       put(` Right on ${listOf(legs)} together: ${{ 2: 'double', 3: 'triple', 4: 'quadruple' }[p.times] || `${p.times} times`} the points.`, 'score');
     }
   }
+  // A11 part 5: teams of players (head to head between them, when it's that); C2 part 4b: said first when they're knocked out or race.
+  const teams = teamParts(s);
+  const teamsOut = !!teams && !!knockoutParts(s);
+  if (teamsOut) put(` ${teamPhrase(teams)}`, 'rank');
   // A11 part 1: a draft's cuts and race.
   for (const said of knockoutPhrases(s, w)) put(` ${said}`, 'rank');
   // A10 part 3c: a stock market ranked by worth.
   // A11 part 4: head to head, with its playoffs (a sports spec's, which the engine doesn't play yet: just its name).
   const h2h = matchupParts(s);
-  // A11 part 5: teams of players (head to head between them, when it's that).
-  const teams = teamParts(s);
-  if (teams) put(` ${teamPhrase(teams)}`, 'rank');
+  if (teams && !teamsOut) put(` ${teamPhrase(teams)}`, 'rank');
   // A11 part 5b: a handicap.
   const handicap = handicapParts(s);
   if (handicap) put(` ${handicapPhrase(handicap, w)}`, 'rank');
-  const rank = h2h ? ` ${matchupPhrase(h2h, w, !!teams)}` : { worth: " Most worth wins: cash plus the team at today's prices.", matchups: ' Played head to head.', categories: ' Ranked by category.', roto: ' Ranked roto-style.' }[s.rank.by];
+  // C2 part 4b: a pool ranked by its points says who wins (its teams say it themselves).
+  const rank = h2h ? ` ${matchupPhrase(h2h, w, !!teams)}` : poolByPoints(s) && !teams ? ' Most points wins.' : { worth: " Most worth wins: cash plus the team at today's prices.", matchups: ' Played head to head.', categories: ' Ranked by category.', roto: ' Ranked roto-style.' }[s.rank.by];
   if (rank) put(rank, 'rank');
   // A10 part 4b: a team two people share.
   if (seatPeople(s) > 1) put(` Up to ${say(seatPeople(s))} of you can share a team.`, 'extras');
@@ -390,16 +396,18 @@ function combineWords(q, w) {
 
 /** A draft's cut in words (A11 part 1), as a sentence: "Each episode the lowest scorer is out.", "Every two episodes the two
  *  lowest over them are out.", "After Episode 6 the bottom half is cut.", "Before Merged starts the bottom two are cut." */
-function cutPhrase(c, w) {
-  const many = c.out === 'half' ? 'the bottom half' : c.out === 1 ? null : `the bottom ${say(c.out)}`;
+function cutPhrase(c, w, teams) {
+  // C2 part 4b: a cut of teams of players (`teams`), on the teams' points.
+  const many = c.out === 'half' ? `the bottom half${teams ? ' of the teams' : ''}` : c.out === 1 ? null : `the bottom ${say(c.out)}${teams ? ' teams' : ''}`;
   if (Number.isInteger(c.at.every)) {
     const when = c.at.every === 1 ? `Each ${w.part}` : `Every ${say(c.at.every)} ${w.parts}`;
     const over = c.at.every === 1 ? '' : ' over them';
-    if (c.out === 'half') return `${when} the bottom half by their points${over} are out.`;
+    if (c.out === 'half') return `${when} the bottom half${teams ? ' of the teams' : ''} by their points${over} are out.`;
+    if (teams) return c.out === 1 ? `${when} the lowest-scoring team${over} is out.` : `${when} the ${say(c.out)} lowest-scoring teams${over} are out.`;
     return c.out === 1 ? `${when} the lowest scorer${over} is out.` : `${when} the ${say(c.out)} lowest scorers${over} are out.`;
   }
   const when = Number.isInteger(c.at.episode) ? `After ${w.Part} ${c.at.episode}` : `Before ${phaseWord(c.at.phase, w)} starts`;
-  return `${when} ${many || 'the lowest on points'} ${c.out === 1 || c.out === 'half' ? 'is' : 'are'} cut.`;
+  return `${when} ${many || (teams ? 'the lowest team on points' : 'the lowest on points')} ${c.out === 1 || c.out === 'half' ? 'is' : 'are'} cut.`;
 }
 /** The sentence's words for a draft's race and cuts (A11 part 1), and a game of questions' with its lives (part 2b). */
 function knockoutPhrases(s, w) {
@@ -409,10 +417,12 @@ function knockoutPhrases(s, w) {
   // A11 part 3: co-op, the couch's lives together.
   if (a && a.coop) return coopPhrases(s, a);
   const out = [];
+  // C2 part 4b: a draft's teams of players knocked out, or racing.
+  const teams = !a && !!teamParts(s);
   if (a && a.lives) out.push(`${cap(say(a.lives))} ${a.lives === 1 ? 'life' : 'lives'}: a wrong answer${livesWhich(s, a)}, or none, costs one.`);
-  out.push(...k.cuts.map((c) => cutPhrase(c, w)));
-  if (k.race) out.push(`First to ${pointsWord(k.race.to)} wins: the game ends there.`);
-  else if (k.cuts.length || (a && a.lives)) out.push('Last one standing wins.');
+  out.push(...k.cuts.map((c) => cutPhrase(c, w, teams)));
+  if (k.race) out.push(`${teams ? 'The first team' : 'First'} to ${pointsWord(k.race.to)} wins: the game ends there.`);
+  else if (k.cuts.length || (a && a.lives)) out.push(teams ? 'Last team standing wins.' : 'Last one standing wins.');
   // A11 part 2b: a game of questions' end, where it isn't the default.
   if (a && a.oneLeft === 'plays') out.push('With one of you left it plays on.');
   if (a && a.allOut === 'share') out.push('If everyone left goes out together, they share the win.');
@@ -492,6 +502,8 @@ function answerKnockoutRules(s, w) {
 function knockoutRules(s, w) {
   const k = knockoutParts(s);
   if (!k) return [];
+  // C2 part 4b: teams of players knocked out (on the teams' points), or racing.
+  if (teamParts(s)) return teamKnockoutRules(s, w, k);
   const out = [];
   for (const c of k.cuts) {
     let rule = cutPhrase(c, w);
@@ -507,6 +519,26 @@ function knockoutRules(s, w) {
     out.push("Nobody new joins once someone's out.");
   }
   if (k.race) out.push(`First to ${pointsWord(k.race.to)} wins: the game ends after that ${w.part}, and the most points then win (a tie shares it). If nobody gets there, the most points at the end win.`);
+  out.push(`A cut or a finish waits for ${article(w.part)} ${w.part}'s full results.`);
+  return out;
+}
+/** C2 part 4b: how a draft's teams of players knocked out or racing work, a rule a line, as the engine plays them
+ *  (KnockoutLogic.teamWalk): the cuts and the race on the teams' points, everyone on a team out with it. */
+function teamKnockoutRules(s, w, k) {
+  const out = [];
+  for (const c of k.cuts) {
+    let rule = cutPhrase(c, w, true);
+    if (Number.isInteger(c.at.every)) rule += ' A tie on those points goes to whichever team has fewer in all.';
+    rule += c.tie === 'all' ? ' Tied at the line, they all go, unless that would be every team left.' : ' Tied at the line, no team tied there goes.';
+    if (c.quiet === 'skip') rule += ` ${cap(article(w.part))} ${w.part} nobody goes home has no cut.`;
+    out.push(rule);
+  }
+  if (k.cuts.length) {
+    out.push(`Once your team is out, everyone on it scores nothing more and makes no more moves: its points stay where they were.${s.get.own === 'exclusive' ? ` Its ${w.castaways} go back in the pool for everyone else.` : ''}`);
+    out.push(`Last team standing wins: whichever's still in by its points, then whichever went out last. ${k.oneLeft === 'plays' ? 'With one team left it plays on to the end, its points still growing.' : "Once one team is left, it's over."}`);
+    out.push("Nobody new joins once a team's out, and nobody moves onto one.");
+  }
+  if (k.race) out.push(`The first team to ${pointsWord(k.race.to)} wins: the game ends after that ${w.part}, and the team with the most points then wins (a tie shares it). If no team gets there, the most points at the end win.`);
   out.push(`A cut or a finish waits for ${article(w.part)} ${w.part}'s full results.`);
   return out;
 }
@@ -602,7 +634,8 @@ function matchupRules(s, w) {
   } else {
     out.push('Most wins at the end wins.');
   }
-  out.push(asks ? `${cap(article(w.part))} ${w.part}'s matchups wait for its full results, and for its questions to be settled.` : `${cap(article(w.part))} ${w.part}'s matchups wait for its full results.`);
+  // C2 part 4b: a pool's are settled once it's known who went home (its picks are graded on it, early results too).
+  out.push(asks ? `${cap(article(w.part))} ${w.part}'s matchups wait for its full results, and for its questions to be settled.` : poolByPoints(s) ? `${cap(article(w.part))} ${w.part}'s matchups are settled once it's known who went home.` : `${cap(article(w.part))} ${w.part}'s matchups wait for its full results.`);
   return out;
 }
 
@@ -800,12 +833,15 @@ function rulesOf(s, w) {
       if (pickups) rules.push(`Lose someone? Pick who comes in on waivers.${swaps ? ' Waiver windows let you swap someone too.' : ''}`);
       else if (swaps) rules.push(`Waiver windows let you swap one of your ${w.castaways} for someone new.`);
     }
+    // A11 part 5: teams of players; C2 part 4b: said first when they're knocked out or race, whose rules say who wins.
+    const teamsOut = !!teamParts(s) && !!knockoutParts(s);
+    const teams = teamRules(s, w, !!matchupParts(s) || teamsOut);
+    if (teamsOut) rules.push(...teams);
     // A11 part 1: players knocked out, and a race.
     rules.push(...knockoutRules(s, w));
     // A11 part 5b: a handicap.
     rules.push(...handicapRules(s, w));
-    // A11 part 5: teams of players.
-    rules.push(...teamRules(s, w, !!matchupParts(s)));
+    if (!teamsOut) rules.push(...teams);
     // A11 part 4: head to head, with playoffs.
     rules.push(...matchupRules(s, w));
   } else if (by === 'pick') {
@@ -819,7 +855,11 @@ function rulesOf(s, w) {
         ? `Pick a second ${w.castaway} beside the first: it counts the same way.`
         : `You can pick a second ${w.castaway} beside the first. It counts on ${article(w.part)} ${w.part} two or more go home; on one where only one goes, it doesn't count, either way.`);
     }
-    rules.push('Right: your streak grows. Wrong, or no pick: it resets. Your best streak still counts.');
+    // C2 part 4b: a pool ranked by its points, or head to head on them, counts a right pick's points and no streak.
+    const points = poolByPoints(s);
+    rules.push(points
+      ? `Right: you score ${isNum(s.score.points) && s.score.points !== 1 ? pointsWord(s.score.points) : 'a point'}. Wrong, or no pick: nothing.`
+      : 'Right: your streak grows. Wrong, or no pick: it resets. Your best streak still counts.');
     rules.push(...poolRules(s, w));
     // A11 part 2: a pick that never repeats, and what a night with nobody left to pick does.
     const never = poolOf(s).never;
@@ -829,7 +869,13 @@ function rulesOf(s, w) {
         ? `Once you've picked everyone still in, ${article(w.part)} ${w.part} you've nobody left to pick doesn't count for you, either way.`
         : `Once you've picked everyone still in, you've nobody left to pick: that counts as a missed pick.`);
     } else rules.push(`You can't pick the same ${w.castaway} again until you've used everyone still in, and never two ${w.parts} in a row.`);
-    rules.push(s.rank.by === 'standing'
+    if (points) {
+      // Its handicap, its teams and head to head say themselves (and who wins, when they decide it).
+      rules.push(...handicapRules(s, w));
+      rules.push(...teamRules(s, w, !!matchupParts(s)));
+      rules.push(...matchupRules(s, w));
+      if (!teamParts(s) && !matchupParts(s)) rules.push('Most points wins.');
+    } else rules.push(s.rank.by === 'standing'
       ? "Last one standing wins: whoever's still in, then whoever went out last. Ties go to the most points."
       : 'Longest streak wins; ties go to the most right picks.');
     // A11 part 2: last one standing's end (the default, all out by points, is the line above's "Ties go to the most points").

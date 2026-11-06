@@ -130,6 +130,8 @@ export function knockouts(series: (SeriesEpisode | WalkNight)[], o: {
   oneLeft: "ends" | "plays" | null;
   phaseStarts?: Record<string, number> | null;
   lives?: { of: number; allOut: "back" | "share" | "points" | string | null } | null;
+  /** C2 part 4b: whether a side plays episode k (a team someone still in the game is on then); left out, every side does. */
+  playing?: (id: string, k: number) => boolean;
 }): { out: Map<string, number>; ends: number | null; lives: Map<string, number> | null; shared: Set<string>; walked: SeriesEpisode[] };
 export function roundRobin(ids: string[], r: number): [string, string | null][];
 export function median(values: number[]): number;

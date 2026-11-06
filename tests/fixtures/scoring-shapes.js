@@ -24,7 +24,9 @@
 // (`--diff` against d5222e68 lists them). C2 part 3's shapes (q-plain on) were recorded from the engine before part 3 (its
 // commit's parent, with --ref=HEAD), and read the same on d5222e68's. C2 part 4a's (q-shrink-shared, q-parlay-legs, q-parlay-shrink)
 // are combinations no engine before it plays (refused there), so their reads are new, recorded from part 4a's engine and proven by
-// hand in tests/shared-shrink.test.js and tests/parlay-legs.test.js; the 1,620 reads before them stay as they were:
+// hand in tests/shared-shrink.test.js and tests/parlay-legs.test.js; the 1,620 reads before them stay as they were. C2 part 4b's
+// (seriesShapes: a pool's series of totals, teams knocked out and racing) likewise, from part 4b's engine, proven by hand in
+// tests/pool-series.test.js and tests/team-knockouts.test.js and checked in tests/sequence-agree.test.js; the 1,674 before them stay:
 //   node tests/fixtures/scoring-shapes.js --write [--ref=<git ref>]      the record, from this tree's engine (or the ref's)
 //   node tests/fixtures/scoring-shapes.js --print <shape> <seat|-> <mark|-|all> [--ref=<git ref>]   one read, in full
 //   node tests/fixtures/scoring-shapes.js --diff [<shape>] [--ref=d5222e68]   where this tree's reads part from the ref's (the
@@ -81,6 +83,7 @@ function shapes(G) {
     ["market-total", lineup({}, { by: "draft", each: 3, order: "blind", own: "shared", budget: { total: 100, floor: 5, ceiling: 25, trade: {} } }), "shared", { market: true }],
     ...weekShapes(G, outlast, lineup),
     ...outsideShapes(),
+    ...seriesShapes(outlast, lineup),
   ];
 }
 
@@ -130,6 +133,33 @@ function weekShapes(G, outlast, lineup) {
     ["pool-allout-back", pool({ lives: 1 }, null, standing({ allOut: "back" })), null, allOut],
     ["pool-allout-share", pool({ lives: 1 }, null, standing({ allOut: "share", oneLeft: "ends" })), null, allOut],
     ["pool-allout-points", pool({ lives: 1 }, null, standing({ allOut: "points" })), null, allOut],
+  ];
+}
+
+/**
+ * C2 part 4b: a pool's series of totals and the week's result on a team's totals, on the same season. No engine before part 4b plays
+ * them, so their reads are new (from part 4b's engine), the mechanics proven by hand in tests/pool-series.test.js and
+ * tests/team-knockouts.test.js: a pool ranked by its points (a second pick that counts; one that never repeats, skipped, at 2 points),
+ * head to head on it with playoffs from Episode 6 (Episode 7's picks count nothing after the final), in teams of players (chosen
+ * and summed, di moving mid-season; drawn, head to head between them) and with a handicap; teams knocked out (a lineup's three teams,
+ * the guillotine every two episodes to one team left; an Outlast's two teams cut after Episode 3, playing on with one left, the cut
+ * team's castaways back in the pool) and a race between teams.
+ */
+function seriesShapes(outlast, lineup) {
+  const pool = (rank, score = {}, get = null) => ({ preset: "survival-pool", score: { by: "survive", means: "staysIn", points: 1, ...score }, ...(get ? { get: { by: "pick", each: 1, repeat: "cycle", ...get } } : {}), rank });
+  const P = { week: true, pick: true };
+  const W = { week: true };
+  const THREE = { ann: [{ team: "t1", from: 1 }], bo: [{ team: "t2", from: 1 }], cy: [{ team: "t3", from: 1 }], di: [{ team: "t1", from: 1 }] };
+  return [
+    ["pool-total", pool({ by: "total" }, {}, { second: { fallback: "counts" } }), null, P],
+    ["pool-total-never", pool({ by: "total" }, { points: 2 }, { repeat: "never", fallback: "skip" }), null, P],
+    ["pool-matchups", pool({ by: "matchups", playoffs: { teams: 2, from: 6 } }), null, P],
+    ["pool-teams", pool({ by: "total", teams: { of: 2, made: "choose", score: "sum" } }), null, { ...P, teamSeats: true }],
+    ["pool-teams-matchups", pool({ by: "matchups", teams: { of: 2 } }), null, P],
+    ["pool-handicap", pool({ by: "total", handicap: { points: 2 } }), null, { ...P, history: true }],
+    ["teams-guillotine", lineup({ rank: { by: "standing", cut: [{ at: { every: 2 }, out: 1 }], teams: { of: 3, made: "choose", score: "sum" } } }), "exclusive", { ...W, teamSeats: THREE }],
+    ["teams-cut-outlast", outlast({ rank: { by: "standing", cut: [{ at: { episode: 3 }, out: 1 }], oneLeft: "plays", teams: { of: 2 } } }), "exclusive", W],
+    ["teams-race", lineup({ rank: { by: "total", race: { to: 10 }, teams: { of: 2, score: "sum" } } }), "exclusive", W],
   ];
 }
 
@@ -420,7 +450,8 @@ function league(S, G, T, spec, own, o = {}) {
   if (o.phaseStarts) s.phaseStarts = { ...o.phaseStarts };
   if (o.seasonEpisodes) s.seasonEpisodes = o.seasonEpisodes;
   if (o.teamSeats) {
-    s.teamSeats = JSON.parse(JSON.stringify(mine(TEAM_SEATS)));
+    // C2 part 4b: a shape's own seats (o.teamSeats an object), else TEAM_SEATS.
+    s.teamSeats = JSON.parse(JSON.stringify(mine(o.teamSeats === true ? TEAM_SEATS : o.teamSeats)));
     s.teamDraw = { seed: "zt-teams", kept: true };
   }
   const moves = holds ? (o.market ? MOVES.market : MOVES[own]).filter((m) => seats.includes(m.playerId)) : [];
@@ -492,10 +523,14 @@ function weekOf(S, v) {
     out.ends = S.PickEmLogic.endsAt(v);
     const next = S.PickEmLogic.upcomingEpisode(v);
     out.eligible = next ? seats.map((p) => plain(S.PickEmLogic.eligibility(v, next.id, p)).available) : null;
+    // C2 part 4b: a pool's series of totals, where head to head, teams of players or a handicap read it.
+    if (S.PickEmLogic.series && (S.MatchupLogic.on(v) || S.TeamLogic.on(v) || S.HandicapLogic.on(v))) out.series = plain(S.PickEmLogic.series(v));
   }
   if (S.KnockoutLogic.on(v)) {
     const k = S.KnockoutLogic.run(v);
     out.knockouts = { out: plain(k.out), ends: k.ends };
+    // C2 part 4b: teams knocked out or racing (each team's out, the teams in it, their totals walked).
+    if (k.teams) out.knockouts.teams = plain(k.teams);
   }
   if (S.MatchupLogic.on(v)) {
     out.matchups = plain(S.MatchupLogic.run(v));

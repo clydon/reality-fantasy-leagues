@@ -109,8 +109,10 @@ counts and a game in stages' overall, as lines the server hands the sequence; ev
 the same); part 4, playing by placement, is under way, in parts: 4a, the check by placement and the questions' combinations
 (2026-11-06: a spec plays when each piece it names has its place in the sequence, every verdict as the seven shapes gave it on a
 corpus of 56,025 specs; a shrinking call that's shared, and a parlay's legs that roll over, shrink or pay only the only one right),
-is built; 4b (a pool's series of totals: head to head, teams and a handicap on a pool; teams knocked out and a race between teams)
-and 4c (a draft's own questions) next; then C3 to C7, A14's later parts, and a stop before A15. The live-sports plan is
+is built, and so is 4b, a pool's series of totals and teams knocked out (2026-11-06: a pool ranked by its points, head to head, in
+teams of players and with a handicap, all reading its series of totals from its picks; a draft's teams knocked out by its cuts or
+racing, the week's result on the teams' totals; tracker rows p18 to p22); 4c (a draft's own questions) next, which ends C2; then C3
+to C7, A14's later parts, and a stop before A15. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5, at
 high since 2026-11-05; C2 at xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: folded in here as track L; its file keeps the details)
 and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track S here).
@@ -5707,6 +5709,115 @@ A14 part 2 and before A14's other parts; every part keeps every golden and blind
     hot path (0.29 µs a call, measured); `stagedWaits` checking each stage again once its own waits are empty (the wizard's path, not
     a read's); the worth the server sends for a shrinking call that's shared (worth before the share, as a pot's points are: a
     screen's words, Noticed); a parlay leg that pays only the only one right counting as right when you weren't alone (Noticed).
+
+  **As built (C2 part 4b, a pool's series of totals and teams knocked out, 2026-11-06; on `engine`, not merged; no migration).** One
+  session (xhigh), after `lane.js sync engine` (up to date) and `npm run migrate` (up to date).
+  - **A pool's series of totals** (`PickEmLogic.series`): the shape a draft's (`ScoringLogic.walk`'s series) and a game of questions'
+    walk have, `[{ number, quiet, totals }]`, each episode the game plays that the pool has decided (who went home: its early results
+    too, as its picks are graded), every seat's points through it from its history (its pick's points, a second pick's that counted,
+    less what a buyback cost, added in its tally's order), a handicap's points added as the table adds them; its last entry is the
+    table's total. Head to head (`MatchupLogic.seatSeries`) and teams of players (`TeamLogic.series`, `standings`) read a pool by it.
+  - **Opened on a pool** (`schema.js`: `isPool`, `poolByPoints`: a pool ranked by `total` or `matchups` with no lives, race or cuts):
+    ranked by its **points** ("A point for each right pick. Most points wins."; the table sorted by them, `rankKey` its points);
+    **head to head** on what each episode's pick earned, with playoffs, the game over at the final (nobody picks after it:
+    `eligibility` reads the game's end, `KnockoutLogic.endsAt`, so the picks route's write is a no-op then, as any refused pick;
+    the table scores as it stood at the final, `spanView`); **teams of players** (summed or the mean, drawn or chosen, by their
+    points or head to head between them); a **handicap** (a point an episode for newcomers, on decided episodes:
+    `HandicapLogic.played` and `apply` read a pool's). `rankPlace` places them; `matchupParts`, `teamParts` (now `teamsFit`) and
+    `handicapParts` accept a pool by its points; `matchupProblems`, `teamProblems` and `handicapProblems` lift their pool refusals
+    there. **Still refused on a pool**: lives with its points or head to head ("No game plays this way yet: a pool with lives knocks
+    players out, so it ranks by its streak or last one standing: head to head plays everyone each week, and ranked by points someone
+    out would just stop scoring"; the same sentence from each piece's problems), teams or a handicap on its streak or who's still
+    standing ("a handicap would only break ties"), a race or cuts (a pool knocks out with lives), and, new, mulligans on a pool by
+    its points ("a wrong pick costs nothing to forgive") and a right pick worth 0 there. A pool's rank that says only its teams or a
+    handicap ranks by its points (`fullSpec`, as a rank that says only its playoffs is head to head). The settings: `poolRank`
+    `'total'` | `'matchups'` (`POOL_RANKS`), and a pool's `rankMatchups`, `rankTeams`, `rankHandicap` both ways, so a league on its
+    settings (the flag off) carries them whole.
+  - **Teams knocked out, and a race between teams** (a draft's: `teamsFit` takes rank `standing` with cuts and a race on `total` or
+    `standing`): `KnockoutLogic.teamWalk` walks `Seq.knockouts` over the teams' totals, each night's worked out as the walk goes (as a
+    game of questions' are), its members' growth summed or their mean (`TeamLogic.addStep`, skipping anyone out), a night's quiet the
+    seats'. A team's out is every seat's on it at the episode it went out (`TeamLogic.teamAt` then: a move made for a later episode
+    doesn't take anyone out of a cut, the code review's), and someone out adds nothing to any team after; so who's out, their moves,
+    their points frozen there (`KnockoutLogic.apply`) and an exclusive draft's castaways back in the pool stay per seat. The teams in
+    it: each anyone is ever on, from the first episode someone was (`TeamLogic.firsts`), playing an episode only when someone still in
+    the game is on it then (`Seq.knockouts`' new `playing`, as a seat that left the game is in no walk: a team nobody plays for then
+    can't be cut, finish a race or be the one left; the code review's). One team left ends it (`oneLeft`), unless it plays on; a race
+    ends after the episode a team reaches `to`, ranked by the teams' points. The table: `ScoringLogic.compute` applies the teams after
+    the knockouts on the same walk; each row's team carries `out` (only where teams are knocked out or race, so every other team read
+    keeps its JSON), `rankKey` and `TeamLogic.standings` rank them last team standing (in before out, out later first, then points;
+    a team nobody's on after them all), a team's points the walk's (its series too: `TeamLogic.series`). Nobody moves onto a team
+    that's out (`chooseProblem`: "That team is out of the game"), nobody's placed on one (`settle`), nobody new joins once a team's
+    out. **Still refused**: a game of questions' teams knocked out or racing ("Teams knocked out are a draft's for now: a game of
+    questions works each night's points out from who's out so far, seat by seat": Noticed), last team standing without cuts.
+  - **The words** (`describe.js`): a pool by its points is still a Survival Pool (`nameOf`), its sentence "A point for each right pick.
+    Most points wins." (or its teams', or head to head's), How it works "Right: you score a point. Wrong, or no pick: nothing." and its
+    handicap's, teams' and head to head's own rules, a pool's matchups "settled once it's known who went home"; a draft's teams
+    knocked out or racing said first, then "After Episode 6 the lowest team on points is cut. Last team standing wins." / "The first
+    team to 60 points wins: the game ends there." (`cutPhrase` with teams, `teamKnockoutRules`: "Once your team is out, everyone on it
+    scores nothing more and makes no more moves", "Last team standing wins: whichever's still in by its points, then whichever went
+    out last"). Every game that played before says what it said.
+  - **state-logic.js, the functions changed** (for the merge with the own-pace session): `PickEmLogic.series` (new),
+    `PickEmLogic.eligibility` (its end, `KnockoutLogic.endsAt`), `PickEmScoringStrategy.compute` (a pool by its points by its points),
+    `rankKey` (a pool by its points falls through; teams knocked out), `ScoringLogic.compute` (the teams after the knockouts, one
+    walk), `KnockoutLogic.run`, `walk`, `teamWalk` (new) and `apply` (a `run` it's handed), `MatchupLogic.seatSeries` (a pool's),
+    `TeamLogic.addStep` (`out`), `series`, `firsts`, `knocks`, `knocked` (new), `standings` and `apply` (a `knocked` they're handed),
+    `label`, `view`, `fromRows` (a team's `out`), `chooseProblem`, `settle`, `HandicapLogic.played` and `apply` (a pool's). Also:
+    the sequence's `knockouts` (`playing`), `schema.js` (above), `settings.js` (`POOL_RANKS`, a pool's rank fields), `describe.js`
+    (above), `game-view.ts tableOf` (a pool by its points: its number the points, its week the latest decided episode's points;
+    `TableRow.side.out`), `types.ts` (`poolRank`, a row's team's `out`).
+  - **The tracker:** p18 (a pool head to head), p19 (in two teams), p20 (by its points with a handicap), p21 (teams knocked out) and p22
+    (a race between teams) turn ✅ by themselves: `docs/ENGINE-CAPABILITIES.md` 209 ✅ · 53 ⏳ · 1 🆕 · 4 ❓ · 23 💬, of 290 (was 204 ✅;
+    waiting: C2 1, p17, part 4c's).
+  - **GAME-PIECES.md:** a pick's ranks; the rank table's `total` and `matchups`; teams of players knocked out and racing, and what's
+    still refused; a handicap on a pool; lives and a pool's rank; the sequence's step 5 (each walk's series of totals); "Playing by
+    placement" (`noPlace`, the step 5 and 6 row); "Where it's still a menu" (the two pieces gone from "no place yet", what's refused
+    for its own reasons, what's a draft's for now); track C's C2 row.
+  - **What reads differently:** nothing any game that played before reads (every golden read, every shape read before part 4b and
+    every Survivor 51 rehearsal read the same, below). Specs that were refused now play (above).
+  - **Proof:** `tests/pool-series.test.js` (5) and `tests/team-knockouts.test.js` (5), every number worked out by hand on a made-up
+    season: a pool's series (a quiet night, early results, a second pick, a pick for an episode still to air), its table and the Games
+    tab's (its number and week), head to head's weeks, records, seeds and final (a tie to the better seed) and nobody picking after it,
+    teams summed, by the mean and head to head between them, a handicap; teams knocked out by a cut and by the guillotine (a tie at the
+    line keeping them, one team left ending it), their members frozen, freed, out of moves, nobody new, nobody moved onto a team out, a
+    race between teams by the sum and by the mean, a team nobody's on, a team everyone left or moved off, a seat moved for a later
+    episode going out with the team it played for. The shapes fixture extended with 9 shapes (`seriesShapes`: `pool-total`,
+    `pool-total-never`, `pool-matchups`, `pool-teams`, `pool-teams-matchups`, `pool-handicap`, `teams-guillotine`,
+    `teams-cut-outlast`, `teams-race`; 162 reads, 102 shapes and 1,836 reads in all): no engine before part 4b plays them, so their
+    reads are new, recorded from this tree and checked by hand (each table above; the guillotine's t3 out after 2 and t2 after 4, the
+    Outlast's t1 cut after 3 by the mean, 9 to 10, playing on, the race over after 2 at 11.25), with checks of them in
+    `sequence-agree.test.js`; the 1,674 reads before them byte for byte as recorded (`--diff --ref=HEAD`: 162 reads differ, all the new
+    shapes'; `scoring-shapes.json` only grows). The placement corpus: part 4b's openings in `OPENED` with the verdict each moves to (a
+    pool by its points that asks nothing else plays as a pool; one with questions beside it, or a draft's teams with something else
+    against them, only loses its problem): 770 moves (150 play now: 28 pools, 14 games in stages with a stage of one, 108 drafts whose
+    teams are knocked out or race), every other verdict as recorded. The existing tests that asserted the lifted refusals
+    (`matchups.test.js`, `teams.test.js`, `handicaps.test.js`) say what plays now and what's still refused. `npm test` 1501 of 1501;
+    `tsc` clean; eslint on the changed files (the `require()` style aside). `engine-capabilities.js --check`: regenerated (above).
+    `game-specs-flag.js check`: PASS (9 of 9 leagues, this lane's database). Through the app (this lane's server, the zt_nd_
+    fixture), ALL PASS: the new `check-pool-series.js` (Pool Party made head to head through Episode 7, the records, the seeds and the
+    final through the picks route and the season sync, nobody picking after it; in two teams drawn; with a handicap, the history
+    stamped by a write: every read the engine's own), `check-h2h.js`, `check-teams.js`, `check-knockouts.js`, `check-pool-parts.js`,
+    `check-pool-knockouts.js`, `check-handicaps.js`, `check-lineup-scoring.js`, `check-questions-scoring.js`,
+    `check-answer-knockouts.js`, `check-answer-h2h.js`, `check-stages.js`, `check-mini-stages.js`, `check-coop.js` (each on the code
+    before the review's fixes and again after them), and `check-engine-lab.js --api` (67). `check-new-start-game.js` fails in its own
+    setup (making a show a game: 409 "Who's in it is still missing", master's cast work: Noticed), before any words.
+  - **Golden replays:** `golden.js` (HEAD, C2 part 4a, against the working tree, after the code review's fixes): 7 seasons, 160 games,
+    **19,361 reads, every one the same**; against master's (`--before=master`, production's engine): every one the same.
+  - **Blind replays:** (`blind.js run`, the five seasons, on the final code): **every game played through and over on all five**:
+    Survivor 49 149 of 149, The Challenge 41 117, 40 111, 39 119, The Traitors 4 106 (five more on each than after part 4a: the
+    tracker's newly playing rows p18 to p22, which every season's rules settle); every stand-in call filed, none refused; nothing
+    refused that the app offered, no score that isn't a number; every game's checks ok (seven games of questions on The Challenge's
+    seasons, 3, 2 and 2, noting their wait on early results, playtest finding 20: none of them part 4b's).
+  - **The Survivor 51 rehearsal:** (`season-forward.js rehearse --from=backups/prod-2026-10-30 --scenario=realistic,rough,dst
+    --before=master`, this lane's tree): every invariant holds in all three scenarios, flag off and on read the same (2,856 reads
+    each), and master's engine against this tree's reads the same in every one (2,856 reads, flag off and on).
+  - **The code review** (`/code-review` at high, before the long runs): nine findings. Taken: a team everyone has left stayed in the
+    walk and could be cut in a playing team's place (a team plays an episode only when someone still in the game is on it:
+    `playing`); a seat moved for a later episode escaped the cut of the team it played for (a team's out is every seat's on it then,
+    and someone out adds nothing after: the teams' totals worked out as the walk goes); the table's week a streak for a pool by its
+    points (now that episode's points); `fromRows` running the whole walk to ask yes or no (`knocks`); `ScoringLogic.compute` walking
+    the knockouts again for the teams (the run handed on); the eligibility's end a second copy of the game's (`KnockoutLogic.endsAt`);
+    `TableRow.side` without its `out`; a pool's rank saying only its teams or a handicap read as its streak (now its points). Kept,
+    saying so: the pool's screens ranking it by its streak (U1's: Noticed).
 - **C3. Multipliers on any condition.** One multiplier piece keyed by a condition: how a holding joined (drafted, a pickup,
   the Nth replacement), when it was picked, a captain, a streak, the legs of a parlay. Captain, by when, parlay and confidence
   become uses of it. Game 2's 1x, 0.5x, 0.25x, configurable.
@@ -6663,6 +6774,40 @@ From R1 part 2 (2026-10-30):
   (R3, or whoever next works in Game settings.)
 - **For the hosting notes, at the merge:** `/api/me` (classic's sign-in and every classic load) now sends each league's settings, not its
   whole state (20-40 KB each): less Neon transfer than before. (The main folder: docs/HOSTING.md, with the merge.)
+
+From C2 part 4b (2026-11-06):
+- **The pool's screens still rank it by its streak** (the code review's): `scoreboard-tab.tsx poolKey`, `standings-card.tsx`,
+  `player-score-page.tsx`, `reveal-moment.tsx`'s "where that leaves you" and `season-results-card.tsx`'s champions and its "N streak"
+  sort and crown a pool by its longest streak, whatever its rank; a pool ranked by its points or head to head (the engine's
+  `rankKey`, the Games tab's table: `game-view.ts tableOf`, its number and week now the points) would show another order there. Each
+  should read `StateLogic.rankKey` and the table's number. Nothing plays such a pool until a maker can make one (Start a game's
+  presets are unchanged; the GPT and the engine lab can). (U1, before a pool by its points is offered.)
+- **A team nobody plays for any more, never cut**: a team plays an episode only when someone still in the game is on it then
+  (`Seq.knockouts`' `playing`, as a seat that left the game is in no walk), so a team everyone left is never cut and ranks as still
+  in (by its points), as a seat that left ranks in a seat's knockout game today. The other reading: a team everyone left goes out at
+  the episode they left. Recommended: as built (the seats' rule), the user's to overrule. (The user, at the merge's look.)
+- **Head to head on a pool plays on early results**: a pool's picks are graded on who went home, which an episode's early results
+  carry, so its series (and head to head's week, its teams' points, its handicap) moves with them, as its streak always has; the
+  words say so ("An episode's matchups are settled once it's known who went home"). A draft's wait for final results. Recommended:
+  as built. (The user, with the merge's look.)
+- **A pool's handicap is a draft's 1 to 50 points an episode**, where a pool's right pick is usually 1: "newcomers get a point a
+  week" is `{ points: 1 }`, and 2 would be worth more than any pick. Recommended: keep the range (the maker says the points), and
+  let the wizard (U0) suggest 1 on a pool. (U0.)
+- **A game of questions' teams knocked out, or racing, refused** ("Teams knocked out are a draft's for now: a game of questions works
+  each night's points out from who's out so far, seat by seat"): its walk (`AnswerLogic.walk`) would hand `Seq.knockouts` the
+  teams' totals as functions of who's out, as `KnockoutLogic.teamWalk` does a draft's. (A later C step, or whoever next works in the
+  walk, once someone asks for it.)
+- **Mulligans and a right pick worth 0 refused on a pool ranked by its points** (a wrong pick costs nothing to forgive; nobody would
+  score), and **a pool's rank that says only its teams or a handicap ranks by its points** (`fullSpec`, as a rank that says only its
+  playoffs is head to head): the lane's calls, each the only reading that plays. (The user, with the merge's look.)
+- **A parlay on a split pot** (C2 part 4a's first item) is still the user's; 4b didn't take it. (C6, once the user says.)
+- **`check-new-start-game.js` fails in its own setup**: making ZT Yacht Life a game through the stand-in bot is refused (409 "Who's in
+  it is still missing", `make-game.ts`), since master's cast work (22c020b4, a898437d: a series' cast from the wiki and the listings)
+  asks for a cast the check's stand-in bot (`fake-bot.js`) doesn't give; nothing it reaches is part 4b's (it fails before any game
+  is made or any words read), and the check hasn't changed since 268076aa. Its stand-in should answer the cast question too.
+  (Whoever next works in making a show a game, or the main folder with the merge.)
+- **No prompt changed and no migration** in this part; nothing for the hosting notes (no storage; a game whose teams are knocked
+  out walks its season once more a read than a draft's knockouts alone, as teams of players always did).
 
 From C2 part 4a (2026-11-06):
 - **A parlay on a split pot** (C2 part 3's Noticed item 1, still open): refused ("... splits a pot: a parlay on a split pot waits on

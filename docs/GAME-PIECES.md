@@ -140,6 +140,13 @@ The pool: one person each episode you think survives it.
   night).
 - `second: { fallback }`: a second pick that counts on a night two or more go home; on a night only one goes, `void` or
   `counts`. Only in a pool whose picks stay in.
+- How a pool ranks (`rank.by`): its longest streak (the default), last one standing (with lives), or, since C2 part 4b, its
+  **points** (`total`: a right pick's, a second pick's that counted, less what a buyback cost) or **head to head** on them
+  (`matchups`). Ranked by its points it can be played in **teams of players** and with a **handicap** too (below), all reading the
+  pool's series of totals (`PickEmLogic.series`). Not with lives (they knock players out: "A pool with lives knocks players out, so
+  it ranks by its streak or last one standing"), nor mulligans (a wrong pick costs nothing to forgive), nor a right pick worth 0.
+  "Most right picks wins our Survival Pool" is `{ preset: "survival-pool", rank: { by: "total" } }`: "A point for each right
+  pick. Most points wins."
 
 ### A card, or nothing
 
@@ -373,12 +380,12 @@ How the table is ordered. **`rank.by`**:
 
 | `rank.by` | Who wins | Goes with |
 |---|---|---|
-| `total` | the most points | every game |
+| `total` | the most points | every game (a pool's: a right pick's points, since C2 part 4b; not with lives) |
 | `streak` | the longest run of right picks (ties to the total) | a pool |
 | `standing` | last one standing: whoever's still in, then whoever went out last | a pool with lives; a draft or a game of questions that knocks players out (cuts, lives) |
 | `worth` | cash plus your team at today's prices | a stock market |
 | `coop` | everyone wins or loses together, against the show | a game of questions with lives |
-| `matchups` | head to head each episode, more points wins it; the standings by wins | a draft, or a game of questions (nobody racing, cut or losing a life beside it) |
+| `matchups` | head to head each episode, more points wins it; the standings by wins | a draft, a game of questions or a pool (C2 part 4b: on what each episode's pick earned), with nobody racing, cut or losing a life beside it |
 | `categories`, `roto` | sports formats | the sports branch |
 
 Beside it:
@@ -398,11 +405,19 @@ Beside it:
   `quiet`: `skip` or `tie` (a night nobody scores).
 - **Teams of players** `teams: { of, made, score, unplaced, names }`: the couch split into 2 to 6 teams, `made: draw` (at random
   at the start, the default) or `choose`; a team's points its members' `mean` (the default) or `sum`; someone on no team goes
-  onto the `smallest` or `none`. A draft or a game of questions, ranked by total or head to head. Refused: teams that are the
-  show's own groups (`made: "group"`: the show's groups end at a swap, so ride them with a group slot instead), a team knocked
-  out, a race between teams.
+  onto the `smallest` or `none`. A draft, a game of questions or a pool (C2 part 4b), ranked by total or head to head; a draft's
+  teams also **knocked out** (rank `standing` with its `cut`s on the teams' totals: a cut takes a whole team, everyone on it out
+  then, its points frozen and adding nothing after, an exclusive draft's castaways back in the pool; a team nobody still in the
+  game is on that episode can't be cut, finish a race or be the one left; one team left ends it unless `oneLeft: "plays"`;
+  "Last team standing wins") or **racing** (`race: { to }`: the first team to `to` points ends it after that episode, ranked by
+  the teams' points). "Weekly Lineup in two teams, and the team lowest after Episode 6 is out" is `rank: { by: "standing",
+  teams: { of: 2 }, cut: [{ at: { episode: 6 }, out: 1 }] }`. Refused: a game of questions' teams knocked out or racing (its walk
+  works each night's points out from who's out so far, seat by seat), a pool's teams on its streak or with lives, teams that are the
+  show's own groups (`made: "group"`: the show's groups end at a swap, so ride them with a group slot instead).
 - **A handicap** `handicap: { points, who: "new", newTo: "couch" | "show" }`: 1 to 50 points an episode for newcomers, by the
-  couch's history (the server's, never someone's word). A draft or a game of questions, not co-op or worth.
+  couch's history (the server's, never someone's word). A draft, a game of questions or a pool ranked by its points (C2 part 4b:
+  a point an episode in a pool where a right pick is a point is a lot); not co-op or worth, nor a pool on its streak or who's
+  still standing (it would only break ties).
 
 A week's winner, and ranking by weeks won, is **planned** (C5).
 
@@ -413,7 +428,8 @@ A week's winner, and ranking by weeks won, is **planned** (C5).
 - **A pool** (`score.by: survive`): `lives` 1 to 5 (a wrong pick, or none, costs one; at none you're out; rank `standing`);
   `mulligans` 1 to 3 (your first wrong picks forgiven); `buyback: { times, before, cost }` (someone out before an episode or a
   phase, or any time, is back in from the next episode with one life, `cost` 0 to 20 points off, up to 3 times). Example: "Two
-  lives: a wrong pick costs one. One buyback before Merged starts. One wrong pick forgiven. Last one standing wins."
+  lives: a wrong pick costs one. One buyback before Merged starts. One wrong pick forgiven. Last one standing wins." A pool with
+  lives ranks by its streak or last one standing, never by its points or head to head (C2 part 4b).
 - **A game of questions**: `score.lives` 1 to 5, on the questions `livesOn` names (else every question asked each episode about
   that episode alone): "Guess every elimination winner; a wrong guess knocks you out" is `lives: 1`, rank `standing`.
 - **Co-op** (`rank.by: coop`): the lives are the couch's together, a night costing one unless enough of you saw it coming,
@@ -634,7 +650,11 @@ Every game scores as one sequence of six steps, for each of you and each episode
    goes out (`allOut`); a race won, a life lost, a cut, one left (`knockouts`, `livesNight`, `cutsAfter`, `lastLeft`); a
    matchup won, the standings and the playoffs (`matchups`, on what each episode added: `grown`); a team's points, its members'
    sum or mean (`teamStep`); co-op's night and its lives together (`saved`, `coop`). A game of questions walks the same
-   knockouts as a draft, its totals worked out as the walk goes (someone out takes no share of anyone's points after).
+   knockouts as a draft, its totals worked out as the walk goes (someone out takes no share of anyone's points after). Each of
+   these walks a **series of totals** (each episode, every side's points through it): a draft's is its one walk's, a game of
+   questions' its answers' walk's, a pool's its picks' (since C2 part 4b: `PickEmLogic.series`, each episode the pool has
+   decided, a handicap's points added), and teams of players' their members' on it then (`TeamLogic.series`), so head to head,
+   teams and a handicap play on a pool, and a draft's cuts and race play on its teams' totals (a team's out every member's).
 6. **Rank**: the table in its order (`byTotal`, `byKey`, last one standing's `standingKey`, head to head's `recordKey`), each
    row's total from its parts (`total`); a game in stages' overall from its stages' tables, their points added up (`sum`), their
    places' points, or their wins.
@@ -656,17 +676,19 @@ playoffs, teams of players, co-op's night), and what the server scores outside t
 lines (a game of questions' windows, every way they combine, and its walk: lives, a race, cuts, co-op, head to head and teams
 on it, a handicap; Weekly Calls' right calls and bingo's lines, through each episode; a game in stages' overall). What only the
 server knows (the format's groups, the trivia key, episode facts, the bot's calls) stays out of the league's state: the server
-grades with it and hands over the lines. Each part keeps every game scoring exactly as before unless it says otherwise.
+grades with it and hands over the lines. Each part keeps every game scoring exactly as before unless it says otherwise. Part
+4b adds a pool's series of totals (head to head, teams of players and a handicap on a pool ranked by its points) and the week's
+result on teams' totals (a draft's teams knocked out or racing).
 
 **Playing by placement** (C2 part 4): a spec plays when each piece it names has its place in the sequence, not when it matches
-one of seven shapes (`schema.js` `unplaced`; `typeOf` names the shape the screens read, from its lines):
+one of seven shapes (`schema.js` `noPlace`; `typeOf` names the shape the screens read, from its lines):
 
 | Step | The pieces, and what each needs from the steps before it |
 |---|---|
 | 1. Hold | a draft (its order with its ownership, a draw, or an auction for castaways nobody else can have) counting its whole team, a lineup or its best few; a pick each episode (one, cycling or never repeating); nothing; a bingo card |
 | 2. Lines | a place, the whole team held; moments, a lineup or best few held; a pick staying in (or scoring), a pick held; answers, nothing held, each a question a game of questions plays (or the show's calls alone); bingo lines, a card held. Beside them: a draft's finale predictions |
 | 3 and 4. Multipliers, combine | each checked where it's said (`specProblems`): a captain on a lineup, points by when on moments, parlays on a game of questions; best ball's best n; a question's share, rollover, shrink, wager and the bot's call, combining in the sequence's order (a line's worth, the multipliers, the share) |
-| 5 and 6. The week's result, rank | a running total on any game's (a pool's ranks by its streak or who's still standing); last one standing on a draft's or a game of questions' cuts, or a pool's or a game of questions' lives; head to head on a draft's or a game of questions' totals, with nobody racing, cut or losing a life; worth, a stock market's on a lineup; co-op, a game of questions' lives together; the show's calls and bingo lines, most wins |
+| 5 and 6. The week's result, rank | a running total on any game's (a pool's by its points with no lives: its series of totals, since C2 part 4b; else its streak or who's still standing); last one standing on a draft's or a game of questions' cuts, or a pool's or a game of questions' lives, and a draft's teams on their cuts (part 4b); a race on a draft's or a game of questions' totals, or a draft's teams'; head to head on a draft's, a game of questions' or a pool's totals, with nobody racing, cut or losing a life; teams of players and a handicap on any of those totals (a draft's teams knocked out or racing; a game of questions' and a pool's by their points or head to head); worth, a stock market's on a lineup; co-op, a game of questions' lives together; the show's calls and bingo lines, most wins |
 
 A piece with no place says which and why ("No game plays this way yet: a pool's picks are its game: questions beside them play
 in a stage alongside it"), and every game that played before plays the same way (a corpus of 56,025 specs, every holding,
@@ -681,9 +703,6 @@ tracker row (`docs/ENGINE-CAPABILITIES.md`, p13 to p25) with the step that bring
 - **Pieces with no place yet** (each refused with why: "No game plays this way yet: ...", or our check's own words):
   - a draft's own questions beyond its finale predictions (their answers' lines joining the draft's: C2's last part; until
     then, a stage alongside the draft);
-  - a pool ranked by its points, so a pool head to head, in teams of players, or with a handicap (a pool's series of totals
-    from its picks: C2 part 4b);
-  - a team of players knocked out, or a race between teams (the week's result on a team's totals: C2 part 4b);
   - a pick each episode scored by what they do (C5, pick N each episode);
   - questions beside a pool or a bingo card (they play in a stage alongside it).
 - **Combiners still exclusive**: a wager plays alone (C6, money: the stake, then the multipliers, then the share); a parlay on a
@@ -696,8 +715,12 @@ tracker row (`docs/ENGINE-CAPABILITIES.md`, p13 to p25) with the step that bring
 - **Each episode's questions are the spec's**: nothing writes a new card of questions each week (Weekly Calls' calls and bingo's
   squares are their own games' generators: C7).
 - **Refused for their own reasons** (not a menu: the sequence wouldn't make them sensible): co-op on a draft (a night needs a
-  right or wrong for each of you, which a draft's points don't give), group slots on an Outlast (a group has no place), anything
-  the data can't settle.
+  right or wrong for each of you, which a draft's points don't give), group slots on an Outlast (a group has no place), a pool
+  with lives ranked by its points or head to head (its lives knock players out: it ranks by its streak or last one standing), a
+  handicap or teams on a pool's streak (a streak is one person's; a handicap would only break ties), anything the data can't
+  settle.
+- **For now, a draft's only**: teams knocked out and a race between teams (a game of questions' walk works each night's points
+  out from who's out so far, seat by seat, so its teams would need that walk on the teams' totals: refused, saying so).
 
 The study of the sequence is in the plan (track C, C1's As built); what's built is under C2's.
 
@@ -705,7 +728,7 @@ The study of the sequence is in the plan (track C, C1's As built); what's built 
 
 | Step | The piece | What it opens |
 |---|---|---|
-| C2 | **One scoring sequence**: hold → score each line → multipliers → combine → the week's result → rank (above: parts 1 to 3, every game, built). A spec plays when each piece it names has its place in the sequence (part 4a, built: playing by placement, a shrinking call that's shared, a parlay's legs that roll over, shrink or pay only the only one right) | a pool's series (head to head, teams, a handicap on a pool), teams knocked out and a race between teams (part 4b); a draft's own questions (its last part) |
+| C2 | **One scoring sequence**: hold → score each line → multipliers → combine → the week's result → rank (above: parts 1 to 3, every game, built). A spec plays when each piece it names has its place in the sequence (part 4a, built: playing by placement, a shrinking call that's shared, a parlay's legs that roll over, shrink or pay only the only one right; part 4b, built: a pool's series of totals, so a pool by its points, head to head, in teams and with a handicap; a draft's teams knocked out and racing) | a draft's own questions (its last part, 4c) |
 | C3 | **Multipliers on any condition**: one piece keyed by how a holding joined (drafted, a pickup, the Nth replacement), when it was picked, a captain, a streak, a parlay's legs | captain, by when, parlay and confidence become uses of it; the user's 1x, 0.5x, 0.25x |
 | C4 | **Ownership per holding**: exclusive or shared for the draft, the pickups and the group slots each, and where a replacement comes from | an exclusive draft with shared replacements |
 | C5 | **The week as a result**: pick N each episode without a draft; a week's winner and ranking by weeks won; "only these moments count"; hits counted per objective or per pick; more than six stages, or each episode a round | the user's third game |

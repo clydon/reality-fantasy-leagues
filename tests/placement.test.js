@@ -9,13 +9,22 @@ const assert = require("node:assert/strict");
 const G = require("../src/lib/game/game-spec/index.js");
 const C = require("./fixtures/placement-corpus.js");
 
-/** The combinations C2 part 4 opens, by the corpus' names (hold|score|rank|ask): each moved verdict loses only its problem. */
+/** A moved verdict that loses only its problem: the same shape, the same waits. */
+const only = (was) => `${was[0]}-${was[2]}`;
+/** The combinations C2 part 4 opens, by the corpus' names (hold|score|rank|ask), each with the verdict a spec it moves has now
+ *  (`to`: from its verdict before, and its name). */
 const OPENED = [
   // A shrinking call that's shared (part 4a): each right call at what it was worth when it was made, then shared.
-  { why: "a shrinking call that's shared", test: (n) => /\|(winner-shrink-split|winner-shrink-only|winner-shrink-change-split|shrink-split-second|shrink-only-second)$/.test(n) },
+  { why: "a shrinking call that's shared", test: (n) => /\|(winner-shrink-split|winner-shrink-only|winner-shrink-change-split|shrink-split-second|shrink-only-second)$/.test(n), to: only },
   // A parlay whose legs roll over, shrink or pay only the only one right (part 4a): multiplied as each stands.
-  { why: "a parlay's leg that rolls over or pays only the only one right", test: (n) => /^[^|]+\|answers-parlay\|[^|]+\|(rollover-imm|only-imm)$/.test(n) },
-  { why: "a parlay's leg that shrinks", test: (n) => /^[^|]+\|answers-parlay-once\|[^|]+\|(shrink-second|shrink-only-second)$/.test(n) },
+  { why: "a parlay's leg that rolls over or pays only the only one right", test: (n) => /^[^|]+\|answers-parlay\|[^|]+\|(rollover-imm|only-imm)$/.test(n), to: only },
+  { why: "a parlay's leg that shrinks", test: (n) => /^[^|]+\|answers-parlay-once\|[^|]+\|(shrink-second|shrink-only-second)$/.test(n), to: only },
+  // A pool ranked by its points, head to head, in teams or with a handicap (part 4b: its series of totals, from its picks): one
+  // asking nothing beside its picks plays as a pool; one with questions beside them still waits for them (a stage alongside).
+  { why: "a pool ranked by its points, head to head, in teams or with a handicap", test: (n) => /^pick(-never)?\|survive(-scores)?\|(total|total-teams|total-hc|matchups|matchups-po|matchups-teams|matchups-hc)\|/.test(n), to: (was, n) => (n.endsWith("|none") ? "p--" : only(was)) },
+  { why: "a game in stages with a stage of a pool ranked by its points", test: (n) => /^stages\|(pool-total\|[^|]+|[^|]+\|pool-total)$/.test(n), to: () => "s--" },
+  // Teams of players knocked out by a draft's cuts, or racing (part 4b: the week's result on the teams' totals).
+  { why: "a draft's teams knocked out by its cuts, or racing", test: (n) => /^(snake|blind|draw|auction|market)-[^|]+\|[^|]+\|(standing-cut-teams|total-race-teams)\|/.test(n), to: only },
 ];
 
 test("the placement corpus: every verdict as the seven shapes gave it, but the combinations part 4 opens", () => {
@@ -28,15 +37,19 @@ test("the placement corpus: every verdict as the seven shapes gave it, but the c
     if (now[i] === was[i]) return;
     const open = OPENED.find((o) => o.test(name));
     assert.ok(open, `${name}: ${was[i]} -> ${now[i]}, and part 4 opens nothing there`);
-    // Its refusal is lifted, nothing else: the same shape, the same waits.
-    assert.equal(now[i], `${was[i][0]}-${was[i][2]}`, `${name}: only its problem goes (${open.why})`);
-    moved.push(name);
+    // Its refusal is lifted, nothing else (or, where nothing else holds it back, it plays).
+    assert.equal(now[i], open.to(was[i], name), `${name}: ${open.why}`);
+    moved.push(i);
   });
-  // Each opening moves something (the corpus reaches it), and it's every spec of it that had only that problem.
-  for (const o of OPENED) assert.ok(moved.some(o.test), `the corpus reaches ${o.why}`);
-  assert.equal(moved.length, 169);
-  // What plays: 933 before part 4, and the openings that play now (a game of questions; beside a draft or a pool they still wait).
-  assert.equal(now.filter(C.plays).length, 933 + moved.filter((n) => now[list.findIndex(([x]) => x === n)][0] === "q").length);
+  // Each opening moves something (the corpus reaches it).
+  for (const o of OPENED) assert.ok(moved.some((i) => o.test(list[i][0])), `the corpus reaches ${o.why}`);
+  // Part 4a's 169 (a game of questions' combinations), part 4b's 770: 150 play now (28 pools by their points, 14 games in stages
+  // with a stage of one, 108 drafts whose teams are knocked out or race), and 620 lose only a problem while something else still
+  // waits (questions beside a pool or a draft, a count that doesn't fit, a sport's piece).
+  assert.equal(moved.length, 169 + 770);
+  // What plays: 933 before part 4, and every opening that plays now (none played before: each had a problem or a wait).
+  assert.ok(moved.every((i) => !C.plays(was[i])));
+  assert.equal(now.filter(C.plays).length, 933 + moved.filter((i) => C.plays(now[i])).length);
 });
 
 test("a piece with no place says which, and why", () => {
@@ -60,7 +73,8 @@ test("a piece with no place says which, and why", () => {
   one({ ...P["survival-pool"], ask: [boot] }, "ask", "a pool's picks are its game");
   one({ ...P["weekly-bingo"], ask: [boot] }, "ask", "a bingo card is its game");
   // Steps 5 and 6: the rank on what the lines make.
-  one({ ...P["survival-pool"], rank: { by: "total" } }, "rank.by", "a pool ranks by its streak, or last one standing");
+  // C2 part 4b: a pool plays by its points, but not with lives (they knock players out).
+  one({ ...P["survival-pool"], score: { ...P["survival-pool"].score, lives: 2 }, rank: { by: "total" } }, "rank.by", "a pool with lives knocks players out");
   // A game in stages: each stage's own, where it is.
   const staged = { get: { by: "none" }, count: null, score: { by: "stages" }, rank: { by: "total" }, ask: [], overall: { by: "points" },
     stages: [{ id: "a", name: null, game: { ...P.outlast, span: { from: 1, to: 5 } } }, { id: "b", name: null, game: { ...P.outlast, span: { from: 6, to: null }, ask: [boot] } }] };
