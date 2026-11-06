@@ -366,6 +366,9 @@ export abstract class Sport {
   /** The ESPN leagues it reads (the second half of "basketball/nba"), when not every league of its sport plays the same way
    *  (college basketball plays halves); null for every one. */
   readonly leagues: string[] | null = null;
+  /** How long a game's broadcast usually runs, in minutes: a matchup's episodes' length on the guide (L7; a TV listing's
+   *  episodes have their own). Three hours unless the sport says. */
+  readonly runtime: number = 180;
 
   private byKey: Map<string, StatDef> | null = null;
 

@@ -1148,7 +1148,16 @@ engine track; L brings each sport's data to it. Its screens wait for the UI trac
   game, a team's season, a matchup), on master's Add a team pieces (docs/PLAN-sports-add.md: `espn.schedule`, `matchupSeason`,
   the daily refresh, L1 part 3's, brought to master early). A season of a whole league's slate (several games an episode, for
   pick'em over a week and a season-long league: L4 part 1a's Noticed) is a question for it or a step of its own. The guide's
-  Sports filter (src/new/hub/guide.tsx, "coming soon" today) turns on with the release.
+  Sports filter (src/new/hub/guide.tsx, "coming soon" today) turns on with the release. **Built 2026-11-06 (As built below).** A
+  league's slate is **its own step, L8** (decided in L7: below).
+- **L8. A league's slate** (decided in L7, 2026-11-06: its own step, not L7's). A season made of a whole league's games, several
+  an episode (a day's or a week's: an NFL week, a soccer round), for pick'em over a week's slate, a season-long fantasy league
+  over a league (the default `season` specs' "play someone head to head each week"), categories over a week (L4 part 1b's
+  Noticed) and a playoff's series as a bracket (L4 part 2's Noticed). It isn't L7's because it changes what an episode is: today
+  `season_events` keys one game to an episode and `leagueGames` reads one, so a slate needs several events an episode (each its own
+  part), what the week is (Tuesday to Monday, a soccer round ESPN doesn't number), and the engine's reads of a week's games (the
+  hook's: with L3 part 2), where L7 only finds and adds a team's games one an episode on what L1 part 3 built. Finding one reads
+  ESPN's search's leagues (L7's search finds teams only).
 - **L6. Release:** `sports` merges into master at once (migrations checked against a production backup first), then G3
   teaches the GPT these formats.
 - Its screens (the scorebug, the live box score, the couch's play feed, players organised, the matchup, sync, each format's
@@ -3657,6 +3666,88 @@ little more: HOSTING.md).**
 - **ESPN's status at the end of the 4th quarter** had no period in the NFL recording ("End of 4th Quarter", period missing), so a
   game level after regulation pays the 4th's end at overtime's first play, not when regulation ends. Small; the status's detail could
   say it.
+
+**L7 as built: finding a game (2026-11-06, `sports`, not merged; migration 0303; new ESPN calls and cache rows: HOSTING.md).**
+The data side of adding sports by team (the user, 2026-11-06), as three routes the screens (U0, U1) can read; no screen calls them
+yet. Built on L1 part 3's pieces (master's Add a team plan, docs/PLAN-sports-add.md, brings them to master early: nothing of it is on
+master yet, so its steps 1-3 are what this step built, here).
+- **Team lists** (`espn.ts` readTeams; the provider's new `teams(league)`, cached a week in `sports_cache`): ESPN's
+  `/{sport}/{league}/teams?limit=1000`, the active teams, each with its names (display, short, nickname, name, location: `Team.also`
+  as `readTeam` reads them), abbreviation, first logo and colour (`Team.color`, new), and the league's names. The stand-in
+  (`fake-espn.js`) answers it; `record-espn-teams.js` records one trimmed (`tests/fixtures/espn/<league>-teams.json`: the NFL's,
+  MLB's, the NBA's, the NHL's, college football's 762, men's college basketball's 362, the Premier League's).
+- **Finding a team** (`src/lib/sports/teams.ts`, pure): `wordsOf` (no accents, case or punctuation: "Texas A&M" is "texas am");
+  `teamScore`, how well some words fit a team (its abbreviation or whole name 100, another of its names 96, the start of one 85:
+  "new york y", every word the start of a name's word 70: "york yank", a plural people say: "yanks"); `findTeams`, the teams some
+  words fit best first (the better fit, then pro before college, so the Eagles are Philadelphia's before Boston College's unless the
+  words say "Boston College"; then a school in more of the leagues searched, so a D1 school before a D3 one; then the lists' order),
+  12 at most, each league named as its show is (`leagueName`: "NFL", "NCAA Men's Basketball", never "NCAAM"), and **two teams in
+  any order** as one matchup in their league: split where the words say ("at" and "@" put the second
+  at home, "vs", "v", "versus", "against"), else at the word that fits two teams best ("yankees red sox"), only when each side fits
+  better than the words fit any one team ("red sox" is the Red Sox, never Red Wings against White Sox; "new york y" the Yankees),
+  never at a one-letter side.
+- **A team's schedule** (`teams.ts` scheduleOf): each game from the team's side (home or away, the opponent, its score and result,
+  `calledOff` for a game over without being played: ESPN lists a postponed game as over and not completed, its makeup an event of
+  its own), its series (games in a row against one opponent within three days, or a postseason series: `oneSeries`, pickMatchup's
+  rule, now in matchup.ts and shared by both), each with its home, dates and state (past, now, coming), a game called off in none; the next to
+  play; `against` for their meetings with one opponent. `seasonName`: "Eagles, 2026 season", "76ers, 2026-27 season" (ESPN's year
+  for a season across two is the year it ends in; the years in the East).
+- **The server** (`src/lib/server/sports/find.ts`): `teamLeagues` (each team sport's own leagues: the NFL, MLB, the NBA, the WNBA,
+  the NHL, college football, college baseball and both college basketballs) plus any league a matchup's been made in
+  (`shows.sports_league`); `searchTeams` (the lists, held 10 minutes in a warm server; ESPN's own search when they find no one, for a
+  team sport's league, each hit from its league's list when there is one; the first three teams' and a matchup's next game from
+  their schedules); `seasonGames` (the schedule now, and its regular season or postseason besides when now's is another stage: one
+  stage at a time on ESPN); `teamSchedule` (its games, its series still to finish, its next, and what adding makes: each game, each
+  series, its regular season or with `against` their meetings, each with the season already made for it); `addGames` (one game or a
+  few named, 1 to 30, a team's regular season, `whole: 'season'`, up to 200, or their meetings, `whole: 'meetings'`: made or found
+  through `matchupSeason`, then followed; a league spelled in capitals the same league; 404 for no such team or a game not theirs,
+  400 for an ask that isn't one or a game called off, 429 past ten new ones a person a day, `MATCHUPS_A_DAY` as add-show's
+  `NEW_SHOWS_A_DAY`, finding one already made free: a soft cap, checked before it's made, as add-show's is). No add asks a summary
+  for a game already played (nobody can answer for it now; it would be up to 30 calls in the request).
+- **Routes:** `GET /api/sports/search?q=` (open signed out, edge-cached an hour: `{ teams, matchup }`, each with `next`), `GET
+  /api/sports/schedule?league=&team=[&against=]` (open, edge-cached 10 minutes: `TeamSchedule`), `POST /api/sports/add` (signed in:
+  `{ league, team, games }`, `{ league, team, whole: 'season' }` or `{ league, team, whole: 'meetings', against }`; answers `{
+  seasonId, made, name, games }`). Each reads the stand-in ESPN under `next dev` from `x-gys-sports`, as the other sports routes do.
+- **`matchupSeason`** (L1 part 3's): the three gotchas of master's Add a team plan fixed here: `episode_count` is its games (the
+  guide no longer invents a weekly episode after the last), each episode's `runtime_min` the sport's (`Sport.runtime`, new: three
+  hours unless the sport says; basketball 150, college basketball 120, football 195, college football 210, hockey 150, soccer 120),
+  and its name the matchup's (it was already `show_seasons.name`; screens that print the show and its number, "NBA 3", are U0's and
+  U1's to read the name). Also a `key` of its own (a team's season: `seasonKey`, "espn:baseball/mlb:season:10:2026", never its
+  games, so it stays short), `pastLines: false` (L7's adds: no summary for a game already played), its episodes and links inserted at once (up to 200),
+  and found, the games it was made with (`sports_matchups.events`: a team's season keeps the games listed when it was made).
+- **Migration 0303:** a matchup takes 1 to 200 games (it was 30).
+- **Checks:** `tests/sports-find.test.js` (9: the lists, the words, the Eagles, two teams, the Eagles' and Yankees' schedules on
+  real recordings, the names and keys, the runtimes); `scripts/dev-test/check-find-game.js` (35, the stand-in ESPN and this lane's
+  database: the search, ESPN's search as the fallback, a list kept a week, the schedule and its adds, a game called off, adding a
+  game, the same again, a 35-game season, their meetings, a series, the refusals, a league in capitals, the day's cap); `sports-live.test.js` and `check-live-clock.js` read no
+  team list as a recorded game. check-matchup.js, check-finals.js and check-live-event.js pass as before.
+- **The master sync before it** (`c0f60c2e`, master `2432a70b`: C3, C4, C5 and C4b): both sides kept in schema.js (head to head and
+  weeks won on C5's `perEpisode`, categories still read apart), describe.js, GAME-PIECES.md's rank table and the placement corpus (C5
+  opened two picks each episode ranked roto to a wait alone; on this branch a roto rank on no categories is refused, L4 part 1b's
+  CLOSED, so those 10 stay as they were: 215 of C5's 225 move here). One unit test fails on this lane's database, as on master's code
+  alone (checked on `224247fa`): "every league in the local database round-trips through its spec", on a local shadow Survival Pool
+  carrying `eventPoints` (C5 made them a pool's field, so rebuilt from its spec the pool drops them, and the test's points read lists
+  ids from the settings' keys; a pool's points are 0 either way). For the engine lane or the main session: master's, not this step's.
+
+**L7 noticed, not fixed:**
+- **Names ESPN's lists don't have** ("sixers", "niners", "Man U") are found only through ESPN's own search, and only when the lists
+  find no one: "miami" lists the Dolphins, Heat, Marlins and Hurricanes, never Inter Miami (MLS isn't a searched list until a matchup's
+  made in it). A soccer league's clubs are searched by list only once someone's added one of its games. A set of the soccer leagues
+  people follow is the user's call (universal, not curated, says no list of ours).
+- **College lists are every division** (college football's 762: FBS to NAIA): a D1 school ranks first by being in more of the
+  searched leagues, not by its division (ESPN's list has no group). ESPN's scoreboards still list only their default selection of
+  college games (master's plan's Later).
+- **A team's season doesn't grow:** it's the regular season as listed when it's added, keyed by the team and its season. The
+  postseason is a matchup of its own once listed, and a makeup game listed later (a new event id) isn't added; the same for a game
+  in a matchup that's postponed (its makeup isn't in it): L3 part 3b's postponed games, and master's plan's "Follow a team".
+- **A team's season's cast is every opponent's roster** (castFromEvents: ~30 roster calls and ~780 people for an MLB team's): fine
+  once, heavy for the Players tab. Its own roster first, each opponent's as its games near, when the screens show it.
+- **A search reads up to four schedules from Neon** for the next games (~100 KB an MLB team's): held in no memory, unlike the lists.
+  A smaller "next game" row or a memo if searches get busy (HOSTING.md has the numbers).
+- **ESPN's schedule shows a postponed game** (the Yankees' 2026: four, "Postponed", state post, not completed; each makeup a new event
+  id, in a later series). That's the schedule's view only: L3 part 3b still wants a postponement recorded live (a game's summary and
+  scoreboard as it's called off).
+- **A league by name** ("NFL", "Premier League") finds no team: L8's slate would be what it adds.
 
 **Open, from the sports plan:** head-to-head's schedule over a span, and playoffs; whether a sport's moves follow Weekly
 Lineup's waivers or need their own rhythm for daily sports; what a live call is worth, and how fast they open and close;

@@ -31,7 +31,7 @@ const MIN = 60_000;
 const FIXTURES = path.join(__dirname, "..", "..", "tests", "fixtures", "espn");
 const files = args.games
   ? String(args.games).split(",").map((g) => `${g.replace(/\.json$/, "")}.json`)
-  : fs.readdirSync(FIXTURES).filter((f) => f.endsWith(".json") && !f.includes("schedule") && !JSON.parse(fs.readFileSync(path.join(FIXTURES, f), "utf8")).board); // a field's (golf's board and leaderboard) has no timed plays
+  : fs.readdirSync(FIXTURES).filter((f) => f.endsWith(".json") && !f.includes("schedule") && !f.endsWith("-teams.json") && !JSON.parse(fs.readFileSync(path.join(FIXTURES, f), "utf8")).board); // a field's (golf's board and leaderboard) has no timed plays
 
 const iso = (t) => new Date(t).toISOString().slice(11, 19);
 

@@ -1,7 +1,7 @@
 import { readOdds, type EspnOdds } from "@/lib/sports/matchup";
 // One copy of the sports' classes (the index's): `instanceof` reads them alike wherever they're imported from.
 import { FieldSport, LiveEvent, TeamSport, feedOf, idOf, sportOf, storedCard, storedField, storedGame, str, type BoutAnswer, type BoutSport, type EspnSummary, type EventFeed, type FieldAnswer, type Play, type StoredCard, type StoredField } from "@/lib/sports";
-import { SportsUnavailable, type LeagueName, type BoxScore, type Competitor, type EventState, type Found, type League, type Person, type RosterPlayer, type SeasonLine, type SeasonStage, type SportsEvent, type SportsProvider, type StatTable, type Team } from "./types";
+import { SportsUnavailable, type LeagueName, type LeagueTeams, type BoxScore, type Competitor, type EventState, type Found, type League, type Person, type RosterPlayer, type SeasonLine, type SeasonStage, type SportsEvent, type SportsProvider, type StatTable, type Team } from "./types";
 
 // ESPN (docs/PLAN-sports-data.md, docs/HOSTING.md): free, no key, but unofficial and undocumented, with no stated rate limit or
 // terms, so it's asked little (every call is cached: cache.ts) and credited in Credits. Three hosts:
@@ -32,6 +32,8 @@ interface RawTeam {
   abbreviation?: string;
   logo?: string;
   logos?: { href?: string }[];
+  color?: string;
+  isActive?: boolean;
 }
 interface RawAthlete {
   id?: string | number;
@@ -232,6 +234,21 @@ export function readSearch(raw: { results?: { type?: string; contents?: { uid?: 
   return out;
 }
 
+/**
+ * A league's teams (site.api …/{sport}/{league}/teams?limit=1000; L7): the active ones, each with its names, logo and colour, and
+ * the league's names; null when the answer has no league (ESPN answers an unknown league's list with none).
+ */
+export function readTeams(league: string, raw: { sports?: { leagues?: (RawLeague & { shortName?: string; teams?: { team?: RawTeam }[] })[] }[] } | null): LeagueTeams | null {
+  const l = raw?.sports?.[0]?.leagues?.[0];
+  if (!l) return null;
+  const name = str(l.name) ?? str(l.abbreviation);
+  const teams = (l.teams ?? [])
+    .map((x) => x.team)
+    .filter((t): t is RawTeam => !!t && t.isActive !== false && !!idOf(t.id))
+    .map((t) => ({ ...readTeam(t), color: str(t.color) }));
+  return { league, name: name ? { name, short: str(l.abbreviation) ?? str(l.shortName) } : null, teams };
+}
+
 /** A team's roster (site.api …/teams/{id}/roster): grouped by position (baseball) or one list; players only (its coaches are separate). */
 export function readRoster(raw: { athletes?: (RawAthlete & { position?: unknown; items?: RawAthlete[] })[] } | null): RosterPlayer[] {
   const out: RosterPlayer[] = [];
@@ -425,6 +442,9 @@ export function espn(base?: string): SportsProvider {
       const q = [opts.season ? `season=${opts.season}` : "", opts.type ? `seasontype=${opts.type}` : ""].filter(Boolean).join("&");
       const raw = await get<{ events?: RawEvent[] }>(`${site}/apis/site/v2/sports/${path(league)}/teams/${encodeURIComponent(team)}/schedule${q ? `?${q}` : ""}`);
       return raw ? readScoreboard(league, raw).sort((a, b) => (a.at ?? "").localeCompare(b.at ?? "")) : null;
+    },
+    async teams(league) {
+      return readTeams(league, await get(`${site}/apis/site/v2/sports/${path(league)}/teams?limit=1000`));
     },
     async roster(league, team) {
       const raw = await get<Parameters<typeof readRoster>[0]>(`${site}/apis/site/v2/sports/${path(league)}/teams/${encodeURIComponent(team)}/roster`);

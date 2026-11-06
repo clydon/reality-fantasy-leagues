@@ -113,6 +113,7 @@ export class Hockey extends TeamSport {
   ];
   readonly stats = STATS;
   readonly periods: Periods = { word: "period", plural: "periods", regulation: 3, extra: "overtime" };
+  readonly runtime: number = 150;
   readonly lock: LockCadence = "daily";
   // College hockey ends a tied game otherwise (a tie, or a shootout that isn't a goal): L5, with college.
   readonly leagues = ["nhl"];

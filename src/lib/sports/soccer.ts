@@ -233,6 +233,7 @@ export class Soccer extends TeamSport {
   ];
   readonly stats = STATS;
   readonly periods: Periods = { word: "half", plural: "halves", regulation: 2, extra: "extra time" };
+  readonly runtime: number = 120;
   // FPL's deadline is per gameweek (a round of matches, about a week); ESPN's soccer scoreboards don't number rounds.
   readonly lock: LockCadence = "weekly";
 

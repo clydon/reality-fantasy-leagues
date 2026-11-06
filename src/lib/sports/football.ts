@@ -296,6 +296,7 @@ export class Football extends TeamSport {
   ];
   readonly stats = FOOTBALL_STATS;
   readonly periods: Periods = { word: "quarter", plural: "quarters", regulation: 4, extra: "overtime" };
+  readonly runtime: number = 195;
   readonly lock: LockCadence = "weekly";
   // College football's play-by-play is written otherwise (jersey numbers, "pass complete ... caught at", "QB hurried by") and
   // its box score has no sacks taken or targets: CollegeFootball (college-football.ts).

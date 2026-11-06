@@ -19,7 +19,7 @@ const FIXTURES = path.join(__dirname, "fixtures", "espn");
 // The team sports' recorded games: a field's (golf's board and leaderboard) has no plays in time to replay (tests/sports-golf.test.js).
 const games = fs
   .readdirSync(FIXTURES)
-  .filter((f) => !f.includes("schedule"))
+  .filter((f) => !f.includes("schedule") && !f.endsWith("-teams.json"))
   .map((f) => ({ file: f, summary: JSON.parse(fs.readFileSync(path.join(FIXTURES, f), "utf8")) }))
   .filter((g) => !g.summary.board);
 const load = (name) => games.find((g) => g.file.startsWith(name)).summary;

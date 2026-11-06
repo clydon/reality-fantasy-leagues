@@ -3,6 +3,9 @@
 //   GET /apis/search/v2?query=        teams and leagues whose names hold every word asked (case-insensitive), as ESPN's search
 //                                     answers: { results: [{ type: "team" | "league", contents: [...] }] }
 //   GET /apis/site/v2/sports/:sport/:league/scoreboard?dates=YYYYMMDD   that league's events starting that day in the East
+//   GET /apis/site/v2/sports/:sport/:league/teams                       that league's teams (L7: finding a game by team), as ESPN's
+//                                     list answers ({ sports: [{ leagues: [{ name, abbreviation, teams: [{ team }] }] }] }), each
+//                                     with its `color` and `logo` when given; 404 for a league with no teams and no name
 //   GET /apis/site/v2/sports/:sport/:league/teams/:id/roster            a team's players (`roster` on the team; [] for none, as
 //                                     ESPN's AFL rosters come back), its manager apart (ESPN's `coach`), else 404
 //   GET /apis/site/v2/sports/:sport/:league/teams/:id/schedule          a team's games in that league (only the stage asked, with
@@ -15,10 +18,12 @@
 //   GET /v2/sports, /v2/sports/:sport/leagues                           the index, as refs
 //
 //   const espn = await require("./fake-espn").start({ teams, leagues, events, seasons });
-//   // teams:   [{ id, name, short, location, abbreviation, league: "baseball/zt-mlb", roster?: [{ id, name, position, headshot? }] }]
-//   // leagues: [{ league: "baseball/zt-little", name: "ZT Little League World Series" }]
+//   // teams:   [{ id, name, short, location, abbreviation, league: "baseball/zt-mlb", color?, logo?,
+//   //             roster?: [{ id, name, position, headshot? }] }]
+//   // leagues: [{ league: "baseball/zt-little", name: "ZT Little League World Series", short? }]
 //   // events:  [{ league, id, at (ISO), home: teamId, away: teamId, state: "pre" | "in" | "post", score?: [home, away], note?,
 //   //             stage?: "pre" | "regular" | "post" (its season's, as ESPN's slug says it; "regular" unless said),
+//   //             season? (ESPN's year for it; the year it starts in, UTC, unless said), off? (called off: over, not completed),
 //   //             odds?: { details: "ZPH -2.5", overUnder: 237.5, spread: -2.5, provider? } (on the scoreboard while "pre"),
 //   //             box?: { [teamId]: { labels: ["D", "G"], rows: [{ id, name, position, stats: ["21", "2"] }] }
 //   //                            or { tables: [{ name: "batting", labels, rows }, { name: "pitching", labels, rows }] } } }]
@@ -72,13 +77,13 @@ async function start(opts = {}) {
   const SLUGS = { pre: [1, "preseason"], regular: [2, "regular-season"], post: [3, "post-season"] };
   const seasonOf = (e) => {
     const [type, slug] = SLUGS[e.stage || "regular"];
-    return { year: new Date(e.at).getUTCFullYear(), type, slug };
+    return { year: e.season ?? new Date(e.at).getUTCFullYear(), type, slug };
   };
   /** A game's line as ESPN writes it (a scoreboard's odds[], a summary's pickcenter[]). */
   const line = (o) => ({ provider: { name: o.provider || "ZT Book", displayName: o.provider || "ZT Book" }, details: o.details, overUnder: o.overUnder, spread: o.spread });
   /** An event as a scoreboard lists it; a game still to play with its line (ESPN drops it once it starts). */
   const rawEvent = (e) => {
-    const status = { type: { state: e.state, completed: e.state === "post" } };
+    const status = { type: { state: e.state, completed: e.state === "post" && !e.off } };
     if (e.field) {
       const competitors = e.field.map((p, i) => ({ order: i + 1, athlete: { id: p.id, displayName: p.name, ...(p.headshot ? { headshot: { href: p.headshot } } : {}) } }));
       return { id: e.id, date: e.at, name: e.name, shortName: e.name, season: seasonOf(e), status, competitions: [{ id: e.id, date: e.at, status, competitors }] };
@@ -134,6 +139,15 @@ async function start(opts = {}) {
       const events = espn.events.filter((e) => e.league === league && eastern(Date.parse(e.at)).date === day).map(rawEvent);
       return send(200, { leagues: [{ slug: m[2] }], events });
     }
+    if ((m = u.pathname.match(/^\/apis\/site\/v2\/sports\/([^/]+)\/([^/]+)\/teams$/))) {
+      // A league's teams, as ESPN's list answers (L7).
+      const league = `${m[1]}/${m[2]}`;
+      const named = espn.leagues.find((l) => l.league === league);
+      const teams = espn.teams.filter((t) => t.league === league);
+      if (!teams.length && !named) return send(404, { code: 404 });
+      const team = (t) => ({ ...rawTeam(t), isActive: true, ...(t.color ? { color: t.color } : {}), ...(t.logo ? { logos: [{ href: t.logo }] } : {}) });
+      return send(200, { sports: [{ leagues: [{ name: named?.name ?? league, abbreviation: named?.short ?? m[2].toUpperCase(), slug: m[2], teams: teams.map((t) => ({ team: team(t) })) }] }] });
+    }
     if ((m = u.pathname.match(/^\/apis\/site\/v2\/sports\/([^/]+)\/([^/]+)\/teams\/([^/]+)\/schedule$/))) {
       // A team's games, as ESPN's schedule lists them: its season's stage in `seasonType`, only the stage asked (seasontype).
       const league = `${m[1]}/${m[2]}`;
@@ -169,7 +183,7 @@ async function start(opts = {}) {
       }
       const e = espn.events.find((x) => x.league === `${m[1]}/${m[2]}` && x.id === u.searchParams.get("event"));
       if (!e || !e.box) return send(404, { code: 404 });
-      const status = { type: { state: e.state, completed: e.state === "post" } };
+      const status = { type: { state: e.state, completed: e.state === "post" && !e.off } };
       const side = (id, homeAway, score) => ({ homeAway, team: rawTeam(teamOf(id)), score: score == null ? "0" : String(score) });
       const players = Object.entries(e.box).map(([id, t]) => ({
         team: rawTeam(teamOf(id)),

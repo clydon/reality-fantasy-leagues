@@ -138,6 +138,7 @@ export class Basketball extends TeamSport {
   readonly statGroups = [{ key: BOX, label: "Box score" }];
   readonly stats = STATS;
   readonly periods: Periods = QUARTERS;
+  readonly runtime: number = 150;
   readonly lock: LockCadence = "daily";
   // College basketball is its own feed: CollegeBasketball, below.
   readonly leagues = ["nba", "wnba"];
@@ -326,6 +327,7 @@ export class CollegeBasketball extends Basketball {
   readonly name: string;
   readonly stats = STATS.filter((s) => s.key !== "PM");
   readonly periods: Periods;
+  readonly runtime: number = 120;
   readonly leagues: string[];
 
   constructor(league: string, name: string, periods: Periods = QUARTERS) {

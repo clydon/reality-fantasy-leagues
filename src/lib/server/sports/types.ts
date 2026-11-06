@@ -33,6 +33,15 @@ export interface Team {
   also: string[];
   abbreviation: string | null;
   logo: string | null;
+  /** Its colour as the provider gives it (ESPN's hex, without the #), when a team list said it (L7). */
+  color?: string | null;
+}
+
+/** A league's teams (L7: finding a game by team), with the league's names when the provider said them. */
+export interface LeagueTeams {
+  league: string;
+  name: LeagueName | null;
+  teams: Team[];
 }
 
 export interface Person {
@@ -177,6 +186,8 @@ export interface SportsProvider {
    * the postseason); without them, the provider's season and stage now.
    */
   schedule(league: string, team: string, opts?: { season?: number; type?: number }): Promise<SportsEvent[] | null>;
+  /** L7: a league's teams (the active ones), or null when the provider has no such league or no list for it. */
+  teams(league: string): Promise<LeagueTeams | null>;
   /** A team's players, or null when the provider has no such team. Can be empty (AFL's rosters on ESPN are). */
   roster(league: string, team: string): Promise<RosterPlayer[] | null>;
   /** Each team's player lines in a game, in the provider's own columns, or null when it has none. */

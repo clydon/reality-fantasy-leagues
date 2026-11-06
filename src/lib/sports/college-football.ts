@@ -137,6 +137,7 @@ export class CollegeFootball extends Football {
   readonly name = "College football";
   readonly stats = STATS;
   readonly leagues: string[] = ["college-football"];
+  readonly runtime: number = 210;
   protected readonly boxTables = BOX;
   protected readonly teamTotals = TEAM;
 

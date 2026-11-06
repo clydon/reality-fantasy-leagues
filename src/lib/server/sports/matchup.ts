@@ -70,23 +70,27 @@ export async function makeMatchup(opts: {
 
 /**
  * These games' season: the one already made for them (by their key), else a new season of the league's show with an episode
- * per game, each linked to its event; their facts kept either way. `name` names a new one (matchupName's, by default).
+ * per game, each linked to its event; their facts kept either way. `name` names a new one (matchupName's, by default). `key`
+ * keys it otherwise than by its games (L7: a team's season, matchup.ts seasonKey). `pastLines: false` leaves a game already
+ * played without its line (L7: a team's season added mid-season, whose played games nobody can answer for, never asks a
+ * summary each).
  */
 export async function matchupSeason(
   provider: SportsProvider,
   league: string,
   games: SportsEvent[],
-  opts: { name?: string; userId?: string | null; providers?: SportsProvider[]; now?: Date; prefix?: string; cast?: boolean } = {}
+  opts: { name?: string; key?: string; pastLines?: boolean; userId?: string | null; providers?: SportsProvider[]; now?: Date; prefix?: string; cast?: boolean } = {}
 ): Promise<Matchup> {
   const now = opts.now ?? new Date();
   const sorted = [...games].sort((a, b) => (a.at ?? "").localeCompare(b.at ?? ""));
   const ids = sorted.map((g) => g.id);
-  const key = `${opts.prefix ?? ""}${matchupKey(provider.id, league, ids)}`;
+  const key = `${opts.prefix ?? ""}${opts.key ?? matchupKey(provider.id, league, ids)}`;
   // Their lines first (outside the transaction: these may ask the provider), and the league's name a day's scoreboard gave.
-  const lined = await withOdds(provider, league, sorted, now.getTime());
+  const lined = await withOdds(provider, league, sorted, now.getTime(), pool, opts.pastLines !== false);
   await storeEvents(provider.id, league, lined);
-  const found = await pool.query("SELECT m.season_id, ss.name FROM sports_matchups m JOIN show_seasons ss ON ss.id = m.season_id WHERE m.key = $1", [key]);
-  if (found.rows[0]) return { seasonId: found.rows[0].season_id, made: false, name: found.rows[0].name ?? "", games: ids };
+  // Found: its games as made (a team's season keyed by the team keeps the games listed when it was made).
+  const found = await pool.query("SELECT m.season_id, m.events, ss.name FROM sports_matchups m JOIN show_seasons ss ON ss.id = m.season_id WHERE m.key = $1", [key]);
+  if (found.rows[0]) return { seasonId: found.rows[0].season_id, made: false, name: found.rows[0].name ?? "", games: found.rows[0].events };
 
   const name = (opts.name ?? matchupName(sorted)).slice(0, 120);
   const c = await pool.connect();
@@ -97,19 +101,28 @@ export async function matchupSeason(
     await c.query("SELECT id FROM shows WHERE id = $1 FOR UPDATE", [showId]);
     const { rows: n } = await c.query("SELECT COALESCE(max(season_number), 0) + 1 AS n FROM show_seasons WHERE show_id = $1", [showId]);
     const dates = sorted.map((g) => g.at).filter((x): x is string => !!x);
+    // As many episodes as games (the guide never invents one after the last: schedule.ts), each the sport's usual length.
     const { rows: s } = await c.query(
-      `INSERT INTO show_seasons (show_id, season_number, name, status, premiere_date, finale_date) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-      [showId, n[0].n, name, matchupStatus(sorted, now.getTime()), dates[0] ? easternDay(new Date(dates[0])) : null, dates.length ? easternDay(new Date(dates[dates.length - 1])) : null]
+      `INSERT INTO show_seasons (show_id, season_number, name, status, premiere_date, finale_date, episode_count) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+      [showId, n[0].n, name, matchupStatus(sorted, now.getTime()), dates[0] ? easternDay(new Date(dates[0])) : null, dates.length ? easternDay(new Date(dates[dates.length - 1])) : null, sorted.length]
     );
     seasonId = s[0].id as string;
-    for (const [i, g] of sorted.entries()) {
-      await c.query(`INSERT INTO season_episodes (season_id, number, air_at, title, note, source) VALUES ($1, $2, $3, $4, $5, 'listing')`, [seasonId, i + 1, g.at, g.name.slice(0, 200) || null, g.note?.slice(0, 200) ?? null]);
+    const runtime = sportOf(league)?.runtime ?? null;
+    // Every episode and its link at once (a team's season is up to 200 games).
+    const rows = sorted.map((g, i) => {
       const sides = g.competitors.map((x) => x.team).filter((t) => !!t);
-      await c.query(
-        `INSERT INTO season_events (season_id, episode, provider, league, event_id, part, name, starts_at, teams) VALUES ($1, $2, $3, $4, $5, NULL, $6, $7, $8::jsonb)`,
-        [seasonId, i + 1, provider.id, league, g.id, g.name.slice(0, 200) || null, g.at, sides.length >= 2 ? JSON.stringify(sides.map((t) => ({ id: t!.id, name: t!.name }))) : null]
-      );
-    }
+      return { n: i + 1, at: g.at, title: g.name.slice(0, 200) || null, note: g.note?.slice(0, 200) ?? null, id: g.id, teams: sides.length >= 2 ? sides.map((t) => ({ id: t!.id, name: t!.name })) : null };
+    });
+    await c.query(
+      `INSERT INTO season_episodes (season_id, number, air_at, title, note, source, runtime_min)
+       SELECT $1, r.n, r.at, r.title, r.note, 'listing', $3 FROM jsonb_to_recordset($2::jsonb) AS r(n int, at timestamptz, title text, note text)`,
+      [seasonId, JSON.stringify(rows), runtime]
+    );
+    await c.query(
+      `INSERT INTO season_events (season_id, episode, provider, league, event_id, part, name, starts_at, teams)
+       SELECT $1, r.n, $2, $3, r.id, NULL, r.title, r.at, r.teams FROM jsonb_to_recordset($4::jsonb) AS r(n int, at timestamptz, title text, id text, teams jsonb)`,
+      [seasonId, provider.id, league, JSON.stringify(rows)]
+    );
     // Every episode linked already: the daily job's linking (season.ts) has nothing to look for (it looks only at seasons with
     // an episode still to link); its next look, a month after the last game, is only for show.
     const last = dates.length ? Date.parse(dates[dates.length - 1]) : now.getTime();
@@ -121,8 +134,8 @@ export async function matchupSeason(
     if (!rowCount) {
       // Someone asked for the same games a moment ago: theirs.
       await c.query("ROLLBACK");
-      const again = await pool.query("SELECT m.season_id, ss.name FROM sports_matchups m JOIN show_seasons ss ON ss.id = m.season_id WHERE m.key = $1", [key]);
-      return { seasonId: again.rows[0].season_id, made: false, name: again.rows[0].name ?? "", games: ids };
+      const again = await pool.query("SELECT m.season_id, m.events, ss.name FROM sports_matchups m JOIN show_seasons ss ON ss.id = m.season_id WHERE m.key = $1", [key]);
+      return { seasonId: again.rows[0].season_id, made: false, name: again.rows[0].name ?? "", games: again.rows[0].events };
     }
     await c.query("COMMIT");
   } catch (e) {
@@ -162,9 +175,10 @@ async function leagueShow(db: Queryable, provider: string, league: string, prefi
  * The games with their lines, as far as the provider has them: a game still to play within the week from its day's scoreboard
  * (the schedule has none; a game further off has none posted yet, and the daily job looks once it's within the week), a finished
  * one from its summary (ESPN's pickcenter: the box score stats.ts reads, cached for good), skipped for a game whose line is
- * already kept. A line is only a default: the provider not answering leaves it out, never the game.
+ * already kept (`past` false: never a finished one's). A line is only a default: the provider not answering leaves it out, never
+ * the game.
  */
-async function withOdds(p: SportsProvider, league: string, games: SportsEvent[], now: number, db: Queryable = pool): Promise<SportsEvent[]> {
+async function withOdds(p: SportsProvider, league: string, games: SportsEvent[], now: number, db: Queryable = pool, past = true): Promise<SportsEvent[]> {
   const { rows } = await db.query("SELECT event_id FROM sports_events WHERE provider = $1 AND league = $2 AND event_id = ANY($3::text[]) AND odds IS NOT NULL", [p.id, league, games.map((g) => g.id)]);
   const have = new Set(rows.map((r) => r.event_id as string));
   const out: SportsEvent[] = [];
@@ -179,7 +193,7 @@ async function withOdds(p: SportsProvider, league: string, games: SportsEvent[],
         if (!g.leagueName && day?.leagueName) g = { ...g, leagueName: day.leagueName };
       }
       // A team game's (a field's or a card's event has no summary, nor a line).
-      else if (g.final && g.competitors.some((c) => c.team)) odds = (await p.boxScore(league, g.id))?.odds ?? null;
+      else if (past && g.final && g.competitors.some((c) => c.team)) odds = (await p.boxScore(league, g.id))?.odds ?? null;
     } catch (e) {
       if (!(e instanceof SportsUnavailable)) throw e;
     }

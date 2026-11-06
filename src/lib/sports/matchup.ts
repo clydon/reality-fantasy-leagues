@@ -17,6 +17,8 @@ export interface Game {
   final: boolean;
   /** Its season's stage: the regular season, the postseason, the preseason; null when the provider doesn't say. */
   stage: "pre" | "regular" | "post" | null;
+  /** A note the provider puts on it ("World Series - Game 1"). */
+  note?: string | null;
   competitors: {
     team: { id: string; name: string; also?: string[]; abbreviation?: string | null } | null;
     home: boolean | null;
@@ -69,12 +71,20 @@ export type MatchupAsk =
 
 /** Games of one regular-season series are this close together, at most (a four-game set over four days; never a home-and-home
  *  weeks apart). A postseason series is its games against them in a row, however far apart (a Final's days off). */
-const SERIES_GAP_MS = 3 * 86_400_000;
+export const SERIES_GAP_MS = 3 * 86_400_000;
 
 const plays = (g: Game, team: string) => g.competitors.some((c) => c.team?.id === team);
 const opponent = (g: Game, team: string) => g.competitors.find((c) => c.team && c.team.id !== team)?.team?.id ?? null;
 const atHome = (g: Game, team: string) => g.competitors.some((c) => c.team?.id === team && c.home === true);
 const ms = (g: Game) => (g.at ? Date.parse(g.at) : NaN);
+
+/** Whether two games, one after the other, are one series for `team`: against the same opponent, both in the postseason (a
+ *  Final's days off) or within SERIES_GAP_MS (L7's schedule groups by it too: src/lib/sports/teams.ts scheduleOf). */
+export function oneSeries(a: Game, b: Game, team: string): boolean {
+  const oa = opponent(a, team);
+  if (!oa || oa !== opponent(b, team)) return false;
+  return (a.stage === "post" && b.stage === "post") || Math.abs(ms(b) - ms(a)) <= SERIES_GAP_MS;
+}
 
 /** The games `ask` means, from `team`'s schedule, in order; empty when none fit. */
 export function pickMatchup(team: string, schedule: Game[], ask: MatchupAsk): Game[] {
@@ -91,7 +101,7 @@ export function pickMatchup(team: string, schedule: Game[], ask: MatchupAsk): Ga
   // A series: the next game against them still to play, and the games in a row with it against them, close together.
   const i = mine.findIndex((g) => toPlay(g) && opponent(g, team) === ask.against);
   if (i < 0) return [];
-  const together = (a: Game, b: Game) => opponent(a, team) === ask.against && opponent(b, team) === ask.against && ((a.stage === "post" && b.stage === "post") || Math.abs(ms(b) - ms(a)) <= SERIES_GAP_MS);
+  const together = (a: Game, b: Game) => opponent(a, team) === ask.against && oneSeries(a, b, team);
   let first = i;
   let last = i;
   while (first > 0 && together(mine[first - 1], mine[first])) first--;
@@ -120,6 +130,15 @@ export function leagueName(league: string, named?: { name: string; short: string
 /** A matchup's key: its games, whoever asked and in whatever order ("espn:basketball/nba:401909093"). */
 export function matchupKey(provider: string, league: string, events: string[]): string {
   return `${provider}:${league}:${[...new Set(events)].sort().join(",")}`;
+}
+
+/** A matchup of games named one by one is this many at most (db/migrations/0300); a team's season (L7) up to MAX_SEASON (0303). */
+export const MAX_GAMES = 30;
+export const MAX_SEASON = 200;
+
+/** L7: a team's season's key: the team and its season, whatever its games ("espn:baseball/mlb:season:10:2026"). */
+export function seasonKey(provider: string, league: string, team: string, year: number): string {
+  return `${provider}:${league}:season:${team}:${year}`;
 }
 
 /** A team as people say it: ESPN's short name ("76ers"), else its name. */
