@@ -3828,6 +3828,9 @@ A season made of a whole league's games, several an episode, shared by everyone 
   `check-live-event.js` (6 of 6) and `check-sports-links.js` pass. 1,796 unit tests, the one round-trip failure aside (master's, as
   before); `tsc` clean; eslint clean on src/lib/sports, src/lib/server/sports, src/lib/game/sequence, src/app/api/sports,
   air-times.ts and start-game.ts. The real ESPN's calendars read right (the NBA's, the NFL's, the Premier League's, 2026-11-06).
+- **The long checks, last, on `e8aba91d`:** `golden.js --before=ae6211a7` (the step before): Survivor 49, The Traitors US 4 and The
+  Challenge 40, 74 games, 9,548 reads, every one the same. blind.js and the rehearsal not run: no show's game links several games an
+  episode, and every read is kept the same (golden alone).
 - **For the engine lane (with L3 part 2's hook):**
   - A **week's games**: `leagueGames`' `lines` for an episode of several games are its counts added up, so a categories matchup over
     a week reads them as it reads one game's (L4 part 1b's window is the episode); points per stat with a per-game bonus (100 yards,
