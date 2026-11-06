@@ -318,7 +318,7 @@ function YourMoves({ seasonId, show }: { seasonId: string; show: ShowData }) {
   // A move whose game is waiting on results you haven't revealed says so, and its button is the reveal.
   const waitsOn = (leagueId: string) => show.play?.find((g) => g.leagueId === leagueId)?.revealFirst ?? null;
   const cards = open.map((m) => {
-    const c = moveCard(m, seasonId, kinds.filter((k) => k === m.kind).length > 1);
+    const c = moveCard(m, seasonId, kinds.filter((k) => k === m.kind).length > 1, !!(show.play ?? []).find((g) => g.leagueId === m.leagueId)?.catchingUp);
     const n = waitsOn(m.leagueId);
     if (!n || (c.tab !== "lineup" && c.tab !== "pool")) return c;
     const when = m.deadline ? ` · ${c.tab === "lineup" ? "locks" : "closes"} ${airTime(Date.parse(m.deadline))}` : "";
@@ -359,7 +359,7 @@ function YourMoves({ seasonId, show }: { seasonId: string; show: ShowData }) {
     body = <MoveCards key={items.map((it) => it.key).join()} items={items} />;
   }
   return (
-    <Block title="Your moves" aside={up?.live ? "Locked" : cards.length ? `${cards.length} to do before ${due != null ? dayOf(due) : "airtime"}` : "All done"}>
+    <Block title="Your moves" aside={up?.live ? "Locked" : cards.length ? `${cards.length} to do before ${due != null ? dayOf(due) : show.ownPace ? "you reveal" : "airtime"}` : "All done"}>
       {body}
     </Block>
   );

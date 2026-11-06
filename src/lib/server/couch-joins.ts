@@ -306,6 +306,9 @@ export interface JoinGame {
   start: number | null;
   /** Locked down for the season (step 15 part 4: competitive mode): nobody new, whatever Who can join said. */
   lockedDown: boolean;
+  /** A game at your own pace (docs/PLAN-own-pace-games.md): everyone in it plays one episode at a time, whenever they watch; a
+   *  new player starts where they are. */
+  ownPace: boolean;
   /** You, signed in: in it, your request waiting, let in (yours to use). */
   you: { playing: boolean; asked: boolean; letIn: boolean } | null;
 }
@@ -315,7 +318,10 @@ export interface JoinGame {
 export function gameOver(s: LeagueState, schedule: SeasonSchedule | undefined): boolean {
   // Step R1 part 2: a game scored outside its state by its pieces (the show's calls, bingo lines), never a league type.
   const pieces = StateLogic.piecesOf(s);
-  return pieces.hasCalls || pieces.hasBingo ? endedThrough(schedule, latestAired(schedule), StateLogic.endEpisode(s)) : StateLogic.gameOver(s);
+  if (pieces.hasCalls || pieces.hasBingo) return endedThrough(schedule, latestAired(schedule), StateLogic.endEpisode(s));
+  // A game at your own pace (docs/PLAN-own-pace-games.md) on a season that's played out is over on the full state at once, not
+  // for anyone still catching up in it: it takes new players and stays on the couch's lists until they're all through.
+  return StateLogic.gameOver(s) && !StateLogic.GhostLogic.anyCatchingUp(s);
 }
 
 /** Every game on a couch with who may join it, in the couch's order. */
@@ -374,6 +380,7 @@ async function couchGameList(viewer: SessionUser | null, couchId: string): Promi
       span: StateLogic.endEpisode(s) === null || StateLogic.startEpisode(s) === null ? null : { from: StateLogic.startEpisode(s) as number, to: StateLogic.endEpisode(s) as number },
       start: StateLogic.startEpisode(s),
       lockedDown: G.lockedDown(s),
+      ownPace: G.ownPace(s),
       you: viewer ? { playing: !!g.yourRole, asked: !!ask && !ask.decided_at, letIn: ask?.outcome === "let-in" } : null,
     });
   }
@@ -425,7 +432,8 @@ async function gameOnCouch(user: SessionUser, couchId: string, leagueId: string)
 
 export interface JoinOptions {
   game: JoinGame;
-  /** Underway: start live (the next episode) or, when castaways can be on several teams, catch up from the first. */
+  /** Underway: start live (the next episode) or, when castaways can be on several teams, catch up from the first. In a game at your
+   *  own pace (`game.ownPace`) there's nothing to choose: `live` is where you start, where you are. */
   starts: { live: number; catchUp: number | null } | null;
   /** How far you've seen this show: a live start past it shows who's still in. */
   seen: number | null;
@@ -447,14 +455,24 @@ export async function joinOptions(user: SessionUser, couchId: string, leagueId: 
   const live = join.latest + 1;
   if (StateLogic.StageLogic.on(state)) return stagedOptions(leagueId, state, join, seen, live, startAsked);
   const first = G.startChoices(state)[0] ?? 1;
-  const starts = { live, catchUp: join.shared && first < live ? first : null };
-  const n = Number(startAsked);
-  const start = Number.isInteger(n) && (n === live || n === starts.catchUp) ? n : null;
+  // A game at your own pace (docs/PLAN-own-pace-games.md): you start where you are (never before the game's start, never behind
+  // what you've seen), one episode at a time; nothing to choose.
+  const paced = G.ownPace(state) ? ownPaceStart(state, seen, live) : null;
+  const starts = paced !== null ? { live: paced, catchUp: null } : { live, catchUp: join.shared && first < live ? first : null };
+  const n = paced !== null ? paced : Number(startAsked);
+  const start = Number.isInteger(n) && (n === starts.live || n === starts.catchUp) ? n : null;
   const team = G.teamSize(state);
   // A game whose teams came out of a hat deals yours as you join (StateLogic.DrawLogic.lateDeal): nothing to pick.
   const dealt = !!team && StateLogic.DrawLogic.dealsLate(state);
   if (start === null || !team || dealt) return { game: join, starts, seen, start, team, ...(dealt ? { dealt } : {}), pool: [] };
   return { game: join, starts, seen, start, team, pool: poolFrom(state, start, !join.shared) };
+}
+
+/** Where a new player starts in a game at your own pace: where they are (their season mark plus one), never before the game's
+ *  start, never past the live episode. */
+function ownPaceStart(state: LeagueState, seen: number | null, live: number): number {
+  const first = StateLogic.GhostLogic.startChoices(state)[0] ?? 1;
+  return Math.min(live, Math.max(first, (seen ?? 0) + 1));
 }
 
 /** The castaways a late joiner starting at `start` picks their team from (GhostLogic.draftPool), as the join sheet shows them. */
@@ -628,13 +646,14 @@ export async function joinGame(user: SessionUser, couchId: string, leagueId: str
 
   const latest = join.latest;
   const live = latest + 1;
-  const start = Number(body.start);
+  const seasonMark = game.seasonId ? await seenThrough(user.id, game.seasonId) : 0;
+  // A game at your own pace: where you are, whatever was asked.
+  const start = G.ownPace(state) ? ownPaceStart(state, seasonMark === EVERYTHING ? latest : seasonMark, live) : Number(body.start);
   const catchUpFrom = join.shared ? (G.startChoices(state)[0] ?? 1) : null;
-  if (!Number.isInteger(start) || (start !== live && start !== catchUpFrom)) {
+  if (!Number.isInteger(start) || (start !== live && start !== catchUpFrom && !G.ownPace(state))) {
     throw new HttpError(400, join.shared ? `Start from Episode ${live}, or catch up from Episode ${catchUpFrom}` : `New players start from Episode ${live}`);
   }
   const team = Array.isArray(body.team) ? body.team.filter((x): x is string => typeof x === "string") : [];
-  const seasonMark = game.seasonId ? await seenThrough(user.id, game.seasonId) : 0;
   const catchingUp = start - 1 < latest;
   // Catching up: your league starts at the episode before your start. Live: where you are, so anything since stays for
   // your reveal, as for anyone behind.

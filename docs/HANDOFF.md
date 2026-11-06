@@ -21,6 +21,16 @@ and the Neon password rotation (deferred; steps there). Fixed 2026-10-24: the ch
 end); GitHub Actions, stopped since 2026-10-19, runs again. Vercel builds production only (Preview shared
 production's database).
 
+## Games at your own pace (2026-11-05; no migration; docs/PLAN-own-pace-games.md)
+A game on a season that's already aired (The Challenge 42 was the ask), or one you're behind on: Start a game now offers
+*Where you are · Episode N* and *From the top*, and every seat (computer players too) is a late joiner from the start
+(`GhostLogic.paceAll`), each playing one episode at a time from the catching-up strip and sheet. Nothing locks anyone: the
+strip and the reveal button say where the others are ("riley · Ep 4", "you'll be 2 ahead of riley"). Bots pick for an episode
+the moment the first person reveals it (`bot-logic.js catchUpTo`). **Part 1 = Survival Pool only**; part 2 keys Bingo, Weekly
+Calls and Trivia to *your next* episode and adds Watch it together; part 3 the drafts (exclusive Outlast needs waivers and swaps
+resolved per person's episode: the user's caveat); part 4 the Prediction Sheet. Check: `node scripts/dev-test/check-own-pace.js`
+(a real finished season in the local DB, read only; zt rows only).
+
 ## Add a show: the sheet over the keyboard, and a season picker (2026-11-05; branch `ccr-d97da793-kyihwn`, no migration)
 The user, on an Android phone: as they typed in Add a show the results were sometimes under the keyboard and sometimes the field
 was scrolled off the top; and Below Deck came up as its 13th season with no way to an earlier one. **The keyboard:** the sheet
@@ -123,8 +133,7 @@ the rung's points. The current episode isn't an input (the ladder judges what a 
 finding what's missing. **Read [PLAN-rulebook-research.md](PLAN-rulebook-research.md).** Checks: `tests/rulebook-scores.test.js`,
 `scripts/dev-test/check-desk-rulebook-research.js` (ALL PASS at 390, the stand-in bot); `check-new-desk.js`'s Check for changes
 step moved to the new sheet. **Live 2026-11-04** (`ae013ef`, master, the user's go-ahead). **Not asked of the real bot yet** (no bot in
-that session): the first real What scores pass on The Challenge 42 is the user's, from the desk. `browser.js` now runs off Windows too (a cloud session's container).
-
+that session): the first real What scores pass on The Challenge 42 is the user's, from the desk. `browser.js` now runs off Windows too (a cloud session's container).
 ## React with a GIF (2026-11-01; branch `reactions`, lane `rfl-reactions`, migration 0162)
 The user found Rate it's stars no fun: an episode's reaction is now **one GIF you search for** (KLIPY, the chat's picker), and
 **Rate it is shelved** (stars, couch verdict, taste twin, rating accolades, Couch verdicts; `episode_ratings` kept). The GIF

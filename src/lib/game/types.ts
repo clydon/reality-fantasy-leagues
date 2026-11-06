@@ -306,6 +306,9 @@ export interface LeagueSettings {
    * episodes 1..n. Absent on every league that predates it, which reads as null.
    */
   revealedThroughEpisode?: number | null;
+  /** A game at your own pace (docs/PLAN-own-pace-games.md, StateLogic.GhostLogic.paceAll): started from an episode that had
+   *  aired, every seat a late joiner from the start, each playing one episode at a time whenever they watch. */
+  ownPace?: boolean;
   /** Late joiners play from an episode of their choosing, unseen until added (StateLogic.GhostLogic).
    *  Absent means on; only an explicit false switches it off. */
   allowLateJoiners?: boolean;

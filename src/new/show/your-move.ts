@@ -160,12 +160,12 @@ export function movesOf(g: GameView, o: MoveContext): YourMove[] {
         ...lineup,
         empty: Math.max(0, L.need - faces.length),
         title: `Set your ${E} ${L.episode} lineup`,
-        line: L.airsAt ? `Locks ${o.when(L.airsAt)}${L.carried ? " · last week's stands in till then" : ""}` : "Locks at airtime",
+        line: L.airsAt ? `Locks ${o.when(L.airsAt)}${L.carried ? " · last week's stands in till then" : ""}` : g.catchingUp ? "Locks when you reveal it" : "Locks at airtime",
         action: "Set",
         due: true,
       });
     } else {
-      found.push({ ...lineup, empty: 0, title, line: L.airsAt ? `Change until ${o.when(L.airsAt)}` : "Change until airtime", action: "Edit", due: false });
+      found.push({ ...lineup, empty: 0, title, line: L.airsAt ? `Change until ${o.when(L.airsAt)}` : g.catchingUp ? "Change until you reveal it" : "Change until airtime", action: "Edit", due: false });
     }
   }
 
@@ -178,14 +178,15 @@ export function movesOf(g: GameView, o: MoveContext): YourMove[] {
     } else if (!P.open) {
       if (P.pick) found.push({ ...pick, faces: [P.pick], empty: 0, title: `Your ${E} ${P.episode} pick: ${castName(P.pick)}`, line: "Locked at airtime", action: "See", due: false });
     } else if (!P.pick) {
-      found.push({ ...pick, faces: [], empty: 1, title: `Pick a survivor for ${E} ${P.episode}`, line: P.airsAt ? `Locks ${o.when(P.airsAt)}` : "Locks at airtime", action: "Pick", due: true });
+      // Catching up (a late joiner's week, or a game at your own pace): the episode aired long ago; your pick locks when you reveal it.
+      found.push({ ...pick, faces: [], empty: 1, title: `Pick a survivor for ${E} ${P.episode}`, line: P.airsAt ? `Locks ${o.when(P.airsAt)}` : g.catchingUp ? "Locks when you reveal it" : "Locks at airtime", action: "Pick", due: true });
     } else {
       found.push({
         ...pick,
         faces: [P.pick],
         empty: 0,
         title: `Your ${E} ${P.episode} pick: ${castName(P.pick)}`,
-        line: P.airsAt ? `Change until ${o.when(P.airsAt)}` : "Change until airtime",
+        line: P.airsAt ? `Change until ${o.when(P.airsAt)}` : g.catchingUp ? "Change until you reveal it" : "Change until airtime",
         action: "Edit",
         due: false,
       });

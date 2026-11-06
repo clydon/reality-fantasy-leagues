@@ -306,7 +306,7 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
           : o
             ? again
               ? `${o.label}${to === null ? "" : ` · ${spanName(o.from, to, o.part)}`} · the same ${again.gameName} as ${again.label}`
-              : `${o.show} · ${phase ? `when ${phase.name} starts` : to === null ? `from ${partAt(o)}` : spanName(o.from, to, o.part)}`
+              : `${o.show} · ${phase ? `when ${phase.name} starts` : to === null ? `from ${partAt(o)}` : spanName(o.from, to, o.part)}${o.ownPace ? ", at your own pace" : ""}`
             : undefined
       }
     >
@@ -364,6 +364,7 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
           </>
         ) : (
           <>
+            {o.ownPace && <OwnPaceStrip />}
             {fits.map((g, i) => {
               const on = g.key === pick;
               return (
@@ -426,7 +427,7 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
                 </span>
               </button>
             )}
-            {startable.length > 0 && !o.late && (o.starts.length > 1 || o.phases.length > 0) && (
+            {startable.length > 0 && !o.late && (o.starts.length > 1 || o.phases.length > 0 || (o.pace && o.starts.length === 0 && o.pace.here !== null && o.pace.here !== 1) || (o.pace?.here && o.starts.length > 0)) && (
               <Starts
                 o={o}
                 phase={phase?.id ?? null}
@@ -476,6 +477,16 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
   );
 }
 
+/** A game at your own pace (docs/PLAN-own-pace-games.md): what's different, in one line, before the games. */
+function OwnPaceStrip() {
+  return (
+    <p data-own-pace className="flex items-center gap-2 rounded-[3px] bg-secondary py-2 pl-2 pr-3 text-[13px] font-semibold leading-snug">
+      <span className="type-caption flex-none rounded-[2px] bg-foreground px-1.5 py-0.5 text-[11px] tracking-[0.06em] text-background">Your own pace</span>
+      Everyone plays one episode at a time, whenever they watch. Nobody waits for anyone.
+    </p>
+  );
+}
+
 /** "Sat, Nov 22": a later episode's day, weeks out, where a weekday alone wouldn't say which. */
 const dateOf = (t: number) => new Date(t).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 
@@ -492,24 +503,62 @@ const episodeLine = (o: StartOptions, e: { number: number; title: string | null 
  */
 function Starts({ o, phase, setAt, setPhase }: { o: StartOptions; phase: string | null; setAt: (n: number | null) => void; setPhase: (id: string) => void }) {
   const P = o.part.singular.replace(/^./, (c) => c.toUpperCase());
-  const later = !phase && o.from !== o.nextEpisode;
-  const first = o.starts[0];
   const chosen = o.phases.find((p) => p.id === phase) ?? null;
+  const tile = (on: boolean) => `flex min-h-[52px] w-full flex-col justify-center rounded-[4px] px-3 py-2 text-left ${on ? "bg-plate text-plate-foreground outline-[3px] -outline-offset-[3px] outline-chyron-line" : "bg-secondary/60"}`;
+  const sub = (on: boolean) => `block text-[13px] leading-snug ${on ? "text-plate-muted" : "text-muted-foreground"}`;
+  // A game at your own pace (docs/PLAN-own-pace-games.md): where you are, or the top. On a finished season those are the only
+  // starts; on one you're behind on, where you are sits under the live starts.
+  const pace = o.pace;
+  const finished = !!pace && o.starts.length === 0;
+  const paceTiles = pace && (finished || pace.here !== null) && (
+    <>
+      {pace.here !== null && (
+        <button type="button" role="radio" aria-checked={o.ownPace && o.from === pace.here} data-start-from-choice="here" onClick={() => setAt(pace.here)} className={tile(o.ownPace && o.from === pace.here)}>
+          <b className="block text-[15px]">
+            Where you are · {P} {pace.here}
+            {!finished && <span className={o.ownPace && o.from === pace.here ? "text-plate-muted" : "text-muted-foreground"}> · at your own pace</span>}
+          </b>
+          <small className={sub(o.ownPace && o.from === pace.here)}>
+            {pace.here === 1 ? `Nothing seen yet: from the first ${o.part.singular}.` : `You're up to ${P} ${pace.here - 1}.`}
+            {finished ? " Pick before you watch each one, reveal after." : " Catch up one at a time, then play live with everyone."}
+          </small>
+        </button>
+      )}
+      {finished && pace.here !== 1 && (
+        <button type="button" role="radio" aria-checked={o.from === pace.top} data-start-from-choice="top" onClick={() => setAt(pace.top)} className={tile(o.from === pace.top)}>
+          <b className="block text-[15px]">
+            From the top · {P} {pace.top}
+          </b>
+          <small className={sub(o.from === pace.top)}>{pace.here === null ? "You've seen it all: a rewatch, one at a time." : "A rewatch from the start."}</small>
+        </button>
+      )}
+    </>
+  );
+  if (finished) {
+    return (
+      <section data-start-from className="mt-1 flex flex-col gap-1.5 border-t border-border pt-3" role="radiogroup" aria-label="Starts">
+        <b className="text-[15px] font-semibold">Starts</b>
+        {paceTiles}
+      </section>
+    );
+  }
+  const later = !phase && !o.ownPace && o.from !== o.nextEpisode;
+  const first = o.starts[0];
   return (
     <section data-start-from className="mt-1 flex flex-col gap-1.5 border-t border-border pt-3" role="radiogroup" aria-label="Starts">
       <b className="text-[15px] font-semibold">Starts</b>
       <button
         type="button"
         role="radio"
-        aria-checked={!later && !chosen}
+        aria-checked={!later && !chosen && !o.ownPace}
         data-start-from-choice="next"
         onClick={() => setAt(null)}
-        className={`flex min-h-[52px] w-full flex-col justify-center rounded-[4px] px-3 py-2 text-left ${!later && !chosen ? "bg-plate text-plate-foreground outline-[3px] -outline-offset-[3px] outline-chyron-line" : "bg-secondary/60"}`}
+        className={tile(!later && !chosen && !o.ownPace)}
       >
         <b className="block text-[15px]">
           With the next one · {P} {o.nextEpisode}
         </b>
-        <small className={`block truncate text-[13px] leading-snug ${!later && !chosen ? "text-plate-muted" : "text-muted-foreground"}`}>
+        <small className={`truncate ${sub(!later && !chosen && !o.ownPace)}`}>
           {first?.airAt ? calmWhen(Date.parse(first.airAt)) : `The next ${o.part.singular} to air`}
         </small>
       </button>
@@ -552,6 +601,7 @@ function Starts({ o, phase, setAt, setPhase }: { o: StartOptions; phase: string 
           ))}
         </select>
       </label>
+      {paceTiles}
       {later && (
         <small data-start-from-note className="text-[13px] leading-snug text-muted-foreground">
           It waits for {P} {o.from}: nothing before it counts, and the draft can happen any time before then.

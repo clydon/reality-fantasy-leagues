@@ -415,6 +415,12 @@ declare const StateLogic: {
     /** A reason on refusal, else null. */
     begin(state: LeagueState, playerId: string, start: number, castawayIds: string[], opts?: { freeAgents?: boolean }): string | null;
     markCaughtUp(state: LeagueState, playerId: string, seenThrough: number): void;
+    /** A game at your own pace (docs/PLAN-own-pace-games.md): settings.ownPace, every seat a late joiner from the start. */
+    ownPace(state: LeagueState): boolean;
+    /** Anyone (a computer player too) still catching up: a game on a finished season isn't over for them. */
+    anyCatchingUp(state: LeagueState): boolean;
+    /** Every seat starts catching up at `from` (the results in already), their mark the episode before; sets settings.ownPace. */
+    paceAll(state: LeagueState, from: number): void;
     convert(state: LeagueState, playerId: string): boolean;
     /** The league as one viewer may see it; `full` keeps their week's results for the reveal. */
     viewFor(state: LeagueState, viewerId: string | null, seenThrough: number | null | undefined, opts?: { full?: boolean }): LeagueState;

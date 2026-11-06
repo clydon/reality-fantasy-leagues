@@ -35,7 +35,7 @@ export function WhereSheet({ couchId, seasonId, onOpenChange }: { couchId: strin
   const pace: Pace = {
     aired: s?.schedule?.latestAired ?? 0,
     total: s?.episodeCount ?? 0,
-    ownPace: !!s && ownPace({ release: s.release, status: s.status, played: s.games.length > 0 }),
+    ownPace: !!s && ownPace({ release: s.release, status: s.status, played: s.games.some((g) => !g.ownPace) }),
     word,
   };
   const { known, quiet } = marksOf(s?.people ?? null, { id: me.id, name: me.name, seen: s ? knownMark(s.you) : null });
