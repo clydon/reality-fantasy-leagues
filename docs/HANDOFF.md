@@ -343,6 +343,21 @@ it doesn't go in the menu.** The audit (checked in the code, 2026-10-30), per ol
   full target first (A5, the capability tracker, then A6–A15), today's games rebuilt on it (R1–R3), the UI last (U0–U1), the
   GPT's words alongside (G1), and live sports folded in as track L. Lanes (worktree + branch + database + port + session loop):
   [PARALLEL-SESSIONS.md](PARALLEL-SESSIONS.md); season tapes and playtests: [PLAN-playtests.md](PLAN-playtests.md).
+- **Merged and pushed 2026-11-06, 12:37 PM: the engine's C3, C4, C5 and C4b, the shared-replacement fix** (`f22c9753`, merging the
+  engine's `063192de`; migration 0207, rehearsed on the Neon branch `rehearse-c4b-2026-11-06`; the snapshot to roll back to
+  is `pre-c4b-2026-11-06`, auto-deleted after 7 days). C4b is the user's rule (2026-11-06): someone who goes home is owed a
+  replacement on every team that held them, from each live game's first unplayed episode (Survivor 51's couch: Episode 8);
+  exits already played stay as they played out; games made from now on are per holder throughout. 0207 writes each
+  existing league's `settings.perHolderFrom` once, from the results in the database when it runs. C3: one multiplier
+  piece by condition (how a holding joined: drafted, a pickup, a replacement, a swap). C4: exclusive or shared for each
+  way of holding. C5: the week as a result (a pick of several each episode, only these moments, hits, weeks won). Game 2
+  and game 3 of the user's three play in the engine and the tracker (213 rows), not yet from a screen. Checked: the
+  lane's long checks on `224247fa` (golden 19,361 reads the same against master; blind, every game played through; the
+  Survivor 51 rehearsal, every invariant, and every seat's owed count the same at every results point from Episode 7), with
+  origin bringing nothing new to the engine's files, so not run again; on the merged tree (rfl-merge, branch merge-c4b):
+  unit tests 1549, eslint on the changed source files, `next build` with its type-check, and the Neon rehearsal (0207
+  applied, `[check] all good`, rulebooks backfilled, the game-specs check PASS on all 6 leagues; Survivor 51's three games'
+  cutover 8, their latest results 7; a game at your own pace takes its furthest seat's mark plus one).
 - **Merged and pushed 2026-11-06, 9:33 AM: the engine's A14 parts 1-2, C1 and C2** (`e450fcd4`, merging the engine's `5df8dd49`;
   migrations 0205 and 0206, rehearsed on the Neon branch `rehearse-c2-2026-11-06`; the snapshot to roll back to is
   `pre-c2-2026-11-06`, auto-deleted after 7 days). A14 part 1: a question the players' own answers settle (match the
@@ -482,8 +497,8 @@ it doesn't go in the menu.** The audit (checked in the code, 2026-10-30), per ol
   **Waiting on the user:** restart the main bot (8765) on the new code, then the tapes move back to it and 8766 goes. The
   playtest branch is merged into master (`2c945d31`).
 - **Neon is on Launch** since 2026-10-28 (the user upgraded it at 98.3% of the free transfer; about $5 a month; HOSTING.md).
-- **On branches, not merged:** the engine from C3 on (`engine`: track C's C3 to C7, then A14's rest), track L's live
-  sports (`sports`: L1, L2 and L5 done; L3 next, on C2's sequence). The lanes run at high
+- **On branches, not merged:** the engine from C6 on (`engine`: track C's C6 and C7, then A14's rest), track L's live
+  sports (`sports`: L1, L2 and L5 done, L3 and L4 in parts; its engine hooks after track C merges). The lanes run at high
   since 2026-11-05 (the user; C2 at xhigh) under the usage cap ([PARALLEL-SESSIONS.md](PARALLEL-SESSIONS.md), "The usage
   cap"). Waiting on the
   user: S3 after two matching episodes; which rule a preset meets (open until the engine is complete: the user, 2026-10-30);

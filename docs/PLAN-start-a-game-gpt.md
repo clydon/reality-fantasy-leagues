@@ -7,7 +7,8 @@ them next (the user's, in production). **Merged and live in production (2026-10-
 `df527fe6`, migrations 0200–0202), then A11 part 5c, A12 part 1 and R1 parts 1–2 (2:59 PM, `46b77bba`, migration 0203), and
 **the game-specs flag is on** (R2, 2:39 PM: every league carries its spec), then the rest of A12 (parts 2–4c) and R1 part 3
 (2026-10-31, 12:31 AM, `075d193e`, no migration), then A13 (2026-11-05, 9:26 PM, `1d4b20a0`, migrations 0204 and 0436), then A14 parts 1-2, C1 and C2
-(2026-11-06, 9:33 AM, `e450fcd4`, migrations 0205 and 0206); later parts (C3 on) stay on `engine` until the main folder merges them, after each
+(2026-11-06, 9:33 AM, `e450fcd4`, migrations 0205 and 0206), then C3, C4, C4b and C5 (2026-11-06, 12:37 PM, `f22c9753`, migration
+0207); later parts (C6 on) stay on `engine` until the main folder merges them, after each
 lettered step. A1–A4 are built on `engine` (A4 in two parts: the engine and storage, then the Prediction Sheet's screens, built before
 the screens moved to U1), merged and live since 2026-10-30 (above).
 A5 to A9 built on `engine` (2026-10-28: the tracker and the engine lab; questions about who and about each; time; more
@@ -5960,7 +5961,7 @@ A14 part 2 and before A14's other parts; every part keeps every golden and blind
   the Nth replacement), when it was picked, a captain, a streak, the legs of a parlay. Captain, by when, parlay and confidence
   become uses of it. Game 2's 1x, 0.5x, 0.25x, configurable.
 
-  **As built (C3, 2026-11-06; on engine, not merged; no migration, no prompt change).** One session, at high.
+  **As built (C3, 2026-11-06; on `engine`; merged and live 2026-11-06, `f22c9753`; no migration, no prompt change).** One session, at high.
   - **The decision first** (the Decisions table, "A replacement's multiplier", the user's 2026-11-05 "your assumptions are correct"):
     a replacement's multiplier is on what it earns while it's yours, on every kind of draft, an Outlast included, never its whole place
     times it.
@@ -6034,7 +6035,7 @@ A14 part 2 and before A14's other parts; every part keeps every golden and blind
 - **C4. Ownership per holding.** Exclusive or shared for each way of holding (the draft, pickups, group slots) instead of one
   for the game, and where a replacement comes from (free agents only, or anyone still in). Game 2's shared replacements.
 
-  **As built (C4, 2026-11-06; on engine, not merged; no migration, no prompt change).** One session, at high.
+  **As built (C4, 2026-11-06; on `engine`; merged and live 2026-11-06, `f22c9753`; no migration, no prompt change).** One session, at high.
   - **The piece, and where it lives.** Each way of holding has its own ownership: the draft's `get.own` (as before), its group
     slots' `get.groups.own` (A10's, already its own) and now each waiver move's, **`extras.waivers.own: { replace?, swap? }`** (a
     replacement for someone gone home, a swap for someone still in), each `exclusive` (only someone on nobody's team: a free agent)
@@ -6140,7 +6141,7 @@ A14 part 2 and before A14's other parts; every part keeps every golden and blind
   every exit already played stays as it played out; games made from now on are per holder from the start; C4's games as they are.
   Live before Survivor 51's Episode 8 results (Wed Nov 11).
 
-  **As built (C4b, 2026-11-06; not merged).** One session, at high, its own commit (`224247fa`) ahead of C6.
+  **As built (C4b, 2026-11-06; on `engine`; merged and live 2026-11-06, `f22c9753`).** One session, at high, its own commit (`224247fa`) ahead of C6.
   - **The cutover, as data**: `settings.perHolderFrom`, the first episode whose exits are replaced per holder. It lives outside the
     spec (settings.js `OUTSIDE`: history about the game, never the game; setGame and `withSpec` keep it, nothing in the app writes
     it), so no VOCAB, words or GPT change. No cutover means per holder throughout: every game made from now on, C4's included.
@@ -6209,7 +6210,7 @@ A14 part 2 and before A14's other parts; every part keeps every golden and blind
 - **C5. The week as a result.** Pick N each episode without a draft; a week's winner, and ranking by weeks won; "only these
   moments count"; hits counted per objective or per pick; more than six stages (or each episode a round). Game 3.
 
-  **As built (C5, 2026-11-06; not merged).** One session, at high.
+  **As built (C5, 2026-11-06; on `engine`; merged and live 2026-11-06, `f22c9753`).** One session, at high.
   - **The pieces** (schema.js): a pick each episode scored by what they do, `get: { by: "pick", each: 1 to 8 }` beside
     `score.by: "moments"` (`momentsPick`; a pool's pick stays one: "A pool's pick is one an episode: several each episode are scored by
     what they do"), its `repeat` `cycle`, `never` or the new `any` (anyone still in, every episode: a moments pick's default, `fullSpec`;
