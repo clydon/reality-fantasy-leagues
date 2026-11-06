@@ -103,6 +103,10 @@ They can pause you at any moment and resume this same session later.
   work before you hand off, while there's still room in the context to fix what they find. Don't run them after every
   part, don't run one twice where one comparison answers the question, and don't run them again after a change that only
   touches docs or tests. Say in your final message which long checks ran, on which commit.
+- Put every UI decision through the impeccable skill (the user, 2026-11-06: "use impeccable skill for UI decisions"): a
+  screen, a layout, a component, the words on a screen, a mock. Use shape for something new, critique to review, and
+  polish, harden or clarify to finish. Do it before you build or recommend anything, phone first at 390. Name in your
+  final message which impeccable commands you ran and what they changed.
 - Decide what you'd normally decide yourself, with sensible defaults, and say what you decided in your final message.
   Stop for the user only where you'd normally pause to ask them: a decision that's genuinely theirs, anything
   outward-facing or hard to reverse (pushing, merging, deploying, production data), a permission you were refused, or
