@@ -123,7 +123,9 @@ export type SpecScore =
   /** A12 part 1: a game in stages, scored by its stages (its overall). */
   | { by: "stages" }
   /** sports: the Sport's stat keys -> points */
-  | { by: "stats"; points: Record<string, number> };
+  /** L1 part 4a: by a sport's stats (statScoreProblems): points each, and its table's points by position group, by place (a
+   *  place or a range, "4-10") and by a bout's format (its rounds or sets, "5"). */
+  | { by: "stats"; points?: Record<string, number>; byPosition?: Record<string, Record<string, number>>; byPlace?: Record<string, Record<string, number>>; byFormat?: Record<string, Record<string, number>> };
 
 /** A9: a parlay of a game of questions' plain questions (2 to 4, asked the same way), its multiplier when all are right. */
 export interface SpecParlay {
@@ -469,8 +471,16 @@ export interface SpecContext {
   groups?: string[];
   /** The show's moments (rulebook-moments.js momentsFor, or a format's events). */
   moments?: { id: string; label?: string; defaultPoints?: number | { exclusive: number; shared: number }; answeredBy?: "research" | "league"; auto?: boolean; off?: boolean }[];
-  /** The sport's stat keys (the Sport's, on the sports branch); a label is a singular noun ("home run"). */
-  stats?: ({ key: string; label?: string } | string)[];
+  /** The sport's stat keys (the Sport's, on the sports branch); a label is a singular noun ("home run"); `place`: its value is a
+   *  place (golf's POS), scored only by place. */
+  stats?: ({ key: string; label?: string; place?: boolean } | string)[];
+  /** L1 part 4a: the sport's position groups (a stat's points by position name them; a label is plural: "Goalkeepers"), its
+   *  bouts' formats (the rounds or sets they're scheduled for, { key: "5", label: "5 sets" }; a sport without bouts has none)
+   *  and its standard roster (its lineup's starters and its bench), which raise a show's size limits. The sports'
+   *  specContextOf builds all of them. */
+  positions?: ({ key: string; label?: string } | string)[];
+  formats?: ({ key: string; label?: string } | string)[];
+  sizes?: { starters?: number; bench?: number };
   /** false when the show's results don't say who goes home or wins. */
   results?: boolean;
   /** false when nobody wins the show (no way out that means winning): who wins, where they finish and a top can't settle. */
@@ -823,6 +833,8 @@ export function flagsOf(spec: GameSpec): {
  * league), so its couch-answered moments (Make it ours) and points for moments its rules don't have stay as they are;
  * opts.was, with it: the spec it's changing from, so the size limits hold for what grows.
  */
+/** A place or a range of them in a stat's points by place ("1", "4-10"), or null. */
+export function placeRange(key: string): { min: number; max: number } | null;
 export function specProblems(spec: unknown, ctx?: SpecContext | null, opts?: { league?: boolean; was?: SpecInput | GameSpec }): SpecProblem[];
 /** What it needs that isn't built yet; empty when today's engine plays it. */
 export function specWaitsFor(spec: SpecInput | GameSpec): SpecWait[];

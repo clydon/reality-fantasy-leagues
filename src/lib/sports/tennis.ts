@@ -254,6 +254,7 @@ export class Tennis extends BoutSport {
   readonly periods = { word: "set", plural: "sets", regulation: 3, extra: "set" };
   /** A day's order of play: like DraftKings' tennis, a lineup each day. */
   readonly lock = "daily" as const;
+  readonly formats = [3, 5];
 
   /** A draw from ESPN's slug or name ("mens-singles", "Men's Singles"). */
   positionKey(abbreviation: string | null | undefined): string | null {

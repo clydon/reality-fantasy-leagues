@@ -47,6 +47,8 @@ export interface StatDef {
   kind: "count" | "derived" | "rate";
   /** "final": known only once the game is over, from the final box score (a pitcher's win or save); else play by play. */
   known?: "final";
+  /** Its value is a place (golf's and racing's POS, a qualifying place): 1 the best, scored only by place (a spec's byPlace). */
+  place?: true;
   /** The official scorer's call (an earned run, a run batted in on an error): read from the plays as the rules say, but the
    *  scorer can judge it otherwise, so live it's provisional and the final's correction settles it. */
   judged?: true;
@@ -373,10 +375,15 @@ export abstract class Sport {
     return str(abbreviation)?.toUpperCase() ?? null;
   }
 
-  /** The stats a spec can name, for the game spec's context pack (ctx.stats: [{ key, label: "home run" }]). */
-  specStats(): { key: string; label: string }[] {
-    return this.stats.filter((s) => s.kind !== "rate").map((s) => ({ key: s.key, label: s.noun }));
+  /** The stats a spec can name, for the game spec's context pack (ctx.stats: [{ key, label: "home run" }], a place's with
+   *  `place`: it scores only by place). */
+  specStats(): { key: string; label: string; place?: true }[] {
+    return this.stats.filter((s) => s.kind !== "rate").map((s) => ({ key: s.key, label: s.noun, ...(s.place ? { place: true as const } : {}) }));
   }
+
+  /** The formats its bouts are scheduled for (their rounds or sets: a spec's byFormat names them); none for a sport without
+   *  bouts. */
+  readonly formats: number[] = [];
 
   /**
    * Someone's counts in one game with the derived and rate stats worked out from them (TB, IP, AVG), for the stat groups they

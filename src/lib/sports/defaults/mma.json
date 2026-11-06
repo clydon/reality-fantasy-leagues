@@ -80,7 +80,7 @@
         "rank": {
           "by": "total"
         },
-        "closes": "event"
+        "closes": "start"
       }
     },
     "short": {

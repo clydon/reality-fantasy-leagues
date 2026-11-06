@@ -37,6 +37,7 @@ export * from "./sport";
 export * from "./clock";
 export * from "./live";
 export * from "./live-event";
+export * from "./spec";
 export { Baseball } from "./baseball";
 export { CollegeBaseball } from "./college-baseball";
 export { Basketball, CollegeBasketball } from "./basketball";
@@ -89,12 +90,12 @@ export interface DefaultSlot {
 export interface SportDefaults {
   sport: string;
   about: string;
-  /** `byPosition`: a stat's points by the sport's position groups, where its standard table says so (FPL's goal is 10 to a
-   *  keeper, 4 to a forward); `points` has one of them (soccer's: a midfielder's) until the spec scores by position. `byPlace`:
-   *  a place stat's points by place or range ("1", "4-10"), for each place stat the standard table scores (golf's POS, the tied
-   *  each taking the place's; racing's POS, SPR, QUAL); none of them are in `points` until the spec scores places. `byFormat`:
-   *  a stat's points in a bout of another format, by its rounds (tennis's best of five: `{ "5": { GW: 2 } }`), where its standard
-   *  table says so; `points` is the usual format's (best of three) until the spec scores by a bout's format. */
+  /** The spec's own tables (score.by 'stats', L1 part 4a: the specs carry them as they are here). `byPosition`: a stat's points
+   *  by the sport's position groups, where its standard table says so (FPL's goal is 10 to a keeper, 4 to a forward); `points`
+   *  has one of them (soccer's: a midfielder's). `byPlace`: a place stat's points by place or range ("1", "4-10"), for each
+   *  place stat the standard table scores (golf's POS, the tied each taking the place's; racing's POS, SPR, QUAL); never in
+   *  `points`. `byFormat`: a stat's points in a bout of another format, by its rounds (tennis's best of five:
+   *  `{ "5": { GW: 2 } }`), where its standard table says so; `points` is the usual format's (best of three). */
   scoring: { source: string; points: Record<string, number>; byPosition?: Record<string, Record<string, number>>; byPlace?: Record<string, Record<string, number>>; byFormat?: Record<string, Record<string, number>> };
   categories: { source: string; stats: string[] };
   /** `squad`: how many of each position group a roster holds (FPL's 2 goalkeepers, 5 defenders, 5 midfielders, 3 forwards). */
@@ -125,4 +126,17 @@ export function defaultsFor(sportId: string, league?: string): SportDefaults | n
   if (!d) return null;
   const own = league ? d.leagues?.[String(league).split("/").pop()!] : undefined;
   return own ? { ...d, ...own } : d;
+}
+
+/**
+ * What a game spec on a sport is checked against (the game spec's ctx, its data-can-settle rule: L1 part 4a): the stats it can
+ * score or ask about (a place's marked: it scores only by place), its position groups (a stat's points by position name them),
+ * its bouts' formats (byFormat) and its standard roster from its defaults (the lineup's starters and the bench), which raise a
+ * show's size limits. `league` as defaultsFor's (racing's F1); else the sport's own first.
+ */
+export function specContextOf(sport: AnySport, league?: string): { stats: { key: string; label: string; place?: true }[]; positions: { key: string; label: string }[]; formats: { key: string; label: string }[]; sizes?: { starters: number; bench: number } } {
+  const d = defaultsFor(sport.id, league ?? sport.leagues?.[0]);
+  const positions = sport.groups.map((g) => ({ key: g.key, label: g.label }));
+  const ctx = { stats: sport.specStats(), positions, formats: sport.formats.map((n) => ({ key: String(n), label: `${n} ${sport.periods.plural}` })) };
+  return d ? { ...ctx, sizes: { starters: d.slots.lineup.reduce((n, s) => n + s.n, 0), bench: d.slots.bench } } : ctx;
 }

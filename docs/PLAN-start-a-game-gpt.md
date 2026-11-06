@@ -1046,6 +1046,11 @@ engine track; L brings each sport's data to it. Its screens wait for the UI trac
     part 3, games straight from ESPN's schedule as a season of their own, finals and odds stored (the migration,
     HOSTING.md) and the 76ers example's game from the schedule (its recorded game is part 2's fixture) (built: As built
     below). L1 is done but its spec parts, which wait for A1-A4 on master.
+  - **Its spec parts, split in two (2026-11-06; master has had A1-A4 since 2026-10-30):** part 4a, `score.by: stats` (the spec's
+    tables as the defaults keep them: points each, by position, by place, by a bout's format; the check against a sport's ctx;
+    one scorer for every shape; the default specs passing the engine's own check: built 2026-11-06, As built below); part 4b, the
+    sports settles (`final` and `stat`, settled from a game as of a moment, `settle.of`, the `side` answer), on the recorded
+    fixtures and a live recording through the poller in virtual time.
 - **L2. The live clock.** The phone's poller and `GameClock` (live, synced, snapped), shared with A15; fake-espn replaying a
   recorded game in real time or 60x; HOSTING.md. (Built 2026-10-28, in one session: As built below. Its one open check, a
   real game recorded in progress against its final, is a script waiting for a game: L2's Noticed.)
@@ -3025,6 +3030,55 @@ stored; HOSTING.md updated).**
   weekend opened after qualifying, its statistics and statuses once (44 calls).
 - **The check counts content, so the poller's own versions of a live bout's totals** (the FightCenter's, where the recording
   read the core's) have no recorded twin and aren't timed against it; their results and ESPN-timed plays are.
+
+**L1 part 4a as built: a game scored by a sport's stats (2026-11-06, `sports`, not merged; no migration, no ESPN calls, nothing
+stored).** Master merged in first (`a8093de2`: A13, own-pace games, the rulebook research; its six migrations run on rfl_sports).
+The engine's spec already had `score.by: 'stats'` marked as the sports branch's; it now says everything a sport's standard table
+does, the engine's own check reads it against the sport, and one scorer works it out on every shape of sport.
+- **The spec's shape** (`game-spec/schema.js`, the engine's; small and contained, for the engine lane to see at L6):
+  `score: { by: 'stats', points, byPosition?, byPlace?, byFormat? }`, the defaults' own tables: `points` each (0.04 a passing
+  yard); `byPosition` a stat's points by the player's position group (FPL's goal, `{ G: { GK: 10, DEF: 6, MID: 5, FWD: 4 } }`; a
+  group it leaves out at `points`'); `byPlace` a place stat's points by place or range (`{ POS: { "1": 25, "4-10": 8 } }`: the tied
+  each the place's, a place it leaves out nothing; `placeRange`, exported, is the one reading of a range, which the scorer
+  imports); `byFormat` a bout's stats by the rounds or sets it's scheduled for (tennis's best of five, `{ "5": { GW: 2 } }`, a stat
+  it leaves out at `points`'). `statScoreProblems` checks the shape (ranges that overlap, a place also in `points`, something has
+  to score: a table by place or by format alone does). `statScoreSettles`, with a ctx, the data-can-settle rule: every key one
+  of the sport's stats, a place only by place (`POS is a place: score it by place`) and a count never by place, a position group
+  one of the sport's (`ctx.positions`; `ctx.groups` already meant a format's scoring groups), a format one its bouts are
+  scheduled for (`ctx.formats`: none for a sport without bouts). **A sport's roster raises a show's sizes** (`ctx.sizes`: its
+  lineup's starters and bench), so baseball's 23-man draft and 18 starters pass where a show stops at 14 and 8, and only as far as
+  the sport's (the bench keeps a show's 6 when the sport's is smaller). `describe.js` says the tables ("5 a goal (10 for
+  goalkeepers, 6 for defenders and 4 for forwards)", "by place: 25 for 1st … 8 for 4th–10th", "scheduled for 5 sets: 2 a game
+  won"). VOCAB keeps `score.by: stats` as the sports branch's until L3 plays it (`specWaitsFor` says so).
+- **A sport's ctx** (`specContextOf(sport, league?)`, `src/lib/sports/index.ts`): its `specStats` (a place marked `place`: the
+  new `StatDef.place`, on golf's POS and racing's places: POS, FIN, GRID, SPR, QUAL, the practices'), its position groups, its
+  bouts' formats (`Sport.formats`: MMA's and tennis's 3 and 5, labelled "5 rounds", "5 sets") and its standard roster from its
+  defaults (F1's own, 5).
+- **One scorer** (`src/lib/sports/spec.ts`, pure: the server, the phone and the tests share it). Every shape keeps its
+  competitors' numbers as lines in its own keys, so `linePoints(score, line, { group, format })` scores any of them (a part per
+  stat that scored, for a live box) and `statePoints(sport, score, state, { groupOf, card })` everyone as of a moment: a team
+  sport's lines with their derived stats worked out (`Sport.full`), a field's with each one's place in it, a card's with each
+  fighter's result; scored by format, each bout's own line at its rounds (`BoutState.byBout`, `Bout.rounds`) and the rest of the
+  card's line (the final's correction: the reducer adds every play to both at once) at `points`'. A card scored by format
+  without its card throws rather than score every bout as the usual. `specCloses`: an event sport's lock ("event") is the spec's
+  `closes: 'start'` (an event is an episode: a tournament, a race weekend, a card).
+- **The default specs as data, each passing the engine's check**: every sport's (and each league's: F1's, IndyCar's, college's)
+  `season` and `short` carry their table's `byPosition` (soccer), `byPlace` (golf, racing) and `byFormat` (tennis), and an event's
+  lock as `closes: 'start'`; `specProblems(spec, specContextOf(sport))` is empty for all 34, and all they wait for is the sports
+  branch's own pieces (`score.by: stats`, `closes` daily and weekly).
+- **Tests** (`tests/sports-spec.test.js`, 11, on the recorded fixtures): the defaults pass; the ctx; the sizes; the check's
+  refusals; places and the tables' precedence; the Red Sox-Yankees series scored from the plays (the user's example's own
+  numbers); soccer by position at the end and at half-time (nobody has their 60 minutes yet); Byron's Daytona 500 (51.5),
+  Piastri's and Hamilton's Chinese Grand Prix (42, -1) and every golfer at Bermuda (a tie in the top ten each the place's points);
+  Gaethje's UFC 324; Zverev's US Open final at best of five's (66.7) and his whole event at each match's format; the words; the
+  missing card. 1,496 unit tests pass.
+
+**L1 part 4a noticed, not fixed:**
+- **A stats question can be settled backwards by a place**: `settle: { by: 'stat', stat: 'POS', take: 'most' }` passes the check,
+  and the most POS is the last place. (Part 4b, with the settles: a place's best is its least, or refused.)
+- **A sub's position is the box's "SUB"**, so `groupOf` from the box gives a soccer sub no group (he scores the flat table: a
+  midfielder's). The roster's (`season_cast.role`) is the right one, as L5 part 1 noticed; L3's scorer reads it.
+- **The words are long**: F1's are four lists of places. The wizard's short form is the UI track's (U0) and G4's.
 
 **Open, from the sports plan:** head-to-head's schedule over a span, and playoffs; whether a sport's moves follow Weekly
 Lineup's waivers or need their own rhythm for daily sports; what a live call is worth, and how fast they open and close;

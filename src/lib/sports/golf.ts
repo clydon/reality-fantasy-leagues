@@ -69,7 +69,7 @@ const STATS: StatDef[] = [
   count("POSTR", "Playoff strokes", "PO STR", "playoff stroke", PLAYOFF, "lower"),
 
   // From the standings at the moment (live, the place now: provisional until the final; then ESPN's).
-  fromStandings("POS", "Place", "POS", "place", "lower"),
+  { ...fromStandings("POS", "Place", "POS", "place", "lower"), place: true },
   fromStandings("W", "Wins", "W", "win"),
   fromStandings("TOP5", "Top-5 finishes", "T5", "top-5 finish"),
   fromStandings("TOP10", "Top-10 finishes", "T10", "top-10 finish"),

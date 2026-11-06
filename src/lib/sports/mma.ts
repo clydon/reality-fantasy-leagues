@@ -300,6 +300,7 @@ export class MMA extends BoutSport {
   /** A bout's rounds: 3, or 5 for a main event or a title (each bout says its own: Bout.rounds). */
   readonly periods = { word: "round", plural: "rounds", regulation: 3, extra: "overtime round" };
   readonly lock = "event" as const;
+  readonly formats = [3, 5];
 
   /** A weight class from ESPN's ("Lightweight", "W Flyweight", "Catch Weight"). */
   positionKey(abbreviation: string | null | undefined): string | null {

@@ -49,7 +49,7 @@ const FINISH = "finish";
 const POINTS = "points";
 
 /** A place in a session (lower is better). Added over events, its average is the series' own average finish. */
-const place = (key: string, label: string, short: string, noun: string, group: string): StatDef => count(key, label, short, noun, group, "lower");
+const place = (key: string, label: string, short: string, noun: string, group: string): StatDef => ({ ...count(key, label, short, noun, group, "lower"), place: true });
 const fromStandings = (key: string, label: string, short: string, noun: string, better: "higher" | "lower" = "higher"): StatDef => ({ key, label, short, noun, group: FINISH, better, kind: "derived" });
 
 const STATS: StatDef[] = [
@@ -91,7 +91,7 @@ const STATS: StatDef[] = [
   place("FP3", "3rd practice place", "FP3", "place in 3rd practice", PRACTICE),
 
   // From the standings at the moment (the race's order: live, the running order, provisional until the final).
-  fromStandings("POS", "Place", "POS", "place", "lower"),
+  { ...fromStandings("POS", "Place", "POS", "place", "lower"), place: true },
   fromStandings("W", "Wins", "W", "win"),
   fromStandings("PODIUM", "Podiums", "POD", "podium"),
   fromStandings("TOP5", "Top-5 finishes", "T5", "top-5 finish"),

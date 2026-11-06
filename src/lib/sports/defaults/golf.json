@@ -25,9 +25,9 @@
         "pool": { "of": "cast", "where": null },
         "get": { "by": "draft", "each": 6, "order": "snake", "own": "exclusive" },
         "count": { "start": 6 },
-        "score": { "by": "stats", "points": { "HIO": 5, "ALB": 15, "EAG": 9, "BIR": 3.5, "PAR": 0.5, "BOG": -1.3, "DBL": -5, "WORSE": -5, "BFR": 5, "BS3": 3, "BS4": 5, "BS5": 10, "BS6": 18 } },
+        "score": { "by": "stats", "points": { "HIO": 5, "ALB": 15, "EAG": 9, "BIR": 3.5, "PAR": 0.5, "BOG": -1.3, "DBL": -5, "WORSE": -5, "BFR": 5, "BS3": 3, "BS4": 5, "BS5": 10, "BS6": 18 }, "byPlace": { "POS": { "1": 25, "2": 12, "3": 10, "4-10": 8, "11-20": 3 } } },
         "rank": { "by": "total" },
-        "closes": "event"
+        "closes": "start"
       }
     },
     "short": {
@@ -38,7 +38,7 @@
         "pool": { "of": "cast", "where": null },
         "get": { "by": "draft", "each": 3, "order": "snake", "own": "exclusive" },
         "count": { "all": true },
-        "score": { "by": "stats", "points": { "HIO": 5, "ALB": 15, "EAG": 9, "BIR": 3.5, "PAR": 0.5, "BOG": -1.3, "DBL": -5, "WORSE": -5, "BFR": 5, "BS3": 3, "BS4": 5, "BS5": 10, "BS6": 18 } },
+        "score": { "by": "stats", "points": { "HIO": 5, "ALB": 15, "EAG": 9, "BIR": 3.5, "PAR": 0.5, "BOG": -1.3, "DBL": -5, "WORSE": -5, "BFR": 5, "BS3": 3, "BS4": 5, "BS5": 10, "BS6": 18 }, "byPlace": { "POS": { "1": 25, "2": 12, "3": 10, "4-10": 8, "11-20": 3 } } },
         "rank": { "by": "total" },
         "closes": "start"
       }

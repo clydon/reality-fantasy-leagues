@@ -50,6 +50,9 @@ function wordsOf(ctx) {
     group: typeof c.group === 'string' && c.group ? c.group.toLowerCase() : 'group',
     moments: Array.isArray(c.moments) ? c.moments : null,
     stats: new Map((Array.isArray(c.stats) ? c.stats : []).map((x) => (isObj(x) ? [x.key, x.label || x.key] : [x, x]))),
+    // L1 part 4a: a sport's position groups ("Goalkeepers") and its bouts' formats ("5 sets"), for a stats score's tables.
+    positions: new Map((Array.isArray(c.positions) ? c.positions : []).map((x) => (isObj(x) ? [x.key, x.label || x.key] : [x, x]))),
+    formats: new Map((Array.isArray(c.formats) ? c.formats : []).map((x) => (isObj(x) ? [String(x.key), x.label || String(x.key)] : [String(x), String(x)]))),
     phases: new Map((Array.isArray(c.phases) ? c.phases : []).filter(isObj).map((p) => [p.id, p.name || p.id])),
     // A12 part 2, inside a game in stages: a stage a format change starts says where it starts in these words, and the stage
     // before it runs until then.
@@ -124,6 +127,35 @@ const statsWords = (points, w) => listOf(Object.entries(points).map(([k, p]) => 
   const label = w.stats.get(k) || k;
   return `${p} ${article(label)} ${label}`;
 }));
+
+const nth = (n) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th'}`;
+/**
+ * L1 part 4a: a stats score in words: each stat's points, a position's own beside it ("6 a goal (10 for goalkeepers)"), each
+ * place's ("by place: 25 for 1st and 8 for 4th–10th") and a bout's format's ("scheduled for 5 sets: 2 a game won").
+ */
+function statScoreWords(sc, w) {
+  const flat = isObj(sc.points) ? sc.points : {};
+  const pos = isObj(sc.byPosition) ? sc.byPosition : {};
+  const label = (k) => w.stats.get(k) || k;
+  const each = (p, k) => `${p} ${article(label(k))} ${label(k)}`;
+  const out = [];
+  for (const k of [...new Set([...Object.keys(flat), ...Object.keys(pos)])]) {
+    const own = isObj(pos[k]) ? Object.entries(pos[k]).filter(([, p]) => p !== flat[k]).map(([g, p]) => `${p} for ${(w.positions.get(g) || g).toLowerCase()}`) : [];
+    if (flat[k] !== undefined) out.push(own.length ? `${each(flat[k], k)} (${listOf(own)})` : each(flat[k], k));
+    else if (own.length) out.push(`${article(label(k))} ${label(k)}: ${listOf(own)}`);
+  }
+  const words = [];
+  if (out.length) words.push(listOf(out));
+  for (const [k, t] of Object.entries(isObj(sc.byPlace) ? sc.byPlace : {})) {
+    const at = Object.entries(t).map(([r, p]) => {
+      const [a, b] = String(r).split('-');
+      return `${p} for ${b === undefined ? nth(Number(a)) : `${nth(Number(a))}–${nth(Number(b))}`}`;
+    });
+    words.push(`by ${label(k)}: ${listOf(at)}`);
+  }
+  for (const [f, t] of Object.entries(isObj(sc.byFormat) ? sc.byFormat : {})) words.push(`scheduled for ${w.formats.get(f) || f}: ${statsWords(t, w)}`);
+  return words.join('; ');
+}
 
 /** A question's words, or its id while it has none yet. */
 const askOf = (q) => String(q.ask || q.id || 'A question').trim();
@@ -255,7 +287,7 @@ function sentenceParts(s, w) {
   }
   else if (sc.by === 'answers' && callsAsk(s.ask)) put(' Most right by the finale wins.', 'score');
   else if (sc.by === 'lines') put(isNum(sc.points) && sc.points !== 1 ? ` ${cap(pointsWord(sc.points))} a line; most points by the finale wins.` : ' Most lines by the finale wins.', 'score');
-  else if (sc.by === 'stats' && isObj(sc.points)) put(` Scored ${statsWords(sc.points, w)}.`, 'score');
+  else if (sc.by === 'stats' && statScoreWords(sc, w)) put(` Scored ${statScoreWords(sc, w)}.`, 'score');
   else if (sc.by === 'answers') {
     const pts = [...new Set(s.ask.map((q) => q.points))];
     const all = (f) => s.ask.length > 0 && s.ask.every(f);
@@ -735,7 +767,7 @@ function rulesOf(s, w) {
     if (count === 'best') rules.push(`Each ${w.part}, your best ${say(s.count.best)} count, whoever they are: no lineups to set.`);
     if (count === 'all' && s.score.by !== 'place') rules.push('Everyone you draft scores.');
     if (s.score.by === 'moments') rules.push(w.groups.length ? `Points come from what happens: ${listOf(w.groups)}.` : `Points come from what happens in each ${w.part}.`);
-    if (s.score.by === 'stats' && isObj(s.score.points)) rules.push(`Points come from their stats: ${statsWords(s.score.points, w)}.`);
+    if (s.score.by === 'stats' && statScoreWords(s.score, w)) rules.push(`Points come from their stats: ${statScoreWords(s.score, w)}.`);
     if (count === 'start' && isObj(s.score.captain) && isNum(s.score.captain.times)) {
       rules.push(`Name one of your starters captain each ${w.part}: their points count ${timesWord(s.score.captain.times)}. Name nobody and your last captain keeps it, while they're starting.`);
     }

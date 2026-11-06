@@ -59,7 +59,8 @@
 //            one on a night it's settled, and at none you're out: "guess every elimination winner; a wrong guess knocks you
 //            out"); A11 part 3, co-op (rank.by 'coop'): the lives are the couch's together, a night on a question they ride
 //            on costing one unless enough of you saw it coming (saves: one, a right answer among you | most, of those who
-//            answered | all of them; COOP's default one); sports: { by: 'stats', points: { HR: 5 } } (the Sport's stat keys)
+//            answered | all of them; COOP's default one); sports: { by: 'stats', points: { HR: 5 }, byPosition?, byPlace?,
+//            byFormat? } (the Sport's stat keys: statScoreProblems)
 //   rank     { by: 'total' } | { by: 'streak' } (longest, ties to the total) | { by: 'standing' } (A10 part 2, a pool with lives:
 //            last one standing, whoever's still in first, then whoever went out last; ties to the total, then lives left)
 //            | { by: 'worth' } (A10 part 3c, a stock market: cash plus the team at today's prices; ties to the total);
@@ -1565,15 +1566,19 @@ function specProblems(spec, ctx, opts) {
   // changing from), so one already bigger keeps its size and can come down. Without opts.was a league's own has none.
   const before = league && isObj(opts.was) ? sizesOf(fullSpec(opts.was)) : null;
   const over = (v, max, was) => v > max && (!league || (before !== null && v > was));
+  // L1 part 4a: a sport's standard roster (ctx.sizes: its lineup's starters and its bench) is bigger than a show's.
+  const sized = (max, k) => (isObj(ctx) && isObj(ctx.sizes) && isInt(ctx.sizes[k], 1) ? Math.max(max, ctx.sizes[k]) : max);
+  const starters = sized(MAX_STARTERS, 'starters');
+  const bench = sized(MAX_BENCH, 'bench');
   if (get.by === 'draft') {
-    const most = isObj(s.score) && s.score.by === 'place' ? MAX_TEAM : MAX_LINEUP_TEAM;
+    const most = isObj(s.score) && s.score.by === 'place' ? MAX_TEAM : Math.max(MAX_LINEUP_TEAM, starters + bench);
     const capped = !league || before !== null;
     if (!isInt(get.each, 1) || over(get.each, most, before && before.each)) add('get.each', capped ? `A draft is 1 to ${most} each` : 'A draft is 1 or more each');
     else if (count === 'start' && isInt(s.count.start, 1) && s.count.start <= get.each) {
-      if (over(s.count.start, MAX_STARTERS, before && before.start)) add('count.start', `A lineup starts 1 to ${MAX_STARTERS}`);
-      if (over(get.each - s.count.start, MAX_BENCH, before && before.bench)) add('get.each', `A lineup's bench is 0 to ${MAX_BENCH}`);
-    } else if (count === 'best' && isInt(s.count.best, 1) && s.count.best <= get.each && over(s.count.best, MAX_STARTERS, before && before.best)) {
-      add('count.best', `Best ball counts 1 to ${MAX_STARTERS}`);
+      if (over(s.count.start, starters, before && before.start)) add('count.start', `A lineup starts 1 to ${starters}`);
+      if (over(get.each - s.count.start, bench, before && before.bench)) add('get.each', `A lineup's bench is 0 to ${bench}`);
+    } else if (count === 'best' && isInt(s.count.best, 1) && s.count.best <= get.each && over(s.count.best, starters, before && before.best)) {
+      add('count.best', `Best ball counts 1 to ${starters}`);
     }
     if (!one('get.own', get.own)) add('get.own', 'A draft is exclusive or shared');
     if (!one('get.order', get.order)) add('get.order', 'A draft is snake, blind, a draw or an auction');
@@ -1621,7 +1626,7 @@ function specProblems(spec, ctx, opts) {
   }
   if (score.by === 'moments' && score.times !== undefined) timesProblems(score.times, s, league).forEach(([at, p]) => add(`score.times${at}`, p));
   if (score.by === 'place' && score.reverse !== undefined && score.reverse !== true) add('score.reverse', 'reverse is true, or leave it out');
-  if (score.by === 'stats' && !(pointsMap(score.points) && Object.keys(score.points).length)) add('score.points', 'Stats score as stat key to points');
+  if (score.by === 'stats') statScoreProblems(score).forEach(([at, p]) => add(`score.${at}`, p));
   if (score.by === 'survive') {
     if (!one('score.means', score.means)) add('score.means', 'A pick survives by staying in (staysIn) or by scoring (scores)');
     if (!(isNum(score.points) && score.points >= 0)) add('score.points', 'A right pick is worth 0 or more');
@@ -1915,7 +1920,7 @@ const KEYS = {
   budget: ['total', 'floor', 'ceiling', 'gone', 'fallback', 'trade', 'left'],
   trade: ['fee'],
   second: ['fallback'],
-  score: { moments: ['by', 'points', 'captain', 'times'], place: ['by', 'reverse'], survive: ['by', 'means', 'points', 'lives', 'buyback', 'mulligans'], lines: ['by', 'points'], answers: ['by', 'parlays', 'lives', 'livesOn', 'saves'], stages: ['by'], stats: ['by', 'points'] },
+  score: { moments: ['by', 'points', 'captain', 'times'], place: ['by', 'reverse'], survive: ['by', 'means', 'points', 'lives', 'buyback', 'mulligans'], lines: ['by', 'points'], answers: ['by', 'parlays', 'lives', 'livesOn', 'saves'], stages: ['by'], stats: ['by', 'points', 'byPosition', 'byPlace', 'byFormat'] },
   buyback: ['times', 'before', 'cost'],
   before: ['phase', 'episode'],
   parlay: ['of', 'times'],
@@ -2004,6 +2009,51 @@ function unknownKeys(s) {
 }
 
 const pointsMap = (p) => isObj(p) && Object.values(p).every(isNum);
+
+/** A place or a range of them in a stat's points by place ("1", "4-10"), as { min, max }; null when it isn't one. */
+function placeRange(key) {
+  const m = /^(\d+)(?:-(\d+))?$/.exec(String(key));
+  if (!m) return null;
+  const min = Number(m[1]);
+  const max = m[2] === undefined ? min : Number(m[2]);
+  return min >= 1 && max >= min ? { min, max } : null;
+}
+
+/**
+ * L1 part 4a: a game scored by a sport's stats (score.by 'stats'), its shape, as [[at, problem]]. `points`: stat key to points
+ * for each one (5 a home run, 0.04 a passing yard). Three more ways a sport's standard table scores, each optional and kept as
+ * the sport's defaults keep them (src/lib/sports/defaults/*.json): `byPosition`, a stat's points by the player's position group
+ * ({ G: { GK: 10, DEF: 6, MID: 5, FWD: 4 } }, FPL's goal; a group it leaves out scores the stat at `points`'); `byPlace`, a place
+ * stat's points by place or range ({ POS: { '1': 25, '4-10': 8 } }: a place it leaves out scores nothing, the tied each the
+ * place's); `byFormat`, a bout's stats by the rounds or sets it's scheduled for ({ '5': { GW: 2 } }, tennis's best of five; a stat
+ * it leaves out at `points`'). Something has to score. Whether the keys are the sport's is settleProblems' (ctx.stats).
+ */
+function statScoreProblems(score) {
+  const out = [];
+  const tables = (v) => isObj(v) && Object.values(v).every(pointsMap);
+  const size = (v) => (isObj(v) ? Object.keys(v).length : 0);
+  if (score.points !== undefined && !pointsMap(score.points)) out.push(['points', 'Stats score as stat key to points']);
+  if (score.byPosition !== undefined && !tables(score.byPosition)) out.push(['byPosition', "A stat's points by position are stat key to { position group: points }"]);
+  if (score.byPlace !== undefined) {
+    if (!tables(score.byPlace)) out.push(['byPlace', "A place's points are stat key to { place or range ('4-10'): points }"]);
+    else for (const [k, t] of Object.entries(score.byPlace)) {
+      const ranges = Object.keys(t).map((r) => [r, placeRange(r)]);
+      const bad = ranges.find(([, r]) => !r);
+      if (bad) out.push([`byPlace.${k}`, `"${bad[0]}" isn't a place or a range of them ('1', '4-10')`]);
+      else {
+        const sorted = ranges.map(([, r]) => r).sort((a, b) => a.min - b.min);
+        if (sorted.some((r, i) => i > 0 && r.min <= sorted[i - 1].max)) out.push([`byPlace.${k}`, 'Each place scores once: the ranges overlap']);
+      }
+      if (isObj(score.points) && Object.prototype.hasOwnProperty.call(score.points, k)) out.push([`points.${k}`, `${k} scores by its place: leave it out of points`]);
+    }
+  }
+  if (score.byFormat !== undefined) {
+    if (!tables(score.byFormat)) out.push(['byFormat', "A bout's points by its format are its rounds or sets to { stat key: points }"]);
+    else for (const f of Object.keys(score.byFormat)) if (!/^[1-9]\d*$/.test(f)) out.push([`byFormat.${f}`, "A bout's format is how many rounds or sets it's scheduled for ('3', '5')"]);
+  }
+  if (!out.length && !size(score.points) && !size(score.byPlace) && !size(score.byPosition) && !size(score.byFormat)) out.push(['points', 'Stats score as stat key to points: name one']);
+  return out;
+}
 
 /**
  * A draft's group slots (A10 part 1: get.groups), as [[at, problem]]: { slots: 1 to MAX_GROUP_SLOTS, own: shared |
@@ -2252,6 +2302,41 @@ function coopProblems(score, rank, s) {
   if (score.saves !== undefined) {
     if (rank.by !== 'coop') out.push(['score.saves', "Who saves a night is co-op's: rank.by 'coop'"]);
     else if (own(VOCAB['score.saves'], score.saves) === undefined) out.push(['score.saves', 'A night costs the couch nothing when one of you saw it coming (one), most of those who answered (most) or all of them (all)']);
+  }
+  return out;
+}
+
+/**
+ * L1 part 4a: a stats score's keys against the sport (the data-can-settle rule), as [[at, problem]]: every stat one of the sport's
+ * (ctx.stats: { key, place? }, the Sport's specStats), a place one only by place, a position group one of the sport's (ctx.positions:
+ * [{ key }]), a bout's format one its bouts are scheduled for (ctx.formats: [{ key: '5' }]; a sport without bouts has none).
+ */
+function statScoreSettles(score, ctx, stats) {
+  const out = [];
+  const places = new Set((Array.isArray(ctx.stats) ? ctx.stats : []).filter((x) => isObj(x) && x.place).map((x) => x.key));
+  const keysOf = (list) => new Set((Array.isArray(list) ? list : []).map((x) => String(isObj(x) ? x.key : x)));
+  const groups = keysOf(ctx.positions);
+  const formats = keysOf(ctx.formats);
+  const none = (at, key) => out.push([at, `Nothing counts "${key}": it isn't one of the sport's stats`]);
+  const counts = (at, table) => {
+    for (const key of Object.keys(table)) {
+      if (!stats.has(key)) none(`${at}.${key}`, key);
+      else if (places.has(key)) out.push([`${at}.${key}`, `${key} is a place: score it by place (byPlace)`]);
+    }
+  };
+  if (pointsMap(score.points)) counts('score.points', score.points);
+  if (isObj(score.byPosition)) for (const [key, by] of Object.entries(score.byPosition)) {
+    if (!stats.has(key)) none(`score.byPosition.${key}`, key);
+    else if (places.has(key)) out.push([`score.byPosition.${key}`, `${key} is a place: score it by place (byPlace)`]);
+    if (isObj(by)) for (const g of Object.keys(by)) if (!groups.has(g)) out.push([`score.byPosition.${key}.${g}`, groups.size ? `"${g}" isn't one of the sport's positions: ${[...groups].join(', ')}` : "The sport's players have no positions to score by"]);
+  }
+  if (isObj(score.byPlace)) for (const key of Object.keys(score.byPlace)) {
+    if (!stats.has(key)) none(`score.byPlace.${key}`, key);
+    else if (!places.has(key)) out.push([`score.byPlace.${key}`, `${key} isn't a place: score it in points`]);
+  }
+  if (isObj(score.byFormat)) for (const [f, table] of Object.entries(score.byFormat)) {
+    if (!formats.has(f)) out.push([`score.byFormat.${f}`, formats.size ? `A bout here is scheduled for ${[...formats].join(' or ')}` : 'Only a bout has a format to score by']);
+    if (pointsMap(table)) counts(`score.byFormat.${f}`, table);
   }
   return out;
 }
@@ -2598,9 +2683,7 @@ function settleProblems(s, ctx, opts) {
       }
     }
   }
-  if (score.by === 'stats' && pointsMap(score.points)) {
-    for (const key of Object.keys(score.points)) if (!stats.has(key)) out.push([`score.points.${key}`, `Nothing counts "${key}": it isn't one of the sport's stats`]);
-  }
+  if (score.by === 'stats') statScoreSettles(score, ctx, stats).forEach((x) => out.push(x));
   // A10 part 2: a pool's buyback until a phase is one of the season's, never its first (where it starts is data: the desk
   // confirms it); a second pick needs results that say who goes home (a night two go is known only from them).
   if (score.by === 'survive' && isObj(score.buyback) && isObj(score.buyback.before) && typeof score.buyback.before.phase === 'string' && score.buyback.before.phase && Array.isArray(ctx.phases)) {
@@ -2994,7 +3077,7 @@ module.exports = {
   REPLACE_RULES, WINDOW_SCHEDULES, WAIVER_FEELS, WAIVER_ORDERS, WAIVER_HOURS, DRAFT_TIMERS, MAX_BET_POINTS, JOINS, ORDER_OF,
   MAX_TEAM, MAX_STARTERS, MAX_BENCH, MAX_LINEUP_TEAM, MAX_QUESTIONS, MAX_PICK, MAX_QUESTION_POINTS, MAX_OPTIONS, YES_NO,
   CALLS, finaleQuestions, finaleOf, isCalls, isTrivia, isFact, callsAsk, fullQuestion, optionRange, playable,
-  fullSpec, typeOf, playsAs, flagsOf, sizesOf, specProblems, specWaitsFor, waiversFit, finaleFits, betsFit, countKind, presetOf, sameValue, own,
+  fullSpec, typeOf, playsAs, flagsOf, sizesOf, specProblems, placeRange, specWaitsFor, waiversFit, finaleFits, betsFit, countKind, presetOf, sameValue, own,
   spanStart, spanPhase, spanEnd, spanEndPhase, phaseTo,
   MAX_STAGES, MAX_STAGE_NAME, MAX_PLACES, OVERALL, STAGE_KINDS, stageGames, stagesOverlap,
   ON_CHANGE, CHANGES, MAX_COPIES, stageOn, stageGame, stageLeagueGame, madeAs, nextStageAts, fallsTo,

@@ -36,7 +36,7 @@
         "pool": { "of": "cast", "where": null },
         "get": { "by": "draft", "each": 15, "order": "snake", "own": "exclusive" },
         "count": { "start": 11 },
-        "score": { "by": "stats", "points": { "APP": 1, "MIN60": 1, "G": 5, "A": 3, "CS": 1, "GA2": 0, "SV3": 1, "PKSV": 5, "PKM": -2, "YC": -1, "RC": -3, "OG": -2 } },
+        "score": { "by": "stats", "points": { "APP": 1, "MIN60": 1, "G": 5, "A": 3, "CS": 1, "GA2": 0, "SV3": 1, "PKSV": 5, "PKM": -2, "YC": -1, "RC": -3, "OG": -2 }, "byPosition": { "G": { "GK": 10, "DEF": 6, "MID": 5, "FWD": 4 }, "CS": { "GK": 4, "DEF": 4, "MID": 1, "FWD": 0 }, "GA2": { "GK": -1, "DEF": -1, "MID": 0, "FWD": 0 } } },
         "rank": { "by": "matchups" },
         "closes": "weekly"
       }
@@ -49,7 +49,7 @@
         "pool": { "of": "cast", "where": null },
         "get": { "by": "draft", "each": 3, "order": "snake", "own": "exclusive" },
         "count": { "all": true },
-        "score": { "by": "stats", "points": { "APP": 1, "MIN60": 1, "G": 5, "A": 3, "CS": 1, "GA2": 0, "SV3": 1, "PKSV": 5, "PKM": -2, "YC": -1, "RC": -3, "OG": -2 } },
+        "score": { "by": "stats", "points": { "APP": 1, "MIN60": 1, "G": 5, "A": 3, "CS": 1, "GA2": 0, "SV3": 1, "PKSV": 5, "PKM": -2, "YC": -1, "RC": -3, "OG": -2 }, "byPosition": { "G": { "GK": 10, "DEF": 6, "MID": 5, "FWD": 4 }, "CS": { "GK": 4, "DEF": 4, "MID": 1, "FWD": 0 }, "GA2": { "GK": -1, "DEF": -1, "MID": 0, "FWD": 0 } } },
         "rank": { "by": "total" },
         "closes": "start"
       }
