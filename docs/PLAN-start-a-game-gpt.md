@@ -3309,6 +3309,9 @@ checked by its own rule). Nothing plays a stats game yet: the engine's hook is p
   doesn't; the run's events capped at 10; "no such event" read from error words, now from the calls' own answers; a non-JSON answer
   read as the reader's error (kept as none once old), now ESPN failing; ESPN's answers read by one helper; two ids for one person
   kept the last on the server and the first on the phone, now the first; one `cents`).
+- **The long checks, last, on `95ed84ec`:** `golden.js --before=master` (master `54d58239`, nothing new in the engine's files since
+  `e4f3441d`): Survivor 49, The Traitors US 4 and The Challenge 40, 74 games, 9,548 reads, every one the same. blind.js and the
+  rehearsal not run: every read a show's game makes is kept the same (golden against master alone, as the lane's notes say).
 - **For the engine lane (L3 part 2):** as above, `statMoments(lines, score, groupOf, boutsOf)`, with `leagueGames`' `bouts`.
 
 **L3 part 3a noticed, not fixed:**
