@@ -6468,6 +6468,10 @@ first), and proves it on these games and on the tracker's other rows that use it
   watch's sync (Start, pause, ±30 s, "Tap the last play you saw"); the players list by team and position, sorted by stat chips,
   with a player sheet; one format first, head-to-head. Light inspiration from the MLB app, Yahoo Fantasy and Yahoo Sports. Ask
   the user before deciding anything the plan leaves open.
+  **Adding a sports game** (the user, 2026-11-06): not through the TV listings' show search, which isn't intuitive for sports,
+  but by team: search for a team, its schedule, the team against an opponent, and the like, on the sports data's own schedules
+  (ESPN's `schedule(league, team)`; the data side is track L's, before its release). And the TV guide's Sports filter turned
+  on (today a "coming soon" button, `src/new/hub/guide.tsx`) once sports is released.
 - **U1. Build.** The field and the wizard in Start a game, Start from a spec, Make it a game chained for a show that isn't set
   up (was G2); answering and results; the live and sports screens; the Games tab's launcher and the game pages from track V's
   generator (V3's golden screens their check); checked at 390 on Night and Studio with a zt- fixture.
