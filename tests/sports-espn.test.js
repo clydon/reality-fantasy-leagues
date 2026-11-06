@@ -98,6 +98,9 @@ test("an event in parts (an F1 weekend): each part's field and places on the par
   assert.deepEqual(gp.competitors, []);
   assert.deepEqual(gp.parts.map((p) => [p.id, p.name, p.at, p.state]), [["1", "FP1", "2026-10-23T17:30Z", "post"], ["5", "Race", "2026-10-25T20:00Z", "in"]]);
   assert.deepEqual(gp.parts[1].competitors.map((c) => [c.place, c.person.name, c.team]), [[1, "Kimi Antonelli", null], [2, "Charles Leclerc", null]]);
+  // ESPN's event status is its last part over's (final from FP1's end): the weekend's on until every part is over.
+  assert.equal(gp.state, "in");
+  assert.equal(gp.final, false);
 });
 
 test("search: teams (by the id in their uid) and leagues, each with ESPN's league path; the rest left out", () => {

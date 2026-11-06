@@ -1,4 +1,4 @@
-import { FieldSport, count, fieldEventOf, idOf, inOrder, isoOf as iso, nonzero, msOf, num, ordinal, position as pos, str, type EspnCoreCompetitor, type EspnFieldCompetitor, type FieldAnswer, type FieldBox, type FieldEntry, type FieldEvent, type FieldPlay, type FieldState, type FieldStatus, type Play, type Position, type PositionGroup, type Standing, type StatDef, type Stats } from "./sport";
+import { FieldSport, count, fieldEventOf, idOf, inOrder, isoOf as iso, nonzero, msOf, num, ordinal, position as pos, str, type EspnCoreCompetitor, type EspnFieldCompetitor, type EspnFieldEvent, type FieldAnswer, type FieldBox, type FieldEntry, type FieldEvent, type FieldPlay, type FieldState, type FieldStatus, type Play, type Position, type PositionGroup, type Standing, type StatDef, type Stats } from "./sport";
 
 // Racing (Formula 1; NASCAR's Cup, O'Reilly Auto Parts and Truck series; IndyCar): its vocabulary and ESPN's readers
 // (docs/PLAN-start-a-game-gpt.md track L, L5 part 3b).
@@ -120,6 +120,17 @@ const PLACE_KEYS = ["POS", "W", "PODIUM", "TOP5", "TOP10"];
  *  no `_asked`): ESPN times no session's end; a race runs 1.5 to 4 hours, longer under a red flag or rain. */
 const SESSION_OVER_MS = 12 * 3600_000;
 
+/** The core's statistics a counted series' race has right before they're filled in (Racing.sessions): its place and grid. */
+const CORE_BEFORE_FILLED = new Set(["place", "pole"]);
+
+/** A weekend over: ESPN's board says final and completed, and every session on it is over (finished, or called off: "post" and
+ *  not completed). The board's own status is its last session over's: final from FP1's end, FP2 to the race still to come
+ *  (Mexico City 2026, recorded live). */
+export function weekendOver(board: EspnFieldEvent | null | undefined): boolean {
+  const st = board?.status?.type;
+  return st?.completed === true && st?.state === "post" && (board?.competitions ?? []).every((c) => c.status?.type?.state === "post");
+}
+
 /** How the standings list those in and out: the placed, then the disqualified, then whoever didn't qualify (golf's "cut"). */
 const ORDER: Record<FieldStatus, number> = { in: 0, wd: 1, dq: 2, cut: 3 };
 
@@ -176,6 +187,8 @@ interface Session {
   stats: Map<string, Record<string, number>>;
   maxLaps: number;
   maxLed: number;
+  /** A counted series' race whose core statistics ESPN hasn't filled in yet: only its place and grid read (sessions()). */
+  unfilled: boolean;
   placed: boolean;
 }
 
@@ -233,6 +246,14 @@ export class Racing extends FieldSport {
       const board = new Map((c.competitors ?? []).map((x) => [idOf(x.id), x]));
       const core = new Map((answer.core?.[id]?.competitors ?? []).map((x) => [idOf(x.id), x]));
       const stats = new Map([...core].map(([who, x]) => [who, coreStats(x)]));
+      // NASCAR's and IndyCar's race live, and for a while after its end: ESPN's core gives every car the race's laps so far
+      // (a car out on lap 222 at 493), nobody a lap led and no points (Martinsville 2026, recorded live; filled in later). Every
+      // lap run is led by someone, so with laps run and none led, only its place and grid are the cars' own yet.
+      const unfilled = this.feed === "counted" && (known?.kind === "race" || known?.kind === "sprint") && (num(c.status?.period) ?? 0) > 0 && [...stats.values()].some((x) => (x.lapsCompleted ?? 0) > 0) && ![...stats.values()].some((x) => (x.lapsLead ?? 0) > 0);
+      if (unfilled) {
+        for (const [who, x] of stats) stats.set(who, Object.fromEntries(Object.entries(x).filter(([k]) => CORE_BEFORE_FILLED.has(k))));
+        issues.push(`${abbr || id}: the core's statistics not filled in yet (laps run, none led): its place and grid read, no laps, laps led or points`);
+      }
       const most = (k: string) => Math.max(0, ...[...stats.values()].map((x) => x[k] ?? 0));
       return {
         id,
@@ -248,6 +269,7 @@ export class Racing extends FieldSport {
         stats,
         maxLaps: most("lapsCompleted"),
         maxLed: most("lapsLead"),
+        unfilled,
         placed: [...board.values(), ...core.values()].some((x) => num(x.order) != null),
       };
     });
@@ -380,8 +402,8 @@ export class Racing extends FieldSport {
       .map((p) => ({ p, fin: p.stats.FIN ?? Infinity }))
       .sort((a, b) => ORDER[a.p.standing.status] - ORDER[b.p.standing.status] || a.fin - b.fin)
       .map(({ p }) => p.standing);
-    const bst = board.status?.type;
-    return { ...event, final: bst?.completed === true && bst?.state === "post", people, standings };
+    // Not the final yet while a race's core statistics aren't filled in (minutes after the flag): the truth waits for them.
+    return { ...event, final: weekendOver(board) && !ss.some((s) => s.unfilled), people, standings };
   }
 
   private standingOf(fin: number | null, status: FieldStatus, id: string, tied = false): Standing {
@@ -399,7 +421,7 @@ export class Racing extends FieldSport {
     if (!event) return [];
     const ss = this.sessions(answer, issues);
     const board = fieldEventOf(answer, "board");
-    const final = board?.status?.type?.completed === true && board?.status?.type?.state === "post";
+    const final = weekendOver(board);
     const asked = msOf(answer._asked);
     const last = ss[ss.length - 1];
     const end = asked ?? (final && last?.start != null ? last.start + SESSION_OVER_MS : null);

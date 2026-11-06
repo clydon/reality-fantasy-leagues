@@ -139,6 +139,8 @@ const FIELD = /^(golf|racing)\//.test(String(league));
 const RACING = String(league).startsWith("racing/");
 const STATS_EVERY = Number(args["stats-every"] || 300) * 1000;
 const { raceCore: askCore, cachedRaceCore } = require("./espn-race-core");
+/** racing.ts's weekendOver, loaded once it's needed. */
+const racingWeekendOver = (board) => require("jiti")(__filename, { alias: { "@": path.join(__dirname, "..", "..", "src") } })("../../src/lib/sports/racing.ts").weekendOver(board);
 
 /** A race session's core answer as racing.ts reads it, as recorded: its competitors and, `full`, their statistics and F1's
  *  status (espn-race-core.js), with when it was asked. Counts what came over the wire into `wire`. */
@@ -155,8 +157,10 @@ const fieldUrls = () =>
 function fieldState(answer) {
   const board = answer.board ?? {};
   const ev = answer.leaderboard?.events?.[0] ?? board;
-  const final = ev.status?.type?.state === "post" || board.status?.type?.state === "post";
   const comps = board.competitions ?? ev.competitions ?? [];
+  // Racing's board says final from its first session's end (its status is the last session over's: Mexico City 2026's after
+  // FP1), so a weekend's final is the reader's: every session over too (racing.ts's weekendOver).
+  const final = RACING ? racingWeekendOver(board) : ev.status?.type?.state === "post" || board.status?.type?.state === "post";
   const on = league.startsWith("golf/") ? comps[0] : comps.find((c) => c.status?.type?.state === "in") ?? comps.find((c) => c.status?.type?.state === "pre") ?? comps[comps.length - 1];
   const st = (league.startsWith("golf/") ? answer.leaderboard?.events?.[0]?.competitions?.[0]?.status : null) ?? on?.status ?? {};
   const holes = (comps[0]?.competitors ?? []).reduce((n, c) => n + (c.linescores ?? []).reduce((m, r) => m + (r.linescores ?? []).length, 0), 0);
@@ -226,7 +230,7 @@ async function recordField() {
     fs.appendFileSync(path.join(dir, "log.jsonl"), JSON.stringify(line) + "\n");
     console.log(`${line.at}  ${st.state} ${st.detail ?? ""}${st.session ? ` (${st.session})` : ""}  ${st.holes} holes  ${bytes ? `${Math.round(bytes / 1024)} KB over the wire` : ""} (${Math.round(raw / 1024)} KB)`);
     if (st.final) {
-      console.log("Final: done. Compare with --compare (still to write for a field).");
+      console.log("Final: done. Compare with --compare.");
       return;
     }
     if (on) played = true;
@@ -772,15 +776,17 @@ async function compareCard() {
 // every --every), until every match is over (at most --hours, 120). An answer is kept only when a match in it changed (its status,
 // sets, winner, start or note) since the last kept; every ask has its line in log.jsonl.
 const DRAW = String(league).startsWith("tennis/");
-const { cachedTennisBoard, drawOver, drawMatches } = require("./espn-tennis-board");
-/** Where an event is: its matches in, over and to come (a canceled one is over), and the next start of one to come. */
+const { cachedTennisBoard, drawOver, drawMatches, matchOver } = require("./espn-tennis-board");
+/** Where an event is: its matches in, over and to come (a canceled one is over; a suspended one, "post", is in: matchOver),
+ *  and the next start of one to come. */
 function drawState(board) {
   const comps = drawMatches(board);
   const st = (c) => c.status?.type?.state;
   const pre = comps.filter((c) => st(c) === "pre");
   // The next start of one to come: ESPN's placeholder for a match not yet scheduled (`timeValid` false, the day's 04:00 UTC) isn't one.
   const next = Math.min(...pre.filter((c) => c.timeValid !== false).map((c) => Date.parse(c.date)).filter(Number.isFinite));
-  return { matches: comps.length, inMatches: comps.filter((c) => st(c) === "in").map((c) => String(c.id)), done: comps.filter((c) => st(c) === "post").length, pre: pre.length, next, final: comps.length > 0 && !pre.length && !comps.some((c) => st(c) === "in") };
+  const on = comps.filter((c) => st(c) === "in" || (st(c) === "post" && !matchOver(c)));
+  return { matches: comps.length, inMatches: on.map((c) => String(c.id)), done: comps.filter(matchOver).length, pre: pre.length, next, final: comps.length > 0 && !pre.length && !on.length };
 }
 /** What a phone shows of each match: changed, the answer's kept. */
 const drawShown = (board) => JSON.stringify(drawMatches(board).map((c) => [c.id, c.date, c.status?.type?.name, c.status?.period, (c.notes ?? []).map((n) => n.text), (c.competitors ?? []).map((x) => [x.id, x.winner, x.linescores])]));
@@ -832,7 +838,7 @@ async function recordDraw() {
 //  - each match as it went: when an answer first had it on, each set's end and its result, against its listed start (whether
 //    ESPN moved `date` once it began: a scheduled time or its real start), how many answers it was on in, how often its games
 //    changed between answers (how far apart a phone sees them), a set or a result shown otherwise and settled later, ESPN's note
-//    behind its sets ("leads" after the end);
+//    behind its sets ("leads" after the end), a match shown suspended (ESPN's feed stalled: STATUS_SUSPENDED, "post");
 //  - matches called off or added while it was recorded;
 //  - ESPN's lag: no game, set or match has a time in an answer, so only how long after its listed start a match's first answer
 //    on came, and its result after its last set's end;
@@ -868,13 +874,14 @@ async function compareDraw() {
   const asksLog = fs.existsSync(path.join(dir, "log.jsonl")) ? fs.readFileSync(path.join(dir, "log.jsonl"), "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l)) : [];
   let otherwise = 0;
   let stale = 0;
+  const suspended = [];
   console.log("\nThe matches seen on:");
   for (const b of card.bouts) {
     const seen = answers.map((a) => ({ asked: a._asked, c: matchIn(a, b.id) })).filter((x) => x.c);
-    const on = seen.filter((x) => x.c.status?.type?.state === "in");
+    const on = seen.filter((x) => x.c.status?.type?.state === "in" || (x.c.status?.type?.state === "post" && !matchOver(x.c)));
     if (!on.length) continue;
     const firstOn = on[0].asked;
-    const over = seen.find((x) => x.c.status?.type?.state === "post")?.asked ?? null;
+    const over = seen.find((x) => matchOver(x.c))?.asked ?? null;
     // Its start as listed before it began, and once on: a scheduled time ESPN moves, or not.
     const listed = seen.find((x) => x.c.status?.type?.state === "pre")?.c.date ?? null;
     const began = on[0].c.date;
@@ -897,14 +904,23 @@ async function compareDraw() {
     const changed = shown.some((x) => x !== wanted);
     if (changed) otherwise++;
     // ESPN's note behind its sets: "leads" in an answer with the match over.
-    const behind = seen.filter((x) => x.c.status?.type?.state === "post" && /\bleads\b|\bis tied with\b/.test(x.c.notes?.[0]?.text ?? "")).length;
+    const behind = seen.filter((x) => matchOver(x.c) && /\bleads\b|\bis tied with\b/.test(x.c.notes?.[0]?.text ?? "")).length;
     if (behind) stale++;
+    // Suspended (ESPN's feed stalled, its last set behind), then on again or over: each pause, from its first answer to the next
+    // answer on or over.
+    const pauses = [];
+    on.forEach((x, i) => {
+      if (x.c.status?.type?.state !== "post" || on[i - 1]?.c.status?.type?.state === "post") return;
+      const back = on.slice(i + 1).find((y) => y.c.status?.type?.state === "in")?.asked ?? over;
+      pauses.push(`from ${x.asked} for ${secs(back, x.asked) ?? "?"} s`);
+    });
+    if (pauses.length) suspended.push(`${b.id}: ${pauses.join(", ")}`);
     // Its result after the last ask that had it on (every ask's in the log: an answer's kept only when something changed).
     const lastOn = asksLog.filter((l) => (l.inMatches ?? []).includes(b.id) && (!over || Date.parse(l.at) < Date.parse(over))).pop()?.at ?? on[on.length - 1].asked;
     if (over) lagsResult.push(secs(over, lastOn));
     const title = b.sides.map(name).join(" vs. ");
     console.log(`  ${b.id} ${b.place.draw} ${b.place.round}: ${title}${want ? `, ${want.sets.map((s) => `${s.games[0]}-${s.games[1]}`).join(" ")}${want.method ? ` (${want.method})` : ""}` : ""}`);
-    console.log(`    on from ${firstOn}${already ? " (on already when the recording began" : ` (listed ${began}${listed && listed !== began ? `, before it began ${listed}` : ""}: ${secs(firstOn, began)} s after`}), ${on.length} answers on, its games changed in ${changes}${back ? `, went back in ${back}` : ""}; over ${over ?? "not yet"}${changed ? `; a result shown otherwise: ${[...new Set(shown)].join(" then ")}, the final's ${wanted}` : ""}${behind ? `; ESPN's note behind its sets in ${behind} answers` : ""}`);
+    console.log(`    on from ${firstOn}${already ? " (on already when the recording began" : ` (listed ${began}${listed && listed !== began ? ` once on, ${listed} before` : ""}: ${secs(firstOn, began)} s after`}), ${on.length} answers on, its games changed in ${changes}${back ? `, went back in ${back}` : ""}; over ${over ?? "not yet"}${changed ? `; a result shown otherwise: ${[...new Set(shown)].join(" then ")}, the final's ${wanted}` : ""}${behind ? `; ESPN's note behind its sets in ${behind} answers` : ""}`);
   }
   // Matches called off or added while it was recorded.
   const ids = (a) => new Set(drawMatches(a.board).filter((c) => c.status?.type?.name !== "STATUS_CANCELED").map((c) => String(c.id)));
@@ -916,6 +932,7 @@ async function compareDraw() {
   console.log(`\nMatches gone from the board since the first answer: ${gone.length}${gone.length ? ` (${gone.join(", ")})` : ""}; called off (STATUS_CANCELED) after being listed: ${canceled.length}; added: ${added.length}`);
   console.log(`ESPN's start (\`date\`) moved once a match began: ${moved.length}${moved.length ? `\n  ${moved.slice(0, 10).join("\n  ")}` : ""}`);
   console.log(`Results shown otherwise and settled later: ${otherwise}; matches over whose note still said "leads": ${stale}`);
+  console.log(`Matches shown suspended (STATUS_SUSPENDED, read as on): ${suspended.length}${suspended.length ? `\n  ${suspended.join("\n  ")}` : ""}`);
   // ESPN's lag: no time on a game, a set or a match; how long after its listed start its first answer on came, and its result
   // after the last answer on.
   const med = (xs) => quantile(xs.filter((x) => x != null), 0.5);

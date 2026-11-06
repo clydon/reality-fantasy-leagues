@@ -44,9 +44,9 @@ export { CollegeFootball } from "./college-football";
 export { Hockey } from "./hockey";
 export { Soccer, plainName } from "./soccer";
 export { Golf, GOLF_LEAGUES, boardCounts, holeKind, roundStats, toParOf } from "./golf";
-export { Racing, RACING_SERIES, coreStats, type Series } from "./racing";
+export { Racing, RACING_SERIES, coreStats, weekendOver, type Series } from "./racing";
 export { MMA, methodOf, coreFighterStats, mmaCoreStats, mmaCenterStats } from "./mma";
-export { Tennis, noteWinner, setComplete, setOf, type DrawEntry, type DrawStanding } from "./tennis";
+export { Tennis, matchOver, matchSuspended, noteWinner, setComplete, setOf, type DrawEntry, type DrawStanding } from "./tennis";
 
 /** A sport of any shape: a team sport's box score and plays, a field's standings, or a card's bouts. */
 export type AnySport = TeamSport | FieldSport | BoutSport;

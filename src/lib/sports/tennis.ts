@@ -11,7 +11,7 @@ import { BoutSport, addStats, cleanDeltas, count, idOf, isoOf as iso, msOf, num,
 //    "Semifinal", "Final", "Qualifying 1st Round", "Qualifying 2nd Round", "Qualifying Final", "Group Stage"; none in some 2025
 //    doubles draws), its start (`date`, on the five minutes; `timeValid` false for one not yet scheduled, at the day's 04:00 UTC),
 //    its court, its status (STATUS_FINAL, STATUS_RETIRED, STATUS_WALKOVER, STATUS_CANCELED, STATUS_IN_PROGRESS, STATUS_SCHEDULED;
-//    `period` the set it's in or ended in), its two sides (`order` 1 and 2: a player, or a doubles pair typed "team" whose id is
+//    live, STATUS_SUSPENDED: "post" but not `completed`, a feed's stall; `period` the set it's in or ended in), its two sides (`order` 1 and 2: a player, or a doubles pair typed "team" whose id is
 //    its two players' joined, "1627-2695", its people in `roster`; "TBD", ids -3 and -4, for a place not yet known), each side's
 //    `winner`, seed (`curatedRank.current`) and sets (`linescores`: the games, who won the set, a tiebreak's points), and ESPN's
 //    result in words (`notes`: "Jerome Kym (SUI) bt (1) Ben Shelton (USA) 6-3 6-7 (4-7) 7-6 (7-1)", "... 7-5 ret", "... w/o").
@@ -116,6 +116,18 @@ const tbd = (c: EspnBoutCompetitor) => (num(c.id) ?? 0) < 0 || str(c.athlete?.di
  * (a finished match's every set, a retirement's all but its last, a live one's before the set on), so an unflagged set's winner
  * is its games' or its points'. A match tiebreak written as points ("10-8") is a set of one game; "0-0 (10-6)" too, once done.
  */
+/** ESPN's live board calls a match STATUS_SUSPENDED ("post", `completed` false) when its feed stalls, its last set's games behind
+ *  and its note already "bt", then has it on again or final (Basel 2026, recorded live: three of 11 matches, 10 to 15 minutes; no
+ *  finished board of 2025-26 has one): a match on, not one over. Any other "post" is over (a called-off one too). */
+export function matchSuspended(c: EspnBoutCompetition): boolean {
+  return c.status?.type?.state === "post" && c.status?.type?.name === "STATUS_SUSPENDED";
+}
+
+/** A match over: "post" and not suspended (the dev scripts' recorder and cache read it too: espn-tennis-board.js). */
+export function matchOver(c: EspnBoutCompetition): boolean {
+  return c.status?.type?.state === "post" && !matchSuspended(c);
+}
+
 export function setOf(a: EspnLinescore | undefined, b: EspnLinescore | undefined, done: boolean): SetScore {
   const va = num(a?.value) ?? 0;
   const vb = num(b?.value) ?? 0;
@@ -283,8 +295,11 @@ export class Tennis extends BoutSport {
       const rid = idOf(c.round?.id);
       const qualifying = isQualifying(rid);
       const place: DrawPlace = { draw, round: str(c.round?.displayName), fromFinal: fromFinal(draw, rid), qualifying, group: rid === GROUP_STAGE };
-      const state = (c.status?.type?.state === "in" ? "in" : c.status?.type?.state === "post" ? "post" : "pre") as MatchRead["state"];
+      // A suspended match is on (matchOver), its sets so far.
+      const espnState = c.status?.type?.state;
+      const state = (espnState === "in" || matchSuspended(c) ? "in" : espnState === "post" ? "post" : "pre") as MatchRead["state"];
       const name = c.status?.type?.name ?? "";
+      if (matchSuspended(c)) issues.push(`match ${id}: ${name}, read as on`);
       const how: How | null = state !== "post" ? null : name === "STATUS_RETIRED" ? "ret" : name === "STATUS_WALKOVER" ? "wo" : "played";
       if (state === "post" && !["STATUS_FINAL", "STATUS_RETIRED", "STATUS_WALKOVER"].includes(name)) issues.push(`match ${id}: over as ${name || "nothing"}, read as played out`);
       // Its sets, each side's lines side by side; which are over: a finished match's all, a retirement's all but the set it

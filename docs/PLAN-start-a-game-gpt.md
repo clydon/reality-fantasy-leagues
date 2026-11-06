@@ -1650,6 +1650,30 @@ UI.
   tennis's first live answers, the ATP's Swiss Indoors Basel (`tennis/atp` 23-2026) and the WTA's Guangzhou Open (`tennis/wta`
   232-2026), from 11:44 UTC 10-30 to their finals on 11-01 (`record-espn-live.js`'s draw recorder: L5 part 4b's As built; logs
   `tennis-atp-23-2026.out.txt` and `tennis-wta-232-2026.out.txt`).
+  **After the pause (2026-11-05): every weekend recording compared** (all final; F1's only for FP1: L5 part 3b's Noticed). The
+  team sports (`record-espn-live.js --compare`):
+  - **Baylor at UCF and Tulane at Charlotte (college football 401856844, 401862813), college football's first live games:** 229 of
+    369 and 254 of 428 answers equal the final at their moment. **`scoringPlays` comes as the game goes**: every scoring play in
+    the same answer as the play itself (21 of 21; one 30 s before it). **A touchdown's try is added to its text an answer or more
+    later** ("... for a TD", then "... for a TD (R. Armstrong KICK)" 30-180 s on), so a phone's extra point, and a two-point try
+    (read from that text), lands then: the score a point short for an answer at each touchdown (the compare's "for 0 s" lines).
+    4 plays dropped live (ESPN replaced them: a penalty's, a run rewritten as a sack, a turnover on downs); 53 and 34 read
+    otherwise (tacklers and targets added, yards changed by one). 12 of Baylor's first-quarter plays had their own wallclocks live
+    and **one later moment in the final** (23:52:48 for plays of 23:39-23:49): a later watch sees them bunched, a live phone at
+    their times. The judged counts (tackles, hurries) settled in a median 40 and 170 s, the others 52 and 28 s. The box listed 2
+    and 0 people at first, 75 and 64 at the end (as the NHL's: only who's played).
+  - **The WNBA Finals' Game 7, Dream at Valkyries (401918311), the WNBA's first live game:** as the NBA's: 63 of 255 answers
+    equal, 7 plays dropped (a block and its rebound, two free throws, turnovers rewritten), 174 read otherwise (nearly all
+    rebounds restamped by a second or a few); counts settled in a median 35 s (judged 46 s); the box listed all 27 from the start.
+  - **Ravens at Bills (NFL 401873026), for `drives.current`:** **`drives.current` is in 392 of 393 live answers, and in
+    `drives.previous` too in all 392**: ESPN lists the drive on in both, so the reader's reading a play once either way is
+    needed, and right. 15 of 393 answers equal: 55 plays read otherwise (tacklers and a pass defended added later, yards one off;
+    the judged counts settled in a median 404 s, the rest at once), none dropped. The box listed 7 people at first, 76 at the end.
+  - **ESPN's lag** from a play's wallclock to its first answer: college football a median 51 and 54 s (90th 77 and 78 s), the NFL
+    59 s (84 s), the WNBA 45 s (64 s): about a minute, as the others.
+  - **A phone's data**: college football 30 and 31 KB an answer (7 MB an hour at 15 s), the NFL 38 KB (9 MB), the WNBA 35 KB
+    (8 MB).
+  The fields, the card and the draws: their parts' Noticed (L5 part 3a, 3b, 4a and 4b).
 - **A phone's data**: an estimated 15-30 MB a game at 15 s, since every answer is the whole summary (no ETag, so no 304s).
   ESPN's core API pages a game's plays (`sports.core.api.espn.com/v2/sports/{sport}/leagues/{league}/events/{id}/competitions/
   {id}/plays?limit=&page=`, CORS `*`, cached 15 minutes once final), so a poll could fetch only the newest page and a small
@@ -2311,12 +2335,16 @@ for it is below, looked at in this session).
   each ask (golf's board and leaderboard: 27 KB over the wire together after round 1, ~60 KB by the end, ESPN's `max-age` 1-4 s,
   CORS `*`), every 60 s is plenty (a group plays a hole in ~13 minutes), and the holes it sees for the first time stamped with
   the ask's moment (`_asked`). (L3 or U1, with the recording's compare.)
-- **What a live golf answer has as it goes is still to see**: no golf was on during the session (the Mexico Open's round 2 from
-  13:05 UTC, the LPGA's Maybank round 3 from 23:15). The PGA's round 2 is being recorded (below): whether the board lists each
-  hole as it's played, how `thru` and `hole` move, whether `currentPosition` is filled as each player finishes, and how far
-  behind the course ESPN runs (no hole time to measure it by: the order holes appear in). `record-espn-live.js --compare` for a
-  field is to write: the holes each answer showed against the final's (a hole rescored), places as they went. **3b:** written
-  (L5 part 3b's As built); the round's recording compares once it's over.
+- **What a live golf answer has**, from the Mexico Open's round 2 (`golf/pga` 401850978, recorded 10-30 13:10 to 00:20 UTC, 616
+  answers a minute apart, compared 2026-11-05 against the event's final): **the board lists each hole as it's played** (2,142
+  holes in the first answer, round 1's, 4,283 in the last: ~3 a minute; 43 answers added none, none lost any); **`thru` moves a
+  hole at a time** (2,143 moves, one back, none by more than a hole); **`currentPosition` is filled as each one finishes** (118
+  of 118 who'd finished by the last answer), and the last live answer's places are the places after round 2 (68 of 68). **ESPN
+  rescores a hole now and then**: 47 shown otherwise, settled in a median 5 minutes, 90th 1.9 hours, most 4.2 hours (Keefer's
+  11th a birdie for four hours, then a par), so a phone's birdie can go. 4 rounds were read whole for a while (the leaderboard's
+  strokes after a first hole, before the board listed it) and then by their holes, as built. The first hole showed 13 minutes
+  after the first tee time (nothing timed, so no lag to measure). **A phone's data**: 33 KB an answer over the wire for both
+  answers (576 KB unpacked), 2 MB an hour at 60 s, 7.8 MB at 15 s.
 - **Hole times can't come from ESPN**, so a later watch of a golf broadcast moves round by round, and a game's "live" moment for a
   hole is when a phone first saw it (live calls on golf: A15's window per round, or per hole by first sight).
 - **A round's known-by is the next round's first tee time**: right in every event looked at, but a round finished early the next
@@ -2437,10 +2465,27 @@ Master still hadn't A1-A4 (the main session's order).
     every finished answer cached).
 
 **L5 part 3b (racing) noticed, not fixed:**
-- **What a live racing answer has is still to see**: F1's Mexico City weekend (FP1 18:30 UTC 10-30 to the race 11-01 20:00 UTC)
-  and NASCAR's Martinsville Cup race (11-01 19:00 UTC) are being recorded with the core: whether the board's order is the
-  running order live, whether the core's list and statistics move during a session (laps, laps led), how soon a session's first
-  order shows (no lap has a time, so ESPN's lag can't be measured otherwise). `--compare` each once final.
+- **What a live racing answer has** (recorded with the core, compared 2026-11-05 against the finals):
+  - **F1's Mexico City weekend (`racing/f1` 600057447), only its FP1**: ESPN's board says final from a session's end (its own
+    status is the last session over's, FP2 to the race still scheduled), and the recorder took that for the weekend's end.
+    **Fixed**: a weekend is over once every session is (`weekendOver` in `racing.ts`); the reader's `final` read it the same way,
+    so a live answer after FP1 would have had the final's correction. FP1: nobody placed for its first 6 minutes, **the board's
+    order changed in only 8 answers in the hour** and reached the final's 16 minutes after the session's end: a practice's live
+    order isn't its running order (places shown otherwise settled in a median 34 minutes). The core's order the board's in 79 of
+    166 answers; of its statistics only laps completed moved. `check-field-reduce.js --events=600057447`: every number of the
+    weekend's five sessions (650 of 650). 2 KB an answer over the wire; the core 6 calls and 23 KB unpacked an ask.
+  - **NASCAR's Martinsville Cup race (`racing/nascar-premier` 202611010020)**: **the board's order is the running order** (it
+    changed in 30 of 400 answers, about every 7 minutes, the leader 6 times; at lap 493 its top 13 were the final's, at the first
+    final answer all 37). **The core's statistics aren't the cars' until after the race**: every car's laps completed are the
+    race's laps so far (Cindric, out from about lap 222, at 493), nobody has a lap led and nobody points, still in the first final
+    answer (500 laps each); ESPN fills them in later. **Fixed**: a counted series' race with laps run and none led reads only the
+    core's place and grid (`CORE_BEFORE_FILLED` in `racing.ts`, said in the reader's issues), so a phone's live points are places
+    and places gained; laps, laps led and the lead lap come once ESPN fills them (L3's stored final). The core's order the
+    board's in 129 of 400. `check-field-reduce.js --events=202611010020`: 546 of 546; the Cup's 2025 and 2026 seasons as before
+    (63 of 80 races exactly, all but for ESPN's own), IndyCar's 2025 15 of 17 (none read as not filled in). 2 KB an answer, the
+    core 5 calls and 39 KB unpacked.
+  - No lap has a time, so ESPN's lag can't be measured; a session's first order showed 6 (FP1) and 11 minutes (the race) after
+    its listed start.
 - **A field has no live poller yet** (3a's, still): racing's would ask the board every 15-60 s and maybe the core's list, the
   statistics once at a session's end (or the server's, L3). With the recordings' numbers.
 - **NASCAR's and IndyCar's retirements aren't in ESPN's data** (no status): a car out isn't told from one laps down, so a game
@@ -2593,12 +2638,18 @@ still hadn't A1-A4 (the main session's order). Part 4 is split in two: 4a MMA (t
     every finished answer cached).
 
 **L5 part 4a (MMA) noticed, not fixed:**
-- **What a live card's answers have is still to see**: no card was on during the session (UFC cards are Saturdays). Saturday's
-  Fight Night, Moicano vs. Nolan (`mma/ufc` 600061420, 10-31 21:00 UTC), is being recorded (L2's Noticed): whether the FightCenter's
-  and the core's totals move during a bout (if they do, a phone's live points are the FightCenter's every 30 s; if not, a bout
-  scores only at its end), ESPN's lag from a play's wallclock to its first answer (MMA's plays are timed, unlike golf's holes and
-  racing's laps), how soon a result shows after the announcement, whether a bout called off on the night is taken off the card
-  live. `--compare` it once final.
+- **What a live card has**, from the UFC's Fight Night, Moicano vs. Nolan (`mma/ufc` 600061420, 691 answers 30 s apart over 5.8
+  hours, compared 2026-11-05): **the FightCenter's and the core's totals move during a bout** (the FightCenter's significant
+  strikes every answer or two, the core's every 5 minutes) **but run ahead of the official count**: the last live total is above
+  the final's in 8 of 12 bouts, by up to 30% (Sezinando and Berggren's 68 to 47, Lebosnoyani and Hasanov's 181 to 157), so live
+  points from them would climb and then drop at the bout's end. So a bout's numbers stay known at its end (the final's), as
+  built; a live strikes count is U1's to show as provisional, or L3's to leave out. **ESPN's lag** from a play's wallclock to its
+  first answer: a median 35 s (90th 55 s, most 88 s; round starts, takedowns, the knockdown and the fight's end alike). **A
+  result shows a median 55 s after its announcement** (33 to 88 s), the bout's Fight Over 10-66 s before it. Each bout was on 8-17
+  minutes before its first round (the walkouts). No bout was called off on the night (none to see), none added. Every play seen
+  live is in the final, read the same. `check-bout-reduce.js --events=600061420`: every number but one of ESPN's own (a bout
+  whose plays go to round 3 and whose status ended it in round 2, 401928106). **A phone's data**: 23 KB an answer for the board
+  and the FightCenter (248 KB unpacked), 2.7 MB an hour at 30 s; the core 6 calls and 24 KB unpacked an ask.
 - **A card has no live poller yet** (as a field hasn't): the board and the FightCenter every 30 s while a bout's on, the core's
   plays of the bout on for its times, nothing between cards. With the recording's numbers. (L3 or U1.)
 - **No play says whose it is, and nothing is by round per fighter**: a game can't score "a knockdown in round 1" for a fighter, nor
@@ -2749,6 +2800,23 @@ still hadn't A1-A4 (the main session's order). With it, L5 is done: soccer, coll
     every finished answer cached).
 
 **L5 part 4b (tennis) noticed, not fixed:**
+- **What a live draw has**, from Basel and Guangzhou (`tennis/atp` 23-2026 and `tennis/wta` 232-2026, 10-30 11:44 UTC to their
+  finals on 11-01: 359 and 196 answers kept of 2,281 and 1,887 asks, 30 s apart while a match was on; compared 2026-11-05): 11
+  and 7 matches seen on (the recordings began at the quarterfinals). ESPN's games come about one per answer that changes (Basel's
+  final: 21 changes for 26 games). **ESPN moves a match's start once it begins** (10 of 11, 6 of 7): from its listing (the day's
+  04:00 UTC placeholder, or the order of play's time) to about its real start, still on the five minutes; its first answer on
+  came a median 292 s after that (90th 406 s): ESPN's live answers run about 5 minutes behind a match. A result showed a median
+  30 s after the last ask with it on. **ESPN's feed stalls and calls the match STATUS_SUSPENDED** ("post", `completed` false,
+  its note already "bt" on the games so far, its last set's games behind), then has it on again: 3 of Basel's 11 (Rune and
+  Vacherot at 5-2 in the 1st, after 38 minutes on with no games listed, its first set never listed live; Fritz and Fils at 5-2,
+  15 minutes before it was on again, then Fils retired; the final at one set all, where the recorder stopped, taking it for
+  over), none of Guangzhou's. The reader read a suspension as a result (Vacherot over Rune "5-2"): **fixed**, a match is over
+  only once ESPN says it's completed (`tennis.ts`: a suspended one is on, its sets so far; the recorder and `drawOver` the same,
+  `matchOver` in `espn-tennis-board.js`; the compare lists suspensions); no finished board of 2025-26 has one (34,539 final, 829
+  retired and 414 walkovers, all completed). **A live match tiebreak is written 0-0 with its points** ("0-0 (5-6)") until it's
+  won ("1-0 (10-8)"), so it reads as a set of no games while on and one game at its end: no game points swing (Guangzhou's
+  doubles semifinal listed none of its points live). Nothing called off or added; no note said "leads" after the end. 12 KB an
+  answer over the wire (~150 KB unpacked), 1.5 MB an hour at 30 s.
 - **ESPN has no match statistics** (aces, double faults, breaks of serve, first serves, points won, a match's length): DraftKings'
   table's statistical parts can't be scored, nor "most aces" or "a break in the first game" as a question. The wizard should say
   what tennis can score (the score's parts and the draw). A source with them (the tours' own match stats) would need HOSTING.md first
@@ -2756,17 +2824,19 @@ still hadn't A1-A4 (the main session's order). With it, L5 is done: soccer, coll
 - **Nothing is timed but a match's listed start**: a later watch moves match by match, known by the next listed start of either
   side's next match (median 27 hours on: a later watch of a day's play sees its results only the next day, or 12 hours on for a
   final); a live phone knows a set or a match when it sees it (`_asked`). Never early but for the 2 of 34,216 ESPN listed under
-  40 minutes on. Live calls on tennis: A15's window per match, or per set by first sight.
+  40 minutes on. Live calls on tennis: A15's window per match, or per set by first sight. (Once a match is on, ESPN's start is
+  about its real one: above.)
 - **ESPN's start is on the five minutes, the same court's matches as little as 0-5 minutes apart**: a scheduled time, not when one
-  began. Whether ESPN moves it once a match begins is the live recordings' to say (none moved in their first 25 minutes).
+  began. ESPN moves it once a match begins, to about its real start (above): a match's start read after it began is about
+  when it began; before, a listing.
 - **A tennis event has no live poller yet** (a field's and a card's haven't either): the board every 30 s while a match is on (12 KB,
   1.4 MB an hour), nothing between days. A live answer stamps a match nothing later lists at its `_asked`, so each poll moves a
   just-finished match's moment on: the poller's merge keeps the moment it first saw each one (golf's holes and MMA's untimed bouts
   the same). (L3 or U1, with the recordings' numbers.)
 - **A short set (to 4 games: the Next Gen ATP Finals', the US Open's mixed doubles) isn't told complete by its games**, so a
   retirement between short sets would read its last set as unfinished: never seen. And a live match tiebreak ESPN writes as points
-  ("7-5" while under way) would read as a set's games until it reaches 8 or ends, so live game points swing and then settle: none
-  recorded live yet (the recordings' doubles will say how ESPN writes one under way).
+  ("7-5" while under way) would read as a set's games until it reaches 8 or ends: ESPN writes one under way as 0-0 with its
+  points (above), so it doesn't.
 - **A match never scheduled** (a walkover at ESPN's placeholder start) sorts last in the order played (`Bout.order`), and last in a
   no-rounds draw's chain of each winner's next match, which can misplace its round there: never seen.
 - **A round robin's semifinal places are known at the semifinals' starts** (`reached`): ESPN's board fills a semifinal's sides once
@@ -2782,7 +2852,44 @@ still hadn't A1-A4 (the main session's order). With it, L5 is done: soccer, coll
   aces and breaks): its walkover rule unread, so a walkover scores nothing here.
 - **The US Open fixture is 469 KB** (625 matches; Bermuda's golf is 516 KB): a Grand Slam's whole board, trimmed to what's read.
 - **No season was held out**: the reader was written against 2025 and 2026; Basel's and Guangzhou's live recordings are the first
-  it wasn't.
+  it wasn't, and it read every result right but the suspensions (above).
+
+**The weekend's recordings compared, as built (2026-11-05, `sports`, not merged; no migration, no ESPN calls from the app, nothing
+stored).** After the lane's pause (for the week's usage): master merged in first (`lane.js sync`: the engine to A12 and R1 part
+3, track C's plan; one conflict, `browser.js`'s exports, both kept), the lane's database migrated (0155-0162, 0203). Then every
+weekend recording, all final, compared (`record-espn-live.js --compare`); what each shows is in its part's Noticed: the team
+sports in L2's ("After the pause"), golf in L5 part 3a's, racing in 3b's, the UFC's card in 4a's, the draws in 4b's. Fixed from
+them (ESPN's data read first each time):
+- **A tennis match ESPN calls suspended is on, not over** (`tennis.ts`: `matchSuspended`, `matchOver`, exported; a suspended
+  match's sets so far, no result, the reader's issues say so). Basel's board called three matches STATUS_SUSPENDED ("post", its
+  note already "bt" on games behind) for 10-15 minutes before having them on again; the reader had read a result from it. The
+  dev scripts share the rule (`espn-tennis-board.js` loads `tennis.ts`'s: `drawOver`, the cache, the recorder's "every match
+  over", which had stopped Basel's recording at its final's one set all).
+- **A racing weekend is over once every session is** (`racing.ts`: `weekendOver`, exported). ESPN's board says final from FP1's
+  end (its status is the last session over's), which stopped F1's recording after FP1; the reader's `final` read it the same
+  way (a live answer after FP1 would have had the final's correction), and so did the server's scoreboard reader for the
+  schedule (`src/lib/server/sports/espn.ts`: an event in parts is "in" and not final until every part is, so `linesOfField`
+  doesn't mark an F1 weekend's lines final, with none, after FP1). The recorder uses the reader's rule.
+- **NASCAR's and IndyCar's core before ESPN fills it in** (`racing.ts`: `CORE_BEFORE_FILLED`, `Session.unfilled`): a race with
+  laps run, its statistics there and nobody a lap led reads only the core's place and grid (live, every car had the race's laps
+  and nobody led or scored, still at the first final answer), and the event isn't final until they're filled (so the truth L3
+  stores waits for them).
+- `record-espn-live.js`'s draw compare: suspensions listed (each pause and how long), the "note behind its sets" count only for
+  matches over, a match's moved start said the right way round.
+- **Checks**: 1,423 unit tests (`tests/sports-tennis.test.js`: a suspended match on; `tests/sports-racing.test.js`: the weekend
+  after FP1, a called-off session, the core before and after it's filled, a core without statistics; `tests/sports-espn.test.js`:
+  an F1 weekend under way); `tsc` clean; eslint clean on `src/lib/sports` and `src/lib/server/sports`. `check-draw-reduce.js`: ATP
+  2025 59 of 59, 2026 56 of 56, WTA 2025 102 of 102, 2026 104 of 104, every number and result (each 2026 list two events longer,
+  finished since). `check-bout-reduce.js`: the UFC's 100 cards of 2025-26 (52 and 48, Saturday's with them), every number and
+  result but ESPN's own. `check-field-reduce.js`: Mexico City 650 of 650, Martinsville 546 of 546, the Cup's 2025 and 2026 63 of 80
+  races exactly and all but for ESPN's own (as before), IndyCar 2025 15 of 17. `check-live-clock.js` at 30x: 22 of 22.
+- `/code-review` on the diff (its fixes: the server's scoreboard reader had the FP1 final too; a called-off session held the
+  weekend open; a final read before the core was filled carried its stripped numbers as the truth; a core asked without its
+  statistics was taken for one not filled in; the rule for a suspended match narrowed to STATUS_SUSPENDED, so another unfinished
+  status reads as before, and shared with the dev scripts rather than copied; the recorder's racing final now the reader's; the
+  compare's pauses each timed; a test for the core's rule).
+- No HOSTING.md change: no new ESPN call from the app (the server's scoreboard reader reads the same answer), no table, nothing
+  stored.
 
 **Open, from the sports plan:** head-to-head's schedule over a span, and playoffs; whether a sport's moves follow Weekly
 Lineup's waivers or need their own rhythm for daily sports; what a live call is worth, and how fast they open and close;

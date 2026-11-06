@@ -5,7 +5,7 @@
 // (its cache), record-espn.js (fixtures) and record-espn-live.js (the live recorder's --compare). No app server, no database;
 // real calls.
 //
-//   const { tennisBoard, cachedTennisBoard, tennisEvents, drawOver } = require("./espn-tennis-board");
+//   const { tennisBoard, cachedTennisBoard, tennisEvents, drawOver, matchOver } = require("./espn-tennis-board");
 //   await tennisBoard({ tour: "atp", event: "23-2026", wire })       // the board, or null
 //   await cachedTennisBoard(cacheDir, { tour, event })                // tennis-<tour>-board-<event>.json, kept once every match is over
 //   await tennisEvents({ tour: "atp", year: 2026 })                   // ["970-2026", ...], in ESPN's order (the calendar's)
@@ -21,11 +21,18 @@ const drawMatches = (board) => {
   return (board?.groupings ?? []).flatMap((g) => g.competitions ?? []).filter((c) => !seen.has(String(c.id)) && seen.add(String(c.id)));
 };
 
+/** A match over: tennis.ts's own (a live board's STATUS_SUSPENDED is "post", a stall it comes back from), loaded once needed. */
+let tennis = null;
+const matchOver = (c) => {
+  tennis ??= require("jiti")(__filename, { alias: { "@": path.join(__dirname, "..", "..", "src") } })("../../src/lib/sports/tennis.ts");
+  return tennis.matchOver(c);
+};
+
 /** An event over for good: every match over or called off, none to come (ESPN's own status for the event says final all week),
  *  and its last day gone. */
 const drawOver = (board) => {
   const ms = drawMatches(board);
-  return ms.length > 0 && ms.every((c) => c.status?.type?.state === "post") && (!board.endDate || Date.parse(board.endDate) < Date.now());
+  return ms.length > 0 && ms.every(matchOver) && (!board.endDate || Date.parse(board.endDate) < Date.now());
 };
 
 async function get(url, wire) {
@@ -61,4 +68,4 @@ async function tennisEvents({ tour, year, wire = null }) {
   return (got?.items ?? []).map((i) => /events\/([^?]+)/.exec(i.$ref ?? "")?.[1]).filter(Boolean);
 }
 
-module.exports = { tennisBoard, cachedTennisBoard, tennisEvents, drawOver, drawMatches };
+module.exports = { tennisBoard, cachedTennisBoard, tennisEvents, drawOver, drawMatches, matchOver };

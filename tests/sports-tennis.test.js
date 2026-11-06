@@ -361,6 +361,18 @@ test("live: a match on shows its sets so far and the set on's games at when it w
   assert.equal(s.bouts[String(fin.id)].result, null);
   // A later watch, before it was asked, sees none of it.
   assert.equal(tennis.reduce(plays, "2026-07-19T13:39:59Z", card).byBout[String(fin.id)], undefined);
+  // Suspended as ESPN's live board shows a stalled feed ("post", not completed, its note already "bt": Basel 2026's final at
+  // one set all): still on, its sets so far, no result.
+  const held = clone(a);
+  const hfin = held.board.groupings.find((g) => g.grouping.slug === "mens-singles").competitions.find((c) => c.id === fin.id);
+  hfin.status = { period: 2, type: { id: "8", name: "STATUS_SUSPENDED", state: "post", completed: false } };
+  hfin.notes = [{ text: "Andrey Rublev bt someone 6-4 3-2" }];
+  const issues = [];
+  const hs = tennis.reduce(tennis.readPlays(held, issues), null, tennis.card(held));
+  assert.equal(hs.bouts[String(fin.id)].stage, "in");
+  assert.equal(hs.bouts[String(fin.id)].result, null);
+  assert.deepEqual(hs.byBout[String(fin.id)][rublev], { GW: 9, GL: 6, SW: 1 });
+  assert.ok(issues.some((x) => /STATUS_SUSPENDED, read as on/.test(x)));
   // Not over: no final's correction, and the event isn't final.
   assert.equal(tennis.readBox(a).final, false);
   assert.ok(!tennis.timeline(a).some((p) => p.final));

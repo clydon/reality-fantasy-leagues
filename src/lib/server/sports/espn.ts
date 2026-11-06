@@ -186,14 +186,17 @@ export function readScoreboard(league: string, raw: { events?: RawEvent[]; leagu
       comps.length > 1
         ? comps.map((c) => ({ id: idOf(c.id), name: str(c.type?.abbreviation) ?? str(c.type?.name), at: str(c.date), state: stateOf(c.status).state, competitors: (c.competitors ?? []).map(readCompetitor) }))
         : [];
+    // An event of parts (a racing weekend's sessions) is over once every part is: ESPN's own status is its last part over's, final
+    // from FP1's end with FP2 to the race to come (Mexico City 2026, recorded live).
+    const partsOn = parts.some((p) => p.state !== "post");
     out.push({
       id,
       league,
       name: str(e.name) ?? "",
       short: str(e.shortName),
       at: str(e.date) ?? str(comps[0]?.date),
-      state: whole.state,
-      final: whole.final,
+      state: whole.state === "post" && partsOn ? "in" : whole.state,
+      final: whole.final && !partsOn,
       season: Number.isInteger(e.season?.year) ? (e.season!.year as number) : null,
       stage: stageOf({ ...e.season, type: e.season?.type ?? e.seasonType?.type }),
       note: str(comps[0]?.notes?.[0]?.headline),

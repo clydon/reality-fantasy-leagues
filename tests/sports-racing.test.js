@@ -13,7 +13,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const path = require("path");
 const jiti = require("jiti")(__filename, { alias: { "@": path.join(__dirname, "..", "src") } });
-const { sportOf, sportById, defaultsFor, allSports, FieldSport, Racing, RACING_SERIES, coreStats } = jiti("../src/lib/sports/index.ts");
+const { sportOf, sportById, defaultsFor, allSports, FieldSport, Racing, RACING_SERIES, coreStats, weekendOver } = jiti("../src/lib/sports/index.ts");
 
 const CHINA = require("./fixtures/espn/f1-600052046.json");
 const MIAMI = require("./fixtures/espn/f1-600057432.json");
@@ -290,6 +290,45 @@ test("live: the race's running order from the board at the answer's moment, prov
   assert.equal(np[np.length - 1].at, null);
   assert.equal(f1.reduce(np, "2026-11-03T00:00:00Z", f1.fieldEvent(noAsk)).lines.b.FIN, undefined);
   assert.equal(f1.reduce(np, null, f1.fieldEvent(noAsk)).lines.b.FIN, 1);
+  // ESPN's board says final from the first session's end (its status the last session over's: Mexico City 2026 after FP1),
+  // FP2 to the race still scheduled: the weekend isn't over, so no final's correction yet.
+  const afterFp1 = made({ final: true, asked: "2026-10-30T20:05:00Z", sessions: [{ abbr: "FP1", date: "2026-10-30T18:30:00Z", order: ["a", "b"] }, { abbr: "FP2", date: "2026-10-30T22:00:00Z", state: "pre" }, { abbr: "Race", date: "2026-11-01T20:00:00Z", state: "pre" }] });
+  assert.equal(f1.readBox(afterFp1).final, false);
+  assert.ok(!f1.timeline(afterFp1).some((p) => p.kind === "final"), "a weekend under way: no final's correction");
+  assert.equal(weekendOver(made({ final: true, sessions: [{ abbr: "FP1", date: "2026-10-30T18:30:00Z", order: ["a"] }] }).board), true);
+  // A session called off ("post", not completed) doesn't hold the weekend open.
+  const off = made({ final: true, sessions: [{ abbr: "FP3", date: "2026-10-31T17:30:00Z", order: [] }, { abbr: "Race", date: "2026-11-01T20:00:00Z", order: ["a"] }] });
+  off.board.competitions[0].status.type = { state: "post", completed: false, name: "STATUS_CANCELED" };
+  assert.equal(weekendOver(off.board), true);
+});
+
+test("NASCAR's core before ESPN fills it in (Martinsville 2026, live): every car the race's laps, none led, no points; only places and the grid read", () => {
+  // At lap 493 and at the first final answer: everyone the same laps, nobody a lap led, no points.
+  const race = (stats) => [{ date: "2026-11-01T19:00:00Z", laps: 493, order: ["a", "b", "c"], core: { a: { order: 1, startOrder: 2, stats: { place: 1, pole: 2, ...stats.a } }, b: { order: 2, startOrder: 1, stats: { place: 2, pole: 1, ...stats.b } }, c: { order: 3, startOrder: 3, stats: { place: 3, pole: 3, ...stats.c } } } }];
+  const empty = { lapsCompleted: 493, lapsLead: 0, championshipPts: 0 };
+  const live = made({ final: false, asked: "2026-11-01T22:33:00Z", sessions: race({ a: empty, b: empty, c: empty }) });
+  const issues = [];
+  const event = cup.fieldEvent(live);
+  const now = cup.reduce(cup.readPlays(live, issues), null, event);
+  assert.deepEqual(now.lines.a, { FIN: 1, GRID: 2, PG: 1, POS: 1, W: 1, PODIUM: 1, TOP5: 1, TOP10: 1 }, "no laps, laps led or points");
+  assert.ok(issues.some((x) => /not filled in yet/.test(x)));
+  // Final on the board, the core not filled: not the final yet.
+  const early = made({ final: true, sessions: race({ a: empty, b: empty, c: empty }) });
+  assert.equal(cup.readBox(early).final, false);
+  // Filled in: read whole, and final.
+  const done = made({ final: true, sessions: race({ a: { lapsCompleted: 500, lapsLead: 362, championshipPts: 55 }, b: { lapsCompleted: 500, lapsLead: 138, championshipPts: 35 }, c: { lapsCompleted: 222, championshipPts: 1 } }) });
+  const di = [];
+  cup.readPlays(done, di);
+  const box = cup.readBox(done);
+  assert.equal(box.final, true);
+  assert.equal(box.people.a.stats.LED, 362);
+  assert.equal(box.people.c.stats.LAPS, 222);
+  assert.ok(!di.some((x) => /not filled in yet/.test(x)));
+  // A core asked without its statistics (laps 0 everywhere) isn't taken for one not filled in.
+  const bare = made({ final: false, asked: "2026-11-01T22:33:00Z", sessions: race({ a: {}, b: {}, c: {} }) });
+  const bi = [];
+  cup.readPlays(bare, bi);
+  assert.ok(!bi.some((x) => /not filled in yet/.test(x)));
 });
 
 test("ESPN's own: wins and top 10s all 0 (the order says who won); laps for one listed without a place (didn't qualify, nothing read)", () => {
