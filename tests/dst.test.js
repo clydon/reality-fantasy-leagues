@@ -88,7 +88,7 @@ test("final results at noon the day after, on the clock, across the change", () 
   assert.equal(iso(Final.finalResultsAt("2027-03-14T01:00:00Z", NY)), "2027-03-14T16:00:00.000Z", "Sat Mar 13's: Sun 12 PM EDT");
 });
 
-test("a sport's daily and weekly lineup locks group games by the Eastern day and week, across the change", () => {
+test("a sport's daily and weekly lineup locks group games by the Eastern day and week, a slate's by its episode, across the change", () => {
   const path = require("path");
   const jiti = require("jiti")(__filename, { alias: { "@": path.join(__dirname, "..", "src") } });
   const { locksOf } = jiti("../src/lib/sports/locks.ts");
@@ -104,4 +104,15 @@ test("a sport's daily and weekly lineup locks group games by the Eastern day and
   assert.deepEqual([1, 2, 3, 4, 5].map((n) => daily.get(n)), ["2026-10-31T23:00:00.000Z", "2026-10-31T23:00:00.000Z", "2026-11-01T18:00:00.000Z", "2026-11-03T01:15:00.000Z", "2026-11-04T00:30:00.000Z"]);
   const weekly = locksOf(starts, "weekly");
   assert.deepEqual([1, 2, 3, 4, 5].map((n) => weekly.get(n)), [...Array(4).fill("2026-10-31T23:00:00.000Z"), "2026-11-04T00:30:00.000Z"]);
+  // L8 part 3: a league's slate whose Monday-to-Sunday week starts on Monday Nov 2 (8:15 PM EST, Nov 3 in UTC) locks at that game,
+  // its own first, where the Tuesday-to-Monday calendar puts it in the week from Tue Oct 27, before the change.
+  const slate = [
+    { episode: 1, at: "2026-10-31T23:00:00Z" }, // Sat 7 PM EDT
+    { episode: 1, at: "2026-11-01T18:00:00Z" }, // Sun 1 PM EST
+    { episode: 2, at: "2026-11-03T01:15:00Z" }, // Mon 8:15 PM EST
+    { episode: 2, at: "2026-11-04T00:30:00Z" }, // Tue 7:30 PM EST
+  ];
+  const own = locksOf(slate, "weekly", { slate: true });
+  assert.deepEqual([own.get(1), own.get(2)], ["2026-10-31T23:00:00.000Z", "2026-11-03T01:15:00.000Z"]);
+  assert.equal(locksOf(slate, "daily", { slate: true }).get(2), "2026-11-03T01:15:00.000Z");
 });

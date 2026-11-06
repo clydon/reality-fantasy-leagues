@@ -183,6 +183,7 @@ and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track
 | Custom moments (2026-10-30) | **Allowed, sometimes encouraged** (the user: "a fun league of Below Deck that just every week players guess 'did someone cry'"). A moment the show's research doesn't cover, typed to the GPT or added by hand (Make it ours included), takes the new-moment path in "Our check": a short feasibility ask at the start (how reliably research can answer it each episode, from recaps), and, if it's feasible, a question research asks after every episode (it won't come up unless it's asked explicitly). The user leans toward allowing somewhat-reliable moments (crying "will likely be mentioned in post episode recaps"); the bar (high only, or medium too) is still open. Claude's recommendation: medium too, with three nets: the feasibility answer shown to the maker, an episode research can't settle voided (no points either way), and the game's real answer rate shown as the season goes. Before the bar is set, measure on the season tapes whether the feasibility ask predicts what research actually returns (the user's concern in "A preset's rule"). |
 | A replacement's multiplier (2026-11-05) | **On what the replacement earns while it's yours, on every kind of draft, an Outlast included** (the user: "your assumptions are correct"; C1's Noticed). "The new player who replaces your lost one scores 0.5x" multiplies the points they earn from the episode after they join, never their whole place: in an Outlast, the boots they outlast while yours. An Outlast without a multiplier keeps today's count (whoever holds someone now has their whole place). Built in C3. |
 | A shared game's two holders (2026-11-06) | **Per holder, from the live games' next episode on** (the user, on C4's Noticed): someone who goes home in an episode not yet played is owed a replacement on every team that held them, one replacing them settling only their own. Every exit already played stays as it played out (no past loss owed again, no standings moving backwards); games made from now on are per holder from the start; C4's games as they are. As data, never a date or a league named in code: each existing game carries its cutover (`settings.perHolderFrom`, migration 0207: the first episode it hadn't played; Survivor 51's live games, Episode 8). Built as C4b, before Episode 8's results (Wed Nov 11). |
+| A sports week (2026-11-06) | **The episode, wherever the season has episodes of its own** (the main session's call, as the sports track's orchestrator; built in L8 part 3): a league's slate's episode (ESPN's own week for football, Monday to Sunday or a day for the NBA, NHL and MLB, a round for soccer) is the week for its locks, its matchups and the screens, locking at its own first game whatever the spec's `closes` says. Tuesday to Monday (Eastern) only where nothing else defines the week: a team's season and a matchup's series, one game an episode. |
 
 ## What's there today (mapped 2026-10-27)
 
@@ -1167,6 +1168,9 @@ engine track; L brings each sport's data to it. Its screens wait for the UI trac
     (`/api/sports/search`'s leagues, a league's slates, `/api/sports/add`'s slate), with check-find-game.js's cases (built
     2026-11-06, As built below: the cases went into check-slate.js). A tour's season (golf's, F1's: an event an episode) is its
     Noticed, not a part.
+  - **Part 3 (2026-11-06, the main session's note of 2:25 PM): one meaning of a sports week.** A slate's episode is the week
+    everywhere: its lock its own first game whatever `closes` says, L4's weekly lock reading the episode instead of its own
+    Tuesday-to-Monday calendar; Tuesday to Monday kept only where nothing else defines the week (built, As built below).
 - **L6. Release:** `sports` merges into master at once (migrations checked against a production backup first), then G3
   teaches the GPT these formats.
 - Its screens (the scorebug, the live box score, the couch's play feed, players organised, the matchup, sync, each format's
@@ -3414,7 +3418,8 @@ calls, nothing stored).**
 - **Lineup locks per sport** (`src/lib/sports/locks.ts`, new, pure): `locksOf(starts, closes)`, each episode's lock from its
   game's start: `start` its own; `daily` its Eastern day's first start (DraftKings' slates: the NBA, NHL, MLB and tennis);
   `weekly` its week's first, a week Tuesday to Monday in Eastern time (Yahoo's football week: Thursday night to Monday night;
-  football and soccer); never after its own start; an episode with no start has none. A sport's cadence is `Sport.lock`, carried
+  football and soccer); never after its own start; an episode with no start has none (since L8 part 3, a league's slate's episode
+  is its own week instead: it locks at its own first game). A sport's cadence is `Sport.lock`, carried
   into a spec by `specCloses` (an event's: `start`). **The server's side** (`air-times.ts`): `sportLocks(db, seasonId, closes,
   span)` reads the season's linked games' starts within the game's own episodes (`season_events.starts_at`: ESPN's, not a
   listing's air time; a game that starts on Sunday never locks with Thursday's) and `stampAirTimes` stamps `ep.locksAt` (new on
@@ -3451,7 +3456,8 @@ calls, nothing stored).**
   season made of a league's slate ("Finding a game", or its own step: the main session's call).
 - **A week is Tuesday to Monday for soccer too**, so a team's midweek match locks with the weekend's if they share one (FPL's
   gameweeks are rounds, which ESPN's scoreboard doesn't number). With one team's games an episode it's rare; a league's slate
-  would want the round.
+  would want the round. **Closed for a league's slate (L8 part 3):** its episode (the round) is the week; a team's season keeps
+  Tuesday to Monday (L8 part 3's Noticed).
 - **Pick a few's stat is one per sport** (its headline: points, receiving yards, total bases, goals), so football's ignores a
   rusher. A stat the sport works out (scrimmage yards, touchdowns of any kind) would be a derived stat in football.ts. (G3 asks
   better ones; or L5's football.)
@@ -3531,9 +3537,9 @@ migration, no ESPN calls, nothing stored).**
     `rankMatchups` read a categories game's head to head too.
   - The server hands `Sport.categoryDefs()` over beside `leagueGames`' `lines` (as `statDefs`, or whatever name the engine picks).
   - VOCAB: `rank.by` `categories` and `roto` to 'now' with `score.by` stats.
-  - A matchup over a week of games (several episodes: a Tuesday-to-Monday window, `locks.ts`' week) is the window `windowLines`
-    takes; today each episode is one game, so a matchup is one game (as head to head on points is). A league's slate (L4 part
-    1a's Noticed) makes the week the natural window.
+  - A matchup over a week of games is the window `windowLines` takes; on a league's slate the week is its episode (L8 part 3:
+    one meaning of a week), so a matchup is an episode, as head to head on points is. On a team's season each episode is one
+    game, so a matchup is one game; it never reads `locks.ts`' Tuesday-to-Monday calendar as a window.
 
 **L4 part 1b noticed, not fixed:**
 - **A categories matchup is one game long** while a season is one game an episode (a team's schedule): Yahoo's are a week of a
@@ -3925,6 +3931,43 @@ of ESPN call: HOSTING.md).** The data side of adding a whole league by its name,
   each team once a round as a league's do; a cup made of groups and knockouts may want its stages (U1, if a couch asks).
 - **The NBA's playoffs list 0 episodes until ESPN's day calendar has them** (in November it doesn't): an add is refused ("It has no
   games listed yet") until it does. The screens can say "Playoffs: coming" from `episodes: 0`.
+
+**L8 part 3 as built: one meaning of a sports week (2026-11-06, `sports`, not merged; no migration, no ESPN calls, nothing stored).**
+The main session's note of 2:25 PM: L4 part 1a's weekly lock ran Tuesday to Monday for every weekly sport while L8's episodes are
+ESPN's weeks, Monday-to-Sunday weeks, days or rounds, so "a week" had two calendars. Now it has one: the episode's, where the season
+has episodes of its own (the Decisions table's "A sports week").
+- **A slate's episode is the week** (`src/lib/sports/locks.ts` `locksOf(starts, closes, { slate })`): on a league's slate every
+  episode locks at its own first game, whatever `closes` says (`start`, `daily` or `weekly`); its bounds are its window, and its
+  games are linked into it by their day (syncSlate), so its first linked game is the first game in its bounds. Part 1 got there by
+  counting (an episode of several games locked at its own first): an episode of one game (a soccer day's one match, a week with one
+  game linked so far, the playoffs' first day) fell back to the calendar and locked with an earlier episode's game. Now the season
+  says it (`sportLocks` reads `sports_slates` beside the starts, in the same query), and the count is gone. On the recorded Premier
+  League 2026-27 by round, some rounds share a Tuesday-to-Monday week with a midweek round before them: the calendar would lock the
+  weekend's round at the midweek one's first match; each now locks at its own.
+- **Where Tuesday to Monday still is**, and why: a **team's season** (L1 part 3's listing: one team's games, one an episode) and a
+  **matchup's series** (L7: two teams' meetings) that close weekly (football's, soccer's defaults): one game an episode and nothing
+  else defining a week, so a week of them is Yahoo's (Thursday night to Monday night), Eastern. `daily` on them stays the Eastern
+  day, `start` each game's own. Nothing else in the app reads a sports week: the guide's week (`server/guide.ts` weekOf) is the TV
+  listings' eight days, trivia's is its own, and the engine's matchup window is the episode (L4 part 1b's hook note, rewritten).
+- **The words already fit**: the default specs say "each week" ("set a lineup each week, play someone head to head each week") and
+  "each gameweek" (soccer's), which on a slate is the episode and on a team's season the calendar's week, one game in it. Nothing on
+  a screen yet (U0, U1: the episode's own label, "Week 9", "Round 12", "Sun, Nov 8", is the week a screen names).
+- **Checks.** `tests/sports-slate.test.js` (the lock test rewritten on the season's flag, +1: the Premier League's 38 rounds each at
+  its own first match, the calendar's earlier for some); `tests/dst.test.js` (+3 asserts: a Monday-to-Sunday slate week starting on
+  Monday Nov 2, 8:15 PM EST, Nov 3 in UTC, locks at that game, weekly and daily, where the calendar puts it in the week from Tue Oct
+  27); `scripts/dev-test/check-slate.js` (now 56, all pass: a weekly lock on the day slate, each episode at its own first game, from
+  the database); `check-matchup.js` (20, all pass: the series' locks by start, day and the calendar week, unchanged). 1,799 unit
+  tests, the one round-trip failure aside (master's, as before); `tsc` clean in src (two stale `.next/types` entries for routes
+  not on this branch); eslint clean on locks.ts and air-times.ts.
+
+**L8 part 3 noticed, not fixed:**
+- **A team's season that closes weekly still has its own week beside a slate's**: a team's Tuesday-to-Monday week and, if the same
+  couch also plays the league's slate, ESPN's week (football: Thursday to Monday, the same games) or a soccer round. For football
+  they agree; for soccer a team's midweek match and its weekend one share a calendar week but are two rounds. A team's season could
+  read its league's slate's windows when one is made (or ESPN's calendar), at the cost of a team's week depending on whether someone
+  made the slate. Left: one game an episode, and a team's two matches in a week are rare outside cup weeks.
+- **A daily lineup inside a slate's week** (the NBA by week, `closes` daily) locks once, at the week's first game: part 1's "For the
+  engine lane" item (a holding locking at its own game's start) is where it changes, with the hook.
 
 **Open, from the sports plan:** head-to-head's schedule over a span, and playoffs; whether a sport's moves follow Weekly
 Lineup's waivers or need their own rhythm for daily sports; what a live call is worth, and how fast they open and close;

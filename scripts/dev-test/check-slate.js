@@ -11,7 +11,7 @@
 //   ... then made from ESPN's days, and a game listed after its last day adding an episode;
 //   kept current (syncSlate): a game moved to another day moved to its episode, a game listed later linked, a game three weeks on
 //   linked once its day's read, the season's status; the daily job's part (refreshSportsEvents) running it first;
-//   read: a day's locks at its first game; the Players tab's lines a game each (the doubleheader's two for one player);
+//   read: a day's locks at its first game, a weekly one's too (the episode is the week: L8 part 3); the Players tab's lines a game each (the doubleheader's two for one player);
 //   leagueGames on an episode of two final games: each game's facts and lines apart, the episode's added up, every episode of a
 //   slate in its shape (one of one game too);
 //   a soccer league ("soccer/zt-slate") by round: its fixtures read month by month, each team once a round, all linked at once.
@@ -216,6 +216,11 @@ const forget = () => pool.query("DELETE FROM sports_cache WHERE key LIKE $1", [`
     // Read.
     const locks = await sportLocks(pool, s.seasonId, "daily");
     check(locks.get(10) === new Date(at(-1, 0)).toISOString(), "a day's lock at its first game", locks.get(10));
+    // L8 part 3: the episode is the week, so a game that closes weekly (soccer's, football's) locks each of its episodes at its own
+    // first game, never with the calendar's Tuesday-to-Monday week.
+    const weekly = await sportLocks(pool, s.seasonId, "weekly");
+    const firsts = (await pool.query("SELECT episode, min(starts_at) AS at FROM season_events WHERE season_id = $1 AND starts_at IS NOT NULL GROUP BY episode", [s.seasonId])).rows;
+    check(firsts.length > 2 && weekly.size === firsts.length && firsts.every((r) => weekly.get(r.episode) === r.at.toISOString()), "a weekly lock on a slate: each episode at its own first game", JSON.stringify([...weekly]));
     await statsFromEvents(s.seasonId, { providers, now });
     const lines = (await pool.query("SELECT episode, event_id FROM game_lines WHERE season_id = $1 AND athlete = 'zt-sl-p1a' AND episode > 0 ORDER BY event_id", [s.seasonId])).rows;
     check(lines.map((x) => `${x.episode}:${x.event_id}`).join() === "10:zt-sl-g1,9:zt-sl-g3a,9:zt-sl-g3b", "the Players tab's lines a game each: the doubleheader's two for one player", JSON.stringify(lines));

@@ -45,8 +45,8 @@ export async function stampAirTimes(db: Pool | PoolClient, state: LeagueState): 
 
 /**
  * L4 part 1a: a sport's game whose spec closes daily or weekly (its sport's lock cadence, spec.ts specCloses) carries each
- * episode's lock (ep.locksAt: its day's or week's first start among the game's own episodes, from their games' starts,
- * season_events.starts_at: src/lib/sports/locks.ts); any other league, and an episode with no linked game, none. Asks nothing of
+ * episode's lock (ep.locksAt: a league's slate's episode at its own first game, else its day's or week's first start among the
+ * game's own episodes, from their games' starts, season_events.starts_at: src/lib/sports/locks.ts); any other league, and an episode with no linked game, none. Asks nothing of
  * the database otherwise.
  */
 async function stampSportLocks(db: Pool | PoolClient, state: LeagueState, seasonId: string): Promise<void> {
@@ -62,14 +62,17 @@ async function stampSportLocks(db: Pool | PoolClient, state: LeagueState, season
 
 /**
  * Each episode's lock on a sport's season, by `closes`, from its linked games' starts; `span` the game's episodes (from, to: null
- * to the season's end), so a game that starts later never locks with a game before it.
+ * to the season's end), so a game that starts later never locks with a game before it. A league's slate (L8 part 3) locks each
+ * episode at its own first game: the episode is the week.
  */
 export async function sportLocks(db: Pool | PoolClient, seasonId: string, closes: Closes, span: { from: number; to: number | null } = { from: 1, to: null }): Promise<Map<number, string>> {
   const { rows } = await db.query(
-    "SELECT episode, starts_at FROM season_events WHERE season_id = $1 AND episode >= $2 AND ($3::int IS NULL OR episode <= $3)",
+    `SELECT episode, starts_at, EXISTS (SELECT 1 FROM sports_slates x WHERE x.season_id = $1) AS slate
+       FROM season_events WHERE season_id = $1 AND episode >= $2 AND ($3::int IS NULL OR episode <= $3)`,
     [seasonId, span.from, span.to]
   );
-  return locksOf(rows.map((r) => ({ episode: r.episode as number, at: r.starts_at ? (r.starts_at as Date).toISOString() : null })), closes);
+  const starts = rows.map((r) => ({ episode: r.episode as number, at: r.starts_at ? (r.starts_at as Date).toISOString() : null }));
+  return locksOf(starts, closes, { slate: rows[0]?.slate === true });
 }
 
 /**

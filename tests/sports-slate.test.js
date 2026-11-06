@@ -1,7 +1,7 @@
 // A league's slate (docs/PLAN-start-a-game-gpt.md track L, L8): ESPN's calendar read (src/lib/server/sports/espn.ts readCalendar:
 // its season, stages and days or weeks), and a season of a whole league's games cut into episodes (src/lib/sports/slate.ts): the
 // NFL's weeks as ESPN numbers them, the NBA's and MLB's days and Monday-to-Sunday weeks, the Premier League's rounds (ESPN numbers
-// none), windows that tile so a game listed later finds its episode, names and keys; locks on an episode of several games. On
+// none), windows that tile so a game listed later finds its episode, names and keys; a slate's episode locking at its own first game (its week). On
 // ESPN's real answers (tests/fixtures/espn/*-schedule-league-*.json, recorded 2026-11-06 by scripts/dev-test/record-espn-slate.js).
 // Making one in the database and keeping its games linked is scripts/dev-test/check-slate.js. Run with `npm test`.
 const test = require("node:test");
@@ -155,17 +155,15 @@ test("words and months", () => {
   assert.equal(S.episodeLabel("round", 3, "2026-11-08"), "Round 3");
 });
 
-test("an episode of several games locks at the first of them, by start, day or week", () => {
+test("a slate's episode is its week: it locks at its own first game, by start, day or week (L8 part 3)", () => {
   const starts = [
     { episode: 1, at: "2026-11-02T23:00:00Z" },
     { episode: 1, at: "2026-11-02T19:00:00Z" },
     { episode: 1, at: "2026-11-05T00:00:00Z" },
     { episode: 2, at: "2026-11-09T23:00:00Z" },
   ];
-  assert.equal(locksOf(starts, "start").get(1), "2026-11-02T19:00:00.000Z");
-  assert.equal(locksOf(starts, "daily").get(1), "2026-11-02T19:00:00.000Z");
-  assert.equal(locksOf(starts, "weekly").get(1), "2026-11-02T19:00:00.000Z");
-  assert.equal(locksOf(starts, "start").get(2), "2026-11-09T23:00:00.000Z");
+  for (const closes of ["start", "daily", "weekly"]) assert.equal(locksOf(starts, closes, { slate: true }).get(1), "2026-11-02T19:00:00.000Z", closes);
+  assert.equal(locksOf(starts, "weekly", { slate: true }).get(2), "2026-11-09T23:00:00.000Z");
   // A Monday-to-Sunday week whose Monday is in the Tuesday-to-Monday week before: its own first game, not last week's.
   const weeks = [
     { episode: 1, at: "2026-10-27T23:00:00Z" },
@@ -173,7 +171,26 @@ test("an episode of several games locks at the first of them, by start, day or w
     { episode: 2, at: "2026-11-03T00:00:00Z" },
     { episode: 2, at: "2026-11-05T00:00:00Z" },
   ];
-  assert.equal(locksOf(weeks, "weekly").get(2), "2026-11-03T00:00:00.000Z");
-  // A listing's episodes of one game each still lock with their week's first.
-  assert.equal(locksOf([{ episode: 1, at: "2026-11-03T23:00:00Z" }, { episode: 2, at: "2026-11-05T23:00:00Z" }], "weekly").get(2), "2026-11-03T23:00:00.000Z");
+  assert.equal(locksOf(weeks, "weekly", { slate: true }).get(2), "2026-11-03T00:00:00.000Z");
+  // A slate's episode of one game (a soccer day's one match, a week with one game listed so far) is still its own week, where
+  // the calendar would lock Saturday's with Tuesday's.
+  const days = [{ episode: 1, at: "2026-11-03T20:00:00Z" }, { episode: 2, at: "2026-11-07T15:00:00Z" }];
+  assert.equal(locksOf(days, "weekly", { slate: true }).get(2), "2026-11-07T15:00:00.000Z");
+  // Anything else (a team's season, a matchup's series: nothing defines a week of its own) keeps the Tuesday-to-Monday week.
+  assert.equal(locksOf(days, "weekly").get(2), "2026-11-03T20:00:00.000Z");
+});
+
+test("the Premier League by round locks each round at its own first match, not the calendar's week (L8 part 3)", () => {
+  const rounds = S.slateEpisodes(epl.calendar, "regular", "round", epl.games);
+  const at = new Map(epl.games.map((g) => [g.id, g.at]));
+  const starts = rounds.flatMap((r) => r.games.map((id) => ({ episode: r.n, at: at.get(id) })));
+  const locks = locksOf(starts, "weekly", { slate: true });
+  const first = (r) => new Date(Math.min(...r.games.map((id) => Date.parse(at.get(id))))).toISOString();
+  for (const r of rounds) assert.equal(locks.get(r.n), first(r), `round ${r.n}`);
+  // A midweek round and the weekend's after it share a Tuesday-to-Monday week: the calendar would lock the weekend's round at
+  // the midweek one's first match, before any of its own.
+  const calendar = locksOf(starts, "weekly");
+  const differ = rounds.filter((r) => calendar.get(r.n) !== locks.get(r.n));
+  assert.ok(differ.length > 0, "some round shares a calendar week with another");
+  for (const r of differ) assert.ok(Date.parse(calendar.get(r.n)) < Date.parse(first(r)));
 });
