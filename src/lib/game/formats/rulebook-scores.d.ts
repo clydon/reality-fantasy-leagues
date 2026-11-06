@@ -26,6 +26,8 @@ export interface ScoresRow {
   /** What it's worth now, in words ("3 (5 when shared)"). */
   beforeWord: string;
   after: number;
+  /** The shared league's half (the rarity step counted SHARED_RARITY times over): the same as `after` when it doesn't differ. */
+  afterShared: number;
   /** The rung it stands on, or null when the answer didn't score it. */
   rung: string | null;
   /** How often it comes up (null for perUnit, or when not scored). */
@@ -42,6 +44,7 @@ export interface ScoresAdded {
   id: string;
   label: string;
   points: number;
+  pointsShared: number;
   rung: string;
   rarity: string | null;
   why: string;

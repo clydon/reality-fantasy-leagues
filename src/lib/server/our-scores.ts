@@ -135,11 +135,15 @@ export async function settleOurScores(
       const { reliability: _r, ...rest } = made as typeof made & { reliability?: string };
       void _r;
       customs.push({ ...rest, answeredBy: "league" } as never);
-      if (v !== 0) points[id] = v;
+      const theirs = given[id] === undefined ? (a.blocks.points as Record<string, number | { exclusive: number; shared: number }> | undefined)?.[id] : undefined;
+      if (theirs !== undefined) points[id] = theirs;
+      else if (v !== 0) points[id] = v;
       joined++;
     } else if (rows.some((r) => r.id === id)) {
+      // As the review priced it (both halves) unless adjusted, then the one number for both.
+      const theirs = given[id] === undefined ? (a.blocks.points as Record<string, number | { exclusive: number; shared: number }> | undefined)?.[id] : undefined;
       const d = defaults.get(id);
-      points[id] = d && typeof d === "object" ? { exclusive: v, shared: v } : v;
+      points[id] = theirs !== undefined ? theirs : d && typeof d === "object" ? { exclusive: v, shared: v } : v;
       rescored++;
     }
   }

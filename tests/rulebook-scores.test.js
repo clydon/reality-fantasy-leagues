@@ -65,7 +65,7 @@ test("the question lists every moment with its id and worth, the ladder, rarity,
   assert.doesNotMatch(done, /first \d+ episodes/);
 });
 
-test("the review takes each rung's points plus rarity on a positive one, keeps what it wasn't told, and flattens a split value", () => {
+test("the review takes each rung's points plus rarity on a positive one, keeps what it wasn't told, and writes a split value's halves", () => {
   const blocks = challenge();
   const answer = wrap({
     schema: 1,
@@ -102,8 +102,8 @@ test("the review takes each rung's points plus rarity on a positive one, keeps w
   assert.ok(r.warnings.some((w) => w.at === "scores.captain" && /not scored, kept at 0.5 \(1 when shared\)/.test(w.message)));
   assert.ok(r.warnings.some((w) => w.at === "scores.disqualified" && /"moon" isn't a rung/.test(w.message)));
   assert.ok(r.warnings.some((w) => w.at === "scores.nobody"));
-  // A split value takes the number for both halves.
-  assert.deepEqual(r.blocks.points.finalist, { exclusive: 4, shared: 4 });
+  // A split value keeps its two halves: the shared one with the rarity step counted double.
+  assert.deepEqual(r.blocks.points.finalist, { exclusive: 4, shared: 5 });
   assert.equal(row("finalist").beforeWord, "3 (5 when shared)");
   assert.equal(r.blocks.points.dailyChallengeWon, 4);
   assert.equal(r.blocks.points.medicallyRemoved, 0, "an override it already had stays");
@@ -143,7 +143,7 @@ test("what's missing joins as custom moments with the rung's points; repeats, na
   );
   const custom = r.blocks.customMoments.find((m) => m.id === "calledOut");
   assert.deepEqual(custom, { id: "calledOut", label: "Called out an opponent", counted: "yesNo", answeredBy: "research", reliability: "usually", during: { segment: "elimination" }, exceptWinners: true });
-  assert.equal(r.blocks.points.calledOut, 2.5);
+  assert.deepEqual(r.blocks.points.calledOut, { exclusive: 2.5, shared: 3 });
   assert.equal(r.blocks.points.lookedTired, undefined, "nothing scores nothing: no override");
   const tired = r.blocks.customMoments.find((m) => m.id === "lookedTired");
   assert.deepEqual(tired, { id: "lookedTired", label: "Looked tired", counted: "yesNo", answeredBy: "research", reliability: "usually" }, "answers it doesn't know are tidied");
@@ -159,7 +159,7 @@ test("what's missing joins as custom moments with the rung's points; repeats, na
   assert.ok(r.lines.some((l) => /New moment: Called out an opponent/.test(l)));
   // The new moments build, with their points.
   const built = momentsFor(r.blocks);
-  assert.equal(built.find((m) => m.id === "calledOut").defaultPoints, 2.5);
+  assert.deepEqual(built.find((m) => m.id === "calledOut").defaultPoints, { exclusive: 2.5, shared: 3 });
   assert.deepEqual(built.find((m) => m.id === "calledOut").from, { custom: "calledOut", segment: "elimination" });
 });
 
@@ -279,6 +279,28 @@ test("outcomes, not moments: what a moment brings with it is priced inside its r
   // Declining the finalist's row keeps the winner's priced value: the pair still lands on the rung.
   const picked = S.pickScores(blocks, r, ["finalist"]);
   assert.deepEqual(picked.points.soleSurvivor, { exclusive: 3, shared: 3 });
+});
+
+test("two halves: a shared league's rarity step counts double, written as a pair only where the halves differ", () => {
+  const blocks = challenge();
+  const scores = allOn(blocks, "edge", "mostEpisodes", {
+    eliminationWon: { rung: "wonAlone", rarity: "someEpisodes" },
+    dailyChallengeWon: { rung: "wonAlone", rarity: "mostEpisodes" },
+    winner: { rung: "wonSeason", rarity: "onceOrTwice" },
+    captain: { rung: "edge", rarity: "onceOrTwice" },
+  });
+  const r = S.reviewScores({ schema: 1, scores, add: [{ id: "calledOut", label: "Called out an opponent", rung: "earned", rarity: "someEpisodes", known: "pastSeasons" }] }, blocks);
+  const row = (id) => r.rows.find((x) => x.id === id);
+  assert.deepEqual([row("eliminationWon").after, row("eliminationWon").afterShared, r.blocks.points.eliminationWon], [4.5, 5, { exclusive: 4.5, shared: 5 }], "some episodes: +0.5 exclusive, +1 shared");
+  assert.deepEqual([row("dailyChallengeWon").after, row("dailyChallengeWon").afterShared, r.blocks.points.dailyChallengeWon], [4, 4, 4], "most episodes: no step, one number");
+  assert.deepEqual(r.blocks.points.winner, { exclusive: 7, shared: 8 }, "the title: 7, 8 shared");
+  assert.deepEqual(r.blocks.points.captain, { exclusive: 1, shared: 1 }, "a small edge gains nothing in either, and keeps its pair as the rulebook had one");
+  assert.deepEqual([r.added[0].points, r.added[0].pointsShared, r.blocks.points.calledOut], [2.5, 3, { exclusive: 2.5, shared: 3 }]);
+  // Pricing runs per half: on Survivor the winner's and the finalist's steps cancel, so the title on top is 3 in both.
+  const sv = survivor();
+  const r2 = S.reviewScores({ schema: 1, scores: { ...allOn(sv, "edge"), soleSurvivor: { rung: "wonSeason", rarity: "onceOrTwice" }, finalist: { rung: "bigPlay", rarity: "onceOrTwice" } }, add: [] }, sv);
+  const win = r2.rows.find((x) => x.id === "soleSurvivor");
+  assert.deepEqual([win.after, win.afterShared, r2.blocks.points.finalist], [3, 3, { exclusive: 4, shared: 5 }]);
 });
 
 test("an added-by-hand moment worth nothing is proposed for dropping; accepted it goes, declined it stays", () => {

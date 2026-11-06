@@ -766,6 +766,7 @@ function OurScoresSheet({ seasonId, couchId, state, onClose, onPaste, done }: { 
                     <small className="block text-[12px] leading-snug text-muted-foreground">
                       New, the couch answers it · {words(m.rung)}
                       {m.rarity ? ` · ${words(m.rarity)}` : ""}
+                      {m.pointsShared !== m.points ? ` · ${pts(m.pointsShared)} in a shared league` : ""}
                     </small>
                   </span>
                   <b className="type-num flex-none text-[18px]">{pts(m.points)}</b>
@@ -781,6 +782,7 @@ function OurScoresSheet({ seasonId, couchId, state, onClose, onPaste, done }: { 
                     <small className="block text-[12px] leading-snug text-muted-foreground">
                       {r.drop ? "Not about one person: drop it, so nobody is asked about it" : r.rung ? words(r.rung) : ""}
                       {!r.drop && r.rarity ? ` · ${words(r.rarity)}` : ""}
+                      {!r.drop && r.afterShared !== r.after ? ` · ${pts(r.afterShared)} in a shared league` : ""}
                       {r.outcome !== undefined && r.includes ? ` · ${r.outcome} in all with ${r.includes.map((id) => (a.rows ?? []).find((x) => x.id === id)?.label ?? id).join(", ")}` : ""}
                     </small>
                   </span>

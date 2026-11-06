@@ -86,7 +86,9 @@ fantasy team."
   way says so ("3 · 7 in all with Finalist"). **The fourth promise**, tested with the other three in both ownership modes:
   everything the winner collects in the last episode (the wonSeason rung, finalist and all) is under two of the biggest
   weekly wins, so a season of ordinary scoring always outweighs the title. `SHARED_RARITY` (2): in a shared league the
-  rarity step counts double; the review doesn't write it yet (step 3).
+  rarity step counts double, and the review writes both halves of a value (a pair where they differ, or where the rulebook
+  kept a pair; priced through the same chains per half), shown as "· 5 shared" on the sheets; a commissioner's accepted row
+  keeps the pair unless adjusted.
 - **A moment belongs to one person** (the user, 2026-11-05, Below Deck 13's first research had "the tip is revealed" and
   "a guest complains" as moments): the rulebook prompt says every custom moment is something one cast member did or had
   done to them, with a line for a reality series beside the talk-show and scripted ones. What scores says such a moment

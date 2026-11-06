@@ -32,6 +32,11 @@
 //
 //   buildScoresPrompt({ show, season, airing, aired, episodeCount, blocks })   the question
 //
+// Two halves (the user, 2026-11-06): a rulebook's points can be a pair, one for an exclusive league (one team owns each
+// person: scarcity does the rewarding) and one for a shared league (several teams can hold the same person: common moments
+// cancel out, rare ones decide), and the review writes both: the shared half is the rung with the rarity step counted
+// SHARED_RARITY times over, priced through the same chains; a number when the halves agree.
+//
 // A moment that isn't something one person did (the tip is revealed, a guest complains: a show's first research sometimes
 // writes these) stands on nothing; when it was added by hand, the review proposes dropping it (`drop` on its row), a row
 // to accept or decline like the rest, so research isn't asked about it every episode for nothing.
@@ -86,6 +91,9 @@ const rarityOf = (id) => RARITY.find((r) => r.id === id) || null;
 // ---------- the question ----------
 
 const pointsNow = (v) => (isObj(v) ? v.exclusive : v);
+const sharedNow = (v) => (isObj(v) ? v.shared : v);
+/** A value to write: the pair when the halves differ or the rulebook keeps a pair there already, else the number. */
+const pair = (exclusive, shared, was) => (exclusive !== shared || isObj(was) ? { exclusive, shared } : exclusive);
 const pointsWord = (v) => (isObj(v) ? `${v.exclusive} (${v.shared} when shared)` : String(v));
 
 /** Where a moment comes from, in words: "the Daily challenge", "a way out", "the finale", "added by hand". */
@@ -216,12 +224,14 @@ function pointsOf(entry) {
     const rarity = rarityOf(entry.rarity);
     const note = rarity ? null : entry.rarity === undefined ? 'no rarity given: counted as most episodes' : `"${entry.rarity}" isn't a rarity: counted as most episodes`;
     const bump = rung.points >= RARITY_FROM && rarity ? rarity.bump : 0;
-    return { points: rung.points + bump, rung: rung.id, rarity: rarity ? rarity.id : RARITY[0].id, why, note };
+    // The shared league's half: the rarity step counts SHARED_RARITY times over, nothing else moves.
+    return { points: rung.points + bump, shared: rung.points + bump * SHARED_RARITY, rung: rung.id, rarity: rarity ? rarity.id : RARITY[0].id, why, note };
   }
   if (entry.rung === PER_UNIT.id) {
     const p = Number(entry.points);
     if (!Number.isFinite(p) || p < PER_UNIT.min || p > PER_UNIT.max) return { problem: `perUnit points should be between ${PER_UNIT.min} and ${PER_UNIT.max}` };
-    return { points: Math.round(p * 100) / 100, rung: PER_UNIT.id, rarity: null, why, note: null };
+    const v = Math.round(p * 100) / 100;
+    return { points: v, shared: v, rung: PER_UNIT.id, rarity: null, why, note: null };
   }
   return { problem: `"${entry.rung}" isn't a rung of the ladder` };
 }
@@ -306,28 +316,30 @@ function reviewScores(answer, blocks, { castNames = [], mark = null, episodeCoun
   }
   // Outcome pricing: a moment is worth its rung MINUS what it brings along (priced first), so the two together are worth
   // the rung. What isn't scored, or is dropped, is worth what it is now; a cycle is cut where it closes.
-  const priced = new Map();
+  // Priced once per ownership mode: a shared league's halves chain among themselves.
+  const priced = { exclusive: new Map(), shared: new Map() };
   const walking = new Set();
   const dropsAhead = new Set(moments.filter((m) => m.custom && scored.get(m.id)?.rung === 'nothing').map((m) => m.id));
-  const valueOf = (id) => {
-    if (priced.has(id)) return priced.get(id);
+  const valueOf = (id, mode = 'exclusive') => {
+    if (priced[mode].has(id)) return priced[mode].get(id);
     if (dropsAhead.has(id)) return 0;
     const got = scored.get(id);
-    if (!got) return pointsNow(byId.get(id)?.defaultPoints ?? 0);
-    if (got.rung === PER_UNIT.id || walking.has(id)) return got.points;
+    const own = got ? (mode === 'shared' ? got.shared : got.points) : null;
+    if (!got) return (mode === 'shared' ? sharedNow : pointsNow)(byId.get(id)?.defaultPoints ?? 0);
+    if (got.rung === PER_UNIT.id || walking.has(id)) return own;
     walking.add(id);
     let along = 0;
-    for (const other of chains.get(id) ?? []) along += valueOf(other);
+    for (const other of chains.get(id) ?? []) along += valueOf(other, mode);
     walking.delete(id);
-    const v = along > 0 && got.points > 0 ? Math.max(0, Math.round((got.points - along) * 100) / 100) : got.points;
-    priced.set(id, v);
+    const v = along > 0 && own > 0 ? Math.max(0, Math.round((own - along) * 100) / 100) : own;
+    priced[mode].set(id, v);
     return v;
   };
   for (const m of moments) {
     if (done[m.id]) continue;
     const now = pointsNow(m.defaultPoints);
     const entry = scores[m.id];
-    const same = { id: m.id, label: m.label, before: now, beforeWord: pointsWord(m.defaultPoints), after: now, rung: null, rarity: null, why: '', changed: false, drop: false };
+    const same = { id: m.id, label: m.label, before: now, beforeWord: pointsWord(m.defaultPoints), after: now, afterShared: sharedNow(m.defaultPoints), rung: null, rarity: null, why: '', changed: false, drop: false };
     if (entry === undefined) {
       warnings.push({ at: `scores.${m.id}`, message: `${m.label}: not scored, kept at ${pointsWord(m.defaultPoints)}` });
       rows.push(same);
@@ -343,16 +355,17 @@ function reviewScores(answer, blocks, { castNames = [], mark = null, episodeCoun
     // Added by hand and worth nothing: dropped, so it isn't asked about every episode for nothing.
     if (m.custom && got.rung === 'nothing') {
       drops.push(m.id);
-      rows.push({ id: m.id, label: m.label, before: now, beforeWord: pointsWord(m.defaultPoints), after: 0, rung: got.rung, rarity: got.rarity, why: got.why, changed: true, drop: true });
+      rows.push({ id: m.id, label: m.label, before: now, beforeWord: pointsWord(m.defaultPoints), after: 0, afterShared: 0, rung: got.rung, rarity: got.rarity, why: got.why, changed: true, drop: true });
       continue;
     }
     const value = valueOf(m.id);
+    const shared = valueOf(m.id, 'shared');
     const brings = [...(chains.get(m.id) ?? [])].filter((o) => byId.has(o));
     const outcome = brings.length && value !== got.points ? { outcome: got.points, includes: brings } : {};
     if (brings.length && got.points > 0 && value === 0) warnings.push({ at: `scores.${m.id}`, message: `${m.label}: its rung is no more than what it brings along (${brings.map((o) => byId.get(o).label).join(', ')}), so it's worth 0 on top` });
-    const changed = value !== now || (isObj(m.defaultPoints) && m.defaultPoints.shared !== value);
-    if (changed) points[m.id] = isObj(m.defaultPoints) ? { exclusive: value, shared: value } : value;
-    rows.push({ id: m.id, label: m.label, before: now, beforeWord: pointsWord(m.defaultPoints), after: value, rung: got.rung, rarity: got.rarity, why: got.why, changed, drop: false, ...outcome });
+    const changed = value !== now || shared !== sharedNow(m.defaultPoints);
+    if (changed) points[m.id] = pair(value, shared, m.defaultPoints);
+    rows.push({ id: m.id, label: m.label, before: now, beforeWord: pointsWord(m.defaultPoints), after: value, afterShared: shared, rung: got.rung, rarity: got.rarity, why: got.why, changed, drop: false, ...outcome });
   }
   for (const id of Object.keys(scores)) if (!moments.some((m) => m.id === id)) warnings.push({ at: `scores.${id}`, message: `"${id}" isn't one of the rulebook's moments` });
 
@@ -408,8 +421,8 @@ function reviewScores(answer, blocks, { castNames = [], mark = null, episodeCoun
     if (raw.exceptWinners === true && m.during && m.during.segment) m.exceptWinners = true;
     customs.push(m);
     labels.push(label);
-    if (got.points !== 0) points[id] = got.points;
-    added.push({ id, label, points: got.points, rung: got.rung, rarity: got.rarity, why: got.why, known, firstEpisode: first, counted, answeredBy, during: m.during || null });
+    if (got.points !== 0 || got.shared !== 0) points[id] = pair(got.points, got.shared, null);
+    added.push({ id, label, points: got.points, pointsShared: got.shared, rung: got.rung, rarity: got.rarity, why: got.why, known, firstEpisode: first, counted, answeredBy, during: m.during || null });
   }
   if (customs.length) b.customMoments = customs;
   else delete b.customMoments;

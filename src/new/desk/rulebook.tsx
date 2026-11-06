@@ -672,6 +672,7 @@ function ScoresPicks({ a, declined, onToggle }: { a: RulebookAnswerCard; decline
               <small className="block text-[12px] leading-snug text-muted-foreground">
                 {rungWords(m.rung)}
                 {m.rarity ? ` · ${rungWords(m.rarity)}` : ""}
+                {m.pointsShared !== m.points ? ` · ${m.pointsShared} shared` : ""}
                 {m.known === "thisSeason" && m.firstEpisode > 1 ? ` · new from Episode ${m.firstEpisode}` : ""}
                 {m.why ? ` · ${m.why}` : ""}
               </small>
@@ -693,6 +694,7 @@ function ScoresPicks({ a, declined, onToggle }: { a: RulebookAnswerCard; decline
                 <small className="block text-[12px] leading-snug text-muted-foreground">
                   {r.drop ? "not about one person · drop it" : rungWords(r.rung)}
                   {!r.drop && r.rarity ? ` · ${rungWords(r.rarity)}` : ""}
+                  {!r.drop && r.afterShared !== r.after ? ` · ${r.afterShared} shared` : ""}
                   {r.outcome !== undefined && r.includes ? ` · ${r.outcome} in all with ${r.includes.map((id) => rows.find((x) => x.id === id)?.label ?? id).join(", ")}` : ""}
                 </small>
               )}
