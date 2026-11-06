@@ -34,8 +34,11 @@ const {
 function isBot(player) {
   return !!player && player.automated === true && !player.disabled && player.active !== false;
 }
+// A seat playing live. One catching up in a game at its own pace (docs/PLAN-own-pace-games.md: StateLogic.GhostLogic.paceAll)
+// plays its own week on its own copy instead, through catchUpTo: never the league's current episode, which on a finished
+// season is long past and on a season it's behind on is weeks ahead of it.
 function botIds(state) {
-  return state.players.filter(isBot).map((p) => p.id);
+  return state.players.filter((p) => isBot(p) && !StateLogic.GhostLogic.isCatchingUp(state, p.id)).map((p) => p.id);
 }
 
 // How sharp each bot plays (player.botLevel, set per seat in League Settings), so a league with a few
@@ -340,24 +343,56 @@ function eliminatorPicks(state) {
   if (!piecesOf(state).hasWeeklyPicks) return 0;
   const ep = currentEpisode(state);
   if (!ep || !inPlay(state, ep.number) || closedForPlay(ep) || PickEmLogic.decided(ep, state)) return 0;
+  let made = 0;
+  botIds(state).forEach((pid) => { made += eliminatorPickFor(state, ep, pid); });
+  return made;
+}
+// One bot's pick (and a pool's second) for `ep`, on `state`: the league's, or a catching-up bot's own copy (catchUpTo).
+function eliminatorPickFor(state, ep, pid) {
   const parts = PickEmLogic.parts(state);
   let made = 0;
-  botIds(state).forEach((pid) => {
-    const { available } = PickEmLogic.eligibility(state, ep.id, pid);
-    const order = ranked(state, pid, available, "safety");
-    const best = order[0];
-    if (!best) return;
-    const existing = PickEmLogic.pickFor(state, ep.id, pid);
-    if (!existing || existing.castawayId !== best) {
-      PickEmLogic.setPick(state, ep.id, pid, best);
-      const now = PickEmLogic.pickFor(state, ep.id, pid);
-      if (now && now.castawayId === best) made++;
-    }
-    const next = order[1];
+  const { available } = PickEmLogic.eligibility(state, ep.id, pid);
+  const order = ranked(state, pid, available, "safety");
+  const best = order[0];
+  if (!best) return 0;
+  const existing = PickEmLogic.pickFor(state, ep.id, pid);
+  if (!existing || existing.castawayId !== best) {
+    PickEmLogic.setPick(state, ep.id, pid, best);
     const now = PickEmLogic.pickFor(state, ep.id, pid);
-    if (parts && parts.second && next && now && now.castawayId === best && now.second !== next) {
-      PickEmLogic.setPick(state, ep.id, pid, next, { second: true });
-      if (PickEmLogic.pickFor(state, ep.id, pid).second === next) made++;
+    if (now && now.castawayId === best) made++;
+  }
+  const next = order[1];
+  const now = PickEmLogic.pickFor(state, ep.id, pid);
+  if (parts && parts.second && next && now && now.castawayId === best && now.second !== next) {
+    PickEmLogic.setPick(state, ep.id, pid, next, { second: true });
+    if (PickEmLogic.pickFor(state, ep.id, pid).second === next) made++;
+  }
+  return made;
+}
+
+// A game at your own pace (docs/PLAN-own-pace-games.md): computer players catch up as people do, one episode at a time. Run
+// when someone reveals episode `n` (reveal.ts markRevealed, under the league lock): every bot still behind it plays each week
+// up to `n` on the copy a late joiner at that mark sees (StateLogic.GhostLogic.applyAs: nothing past the week exists in it, so
+// a bot never reads ahead), then its mark is `n`. A bot already past `n` (someone else revealed further) does nothing.
+// Deterministic like run(): a second call changes nothing. Survival Pool's pick for now (the drafts come with part 3).
+function catchUpTo(state, n) {
+  const G = StateLogic.GhostLogic;
+  let made = 0;
+  state.players.filter(isBot).forEach((p) => {
+    const lj = p.lateJoin;
+    if (!lj || !lj.catchingUp || !Number.isInteger(lj.seenThrough)) return;
+    while (lj.seenThrough < n) {
+      const week = lj.seenThrough + 1;
+      const ep = state.episodes.find((e) => e.number === week);
+      if (ep) {
+        G.applyAs(state, p.id, lj.seenThrough, ep.id, (view) => {
+          const vEp = view.episodes.find((e) => e.number === week);
+          if (!vEp || !inPlay(view, week) || closedForPlay(vEp) || PickEmLogic.decided(vEp, view)) return;
+          if (piecesOf(view).hasWeeklyPicks) made += eliminatorPickFor(view, vEp, p.id);
+        });
+      }
+      lj.seenThrough = week;
+      G.markCaughtUp(state, p.id, week);
     }
   });
   return made;
@@ -452,4 +487,4 @@ function hasWork(state) {
   return blindSubmissions(state).length > 0 || auctionBids(state).length > 0 || run(structuredClone(state)) > 0;
 }
 
-module.exports = { LEVELS, DEFAULT_LEVEL, isBot, botIds, ratings, run, hasWork, blindSubmissions, auctionBids, waiverClaim, groupSlotPicks };
+module.exports = { LEVELS, DEFAULT_LEVEL, isBot, botIds, ratings, run, hasWork, catchUpTo, blindSubmissions, auctionBids, waiverClaim, groupSlotPicks };

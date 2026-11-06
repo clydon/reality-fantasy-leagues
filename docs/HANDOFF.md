@@ -21,6 +21,16 @@ and the Neon password rotation (deferred; steps there). Fixed 2026-10-24: the ch
 end); GitHub Actions, stopped since 2026-10-19, runs again. Vercel builds production only (Preview shared
 production's database).
 
+## Games at your own pace (2026-11-05; no migration; docs/PLAN-own-pace-games.md)
+A game on a season that's already aired (The Challenge 42 was the ask), or one you're behind on: Start a game now offers
+*Where you are · Episode N* and *From the top*, and every seat (computer players too) is a late joiner from the start
+(`GhostLogic.paceAll`), each playing one episode at a time from the catching-up strip and sheet. Nothing locks anyone: the
+strip and the reveal button say where the others are ("riley · Ep 4", "you'll be 2 ahead of riley"). Bots pick for an episode
+the moment the first person reveals it (`bot-logic.js catchUpTo`). **Part 1 = Survival Pool only**; part 2 keys Bingo, Weekly
+Calls and Trivia to *your next* episode and adds Watch it together; part 3 the drafts (exclusive Outlast needs waivers and swaps
+resolved per person's episode: the user's caveat); part 4 the Prediction Sheet. Check: `node scripts/dev-test/check-own-pace.js`
+(a real finished season in the local DB, read only; zt rows only).
+
 ## React with a GIF (2026-11-01; branch `reactions`, lane `rfl-reactions`, migration 0162)
 The user found Rate it's stars no fun: an episode's reaction is now **one GIF you search for** (KLIPY, the chat's picker), and
 **Rate it is shelved** (stars, couch verdict, taste twin, rating accolades, Couch verdicts; `episode_ratings` kept). The GIF

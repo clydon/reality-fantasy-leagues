@@ -111,7 +111,8 @@ export function useShow(seasonId: string) {
     /** Its drop, while it's still to come (ms), else null. */
     dropAt: header?.release === "binge" && header.dropAt ? Date.parse(header.dropAt) : null,
     /** Watched at your own pace (step 14): a streaming season, or a finished one nobody plays a game on here. */
-    ownPace: !!header && ownPace({ release: header.release, status: header.status, played: games.length > 0 }),
+    // A game at your own pace on it keeps the season watched at your own pace (docs/PLAN-own-pace-games.md).
+    ownPace: !!header && ownPace({ release: header.release, status: header.status, played: games.some((g) => !g.ownPace) }),
     moves,
     movesDue: moves.length,
     /** Your games here (game-view.ts), in the couch's order; null until they've come back. */

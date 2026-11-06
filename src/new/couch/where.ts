@@ -54,8 +54,9 @@ export function personShows(
   const seasons = new Map<string, Season>([...(home.couchShows ?? []), ...home.shows].map((s) => [s.seasonId, s]));
   const mine = new Map(home.shows.filter((s) => s.following || s.games.length > 0).map((s) => [s.seasonId, s]));
   const myMark = (s: HomeShow) => (s.seenThrough == null ? s.latestAired : s.seenThrough);
-  // A season the couch plays (or you do) is weekly, as its own show space has it (show-space.tsx ownPace), even once it's over.
-  const played = (s: Season) => couch.games.some((g) => g.seasonId === s.seasonId) || ("games" in s && s.games.length > 0);
+  // A season the couch plays (or you do) is weekly, as its own show space has it (show-space.tsx ownPace), even once it's over;
+  // a game at your own pace on it (docs/PLAN-own-pace-games.md) leaves it at your own pace.
+  const played = (s: Season) => couch.games.some((g) => g.seasonId === s.seasonId && !g.ownPace) || ("games" in s && s.games.some((g) => !g.ownPace));
   const out: PersonShow[] = [];
   const add = (seasonId: string, seen: number, priv: string | null = null) => {
     const s = seasons.get(seasonId);

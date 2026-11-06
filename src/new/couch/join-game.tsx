@@ -13,6 +13,7 @@ import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { Face } from "../show/parts";
 import { faceIn, first, openMoves } from "../show/moves";
+import { aheadWords, allHere, othersLine } from "./pace";
 
 // Joining a game on the couch (docs/PLAN-new-design.md step 9; the mock's round2.js joinRoute, catchupSheet, catchupStrip
 // and catchupStep): each game says who may join it (anyone on the couch, ask first, or nobody new), a game underway asks
@@ -35,6 +36,7 @@ function whoJoins(g: JoinGame): string {
     if (g.you?.letIn) return `${runner} let you in. Pick where you start.`;
     return g.shared ? `${runner} lets new players in.` : `Players own their castaways, so ${runner} lets new players in.`;
   }
+  if (g.ownPace) return "Anyone on the couch can join, from wherever they are: one episode at a time, at their own pace.";
   if (!g.underway) return g.teamSize ? "Anyone on the couch can join. You'll draft with everyone." : "Anyone on the couch can join.";
   return g.shared ? `Anyone can join. Catch up on what you missed, or start from Episode ${g.latest + 1}.` : `Anyone can join from Episode ${g.latest + 1}.`;
 }
@@ -160,9 +162,11 @@ export function JoinGameSheet({ couchId, game, onOpenChange }: { couchId: string
           ? undefined
           : picking
             ? `${need} ${need === 1 ? "castaway" : "castaways"} · from who's still in${game.shared ? "" : " nobody has"} before Episode ${start}`
-            : game.underway
-              ? `${airedWords(game.latest)}. How do you want to start?`
-              : `${game.name} · ${game.players} playing`
+            : game.ownPace
+              ? "At your own pace · everyone's on their own episode"
+              : game.underway
+                ? `${airedWords(game.latest)}. How do you want to start?`
+                : `${game.name} · ${game.players} playing`
       }
     >
       {!game || !o ? (
@@ -201,6 +205,17 @@ export function JoinGameSheet({ couchId, game, onOpenChange }: { couchId: string
           </div>
           <Btn tone="must" wide className="sticky bottom-0 mt-4" data-join-confirm disabled={busy || team.length !== need} onClick={() => join(start, team)}>
             {busy ? "Joining…" : team.length === need ? `Join with these ${need}` : `Pick ${need - team.length} more`}
+          </Btn>
+        </div>
+      ) : game.ownPace && o.starts ? (
+        // A game at your own pace (docs/PLAN-own-pace-games.md): you start where you are; nothing to choose.
+        <div data-join-pace={o.starts.live}>
+          <p className="text-[17px] font-semibold">You&rsquo;ll start at Episode {o.starts.live}.</p>
+          <p className="mt-1 text-[15px] leading-snug text-muted-foreground">
+            {game.teamSize ? "Pick your team from who's still in, then pick" : "Pick who survives"} before you watch each episode, reveal after. The others are wherever they are; nobody waits for anyone.
+          </p>
+          <Btn tone="must" wide className="mt-4" data-join-confirm disabled={busy} onClick={() => (pick ? setStart(o.starts!.live) : join(o.starts!.live, []))}>
+            {busy ? "Joining…" : `Join ${game.gameName}`}
           </Btn>
         </div>
       ) : !o.starts ? (
@@ -289,9 +304,11 @@ export function CatchUpStrips({ show, onOpen }: { show: ShowData; onOpen: (g: Ga
     <section className="mt-4 flex flex-col gap-2 px-4">
       {games.map((g) => {
         const c = g.catchUp!;
+        // A game at your own pace (docs/PLAN-own-pace-games.md): where the others are, under the move.
+        const where = c.others ? (allHere(c.week, c.others) ? "You're all here" : othersLine(c.week, c.others)) : null;
         return (
           <button key={g.leagueId} type="button" data-catchup={g.leagueId} onClick={() => onOpen(g)} className="nd-press flex items-center gap-3 rounded-[4px] bg-card p-3 text-left">
-            <span className="type-caption flex-none rounded-[2px] bg-foreground px-2 py-1 text-[11px] tracking-[0.06em] text-background">Catching up</span>
+            <span className="type-caption flex-none rounded-[2px] bg-foreground px-2 py-1 text-[11px] tracking-[0.06em] text-background">{c.others ? "Your own pace" : "Catching up"}</span>
             <span className="min-w-0 flex-1">
               <b className="block text-[15px] font-semibold">
                 Episode {c.week} of {c.latest}
@@ -299,6 +316,11 @@ export function CatchUpStrips({ show, onOpen }: { show: ShowData; onOpen: (g: Ga
               <small className="block text-[13px] leading-snug text-muted-foreground">
                 {catchUpVerb(g)} · {g.gameName}
               </small>
+              {where && (
+                <small data-pace-where className="block truncate text-[13px] leading-snug text-muted-foreground">
+                  {where}
+                </small>
+              )}
             </span>
             <span className="flex w-14 flex-none gap-0.5" aria-hidden>
               {Array.from({ length: Math.min(c.latest, 12) }, (_, i) => (
@@ -326,13 +348,19 @@ export function CatchUpSheet({ show, game, onOpenChange }: { show: ShowData; gam
   };
   const g = game ? ((show.play ?? []).find((x) => x.leagueId === game.leagueId) ?? game) : null;
   const week = done ? done.episode : (g?.catchUp?.week ?? 0);
+  // A game at your own pace: where the others are, and the gap the reveal would open (src/new/couch/pace.ts); the words are the
+  // guardrail, nothing locks. `paced` from the game as opened, so the finish still knows once it's caught up.
+  const others = g?.catchUp?.others ?? null;
+  const paced = !!game?.catchUp?.others;
+  const ahead = others ? aheadWords(week, others) : null;
+  const where = others ? (allHere(week, others) ? `You're all here · Episode ${week}` : othersLine(week, others)) : null;
   const set = !g ? false : g.pick ? !!g.pick.pick : g.lineup ? g.lineup.set : true;
   const moveWord = !g ? "" : g.pick ? (g.pick.pick ? `Your pick: ${first(faceIn(g, g.pick.pick)?.name ?? "someone")}` : "No pick yet") : g.lineup ? (g.lineup.set ? "Your lineup's set" : "Your lineup isn't set") : "";
   return (
     <Sheet
       open={!!game}
       onOpenChange={openChange}
-      title={done ? `Episode ${done.episode}` : `Catch up · Episode ${week}`}
+      title={done ? `Episode ${done.episode}` : paced ? `Episode ${week} · your own pace` : `Catch up · Episode ${week}`}
       subtitle={done ? g?.gameName : g?.pick ? "Pick who survives, then reveal when you've watched" : g?.lineup ? "Set your lineup, then reveal when you've watched" : "Reveal when you've watched"}
     >
       {!g ? null : done ? (
@@ -364,7 +392,7 @@ export function CatchUpSheet({ show, game, onOpenChange }: { show: ShowData; gam
             </Btn>
           ) : (
             <>
-              <p className="mt-4 text-[15px] leading-snug">All caught up. From here you play live with everyone.</p>
+              <p className="mt-4 text-[15px] leading-snug">{paced ? "That was the last one: you've finished it. The standings are yours to read in full." : "All caught up. From here you play live with everyone."}</p>
               <Btn tone="ink" wide className="mt-3" onClick={() => openChange(false)}>
                 Done
               </Btn>
@@ -391,11 +419,17 @@ export function CatchUpSheet({ show, game, onOpenChange }: { show: ShowData; gam
             </button>
           )}
           {!set && <p className="mt-2.5 text-[13px] leading-snug text-muted-foreground">Reveal without one and this episode counts for nothing for you.</p>}
+          {where && (
+            <p data-pace-where className="mt-2.5 text-[13px] leading-snug text-muted-foreground">
+              {where}
+            </p>
+          )}
           <Btn
             tone={set ? "must" : "optional"}
             wide
-            className="mt-4"
+            className={`mt-4 ${ahead ? "h-auto min-h-[52px] py-2" : ""}`}
             data-catchup-reveal
+            data-pace-ahead={ahead ?? undefined}
             disabled={busy}
             onClick={async () => {
               setBusy(true);
@@ -410,7 +444,16 @@ export function CatchUpSheet({ show, game, onOpenChange }: { show: ShowData; gam
               }
             }}
           >
-            {busy ? "Revealing…" : `I've watched it · Reveal Episode ${week}`}
+            {busy ? (
+              "Revealing…"
+            ) : ahead ? (
+              <span className="flex flex-col items-center leading-tight">
+                <span>I&rsquo;ve watched it · Reveal Episode {week}</span>
+                <small className="text-[12px] font-semibold opacity-80">{ahead}</small>
+              </span>
+            ) : (
+              `I've watched it · Reveal Episode ${week}`
+            )}
           </Btn>
         </div>
       )}
