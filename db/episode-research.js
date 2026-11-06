@@ -64,6 +64,8 @@ const embeddings = require("./embeddings.js");
 const Air = require("../src/lib/game/air-schedule.js");
 // The format section (F2): how the game is organised at each episode's end, its vocabulary and our reading of it.
 const FormatStates = require("../src/lib/game/formats/format-state.js");
+// The episode's own facts (A13 part 2): who says its title quote, as data, each with how sure research is.
+const EpisodeFacts = require("../src/lib/game/formats/episode-facts.js");
 // The format's state over time (F3): what the context reads of it (the groups going in, the newcomers still in, the season's
 // word for its groups), built on read from the season's stored research.
 const Timeline = require("../src/lib/game/formats/format-timeline.js");
@@ -100,6 +102,9 @@ const Answer = z.enum(["yes", "no", "unknown"]);
 // had every tribe right. `merged` stays asked beside it (it was right, the phase cues read it, and the
 // timeline crosses it with the state's merge). A cut-down ask (onlyFormat) leaves the section out, as it
 // does the groups and the merge.
+// `episodeFacts` (A13 part 2, docs/PLAN-start-a-game-gpt.md) is every show's too, asked wherever the format section is: facts about
+// the episode itself (who says its title quote), each with how sure research is, which a game's question can be settled by
+// (formats/episode-facts.js reads them; our check takes one only where research says it reliably on the show).
 // `word`: the season's word for its groups when the timeline says it (F3 part 2, the context's groupWord: tribe or team);
 // the format's own without it.
 function researchSchemaFor(format, withBets = false, word = null) {
@@ -114,7 +119,7 @@ function researchSchemaFor(format, withBets = false, word = null) {
     ...format.research.episodeFields(z, Answer),
     ...(format.hasMerge ? { merged: Answer.describe(mergedText(group)) } : {}),
     rulesNote: z.string().nullable().describe(RULES_NOTE),
-    ...(asksFormat(format) ? { formatState: FormatState } : {}),
+    ...(asksFormat(format) ? { formatState: FormatState, episodeFacts: EpisodeFactsSection } : {}),
     sourcesRead: SourcesRead,
     castaways: z
       .array(entry)
@@ -274,6 +279,50 @@ const FormatState = z
   .nullable()
   .describe("How the game is organised at the end of this episode, and what changed in it: see HOW THE GAME IS ORGANISED above. Fill in every field.");
 
+// The episode's own facts (A13 part 2): who says its title quote, if its title is a line from it. Its words, the section's shape
+// and how sure counts are the user's to approve when it merges, as the format section's are.
+const EpisodeFactsSection = z
+  .object({
+    titleQuote: z
+      .object({
+        isQuote: Answer.describe(
+          "Is the episode's title a line someone says in the episode? 'yes'; 'no' only if a source shows it isn't one (a theme night, a " +
+            "pun or a name nobody says in it); 'unknown' if you can't tell. A short or ordinary-sounding title is often a line too."
+        ),
+        line: z.string().nullable().describe("The line as they say it, with the title's words in it. Null unless isQuote is 'yes'."),
+        by: z
+          .string()
+          .nullable()
+          .describe(
+            "Who says it: a name from the list above, exactly as written there; for someone who isn't on the list (the host, a family " +
+              "member, someone who already left the game), their name as the show gives it. Null unless isQuote is 'yes' and a source says who."
+          ),
+        sure: z
+          .enum(EpisodeFacts.SURE)
+          .describe("'high' only if a source says plainly who says it (a recap or the episode's own page quoting the line and naming them); 'low' if it's pieced together, or from memory."),
+      })
+      .nullable()
+      .describe("Who says the episode's title, if it's a line from the episode: see THE EPISODE ITSELF above."),
+  })
+  .nullable()
+  .describe("Facts about the episode itself: see THE EPISODE ITSELF above. Fill in every field.");
+
+// The episode facts' own part of the prompt (A13 part 2). Pure. The first proof's answers called real lines ("Cinema", "Lovable
+// Losers") not lines, high: so it says to look for who said it, and that 'no' needs a source (docs/STUDY-format-changes.md, A13 part 2).
+function factLines() {
+  return [
+    "THE EPISODE ITSELF (episodeFacts): answer it once, for the episode.",
+    "Many shows title each episode with a line someone says in it, often a short, ordinary-sounding phrase from a confessional or a",
+    "conversation. Look for who said it: recaps, episode stats pages and the episode's own page often say \"the episode title was",
+    "said by ...\" (search for the title with \"title quote\" or \"said by\"). In titleQuote, say whether this episode's title is such a",
+    "line (isQuote: 'no' only if a source shows it isn't one, 'unknown' if you can't tell), the line as it's said (line), and who",
+    "says it (by): a name from the list above, exactly as written there, or, for someone who isn't on the list (the host, a family",
+    "member, someone who already left the game), their name as the show gives it. sure: 'high' only if a source says plainly who",
+    "says it; 'low' if you're piecing it together or going from memory.",
+    "",
+  ];
+}
+
 // The NEXT episode's schedule, from this one's "next time" preview or the network's listings: a week off for
 // a holiday, a double or extra-long episode, a new night. recordNextEpisode files it in season_episodes
 // (0067), and every air time follows it: lineup locks, reminders, the bot's checks.
@@ -429,6 +478,7 @@ function buildPrompt({ showName, season, episodeNumber, castNames, castGroups = 
         ? [`If ${plural(group)} were swapped, re-divided, dissolved or merged in this episode, give each person's new ${group} in newGroup.`, ""]
         : []),
     ...(asksFormat(format) ? formatLines({ episodeNumber, castNames, formatGoingIn, labelled: anyGroups, anythingElse }) : []),
+    ...(asksFormat(format) ? factLines() : []),
     ...format.research.searchHint,
     // Where to look FIRST, not a fence: the search tool isn't restricted to these (see searchToolFor).
     ...(domains.length
@@ -651,6 +701,10 @@ function validateLeniently(raw, schema, label) {
   // lists is repaired and reported (formats/format-state.js), so it never fails a run whose checklist is fine.
   if (raw && typeof raw === "object" && !Array.isArray(raw) && schema.shape && schema.shape.formatState) {
     raw.formatState = FormatStates.looseFormatState(raw.formatState, repairs);
+  }
+  // The episode's facts (A13 part 2) the same way: none from an answer before they were asked, a bad value repaired and reported.
+  if (raw && typeof raw === "object" && !Array.isArray(raw) && schema.shape && schema.shape.episodeFacts) {
+    raw.episodeFacts = EpisodeFacts.looseEpisodeFacts(raw.episodeFacts, repairs);
   }
   // A person's group move, from an answer to a prompt that didn't ask it (a paste of an older skeleton): none said, null.
   const person = schema.shape && schema.shape.castaways && schema.shape.castaways.element;
@@ -1880,6 +1934,11 @@ function mergeResearchPayload(stored, incoming, { fill = false } = {}) {
       payload.formatState = fillFormatState(stored.formatState, value);
       continue;
     }
+    // The episode's facts, any later pass (filling in or not): one it was sure of isn't replaced by one it wasn't (EpisodeFacts.fillFacts).
+    if (key === "episodeFacts" && value && stored.episodeFacts) {
+      payload.episodeFacts = EpisodeFacts.fillFacts(stored.episodeFacts, value);
+      continue;
+    }
     const empty = value == null || value === "unknown";
     if (!empty || stored[key] == null) payload[key] = value;
   }
@@ -2066,6 +2125,8 @@ async function storeMergedResearch(pool, ctx, payload, provenance, mergeOpts = {
               provider: prior[0].provenance && prior[0].provenance.provider,
               castKept: merged.kept,
             },
+            // A13 part 2b: the facts run that filed its episode facts (db/facts-research.js), which the merge keeps (fillFacts).
+            ...(prior[0].provenance && prior[0].provenance.factsRun ? { factsRun: prior[0].provenance.factsRun } : {}),
           }
         : {}),
     };
@@ -2327,6 +2388,7 @@ function buildPastePrompt(ctx, bets, { structured = false, pasteBack = null } = 
         "Then one line,",
         `"Rules note:", answering this: ${RULES_NOTE.replace(/\bNull\b/g, "None")}`,
         ...(asksFormat(ctx.format) ? proseFormat() : []),
+        ...(asksFormat(ctx.format) ? proseFacts() : []),
         "Then, for EACH person, cover every one of these (say \"no\" or \"not reported\" rather than skipping one):",
         ...proseChecklist(ctx.format, ctx.groupWord),
         "",
@@ -2361,6 +2423,14 @@ function proseFormat() {
   );
 }
 
+// The episode's facts as plain questions, for the prose prompt (A13 part 2), read off the same schema.
+function proseFacts() {
+  const tq = EpisodeFactsSection.unwrap().shape.titleQuote.unwrap();
+  return ["Then a section \"The episode itself:\", answering each of these about its title:"].concat(
+    Object.entries(tq.shape).map(([key, field]) => `  - ${key}: ${String(field.description || key).replace(/\bNull\b/g, "None")}`)
+  );
+}
+
 // A filled-in example of the answer, built from the same schema the answer is validated against, so it
 // can't drift from it: every person still in the game, every open bet, every answer at its most
 // non-committal value ("unknown", then "low" confidence, then null). A chat edits a skeleton far more
@@ -2368,11 +2438,15 @@ function proseFormat() {
 function pasteSkeleton(ctx, bets) {
   const json = jsonSchemaFor(researchSchemaFor(ctx.format, bets.length > 0, ctx.groupWord), "strict");
   const out = skeletonValue(json);
+  // A nullable node's own shape.
+  const real = (n) => (n.anyOf || n.oneOf || []).find((v) => v && v.type !== "null") || n;
   // The format section is null only for an answer from before it was asked: the skeleton shows its fields, each at its
   // don't-know value (who is with whom: null, not known).
-  if (json.properties.formatState) {
-    const node = json.properties.formatState;
-    out.formatState = skeletonValue((node.anyOf || node.oneOf || []).find((v) => v && v.type !== "null") || node);
+  if (json.properties.formatState) out.formatState = skeletonValue(real(json.properties.formatState));
+  // The episode's facts the same way (A13 part 2): each fact's fields at their don't-know values.
+  if (json.properties.episodeFacts) {
+    const node = real(json.properties.episodeFacts);
+    out.episodeFacts = Object.fromEntries(Object.entries(node.properties || {}).map(([k, v]) => [k, skeletonValue(real(v))]));
   }
   const entry = json.properties.castaways.items;
   out.castaways = ctx.castNames.map((name) => ({ ...skeletonValue(entry), name }));

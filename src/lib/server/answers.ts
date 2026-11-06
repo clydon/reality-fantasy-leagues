@@ -14,6 +14,8 @@ import { finaleEpisode, readsTimeline, walked, type AnswerRow } from "./answer-p
 import type { AnswerWalk, CoopWalk } from "@/lib/game/state-logic.js";
 import { seasonBook } from "./calls";
 import { gamesHere, type GameHere } from "./season-games";
+import { playedInSheet, triviaWritten } from "./trivia-key";
+import { factContextForSeason } from "./episode-facts";
 
 // A game's questions (docs/PLAN-start-a-game-gpt.md step A4; migration 0200 game_answers):
 //   GET  /api/seasons/[id]/answers?league=&episode=   the game's questions as you may see them: this week's (asked each
@@ -34,6 +36,22 @@ export interface QuestionFace {
   id: string;
   name: string;
   photo: string | null;
+}
+
+/** A13: one question of a trivia round (its key's, the bot's trivia research), as the round shows it: the right answer, why and its
+ *  page only once it's graded as far as you've seen. */
+export interface TriviaRoundItem {
+  id: string;
+  /** The episode it's about (the one before the round's, or earlier). */
+  episode: number;
+  kind: "cast" | "number" | "text";
+  question: string;
+  options: string[];
+  /** You've played it in the trivia sheet, where you saw its answer: an answer here can't be given or changed. */
+  played: boolean;
+  answer: string | null;
+  why: string | null;
+  source: string | null;
 }
 
 export interface QuestionPerson {
@@ -92,8 +110,11 @@ export interface QuestionView {
    *  someone still in is on; a question about each person, who it asks about. */
   faces: QuestionFace[] | null;
   /** F3 part 2: why a group question has nothing to pick this episode on a season played in pairs (who is with whom going in
-   *  isn't sure, or nobody is in a group): it doesn't count either way. Null otherwise. */
+   *  isn't sure, or nobody is in a group): it doesn't count either way. A13: why a trivia round has none (yet). Null otherwise. */
   offWhy: string | null;
+  /** A13: a trivia question's round, answered { [id]: option } for any of them; null for any other question, or while you're behind
+   *  (see the episode before it first: the round is about it). */
+  trivia: TriviaRoundItem[] | null;
   mine: unknown;
   /** How many have answered: a count, nobody named. */
   answered: number;
@@ -200,18 +221,28 @@ interface Read {
   schedule: SeasonSchedule | undefined;
   finale: { number: number; airAt: string | null } | null;
   now: Date;
+  /** A13: the account reading (whose trivia sheet plays a trivia round's questions are checked against), when it's said, and the
+   *  season read (a round's batch is that season's). */
+  userId: string | null;
+  seasonId: string;
 }
 
 async function readOf(user: SessionUser, seasonId: string, leagueId: unknown, now: Date): Promise<Read> {
-  return readFrom(await gameHere(user, seasonId, leagueId), seasonId, now);
+  return readFrom(await gameHere(user, seasonId, leagueId), seasonId, now, undefined, user.id);
 }
 
 /** A game already read (season-games.ts gamesHere) ready for its questions. `rows`: its answers when they've been read already. */
-async function readFrom(h: GameHere, seasonId: string, now: Date, rows?: AnswerRow[]): Promise<Read> {
+async function readFrom(h: GameHere, seasonId: string, now: Date, rows?: AnswerRow[], userId: string | null = null): Promise<Read> {
   const schedule = (await seasonSchedules([seasonId], now)).get(seasonId);
   const w = await walked({ leagueId: h.game.leagueId, state: h.state, playerId: h.playerId, mark: h.mark, rows: rows ?? h.answers });
-  return { h, view: w.view, facts: w.facts, rows: w.rows, walk: w.walk, schedule, finale: finaleEpisode(schedule), now };
+  return { h, view: w.view, facts: w.facts, rows: w.rows, walk: w.walk, schedule, finale: finaleEpisode(schedule), now, userId, seasonId };
 }
+
+/** A13: a trivia round's key at a window (facts.trivia: the batch written after the episode before it), [] when there's none. */
+const roundKey = (r: Read, ep: number) => r.facts.trivia?.get(ep) ?? [];
+/** A13: which of a round's questions an account has played in the trivia sheet (none said: none), on the batch's own season. */
+const playedOf = (r: Read, userId: string | null, ep: number, ids: string[]) =>
+  userId && ids.length ? playedInSheet(userId, roundKey(r, ep)[0]?.seasonId ?? r.seasonId, ep - 1, ids) : Promise.resolve(new Set<string>());
 
 /** The episode whose start closes a question, and its air time (the league's, else the schedule's). */
 function closing(r: Read, q: Question, episode: number): { at: number | null; airAt: string | null } {
@@ -220,6 +251,10 @@ function closing(r: Read, q: Question, episode: number): { at: number | null; ai
   const ep = r.h.state.episodes.find((e) => e.number === at);
   return { at, airAt: ep?.airsAt ?? r.schedule?.episodes.find((e) => e.number === at)?.airAt ?? null };
 }
+
+/** A13: your stored trivia answer at a window, { id: option } ({} when none). */
+const triviaBefore = (r: Read, q: Question, ep: number) =>
+  (r.rows.find((a) => a.playerId === r.h.playerId && a.question === q.id && a.episode === ep)?.answer ?? {}) as Record<string, unknown>;
 
 /** Whether a question is closed for an episode (the full state's lock: StateLogic.AnswerLogic.closed), for you: a game with a late
  *  lock (step A7) keeps it open while you haven't seen it. */
@@ -290,6 +325,8 @@ const windowFor = (r: Read, q: Question, episode: number | null) => (q.asked ===
 /** The episode before the one a person or group answer (or a question about each person) needs to have been seen (who's still in,
  *  and on what group), or null when nothing is needed. */
 function needsSeen(r: Read, q: Question, episode: number): number | null {
+  // A13: a trivia round is about the episode before it (and the season so far).
+  if (q.answer === "trivia") return episode > 1 ? episode - 1 : null;
   if (!namesSomeone(q) || q.closes === "finale") return null;
   const at = q.asked !== "once" ? episode : StateLogic.startEpisode(r.h.state);
   return at === null || at <= 1 ? null : at - 1;
@@ -345,6 +382,20 @@ async function readQuestions(r: Read, episodeIn?: unknown): Promise<GameQuestion
     const { airAt } = closing(r, q, ep);
     const seen = needsSeen(r, q, ep);
     const behind = !closed && (catching || (seen !== null && mark < seen));
+    // Once it's closed, how it stands as far as you've seen.
+    const v = closed ? (graded.verdicts.get(`${q.id}|${ep}`) ?? Spec.verdictOf(q, ep, facts)) : null;
+    // A13: a trivia round's questions, once you've seen the episode it's about (whether or not it's locked), each one you've played in
+    // the trivia sheet marked; what was right once it's graded as far as you've seen.
+    let round: TriviaRoundItem[] | null = null;
+    if (Spec.isTrivia(q) && !catching && !(seen !== null && mark < seen)) {
+      const key = roundKey(r, ep);
+      const played = await playedOf(r, r.userId, ep, key.map((t) => t.id));
+      round = key.map((t) => {
+        const right = v?.state === "known" && v.each?.[t.id]?.state === "known";
+        return { id: t.id, episode: t.episode, kind: t.kind, question: t.question, options: t.options, played: played.has(t.id), answer: right ? t.answer : null, why: right ? t.why : null, source: right ? t.source : null };
+      });
+    }
+    const triviaOff = round && !round.length ? (v?.state === "off" ? v.why : "No trivia questions for this round yet") : null;
     const view1: QuestionView = {
       id: q.id,
       ask: q.ask,
@@ -375,7 +426,8 @@ async function readQuestions(r: Read, episodeIn?: unknown): Promise<GameQuestion
       closesAt: airAt,
       // A pairs question's faces are its pairs'.
       faces: namesSomeone(q) && q.answer !== "pairs" && !behind ? facesFor(view, q, me, facts.formatGroups?.get(ep)) : null,
-      offWhy: !behind ? offWhy(q, facts.formatGroups?.get(ep)) : null,
+      offWhy: !behind ? (triviaOff ?? offWhy(q, facts.formatGroups?.get(ep))) : null,
+      trivia: round,
       mine,
       answered: new Set(theirs.map((a) => a.playerId)).size,
       verdict: null,
@@ -383,7 +435,6 @@ async function readQuestions(r: Read, episodeIn?: unknown): Promise<GameQuestion
     };
     if (closed) {
       // Locked: everyone's answers, and how each stands as far as you've seen (the view is cut at your mark).
-      const v = graded.verdicts.get(`${q.id}|${ep}`) ?? Spec.verdictOf(q, ep, facts);
       view1.verdict = v;
       const list = theirs.map((a) => ({ playerId: a.playerId, answer: a.answer }));
       // What each earned there, A9's ways of combining in (a split pot, a rollover's jackpot, a parlay, a shrinking call).
@@ -395,7 +446,7 @@ async function readQuestions(r: Read, episodeIn?: unknown): Promise<GameQuestion
           name: names.get(a.playerId) ?? "Someone",
           you: a.playerId === me,
           answer: a.answer,
-          right: Spec.isRight(q, v, { playerId: a.playerId, answer: a.answer }, list, facts),
+          right: Spec.isRight(q, v as Verdict, { playerId: a.playerId, answer: a.answer }, list, facts),
           earned: earned.get(a.playerId) ?? 0,
         }))
         .sort((x, y) => Number(y.you) - Number(x.you) || y.earned - x.earned || x.name.localeCompare(y.name));
@@ -481,14 +532,17 @@ export async function answerQuestions(user: SessionUser, seasonId: string, leagu
     }
     if (value !== null) {
       const seen = needsSeen(r, q, ep);
-      if (seen !== null && mark < seen) throw new HttpError(403, `See Episode ${seen} first: it says who's still in`);
-      // Who it can name (still in, your team, a group); for a pairs question, each pair's "index:id" (A8).
+      if (seen !== null && mark < seen) throw new HttpError(403, Spec.isTrivia(q) ? `See Episode ${seen} first: the round is about it` : `See Episode ${seen} first: it says who's still in`);
+      // Who it can name (still in, your team, a group); for a pairs question, each pair's "index:id" (A8); a trivia round (A13), each
+      // of its questions' "id:option".
       const faces =
         q.answer === "pairs"
           ? new Set(pairsOf(h.state, q).flatMap((p) => p.ids.map((id) => `${p.key}:${id}`)))
-          : namesSomeone(q)
-            ? new Set(facesFor(view, q, h.playerId, r.facts.formatGroups?.get(ep)).map((f) => f.id))
-            : null;
+          : Spec.isTrivia(q)
+            ? new Set(roundKey(r, ep).flatMap((t) => t.options.map((o) => `${t.id}:${o}`)))
+            : namesSomeone(q)
+              ? new Set(facesFor(view, q, h.playerId, r.facts.formatGroups?.get(ep)).map((f) => f.id))
+              : null;
       let most: number | undefined;
       if (q.wager === Spec.WAGER_TOTAL) {
         room ??= await stakeRoom(r);
@@ -496,7 +550,21 @@ export async function answerQuestions(user: SessionUser, seasonId: string, leagu
       }
       const problem = Spec.answerProblem(q, value, faces, most === undefined ? undefined : { most });
       if (problem) throw new HttpError(400, problem);
+      // A13: a trivia question you've played in the trivia sheet, where you saw its answer: yours here can't be given or changed after
+      // it, and what you'd said before stands (kept when this answer leaves it out).
+      if (Spec.isTrivia(q)) {
+        const given = value as Record<string, string>;
+        const before = triviaBefore(r, q, ep);
+        const sheet = await playedOf(r, user.id, ep, [...new Set([...Object.keys(given), ...Object.keys(before)])]);
+        if (Object.keys(given).some((id) => sheet.has(id) && before[id] !== given[id])) throw new HttpError(409, "You've played that one in trivia, where you saw its answer: it can't be answered here now");
+        const inRound = new Set(roundKey(r, ep).map((t) => t.id));
+        for (const id of sheet) if (id in before && !(id in given) && inRound.has(id)) given[id] = before[id] as string;
+      }
       if (q.wager === Spec.WAGER_TOTAL) staking.set(`${q.id}|${ep}`, (value as { stake: number }).stake);
+    } else if (Spec.isTrivia(q)) {
+      // A13: nor taken back once one of its questions has been played in the trivia sheet.
+      const before = triviaBefore(r, q, ep);
+      if ((await playedOf(r, user.id, ep, Object.keys(before))).size) throw new HttpError(409, "You've played some of it in trivia, where you saw the answers: it can't be taken back now");
     } else if (q.shrink && late > 0) {
       // Taken back and given again would start it over: once the game's on, a shrinking call is changed, never taken back.
       throw new HttpError(409, `"${q.ask}" can be changed but not taken back once the game is on`);
@@ -553,7 +621,7 @@ export async function answerQuestions(user: SessionUser, seasonId: string, leagu
   }
   // Read again with what was written: the state's, or the answers (an answer to an open question settles nothing, so the walk the
   // league carries still holds).
-  return readQuestions(stateWrites.length ? await readOf(user, seasonId, leagueId, now) : rows.length ? await readFrom({ ...h, answers: undefined }, seasonId, now) : r);
+  return readQuestions(stateWrites.length ? await readOf(user, seasonId, leagueId, now) : rows.length ? await readFrom({ ...h, answers: undefined }, seasonId, now, undefined, user.id) : r);
 }
 
 /**
@@ -563,7 +631,10 @@ export async function answerQuestions(user: SessionUser, seasonId: string, leagu
  * whether anyone wins, who settles the show's calls, and its phases.
  */
 export async function questionContext(leagueId: string, seasonId: string): Promise<SpecContext> {
-  return contextOf(await leagueBook(leagueId, seasonId));
+  // A13: and whether the season's research writes the trivia a trivia question is settled by; part 2, what research has returned
+  // of each episode fact on the show.
+  const [book, trivia, facts] = await Promise.all([leagueBook(leagueId, seasonId), triviaWritten(seasonId), factContextForSeason(seasonId)]);
+  return { ...contextOf(book), trivia, facts };
 }
 
 /** The rules a game plays by: the couch's own copy (Make it ours), else the season's rulebook, else its show's format read back
@@ -592,14 +663,15 @@ export { contextOf };
 export async function sheetOf(user: SessionUser, seasonId: string, h: GameHere, now = new Date(), rows?: AnswerRow[]): Promise<SheetMove | null> {
   const qs = questionsOf(h.state);
   if (!qs.length) return null;
-  const g = await readQuestions(await readFrom(h, seasonId, now, rows));
+  const g = await readQuestions(await readFrom(h, seasonId, now, rows, user.id));
   return summaryOf(g, !!StateLogic.finaleOfGame(h.state));
 }
 
 /** A read's questions as a move: none once you're out (step A11 part 2b: you answer nothing more). */
 function summaryOf(g: GameQuestions, finale: boolean): SheetMove | null {
   if (g.out !== null) return null;
-  const open = g.questions.filter((q) => q.status === "open");
+  // A13: a trivia round with nothing you can answer yet (no questions, or every one played in the trivia sheet) asks nothing of you.
+  const open = g.questions.filter((q) => q.status === "open" && !(q.trivia && !q.trivia.some((t) => !t.played)));
   const behind = g.questions.find((q) => q.status === "behind")?.catchUp ?? null;
   if (!open.length && behind === null) return null;
   const locks = open.map((q) => (q.closesAt ? Date.parse(q.closesAt) : Infinity));

@@ -17,11 +17,13 @@ const schedule = Bot.normalizeSchedule([
 const due = (now, history = [], extra = {}) =>
   Bot.dueRuns({ schedule, since: null, airTimes: [{ episode: 5, at: AIRED }], history, now, ...extra }).map((r) => r.slot);
 
-test("the default schedule: quick at its end, full at 1 and 12 hours (before noon's final results), trivia a day before the next episode, bingo a day before this one", () => {
-  assert.deepEqual(Bot.normalizeSchedule(null).map(Bot.slotOf), ["quick@0", "full@60", "full@720", "trivia@1440", "bingo@1440"]);
-  // An 8:05 PM Eastern start, 90 minutes: the last full run at 9:35 AM, before 12:00 PM's final results.
+test("the default schedule: quick at its end, full at 1 and 12 hours (before noon's final results), the facts run half an hour after, trivia a day before the next episode, bingo a day before this one", () => {
+  assert.deepEqual(Bot.normalizeSchedule(null).map(Bot.slotOf), ["quick@0", "full@60", "full@720", "facts@750", "trivia@1440", "bingo@1440"]);
+  // An 8:05 PM Eastern start, 90 minutes: the last full run at 9:35 AM, the facts run at 10:05 AM, before 12:00 PM's final results.
   const last = Bot.dueAt({ kind: "full", after: 720 }, AIRED.getTime() + 90 * 60 * 1000, null, AIRED.getTime());
   assert.equal(last.toISOString(), "2026-10-22T13:35:00.000Z");
+  const facts = Bot.dueAt({ kind: "facts", after: 750 }, AIRED.getTime() + 90 * 60 * 1000, null, AIRED.getTime());
+  assert.equal(facts.toISOString(), "2026-10-22T14:05:00.000Z");
 });
 
 test("an episode our old usual already asked about isn't asked again under the new one", () => {
@@ -315,8 +317,8 @@ test("a run that moved carries the slot it was, so an episode it ran for isn't a
 
 test("changeRun: add, take off, a duplicate refused; loose (an episode's own runs) leaves what it hasn't", () => {
   const usual = Bot.normalizeSchedule(null);
-  assert.deepEqual(Bot.changeRun(usual, null, { kind: "schedule", after: 30, on: true }).map(Bot.slotOf), ["quick@0", "schedule@30", "full@60", "full@720", "trivia@1440", "bingo@1440"]);
-  assert.deepEqual(Bot.changeRun(usual, "bingo@1440", null).map(Bot.slotOf), ["quick@0", "full@60", "full@720", "trivia@1440"]);
+  assert.deepEqual(Bot.changeRun(usual, null, { kind: "schedule", after: 30, on: true }).map(Bot.slotOf), ["quick@0", "schedule@30", "full@60", "full@720", "facts@750", "trivia@1440", "bingo@1440"]);
+  assert.deepEqual(Bot.changeRun(usual, "bingo@1440", null).map(Bot.slotOf), ["quick@0", "full@60", "full@720", "facts@750", "trivia@1440"]);
   assert.throws(() => Bot.changeRun(usual, "full@720", { kind: "full", after: 60, on: true }), /already a full run 60 minutes after it ends/);
   const own = Bot.normalizeSchedule([{ kind: "quick", after: 0 }, { kind: "full", after: 60 }]);
   assert.equal(Bot.changeRun(own, "bingo@1440", null, { loose: true }), own, "a run it hasn't: left as it is");

@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import StateLogic from "@/lib/game/state-logic.js";
 import { addBot, MAX_BOTS, type BotLevel } from "@/lib/game/computer-players";
 import { gameLine, gamesFor, noFitLine } from "@/lib/game/formats/rulebook-fits.js";
@@ -16,6 +17,8 @@ import { couchMembers, requireCouch } from "./couches";
 import { pool, HttpError } from "./db";
 import { followLeagueProgress } from "./follows";
 import { refused } from "./game-writes";
+import { EVERYTHING, seenThrough } from "./guard";
+import { queueSeasonBingo } from "./desk-research";
 import { linkProblem } from "./league-groups";
 import { leagueStates } from "./league-states";
 import { makeLeague } from "./new-game";
@@ -132,6 +135,11 @@ export interface StartOptions {
   watchers: string[];
   /** Why nothing can start here, or null. */
   blocked: string | null;
+  /** A game at your own pace (docs/PLAN-own-pace-games.md): the starts on what's aired. `here`: where you are plus one (null once
+   *  you've seen everything aired), `top` Episode 1, `aired` the latest aired. Null while nothing has aired. */
+  pace: { here: number | null; top: number; aired: number } | null;
+  /** These options start with an episode that's aired: everyone in the game plays one episode at a time, whenever they watch. */
+  ownPace: boolean;
   couch: { id: string; name: string; members: number };
   /** Run it back: the game it plays again (the same game, name and settings), and, when that was a span, the next one's last
    *  episode (to start with; null: to the season's end). `label` says which it was ("ZT Survivor 51 · Episodes 6–7"). `phase`:
@@ -280,14 +288,28 @@ export async function startOptions(
   const airAt = new Map(eps.map((e) => [e.number, e.airAt ?? null]));
   const starts = spanEps.filter((e) => e.number >= next).map((e) => ({ number: e.number, title: e.title, airAt: airAt.get(e.number) ?? null }));
   const later = !late && start !== null && starts.some((e) => e.number === start) ? start : null;
-  const from = late && onAir ? onAir.number : (later ?? next);
   const over = h.status === "completed" || (h.status !== "upcoming" && eps.length > 0 && eps.every((e) => e.airAt && new Date(e.airAt).getTime() <= now.getTime()));
+  // A game at your own pace (docs/PLAN-own-pace-games.md): from an episode that's aired, where you are (your mark plus one) or the
+  // top; the only kind of start on a finished season, and a start on one you're behind on. Everyone in it plays one episode
+  // at a time, whenever they watch.
+  const aired = Math.max(latestAired(schedule, now), over ? eps.length : 0);
+  const seen = await seenThrough(user.id, seasonId);
+  const mark = Math.min(seen === EVERYTHING ? aired : seen, aired);
+  const pace = aired >= 1 ? { here: mark + 1 <= aired ? mark + 1 : null, top: 1, aired } : null;
+  const paced = !late && start !== null && pace && start >= 1 && start <= aired ? start : null;
+  const from = late && onAir ? onAir.number : (later ?? paced ?? (over && pace ? (pace.here ?? pace.top) : next));
+  const ownPace = !(late && onAir) && from <= aired;
   // The phases still to come (step A3), by the rules its games here play by (the couch's own copy, else the season's): not the
   // first, and either not started yet as far as anyone's said, or starting at an episode still to air.
   const phases = phasesFrom(season, copy)
     .filter((p) => !p.first && (p.from === null || p.from >= next))
     .map((p) => ({ id: p.id, name: p.name, summary: p.summary, at: p.from }));
-  const blocked = h.ready === false ? `Make ${show} a game first` : over ? "The season's over: every episode has aired" : null;
+  const blocked = h.ready === false ? `Make ${show} a game first` : over && !pace ? "The season's over: every episode has aired" : null;
+  if (ownPace) {
+    // At your own pace it's Survival Pool for now: the loop (pick, watch, reveal) and its computer players are built for it. The
+    // drafts, the Prediction Sheet and the one-night games come with the plan's later parts.
+    for (const g of choices) if (g.key !== "survivalPool" && g.fits) Object.assign(g, { fits: false, needs: "an episode still to air, for now" });
+  }
 
   let again: StartOptions["again"] = null;
   if (againId) {
@@ -355,10 +377,13 @@ export async function startOptions(
     spans: spanChoices(spanEps, from, part),
     ends: spanEnds(spanEps, from),
     games: choices,
-    noFit: noFitLine(fits, blocks, show),
+    // At your own pace the games that can't play it yet aren't listed at all (the mock): no line about them either.
+    noFit: ownPace ? null : noFitLine(fits, blocks, show),
     questions: asks.map((c) => ({ id: c.question.id, ask: c.question.ask, line: c.line, on: c.on, season: c.season })),
     watchers,
     blocked,
+    pace,
+    ownPace,
     couch: { id: couchId, name: couchRows[0]?.name ?? "Your couch", members: people.length },
     again,
   };
@@ -443,7 +468,10 @@ export async function startGame(
   seasonId: string,
   couchId: string | null,
   body: { game?: unknown; tell?: unknown; again?: unknown; from?: unknown; phase?: unknown; to?: unknown; bots?: unknown; level?: unknown; late?: unknown; questions?: unknown },
-  now = new Date()
+  now = new Date(),
+  origin: string | null = null,
+  /** A dev server's stand-in bot (ask-bot.ts botFor), for the season's bingo bank. */
+  bot?: string
 ): Promise<Started> {
   const againId = typeof body.again === "string" ? body.again : null;
   const start = typeof body.from === "number" ? body.from : null;
@@ -465,8 +493,9 @@ export async function startGame(
   const to = typeof body.to === "number" && ends.has(body.to) ? body.to : null;
   if (body.to != null && to === null) throw new HttpError(400, `Pick an end the listing has, from ${opts.part.singular} ${opts.from} on`);
   const span = to === null ? null : spanName(opts.from, to, opts.part);
-  // A season game that starts later says where ("from Episode 9"), or with a phase, which ("from when Merged starts").
-  const when = phase ? ` from when ${phase.name} starts` : span ? ` for ${span}` : opts.from > opts.nextEpisode ? ` from ${partAt(opts)}` : "";
+  // A season game that starts later says where ("from Episode 9"), or with a phase, which ("from when Merged starts"); one at your
+  // own pace, that too.
+  const when = phase ? ` from when ${phase.name} starts` : span ? ` for ${span}` : opts.from > opts.nextEpisode ? ` from ${partAt(opts)}` : opts.ownPace ? ` from ${partAt(opts)}, at their own pace` : "";
   // Computer players in the seats (computer-players.ts), seated before anyone joins, at one level.
   const bots = typeof body.bots === "number" && Number.isInteger(body.bots) ? body.bots : 0;
   if (bots < 0 || bots > MAX_BOTS) throw new HttpError(400, `Up to ${MAX_BOTS} computer players`);
@@ -516,8 +545,14 @@ export async function startGame(
       for (let i = 0; i < bots; i++) addBot(s, level);
     },
     after: async (s, client, id) => {
-      // Theirs from the start: a game of yours never exists without you in it.
-      await client.query("INSERT INTO league_memberships (league_id, user_id, player_id, role) VALUES ($1, $2, $3, 'commissioner')", [id, user.id, seat]);
+      // Theirs from the start: a game of yours never exists without you in it. At your own pace, their mark is the episode before
+      // the start (the one they reveal first is the start itself).
+      await client.query("INSERT INTO league_memberships (league_id, user_id, player_id, role, results_seen_through) VALUES ($1, $2, $3, 'commissioner', $4)", [
+        id,
+        user.id,
+        seat,
+        opts.ownPace ? opts.from - 1 : null,
+      ]);
       made = id;
       // The game, as a spec (docs/PLAN-start-a-game-gpt.md step A2): the made league's own (its type's preset, as makeLeague
       // set it up), then what Start a game decides, written once through the game's writer (RosterLogic.setGame: checked
@@ -554,6 +589,9 @@ export async function startGame(
         if (ep && StateLogic.episodeHasResults(ep)) throw new HttpError(409, `${partAt(opts)}'s results are in already: start from the next one`);
         if (ep) ep.openPastAir = true;
       }
+      // At your own pace: every seat, the computer players too, starts catching up at the start (the season's results landed
+      // before this: syncLeagueDecisions), each playing one episode at a time from their own copy (GhostLogic).
+      if (opts.ownPace) StateLogic.GhostLogic.paceAll(s, opts.from);
       await recordChange(client, id, s, {
         userId: user.id,
         kind: "game.start",
@@ -573,6 +611,8 @@ export async function startGame(
     return false;
   });
   await followLeagueProgress(user.id, leagueId);
+  // At your own pace, bingo needs a bank the season may not have (docs/PLAN-own-pace-games.md): asked of our bot, not waited on.
+  if (opts.ownPace) after(() => queueSeasonBingo(user.id, seasonId, origin, now, bot));
 
   // Tell the couch: one push to everyone else on it, to the show's Games tab (its own moment since step 15 part 2: On the couch).
   const audience = body.tell === false ? [] : (await couchMembers([couch])).get(couch)?.filter((m) => m.userId !== user.id).map((m) => m.userId) ?? [];
@@ -584,7 +624,7 @@ export async function startGame(
     show: opts.show,
     gameName: choice.name,
     label: opts.label,
-    from: phase ? `when ${phase.name} starts` : `${opts.part.singular === "episode" ? "Episode" : opts.part.singular.replace(/^./, (c) => c.toUpperCase())} ${opts.from}`,
+    from: phase ? `when ${phase.name} starts` : `${opts.part.singular === "episode" ? "Episode" : opts.part.singular.replace(/^./, (c) => c.toUpperCase())} ${opts.from}${opts.ownPace ? ", at your own pace" : ""}`,
     span,
   });
   return { leagueId, name, gameName: choice.name, from: phase ? settled : opts.from, phase: phase?.id ?? null, to, linked, told: audience.length };

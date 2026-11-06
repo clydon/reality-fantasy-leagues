@@ -1,4 +1,4 @@
-import { airedOf, episodesOf, hitOf, pickSeason, seasonStatus, type ListingHit, type TvEpisode, type TvSeason, type TvShow } from "@/lib/game/listing";
+import { airedOf, episodesOf, hitOf, pickSeason, seasonChoices, seasonStatus, type ListingHit, type SeasonChoice, type TvEpisode, type TvSeason, type TvShow } from "@/lib/game/listing";
 import type { TvCastRow } from "@/lib/game/make-game";
 import type { TvGuestCast } from "@/lib/game/show-art";
 import type { TvScheduleEntry } from "@/lib/game/tv-listings";
@@ -96,20 +96,25 @@ export async function showCast(id: number, base = TVMAZE): Promise<TvCastRow[]> 
 
 export interface ListingSeason {
   hit: ListingHit;
-  /** The season adding it would follow (on now, else the next, else the latest), or null with none listed. */
-  season: { number: number; name: string | null; status: "upcoming" | "airing" | "completed"; premiere: string | null; aired: number; episodeCount: number | null } | null;
+  /** The season adding it would follow (on now, else the next, else the latest; or the one asked for by number), or null with none listed. */
+  season: { number: number; name: string | null; status: "upcoming" | "airing" | "completed"; premiere: string | null; aired: number; episodeCount: number | null; art: string | null } | null;
+  /** Every season the listing has, latest first: Where are you's season picker (the user, 2026-11-05). */
+  seasons: SeasonChoice[];
   /** Its aired episodes for the where stepper (schedule.ts stepEpisodes): nobody's seen any yet, so only a sport's titles. */
   episodes: StepEpisode[];
   /** Its next episode to air, when the listing has one (the first-time tour shows it in the guide: docs/PLAN-first-time-tour.md). */
   next: { number: number; airAt: string; runtimeMin: number | null; title: string | null } | null;
 }
 
-/** What adding a show from its listing would follow, for where you are before it's added (first run, Add a show). */
-export async function listingSeason(id: number, base = TVMAZE, now = new Date()): Promise<ListingSeason | null> {
+/** What adding a show from its listing would follow, for where you are before it's added (first run, Add a show): the season
+ *  someone means, or `number`'s when they picked one (null when the listing has no such season). */
+export async function listingSeason(id: number, base = TVMAZE, now = new Date(), number: number | null = null): Promise<ListingSeason | null> {
   const found = await showListing(id, base);
   if (!found) return null;
-  const season = pickSeason(found.seasons, now);
-  if (!season) return { hit: hitOf(found.show), season: null, episodes: [], next: null };
+  const seasons = seasonChoices(found.seasons, now);
+  const season = number != null ? (found.seasons.find((s) => s.number === number) ?? null) : pickSeason(found.seasons, now);
+  if (number != null && !season) return null;
+  if (!season) return { hit: hitOf(found.show), season: null, seasons, episodes: [], next: null };
   const episodes = episodesOf(await seasonListing(season.id, base));
   const status = seasonStatus(season, now);
   const hit = hitOf(found.show);
@@ -124,7 +129,9 @@ export async function listingSeason(id: number, base = TVMAZE, now = new Date())
       premiere: season.premiereDate ?? null,
       aired,
       episodeCount: season.episodeOrder && season.episodeOrder > 0 ? season.episodeOrder : status === "completed" ? episodes.length || null : null,
+      art: season.image?.medium ?? null,
     },
+    seasons,
     episodes: stepEpisodes(episodes, aired, 0, hit.kind),
     next: next?.airAt ? { number: next.number, airAt: next.airAt, runtimeMin: next.runtimeMin, title: next.title } : null,
   };

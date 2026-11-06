@@ -1,26 +1,46 @@
 import { NextResponse } from "next/server";
 import { apiRoute } from "@/lib/server/api-route";
+import { botFor } from "@/lib/server/ask-bot";
 import { HttpError } from "@/lib/server/db";
 import { requireDesk } from "@/lib/server/desk";
-import { confirmPhase, deskRulebook, lockRulebook, reviewAnswer, rulebookPrompt, saveAsTemplate, saveRulebook, setLive, settleSuggestion } from "@/lib/server/desk-rulebooks";
+import { applyScores, confirmPhase, deskRulebook, lockRulebook, pasteRulebookAnswer, researchKind, rulebookPrompt, saveAsTemplate, saveRulebook, scoringPlay, setLive, settleRulebookAnswer, settleSuggestion } from "@/lib/server/desk-rulebooks";
 import { deleteLibraryRulebook, setTemplate, takeOver } from "@/lib/server/desk-library";
+import { queueRulebook, takeOverQueue } from "@/lib/server/desk-research";
 import { settleNotice } from "@/lib/server/show-changes";
 import { getRulebook } from "@db/rulebooks.js";
 import { pool } from "@/lib/server/db";
 
-// A rulebook on the desk, its editor (step 6b part 2): GET the page (`?prompt=1`: the Check for changes prompt). POST one action:
+// A rulebook on the desk, its editor (step 6b part 2): GET the page (`?prompt=check|scores[&through=N]`: research's question,
+// for Ask an AI's chat links and its copy; `1` is `check`; `through`: only Episodes 1 to N, so nothing later is in it;
+// `?play=1`: how the scoring is playing, read-only, by the admin's own mark). POST one action:
 //   { action: "save", blocks, kind: "fix" | "show_changed", fromEpisode?, summary? }   saved, pushed to its leagues, rescored
 //   { action: "live", live }                     its season's leagues play by it (or go back to their show's rules)
 //   { action: "phase", phaseId, episode }        when a phase started (null clears it)
-//   { action: "lock", lock }   { action: "template" }   { action: "review", answer }   { action: "suggestion", suggestion, status }
+//   { action: "lock", lock }   { action: "template" }   { action: "suggestion", suggestion, status }
+//   { action: "ask", kind, through? }            Ask our bot (docs/PLAN-rulebook-research.md): Check for changes or What scores,
+//                                                queued behind the other Run nows; its answer is staged for the page
+//   { action: "paste", kind, answer, through? }  an answer from Ask an AI, staged as our bot's is
+//   { action: "answer", answer, status: "used" | "dismissed", ids?, declined? }   a staged answer settled (Check for changes whole; What scores by row)
+//   { action: "apply", answer, ids, declined }   What scores' Use: the rows picked saved, a fix, except a moment new to this season
+//                                                from Episode 2 on, saved as the show changing from its episode
 //   { action: "notice", notice, status: "added" | "not_new" }   a show change the couches split on, or sent here (6c part 2)
 //   { action: "takeOver" }   a player-made rulebook becomes the desk's (step 10 part 3)
 //   { action: "template" }   a season's: saved as a starting point ({ id }); a library one: offered as one. { action: "untemplate" }, { action: "delete" }
+// Asking drives the queue after the answer (up to 280 s of the bot's), so the route has the whole 300.
+export const maxDuration = 300;
+
 export const GET = apiRoute(async (req, { params }: { params: Promise<{ id: string }> }) => {
-  await requireDesk(req);
+  const user = await requireDesk(req);
   const { id } = await params;
-  if (new URL(req.url).searchParams.get("prompt") === "1") return NextResponse.json(await rulebookPrompt(id));
-  return NextResponse.json(await deskRulebook(id));
+  const url = new URL(req.url);
+  const prompt = url.searchParams.get("prompt");
+  if (prompt) return NextResponse.json(await rulebookPrompt(id, prompt === "1" ? "check" : researchKind(prompt), url.searchParams.get("through")));
+  // How the scoring is playing (read-only, docs/PLAN-rulebook-research.md step six), as this admin may see it.
+  if (url.searchParams.get("play") === "1") return NextResponse.json(await scoringPlay(id, user));
+  const page = await deskRulebook(id, user);
+  // While it's asking, a queue whose driver was cut off is this read's to take over.
+  if (page.research.check.asking || page.research.scores.asking) await takeOverQueue(new URL(req.url).origin);
+  return NextResponse.json(page);
 });
 
 export const POST = apiRoute(async (req, { params }: { params: Promise<{ id: string }> }) => {
@@ -40,24 +60,35 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ id: str
       const r = await getRulebook(pool, id);
       if (r?.ownerKind !== "library") return NextResponse.json(await saveAsTemplate(user, id));
       await setTemplate(user, id, true);
-      return NextResponse.json(await deskRulebook(id));
+      return NextResponse.json(await deskRulebook(id, user));
     }
     case "untemplate":
       await setTemplate(user, id, false);
-      return NextResponse.json(await deskRulebook(id));
+      return NextResponse.json(await deskRulebook(id, user));
     case "delete":
       await deleteLibraryRulebook(user, id);
       return NextResponse.json({ ok: true });
     case "takeOver":
       await takeOver(user, id);
-      return NextResponse.json(await deskRulebook(id));
-    case "review":
-      return NextResponse.json(await reviewAnswer(id, body.answer));
+      return NextResponse.json(await deskRulebook(id, user));
+    case "ask":
+      return NextResponse.json(await queueRulebook(user, id, researchKind(body.kind), body.through, { bot: botFor(req), origin: new URL(req.url).origin }));
+    case "paste":
+      return NextResponse.json(await pasteRulebookAnswer(user, id, researchKind(body.kind), body.answer, body.through));
+    case "answer":
+      return NextResponse.json(await settleRulebookAnswer(user, id, body));
+    case "apply": {
+      // What scores' Use: the rows picked saved (a fix, and new-this-season moments from their episodes), then the page.
+      const ids = Array.isArray(body.ids) ? body.ids.filter((x): x is string => typeof x === "string") : null;
+      const declined = Array.isArray(body.declined) ? body.declined.filter((x): x is string => typeof x === "string") : [];
+      const applied = await applyScores(user.id, id, String(body.answer ?? ""), { ids, declined }, { everything: false });
+      return NextResponse.json({ ...applied, page: await deskRulebook(id, user) });
+    }
     case "suggestion":
       return NextResponse.json(await settleSuggestion(user, id, body));
     case "notice":
       await settleNotice(user, String(body.notice ?? ""), body.status);
-      return NextResponse.json(await deskRulebook(id));
+      return NextResponse.json(await deskRulebook(id, user));
     default:
       throw new HttpError(400, "Unknown action");
   }

@@ -24,6 +24,12 @@ test("the prompt carries every choice and its help, the rules, and only what was
   assert.match(p, /"phaseStarts"/);
   assert.doesNotMatch(p, /still airing/, "a past season");
   assert.match(R.buildRulebookPrompt({ show: "Survivor", season: "Season 51", airing: true }), /This season is still airing/);
+  assert.match(p, /For a reality series \(Below Deck, Real Housewives\): a moment is something ONE cast member did/);
+  assert.match(p, /Each one is something ONE person did or had done to them/);
+  const upTo = R.buildRulebookPrompt({ show: "Survivor", season: "Season 50", through: 5 });
+  assert.match(upTo, /Only Episodes 1 to 5 of this season have been watched/);
+  assert.match(upTo, /never add a segment, a twist, a way out or a phase that first appears after it/);
+  assert.doesNotMatch(p, /have been watched/);
   const withTemplate = R.buildRulebookPrompt({ show: "The Challenge", template: BUILT_IN_BLOCKS.survivor.blocks });
   assert.match(withTemplate, /Start from this rulebook of a similar show/);
   assert.ok(withTemplate.includes('"tribalCouncil"'), "the template's blocks");

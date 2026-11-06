@@ -598,3 +598,27 @@ test("a moment scored from a question the rulebook already asks leaves out the w
     all: [{ answer: "invited", is: "yes" }, { answer: "prizeWon", isNot: "yes" }, { answer: "prizeGroupWon", isNot: "yes" }],
   });
 });
+
+test("a per-amount moment says per how much: the amount is divided by it before it scores", () => {
+  const { blocksProblems } = require("../src/lib/game/formats/rulebook-schema.js");
+  const { momentsFor } = require("../src/lib/game/formats/rulebook-moments.js");
+  const blocks = clone(LIBRARY["world-series"].blocks);
+  blocks.customMoments = [...(blocks.customMoments || []), { id: "purseShare", label: "Share of the purse", counted: "perUnit", per: 1000, answeredBy: "research", reliability: "usually" }];
+  blocks.points = { ...(blocks.points || {}), purseShare: 1 };
+  assert.deepEqual(blocksProblems(blocks), []);
+  assert.equal(momentsFor(blocks).find((m) => m.id === "purseShare").per, 1000, "the moment carries it");
+  const { data, problems } = compileRulebook(blocks, { id: "world-series" });
+  assert.deepEqual(problems, []);
+  assert.equal(data.events.find((e) => e.id === "purseShare").unit, 1000, "compiled as the event's unit");
+  assert.equal(data.events.find((e) => e.id === "homeRun").unit, undefined, "a count has none");
+  const s = league(data);
+  const ep = S.ensureEpisodeNumber(s, 1, false);
+  const ann = castaway(s, "Ann Example");
+  const share = S.ActiveRosterLogic.addEvent(s, ep.id, "purseShare", ann.id, 2083);
+  assert.equal(S.ActiveRosterLogic.eventPoints(s, share), 2.083, "$2,083 at +1 per $1,000");
+  assert.equal(S.ActiveRosterLogic.eventPoints(s, S.ActiveRosterLogic.addEvent(s, ep.id, "homeRun", ann.id, 3)), 15, "a count still scores per unit");
+  // Per how much only goes with a moment counted per amount, and must be a number above 0.
+  const bad = clone(blocks);
+  bad.customMoments.push({ id: "shout", label: "Shouted at the umpire", counted: "yesNo", per: 10, answeredBy: "league" }, { id: "laps", label: "Laps run", counted: "perUnit", per: -1, answeredBy: "league" });
+  assert.deepEqual(blocksProblems(bad).map((p) => p.at).sort(), ["customMoments[laps].per", "customMoments[shout].per"]);
+});

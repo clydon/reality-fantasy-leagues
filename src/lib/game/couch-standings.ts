@@ -50,6 +50,8 @@ export interface GameStanding {
   through: number;
   /** The season has ended, as far as you've seen. */
   ended: boolean;
+  /** A game at your own pace (docs/PLAN-own-pace-games.md, settings.ownPace): its season stays watched at your own pace. */
+  ownPace: boolean;
   /** Step R1: a pool (a pick each episode, the spec's get.by): its table ranks by streak or who's standing, not by points, so its
    *  plaque gives no margin. */
   pool?: boolean;

@@ -37,12 +37,36 @@ async function seatsIn(userId: string, leagueIds: string[]) {
   );
   const mine = new Map<string, Seat>();
   const users = new Map<string, Map<string, string>>(leagueIds.map((id) => [id, new Map()]));
+  // Every seat's mark, for a game at your own pace (where the others are): a shared seat's is its lowest.
+  const marks = new Map<string, Map<string, number | null>>(leagueIds.map((id) => [id, new Map()]));
   for (const r of rows) {
     const seats = users.get(r.league_id);
     if (r.player_id && seats && (!seats.has(r.player_id) || r.user_id === userId)) seats.set(r.player_id, r.user_id);
     if (r.user_id === userId && r.player_id) mine.set(r.league_id, { playerId: r.player_id, marked: r.results_seen_through });
+    const m = marks.get(r.league_id);
+    if (r.player_id && m) {
+      const was = m.get(r.player_id);
+      const now = r.results_seen_through as number | null;
+      m.set(r.player_id, was === undefined ? now : was === null || now === null ? null : Math.min(was, now));
+    }
   }
-  return { mine, users };
+  return { mine, users, marks };
+}
+
+/**
+ * A game at your own pace (docs/PLAN-own-pace-games.md): everyone else in it (not its computer players, which are never behind
+ * anyone) and the episode they're on, null once they've finished. The words a strip and the reveal button make of it are the
+ * sheet's (src/new/couch/pace.ts); nothing here locks.
+ */
+function othersIn(state: LeagueState, me: string, marks: Map<string, number | null> | undefined): { name: string; week: number | null }[] {
+  const G = StateLogic.GhostLogic;
+  return state.players
+    .filter((p) => p.id !== me && !p.disabled && !p.automated && G.lateJoinOf(state, p.id))
+    .map((p) => {
+      const lj = G.lateJoinOf(state, p.id)!;
+      const mark = marks?.get(p.id) ?? (Number.isInteger(lj.startEpisode) ? (lj.startEpisode as number) - 1 : 0);
+      return { name: p.name, week: lj.catchingUp ? mark + 1 : null };
+    });
 }
 
 /** A league's mark for this viewer: the season's, or a catching-up late joiner's own week if earlier. */
@@ -66,6 +90,8 @@ export interface GameHere {
   userOf: UserOf;
   /** Open read-only from the desk (read-only.ts): the couch's game with no seat of yours in it; `playerId` is "". */
   readOnly?: true;
+  /** Every seat's mark, by player (seatsIn): a game at your own pace says where the others are. */
+  marks?: Map<string, number | null>;
   /** Step A11 part 2b: a game of questions that races or knocks players out, its answers, read once for its walk (answer-points.ts
    *  asItStands: `state` carries the league's as it stands) and reused by what reads it next. */
   answers?: AnswerRow[];
@@ -97,7 +123,7 @@ export async function gamesHere(user: SessionUser, seasonId: string, couchId: st
   const here: GameHere[] = [];
   if (list.length) {
     const ids = list.map((g) => g.leagueId);
-    const [{ mine, users }, states] = await Promise.all([seatsIn(user.id, ids), leagueStates(ids)]);
+    const [{ mine, users, marks }, states] = await Promise.all([seatsIn(user.id, ids), leagueStates(ids)]);
     for (const g of list) {
       const seat = mine.get(g.leagueId);
       const state = states.get(g.leagueId);
@@ -105,7 +131,16 @@ export async function gamesHere(user: SessionUser, seasonId: string, couchId: st
       try {
         const ready = await readyLeague(g.leagueId, state);
         const { state: walked, answers } = await standingHere(g.leagueId, ready, user.id);
-        here.push({ game: g, ref: refOf(g), state: walked, playerId: seat.playerId, mark: markFor(ready, seat, seen), userOf: (p) => users.get(g.leagueId)?.get(p) ?? null, ...(answers ? { answers } : {}) });
+        here.push({
+          game: g,
+          ref: refOf(g),
+          state: walked,
+          playerId: seat.playerId,
+          mark: markFor(ready, seat, seen),
+          userOf: (p) => users.get(g.leagueId)?.get(p) ?? null,
+          marks: marks.get(g.leagueId),
+          ...(answers ? { answers } : {}),
+        });
       } catch (e) {
         console.error(`[season-games] league ${g.leagueId}:`, e);
       }
@@ -163,6 +198,11 @@ export async function viewWithCalls(user: SessionUser, seasonId: string, h: Game
     return null;
   });
   const view = gameView(h.ref, h.state, h.readOnly ? null : h.playerId, h.mark, h.userOf, calls ?? undefined);
+  // A game at your own pace: where the others are, for its plate and its reveal button, and the season's last episode
+  // (docs/PLAN-own-pace-games.md).
+  if (!h.readOnly && StateLogic.GhostLogic.ownPace(h.state)) {
+    view.pace = { others: othersIn(h.state, h.playerId, h.marks), last: Math.max(0, ...h.state.episodes.map((e) => e.number)) };
+  }
   // A game that starts when a phase does (step A3 of docs/PLAN-start-a-game-gpt.md): the phase by name, from its rulebook.
   const phase = StateLogic.startPhase(h.state);
   if (phase) view.phase = (await leaguePhases(pool, h.game.leagueId, seasonId)).find((p) => p.id === phase)?.name ?? phase;
@@ -177,7 +217,7 @@ export async function viewWithCalls(user: SessionUser, seasonId: string, h: Game
 }
 
 function refOf(g: Game): GameRefIn {
-  return { leagueId: g.leagueId, name: g.name, gameType: g.gameType, gameName: g.gameName, yourRole: g.yourRole, solo: g.solo, archived: g.archived };
+  return { leagueId: g.leagueId, name: g.name, gameType: g.gameType, gameName: g.gameName, yourRole: g.yourRole, solo: g.solo, archived: g.archived, ownPace: g.ownPace };
 }
 
 /**

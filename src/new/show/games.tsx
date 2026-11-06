@@ -656,6 +656,9 @@ const PLAY_LINE: Record<string, string> = {
   sport: "Weekly Lineup: draft from the whole field, start some each event. Or Survival Pool: one pick to score each event.",
 };
 
+/** A season watched at your own pace (docs/PLAN-own-pace-games.md): the game plays the same way. */
+const OWN_PACE_LINE = "Every episode is out. Pick who survives before you watch each one, reveal after.";
+
 /** A show with no game of yours (the mock's playplate and rulebook.js rbPlate): Make it a game when nobody has set it up
  *  (step 10 part 2a), else Play it: Start a game (part 2b). */
 export function PlayIt({ show }: { show: ShowData }) {
@@ -673,7 +676,9 @@ export function PlayIt({ show }: { show: ShowData }) {
       <h3 className="type-caption mt-2 text-[28px]">{show.ready ? `${label} with your couch` : `Make ${label} a game`}</h3>
       <p className="mt-1 text-sm leading-snug text-plate-muted">
         {show.ready
-          ? (PLAY_LINE[h?.show.kind ?? "competition"] ?? PLAY_LINE.competition)
+          ? show.ownPace
+            ? OWN_PACE_LINE
+            : (PLAY_LINE[h?.show.kind ?? "competition"] ?? PLAY_LINE.competition)
           : `${MAKE_LINE[h?.show.kind ?? "competition"] ?? MAKE_LINE.competition}${watchers > 1 ? " Everyone who watches it can play." : " Every couch can play it after."}`}
       </p>
       {show.ready ? (
@@ -714,7 +719,39 @@ function StartRow({ show, others }: { show: ShowData; others: JoinGame[] }) {
   const opts = useStartOptions(h?.seasonId ?? null, show.couch?.id ?? null, done?.leagueId ?? null, over || !!done);
   const finished = (show.play ?? []).find((g) => !g.solo);
   const next = opts.data?.nextSeason ?? null;
-  if (over && !next) return null;
+  // A season that's over is still a game at your own pace (docs/PLAN-own-pace-games.md), and its next season Run it back.
+  if (over) {
+    return (
+      <>
+        <button
+          type="button"
+          data-start-row="pace"
+          onClick={() => openStartGame({ seasonId: h?.seasonId, couchId: show.couch?.id ?? null })}
+          className="nd-press mx-4 mt-[26px] flex w-[calc(100%-32px)] items-center gap-3 rounded-[4px] p-4 text-left outline-[1.5px] -outline-offset-[1.5px] outline-dashed outline-input"
+        >
+          <Plus className="size-6 flex-none" aria-hidden />
+          <span>
+            <b className="block text-base">Start a game · at your own pace</b>
+            <small className="block text-[13px] leading-snug text-muted-foreground">Pick before each episode, reveal after. Anyone on the couch joins from wherever they are.</small>
+          </span>
+        </button>
+        {next && (
+          <button
+            type="button"
+            data-start-row="again"
+            onClick={() => openStartGame({ seasonId: next.seasonId, couchId: show.couch?.id ?? null, again: finished?.leagueId ?? null })}
+            className="nd-press mx-4 mt-3 flex w-[calc(100%-32px)] items-center gap-3 rounded-[4px] p-4 text-left outline-[1.5px] -outline-offset-[1.5px] outline-dashed outline-input"
+          >
+            <RotateCcw className="size-6 flex-none" aria-hidden />
+            <span>
+              <b className="block text-base">Run it back · {next.label}</b>
+              <small className="block text-[13px] leading-snug text-muted-foreground">{finished?.gameName ?? "The same game"} again, from its first episode. The couch hears about it.</small>
+            </span>
+          </button>
+        )}
+      </>
+    );
+  }
   // Run it back on the next span, when there's one listed.
   const back = done && opts.data?.again && opts.data.again.to !== null && !opts.data.blocked ? opts.data : null;
   if (done && back) {
@@ -735,20 +772,17 @@ function StartRow({ show, others }: { show: ShowData; others: JoinGame[] }) {
       </button>
     );
   }
-  const again = over && next;
   return (
     <button
       type="button"
-      data-start-row={again ? "again" : "start"}
-      onClick={() => openStartGame(again ? { seasonId: next.seasonId, couchId: show.couch?.id ?? null, again: finished?.leagueId ?? null } : { seasonId: h?.seasonId, couchId: show.couch?.id ?? null })}
+      data-start-row="start"
+      onClick={() => openStartGame({ seasonId: h?.seasonId, couchId: show.couch?.id ?? null })}
       className="nd-press mx-4 mt-[26px] flex w-[calc(100%-32px)] items-center gap-3 rounded-[4px] p-4 text-left outline-[1.5px] -outline-offset-[1.5px] outline-dashed outline-input"
     >
-      {again ? <RotateCcw className="size-6 flex-none" aria-hidden /> : <Plus className="size-6 flex-none" aria-hidden />}
+      <Plus className="size-6 flex-none" aria-hidden />
       <span>
-        <b className="block text-base">{again ? `Run it back · ${next.label}` : "Start a game"}</b>
-        <small className="block text-[13px] leading-snug text-muted-foreground">
-          {again ? `${finished?.gameName ?? "The same game"} again, from its first episode. The couch hears about it.` : "A season game for this show. Anyone on the couch can."}
-        </small>
+        <b className="block text-base">Start a game</b>
+        <small className="block text-[13px] leading-snug text-muted-foreground">A season game for this show. Anyone on the couch can.</small>
       </span>
     </button>
   );
@@ -813,8 +847,11 @@ function ThisWeek({ show }: { show: ShowData }) {
   const couchId = show.couch?.id ?? null;
   const seasonId = show.header?.seasonId ?? null;
   const playing = show.games.some((g) => g.yourRole);
-  // Call it for the next episode (step 12 part 2), on a show that's a game you follow or play.
-  const call = seasonId && show.ready && up && !up.live && (show.following || playing) ? up.number : null;
+  // Call it for the next episode (step 12 part 2), on a show that's a game you follow or play. At your own pace (every episode
+  // out: docs/PLAN-own-pace-games.md part 2) there's no "this week", only your next episode: its calls, its card.
+  const next = show.ownPace ? (show.seenThrough ?? 0) + 1 : null;
+  const paced = next !== null && next <= show.latestAired;
+  const call = seasonId && show.ready && (show.following || playing) ? (paced ? next : up && !up.live ? up.number : null) : null;
   // The couch's polls on this show, and Start a poll (part 2): a couch's, so not solo.
   const onCouch = !!couchId && !show.solo && !!seasonId;
   const polls = useSeasonPolls(seasonId, couchId, onCouch);
@@ -824,7 +861,7 @@ function ThisWeek({ show }: { show: ShowData }) {
   // next episode stands in for Call it.
   const sheets = (show.play ?? []).filter((g) => g.gameType === "questions" && !g.archived && !!g.sheet);
   return (
-    <Block title="This week" aside="One night each">
+    <Block title={paced ? `Your Episode ${next}` : "This week"} aside={paced ? "Before you watch" : "One night each"}>
       <div data-this-week>
         {bingo && seasonId && <BingoRow icon target={{ seasonId, couchId, episode: bingo, label: showLabel(show), solo: show.solo }} />}
         {call && seasonId && !sheetAsks(show, call) && <CallRow icon target={{ seasonId, couchId, episode: call, label: showLabel(show), solo: show.solo }} />}

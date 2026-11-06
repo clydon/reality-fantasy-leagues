@@ -35,6 +35,7 @@ function whoJoins(g: JoinGame): string {
     if (g.you?.letIn) return `${runner} let you in. Pick where you start.`;
     return g.shared ? `${runner} lets new players in.` : `Players own their castaways, so ${runner} lets new players in.`;
   }
+  if (g.ownPace) return "Anyone on the couch can join, from wherever they are: one episode at a time, at their own pace.";
   if (!g.underway) return g.teamSize ? "Anyone on the couch can join. You'll draft with everyone." : "Anyone on the couch can join.";
   return g.shared ? `Anyone can join. Catch up on what you missed, or start from Episode ${g.latest + 1}.` : `Anyone can join from Episode ${g.latest + 1}.`;
 }
@@ -160,9 +161,11 @@ export function JoinGameSheet({ couchId, game, onOpenChange }: { couchId: string
           ? undefined
           : picking
             ? `${need} ${need === 1 ? "castaway" : "castaways"} · from who's still in${game.shared ? "" : " nobody has"} before Episode ${start}`
-            : game.underway
-              ? `${airedWords(game.latest)}. How do you want to start?`
-              : `${game.name} · ${game.players} playing`
+            : game.ownPace
+              ? `${game.name} · one episode at a time`
+              : game.underway
+                ? `${airedWords(game.latest)}. How do you want to start?`
+                : `${game.name} · ${game.players} playing`
       }
     >
       {!game || !o ? (
@@ -201,6 +204,40 @@ export function JoinGameSheet({ couchId, game, onOpenChange }: { couchId: string
           </div>
           <Btn tone="must" wide className="sticky bottom-0 mt-4" data-join-confirm disabled={busy || team.length !== need} onClick={() => join(start, team)}>
             {busy ? "Joining…" : team.length === need ? `Join with these ${need}` : `Pick ${need - team.length} more`}
+          </Btn>
+        </div>
+      ) : game.ownPace && o.starts ? (
+        // A game at your own pace (docs/PLAN-own-pace-games.md): you start where you are; nothing to choose.
+        <div data-join-pace={o.starts.live} className="flex flex-col gap-3">
+          <div className="flex flex-col gap-1 rounded-[4px] bg-plate p-3.5 text-plate-foreground shadow-plate">
+            <b className="type-caption text-[28px] leading-none">You start at Episode {o.starts.live}</b>
+            <span className="text-[14px] leading-snug text-plate-muted">
+              {(o.seen ?? 0) >= o.starts.live - 1
+                ? o.starts.live > 1
+                  ? `You've seen up to Episode ${o.starts.live - 1}.`
+                  : "You haven't watched any yet."
+                : `The game starts at Episode ${o.starts.live}.`}{" "}
+              {game.teamSize ? "Pick your team, then pick" : "Pick"} before each episode, reveal after you&rsquo;ve watched.
+            </span>
+          </div>
+          {!!o.playing?.length && (
+            <div data-join-playing>
+              <b className="text-[15px] font-semibold">Who&rsquo;s playing</b>
+              <ul className="mt-1">
+                {o.playing.map((p) => (
+                  <li key={p.name} className="flex min-h-11 items-center gap-2 border-b border-border py-1.5 last:border-b-0">
+                    <span className="min-w-0 flex-1 truncate text-[15px] font-semibold">
+                      {p.name}
+                      {p.bot && <span className="ml-1.5 rounded-[2px] bg-secondary px-1.5 py-px align-middle text-[10px] font-bold uppercase tracking-[0.06em] text-muted-foreground">Computer</span>}
+                    </span>
+                    <span className="text-[13px] font-semibold text-muted-foreground">{p.bot ? "Keeps pace" : p.week !== null ? `On Episode ${p.week}` : "Finished"}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <Btn tone="must" wide data-join-confirm disabled={busy} onClick={() => (pick ? setStart(o.starts!.live) : join(o.starts!.live, []))}>
+            {busy ? "Joining…" : "Join"}
           </Btn>
         </div>
       ) : !o.starts ? (
@@ -281,9 +318,10 @@ function StartChoice({
 
 const catchUpVerb = (g: GameView) => (g.pick ? "Pick, watch it, then reveal" : g.lineup ? "Set your lineup, watch it, then reveal" : "Watch it, then reveal");
 
-/** Tonight's strip for each game you're catching up in: "Catching up · Episode 2 of 4", and how far along you are. */
+/** Tonight's strip for each game you're catching up in: "Catching up · Episode 2 of 4", and how far along you are. A game at your
+ *  own pace has its own plate instead (show/pace-plate.tsx). */
 export function CatchUpStrips({ show, onOpen }: { show: ShowData; onOpen: (g: GameView) => void }) {
-  const games = (show.play ?? []).filter((g) => g.catchUp);
+  const games = (show.play ?? []).filter((g) => g.catchUp && !g.ownPace);
   if (!games.length) return null;
   return (
     <section className="mt-4 flex flex-col gap-2 px-4">
@@ -312,6 +350,35 @@ export function CatchUpStrips({ show, onOpen }: { show: ShowData; onOpen: (g: Ga
   );
 }
 
+/** What an episode's reveal did in one game you're catching up in: who went home, the game's line, your lineup's points. */
+export function CatchUpResult({ done }: { done: CatchUpReveal }) {
+  return (
+    <div data-catchup-result={done.episode}>
+      {done.out.length > 0 && (
+        <div className="flex gap-2.5">
+          {done.out.map((o) => (
+            <div key={o.id} className="w-24 overflow-hidden rounded-[3px] bg-plate text-plate-foreground">
+              <Face src={o.photo} name={o.name} out className="aspect-[4/4.2] w-full text-[28px]" />
+              <b className="type-caption block truncate px-1.5 py-1 text-[14px]">{first(o.name)} out</b>
+            </div>
+          ))}
+        </div>
+      )}
+      {done.game && (
+        <p className="mt-3 text-[16px] leading-snug">
+          <b className="block">{done.game.title}</b>
+          <span className="text-muted-foreground">{done.game.line}</span>
+        </p>
+      )}
+      {done.lineup && (
+        <p className="mt-2 text-[15px] text-muted-foreground">
+          Your lineup: <b className="text-foreground">{done.lineup.total >= 0 ? "+" : ""}{done.lineup.total}</b>
+        </p>
+      )}
+    </div>
+  );
+}
+
 /**
  * One episode of your catch-up (the mock's catchupStep): your move for it (Your moves, at that game), then "I've watched
  * it" reveals it in that game alone, and what happened; then the next, until you're caught up and play live.
@@ -336,28 +403,8 @@ export function CatchUpSheet({ show, game, onOpenChange }: { show: ShowData; gam
       subtitle={done ? g?.gameName : g?.pick ? "Pick who survives, then reveal when you've watched" : g?.lineup ? "Set your lineup, then reveal when you've watched" : "Reveal when you've watched"}
     >
       {!g ? null : done ? (
-        <div data-catchup-result={done.episode}>
-          {done.out.length > 0 && (
-            <div className="flex gap-2.5">
-              {done.out.map((o) => (
-                <div key={o.id} className="w-24 overflow-hidden rounded-[3px] bg-plate text-plate-foreground">
-                  <Face src={o.photo} name={o.name} out className="aspect-[4/4.2] w-full text-[28px]" />
-                  <b className="type-caption block truncate px-1.5 py-1 text-[14px]">{first(o.name)} out</b>
-                </div>
-              ))}
-            </div>
-          )}
-          {done.game && (
-            <p className="mt-3 text-[16px] leading-snug">
-              <b className="block">{done.game.title}</b>
-              <span className="text-muted-foreground">{done.game.line}</span>
-            </p>
-          )}
-          {done.lineup && (
-            <p className="mt-2 text-[15px] text-muted-foreground">
-              Your lineup: <b className="text-foreground">{done.lineup.total >= 0 ? "+" : ""}{done.lineup.total}</b>
-            </p>
-          )}
+        <>
+          <CatchUpResult done={done} />
           {done.next ? (
             <Btn tone="must" wide className="mt-4" data-catchup-next onClick={() => setDone(null)}>
               Next: Episode {done.next}
@@ -370,7 +417,7 @@ export function CatchUpSheet({ show, game, onOpenChange }: { show: ShowData; gam
               </Btn>
             </>
           )}
-        </div>
+        </>
       ) : (
         <div data-catchup-step={week}>
           {(g.pick || g.lineup) && (

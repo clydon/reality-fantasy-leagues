@@ -55,7 +55,7 @@ export interface OurRules {
 type Copy = Rulebook;
 
 /** The games here you run as a Commissioner (rules are a Commissioner's), bar any on a ruleset copy of its own. */
-async function ruleGames(scope: BackstageScope): Promise<{ games: Game[]; ownRules: string[] }> {
+export async function ruleGames(scope: BackstageScope): Promise<{ games: Game[]; ownRules: string[] }> {
   const mine = scope.games.filter((g) => g.yourRole === "commissioner" || isSuperAdminUser(scope.user));
   const states = await leagueStates(mine.map((g) => g.leagueId));
   const ownRules = mine.filter((g) => !!(states.get(g.leagueId) as LeagueState | undefined)?.settings.leagueRulesetData);
@@ -153,7 +153,7 @@ export async function ourRules(scope: BackstageScope): Promise<OurRules> {
 // ---------- the copy's writes ----------
 
 /** Each game on the copy brought in step (settings.rulebook), under its lock, with its line in Recent changes. */
-async function syncGames(leagueIds: string[], spec: (leagueId: string) => ChangeSpec, before?: (client: PoolClient, leagueId: string) => Promise<void>): Promise<void> {
+export async function syncGames(leagueIds: string[], spec: (leagueId: string) => ChangeSpec, before?: (client: PoolClient, leagueId: string) => Promise<void>): Promise<void> {
   for (const id of leagueIds) {
     await withLeagueLock(
       id,
@@ -167,7 +167,7 @@ async function syncGames(leagueIds: string[], spec: (leagueId: string) => Change
 }
 
 /** What each game's standings would do with these rules in place of the ones it has (null: no rulebook, its show's rules). */
-async function preview(leagueIds: string[], games: Game[], rules: { id: string; version: number; data: unknown; reader: string } | null): Promise<PreviewLine[]> {
+export async function preview(leagueIds: string[], games: Game[], rules: { id: string; version: number; data: unknown; reader: string } | null): Promise<PreviewLine[]> {
   const states = await leagueStates(leagueIds);
   const { rows: seats } = await pool.query("SELECT player_id, user_id FROM league_memberships WHERE league_id = ANY($1::uuid[]) AND player_id IS NOT NULL", [leagueIds]);
   const users = new Map(seats.map((s) => [s.player_id, s.user_id]));

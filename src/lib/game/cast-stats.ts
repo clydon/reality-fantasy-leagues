@@ -74,11 +74,11 @@ export interface CastStat {
   /** A secret role, only once they've left by your episode. */
   role: string | null;
   /** Over the range asked: points, each stat's count (nonzero only), points per episode (null once out), what was
-   *  recorded each episode ([episode, stat key]). */
+   *  recorded each episode ([episode, stat key, what it scored, how many units], for their story). */
   points: number;
   counts: Record<string, number>;
   perEp: (number | null)[];
-  events: [number, string][];
+  events: [number, string, number, number][];
 }
 
 export interface Pattern {
@@ -259,7 +259,7 @@ export function castStats(state: LeagueState, opts: { seen: number; book: StatsB
       points: round(mine.reduce((a, d) => a + d.points, 0)),
       counts,
       perEp: through ? perEp : [],
-      events: mine.filter((d) => statKeys.has(d.type)).map((d) => [d.ep, d.type] as [number, string]),
+      events: mine.filter((d) => statKeys.has(d.type)).map((d) => [d.ep, d.type, round(d.points), d.units] as [number, string, number, number]),
     };
   });
 

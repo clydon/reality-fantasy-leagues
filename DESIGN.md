@@ -505,6 +505,9 @@ Every castaway ranked by the points they've scored (`/research`, `research/resea
 - **Tap a row** for a sheet: the total and per-episode average, then one hairline row per episode, newest first, with what scored ("Won the week +3 · Bottom two −1") and that week's number.
 - **Under the list**, one muted line names up to three free agents scoring like starters (at least the weakest of the league's top N owned, N being every team's starting slots).
 
+### A castaway's story (the Cast tab's sheet)
+Tap a face for their season so far (`show/cast.tsx` StorySheet): the photo beside their group and role, then one section per episode, **newest first**. Each section's heading is the episode as a small caps tag with its chips (1 source · Disputed) and the episode's total on the right as a condensed tabular row number (muted at 0, live-red below); under it one 32px line per moment recorded, the moment's name in 14px body with its own points as a condensed "+2" / "−1" on the right, a moment worth nothing muted, a per-amount moment with its amount after the name ("· 2,083"); then how they left, if they did; "Nothing recorded" or "Already out" muted. The "…" on the heading is Something wrong? for that episode. (2026-11-05: it was one run-on sentence of every moment with one number, unreadable on a phone.)
+
 ### Scoring (the maker's, a made game)
 `/show/[seasonId]/scoring` (`src/new/show/scoring.tsx`), a page over the show like backstage's, reached from "Change the scoring" (a button under How it works' points, a muted line with a chevron on the Players tab), shown only to whoever may change it.
 - **The moments** grouped by part (small caps heads on a hairline), each a hairline row with the backstage Stepper (− value +, by 0.5 from −20 to 20); a moment added by hand says what scores it ("Its own question", "From: Votes at Round Table") and has a 44px ✕ to take it out. A changed one says "Was +2" under its name.

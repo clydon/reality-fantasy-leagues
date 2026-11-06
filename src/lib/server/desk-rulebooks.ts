@@ -5,18 +5,24 @@ import { shapeById, shapesOf } from "@/lib/game/formats/rulebook-shapes.js";
 import { applyOps, blocksAt, diffBlocks, opLines } from "@/lib/game/formats/rulebook-patch";
 import { parseRulebookAnswer, reviewRulebook } from "@/lib/game/formats/rulebook-research";
 import { buildRulebookPrompt } from "@/lib/game/formats/rulebook-research";
+import { buildScoresPrompt, parseScoresAnswer, pickScores, reviewScores, type ScoresAdded, type ScoresRow } from "@/lib/game/formats/rulebook-scores";
+import { momentsFor } from "@/lib/game/formats/rulebook-moments";
 import { blocksProblems, labelOf, type BlocksProblem, type RulebookBlocks } from "@/lib/game/formats/rulebook-schema";
 import { ensureSeasonRulebook, getRulebook, inForceEdits, leaguesUsing, lineage, saveChain, setPhaseStart, syncLeagueRulebook, type Rulebook } from "@db/rulebooks.js";
 import { cardArtSql } from "./art-sql";
 import { isUuid, type SessionUser } from "./auth-helpers";
 import { restageSeason } from "./community-results";
 import { requireCouch } from "./couches";
+import { askBot } from "./ask-bot";
 import { pool, withLeagueLock, HttpError } from "./db";
 import { byNewest, deskLines, logDesk, type DeskLine } from "./desk";
+import { EVERYTHING, seenThrough } from "./guard";
 import { madeLine, saveTemplate } from "./desk-library";
 import { reachCopies } from "./ours";
 import { settleSeasonStarts } from "./phase-starts";
 import { leagueSeason } from "./push-events";
+import { seasonStats } from "./season-stats";
+import { LADDER } from "@/lib/game/formats/rulebook-scores";
 import { deskNotices } from "./show-changes";
 import { latestAired, seasonSchedules } from "./schedule";
 
@@ -31,10 +37,13 @@ import { latestAired, seasonSchedules } from "./schedule";
 //
 // Either way the version moves on and every league following it gets it (syncLeagueRulebook, under each league's lock),
 // once its season's leagues play by rulebooks: the flag for everyone, or this season's own switch (0113), so a season
-// can go first. Research asks for blocks too: Check for changes copies the rulebook prompt with this rulebook as its
-// starting point, and a pasted answer is reviewed and shown as the changes it makes, to save either way. Lock (couches'
-// suggestions still reach the Inbox), the Timeline (not spoiler-safe: it's the admin's), History with undo, and Save as a
-// starting point for new shows.
+// can go first. Research asks for blocks too (docs/PLAN-rulebook-research.md): Check for changes asks the rulebook prompt
+// with this rulebook as its starting point, and What scores asks for every moment's rung on the ladder and what's missing
+// (rulebook-scores.js). Either is asked of our bot (queued like Run now: desk-research.ts queueRulebook, then
+// askRulebookNow here) or pasted from Ask an AI; the answer is staged in rulebook_answers (0432) and the page reviews the
+// latest as the changes it would make, for the admin to put in the draft (then save as a fix or a show change) or put away.
+// Lock (couches' suggestions still reach the Inbox), the Timeline (not spoiler-safe: it's the admin's), History with undo,
+// and Save as a starting point for new shows.
 
 export interface DeskRulebookEdit {
   id: string;
@@ -45,6 +54,51 @@ export interface DeskRulebookEdit {
   at: string;
   who: string | null;
   status: string;
+}
+
+export type ResearchKind = "check" | "scores";
+
+/** An answer staged for the page: where it came from, and what it would change. */
+export interface RulebookAnswerCard {
+  id: string;
+  kind: ResearchKind;
+  source: "bot" | "paste";
+  by: string | null;
+  at: string;
+  /** Asked up to this episode only (nothing later is in it), or null for the whole season. */
+  through: number | null;
+  /** "4 changes", "Nothing changed", "2 things to fix before it can be used". */
+  title: string;
+  lines: string[];
+  problems: string[];
+  warnings: string[];
+  leftOut: string[];
+  changes: number;
+  /** The rulebook with its changes in, to put in the draft; null while it has problems. */
+  blocks: RulebookBlocks | null;
+  /** What scores only: every moment before and after, what it adds, and what it left out. */
+  rows?: ScoresRow[];
+  added?: ScoresAdded[];
+  skipped?: { label: string; why: string }[];
+}
+
+export interface RulebookResearchState {
+  /** Our bot is on it: "Asking our bot now · about 2 minutes", or waiting its turn. Null otherwise. */
+  asking: string | null;
+  /** The latest answer not yet settled, reviewed. */
+  answer: RulebookAnswerCard | null;
+}
+
+export interface RulebookResearch {
+  /** Our bot can be asked: the rulebook is a season's (the queue is per season). The library's take a paste. */
+  bot: boolean;
+  /** Where this admin is on the season (their Where I am mark): What scores holds back this season's moments past it. Null: no
+   *  mark, nothing held. */
+  mark: number | null;
+  /** Through which episode to ask: where this admin is on the season (else what's aired), and the last episode there is. */
+  through: { suggested: number; max: number | null };
+  check: RulebookResearchState;
+  scores: RulebookResearchState;
 }
 
 export interface DeskRulebook {
@@ -82,6 +136,8 @@ export interface DeskRulebook {
   lineage: string[];
   /** The shapes it is (a season's rulebook: what it would help earn). */
   shapes: string[];
+  /** Check for changes and What scores: what's asking, and the answer waiting. */
+  research: RulebookResearch;
 }
 
 const ABOUT: Record<string, string> = { segment: "A part of an episode", wayOut: "A way out", scores: "Something that scores", other: "Something else" };
@@ -93,16 +149,18 @@ async function row(id: string): Promise<Rulebook> {
   return r;
 }
 
+/** The season a rulebook is about: its own, or its league's for a couch's own copy (ours.ts). */
 async function seasonOf(r: Rulebook) {
-  if (!r.seasonId) return null;
+  const seasonId = r.seasonId ?? (r.leagueId ? (await leagueSeason(r.leagueId)).seasonId : null);
+  if (!seasonId) return null;
   const { rows } = await pool.query(
     `SELECT ss.id, COALESCE(ss.name, s.name || ' ' || ss.season_number) AS name, s.name AS show, ${cardArtSql()} AS art_url, ss.episode_count, ss.rulebook_live, ss.status, ss.season_number
        FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id = $1`,
-    [r.seasonId]
+    [seasonId]
   );
   if (!rows.length) return null;
   const { rows: flag } = await pool.query("SELECT value FROM app_settings WHERE key = 'rulebooks'");
-  const schedule = (await seasonSchedules([r.seasonId])).get(r.seasonId);
+  const schedule = (await seasonSchedules([seasonId])).get(seasonId);
   const s = rows[0];
   return {
     id: s.id as string,
@@ -119,7 +177,8 @@ async function seasonOf(r: Rulebook) {
 }
 
 /** The rulebook's page: its parts, its edits, who it reaches, and How it works as the admin reads it (everything). */
-export async function deskRulebook(id: string): Promise<DeskRulebook> {
+/** `user`: whoever reads it, for research's suggested episode (where they are on the season). */
+export async function deskRulebook(id: string, user?: SessionUser): Promise<DeskRulebook> {
   const r = await row(id);
   const season = await seasonOf(r);
   const edits = await inForceEdits(pool, id);
@@ -184,8 +243,132 @@ export async function deskRulebook(id: string): Promise<DeskRulebook> {
     library: r.ownerKind === "library" ? await libraryOf(r) : null,
     lineage: ((await lineage(pool, id))?.parents ?? []).map((p) => p.name),
     shapes: shapesOf(now).map((s) => shapeById(s)?.name ?? s),
+    research: await researchOf(r, now, season, user),
   };
 }
+
+const RESEARCH_KINDS: ResearchKind[] = ["check", "scores"];
+const RUN_KIND: Record<ResearchKind, string> = { check: "rulebook", scores: "scores" };
+export const RESEARCH_NAME: Record<ResearchKind, string> = { check: "Check for changes", scores: "What scores" };
+/** An ask the page stopped waiting on: its driver was cut off long ago. */
+const ASK_WAIT_MS = 15 * 60_000;
+
+const isKind = (v: unknown): v is ResearchKind => RESEARCH_KINDS.includes(v as ResearchKind);
+export function researchKind(v: unknown): ResearchKind {
+  if (!isKind(v)) throw new HttpError(400, "kind is check or scores");
+  return v;
+}
+
+/** Through which episode: a number from the client, or nothing. An episode past the season's last is refused. */
+export function throughArg(v: unknown, max: number | null = null): number | null {
+  if (v === undefined || v === null || v === "") return null;
+  const n = Number(v);
+  if (!Number.isInteger(n) || n < 1) throw new HttpError(400, "Through which episode? A whole number from 1");
+  if (max && n > max) throw new HttpError(400, `The season has ${max} episodes`);
+  return n;
+}
+
+/** Research on any rulebook as `user` reads it: the desk's, or a couch's own copy (our-scores.ts). */
+export async function researchFor(id: string, user: SessionUser): Promise<RulebookResearch> {
+  const r = await row(id);
+  const now = blocksAt(r.blocks, await inForceEdits(pool, id), Infinity);
+  return researchOf(r, now, await seasonOf(r), user);
+}
+
+/** What's asking and what's waiting, per kind: the open desk run, and the latest unsettled answer reviewed. */
+async function researchOf(r: Rulebook, now: RulebookBlocks, season: Awaited<ReturnType<typeof seasonOf>>, user?: SessionUser): Promise<RulebookResearch> {
+  const [{ rows: runs }, { rows: answers }] = await Promise.all([
+    pool.query("SELECT kind, started_at FROM desk_runs WHERE rulebook_id = $1 AND done_at IS NULL AND asked_at > now() - make_interval(secs => $2)", [r.id, ASK_WAIT_MS / 1000]),
+    pool.query(
+      `SELECT DISTINCT ON (a.kind) a.id, a.kind, a.source, a.answer, a.created_at, a.through_episode, a.settled, COALESCE(u.username, u.name) AS who
+         FROM rulebook_answers a LEFT JOIN "user" u ON u.id = a.by_user
+        WHERE a.rulebook_id = $1 AND a.settled_at IS NULL ORDER BY a.kind, a.created_at DESC`,
+      [r.id]
+    ),
+  ]);
+  const castNames = season ? (await pool.query("SELECT name FROM season_cast WHERE season_id = $1", [season.id])).rows.map((c) => c.name as string) : [];
+  const max = season?.episodeCount ?? null;
+  // Where this reader is on the season: What scores holds this season's moments past it (nothing, with no mark or everything).
+  const raw = user && season ? await seenThrough(user.id, season.id) : 0;
+  const mark = raw > 0 && raw !== EVERYTHING ? raw : null;
+  const state = (kind: ResearchKind): RulebookResearchState => {
+    const run = runs.find((x) => x.kind === RUN_KIND[kind]);
+    const a = answers.find((x) => x.kind === kind);
+    const made = a ? card({ id: a.id, kind, source: a.source, by: a.who ?? null, at: a.created_at.toISOString(), through: a.through_episode ?? null }, a.answer, now, { castNames, mark, episodeCount: max, settled: a.settled ?? {} }) : null;
+    return {
+      asking: run ? (run.started_at ? "Asking our bot now · about 2 minutes" : "Waiting to ask our bot") : null,
+      // An answer with nothing left to see, only what's held for later: nothing, and no sign of it.
+      answer: made && !(made.quiet && made.held) ? made.card : null,
+    };
+  };
+  // Suggested for Check for changes' Up to episode: the mark, else what's aired, else the lot.
+  const cap = (n: number) => (max ? Math.min(n, max) : n);
+  const suggested = mark ? cap(mark) : season?.aired ? cap(season.aired) : (max ?? 1);
+  return { bot: !!season, mark, through: { suggested, max }, check: state("check"), scores: state("scores") };
+}
+
+interface ReviewContext {
+  castNames: string[];
+  mark: number | null;
+  episodeCount: number | null;
+  settled: Record<string, string>;
+}
+
+/**
+ * An answer reviewed against the rulebook as it is now: what it would change, or why it can't be used. For What scores, only
+ * what the reader may see (their mark) and what isn't settled; `held` says whether anything waits unseen, `quiet` that
+ * nothing visible is left to decide. Neither reaches the page.
+ */
+function card(head: Pick<RulebookAnswerCard, "id" | "kind" | "source" | "by" | "at" | "through">, answer: string, now: RulebookBlocks, ctx: ReviewContext): { card: RulebookAnswerCard; held: boolean; quiet: boolean } {
+  const messages = (l: { message: string }[]) => l.map((p) => p.message);
+  try {
+    if (head.kind === "scores") {
+      const review = reviewScores(parseScoresAnswer(answer), now, ctx);
+      const dropped = review.rows.filter((x) => x.drop).length;
+      const changed = review.rows.filter((x) => x.changed).length - dropped;
+      const bits = [
+        changed ? `${changed} ${changed === 1 ? "moment rescored" : "moments rescored"}` : "",
+        dropped ? `${dropped} ${dropped === 1 ? "moment dropped" : "moments dropped"}` : "",
+        review.added.length ? `${review.added.length} ${review.added.length === 1 ? "moment added" : "moments added"}` : "",
+      ].filter(Boolean);
+      return {
+        card: {
+          ...head,
+          title: review.problems.length ? fixTitle(review.problems.length) : bits.length ? bits.join(" · ") : "Nothing to change",
+          lines: review.lines,
+          problems: messages(review.problems),
+          warnings: messages(review.warnings),
+          leftOut: review.leftOut,
+          changes: review.changes,
+          blocks: review.problems.length ? null : review.blocks,
+          rows: review.rows,
+          added: review.added,
+          skipped: review.skipped,
+        },
+        held: review.held.length > 0,
+        quiet: !changed && !review.added.length && !review.problems.length,
+      };
+    }
+    const review = reviewCheck(answer, now, ctx.castNames);
+    return {
+      card: {
+        ...head,
+        title: review.problems.length ? fixTitle(review.problems.length) : review.changes ? `${review.changes} ${review.changes === 1 ? "change" : "changes"} from the rulebook now` : "Nothing changed",
+        lines: review.lines,
+        problems: messages(review.problems),
+        warnings: messages(review.warnings),
+        leftOut: review.leftOut,
+        changes: review.changes,
+        blocks: review.problems.length ? null : review.blocks,
+      },
+      held: false,
+      quiet: false,
+    };
+  } catch (e) {
+    return { card: { ...head, title: "It couldn't be read", lines: [], problems: [e instanceof Error ? e.message : "That answer couldn't be read"], warnings: [], leftOut: [], changes: 0, blocks: null }, held: false, quiet: false };
+  }
+}
+const fixTitle = (n: number) => `${n} ${n === 1 ? "thing" : "things"} to fix before it can be used`;
 
 async function madeOf(r: Rulebook): Promise<DeskRulebook["made"]> {
   if (r.provenance?.from !== "made") return null;
@@ -255,6 +438,15 @@ export async function saveRulebook(
   let from = 1;
   if (body.kind === "fix") {
     const base = applyOps(r.blocks, ops);
+    // A fix lives in the base: points and notes for a moment a show change brought (not the base's own) stay with that change.
+    const own = new Set(momentsFor(base, { includeOff: true }).map((m) => m.id));
+    for (const field of ["points", "momentNotes"] as const) {
+      const map = base[field] as Record<string, unknown> | undefined;
+      if (!map) continue;
+      const kept = Object.fromEntries(Object.entries(map).filter(([k]) => own.has(k)));
+      if (Object.keys(kept).length) base[field] = kept as never;
+      else delete base[field];
+    }
     const saved = await saveChain(pool, id, { blocks: base, userId: user.id });
     if (!saved) throw new HttpError(404, "Rulebook not found");
     if ("refused" in saved) throw refused(saved.refused);
@@ -385,31 +577,147 @@ export async function saveAsTemplate(user: SessionUser, id: string): Promise<{ i
   return saveTemplate(user, id);
 }
 
-/** The research prompt for Check for changes: the rulebook prompt with this rulebook, as it is now, as the starting point. */
-export async function rulebookPrompt(id: string): Promise<{ prompt: string }> {
-  const r = await row(id);
+/** What a season's rulebook research knows of the season: the show, the season, whether it's airing and how far it's got. */
+async function askContext(r: Rulebook) {
   const season = await seasonOf(r);
-  const now = blocksAt(r.blocks, await inForceEdits(pool, id), Infinity);
-  return { prompt: buildRulebookPrompt({ show: season?.show ?? r.name, season: season ? `season ${season.number}` : undefined, airing: !!season?.airing, template: now }) };
+  return { show: season?.show ?? r.name, season: season ? `season ${season.number}` : undefined, airing: !!season?.airing, aired: season?.aired ?? 0, episodeCount: season?.episodeCount ?? null };
 }
 
-/** A pasted research answer, reviewed, and the changes it would make to the rulebook as it is now. Writes nothing. */
-export async function reviewAnswer(id: string, answer: unknown) {
+/**
+ * The question research is asked (`?prompt=check|scores`), for Ask an AI's chat links and its copy, and for our bot: Check
+ * for changes is the rulebook prompt with this rulebook, as it is now, as the starting point; What scores lists its
+ * moments and the ladder (rulebook-scores.js).
+ */
+export async function rulebookPrompt(id: string, kind: ResearchKind = "check", through: unknown = null): Promise<{ prompt: string; task: string; through: number | null }> {
   const r = await row(id);
-  if (typeof answer !== "string" || !answer.trim()) throw new HttpError(400, "Paste the AI's answer first");
-  let parsed;
-  try {
-    parsed = parseRulebookAnswer(answer);
-  } catch (e) {
-    throw new HttpError(400, e instanceof Error ? e.message : "That answer couldn't be read");
-  }
-  const { rows: cast } = r.seasonId ? await pool.query("SELECT name FROM season_cast WHERE season_id = $1", [r.seasonId]) : { rows: [] as { name: string }[] };
+  const ctx = await askContext(r);
+  // What scores reads the whole season (what's past the reader is held back on our side); Check for changes can be scoped.
+  const upTo = kind === "scores" ? null : throughArg(through, ctx.episodeCount);
   const now = blocksAt(r.blocks, await inForceEdits(pool, id), Infinity);
-  const review = reviewRulebook(parsed, { castNames: cast.map((c) => c.name), keep: (now.customMoments ?? []).map((m) => m.label) });
+  const name = [ctx.show, ctx.season].filter(Boolean).join(" ");
+  const scope = upTo ? ` up to Episode ${upTo}` : "";
+  if (kind === "scores") return { prompt: buildScoresPrompt({ ...ctx, blocks: now }), task: `scoring the moments of ${name}`, through: null };
+  return { prompt: buildRulebookPrompt({ show: ctx.show, season: ctx.season, airing: ctx.airing, through: upTo, template: now }), task: `describing how ${name} works${scope}`, through: upTo };
+}
+
+/** A Check for changes answer, reviewed against the blocks as they are now, and the changes it would make. */
+function reviewCheck(answer: string, now: RulebookBlocks, castNames: string[]) {
+  const parsed = parseRulebookAnswer(answer);
+  const review = reviewRulebook(parsed, { castNames, keep: (now.customMoments ?? []).map((m) => m.label) });
   // How research asks is the rulebook's own (the prompt leaves it out), so an answer keeps it as it is.
   if (now.research) review.blocks.research = now.research;
   const ops = diffBlocks(now, review.blocks);
   return { ...review, lines: opLines(ops, now, review.blocks), changes: ops.length };
+}
+
+/** An answer that can be read at all (the JSON object in it), or why not. Staged answers are read again on every page. */
+function readable(kind: ResearchKind, answer: string): string | null {
+  try {
+    if (kind === "scores") parseScoresAnswer(answer);
+    else parseRulebookAnswer(answer);
+    return null;
+  } catch (e) {
+    return e instanceof Error ? e.message : "That answer couldn't be read";
+  }
+}
+
+async function stageAnswer(r: Rulebook, kind: ResearchKind, source: "bot" | "paste", answer: string, by: string | null, through: number | null): Promise<{ id: string; card: RulebookAnswerCard }> {
+  const { rows } = await pool.query("INSERT INTO rulebook_answers (rulebook_id, kind, source, answer, by_user, through_episode) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, created_at", [r.id, kind, source, answer.slice(0, 200_000), by, through]);
+  const now = blocksAt(r.blocks, await inForceEdits(pool, r.id), Infinity);
+  const season = await seasonOf(r);
+  const castNames = season ? (await pool.query("SELECT name FROM season_cast WHERE season_id = $1", [season.id])).rows.map((c) => c.name as string) : [];
+  // History's line counts what whoever asked may see: their mark, as the page will show it to them.
+  const raw = by && season ? await seenThrough(by, season.id) : 0;
+  const { card: c } = card({ id: rows[0].id, kind, source, by: null, at: rows[0].created_at.toISOString(), through }, answer, now, { castNames, mark: raw > 0 && raw !== EVERYTHING ? raw : null, episodeCount: season?.episodeCount ?? null, settled: {} });
+  await logDesk(pool, {
+    entity: "rulebook",
+    entityId: r.id,
+    action: "research",
+    text: `${RESEARCH_NAME[kind]}${through ? ` up to Episode ${through}` : ""}, ${source === "bot" ? "our bot's answer" : "a pasted answer"}: ${c.title.toLowerCase()}`,
+    userId: by,
+  });
+  return { id: rows[0].id, card: c };
+}
+
+/** Our bot's turn in the Run now queue (desk-research.ts drainDeskRuns): asks, reads and stages its answer. Never throws. */
+export async function askRulebookNow(id: string, kind: ResearchKind, askedBy: string | null, bot: string | undefined, budgetMs: number, through: number | null = null): Promise<{ ok: boolean; message: string }> {
+  try {
+    const r = await row(id);
+    const q = await rulebookPrompt(id, kind, through);
+    const { answer } = await askBot(q.prompt, { bot, budgetMs });
+    const bad = readable(kind, answer);
+    if (bad) throw new Error(bad);
+    const { card: c } = await stageAnswer(r, kind, "bot", answer, askedBy, q.through);
+    return { ok: true, message: `${RESEARCH_NAME[kind]}: ${c.title}` };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    await logDesk(pool, { entity: "rulebook", entityId: id, action: "research", text: `${RESEARCH_NAME[kind]}, asked our bot: it failed (${message.slice(0, 200)})`, userId: null }).catch(() => undefined);
+    return { ok: false, message };
+  }
+}
+
+/** Paste it: an answer from Ask an AI, staged as our bot's is (the desk's rulebook, or a couch's own copy). */
+export async function stagePaste(user: SessionUser, id: string, kind: ResearchKind, raw: unknown, through: unknown = null): Promise<void> {
+  const r = await row(id);
+  const upTo = kind === "scores" ? null : throughArg(through, (await askContext(r)).episodeCount);
+  const answer = typeof raw === "string" ? raw.trim() : "";
+  if (!answer) throw new HttpError(400, "Paste the AI's answer first");
+  if (answer.length > 200_000) throw new HttpError(400, "That's too long to be the answer");
+  const bad = readable(kind, answer);
+  if (bad) throw new HttpError(400, bad);
+  await stageAnswer(r, kind, "paste", answer, user.id, upTo);
+}
+
+/** Paste it on the desk. Answers the page. */
+export async function pasteRulebookAnswer(user: SessionUser, id: string, kind: ResearchKind, raw: unknown, through: unknown = null): Promise<DeskRulebook> {
+  await stagePaste(user, id, kind, raw, through);
+  return deskRulebook(id, user);
+}
+
+/**
+ * An answer settled: its changes went in the draft (used), or it was put away (dismissed). Check for changes settles whole.
+ * What scores settles a row at a time (`ids` as `status`, `declined` as put away): the answer stays open while anything is
+ * left, seen or held for later, and leaves the page for this reader once nothing they can see is left.
+ */
+export async function settleRulebookAnswer(user: SessionUser, id: string, body: { answer?: unknown; status?: unknown; ids?: unknown; declined?: unknown }): Promise<DeskRulebook> {
+  await settleRows(user, id, body);
+  return deskRulebook(id, user);
+}
+
+/** The settling itself, for the desk's rulebook or a couch's own copy (our-scores.ts). */
+export async function settleRows(user: SessionUser, id: string, body: { answer?: unknown; status?: unknown; ids?: unknown; declined?: unknown }): Promise<void> {
+  if (body.status !== "used" && body.status !== "dismissed") throw new HttpError(400, "status is used or dismissed");
+  const { rows } = await pool.query("SELECT id, kind, answer, settled FROM rulebook_answers WHERE id = $1 AND rulebook_id = $2 AND settled_at IS NULL", [String(body.answer), id]);
+  if (!rows.length) throw new HttpError(404, "That answer isn't waiting");
+  const a = rows[0];
+  const ids = Array.isArray(body.ids) ? body.ids.filter((x): x is string => typeof x === "string") : null;
+  const declined = Array.isArray(body.declined) ? body.declined.filter((x): x is string => typeof x === "string") : [];
+  if (a.kind === "scores" && ids) {
+    const settled: Record<string, string> = { ...(a.settled ?? {}) };
+    for (const x of ids) settled[x] = body.status;
+    for (const x of declined) settled[x] = "dismissed";
+    // Anything left, seen by anyone or held for later? Reviewed as the page reviews it, but with no mark, so nothing is
+    // hidden from the count.
+    const r = await row(id);
+    const now = blocksAt(r.blocks, await inForceEdits(pool, id), Infinity);
+    const season = await seasonOf(r);
+    const castNames = season ? (await pool.query("SELECT name FROM season_cast WHERE season_id = $1", [season.id])).rows.map((c) => c.name as string) : [];
+    let open = 0;
+    try {
+      const review = reviewScores(parseScoresAnswer(a.answer), now, { castNames, episodeCount: season?.episodeCount ?? null, settled });
+      open = review.rows.filter((x) => x.changed).length + review.added.length + review.held.length;
+    } catch {
+      open = 0;
+    }
+    await pool.query(
+      open
+        ? "UPDATE rulebook_answers SET settled = $3::jsonb WHERE id = $1 AND rulebook_id = $2"
+        : "UPDATE rulebook_answers SET settled = $3::jsonb, settled_at = now(), settled_by = $4, settled_as = $5 WHERE id = $1 AND rulebook_id = $2",
+      open ? [a.id, id, JSON.stringify(settled)] : [a.id, id, JSON.stringify(settled), user.id, body.status]
+    );
+    return;
+  }
+  await pool.query("UPDATE rulebook_answers SET settled_at = now(), settled_by = $3, settled_as = $4 WHERE id = $1 AND rulebook_id = $2", [a.id, id, user.id, body.status]);
 }
 
 /** Settles a suggested fix: done (the admin fixed it) or dismissed. */
@@ -440,4 +748,186 @@ export async function suggestFix(user: SessionUser, seasonId: string, couchId: s
   if (!book) throw new HttpError(404, "Season not found");
   await pool.query("INSERT INTO rulebook_suggestions (rulebook_id, season_id, user_id, couch_id, about, note) VALUES ($1, $2, $3, $4, $5, $6)", [book.row.id, seasonId, user.id, couchId || null, about, note]);
   return { ok: true };
+}
+
+// ---------- how the scoring is playing (read-only) ----------
+
+export interface ScoringPlay {
+  /** The last episode counted: where you are (your mark), or the last with results. 0: nothing yet. */
+  through: number;
+  people: number;
+  /** Each moment that fired, most points first: how often, what it scored in all, its share of all points moved. */
+  moments: { id: string; label: string; times: number; points: number; share: number; each: number }[];
+  /** Each week, how many people shared a total with someone else, on average, out of how many were in. */
+  ties: { people: number; tied: number } | null;
+  /** What stands out, in plain lines; empty when nothing does. Advisory: nothing here moves a value. */
+  notes: string[];
+}
+
+/**
+ * How the scoring is playing, from the season's accepted results as this admin may see them (their mark): where the points
+ * come from by moment, whether weeks end in ties, whether one moment carries the season, and what the finale gave the
+ * winner against a best week. Read-only by the standing rule: what happened never moves a value in play; it says what to
+ * revisit in the starting-point rulebook. The desk's rulebook page shows it (docs/PLAN-rulebook-research.md, step six).
+ */
+export async function scoringPlay(id: string, user: SessionUser): Promise<ScoringPlay> {
+  const r = await row(id);
+  const season = await seasonOf(r);
+  if (!season) return { through: 0, people: 0, moments: [], ties: null, notes: ["Not a season's rulebook: nothing to read."] };
+  const st = await seasonStats(user, season.id, null, {});
+  const cast = st.cast;
+  if (!st.through || !cast.length) return { through: st.through, people: cast.length, moments: [], ties: null, notes: ["No results yet: nothing to read."] };
+  const names = new Map(st.stats.map((x) => [x.key, x.name]));
+  const by = new Map<string, { times: number; points: number }>();
+  for (const c of cast) for (const [, key, points] of c.events) {
+    const m = by.get(key) ?? { times: 0, points: 0 };
+    m.times++;
+    m.points += points;
+    by.set(key, m);
+  }
+  const moved = [...by.values()].reduce((a, m) => a + Math.abs(m.points), 0);
+  const round = (n: number) => Math.round(n * 100) / 100;
+  const moments = [...by]
+    .map(([key, m]) => ({ id: key, label: names.get(key) ?? key, times: m.times, points: round(m.points), share: moved ? Math.round((Math.abs(m.points) / moved) * 100) / 100 : 0, each: round(m.points / m.times) }))
+    .sort((a, b) => Math.abs(b.points) - Math.abs(a.points));
+  // Ties: each week, who shared a total with someone else still in.
+  let weeks = 0;
+  let inAll = 0;
+  let tiedAll = 0;
+  for (let e = 1; e <= st.through; e++) {
+    const totals = cast.map((c) => c.perEp[e - 1]).filter((v): v is number => v !== null && v !== undefined);
+    if (!totals.length) continue;
+    const counts = new Map<number, number>();
+    for (const v of totals) counts.set(v, (counts.get(v) ?? 0) + 1);
+    weeks++;
+    inAll += totals.length;
+    tiedAll += totals.filter((v) => (counts.get(v) ?? 0) > 1).length;
+  }
+  const ties = weeks ? { people: round(inAll / weeks), tied: round(tiedAll / weeks) } : null;
+  const notes: string[] = [];
+  const best = LADDER.find((x) => x.id === "wonAlone")?.points ?? 4;
+  const top = moments[0];
+  if (top && top.share >= 0.4 && moments.length > 1) notes.push(`${top.label} carries ${Math.round(top.share * 100)}% of all points moved so far.`);
+  for (const m of moments) if (m.times >= 2 && Math.abs(m.each) > best * 2) notes.push(`${m.label} scores ${m.each} a time on average, more than two of the biggest weekly wins: check its per how much.`);
+  if (ties && ties.people >= 4 && ties.tied / ties.people >= 0.5) notes.push(`Most weeks ${Math.round(ties.tied)} of ${Math.round(ties.people)} people share a total with someone: moments most people get are doing the scoring.`);
+  // The finale against a best week, once the season is done: the fourth promise, as it played.
+  if (season.episodeCount && st.through >= season.episodeCount) {
+    const last = Math.max(...cast.map((c) => c.perEp[st.through - 1] ?? -Infinity));
+    const bestWeek = Math.max(...cast.flatMap((c) => c.perEp.slice(0, st.through - 1).filter((v): v is number => v !== null)));
+    if (Number.isFinite(last) && Number.isFinite(bestWeek)) notes.push(`The last episode's best was ${round(last)}, against a best earlier week of ${round(bestWeek)}${last >= 2 * bestWeek ? ": the finale outweighed two best weeks, which the ladder means to prevent" : "."}`);
+  }
+  return { through: st.through, people: cast.length, moments, ties, notes };
+}
+
+// ---------- the ladder's values applied (the desk's Use; getting it ready's What scores step) ----------
+
+export interface ScoresApplied {
+  /** Rows saved as a fix (from the premiere), and the episodes new-this-season moments were saved from. */
+  fixed: number;
+  fromEpisodes: number[];
+  declined: number;
+}
+
+/**
+ * What scores' answer applied to the rulebook: the rows picked (`ids`, less `declined`; every row shown when `ids` is null)
+ * go in as a fix, except a moment new to this season that first applies from Episode 2 or later, which goes in as "the show
+ * changed from Episode N" so How it works keeps it from anyone who hasn't reached N (docs/PLAN-rulebook-research.md). The
+ * rows are settled, and the rulebook is marked priced on the ladder (provenance.ladderAt). `everything`: no mark holds
+ * anything back (getting it ready: nobody plays it yet); else what `by` may see. Throws with the answer's first problem.
+ */
+export async function applyScores(by: string, id: string, answerId: string, picks: { ids?: string[] | null; declined?: string[] }, opts: { everything: boolean }): Promise<ScoresApplied> {
+  const r = await row(id);
+  const season = await seasonOf(r);
+  const { rows } = await pool.query("SELECT id, answer, settled FROM rulebook_answers WHERE id = $1 AND rulebook_id = $2 AND kind = 'scores' AND settled_at IS NULL", [answerId, id]);
+  if (!rows.length) throw new HttpError(404, "That answer isn't waiting");
+  const a = rows[0];
+  const castNames = season ? (await pool.query("SELECT name FROM season_cast WHERE season_id = $1", [season.id])).rows.map((c) => c.name as string) : [];
+  const raw = !opts.everything && season ? await seenThrough(by, season.id) : 0;
+  const mark = raw > 0 && raw !== EVERYTHING ? raw : null;
+  const now = blocksAt(r.blocks, await inForceEdits(pool, id), Infinity);
+  const review = reviewScores(parseScoresAnswer(a.answer), now, { castNames, mark, episodeCount: season?.episodeCount ?? null, settled: a.settled ?? {} });
+  if (review.problems.length) throw new HttpError(400, review.problems[0].message);
+  const decidable = [...review.rows.filter((x) => x.changed).map((x) => x.id), ...review.added.map((m) => m.id)];
+  const declined = (picks.declined ?? []).filter((x) => decidable.includes(x));
+  const accepted = (picks.ids ?? decidable).filter((x) => decidable.includes(x) && !declined.includes(x));
+  // A moment new to this season from Episode 2 on lands from its episode; everything else is a fix.
+  const later = new Map<number, string[]>();
+  for (const m of review.added) if (accepted.includes(m.id) && m.known === "thisSeason" && m.firstEpisode > 1) later.set(m.firstEpisode, [...(later.get(m.firstEpisode) ?? []), m.id]);
+  const laterIds = new Set([...later.values()].flat());
+  // A moment a show change brought (not in the base) can't be repriced in a fix: it goes in as a change from the latest
+  // change in force, which is where the rulebook can take it.
+  const edits = await inForceEdits(pool, id);
+  const inBase = new Set(momentsFor(r.blocks).map((m) => m.id));
+  const brought = accepted.filter((x) => !laterIds.has(x) && !inBase.has(x) && review.rows.some((row) => row.id === x));
+  const asFix = accepted.filter((x) => !laterIds.has(x) && !brought.includes(x));
+  const user = { id: by } as SessionUser;
+  const ladder = "What scores: the ladder's values";
+  let fixed = 0;
+  if (asFix.length) {
+    const blocks = pickScores(now, review, decidable.filter((x) => !asFix.includes(x)));
+    if (diffBlocks(now, blocks).length) {
+      await saveRulebook(user, id, { blocks, kind: "fix", summary: `${ladder} (${asFix.length} ${asFix.length === 1 ? "moment" : "moments"})` });
+      fixed = asFix.length;
+    }
+  }
+  const fromEpisodes: number[] = [];
+  for (const [episode, ids] of [...later].sort((x, y) => x[0] - y[0])) {
+    const fresh = await row(id);
+    const base = blocksAt(fresh.blocks, await inForceEdits(pool, id), Infinity);
+    const blocks = pickScores(base, review, decidable.filter((x) => !ids.includes(x)));
+    try {
+      await saveRulebook(user, id, { blocks, kind: "show_changed", fromEpisode: episode, summary: `${ladder}: new from Episode ${episode}` });
+      fromEpisodes.push(episode);
+    } catch (e) {
+      // A later change already in force starts after this episode: it goes in as a fix instead, said in History.
+      if (!(e instanceof HttpError && e.status === 400)) throw e;
+      await saveRulebook(user, id, { blocks, kind: "fix", summary: `${ladder}: new from Episode ${episode}, folded in (a later change was already in force)` });
+      fixed += ids.length;
+    }
+  }
+  if (brought.length) {
+    const fresh = await row(id);
+    const nowEdits = await inForceEdits(pool, id);
+    const episode = Math.max(2, ...edits.map((e) => e.fromEpisode), ...nowEdits.map((e) => e.fromEpisode));
+    const base = blocksAt(fresh.blocks, nowEdits, Infinity);
+    const blocks = pickScores(base, review, decidable.filter((x) => !brought.includes(x)));
+    if (diffBlocks(base, blocks).length) {
+      await saveRulebook(user, id, { blocks, kind: "show_changed", fromEpisode: episode, summary: `${ladder} for ${brought.length} ${brought.length === 1 ? "moment" : "moments"} the show brought, from Episode ${episode}` });
+      fromEpisodes.push(episode);
+    }
+  }
+  await settleRows(user, id, { answer: a.id, status: "used", ids: accepted, declined });
+  await pool.query("UPDATE rulebooks SET provenance = COALESCE(provenance, '{}'::jsonb) || jsonb_build_object('ladderAt', now()) WHERE id = $1", [id]);
+  return { fixed, fromEpisodes, declined: declined.length };
+}
+
+/**
+ * Getting it ready's What scores step (season-fill.ts): our bot asked for the season's rulebook, its answer staged and applied
+ * whole (nobody plays it yet: no mark holds anything back). An answer with a problem is left staged for the desk's card.
+ */
+export async function scoreRulebookByItself(id: string, by: string, bot: string | undefined, budgetMs: number): Promise<void> {
+  const r = await row(id);
+  const q = await rulebookPrompt(id, "scores");
+  const { answer } = await askBot(q.prompt, { bot, budgetMs });
+  const bad = readable("scores", answer);
+  if (bad) throw new Error(bad);
+  const staged = await stageAnswer(r, "scores", "bot", answer, by, null);
+  try {
+    await applyScores(by, id, staged.id, {}, { everything: true });
+  } catch (e) {
+    if (!(e instanceof HttpError && e.status === 400)) throw e;
+    await logDesk(pool, { entity: "rulebook", entityId: id, action: "research", text: `What scores, getting it ready: not applied (${e.message.slice(0, 160)}); its answer waits on the desk`, userId: by });
+  }
+}
+
+/** The same with an answer someone pasted (getting it ready's free way). */
+export async function pasteScoresByItself(id: string, user: SessionUser, raw: unknown): Promise<void> {
+  const r = await row(id);
+  const answer = typeof raw === "string" ? raw.trim() : "";
+  if (!answer) throw new HttpError(400, "Paste the AI's whole answer");
+  if (answer.length > 200_000) throw new HttpError(400, "That's too long to be the answer");
+  const bad = readable("scores", answer);
+  if (bad) throw new HttpError(400, bad);
+  const staged = await stageAnswer(r, "scores", "paste", answer, user.id, null);
+  await applyScores(user.id, id, staged.id, {}, { everything: true });
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useRef, type MouseEvent, type PointerEvent, type ReactNode, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode, type RefObject } from "react";
 import { flushSync } from "react-dom";
 import { Dialog } from "@base-ui/react/dialog";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
@@ -17,6 +17,10 @@ import { ARRIVE, SPRING } from "./swipe-pager";
 // header and what's under it follow the finger, the neighbour's name coming in at the edge; past a fifth, or on a flick, they
 // slide out the way they're going and the next one slides in from the other side; the ends stretch and spring back. `foot`: what
 // stays in sight under what scrolls (Start a game's Start it: the user, 2026-11-01, couldn't tell to scroll down for it).
+// A phone's keyboard (the user, 2026-11-05, Add a show: results under the keyboard, or the field scrolled off the top): the
+// sheet is fixed to the layout viewport, which the keyboard doesn't shrink on Android or iOS; the browser pans the visual
+// viewport to the field instead, and the sheet's bottom stays under the keyboard. So the sheet follows the visual viewport
+// (useKeyboardLift, as the chat's composer does): its bottom sits on the keyboard and it's no taller than what's left.
 
 type Stepper = { prev: string | null; next: string | null; onStep: (dir: 1 | -1) => void };
 
@@ -47,6 +51,7 @@ export function Sheet({
   const body = useRef<HTMLDivElement>(null);
   const ghosts = useRef<HTMLDivElement>(null);
   const step = useStepSwipe(stepper, head, body, ghosts);
+  const keyboard = useKeyboardLift(open);
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
@@ -57,8 +62,14 @@ export function Sheet({
         <Dialog.Popup
           ref={popupRef}
           {...swipe}
+          data-keyboard={keyboard ? "" : undefined}
           className="nd-fixed-x fixed bottom-0 z-[81] flex max-h-[88dvh] flex-col rounded-t-[14px] bg-card text-foreground shadow-sheet outline-none transition-transform duration-[380ms] ease-[cubic-bezier(.16,1,.3,1)] motion-reduce:transition-none data-[ending-style]:translate-y-[105%] data-[starting-style]:translate-y-[105%]"
-          style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+          style={
+            keyboard
+              ? // Over the keyboard: its bottom on it, and no taller than the viewport that's left (the handle at the top of it).
+                { bottom: keyboard.lift, maxHeight: keyboard.height, paddingBottom: 0 }
+              : { paddingBottom: "env(safe-area-inset-bottom, 0px)" }
+          }
         >
           <div data-sheet-handle className="flex-none cursor-grab pb-1.5 pt-2.5" style={{ touchAction: "none" }} aria-hidden>
             <i className="mx-auto block h-1 w-10 rounded-full bg-input" />
@@ -120,6 +131,33 @@ export function Sheet({
 }
 
 const reduced = () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/** How far the phone's keyboard covers the bottom of the layout viewport while the sheet is open (`lift`), and the height of
+ *  the viewport it leaves; null with no keyboard up (a resize under about 120px is the browser's bars, not a keyboard). The
+ *  visual viewport's own scroll counts too: the browser pans it to a focused field, and the sheet has to follow. */
+function useKeyboardLift(open: boolean): { lift: number; height: number } | null {
+  const [k, setK] = useState<{ lift: number; height: number } | null>(null);
+  useEffect(() => {
+    const vv = typeof window !== "undefined" ? window.visualViewport : null;
+    if (!open || !vv) return;
+    const fit = () => {
+      const covered = window.innerHeight - (vv.height + vv.offsetTop);
+      const lift = Math.max(0, Math.round(covered));
+      const height = Math.round(vv.height);
+      setK((was) => (lift <= 120 ? null : was && was.lift === lift && was.height === height ? was : { lift, height }));
+    };
+    // Where the viewport stands as it opens (a keyboard already up), then as it changes.
+    const first = requestAnimationFrame(fit);
+    vv.addEventListener("resize", fit);
+    vv.addEventListener("scroll", fit);
+    return () => {
+      cancelAnimationFrame(first);
+      vv.removeEventListener("resize", fit);
+      vv.removeEventListener("scroll", fit);
+    };
+  }, [open]);
+  return open ? k : null;
+}
 
 /** The stepper's swipe on the header, and its slide out and in (the buttons use it too). */
 function useStepSwipe(stepper: Stepper | undefined, head: RefObject<HTMLDivElement | null>, body: RefObject<HTMLDivElement | null>, ghosts: RefObject<HTMLDivElement | null>) {

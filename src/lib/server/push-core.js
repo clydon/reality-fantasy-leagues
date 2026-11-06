@@ -30,7 +30,7 @@ const NOTIFICATION_TYPES = [
     sample: { title: "You got Rob and Maggie", body: "Sample League: waivers processed. Free agency is open until Episode 4 airs." } },
   { id: "waiverReminder", label: "Waiver reminders", description: "Six hours before claims are due, if you have someone to replace with no claim in or haven't revealed the episode yet. And your commissioner's nudges.",
     sample: { title: "Claims due at 8:00 PM EDT", body: "Sample League: you have someone to replace." } },
-  { id: "reminder", label: "Reminders before an episode", description: "A day and two hours before an episode airs, if your lineup, pick or a prediction is still open.",
+  { id: "reminder", label: "Reminders before an episode", description: "A day and two hours before an episode airs, if your lineup, pick or a prediction is still open. And when whoever runs your game sends one.",
     sample: { title: "Sample League: episode 9 airs in about 2 hours", body: "Set your episode 9 lineup (1 empty slot)" } },
   { id: "resultsDue", label: "Results to fill in", description: "Commissioners: the morning after an episode airs, if its results still aren't in.",
     sample: { title: "Sample League: episode 9 needs its results", body: "Nothing's in yet. Copy the question into any AI chat, paste its answer back, then apply." } },

@@ -4,11 +4,11 @@
 // ended talk show), reached through the dev server's `x-gys-listings` header.
 //   API:
 //   - the listings proxy: search (kind, network, country, year), one listing's season (on now, else next, else latest; how
-//     much has aired), a short query, the listings down (unavailable, still answering);
+//     much has aired; every season for the picker; one picked by number), a short query, the listings down (unavailable, still answering);
 //   - Add a show: a show made from its listing (not a game yet, its art, kind and terms, its season and every episode's air
 //     time as 'listing' rows, a special left out, where you are capped at what's aired), made once for everyone, the UK
 //     show with the same name kept apart, a show already here matched by name and linked (its own schedule untouched), a
-//     streaming drop, an ended show's latest season, by name (made once; a name already here followed), what's refused
+//     streaming drop, an ended show's latest season (and another of its seasons picked by number, made beside it), by name (made once; a name already here followed), what's refused
 //     (no show, a bad listing, the listings down for a new show; a known one still follows), ten new shows a day, a day-old
 //     listing season read again (never over research's own row);
 //   - the catalog has every show now (not only the curated ones), first run's wall only the curated; follows: the nudge's
@@ -17,7 +17,7 @@
 //   - the home's couch shows (what the couch watches that you don't; never a private follow) and the space's you.plays.
 //   In a real browser at --width (390 by default), as alex: The couch is watching (not on your list first; Add to my shows
 //   asks where you are and stays on the hub), the "you both watch" nudge (the most people first, Not now, then the next),
-//   Add a show (suggestions, the listings as you type, a listing's where you are, Add as a new show, already on your list),
+//   Add a show (suggestions, the listings as you type, a listing's where you are and its season picker, Add as a new show, already on your list),
 //   a show with no game (Not a game yet, the spoiler chip, Who's watching without anyone private, Make it a game's
 //   plate (check-new-make-it.js takes it from there), the ⋯ menu's Everything else: Watch privately and Remove from my shows; Where you are is the chip's Change), a show you don't follow (who watches
 //   it, Add to my shows); then a newcomer's first run picking a listing and a name. Nothing wider than the screen; no page
@@ -106,6 +106,15 @@ async function newcomer(pool, who, approved = true) {
     check(l1?.season?.number === 1 && l1.season.aired === 3 && l1.season.status === "airing" && l1.season.episodeCount === 8, "one listing: its season on now (not the undated one), three aired of eight", JSON.stringify(l1?.season));
     const l5 = (await anon("/api/listings/990005")).body;
     check(l5?.season?.number === 2 && l5.season.status === "completed" && l5.season.aired === 6, "an ended show: its latest season, every episode aired", JSON.stringify(l5?.season));
+    check(
+      (l5?.seasons ?? []).map((c) => `${c.number}:${c.status}:${c.episodeCount}`).join(",") === "2:completed:6,1:completed:6" && (l1?.seasons ?? []).length === 2,
+      "every season it has, latest first, for the picker (the undated one too)",
+      JSON.stringify(l5?.seasons)
+    );
+    const l5s1 = await anon("/api/listings/990005?season=1");
+    check(l5s1.status === 200 && l5s1.body?.season?.number === 1 && l5s1.body.season.aired === 6 && l5s1.body.episodes.length === 6 && l5s1.body.seasons.length === 2, "a season picked by number: that season, its episodes, the list still", JSON.stringify(l5s1.body?.season));
+    check((await anon("/api/listings/990005?season=9")).status === 404, "a season it doesn't have: 404");
+    check((await anon("/api/listings/990005?season=x")).status === 400, "a season that isn't a number: 400");
     check((await anon("/api/listings/999999")).status === 404, "a listing that isn't there: 404");
     tv.down = true;
     const down = await anon("/api/listings/search?q=zt%20drop");
@@ -161,6 +170,19 @@ async function newcomer(pool, who, approved = true) {
     const a6 = await as.casey.call("POST", "/api/me/shows", { listing: 990005, seenThrough: 4 });
     const oldShow = await showOf(990005);
     check(a6.status === 200 && a6.body.label === "ZT Old Show 2" && a6.body.seenThrough === 4 && oldShow.kind === "talk", "an ended talk show: its latest season", JSON.stringify(a6.body));
+    // Another season of it, picked by number (Where are you's picker, the user, 2026-11-05): made from the listing beside the
+    // one there; the same pick again follows that row; a season the listing doesn't have is refused.
+    const a7 = await as.sam.call("POST", "/api/me/shows", { listing: 990005, season: 1, seenThrough: 2 });
+    const oldSeasons = (await pool.query("SELECT id, season_number, status, listing_id FROM show_seasons WHERE show_id = $1 ORDER BY season_number", [oldShow.id])).rows;
+    check(
+      a7.status === 200 && a7.body.label === "ZT Old Show 1" && a7.body.seenThrough === 2 && oldSeasons.length === 2 && oldSeasons[0].season_number === 1 && oldSeasons[0].status === "completed" && oldSeasons[0].listing_id === 9900051 && a7.body.seasonId === oldSeasons[0].id,
+      "a season picked by number: made from the listing beside the latest, followed there",
+      JSON.stringify({ body: a7.body, seasons: oldSeasons })
+    );
+    const a7b = await as.casey.call("POST", "/api/me/shows", { listing: 990005, season: 1 });
+    check(a7b.status === 200 && a7b.body.seasonId === oldSeasons[0].id && (await pool.query("SELECT count(*)::int AS n FROM show_seasons WHERE show_id = $1", [oldShow.id])).rows[0].n === 2, "picked again by someone else: the same row, not another");
+    check((await as.sam.call("POST", "/api/me/shows", { listing: 990005, season: 9 })).status === 404, "a season the listing doesn't have: 404");
+    check((await as.sam.call("POST", "/api/me/shows", { listing: 990005, season: "one" })).status === 400, "a season that isn't a number: 400");
     const n1 = await as.alex.call("POST", "/api/me/shows", { name: "  ZT Typed   Show " });
     const typed = (await pool.query("SELECT s.*, ss.season_number, ss.status FROM shows s JOIN show_seasons ss ON ss.show_id = s.id WHERE s.name = 'ZT Typed Show'")).rows;
     check(n1.status === 200 && n1.body.made === true && typed.length === 1 && typed[0].tvmaze_id === null && typed[0].set_up_at === null && typed[0].season_number === 1 && typed[0].status === "upcoming", "by name: a show of that name, a first season with nothing known yet", JSON.stringify(n1.body));
@@ -340,7 +362,13 @@ async function newcomer(pool, who, approved = true) {
       check(/ZT Two · UK/.test(await sheet(page).locator("[data-hit]").nth(1).innerText()) || /ZT Two · UK/.test(await sheet(page).locator("[data-hit]").nth(0).innerText()), "the UK one told apart by its network");
       check((await sheet(page).locator("[data-add-new]").count()) === 0, "an exact name: no Add as a new show");
       await sheet(page).locator("[data-hit*='Love Shack']").filter({ hasText: /On your list/i }).click();
-      check(/already on your list/.test(await toasted(/already on your list/, page)), "his own: already on your list");
+      await sheet(page).locator("[data-where-on-list]").waitFor();
+      check(
+        /already on your list/.test(await sheet(page).locator("[data-where-on-list]").innerText()) && (await sheet(page).locator("[data-where-save]").isDisabled()) && (await sheet(page).locator("[data-where-season-pick]").count()) === 1,
+        "his own still opens Where are you: already on your list, no save, the picker for its other season"
+      );
+      await shot("on-your-list", page);
+      await sheet(page).getByRole("button", { name: /Back to search/ }).click();
       await sheet(page).locator("[data-add-input]").fill("zt old");
       await sheet(page).locator("[data-hit-kind]").first().waitFor();
       const old = await sheet(page).locator("[data-hit]").evaluateAll((els) => els.map((e) => `${e.getAttribute("data-hit")}:${e.getAttribute("data-hit-kind")}`));
@@ -370,6 +398,18 @@ async function newcomer(pool, who, approved = true) {
       await sheet(page).locator("[data-hit='ZT Late Bloomer']").click();
       await sheet(page).locator("[data-where-ask]").waitFor();
       check(/Haven't started/.test(await sheet(page).locator("[data-where-line]").innerText()) && (await sheet(page).locator("[data-stepper]").count()) === 1, "where you are, from the listing (three aired)");
+      // Its listing has two seasons (the undated 0 and 1): the picker, latest first; picking the other reads that season's
+      // row (the listing's own again after), the save still the season shown.
+      await sheet(page).locator("[data-where-season-pick]").waitFor();
+      const choices = await sheet(page).locator("[data-where-season-pick] option").evaluateAll((els) => els.map((o) => o.textContent));
+      check(choices.length === 2 && /^Season 1 · On now · 8 episodes$/.test(choices[0]) && /^Season 0 · Coming up · 2 episodes$/.test(choices[1]) && (await sheet(page).locator("[data-where-season='1']").count()) === 1, "the season picker: both seasons, latest first, the listing's own picked", JSON.stringify(choices));
+      await shot("season-picker", page);
+      await sheet(page).locator("[data-where-season-pick]").selectOption("0");
+      await sheet(page).locator("[data-where='ZT Late Bloomer 0']").waitFor({ timeout: 15000 });
+      check((await sheet(page).locator("[data-stepper]").count()) === 0 && (await sheet(page).locator("[data-where-season='0']").count()) === 1, "the other season: its row, nothing aired so no stepper");
+      await sheet(page).locator("[data-where-season-pick]").selectOption("1");
+      await sheet(page).locator("[data-where='ZT Late Bloomer 1']").waitFor({ timeout: 15000 });
+      check((await sheet(page).locator("[data-stepper]").count()) === 1, "and back to the listing's own");
       for (let i = 0; i < 3; i++) await sheet(page).getByRole("button", { name: /^Later in/ }).click();
       check(
         /Caught up through Episode 3/.test(await sheet(page).locator("[data-where-line]").innerText()) && (await sheet(page).getByRole("button", { name: /^Later in/ }).isDisabled()),

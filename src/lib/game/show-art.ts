@@ -198,7 +198,28 @@ export function matchCredit<T extends { names: string[] }>(name: string, credits
   };
   const mine = forms.map(ends).filter(Boolean);
   const firstLast = keyed.filter((k) => k.forms.some((f) => mine.includes(ends(f))));
-  return firstLast.length ? one(firstLast) : null;
+  if (firstLast.length) return one(firstLast);
+  // Looser, still one credit only (the user, 2026-11-05: a crew member the listing has a photo of went without one): the
+  // shorter name inside the longer one as whole words ("Kerry Titheradge" in "Captain Kerry Titheradge"), the same last name
+  // with one first name starting the other ("Mo Hassan" and "Mohamed Hassan"), or a credit that's just a first name.
+  const within = keyed.filter((k) => k.forms.some((f) => forms.some((m) => inside(f, m) || inside(m, f))));
+  if (within.length) return one(within);
+  const short = keyed.filter((k) => k.forms.some((f) => forms.some((m) => shortFirst(f, m))));
+  return short.length ? one(short) : null;
+}
+
+/** Whether `part`, two words or more, is in `whole` as whole words. */
+function inside(whole: string, part: string): boolean {
+  return part.includes(" ") && whole !== part && ` ${whole} `.includes(` ${part} `);
+}
+
+/** The same last name, and first names where one starts the other (two letters at least): "mo hassan" and "mohamed hassan". */
+function shortFirst(a: string, b: string): boolean {
+  const pa = a.split(" ");
+  const pb = b.split(" ");
+  if (pa.length < 2 || pb.length < 2 || pa[pa.length - 1] !== pb[pb.length - 1]) return false;
+  const [fa, fb] = [pa[0], pb[0]];
+  return fa !== fb && Math.min(fa.length, fb.length) >= 2 && (fa.startsWith(fb) || fb.startsWith(fa));
 }
 
 /**

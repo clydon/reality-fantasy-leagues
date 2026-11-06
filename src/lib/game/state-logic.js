@@ -3012,7 +3012,11 @@ class ActiveRosterLogic {
     if(ev && ev.couch && !formatOf(state).events.some(e => e.id === ev.type)) return 0;
     const units = ev && Number.isFinite(ev.units) && ev.units > 0 ? ev.units : 1;
     const points = ActiveRosterLogic.pointsFor(state, ev.type);
-    return units === 1 ? points : points * units;
+    if(units === 1) return points;
+    // A per-amount moment's unit (the rulebook's `per`, compiled as the event's `unit`): the amount counts per that many.
+    const def = formatOf(state).events.find(e => e.id === ev.type);
+    const unit = def && Number.isFinite(def.unit) && def.unit > 0 ? def.unit : 1;
+    return Math.round(points * units / unit * 1000) / 1000;
   }
   // A lineup's starters (the spec's count.start) and its bench (the rest of the team); none outside a Weekly Lineup.
   static activeSlots(state){
@@ -7843,6 +7847,29 @@ class GhostLogic {
   static markCaughtUp(state, playerId, seenThrough){
     const lj = GhostLogic.lateJoinOf(state, playerId);
     if(lj && lj.catchingUp && seenThrough >= SpoilerLogic.latestWithResults(state)) lj.catchingUp = false;
+  }
+  // ---- A game at your own pace (docs/PLAN-own-pace-games.md): every seat a late joiner from the start ----
+  // A game started from an episode that has aired (a finished season, or one you're behind on), where everyone plays one
+  // episode at a time, whenever they watch: settings.ownPace, written when it's made. Nothing else about it is special: each
+  // seat is a late joiner catching up (the class note), computer players included, so every copy, move and reveal is the one a
+  // late joiner has. Nothing holds anyone back: the words say where the others are (the sheet's), nothing locks.
+  static ownPace(state){ return !!(state.settings && state.settings.ownPace); }
+  // Anyone still catching up, a computer player too. A game on a finished season is over on the full state at once
+  // (seasonEnded), not for them: whatever reads "over" on the full state asks here first.
+  static anyCatchingUp(state){
+    return (state.players || []).some(p => !p.disabled && GhostLogic.isCatchingUp(state, p.id));
+  }
+  // Every seat starts catching up at `from`, their mark the episode before: run once the season's results are in (makeLeague's
+  // after). No ghost: they're on the couch in the open. A computer player's mark lives here (it has no membership row);
+  // bot-logic.js catchUpTo moves it as people reveal.
+  static paceAll(state, from){
+    const start = Math.max(1, from);
+    const latest = SpoilerLogic.latestWithResults(state);
+    (state.players || []).forEach(p => {
+      if(p.disabled) return;
+      p.lateJoin = { startEpisode: start, catchingUp: start - 1 < latest, seenThrough: start - 1 };
+    });
+    state.settings.ownPace = true;
   }
   // The commissioner brings a ghost into the league: visible to everyone, in the waiver order. Their team and points come with them. In an exclusive-ownership league a
   // castaway they share with someone stays shared -- the one place exclusivity bends.

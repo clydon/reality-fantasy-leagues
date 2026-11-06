@@ -54,7 +54,7 @@ export interface BotResearchRun {
   id: string;
   episode: number;
   slot: string;
-  kind: "quick" | "full" | "schedule" | "trivia" | "bingo" | "tiebreak" | "rulebook";
+  kind: "quick" | "full" | "schedule" | "trivia" | "bingo" | "facts" | "tiebreak" | "rulebook";
   startedAt: string;
   finishedAt: string | null;
   ok: boolean | null;

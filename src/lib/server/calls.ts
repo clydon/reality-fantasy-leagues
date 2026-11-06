@@ -69,6 +69,8 @@ export interface EpisodeCalls {
   scope: "couch" | "solo";
   /** Nobody else on the couch shares the show: your own say settles a talk show's call. */
   alone: boolean;
+  /** At your own pace (docs/PLAN-own-pace-games.md part 2): open for an episode that's aired, until you've seen it. */
+  paced: boolean;
 }
 
 /** Someone who follows the call's season openly (guard.ts visibleFollows): a condition on `c`. */
@@ -248,6 +250,17 @@ interface Context {
   /** Nobody else on the couch shares the show: your own say settles a talk show's call. */
   alone: boolean;
   cast: SeasonCastRow[];
+  /** Watched at your own pace (docs/PLAN-own-pace-games.md part 2: every episode out, or a streaming drop): an aired episode's
+   *  calls are open to whoever is on it (has seen the one before, not it), on the honour system, as bingo's ticks are; they close
+   *  when you've seen it. */
+  paced: boolean;
+}
+
+/** A season watched at your own pace: finished, every listed episode aired, or dropped all at once. */
+export function pacedSeason(header: SeasonHeader, schedule: SeasonSchedule | undefined, now: Date): boolean {
+  if (header.status === "completed" || header.release === "binge") return true;
+  const eps = schedule?.episodes ?? [];
+  return eps.length > 0 && eps.every((e) => !!e.airAt && Date.parse(e.airAt) <= now.getTime());
 }
 
 async function context(user: SessionUser, seasonId: string, couchId: string | null, n: number, now: Date): Promise<Context> {
@@ -267,8 +280,12 @@ async function context(user: SessionUser, seasonId: string, couchId: string | nu
   const open = openEpisode(schedule, now);
   if (!aired && (!open || open.number !== n)) throw new HttpError(409, open ? `Calls are open for Episode ${open.number}` : `Episode ${n} has no air time yet`);
   const alone = !couch || (await othersSharing(couch, seasonId, user.id)) === 0;
-  return { header, book, talk: kindOf(book.blocks) === "talk", mark: seen === EVERYTHING ? Number.POSITIVE_INFINITY : seen, airAt, aired, open, couch, alone, cast };
+  const paced = pacedSeason(header, schedule, now);
+  return { header, book, talk: kindOf(book.blocks) === "talk", mark: seen === EVERYTHING ? Number.POSITIVE_INFINITY : seen, airAt, aired, open, couch, alone, cast, paced };
 }
+
+/** Calls for an aired episode you're on, at your own pace: open until you've seen it. */
+const pacedOpen = (ctx: Context, n: number) => ctx.paced && ctx.aired && ctx.mark === n - 1;
 
 /** One episode's calls, as this viewer may see them. */
 export async function episodeCalls(user: SessionUser, seasonId: string, couchId: string | null, nIn: unknown, now = new Date()): Promise<EpisodeCalls> {
@@ -280,9 +297,11 @@ export async function episodeCalls(user: SessionUser, seasonId: string, couchId:
 async function readCalls(user: SessionUser, seasonId: string, n: number, ctx: Context): Promise<EpisodeCalls> {
   const { book, talk, mark, aired, couch } = ctx;
   // Calling needs the episode before it seen (its cast pick says who's still in); seeing how it went needs the episode itself.
-  const behind = !aired && !talk && mark < n - 1;
-  const showsOut = aired ? mark >= n : !behind;
-  const facts = showsOut && !talk ? await episodeFacts(seasonId, book, aired ? n : n - 1, ctx.cast) : new Map<number, EpisodeFacts>();
+  // At your own pace an aired episode reads as if it airs tonight for whoever is on it (pacedOpen), and as behind before that.
+  const onIt = pacedOpen(ctx, n);
+  const behind = (!aired || ctx.paced) && !talk && mark < n - 1;
+  const showsOut = onIt || (aired ? mark >= n : !behind);
+  const facts = showsOut && !talk ? await episodeFacts(seasonId, book, aired && !onIt ? n : n - 1, ctx.cast) : new Map<number, EpisodeFacts>();
   const questions = showsOut ? callQuestions(book, n, talk || !ctx.cast.length ? null : stillInAt(ctx.cast, facts, n)) : [];
   const [{ rows: mine }, { rows: count }] = await Promise.all([
     pool.query("SELECT question, answer FROM episode_calls WHERE user_id = $1 AND season_id = $2 AND episode = $3", [user.id, seasonId, n]),
@@ -295,8 +314,8 @@ async function readCalls(user: SessionUser, seasonId: string, n: number, ctx: Co
     seasonId,
     episode: n,
     airAt: ctx.airAt,
-    status: aired ? "closed" : behind ? "behind" : "open",
-    catchUp: behind ? n - 1 : aired && mark < n ? n : null,
+    status: onIt ? "open" : behind ? "behind" : aired ? "closed" : "open",
+    catchUp: behind ? n - 1 : aired && mark < n && !onIt ? n : null,
     questions,
     mine: Object.fromEntries(mine.map((r) => [r.question, r.answer])),
     verdicts: null,
@@ -305,6 +324,7 @@ async function readCalls(user: SessionUser, seasonId: string, n: number, ctx: Co
     says: null,
     scope: couch ? "couch" : "solo",
     alone: ctx.alone,
+    paced: onIt,
   };
   if (!aired || mark < n) return out;
 
@@ -376,7 +396,7 @@ export async function callEpisode(
   if (body.calls === undefined && body.said === undefined) throw new HttpError(400, "calls or said required");
   if (body.calls !== undefined) {
     if (!isMap(body.calls)) throw new HttpError(400, "calls must be { question: answer }");
-    if (ctx.aired) throw new HttpError(409, `Calls for Episode ${n} closed when it started`);
+    if (ctx.aired && !pacedOpen(ctx, n)) throw new HttpError(409, ctx.paced && ctx.mark >= n ? `You've seen Episode ${n}: its calls are closed` : `Calls for Episode ${n} closed when it started`);
     const now1 = await readCalls(user, seasonId, n, ctx);
     if (now1.status === "behind") throw new HttpError(403, `See Episode ${n - 1} first: its calls say who's still in`);
     for (const [key, answer] of Object.entries(body.calls)) {

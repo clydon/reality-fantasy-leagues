@@ -21,6 +21,119 @@ and the Neon password rotation (deferred; steps there). Fixed 2026-10-24: the ch
 end); GitHub Actions, stopped since 2026-10-19, runs again. Vercel builds production only (Preview shared
 production's database).
 
+## Games at your own pace (2026-11-05; no migration; docs/PLAN-own-pace-games.md)
+A game on a season that's already aired (The Challenge 42 was the ask), or one you're behind on: Start a game now offers
+*Where you are · Episode N* and *From the top*, and every seat (computer players too) is a late joiner from the start
+(`GhostLogic.paceAll`), each playing one episode at a time from the catching-up strip and sheet. Nothing locks anyone: the
+strip and the reveal button say where the others are ("riley · Ep 4", "you'll be 2 ahead of riley"). Bots pick for an episode
+the moment the first person reveals it (`bot-logic.js catchUpTo`). **Part 1 = Survival Pool only**; part 2 keys Bingo, Weekly
+Calls and Trivia to *your next* episode and adds Watch it together; part 3 the drafts (exclusive Outlast needs waivers and swaps
+resolved per person's episode: the user's caveat); part 4 the Prediction Sheet. Check: `node scripts/dev-test/check-own-pace.js`
+(a real finished season in the local DB, read only; zt rows only).
+
+## Add a show: the sheet over the keyboard, and a season picker (2026-11-05; branch `ccr-d97da793-kyihwn`, no migration)
+The user, on an Android phone: as they typed in Add a show the results were sometimes under the keyboard and sometimes the field
+was scrolled off the top; and Below Deck came up as its 13th season with no way to an earlier one. **The keyboard:** the sheet
+(`src/new/ui/sheet.tsx`) is fixed to the layout viewport, which a phone's keyboard doesn't shrink; the browser pans the visual
+viewport to the focused field instead, so the sheet's bottom stayed under the keyboard and its top went off the screen. Now
+`useKeyboardLift` (the chat composer's way, `show/chat.tsx`) follows `window.visualViewport`: with a keyboard up (the viewport
+covered by more than 120px, its own scroll counted) the sheet's bottom sits on the keyboard and it's no taller than what's
+left (`data-keyboard` on the popup while it is). Every sheet, not only Add a show. **The season picker:** Where are you
+(`watching/where.tsx` `WhereAsk`'s `pick`, `SeasonPicker`: a native select under the row, "Season 12 · 2024 · 18 episodes",
+"Season 3: Battle of the Eras · 2024", "Season 14 · Coming Jan 2027"; the pure half `seasonChoices`/`seasonChoiceLine` in
+`lib/game/listing.ts`, tests/listing.test.js) when the show's listing has more than one season. From a listing row
+(`sheets.tsx` `ListingWhere`): the listing's answer now carries every season (`ListingSeason.seasons`) and `?season=N` on
+`/api/listings/[id]` answers that season (its aired count, episodes, poster as the row's art); the last season's row stays,
+dimmed, while the next is read (`keepPreviousData`), and the save sends `season` to `POST /api/me/shows`, which follows that
+number of the show (made from the listing beside the one there, or the row already here: `seasonHere(.., chosen)`, never an
+admin's other season when a number was picked). From a season that's here (`CatalogWhere`, a catalog row with a `tvmazeId`;
+`CatalogSeason.seasonNumber` is new for it): the picker lists the listing's seasons too; another one here is its own row (and
+one that isn't goes to the listing path; a row already on your list opens Where are you all the same (the user, 2026-11-05: so
+another season can be picked from it), saying so with no save (`data-where-on-list`; `WhereAsk`'s `onList`), as does picking
+a season that's on your list from the listing path. Not in the tour's practice. **Not run in a
+browser** (no local database here): `scripts/dev-test/check-new-watching.js` has the API cases (the list, `?season=`, add by
+number, 404/400) and a browser step on the picker (ZT Late Bloomer's two seasons); run it before shipping. The keyboard
+lift can only be seen on a phone: open Add a show, type, and the results should sit above the keyboard with the field in
+view. `npm test`, `tsc` and `eslint` clean.
+
+## A reality series' cast: names from the wiki, photos from the listings (2026-11-05; branch `ccr-7c18a4ac-smuvdh`, no migration)
+The user added Below Deck 13 and Getting it ready gave it 40 crew, Captain Lee and Ben Robinson among them. Make it a game
+had classed it a series (reality), and a series' cast came from TVmaze's cast of the *show* (`/shows/{id}/cast`): everyone
+who was ever its main cast, with no season to it. Fine for a scripted show's characters, the whole run of a reality series
+whose cast turns over, and the "not this season" check only ever ran on our bot's answers. Now (`make-game.ts listingCast`)
+only a scripted series or a talk show takes the listing's cast; a reality series is asked for like a competition, through
+the cast prompt anchored to the season. The prompt (`cast-prompt.js`) says where the names come from: the Wikipedia article
+for this season of the show (its cast or crew section), else the show's fan wiki's season page, nobody from an earlier
+season; photoUrl may be left "". Photos come from the season's credits first (TMDB's, else TVmaze's premiere guest cast)
+for everyone they have, the answer's own only for the rest, in Make it a game's review (`withPhotos`) and the desk's Send
+(`sendCast`) alike. **Below Deck 13's cast as it stands is still the wrong one:** on the desk, its Cast page's Ask our bot
+stages the season's real crew against it (the 30-odd who aren't in it show as removals), then Send. Not tested against a
+live bot from this session (no network to TVmaze, TMDB or the bot): `npm test` covers the prompt and the listing reader.
+
+**Then the photos (same day):** the ten crew came back with three photos. TMDB's season had three; the prompt had said
+photoUrl may be "" (put back: a photo of each person, "" only when there's none); and the first, wrong cast had shown a
+photo of someone the right cast then went without, so the listings had it all along. Two general fixes, `show-art.ts`:
+**photoTiers**, where a cast's photos come from in order, each read only while someone's still without one: this season's
+credits (TMDB's, then TVmaze's premiere guest cast), then the *whole show's* (TMDB's `/tv/{id}/aggregate_credits`, then
+TVmaze's `/shows/{id}/cast`), a photo of the right person being right whichever season it was taken for once the name's
+matched; used by `fillCastPhotos` (the sweep, Find again) and `castPhotosFor` (the review, Send) alike. And **matchCredit**
+(`src/lib/game/show-art.ts`) matches looser as a last step, still one credit only: the shorter name inside the longer as
+whole words ("Kerry Titheradge" in "Captain Kerry Titheradge"), the same last name with one first name starting the other
+("Mo Hassan", "Mohamed Hassan"). Below Deck 13's blanks fill on the next daily sweep, or now from the desk's Art and photos
+page, Find again. Two more free calls a season at most (HOSTING.md's TMDB and TVmaze notes stand).
+
+**Then a lineup that matches (same day).** With the listings' photos first, the ten were a mix: Fraser's an old headshot (TMDB
+and TVmaze keep one photo a person, not one a season), the rest this season's from the network's cast page. The user wants
+one set, all from this season. So the answer's photos come first again, everywhere (`sendCast`, `withPhotos`), the listings'
+only for anyone the answer left blank; the prompt says the photos must match, all from ONE page of this season's official
+cast photos (the network's "meet the cast" page for the season, else the wiki's), never an earlier season's; and an answer's
+photo of someone already in the cast is now a change on the desk's Cast page (`desk-cast-diff.ts` k "photo",
+`listingPhoto`): replaced on Send when theirs is a listing's (TMDB's, TVmaze's, a wiki icon) or none, never one someone
+chose or the answer's own from before, with a row in What changed (old and new face), a line in the summary, and Undo. So
+**Below Deck 13's lineup is fixed from the desk: its Cast page, Ask our bot, then Send** (Fraser's and the other listing
+photos make way for the season's). The daily sweep still never touches a photo that isn't a listing's. **Fixed the same
+night:** `stage` (our bot's answer or a paste, staged) and `settle` (after an Override) compared without photos, so an answer
+whose only news was the photos was written as "nothing changed" and marked sent unseen; both count photos now.
+
+## Remind everyone from Backstage (2026-11-05; branch `ccr-12722a64-8wwo5w`, no migration)
+The user asked whether players are reminded of open to-dos before an episode and whether a commissioner can force one. They
+were already reminded on their own (`db/reminders.js`, hourly: a day and two hours before an episode airs, one push per game
+listing what's open, each window once); nothing let whoever runs a game send one by hand. Now Backstage's home has a
+**Reminders** card between Needs you and the pages: how many people still have a move open in the games you run here (the
+app's own to-do, `due-moves.ts`, so it never says something Up next doesn't), when the next episode airs, and **Remind them**:
+one push per person listing every game's moves (`reminder` type; its Settings description says so now), never yourself.
+Once every four hours per person (`reminder_log` kind `manual`, its window the time sent); inside that the card says they've
+all been reminded and the button is off. Pure half `src/lib/server/remind-moves.js` (tests/remind-moves.test.js), the read and
+send `backstage-remind.ts`, route `/api/seasons/[seasonId]/backstage/remind` (GET the count, POST the send). **Not run in a
+browser** (the cloud session had no local database): `scripts/dev-test/check-backstage-remind.js` is written for it (API and
+the card on new-fixture.js); run it before shipping. `npm test` 1263 pass, `tsc` and `next build` clean.
+
+## Research on a rulebook through our bot: Check for changes, What scores (2026-11-04/05; branch `ccr-dc484e47-2hp97o`, migrations 0432 to 0434)
+The user found the desk rulebook's Check for changes still copy-and-paste only, and asked for a second pass, **What scores**: find
+the moments the rulebook is missing, and score every moment so strong players score high, poor players score low, a poor player
+never sinks a team, weekly totals differ, and **the same moment gets the same value every time**. Built: the rulebook page's
+Research section (two rows, each a sheet with **Ask our bot** first and Paste it under it, the shared Ask an AI sheet); asks go
+through the desk's Run now queue (`desk_runs` kinds `rulebook` and `scores`), answers are staged in `rulebook_answers` and wait on
+the row as what they'd change (What scores' as a **pick list**: additions first, then every moment with now and new, a check per row to accept
+or decline, Use N changes puts the accepted ones in the draft; Put away). **2026-11-05:** rarity on the ladder (mostEpisodes +0,
+someEpisodes +0.5, onceOrTwice +1, on earned and above only; never from this season's counts); What scores reads the whole season and
+**holds** a new-this-season moment past the admin's own Where I am mark with no trace of it (the desk's one spoiler-safe place: the
+admin plays too), settling a row at a time (0434); Check for changes keeps Up to episode (0433). **2026-11-06:** outcomes priced, not stacked (a
+winner's rung includes the finalist it reaches, immunity includes the zero votes it brings: `chainsOf` and research's `implies`), and
+the fourth promise tested, the finale under two best weeks, in both ownership modes; then the shared step written into both halves (rarity counts double in a shared league),
+a unit on per-amount moments (the Below Deck tip scored per dollar: set its per to 1,000 and save as a fix), and the read-only "How the
+scoring is playing" row on the desk rulebook. The survivoR check wasn't run: the dataset isn't in the repo. **Then:** the numbers came out of the first prompt and What scores
+became a step of getting a show ready (0435; applied whole, nobody plays it yet); the desk's Save applies straight away, a fix plus
+"the show changed from Episode N" for a moment new to this season, so How it works never shows it early. **Stage two, built the same day:** the
+commissioner's own What scores in Backstage › Scoring rules on the couch's own copy (`our-scores.ts`; Accept · Adjust · Decline a row, the
+games scored again with Undo; held by their own mark). Check: `check-new-our-scores.js`. **Also the same day:** the Cast tab's story sheet reads by episode, newest first, one line a moment
+with its own points (cast-stats.ts events carry points and units now; DESIGN.md › A castaway's story). Scoring is a **ladder** of eleven rungs with
+fixed points (`src/lib/game/formats/rulebook-scores.js` LADDER): the AI only says which rung a moment stands on; the review takes
+the rung's points. The current episode isn't an input (the ladder judges what a moment is); how far the season has got is, for
+finding what's missing. **Read [PLAN-rulebook-research.md](PLAN-rulebook-research.md).** Checks: `tests/rulebook-scores.test.js`,
+`scripts/dev-test/check-desk-rulebook-research.js` (ALL PASS at 390, the stand-in bot); `check-new-desk.js`'s Check for changes
+step moved to the new sheet. **Live 2026-11-04** (`ae013ef`, master, the user's go-ahead). **Not asked of the real bot yet** (no bot in
+that session): the first real What scores pass on The Challenge 42 is the user's, from the desk. `browser.js` now runs off Windows too (a cloud session's container).
 ## React with a GIF (2026-11-01; branch `reactions`, lane `rfl-reactions`, migration 0162)
 The user found Rate it's stars no fun: an episode's reaction is now **one GIF you search for** (KLIPY, the chat's picker), and
 **Rate it is shelved** (stars, couch verdict, taste twin, rating accolades, Couch verdicts; `episode_ratings` kept). The GIF
@@ -230,6 +343,27 @@ it doesn't go in the menu.** The audit (checked in the code, 2026-10-30), per ol
   full target first (A5, the capability tracker, then A6–A15), today's games rebuilt on it (R1–R3), the UI last (U0–U1), the
   GPT's words alongside (G1), and live sports folded in as track L. Lanes (worktree + branch + database + port + session loop):
   [PARALLEL-SESSIONS.md](PARALLEL-SESSIONS.md); season tapes and playtests: [PLAN-playtests.md](PLAN-playtests.md).
+- **Merged and pushed 2026-11-05, 9:26 PM: the engine's A13, trivia and episode facts** (`1d4b20a0`, merging the engine's `2a4607dc`;
+  migrations 0204 and 0436, rehearsed on the Neon branch `rehearse-a13-2026-11-05`; the snapshot to roll back to is
+  `pre-a13-2026-11-05`, auto-deleted after 7 days). Part 1: trivia in a game (the round before each episode from the bot's
+  batch written after the episode before, options shuffled the same for everyone; the trivia sheet holds a batch back from
+  a trivia game's players until their round closes, and a batch rewritten after its round closed is added to). Part 2:
+  episode facts, who says the title quote: a section of every show's research (its words approved by the user,
+  2026-11-05), a game's fact question accepted only where research's measured rate on the show is reliable (Survivor
+  today). Part 2b: the facts run, 12 h 30 min after an episode ends, asking only what research wasn't sure of. **The merge
+  found** that 0204 and What scores' 0432 each set desk_runs' kind check with their own list (0204 would have dropped
+  'rulebook' and 'scores'): 0204 now lists every kind, and 0436 sets the full list wherever the files ran in another order.
+  Checked on the merged tree (rfl-merge, branch merge-a13, on origin's What scores commits): unit tests 1303, eslint on the
+  18 changed source files, `next build` with its type-check, `golden.js --before=origin/master` (7 seasons, 160 games,
+  19,361 reads, every one the same), the Survivor 51 rehearsal (`season-forward.js rehearse --scenario=realistic,rough,dst
+  --before=origin/master` from the 2026-10-30 backup: every invariant holds, flag off and on read the same, and the live
+  engine and the merge read every one of 2,856 reads a scenario the same), and the Neon rehearsal (0204
+  and 0436 applied, `[check] all good`, rulebooks backfilled, the game-specs check PASS on all 5 leagues). **Noticed:** the
+  rulebooks check (its flag stays off) now FAILs on 5 leagues' season rulebooks (v2/v3: scores, events, catalog) and on 3
+  seasons (their rulebook isn't the format research reads), where on 2026-10-30 only the test couch's 3 games did: the
+  points changed through What scores, not A13; for What scores' owner. Also in the push: the status plate's test made safe
+  across clock changes, and track C in the plan. **The user's call:** whether Survivor 51's own schedule gets the facts run
+  (the desk's Inbox lists it as missing; the lane recommends a few weeks of it before setting the reliability bar).
 - **Merged and pushed 2026-10-31, 12:31 AM: the engine's A12 (parts 2–4c) and R1 part 3** (`075d193e`, merging the engine's
   `bebf4101`; no migration, so no Neon rehearsal). R1 part 3 is the user's pool finale: only the winner survives it (on a night the
   results record a winner, everyone else in the episode went home, `nightOf`), which changes Survivor 51's Survival Pool on
@@ -327,10 +461,10 @@ it doesn't go in the menu.** The audit (checked in the code, 2026-10-30), per ol
   **Waiting on the user:** restart the main bot (8765) on the new code, then the tapes move back to it and 8766 goes. The
   playtest branch is merged into master (`2c945d31`).
 - **Neon is on Launch** since 2026-10-28 (the user upgraded it at 98.3% of the free transfer; about $5 a month; HOSTING.md).
-- **On branches, not merged:** the engine from A13 on (`engine`: A13 done, A14 parts 1-2 done, part 2b next), track L's live
-  sports (`sports`: L5 done, its next session after the weekly usage reset, Thu 2026-11-05 3 PM ET). **The lanes are held
-  by the usage cap until then** (the user, 2026-10-31: lanes pause at 75% of the week; a probe found 88% on 2026-11-01:
-  [PARALLEL-SESSIONS.md](PARALLEL-SESSIONS.md), "The usage cap"). Waiting on the
+- **On branches, not merged:** the engine from A14 on (`engine`: A14 parts 1-2 built; since 2026-11-05 track C first, then
+  A14's rest), track L's live sports (`sports`: L5 done, restarting after the weekly usage reset). The lanes run at high
+  since 2026-11-05 (the user; C2 at xhigh) under the usage cap ([PARALLEL-SESSIONS.md](PARALLEL-SESSIONS.md), "The usage
+  cap"). Waiting on the
   user: S3 after two matching episodes; which rule a preset meets (open until the engine is complete: the user, 2026-10-30);
   the format-change design session after A12 (A12's Noticed lists); the watch along's concept before A15; and the rule
   questions in the plan's "Where the engine is headed". Decided 2026-10-30 and live: a pool's finale, only the winner

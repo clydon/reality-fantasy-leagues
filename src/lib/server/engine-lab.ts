@@ -17,6 +17,8 @@ import { leaguePhases, scheduleOf, settleIn } from "./phase-starts";
 import { seasonSchedules } from "./schedule";
 import { startFrom } from "./start-game";
 import { seatIn } from "./stages";
+import { triviaWritten } from "./trivia-key";
+import { factContext } from "./episode-facts";
 
 // The engine lab (docs/PLAN-start-a-game-gpt.md step A5; GET/POST /api/desk/lab): an admin's plain page for trying the engine's
 // pieces on a real season before the UI exists. Pick a season, then paste a spec or pick a row of the capability tracker
@@ -127,7 +129,10 @@ async function rulesOn(season: LabSeasonRow, couchId: string | null): Promise<{ 
     ? (await pool.query("SELECT id FROM leagues WHERE couch_id = $1 AND deleted_at IS NULL AND state->'settings'->>'showId' = $2 AND state->'settings'->>'wikiSeason' = $3", [couchId, season.slug, String(season.number)])).rows.map((r) => r.id as string)
     : [];
   const copy = await copyOf(here);
-  return { ctx: { ...contextOf(await questionBook(season.id, copy)), show: season.label }, copyId: copy?.id ?? null };
+  // A13: and whether the season's research writes trivia (a trivia question's key); part 2, what research has returned of each
+  // episode fact on the show.
+  const [book, trivia, facts] = await Promise.all([questionBook(season.id, copy), triviaWritten(season.id), factContext(season.slug)]);
+  return { ctx: { ...contextOf(book), trivia, facts, show: season.label }, copyId: copy?.id ?? null };
 }
 
 /** A12 part 4b: a season by its show's id and number (a stage's `season`), set up as a game, or null. */

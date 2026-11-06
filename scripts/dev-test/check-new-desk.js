@@ -436,11 +436,13 @@ const REAL_RESULTS = `SELECT md5(string_agg(d.id::text || d.status || COALESCE(d
     await d.page.locator("[data-save-sheet]").waitFor();
     check((await d.page.locator("[data-impact]").innerText()).includes("still play by the show's rules"), "Save: it says the leagues aren't on it yet");
     await shot(d.page, "save-fix");
+    // The version before the fix: confirming a phase and undoing it each moved it (saveChain), so the fix is one more.
+    const beforeFix = (await pool.query("SELECT version FROM rulebooks WHERE id = $1", [rb])).rows[0].version;
     await d.page.locator("[data-save-confirm]").click();
     await toasted(d.page, /Fixed/);
-    await d.page.locator("[data-desk-rulebook='2']").waitFor({ timeout: 20000 });
+    await d.page.locator(`[data-desk-rulebook='${beforeFix + 1}']`).waitFor({ timeout: 20000 });
     const fixed = (await pool.query("SELECT version, blocks FROM rulebooks WHERE id = $1", [rb])).rows[0];
-    check(fixed.version === 2 && fixed.blocks.segments.find((s) => s.id === "rewardChallenge").often === "everyEpisode", "fixed in the rulebook itself: version 2", `v${fixed.version}`);
+    check(fixed.version === beforeFix + 1 && fixed.blocks.segments.find((s) => s.id === "rewardChallenge").often === "everyEpisode", "fixed in the rulebook itself: the version moved on", `v${fixed.version}`);
 
     // The show changed from Episode 6: a new advantage.
     await d.page.locator("[data-part='twists']").click();
@@ -460,7 +462,7 @@ const REAL_RESULTS = `SELECT md5(string_agg(d.id::text || d.status || COALESCE(d
     await shot(d.page, "save-show-changed");
     await d.page.locator("[data-save-confirm]").click();
     await toasted(d.page, /the show changed from Episode 6/);
-    await d.page.locator("[data-desk-rulebook='3']").waitFor({ timeout: 20000 });
+    await d.page.locator(`[data-desk-rulebook='${beforeFix + 2}']`).waitFor({ timeout: 20000 });
     check((await d.page.locator("[data-timeline] [data-edit='6']").innerText()).includes("Block a Vote"), "the Timeline: Episode 6, + New advantage: Block a Vote");
     const edits = (await pool.query("SELECT kind, from_episode, status FROM rulebook_edits WHERE rulebook_id = $1 AND source = 'admin'", [rb])).rows;
     check(edits.length === 1 && edits[0].from_episode === 6 && edits[0].status === "in_force", "a show change from Episode 6, in force", JSON.stringify(edits));
@@ -470,7 +472,7 @@ const REAL_RESULTS = `SELECT md5(string_agg(d.id::text || d.status || COALESCE(d
     await d.page.locator("[data-live='off']").click();
     await toasted(d.page, /play by this rulebook now/);
     const onIt = (await pool.query("SELECT slug, (state->'settings'->'rulebook'->>'version')::int AS v FROM leagues WHERE id = ANY($1::uuid[])", [zt.map((k) => L[k])])).rows;
-    check(onIt.length === 4 && onIt.every((r) => r.v === 3), "all four zt games play by it, version 3", JSON.stringify(onIt));
+    check(onIt.length === 4 && onIt.every((r) => r.v === beforeFix + 2), "all four zt games play by it, at the show change's version", JSON.stringify(onIt));
     check((await pool.query("SELECT value FROM app_settings WHERE key = 'rulebooks'")).rows[0]?.value !== true, "the rulebooks flag is still off (one season is)");
     const howJ = (await as.jordan.call("GET", `/api/seasons/${sid}/how-it-works${A}`)).body.how;
     check(howJ.updates.hidden?.from === 6 && !howJ.updates.shown.some((u) => u.episode === 6), "How it works for jordan (seen 5): one update from Episode 6, counted, not told", JSON.stringify(howJ.updates));
@@ -487,7 +489,7 @@ const REAL_RESULTS = `SELECT md5(string_agg(d.id::text || d.status || COALESCE(d
     back.segments.find((s) => s.id === "rewardChallenge").often = "someEpisodes";
     const fix2 = await as.desk.call("POST", `/api/desk/rulebooks/${rb}`, { action: "save", kind: "fix", blocks: back });
     check(fix2.status === 200 && fix2.body.push.written === 4, "a fix after it's live reaches the four games", JSON.stringify(fix2.body.push));
-    check((await pool.query("SELECT count(*)::int AS n FROM leagues WHERE id = ANY($1::uuid[]) AND (state->'settings'->'rulebook'->>'version')::int = 4", [zt.map((k) => L[k])])).rows[0].n === 4, "at version 4");
+    check((await pool.query("SELECT count(*)::int AS n FROM leagues WHERE id = ANY($1::uuid[]) AND (state->'settings'->'rulebook'->>'version')::int = $2", [zt.map((k) => L[k]), beforeFix + 3])).rows[0].n === 4, "at the second fix's version");
     const showLine = fix2.body.page.history.find((h) => h.undoable && /show changed/.test(h.text));
     check((await as.desk.call("POST", `/api/desk/changes/${showLine.id}/undo`)).status === 200, "the show change undone from History");
     check((await pool.query("SELECT status FROM rulebook_edits WHERE rulebook_id = $1 AND source = 'admin'", [rb])).rows[0].status === "withdrawn", "its edit withdrawn");
@@ -495,24 +497,27 @@ const REAL_RESULTS = `SELECT md5(string_agg(d.id::text || d.status || COALESCE(d
     check(!howJ2.updates.hidden, "and How it works has no update waiting", JSON.stringify(howJ2.updates));
     check((await as.desk.call("POST", `/api/desk/rulebooks/${rb}`, { action: "save", kind: "show_changed", fromEpisode: 1, blocks: back })).status === 400, "a show change from the premiere is refused (that's a fix)");
 
-    // Check for changes: research describes the show again, from this rulebook.
+    // Check for changes: research describes the show again, from this rulebook (docs/PLAN-rulebook-research.md: Ask our bot
+    // or Paste it; the paste here, through Ask an AI's sheet; check-desk-rulebook-research.js has the bot).
     await d.page.reload();
-    await d.page.locator("[data-check-changes]").click();
-    await d.page.locator("[data-check-sheet] [data-copy-prompt]:not([disabled])").waitFor({ timeout: 20000 });
-    await d.page.locator("[data-copy-prompt]").click();
-    await toasted(d.page, /copied/);
-    const prompt = await d.page.evaluate(() => navigator.clipboard.readText());
+    await d.page.locator("[data-desk-row='research-check']").click();
+    await d.page.locator("[data-research-sheet='check'] [data-research-paste]").waitFor({ timeout: 20000 });
+    await d.page.locator("[data-research-paste]").click();
+    await d.page.locator("[data-ask-ai='rulebook-check'] a[data-ai-open][href]").waitFor({ timeout: 20000 });
+    const prompt = (await as.desk.call("GET", `/api/desk/rulebooks/${rb}?prompt=check`)).body.prompt;
     check(prompt.length > 1000 && prompt.includes("Reward challenge"), "the question starts from the rulebook as it is now");
     const now = (await as.desk.call("GET", `/api/desk/rulebooks/${rb}`)).body.now;
     const researched = { ...JSON.parse(JSON.stringify(now)), twists: [...now.twists, { id: "shotInTheDark", type: "advantage", name: "Shot in the Dark", oneIsCalled: "a Shot in the Dark", gotBy: "found", does: ["keepsSafe"], lasts: "oneUse" }] };
-    await d.page.locator("[data-check-answer]").fill(`Here's the rulebook:\n\`\`\`json\n${JSON.stringify(researched)}\n\`\`\``);
-    await d.page.locator("[data-review]").click();
-    await d.page.locator("[data-review-result]").waitFor({ timeout: 20000 });
-    const reviewed = await d.page.locator("[data-review-result]").innerText();
+    await d.page.locator("[data-ai-copy]").first().click();
+    await d.page.locator("[data-ai-answer]").waitFor({ timeout: 10000 });
+    await d.page.locator("[data-ai-answer]").fill(`Here's the rulebook:\n\`\`\`json\n${JSON.stringify(researched)}\n\`\`\``);
+    await d.page.locator("[data-ai-use]").click();
+    await d.page.locator("[data-research-sheet='check'] [data-research-answer]").waitFor({ timeout: 20000 });
+    const reviewed = await d.page.locator("[data-research-answer]").innerText();
     check(/1 change/.test(reviewed) && reviewed.includes("Shot in the Dark"), "reviewed: 1 change, + New advantage: Shot in the Dark", reviewed);
     await fits(d.page, "Check for changes");
     await shot(d.page, "check-for-changes");
-    await d.page.locator("[data-use-review]").click();
+    await d.page.locator("[data-research-use]").click();
     await d.page.locator("[data-unsaved='1']").waitFor({ timeout: 10000 });
     check(true, "Use these changes: in the draft, unsaved");
     await d.page.locator("[data-discard]").click();

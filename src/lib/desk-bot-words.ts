@@ -1,9 +1,9 @@
 // How the desk says the bot's runs (docs/PLAN-desk-parity.md step 4; the mock's desk-research.js RS_K, rsWhen, rsDur):
-// each kind's words, our usual five (the default: the desk can make another schedule our usual, which the server hands the
+// each kind's words, our usual six (the default: the desk can make another schedule our usual, which the server hands the
 // page), the timings a run's stepper offers, and a run's timing in words. Pure, so the server's History lines and the page's
 // sheets say the same thing. The runs themselves follow db/bot-research.js (dueAt).
 
-export type RunKind = "quick" | "full" | "schedule" | "trivia" | "bingo";
+export type RunKind = "quick" | "full" | "schedule" | "trivia" | "bingo" | "facts";
 export interface Run {
   kind: RunKind;
   after: number;
@@ -22,17 +22,20 @@ export const KINDS: Record<RunKind, { t: string; short: string; now: string; add
   schedule: { t: "Schedule check", short: "the schedule check", now: "When the next one airs", add: "When the next episode airs, and how long it runs.", took: "under a minute", from: "end", named: "Schedule check", lack: "nobody checks when the next one airs" },
   trivia: { t: "Trivia", short: "trivia", now: "Six questions, then checked", add: "Six questions about it.", took: "about 2 minutes", from: "next", named: "Trivia", lack: "no trivia questions about its episodes" },
   bingo: { t: "Bingo squares", short: "bingo squares", now: "Thirty squares, then checked", add: "Thirty squares for it.", took: "up to 4 minutes", from: "air", named: "Bingo", lack: "its cards won't deal" },
+  // A13 part 2b (db/facts-research.js): its words are the user's to approve at the merge.
+  facts: { t: "Episode facts", short: "episode facts", now: "Who says the title quote, if research wasn't sure", add: "Who says the title quote, asked on its own when the full results weren't sure.", took: "about a minute", from: "end", named: "Episode facts", lack: "a title quote research wasn't sure of stays unsure" },
 };
 /** What a season with no bingo run goes without when it has squares of its own (its bank deals every card). */
 export const BINGO_BANK_LACK = "every card deals from the season's own squares";
 /** Run now's order: full results first (wide), then the rest. */
-export const NOW_ORDER: RunKind[] = ["full", "quick", "schedule", "trivia", "bingo"];
+export const NOW_ORDER: RunKind[] = ["full", "quick", "schedule", "facts", "trivia", "bingo"];
 
-/** Our usual five by default (db/bot-research.js DEFAULT_SCHEDULE): the desk's own, when it's made one, comes from the server. */
+/** Our usual six by default (db/bot-research.js DEFAULT_SCHEDULE): the desk's own, when it's made one, comes from the server. */
 export const USUAL: Run[] = [
   { kind: "quick", after: 0, on: true },
   { kind: "full", after: 60, on: true },
   { kind: "full", after: 720, on: true },
+  { kind: "facts", after: 750, on: true },
   { kind: "trivia", after: 1440, on: true },
   { kind: "bingo", after: 1440, on: true },
 ];
@@ -125,7 +128,7 @@ export function researchLine(bot: { on: boolean; schedule: Run[] }): string {
 
 /**
  * A schedule change in words, for its History line (who made it is History's): one run switched, retimed, added or taken
- * off; Autopilot on or off; the episode's length; or reset to our usual (`usual`, our usual five by default).
+ * off; Autopilot on or off; the episode's length; or reset to our usual (`usual`, our usual six by default).
  */
 export function changeLine(was: { on: boolean; runs: Run[]; minutes: number }, now: { on: boolean; runs: Run[]; minutes: number }, usual: Run[] = USUAL): string {
   const parts: string[] = [];

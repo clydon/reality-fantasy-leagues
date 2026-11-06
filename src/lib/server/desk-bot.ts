@@ -1,5 +1,5 @@
 import { after } from "next/server";
-import { carryWas, changeRun, normalizeEpisodes, normalizeSchedule, planRuns, usualSchedule, USUAL_KEY, type BotScheduleRun } from "@db/bot-research.js";
+import { carryWas, changeRun, normalizeEpisodes, normalizeSchedule, planRuns, SLOT_RE, usualSchedule, USUAL_KEY, type BotScheduleRun } from "@db/bot-research.js";
 import type { PoolClient } from "pg";
 import { autoLine, cap, changeLine, countWord, isUsual, KINDS, type Run, type RunKind } from "@/lib/desk-bot-words";
 import type { SessionUser } from "./auth-helpers";
@@ -38,7 +38,7 @@ export interface SeasonBot {
   recent: { episode: number; kind: string; slot: string; ok: boolean | null; message: string | null; at: string }[];
 }
 
-const KIND_WORD: Record<string, string> = { quick: "who went home", full: "the full results", schedule: "when the next episode airs", trivia: "trivia questions", bingo: "bingo squares" };
+const KIND_WORD: Record<string, string> = { quick: "who went home", full: "the full results", schedule: "when the next episode airs", trivia: "trivia questions", bingo: "bingo squares", facts: "episode facts" };
 
 /** "Checks who went home and the full results" (what a schedule's runs ask about, in a line). */
 export function scheduleLine(schedule: BotScheduleRun[]): string {
@@ -188,7 +188,7 @@ function runChange(raw: unknown): RunChange {
   const r = raw as { from?: unknown; to?: unknown; was?: unknown } | null;
   if (!r || typeof r !== "object") throw new HttpError(400, "run is { from, to }");
   const from = r.from == null ? null : String(r.from);
-  if (from !== null && !/^(quick|full|schedule|trivia|bingo)@\d{1,5}$/.test(from)) throw new HttpError(400, "from is a run's slot, like full@60");
+  if (from !== null && !SLOT_RE.test(from)) throw new HttpError(400, "from is a run's slot, like full@60");
   let to: BotScheduleRun | null = null;
   if (r.to != null) {
     try {

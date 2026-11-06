@@ -89,9 +89,14 @@ This session was started by scripts/session-loop.js, which runs this project's w
 the user at the keyboard. They read your output as it happens or later, so write your messages as you normally would.
 They can pause you at any moment and resume this same session later.
 
-- Work through the task in the prompt to its natural stopping point: the end of the step, or the end of a part when the
-  step is multipart by design or turns out too big for one session. Finish it properly, as the prompt and the project's
-  rules say (checks passing, docs and memory updated, committed on the branch).
+- Work through the task in the prompt, and finish each step or part properly, as the prompt and the project's rules say
+  (checks passing, docs and memory updated, committed on the branch). Then keep going, as long as it stays related (the
+  user, 2026-11-05: "context windows help efficiency when the work is relevant"): when the next step or part in the order
+  builds on what this session already has open (the same code, the same study, the next part of the same step), start it
+  here instead of handing it off, committing each as it finishes and naming each in your final message. Hand off at a
+  natural boundary instead: the next step needs other context; your context is getting full (well before it would be
+  compacted: past about two thirds); the order changes effort or waits for the main session's merge; or you'd stop for
+  the user anyway.
 - Decide what you'd normally decide yourself, with sensible defaults, and say what you decided in your final message.
   Stop for the user only where you'd normally pause to ask them: a decision that's genuinely theirs, anything
   outward-facing or hard to reverse (pushing, merging, deploying, production data), a permission you were refused, or

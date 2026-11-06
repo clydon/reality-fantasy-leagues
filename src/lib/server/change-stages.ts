@@ -331,7 +331,9 @@ async function makeCopy(g: Read, e: ChangePlanEntry): Promise<boolean> {
   if (!kind) throw new Error(`stage ${st.id} plays as no game`);
   // The rules the game plays by on its couch (its own questions are checked against them, as the lab does).
   const { stageContext } = await import("./engine-lab");
-  const ctx = await stageContext(g.season.id, g.couchId);
+  // A13: what research writes (trivia) and how reliably it says an episode fact can change once the game is on; it was checked on
+  // them when it started, so a copy made mid-season isn't refused for either.
+  const ctx = { ...(await stageContext(g.season.id, g.couchId)), trivia: undefined, facts: undefined };
   const t = e.trigger as StageTrigger;
   const name = `${g.name} · ${st.name || "Stage"}${(e.copy ?? 1) > 1 ? ` ${e.copy}` : ""}`;
   let made: string | null = null;

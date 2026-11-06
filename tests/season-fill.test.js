@@ -14,6 +14,11 @@ test("a show that's a game: its rulebook made at once, its cast asked, then what
   const f = facts({ recapsMissing: 14 });
   assert.equal(stepAction("rules", f), "now");
   assert.equal(stepAction("rules", { ...f, hasRulebook: true }), "skip");
+  // What scores: once there's a rulebook and it hasn't been priced on the ladder; never for a sport.
+  assert.equal(stepAction("scores", f), "skip", "no rulebook yet");
+  assert.equal(stepAction("scores", { ...f, hasRulebook: true }), "bot");
+  assert.equal(stepAction("scores", { ...f, hasRulebook: true, scored: true }), "skip");
+  assert.equal(stepAction("scores", { ...f, kind: "sport", hasRulebook: true }), "skip");
   assert.equal(stepAction("cast", f), "bot");
   assert.equal(stepAction("episodes", f), "bot");
 });
@@ -46,10 +51,10 @@ test("the episodes: switched off, nothing; recaps first (the bot), results only 
 });
 
 test("steps shown: a talk show has no cast's; the episodes once any have aired and they're wanted", () => {
-  assert.deepEqual(stepsShown({ kind: "competition", episodes: true }, 14), ["rules", "cast", "episodes"]);
-  assert.deepEqual(stepsShown({ kind: "talk", episodes: true }, 2), ["rules", "episodes"]);
-  assert.deepEqual(stepsShown({ kind: "competition", episodes: true }, 0), ["rules", "cast"]);
-  assert.deepEqual(stepsShown({ kind: "competition", episodes: false }, 14), ["rules", "cast"]);
+  assert.deepEqual(stepsShown({ kind: "competition", episodes: true }, 14), ["rules", "scores", "cast", "episodes"]);
+  assert.deepEqual(stepsShown({ kind: "talk", episodes: true }, 2), ["rules", "scores", "episodes"]);
+  assert.deepEqual(stepsShown({ kind: "competition", episodes: true }, 0), ["rules", "scores", "cast"]);
+  assert.deepEqual(stepsShown({ kind: "competition", episodes: false }, 14), ["rules", "scores", "cast"]);
 });
 
 test("tiles: what happened is everything when results aren't ours; else half lit until its results are in", () => {

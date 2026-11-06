@@ -120,13 +120,14 @@ async function showForListing(hit: ListingHit, fetchedAt: string): Promise<strin
 }
 
 /** The season of an existing show to follow, when one's here: the listing's season by number, else the show's own on now
- *  or coming up (an admin's numbering wins over the listing's), else null (make it from the listing). */
-async function seasonHere(showId: string, number: number | null): Promise<{ id: string; listingId: number | null; fetchedAt: Date | null } | null> {
+ *  or coming up (an admin's numbering wins over the listing's), else null (make it from the listing). A season someone
+ *  picked by number (`chosen`) is that number or nothing: never an admin's other season. */
+async function seasonHere(showId: string, number: number | null, chosen = false): Promise<{ id: string; listingId: number | null; fetchedAt: Date | null } | null> {
   const { rows } = await pool.query(
     `SELECT id, season_number, status, listing_id, listing_fetched_at FROM show_seasons WHERE show_id = $1 ORDER BY season_number DESC`,
     [showId]
   );
-  const pick = (number != null ? rows.find((r) => r.season_number === number) : null) ?? rows.find((r) => r.status !== "completed" && r.listing_id == null);
+  const pick = (number != null ? rows.find((r) => r.season_number === number) : null) ?? (chosen ? null : rows.find((r) => r.status !== "completed" && r.listing_id == null));
   return pick ? { id: pick.id, listingId: pick.listing_id, fetchedAt: pick.listing_fetched_at } : null;
 }
 
@@ -247,12 +248,14 @@ async function followAt(userId: string, seasonId: string, seen: number | undefin
 
 /**
  * Add a show to your shows (POST /api/me/shows): `{ listing: <TVmaze id> }` or `{ name }`, with where you are
- * (`seenThrough`, capped at what's aired) and `live` (Live, keep-up.ts). Returns the season it follows. The desk's New show flow (step 10 part 3) makes a
- * show the same way without following it or counting it against a day's new shows (`follow: false, cap: false`).
+ * (`seenThrough`, capped at what's aired) and `live` (Live, keep-up.ts); `season` (a number) for one of the listing's seasons
+ * other than the one it would follow (Where are you's picker; the user, 2026-11-05). Returns the season it follows. The desk's
+ * New show flow (step 10 part 3) makes a show the same way without following it or counting it against a day's new shows
+ * (`follow: false, cap: false`).
  */
 export async function addShow(
   userId: string,
-  body: { listing?: unknown; name?: unknown; seenThrough?: unknown; live?: unknown },
+  body: { listing?: unknown; name?: unknown; seenThrough?: unknown; live?: unknown; season?: unknown },
   base: string,
   now = new Date(),
   opts: { follow?: boolean; cap?: boolean } = {}
@@ -265,16 +268,20 @@ export async function addShow(
   if (body.listing !== undefined) {
     const id = body.listing;
     if (!Number.isInteger(id) || (id as number) < 1) throw new HttpError(400, "Which show? (a TV listing's id)");
+    const chosen = body.season !== undefined && body.season !== null;
+    if (chosen && (!Number.isInteger(body.season) || (body.season as number) < 0)) throw new HttpError(400, "Which season? (its number)");
+    const number = chosen ? (body.season as number) : null;
     let found: Awaited<ReturnType<typeof showListing>>;
     try {
       found = await showListing(id as number, base);
     } catch (e) {
       if (!(e instanceof ListingsUnavailable)) throw e;
-      // The listings are down: a show that's already here can still be followed (its season on now, else its latest).
+      // The listings are down: a show that's already here can still be followed (its season on now, else its latest; the one
+      // picked, when it's here).
       const { rows } = await pool.query(
-        `SELECT ss.id FROM shows s JOIN show_seasons ss ON ss.show_id = s.id WHERE s.tvmaze_id = $1
+        `SELECT ss.id FROM shows s JOIN show_seasons ss ON ss.show_id = s.id WHERE s.tvmaze_id = $1 AND ($2::int IS NULL OR ss.season_number = $2)
           ORDER BY (ss.status <> 'completed') DESC, ss.season_number DESC LIMIT 1`,
-        [id]
+        [id, number]
       );
       if (!rows.length) throw new HttpError(503, "TV listings aren't answering. Try again in a minute.");
       return followAt(userId, rows[0].id, seen, follow, live);
@@ -282,11 +289,12 @@ export async function addShow(
     if (!found) throw new HttpError(404, "That show isn't in the TV listings");
     const hit = hitOf(found.show);
     const fetchedAt = now.toISOString();
-    const season = pickSeason(found.seasons, now);
+    const season = chosen ? (found.seasons.find((s) => s.number === number) ?? null) : pickSeason(found.seasons, now);
+    if (chosen && !season) throw new HttpError(404, "That season isn't in the TV listings");
     let showId = await showForListing(hit, fetchedAt);
     const made = !showId;
     if (!showId) showId = await makeShow(pool, userId, hit.name, { hit, fetchedAt }, cap);
-    const here = await seasonHere(showId, season?.number ?? null);
+    const here = await seasonHere(showId, season?.number ?? null, chosen);
     let seasonId: string;
     let stale = false;
     if (here) {
