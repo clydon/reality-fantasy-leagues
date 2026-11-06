@@ -45,12 +45,13 @@ Three things decide whether a spec is a game (`src/lib/game/game-spec/schema.js`
 - **`specProblems(spec, ctx)`**: what's wrong with it. Its shape, what goes with what, the size limits, and, given the show's
   context (`ctx`: its moments, phases, roles, cast size, couch size), **the data-can-settle rule**: only what data can settle
   scores (below).
-- **`specWaitsFor(spec)`**: what it needs that isn't built yet (a value only the sports branch or a later step builds), or
-  "No game plays this way yet" when every part is built but the engine has no game that puts them together.
-- **`typeOf(spec)`**: the shape the engine plays it as. Today that's one of seven (`playsAs`): an Outlast-style draft
-  (`classic-draft`), a draft scored by moments (`active-roster`), a pool (`pickem`), Weekly Calls, Weekly Bingo, a game of
-  questions (`questions`) and a game in stages (`stages`). Track C replaces this list with one scoring sequence (C2, under
-  way: see "How a game is scored: the sequence" and "Where it's still a menu").
+- **`specWaitsFor(spec)`**: what it needs that isn't built yet (a value only the sports branch or a later step builds), or,
+  when every part is built, a piece with no place in the scoring sequence: "No game plays this way yet: ..." naming the piece
+  and why (since C2 part 4: "a draft's own questions beyond its finale predictions come with C2's last part ...").
+- **`typeOf(spec)`**: the shape the screens name it by, worked out from its pieces: it plays when each piece it names has its
+  place in the scoring sequence (C2 part 4, "playing by placement": see "How a game is scored: the sequence"), and is named by
+  its lines: an Outlast-style draft (`classic-draft`), a draft scored by moments (`active-roster`), a pool (`pickem`), Weekly
+  Calls, Weekly Bingo, a game of questions (`questions`) or a game in stages (`stages`). The screens read that name until R3.
 
 `describeSpec(spec, ctx)` then says the game in plain words: a sentence, How it works (a rule a line) and the details nobody
 asked about.
@@ -326,21 +327,34 @@ same window has their points on them multiplied (more than 1, up to 10). Legs: 2
 in one parlay. Example: who goes home and who wins immunity, `times: 3` → "Right on who goes home and who wins immunity
 together: triple the points."
 
-**What excludes what today** (each is a refusal, in our check's words):
+**How they combine with each other** (C2 part 4, in the scoring sequence's order: a line's worth, then the multipliers, then the
+share):
 
-- "A wager plays alone: no share, rollover or shrink with it."
-- "A shrinking call is its own: no share with it."
-- "A parlay's legs are plain": a leg can't have its own share, rollover, shrink or wager.
+- **A shrinking call that's shared** plays: each right call at what it was worth when it was made, then shared. Split, each
+  one's worth divided between everyone right by their right ones (one right alone keeps what their call is worth; calls worth
+  the same split it as a pot); only, the only one right keeps theirs. "Who wins, a point less for each episode you wait, split
+  between everyone right" → "It's worth 1 point less for each episode that's started when you make or change it, and it's
+  shared: what your call is worth is split between everyone who gets it right."
+- **A parlay's leg** can roll over (its window's jackpot, then the parlay), shrink (its call's worth, then the parlay) or pay
+  only the only one right (its share, then the parlay: the same either way round). Someone right on every leg has what each leg
+  gave them multiplied (a leg where they were right but not alone gave them nothing to multiply).
+
+Still refused, in our check's words:
+
+- "A wager plays alone: no share, rollover or shrink with it." (A stake beside them is C6's, money.)
+- A parlay's leg with a stake: "... has a stake: a parlay's legs aren't staked (a staked parlay comes with money, C6)".
+- A parlay's leg that splits a pot: "... splits a pot: a parlay on a split pot waits on a rule (does it multiply your share, or
+  your call before the split?)", a rule question for the user (the plan's Noticed; recommended: your share).
 - "A wager is on your own call: not with the bot's."
 
-Track C lifts these where one scoring sequence lets them combine (C2), and a staked parlay a player builds, with a bank, is
-**planned** (C6).
+A staked parlay a player builds, with a bank, is **planned** (C6).
 
 ### Finale predictions
 
 A draft's own questions, two of them (`finaleQuestions({ top3, winner, from })`): name your final three and the winner before
 the finale, `from: "any"` (the cast) or `"own"` (your team). They're the only questions a draft carries today: any other
-question beside a draft plays as "No game plays this way yet" (put it in a stage alongside instead: see Stages).
+question beside a draft waits ("No game plays this way yet: a draft's own questions beyond its finale predictions come with C2's
+last part"; until then, put them in a stage alongside: see Stages).
 
 ```jsonc
 [{ "id": "top3", "ask": "Who makes the final three?", "answer": "person", "pick": 3, "from": "cast", "points": 1,
@@ -612,7 +626,8 @@ Every game scores as one sequence of six steps, for each of you and each episode
    keep); a line's points on a count of bingo lines (`counted`).
 4. **Combine**: the lines into your total for the episode, all of them or your best n (`best`, `episodeTotal`); and a window's
    answers across all of you: a pot split between everyone right by what each would have earned, only the only one right, by
-   answer or by pick (`split`, `only`, `onlyEach`). Against the bot, the right ones it didn't name are your lines (the grading's).
+   answer or by pick (`split`, `only`, `onlyEach`), each at the window's worth or (a shrinking call that's shared, since C2 part
+   4) each answer's own. Against the bot, the right ones it didn't name are your lines (the grading's).
 5. **The week's result**: what each episode's totals make, once its results are final: a running total (`add`; a count's,
    `through`); a pool's night on your streak and lives (its right picks first, then its wrong ones; a mulligan forgives one, a
    wrong one costs a life, a buyback brings you back, or you're out: `poolNight`, `poolEmptied`), and the night everyone left
@@ -641,34 +656,56 @@ playoffs, teams of players, co-op's night), and what the server scores outside t
 lines (a game of questions' windows, every way they combine, and its walk: lives, a race, cuts, co-op, head to head and teams
 on it, a handicap; Weekly Calls' right calls and bingo's lines, through each episode; a game in stages' overall). What only the
 server knows (the format's groups, the trivia key, episode facts, the bot's calls) stays out of the league's state: the server
-grades with it and hands over the lines. Still to come: a spec playing by each piece's place in the sequence instead of by one
-of seven shapes (part 4). Each part keeps every game scoring exactly as before unless it says otherwise.
+grades with it and hands over the lines. Each part keeps every game scoring exactly as before unless it says otherwise.
+
+**Playing by placement** (C2 part 4): a spec plays when each piece it names has its place in the sequence, not when it matches
+one of seven shapes (`schema.js` `unplaced`; `typeOf` names the shape the screens read, from its lines):
+
+| Step | The pieces, and what each needs from the steps before it |
+|---|---|
+| 1. Hold | a draft (its order with its ownership, a draw, or an auction for castaways nobody else can have) counting its whole team, a lineup or its best few; a pick each episode (one, cycling or never repeating); nothing; a bingo card |
+| 2. Lines | a place, the whole team held; moments, a lineup or best few held; a pick staying in (or scoring), a pick held; answers, nothing held, each a question a game of questions plays (or the show's calls alone); bingo lines, a card held. Beside them: a draft's finale predictions |
+| 3 and 4. Multipliers, combine | each checked where it's said (`specProblems`): a captain on a lineup, points by when on moments, parlays on a game of questions; best ball's best n; a question's share, rollover, shrink, wager and the bot's call, combining in the sequence's order (a line's worth, the multipliers, the share) |
+| 5 and 6. The week's result, rank | a running total on any game's (a pool's ranks by its streak or who's still standing); last one standing on a draft's or a game of questions' cuts, or a pool's or a game of questions' lives; head to head on a draft's or a game of questions' totals, with nobody racing, cut or losing a life; worth, a stock market's on a lineup; co-op, a game of questions' lives together; the show's calls and bingo lines, most wins |
+
+A piece with no place says which and why ("No game plays this way yet: a pool's picks are its game: questions beside them play
+in a stage alongside it"), and every game that played before plays the same way (a corpus of 56,025 specs, every holding,
+scoring, ranking and asking crossed: `tests/fixtures/placement-corpus.js`).
 
 ## Where it's still a menu
 
-Questions compose (answer × settle × window × combiner × fallback), and so do stages and the ways to win. What doesn't yet, found
-by three of the user's games tested on 2026-11-05:
+Questions compose (answer × settle × window × combiner × fallback), and so do stages and the ways to win, and since C2 part 4 a
+spec plays by each piece's place in the scoring sequence (above), not by one of seven shapes. What doesn't compose yet, each a
+tracker row (`docs/ENGINE-CAPABILITIES.md`, p13 to p25) with the step that brings it:
 
-- **Seven shapes** (`playsAs`): a spec plays only when its parts match one of them. So a draft can't carry its own questions
-  beyond finale predictions ("No game plays this way yet"), a pool can't play head to head or in teams, and a captain or a
-  multiplier by when lives only on a draft scored by moments. The sequence above is built under every game (C2 parts 1 to 3);
-  the shapes give way to it in C2 part 4.
-- **Combiners that exclude each other**: a wager plays alone; a parlay's legs are plain; a shrinking call has no share.
-- **One feature per multiplier**: captain, by when, parlay and the wager's double are four separate pieces.
-- **Ownership per game**: the draft and its pickups share one `own`.
-- **A pick is one person**: nobody picks three each episode.
-- **Six stages at most**: "each week its own round, ranked by weeks won" fits six weeks.
+- **Pieces with no place yet** (each refused with why: "No game plays this way yet: ...", or our check's own words):
+  - a draft's own questions beyond its finale predictions (their answers' lines joining the draft's: C2's last part; until
+    then, a stage alongside the draft);
+  - a pool ranked by its points, so a pool head to head, in teams of players, or with a handicap (a pool's series of totals
+    from its picks: C2 part 4b);
+  - a team of players knocked out, or a race between teams (the week's result on a team's totals: C2 part 4b);
+  - a pick each episode scored by what they do (C5, pick N each episode);
+  - questions beside a pool or a bingo card (they play in a stage alongside it).
+- **Combiners still exclusive**: a wager plays alone (C6, money: the stake, then the multipliers, then the share); a parlay on a
+  split pot waits on a rule (does it multiply your share, or your call before the split?).
+- **One feature per multiplier**: captain, by when, parlay and the wager's double are four separate pieces, and nothing
+  multiplies an Outlast's lines (C3: one multiplier keyed by a condition, on what a holding earns while it's yours).
+- **Ownership per game**: the draft and its pickups share one `own` (C4).
+- **A pick is one person**: nobody picks three each episode (C5).
+- **Six stages at most**: "each week its own round, ranked by weeks won" fits six weeks (C5).
 - **Each episode's questions are the spec's**: nothing writes a new card of questions each week (Weekly Calls' calls and bingo's
-  squares are their own games' generators).
+  squares are their own games' generators: C7).
+- **Refused for their own reasons** (not a menu: the sequence wouldn't make them sensible): co-op on a draft (a night needs a
+  right or wrong for each of you, which a draft's points don't give), group slots on an Outlast (a group has no place), anything
+  the data can't settle.
 
-The study of how one scoring sequence replaces the seven shapes is in the plan (track C, C1's As built); what's built so far
-is under C2's.
+The study of the sequence is in the plan (track C, C1's As built); what's built is under C2's.
 
 ## Planned: what track C adds
 
 | Step | The piece | What it opens |
 |---|---|---|
-| C2 | **One scoring sequence**: hold → score each line → multipliers → combine → the week's result → rank (above: parts 1 to 3, every game, built). A spec plays when each piece it names has its place in the sequence | combiners that exclude each other today combine wherever the sequence allows; no seven shapes |
+| C2 | **One scoring sequence**: hold → score each line → multipliers → combine → the week's result → rank (above: parts 1 to 3, every game, built). A spec plays when each piece it names has its place in the sequence (part 4a, built: playing by placement, a shrinking call that's shared, a parlay's legs that roll over, shrink or pay only the only one right) | a pool's series (head to head, teams, a handicap on a pool), teams knocked out and a race between teams (part 4b); a draft's own questions (its last part) |
 | C3 | **Multipliers on any condition**: one piece keyed by how a holding joined (drafted, a pickup, the Nth replacement), when it was picked, a captain, a streak, a parlay's legs | captain, by when, parlay and confidence become uses of it; the user's 1x, 0.5x, 0.25x |
 | C4 | **Ownership per holding**: exclusive or shared for the draft, the pickups and the group slots each, and where a replacement comes from | an exclusive draft with shared replacements |
 | C5 | **The week as a result**: pick N each episode without a draft; a week's winner and ranking by weeks won; "only these moments count"; hits counted per objective or per pick; more than six stages, or each episode a round | the user's third game |

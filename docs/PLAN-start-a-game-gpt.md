@@ -106,7 +106,11 @@ pool's nights, the knockouts, head to head and its playoffs, teams of players an
 sequence at now and its series at each episode once its results are final; every golden and Survivor 51 rehearsal read the same, every blind game played through), and so
 is part 3, outside the state (2026-11-06: a game of questions' windows, every way they combine, and its walk, Weekly Calls' and bingo's
 counts and a game in stages' overall, as lines the server hands the sequence; every shape, golden, blind and Survivor 51 rehearsal read
-the same); part 4, playing by placement, next; then C3 to C7, A14's later parts, and a stop before A15. The live-sports plan is
+the same); part 4, playing by placement, is under way, in parts: 4a, the check by placement and the questions' combinations
+(2026-11-06: a spec plays when each piece it names has its place in the sequence, every verdict as the seven shapes gave it on a
+corpus of 56,025 specs; a shrinking call that's shared, and a parlay's legs that roll over, shrink or pay only the only one right),
+is built; 4b (a pool's series of totals: head to head, teams and a handicap on a pool; teams knocked out and a race between teams)
+and 4c (a draft's own questions) next; then C3 to C7, A14's later parts, and a stop before A15. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5, at
 high since 2026-11-05; C2 at xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: folded in here as track L; its file keeps the details)
 and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track S here).
@@ -5602,6 +5606,107 @@ A14 part 2 and before A14's other parts; every part keeps every golden and blind
     nothing moves between). Kept, saying so: the one-line pieces (`jackpot`, `shrink`, `carry`, `counted`: the sequence's named places
     part 4 composes, as part 2's `add` and `allOut` are); the newest episode's life questions read once more for its waiting check
     (one verdict a question, once a walk); `each = bingo ? pointsPerLine(state) : 1` in three files (as before part 3: Noticed).
+
+  **As built (C2 part 4a, playing by placement and the questions' combinations, 2026-11-06; on `engine`, not merged; no
+  migration).** One session (xhigh), after `lane.js sync engine` (up to date) and `npm run migrate` (up to date). Part 4 is split:
+  4a here (the check by placement, and the combinations a game of questions opens where the sequence's order settles them), 4b (a
+  pool's series of totals, so head to head, teams and a handicap on a pool; teams knocked out and a race between teams: step 5 on a
+  series) and 4c (a draft's own questions: the answers' lines joining a draft's, which needs the server to hand them to the draft's
+  table and series, as it hands a game of questions its walk).
+  - **Playing by placement** (game-spec `schema.js`): `playsAs` asks whether each piece the spec names has its place in the scoring
+    sequence (`noPlace(s)`: [{ at, why }] in the sequence's order, empty when it plays) and names the shape its lines make
+    (`shapeOf`: what `typeOf`, `getLeagueType`'s words and flags and `piecesOf` still read until R3; `piecesOf` unchanged). The places:
+    step 1, what's held (`holdOf`: a draft whose order goes with its ownership, a draw or an auction, counting its whole team, a
+    lineup or its best few; a pick each episode, one, cycling or never repeating; nothing; a card; a holding whose count doesn't fit
+    is the count's); step 2, the lines and what they need held (`LINES`: a place, the whole team; moments, a lineup or best few; a
+    pick staying in, a pick; answers, nothing held; bingo lines, a card) and the questions beside them (`askPlace`: a draft's finale
+    predictions; a game of questions' own, each one it plays, or the show's calls alone); steps 5 and 6, the rank on what the lines
+    make (`rankPlace`: a running total on any game's but a pool's; last one standing on cuts or lives; head to head with nobody
+    racing, cut or losing a life; worth, a stock market's on a lineup; co-op on a game of questions' lives; the calls and bingo,
+    most wins); a game in stages, each stage's own game's, never nested, the game's own one after another (`noPlaceStages`). The
+    multipliers and combiners (steps 3 and 4) are checked where they're said (`specProblems`), as before.
+  - **A piece with no place says which, and why**: `specWaitsFor`'s "No game plays this way yet" names the piece's path and the
+    reason ("No game plays this way yet: a draft's own questions beyond its finale predictions come with C2's last part: until then,
+    play them in a stage alongside the draft"; "... a pool's picks are its game: questions beside them play in a stage alongside it";
+    "... scoring by moments counts a lineup ({ start: n }) or your best few ({ best: n }): to count the whole team, best ball with all
+    of it"; "... a pool ranks by its streak, or last one standing: ranked by its points comes with C2 part 4b"; "... a pick each
+    episode scores by staying in (or scoring): picks scored by what they do come with C5"), where it said only "No game plays this
+    way yet" at ''.
+  - **The combinations opened** (each in the sequence's order: a line's worth, then the multipliers, then the share): **a shrinking
+    call that's shared** (`schema.js` lifts "A shrinking call is its own: no share with it"; `answers.js windowPoints` hands the
+    shares each answer's own worth, `Seq.split`, `Seq.only` and `Seq.onlyEach` taking a worth or a function of the playerId): a split,
+    each right call's worth divided between everyone right with a call worth something, by their right ones (one right alone keeps
+    what their call is worth; calls worth the same split it as a pot; a call shrunk to nothing takes no share: the code review's);
+    only the only one right keeping theirs (on a pick of several, each right pick nobody else named, at its namer's worth). And **a
+    parlay's legs** that roll over (the window's jackpot, then the parlay), shrink (the call's worth, then the parlay) or pay only the
+    only one right (the share, then the parlay: the same either way round), lifting "a parlay's legs are plain" for them; the grade
+    already multiplied each leg's line after its window was worked out, so nothing in `AnswerLogic.grade` changed. Still refused: a
+    staked leg ("... has a stake: a parlay's legs aren't staked (a staked parlay comes with money, C6)"), a split pot as a leg ("...
+    splits a pot: a parlay on a split pot waits on a rule (does it multiply your share, or your call before the split?)": Noticed),
+    a wager with a share, rollover or shrink ("A wager plays alone", C6's: the stake comes first in the sequence's order, and C6
+    builds stakes), a wager against the bot. A multiplier on an Outlast's lines is left to C3, which builds the multiplier piece
+    (decided: on what a holding earns while it's yours, so an Outlast's line has to become a value earned while held first).
+  - **The words** (`describe.js`): a shrinking call that's split, "It's worth 1 point less for each episode that's started when you
+    make or change it, and it's shared: what your call is worth is split between everyone who gets it right." (per change: "Once
+    it's started, each change costs 2 points, and it's shared: ..."), its sentence "10 points at most, split between everyone right.
+    The earlier you call it, the more it's worth."; only, the two rules as each says itself; a parlay as before ("Right on who wins
+    and who's runner-up together: double the points.").
+  - **state-logic.js:** no function changed (for the merge with the own-pace session). Changed: `schema.js` (`playsAs`, `holdOf`,
+    `LINES`, `askPlace`, `rankPlace`, `noPlace`, `noPlaceStages`, `shapeOf`, `specWaitsFor`, `stagedWaits`, `questionProblems`'s shrink,
+    `parlayProblems`), `answers.js windowPoints`, the sequence's `split`, `only`, `onlyEach` (and `index.d.ts`'s `Worth`), `describe.js`
+    (`combineWords`, the sentence's split).
+  - **The tracker:** rows p13 to p25 on Survivor 51's page, each combination the study listed: ✅ p13 (a shrinking call split), p14
+    (one only the only one right scores), p15 (a parlay with a leg that rolls over), p16 (with a leg only the only one right scores);
+    ⏳ C2 p17 (a draft's own questions: 4c), p18 to p22 (a pool head to head, in teams, ranked by its points with a handicap; teams
+    knocked out; a race between teams: 4b), ⏳ C3 p23 (an Outlast's pickups counting double while they're yours), ⏳ C6 p24 (a wager on
+    a split pot), ❓ p25 (a parlay on a split pot). `docs/ENGINE-CAPABILITIES.md`: 204 ✅ · 58 ⏳ · 1 🆕 · 4 ❓ · 23 💬, of 290 (was 200 ✅
+    of 277; waiting: C2 6, C3 1, C4 1, C6 1, C7 2, A14 8, A15 15, L3 7, L4 13, G1 4).
+  - **GAME-PIECES.md:** `typeOf` and `specWaitsFor` as they read now; the questions' combining ("How they combine with each other",
+    what's still refused and why); finale predictions' wait; the sequence's step 4 and a table of each step's pieces ("Playing by
+    placement"); "Where it's still a menu" rewritten (what has no place yet and the step that brings it, the combiners still
+    exclusive, what's refused for its own reasons); track C's C2 row.
+  - **What reads differently:** nothing any game that played before reads: every golden and blind read, every Survivor 51 rehearsal
+    read and the 1,620 shapes' reads the same (below). Specs that were refused now play (the combinations above), and a refusal on a
+    combination nobody plays names its piece.
+  - **Proof:** the placement corpus (`tests/fixtures/placement-corpus.js`): every way of holding (23), scoring (15), ranking (22) and
+    asking (32) crossed, games in stages (each kind after each, alone, alongside, overlapping, nested, seven), and the parts every
+    game shares (its lock, its pool, its span, a draft's order with its ownership) on each kind: 56,025 specs, each one's verdict
+    (the shape it plays as, whether `specProblems` and `specWaitsFor` have anything against it) recorded from the engine before part
+    4 (6b8b1269, `--write --ref=6b8b1269`; 933 play there). `tests/placement.test.js` (3): this tree's verdicts are the record's on
+    every spec but the 169 the openings move, each losing only its problem (the same shape, the same waits); each refusal names its
+    piece; each shape named as before. `tests/shared-shrink.test.js` (4) and `tests/parlay-legs.test.js` (4): each combination's shape,
+    grading on facts and through `AnswerLogic.grade`, and words, every number worked out by hand. The shapes fixture extended with
+    three shapes (`q-shrink-shared`, `q-parlay-legs`, `q-parlay-shrink`, 54 reads): no engine before part 4 plays them, so their reads
+    are new, recorded from this tree and checked by hand at the end (ann 23 and di 2; ann 30 and di 18; the parlay's windows
+    episode by episode); the 1,620 reads before them byte for byte as recorded. Each piece changed in turn (27 changes: the split
+    at one worth, its divisor counting a worthless call, only and onlyEach at the wrong worth, the shared shrink unshrunk, each
+    refusal put back or let through, a draw any ownership, a pick of two, moments counting all, a draft's, a pool's, a card's and
+    an unplayable question let through, a draft's rank without cuts or with a race, worth without a market, a pool by its total,
+    the calls, co-op and bingo by anything, one stage, overlapping and nested stages, the answers' shape, the parts every game
+    shares) is caught; four weren't at first (a draw's ownership, overlapping and nested stages, the shared parts), until the
+    corpus grew to reach them. `npm test` 1482 of 1482; `tsc` clean; `playsAs` 0.29 µs a call (0.21 before), on `getLeagueType`'s
+    path. `engine-capabilities.js --check`: regenerated (above). `game-specs-flag.js check`: PASS (9 of 9 leagues, this lane's
+    database). Through the app (this lane's server, the zt_nd_ fixture), ALL PASS: `check-questions-scoring.js` (rollovers, pots,
+    parlays, shrinking calls), `check-answer-knockouts.js`, `check-answer-h2h.js`, `check-stages.js`, `check-mini-stages.js`,
+    `check-lineup-scoring.js`, `check-knockouts.js`, `check-pool-parts.js`, `check-teams.js`, `check-h2h.js`,
+    `check-pool-knockouts.js`, `check-coop.js`, `check-questions.js --api`.
+  - **Golden replays:** `golden.js` (HEAD, C2 part 3, against the working tree, after the code review's fixes): 7 seasons, 160 games,
+    **19,361 reads, every one the same**; against master's (`--before=master`, production's engine): every one the same.
+  - **Blind replays:** (`blind.js run`, the five seasons, on the final code): **every game played through and over on all five**:
+    Survivor 49 144 of 144, The Challenge 41 112, 40 106, 39 114, The Traitors 4 101 (each two or four more than after part 3: the
+    tracker's newly opened rows a season's rules can settle, p13 and p14 on every season, p15 and p16 on Survivor's immunity too);
+    every stand-in call filed, none refused; nothing refused that the app offered, no score that isn't a number.
+  - **The Survivor 51 rehearsal:** (`season-forward.js rehearse --from=backups/prod-2026-10-30 --scenario=realistic,rough,dst
+    --before=master`, this lane's tree): every invariant holds in all three scenarios, flag off and on read the same (2,856 reads
+    each), and master's engine against this tree's reads the same in every one (2,856 reads, flag off and on).
+  - **The code review** (`/code-review` at high, before the long runs): ten findings. Taken: a call shrunk to nothing took a share of
+    the split (now only calls worth something divide it); the game's sentence said a shared shrinking call was a fixed pot ("10 points
+    each time": now "10 points at most"); a holding whose count doesn't fit was blamed on what's held (now the count's); the shrink's
+    words written twice (once now); the check's name `unplaced` beside the teams' own `unplaced` (now `noPlace`). Kept, saying so: a
+    place on an Outlast counting a lineup is the scoring's to say, as `specProblems` says it; `playsAs` doing the whole check on the
+    hot path (0.29 µs a call, measured); `stagedWaits` checking each stage again once its own waits are empty (the wizard's path, not
+    a read's); the worth the server sends for a shrinking call that's shared (worth before the share, as a pot's points are: a
+    screen's words, Noticed); a parlay leg that pays only the only one right counting as right when you weren't alone (Noticed).
 - **C3. Multipliers on any condition.** One multiplier piece keyed by a condition: how a holding joined (drafted, a pickup,
   the Nth replacement), when it was picked, a captain, a streak, the legs of a parlay. Captain, by when, parlay and confidence
   become uses of it. Game 2's 1x, 0.5x, 0.25x, configurable.
@@ -6558,6 +6663,25 @@ From R1 part 2 (2026-10-30):
   (R3, or whoever next works in Game settings.)
 - **For the hosting notes, at the merge:** `/api/me` (classic's sign-in and every classic load) now sends each league's settings, not its
   whole state (20-40 KB each): less Neon transfer than before. (The main folder: docs/HOSTING.md, with the merge.)
+
+From C2 part 4a (2026-11-06):
+- **A parlay on a split pot** (C2 part 3's Noticed item 1, still open): refused ("... splits a pot: a parlay on a split pot waits on
+  a rule"), the tracker's ❓ p25. Today's grade multiplies a parlay's legs after each window's share; the sequence's order for the
+  combinations puts the multipliers before the share. **A rule for the user. Recommended: the share, then the parlay** (a parlay
+  multiplies what each leg gave you; the other way round it would grow your share of a pot everyone else shares too), as a setting
+  on the parlay if both are wanted (`order`: share first, the default). (C2 part 4b or C6, once the user says.)
+- **A shrinking call that's split: the lane's rule, the user's to overrule.** Each right call's worth (when it was made) divided
+  between everyone right with a call worth something, by their right ones: one right alone keeps what their call is worth, calls
+  worth the same split it as a pot, a call shrunk to nothing takes no share. The other way it could go: the question's points as a
+  pot split by each one's worth (earlier calls take more of it, but one late caller alone takes the whole pot, so the shrink does
+  nothing alone). Recommended: as built. (The user, with the merge's look.)
+- **A parlay leg that pays only the only one right counts as right when you weren't alone** (you're right on it, it paid you
+  nothing, and your other legs still multiply), as a parlay's legs always have (right is right: `allRight`). The other reading: a
+  leg counts only when it paid you. Recommended: as built (the share is how that leg pays; the parlay asks whether you called every
+  leg). (The user, with the merge's look.)
+- **What a shrinking call that's shared shows you're worth** (`answers.ts` sends `worth`, your call's worth before the share, beside
+  `share`): a screen that says "worth 8" should say it's split. (U1, the question's screen.)
+- **No prompt changed and no migration** in this part; nothing for the hosting notes (no storage, no new reads).
 
 From C2 part 3 (2026-11-06):
 - **A parlay multiplies after a window's share** (today's order: the window's worth, its share, only, shrink or the bot, then the

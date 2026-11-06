@@ -22,7 +22,9 @@
 // handicap, race, matchups and the week's lineups, at the marks from Episode 3 on), a cent each on the half-cent moments (0.5
 // points x 1.15 units), its table now adding up each episode's total as its series always did, where it rounded after each moment
 // (`--diff` against d5222e68 lists them). C2 part 3's shapes (q-plain on) were recorded from the engine before part 3 (its
-// commit's parent, with --ref=HEAD), and read the same on d5222e68's:
+// commit's parent, with --ref=HEAD), and read the same on d5222e68's. C2 part 4a's (q-shrink-shared, q-parlay-legs, q-parlay-shrink)
+// are combinations no engine before it plays (refused there), so their reads are new, recorded from part 4a's engine and proven by
+// hand in tests/shared-shrink.test.js and tests/parlay-legs.test.js; the 1,620 reads before them stay as they were:
 //   node tests/fixtures/scoring-shapes.js --write [--ref=<git ref>]      the record, from this tree's engine (or the ref's)
 //   node tests/fixtures/scoring-shapes.js --print <shape> <seat|-> <mark|-|all> [--ref=<git ref>]   one read, in full
 //   node tests/fixtures/scoring-shapes.js --diff [<shape>] [--ref=d5222e68]   where this tree's reads part from the ref's (the
@@ -155,6 +157,10 @@ const Q = {
   QUOTE: { id: "quote", ask: "Who says the title quote?", answer: "person", points: 2, asked: "each", settle: { by: "fact", fact: "titleQuote", take: "who" } },
   HERD: { id: "herd", ask: "Who goes home, as most of us say?", answer: "person", points: 2, asked: "each", settle: { by: "players", take: "majority" } },
   GUESS: { id: "guess", ask: "Who will most of us say goes home?", answer: "person", points: 3, asked: "each", settle: { by: "players", take: "majority", of: "boot" } },
+  // C2 part 4a: a shrinking call that's shared.
+  WINPOT: { ...WIN, id: "winpot", ask: "Who wins? Less for each episode late, split between everyone right", share: "split" },
+  SEALPOT: { ...WIN, id: "sealpot", ask: "Seal your winner, split: every change costs a point", shrink: { points: 1, per: "change" }, share: "split" },
+  WINALONE: { ...WIN, id: "winalone", ask: "Who wins? Less for each episode late, only if you're the only one", share: "only" },
 };
 const BOT = { beat: { by: "bot" } };
 // The answers, as game_answers holds them: { question: { episode (0: the game's): { seat: answer } } }.
@@ -175,13 +181,13 @@ const SAID = {
 };
 // A shrinking call's: how many episodes had started when each was made (late), and how many times each was changed once the
 // game had started (changes).
-const LATE = { win: { ann: 0, bo: 1, cy: 3, di: 6 } };
-const CHANGES = { seal: { ann: 0, cy: 2, di: 12 } };
+const LATE = { win: { ann: 0, bo: 1, cy: 3, di: 6 }, winpot: { ann: 0, bo: 1, cy: 3, di: 6 }, winalone: { ann: 2 } };
+const CHANGES = { seal: { ann: 0, cy: 2, di: 12 }, sealpot: { ann: 0, cy: 2, di: 12 } };
 /** Each question's answers as rows ({ playerId, question, episode, answer, late?, changes? }): its own (`from`: another's). */
 function answersOf(qs, over = {}) {
   const rows = [];
   for (const q of qs) {
-    const from = q.id === "win" || q.id === "seal" ? "winner" : q.id in SAID ? q.id : ["pot", "only", "roll", "rollpot"].includes(q.id) ? "boot" : q.id === "onlyidol" ? "idol" : q.id === "beatonly" ? "only2" : q.id;
+    const from = ["win", "seal", "winpot", "sealpot", "winalone"].includes(q.id) ? "winner" : q.id in SAID ? q.id : ["pot", "only", "roll", "rollpot"].includes(q.id) ? "boot" : q.id === "onlyidol" ? "idol" : q.id === "beatonly" ? "only2" : q.id;
     const by = over[q.id] || SAID[from] || {};
     for (const [n, seats] of Object.entries(by)) {
       for (const [playerId, answer] of Object.entries(seats)) {
@@ -249,6 +255,7 @@ function outsideShapes() {
   const game = (ask, score = {}, rank, more = {}) => ({ get: { by: "none" }, score: { by: "answers", ...score }, ask, ...(rank ? { rank } : {}), ...more });
   const qs = (ask, more = {}) => ({ none: true, questions: { answers: answersOf(ask, more.over), extra: more.extra }, ...(more.o || {}) });
   const two = [BOOT, IMMUNE];
+  const legs = [Q.ROLL, IMMUNE, Q.ONLY, IDOL];
   const stages = (by) => ({ stages: [{ id: "a", game: { preset: "outlast", span: { from: 1, to: 3 } } }, { id: "b", game: { preset: "outlast", span: { from: 4 } } }], overall: { by } });
   const botQs = [{ ...BOOT, ...BOT }, { ...IDOL, ...BOT }, { ...MANY, ...BOT }, { ...Q.ONLY2, id: "beatonly", ...BOT }];
   const shape = (name, spec, ask, more) => [name, spec, null, qs(ask, more)];
@@ -291,6 +298,13 @@ function outsideShapes() {
     shape("q-handicap-race", game(two, {}, { by: "total", race: { to: 12 }, handicap: { points: 2 } }), two, { o: { history: true } }),
     shape("q-handicap-matchups", game(two, {}, { by: "matchups", handicap: { points: 2 } }), two, { o: { history: true } }),
     shape("q-span", game([Q.ROLL, IMMUNE], {}, undefined, { span: { from: 2, to: 5 } }), [Q.ROLL, IMMUNE]),
+    // C2 part 4a: the combinations the scoring sequence opens (no engine before part 4 plays them: their reads are new, from part 4's
+    // engine, and proven by hand in tests/shared-shrink.test.js and tests/parlay-legs.test.js). A shrinking call that's shared:
+    // split by episode and by change, and only the only one right; a parlay whose legs roll over or pay only the only one right; a
+    // parlay with a shrinking leg.
+    shape("q-shrink-shared", game([Q.WINPOT, Q.SEALPOT, Q.WINALONE]), [Q.WINPOT, Q.SEALPOT, Q.WINALONE], { over: { winalone: { 0: { ann: "c0", bo: "c4", cy: "c2" } } } }),
+    shape("q-parlay-legs", game(legs, { parlays: [{ of: ["roll", "immune"], times: 3 }, { of: ["only", "idol"], times: 2 }] }), legs),
+    shape("q-parlay-shrink", game([WIN, WINNER], { parlays: [{ of: ["win", "winner"], times: 2 }] }), [WIN, WINNER]),
     ["calls", { preset: "weekly-calls" }, null, { none: true, outside: { each: 1 } }],
     ["bingo", { preset: "weekly-bingo", score: { by: "lines", points: 2 } }, null, { none: true, outside: { each: 2 } }],
     ["stages-points", stages("points"), null, { none: true, stages: true }],

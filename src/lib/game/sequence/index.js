@@ -23,7 +23,9 @@
 // episode's final results and the table at now); part 3 what the server scores outside the state, as lines it hands the sequence
 // (a game of questions' windows, graded by game-spec answers.js, and its walk; Weekly Calls' right calls and bingo's lines, counted
 // by calls.ts and bingo.ts; a game in stages' overall from its stages' tables); part 4 has a spec play by each piece's place here
-// instead of by one of seven shapes.
+// instead of by one of seven shapes (game-spec schema.js unplaced), and opens the combinations the sequence's order settles (part
+// 4a: a shrinking call that's shared, each answer at its own worth in split, only and onlyEach; a parlay's legs that roll over,
+// shrink or pay only the only one right).
 //
 // Rounding is part of the sequence, exactly where each game has always done it and nowhere else (the study's "What C2 has to
 // keep exactly"; tests/sequence-agree.test.js holds every draft's reads to the scorers' before it):
@@ -205,27 +207,37 @@ function episodeTotal(lines, slots) {
 function sum(values) {
   return round(values.reduce((n, v) => n + v, 0));
 }
+// The three shares below take the window's `worth` (a number), or each answer's (C2 part 4: a function of its playerId, a shrinking
+// call's worth when it was made): the lines at their worth (step 2) come before the share (step 4), so a shrinking call that's shared
+// is each right call at its own worth, shared.
+const worthFn = (worth) => (typeof worth === "function" ? worth : () => worth);
 /** A pot split (a question's share 'split'): the window's `worth` between everyone right, by their units (windowLines' `units`),
- *  each share rounded to the cent (a pot of 10 three ways is 3.33 each). */
+ *  each share rounded to the cent (a pot of 10 three ways is 3.33 each). With each answer's own worth (a shrinking call), each one's
+ *  units at its own worth, divided between everyone right with a call worth something, by their units: one right alone keeps what
+ *  its call is worth, calls worth the same split it as a pot, and a call that's shrunk to nothing takes no share. A window worth
+ *  nothing to anyone right: nothing each. */
 function split(worth, units) {
   const out = new Map();
+  const at = worthFn(worth);
   const right = rightOf(units);
-  const total = right.reduce((n, [, u]) => n + u, 0);
-  for (const [pid, u] of right) out.set(pid, round((worth * u) / total));
+  const total = right.reduce((n, [pid, u]) => n + (at(pid) > 0 ? u : 0), 0);
+  for (const [pid, u] of right) out.set(pid, total ? round((at(pid) * u) / total) : 0);
   return out;
 }
-/** Only the only one right (share 'only'): their units at `worth` when exactly one answer has anything right, else nobody. */
+/** Only the only one right (share 'only'): their units at `worth` (or at their own) when exactly one answer has anything right,
+ *  else nobody. */
 function only(worth, units) {
   const out = new Map();
   const right = rightOf(units);
-  if (right.length === 1) out.set(right[0][0], right[0][1] * worth);
+  if (right.length === 1) out.set(right[0][0], right[0][1] * worthFn(worth)(right[0][0]));
   return out;
 }
 /** Only the only one right on a person or group answer (A9 part 2): each right pick (`by`: Map pick -> [playerId] who named it, in
- *  the answers' order) named by one alone scores `worth` for them, so two each alone on a different right one both do. */
+ *  the answers' order) named by one alone scores `worth` (or their own) for them, so two each alone on a different right one both do. */
 function onlyEach(worth, by) {
   const out = new Map();
-  for (const [, pids] of by) if (pids.length === 1) out.set(pids[0], (out.get(pids[0]) || 0) + worth);
+  const at = worthFn(worth);
+  for (const [, pids] of by) if (pids.length === 1) out.set(pids[0], (out.get(pids[0]) || 0) + at(pids[0]));
   return out;
 }
 

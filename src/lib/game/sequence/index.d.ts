@@ -39,10 +39,12 @@ export function multiply(raw: number, factors: number[]): number;
 export function best<T extends { points: number; counted?: boolean }>(lines: T[], n: number): T[];
 export function episodeTotal(lines: { points: number; counted?: boolean }[], slots?: { points: number }[]): number;
 export function sum(values: number[]): number;
-/** C2 part 3: a window's answers combined across the seats (a pot split, only the only one right, by answer or by pick). */
-export function split(worth: number, units: Map<string, number>): Map<string, number>;
-export function only(worth: number, units: Map<string, number>): Map<string, number>;
-export function onlyEach(worth: number, by: Map<string, string[]>): Map<string, number>;
+/** C2 part 3: a window's answers combined across the seats (a pot split, only the only one right, by answer or by pick). C2 part 4:
+ *  at the window's worth, or each answer's own (a shrinking call that's shared: its worth when it was made, by playerId). */
+export type Worth = number | ((playerId: string) => number);
+export function split(worth: Worth, units: Map<string, number>): Map<string, number>;
+export function only(worth: Worth, units: Map<string, number>): Map<string, number>;
+export function onlyEach(worth: Worth, by: Map<string, string[]>): Map<string, number>;
 export function add(running: number, x: number): number;
 /** C2 part 3: a count's running total through each episode (Weekly Calls', bingo's). */
 export function through(byEpisode: Map<number, Map<string, number>>, from: number, to: number): Map<number, Map<string, number>>;

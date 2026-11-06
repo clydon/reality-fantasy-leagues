@@ -267,7 +267,8 @@ function sentenceParts(s, w) {
     if (all((q) => isPlayers(q) && q.settle.take === s.ask[0].settle.take && q.share === undefined && q.wager === undefined)) said = ` ${each} when yours is the answer ${s.ask[0].settle.take === 'minority' ? 'fewest' : 'most'} of you give.`;
     // A14 part 2: every one played against the bot's own call.
     else if (all((q) => isBeat(q) && q.share === undefined)) said = ` ${each} when you're right and the bot isn't.`;
-    else if (all((q) => q.share === 'split')) said = ` ${each} each time, split between everyone right.`;
+    // C2 part 4: a pot whose calls shrink is each one's worth, split: at most its points.
+    else if (all((q) => q.share === 'split')) said = some((q) => isObj(q.shrink)) ? ` ${each} at most, split between everyone right.` : ` ${each} each time, split between everyone right.`;
     else if (all((q) => q.share === 'only')) said = ` ${each} for a right answer nobody else has.`;
     else if (all((q) => q.wager !== undefined)) {
       const w0 = s.ask[0].wager;
@@ -371,14 +372,18 @@ function beatWords(q, pts) {
 /** How a question's points combine (A9), as How it works says it. */
 function combineWords(q, w) {
   let out = '';
-  if (q.share === 'split') out += ' The points are a pot, split between everyone who gets it right: the fewer of you, the more each gets.';
+  // C2 part 4: a shrinking call that's split, each right call at what it was worth when it was made, then shared.
+  const shared = q.share === 'split' && isObj(q.shrink);
+  if (q.share === 'split' && !shared) out += ' The points are a pot, split between everyone who gets it right: the fewer of you, the more each gets.';
   // A person or group answer counts each pick on its own (A9 part 2).
   if (q.share === 'only') out += NAMES.includes(q.answer) && !q.each ? ' A right pick only scores if nobody else named it.' : " It only scores if you're the only one who gets it right.";
   if (q.rollover) out += ` If nobody gets it, its points roll over to the next one.`;
   if (isObj(q.shrink)) {
-    out += q.shrink.per === 'change'
-      ? ` Once it's started, each change costs ${pointsWord(q.shrink.points)}.`
-      : ` It's worth ${pointsWord(q.shrink.points)} less for each ${w.part} that's started when you make or change it: the earlier you call it, the more it's worth.`;
+    const less = q.shrink.per === 'change'
+      ? ` Once it's started, each change costs ${pointsWord(q.shrink.points)}`
+      : ` It's worth ${pointsWord(q.shrink.points)} less for each ${w.part} that's started when you make or change it`;
+    const then = shared ? ", and it's shared: what your call is worth is split between everyone who gets it right." : q.shrink.per === 'change' ? '.' : ": the earlier you call it, the more it's worth.";
+    out += `${less}${then}`;
   }
   return out;
 }

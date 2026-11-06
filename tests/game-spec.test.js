@@ -439,8 +439,10 @@ test("specWaitsFor: what a spec needs that isn't built, and the step that builds
   assert.deepEqual(waits({ ...P["weekly-lineup"], rank: { by: "categories" }, closes: "daily" }), ["rank.by:sports", "closes:sports"]);
   assert.deepEqual(waits({ spec: 1, get: { by: "squares" }, score: { by: "stats", points: { PTS: 1 } } }), ["get.by:sports", "score.by:sports"]);
   assert.deepEqual(waits({ ...P.outlast, pool: { of: "cast", where: { group: "tribe-1" } } }), ["pool.where:later"]);
-  // Every part built, but no game plays a draft where everyone scores moments without a lineup.
-  assert.deepEqual(waits({ ...P["weekly-lineup"], count: { all: true } }), [":null"]);
+  // Every part built, but no game plays a draft where everyone scores moments without a lineup: C2 part 4 says which piece has no
+  // place in the scoring sequence, and why.
+  assert.deepEqual(waits({ ...P["weekly-lineup"], count: { all: true } }), ["count:null"]);
+  assert.match(G.specWaitsFor({ ...P["weekly-lineup"], count: { all: true } })[0].problem, /^No game plays this way yet: scoring by moments counts a lineup/);
   assert.equal(G.typeOf({ ...P["weekly-lineup"], count: { all: true } }), null);
   assert.equal(G.settingsOf({ ...P["weekly-lineup"], count: { all: true } }), null);
 });

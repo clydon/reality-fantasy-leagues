@@ -2572,6 +2572,439 @@
         "win"
       ],
       "note": "the user's third game (2026-11-05, track C): x cast members picked fresh each episode without a draft, only the week's objectives counting, the week's winner and the season ranked by weeks won (C5: the week as a result; today a pick is one person and stages stop at six), each week's objectives from one generator (C7: a new card each week, or a fixed list). Nearest today: a game of questions with a 'name x' question per objective, each settled by its moment (each question's picks separate), or up to six one-week stages with overall 'wins'. Open (the user's): distinct objectives your picks hit, or every hit counted; who writes each week's objectives (the bot from research, the maker, a fixed list)?"
+    },
+    {
+      "id": "p13",
+      "page": {
+        "show": "Survivor",
+        "season": 51,
+        "rulebook": "survivor"
+      },
+      "words": "Who wins, called once: the earlier you call it the more it's worth, and it's split between everyone who gets it right.",
+      "spec": {
+        "get": {
+          "by": "none"
+        },
+        "score": {
+          "by": "answers"
+        },
+        "rank": {
+          "by": "total"
+        },
+        "ask": [
+          {
+            "id": "winner",
+            "ask": "Who wins?",
+            "answer": "person",
+            "points": 10,
+            "closes": "finale",
+            "shrink": {
+              "points": 1,
+              "per": "episode"
+            },
+            "settle": {
+              "by": "results",
+              "take": "winner"
+            },
+            "share": "split"
+          }
+        ]
+      },
+      "step": "C2",
+      "dials": [
+        "score"
+      ],
+      "note": "C2 part 4a: a shrinking call that's shared, each right call at what it was worth when it was made, then shared (refused before: \"A shrinking call is its own\")."
+    },
+    {
+      "id": "p14",
+      "page": {
+        "show": "Survivor",
+        "season": 51,
+        "rulebook": "survivor"
+      },
+      "words": "Who wins, worth a point less every episode you wait, and it only scores if nobody else called it.",
+      "spec": {
+        "get": {
+          "by": "none"
+        },
+        "score": {
+          "by": "answers"
+        },
+        "rank": {
+          "by": "total"
+        },
+        "ask": [
+          {
+            "id": "winner",
+            "ask": "Who wins?",
+            "answer": "person",
+            "points": 10,
+            "closes": "finale",
+            "shrink": {
+              "points": 1,
+              "per": "episode"
+            },
+            "settle": {
+              "by": "results",
+              "take": "winner"
+            },
+            "share": "only"
+          }
+        ]
+      },
+      "step": "C2",
+      "dials": [
+        "score"
+      ],
+      "note": "C2 part 4a: a shrinking call paying only the only one right, at what their call is worth."
+    },
+    {
+      "id": "p15",
+      "page": {
+        "show": "Survivor",
+        "season": 51,
+        "rulebook": "survivor"
+      },
+      "words": "Who goes home and who wins immunity: triple if you get both, and who goes home rolls over when nobody gets it.",
+      "spec": {
+        "get": {
+          "by": "none"
+        },
+        "score": {
+          "by": "answers",
+          "parlays": [
+            {
+              "of": [
+                "boot",
+                "imm"
+              ],
+              "times": 3
+            }
+          ]
+        },
+        "rank": {
+          "by": "total"
+        },
+        "ask": [
+          {
+            "id": "boot",
+            "ask": "Who goes home?",
+            "answer": "person",
+            "points": 2,
+            "asked": "each",
+            "settle": {
+              "by": "results",
+              "take": "out"
+            },
+            "rollover": true
+          },
+          {
+            "id": "imm",
+            "ask": "Who wins immunity?",
+            "answer": "person",
+            "points": 2,
+            "asked": "each",
+            "settle": {
+              "by": "moment",
+              "take": "who",
+              "moment": "individualImmunity"
+            }
+          }
+        ]
+      },
+      "step": "C2",
+      "dials": [
+        "score"
+      ],
+      "note": "C2 part 4a: a parlay whose leg rolls over, its jackpot then the parlay (refused before: a parlay's legs were plain)."
+    },
+    {
+      "id": "p16",
+      "page": {
+        "show": "Survivor",
+        "season": 51,
+        "rulebook": "survivor"
+      },
+      "words": "Who goes home and who wins immunity, double if you get both, but who goes home only pays if you're the only one who called it.",
+      "spec": {
+        "get": {
+          "by": "none"
+        },
+        "score": {
+          "by": "answers",
+          "parlays": [
+            {
+              "of": [
+                "boot",
+                "imm"
+              ],
+              "times": 2
+            }
+          ]
+        },
+        "rank": {
+          "by": "total"
+        },
+        "ask": [
+          {
+            "id": "boot",
+            "ask": "Who goes home?",
+            "answer": "person",
+            "points": 2,
+            "asked": "each",
+            "settle": {
+              "by": "results",
+              "take": "out"
+            },
+            "share": "only"
+          },
+          {
+            "id": "imm",
+            "ask": "Who wins immunity?",
+            "answer": "person",
+            "points": 2,
+            "asked": "each",
+            "settle": {
+              "by": "moment",
+              "take": "who",
+              "moment": "individualImmunity"
+            }
+          }
+        ]
+      },
+      "step": "C2",
+      "dials": [
+        "score"
+      ],
+      "note": "C2 part 4a: a parlay whose leg pays only the only one right (its share then the parlay: the same either way round)."
+    },
+    {
+      "id": "p17",
+      "page": {
+        "show": "Survivor",
+        "season": 51,
+        "rulebook": "survivor"
+      },
+      "words": "Our Outlast, plus a question every week: who goes home, 2 points.",
+      "spec": {
+        "preset": "outlast",
+        "ask": [
+          {
+            "id": "boot",
+            "ask": "Who goes home?",
+            "answer": "person",
+            "points": 2,
+            "asked": "each",
+            "settle": {
+              "by": "results",
+              "take": "out"
+            }
+          }
+        ]
+      },
+      "step": "C2",
+      "dials": [
+        "what",
+        "score"
+      ],
+      "note": "its last part: a draft's own questions beyond its finale predictions, their answers' lines joining the draft's (today: \"No game plays this way yet\"; a stage alongside the Outlast plays it)."
+    },
+    {
+      "id": "p18",
+      "page": {
+        "show": "Survivor",
+        "season": 51,
+        "rulebook": "survivor"
+      },
+      "words": "A Survival Pool, but head to head each week: whoever's pick stays in beats whoever's doesn't.",
+      "spec": {
+        "preset": "survival-pool",
+        "rank": {
+          "by": "matchups"
+        }
+      },
+      "step": "C2",
+      "dials": [
+        "win"
+      ],
+      "note": "part 4b: a pool's series of totals from its picks (head to head on what each episode's pick earned)."
+    },
+    {
+      "id": "p19",
+      "page": {
+        "show": "Survivor",
+        "season": 51,
+        "rulebook": "survivor"
+      },
+      "words": "A Survival Pool in two teams: each team's right picks add up.",
+      "spec": {
+        "preset": "survival-pool",
+        "rank": {
+          "by": "total",
+          "teams": {
+            "of": 2,
+            "score": "sum"
+          }
+        }
+      },
+      "step": "C2",
+      "dials": [
+        "who"
+      ],
+      "note": "part 4b: teams of players on a pool's points (ranked by the team's total)."
+    },
+    {
+      "id": "p20",
+      "page": {
+        "show": "Survivor",
+        "season": 51,
+        "rulebook": "survivor"
+      },
+      "words": "Most right picks wins our Survival Pool, and newcomers get a point a week head start.",
+      "spec": {
+        "preset": "survival-pool",
+        "rank": {
+          "by": "total",
+          "handicap": {
+            "points": 1
+          }
+        }
+      },
+      "step": "C2",
+      "dials": [
+        "who",
+        "win"
+      ],
+      "note": "part 4b: a pool ranked by its points (a right pick's), and a handicap on them."
+    },
+    {
+      "id": "p21",
+      "page": {
+        "show": "Survivor",
+        "season": 51,
+        "rulebook": "survivor"
+      },
+      "words": "Weekly Lineup in two teams, and the team lowest after Episode 6 is out.",
+      "spec": {
+        "preset": "weekly-lineup",
+        "rank": {
+          "by": "standing",
+          "teams": {
+            "of": 2
+          },
+          "cut": [
+            {
+              "at": {
+                "episode": 6
+              },
+              "out": 1
+            }
+          ]
+        }
+      },
+      "step": "C2",
+      "dials": [
+        "who",
+        "win"
+      ],
+      "note": "part 4b: teams knocked out, the week's result on a team's totals (today: \"A team knocked out isn't built\")."
+    },
+    {
+      "id": "p22",
+      "page": {
+        "show": "Survivor",
+        "season": 51,
+        "rulebook": "survivor"
+      },
+      "words": "Weekly Lineup in two teams: the first team to 60 points wins.",
+      "spec": {
+        "preset": "weekly-lineup",
+        "rank": {
+          "by": "total",
+          "teams": {
+            "of": 2
+          },
+          "race": {
+            "to": 60
+          }
+        }
+      },
+      "step": "C2",
+      "dials": [
+        "who",
+        "win"
+      ],
+      "note": "part 4b: a race between teams, on a team's totals (today: \"A race between teams isn't built\")."
+    },
+    {
+      "id": "p23",
+      "page": {
+        "show": "Survivor",
+        "season": 51,
+        "rulebook": "survivor"
+      },
+      "words": "In our Outlast, anyone you pick up mid-season counts double while they're yours.",
+      "step": "C3",
+      "dials": [
+        "score"
+      ],
+      "note": "a multiplier on how a holding joined, on an Outlast's lines too (decided 2026-11-05: what the replacement earns while it's yours, never their whole place times it). C2 part 4 leaves it to C3, which builds the multiplier piece."
+    },
+    {
+      "id": "p24",
+      "page": {
+        "show": "Survivor",
+        "season": 51,
+        "rulebook": "survivor"
+      },
+      "words": "Stake up to 5 points on who goes home, and the pot's split between everyone who gets it right.",
+      "spec": {
+        "get": {
+          "by": "none"
+        },
+        "score": {
+          "by": "answers"
+        },
+        "rank": {
+          "by": "total"
+        },
+        "ask": [
+          {
+            "id": "boot",
+            "ask": "Who goes home?",
+            "answer": "person",
+            "points": 10,
+            "asked": "each",
+            "settle": {
+              "by": "results",
+              "take": "out"
+            },
+            "wager": 5,
+            "share": "split"
+          }
+        ]
+      },
+      "step": "C6",
+      "dials": [
+        "answer",
+        "score"
+      ],
+      "note": "money (stakes): a wager with a share, rollover or shrink, and a parlay with a staked leg (the scoring sequence's order: the stake, then the multipliers, then the share)."
+    },
+    {
+      "id": "p25",
+      "page": {
+        "show": "Survivor",
+        "season": 51,
+        "rulebook": "survivor"
+      },
+      "words": "Who goes home is a 10-point pot split between everyone right, and if you also get immunity your share doubles.",
+      "decide": "A parlay on a split pot: does it multiply your share, or your call before the split? (Recommended: your share.)",
+      "dials": [
+        "score"
+      ],
+      "note": "A parlay on a split pot (C2 part 3's Noticed, part 4: a rule for the user): today a parlay multiplies after a window's share; the scoring sequence's order for new combinations puts multipliers before the share. Recommended: the share, then the parlay (a parlay multiplies what each leg gave you; the other way round it would grow your share of a pot everyone else shares too), as a setting if the user wants both."
     }
   ],
   "stretch": [

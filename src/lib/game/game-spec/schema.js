@@ -1349,51 +1349,147 @@ function typeOf(spec) {
   return playsAs(fullSpec(spec));
 }
 /** typeOf on a spec that's already whole (fullSpec's, specOf's, a stored settings.game), without copying it: the engine's
- *  getLeagueType asks this on nearly every read. */
+ *  getLeagueType asks this on nearly every read. C2 part 4: it plays when every piece it names has its place in the scoring
+ *  sequence (noPlace), and plays as the shape its lines make (shapeOf). */
 function playsAs(s) {
-  if (!isObj(s)) return null;
-  // A12 part 1: a game in stages, each stage a game a stage can be today, the game's own one after another (part 4a: the stages
-  // alongside them at the same time).
-  if (s.stages !== undefined) {
-    const list = s.stages;
-    const mains = mainCount(list);
-    const ok = Array.isArray(list) && list.length >= 2 && list.length <= MAX_STAGES && isObj(s.get) && s.get.by === 'none' && isObj(s.score) && s.score.by === 'stages'
-      && list.every((st) => isObj(st) && isObj(st.game) && STAGE_KINDS.includes(playsAs(stageGame(st))))
-      && list.every((st, i) => i === 0 || i >= mains || prevOnSeason(list, i) < 0 || !stagesOverlap(list[prevOnSeason(list, i)], st));
-    return ok ? 'stages' : null;
-  }
-  const by = (k) => (isObj(s[k]) ? s[k].by : undefined);
+  if (!isObj(s) || noPlace(s).length) return null;
+  return shapeOf(s);
+}
+
+// ---------- Playing by placement (docs/PLAN-start-a-game-gpt.md track C, C2 part 4) ----------
+// A spec plays when each piece it names has its place in the scoring sequence (src/lib/game/sequence/; GAME-PIECES.md "How a game
+// is scored: the sequence"), not when it matches one of seven shapes. Each step's pieces, and what each needs from the steps before
+// it (the multipliers and the combiners, steps 3 and 4, are checked where they're said: specProblems):
+//   1. Hold: a draft (its order going with its ownership, or a draw, or an auction for castaways nobody else can have: A10 part 3)
+//      counting its whole team, a lineup or its best few; a pick each episode (one, cycling or never repeating) counting the pick;
+//      nothing; a card. (holdOf)
+//   2. Lines: a place (an Outlast's), the whole team held; moments (a lineup's, best ball's), a lineup or its best few held; a pick
+//      staying in (or scoring), a pick held; answers, nothing held, every question one a game of questions plays (or the show's
+//      calls alone); bingo lines, a card held. Beside them: a draft's finale predictions. (LINES, askPlace)
+//   5 and 6. The week's result and the rank, on what the lines make: a running total, on any game's (but a pool's, ranked by its
+//      streak or who's still standing); last one standing on a draft's or a game of questions' cuts (A11 part 1, 2b), or a pool's or
+//      a game of questions' lives (A10 part 2, A11 part 2b); head to head on a draft's or a game of questions' series of totals, with
+//      nobody racing, cut or losing a life (A11 part 4, 4b); a streak, a pool's; worth, a stock market's on a lineup (A10 part 3c);
+//      co-op, a game of questions' lives together (A11 part 3). The show's calls and bingo lines are counted outside the state:
+//      a running total only. (rankPlace)
+// The shape it plays as (shapeOf) is what the screens still read (typeOf, getLeagueType's words and flags, until R3), from its lines.
+
+/** C2 part 4: what a whole spec holds (step 1): 'draft', 'pick', 'none' or 'card'; null when it isn't a holding a game has, or
+ *  'count' when it is and what counts of it doesn't fit (a draft counts its whole team, a lineup or its best few; a pick the pick;
+ *  nothing held or a card, nothing). */
+function holdOf(s) {
+  const get = isObj(s.get) ? s.get : {};
   const count = countKind(s.count);
-  if (!plainParts(s)) return null;
-  const none = s.ask.length === 0;
-  // A10 part 3: a draw deals either ownership's teams (DrawLogic), so it plays the game a snake or blind draft would; part 3b: an
-  // auction (AuctionLogic) an exclusive draft's.
-  const drafted = by('get') === 'draft' && (own(ORDER_OF, s.get.own) === s.get.order || (s.get.order === 'draw' && own(ORDER_OF, s.get.own) !== undefined) || (s.get.order === 'auction' && s.get.own === 'exclusive'));
-  if (drafted && (none || finaleOf(s.ask))) {
-    // A11 part 1: a draft that knocks players out ranks last one standing (its race and cuts are KnockoutLogic's). Part 4: head to
-    // head (MatchupLogic's), with nobody racing or cut beside it.
-    const ranks = by('rank') === 'total' || (by('rank') === 'standing' && Array.isArray(s.rank.cut) && s.rank.cut.length > 0)
-      || (by('rank') === 'matchups' && s.rank.race === undefined && s.rank.cut === undefined);
-    if (count === 'all' && by('score') === 'place' && ranks) return 'classic-draft';
-    // Best ball (A9 part 2) is Weekly Lineup's game with no lineups: its best n count (state-logic.js's best ball variant).
-    // A10 part 3c: a stock market can rank by worth.
-    if ((count === 'start' || count === 'best') && by('score') === 'moments' && (ranks || (by('rank') === 'worth' && marketOf(s)))) return 'active-roster';
+  if (get.by === 'draft') {
+    const drafted = own(ORDER_OF, get.own) === get.order || (get.order === 'draw' && own(ORDER_OF, get.own) !== undefined) || (get.order === 'auction' && get.own === 'exclusive');
+    if (!drafted) return null;
+    return count === 'all' || count === 'start' || count === 'best' ? 'draft' : 'count';
   }
-  // A10 part 2: a pool with lives can rank by who's still standing. A11 part 2: a pick that never repeats.
-  if (by('get') === 'pick' && s.get.each === 1 && (s.get.repeat === 'cycle' || s.get.repeat === 'never') && count === 'pick' && by('score') === 'survive' && (by('rank') === 'streak' || by('rank') === 'standing') && none) {
-    return 'pickem';
+  if (get.by === 'pick') {
+    if (!(get.each === 1 && (get.repeat === 'cycle' || get.repeat === 'never'))) return null;
+    return count === 'pick' ? 'pick' : 'count';
   }
-  if (by('get') === 'none' && !count && by('score') === 'answers') {
-    if (callsAsk(s.ask)) return by('rank') === 'total' ? 'weekly-calls' : null;
-    // A11 part 2b: a game of questions that knocks players out (lives, cuts) ranks last one standing.
-    const knocks = isInt(s.score.lives, 1) || (isObj(s.rank) && Array.isArray(s.rank.cut) && s.rank.cut.length > 0);
-    // A11 part 3: co-op, the couch's lives together. Part 4b: head to head, with nobody racing, cut or losing a life beside it.
-    const h2h = by('rank') === 'matchups' && !knocks && s.rank.race === undefined;
-    const ranks = by('rank') === 'total' || (by('rank') === 'standing' && knocks) || (by('rank') === 'coop' && isInt(s.score.lives, 1)) || h2h;
-    if (ranks && !none && s.ask.length <= MAX_QUESTIONS && s.ask.every(playable)) return 'questions';
-  }
-  if (by('get') === 'card' && !count && by('score') === 'lines' && by('rank') === 'total' && none) return 'weekly-bingo';
+  if (get.by === 'none' || get.by === 'card') return !count ? get.by : 'count';
   return null;
+}
+/** C2 part 4: step 2's lines (score.by), each with what it needs held: [at, why] when it has no place, else null. `s` whole, `held`
+ *  holdOf's. */
+const LINES = {
+  place: (s, held) => (held === 'draft' && countKind(s.count) === 'all' ? null : ['score.by', 'an Outlast scores places, counting the whole team drafted']),
+  moments: (s, held) => {
+    if (held === 'draft' && (countKind(s.count) === 'start' || countKind(s.count) === 'best')) return null;
+    if (held === 'draft') return ['count', 'scoring by moments counts a lineup ({ start: n }) or your best few ({ best: n }): to count the whole team, best ball with all of it'];
+    return ['score.by', held === 'pick' ? 'a pick each episode scores by staying in (or scoring): picks scored by what they do come with C5 (pick N each episode)' : 'scoring by moments needs someone of yours: a draft'];
+  },
+  survive: (s, held) => (held === 'pick' ? null : ['score.by', 'surviving scores a pick each episode']),
+  answers: (s, held) => (held === 'none' ? null : ['score.by', 'a game of questions holds nothing']),
+  lines: (s, held) => (held === 'card' ? null : ['score.by', "bingo lines are a card's"]),
+};
+/** C2 part 4: the questions beside a game's lines, [at, why] when they have no place (null when they do). */
+function askPlace(s) {
+  const none = s.ask.length === 0;
+  const by = s.score.by;
+  if (by === 'place' || by === 'moments') return none || finaleOf(s.ask) ? null : ['ask', "a draft's own questions beyond its finale predictions come with C2's last part: until then, play them in a stage alongside the draft"];
+  if (by === 'survive') return none ? null : ['ask', "a pool's picks are its game: questions beside them play in a stage alongside it"];
+  if (by === 'lines') return none ? null : ['ask', 'a bingo card is its game: questions beside it play in a stage alongside it'];
+  if (by === 'answers') {
+    if (none) return ['ask', 'a game of questions asks at least one'];
+    if (callsAsk(s.ask)) return null;
+    return s.ask.length <= MAX_QUESTIONS && s.ask.every(playable) ? null : ['ask', 'every one of its questions has to be one a game of questions plays'];
+  }
+  return null;
+}
+/** C2 part 4: steps 5 and 6, how the table ranks on what the lines make, [at, why] when it has no place (null when it does). */
+function rankPlace(s) {
+  const rank = isObj(s.rank) ? s.rank : {};
+  const by = rank.by;
+  const lines = s.score.by;
+  const cuts = Array.isArray(rank.cut) && rank.cut.length > 0;
+  if (lines === 'place' || lines === 'moments') {
+    if (by === 'total' || (by === 'standing' && cuts) || (by === 'matchups' && rank.race === undefined && rank.cut === undefined)) return null;
+    if (by === 'worth') return lines === 'moments' && marketOf(s) ? null : ['rank.by', "ranking by worth is a stock market's on a lineup (a draft scored by moments): an Outlast's places aren't priced each week"];
+    return ['rank.by', "a draft ranks by its points, last one standing when it cuts, or head to head with nobody racing or cut"];
+  }
+  if (lines === 'survive') return by === 'streak' || by === 'standing' ? null : ['rank.by', 'a pool ranks by its streak, or last one standing: ranked by its points comes with C2 part 4b'];
+  if (lines === 'answers' && callsAsk(s.ask)) return by === 'total' ? null : ['rank.by', "the show's calls are counted outside the game: most right wins"];
+  if (lines === 'answers') {
+    const knocks = isInt(s.score.lives, 1) || cuts;
+    if (by === 'total' || (by === 'standing' && knocks) || (by === 'coop' && isInt(s.score.lives, 1)) || (by === 'matchups' && !knocks && rank.race === undefined)) return null;
+    return ['rank.by', 'a game of questions ranks by its points, last one standing when it knocks players out, co-op on its lives, or head to head with nobody racing, cut or losing a life'];
+  }
+  if (lines === 'lines') return by === 'total' ? null : ['rank.by', 'bingo lines are counted outside the game: most lines wins'];
+  return null;
+}
+/**
+ * C2 part 4: the pieces of a whole spec with no place in the scoring sequence, as [{ at, why }] in the sequence's order (empty: each
+ * piece has its place, and it plays). The places are above (holdOf, LINES, askPlace, rankPlace); a game in stages' are each stage's
+ * own game's. On getLeagueType's path (playsAs): a whole spec that plays allocates nothing but its empty list.
+ */
+function noPlace(s) {
+  if (!isObj(s)) return [{ at: '', why: 'a game spec is an object' }];
+  if (s.stages !== undefined) return noPlaceStages(s);
+  // What every game shares: a span, the cast still in, a list of questions, moves locking at the start.
+  if (!plainParts(s)) return [{ at: '', why: 'every game plays a span of episodes, from the cast still in, its moves locking as each starts' }];
+  const held = holdOf(s);
+  if (!held) return [{ at: 'get', why: 'a game holds a draft (its whole team, a lineup or its best few counting), a pick each episode, nothing or a bingo card' }];
+  if (held === 'count') return [{ at: 'count', why: 'a draft counts its whole team, a lineup or its best few; a pick, the pick; nothing held or a card, nothing' }];
+  const by = isObj(s.score) ? s.score.by : undefined;
+  const line = Object.prototype.hasOwnProperty.call(LINES, by) ? LINES[by](s, held) : ['score.by', 'what it scores by has no lines yet'];
+  if (line) return [{ at: line[0], why: line[1] }];
+  const out = [];
+  const a = askPlace(s);
+  if (a) out.push({ at: a[0], why: a[1] });
+  const r = rankPlace(s);
+  if (r) out.push({ at: r[0], why: r[1] });
+  return out;
+}
+/** C2 part 4: a game in stages' pieces with no place: 2 to MAX_STAGES of them, nothing of its own beyond its stages and the overall,
+ *  each stage's game a game that plays (never a game in stages), the game's own one after another (A12 part 4a: the stages beside
+ *  them at the same time). */
+function noPlaceStages(s) {
+  const list = s.stages;
+  if (!(Array.isArray(list) && list.length >= 2 && list.length <= MAX_STAGES && isObj(s.get) && s.get.by === 'none' && isObj(s.score) && s.score.by === 'stages')) {
+    return [{ at: 'stages', why: `a game in stages is 2 to ${MAX_STAGES} games, with its rules in each` }];
+  }
+  const out = [];
+  const mains = mainCount(list);
+  list.forEach((st, i) => {
+    const at = `stages[${i}]`;
+    if (!(isObj(st) && isObj(st.game))) return out.push({ at, why: 'each stage is a game' });
+    const g = stageGame(st);
+    if (isObj(g) && g.stages !== undefined) return out.push({ at: `${at}.game.stages`, why: "a stage is one game: stages don't nest" });
+    noPlace(g).forEach((x) => out.push({ at: `${at}.game${x.at ? `.${x.at}` : ''}`, why: x.why }));
+    const k = i === 0 || i >= mains ? -1 : prevOnSeason(list, i);
+    if (k >= 0 && stagesOverlap(list[k], st)) out.push({ at: `${at}.game.span.from`, why: "the game's own stages play one after another" });
+  });
+  return out;
+}
+/** C2 part 4: the shape a spec that plays plays as, for the screens (typeOf; getLeagueType's words and flags until R3): its lines'. */
+function shapeOf(s) {
+  if (s.stages !== undefined) return 'stages';
+  const by = isObj(s.score) ? s.score.by : undefined;
+  if (by === 'answers') return callsAsk(s.ask) ? 'weekly-calls' : 'questions';
+  return { place: 'classic-draft', moments: 'active-roster', survive: 'pickem', lines: 'weekly-bingo' }[by] || null;
 }
 /** The parts every game today shares: a span (from an episode, or a phase), the cast still in, a list of questions (each
  *  game says which it plays), moves locking at the start. */
@@ -1930,7 +2026,8 @@ function questionProblems(q, at, s, ids, league) {
     const sh = q.shrink;
     if (!(isObj(sh) && SHRINK_PER.includes(sh.per) && isInt(sh.points, 1) && sh.points <= MAX_QUESTION_POINTS)) add('shrink', `Points shrink by 1 to ${MAX_QUESTION_POINTS} per episode or per change: { points, per: episode | change }`);
     else if (!(q.asked === 'once' && q.closes === 'finale')) add('shrink', "Only a call that stays open once the game is on shrinks: asked once, closing at the finale");
-    else if (q.share !== undefined) add('shrink', 'A shrinking call is its own: no share with it');
+    // C2 part 4: a shrinking call that's shared is each right call at what it's worth when it was made, then shared (the scoring
+    // sequence's order: a line's worth, then the share).
   }
   // F3 part 2: a group question asked each episode about one episode reads its groups from the format's state over time on a
   // season played in groups the league doesn't hold (pairs); `fallback` says what it does when they aren't sure.
@@ -2514,8 +2611,8 @@ function waiverProblems(w, s) {
 /**
  * A game of questions' parlays (A9), as [[at, problem]]: each { of: 2 to MAX_LEGS of its question ids, times: more than 1,
  * up to MAX_TIMES }. A leg is one answer that's right or wrong (one person or group, a yes or no, a choice, a number, an
- * over/under), plain (no share, rollover, shrink or wager: the parlay is how it combines), and every leg is asked the same way,
- * so they share their windows; a question is in one parlay at most.
+ * over/under), unstaked and not a split pot (C2 part 4: one that rolls over, shrinks or pays only the only one right is multiplied
+ * as it stands), and every leg is asked the same way, so they share their windows; a question is in one parlay at most.
  */
 function parlayProblems(list, s) {
   if (!Array.isArray(list) || !list.length || list.length > MAX_PARLAYS) return [['', `Parlays are a list of 1 to ${MAX_PARLAYS}`]];
@@ -2542,7 +2639,11 @@ function parlayProblems(list, s) {
     for (const q of legs) {
       const single = LEGS.includes(q.answer) && !(NAMES.includes(q.answer) && q.pick !== 1) && q.each === undefined;
       if (!single) out.push([`${at}.of`, `"${q.id}" isn't one answer that's right or wrong: a parlay's legs are one person or group, a yes or no, a choice, a number or an over/under`]);
-      else if (q.share !== undefined || q.rollover !== undefined || q.shrink !== undefined || q.wager !== undefined) out.push([`${at}.of`, `"${q.id}" combines its own way: a parlay's legs are plain`]);
+      // C2 part 4: a leg that rolls over, shrinks or pays only the only one right is multiplied as it stands (its window's worth and
+      // its share, then the parlay: the scoring sequence's order). A stake is C6's (money); a split pot waits on a rule (the plan's
+      // Noticed: does a parlay multiply your share, or your call before the split?).
+      else if (q.wager !== undefined) out.push([`${at}.of`, `"${q.id}" has a stake: a parlay's legs aren't staked (a staked parlay comes with money, C6)`]);
+      else if (q.share === 'split') out.push([`${at}.of`, `"${q.id}" splits a pot: a parlay on a split pot waits on a rule (does it multiply your share, or your call before the split?)`]);
     }
     const way = (q) => `${q.asked}|${q.every || ''}|${q.over || ''}`;
     if (legs.length > 1 && legs.some((q) => way(q) !== way(legs[0]))) out.push([`${at}.of`, "A parlay's questions are asked the same way, so they're answered together"]);
@@ -2820,7 +2921,8 @@ function specWaitsFor(spec) {
   const steps = out.filter((x) => !seen.has(`${x.at}|${x.step}`) && seen.add(`${x.at}|${x.step}`));
   steps.sort((a, b) => STEP_ORDER.indexOf(a.step) - STEP_ORDER.indexOf(b.step));
   if (!steps.length) for (const [q, i] of lines) steps.push({ at: `ask[${i}].line`, step: null, problem: `"${q.ask || q.id}" needs its line` });
-  if (!steps.length && !typeOf(s)) steps.push({ at: '', step: null, problem: 'No game plays this way yet' });
+  // C2 part 4: a piece with no place in the scoring sequence, saying which and why.
+  if (!steps.length) for (const x of noPlace(s)) steps.push({ at: x.at, step: null, problem: `No game plays this way yet: ${x.why}` });
   return steps;
 }
 
@@ -3061,7 +3163,7 @@ function stagedWaits(s) {
     // stage beside the game's own isn't one of them).
     if (!isObj(st.on) && !isBeside(st) && list.slice(0, i).some((x) => isObj(x) && isObj(x.on))) out.push({ at: `stages[${i}].game.span.from`, step: 'later', problem: "A stage at an episode or a phase after one a format change starts comes with A12's later parts" });
   });
-  if (!out.length && !playsAs(s)) out.push({ at: '', step: null, problem: 'No game plays this way yet' });
+  if (!out.length) for (const x of noPlace(s)) out.push({ at: x.at, step: null, problem: `No game plays this way yet: ${x.why}` });
   return out;
 }
 

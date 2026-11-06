@@ -838,7 +838,9 @@ function shrunk(q, worth, a) {
  * earned; only: a right answer scores only when nobody else's does); a shrinking call (each answer's `late` or `changes`). Answers:
  * [{ playerId, answer, late?, changes? }]. A wager plays alone, as A8 has it. A question with none of these earns exactly
  * pointsFor's. C2 part 3: the grading here (each answer's right ones, a unit each: `units`; which right pick who named), the lines
- * and their combining the scoring sequence's (Seq.windowLines at each answer's worth, Seq.split, Seq.only, Seq.onlyEach).
+ * and their combining the scoring sequence's (Seq.windowLines at each answer's worth, Seq.split, Seq.only, Seq.onlyEach). C2 part 4:
+ * a shrinking call that's shared, each answer's units at what its call is worth, then the share (a split, each divided between
+ * everyone right by their units; only, the only one right keeping theirs).
  */
 function windowPoints(q, v, answers, facts, o) {
   const worth = o && isNum(o.worth) ? o.worth : q.points;
@@ -847,7 +849,10 @@ function windowPoints(q, v, answers, facts, o) {
   if (q.wager || (call === undefined && !q.share && !q.shrink && worth === q.points)) return pointsFor(q, v, answers, facts);
   // Each answer's right ones, at a point each (every kind's points are its points times these); against the bot, those it didn't get.
   const units = call === undefined ? pointsFor({ ...q, points: 1 }, v, answers, facts) : beatUnits(q, v, answers, facts, call);
-  if (q.share === 'split') return Seq.split(worth, units);
+  const mine = new Map(answers.map((a) => [a.playerId, a]));
+  // C2 part 4: a shrinking call that's shared, each answer at what its call is worth (step 2), then shared (step 4).
+  const at = q.shrink ? (pid) => shrunk(q, worth, mine.get(pid)) : worth;
+  if (q.share === 'split') return Seq.split(at, units);
   if (q.share === 'only') {
     // A person or group answer (A9 part 2, part 1's open item, decided): each right pick nobody else named scores, so two players
     // each alone on a different right one (the final three, a double boot) both do. Anything else: the only player right.
@@ -862,11 +867,10 @@ function windowPoints(q, v, answers, facts, o) {
           if (rightSet.has(k)) by.set(k, [...(by.get(k) || []), a.playerId]);
         }
       }
-      return Seq.onlyEach(worth, by);
+      return Seq.onlyEach(at, by);
     }
-    return Seq.only(worth, units);
+    return Seq.only(at, units);
   }
-  const mine = new Map(answers.map((a) => [a.playerId, a]));
   return Seq.windowLines(units, (pid) => shrunk(q, worth, mine.get(pid)));
 }
 
