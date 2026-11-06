@@ -198,6 +198,26 @@ season bank, asked by whoever started the game, logged on the desk), handed to a
 the season has its bank, one's on its way, or the bot isn't answering. A dev server's stand-in bot comes through the start
 route (`botFor`). `check-own-pace.js` proves it with a stand-in (never ChatGPT) and cleans what it made on the real season.
 
+## As built: part 3a, shared teams (2026-11-05)
+
+Outlast and Weekly Lineup play at your own pace with **shared** teams (the user, 2026-11-05: Outlast counts the whole season, as
+it always does, so a later joiner keeps the head start of picking from who was still in).
+
+- **Engine:** `paceAll` stamps a blind draft as revealed in a game with teams (no draft room or Your move ever asks for one);
+  `GhostLogic.teamAt`/`takeTeam` (begin's team checks pulled out), `needsTeam`, `pickTeam` (a seat whose start is set picks its team
+  once, from `draftPool`); `viewFor` leaves out the team of anyone who started after your week (it would say who survives).
+  `bot-logic.js`: `paceTeams` (each bot picks its team on the copy before its start: ratings, the tribe spread, any cap),
+  `lineupFor` split out of `lineups`, and `catchUpTo` sets a Weekly Lineup's lineup for each week a bot plays.
+- **Server:** `start-game.ts` lets Outlast and Weekly Lineup fit at your own pace (`PACED`), forces `own: shared, order: blind`,
+  fits Outlast's team size on the copy before the start, and runs `Bots.paceTeams` after `paceAll`. `POST
+  /api/leagues/[id]/team` ({ castawayIds }: `pickTeam`). `markRevealed` refuses a reveal before your team ("Pick your team
+  first"). `GameView.pace.team` ({ need, pool }). No draft room for own-pace games (`season-draft.ts`).
+- **UI:** Tonight's plate starts with **Pick your team** (`TeamPlate`, "5 from who was still in before Episode 1. They're yours
+  for the whole game.") and a face grid sheet (`TeamSheet`: tap to take, "Pick 2 more", "This is my team"); then the plate's
+  usual steps (Weekly Lineup: Set · Watch · Reveal; Outlast: Watch · Reveal). Joiners pick theirs in the join sheet, as before.
+- Checked: `tests/own-pace.test.js` (four 3a cases), `check-own-pace.js` (jordan's Weekly Lineup: no draft, the bot's team, the
+  team plate and sheet at 390px, the lineup step, a lineup on an aired episode, the bot's lineup set at the reveal).
+
 ## Noticed, not fixed
 - The Play it card on a finished season offered Start a game and the sheet then refused it (the dead end that started this).
   Part 1 fixes it by making the start work; the Games tab's own Start row already hid itself.

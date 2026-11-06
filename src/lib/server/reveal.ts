@@ -32,6 +32,8 @@ export async function markRevealed(user: SessionUser, leagueId: string, playerId
   const late = current && playerId ? StateLogic.GhostLogic.lateJoinOf(current, playerId) : null;
   if (late && current && playerId) {
     if (late.startEpisode === null) throw new HttpError(400, "Choose where to start first");
+    // A game at your own pace with teams: your team first (part 3a), or your first episode would score nobody.
+    if (StateLogic.GhostLogic.needsTeam(current, playerId)) throw new HttpError(400, "Pick your team first");
     const latest = StateLogic.SpoilerLogic.latestWithResults(current);
     const seen = before ?? late.startEpisode - 1;
     if (late.catchingUp) {

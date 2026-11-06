@@ -262,7 +262,13 @@ export interface GameView extends GameRefIn {
   catchUp: { week: number; latest: number } | null;
   /** A game at your own pace (docs/PLAN-own-pace-games.md): everyone else in it (not its computer players) and the episode
    *  they're on, null once they've finished; the season's last episode. The server fills it (season-games.ts); null otherwise. */
-  pace: { others: { name: string; week: number | null }[]; last: number } | null;
+  pace: {
+    others: { name: string; week: number | null }[];
+    last: number;
+    /** A game with teams where yours isn't picked yet (part 3a): how many, from whom (castaway ids of `cast`, who was in before
+     *  your start). */
+    team: { need: number; pool: string[] } | null;
+  } | null;
   /** Step A11 part 3: a co-op game's lives (the couch's together) and its result, won or lost by all, as far as you've seen (its
    *  walk on your copy); null for any other game. What it shows is U1's. */
   coop: CoopWalk | null;

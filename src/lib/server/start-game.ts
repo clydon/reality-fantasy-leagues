@@ -1,4 +1,5 @@
 import { after } from "next/server";
+import Bots from "@/lib/game/bot-logic.js";
 import StateLogic from "@/lib/game/state-logic.js";
 import { addBot, MAX_BOTS, type BotLevel } from "@/lib/game/computer-players";
 import { gameLine, gamesFor, noFitLine } from "@/lib/game/formats/rulebook-fits.js";
@@ -183,6 +184,9 @@ const partAt = (o: Pick<StartOptions, "part" | "from">) => `${o.part.singular.re
 /** How long after it starts an episode counts as on now, for Include it (a ballgame runs three hours and more). */
 const ON_AIR_MS = 6 * 3600 * 1000;
 
+/** The games that play at your own pace (docs/PLAN-own-pace-games.md parts 1 and 3a). */
+const PACED = new Set<StartKey>(["survivalPool", "outlast", "weeklyLineup"]);
+
 /** The games computer players play (bot-logic.js): the drafts and Survival Pool. */
 const BOT_GAMES = new Set<SeasonGameKey>(["survivalPool", "weeklyLineup", "outlast"]);
 
@@ -306,9 +310,9 @@ export async function startOptions(
     .map((p) => ({ id: p.id, name: p.name, summary: p.summary, at: p.from }));
   const blocked = h.ready === false ? `Make ${show} a game first` : over && !pace ? "The season's over: every episode has aired" : null;
   if (ownPace) {
-    // At your own pace it's Survival Pool for now: the loop (pick, watch, reveal) and its computer players are built for it. The
-    // drafts, the Prediction Sheet and the one-night games come with the plan's later parts.
-    for (const g of choices) if (g.key !== "survivalPool" && g.fits) Object.assign(g, { fits: false, needs: "an episode still to air, for now" });
+    // At your own pace: Survival Pool, and Outlast and Weekly Lineup with shared teams (part 3a: each seat picks its own from who
+    // was in before its start). The Prediction Sheet and the one-night games' season versions come with the plan's later parts.
+    for (const g of choices) if (!PACED.has(g.key) && g.fits) Object.assign(g, { fits: false, needs: "an episode still to air, for now" });
   }
 
   let again: StartOptions["again"] = null;
@@ -563,9 +567,13 @@ export async function startGame(
         if (spec.get.by === "draft") spec.get = { ...spec.get, own: "shared", order: "blind" };
         if (spec.score.by === "survive") spec.score = { ...spec.score, means: "scores" };
       }
+      // At your own pace teams are shared (part 3a): each seat picks its own from who was in before its start, nothing to share
+      // out, so no draft (the presets' waivers are none already; an exclusive team at your own pace is part 3b's).
+      if (opts.ownPace && spec.get.by === "draft") spec.get = { ...spec.get, own: "shared", order: "blind" };
       if (choice.key === "outlast" && spec.get.by === "draft") {
-        // One team each from who's still in: fitted to the couch, so everyone on it could play (Game settings changes it).
-        const stillIn = s.castaways.filter((c) => c.status === "active").length;
+        // One team each from who's still in (at your own pace, who was in before its start): fitted to the couch, so everyone on
+        // it could play (Game settings changes it).
+        const stillIn = (opts.ownPace ? StateLogic.SpoilerLogic.viewThrough(s, opts.from - 1) : s).castaways.filter((c) => c.status === "active").length;
         const each = Math.floor(stillIn / Math.max(2, opts.couch.members + bots));
         if (stillIn && each >= 1 && each < (spec.get.each || 4)) spec.get = { ...spec.get, each };
       }
@@ -591,7 +599,11 @@ export async function startGame(
       }
       // At your own pace: every seat, the computer players too, starts catching up at the start (the season's results landed
       // before this: syncLeagueDecisions), each playing one episode at a time from their own copy (GhostLogic).
-      if (opts.ownPace) StateLogic.GhostLogic.paceAll(s, opts.from);
+      if (opts.ownPace) {
+        StateLogic.GhostLogic.paceAll(s, opts.from);
+        // Its computer players pick their teams now, from who was in before the start (part 3a); people pick theirs on Tonight.
+        Bots.paceTeams(s);
+      }
       await recordChange(client, id, s, {
         userId: user.id,
         kind: "game.start",

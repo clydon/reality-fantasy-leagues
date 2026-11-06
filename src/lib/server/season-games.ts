@@ -201,7 +201,14 @@ export async function viewWithCalls(user: SessionUser, seasonId: string, h: Game
   // A game at your own pace: where the others are, for its plate and its reveal button, and the season's last episode
   // (docs/PLAN-own-pace-games.md).
   if (!h.readOnly && StateLogic.GhostLogic.ownPace(h.state)) {
-    view.pace = { others: othersIn(h.state, h.playerId, h.marks), last: Math.max(0, ...h.state.episodes.map((e) => e.number)) };
+    const G = StateLogic.GhostLogic;
+    const start = G.lateJoinOf(h.state, h.playerId)?.startEpisode;
+    const pool = G.needsTeam(h.state, h.playerId) && Number.isInteger(start) ? G.draftPool(h.state, start as number, !G.sharedJoin(h.state)) : null;
+    view.pace = {
+      others: othersIn(h.state, h.playerId, h.marks),
+      last: Math.max(0, ...h.state.episodes.map((e) => e.number)),
+      team: pool ? { need: Math.min(G.teamSize(h.state), pool.length), pool } : null,
+    };
   }
   // A game that starts when a phase does (step A3 of docs/PLAN-start-a-game-gpt.md): the phase by name, from its rulebook.
   const phase = StateLogic.startPhase(h.state);

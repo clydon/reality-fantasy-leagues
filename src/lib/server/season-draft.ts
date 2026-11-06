@@ -31,7 +31,8 @@ async function namesFor(here: GameHere[]): Promise<Map<string, string>> {
 
 export async function seasonDraft(user: SessionUser, seasonId: string, couchId: string | null): Promise<SeasonDraft> {
   const { here: all } = await gamesHere(user, seasonId, couchId);
-  const here = all.filter((h) => draftKind(h.state));
+  // A game at your own pace has no draft room: each seat picks its own team on Tonight (docs/PLAN-own-pace-games.md part 3a).
+  const here = all.filter((h) => draftKind(h.state) && !StateLogic.GhostLogic.ownPace(h.state));
   const [queues, names] = await Promise.all([queuesFor(here.map((h) => ({ leagueId: h.game.leagueId, playerId: h.playerId }))), namesFor(here)]);
   const games: DraftGame[] = [];
   for (const h of here) {

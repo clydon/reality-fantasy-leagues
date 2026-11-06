@@ -285,19 +285,22 @@ function lineups(state) {
   // Step A11 part 1: nobody knocked out of the game sets one (validateLineup would refuse it).
   const outs = StateLogic.KnockoutLogic.outs(state);
   botIds(state).forEach((pid) => {
-    if (outs.has(pid)) return;
-    const mine = state.castaways.filter((c) => c.status === "active" && (c.ownerIds || []).includes(pid)).map((c) => c.id);
-    if (!mine.length) return;
-    const best = ranked(state, pid, mine, "points").slice(0, slots);
-    const current = ActiveRosterLogic.lineupFor(state, ep.id, pid);
-    // A game with a captain (A9 part 2): the best of them wears it.
-    const captainOk = !ActiveRosterLogic.captainTimes(state) || ActiveRosterLogic.captainFor(state, ep.id, pid) === best[0];
-    if (!ActiveRosterLogic.lineupIsCarried(state, ep.id, pid) && sameSet(best, current) && captainOk) return;
-    let set = ActiveRosterLogic.setLineup(state, ep.id, pid, best);
-    if (ActiveRosterLogic.captainTimes(state) && ActiveRosterLogic.setCaptain(state, ep.id, pid, best[0])) set = true;
-    if (set) made++;
+    if (!outs.has(pid)) made += lineupFor(state, ep, pid, slots);
   });
   return made;
+}
+// One bot's lineup (and captain) for `ep`, on `state`: the league's, or a catching-up bot's own copy (catchUpTo).
+function lineupFor(state, ep, pid, slots) {
+  const mine = state.castaways.filter((c) => c.status === "active" && (c.ownerIds || []).includes(pid)).map((c) => c.id);
+  if (!mine.length) return 0;
+  const best = ranked(state, pid, mine, "points").slice(0, slots);
+  const current = ActiveRosterLogic.lineupFor(state, ep.id, pid);
+  // A game with a captain (A9 part 2): the best of them wears it.
+  const captainOk = !ActiveRosterLogic.captainTimes(state) || ActiveRosterLogic.captainFor(state, ep.id, pid) === best[0];
+  if (!ActiveRosterLogic.lineupIsCarried(state, ep.id, pid) && sameSet(best, current) && captainOk) return 0;
+  let set = ActiveRosterLogic.setLineup(state, ep.id, pid, best);
+  if (ActiveRosterLogic.captainTimes(state) && ActiveRosterLogic.setCaptain(state, ep.id, pid, best[0])) set = true;
+  return set ? 1 : 0;
 }
 
 // Group slots (docs/PLAN-start-a-game-gpt.md step A10 part 1; computer players fill them since A11 part 5c): a slot with nothing in
@@ -374,7 +377,7 @@ function eliminatorPickFor(state, ep, pid) {
 // when someone reveals episode `n` (reveal.ts markRevealed, under the league lock): every bot still behind it plays each week
 // up to `n` on the copy a late joiner at that mark sees (StateLogic.GhostLogic.applyAs: nothing past the week exists in it, so
 // a bot never reads ahead), then its mark is `n`. A bot already past `n` (someone else revealed further) does nothing.
-// Deterministic like run(): a second call changes nothing. Survival Pool's pick for now (the drafts come with part 3).
+// Deterministic like run(): a second call changes nothing. Survival Pool's pick, and a Weekly Lineup's lineup (part 3a).
 function catchUpTo(state, n) {
   const G = StateLogic.GhostLogic;
   let made = 0;
@@ -389,6 +392,10 @@ function catchUpTo(state, n) {
           const vEp = view.episodes.find((e) => e.number === week);
           if (!vEp || !inPlay(view, week) || closedForPlay(vEp) || PickEmLogic.decided(vEp, view)) return;
           if (piecesOf(view).hasWeeklyPicks) made += eliminatorPickFor(view, vEp, p.id);
+          if (piecesOf(view).hasActiveRoster && !ActiveRosterLogic.isLineupLocked(view, vEp.id)) {
+            const slots = ActiveRosterLogic.activeSlots(view);
+            if (slots) made += lineupFor(view, vEp, p.id, slots);
+          }
         });
       }
       lj.seenThrough = week;
@@ -481,10 +488,32 @@ function run(state) {
   return total;
 }
 
+// A game at your own pace with teams (docs/PLAN-own-pace-games.md part 3a): each computer player with none picks its own from who
+// was in before its start, on what was known then (ratings on that copy, the tribe spread and any cap as a draft's), then
+// GhostLogic.pickTeam. Returns how many teams it picked.
+function paceTeams(state) {
+  const G = StateLogic.GhostLogic;
+  let made = 0;
+  state.players.filter((p) => isBot(p) && G.needsTeam(state, p.id)).forEach((p) => {
+    const start = p.lateJoin.startEpisode;
+    const view = StateLogic.SpoilerLogic.viewThrough(state, Math.max(0, start - 1));
+    const pool = G.draftPool(state, start, !G.sharedJoin(state));
+    const size = Math.min(G.teamSize(state), pool.length);
+    const picks = [];
+    for (let i = 0; i < size; i++) {
+      const next = draftOrderFor(view, p.id, StateLogic.draftFits(view, picks, pool.filter((id) => !picks.includes(id))), picks)[0];
+      if (!next) break;
+      picks.push(next);
+    }
+    if (!G.pickTeam(state, p.id, picks)) made++;
+  });
+  return made;
+}
+
 // Whether any bot has a move waiting, without touching `state`.
 function hasWork(state) {
   if (!botIds(state).length) return false;
   return blindSubmissions(state).length > 0 || auctionBids(state).length > 0 || run(structuredClone(state)) > 0;
 }
 
-module.exports = { LEVELS, DEFAULT_LEVEL, isBot, botIds, ratings, run, hasWork, catchUpTo, blindSubmissions, auctionBids, waiverClaim, groupSlotPicks };
+module.exports = { LEVELS, DEFAULT_LEVEL, isBot, botIds, ratings, run, hasWork, catchUpTo, paceTeams, blindSubmissions, auctionBids, waiverClaim, groupSlotPicks };

@@ -7822,26 +7822,38 @@ class GhostLogic {
     if(!p || !p.lateJoin) return 'Not a late joiner';
     if(Number.isInteger(p.lateJoin.startEpisode)) return 'Already started';
     if(!GhostLogic.startChoices(state).includes(start)) return 'Pick an episode from the list';
+    const team = GhostLogic.teamAt(state, playerId, start, castawayIds, opts);
+    if(team.error) return team.error;
+    GhostLogic.takeTeam(state, p, team);
+    p.lateJoin.startEpisode = start;
+    p.lateJoin.catchingUp = start - 1 < SpoilerLogic.latestWithResults(state);
+    return null;
+  }
+  // A late joiner's team from `start` (begin's, and a seat at your own pace's: pickTeam): dealt from the hat in a game whose teams
+  // came out of one (DrawLogic.lateDeal), else `castawayIds`, checked against who was still in before `start` (draftPool), its
+  // size (a full roster, or everyone left late in a season) and a price (BudgetLogic: within the cap, what it costs then).
+  // { error } or { ids, paid }. Writes nothing.
+  static teamAt(state, playerId, start, castawayIds, opts){
     const free = !!(opts && opts.freeAgents);
     const ids = DrawLogic.dealsLate(state) ? DrawLogic.lateDeal(state, playerId, start, free) : Array.isArray(castawayIds) ? castawayIds : [];
     const need = GhostLogic.teamSize(state);
     const pool = GhostLogic.draftPool(state, start, free);
-    if(new Set(ids).size !== ids.length) return 'Same pick listed twice';
-    if(ids.some(id => !pool.includes(id))) return 'Pick from who was still in the game';
+    if(new Set(ids).size !== ids.length) return { error: 'Same pick listed twice' };
+    if(ids.some(id => !pool.includes(id))) return { error: 'Pick from who was still in the game' };
     // Late in a season there may be fewer left than a full roster; take everyone then.
-    if(ids.length !== Math.min(need, pool.length)) return 'Pick ' + Math.min(need, pool.length);
+    if(ids.length !== Math.min(need, pool.length)) return { error: 'Pick ' + Math.min(need, pool.length) };
     let paid = null;
     if(ids.length && BudgetLogic.priced(state)){
       const then = SpoilerLogic.viewThrough(state, Math.max(0, start - 1));
       const over = BudgetLogic.teamProblem(then, ids, [], pool);
-      if(over) return over;
+      if(over) return { error: over };
       paid = BudgetLogic.cost(ids, PriceLogic.prices(then));
     }
-    if(paid !== null) p.joinPaid = roundPoints((p.joinPaid || 0) + paid);
-    ids.forEach(id => Core.addOwner(state, id, playerId));
-    p.lateJoin.startEpisode = start;
-    p.lateJoin.catchingUp = start - 1 < SpoilerLogic.latestWithResults(state);
-    return null;
+    return { ids, paid };
+  }
+  static takeTeam(state, p, team){
+    if(team.paid !== null) p.joinPaid = roundPoints((p.joinPaid || 0) + team.paid);
+    team.ids.forEach(id => Core.addOwner(state, id, p.id));
   }
   // Their mark reached the latest results (or they jumped there): from now on they play live.
   static markCaughtUp(state, playerId, seenThrough){
@@ -7870,6 +7882,24 @@ class GhostLogic {
       p.lateJoin = { startEpisode: start, catchingUp: start - 1 < latest, seenThrough: start - 1 };
     });
     state.settings.ownPace = true;
+    // Shared teams (part 3a): nobody drafts together; each seat picks its own from who was in before its start (pickTeam). The
+    // blind draft reads as revealed, so no draft room or Your move ever asks for one.
+    if(BlindDraftLogic.on(state) && !BlindDraftLogic.isRevealed(state)) state.blindDraft = { lockedPlayerIds: [], revealedAt: new Date().toISOString() };
+  }
+  // A seat at your own pace in a game with teams that has none yet (the starter and its computer players: paceAll set their
+  // start; a joiner picks theirs as they join, begin).
+  static needsTeam(state, playerId){
+    const p = Core.getPlayer(state, playerId);
+    return !!p && GhostLogic.ownPace(state) && !!p.lateJoin && GhostLogic.teamSize(state) > 0 && !Core.ownedCastawayIds(state, playerId).length;
+  }
+  // That seat picks its team from who was in before its start: begin's checks, its start left as it is. A reason, or null.
+  static pickTeam(state, playerId, castawayIds){
+    if(!GhostLogic.needsTeam(state, playerId)) return GhostLogic.ownPace(state) ? 'You have a team' : 'Not a game at your own pace';
+    const p = Core.getPlayer(state, playerId);
+    const team = GhostLogic.teamAt(state, playerId, p.lateJoin.startEpisode, castawayIds, { freeAgents: !GhostLogic.sharedJoin(state) });
+    if(team.error) return team.error;
+    GhostLogic.takeTeam(state, p, team);
+    return null;
   }
   // The commissioner brings a ghost into the league: visible to everyone, in the waiver order. Their team and points come with them. In an exclusive-ownership league a
   // castaway they share with someone stays shared -- the one place exclusivity bends.
@@ -7900,6 +7930,12 @@ class GhostLogic {
     if(others.size) GhostLogic.stripPlayers(s, others);
     if(catchingUp || !full) s = SpoilerLogic.viewThrough(s, full ? seenThrough + 1 : seenThrough);
     if(catchingUp) GhostLogic.rewindTo(s, seenThrough);
+    // Someone who started after your week picked their team from who was still in then: their team would say who survives, so in
+    // your copy they hold nobody yet (own-pace games, part 3a: a friend who joins later than you).
+    if(catchingUp){
+      const later = new Set((s.players || []).filter(p => p.id !== viewerId && p.lateJoin && Number.isInteger(p.lateJoin.startEpisode) && p.lateJoin.startEpisode > seenThrough + 1).map(p => p.id));
+      if(later.size) s.castaways.forEach(c => { if(ownerListOf(c).some(id => later.has(id))) c.ownerIds = ownerListOf(c).filter(id => !later.has(id)); });
+    }
     return s;
   }
   // The late joiners a commissioner manages (Players & invites), from the real state.

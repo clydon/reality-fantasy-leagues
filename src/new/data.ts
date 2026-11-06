@@ -1399,6 +1399,8 @@ export function useEndGames(seasonId: string, couchId: string | null, enabled = 
 }
 
 export const gamesApi = {
+  /** A game at your own pace with teams (docs/PLAN-own-pace-games.md part 3a): your team, from who was in before your start. */
+  team: (leagueId: string, castawayIds: string[]) => post<unknown>(`/api/leagues/${leagueId}/team`, { castawayIds }),
   /** `to`: the last episode it plays (a span, step 6 of docs/PLAN-sports-data.md); null to the season's end. */
   start: (
     seasonId: string,

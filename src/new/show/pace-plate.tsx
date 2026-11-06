@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { couches, useAfterCouch, type CatchUpReveal, type GameView } from "../data";
+import { Check } from "lucide-react";
+import { couches, gamesApi, useAfterCouch, type CatchUpReveal, type GameView } from "../data";
 import { CatchUpResult } from "../couch/join-game";
 import { aheadWords, allHere } from "../couch/pace";
 import { namesLine } from "../couch/where";
@@ -47,7 +48,15 @@ export function OwnPacePlates({ show }: { show: ShowData }) {
   if (!games.length && !done) return null;
   return (
     <section className="mt-4 flex flex-col gap-3 px-4">
-      {games.map((g) => (g.catchUp ? <PacePlate key={g.leagueId} show={show} g={g} onRevealed={(reveal) => setDone({ game: g, reveal })} /> : <FinishPlate key={g.leagueId} show={show} g={g} />))}
+      {games.map((g) =>
+        g.pace?.team ? (
+          <TeamPlate key={g.leagueId} g={g} />
+        ) : g.catchUp ? (
+          <PacePlate key={g.leagueId} show={show} g={g} onRevealed={(reveal) => setDone({ game: g, reveal })} />
+        ) : (
+          <FinishPlate key={g.leagueId} show={show} g={g} />
+        )
+      )}
       <RevealedSheet show={show} done={done} onClose={() => setDone(null)} />
     </section>
   );
@@ -154,6 +163,82 @@ function PacePlate({ show, g, onRevealed }: { show: ShowData; g: GameView; onRev
         </small>
       )}
     </div>
+  );
+}
+
+/** A game with teams where yours isn't picked yet (part 3a): the plate's first step, before Pick · Watch · Reveal. */
+function TeamPlate({ g }: { g: GameView }) {
+  const [open, setOpen] = useState(false);
+  const team = g.pace!.team!;
+  const week = g.catchUp?.week ?? 1;
+  return (
+    <div data-pace-team-plate={g.leagueId} className="flex flex-col gap-2.5 rounded-[4px] bg-plate p-3.5 text-plate-foreground shadow-plate">
+      <span className={TAG}>
+        Before Episode {week} · {g.gameName}
+      </span>
+      <b className="type-caption text-[28px] leading-none">Pick your team</b>
+      <p className="text-[14px] leading-snug text-plate-muted">
+        {team.need} from who was still in before Episode {week}. They&rsquo;re yours for the whole game.
+      </p>
+      <Btn tone="must" wide data-pace-team-open onClick={() => setOpen(true)}>
+        Pick your team
+      </Btn>
+      <TeamSheet g={g} open={open} onOpenChange={setOpen} />
+    </div>
+  );
+}
+
+/** Who you can have, as faces: tap to take, tap again to put back; the button counts down to your team. */
+function TeamSheet({ g, open, onOpenChange }: { g: GameView; open: boolean; onOpenChange: (o: boolean) => void }) {
+  const after = useAfterCouch();
+  const [team, setTeam] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const { need, pool } = g.pace!.team!;
+  const save = async () => {
+    setBusy(true);
+    try {
+      await gamesApi.team(g.leagueId, team);
+      await after();
+      onOpenChange(false);
+      toast("Your team's in");
+    } catch (e) {
+      toast.quiet((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange} title="Pick your team" subtitle={`${need} · from who was still in before Episode ${g.catchUp?.week ?? 1}`}>
+      <div data-pace-team-pick className="grid grid-cols-4 gap-2">
+        {pool.map((id) => {
+          const c = faceIn(g, id);
+          const on = team.includes(id);
+          return (
+            <button
+              key={id}
+              type="button"
+              data-castaway={id}
+              aria-pressed={on}
+              onClick={() => setTeam(on ? team.filter((x) => x !== id) : team.length < need ? [...team, id] : team)}
+              className={`relative overflow-hidden rounded-[3px] bg-plate text-left text-plate-foreground ${on ? "shadow-[0_0_0_3px_var(--good)]" : ""}`}
+            >
+              <Face src={c?.photo ?? null} name={c?.name ?? "?"} className="aspect-[4/4.2] w-full text-[28px]" />
+              {on && (
+                <span className="absolute right-1 top-1 grid size-6 place-items-center rounded-full bg-good text-good-foreground">
+                  <Check className="size-3.5" strokeWidth={3} aria-hidden />
+                </span>
+              )}
+              <span className="block px-1.5 pb-1.5 pt-1">
+                <b className="type-caption block truncate text-[14px]">{first(c?.name ?? "?")}</b>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      <Btn tone="must" wide className="sticky bottom-0 mt-4" data-pace-team-save disabled={busy || team.length !== need} onClick={save}>
+        {busy ? "Saving…" : team.length === need ? `This is my team` : `Pick ${need - team.length} more`}
+      </Btn>
+    </Sheet>
   );
 }
 

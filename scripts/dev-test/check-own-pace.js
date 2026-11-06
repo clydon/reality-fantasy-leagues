@@ -71,6 +71,14 @@ async function main() {
   const alex = await api({ user: fixture.username("alex"), pass: PASSWORD, headers: { "x-gys-bot": fb.url } });
   const riley = await api({ user: fixture.username("riley"), pass: PASSWORD });
   let leagueId = null;
+  let lineupId = null;
+  // Part 3a's screens, after the rest (numbered on from 20).
+  let shotN = 20;
+  const shotAs = async (page, name) => {
+    fs.mkdirSync(outDir, { recursive: true });
+    await page.waitForTimeout(600);
+    await page.screenshot({ path: path.join(outDir, `${++shotN}-${name}.png`) });
+  };
   try {
     // alex is up to Episode 3 of the finished season; riley hasn't started it.
     let r = await alex.call("PUT", `/api/me/follows/${season}`, { following: true, seenThrough: 3 });
@@ -85,7 +93,11 @@ async function main() {
     check(o.from === 4, "starts where alex is by default", o.from);
     const pool_ = (o.games || []).find((g) => g.key === "survivalPool");
     check(pool_ && pool_.fits && pool_.bots, "Survival Pool fits, with computer players", pool_);
-    check((o.games || []).filter((g) => g.key !== "survivalPool").every((g) => !g.fits), "the other games wait (for now)", o.games.map((g) => [g.key, g.fits]));
+    check(
+      ["survivalPool", "outlast", "weeklyLineup"].every((k) => !(o.games || []).some((g) => g.key === k) || o.games.find((g) => g.key === k).fits) && (o.games || []).filter((g) => !["survivalPool", "outlast", "weeklyLineup"].includes(g.key)).every((g) => !g.fits),
+      "Survival Pool, Outlast and Weekly Lineup play at your own pace; the rest wait (for now)",
+      (o.games || []).map((g) => [g.key, g.fits])
+    );
     r = await alex.call("GET", `/api/seasons/${season}/start?couch=${couch}&start=1`);
     check(r.status === 200 && r.body.from === 1 && r.body.ownPace === true, "from the top is a start too", r.body.from);
 
@@ -293,10 +305,58 @@ async function main() {
       }
       console.log(`screens in ${outDir}`);
     }
+
+    // Part 3a: a Weekly Lineup at your own pace (shared teams). jordan, who hasn't started the season, starts one from Episode 1
+    // with a computer player: no draft, the bot's team picked at once, jordan's on Tonight's plate first, then the lineup step.
+    const jordan = await api({ user: fixture.username("jordan"), pass: PASSWORD, headers: { "x-gys-bot": fb.url } });
+    r = await jordan.call("POST", `/api/seasons/${season}/start?couch=${couch}`, { game: "weeklyLineup", tell: false, bots: 1, level: "normal" });
+    check(r.status === 200 && r.body.from === 1, "jordan starts a Weekly Lineup at their own pace from Episode 1, with a computer player", r.body);
+    lineupId = r.body.leagueId;
+    const ls = (await pool.query("SELECT state FROM leagues WHERE id = $1", [lineupId])).rows[0].state;
+    const lbot = ls.players.find((p) => p.automated);
+    check(!!ls.blindDraft?.revealedAt, "no draft to run: the blind draft reads as done");
+    check(lbot && ls.castaways.filter((c) => (c.ownerIds || []).includes(lbot.id)).length === 5, "the computer player's team of five is in");
+    let lg = ((await jordan.call("GET", `/api/seasons/${season}/games?couch=${couch}`)).body.games || []).find((g) => g.leagueId === lineupId);
+    check(lg && lg.pace && lg.pace.team && lg.pace.team.need === 5 && lg.pace.team.pool.length >= 5, "jordan's team to pick: five, from who was in before Episode 1", lg && lg.pace);
+    r = await jordan.call("POST", `/api/seasons/${season}/catchup`, { leagueId: lineupId, couch });
+    check(r.status === 400 && /team first/.test(JSON.stringify(r.body)), "no reveal before a team", r.body);
+    check((await jordan.call("GET", `/api/seasons/${season}/draft?couch=${couch}`)).body?.games?.some?.((g) => g.leagueId === lineupId) !== true, "no draft room for it");
+    if (shots) {
+      const e = await open({ user: fixture.username("jordan"), pass: PASSWORD, width: 390, height: 844 });
+      e.page.setDefaultTimeout(15000);
+      try {
+        await e.page.goto(`${e.BASE}/show/${season}/tonight`);
+        await e.page.locator(`[data-pace-team-plate='${lineupId}']`).waitFor();
+        await shotAs(e.page, "lineup-team-plate");
+        await e.page.locator("[data-pace-team-open]").click();
+        await e.page.locator("[data-pace-team-pick]").waitFor();
+        for (const id of lg.pace.team.pool.slice(0, 5)) await e.page.locator(`[data-pace-team-pick] [data-castaway='${id}']`).click();
+        await shotAs(e.page, "lineup-team-sheet");
+        await e.page.locator("[data-pace-team-save]").click();
+        await e.page.locator(`[data-pace-plate='${lineupId}']`).waitFor();
+        check(/Set your lineup/.test((await e.page.locator(`[data-pace-plate='${lineupId}']`).textContent()) || ""), "with a team, the plate asks for the lineup");
+        await shotAs(e.page, "lineup-plate");
+      } finally {
+        await e.close();
+      }
+    } else {
+      r = await jordan.call("POST", `/api/leagues/${lineupId}/team`, { castawayIds: lg.pace.team.pool.slice(0, 5) });
+      check(r.status === 200, "jordan picks a team", r.body);
+    }
+    lg = ((await jordan.call("GET", `/api/seasons/${season}/games?couch=${couch}`)).body.games || []).find((g) => g.leagueId === lineupId);
+    check(lg && !lg.pace.team && lg.lineup && lg.lineup.episode === 1, "team in: Episode 1's lineup to set", lg && { team: lg.pace.team, lineup: lg.lineup && lg.lineup.episode });
+    r = await jordan.call("PUT", `/api/leagues/${lineupId}/episodes/${lg.lineup.epId}/lineups/${lg.playerId}`, { castawayIds: lg.lineup.roster.slice(0, lg.lineup.slots) });
+    check(r.status === 200, "jordan sets Episode 1's lineup (aired long ago, open in their copy)", r.body);
+    r = await jordan.call("POST", `/api/seasons/${season}/catchup`, { leagueId: lineupId, couch });
+    check(r.status === 200 && r.body.episode === 1, "jordan reveals Episode 1", r.body);
+    const ls2 = (await pool.query("SELECT state FROM leagues WHERE id = $1", [lineupId])).rows[0].state;
+    const ep1 = ls2.episodes.find((x) => x.number === 1);
+    check(((ep1.lineups || {})[lbot.id] || []).length === lg.lineup.slots, "the computer player set its Episode 1 lineup as jordan revealed it", ep1.lineups);
   } finally {
     await fb.close();
     if (!keep) {
       if (leagueId) await pool.query("DELETE FROM leagues WHERE id = $1", [leagueId]);
+      if (lineupId) await pool.query("DELETE FROM leagues WHERE id = $1", [lineupId]);
       // Only what this check made on the real season: its bingo bank (when it had none), its runs, the zt cards.
       await pool.query("DELETE FROM bingo_cards WHERE season_id = $1 AND user_id = ANY($2::text[])", [season, Object.values(fx.users)]);
       if (!hadBank) {
