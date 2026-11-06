@@ -43,14 +43,32 @@ function eachOf(score, stat, group, format) {
   return (score.points && score.points[stat]) || 0;
 }
 
+const minus = (a, b) => {
+  const out = { ...a };
+  for (const [k, v] of Object.entries(b)) out[k] = (out[k] || 0) - v;
+  return out;
+};
+
 /**
  * Someone's points from one line (their counts in a game, a field event or a bout, places in it), by a stats score: each stat the
  * table scores times its points (by their position group, by the bout's format), and each place stat by its place, as
  * { points, parts: [{ stat, value, points }] } (counts, then places). A line's missing stat is 0; a place out of the table's
- * places scores nothing. `o.group`: their position group; `o.format`: the bout's rounds or sets.
+ * places scores nothing. `o.group`: their position group; `o.format`: the bout's rounds or sets. `o.bouts`: on a card scored by
+ * its bouts' formats (`byFormat`), the bouts they fought, each `{ id, format, line }` (its own line, scored at its format: a
+ * part's `bout` says which); what the card's line has besides (the final's correction) scores at `points`'.
  */
 function statLine(score, line, o = {}) {
   const group = o.group == null ? null : o.group;
+  if (o.bouts && o.bouts.length && score.byFormat && Object.keys(score.byFormat).length) {
+    const parts = [];
+    let rest = line;
+    for (const b of o.bouts) {
+      for (const p of statLine(score, b.line, { group, format: b.format }).parts) parts.push({ ...p, bout: b.id });
+      rest = minus(rest, b.line);
+    }
+    parts.push(...statLine(score, rest, { group }).parts);
+    return { points: cents(parts.reduce((n, p) => n + p.points, 0)), parts };
+  }
   const format = o.format != null && score.byFormat ? score.byFormat[String(o.format)] : undefined;
   const places = score.byPlace || {};
   const keys = new Set([...Object.keys(score.points || {}), ...Object.keys(format || {})]);
@@ -72,15 +90,16 @@ function statLine(score, line, o = {}) {
 /**
  * One episode's stat lines as its moments at the game's table (momentRaw's events: [{ castawayId, points }], one per holding
  * that scored, in the lines' order): `lines` each holding's line in the episode (castaway id to its counts, derived stats worked
- * out: the server's from its stored final, the phone's from the poller), `groupOf` a holding's position group (its roster's).
+ * out: the server's from its stored final, the phone's from the poller), `groupOf` a holding's position group (its roster's),
+ * `boutsOf` the bouts a holding fought on a card (statLine's `bouts`: the server's LeagueGames.bouts), for a table by format.
  */
-function statMoments(lines, score, groupOf) {
+function statMoments(lines, score, groupOf, boutsOf) {
   const out = [];
   for (const [id, line] of Object.entries(lines || {})) {
-    const { points } = statLine(score, line, { group: groupOf ? groupOf(id) : null });
+    const { points } = statLine(score, line, { group: groupOf ? groupOf(id) : null, bouts: boutsOf ? boutsOf(id) : undefined });
     if (points) out.push({ castawayId: id, points });
   }
   return out;
 }
 
-module.exports = { placePoints, statLine, statMoments };
+module.exports = { cents, placePoints, statLine, statMoments };

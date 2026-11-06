@@ -1097,6 +1097,11 @@ engine track; L brings each sport's data to it. Its screens wait for the UI trac
     final replacing the phone's provisional points (corrections at the final), a field's and a card's finals saved (their answers
     are several calls: new server calls, HOSTING.md), the server's line at the lock (`lineAtStart`'s), postponed and suspended
     games.
+  - **Part 3 split in two (2026-11-06):** 3a, live points on the phone (`points.ts` livePoints: the poller's state through the
+    sequence's line, the saved final replacing it at the end, what it changed said) and a field's and a card's finals kept and read
+    as a team game's (migration 0302, HOSTING.md) (built 2026-11-06: As built below); 3b, the server's line at the lock and
+    postponed, suspended and moved games (they need ESPN's own answers for a postponed game, none recorded yet, and a call on
+    which line a game plays by: 3a's Noticed).
 - **L4. The formats, as the engine's pieces with sports data:** head-to-head, categories and roto (A11), best ball (A9),
   pick'em and pick a few (A4's questions with the sports settles), brackets (A8), squares (a sports way to `get`), live calls
   (A15); lineup locks per sport.
@@ -3224,6 +3229,9 @@ checked by its own rule). Nothing plays a stats game yet: the engine's hook is p
     `statLines` past the mark (as it drops `answerLines`) and `spanView` keeps them.
   - The server hands them over as it does a draft's own questions' lines (`AnswerLogic.withLines`): `leagueGames(state, { mark })`'s
     `lines` and `groups` on the server's copies (`walked`, `asItStands`, the game view), under whatever names the engine picks.
+    **L3 part 3a adds** a card's bouts: `leagueGames`' `bouts` (each episode's, by castaway: each bout's own line at its rounds or
+    sets) as `statMoments`' fourth argument (`boutsOf`), so a table by format (tennis's default) scores on the server as on the phone;
+    and a field's and a card's games, read the same way (their lines with places in them, `facts.games`' places and bouts).
   - VOCAB: `score.by: stats` to 'now' once the hook scores it; `settle.by` `final` and `stat` and the `side` answer to 'now' once a
     game of questions plays them (the server grades them now: `playable` would take them, and the reveal's "results are in" for
     a matchup's episode is the engine's to say: a game final for the viewer).
@@ -3241,6 +3249,91 @@ checked by its own rule). Nothing plays a stats game yet: the engine's hook is p
 - **`check-sports-data.js` fails one case against the real ESPN**: Yandy Díaz's 2026 lines no longer include a postseason
   category (ESPN's answer changed; the regular season still reads). Not this step's code (season stats); the check's expectation
   needs the answer as it is now. (A sports-data step.)
+
+**L3 part 3a as built: live points on the phone, and a field's and a card's finals kept (2026-11-06, `sports`, not merged; migration
+0302; HOSTING.md updated).**
+- **Live points** (`src/lib/sports/points.ts`, new, pure: the screens' to call, U1): `livePoints(sport, score, { live, saved, card,
+  who, groupOf })`, each holding's points (by the league's castaway: `who` a provider id to theirs, else the provider's) from the
+  poller's state as of the viewer's moment (`stateAt(t)` or `state(clock)`: LiveGame's or LiveEvent's) through the sequence's line
+  (`statePoints`, `statLine`), provisional (`from: "live"`); once the viewer's moment reaches the end (the state's last play is the
+  final's correction: `atFinal`) and the server's kept final is in, its points (`from: "final"`) and what it changed from the
+  poller's end (`corrections`: a scorer's change after the final). No poller (a viewer past the end): the kept final alone; neither:
+  nothing. A later watch behind the end keeps the poller's even with the final saved. `asMoments` gives the sequence's moments.
+- **A card's bouts in the sequence's line** (`sequence/stats.js`): `statLine`'s `bouts` (each `{ id, format, line }`: a bout's own
+  line at its rounds or sets, the card's line besides at `points`') and `statMoments`' `boutsOf`, so the server scores a card by
+  format as the phone does; `statePoints` (spec.ts) now delegates to it (`boutsOf`). The scorer's card is just what it reads
+  (`CardBouts`: each bout's id, sides, rounds, main).
+- **A field's and a card's final as kept** (`final.ts`): `storedField(sport, answer)` (everyone's counts with their places, the
+  field, ESPN's final standings) and `storedCard(sport, answer)` (everyone's counts, each bout's own, the bouts as their id, order,
+  sides, rounds, main event and class, each result as who won and how it ended: a Grand Slam's draws ~240 KB, not ~520 KB), as
+  `storedGame` keeps a team game's; `StoredFinal` any of the three; `finalState` reads one back as its sport's state at the end,
+  `storedFacts` as the grader's facts, `shapeOf` what `sports_events.shape` keeps (migration 0302: a field's event and standings, a
+  card's bouts, each bout's counts and the results), `renamed` one in the league's people (lines, people, standings, sides, bouts'
+  counts, winners).
+- **Kept by the server from the pollers' calls, asked once** (`espn.ts` `eventFinal`, the provider's `game` for a field's or a
+  card's league): `LiveEvent` with the sport's feed (`feedOf`, new in live-event.ts) polled once, its rounds and all, on the
+  server's fetch, each answer read as the provider's own (`answerOf`, now shared with its other calls: ESPN's 404 "none", anything
+  else or not JSON SportsUnavailable); final once ESPN says so, the feed has nothing left to ask (a counted series' statistics
+  filled in, a card's settled) and every call answered. Its first call failing (the board) is ESPN down (the run stops); a later
+  one failing (a driver's statistics) leaves it not final that run, so one call never holds it or the run up; a first call's 404 or
+  answers with no event in them, none. `LiveEvent.answer` (new) is the last answer taken. `saveFinals` keeps any sport the app reads
+  (its `shape` too), at most 10 fields or cards a run (60 in all); an event old and still not wholly in is kept as far as it is, a
+  team game as none, as before. The daily listings job now keeps a linked field's or
+  card's event's row too (its first day's scoreboard, as the stats fill reads them, for 16 days from its start: a Grand Slam's
+  fortnight), so its final is seen; a field's final no longer asks a summary for a line (it has none). The stats fill hands its
+  field finals to `saveFinals` too.
+- **A league's games** (`score.ts` `leagueGames`): a field's and a card's episodes read from the kept final like a team game's, in
+  the league's people (its places, its bouts' sides and winners), their lines as the phone scores them (raw: a team game's derived
+  stats only are worked out), with `bouts` for a table by format; a field's or a card's link has no sides, so no side answer. An
+  event linked to several episodes (a listing's race-weekend sessions: `season_events.part`) is kept whole, so it's scored and
+  settled once, on the last of them; the earlier ones read as still being played (never the weekend's places on qualifying's
+  episode, nor its lines twice). `espn.ts` imports the sports' classes from `@/lib/sports` only: under jiti (the tests, the dev
+  scripts) `@/lib/sports/sport` loads a second copy of sport.ts, so `instanceof FieldSport` failed for golf.
+- **Checks.** `tests/sports-points.test.js` (3, new): the 76ers opener through LiveGame in virtual time (espn-replay.js), each
+  ask's points the recording's as known then, Maxey's as his castaway's, a later watch 20 minutes behind on the poller's even with
+  the final saved, the end the saved final's with nothing changed, a rebound added after the final said as its points; golf's
+  Bermuda through its poller (one ask), a mid-event moment provisional; the US Open's draws by format, the poller's card live, the
+  scorer refusing without it. `tests/sports-final.test.js` (+3): a field's and a card's kept final (Bermuda, the Daytona 500, UFC
+  324, the US Open) read back as saved, scored through `statMoments` (a card's bouts by format) and graded as ESPN's own answer;
+  `renamed`; the provider's `game` for all five from the pollers' calls (a stand-in, `tests/harness/espn-standin.js`, moved out of
+  sports-live-event.test.js with golf's leaderboard added), a core call failing not final, the board failing or an answer not JSON
+  SportsUnavailable, an optional FightCenter's 404 still read, a board's 404 none, a golf event not over not final, a league the app
+  doesn't read never asked. `check-finals.js` (+7, 26 in all, all pass): Bermuda and the US Open saved with their shape and read in
+  the league's people (the champion first, Zverev's matches each at their format as the phone scores them), the US Open on two
+  episodes settled on the later only, a league the app doesn't read left alone. `check-live-event.js` now scores every ask's points live and the
+  end from the final kept from the recording's last answer: 6 of 6 recordings pass (the UFC card's and Guangzhou's ends from the kept
+  final, nothing changed by it; the rest weren't final when recorded). `check-matchup.js` passes. 1,719 unit tests; `tsc` clean;
+  eslint clean on src/lib/sports, src/lib/server/sports, src/lib/game/sequence.
+- `/code-review` on the diff (its fixes: an event on several episodes counted the weekend on each; one later call failing for good
+  held every final behind it, now not final that run; the server worked a field's and a card's derived stats out where the phone
+  doesn't; the run's events capped at 10; "no such event" read from error words, now from the calls' own answers; a non-JSON answer
+  read as the reader's error (kept as none once old), now ESPN failing; ESPN's answers read by one helper; two ids for one person
+  kept the last on the server and the first on the phone, now the first; one `cents`).
+- **For the engine lane (L3 part 2):** as above, `statMoments(lines, score, groupOf, boutsOf)`, with `leagueGames`' `bouts`.
+
+**L3 part 3a noticed, not fixed:**
+- **Which line a game plays by** (an over/under's): a spec's line is fixed when its game is made, from the line kept then
+  (`sports_events.odds`, read once a day), while the phone's poller keeps the last line before the start (`lineAtStart`). Keeping
+  the server's at the lock would be an hourly read of the day's scoreboard for games starting within the hour (the desk's hourly
+  Reminders and waivers job); whether a game made days ahead should take the line at the lock is a rule question (A4's questions,
+  or G3's wording: "locked at first pitch" in the user's example says the lock). (L3 part 3b, with the main session's call.)
+- **Postponed, suspended and moved games** are as L1 part 3 noticed: no recorded answer of ESPN's for a postponed game yet (its
+  event id kept or a new one, its date), so part 3b starts by recording one (`record-espn.js` on the next postponement: MLB's
+  rainouts, an NFL weather delay). A field's event is now refreshed 16 days from its start, so a golf round postponed a day still
+  turns final; a tennis event's suspended match too.
+- **A field's or a card's final kept after the season links it late** (a TV listing added after the event): the daily job looks back
+  16 days only; a season's stats fill (a Players tab read) hands its finals to `saveFinals`, but only events with a `sports_events`
+  row. As team games, fine; a linked event's row could be made at link time (L1 part 3's matchup does for its own). (When a field's
+  or a card's game is made: G3 or U1.)
+- **The server asks ~135 calls for an F1 weekend's final** (its core's statistics and F1's statuses, a call a driver a session, as
+  the phone's poller does); ~5 s with each round together. If the daily job's run grows long, the finals step could stop at a time
+  budget instead of a count (`MAX_A_RUN`). (When it shows in the job's log.)
+- **A race weekend's sessions on their own episodes settle only on the last** (the race's): the kept final is the weekend's, so
+  qualifying's episode waits for it. Each session's own (racing's keys are each session's: QUAL, SPR, FIN) could settle its own
+  episode once the kept field says which keys are whose (`Racing`'s sessions). (When a game is made on a listing's sessions: G3 or
+  U1.)
+- **A phone's live points for a card scored by format need the poller's card** (`shape`): `livePoints` throws without it, as
+  `statePoints` does; a screen always has it once the poller's answered (U1).
 
 **Open, from the sports plan:** head-to-head's schedule over a span, and playoffs; whether a sport's moves follow Weekly
 Lineup's waivers or need their own rhythm for daily sports; what a live call is worth, and how fast they open and close;

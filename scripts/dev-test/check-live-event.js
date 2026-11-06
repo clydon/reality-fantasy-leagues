@@ -23,7 +23,10 @@
 //    count from the change);
 //  - the end: the poller's event at the end is the recording's last answer's (each session's or bout's core as last asked),
 //    every line;
-//  - the asks: none after the poller's done; how many came on the rhythm is said, and each kind of call's count and size.
+//  - the asks: none after the poller's done; how many came on the rhythm is said, and each kind of call's count and size;
+//  - the points (L3 part 3: src/lib/sports/points.ts livePoints, at the sport's default season table): each ask's, live from the
+//    poller's state then, never failing; at the end, the final kept from the recording's last answer (final.ts storedField,
+//    storedCard: what the server keeps) replacing them once the poller has the final, nobody's points changed by it.
 // Recorded answers are each read whole, as a phone would have them (each session's or bout's core as last asked). Exits 1 on
 // any failure. Golf's 600-answer recording and the UFC's 690 take a few minutes each.
 const fs = require("fs");
@@ -171,6 +174,9 @@ async function check({ league, event, dir }) {
     return answer(vt.now())(url);
   };
   const live = new L.LiveEvent({ feed, league, event, fetch, now: vt.now, setTimer: vt.setTimer, clearTimer: vt.clearTimer, random: () => 0.5 });
+  // Each ask's points, live (L3 part 3), at the sport's default season table.
+  const score = L.defaultsFor(sport.id, league).specs.season.spec.score;
+  const scored = { asks: 0, failed: [] };
   const end = times[times.length - 1];
   // Each play's moment as the poller had it after each ask: a later poll must never move a play on as it is, nor a result at all.
   const pollerAt = new Map();
@@ -190,6 +196,13 @@ async function check({ league, event, dir }) {
       }
     }
     if (live.done && doneAt == null) doneAt = vt.now();
+    if (!live.shape) return;
+    try {
+      const p = L.livePoints(sport, score, { live: live.stateAt(vt.now()), card: live.shape });
+      if (p.from === "live") scored.asks++;
+    } catch (e) {
+      scored.failed.push(`${iso(vt.now())}: ${e.message}`);
+    }
   };
   live.start();
   await vt.settle();
@@ -224,14 +237,23 @@ async function check({ league, event, dir }) {
   const people = new Set([...Object.keys(want.lines), ...Object.keys(got?.lines ?? {})]);
   const same = (x, y) => JSON.stringify(Object.entries(x ?? {}).sort()) === JSON.stringify(Object.entries(y ?? {}).sort());
   const off = [...people].filter((id) => !same(want.lines[id], got?.lines?.[id]));
+  // The points at the end: the final kept from the recording's last answer, replacing the poller's (nobody's changed: its end is
+  // that answer's), once the poller has the final.
+  const kept = sport instanceof L.FieldSport ? L.storedField(sport, lastAnswer) : L.storedCard(sport, lastAnswer);
+  const atEnd = L.livePoints(sport, score, { live: got, saved: kept, card: live.shape });
+  const finalNow = L.atFinal(got) && !!kept?.final;
+  const pointsOk = !scored.failed.length && (finalNow ? atEnd.from === "final" && !Object.keys(atEnd.corrections).length : atEnd.from === "live");
   // The asks while on: their gaps.
   const gaps = asked.slice(1).map((t, i) => t - asked[i]).filter((g) => g <= feed.every * 1.2);
-  const ok = !early.length && !late.length && !moved.length && !off.length && !after;
+  const ok = !early.length && !late.length && !moved.length && !off.length && !after && pointsOk;
   lines.push(`${answers.length} answers recorded (${answers[0]._asked} to ${answers[answers.length - 1]._asked}); ${asked.length} asks, ${gaps.length} on the rhythm (${feed.every / 1000} s); ${live.plays.length} plays, ${results} ${word} seen after the first answer; status ${live.status}${live.next ? `, next ${iso(live.next)}` : ""}`);
   lines.push(`  calls: ${Object.entries(calls).map(([k, v]) => `${k} ${v.n} (${Math.round(v.bytes / 1024)} KB unpacked)`).join("; ")}`);
   lines.push(`  moments: ${early.length} before their first recorded answer, ${late.length} later than the poller's second ask after it, ${moved.length} moved on by a later poll; ${after} asks after it was done${doneAt != null ? ` (${iso(doneAt)})` : ""}`);
   lines.push(`  the end: ${people.size - off.length} of ${people.size} lines the recording's last answer's`);
+  const top = Object.entries(atEnd.points).sort((a, b) => b[1].points - a[1].points)[0];
+  lines.push(`  points: ${scored.asks} asks scored live, ${scored.failed.length} failed; at the end ${Object.keys(atEnd.points).length} scored, from the ${atEnd.from === "final" ? "kept final" : "poller (not final yet)"}, ${Object.keys(atEnd.corrections).length} changed by it${top ? `; the most ${top[1].points} (${top[0]})` : ""}`);
   const list = (xs) => xs.slice(0, args.verbose ? 50 : 5).map((x) => `    ${x}`);
+  lines.push(...list(scored.failed), ...list(Object.entries(atEnd.corrections).map(([id, d]) => `${id}: ${d} at the final`)));
   lines.push(...list(early), ...list(late), ...list(moved), ...list(off.map((id) => `${id}: ${JSON.stringify(got?.lines?.[id] ?? {})}, the recording's ${JSON.stringify(want.lines[id] ?? {})}`)));
   return { league, event, ok, lines };
 }

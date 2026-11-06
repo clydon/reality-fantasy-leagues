@@ -10,12 +10,16 @@ import { placeRange } from "@/lib/game/game-spec";
 import { placePoints, statLine } from "@/lib/game/sequence/stats";
 import { TeamSport } from "./sport";
 import type { SportsGameFacts } from "@/lib/game/game-spec";
-import type { Scored, StatPart, StatScore } from "@/lib/game/sequence/stats";
-import type { BoutCard, BoutState, FieldState, GameState, LockCadence, Sport, Stats } from "./sport";
+import type { Scored, StatBout, StatPart, StatScore } from "@/lib/game/sequence/stats";
+import type { Bout, BoutState, FieldState, GameState, LockCadence, Sport, Stats } from "./sport";
 
-export type { Scored, StatPart, StatScore };
+export type { Scored, StatBout, StatPart, StatScore };
 
-const cents = (n: number) => Math.round(n * 100) / 100;
+/** A card as its scoring and grading read it: each bout's id, sides, rounds or sets and whether it's the main event (a BoutCard,
+ *  or a kept one: final.ts StoredCard). */
+export interface CardBouts {
+  bouts: Pick<Bout, "id" | "sides" | "rounds" | "main">[];
+}
 
 /** A place or a range of them ("1", "4-10"), as { min, max }; null when it isn't one: the game spec's own, so the check and the
  *  scorer read a table alike. */
@@ -31,15 +35,9 @@ export { placePoints };
  * missing stat is 0; a place out of the table's places scores nothing. The scoring sequence's step 2 for stats (L3 part 1:
  * sequence/stats.js statLine), so the engine's scorer, the server and the phone score a line alike.
  */
-export function linePoints(score: StatScore, line: Stats, o: { group?: string | null; format?: number | string | null } = {}): Scored {
+export function linePoints(score: StatScore, line: Stats, o: { group?: string | null; format?: number | string | null; bouts?: StatBout[] } = {}): Scored {
   return statLine(score, line, o);
 }
-
-const minus = (a: Stats, b: Stats): Stats => {
-  const out: Stats = { ...a };
-  for (const [k, v] of Object.entries(b)) out[k] = (out[k] ?? 0) - v;
-  return out;
-};
 
 /**
  * Everyone's points as of a moment, by a stats score, from the sport's state then (its reduce or stateAt: a team game's, a
@@ -51,7 +49,7 @@ export function statePoints(
   sport: Sport,
   score: StatScore,
   state: GameState | FieldState | BoutState,
-  o: { groupOf?: (id: string) => string | null | undefined; card?: BoutCard | null } = {},
+  o: { groupOf?: (id: string) => string | null | undefined; card?: CardBouts | null } = {},
 ): Record<string, Scored> {
   const out: Record<string, Scored> = {};
   // A card scored by format needs its card (each bout's rounds or sets): without it every bout would score at `points`'.
@@ -59,23 +57,15 @@ export function statePoints(
   const byBout = "byBout" in state && score.byFormat && o.card ? state.byBout : null;
   for (const [id, raw] of Object.entries(state.lines)) {
     const line = sport instanceof TeamSport ? sport.full(raw) : raw;
-    const group = o.groupOf?.(id) ?? null;
-    if (!byBout) {
-      out[id] = linePoints(score, line, { group });
-      continue;
-    }
-    const parts: StatPart[] = [];
-    let rest = line;
-    for (const bout of o.card!.bouts) {
-      const own = byBout[bout.id]?.[id];
-      if (!own) continue;
-      for (const p of linePoints(score, own, { group, format: bout.rounds }).parts) parts.push({ ...p, bout: bout.id });
-      rest = minus(rest, own);
-    }
-    parts.push(...linePoints(score, rest, { group }).parts);
-    out[id] = { points: cents(parts.reduce((n, p) => n + p.points, 0)), parts };
+    out[id] = linePoints(score, line, { group: o.groupOf?.(id) ?? null, bouts: byBout ? boutsOf(o.card!, byBout, id) : undefined });
   }
   return out;
+}
+
+/** The bouts someone fought on a card, each with their own line in it at its rounds or sets (statLine's `bouts`, for a table by
+ *  format), in the card's order. */
+export function boutsOf(card: CardBouts, byBout: Record<string, Record<string, Stats>>, id: string): StatBout[] {
+  return card.bouts.flatMap((b) => (byBout[b.id]?.[id] ? [{ id: b.id, format: b.rounds, line: byBout[b.id][id] }] : []));
 }
 
 /**
@@ -88,7 +78,7 @@ export function statePoints(
 export function gameFacts(
   sport: Sport,
   state: GameState | FieldState | BoutState,
-  o: { status: SportsGameFacts["status"]; sides?: string[]; people?: Record<string, { team?: string | null }>; card?: BoutCard | null },
+  o: { status: SportsGameFacts["status"]; sides?: string[]; people?: Record<string, { team?: string | null }>; card?: CardBouts | null },
 ): SportsGameFacts {
   const team = sport instanceof TeamSport;
   const lines = Object.fromEntries(Object.entries(state.lines).map(([id, l]) => [id, team ? sport.full(l) : l]));

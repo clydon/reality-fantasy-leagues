@@ -23,6 +23,15 @@ export interface Scored {
   parts: StatPart[];
 }
 
+/** A bout someone fought on a card, for a table by its bouts' formats: its id, its rounds or sets, and their own line in it. */
+export interface StatBout {
+  id: string;
+  format: number | string | null;
+  line: Record<string, number>;
+}
+
+/** Rounded to the cent, as every point here is. */
+export function cents(n: number): number;
 export function placePoints(table: Record<string, number>, place: number | null | undefined): number;
-export function statLine(score: StatScore, line: Record<string, number>, o?: { group?: string | null; format?: number | string | null }): Scored;
-export function statMoments(lines: Record<string, Record<string, number>> | null | undefined, score: StatScore, groupOf?: (id: string) => string | null | undefined): ScoredEvent[];
+export function statLine(score: StatScore, line: Record<string, number>, o?: { group?: string | null; format?: number | string | null; bouts?: StatBout[] }): Scored;
+export function statMoments(lines: Record<string, Record<string, number>> | null | undefined, score: StatScore, groupOf?: (id: string) => string | null | undefined, boutsOf?: (id: string) => StatBout[] | null | undefined): ScoredEvent[];

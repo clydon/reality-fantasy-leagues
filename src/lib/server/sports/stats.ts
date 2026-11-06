@@ -196,7 +196,7 @@ export async function statsFromEvents(seasonId: string, opts: { providers?: Spor
       // Nothing from the provider two days on: it isn't coming.
       if (!lines.length && start < now - GIVE_UP_MS) final = true;
       await saveGame(seasonId, l.episode, p.id, lines, final, new Date(now));
-      if (final && l.teams) finals.push({ provider: p.id, league: l.league, event: l.event_id });
+      if (final) finals.push({ provider: p.id, league: l.league, event: l.event_id });
       out.games++;
       through = Math.max(through ?? 0, l.episode);
     }

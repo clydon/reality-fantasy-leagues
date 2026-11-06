@@ -16,9 +16,10 @@
 // scripts/dev-test/check-live-event.js replays the live recordings through it).
 import { momentOf, type GameClock, type Moment } from "./clock";
 import { CUT_SHORT, ESPN_SITE, PRE_WAIT_MS, Poller, type LiveStatus, type PollerOptions } from "./live";
-import { mmaCenterStats, mmaCoreStats, playsEnd } from "./mma";
-import { coreFilled, coreReads, coreStats, weekendOver, type Racing } from "./racing";
-import { boardMatches, matchOver, matchSuspended } from "./tennis";
+import { Golf } from "./golf";
+import { MMA, mmaCenterStats, mmaCoreStats, playsEnd } from "./mma";
+import { Racing, coreFilled, coreReads, coreStats, weekendOver } from "./racing";
+import { Tennis, boardMatches, matchOver, matchSuspended } from "./tennis";
 import { fieldEventOf, idOf, isoOf, msOf, num, str, type BoutAnswer, type BoutCard, type BoutPlay, type BoutSport, type BoutState, type EspnBoutCompetition, type EspnBoutCore, type EspnBoutPlay, type EspnCoreCompetitor, type EspnFieldEvent, type FieldAnswer, type FieldEvent, type FieldPlay, type FieldSport, type FieldState, type Play } from "./sport";
 
 /** ESPN's core API and its web API (a fight card's FightCenter), which answer browsers too (CORS `*`, checked 2026-11-05). */
@@ -150,6 +151,8 @@ export class LiveEvent<A, P extends Play, E, S> extends Poller {
   detail: string | null = null;
   /** When the next thing starts, while nothing's on. */
   next: number | null = null;
+  /** The last answer taken (the server's stored final reads it: final.ts storedField, storedCard). */
+  answer: A | null = null;
 
   /** Every call's last answer, by its key, kept between asks (a later round's: a session's grid, a bout's statistics). */
   had: Record<string, unknown> = {};
@@ -263,6 +266,7 @@ export class LiveEvent<A, P extends Play, E, S> extends Poller {
     this.detail = where.detail;
     this.next = where.next;
     this.shape = this.feed.eventOf(answer) ?? this.shape;
+    this.answer = answer;
     this.asOf = this.now();
     // A play's moment changes only with a first sight (a play new or changed), so that and the ids say whether anything did.
     return this.status !== wasStatus || got.fresh || was.length !== this.plays.length || was.some((p, i) => p.id !== this.plays[i].id);
@@ -664,4 +668,14 @@ export function cardFeed(sport: BoutSport): EventFeed<BoutAnswer, BoutPlay, Bout
       return { status: started ? "in" : "pre", next: future.length ? Math.min(...future) : null, detail };
     },
   };
+}
+
+/** A field's or a card's feed for its sport: golf's, a race weekend's, a tennis event's draws or a fight card's; null for a sport
+ *  without one (a team sport's game is LiveGame's). */
+export function feedOf(sport: FieldSport | BoutSport): EventFeed<FieldAnswer, FieldPlay, FieldEvent, FieldState> | EventFeed<BoutAnswer, BoutPlay, BoutCard, BoutState> | null {
+  if (sport instanceof Golf) return golfFeed(sport);
+  if (sport instanceof Racing) return raceFeed(sport);
+  if (sport instanceof Tennis) return drawFeed(sport);
+  if (sport instanceof MMA) return cardFeed(sport);
+  return null;
 }

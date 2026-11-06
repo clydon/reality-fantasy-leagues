@@ -5,7 +5,7 @@
 // columns are the provider's own labels (a hitter's `H-AB AB R H RBI`, an AFL player's `D G B T`), so each sport's relevant
 // stats come for free. Every call goes through the cache (cache.ts), so a season costs a handful of calls.
 
-import type { StoredGame } from "@/lib/sports/final";
+import type { StoredFinal } from "@/lib/sports/final";
 
 /** A league as the provider names it. `id` is the provider's own handle for it (ESPN's "baseball/mlb"). */
 export interface League {
@@ -183,10 +183,11 @@ export interface SportsProvider {
   boxScore(league: string, event: string): Promise<BoxScore | null>;
   /**
    * L3 part 1: a team game as a game scored by stats reads it (src/lib/sports/final.ts StoredGame: everyone's counts in the sport's
-   * keys, their teams and positions, the score), from the same summary as its box score; null when it has none, or its league
-   * isn't a team sport the app reads (a field's or a card's events are several calls: the phone's pollers).
+   * keys, their teams and positions, the score), from the same summary as its box score. L3 part 3: a field's or a card's event
+   * (StoredField, StoredCard: the standings, or the bouts and results, besides), from the calls the phone's poller makes for it.
+   * Null when it has none, or its league isn't a sport the app reads.
    */
-  game(league: string, event: string): Promise<StoredGame | null>;
+  game(league: string, event: string): Promise<StoredFinal | null>;
   /**
    * A player's lines for a season's regular season (its year), or null when the provider has none. Never its postseason: that
    * holds the very games a show of the playoffs is showing.

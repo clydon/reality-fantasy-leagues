@@ -40,6 +40,7 @@ export * from "./live";
 export * from "./live-event";
 export * from "./spec";
 export * from "./final";
+export * from "./points";
 export { Baseball } from "./baseball";
 export { CollegeBaseball } from "./college-baseball";
 export { Basketball, CollegeBasketball } from "./basketball";

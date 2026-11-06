@@ -238,7 +238,19 @@ keys (`sports_events.lines` and `people`, 3-7 KB a game: the NBA's 3 KB, the NFL
 good and never asked again (one ESPN call a game, the same summary the box score reads; cached a day in `sports_cache` too, ~the
 same size). Asked by the daily listings job for the games it sees final (at most 60 a run) and by a season's stats fill when it reads
 a game as final. A game scored by stats and the questions a sport's game settles read them from Neon (one query a league read,
-only for a game that asks one). A field's and a card's events aren't kept yet (their answers are several calls each: L3's next part).
+only for a game that asks one).
+**A field's and a card's final (track L, L3 part 3, migration 0302; on the `sports` branch, not merged)**, kept the same way: once a
+linked golf tournament, race weekend, tennis event or fight card is final, the server asks the calls the phone's poller makes for
+it, once (`src/lib/server/sports/espn.ts` eventFinal, through `live-event.ts`'s feeds): golf's board and leaderboard (2 calls); a
+race weekend's board and its core's lists and statistics (~135 calls an F1 weekend, ~47 a NASCAR Cup race, ~36 IndyCar's; ~5 s,
+each round's calls together); a tennis event's board (1 call); a card's board and FightCenter, its rounds, each bout's plays and
+each fighter's statistics (~36 calls a 12-bout UFC card). Kept with the event for good (`sports_events.lines`, `people` and `shape`:
+golf ~29 KB, an F1 weekend ~5.5 KB, a NASCAR race ~9 KB, a UFC card ~11 KB, a WTA 500 ~40 KB, a Grand Slam's draws ~240 KB: the
+US Open's 625 matches with qualifying and doubles, each kept as its sides, sets and winner only), and cached a day in `sports_cache`
+(the same size). To know when it's final, the daily listings job now also reads the first day's scoreboard of each linked field's or
+card's event the app reads, for 16 days from its start (a Grand Slam's fortnight; one call per league and day, cached as before).
+At most 10 fields or cards a run; one whose later call ESPN fails is asked whole again the next run. Nothing polls, nothing new
+wakes Neon.
 **Live games (docs/PLAN-start-a-game-gpt.md track L, L2; on the `sports` branch, not merged; no screen uses it yet, U1)** cost
 nothing on Vercel or Neon. The phone asks ESPN's summary itself (`src/lib/sports/live.ts`): once when the page opens, then from
 the game's start every 15 s (±10%) while it's on and the screen is visible, never while hidden, backing off to 5 minutes while ESPN
@@ -629,6 +641,11 @@ never handles it: the user does the reset and the pasting.
   for the couch's three Survivor 51 games, three more league rows (~the real ones' state each) and a handful of users, and every
   result accepted for the season syncs three more leagues (a few more writes on an episode night). Researched rules ask our bot
   once (the answer is kept). Remove it when done.
+- **2026-11-06, `sports` branch (not merged).** L3 part 3 (docs/PLAN-start-a-game-gpt.md track L; migration 0302): a field's and a
+  card's final kept as a team game's is, from the phone's poller's calls asked once by the server (2 calls golf, ~135 an F1 weekend,
+  ~47 a NASCAR race, 1 a tennis event, ~36 a UFC card), 5-40 KB an event (a Grand Slam's ~240 KB) in `sports_events.lines`, `people`
+  and `shape`, cached a day; the daily listings job reads a linked field's or card's event's first-day scoreboard for 16 days to
+  know when it's final. Live points on the phone (`src/lib/sports/points.ts`) cost nothing (no route, no table).
 - **2026-11-06, `sports` branch (not merged).** L3 part 1 (docs/PLAN-start-a-game-gpt.md track L; migration 0301): a team game's
   counts kept once it's final (`sports_events.lines`, `people`, `lines_at`: 3-7 KB a game), from one more read of its summary (a call
   a game, once; cached a day). Asked by the daily listings job (at most 60 games a run) and a season's stats fill. Nothing polls,

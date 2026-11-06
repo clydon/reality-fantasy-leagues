@@ -99,7 +99,8 @@ export function withCache(p: SportsProvider, opts: { prefix?: string; db?: Query
     roster: (league, team) => cached(key("roster", league, team), () => p.roster(league, team), () => DAY, at()),
     boxScore: (league, event) =>
       cached(key("box", league, event), () => p.boxScore(league, event), (b) => (b?.final ? null : b?.state === "in" ? 3 * MIN : b?.state === "post" ? DAY : HOUR), at()),
-    // L3 part 1: a team game's counts, asked once it's final and saved with the game (finals.ts), so the cache keeps them a day.
+    // L3 parts 1 and 3: a game's or an event's counts, asked once it's final and saved with it (finals.ts), so the cache keeps
+    // them a day.
     game: (league, event) => cached(key("game", league, event), () => p.game(league, event), (g) => (g?.final ? DAY : HOUR), at()),
     seasonStats: (league, athlete, season) => cached(key("season", league, athlete, season), () => p.seasonStats(league, athlete, season), () => DAY, at()),
   };

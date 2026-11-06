@@ -1,13 +1,15 @@
 import type { SportsGameFacts } from "@/lib/game/game-spec";
 import type { LeagueState } from "@/lib/game/types";
-import { TeamSport, groupOf, sportOf, storedFacts, type StoredGame, type Stats } from "@/lib/sports";
+import { BoutSport, TeamSport, boutsOf, groupOf, renamed, sportOf, storedFacts, type StatBout, type StoredFinal, type StoredPeople, type StoredShape, type Stats } from "@/lib/sports";
 import { pool } from "../db";
 
-// A league's sports games as the server reads them (docs/PLAN-start-a-game-gpt.md track L, L3 part 1): each episode's game, from
-// the counts saved with it once it was final (finals.ts, sports_events.lines), in the league's own people. For a game scored by
+// A league's sports games as the server reads them (docs/PLAN-start-a-game-gpt.md track L, L3 parts 1 and 3): each episode's game
+// or event (a field's, a card's), from the counts saved with it once it was final (finals.ts, sports_events.lines, people and
+// shape), in the league's own people. For a game scored by
 // stats, each episode's lines by castaway (their derived stats worked out: Sport.full) and each one's position group (their
 // roster's, season_cast.role, before the game's: a soccer sub's is "SUB"); the engine's scorer turns them into each holding's
-// moments at the game's table (src/lib/game/sequence/stats.js statMoments: L3 part 2 is its hook). For the sports settles, each
+// moments at the game's table (src/lib/game/sequence/stats.js statMoments: L3 part 2 is its hook), and on a card each one's bouts
+// (for a table by its bouts' formats: statMoments' boutsOf). For the sports settles, each
 // episode's game as the grader reads it (facts.games: answers.js sportsVerdict), as of a viewer's mark: a game they haven't
 // marked seen is still to play for them. For a side answer, each episode's sides.
 //
@@ -17,11 +19,14 @@ import { pool } from "../db";
 
 /** A league's sports games, as far as the server knows them. */
 export interface LeagueGames {
-  /** Each episode's lines (castaway id to counts, derived stats worked out), for each episode whose game is final and saved, as
-   *  far as the mark. */
+  /** Each episode's lines (castaway id to counts; a team game's derived stats worked out), for each episode whose game is final
+   *  and saved, as far as the mark. */
   lines: Map<number, Record<string, Stats>>;
   /** Each castaway's position group, where their roster says one (for a table by position). */
   groups: Record<string, string>;
+  /** On a card (a fight card, a tennis event's draws), each episode's bouts by castaway, each its own line at its rounds or sets
+   *  (statMoments' boutsOf: a table by format). */
+  bouts: Map<number, Record<string, StatBout[]>>;
   /** Each episode's game as the grader reads it, as far as the mark (one past it: still to play). */
   games: Map<number, SportsGameFacts>;
   /** Each episode's sides (the teams' ids), for a side answer. */
@@ -58,7 +63,7 @@ export async function leagueGames(state: LeagueState, o: { mark?: number | null;
   if (!seasonId) return undefined;
   const [{ rows }, { rows: cast }] = await Promise.all([
     pool.query(
-      `SELECT e.episode, e.provider, e.league, e.starts_at, e.teams AS linked, f.state, f.final, f.teams, f.lines, f.people
+      `SELECT e.episode, e.provider, e.league, e.event_id, e.starts_at, e.teams AS linked, f.state, f.final, f.teams, f.lines, f.people, f.shape
          FROM season_events e LEFT JOIN sports_events f ON f.provider = e.provider AND f.league = e.league AND f.event_id = e.event_id
         WHERE e.season_id = $1 ORDER BY e.episode`,
       [seasonId]
@@ -77,7 +82,15 @@ export async function leagueGames(state: LeagueState, o: { mark?: number | null;
     if (!id) continue;
     for (const [provider, athlete] of Object.entries((c.provider_ids ?? {}) as Record<string, string>)) who.set(`${provider}:${athlete}`, { id, role: c.role ?? null });
   }
-  const out: LeagueGames = { lines: new Map(), groups: {}, games: new Map(), sides: new Map() };
+  const out: LeagueGames = { lines: new Map(), groups: {}, bouts: new Map(), games: new Map(), sides: new Map() };
+  // An event linked to several episodes (a race weekend's sessions, each a listing's episode: season_events.part) is kept whole,
+  // not session by session, so it's scored and settled once, on the last of them; the earlier ones are still being played for the
+  // server (never the weekend's places on qualifying's episode, nor its lines twice).
+  const lastOf = new Map<string, number>();
+  for (const r of rows) {
+    const k = `${r.provider}|${r.league}|${r.event_id}`;
+    lastOf.set(k, Math.max(lastOf.get(k) ?? 0, Number(r.episode)));
+  }
   for (const r of rows) {
     const n = Number(r.episode);
     // The row's sides with the score it last saw (a final's, before its counts are kept); a game it hasn't seen, the link's.
@@ -85,35 +98,44 @@ export async function leagueGames(state: LeagueState, o: { mark?: number | null;
     const teams = known.map((t) => t.id);
     if (teams.length) out.sides.set(n, teams);
     const sport = sportOf(r.league);
-    if (!(sport instanceof TeamSport)) continue;
+    if (!sport) continue;
     if (mark !== null && n > mark) {
       out.games.set(n, { status: "pre", sides: teams.map((id) => ({ id, score: 0 })), lines: {}, teams: {} });
       continue;
     }
-    const status = statusOf(r, now);
+    const early = Number(r.episode) < (lastOf.get(`${r.provider}|${r.league}|${r.event_id}`) ?? 0);
+    const status = early && statusOf(r, now) === "final" ? "in" : statusOf(r, now);
     if (status !== "final") {
       out.games.set(n, { status, sides: status === "pre" ? teams.map((id) => ({ id, score: 0 })) : known, lines: {}, teams: {} });
       continue;
     }
-    // The saved final in the league's people.
-    const saved = r.lines as Record<string, Stats>;
-    const people = (r.people ?? {}) as StoredGame["people"];
+    // The saved final in the league's people (a team's own ids, its sides, stay as they are).
+    const people = (r.people ?? {}) as StoredPeople;
     const idOf = (athlete: string) => who.get(`${r.provider}:${athlete}`)?.id ?? `${r.provider}:${athlete}`;
-    const lines: Record<string, Stats> = {};
-    const ppl: StoredGame["people"] = {};
-    for (const [athlete, line] of Object.entries(saved)) {
-      const id = idOf(athlete);
-      lines[id] = line;
-      if (people[athlete]) ppl[id] = people[athlete];
-      const p = who.get(`${r.provider}:${athlete}`);
-      const group = p ? groupOf(sport, p.role, people[athlete]?.position) : null;
-      if (p && group && !out.groups[p.id]) out.groups[p.id] = group;
+    for (const [athlete, p] of Object.entries(people)) {
+      const c = who.get(`${r.provider}:${athlete}`);
+      const group = c ? groupOf(sport, c.role, p.position) : null;
+      if (c && group && !out.groups[c.id]) out.groups[c.id] = group;
     }
-    const g: StoredGame = { final: true, sides: known, lines, people: ppl };
+    const g = renamed(storedOf(sport, r.lines as Record<string, Stats>, people, known, r.shape as StoredShape | null), idOf);
     out.games.set(n, storedFacts(sport, g, "final"));
-    out.lines.set(n, Object.fromEntries(Object.entries(lines).map(([id, l]) => [id, sport.full(l)])));
+    // A team game's derived stats worked out (total bases); a field's and a card's lines as the phone scores them (statePoints).
+    out.lines.set(n, sport instanceof TeamSport ? Object.fromEntries(Object.entries(g.lines).map(([id, l]) => [id, sport.full(l)])) : g.lines);
+    if (g.kind === "card") out.bouts.set(n, Object.fromEntries(Object.keys(g.lines).map((id) => [id, boutsOf(g.card, g.byBout, id)])));
   }
   return out;
+}
+
+/** A row's kept final as its sport keeps it: a team game's with its sides, a field's or a card's with its shape (one kept as none
+ *  has an empty one). */
+function storedOf(sport: NonNullable<ReturnType<typeof sportOf>>, lines: Record<string, Stats>, people: StoredPeople, sides: { id: string; score: number }[], shape: StoredShape | null): StoredFinal {
+  if (sport instanceof TeamSport) return { final: true, sides, lines, people };
+  if (sport instanceof BoutSport) {
+    const s = shape?.kind === "card" ? shape : { card: { event: "", bouts: [], field: [] }, byBout: {}, results: [] };
+    return { kind: "card", final: true, card: s.card, byBout: s.byBout, results: s.results, lines, people };
+  }
+  const s = shape?.kind === "field" ? shape : { event: { event: "", field: [], parts: 0, cut: null }, standings: [] };
+  return { kind: "field", final: true, event: s.event, standings: s.standings, lines, people };
 }
 
 /** A side answer's faces for the window opening at `episode` (a question asked once: the game's first): its game's sides, from

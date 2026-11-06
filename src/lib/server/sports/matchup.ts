@@ -1,6 +1,7 @@
 import { easternDay } from "@/lib/game/tv-listings";
 import { slugOf } from "@/lib/game/listing";
 import { factsOf, leagueName, matchupKey, matchupName, matchupStatus, pickMatchup, type MatchupAsk } from "@/lib/sports/matchup";
+import { TeamSport, sportOf } from "@/lib/sports";
 import { pool } from "../db";
 import { castFromEvents } from "./cast";
 import { sportsProviders } from "./index";
@@ -177,7 +178,8 @@ async function withOdds(p: SportsProvider, league: string, games: SportsEvent[],
         // The day's scoreboard names the league too (a team's schedule, in most sports, doesn't).
         if (!g.leagueName && day?.leagueName) g = { ...g, leagueName: day.leagueName };
       }
-      else if (g.final) odds = (await p.boxScore(league, g.id))?.odds ?? null;
+      // A team game's (a field's or a card's event has no summary, nor a line).
+      else if (g.final && g.competitors.some((c) => c.team)) odds = (await p.boxScore(league, g.id))?.odds ?? null;
     } catch (e) {
       if (!(e instanceof SportsUnavailable)) throw e;
     }
@@ -218,21 +220,28 @@ export async function storeEvents(provider: string, league: string, events: Spor
 /**
  * The daily listings job's part: every linked game (a matchup's or a TV listing's) from three days back to a week ahead that
  * isn't final yet, read from its day's scoreboard (one per league and day, cached) and kept (storeEvents); then each matchup
- * season's status from its games. `only` (a check's seasons) looks at just those games.
+ * season's status from its games. A field's or a card's event (golf's tournament, a race weekend, a tennis event, a fight card:
+ * L3 part 3) in a league the app reads, from its first day's scoreboard, as stats.ts reads them, for 16 days from its start (a
+ * Grand Slam's fortnight), so its final is kept too. `only` (a check's seasons) looks at just those games.
  */
 export async function refreshSportsEvents(opts: { providers?: SportsProvider[]; now?: Date; only?: string[] } = {}): Promise<{ days: number; stored: number; finals: number; errors: string[] }> {
   const now = opts.now ?? new Date();
   const providers = opts.providers ?? sportsProviders();
   const { rows } = await pool.query(
-    `SELECT DISTINCT e.provider, e.league, e.event_id, e.starts_at FROM season_events e
+    `SELECT DISTINCT e.provider, e.league, e.event_id, e.starts_at, e.teams IS NOT NULL AS linked FROM season_events e
        LEFT JOIN sports_events f ON f.provider = e.provider AND f.league = e.league AND f.event_id = e.event_id
-      WHERE e.teams IS NOT NULL AND e.starts_at IS NOT NULL AND (f.event_id IS NULL OR NOT f.final)
-        AND e.starts_at BETWEEN $1::timestamptz - interval '3 days' AND $1::timestamptz + interval '8 days'
+      WHERE e.starts_at IS NOT NULL AND (f.event_id IS NULL OR NOT f.final)
+        AND e.starts_at BETWEEN $1::timestamptz - CASE WHEN e.teams IS NOT NULL THEN interval '3 days' ELSE interval '16 days' END AND $1::timestamptz + interval '8 days'
         AND ($2::uuid[] IS NULL OR e.season_id = ANY($2::uuid[]))`,
     [now, opts.only ?? null]
   );
   const days = new Map<string, { provider: string; league: string; day: string; ids: Set<string> }>();
   for (const r of rows) {
+    // A link without teams: a field's or a card's event the app reads (a team game's has its teams; anything else isn't read).
+    if (!r.linked) {
+      const sport = sportOf(r.league as string);
+      if (!sport || sport instanceof TeamSport) continue;
+    }
     const day = easternDay(r.starts_at as Date);
     const k = `${r.provider}|${r.league}|${day}`;
     if (!days.has(k)) days.set(k, { provider: r.provider, league: r.league, day, ids: new Set() });
@@ -263,7 +272,7 @@ export async function refreshSportsEvents(opts: { providers?: SportsProvider[]; 
       WHERE ss.id = x.season_id AND ss.status IS DISTINCT FROM x.status`,
     [now]
   );
-  // L3 part 1: the team games just final, their counts saved with them (finals.ts).
+  // L3 parts 1 and 3: the games and events just final, their counts saved with them (finals.ts).
   let finals = 0;
   try {
     const f = await saveFinals({ providers, now, seasons: opts.only });

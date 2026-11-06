@@ -105,3 +105,116 @@ test("the sports settles graded from a kept final (facts.games' one): the user's
   const before = { ...facts, games: new Map([[1, { status: "pre", sides: [], lines: {}, teams: {} }]]) };
   assert.equal(verdictOf(ex.spec.ask[0], 1, before).state, "waiting");
 });
+
+test("a field's and a card's final as it's kept (L3 part 3): Bermuda's and the Daytona 500's standings, UFC 324's and the US Open's bouts, read back as saved, score and grade as ESPN's own answer", () => {
+  const { storedField, storedCard, finalState, shapeOf, gameFacts, boutsOf } = jiti("../src/lib/sports/index.ts");
+  const fields = [["golf/pga", require("./fixtures/espn/pga-401850917.json")], ["racing/nascar-premier", require("./fixtures/espn/nascar-premier-202502160001.json")]];
+  for (const [league, answer] of fields) {
+    const sport = sportOf(league);
+    const g = JSON.parse(JSON.stringify(storedField(sport, answer)));
+    const state = sport.stateAt(answer);
+    assert.equal(g.kind, "field");
+    assert.equal(g.final, true, league);
+    assert.deepEqual(g.lines, JSON.parse(JSON.stringify(state.lines)), `${league}: the timeline's end, places in the lines`);
+    assert.deepEqual(g.standings, JSON.parse(JSON.stringify(state.standings)), `${league}: ESPN's final places`);
+    assert.deepEqual(shapeOf(g), { kind: "field", event: g.event, standings: g.standings });
+    const score = defaultsFor(sport.id, league).specs.season.spec.score;
+    const moments = statMoments(Object.fromEntries(Object.entries(g.lines).map(([id, l]) => [id, sport.full(l)])), score);
+    const phone = statePoints(sport, score, state);
+    assert.deepEqual(moments, Object.entries(phone).filter(([, s]) => s.points).map(([id, s]) => ({ castawayId: id, points: s.points })), `${league}: the sequence's line on the kept final, the phone's`);
+    assert.deepEqual(storedFacts(sport, g, "final"), JSON.parse(JSON.stringify(gameFacts(sport, state, { status: "final", people: g.people }))), `${league}: the grader's facts`);
+  }
+  // A card: by its bouts' formats (tennis's), each holding's bouts from the kept card (the server's LeagueGames.bouts).
+  const cards = [["mma/ufc", require("./fixtures/espn/ufc-600057024.json")], ["tennis/atp", require("./fixtures/espn/atp-189-2026.json")]];
+  for (const [league, answer] of cards) {
+    const sport = sportOf(league);
+    const g = JSON.parse(JSON.stringify(storedCard(sport, answer)));
+    const state = sport.stateAt(answer);
+    const card = sport.card(answer);
+    assert.equal(g.kind, "card");
+    assert.equal(g.final, true, league);
+    assert.deepEqual(g.lines, JSON.parse(JSON.stringify(state.lines)), league);
+    assert.deepEqual(g.byBout, JSON.parse(JSON.stringify(state.byBout)), league);
+    assert.deepEqual(g.results, state.results.map((r) => ({ bout: r.bout, outcome: r.outcome, winner: r.winner, loser: r.loser })), `${league}: who won each, and how it ended`);
+    assert.deepEqual(g.card.bouts.map((b) => b.id), card.bouts.map((b) => b.id));
+    for (const b of g.card.bouts) for (const id of b.sides) assert.equal(g.people[id].position, g.card.bouts.find((x) => x.sides.includes(id)).class, `${league}: a fighter's class, their first bout's`);
+    const score = defaultsFor(sport.id, league).specs.season.spec.score;
+    const phone = statePoints(sport, score, state, { card });
+    const moments = statMoments(g.lines, score, null, (id) => boutsOf(g.card, g.byBout, id));
+    assert.deepEqual(moments, Object.entries(phone).filter(([, s]) => s.points).map(([id, s]) => ({ castawayId: id, points: s.points })), `${league}: the sequence's line on the kept card, by format where it scores so`);
+    const read = finalState(g);
+    assert.deepEqual(Object.keys(read.bouts).sort(), g.results.map((r) => r.bout).sort(), `${league}: every result's bout done`);
+    assert.deepEqual(storedFacts(sport, g, "final"), JSON.parse(JSON.stringify(gameFacts(sport, state, { status: "final", people: g.people, card }))), `${league}: the grader's facts`);
+  }
+});
+
+test("a kept final in a league's people (renamed): its lines and people, a field's standings, a card's sides, bouts and winners; a team game's sides left as they are", () => {
+  const { storedField, storedCard, renamed } = jiti("../src/lib/sports/index.ts");
+  const idOf = (id) => `c-${id}`;
+  const g = renamed(kept(nba, SIXERS), idOf);
+  assert.deepEqual(g.sides.map((s) => s.id), ["20", "5"]);
+  assert.ok(Object.keys(g.lines).every((id) => id.startsWith("c-")) && Object.keys(g.people).every((id) => id.startsWith("c-")));
+  const golf = sportOf("golf/pga");
+  const f = renamed(storedField(golf, require("./fixtures/espn/pga-401850917.json")), idOf);
+  assert.ok(f.standings.every((s) => s.id.startsWith("c-")) && f.event.field.every((id) => id.startsWith("c-")));
+  const tennis = sportOf("tennis/atp");
+  const c = renamed(storedCard(tennis, require("./fixtures/espn/atp-189-2026.json")), idOf);
+  assert.ok(c.card.bouts.every((b) => b.sides.every((id) => id.startsWith("c-"))));
+  assert.ok(Object.values(c.byBout).every((lines) => Object.keys(lines).every((id) => id.startsWith("c-"))));
+  assert.ok(c.results.every((r) => (r.winner == null || r.winner.startsWith("c-")) && (r.loser == null || r.loser.startsWith("c-"))));
+});
+
+test("the provider keeps a field's and a card's final from the calls the phone's poller makes, asked once (Bermuda, Miami, the Daytona 500, UFC 324, the US Open): what's kept is ESPN's whole answer's; ESPN failing a call keeps nothing", async () => {
+  const { espn: provider } = jiti("../src/lib/server/sports/espn.ts");
+  const { SportsUnavailable } = jiti("../src/lib/server/sports/types.ts");
+  const { storedField, storedCard } = jiti("../src/lib/sports/index.ts");
+  const { espn: standin } = require("./harness/espn-standin");
+  const real = globalThis.fetch;
+  const p = provider("http://zt.test");
+  const cases = [
+    ["golf/pga", "401850917", require("./fixtures/espn/pga-401850917.json"), storedField],
+    ["racing/f1", "600057432", require("./fixtures/espn/f1-600057432.json"), storedField],
+    ["racing/nascar-premier", "202502160001", require("./fixtures/espn/nascar-premier-202502160001.json"), storedField],
+    ["mma/ufc", "600057024", require("./fixtures/espn/ufc-600057024.json"), storedCard],
+    ["tennis/atp", "189-2026", require("./fixtures/espn/atp-189-2026.json"), storedCard],
+  ];
+  try {
+    for (const [league, event, answer, kept] of cases) {
+      const api = standin(() => answer);
+      globalThis.fetch = api.fetch;
+      const g = await p.game(league, event);
+      const want = kept(sportOf(league), answer);
+      assert.equal(g.final, true, `${league}: final`);
+      assert.deepEqual(g.lines, want.lines, `${league}: every line ESPN's whole answer has`);
+      if (g.kind === "field") assert.deepEqual(g.standings, want.standings, league);
+      else assert.deepEqual([g.results, g.byBout], [want.results, want.byBout], league);
+      assert.ok(api.calls.length >= 1, league);
+    }
+    // ESPN failing one of the core's calls: not final this time (asked again on the next run; kept as far as it is once old);
+    // failing the board (ESPN down): SportsUnavailable; an answer that isn't JSON is ESPN failing too.
+    const ufc = cases[3][2];
+    globalThis.fetch = standin(() => ufc, (kind) => (kind === "statistics" ? 503 : undefined)).fetch;
+    assert.equal((await p.game("mma/ufc", "600057024")).final, false);
+    globalThis.fetch = standin(() => ufc, (kind) => (kind === "board" ? 503 : undefined)).fetch;
+    await assert.rejects(p.game("mma/ufc", "600057024"), SportsUnavailable);
+    globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => JSON.parse("<html>") });
+    await assert.rejects(p.game("golf/pga", "401850917"), SportsUnavailable);
+    // A card whose FightCenter 404s (optional) is still read.
+    globalThis.fetch = standin(() => ufc, (kind) => (kind === "fightcenter" ? null : undefined)).fetch;
+    assert.ok((await p.game("mma/ufc", "600057024")) != null);
+    // No such event (its board 404s): none; an event not over yet: not final.
+    globalThis.fetch = standin(() => ({ board: null })).fetch;
+    assert.equal(await p.game("tennis/atp", "zt-none"), null);
+    const on = JSON.parse(JSON.stringify(cases[0][2]));
+    on.leaderboard.events[0].status.type = { state: "in", completed: false };
+    globalThis.fetch = standin(() => on).fetch;
+    assert.equal((await p.game("golf/pga", "401850917")).final, false);
+    // A league the app doesn't read: none, nothing asked.
+    let asked = 0;
+    globalThis.fetch = async () => (asked++, { ok: false, status: 404, json: async () => ({}) });
+    assert.equal(await p.game("zt/unread", "1"), null);
+    assert.equal(asked, 0);
+  } finally {
+    globalThis.fetch = real;
+  }
+});

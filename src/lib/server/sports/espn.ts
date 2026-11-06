@@ -1,7 +1,6 @@
 import { readOdds, type EspnOdds } from "@/lib/sports/matchup";
-import { storedGame } from "@/lib/sports/final";
-import { sportOf } from "@/lib/sports";
-import { TeamSport, idOf, str, type EspnSummary } from "@/lib/sports/sport";
+// One copy of the sports' classes (the index's): `instanceof` reads them alike wherever they're imported from.
+import { FieldSport, LiveEvent, TeamSport, feedOf, idOf, sportOf, storedCard, storedField, storedGame, str, type BoutAnswer, type BoutSport, type EspnSummary, type EventFeed, type FieldAnswer, type Play, type StoredCard, type StoredField } from "@/lib/sports";
 import { SportsUnavailable, type LeagueName, type BoxScore, type Competitor, type EventState, type Found, type League, type Person, type RosterPlayer, type SeasonLine, type SeasonStage, type SportsEvent, type SportsProvider, type StatTable, type Team } from "./types";
 
 // ESPN (docs/PLAN-sports-data.md, docs/HOSTING.md): free, no key, but unofficial and undocumented, with no stated rate limit or
@@ -10,6 +9,7 @@ import { SportsUnavailable, type LeagueName, type BoxScore, type Competitor, typ
 //                           summary (its box score, and its line in pickcenter)
 //   site.web.api.espn.com   search (teams and leagues by name), an athlete's stats by season
 //   sports.core.api.espn.com the index of every sport and league
+// and, for a field's or a card's final (L3 part 3: eventFinal), the calls the phone's poller makes for it, asked once.
 // A league's id is ESPN's own path for it ("baseball/mlb", "australian-football/afl", "soccer/eng.1", "racing/f1"), read from
 // its answers (search's sport and league slug, the index's refs), never from a table here. The readers below turn ESPN's
 // answers into the provider shapes (types.ts) and are pure, so tests feed them trimmed real answers (tests/sports-espn.test.js).
@@ -316,6 +316,80 @@ export function readSeasonStats(raw: { categories?: { name?: string; displayName
   return out.length ? out : null;
 }
 
+/**
+ * One of ESPN's answers: its body, or null for its "none" (404 or 400: no such league, team, game, athlete or event). ESPN not
+ * answering, answering otherwise than 2xx, or with something that isn't JSON: SportsUnavailable.
+ */
+async function answerOf(url: string): Promise<unknown> {
+  let res: Response;
+  try {
+    res = await fetch(url, { headers: UA, signal: AbortSignal.timeout(TIMEOUT_MS), cache: "no-store" });
+  } catch (e) {
+    throw new SportsUnavailable(`ESPN didn't answer (${(e as Error).name})`);
+  }
+  if (res.status === 404 || res.status === 400) return null;
+  if (!res.ok) throw new SportsUnavailable(`ESPN answered ${res.status}`);
+  try {
+    return await res.json();
+  } catch {
+    throw new SportsUnavailable("ESPN's answer wasn't JSON");
+  }
+}
+
+/**
+ * A field's or a card's final (L3 part 3), from the calls the phone's poller makes (live-event.ts's feed for its sport: golf's
+ * board and leaderboard; a race weekend's board, then its core's lists, statistics and F1's statuses; a tennis event's board; a
+ * card's board and FightCenter, then its rounds, each bout's plays and each fighter's statistics), asked once, in the feed's
+ * rounds, each answer as answerOf reads it. Final once ESPN says so and the feed has nothing left to ask (a counted series'
+ * statistics filled in, a card's settled) and every call answered. Null when ESPN has no such event (a first call's "none", or
+ * answers with no event in them); ESPN failing a first call (its board: an outage) is SportsUnavailable; failing a later one (a
+ * driver's statistics) keeps what's had as not final, so one call never holds the event up for good (saveFinals keeps it as far
+ * as it is once it's old).
+ */
+async function eventFinal(sport: FieldSport | BoutSport, league: string, event: string, hosts: { site: string; core: string; web: string }): Promise<StoredField | StoredCard | null> {
+  const feed = feedOf(sport);
+  if (!feed) return null;
+  let down: SportsUnavailable | null = null;
+  let none = false;
+  let short = false;
+  const ask = async <A, P extends Play, E, S>(f: EventFeed<A, P, E, S>): Promise<{ answer: A | null; had: A | null; done: boolean; error: string | null }> => {
+    const live: LiveEvent<A, P, E, S> = new LiveEvent({
+      feed: f,
+      league,
+      event,
+      base: hosts.site,
+      core: hosts.core,
+      web: hosts.web,
+      fetch: async (url) => {
+        // A first call (its board; not an optional one, a card's FightCenter) or a later round's.
+        const key = Object.entries(live.urls).find(([, u]) => u === url)?.[0];
+        const first = key != null && !(f.optional ?? []).includes(key);
+        try {
+          const body = await answerOf(url);
+          if (body === null) {
+            if (first) none = true;
+            return { ok: false, status: 404, json: async () => ({}) };
+          }
+          return { ok: true, status: 200, json: async () => body };
+        } catch (e) {
+          if (first) down ??= e as SportsUnavailable;
+          else short = true;
+          throw e;
+        }
+      },
+    });
+    await live.poll();
+    return { answer: live.answer, had: live.answer ?? f.answer(live.had, new Date().toISOString()), done: live.done, error: live.lastError };
+  };
+  const got = sport instanceof FieldSport ? await ask(feed as EventFeed<FieldAnswer, Play, unknown, unknown>) : await ask(feed as EventFeed<BoutAnswer, Play, unknown, unknown>);
+  if (down) throw down;
+  if (none || !got.had) return null;
+  // Answers with an event the sport's reader couldn't read.
+  if (!got.answer) throw new Error(got.error ?? "ESPN's answer couldn't be read");
+  const g = sport instanceof FieldSport ? storedField(sport, got.answer as FieldAnswer) : storedCard(sport, got.answer as BoutAnswer);
+  return g && { ...g, final: g.final && got.done && !short };
+}
+
 /** The index's refs ("http://sports.core.api.espn.com/v2/sports/baseball/leagues/mlb?lang=en") to the slug after `after`. */
 const slugsOf = (raw: { items?: { $ref?: string }[] } | null, after: string) =>
   (raw?.items ?? []).map((i) => new RegExp(`/${after}/([^/?]+)`).exec(i.$ref ?? "")?.[1]).filter((x): x is string => !!x);
@@ -328,22 +402,7 @@ export function espn(base?: string): SportsProvider {
   const site = base ?? SITE;
   const web = base ?? WEB;
   const core = base ?? CORE;
-  async function get<T>(url: string): Promise<T | null> {
-    let res: Response;
-    try {
-      res = await fetch(url, { headers: UA, signal: AbortSignal.timeout(TIMEOUT_MS), cache: "no-store" });
-    } catch (e) {
-      throw new SportsUnavailable(`ESPN didn't answer (${(e as Error).name})`);
-    }
-    // No such league, team, game or athlete.
-    if (res.status === 404 || res.status === 400) return null;
-    if (!res.ok) throw new SportsUnavailable(`ESPN answered ${res.status}`);
-    try {
-      return (await res.json()) as T;
-    } catch {
-      throw new SportsUnavailable("ESPN's answer wasn't JSON");
-    }
-  }
+  const get = async <T,>(url: string): Promise<T | null> => (await answerOf(url)) as T | null;
   const path = (league: string) => league.split("/").map(encodeURIComponent).join("/");
   return {
     id: "espn",
@@ -376,7 +435,8 @@ export function espn(base?: string): SportsProvider {
     },
     async game(league, event) {
       const sport = sportOf(league);
-      if (!(sport instanceof TeamSport)) return null;
+      if (!sport) return null;
+      if (!(sport instanceof TeamSport)) return eventFinal(sport, league, event, { site, core, web });
       const raw = await get<EspnSummary>(`${site}/apis/site/v2/sports/${path(league)}/summary?event=${encodeURIComponent(event)}`);
       return raw ? storedGame(sport, raw) : null;
     },
