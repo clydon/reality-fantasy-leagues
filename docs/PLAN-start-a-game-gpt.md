@@ -11261,6 +11261,9 @@ first), and proves it on these games and on the tracker's other rows that use it
   - **Long checks:** none here: answers.js gains a take no stored game has, and describe.js is words, so every read is the same by
     construction; part 3b changes `state-logic.js`, and the long checks run once at its end, on its commit, covering this part too.
   **Noticed (G3 part 3a):**
+  - **The local bot's ChatGPT is still silent** (part 2's Noticed): asked again at 18:37 UTC on 2026-11-07, idle first, `check-game-words.js
+    --real --part=team`'s first ask (w002) got "No reply after 240s" too (/health ok, its last answer 17:56 UTC), so the run was stopped
+    there. The user looks at the bot (its ChatGPT sign-in is theirs); then the 4 asks before the merge. (The user, then the merge.)
   - **A top as big as the field** (a podium of 20 on a 20-car race) makes everyone right. Our check can't know a field's size before it
     starts (a race's entry list comes late). Recommended: the wizard shows the field's size when it has one (U1), or our check takes the
     pack's field where it has it. Small. (U1.)
