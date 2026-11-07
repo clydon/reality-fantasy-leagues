@@ -6861,11 +6861,10 @@
         "page": {
           "sport": "racing",
           "league": "F1",
-          "event": null,
+          "event": "the season finale",
           "espn": "racing/f1"
         },
         "words": "F1 season finale pick the podium",
-        "step": "G3",
         "expect": {
           "about": {
             "sport": "racing",
@@ -6881,7 +6880,34 @@
           "wizard": [],
           "flag": null
         },
-        "note": "the podium is a field's top three, and a field's final says only who wins (final winner; POS least is first only): a top-three settle is G3's"
+        "note": "G3 part 3: on the race's own page, the podium is the field's top three (final top, place 3): pick 3, a point for each who finishes on it",
+        "spec": {
+          "spec": 1,
+          "span": {
+            "from": 1,
+            "to": 1
+          },
+          "get": {
+            "by": "none"
+          },
+          "score": {
+            "by": "answers"
+          },
+          "ask": [
+            {
+              "id": "podium",
+              "ask": "Who finishes on the podium?",
+              "answer": "person",
+              "pick": 3,
+              "points": 1,
+              "settle": {
+                "by": "final",
+                "take": "top",
+                "place": 3
+              }
+            }
+          ]
+        }
       },
       {
         "id": "w054",

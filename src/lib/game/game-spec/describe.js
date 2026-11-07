@@ -18,7 +18,7 @@
 //
 // Pure CommonJS, like ./schema.js.
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
-const { LINE_GAME, CARD_OUT_HOURS, PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, spanEnd, spanEndPhase, playsAs, callsAsk, finaleIn, draftQuestions, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion, matchupParts, categoryParts, squaresParts, ordinalWord, questionsGame, poolByPoints, teamParts, handicapParts, stageOn, ON_CHANGE, nextStageAts, fallsTo, stageSide, mainCount, stageAlongside, stageSeason, seasonKey, isPlayers, isBeat, waiverOwnOf, waiverMoves, weekParts, momentsPick, bankOf, isTicket, ticketOf, rolesOf, twistOf, cardOf, isCardQuestion, onlyCard, questionLines, lifeRides, askOf: linesOf, OUTSIDE } = require('./schema.js');
+const { LINE_GAME, CARD_OUT_HOURS, PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, spanEnd, spanEndPhase, playsAs, callsAsk, finaleIn, draftQuestions, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion, matchupParts, categoryParts, squaresParts, ordinalWord, questionsGame, poolByPoints, teamParts, handicapParts, stageOn, ON_CHANGE, nextStageAts, fallsTo, stageSide, mainCount, stageAlongside, stageSeason, seasonKey, sameSeason, isPlayers, isBeat, waiverOwnOf, waiverMoves, weekParts, momentsPick, bankOf, isTicket, ticketOf, rolesOf, twistOf, cardOf, isCardQuestion, onlyCard, questionLines, lifeRides, askOf: linesOf, OUTSIDE } = require('./schema.js');
 const { PLAYOFFS } = require('../sequence/bracket.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
@@ -27,6 +27,7 @@ const say = (n) => NUMBER_WORDS[n] || String(n);
 const cap = (s) => s.replace(/^./, (c) => c.toUpperCase());
 const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
 const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
+const isInt = (v, min) => Number.isInteger(v) && v >= min;
 /** A game of questions' parlays (A9) as far as they're said: each with its list of questions (a spec still being made can have
  *  half of one). */
 const parlaysOf = (score) => (isObj(score) && Array.isArray(score.parlays) ? score.parlays.filter((p) => isObj(p) && Array.isArray(p.of)) : []);
@@ -234,11 +235,20 @@ const cardLegs = (s) => {
 /** C7: a ticket's parts with a card's lines as its legs (the game's questions as they're answered: askOf). */
 const ticketIn = (q, s) => ticketOf((s ? linesOf(s) : []).find((x) => x.id === q.id) || q);
 /** A question as a phrase in a list: "who wins", "total points: over or under (237.5)". */
+/** G3 part 3: a question naming several (a podium's 3, the final three), each it gets scoring. */
+const namesSeveral = (q) => NAMES.includes(q.answer) && isInt(q.pick, 2) && q.each === undefined;
 function questionPhrase(q) {
   const text = askOf(q).replace(/\?$/, '');
-  const phrase = /^[A-Z][a-z]/.test(text) ? text.charAt(0).toLowerCase() + text.slice(1) : text;
+  const lower = /^[A-Z][a-z]/.test(text) ? text.charAt(0).toLowerCase() + text.slice(1) : text;
+  // G3 part 3 (impeccable clarify): the majority's question asked back as a reported one, "who will most of you say goes home" as
+  // "who most of you will say goes home".
+  const reported = lower.replace(/^(who|what|which) will ((?:most|fewest) of (?:you|us)) (say|pick|guess)\b/, '$1 $2 will $3');
+  // Asked of each game of the episode (each: 'game'): "who wins each game", any other "(each game)".
+  const phrase = q.each === 'game' ? (/^who wins$/.test(reported) ? 'who wins each game' : `${reported} (each game)`) : reported;
+  // A person answer naming several: how many ("pick 3").
+  const picks = namesSeveral(q) ? ` (pick ${q.pick})` : '';
   if (q.answer === 'overUnder' && q.line === LINE_GAME) return `${phrase} (the game's line)`;
-  return q.answer === 'overUnder' && typeof q.line === 'number' ? `${phrase} (${q.line})` : phrase;
+  return q.answer === 'overUnder' && typeof q.line === 'number' ? `${phrase} (${q.line})` : `${phrase}${picks}`;
 }
 
 /** How many moments' points the spec changes from the rulebook's (its defaults for the draft's ownership), or null. A
@@ -501,6 +511,10 @@ function sentenceParts(s, w) {
     put(spanWords(s.span, w), 'span');
   }
   put('.');
+  // G3 part 3 (the main session's 12:15 PM note, impeccable clarify): a draft's finale predictions, which the short form shows as
+  // "Finale picks", said in the sentence too (their points are How it works').
+  const fin = by === 'draft' ? finaleIn(s.ask) : null;
+  if (fin) put(` Before the finale, everyone names their final three and the winner${fin.from === 'own' ? ' from their own team' : ''}.`, 'ask');
   // C7: the card its questions are on, new each episode (one the moments that count are on: countRules).
   const lined = cardOf(s);
   if (lined && lined.of.length && Number.isInteger(lined.each) && s.ask.some(isCardQuestion)) put(` ${cardSentence(lined, w)}`, 'ask');
@@ -627,7 +641,9 @@ function answersPhrases(given, parlays, put, bank, s) {
   const some = (f) => ask.some(f);
   const each = pts.length === 1 ? `${pts[0] === 1 ? 'A point' : pointsWord(pts[0])}` : 'Points';
   // A9's ways of combining, as far as they're the whole game's.
-  let said = ` ${each} for each right answer.`;
+  // G3 part 3: one question naming several (a podium's 3) scores each of them it gets.
+  const several = (q) => namesSeveral(q) && q.share === undefined && q.wager === undefined && !isPlayers(q) && !isBeat(q);
+  let said = all(several) ? ` ${each} for each of them you get.` : ` ${each} for each right answer.`;
   // A14 part 1: the players' own answers settle every one, the same way.
   if (all((q) => isPlayers(q) && q.settle.take === ask[0].settle.take && q.share === undefined && q.wager === undefined)) said = ` ${each} when yours is the answer ${ask[0].settle.take === 'minority' ? 'fewest' : 'most'} of you give.`;
   // A14 part 2: every one played against the bot's own call.
@@ -648,6 +664,12 @@ function answersPhrases(given, parlays, put, bank, s) {
   if (some(isBeat) && !all((q) => isBeat(q) && q.share === undefined)) {
     put(all(isBeat) ? " Only when the bot's call isn't right." : ` On ${listOf(ask.filter(isBeat).map(questionPhrase))}, only when the bot's call isn't right.`, 'score');
   }
+  // G3 part 3 (the 12:15 PM note): a share or a stake on only some of them, said of those (the short form shows it as the game's).
+  const on = (f) => listOf(ask.filter(f).map(questionPhrase));
+  if (some(several) && !all(several) && said === ` ${each} for each right answer.`) put(` On ${on(several)}, each of them you get counts.`, 'score');
+  if (some((q) => q.share === 'split') && !all((q) => q.share === 'split')) put(` On ${on((q) => q.share === 'split')}, the points are split between everyone right.`, 'score');
+  if (some((q) => q.share === 'only') && !all((q) => q.share === 'only')) put(` On ${on((q) => q.share === 'only')}, only a right answer nobody else has scores.`, 'score');
+  if (!staked && some((q) => q.wager !== undefined && q.wager !== null)) put(` On ${on((q) => q.wager !== undefined && q.wager !== null)}, ${lowerFirst(stakeWords(ask.filter((q) => q.wager !== undefined && q.wager !== null), bank))}`, 'score');
   if (some((q) => q.rollover)) put(" If nobody's right, the points roll over.", 'score');
   if (some((q) => isObj(q.shrink))) put(some((q) => isObj(q.shrink) && q.shrink.per === 'change') ? ' Changing your call once it starts costs points.' : " The earlier you call it, the more it's worth.", 'score');
   for (const p of parlays) {
@@ -1851,9 +1873,12 @@ function stagesShort(s, ctx) {
   games.slice(1).forEach((x, i) => {
     const on = stageOn(x.st);
     const from = isObj(x.s.span.from) ? phaseWord(x.s.span.from.phase, w) : isNum(x.s.span.from) ? `${w.Part} ${x.s.span.from}` : null;
-    const drafts = x.s.get && x.s.get.by === 'draft';
+    // A draft is a redraft only after a stage that drafted (G3 part 3: a draft after bingo is the game's first draft).
+    const drafts = x.s.get && x.s.get.by === 'draft' && games.slice(0, i + 1).some((y) => y.s.get && y.s.get.by === 'draft');
     const at = on ? (on.again ? 'each big change' : 'a big change') : from;
-    chips.push(i + 1 < mains ? (drafts && at ? `Redraft at ${at}` : `${x.title}${at ? ` from ${at}` : ''}`) : `Plus ${x.title.toLowerCase()}`);
+    // A stage on another season (A12 part 4b) follows on: "Then The Traitors", never a redraft at its Episode 1.
+    const elsewhere = !sameSeason(x.st, games[i].st);
+    chips.push(i + 1 < mains ? (elsewhere ? `Then ${x.title}` : drafts && at ? `Redraft at ${at}` : `${x.title}${at ? ` from ${at}` : ''}`) : `Plus ${x.title.toLowerCase()}`);
   });
   return { title: capTo(title, SHORT_TITLE), ...lineOf([...chips, ...twistShorts(first.s, w)], 3) };
 }

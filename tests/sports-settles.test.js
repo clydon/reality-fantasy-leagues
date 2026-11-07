@@ -11,7 +11,8 @@ const path = require("path");
 const jiti = require("jiti")(__filename, { alias: { "@": path.join(__dirname, "..", "src") } });
 const L = jiti("../src/lib/sports/index.ts");
 const { sportOf, sportById, specContextOf, gameFacts, LiveGame } = L;
-const { specProblems, verdictOf, pointsFor, answerProblem } = require("../src/lib/game/game-spec/index.js");
+const G = require("../src/lib/game/game-spec/index.js");
+const { specProblems, verdictOf, pointsFor, answerProblem } = G;
 const { asOf, bounds } = require("../scripts/dev-test/espn-replay.js");
 const { virtual } = require("./harness/virtual-time");
 const examples = require("./fixtures/sports-examples.js");
@@ -46,7 +47,7 @@ test("the check: a sports question is a game's (asked each episode, or once in a
   assert.deepEqual(problems(quiz([q("person", { by: "final", take: "winner" })]), golf), []);
   assert.deepEqual(problems(quiz([q("person", { by: "stat", stat: "POS", take: "least" })]), golf), []);
   assert.ok(problems(quiz([q("person", { by: "stat", stat: "POS", take: "most" })]), golf).includes("ask[0].settle.take: POS is a place: the most of it is the last place, so who places best is the least"));
-  assert.ok(problems(quiz([q("number", { by: "final", take: "total" })]), golf).includes("ask[0].settle.take: A field's final says who wins: no total or margin"));
+  assert.ok(problems(quiz([q("number", { by: "final", take: "total" })]), golf).includes("ask[0].settle.take: A field's final says who wins and its top few: no total or margin"));
   assert.ok(problems(quiz([q("side", { by: "final", take: "winner" })]), golf).includes("ask[0].answer: A field is won by someone: answer person"));
   assert.ok(problems(quiz([q("person", { by: "final", take: "winner" })]), ctx).includes("ask[0].answer: A team game is won by a side: answer side"));
   assert.ok(problems(quiz([q("side", { by: "final", take: "winner", of: "20" })]), ctx).includes("ask[0].settle.of: Only a card's bout says whose win: a game has one winner"));
@@ -200,4 +201,40 @@ test("live, through the phone's poller in virtual time: the 76ers' opener, an ov
   assert.deepEqual(verdictOf(winner, 1, end).right, ["20"]);
   assert.deepEqual(verdictOf(under, 1, end), { state: "known", right: [], value: 220 });
   assert.equal(verdictOf(over, 1, end).early, undefined, "the final's verdict is the final's");
+});
+
+test("G3 part 3: a field's top few (the F1 podium, w053): a person answer picking 3, each who finishes in the top 3 right; refused on a team game or a card", () => {
+  const f1 = sportOf("racing/f1");
+  const ctx = specContextOf(f1);
+  const podium = (more = {}) => q("person", { by: "final", take: "top", place: 3 }, { ask: "Who finishes on the podium?", pick: 3, ...more });
+  assert.deepEqual(problems(quiz([podium()]), ctx), [], "the podium on a race");
+  assert.ok(problems(quiz([q("person", { by: "final", take: "top" }, { pick: 3 })]), ctx).includes("ask[0].settle.place: Which place: 1 or more"));
+  assert.ok(problems(quiz([q("number", { by: "final", take: "top", place: 3 })]), ctx).some((p) => /answer person|isn't graded/.test(p)));
+  assert.ok(problems(quiz([q("person", { by: "final", take: "winner", place: 3 })]), ctx).includes("ask[0].settle.place: Only a place or a top settles by a place"));
+  assert.ok(problems(quiz([podium()]), specContextOf(nba)).some((p) => /no top few/.test(p)), "a team game has no top few");
+  assert.ok(problems(quiz([podium({ pick: 10 })]), ctx).includes("ask[0].pick: Name 3 at most: the top 3"), "naming 10 for a podium");
+  // Said: a podium beside another question, each of the three it gets.
+  const said = G.describeSpec(quiz([podium({ points: 2 }), q("person", { by: "final", take: "winner" }, { ask: "Who wins?", points: 2 })]), ctx).sentence;
+  assert.ok(said.includes("who finishes on the podium (pick 3) and who wins. 2 points for each right answer. On who finishes on the podium (pick 3), each of them you get counts."), said);
+  // On a sport's page, a race is a race, not a game.
+  const page = jiti("../src/lib/sports/page.ts").sportPageContext("racing/f1");
+  assert.ok(G.describeSpec(quiz([podium()]), page).sentence.includes("before Race 1: who finishes on the podium (pick 3). A point for each of them you get."));
+  assert.ok(problems(quiz([podium()]), specContextOf(sportOf("mma/ufc"))).some((p) => /no top few/.test(p)), "a card's bout has a winner");
+  // Graded on F1's 2025 Chinese Grand Prix as recorded: Piastri, Norris, Russell; the three disqualified out of the places.
+  const CHINA = require("./fixtures/espn/f1-600052046.json");
+  const state = f1.stateAt(CHINA);
+  const facts = factsOf(gameFacts(f1, state, { status: "final" }));
+  const top = state.standings.filter((s) => s.place !== null && s.place <= 3).map((s) => s.id).sort();
+  assert.equal(top.length, 3);
+  const v = verdictOf(podium({ asked: "once" }), 1, facts);
+  assert.deepEqual([...v.right].sort(), top);
+  const box = f1.readBox(CHINA);
+  const id = (n) => nameOf(box, n);
+  const ham = id("Lewis Hamilton");
+  assert.ok(!v.right.includes(ham), "disqualified: out of the places");
+  const pts = pointsFor(podium({ asked: "once", points: 2 }), v, [{ playerId: "ann", answer: [top[0], top[1], ham] }]);
+  assert.equal(pts.get("ann"), 4, "two of three on the podium, 2 each");
+  // Before anyone has finished, not known; a team game's final never has a top few.
+  assert.equal(verdictOf(podium({ asked: "once" }), 1, factsOf({ status: "final", sides: [], lines: {}, teams: {}, places: {} })).state, "off");
+  assert.match(verdictOf(podium({ asked: "once" }), 1, factsOf({ status: "final", sides: [{ id: "a", score: 1 }, { id: "b", score: 0 }], lines: {}, teams: {} })).why, /two sides/);
 });

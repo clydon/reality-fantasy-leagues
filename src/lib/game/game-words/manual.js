@@ -152,7 +152,7 @@ const WORDS = {
       players: 'the players\' own answers (take: majority or minority)',
       legs: "a ticket's legs (of: the question ids)",
       outside: 'a number from an outside source',
-      final: "a sport's game at its final (take: winner, total, margin)",
+      final: "a sport's game at its final (take: winner, total, margin; a field's top, with place: a podium's 3)",
       stat: "a stat in a sport's game (stat; take: most, least, value)",
     },
     sport: ['final', 'stat'],
@@ -462,7 +462,7 @@ function sportLines(games) {
   const lines = [];
   lines.push("THIS PAGE IS A SPORT'S: its episodes are the page's games (the pack's games, by episode number), its people the players (each with their team as group, and position as role), and nobody goes home. Nothing from a show plays here (no moments, phases or roles).");
   lines.push(`- Points per stat: "score": { "by": "stats", "points": { statKey: points } }, each key one of the page's stats (the pack's stats: their words "home run" is the key "HR"). Leave points out for the sport's standard table (the pack's standard.scoring).`);
-  lines.push(`- A question about a game: settle { "by": "final", "take": "winner" } (answer "side": a team), "total" or "margin" (answer "overUnder" or "number"); or { "by": "stat", "stat": statKey, "take": "most" | "least" (answer "person": a player), or "value" (answer "number" or "overUnder"), "of": a team's id from the pack's teams for one team's players }.`);
+  lines.push(`- A question about a game: settle { "by": "final", "take": "winner" } (answer "side": a team), "total" or "margin" (answer "overUnder" or "number"), a field's (a race's, a tournament's) "top" with "place" (a podium: { "by": "final", "take": "top", "place": 3 }, answer "person" with "pick": 3); or { "by": "stat", "stat": statKey, "take": "most" | "least" (answer "person": a player), or "value" (answer "number" or "overUnder"), "of": a team's id from the pack's teams for one team's players }.`);
   lines.push(`- An over/under on a game's total: "line": "game" (ESPN's own line, kept when the question opens). Never a line they didn't say.`);
   lines.push(`- A final, or a game's stat, asked once is one game's: a span of that one game ("span": { "from": n, "to": n }), or "asked": "each" for every game.`);
   lines.push(`- Every game of an episode that has several (a week's slate): "each": "game" on the question.`);

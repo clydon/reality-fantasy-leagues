@@ -12,6 +12,7 @@ const C = require("../src/lib/game/game-spec/capabilities.js");
 const B = require("./fixtures/game-words/bank.js");
 const tracker = require("./fixtures/engine-capabilities.json");
 const { SHORT_TITLE, SHORT_LINE } = require("../src/lib/game/game-spec/describe.js");
+const { unsaid } = require("./fixtures/short-words.js");
 
 // Each rulebook a tracker page names, with a couch, who's in and where the season stands: at its premiere, and partway.
 const PAGES = [
@@ -47,6 +48,8 @@ test("every roll passes our check, plays, and fits its short form, on every rule
       assert.ok(s.title && s.title.length <= SHORT_TITLE, `${at}: title "${s.title}"`);
       assert.ok(s.line && s.line.length <= SHORT_LINE, `${at}: line "${s.line}"`);
       assert.ok(!/undefined|NaN|null/.test(`${s.title} ${s.line} ${r.describe.sentence}`), `${at}: ${s.title} | ${s.line}`);
+      // G3 part 3: its sentence says every piece the short form shows (tests/fixtures/short-words.js).
+      assert.deepEqual(unsaid(s, r.describe.sentence), [], `${at}: ${s.line} | ${r.describe.sentence}`);
       // The game starts where the page is: the next episode to air, or a phase still to come.
       const from = r.spec.stages ? r.spec.stages[0].game.span.from : r.spec.span.from;
       assert.ok(typeof from === "object" || from === (p.next || 1), `${at}: starts at the next episode`);
@@ -207,4 +210,29 @@ test("the short form fits its caps on every game the tracker says plays", () => 
   const ctx = B.ctxOf({ show: "Survivor", season: 51, rulebook: "survivor" });
   const s = G.describeSpec({ preset: "weekly-lineup", span: { from: 7, to: 7 }, get: { by: "draft", each: 2, order: "blind", own: "shared" }, count: { start: 1 }, score: { by: "moments", points: null, captain: { times: 2 } } }, ctx).short;
   assert.deepEqual(s, { title: "Weekly Lineup", line: "Episode 7 · Draft 2, start 1 · Captain scores double", more: 0 });
+});
+
+// G3 part 3 (the main session's 12:15 PM note): a rolled game's sentence says every piece its short form shows (each chip's words,
+// tests/fixtures/short-words.js), on every page's seeds and every game the tracker says plays; the majority question reads naturally.
+test("every piece the short form shows is in the sentence on every game the tracker says plays (every roll's: the first test); finale picks and the majority's words", () => {
+  for (const r of C.rowsOf(tracker)) {
+    if (!r.spec || !r.page || !r.page.rulebook) continue;
+    const ctx = B.ctxOf(r.page);
+    if (C.statusOf(r, ctx).state !== "yes") continue;
+    const d = G.describeSpec(r.spec, ctx);
+    assert.deepEqual(unsaid(d.short, d.sentence), [], `${r.id}: ${d.short.line} | ${d.sentence}`);
+  }
+  const ctx = B.ctxOf({ show: "Survivor", season: 51, rulebook: "survivor" });
+  // Survivor 49 seed 42's shape: a Weekly Lineup with finale picks, said in the sentence.
+  const { finaleQuestions } = require("../src/lib/game/game-spec/schema.js");
+  const lineup = G.describeSpec({ preset: "weekly-lineup", get: { by: "draft", each: 5, own: "shared" }, count: { start: 2 }, score: { by: "moments" }, ask: finaleQuestions({ top3: 1, winner: 3, from: "any" }) }, ctx);
+  assert.match(lineup.short.line, /Finale picks/);
+  assert.match(lineup.sentence, /each episode, all season\. Before the finale, everyone names their final three and the winner\./);
+  // Seed 3's: who most of you will say goes home.
+  const majority = R.ROLL.twists.find((t) => t.id === "majority");
+  const most = { preset: "weekly-calls", get: { by: "none" }, score: { by: "answers" }, rank: { by: "total" }, ask: [{ id: "boot", ask: "Who goes home?", answer: "person", points: 2, asked: "each", settle: { by: "results", take: "out" } }, { id: "most", ask: "Who will most of you say goes home?", answer: "person", points: 2, asked: "each", settle: { by: "players", take: "majority", of: "boot" } }] };
+  assert.ok(majority, "the roll has a majority twist");
+  assert.match(G.describeSpec(most, ctx).sentence, /who goes home and who most of you will say goes home/);
+  // Only the majority's wording is turned round: "Who will have the final say?" stays as it is.
+  assert.match(G.describeSpec({ ...most, ask: [{ ...most.ask[0], ask: "Who will have the final say at tribal?" }] }, ctx).sentence, /who will have the final say at tribal/);
 });

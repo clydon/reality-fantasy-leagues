@@ -411,11 +411,17 @@ function standingIn(st, g, q) {
       return { off: b.outcome === 'draw' ? "A draw: it doesn't count either way" : b.outcome === 'nc' ? "No contest: it doesn't count either way" : 'Not decided yet' };
     }
     if (isObj(g.places)) {
+      // G3 part 3: a field's top `place` (a podium's 3), the tied at its last place all in (golf's T3); nobody placed yet, not known.
+      if (st.take === 'top') {
+        const top = Object.keys(g.places).filter((id) => isNum(g.places[id]) && g.places[id] <= st.place);
+        return top.length ? { right: top } : { off: 'Nobody has finished yet' };
+      }
       if (st.take !== 'winner') return { off: 'A field has no total' };
       const first = Object.keys(g.places).filter((id) => g.places[id] === 1);
       return first.length ? { right: first } : { off: 'Nobody has won yet' };
     }
     const sides = Array.isArray(g.sides) ? g.sides : [];
+    if (st.take === 'top') return { off: sides.length === 2 ? "A team game has two sides: it doesn't count either way" : "The field's places aren't known" };
     if (sides.length !== 2) return { off: "The game's sides aren't known" };
     const [a, b] = sides;
     if (st.take === 'total') return { value: a.score + b.score };

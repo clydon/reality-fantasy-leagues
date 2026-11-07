@@ -11221,6 +11221,68 @@ first), and proves it on these games and on the tracker's other rows that use it
     busy), so w057 on a team page and a second run of w003 and w052 have no real answer yet. Recommended: when it answers again, `node
     scripts/dev-test/check-game-words.js --real --part=team` (4 asks) before the merge; if it stays silent, the user looks at the bot
     (its ChatGPT sign-in). (The next G3 session, or the merge.)
+  **Part 3 in two (2026-11-07):** 3a, the podium and the words (built, below); 3b, the pool filters (a draft from one team's or one
+  position's players: w055, part 1's and 2's Noticed `pool.where.teams`), which change `state-logic.js` at every place a draft, a
+  pickup or a pick offers someone, so the long checks run once, at its end.
+  **Part 3a as built (2026-11-07, `engine`; no migration, no screen): a field's top few, and a rolled game's sentence saying every piece.**
+  - **A field's top few** (`settle: { by: 'final', take: 'top', place }`, schema.js TAKES and SETTLES_FOR, answers.js `standingIn`): the
+    F1 podium is `place: 3`, a `person` answer with `pick: 3`, each one who finishes in the top 3 right (the tied at the last place all in:
+    golf's T3), graded on the field's places (`g.places`); nobody placed yet is off. Our check: only a field has one (a team game: "who
+    wins, the total or the margin, no top few"; a card's bout: "a winner: no top few"), it's a person answer, a place of 1 or more, and no
+    more names than places ("Name 3 at most: the top 3"). The manual's sports lines and VOCAB words say it (a prompt: the user's at the
+    merge). The tracker's **w053** plays on the race's own page (✅, 234 now).
+  - **A sport's episode word** (`sportPageContext`, `PART_WORDS`): a race (racing), a tournament (golf, tennis), an event (a fight card),
+    else a game, so the podium reads "before Race 1". A slate's cadence still wins (part 2's "Week 9").
+  - **The sentence says every piece the short form shows** (the main session's 12:15 PM note, describe.js): a draft's finale predictions
+    ("Before the finale, everyone names their final three and the winner.", "from their own team" when it says so; Survivor 49 seed 42);
+    a pot split, unique answers only and a stake on only some of a game's questions, said of those ("On who goes home, the points are
+    split between everyone right."); a question naming several says how many ("who makes the final three (pick 3)"), and when every
+    question does, "A point for each of them you get." (beside others: "On ..., each of them you get counts."); a question of each game
+    "who wins each game" (part 2's Noticed, w029), any other "(each game)". The short form: a draft stage after one that didn't draft is
+    "Draft from Episode 5" (it said "Redraft"), and a stage on another season than the one before is "Then The Traitors" (it said
+    "Redraft at Episode 1").
+  - **The majority's question** (roll.js): "Who will most of you say goes home?" (the game speaks to the players), said "who most of you
+    will say goes home" (only the majority's wording is turned round: "Who will have the final say?" stays).
+  - **impeccable (clarify)** on those words: the finale picks a sentence of their own after the span (so "all season" doesn't trail a
+    finale clause), "you" for the players, "(pick 3)" and "each game" in the style of "(the game's line)", "a point for each of them you
+    get" for a question naming several, and a race's word. U0 settles them with the wizard.
+  - **Checks:** `tests/fixtures/short-words.js` (new: each chip the short form can show and the words its sentence must have, a chip it
+    doesn't know named so a new chip comes with its words, a chip cut to fit read by its start), asserted on every roll of
+    tests/roll.test.js's 9 pages × 600 seeds and every game the tracker says plays, and in `scripts/dev-test/roll-check.js` (every taped
+    season loaded here, 2,000 seeds each: 16,000 of 16,000 pass); the podium's check and grade on F1's recorded 2025 Chinese Grand Prix
+    (tests/sports-settles.test.js: Piastri, Norris, Russell; Hamilton disqualified, out of the places; two of three right at 2 each, 4);
+    1,978 unit tests passing; the type check; the tracker (`--check`).
+  - **The code review** (`/code-review` at medium). Fixed: the reported-question rewrite caught any "will ... say" ("Who will have the
+    final say?"), now the majority's wording only; "Then ..." compared each stage with the first, now with the one before; a podium took
+    any number of names; "each of them you get" only for a game of one question; a podium on a game without places said "A team game has
+    two sides" (now only when it has two); roll-check.js didn't check the sentence; two scratch scripts; a doc comment moved off its
+    function; NAMES reused; the rolls ran twice in the test. Not taken: a place as big as the field (our check can't know a field's size
+    before the race; every driver right): Noticed.
+  - **Long checks:** none here: answers.js gains a take no stored game has, and describe.js is words, so every read is the same by
+    construction; part 3b changes `state-logic.js`, and the long checks run once at its end, on its commit, covering this part too.
+  **Noticed (G3 part 3a):**
+  - **A top as big as the field** (a podium of 20 on a 20-car race) makes everyone right. Our check can't know a field's size before it
+    starts (a race's entry list comes late). Recommended: the wizard shows the field's size when it has one (U1), or our check takes the
+    pack's field where it has it. Small. (U1.)
+  - **A stage's "Most lines by the finale wins"** in a bingo stage that ends at Episode 4 (shape.minis): a stage's rule says the finale for
+    the stage's end. Recommended: "by the end of the stage" in a stage's words. Small. (Part 3b, or U0.)
+  - **A one-race page says "before Race 1"**: the race's own page has one race, so "before the race" would read better, as a one-game
+    page could say "before the game". Recommended: the page's one-game words in describe.js. Small. (U0.)
+  - **The pool filters' map** (for part 3b): no engine code reads `spec.pool` today (`plainParts` takes `where` null or `{ stillIn: true }`
+    only, so a spec with another `where` doesn't play). The places a draft, a pickup or a pick offers someone, each a choke point for one
+    helper (`PoolLogic.has(state, castaway)`): `RosterLogic.freeAgents`, `MidSeasonLogic.availableFor` and `isAvailableFor`,
+    `GhostLogic.draftPool`; the raw "everyone still in" lists in `SpreadLogic.teamProblem`, `DrawLogic.outcome`, `BudgetLogic.teamProblem`
+    and `PickEmLogic.eligibility`; the per-id checks in `BlindDraftLogic.validateSubmission`, `AuctionLogic.validateBids` and `.outcome`,
+    `PickEmLogic.setPick`, `KeeperLogic.setOptions`, `.lock` and `.optionsFrom`, `RosterLogic.activatePlayer`; the pool's size in
+    `RosterLogic.settleDraftShare` (exclusive or shared by the math: a filtered pool is smaller); bot-logic.js's own free lists
+    (`snakeDraft`, `blindSubmissions`, `auctionBids`, `finalePicks`); the server's draft route (draft.ts: the own-pace check, the timer's
+    auto-pick from the queue) and the views that list who can be picked (game-view.ts `pickEmEligibility`, waiver-view.ts
+    `availableFor`). The data: a castaway's team is its group (`tribeId`, the team's name as the roster had it; the spec's teams are ESPN
+    ids, so the stamp maps the season's linked games' team names to ids); a position is `state.statGroups` (stamped on read and before a
+    write, `StatsLogic.stamp`, but today only for those in a kept final: 3b stamps every castaway's from `season_cast.role`, `groupOf`).
+    VOCAB's `pool.where` gains `positions` (the sport's position groups, ctx.positions) and `teams` turns 'now'. Recommended fallbacks:
+    someone whose team or position isn't known isn't in the pool; a league with no stamp at all (nothing read yet) holds no filter, so
+    a draft never stalls; someone traded away stays on your team (only new picks are filtered). (Part 3b.)
 - **G4. Randomize, no UI** (the user, 2026-10-29; the wizard's other door, above). `rollSpec(ctx, locks, seed)` in
   `src/lib/game/game-spec/`, pure like the rest: a seeded roll over the spec's vocabulary within the context pack, the locks
   held, our check the gate (a roll that fails is rolled again from the next seed, a bounded number of times, then the nearest

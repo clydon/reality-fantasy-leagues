@@ -459,7 +459,7 @@ players' own mechanics below, which settle the game, never a fact about the show
 | `players` | `majority`, `minority` | the players' own answers: see "The players' own mechanics" |
 | `legs` | none | a ticket's legs (C6): `{ by: "legs", of: [the game's question ids] }`, your own answers to them in the window |
 | `outside` | `rating` | off (the user, 2026-11-07: below); a number from a vetted outside source (A14 part 7): `{ by: "outside", take: "rating", source: "tvmaze", after: 7 }`, the episode's TVmaze rating (0 to 10) as it stood `after` days (1 to 30, 7 by default) after it aired, read once and stored |
-| `final` | `winner`, `total`, `margin` (`of`: a card's bout, `main` its main event) | a sport's game at its final (L3 part 2c): who won (extra time and penalties in it; a field's first, a bout's winner), both sides' points, the margin; a game called off, a tie or a bout with no winner is off. `bracket`, a draw's winners round by round (L4 part 2; played since L3 part 2e) |
+| `final` | `winner`, `total`, `margin` (`of`: a card's bout, `main` its main event); `top` with `place` (a field's) | a sport's game at its final (L3 part 2c): who won (extra time and penalties in it; a field's first, a bout's winner), both sides' points, the margin; a game called off, a tie or a bout with no winner is off. G3 part 3: a field's top `place` (a podium: `{ by: 'final', take: 'top', place: 3 }`, a `person` answer naming up to `place`, `pick: 3`, each one who finishes there right, the tied at its last place all in; a team game and a card's bout have none). `bracket`, a draw's winners round by round (L4 part 2; played since L3 part 2e) |
 | `stat` | `most`, `least`, `value` (`stat`: a sport's stat key; `of`: a player or a team) | a stat in a sport's game (L3 part 2c): who has the most (a tie, all of them), the fewest, or a value (a team's players' added; asked once over a span, its games' added up) |
 
 A sport's game settles its questions from the server's facts (`facts.games`: each episode's game as of the viewer's mark, its
@@ -1045,7 +1045,11 @@ page + words ──(bot + the engine's manual)──▶ a draft spec ──(our 
 - **The short form** (`describeSpec(...).short`, every game): `{ title, line, more }`, a title up to 28 characters (the game's name,
   or what it is: Best Ball, Weekly Picks, Predictions, Co-op; a game in stages its stages', "Outlast, redrafted", "Bingo + Trivia")
   and a line up to 60, chips joined by " · ": when it plays, what you do, how it's won when that isn't the game's own, then its
-  twists, as many as fit (`more`: how many didn't).
+  twists, as many as fit (`more`: how many didn't). **Every chip it shows has its words in the sentence** (G3 part 3, the main
+  session's note: finale picks, a pot split, unique answers or a stake on only some of the questions are said of those; the table of
+  chips to words is `tests/fixtures/short-words.js`, checked on every roll in tests/roll.test.js and roll-check.js): a new chip comes
+  with its words, or the test names it. A draft stage after one that didn't draft isn't a redraft, and a stage on another season is
+  "Then The Traitors". On a sport's page an episode is the sport's word: a race, a tournament, an event, else a game.
 
 ---
 

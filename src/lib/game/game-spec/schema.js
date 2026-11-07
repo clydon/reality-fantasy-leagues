@@ -502,7 +502,9 @@ const VOCAB = {
 //               minority, void it (no points either way); a tie, `tie`: none (the default, void) or all (each tied one is
 //               right). A game of questions only, with one lock for everyone (no late lock)
 //           sports (L1 part 4b): { by: 'final', take: winner | total | margin, of? } a game's final (who wins, both sides'
-//               points, the margin), a field's winner (whoever finishes first), a card's bout's (of: 'main', the main event,
+//               points, the margin), a field's winner (whoever finishes first) or (G3 part 3) its top `place` (take: top, a
+//               podium: { take: 'top', place: 3 }, a person answer picking up to 3, each who finishes in it right; ties at the
+//               last place all in), a card's bout's (of: 'main', the main event,
 //               the default, or the bout's id); | { by: 'stat', stat, take: most | least | value, of? } a stat in the game:
 //               who has the most or least of it (of: a team, among its players), or how many (of: a player's, a team's; left
 //               out, the game's). A game an episode: asked each episode (once, on a game of one). Graded from the sports'
@@ -532,7 +534,7 @@ const TAKES = {
   fact: ['who'],
   players: ['majority', 'minority'],
   outside: ['rating'],
-  final: ['winner', 'total', 'margin', 'bracket'],
+  final: ['winner', 'total', 'margin', 'bracket', 'top'],
   stat: ['most', 'least', 'value'],
 };
 /** The settles that are the season's (known at its end): asked once, in a game that runs to the season's end. */
@@ -545,7 +547,7 @@ const PEOPLE = ['results:winner', 'results:out', 'results:placed', 'results:top'
 /** A14 part 1: the players' own answers, as a settle ('by:take'). A choice takes them too (it takes anything). */
 const PLAYERS_TAKES = ['players:majority', 'players:minority'];
 const SETTLES_FOR = {
-  person: [...PEOPLE, 'stat:most', 'stat:least', 'fact:who', 'final:winner', ...PLAYERS_TAKES],
+  person: [...PEOPLE, 'stat:most', 'stat:least', 'fact:who', 'final:winner', 'final:top', ...PLAYERS_TAKES],
   group: ['results:out', 'moment:who', 'fact:who', ...PLAYERS_TAKES],
   order: ['results:order', 'moment:order', 'points:order'],
   confidence: PEOPLE,
@@ -2818,8 +2820,12 @@ function questionProblems(q, at, s, ids, league) {
     if (!(st.by === 'stat' || st.take === 'winner' || st.take === 'bracket')) add('settle.of', "Only a stat, who wins a card's bout, or a draw's bracket says whose");
     else if (typeof st.of !== 'string' || !st.of) add('settle.of', "Whose: a player's or a team's id (a card's bout: 'main' or its id)");
   }
-  if (st.by === 'results' && (st.take === 'placed' || st.take === 'top') && !isInt(st.place, 1)) add('settle.place', 'Which place: 1 or more');
-  if (st.place !== undefined && !(st.by === 'results' && (st.take === 'placed' || st.take === 'top'))) add('settle.place', 'Only a place or a top settles by a place');
+  // G3 part 3: or a field's top few in a sport's game (a podium: { by: 'final', take: 'top', place: 3 }).
+  const placedBy = (st.by === 'results' && (st.take === 'placed' || st.take === 'top')) || (st.by === 'final' && st.take === 'top');
+  if (placedBy && !isInt(st.place, 1)) add('settle.place', 'Which place: 1 or more');
+  // A field's top few: name no more than there are places in it (naming 10 for a podium would nearly always get all 3).
+  else if (st.by === 'final' && st.take === 'top' && isInt(q.pick, 1) && q.pick > st.place) add('pick', `Name ${st.place} at most: the top ${st.place}`);
+  if (st.place !== undefined && !placedBy) add('settle.place', 'Only a place or a top settles by a place');
   // What the season's results say only at its end: asked once, in a game that runs to it.
   if (SEASON_TAKES.includes(how)) {
     const what = st.take === 'winner' ? 'Who wins' : st.take === 'split' ? "The jury's vote split" : 'Where they finish';
@@ -4315,7 +4321,10 @@ function settleProblems(s, ctx, opts) {
       if (shape === 'field' || !draws.length) out.push([`ask[${i}].settle`, shape === 'card' ? "A bracket is a draw's, and this card's bouts aren't in one" : shape === 'team' ? "A team game's bracket is its league's playoffs: this season isn't them" : "A bracket is a draw's (tennis's) or a league's playoffs: a field has none"]);
       else if (typeof st.of === 'string' && st.of && !draws.includes(st.of)) out.push([`ask[${i}].settle.of`, `"${st.of}" isn't one of the draws: ${draws.join(', ')}`]);
     } else if (st.by === 'final' && (shape === 'team' || shape === 'field' || shape === 'card')) {
-      if (shape !== 'team' && st.take !== 'winner') out.push([`ask[${i}].settle.take`, `A ${shape}'s final says who wins: no total or margin`]);
+      // G3 part 3: a field's final has its top few (a podium) too; a team game's and a card's bout have only a winner on top.
+      if (st.take === 'top' && shape !== 'field') out.push([`ask[${i}].settle.take`, shape === 'team' ? "A team game has two sides: who wins, the total or the margin, no top few" : "A card's bout has a winner: no top few"]);
+      else if (shape !== 'team' && st.take !== 'winner' && !(shape === 'field' && st.take === 'top')) out.push([`ask[${i}].settle.take`, `A ${shape}'s final says who wins${shape === 'field' ? ' and its top few' : ''}: no total or margin`]);
+      if (st.take === 'top' && q && q.answer !== 'person') out.push([`ask[${i}].answer`, "A field's top few are people: answer person"]);
       if (st.take === 'winner' && q && (q.answer === 'side' || q.answer === 'person') && q.answer !== (shape === 'team' ? 'side' : 'person')) out.push([`ask[${i}].answer`, shape === 'team' ? 'A team game is won by a side: answer side' : `A ${shape} is won by someone: answer person`]);
       if (st.of !== undefined && shape !== 'card') out.push([`ask[${i}].settle.of`, "Only a card's bout says whose win: a game has one winner"]);
       if (q && q.draw === true && shape !== 'team') out.push([`ask[${i}].draw`, `A ${shape}'s winner is someone: no draw to pick`]);

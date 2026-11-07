@@ -27,11 +27,20 @@ export type SportPageContext = ReturnType<typeof specContextOf> & {
   roles: [];
 };
 
+/** G3 part 3: what one of a sport's episodes is called where it isn't a game: a race weekend, a tournament, a fight card's night. */
+const PART_WORDS: Record<string, { singular: string; plural: string }> = {
+  racing: { singular: "race", plural: "races" },
+  golf: { singular: "tournament", plural: "tournaments" },
+  tennis: { singular: "tournament", plural: "tournaments" },
+  mma: { singular: "event", plural: "events" },
+};
+
 /**
  * The ctx a spec on `league`'s games is checked against (null for a league no sport reads). `show`: the page's name; `person` and
- * `part`: its words for a player and a game (a show's own terms, else "player" and "game"); `playoffs`: a season made of a league's
- * playoffs (specContextOf's).
+ * `part`: its words for a player and a game (a show's own terms, else "player" and the sport's: a race, a tournament, an event, a
+ * game); `playoffs`: a season made of a league's playoffs (specContextOf's).
  */
+
 export function sportPageContext(league: string, o: { show?: string; person?: { one: string; many: string }; part?: { singular: string; plural: string }; playoffs?: boolean } = {}): SportPageContext | null {
   const sport = sportOf(league);
   if (!sport) return null;
@@ -41,7 +50,7 @@ export function sportPageContext(league: string, o: { show?: string; person?: { 
     show: o.show ?? sport.name,
     castaway: o.person?.one ?? "player",
     castaways: o.person?.many ?? "players",
-    part: o.part ?? { singular: "game", plural: "games" },
+    part: o.part ?? PART_WORDS[sport.id] ?? { singular: "game", plural: "games" },
     sport: sport.id,
     league,
     results: false,
