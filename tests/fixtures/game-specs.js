@@ -52,7 +52,7 @@ module.exports = [
         { id: "total", ask: "Total points: over or under?", answer: "overUnder", line: "game", points: 1, settle: { by: "final", take: "total" } },
       ],
     },
-    ctx: { show: "the 76ers home opener", castaway: "player", part: { singular: "game", plural: "games" }, stats: [{ key: "PTS", label: "point" }, { key: "REB" }, { key: "AST" }] },
+    ctx: { show: "the 76ers home opener", castaway: "player", part: { singular: "game", plural: "games" }, shape: "team", stats: [{ key: "PTS", label: "point" }, { key: "REB" }, { key: "AST" }] },
     sentence: "A game for the 76ers home opener: everyone answers three questions before Game 1: who wins, who scores the most points and total points: over or under (the game's line). A point for each right answer.",
     type: "questions",
     // L3 part 2c: the engine plays the sports settles and the side answer; G3: the game's own page has its two teams' players.

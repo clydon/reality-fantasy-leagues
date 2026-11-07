@@ -11217,7 +11217,7 @@ first), and proves it on these games and on the tracker's other rows that use it
     does), and the route is a few lines. Recommended: U1's wizard check goes through it.
   - **The local bot put `span` on a team page's draft** although the manual says to leave it out (harmless: the matchup's page reads its
     last game as the season's end). Fine as is.
-  - **The local bot's ChatGPT stopped answering** from about 18:10 UTC on 2026-11-07 (every ask "No reply after 240s"; /health ok, nothing
+  - **Closed (part 3b: all 4 asked, every team page's games right).** **The local bot's ChatGPT stopped answering** from about 18:10 UTC on 2026-11-07 (every ask "No reply after 240s"; /health ok, nothing
     busy), so w057 on a team page and a second run of w003 and w052 have no real answer yet. Recommended: when it answers again, `node
     scripts/dev-test/check-game-words.js --real --part=team` (4 asks) before the merge; if it stays silent, the user looks at the bot
     (its ChatGPT sign-in). (The next G3 session, or the merge.)
@@ -11261,7 +11261,7 @@ first), and proves it on these games and on the tracker's other rows that use it
   - **Long checks:** none here: answers.js gains a take no stored game has, and describe.js is words, so every read is the same by
     construction; part 3b changes `state-logic.js`, and the long checks run once at its end, on its commit, covering this part too.
   **Noticed (G3 part 3a):**
-  - **The local bot's ChatGPT is still silent** (part 2's Noticed): asked again at 18:37 UTC on 2026-11-07, idle first, `check-game-words.js
+  - **Closed (part 3b, as above).** **The local bot's ChatGPT is still silent** (part 2's Noticed): asked again at 18:37 UTC on 2026-11-07, idle first, `check-game-words.js
     --real --part=team`'s first ask (w002) got "No reply after 240s" too (/health ok, its last answer 17:56 UTC), so the run was stopped
     there. The user looks at the bot (its ChatGPT sign-in is theirs); then the 4 asks before the merge. (The user, then the merge.)
   - **A top as big as the field** (a podium of 20 on a 20-car race) makes everyone right. Our check can't know a field's size before it
@@ -11354,6 +11354,19 @@ first), and proves it on these games and on the tracker's other rows that use it
     hadn't had: now `readsGames`); the season page's ctx had no `teamList`; a list's fixes pointed at entries that moved; the refusal's words;
     the filter read again per castaway in the blind and auction loops (now once, and cached per spec); `PoolLogic.test` copied `inFilter`.
     Not taken: the repeated `active && inPool` at a few sites (each reads its own list; `offered` where it's the whole cast).
+  - **Long checks** (once, last, covering parts 1 to 3b, whose state-logic.js and scorer changes are 3b's and 3a's): on `a71e8e29`,
+    **golden.js --before=master** (7 seasons, 160 games, 19,361 reads, every one the same) and **the Survivor 51 rehearsal**
+    (`season-forward.js rehearse --from=backups/prod-2026-10-30 --scenario=realistic,rough,dst --before=master`: each scenario 2,856 reads,
+    flag off against on and master's engine against this tree's, every one the same). **blind.js run** (every season loaded: The Challenge
+    41, 40 and 39 played every game through; Survivor 49 and The Traitors 4 had 2 games each never settled, the tracker's w051 margin and
+    w053 podium played on a show's season): **fixed** in our check, a question settled by a game's final on a show's page (no sport's
+    `shape`) is refused ("A show's episodes have no final score: only a sport's games settle a final"; tests/fixtures/game-specs.js's
+    hand-written 76ers ctx gets the `shape` every real sport ctx has; a case in tests/sports-settles.test.js). Blind again on the fix for
+    those two: Survivor 49 160 of 160 and The Traitors 4 113 of 113 played through. The fix is our check alone (a league's own spec is checked
+    without a ctx), so golden and the rehearsal read the same by construction and weren't run again.
+  - **The real bot** (part 2's and 3a's Noticed): the local bot answered again from 19:15 UTC, and `check-game-words.js --real --part=team`
+    (4 asks, idle, asked of ChatGPT) got every team page's games right: w002, w003 and w052 the tracker's exact game, w057 its shape. (The
+    script records the provider asked, not the one that answered: whether any came through Codex isn't known.)
   **Noticed (G3 part 3b):**
   - **A league's own pages have no `teamList`**, so outside our check (a league's game page, its Rules sheet's sentence) a team pool reads
     "one team's players only". The league knows its teams' names (its groups). Recommended: the league's ctx carries `teamList` from its

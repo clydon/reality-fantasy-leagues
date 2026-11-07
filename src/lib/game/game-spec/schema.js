@@ -4392,6 +4392,9 @@ function settleProblems(s, ctx, opts) {
       if (st.of !== undefined && shape !== 'card') out.push([`ask[${i}].settle.of`, "Only a card's bout says whose win: a game has one winner"]);
       if (q && q.draw === true && shape !== 'team') out.push([`ask[${i}].draw`, `A ${shape}'s winner is someone: no draw to pick`]);
       if (q && q.asked === 'once' && !oneGame) out.push([`ask[${i}].asked`, "A final is one game's: ask it each episode, or once in a game of just one"]);
+    } else if (st.by === 'final' && shape === undefined) {
+      // G3 part 3b (blind.js): a show's page (no sport's shape) has no game's final to settle it (a podium, a margin: never settled).
+      out.push([`ask[${i}].settle`, "A show's episodes have no final score: only a sport's games settle a final"]);
     }
     if (st.by === 'results' && ctx.results === false) out.push([`ask[${i}].settle`, "The show's results don't say who goes home or wins"]);
     else if (st.by === 'results' && ['winner', 'placed', 'top', 'split'].includes(st.take) && ctx.winner === false) out.push([`ask[${i}].settle`, "Nobody wins this show: its results don't crown a winner"]);

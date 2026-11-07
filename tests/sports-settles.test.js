@@ -212,6 +212,10 @@ test("G3 part 3: a field's top few (the F1 podium, w053): a person answer pickin
   assert.ok(problems(quiz([q("number", { by: "final", take: "top", place: 3 })]), ctx).some((p) => /answer person|isn't graded/.test(p)));
   assert.ok(problems(quiz([q("person", { by: "final", take: "winner", place: 3 })]), ctx).includes("ask[0].settle.place: Only a place or a top settles by a place"));
   assert.ok(problems(quiz([podium()]), specContextOf(nba)).some((p) => /no top few/.test(p)), "a team game has no top few");
+  // G3 part 3b (blind.js): a show's page has no game's final, a podium's or a margin's (they'd never settle).
+  const show = { moments: [], results: true, winner: true, roles: [], grouped: true, jury: true, phases: [] };
+  assert.ok(problems(quiz([podium()]), show).includes("ask[0].settle: A show's episodes have no final score: only a sport's games settle a final"));
+  assert.ok(problems(quiz([q("number", { by: "final", take: "margin" })]), show).some((p) => /no final score/.test(p)));
   assert.ok(problems(quiz([podium({ pick: 10 })]), ctx).includes("ask[0].pick: Name 3 at most: the top 3"), "naming 10 for a podium");
   // Said: a podium beside another question, each of the three it gets.
   const said = G.describeSpec(quiz([podium({ points: 2 }), q("person", { by: "final", take: "winner" }, { ask: "Who wins?", points: 2 })]), ctx).sentence;
