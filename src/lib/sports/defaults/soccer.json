@@ -1,0 +1,70 @@
+{
+  "sport": "soccer",
+  "about": "Soccer's defaults, as data (docs/PLAN-start-a-game-gpt.md track L, L5): a sport's standard scoring, categories, lineup slots and locks, and the game specs a sport's Make it a game starts from instead of asking the bot. Stat keys are Soccer's (src/lib/sports/soccer.ts), the same for every league ESPN carries. FPL scores some stats by position (a goal is 10 to a keeper, 4 to a forward); the game spec's points are one number a stat (A1's schema, on the engine branch), so `points` is a midfielder's, and `byPosition` says the rest by the sport's position groups, for when the spec scores by position (the plan's L5 As built says what it would need). Slots take its positions or position groups. The specs are in the game spec's shape; slots, the squad and categories aren't in that schema yet (L4 adds them), so they're kept beside it for the spec to read.",
+  "scoring": {
+    "source": "FPL's 2025/26 points (fantasy.premierleague.com/help/rules): playing 1, 60 minutes or more 1 more, an assist 3, every 3 saves 1, a penalty saved 5, a penalty missed -2, a yellow -1, a red -3, an own goal -2; a goal and a clean sheet by position, and every 2 goals conceded -1 for keepers and defenders. Not FPL's defensive contributions (2 for 10 clearances, blocks, interceptions and tackles, 12 with recoveries for midfielders and forwards) or its bonus points: ESPN's lines have neither.",
+    "points": { "APP": 1, "MIN60": 1, "G": 5, "A": 3, "CS": 1, "GA2": 0, "SV3": 1, "PKSV": 5, "PKM": -2, "YC": -1, "RC": -3, "OG": -2 },
+    "byPosition": {
+      "G": { "GK": 10, "DEF": 6, "MID": 5, "FWD": 4 },
+      "CS": { "GK": 4, "DEF": 4, "MID": 1, "FWD": 0 },
+      "GA2": { "GK": -1, "DEF": -1, "MID": 0, "FWD": 0 }
+    }
+  },
+  "categories": {
+    "source": "FPL and ESPN's fantasy soccer score points, not categories: none by default",
+    "stats": []
+  },
+  "slots": {
+    "source": "FPL's: a squad of 15 (2 goalkeepers, 5 defenders, 5 midfielders, 3 forwards), 11 starting in any formation with a goalkeeper, at least 3 defenders, 2 midfielders and 1 forward; so 4 outfield slots take any outfield player, and 4 sit on the bench",
+    "lineup": [
+      { "slot": "GK", "n": 1, "takes": ["GK"] },
+      { "slot": "DEF", "n": 3, "takes": ["DEF"] },
+      { "slot": "MID", "n": 2, "takes": ["MID"] },
+      { "slot": "FWD", "n": 1, "takes": ["FWD"] },
+      { "slot": "OUT", "n": 4, "takes": ["DEF", "MID", "FWD"] }
+    ],
+    "bench": 4,
+    "squad": { "GK": 2, "DEF": 5, "MID": 5, "FWD": 3 }
+  },
+  "closes": "weekly",
+  "specs": {
+    "season": {
+      "about": "A season-long league, as FPL Draft plays: draft a squad of 15, start 11 each gameweek, play someone head to head.",
+      "spec": {
+        "spec": 1,
+        "span": { "from": 1, "to": null },
+        "pool": { "of": "cast", "where": null },
+        "get": { "by": "draft", "each": 15, "order": "snake", "own": "exclusive" },
+        "count": { "start": 11 },
+        "score": { "by": "stats", "points": { "APP": 1, "MIN60": 1, "G": 5, "A": 3, "CS": 1, "GA2": 0, "SV3": 1, "PKSV": 5, "PKM": -2, "YC": -1, "RC": -3, "OG": -2 }, "byPosition": { "G": { "GK": 10, "DEF": 6, "MID": 5, "FWD": 4 }, "CS": { "GK": 4, "DEF": 4, "MID": 1, "FWD": 0 }, "GA2": { "GK": -1, "DEF": -1, "MID": 0, "FWD": 0 } } },
+        "rank": { "by": "matchups" },
+        "closes": "weekly"
+      }
+    },
+    "short": {
+      "about": "One match, a cup tie or a team's next few: everyone drafts a few players, every one of them scores, most points wins.",
+      "spec": {
+        "spec": 1,
+        "span": { "from": 1, "to": null },
+        "pool": { "of": "cast", "where": null },
+        "get": { "by": "draft", "each": 3, "order": "snake", "own": "exclusive" },
+        "count": { "all": true },
+        "score": { "by": "stats", "points": { "APP": 1, "MIN60": 1, "G": 5, "A": 3, "CS": 1, "GA2": 0, "SV3": 1, "PKSV": 5, "PKM": -2, "YC": -1, "RC": -3, "OG": -2 }, "byPosition": { "G": { "GK": 10, "DEF": 6, "MID": 5, "FWD": 4 }, "CS": { "GK": 4, "DEF": 4, "MID": 1, "FWD": 0 }, "GA2": { "GK": -1, "DEF": -1, "MID": 0, "FWD": 0 } } },
+        "rank": { "by": "total" },
+        "closes": "start"
+      }
+    },
+    "pickem": {
+      "about": "Each match, before it starts: who wins, or is it a draw? A point for each one right, most points wins.",
+      "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers" }, "rank": { "by": "total" }, "closes": "start", "ask": [{ "id": "winner", "ask": "Who wins, or is it a draw?", "answer": "side", "points": 1, "settle": { "by": "final", "take": "winner" }, "asked": "each", "closes": "start", "draw": true }] }
+    },
+    "pickAFew": {
+      "about": "Each match, before it starts: pick three players. 3 points for each one who scores the most goals in it (tied, each of them), most points wins.",
+      "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers" }, "rank": { "by": "total" }, "closes": "start", "ask": [{ "id": "few", "ask": "Pick three: who has the most goals?", "answer": "person", "pick": 3, "from": "cast", "points": 3, "settle": { "by": "stat", "stat": "G", "take": "most" }, "asked": "each", "closes": "start" }] }
+    },
+    "bestBall": {
+      "about": "Best ball: draft a full roster and never set a lineup: each game, your best eleven count, most points wins.",
+      "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "draft", "each": 15, "order": "snake", "own": "exclusive" }, "count": { "best": 11 }, "score": { "by": "stats", "points": { "APP": 1, "MIN60": 1, "G": 5, "A": 3, "CS": 1, "GA2": 0, "SV3": 1, "PKSV": 5, "PKM": -2, "YC": -1, "RC": -3, "OG": -2 }, "byPosition": { "G": { "GK": 10, "DEF": 6, "MID": 5, "FWD": 4 }, "CS": { "GK": 4, "DEF": 4, "MID": 1, "FWD": 0 }, "GA2": { "GK": -1, "DEF": -1, "MID": 0, "FWD": 0 } } }, "rank": { "by": "total" }, "closes": "start" }
+    }
+  }
+}

@@ -54,6 +54,20 @@ test("a scoreboard: each game with its teams, scores, winner and note; final fro
   );
   assert.deepEqual(e.parts, []);
   assert.deepEqual(readScoreboard("baseball/mlb", null), []);
+  assert.equal(e.leagueName, null, "an answer that doesn't name its league");
+});
+
+test("a game's league as ESPN names it: the scoreboard's, else a soccer team schedule's own on each game (a club's cups apart)", () => {
+  const [mlb] = readScoreboard("baseball/mlb", { leagues: [{ name: "Major League Baseball", abbreviation: "MLB", slug: "mlb" }], events: [G1] });
+  assert.deepEqual(mlb.leagueName, { name: "Major League Baseball", short: "MLB" });
+  const [epl, cup] = readScoreboard("soccer/eng.1", {
+    events: [
+      { ...G1, id: "1", league: { name: "English Premier League", abbreviation: "Premier League", slug: "eng.1" } },
+      { ...G1, id: "2", league: { name: "UEFA Champions League", abbreviation: "UEFA Champions League", slug: "uefa.champions" } },
+    ],
+  });
+  assert.deepEqual(epl.leagueName, { name: "English Premier League", short: "Premier League" });
+  assert.equal(cup.leagueName, null, "another competition's game doesn't name this league");
 });
 
 test("the stage of its season a game is in: ESPN's slug, else its type; a soccer league's own season says none", () => {
@@ -84,6 +98,9 @@ test("an event in parts (an F1 weekend): each part's field and places on the par
   assert.deepEqual(gp.competitors, []);
   assert.deepEqual(gp.parts.map((p) => [p.id, p.name, p.at, p.state]), [["1", "FP1", "2026-10-23T17:30Z", "post"], ["5", "Race", "2026-10-25T20:00Z", "in"]]);
   assert.deepEqual(gp.parts[1].competitors.map((c) => [c.place, c.person.name, c.team]), [[1, "Kimi Antonelli", null], [2, "Charles Leclerc", null]]);
+  // ESPN's event status is its last part over's (final from FP1's end): the weekend's on until every part is over.
+  assert.equal(gp.state, "in");
+  assert.equal(gp.final, false);
 });
 
 test("search: teams (by the id in their uid) and leagues, each with ESPN's league path; the rest left out", () => {

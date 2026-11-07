@@ -166,6 +166,33 @@ export interface Episode {
    *  (src/lib/server/air-times.ts), absent without a schedule or while catching up. Lineups and
    *  picks lock at this moment. */
   airsAt?: string;
+  /** A sport's lineup lock (ISO) when the game's spec closes daily or weekly (docs/PLAN-start-a-game-gpt.md L4 part 1a): its
+   *  day's or week's first start, from the games' own starts. Stamped by the server (air-times.ts stampSportLocks); the engine's
+   *  lock reads it (closedForPlay: L3 part 2b). */
+  locksAt?: string;
+  /** L8 part 1's engine items, a lineup that locks at each game's start (spec closes 'game'): the episode's games (event id to its
+   *  start and the end of its day in the East) and each holding's games in it, stamped by the server (air-times.ts stampSportLocks),
+   *  never stored. */
+  gameStarts?: Record<string, { at: string; until: string }>;
+  holdingGames?: Record<string, string[]>;
+  /** Each lineup a player set in the episode with its time, for a lineup locking at each game's start: each game counts the one in
+   *  force when it started (ActiveRosterLogic.lineupAt). Stored. */
+  lineupsAt?: Record<string, { at: string; ids: string[] }[]>;
+  /** L3 part 2: a game scored by a sport's stats, its game's lines by castaway once it's final and kept (counts, derived stats
+   *  worked out), and on a card each one's bouts: stamped by the server on the copy it reads (sports/score.ts stampStats,
+   *  StateLogic.StatsLogic.stamp), never stored; the spoiler view drops them past a viewer's mark. */
+  statLines?: Record<string, Record<string, number>>;
+  statBouts?: Record<string, import("./sequence/stats").StatBout[]>;
+  /** L3 part 2c: a game reading a sport's games (scored by their stats, or asking a question one settles), once this episode's game
+   *  is final and kept: its results are in. Stamped as statLines are (StateLogic.StatsLogic.stamp), never stored. */
+  gameFinal?: boolean;
+  /** L3 part 2e: a squares game, its game's final score as the squares read it (its sides and each period's end), and its digits once
+   *  it's locked (the server's draw): stamped as statLines are, never stored (SquaresLogic.settle keeps the digits in state.squares). */
+  gameScore?: Pick<import("./game-spec").SportsGameFacts, "status" | "sides" | "periods">;
+  squareDigits?: import("./sequence/squares").SquaresDigits;
+  /** L3 part 2f: a league's slate, each game's lines (event id to castaway id to counts) beside the week's, once every game of the
+   *  week is over: stamped as statLines are, never stored. */
+  statGames?: Record<string, Record<string, Record<string, number>>>;
   /**
    * Both optional and both filled in only by the wiki connector's eliminations import, which gets them
    * for free off the episode guide. Never overwritten once set, and absent on every hand-created
@@ -1139,6 +1166,14 @@ export interface LeagueState {
   /** C2 part 4c: a draft's own questions' points as the server graded them on exactly this copy (StateLogic.AnswerLogic.withLines):
    *  never stored; a copy that hides anything drops them. */
   answerLines?: import("./state-logic.js").AnswerLines;
+  /** L3 part 2: a game scored by a sport's stats, each castaway's position group from their roster (StatsLogic.stamp): never
+   *  stored. */
+  statGroups?: Record<string, string>;
+  /** L3 part 2e: a squares game's sport's regulation periods (halftime's), stamped with its scores: never stored. */
+  statPeriods?: number;
+  /** L3 part 2e: a squares game's squares (StateLogic.SquaresLogic): each seat's picks and the episode they count from, a deal's
+   *  seats at the first lock, each locked episode's digits as the server drew them. */
+  squares?: { picks?: Record<string, { cells: number[]; from: number | null }>; dealt?: { seats: string[] }; digits?: Record<number, import("./sequence/squares").SquaresDigits> };
   /** Step A12 part 1: a game in stages' stages' tables as the server read them (stages.ts stageWalk, StateLogic.StageLogic.withWalk):
    *  never stored; a copy cut at a mark cuts it too. */
   stageWalk?: import("./state-logic.js").StageWalk;

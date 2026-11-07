@@ -3,28 +3,60 @@
 //   GET /apis/search/v2?query=        teams and leagues whose names hold every word asked (case-insensitive), as ESPN's search
 //                                     answers: { results: [{ type: "team" | "league", contents: [...] }] }
 //   GET /apis/site/v2/sports/:sport/:league/scoreboard?dates=YYYYMMDD   that league's events starting that day in the East
+//   GET /apis/site/v2/sports/:sport/:league/scoreboard?dates=YYYYMM     that month's (L8: a slate's fixtures)
+//   GET /apis/site/v2/sports/:sport/:league/scoreboard                  (no dates) the league's season now from `calendars`, as
+//                                     ESPN's bare scoreboard says it (its season, stage and calendar of days or weeks), else 404
+//   GET /v2/sports/:sport/leagues/:league/seasons/:year/types[/:n]      its stages' bounds, as the core lists them (refs, then each)
+//   GET /apis/site/v2/sports/:sport/:league/teams                       that league's teams (L7: finding a game by team), as ESPN's
+//                                     list answers ({ sports: [{ leagues: [{ name, abbreviation, teams: [{ team }] }] }] }), each
+//                                     with its `color` and `logo` when given; 404 for a league with no teams and no name
 //   GET /apis/site/v2/sports/:sport/:league/teams/:id/roster            a team's players (`roster` on the team; [] for none, as
 //                                     ESPN's AFL rosters come back), its manager apart (ESPN's `coach`), else 404
-//   GET /apis/site/v2/sports/:sport/:league/summary?event=              a game's box score from its `box` (each team's lines), else 404
+//   GET /apis/site/v2/sports/:sport/:league/teams/:id/schedule          a team's games in that league (only the stage asked, with
+//                                     seasontype), as ESPN's schedule lists them, else 404
+//   GET /apis/site/v2/sports/:sport/:league/summary?event=              a game's box score from its `box` (each team's lines) and its
+//                                     line (`odds`, as ESPN's pickcenter), else 404; a replayed game's summary as of its replay
+//                                     clock (below)
 //   GET /apis/common/v3/sports/:sport/:league/athletes/:id/stats?season= an athlete's season lines from `seasons` (ESPN's
 //                                     categories, each with that year's row), { categories: [] } for one it has none for
 //   GET /v2/sports, /v2/sports/:sport/leagues                           the index, as refs
 //
 //   const espn = await require("./fake-espn").start({ teams, leagues, events, seasons });
-//   // teams:   [{ id, name, short, location, abbreviation, league: "baseball/zt-mlb", roster?: [{ id, name, position, headshot? }] }]
-//   // leagues: [{ league: "baseball/zt-little", name: "ZT Little League World Series" }]
+//   // teams:   [{ id, name, short, location, abbreviation, league: "baseball/zt-mlb", color?, logo?,
+//   //             roster?: [{ id, name, position, headshot? }] }]
+//   // leagues: [{ league: "baseball/zt-little", name: "ZT Little League World Series", short? }]
 //   // events:  [{ league, id, at (ISO), home: teamId, away: teamId, state: "pre" | "in" | "post", score?: [home, away], note?,
 //   //             stage?: "pre" | "regular" | "post" (its season's, as ESPN's slug says it; "regular" unless said),
+//   //             season? (ESPN's year for it; the year it starts in, UTC, unless said), off? (called off: over, not completed),
+//   //             odds?: { details: "ZPH -2.5", overUnder: 237.5, spread: -2.5, provider? } (on the scoreboard while "pre"),
+//   //             bestOf? (a playoff series' most games: the scoreboard's series.totalCompetitions, as ESPN's 2026 playoffs list it),
 //   //             box?: { [teamId]: { labels: ["D", "G"], rows: [{ id, name, position, stats: ["21", "2"] }] }
 //   //                            or { tables: [{ name: "batting", labels, rows }, { name: "pitching", labels, rows }] } } }]
 //   //          or a field's event (a race): [{ league, id, at, name, state, field: [{ id, name, headshot? }] }] (its order the place)
 //   // seasons: { [athleteId]: [{ year, name: "career-batting", displayName: "Career Batting", season?: "2026", labels, stats }] }
+//   // calendars: { [league]: { season, label, now?, stages: [{ type, name, from, to }], days?: ["2026-11-02"], weeks?: [{ type,
+//   //             label, detail?, from, to }] } } (L8; days and bounds as ESPN writes them: ISO instants, a day at 07:00Z)
 //   espn.url (pass to espn(base));  espn.asked (paths asked, in order);  espn.down = true (every call 503s);
 //   espn.events.push(...) (a game scheduled later);  await espn.close();
 //
+// A recorded game replayed live (docs/PLAN-start-a-game-gpt.md track L, step L2): its summary answers as of a replay clock, from a
+// fixture in tests/fixtures/espn/ (scripts/dev-test/espn-replay.js: the plays up to then, status pre, then in, then the recording
+// itself, final, a minute after the last play), in real time or faster:
+//   const r = espn.replay(require("../../tests/fixtures/espn/nba-401909093.json"), { speed: 60, from });
+//   // from: the game's moment it starts at (default 5 minutes before the first play); speed 1 is real time, 60 a minute a second
+//   r.at() (the replay's moment now), r.set(at), r.pause(), r.resume(), r.first / r.last / r.end (its bounds, ms), r.sport,
+//   r.down = true (its summary 503s, the others' don't)
+//   espn.answers: every replayed answer, { event, at, plays } (`at`: the moment it was as of)
+//
 // No database and no app server. Names start "ZT " so nothing it answers can be mistaken for a real team.
 const http = require("http");
+const path = require("path");
 const { eastern } = require("./fake-listings");
+const replay = require("./espn-replay");
+
+/** The sports (src/lib/sports), loaded only for a replay. */
+let sports = null;
+const sportsCode = () => (sports ??= require("jiti")(__filename, { alias: { "@": path.join(__dirname, "..", "..", "src") } })("../../src/lib/sports/index.ts"));
 
 const words = (s) => s.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
 const holds = (name, q) => {
@@ -34,13 +66,59 @@ const holds = (name, q) => {
 };
 
 async function start(opts = {}) {
-  const espn = { asked: [], down: false, url: null, teams: opts.teams || [], leagues: opts.leagues || [], events: opts.events || [], seasons: opts.seasons || {} };
+  const espn = { asked: [], down: false, url: null, teams: opts.teams || [], leagues: opts.leagues || [], events: opts.events || [], seasons: opts.seasons || {}, calendars: opts.calendars || {}, replays: [], answers: [] };
+  espn.replay = (summary, { speed = 60, from } = {}) => {
+    const { league, event } = summary._recorded ?? {};
+    const sport = sportsCode().sportOf(league);
+    if (!sport) throw new Error(`no sport reads ${league}`);
+    const b = replay.bounds(summary, sport);
+    // From 5 minutes before the game: its first play, or its scheduled start when that's earlier (a recording that keeps it).
+    const starts = Date.parse(summary.header?.competitions?.[0]?.date ?? "");
+    const clock = replay.replayClock({ from: from ?? Math.min(b.first, Number.isFinite(starts) ? starts : b.first) - 5 * 60_000, speed });
+    const r = { ...clock, ...b, league, event: String(event), summary, sport };
+    espn.replays.push(r);
+    return r;
+  };
   const teamOf = (id) => espn.teams.find((t) => t.id === id);
   const rawTeam = (t) => ({ id: t.id, displayName: t.name, shortDisplayName: t.short, name: t.short, location: t.location, abbreviation: t.abbreviation });
   const SLUGS = { pre: [1, "preseason"], regular: [2, "regular-season"], post: [3, "post-season"] };
   const seasonOf = (e) => {
     const [type, slug] = SLUGS[e.stage || "regular"];
-    return { year: new Date(e.at).getUTCFullYear(), type, slug };
+    return { year: e.season ?? new Date(e.at).getUTCFullYear(), type, slug };
+  };
+  /** A game's line as ESPN writes it (a scoreboard's odds[], a summary's pickcenter[]). */
+  const line = (o) => ({ provider: { name: o.provider || "ZT Book", displayName: o.provider || "ZT Book" }, details: o.details, overUnder: o.overUnder, spread: o.spread });
+  /** An event as a scoreboard lists it; a game still to play with its line (ESPN drops it once it starts). */
+  const rawEvent = (e) => {
+    const status = { type: { state: e.state, completed: e.state === "post" && !e.off } };
+    if (e.field) {
+      const competitors = e.field.map((p, i) => ({ order: i + 1, athlete: { id: p.id, displayName: p.name, ...(p.headshot ? { headshot: { href: p.headshot } } : {}) } }));
+      return { id: e.id, date: e.at, name: e.name, shortName: e.name, season: seasonOf(e), status, competitions: [{ id: e.id, date: e.at, status, competitors }] };
+    }
+    const home = teamOf(e.home);
+    const away = teamOf(e.away);
+    return {
+      id: e.id,
+      date: e.at,
+      name: `${away.name} at ${home.name}`,
+      shortName: `${away.abbreviation} @ ${home.abbreviation}`,
+      season: seasonOf(e),
+      status,
+      competitions: [
+        {
+          id: e.id,
+          date: e.at,
+          status,
+          notes: e.note ? [{ headline: e.note }] : [],
+          ...(e.bestOf ? { series: { type: "playoff", title: "Playoff Series", totalCompetitions: e.bestOf } } : {}),
+          competitors: [
+            { homeAway: "home", team: rawTeam(home), score: e.score ? String(e.score[0]) : "0", winner: e.state === "post" && e.score ? e.score[0] > e.score[1] : undefined },
+            { homeAway: "away", team: rawTeam(away), score: e.score ? String(e.score[1]) : "0", winner: e.state === "post" && e.score ? e.score[1] > e.score[0] : undefined },
+          ],
+          ...(e.odds && e.state === "pre" ? { odds: [line(e.odds)] } : {}),
+        },
+      ],
+    };
   };
   const server = http.createServer((req, res) => {
     const send = (status, body) => {
@@ -65,39 +143,48 @@ async function start(opts = {}) {
     }
     if ((m = u.pathname.match(/^\/apis\/site\/v2\/sports\/([^/]+)\/([^/]+)\/scoreboard$/))) {
       const league = `${m[1]}/${m[2]}`;
-      const day = (u.searchParams.get("dates") || "").replace(/^(\d{4})(\d{2})(\d{2})$/, "$1-$2-$3");
-      const events = espn.events
-        .filter((e) => e.league === league && eastern(Date.parse(e.at)).date === day)
-        .map((e) => {
-          const status = { type: { state: e.state, completed: e.state === "post" } };
-          if (e.field) {
-            const competitors = e.field.map((p, i) => ({ order: i + 1, athlete: { id: p.id, displayName: p.name, ...(p.headshot ? { headshot: { href: p.headshot } } : {}) } }));
-            return { id: e.id, date: e.at, name: e.name, shortName: e.name, season: seasonOf(e), status, competitions: [{ id: e.id, date: e.at, status, competitors }] };
-          }
-          const home = teamOf(e.home);
-          const away = teamOf(e.away);
-          return {
-            id: e.id,
-            date: e.at,
-            name: `${away.name} at ${home.name}`,
-            shortName: `${away.abbreviation} @ ${home.abbreviation}`,
-            season: seasonOf(e),
-            status,
-            competitions: [
-              {
-                id: e.id,
-                date: e.at,
-                status,
-                notes: e.note ? [{ headline: e.note }] : [],
-                competitors: [
-                  { homeAway: "home", team: rawTeam(home), score: e.score ? String(e.score[0]) : "0", winner: e.state === "post" && e.score ? e.score[0] > e.score[1] : undefined },
-                  { homeAway: "away", team: rawTeam(away), score: e.score ? String(e.score[1]) : "0", winner: e.state === "post" && e.score ? e.score[1] > e.score[0] : undefined },
-                ],
-              },
-            ],
-          };
-        });
+      const dates = u.searchParams.get("dates") || "";
+      if (!dates) {
+        // L8: the bare scoreboard: the league's season now and its calendar.
+        const c = espn.calendars[league];
+        if (!c) return send(404, { code: 404 });
+        const named = espn.leagues.find((l) => l.league === league);
+        const calendar = c.weeks?.length
+          ? [...new Set(c.weeks.map((w) => w.type))].map((type) => ({ value: String(type), entries: c.weeks.filter((w) => w.type === type).map((w) => ({ label: w.label, detail: w.detail ?? null, startDate: w.from, endDate: w.to })) }))
+          : c.days || [];
+        return send(200, { leagues: [{ slug: m[2], name: named?.name, abbreviation: named?.short, season: { year: c.season, displayName: c.label, type: { type: c.now ?? 2 } }, calendarType: c.weeks?.length ? "list" : "day", calendar }], events: [] });
+      }
+      // A month ("202611"), else a day.
+      const month = /^\d{6}$/.test(dates) ? `${dates.slice(0, 4)}-${dates.slice(4)}` : null;
+      const day = dates.replace(/^(\d{4})(\d{2})(\d{2})$/, "$1-$2-$3");
+      const events = espn.events.filter((e) => e.league === league && (month ? eastern(Date.parse(e.at)).date.slice(0, 7) === month : eastern(Date.parse(e.at)).date === day)).map(rawEvent);
       return send(200, { leagues: [{ slug: m[2] }], events });
+    }
+    if ((m = u.pathname.match(/^\/apis\/site\/v2\/sports\/([^/]+)\/([^/]+)\/teams$/))) {
+      // A league's teams, as ESPN's list answers (L7).
+      const league = `${m[1]}/${m[2]}`;
+      const named = espn.leagues.find((l) => l.league === league);
+      const teams = espn.teams.filter((t) => t.league === league);
+      if (!teams.length && !named) return send(404, { code: 404 });
+      const team = (t) => ({ ...rawTeam(t), isActive: true, ...(t.color ? { color: t.color } : {}), ...(t.logo ? { logos: [{ href: t.logo }] } : {}) });
+      return send(200, { sports: [{ leagues: [{ name: named?.name ?? league, abbreviation: named?.short ?? m[2].toUpperCase(), slug: m[2], teams: teams.map((t) => ({ team: team(t) })) }] }] });
+    }
+    if ((m = u.pathname.match(/^\/apis\/site\/v2\/sports\/([^/]+)\/([^/]+)\/teams\/([^/]+)\/schedule$/))) {
+      // A team's games, as ESPN's schedule lists them: its season's stage in `seasonType`, only the stage asked (seasontype).
+      const league = `${m[1]}/${m[2]}`;
+      const id = decodeURIComponent(m[3]);
+      const t = teamOf(id);
+      if (!t || t.league !== league) return send(404, { code: 404 });
+      const type = Number(u.searchParams.get("seasontype")) || null;
+      const events = espn.events
+        .filter((e) => e.league === league && (e.home === id || e.away === id) && (!type || SLUGS[e.stage || "regular"][0] === type))
+        .map((e) => {
+          const { season, ...rest } = rawEvent(e);
+          // Its scores as ESPN's schedule writes them, and no line (the schedule has none).
+          rest.competitions = rest.competitions.map(({ odds, ...c }) => ({ ...c, competitors: c.competitors.map((x) => ({ ...x, score: e.score ? { value: Number(x.score), displayValue: x.score } : undefined })) }));
+          return { ...rest, season: { year: season.year }, seasonType: { type: season.type } };
+        });
+      return send(200, { team: { id, displayName: t.name }, events });
     }
     if ((m = u.pathname.match(/^\/apis\/site\/v2\/sports\/([^/]+)\/([^/]+)\/teams\/([^/]+)\/roster$/))) {
       const t = teamOf(decodeURIComponent(m[3]));
@@ -106,15 +193,24 @@ async function start(opts = {}) {
       return send(200, { athletes: (t.roster || []).map(athlete), coach: [{ id: "1", firstName: "ZT", lastName: "Manager" }] });
     }
     if ((m = u.pathname.match(/^\/apis\/site\/v2\/sports\/([^/]+)\/([^/]+)\/summary$/))) {
+      const r = espn.replays.find((x) => x.league === `${m[1]}/${m[2]}` && x.event === u.searchParams.get("event"));
+      if (r) {
+        if (r.down) return send(503, { message: "the stand-in ESPN is down for this game" });
+        const at = r.at();
+        const body = replay.asOf(r.summary, at, { sport: r.sport });
+        espn.answers.push({ event: r.event, at, plays: (body.plays ?? []).length + [...(body.drives?.previous ?? []), ...(body.drives?.current ? [body.drives.current] : [])].reduce((n, d) => n + (d.plays ?? []).length, 0) });
+        res.writeHead(200, { "content-type": "application/json", "access-control-allow-origin": "*", "cache-control": "max-age=5" });
+        return res.end(JSON.stringify(body));
+      }
       const e = espn.events.find((x) => x.league === `${m[1]}/${m[2]}` && x.id === u.searchParams.get("event"));
       if (!e || !e.box) return send(404, { code: 404 });
-      const status = { type: { state: e.state, completed: e.state === "post" } };
+      const status = { type: { state: e.state, completed: e.state === "post" && !e.off } };
       const side = (id, homeAway, score) => ({ homeAway, team: rawTeam(teamOf(id)), score: score == null ? "0" : String(score) });
       const players = Object.entries(e.box).map(([id, t]) => ({
         team: rawTeam(teamOf(id)),
         statistics: (t.tables || [t]).map((x) => ({ type: x.name, labels: x.labels, athletes: x.rows.map((r) => ({ starter: true, athlete: { id: r.id, displayName: r.name, position: { displayName: r.position } }, stats: r.stats })) })),
       }));
-      return send(200, { header: { id: e.id, season: seasonOf(e), competitions: [{ status, competitors: [side(e.home, "home", e.score?.[0]), side(e.away, "away", e.score?.[1])] }] }, boxscore: { players } });
+      return send(200, { header: { id: e.id, season: seasonOf(e), competitions: [{ status, competitors: [side(e.home, "home", e.score?.[0]), side(e.away, "away", e.score?.[1])] }] }, boxscore: { players }, ...(e.odds ? { pickcenter: [line(e.odds)] } : {}) });
     }
     if ((m = u.pathname.match(/^\/apis\/common\/v3\/sports\/([^/]+)\/([^/]+)\/athletes\/([^/]+)\/stats$/))) {
       const year = Number(u.searchParams.get("season"));
@@ -124,6 +220,14 @@ async function start(opts = {}) {
         return { name, displayName: rows[0].displayName, labels: rows[0].labels, statistics: rows.map((l) => ({ season: { year: l.year, displayName: l.season || String(l.year) }, teamSlug: "zt-team", stats: l.stats })) };
       });
       return send(200, { categories: categories.filter((c) => c.statistics.some((r) => r.season.year === year)) });
+    }
+    if ((m = u.pathname.match(/^\/v2\/sports\/([^/]+)\/leagues\/([^/]+)\/seasons\/(\d+)\/types(?:\/(\d+))?$/))) {
+      // L8: a season's stages, as the core lists them (refs at ESPN's own host), then each.
+      const c = espn.calendars[`${m[1]}/${m[2]}`];
+      if (!c || c.season !== Number(m[3])) return send(404, { code: 404 });
+      if (!m[4]) return send(200, { count: c.stages.length, items: c.stages.map((s) => ({ $ref: `http://sports.core.api.espn.com/v2/sports/${m[1]}/leagues/${m[2]}/seasons/${m[3]}/types/${s.type}?lang=en` })) });
+      const s = c.stages.find((x) => x.type === Number(m[4]));
+      return s ? send(200, { type: s.type, name: s.name, startDate: s.from, endDate: s.to }) : send(404, { code: 404 });
     }
     if (u.pathname === "/v2/sports") {
       const sports = [...new Set([...espn.teams.map((t) => t.league), ...espn.leagues.map((l) => l.league)].map((l) => l.split("/")[0]))];

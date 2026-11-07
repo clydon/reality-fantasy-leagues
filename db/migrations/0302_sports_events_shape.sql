@@ -1,0 +1,11 @@
+-- A field's and a card's final, kept once it's final as a team game's is (docs/PLAN-start-a-game-gpt.md track L, L3 part 3;
+-- src/lib/sports/final.ts storedField, storedCard; src/lib/server/sports/finals.ts). Additive. Asked again from the provider if
+-- lost (as sports_events is).
+--
+--   sports_events.shape  what a field's or a card's final has besides everyone's lines and people (0301's columns, which a field's
+--                        and a card's use as a team game's do): a field's { kind: "field", event: { event, field, parts, cut },
+--                        standings } (golf's tournament, a race weekend: ESPN's final places), a card's { kind: "card", card:
+--                        { event, bouts, field }, byBout, results } (a fight card, a tennis event's draws: each bout's sides,
+--                        rounds or sets and class, each bout's own counts by who, ESPN's results). NULL for a team game (its sides
+--                        are the row's teams) and for a final kept as none.
+ALTER TABLE sports_events ADD COLUMN shape JSONB;

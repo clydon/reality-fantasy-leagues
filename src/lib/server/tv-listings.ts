@@ -4,6 +4,7 @@ import { easternDay, listingDays, scheduleRows, weekListings, type ListingRow, t
 import { listedSeason, termsOf } from "./add-show";
 import { sweepArt, type ArtSweep } from "./show-art";
 import { pruneSportsCache } from "./sports/cache";
+import { refreshSportsEvents } from "./sports/matchup";
 import { linkSportSeasons } from "./sports/season";
 import { pool } from "./db";
 import { isTvmaze, ListingsUnavailable, scheduleDay, showListing, updatedShows, webScheduleDay } from "./listings";
@@ -59,8 +60,9 @@ export interface ListingsRun {
   keptAt?: string;
   /** Shows and seasons given art, and cast photos found (show-art.ts sweepArt). */
   art?: ArtSweep;
-  /** Sport seasons looked at, episodes linked to their games, and people filled in from them (sports/season.ts linkSportSeasons). */
-  sports?: { seasons: number; linked: number; people: number };
+  /** Sport seasons looked at, episodes linked to their games, and people filled in from them (sports/season.ts linkSportSeasons);
+   *  linked games' finals and lines kept (sports/matchup.ts refreshSportsEvents: scoreboards read, games kept). */
+  sports?: { seasons: number; linked: number; people: number; days?: number; games?: number };
   errors?: string[];
 }
 
@@ -321,17 +323,30 @@ export async function refreshListings(base: string, opts: { now?: Date; force?: 
   } catch (e) {
     note("art", e);
   }
-  try {
-    // Sport seasons' episodes linked to the sports data's games and their people filled in (sports/season.ts), and the sports
-    // cache pruned. A run on a check's stand-in listings never reaches the real ESPN.
-    if (isTvmaze(base)) {
+  // Sport seasons' episodes linked to the sports data's games and their people filled in (sports/season.ts); linked games'
+  // finals and lines kept (sports_events) and each matchup season's status from its games (sports/matchup.ts); the sports cache
+  // pruned. Each on its own, so one failing doesn't skip the others. A run on a check's stand-in listings never reaches the
+  // real ESPN.
+  if (isTvmaze(base)) {
+    try {
       const sports = await linkSportSeasons({ now });
       run.sports = { seasons: sports.seasons, linked: sports.linked, people: sports.people };
       for (const e of sports.errors) errors.push(`sports: ${e}`);
+    } catch (e) {
+      note("sports", e);
     }
+    try {
+      const facts = await refreshSportsEvents({ now });
+      run.sports = { ...(run.sports ?? { seasons: 0, linked: 0, people: 0 }), days: facts.days, games: facts.stored };
+      for (const e of facts.errors) errors.push(`sports facts: ${e}`);
+    } catch (e) {
+      note("sports facts", e);
+    }
+  }
+  try {
     await pruneSportsCache();
   } catch (e) {
-    note("sports", e);
+    note("sports cache", e);
   }
   run.errors = errors;
   run.ok = !errors.length && !failed.length;
@@ -341,7 +356,7 @@ export async function refreshListings(base: string, opts: { now?: Date; force?: 
     `[listings] ${run.day} (${run.how}): ${run.ok ? "ok" : "not all"}; ${run.rows ?? 0} listings over ${run.days ?? 0} days` +
       `${failed.length ? ` (${failed.length} unanswered)` : ""}, ${run.seasons ?? 0} seasons read again, ${run.made ?? 0} made, ${run.linked ?? 0} linked` +
       `${run.art ? `; art for ${run.art.shows} shows, ${run.art.seasons} seasons, ${run.art.photos} photos` : ""}` +
-      `${run.sports ? `; ${run.sports.linked} games linked over ${run.sports.seasons} sport seasons, ${run.sports.people} players in` : ""}` +
+      `${run.sports ? `; ${run.sports.linked} games linked over ${run.sports.seasons} sport seasons, ${run.sports.people} players in, ${run.sports.games ?? 0} games' facts kept` : ""}` +
       `${errors.length ? `; ${errors.join("; ")}` : ""}`
   );
   return run;

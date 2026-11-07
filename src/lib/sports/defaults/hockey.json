@@ -1,0 +1,83 @@
+{
+  "sport": "hockey",
+  "about": "Hockey's defaults, as data (docs/PLAN-start-a-game-gpt.md track L, L1): a sport's standard scoring, categories, lineup slots and locks, and the game specs a sport's Make it a game starts from instead of asking the bot. Stat keys are Hockey's (src/lib/sports/hockey.ts): skaters' and goalies' in one table, since a key is unique in the sport (a skater scores goals, G; a goalie allows them, GA). Slots take its positions or position groups. The specs are in the game spec's shape (A1's schema, on the engine branch); slots and categories aren't in that schema yet (L4 adds them), so they're kept beside it for the spec to read.",
+  "scoring": {
+    "source": "Yahoo's default head-to-head points (help.yahoo.com/kb/SLN6815.html): skaters, then goalies",
+    "points": { "G": 6, "A": 4, "PM": 2, "PPP": 2, "SOG": 0.9, "BLK": 1, "W": 5, "GA": -3, "SV": 0.6, "SO": 5 }
+  },
+  "categories": {
+    "source": "Yahoo's standard 10 categories (rotisserie and head-to-head categories): six for skaters, four for goalies",
+    "stats": ["G", "A", "PM", "PPP", "SOG", "HIT", "W", "GAA", "SV%", "SO"]
+  },
+  "slots": {
+    "source": "Yahoo's standard roster",
+    "lineup": [
+      { "slot": "C", "n": 2, "takes": ["C"] },
+      { "slot": "LW", "n": 2, "takes": ["LW"] },
+      { "slot": "RW", "n": 2, "takes": ["RW"] },
+      { "slot": "D", "n": 4, "takes": ["D"] },
+      { "slot": "G", "n": 2, "takes": ["G"] }
+    ],
+    "bench": 4
+  },
+  "closes": "daily",
+  "specs": {
+    "season": {
+      "about": "A season-long league: draft a full roster, set a daily lineup, play someone head to head each week.",
+      "spec": {
+        "spec": 1,
+        "span": { "from": 1, "to": null },
+        "pool": { "of": "cast", "where": null },
+        "get": { "by": "draft", "each": 16, "order": "snake", "own": "exclusive" },
+        "count": { "start": 12 },
+        "score": { "by": "stats", "points": { "G": 6, "A": 4, "PM": 2, "PPP": 2, "SOG": 0.9, "BLK": 1, "W": 5, "GA": -3, "SV": 0.6, "SO": 5 } },
+        "rank": { "by": "matchups" },
+        "closes": "daily"
+      }
+    },
+    "short": {
+      "about": "One game, a series or a team's next few: everyone drafts a few players, every one of them scores, most points wins.",
+      "spec": {
+        "spec": 1,
+        "span": { "from": 1, "to": null },
+        "pool": { "of": "cast", "where": null },
+        "get": { "by": "draft", "each": 3, "order": "snake", "own": "exclusive" },
+        "count": { "all": true },
+        "score": { "by": "stats", "points": { "G": 6, "A": 4, "PM": 2, "PPP": 2, "SOG": 0.9, "BLK": 1, "W": 5, "GA": -3, "SV": 0.6, "SO": 5 } },
+        "rank": { "by": "total" },
+        "closes": "start"
+      }
+    },
+    "pickem": {
+      "about": "Each game, before it starts: who wins? A point for each one right, most points wins (a tie counts for nobody).",
+      "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers" }, "rank": { "by": "total" }, "closes": "start", "ask": [{ "id": "winner", "ask": "Who wins?", "answer": "side", "points": 1, "settle": { "by": "final", "take": "winner" }, "asked": "each", "closes": "start" }] }
+    },
+    "pickAFew": {
+      "about": "Each game, before it starts: pick three players. 3 points for each one who has the most points (goals and assists) in the game (tied, each of them), most points wins.",
+      "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers" }, "rank": { "by": "total" }, "closes": "start", "ask": [{ "id": "few", "ask": "Pick three: who has the most points (goals and assists)?", "answer": "person", "pick": 3, "from": "cast", "points": 3, "settle": { "by": "stat", "stat": "PTS", "take": "most" }, "asked": "each", "closes": "start" }] }
+    },
+    "categories": {
+      "about": "A season-long league by categories: draft a full roster, set a daily lineup, play someone head to head in Yahoo's ten categories: each category you win is a win.",
+      "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "draft", "each": 16, "order": "snake", "own": "exclusive" }, "count": { "start": 12 }, "score": { "by": "stats", "categories": ["G", "A", "PM", "PPP", "SOG", "HIT", "W", "GAA", "SV%", "SO"] }, "rank": { "by": "categories" }, "closes": "daily" }
+    },
+    "roto": {
+      "about": "A season-long league, roto-style: draft a full roster, set a daily lineup; each of Yahoo's ten categories ranks everyone over the season, points by rank, most points wins.",
+      "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "draft", "each": 16, "order": "snake", "own": "exclusive" }, "count": { "start": 12 }, "score": { "by": "stats", "categories": ["G", "A", "PM", "PPP", "SOG", "HIT", "W", "GAA", "SV%", "SO"] }, "rank": { "by": "roto" }, "closes": "daily" }
+    },
+    "bestBall": {
+      "about": "Best ball: draft a full roster and never set a lineup: each game, your best twelve count, most points wins.",
+      "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "draft", "each": 16, "order": "snake", "own": "exclusive" }, "count": { "best": 12 }, "score": { "by": "stats", "points": { "G": 6, "A": 4, "PM": 2, "PPP": 2, "SOG": 0.9, "BLK": 1, "W": 5, "GA": -3, "SV": 0.6, "SO": 5 } }, "rank": { "by": "total" }, "closes": "start" }
+    }
+  },
+  "leagues": {
+    "nhl": {
+      "specs": {
+        "bracket": {
+          "about": "A playoff bracket: before the NHL playoffs start, pick who wins every series, round by round to the Stanley Cup Final. A point for each one right in the first round, doubling each round after it; most points wins.",
+          "on": "playoffs",
+          "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers" }, "rank": { "by": "total" }, "closes": "start", "ask": [{ "id": "bracket", "ask": "Who wins every series of the NHL playoffs?", "answer": "bracket", "points": 1, "rounds": "double", "settle": { "by": "final", "take": "bracket", "of": "playoffs" }, "asked": "once", "closes": "start" }] }
+        }
+      }
+    }
+  }
+}

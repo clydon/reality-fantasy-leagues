@@ -66,6 +66,7 @@ export async function linkSportSeasons(opts: { providers?: SportsProvider[]; now
       WHERE s.kind = 'sport'
         AND (CASE WHEN $2::uuid[] IS NULL THEN s.archived = false AND (ss.status <> 'completed' OR ss.finale_date >= ($1::timestamptz - interval '14 days')::date)
                   ELSE ss.id = ANY($2::uuid[]) END)
+        AND NOT EXISTS (SELECT 1 FROM sports_slates x WHERE x.season_id = ss.id)
         AND (l.season_id IS NULL OR l.next_at <= $1 OR EXISTS (SELECT 1 FROM season_episodes e WHERE e.season_id = ss.id AND e.updated_at > l.checked_at))
         AND EXISTS (SELECT 1 FROM season_episodes e WHERE e.season_id = ss.id AND e.air_at <= $1::timestamptz + interval '8 days'
                      AND NOT EXISTS (SELECT 1 FROM season_events v WHERE v.season_id = e.season_id AND v.episode = e.number))

@@ -73,9 +73,9 @@
 // the database.
 (function(root, factory){
   // eslint-disable-next-line @typescript-eslint/no-require-imports -- CommonJS on purpose, see above
-  if(typeof module === 'object' && module.exports) module.exports = factory(require('./formats/index.js'), require('./game-spec/index.js'), require('./sequence/index.js'));
-  else root.StateLogic = factory(root.GameFormats, root.GameSpec, root.GameSequence);
-})(typeof self !== 'undefined' ? self : this, function(Formats, Spec, Seq){
+  if(typeof module === 'object' && module.exports) module.exports = factory(require('./formats/index.js'), require('./game-spec/index.js'), require('./sequence/index.js'), require('./sequence/stats.js'), require('./sequence/categories.js'), require('./sequence/squares.js'));
+  else root.StateLogic = factory(root.GameFormats, root.GameSpec, root.GameSequence, root.GameStats, root.GameCategories, root.GameSquares);
+})(typeof self !== 'undefined' ? self : this, function(Formats, Spec, Seq, Stats, Cats, Sq){
 
 const PALETTE = ['#45a89a','#d9704a','#a76bb0','#5089c4','#86a34c','#c99a3e','#b0563f','#6b8fc9'];
 // No longer seeded into new leagues (see Migrations.defaultState) -- a fresh league starts with an
@@ -241,10 +241,14 @@ function hasAired(ep, now){ return !!(ep && ep.airsAt) && (now || Date.now()) >=
 // Settings' lock, 2026-10-27): ep.lineupsLocked locks it early, ep.openPastAir keeps it open past its start (the honour
 // system: a couch that sat down after it began, or Start a game's Include it). Results close it whatever the lock says
 // (isLineupLocked, PickEmLogic.decided).
+// L3 part 2b: a sport's game that closes daily or weekly locks each episode at its day's or week's first start (ep.locksAt, the
+// server's: air-times.ts stampSportLocks) when that's earlier than its own start (or it has none), so a day's or a week's episodes
+// lock together; the hand overrides as they are.
 function closedForPlay(ep, now){
   if(!ep) return false;
   if(ep.lineupsLocked) return true;
-  return hasAired(ep, now) && !ep.openPastAir;
+  const locks = !!ep.locksAt && (!ep.airsAt || Date.parse(ep.locksAt) < Date.parse(ep.airsAt));
+  return (locks ? (now || Date.now()) >= Date.parse(ep.locksAt) : hasAired(ep, now)) && !ep.openPastAir;
 }
 
 // The most recent in-play episode that has actually aired/been logged (EpisodeLogic.hasResults) --
@@ -625,7 +629,8 @@ function rankKey(state, r){
   // A11 part 4: head to head, how far you went in the playoffs, then the standings: wins (a tie half), then the regular season's
   // points (MatchupLogic.apply puts them on its rows).
   // The playoffs' seats, level on all of it, by their seed (the one tie the seeding broke by who joined first).
-  if(g.rank.by === 'matchups' && MatchupLogic.on(state)) {
+  // L3 part 2d: head to head on a sport's categories (by each category) ranks the same way, its record the categories'.
+  if((g.rank.by === 'matchups' || g.rank.by === 'categories') && MatchupLogic.on(state)) {
     const m = r.matchups;
     return m ? Seq.recordKey(m) : [0, 0, r.total || 0, 0];
   }
@@ -758,9 +763,10 @@ class ScoringLogic {
     for(const ep of episodes){
       const final = !(EpisodeLogic.resultsStage(ep) === 'early' && ep.number === newest);
       if(!outlast && (w.now || final)){
-        const events = ActiveRosterLogic.episodeEvents(state, ep);
-        if(events.length){
-          const pre = { times: ActiveRosterLogic.timesFor(state, ep.number), slots, scored: ActiveRosterLogic.scoredEvents(state, events, ep.number), joined, stints: stintsOf };
+        // L3 part 2: a game scored by a sport's stats, its episode's stat lines (ActiveRosterLogic.episodeScored).
+        const scored = ActiveRosterLogic.episodeScored(state, ep);
+        if(scored){
+          const pre = { times: ActiveRosterLogic.timesFor(state, ep.number), slots, scored, joined, stints: stintsOf };
           players.forEach(p => running.set(p.id, Seq.add(running.get(p.id), ActiveRosterLogic.episodeScore(state, ep, p.id, pre).total)));
         }
       }
@@ -810,6 +816,8 @@ class ScoringLogic {
       // same walk).
       return TeamLogic.on(view) ? TeamLogic.apply(view, out, run.teams ? run : null) : out;
     }
+    // L3 part 2d: roto, each category ranking everyone on the game so far (RotoLogic).
+    if(RotoLogic.on(view)) return RotoLogic.apply(view, rows);
     // A11 part 2b: a game of questions' walk, its points and who's out, as the server worked them out (AnswerLogic.walk).
     const walk = AnswerLogic.walkOf(view);
     // A11 part 4: head to head's records and playoffs (MatchupLogic); part 4b, on a game of questions' points from its walk. Part 5:
@@ -1041,7 +1049,13 @@ class KnockoutLogic {
 // last round), then the standings.
 let matchupsRunning = false;
 class MatchupLogic {
-  static parts(state){ return Spec.matchupParts(gameOf(state)); }
+  // L3 part 2d: head to head on a sport's categories too (by each category, or by most of them: StatsLogic.categories), its parts
+  // the same (odd, quiet, playoffs) with its categories.
+  static parts(state){
+    const g = gameOf(state);
+    const cats = g.score.by === 'stats' ? Spec.categoryParts(g) : null;
+    return cats ? (cats.by === 'roto' ? null : cats) : Spec.matchupParts(g);
+  }
   static on(state){ return !!MatchupLogic.parts(state); }
   // Whether the game places its playoffs by the game's end as the data has it (no `from` of its own): what the server stamps the
   // season's length for (state.seasonEpisodes, air-times.ts).
@@ -1158,6 +1172,15 @@ class MatchupLogic {
     // Nothing after the season's finale plays (a schedule that counts a reunion), the playoffs' rounds nor a regular-season week.
     const ended = seasonEnded(state);
     const finale = ended ? finaleEpisodeOf(state) : null;
+    // L3 part 2d: on categories, each episode's totals compared category by category (sequence/categories.js categoryMatchups).
+    if(parts.categories){
+      const sides = (state.players || []).map(p => p.id);
+      const played = StatsLogic.played(state).map(ep => ({ number: ep.number, totals: StatsLogic.totals(state, [ep], sides, parts.categories) }));
+      return Cats.categoryMatchups(played, {
+        parts, defs: state.statDefs || {}, start: startEpisode(state), from: MatchupLogic.playoffsFrom(state, parts),
+        finale: finale ? finale.number : null, ended, seatsAt: k => MatchupLogic.seatsAt(state, k),
+      });
+    }
     return Seq.matchups(MatchupLogic.series(state), {
       parts, start: startEpisode(state), from: MatchupLogic.playoffsFrom(state, parts), finale: finale ? finale.number : null, ended,
       // The sides: the seats, or (A11 part 5) the teams of players.
@@ -1291,6 +1314,36 @@ class MatchupLogic {
       if(from !== null && resultsAt(from)){ state.playoffsFrom = from; return from !== had; }
     }
     return had !== undefined;
+  }
+}
+
+// ---------- RotoLogic: roto on a sport's categories (docs/PLAN-start-a-game-gpt.md track L, L3 part 2d) ----------
+// The spec's rank.by 'roto' on score { by: 'stats', categories } (Spec.categoryParts): each seat's counted holdings' lines over the
+// game so far (each episode's starters then, or the whole team) add up into a total for each category (a rate from its parts added,
+// never an average), and each category ranks everyone, the best as many points as there are seats down to 1, the tied sharing
+// theirs (sequence/categories.js roto). The row's total is its roto points; `roto` carries each category's total and points. Worked
+// out from the stamped lines on every read, as far as the copy has them (a viewer's mark, a span's end).
+class RotoLogic {
+  static on(state){ const c = StatsLogic.categories(state); return !!c && c.by === 'roto'; }
+  static table(state){
+    const c = StatsLogic.categories(state);
+    const seats = (state.players || []).filter(p => !isGhost(p) && p.active !== false).map(p => p.id);
+    const totals = StatsLogic.totals(state, StatsLogic.played(state), seats, c.categories);
+    return { totals, rows: Cats.roto(totals, c.categories, state.statDefs || {}) };
+  }
+  // The score rows with their roto points as their total and `roto` ({ points: { [stat]: points }, totals: { [stat]: value } }),
+  // ranked by them (a tie keeps the seats' order); a row that's no seat keeps its own.
+  static apply(state, rows){
+    const { totals, rows: table } = RotoLogic.table(state);
+    const by = new Map(table.map((r, i) => [r.id, { ...r, i }]));
+    rows.forEach(r => {
+      const t = by.get(r.playerId);
+      if(!t) return;
+      r.total = t.total;
+      r.roto = { points: t.points, totals: totals.get(r.playerId) };
+    });
+    const at = id => (by.has(id) ? by.get(id).i : Number.MAX_SAFE_INTEGER);
+    return rows.sort((a,b) => b.total - a.total || at(a.playerId) - at(b.playerId));
   }
 }
 
@@ -3079,6 +3132,313 @@ function defaultEventPoints(state, mode){
 // is rounded to hundredths where it's made: the scoring sequence's one rounding (Seq.round).
 function roundPoints(n){ return Seq.round(n); }
 
+// ---------- StatsLogic: a game scored by a sport's stats (docs/PLAN-start-a-game-gpt.md track L, L3 part 2) ----------
+// The server reads each final game's counts (src/lib/server/sports/score.ts leagueGames: kept once at its final) and stamps them on
+// the copy of the league it reads (stamp): each episode's lines by castaway (`ep.statLines`: castaway id to counts, derived stats
+// worked out), on a card each one's bouts (`ep.statBouts`), and the cast's position groups (`state.statGroups`). Plain data, never
+// stored: a write takes them off before it saves (stampedKeys), so a final corrected later scores the new way on the next read. An
+// episode with its lines has results (EpisodeLogic.hasResults), so the spoiler view hides them past a viewer's mark as it hides any
+// result (SpoilerLogic.viewThrough), and a game's span cuts them at its end (spanView). The scoring sequence's step 2 reads them as
+// each holding's moments at the game's table (scored: sequence/stats.js statMoments), so a lineup's starters, a captain, the
+// episode's multiplier and best ball's best n take it from there (ActiveRosterLogic.episodeScore).
+// L3 part 2c: a game asking about a sport's games (its final, a stat in it: answers.js sportsVerdict, on the server's facts.games) is
+// stamped too, with each episode whose game is final (`ep.gameFinal`), so its episode has results as a show's does once its game is
+// over (the reveal, the week's results, a viewer's mark, a span's end), and the spoiler view drops it past a viewer's mark.
+// L3 part 2d: a categories game, the sport's stats as the engine reads them (`state.statDefs`: Sport.categoryDefs, each one's better,
+// group and a rate's parts), so it works a window's rates out without the sport's code.
+// L3 part 2e: a squares game, each final game's score as the squares read it (`ep.gameScore`: its status, its two sides with their
+// scores, each period's end), the sport's regulation periods (`state.statPeriods`: halftime's), and each locked episode's digits as
+// the server drew them (`ep.squareDigits`: SquaresLogic.settle keeps them in the league at the next write).
+// L3 part 2f: a league's slate (several games an episode), each game's lines beside the week's (`ep.statGames`: event id to castaway
+// id to counts), so a table scores each game on its own and adds them up (a double-double, a bonus at 100 yards, a defense's points
+// allowed: each a game's); stamped only once every game of the week is over, so a partial week is never its results.
+const STAMPED = { episode: ['statLines', 'statBouts', 'gameFinal', 'gameScore', 'squareDigits', 'statGames'], state: ['statGroups', 'statDefs', 'statPeriods'] };
+// The settles a sport's game answers (L1 part 4b).
+const SPORTS_SETTLES = ['final', 'stat'];
+class StatsLogic {
+  // The game that's played scores by a sport's stats.
+  static on(state){ return playedGame(state).score.by === 'stats'; }
+  // L3 part 2c: the game that's played reads a sport's games: scored by their stats, or asking a question one settles (a game of
+  // questions', a draft's own).
+  static reads(state){
+    const g = playedGame(state);
+    return g.score.by === 'stats' || g.score.by === 'squares' || Spec.askOf(g).some(q => q && q.settle && SPORTS_SETTLES.includes(q.settle.by));
+  }
+  // An episode's stat lines as its moments at the game's table ([{ castawayId, points }], one per holding that scored), or null
+  // before its lines are in.
+  static scored(state, ep){
+    if(!ep || !ep.statLines || typeof ep.statLines !== 'object') return null;
+    const groups = state.statGroups || {};
+    const score = playedGame(state).score;
+    // L3 part 2f: a week of a slate's, each game at the table on its own (a moment a game for each holding that scored in it).
+    if(ep.statGames && typeof ep.statGames === 'object') return Object.values(ep.statGames).flatMap(lines => Stats.statMoments(lines, score, id => groups[id] || null));
+    const bouts = ep.statBouts && typeof ep.statBouts === 'object' ? ep.statBouts : null;
+    return Stats.statMoments(ep.statLines, score, id => groups[id] || null, bouts ? id => bouts[id] || null : undefined);
+  }
+  // One holding's line in an episode at the game's table: { points, parts: [{ stat, value, points, bout? }] } (statLine's), or null
+  // when the episode's lines aren't in or they have none for them.
+  static lineOf(state, ep, castawayId){
+    const line = ep && ep.statLines && ep.statLines[castawayId];
+    if(!line) return null;
+    const groups = state.statGroups || {};
+    // L3 part 2f: a slate's week, each game's line at the table, their points and parts added up by stat.
+    if(ep.statGames && typeof ep.statGames === 'object'){
+      const score = playedGame(state).score;
+      const by = new Map();
+      let points = 0;
+      Object.values(ep.statGames).forEach(lines => {
+        if(!lines || !lines[castawayId]) return;
+        const one = Stats.statLine(score, lines[castawayId], { group: groups[castawayId] || null });
+        points += one.points;
+        one.parts.forEach(p => { const had = by.get(p.stat); by.set(p.stat, had ? { stat: p.stat, value: had.value + p.value, points: Stats.cents(had.points + p.points) } : { ...p }); });
+      });
+      return { points: Stats.cents(points), parts: [...by.values()] };
+    }
+    const bouts = ep.statBouts && ep.statBouts[castawayId];
+    return Stats.statLine(playedGame(state).score, line, { group: groups[castawayId] || null, bouts: bouts || undefined });
+  }
+  // The server's stamp, in place: `o.lines` { [episode number]: { castawayId: counts } } (only the league's castaways are kept: no
+  // one else can be held), `o.bouts` the same for a card's bouts, `o.groups` { castawayId: position group }, `o.finals` the episode
+  // numbers whose game is final (L3 part 2c); L3 part 2e, `o.games` { [episode number]: { status, sides, periods } } (a final game's
+  // score, a squares game's), `o.digits` { [episode number]: digits } (a locked episode's, drawn by the server) and `o.periods` (the
+  // sport's regulation periods). An episode left out keeps no lines (its game isn't final for this copy). Returns the state.
+  static stamp(state, o){
+    const cast = new Set((state.castaways || []).map(c => c.id));
+    const only = rec => Object.fromEntries(Object.entries(rec || {}).filter(([id]) => cast.has(id)));
+    StatsLogic.unstamp(state);
+    const lines = (o && o.lines) || {};
+    const bouts = (o && o.bouts) || {};
+    const finals = new Set((o && o.finals) || []);
+    const byGame = (o && o.byGame) || {};
+    const games = (o && o.games) || {};
+    const digits = (o && o.digits) || {};
+    (state.episodes || []).forEach(ep => {
+      if(finals.has(ep.number)) ep.gameFinal = true;
+      if(games[ep.number] && typeof games[ep.number] === 'object') ep.gameScore = games[ep.number];
+      if(digits[ep.number] && typeof digits[ep.number] === 'object') ep.squareDigits = digits[ep.number];
+      const at = lines[ep.number];
+      if(!at || typeof at !== 'object') return;
+      ep.statLines = only(at);
+      if(bouts[ep.number]) ep.statBouts = only(bouts[ep.number]);
+      if(byGame[ep.number] && typeof byGame[ep.number] === 'object') ep.statGames = Object.fromEntries(Object.entries(byGame[ep.number]).map(([event, l]) => [event, only(l)]));
+    });
+    const groups = only(o && o.groups);
+    if(Object.keys(groups).length) state.statGroups = groups;
+    if(o && o.defs && typeof o.defs === 'object') state.statDefs = o.defs;
+    if(o && Number.isInteger(o.periods) && o.periods > 0) state.statPeriods = o.periods;
+    return state;
+  }
+  // Takes the stamp off, in place.
+  static unstamp(state){
+    (state.episodes || []).forEach(ep => STAMPED.episode.forEach(k => { delete ep[k]; }));
+    STAMPED.state.forEach(k => { delete state[k]; });
+    return state;
+  }
+  // The keys a stamp writes, for a save that leaves them out (JSON.stringify's replacer: db.ts withLeagueLock).
+  // L8 part 1's engine items: the server's game starts for a lineup locking at each game's (air-times.ts), never saved either.
+  static stampedKeys(){ return [...STAMPED.episode, ...STAMPED.state, 'gameStarts', 'holdingGames']; }
+  // L3 part 2d: a game ranked by a sport's categories (Spec.categoryParts: head to head by each, by most, or roto), or null.
+  static categories(state){
+    const g = playedGame(state);
+    return g.score.by === 'stats' ? Spec.categoryParts(g) : null;
+  }
+  // Who of a seat's counts in an episode: its starters then, or (everyone drafted) its whole team.
+  static heldAt(state, ep, playerId){
+    return [...new Set(StatsLogic.wholeTeam(state) ? ActiveRosterLogic.teamFor(state, ep, playerId) : ActiveRosterLogic.lineupFor(state, ep.id, playerId))];
+  }
+  // The game's episodes with their lines in, in order (the span's, as far as this copy has them).
+  static played(state){
+    return (state.episodes || []).filter(e => inPlay(state, e.number) && e.statLines && typeof e.statLines === 'object').sort((a,b) => a.number - b.number);
+  }
+  // Each seat's category totals over some episodes (Cats.categoryTotals over each one's counted holdings' lines then): Map seat ->
+  // { [stat]: value | null }.
+  static totals(state, eps, seats, cats){
+    const defs = state.statDefs || {};
+    return new Map(seats.map(id => [id, Cats.categoryTotals(eps.flatMap(ep => StatsLogic.countedLines(state, ep, id)), cats, defs)]));
+  }
+  // A seat's counted lines in an episode: each holding's line there; L8 part 1's engine items, a lineup locking at each game's start,
+  // each game's lines of whoever was in the lineup when it started (ActiveRosterLogic.gameHeld).
+  static countedLines(state, ep, playerId){
+    const each = ep.statGames && typeof ep.statGames === 'object' ? ActiveRosterLogic.gameHeld(state, ep, playerId) : null;
+    if(each) return Object.entries(ep.statGames).flatMap(([event, lines]) => [...each.get(event)].map(c => lines && lines[c]).filter(Boolean));
+    return StatsLogic.heldAt(state, ep, playerId).map(c => ep.statLines[c]).filter(Boolean);
+  }
+  // L8 part 1's engine items: a slate's week's moments game by game ([[event id, moments]]), for a lineup that locks at each game's
+  // start (each game counts its own lineup's).
+  static scoredByGame(state, ep){
+    const groups = state.statGroups || {};
+    const score = playedGame(state).score;
+    return Object.entries(ep.statGames || {}).map(([event, lines]) => [event, Stats.statMoments(lines || {}, score, id => groups[id] || null)]);
+  }
+  // A draft whose whole team counts (count { all: true }: tonight's three, everyone you draft scoring), no lineups to set.
+  static wholeTeam(state){
+    const g = playedGame(state);
+    return g.score.by === 'stats' && g.get.by === 'draft' && Spec.countKind(g.count) === 'all';
+  }
+}
+// ---------- SquaresLogic: squares on a team game's two scores (docs/PLAN-start-a-game-gpt.md track L, L3 part 2e) ----------
+// The spec's `get: { by: 'squares', grid, take, each }` with `score: { by: 'squares', pays }` (game-spec schema.js squaresParts),
+// scored by sequence/squares.js. Everyone's squares are kept in the league (`state.squares`):
+//   picks   { playerId: { cells, from } }: a pick's squares (take 'pick'), first come, each one seat's, up to `each`, changed as often
+//           as you like until the game's first episode locks; then they're yours for the game. A seat with none then (a late joiner)
+//           takes squares left over, counting `from` the first episode still open (the pays before it were nobody's).
+//   dealt   { seats }: a deal's (take 'deal'), at the game's first lock, its seats then (sequence/squares.js dealSquares, seeded by the
+//           first episode's id: the same every read), kept at the next write (settle) so nobody joining later moves anyone's squares;
+//           until it's kept, the seats in the rotation now. A late joiner has none.
+//   digits  { [episode number]: { rows, cols } }: each episode's digits, drawn by the server at its lock from a secret nobody reads
+//           (sports/score.ts squareDigits: never in the league before then, so nobody picks a good number), stamped on the copy it
+//           reads (`ep.squareDigits`) and kept here at the next write, so a secret changed later moves no pay already drawn. A game of
+//           many episodes (a team's schedule) draws them again each episode.
+// Each episode's pays are its game's final score's (the server's stamp, `ep.gameScore`: each period's end, its final), at the
+// sport's regulation periods (`state.statPeriods`), so its results are in once its game is final (`ep.gameFinal`), and the spoiler
+// view takes them out past a viewer's mark as it does any result. The table is each seat's pays added up (SquaresScoringStrategy).
+class SquaresLogic {
+  static on(state){ return playedGame(state).get.by === 'squares'; }
+  // The spec's squares, read the one way (Spec.squaresParts: { grid, take, each, pays, empty, unread }), or null.
+  static parts(state){ return Spec.squaresParts(playedGame(state)); }
+  static data(state){ return state.squares && typeof state.squares === 'object' ? state.squares : {}; }
+  // The game's first episode, or null (none made yet, or the game waits for its phase).
+  static first(state){
+    const n = startEpisode(state);
+    return n === null ? null : (state.episodes || []).find(e => e.number === n) || null;
+  }
+  // The game's first episode has locked (or has results): squares are taken, the deal dealt.
+  static locked(state, now){
+    const ep = SquaresLogic.first(state);
+    return !!ep && (closedForPlay(ep, now) || EpisodeLogic.hasResults(ep));
+  }
+  // The seats a deal deals to now: everyone in the rotation.
+  static seats(state){ return (state.players || []).filter(inLeagueRotation).map(p => p.id); }
+  // Each seat's squares in episode `n`: { playerId: [cells] }.
+  static heldAt(state, n){
+    const p = SquaresLogic.parts(state);
+    if(!p) return {};
+    const d = SquaresLogic.data(state);
+    if(p.take === 'deal'){
+      const first = SquaresLogic.first(state);
+      if(!first || !SquaresLogic.locked(state)) return {};
+      const seats = d.dealt && Array.isArray(d.dealt.seats) ? d.dealt.seats : SquaresLogic.seats(state);
+      return Sq.dealSquares(first.id, seats, p.grid, p.each);
+    }
+    const out = {};
+    Object.entries(d.picks || {}).forEach(([id, pk]) => {
+      if(pk && Array.isArray(pk.cells) && pk.cells.length && (Number.isInteger(pk.from) ? pk.from : 0) <= n) out[id] = pk.cells.slice();
+    });
+    return out;
+  }
+  // A seat's squares as they stand (every one it holds, whatever episode they count from).
+  static mine(state, playerId){
+    const p = SquaresLogic.parts(state);
+    if(!p) return [];
+    if(p.take === 'deal') return SquaresLogic.heldAt(state, Infinity)[playerId] || [];
+    const pk = (SquaresLogic.data(state).picks || {})[playerId];
+    return pk && Array.isArray(pk.cells) ? pk.cells.slice() : [];
+  }
+  // The episode a square taken now counts from: the game's first before it locks; after, the first in play still open (no results,
+  // not locked), or null when none is.
+  static openFrom(state, now){
+    if(!SquaresLogic.locked(state, now)) return startEpisode(state);
+    const open = (state.episodes || []).filter(e => inPlay(state, e.number) && !closedForPlay(e, now) && !EpisodeLogic.hasResults(e)).sort((a, b) => a.number - b.number)[0];
+    return open ? open.number : null;
+  }
+  // Why a seat can't take these squares now, or null: a pick's (take 'pick'), a seat in the rotation, on the grid, each once, at most
+  // `each`, none another seat holds; before the game's first lock, or after it only a seat with none yet, while an episode's open.
+  // An empty list gives them all back (before the lock).
+  static takeProblem(state, playerId, cells, now){
+    const p = SquaresLogic.parts(state);
+    if(!p) return "This game isn't squares";
+    if(p.take !== 'pick') return 'Squares are dealt at random in this game';
+    if(!(state.players || []).some(pl => pl.id === playerId && inLeagueRotation(pl))) return "You're not playing this game";
+    const locked = SquaresLogic.locked(state, now);
+    if(locked && SquaresLogic.mine(state, playerId).length) return 'Squares are set once the game starts';
+    if(SquaresLogic.openFrom(state, now) === null) return 'There are no games left to take squares for';
+    if(Array.isArray(cells) && !cells.length) return locked ? 'Take at least one square' : null;
+    const taken = new Set();
+    Object.entries(SquaresLogic.data(state).picks || {}).forEach(([id, pk]) => {
+      if(id !== playerId && pk && Array.isArray(pk.cells)) pk.cells.forEach(c => taken.add(c));
+    });
+    return Sq.pickProblem(cells, p.grid, p.each, taken);
+  }
+  // Takes them, in place: the problem (nothing changed), or null.
+  static take(state, playerId, cells, now){
+    const why = SquaresLogic.takeProblem(state, playerId, cells, now);
+    if(why) return why;
+    const d = state.squares = SquaresLogic.data(state);
+    d.picks = d.picks || {};
+    if(!cells.length){ delete d.picks[playerId]; return null; }
+    d.picks[playerId] = { cells: cells.slice().sort((a, b) => a - b), from: SquaresLogic.openFrom(state, now) };
+    return null;
+  }
+  // An episode's digits, once it's locked (or has results): kept in the league, else the server's stamp; null before then.
+  static digitsAt(state, ep, now){
+    if(!ep || !(closedForPlay(ep, now) || EpisodeLogic.hasResults(ep))) return null;
+    const kept = (SquaresLogic.data(state).digits || {})[ep.number];
+    return kept || ep.squareDigits || null;
+  }
+  // The episodes in play whose digits the server draws now: locked (or with results) and not kept yet: [{ number, id }].
+  static toDraw(state, now){
+    if(!SquaresLogic.on(state)) return [];
+    const kept = SquaresLogic.data(state).digits || {};
+    return (state.episodes || []).filter(e => inPlay(state, e.number) && !kept[e.number] && (closedForPlay(e, now) || EpisodeLogic.hasResults(e))).map(e => ({ number: e.number, id: e.id }));
+  }
+  // An episode's pays (sequence/squares.js squaresPays: { pays, totals }), from its game's score as the server stamped it.
+  static pays(state, ep, now){
+    const p = SquaresLogic.parts(state);
+    if(!p || !ep) return { pays: [], totals: {} };
+    const holders = Sq.holdersOf(SquaresLogic.heldAt(state, ep.number));
+    return Sq.squaresPays(p, ep.gameScore || null, { digits: SquaresLogic.digitsAt(state, ep, now), holders, regulation: state.statPeriods });
+  }
+  // Each seat's points over the game's episodes in play: Map playerId -> points.
+  static totals(state){
+    const out = new Map((state.players || []).map(p => [p.id, 0]));
+    (state.episodes || []).filter(e => inPlay(state, e.number) && e.gameScore).forEach(ep => {
+      Object.entries(SquaresLogic.pays(state, ep).totals).forEach(([id, n]) => out.set(id, roundPoints((out.get(id) || 0) + n)));
+    });
+    return out;
+  }
+  // Whether the next write has something to keep: the deal's seats once the game's first episode locks, a locked episode's digits.
+  static due(state, now){
+    if(!SquaresLogic.on(state)) return false;
+    const p = SquaresLogic.parts(state);
+    if(p && p.take === 'deal' && SquaresLogic.locked(state, now) && !SquaresLogic.data(state).dealt) return true;
+    return SquaresLogic.toDraw(state, now).length > 0;
+  }
+  // Keeps it, in place (a write's: db.ts withLeagueLock): the deal's seats, each locked episode's digits as stamped. True when
+  // anything changed.
+  static settle(state, now){
+    if(!SquaresLogic.on(state)) return false;
+    const p = SquaresLogic.parts(state);
+    const d = SquaresLogic.data(state);
+    let changed = false;
+    if(p && p.take === 'deal' && SquaresLogic.locked(state, now) && !d.dealt){
+      d.dealt = { seats: SquaresLogic.seats(state) };
+      changed = true;
+    }
+    SquaresLogic.toDraw(state, now).forEach(({ number }) => {
+      const ep = state.episodes.find(e => e.number === number);
+      if(!ep || !ep.squareDigits) return;
+      d.digits = d.digits || {};
+      d.digits[number] = ep.squareDigits;
+      changed = true;
+    });
+    if(changed) state.squares = d;
+    return changed;
+  }
+}
+// The table of a squares game: each seat's pays added up (SquaresLogic.totals), most first.
+class SquaresScoringStrategy {
+  static compute(state){
+    const totals = SquaresLogic.totals(state);
+    const rows = state.players.map(p => {
+      const total = totals.get(p.id) || 0;
+      return { playerId: p.id, name: p.name, color: p.color, locked: total, bonus: 0, finale: 0, total, roster: [], formerRoster: [], squares: SquaresLogic.mine(state, p.id).length };
+    });
+    return rows.sort((a, b) => b.total - a.total);
+  }
+}
+// A game whose lineups score moments: by the show's moments, or by a sport's stats (L3 part 2: its stat lines as its moments).
+const lineupScores = g => g.score.by === 'moments' || g.score.by === 'stats';
+
 class ActiveRosterLogic {
   // Points for one event type: the league's own value if set (the spec's points: settings.eventPoints, in a game that
   // scores by moments), else the catalog default. A type
@@ -3135,6 +3495,13 @@ class ActiveRosterLogic {
     }
     return events.map(ev => ({ castawayId: ev.castawayId, points: ActiveRosterLogic.eventPoints(state, ev, episode) }));
   }
+  // An episode's moments at the game's points as step 2 reads them, or null when it has none yet: a game scored by a sport's stats,
+  // its stat lines' (StatsLogic.scored, L3 part 2); else its moments (`events`, else episodeEvents) when it has any.
+  static episodeScored(state, ep, events){
+    if(StatsLogic.on(state)) return StatsLogic.scored(state, ep);
+    const evs = events || ActiveRosterLogic.episodeEvents(state, ep);
+    return evs.length ? ActiveRosterLogic.scoredEvents(state, evs, ep.number) : null;
+  }
   // C5: how a game scored by moments counts hits (score.hits: every, pick, objective), or null (by points, every game before C5).
   static hits(state){
     const score = gameOf(state).score;
@@ -3159,12 +3526,14 @@ class ActiveRosterLogic {
   // A lineup's captain (the spec's score.captain): what their points multiply by, else 0 (no captain in this game).
   static captainTimes(state){
     const g = gameOf(state);
-    return g.score.by === 'moments' && g.count && g.count.start && g.score.captain ? g.score.captain.times : 0;
+    return lineupScores(g) && g.count && g.count.start && g.score.captain ? g.score.captain.times : 0;
   }
   // Whether the game's lineups score any way but plainly (a captain, best ball, points that multiply by when, group slots: A10
   // part 1): compute's own path. A plain lineup keeps the arithmetic it always had.
   static combines(state){
     const g = gameOf(state);
+    // L3 part 2: a sport's stats always (their lines are no moments of the show's to list).
+    if(g.score.by === 'stats') return true;
     return g.score.by === 'moments' && (!!ActiveRosterLogic.bestOf(state) || !!ActiveRosterLogic.captainTimes(state) || Array.isArray(g.score.times) || !!GroupSlotLogic.config(state) || !!joinedFactors(state));
   }
   // What an episode's points multiply by (the spec's score.times): each window it's in, together -- an episode, a run of them,
@@ -3175,7 +3544,7 @@ class ActiveRosterLogic {
   // factor of the one multiplier piece, on 'when' (Spec.multipliersOf, Seq.factorOf: Seq.inWindow says whether it's in it).
   static timesFor(state, number){
     const list = gameOf(state).score.times;
-    if(!Array.isArray(list) || gameOf(state).score.by !== 'moments') return 1;
+    if(!Array.isArray(list) || !lineupScores(gameOf(state))) return 1;
     const seen = SpoilerLogic.latestWithResults(state);
     const starts = Object.values(state.phaseStarts || {}).filter(n => Number.isInteger(n) && n <= seen + 1);
     const inPhase = id => {
@@ -3218,11 +3587,17 @@ class ActiveRosterLogic {
     const best = ActiveRosterLogic.bestOf(state);
     // Each holding once (C2 part 2: a stored lineup listing a starter twice, which validateLineup refuses, scores them once).
     // C5: a pick each episode scored by what they do holds that episode's picks.
-    const held = gameOf(state).get.by === 'pick' ? PickEmLogic.picked(PickEmLogic.pickFor(state, ep.id, playerId)) : best ? ActiveRosterLogic.teamFor(state, ep, playerId) : ActiveRosterLogic.lineupFor(state, ep.id, playerId);
+    // L3 part 2: a draft scored by a sport's stats whose whole team counts holds its team, as best ball does, every line counted.
+    const team = best || StatsLogic.wholeTeam(state);
+    // L8 part 1's engine items: a lineup locking at each game's start, a slate's week game by game, each game's moments of whoever was
+    // in the lineup when it started (gameHeld); everyone who counted in any of them is a line.
+    const each = !team && gameOf(state).get.by !== 'pick' && ep.statGames && typeof ep.statGames === 'object' ? ActiveRosterLogic.gameHeld(state, ep, playerId) : null;
+    const held = gameOf(state).get.by === 'pick' ? PickEmLogic.picked(PickEmLogic.pickFor(state, ep.id, playerId)) : team ? ActiveRosterLogic.teamFor(state, ep, playerId) : each ? [...each.values()].flatMap(s => [...s]) : ActiveRosterLogic.lineupFor(state, ep.id, playerId);
     const ids = [...new Set(held)];
-    const captain = best ? null : ActiveRosterLogic.captainFor(state, ep.id, playerId);
+    const captain = team ? null : ActiveRosterLogic.captainFor(state, ep.id, playerId);
     const times = pre && pre.times !== undefined ? pre.times : ActiveRosterLogic.timesFor(state, ep.number);
-    const scored = (pre && pre.scored) || ActiveRosterLogic.scoredEvents(state, (pre && pre.events) || ActiveRosterLogic.episodeEvents(state, ep), ep.number);
+    const scored = each ? StatsLogic.scoredByGame(state, ep).flatMap(([event, moments]) => moments.filter(m => each.get(event).has(m.castawayId)))
+      : (pre && pre.scored) || ActiveRosterLogic.episodeScored(state, ep, pre && pre.events) || [];
     const raw = Seq.momentRaw(ids, scored, ActiveRosterLogic.hits(state));
     // The captain's factor (C3: the one multiplier piece, on 'captain').
     const cap = { on: 'captain', times: captain ? ActiveRosterLogic.captainTimes(state) : 1 };
@@ -3259,6 +3634,10 @@ class ActiveRosterLogic {
     const ep = state.episodes.find(e => e.id === epId);
     if(!ep) return [];
     if(ep.lineups && Object.prototype.hasOwnProperty.call(ep.lineups, playerId)) return ep.lineups[playerId] || [];
+    return ActiveRosterLogic.carriedLineup(state, ep, playerId);
+  }
+  // The lineup a player carries into an episode from their most recent earlier one (lineupFor's, for one not set for it).
+  static carriedLineup(state, ep, playerId){
     const earlier = state.episodes
       .filter(e => e.number < ep.number && e.lineups && Object.prototype.hasOwnProperty.call(e.lineups, playerId))
       .sort((a,b) => b.number - a.number)[0];
@@ -3286,18 +3665,68 @@ class ActiveRosterLogic {
   // Locked once the episode starts airing (ep.airsAt, stamped by the server from the season's
   // schedule -- src/lib/server/air-times.ts), once it has results (a league whose season has no
   // schedule), or when a commissioner locked it by hand (the same fallback, kept for old leagues).
-  static isLineupLocked(state, epId){
+  // L8 part 1's engine items: a lineup locking at each game's start locks the episode at its last game's start (each holding at its
+  // own: heldLocked).
+  static isLineupLocked(state, epId, now){
     const ep = state.episodes.find(e => e.id === epId);
-    return !!ep && (closedForPlay(ep) || EpisodeLogic.hasResults(ep));
+    if(!ep) return false;
+    if(EpisodeLogic.hasResults(ep)) return true;
+    const last = ActiveRosterLogic.eachGame(state, ep) ? ActiveRosterLogic.lastStartOf(ep) : null;
+    if(last !== null) return !!ep.lineupsLocked || (now || Date.now()) >= last;
+    return closedForPlay(ep, now);
+  }
+
+  // ---- a lineup that locks at each game's start (L8 part 1's engine items: the spec's closes 'game') ----
+  // The server stamps each episode's games (`ep.gameStarts`: event id to { at, until }, its start and the end of its day in the East)
+  // and each holding's games in it (`ep.holdingGames`: castaway id to event ids), never saved (air-times.ts stampSportLocks). A holding
+  // locks at its own game's start for the rest of that day (nobody moves in or out of the lineup while it's locked: Yahoo's daily
+  // lineups, so one place in it isn't counted twice in a day), and each game counts for whoever was in the lineup when it started.
+  // Every lineup set is kept with its time (`ep.lineupsAt[playerId]`: [{ at, ids }] in order, the latest also `ep.lineups` as ever),
+  // so a change mid-week counts from the next game to start; a set no game started after is replaced by the next. The episode locks
+  // at its last game's start (isLineupLocked). Kept open past its start by whoever runs the game (openPastAir), or with no games
+  // stamped (no schedule, a league at its own pace), it plays as one lineup, as at the start.
+  static eachGame(state, ep){
+    return !!ep && gameOf(state).closes === 'game' && !ep.openPastAir && !!ep.gameStarts && typeof ep.gameStarts === 'object' && Object.keys(ep.gameStarts).length > 0;
+  }
+  // The episode's last game's start (ms), or null.
+  static lastStartOf(ep){
+    const t = Object.values(ep.gameStarts || {}).map(g => Date.parse(g && g.at)).filter(Number.isFinite);
+    return t.length ? Math.max(...t) : null;
+  }
+  // Whether a holding is locked now: one of its games in the episode has started and its day isn't over.
+  static heldLocked(ep, castawayId, now){
+    const t = now || Date.now();
+    return ((ep.holdingGames && ep.holdingGames[castawayId]) || []).some(e => {
+      const g = ep.gameStarts && ep.gameStarts[e];
+      return !!g && t >= Date.parse(g.at) && t < Date.parse(g.until);
+    });
+  }
+  // The lineup a player had in force at instant `t` (ms): the last they set before it; before their first set this episode, the one
+  // they carried in.
+  static lineupAt(state, ep, playerId, t){
+    const log = ep.lineupsAt && ep.lineupsAt[playerId];
+    if(!Array.isArray(log) || !log.length) return ActiveRosterLogic.lineupFor(state, ep.id, playerId);
+    const before = log.filter(x => Date.parse(x.at) < t);
+    return before.length ? before[before.length - 1].ids || [] : ActiveRosterLogic.carriedLineup(state, ep, playerId);
+  }
+  // Each game's counted holdings for a player (Map event id -> Set of castaway ids: the lineup in force at its start; a game with no
+  // start stamped, the lineup as it stands), or null when the episode plays as one lineup.
+  static gameHeld(state, ep, playerId){
+    if(!ActiveRosterLogic.eachGame(state, ep) || !ep.statGames || typeof ep.statGames !== 'object') return null;
+    return new Map(Object.keys(ep.statGames).map(event => {
+      const g = ep.gameStarts[event];
+      const t = g ? Date.parse(g.at) : NaN;
+      return [event, new Set(Number.isFinite(t) ? ActiveRosterLogic.lineupAt(state, ep, playerId, t) : ActiveRosterLogic.lineupFor(state, ep.id, playerId))];
+    }));
   }
   // Returns null if the lineup is acceptable, else a human-readable reason. Like blind draft (and
   // unlike most of this file) this reports WHY rather than silently no-opping -- a rejected lineup is
   // something the player needs to understand and fix.
-  static validateLineup(state, epId, playerId, castawayIds){
+  static validateLineup(state, epId, playerId, castawayIds, now){
     if(!piecesOf(state).hasActiveRoster) return 'This league type has no active roster';
     const ep = state.episodes.find(e => e.id === epId);
     if(!ep) return 'No such episode';
-    if(ActiveRosterLogic.isLineupLocked(state, epId)) return 'This episode has started -- lineups are locked';
+    if(ActiveRosterLogic.isLineupLocked(state, epId, now)) return 'This episode has started -- lineups are locked';
     if(!inPlay(state, ep.number)){
       const start = startEpisode(state);
       if(start === null) return "This game hasn't started: it waits for its phase of the season";
@@ -3320,12 +3749,23 @@ class ActiveRosterLogic {
       // before going, so excluding them would lose real points.
       if(!ownerListOf(c).includes(playerId)) return c.name + " isn't on your roster";
     }
+    // L8 part 1's engine items: a lineup locking at each game's start never moves anyone whose game has started today, in or out
+    // (impeccable clarify: who, why, and when it frees up).
+    if(ActiveRosterLogic.eachGame(state, ep)){
+      const had = ActiveRosterLogic.lineupFor(state, epId, playerId);
+      const moved = [...had.filter(id => !ids.includes(id)), ...ids.filter(id => !had.includes(id))];
+      const stuck = moved.find(id => ActiveRosterLogic.heldLocked(ep, id, now));
+      if(stuck) return Core.getCastaway(state, stuck).name + "'s game has started: they stay " + (had.includes(stuck) ? 'in' : 'out of') + " your lineup until the day's over";
+    }
     return null;
   }
-  static setLineup(state, epId, playerId, castawayIds){
-    if(ActiveRosterLogic.validateLineup(state, epId, playerId, castawayIds)) return false;
+  // `now` (ms) is a check's; a write's is the clock's.
+  static setLineup(state, epId, playerId, castawayIds, now){
+    if(ActiveRosterLogic.validateLineup(state, epId, playerId, castawayIds, now)) return false;
     const ep = state.episodes.find(e => e.id === epId);
     if(!ep.lineups) ep.lineups = {};
+    // L8 part 1's engine items: a lineup locking at each game's start keeps each set with its time (eachGame, above).
+    if(ActiveRosterLogic.eachGame(state, ep)) ActiveRosterLogic.logLineup(ep, playerId, castawayIds, now || Date.now());
     ep.lineups[playerId] = [...castawayIds];
     // A captain named for this episode is one of its starters: benching them takes the armband off.
     if(ep.captains && ep.captains[playerId] && !castawayIds.includes(ep.captains[playerId])) ep.captains[playerId] = null;
@@ -3362,6 +3802,17 @@ class ActiveRosterLogic {
     if(!ep.captains) ep.captains = {};
     ep.captains[playerId] = castawayId || null;
     return true;
+  }
+  // Keeps a set in the episode's log at `t` (ms): one a game started after stays (it counted for that game); one none did is
+  // replaced. A lineup set before the log began (the game changed to lock at each game's start) counts from the episode's start.
+  static logLineup(ep, playerId, ids, t){
+    if(!ep.lineupsAt) ep.lineupsAt = {};
+    const log = ep.lineupsAt[playerId] || (ep.lineupsAt[playerId] = []);
+    if(!log.length && ep.lineups && Object.prototype.hasOwnProperty.call(ep.lineups, playerId)) log.push({ at: new Date(0).toISOString(), ids: [...(ep.lineups[playerId] || [])] });
+    const last = log[log.length - 1];
+    const counted = !!last && Object.values(ep.gameStarts || {}).some(g => { const s = Date.parse(g && g.at); return s > Date.parse(last.at) && s <= t; });
+    if(last && !counted) log.pop();
+    log.push({ at: new Date(t).toISOString(), ids: [...ids] });
   }
   static lockLineups(state, epId){
     const ep = state.episodes.find(e => e.id === epId);
@@ -4316,6 +4767,13 @@ const LEAGUE_TYPES = {
     name: 'Weekly Bingo',
     description: 'No draft, no team -- a new bingo card every show, ticked as it happens. Most lines by the finale wins.'
   },
+  // Squares (docs/PLAN-start-a-game-gpt.md track L, L3 part 2e): a sport's, no draft and no team, squares on a grid of a game's two
+  // scores' last digits, each pay the square of the score's (SquaresLogic).
+  'squares': {
+    id: 'squares',
+    name: 'Squares',
+    description: "No draft, no team -- take squares on a grid of the two scores' last digits. The square of the score wins at each pay; most points wins."
+  },
   // A game in stages (docs/PLAN-start-a-game-gpt.md step A12 part 1): no draft and no team of its own, each stage a game played as a
   // league of its own (stages.ts), its table the overall from the stages' tables (StageLogic).
   'stages': {
@@ -4332,7 +4790,7 @@ const LEAGUE_TYPES = {
 // The flags, from each type's preset (its exclusive draft, for the two drafts: the shared variants below are the other).
 // A game of questions has no preset: its flags are any such game's (nothing held, scored by its own answers).
 // A game in stages (A12 part 1) has its own: nothing held, scored by its stages.
-Object.values(LEAGUE_TYPES).forEach(lt => Object.assign(lt, Spec.flagsOf(Spec.PRESETS[Spec.TYPE_PRESETS[lt.id]] || (lt.id === 'stages' ? { get: { by: 'none' }, count: null, score: { by: 'stages' }, ask: [] } : { get: { by: 'none' }, count: null, score: { by: 'answers' }, ask: [] }))));
+Object.values(LEAGUE_TYPES).forEach(lt => Object.assign(lt, Spec.flagsOf(Spec.PRESETS[Spec.TYPE_PRESETS[lt.id]] || (lt.id === 'stages' ? { get: { by: 'none' }, count: null, score: { by: 'stages' }, ask: [] } : lt.id === 'squares' ? { get: { by: 'squares' }, count: null, score: { by: 'squares', pays: [] }, ask: [] } : { get: { by: 'none' }, count: null, score: { by: 'answers' }, ask: [] }))));
 // NOT the catalog, and no longer a default either: a new league starts with showId null and the
 // commissioner picks from the catalog (defaultState / SetupLogic). The real catalog of shows and
 // seasons lives in Postgres (db/migrations/0006_shows_and_seasons.sql), is managed by a super-admin
@@ -4410,8 +4868,10 @@ function getLeagueType(state){
 // with no settings.
 const DRAFT_PIECES = { snake: SnakeDraftStrategy, blind: BlindDraftStrategy, draw: DrawDraftStrategy, auction: AuctionDraftStrategy };
 const SCORE_PIECES = {
-  place: EliminationOrderScoringStrategy, moments: ActiveRosterEventScoringStrategy, survive: PickEmScoringStrategy,
+  place: EliminationOrderScoringStrategy, moments: ActiveRosterEventScoringStrategy, stats: ActiveRosterEventScoringStrategy, survive: PickEmScoringStrategy,
   answers: CallsScoringStrategy, lines: CallsScoringStrategy, stages: StagesScoringStrategy,
+  // L3 part 2e: squares, their pays.
+  squares: SquaresScoringStrategy,
 };
 let OUTLAST_GAME = null;
 // The game a league's pieces come from: its own, or (no game plays it) Outlast, drafted with the spec's ownership and, for a
@@ -6805,8 +7265,8 @@ class WaiverLogic {
         pool = fits.length ? fits : pool.filter(id => (prices.get(id) || 0) === cheapest);
       }
     }
-    // A game scored by moments (a lineup, best ball) takes the free agent with the most points.
-    if(gameOf(state).score.by === 'moments'){
+    // A game scored by moments (a lineup, best ball) takes the free agent with the most points (L3 part 2: or by a sport's stats).
+    if(lineupScores(gameOf(state))){
       const pts = {};
       pool.forEach(id => { pts[id] = WaiverLogic.castawayPoints(state, id); });
       return [...pool].sort((a,b) => pts[b] - pts[a] || hashUnit(period.id + a) - hashUnit(period.id + b))[0];
@@ -6816,8 +7276,11 @@ class WaiverLogic {
   /** Active Roster: a castaway's points so far, from every in-play episode's events. */
   static castawayPoints(state, castawayId){
     let total = 0;
+    const stats = StatsLogic.on(state);
     state.episodes.forEach(ep => {
       if(!inPlay(state, ep.number)) return;
+      // L3 part 2: a game scored by a sport's stats, their stat lines at the game's table.
+      if(stats){ const l = StatsLogic.lineOf(state, ep, castawayId); if(l) total += l.points; return; }
       ActiveRosterLogic.episodeEvents(state, ep).forEach(ev => {
         if(ev.castawayId === castawayId) total += ActiveRosterLogic.eventPoints(state, ev, ep.number);
       });
@@ -6898,7 +7361,10 @@ class EpisodeLogic {
   // episode has been played" means everywhere below.
   static hasResults(ep){
     return !!ep && (!!ep.noExit || (ep.events||[]).length > 0 || (ep.scoringEvents||[]).length > 0 || (ep.exiled||[]).length > 0
-      || (ep.roles||[]).length > 0 || (ep.groups||[]).length > 0);
+      || (ep.roles||[]).length > 0 || (ep.groups||[]).length > 0
+      // L3 part 2: a game scored by a sport's stats, once its game's lines are in (StatsLogic.stamp); part 2c, any game reading a
+      // sport's, once its game is final.
+      || (!!ep.statLines && typeof ep.statLines === 'object') || ep.gameFinal === true);
   }
   // Nobody went home in this episode (on), or that's taken back (off). Only the season sync's shared
   // "nobody went home" fact sets it (decision-apply.ts).
@@ -7438,7 +7904,8 @@ class AnswerLogic {
   // results, and says nothing of them to someone who hasn't seen them. A finale nobody's listed yet: at the game's end.
   // A game with a late lock (A7: extras.lateLock) keeps a question open for someone who hasn't seen the episode that closes it
   // (`mark`, their spoiler mark, before it) until its air time plus the lock's hours: they answer before they watch.
-  //   o: { now, finale (the season's last episode, from its schedule), airAt, mark (the one answering's; null: sees all) }
+  //   o: { now, finale (the season's last episode, from its schedule), airAt, mark (the one answering's; null: sees all),
+  //        lastStart (a question about each game: its episode's last game's start) }
   static closed(state, q, episode, o){
     const opt = o || {};
     if(q.asked !== 'once' && !AnswerLogic.opensAt(state, q, episode)) return true;
@@ -7452,6 +7919,9 @@ class AnswerLogic {
       const now = opt.now !== undefined ? Number(opt.now) : Date.now();
       if(now < Date.parse(airsAt) + late.hours * 3600 * 1000) return false;
     }
+    // L3 part 2f part 2: a question about each game closes as the episode's last game starts (`o.lastStart`, the server's; each
+    // pick locks at its own game's start before then: answers.ts), whoever runs the game's overrides as they are.
+    if(q.each === 'game' && opt.lastStart) return EpisodeLogic.hasResults(ep) || closedForPlay({ ...ep, airsAt: opt.lastStart, locksAt: undefined }, opt.now);
     return EpisodeLogic.hasResults(ep) || closedForPlay({ ...ep, airsAt }, opt.now);
   }
   // The episode someone answers for now with a late lock (A7): the one after their mark while it's still open for them, else
@@ -8111,6 +8581,8 @@ class SpoilerLogic {
       if(!ids.has(ep.id)) return;
       ep.events = []; ep.scoringEvents = []; ep.exiled = []; ep.roles = []; ep.groups = []; delete ep.formatGroups;
       delete ep.resultsStage; delete ep.noExit;
+      // L3 part 2: a sport's stat lines and its game's final (StatsLogic.stamp).
+      delete ep.statLines; delete ep.statBouts; delete ep.gameFinal; delete ep.gameScore; delete ep.statGames;
       ep.postMerge = visible ? !!visible.postMerge : false;
       (ep.bets || []).forEach(b => (b.predictions || []).forEach(p => { p.correct = null; }));
       ep.resultsHidden = true;
@@ -8906,7 +9378,7 @@ return {
   // the top of this file); SnakeDraftStrategy/BlindDraftStrategy/NoDraftStrategy and
   // EliminationOrderScoringStrategy/PickEmScoringStrategy are those pieces,
   // exported directly for code that wants to bypass the dispatch.
-  Core, ScoringLogic, DraftLogic, RosterLogic, WaiverLogic, EpisodeLogic, BetLogic, FinaleLogic, AnswerLogic, PickEmLogic, BlindDraftLogic, ActiveRosterLogic, GroupSlotLogic, SetupLogic, RevealLogic, SpoilerLogic, GhostLogic, Migrations,
+  Core, ScoringLogic, DraftLogic, RosterLogic, WaiverLogic, EpisodeLogic, BetLogic, FinaleLogic, AnswerLogic, PickEmLogic, BlindDraftLogic, ActiveRosterLogic, StatsLogic, RotoLogic, SquaresLogic, SquaresScoringStrategy, GroupSlotLogic, SetupLogic, RevealLogic, SpoilerLogic, GhostLogic, Migrations,
   SpreadLogic, DrawLogic, PriceLogic, BudgetLogic, MarketLogic, AuctionLogic, KeeperLogic, KnockoutLogic, MatchupLogic, WeekLogic, TeamLogic, HandicapLogic, StageLogic, draftFits, draftFitsFor, rankKey,
   SnakeDraftStrategy, StagesScoringStrategy, EliminationOrderScoringStrategy, NoDraftStrategy, PickEmScoringStrategy, BlindDraftStrategy, ActiveRosterEventScoringStrategy, DrawDraftStrategy, AuctionDraftStrategy
 };

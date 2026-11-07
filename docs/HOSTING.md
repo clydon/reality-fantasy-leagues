@@ -3,7 +3,8 @@
 **Keep this current.** Update it in the same commit as any change that adds or changes polling, a scheduled
 job, stored data, or a service, and whenever usage is checked (date the numbers). It exists so that, when a
 free plan stops being enough, choosing the cheapest fit is arithmetic, not research. Last updated
-**2026-10-28** (Cost by size).
+**2026-10-28** (Cost by size; live games' polling from phones, L2 on the `sports` branch; a live soccer match measured, L5
+part 1).
 
 ## The stack
 
@@ -22,7 +23,7 @@ free plan stops being enough, choosing the cheapest fit is arithmetic, not resea
 | **KLIPY** API (`KLIPY_API_KEY` set in Vercel Production on 2026-10-31, the user's; test or production key not recorded; GIPHY until 2026-10-31, the user's pick of the free options) | GIFs in a watch along, the couch chat and React with a GIF (since 2026-11-01: one GIF per person per episode): what's featured and a search, asked by our server (`/api/gifs`, kept at the edge an hour per search); the pictures load from KLIPY's media hosts (static.klipy.com) straight into the browser. Off until `KLIPY_API_KEY` is set (no key, no GIF button). Tenor closed its API on 2026-06-30; GIPHY's free key stays at 100 calls an hour and its production key is paid | Free. A new key is a test key: 100 calls an hour (each distinct search, and featured, at most once an hour per edge region); its production key (no limit) is requested in KLIPY's Partner Panel, no fee published (its ads are optional; we show none). "Powered by KLIPY" shown under the picker; PG-13 at most (`contentfilter=low`). Chat GIFs: a jsonb column on `chat_messages` (0156, ~150 bytes a GIF); episode GIFs: `episode_gifs` (0162, ~300 bytes a row). If everyone's GIF searches after an episode hit the test key's 100 an hour, the picker says "Too many GIF searches this hour": then ask KLIPY for the production key | $0 |
 | **TMDB** API (`api.themoviedb.org`, show art and cast photos, 2026-10-26, on the branch) | Show posters, header images (backdrops) and logos, season posters, and a season's cast photos by name (`src/lib/server/show-art.ts`). Images hotlinked from `image.tmdb.org`, stored as plain URLs. Off until `TMDB_READ_TOKEN` is set (the user's; in `.env.local`, and Vercel needs it too) | Free key, **non-commercial only**: charging users (or ads) needs TMDB's written agreement, price on request. Data kept at most 6 months (the daily job re-asks at 150 days); on a licence ending, everything on `image.tmdb.org` must go: `UPDATE ... WHERE url LIKE 'https://image.tmdb.org/%'`. Attribution: its logo and notice on Settings › Credits. About 40 requests a second allowed | $0 |
 | **Wikipedia / Wikidata** API and **Jolpica** (`api.jolpi.ca`, F1) (2026-10-26, on the branch) | Athletes' photos for sport shows: Wikipedia's page image API returns only freely licensed (Commons) photos; Jolpica gives Formula 1's field with Wikipedia links | Free, no keys. Wikipedia rate-limits bursts (a probe got 429s after ~15 quick calls): batched, one call at a time, at most 30 searches a sweep. Commons photos need their photographer's credit | $0 |
-| **ESPN** (`site.api.espn.com`, `site.web.api.espn.com`, `sports.core.api.espn.com`; sports data, 2026-10-27, local only) | A sport season's games (each day's scoreboard), linked to its episodes; each team's roster with headshots, the Players tab's players (headshots hotlinked from `a.espncdn.com` through ESPN's resizer); a game's box score in the sport's own columns and a player's regular-season line, the Players tab's stats (or a race's places, from its scoreboard); its search (which league a season's teams are in) (`src/lib/server/sports/`, docs/PLAN-sports-data.md). Asked by our server only; every answer cached in Neon (`sports_cache`) | Free, no key, but **unofficial and undocumented**: no published terms or rate limit, and it can change without notice. Asked little (cached hard), credited in Settings › Credits and under the Players tab's roster, other sources planned for when it fails (docs/BACKLOG.md). It refuses a User-Agent with a URL in it (403), so ours is a bare `GameYourShow/1.0` | $0 |
+| **ESPN** (`site.api.espn.com`, `site.web.api.espn.com`, `sports.core.api.espn.com`; sports data, 2026-10-27, local only) | A sport season's games (each day's scoreboard), linked to its episodes; each team's roster with headshots, the Players tab's players (headshots hotlinked from `a.espncdn.com` through ESPN's resizer); a game's box score in the sport's own columns and a player's regular-season line, the Players tab's stats (or a race's places, from its scoreboard); its search (which league a season's teams are in); a team's schedule (a matchup's games, since L1 part 3) and each team sport's league team list (finding a game by team, since L7), a league's calendar and a month's games (a league's slate, since L8; found by the league's name and added, since L8 part 2) and each linked game's final and sportsbook line (`sports_events`) (`src/lib/server/sports/`, docs/PLAN-sports-data.md). Asked by our server, every answer cached in Neon (`sports_cache`); and, live (L2, on the `sports` branch, no screen yet), by phones themselves: a game's summary every 15 s while it's on and the screen's visible, straight from the browser, none of it through our server or Neon (Live games, below; a phone's IP reaches ESPN, no cookies) | Free, no key, but **unofficial and undocumented**: no published terms or rate limit, and it can change without notice. Asked little (cached hard), credited in Settings › Credits and under the Players tab's roster, other sources planned for when it fails (docs/BACKLOG.md). It refuses a User-Agent with a URL in it (403), so ours is a bare `GameYourShow/1.0`; its CDN (Akamai) also refuses a headless browser's (403), not a normal browser's, which gets `Access-Control-Allow-Origin: *` | $0 |
 | Anthropic API | Nothing since the desk's step 8: paid Claude research (the hourly job's first step) and the nightly wiki read went with classic's admin (docs/PLAN-desk-parity.md, decision 9). The repository's Actions secrets `ANTHROPIC_API_KEY` and `GEMINI_API_KEY` are no longer read: **the user removes them** (GitHub › Settings › Secrets and variables › Actions), and Vercel's `ANTHROPIC_API_KEY`, if it has one, likewise. `db/episode-research.js`'s own CLI can still ask Claude, locally | – | $0 |
 | Domain `gameyourshow.com` | Bought 2026-10-12 | not recorded | yearly |
 
@@ -220,6 +221,125 @@ player a game (~10 KB a game) and ~420 bytes a player for coming in (its main ca
 cache row is ~1.1 KB, kept a day. Each Players tab read pulls the lines up to your mark plus everyone's coming in (~25 KB for the
 series at Game 1, ~85 KB at Game 7) and one small aggregate; a fill runs after the answer only when something's due (a game's over,
 someone has no coming in yet), held on `stat_fills`, and the page polls every 4 s only while it runs. Nothing new polls or wakes Neon.
+**Matchups, finals and lines (docs/PLAN-start-a-game-gpt.md track L, L1 part 3, migration 0300; on the `sports` branch, not
+merged)** poll nothing and wake nothing of their own. A matchup (one game, a series, a team's next few) is made from the team's
+ESPN schedule (one call, cached 12 hours, 3 minutes while one of its games is on; ~60 KB of cache row for the 76ers' 80 games), as a
+season of its league's show (`shows.sports_league`, one show per league) keyed by its games (`sports_matchups`, ~200 bytes), so the
+same games asked twice cost nothing. Each linked game's facts are kept once per game (`sports_events`, ~430 bytes: its sides, its
+final, the line): the line from the day's scoreboard while the game is still to play (a call per day, already cached an hour), or for
+a game seen only after, its summary (a call per game, cached for good). The daily listings job reads each linked game's day's
+scoreboard from three days back to a week ahead until it's final (at most 40 days of scoreboards a run, past days first, each
+cached; a suspended game's for 30 days, and a game its day's scoreboard hasn't got, moved, looked up on its team's schedule, cached 12
+hours, at most 10 a run: L3 part 3b), a game first seen after it started taking its summary's line (the box score the stats read anyway, cached for good), and
+sets each matchup season's status. Measured on the real 76ers home opener (2026-10-28): 5 ESPN calls in 0.5 s (the schedule, its summary for
+the line, two rosters, the next game's scoreboard), none a second time. Not backed up (asked again).
+**Finding a game by team (track L, L7, migration 0303; on the `sports` branch, not merged; no screen calls it yet)** polls nothing
+and wakes nothing of its own: three routes, asked only when someone searches, opens a team or adds. **Search** (`/api/sports/search`,
+open signed out, edge-cached an hour per query) matches the words against each team sport's league team list, read from ESPN's
+`/teams` (one call a league a week: 9 leagues, the NFL's, MLB's, the NBA's, the WNBA's, the NHL's and college football's, baseball's
+and both basketballs'; plus any league a matchup's been made in), kept trimmed in `sports_cache` (~5 KB a pro league, college
+football's 762 teams ~130 KB, men's college basketball's 362 ~64 KB; ~340 KB all told) and held in a warm server's memory 10 minutes,
+so a search reads them from Neon at most once in 10 minutes per instance; ESPN's own search only when no list has the words (a week
+per query, as before); and the first three teams' and a matchup's next game from their schedules (each cached 12 hours: up to
+4 rows read, ~13 KB an NFL team's to ~100 KB an MLB team's 162 games). **A team's schedule** (`/api/sports/schedule`, edge-cached
+10 minutes) is its schedule now and its other stage (regular season or postseason) besides: 1-3 calls, cached 12 hours, and one
+query for the seasons already made for its games. **Adding** (`/api/sports/add`, signed in, ten new ones a person a day, finding
+one already made free) makes a matchup as before (a game, a series, their meetings: up to 30 games), or a team's whole regular season
+(up to 200: an MLB team's 162, ~162 rows each in `season_episodes`, `season_events` and `sports_events`, ~120 KB, and its cast from
+every opponent's roster, ~30 roster calls cached a day, ~780 people ~200 KB on `season_cast`); a game already played is never asked
+for its line then (no summary per game), so a whole season costs ESPN the schedule, the week's scoreboards and the rosters.
+**A league's slate (track L, L8, migration 0304; on the `sports` branch, not merged; no screen calls it yet)** polls
+nothing and wakes nothing of its own. A slate is a season of a whole league's games, several an episode (a day's, a week's, a
+soccer round's), shared by everyone who asks for it (`sports_slates`, ~200 bytes plus its episodes' windows, ~30 bytes each: a
+day-by-day MLB season's 186 ~6 KB). Made from **ESPN's calendar** (two new kinds of call: the league's bare scoreboard, its season
+and its days or weeks, and the core's season types, its stages' bounds, one call each, 4-5 a league; cached a day, ~10 KB of cache
+row for the NBA's 174 days), its episodes made at once (`season_episodes`: 18 for the NFL, ~25 weeks or ~165 days for the NBA, 38
+rounds for the Premier League). Its games are linked as they near, from the same day's scoreboards the daily listings job reads
+for every linked game (three days back to eight ahead: up to 12 calls a league a day, cached an hour, shared with every other season
+of the league), so a whole league's season costs its games' rows only as they come: an MLB season's ~2,430 games end up as ~2,430
+rows each in `season_events` (~250 bytes) and `sports_events` (~430 bytes), ~1.7 MB over the season; the NFL's 272 ~190 KB. A soccer
+league's rounds need every fixture at once: **a month's scoreboard** (a third new kind of call, `dates=YYYYMM`, ~0.45 MB of ESPN's
+answer for the Premier League, kept trimmed ~40 KB of cache row, 30 days once the month's over), ten a season, once. Its people are
+the linked teams' rosters (a roster call a team, cached a day: ~30 for a pro league, ~450-1,700 people on `season_cast`, ~120-450
+KB). The Players tab's lines are now a game each (`game_lines.event_id`: a week's or a doubleheader's games apart), no more rows than
+before per game. **Found and added (L8 part 2)** through routes, asked only when someone searches, opens a league or adds: the search
+(`/api/sports/search`, as above) also names the leagues its words fit, from the team lists it already reads (no call), else from ESPN's
+own search's answer it already asks when no list has the words (its leagues, each team sport's named from its league's team list: a
+`/teams` call a league found, a week in the cache, up to 5 a search). **A league's slates** (`/api/sports/league`, new, open signed
+out, edge-cached 10 minutes) reads the league's calendar (cached a day, as making one does) and one query for the slates already made;
+a soccer league's rounds are counted from its fixtures (the month scoreboards a round slate reads anyway: ten a season, cached as
+above), only while its round slate isn't made; a tour's league asks nothing. **Adding** one (`/api/sports/add` with `{ league, slate }`,
+signed in) makes or finds it as above and follows it, under the same ten new ones a person a day as matchups (one count for both:
+`sports_slates.made_by` beside `sports_matchups.made_by`).
+**A team game's counts at its final (track L, L3 part 1, migration 0301; on the `sports` branch, not merged)** poll nothing and
+wake nothing of their own. Once a linked team game is final, its summary is read once more into everyone's counts in the sport's
+keys (`sports_events.lines` and `people`, 3-7 KB a game: the NBA's 3 KB, the NFL's 5 KB, the NHL's 5 KB), kept with the game for
+good and never asked again (one ESPN call a game, the same summary the box score reads; cached a day in `sports_cache` too, ~the
+same size). Asked by the daily listings job for the games it sees final (at most 60 a run) and by a season's stats fill when it reads
+a game as final. A game scored by stats and the questions a sport's game settles read them from Neon (one query a league read,
+only for a game that asks one). Since L3 part 2 (the engine's hook, no migration) a game scored by stats has them stamped on every
+read of its league (the league poll's every 15 s included: `sports/score.ts` stampStats), so each server instance keeps the last
+stamp per league and asks Neon only for a 32-byte fingerprint of the season's kept finals and cast on a read (one small query, two
+the first time an instance sees the season), reading the finals themselves (3-7 KB a game kept) only when one more is kept or the
+cast changes. Since L3 part 2c a game of questions a sport's game settles (pick'em, pick a few) is stamped the same way, with
+only which episodes' games are final (the same fingerprint query on a read; its grading reads the games as before). Since L3 part
+2e squares are stamped the same way (each final game's score and periods, from the same cached read; each locked episode's digits an
+HMAC on the server, no query), the league keeping its deal and each episode's digits (~100 bytes each) at the next write (a read
+when they're due writes once, as a due draw does). A bracket question's answers and its questions' view read the draw as listed:
+the kept card once it's final, else the provider's card (one cached ESPN call, an hour until it's final: the same board the finals
+read), one query for the episode's event and cast a read. Nothing new is stored but the squares in the league; a show's league asks
+nothing.
+**A field's and a card's final (track L, L3 part 3, migration 0302; on the `sports` branch, not merged)**, kept the same way: once a
+linked golf tournament, race weekend, tennis event or fight card is final, the server asks the calls the phone's poller makes for
+it, once (`src/lib/server/sports/espn.ts` eventFinal, through `live-event.ts`'s feeds): golf's board and leaderboard (2 calls); a
+race weekend's board and its core's lists and statistics (~135 calls an F1 weekend, ~47 a NASCAR Cup race, ~36 IndyCar's; ~5 s,
+each round's calls together); a tennis event's board (1 call); a card's board and FightCenter, its rounds, each bout's plays and
+each fighter's statistics (~36 calls a 12-bout UFC card). Kept with the event for good (`sports_events.lines`, `people` and `shape`:
+golf ~29 KB, an F1 weekend ~5.5 KB, a NASCAR race ~9 KB, a UFC card ~11 KB, a WTA 500 ~40 KB, a Grand Slam's draws ~240 KB: the
+US Open's 625 matches with qualifying and doubles, each kept as its sides, sets and winner only, and since L4 part 2 a main-draw
+match's round, ~5.5 KB more a Grand Slam, for a bracket; a team game's `shape` is its periods' ends since L4 part 2, for squares:
+~100 bytes a basketball or football game, ~160 an MLB game's nine innings; and a soccer match level after a penalty shootout its
+shootout score, a few bytes, L4 part 1a), and cached a day in `sports_cache`
+(the same size). To know when it's final, the daily listings job now also reads the first day's scoreboard of each linked field's or
+card's event the app reads, for 16 days from its start (a Grand Slam's fortnight; one call per league and day, cached as before).
+At most 10 fields or cards a run; one whose later call ESPN fails is asked whole again the next run. Nothing polls, nothing new
+wakes Neon.
+**Live games (docs/PLAN-start-a-game-gpt.md track L, L2; on the `sports` branch, not merged; no screen uses it yet, U1)** cost
+nothing on Vercel or Neon. The phone asks ESPN's summary itself (`src/lib/sports/live.ts`): once when the page opens, then from
+the game's start every 15 s (±10%) while it's on and the screen is visible, never while hidden, backing off to 5 minutes while ESPN
+fails, and not after the final; a later watch of a finished game asks once. Live points are worked out on the phone, so nothing
+reaches our server or Neon while a game is live (no invocations, no wakers, no writes); the final box score is saved once, as
+before (`game_lines`). **ESPN's side:** 240 calls an hour for each phone watching (its CDN caches the summary 1-7 s, so a couch's
+phones mostly share an answer). **A phone's data:** every answer is the whole summary (ESPN sends no ETag, so no 304s), 45-80 KB
+over the wire for a finished game (measured 2026-10-28: NBA 49, NHL 45, NFL 53, MLB 80 KB; 0.5-1 MB unzipped), growing from a few
+KB at the start, so an estimated **15-30 MB a game** watched live with the screen on (`scripts/dev-test/record-espn-live.js`
+measures a real game). **Measured live** (L5 part 1, 2026-10-28, two cup ties through extra time and their shootouts): a soccer
+answer is 21-29 KB over the wire (260-350 KB unzipped), so 5-7 MB an hour at 15 s, ~17 MB for a match that goes to extra time.
+**And** (L5 part 2b, 2026-10-30, the night of 2026-10-28 recorded every 30 s): an NBA answer 31 KB on average over the wire (7 MB an
+hour at 15 s, ~17 MB a game), an NHL answer 28 KB (6 MB an hour), **an MLB answer 55 KB** (39-71: every pitch; 13 MB an hour, **~40 MB
+for a three-hour game**, past the estimate). ESPN answers browsers (`Access-Control-Allow-Origin: *`) but its CDN refuses a headless browser's user
+agent, so a person's own browser is the real check (`scripts/dev-test/check-espn-browser.js`'s header). **If ESPN ever stops
+answering phones**, the fallback (not built; its shape in the plan's L2 As built) is one Vercel route forwarding the summary with
+`s-maxage=15`, so Vercel's CDN shares one ESPN call per game every 15 s per region: ~240 function invocations an hour a game a
+region; every phone's ask a CDN request (240 an hour a phone: 10 phones for 3 hours is 7,200 of Hobby's 1M a month); and its
+bytes Vercel's Fast Data Transfer (trimmed to what the readers read, ~5x smaller: a few MB a phone a game; check Hobby's
+allowance on vercel.com/pricing). Still nothing in Neon.
+**Measured live, the weekend of 2026-10-30** (every answer every 30 s; compared 2026-11-05): college football 30-31 KB an answer
+over the wire (7 MB an hour at 15 s), the NFL 38 KB (9 MB), the WNBA 35 KB (8 MB). **Fields and draws** (L2 part 2: the phone's
+poller for an event, `src/lib/sports/live-event.ts`, as untimed as ESPN's answers; no screen uses it yet, U1): **golf** asks the
+event's board and leaderboard every minute while a round's on (33 KB over the wire together, 576 KB unzipped: 2 MB an hour; 120
+calls an hour a phone), until the next tee time between rounds; **tennis** the event's board every 30 s while a match is on (12
+KB, ~150 KB unzipped: 1.5 MB an hour; 120 calls an hour), until the next listed start between, every 10 minutes at most;
+**racing** (L2 part 2b) the weekend's board every 30 s while a session's on (2-4 KB over the wire, ~12 KB unzipped: up to 0.5 MB
+an hour; 120 calls), and from ESPN's core API (`sports.core.api.espn.com`, CORS `*`) a race's or a sprint's list once from its
+start, for the grid (1.2 KB F1's, 2.2 KB NASCAR's), and qualifying's, a sprint's and a race's statistics once it's over (F1: 22
+drivers' statistics, 0.7 KB each, and statuses, 0.2 KB: 44 calls, ~20 KB; NASCAR: the winner's, 0.9 KB, every 10 minutes until
+ESPN fills them in after the race, then everyone's, ~36 calls and 33 KB): about 140 core calls an F1 weekend, ~60 KB; **a fight
+card** (L2 part 2b) its board and FightCenter (`site.web.api.espn.com`, CORS `*`) every 30 s while a bout's on or between bouts
+(23 KB over the wire together, ~250 KB unzipped: 2.7 MB an hour, 16 MB over a 6-hour card; 240 calls an hour), and from the core
+the card's rounds once (3.3 KB), the plays of the bout on each ask (1-1.3 KB: ~150 KB an hour) and each fighter's statistics
+once the bout's settled (1.4 KB each, ~35 KB a 12-bout card). Nothing on Vercel or Neon either, the same fallback if ESPN stops
+answering phones (it would forward the core's and the web API's calls too).
 
 **All of TV and the daily listings job (new design, step 11 part 2)** poll nothing and wake nothing of their own. **The job**
 (`src/lib/server/tv-listings.ts`) runs at most once an Eastern day, after the answer of a bot clock call
@@ -549,6 +669,14 @@ never handles it: the user does the reset and the pasting.
 
 ## Changelog
 
+- **2026-11-06, `sports` branch (not merged).** L3 part 3b (docs/PLAN-start-a-game-gpt.md track L; migration 0306): which line a
+  question plays by, and postponed, suspended and moved games. Stored: `sports_events.called` (a word a game, for games called off)
+  and `question_lines` (one row a league, question, window and game for an over/under on a game's own line, ~120 bytes: a pick'em
+  league on a team's 162 games ~20 KB a season, an NFL week's 14 ~2 KB a week a league), kept once as the question opens (an insert
+  on a read of a league's questions, only while one is open with a line and none kept). New ESPN calls: a team's schedule (already
+  cached 12 hours) for a linked team game its day's scoreboard hasn't got (moved), at most 10 games a daily run, one call a team; a
+  suspended game's day's scoreboard read for 30 days, not 3 (rare: none in ESPN's 2025 or 2026 MLB). Nothing polls; no new job.
+
 - **2026-11-01, branch `reactions`.** React with a GIF in place of Rate it's stars (migration 0162: `episode_gifs`, ~300 bytes a
   row, backed up; `user_settings.share_gifs`). Nothing polls, nothing runs on a schedule, no push. The one service it leans on is
   KLIPY, already set up for the chat (its key is in Vercel Production since 2026-10-31): more searches right after an episode, each
@@ -574,6 +702,81 @@ never handles it: the user does the reset and the pasting.
   for the couch's three Survivor 51 games, three more league rows (~the real ones' state each) and a handful of users, and every
   result accepted for the season syncs three more leagues (a few more writes on an episode night). Researched rules ask our bot
   once (the answer is kept). Remove it when done.
+- **2026-11-06, `sports` branch (not merged).** L8 part 2 (docs/PLAN-start-a-game-gpt.md track L; no migration): a league found by
+  its name (the search's team lists, else ESPN's search's leagues: a team list a league found, a week), what its slate can be (a new
+  route, `/api/sports/league`, edge-cached 10 minutes: its calendar, cached a day, and a soccer league's month scoreboards while its
+  round slate isn't made) and adding one (`/api/sports/add`'s slate, the matchups' day's cap). No new kind of ESPN call or table;
+  nothing polls, nothing new wakes Neon.
+- **2026-11-06, `sports` branch (not merged).** L3 part 2a (docs/PLAN-start-a-game-gpt.md track L; no migration): a game scored by
+  a sport's stats plays, its kept finals' lines stamped on each read of its league (never stored); a 32-byte fingerprint query on
+  each read of such a league (the poll's too), the finals read again only when one more is kept (each instance keeps the last
+  stamp). No new ESPN call or table; a show's league asks nothing.
+- **2026-11-06, `sports` branch (not merged).** L3 part 2c (no migration): a game of questions on a sport's games (pick'em, pick a
+  few) plays; its league's reads take the same fingerprint query as a stats game's (which episodes' games are final, stamped, never
+  stored). No new ESPN call or table.
+- **2026-11-06, `sports` branch (not merged).** L3 part 2e (no migration): squares play (the same fingerprint query on a read; each
+  league keeps its squares, deal and drawn digits in its state, a few KB at most); a bracket question plays, its answers and view
+  reading the draw as listed (an event's board, cached an hour before it's final: the same ESPN call the finals make, one small
+  query a read). No new table.
+- **2026-11-06, `sports` branch (not merged).** L3 part 2f part 2 (no migration): a question about each game of a week (pick'em
+  over a slate, confidence points) plays. Its questions' reads and answers take the league's games as they already do (one query of
+  `season_events` and `sports_events`, now with each game's name too), handing each game's facts over by event id; an answer is a
+  pick per game in `game_answers` (a week of the NFL's 14 games ~1 KB). No new ESPN call or table.
+- **2026-11-06, `sports` branch (not merged).** L8 part 1's engine items, part 2, a bracket of a league's playoffs (migration 0305):
+  each playoff game a slate links keeps its note and its series' length (`season_events.note`, `best_of`: ~30 bytes a game, the
+  NBA's ~85 playoff games ~2.5 KB; NULL on every other link), from the same day's scoreboards the sync already reads (ESPN's `notes`
+  and `series` were in them). A playoffs slate's reads group them into series in memory (no query of their own: the same
+  `season_events` read, two more columns). No new ESPN call or table.
+- **2026-11-06, `sports` branch (not merged).** L8 part 1's engine items, daily lineups inside a week (no migration): a lineup that
+  locks at each game's start (`closes: 'game'`) has each game's start and each holding's games stamped on every read and write of its
+  league (`air-times.ts` stampGameLocks: two small queries, `season_events` for the game's episodes and `season_cast`'s teams, only for
+  such a game; never saved). Each lineup set is kept in the league with its time (`ep.lineupsAt`: a few sets a week a seat, ~100
+  bytes each, a set no game started after replaced by the next). No new ESPN call or table.
+- **2026-11-06, `sports` branch (not merged).** L3 part 2d (no migration): categories and roto play; a categories league's reads
+  carry the sport's stats' definitions beside its lines (a couple of KB in the response, no query of their own). Nothing stored.
+- **2026-11-06, `sports` branch (not merged).** L8 part 1 (docs/PLAN-start-a-game-gpt.md track L; migration 0304): a league's slate,
+  a season of a whole league's games, several an episode (`sports_slates`; `season_events` keyed by episode and event; `game_lines`
+  by event). Three new kinds of ESPN call: a league's bare scoreboard and its season's types (its calendar, a day), and a month's
+  scoreboard (a soccer league's fixtures, once). Its games are linked from the day's scoreboards the daily job already reads; an MLB
+  season's ~2,430 games ~1.7 MB of rows over its season. Nothing polls, nothing new wakes Neon.
+- **2026-11-06, `sports` branch (not merged).** L3 part 3 (docs/PLAN-start-a-game-gpt.md track L; migration 0302): a field's and a
+  card's final kept as a team game's is, from the phone's poller's calls asked once by the server (2 calls golf, ~135 an F1 weekend,
+  ~47 a NASCAR race, 1 a tennis event, ~36 a UFC card), 5-40 KB an event (a Grand Slam's ~240 KB) in `sports_events.lines`, `people`
+  and `shape`, cached a day; the daily listings job reads a linked field's or card's event's first-day scoreboard for 16 days to
+  know when it's final. Live points on the phone (`src/lib/sports/points.ts`) cost nothing (no route, no table).
+- **2026-11-06, `sports` branch (not merged).** L3 part 1 (docs/PLAN-start-a-game-gpt.md track L; migration 0301): a team game's
+  counts kept once it's final (`sports_events.lines`, `people`, `lines_at`: 3-7 KB a game), from one more read of its summary (a call
+  a game, once; cached a day). Asked by the daily listings job (at most 60 games a run) and a season's stats fill. Nothing polls,
+  nothing new wakes Neon; a league read that asks a sports question reads them in one query.
+- **2026-11-05, `sports` branch (not merged).** L2 part 2b (docs/PLAN-start-a-game-gpt.md track L): the phone's poller for a race
+  weekend's and a fight card's events (`raceFeed` and `cardFeed` in `src/lib/sports/live-event.ts`): phones ask ESPN themselves,
+  now ESPN's core API (`sports.core.api.espn.com`) and web API (`site.web.api.espn.com`, a card's FightCenter) besides its site
+  API, all CORS `*`: racing's board every 30 s while a session's on (up to 0.5 MB an hour) with each session's core asked once
+  (a grid at the start; statistics once it's over: ~140 calls and ~60 KB an F1 weekend); a card's board and FightCenter every 30
+  s while it's on (2.7 MB an hour) with the bout on's plays (~150 KB an hour) and each bout's statistics once settled (Live
+  games). Nothing new on Vercel or Neon (no route, no table, no writes); no screen uses it yet (U1).
+- **2026-11-05, `sports` branch (not merged).** The weekend's live recordings compared, and L2 part 2a (docs/PLAN-start-a-game-gpt.md
+  track L): the phone's poller for golf's and tennis's events (`src/lib/sports/live-event.ts`): phones ask ESPN themselves, golf's
+  two answers every minute while a round's on (2 MB an hour), a tennis board every 30 s while a match is on (1.5 MB an hour).
+  Nothing new on Vercel or Neon (no route, no table, no writes); no screen uses it yet (U1). A phone's data measured live on
+  college football, the NFL, the WNBA, golf, racing, a UFC card and two tennis events (Live games). The server's scoreboard reader
+  reads the same answer as before (an F1 weekend no longer final after FP1): no new call.
+- **2026-10-30, `sports` branch (not merged).** L5 part 2b (docs/PLAN-start-a-game-gpt.md track L): college football read from
+  ESPN's answers. No new ESPN call from the app, no table, nothing stored. A phone's data measured on three live games (Live games):
+  MLB's answers are the biggest, ~40 MB for a three-hour game watched live at 15 s; the NBA's and NHL's 6-7 MB an hour.
+- **2026-10-28, `sports` branch (not merged).** L5 part 1 (docs/PLAN-start-a-game-gpt.md track L): soccer read from ESPN's
+  answers (its match sheets, key events and commentary). No new ESPN call from the app, no table, nothing new stored but a
+  league's own name on the read shapes already cached (a few bytes; a league's show is named from it). A live soccer answer
+  measured: 21-29 KB over the wire, 5-7 MB an hour a phone at 15 s (Live games).
+- **2026-10-28, `sports` branch (not merged).** L2 (docs/PLAN-start-a-game-gpt.md track L): the phone's live poller
+  (`src/lib/sports/live.ts`): phones ask ESPN's summary themselves, every 15 s while a game is on and the screen visible. Nothing
+  new on Vercel or Neon (no route, no table, no writes); ESPN's calls 240 an hour a phone watching; a phone's data an estimated
+  15-30 MB a game. The fallback route's shape and cost written down (Live games), not built. No screen uses it yet (U1).
+- **2026-10-28, `sports` branch (not merged).** L1 part 3 (docs/PLAN-start-a-game-gpt.md track L; migration 0300): a matchup's
+  games from a team's ESPN schedule (a new ESPN call: `teams/{id}/schedule`, cached 12 hours), each linked game's final and line
+  kept (`sports_events`, ~430 bytes a game; the line from the scoreboard before the game, else the summary's pickcenter), matchups
+  keyed by their games (`sports_matchups`), one show per league (`shows.sports_league`). The daily listings job reads linked games'
+  scoreboards until they're final (cached). Nothing polls, nothing new wakes Neon; the 76ers opener took 5 calls, once.
 - **2026-10-27, local only (not deployed).** Sports data, steps 1-2 (docs/PLAN-sports-data.md; migration 0148): a new free service,
   **ESPN** (no key, unofficial: see The stack), asked by our server only when a sport is added and by the daily listings job, every
   answer cached in Neon (`sports_cache`). Nothing polls, nothing new wakes Neon. The real World Series' four games linked in 7 calls.

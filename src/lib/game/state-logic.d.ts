@@ -549,6 +549,67 @@ declare const StateLogic: {
   seasonWinner(state: LeagueState): Castaway | null;
   /** The season is over: its winner crowned, or, in a format nobody wins, nobody left in it. */
   seasonEnded(state: LeagueState): boolean;
+  /** L3 part 2: a game scored by a sport's stats, from the lines the server stamps on the copy it reads (never stored). */
+  StatsLogic: {
+    on(state: LeagueState): boolean;
+    /** L3 part 2c: the game reads a sport's games (scored by their stats, or asking a question one settles). */
+    reads(state: LeagueState): boolean;
+    /** An episode's stat lines as its moments at the game's table, or null before its lines are in. */
+    scored(state: LeagueState, ep: Episode | null | undefined): { castawayId: string; points: number }[] | null;
+    /** One holding's line in an episode at the game's table (its points and the stats that made them), or null. */
+    lineOf(state: LeagueState, ep: Episode | null | undefined, castawayId: string): import("./sequence/stats").Scored | null;
+    /** The server's stamp, in place: each final episode's lines (and a card's bouts) by castaway, the cast's position groups, the
+     *  episodes whose game is final (part 2c: ep.gameFinal); part 2e, a squares game's final scores (ep.gameScore), each locked
+     *  episode's digits (ep.squareDigits) and the sport's regulation periods (state.statPeriods). */
+    stamp(state: LeagueState, o: { lines?: Record<number, Record<string, Record<string, number>>>; bouts?: Record<number, Record<string, import("./sequence/stats").StatBout[]>>; groups?: Record<string, string>; finals?: number[]; defs?: import("./sequence/categories").CategoryDefs; games?: Record<number, Pick<import("./game-spec").SportsGameFacts, "status" | "sides" | "periods">>; digits?: Record<number, import("./sequence/squares").SquaresDigits>; periods?: number | null; byGame?: Record<number, Record<string, Record<string, Record<string, number>>>> }): LeagueState;
+    unstamp(state: LeagueState): LeagueState;
+    /** The keys a stamp writes (a save leaves them out). */
+    stampedKeys(): string[];
+    /** L3 part 2d: a game ranked by a sport's categories, its parts (head to head by each, by most, or roto), or null. */
+    categories(state: LeagueState): import("./game-spec").CategoryParts | null;
+    /** Who of a seat's counts in an episode: its starters then, or its whole team. */
+    heldAt(state: LeagueState, ep: Episode, playerId: string): string[];
+    /** The game's episodes with their lines in, in order. */
+    played(state: LeagueState): Episode[];
+    /** Each seat's category totals over some episodes. */
+    totals(state: LeagueState, eps: Episode[], seats: string[], cats: string[]): Map<string, import("./sequence/categories").CategoryTotals>;
+  };
+  /** L3 part 2e: squares on a team game's two scores: everyone's squares (picked, or dealt at the first lock), each locked episode's
+   *  digits, each episode's pays from its game's final score. */
+  SquaresLogic: {
+    on(state: LeagueState): boolean;
+    parts(state: LeagueState): import("./game-spec").SquaresParts | null;
+    /** The game's first episode has locked (or has results). */
+    locked(state: LeagueState, now?: number): boolean;
+    /** Each seat's squares in episode `n`. */
+    heldAt(state: LeagueState, n: number): Record<string, number[]>;
+    /** A seat's squares as they stand. */
+    mine(state: LeagueState, playerId: string): number[];
+    /** The episode a square taken now counts from, or null when none is open. */
+    openFrom(state: LeagueState, now?: number): number | null;
+    /** Why a seat can't take these squares now, or null. */
+    takeProblem(state: LeagueState, playerId: string, cells: unknown, now?: number): string | null;
+    /** Takes them, in place: the problem (nothing changed), or null. */
+    take(state: LeagueState, playerId: string, cells: number[], now?: number): string | null;
+    /** An episode's digits once it's locked, or null. */
+    digitsAt(state: LeagueState, ep: Episode, now?: number): import("./sequence/squares").SquaresDigits | null;
+    /** The episodes whose digits the server draws now (locked, not kept yet). */
+    toDraw(state: LeagueState, now?: number): { number: number; id: string }[];
+    /** An episode's pays and what each seat won there. */
+    pays(state: LeagueState, ep: Episode, now?: number): { pays: import("./sequence/squares").SquaresPay[]; totals: Record<string, number> };
+    /** Each seat's points over the game. */
+    totals(state: LeagueState): Map<string, number>;
+    /** Whether the next write has something to keep (the deal's seats, a locked episode's digits). */
+    due(state: LeagueState, now?: number): boolean;
+    /** Keeps it, in place: true when anything changed. */
+    settle(state: LeagueState, now?: number): boolean;
+  };
+  /** L3 part 2d: roto on a sport's categories: each category ranks everyone on the game so far, the row's total its roto points. */
+  RotoLogic: {
+    on(state: LeagueState): boolean;
+    table(state: LeagueState): { totals: Map<string, import("./sequence/categories").CategoryTotals>; rows: import("./sequence/categories").RotoRow[] };
+    apply<R extends { playerId: string; total: number }>(state: LeagueState, rows: R[]): R[];
+  };
   ActiveRosterLogic: {
     /** C7: `episode`, the one it's scored in (only its card's moments count there: score.only 'card'). */
     pointsFor(state: LeagueState, type: string, episode?: number): number;
@@ -556,15 +617,23 @@ declare const StateLogic: {
     eventPoints(state: LeagueState, ev: Pick<ScoringEvent, "type" | "units">, episode?: number): number;
     /** An episode's moments at the game's points, in order: what the scoring sequence reads (C2 part 1). */
     scoredEvents(state: LeagueState, events: ScoringEvent[], episode?: number): { castawayId: string; points: number }[];
+    /** L3 part 2: an episode's moments as step 2 reads them (a stats game's stat lines), or null when it has none yet. */
+    episodeScored(state: LeagueState, ep: Episode, events?: ScoringEvent[]): { castawayId: string; points: number }[] | null;
     activeSlots(state: LeagueState): number;
     benchSlots(state: LeagueState): number;
     /** This episode's lineup, or (if never set for it) the most recent earlier one, still-owned and capped. */
     lineupFor(state: LeagueState, epId: string, playerId: string): string[];
     /** True when lineupFor is carrying an earlier episode's lineup rather than one set for this episode. */
     lineupIsCarried(state: LeagueState, epId: string, playerId: string): boolean;
-    isLineupLocked(state: LeagueState, epId: string): boolean;
-    validateLineup(state: LeagueState, epId: string, playerId: string, castawayIds: string[]): string | null;
-    setLineup(state: LeagueState, epId: string, playerId: string, castawayIds: string[]): boolean;
+    isLineupLocked(state: LeagueState, epId: string, now?: number): boolean;
+    validateLineup(state: LeagueState, epId: string, playerId: string, castawayIds: string[], now?: number): string | null;
+    setLineup(state: LeagueState, epId: string, playerId: string, castawayIds: string[], now?: number): boolean;
+    /** L8 part 1's engine items: a lineup locking at each game's start (closes 'game', its games stamped). */
+    eachGame(state: LeagueState, ep: Episode): boolean;
+    /** Whether a holding is locked now: one of its games in the episode has started and its day isn't over. */
+    heldLocked(ep: Episode, castawayId: string, now?: number): boolean;
+    /** The lineup a player had in force at instant `t` (ms). */
+    lineupAt(state: LeagueState, ep: Episode, playerId: string, t: number): string[];
     /** Step A9 part 2: best ball's n (0: none); a captain's multiplier (0: no captain); whether the lineups score any way but
      *  plainly; what an episode's points multiply by (1: plainly). */
     bestOf(state: LeagueState): number;
@@ -1168,7 +1237,7 @@ declare const StateLogic: {
     /** A7: the window an episode is in (where it opens), or null. */
     windowAt(state: LeagueState, q: Question, episode: number | null, seen?: number | null): number | null;
     closesAt(state: LeagueState, q: Question, episode: number, finale?: number | null): number | null;
-    closed(state: LeagueState, q: Question, episode: number, o?: { now?: number; finale?: number | null; airAt?: string | null; mark?: number | null }): boolean;
+    closed(state: LeagueState, q: Question, episode: number, o?: { now?: number; finale?: number | null; airAt?: string | null; mark?: number | null; lastStart?: string | null }): boolean;
     episodeNow(state: LeagueState): number | null;
     /** A7: the episode someone answers for now with a late lock (the one after their mark while it's open for them). */
     lateEpisode(state: LeagueState, mark: number | null, o?: { now?: number; airAtOf?: (episode: number) => string | null }): number | null;

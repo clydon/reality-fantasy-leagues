@@ -5,6 +5,9 @@
 // columns are the provider's own labels (a hitter's `H-AB AB R H RBI`, an AFL player's `D G B T`), so each sport's relevant
 // stats come for free. Every call goes through the cache (cache.ts), so a season costs a handful of calls.
 
+import type { StoredFinal } from "@/lib/sports/final";
+import type { LeagueCalendar } from "@/lib/sports/slate";
+
 /** A league as the provider names it. `id` is the provider's own handle for it (ESPN's "baseball/mlb"). */
 export interface League {
   id: string;
@@ -31,6 +34,15 @@ export interface Team {
   also: string[];
   abbreviation: string | null;
   logo: string | null;
+  /** Its colour as the provider gives it (ESPN's hex, without the #), when a team list said it (L7). */
+  color?: string | null;
+}
+
+/** A league's teams (L7: finding a game by team), with the league's names when the provider said them. */
+export interface LeagueTeams {
+  league: string;
+  name: LeagueName | null;
+  teams: Team[];
 }
 
 export interface Person {
@@ -52,8 +64,30 @@ export interface Competitor {
   place: number | null;
 }
 
+/** A league as the provider names it: in full ("English Premier League", "National Basketball Association") and as people say
+ *  it ("Premier League", "NBA"). */
+export interface LeagueName {
+  name: string;
+  short: string | null;
+}
+
 /** "pre": not started; "in": being played; "post": over (final, or called off). */
 export type EventState = "pre" | "in" | "post";
+/** L3 part 3b: why a game wasn't played as listed, as the provider's status names it: postponed (its makeup, when there is one, a
+ *  game of its own), canceled (never made up), or suspended (stopped, to be finished later: the same game, being played). */
+export type Called = "postponed" | "canceled" | "suspended";
+
+/** A sportsbook's line on a game, as the provider shows it (ESPN's DraftKings): an over/under's default line (L1 part 3). */
+export interface Odds {
+  /** Whose line it is ("DraftKings"). */
+  provider: string | null;
+  /** The favourite and the spread, as the book writes it ("PHI -2.5"). */
+  details: string | null;
+  /** The total points (runs, goals) line. */
+  overUnder: number | null;
+  /** The home side's spread (-2.5: the home side gives 2.5). */
+  spread: number | null;
+}
 
 /** A season's stages, in order. */
 export type SeasonStage = "pre" | "regular" | "post";
@@ -79,6 +113,9 @@ export interface SportsEvent {
   at: string | null;
   state: EventState;
   final: boolean;
+  /** L3 part 3b: why it wasn't played as listed (over without being played: postponed or canceled; suspended: still being played,
+   *  to be finished later), or null; an answer cached before has none. */
+  called?: Called | null;
   /** The provider's season year for it (the stats' season). */
   season: number | null;
   /** Which stage of its season it's in, when the provider says: the preseason, the regular season, or the postseason (playoffs,
@@ -86,9 +123,17 @@ export interface SportsEvent {
   stage: SeasonStage | null;
   /** A note the provider puts on it ("World Series - Game 1"). */
   note: string | null;
+  /** L8 part 1's engine items, part 2: a playoff series' most games (ESPN's series.totalCompetitions: best of 7), or null for a
+   *  game of no series (the NFL's playoffs, the regular season); an answer cached before has none. */
+  bestOf?: number | null;
   competitors: Competitor[];
   /** Its parts, when it has more than one; else empty. */
   parts: EventPart[];
+  /** The line on it, while the provider shows one (ESPN's scoreboard: only before the game); else null. */
+  odds: Odds | null;
+  /** Its league as the provider names it, when its answer says (ESPN's scoreboard, and a soccer team's schedule); an answer
+   *  cached before L5 has none. */
+  leagueName?: LeagueName | null;
 }
 
 /** A player on a team's roster (players only: a provider's coaches and staff are left out). */
@@ -113,6 +158,8 @@ export interface BoxScore {
   state: EventState;
   final: boolean;
   teams: { team: Team; score: string | null; winner: boolean | null; tables: StatTable[] }[];
+  /** The line before the game (ESPN's summary keeps it after, in its pickcenter), when the provider has one. */
+  odds?: Odds | null;
 }
 
 /** A player's regular-season line in one of the provider's categories ("Batting", "Expanded Batting"). */
@@ -143,10 +190,29 @@ export interface SportsProvider {
   find(text: string): Promise<Found[]>;
   /** A league's events on a day (YYYY-MM-DD, the provider's own calendar day). */
   eventsOn(league: string, date: string): Promise<SportsEvent[]>;
+  /** L8: a league's events in a month ("YYYY-MM"), for a season's fixtures at once (a slate's rounds). */
+  eventsIn(league: string, month: string): Promise<SportsEvent[]>;
+  /** L8: a league's season now (its stages' bounds and its calendar of days or weeks), or null when the provider has none. */
+  calendar(league: string): Promise<LeagueCalendar | null>;
+  /**
+   * A team's games in a season, in order (L1 part 3: a matchup's games straight from it), or null when the provider has no such
+   * team. `season` is the provider's year for it (ESPN's 2027 for the NBA's 2026-27), `type` its stage (2 the regular season, 3
+   * the postseason); without them, the provider's season and stage now.
+   */
+  schedule(league: string, team: string, opts?: { season?: number; type?: number }): Promise<SportsEvent[] | null>;
+  /** L7: a league's teams (the active ones), or null when the provider has no such league or no list for it. */
+  teams(league: string): Promise<LeagueTeams | null>;
   /** A team's players, or null when the provider has no such team. Can be empty (AFL's rosters on ESPN are). */
   roster(league: string, team: string): Promise<RosterPlayer[] | null>;
   /** Each team's player lines in a game, in the provider's own columns, or null when it has none. */
   boxScore(league: string, event: string): Promise<BoxScore | null>;
+  /**
+   * L3 part 1: a team game as a game scored by stats reads it (src/lib/sports/final.ts StoredGame: everyone's counts in the sport's
+   * keys, their teams and positions, the score), from the same summary as its box score. L3 part 3: a field's or a card's event
+   * (StoredField, StoredCard: the standings, or the bouts and results, besides), from the calls the phone's poller makes for it.
+   * Null when it has none, or its league isn't a sport the app reads.
+   */
+  game(league: string, event: string): Promise<StoredFinal | null>;
   /**
    * A player's lines for a season's regular season (its year), or null when the provider has none. Never its postseason: that
    * holds the very games a show of the playoffs is showing.

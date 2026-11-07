@@ -61,6 +61,8 @@ const SCORES = [
   ["lines", { by: "lines" }],
   ["lines-pts", { by: "lines", points: 2 }],
   ["stats", { by: "stats", points: { goals: 1 } }],
+  // L3 part 2e: squares paid at the final score.
+  ["squares", { by: "squares", pays: [{ at: "final", points: 1 }] }],
 ];
 const CUT = [{ at: { every: 1 }, out: 1 }];
 const TEAMS = { of: 2 };
@@ -135,6 +137,15 @@ const ASKS = [
   ["finale-boot", [...FINALE, boot()]],
   ["beat", [boot({ beat: { by: "bot" } })]],
   ["beat-split", [boot({ beat: { by: "bot" }, share: "split" })]],
+  // L3 part 2c: the sports settles (a game's final, a stat in it) and the side answer: the sports defaults' pick'em and pick a few,
+  // and the total over or under.
+  ["sports-pickem", [{ id: "winner", ask: "Who wins?", answer: "side", points: 1, asked: "each", closes: "start", settle: { by: "final", take: "winner" } }]],
+  ["sports-few", [{ id: "few", ask: "Pick three: who has the most points?", answer: "person", pick: 3, from: "cast", points: 3, asked: "each", closes: "start", settle: { by: "stat", stat: "PTS", take: "most" } }]],
+  ["sports-total", [{ id: "total", ask: "Total points: over or under?", answer: "overUnder", line: 220.5, points: 1, asked: "each", closes: "start", settle: { by: "final", take: "total" } }]],
+  // L3 part 2e: a draw's bracket (tennis's men's singles), each round's winners.
+  ["sports-bracket", [{ id: "bracket", ask: "Who wins each round of the men's singles?", answer: "bracket", points: 1, rounds: "double", asked: "each", closes: "start", settle: { by: "final", take: "bracket", of: "MS" } }]],
+  // L3 part 2f part 2: a question about each game of the episode (a week's slate's pick'em), its picks ranked by confidence.
+  ["sports-each-game", [{ id: "slate", ask: "Who wins each game?", answer: "side", each: "game", confidence: true, points: 1, asked: "each", closes: "start", settle: { by: "final", take: "winner" } }]],
 ];
 /** The asks crossed with every hold, score and rank (the rest go with the games of questions only: below). */
 const EVERYWHERE = ["none", "finale", "boot", "boot-imm", "calls", "finale-boot"];
@@ -213,7 +224,7 @@ function corpus() {
   return out;
 }
 
-const SHAPE = { "classic-draft": "c", "active-roster": "a", pickem: "p", "weekly-calls": "k", questions: "q", "weekly-bingo": "b", stages: "s" };
+const SHAPE = { "classic-draft": "c", "active-roster": "a", pickem: "p", "weekly-calls": "k", questions: "q", "weekly-bingo": "b", stages: "s", squares: "x" };
 /** A spec's verdict, as three letters: the shape it plays as (or '.'), then 'p' when specProblems has anything against it (else
  *  '-'), then 'w' when specWaitsFor does (else '-'). */
 function verdictOf(G, spec) {

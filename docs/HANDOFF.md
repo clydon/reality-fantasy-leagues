@@ -525,7 +525,7 @@ it doesn't go in the menu.** The audit (checked in the code, 2026-10-30), per ol
   playtest branch is merged into master (`2c945d31`).
 - **Neon is on Launch** since 2026-10-28 (the user upgraded it at 98.3% of the free transfer; about $5 a month; HOSTING.md).
 - **On branches, not merged:** the engine from A14 part 2b on (`engine`: the bot's own calls, built; then A14's rest),
-  track L's live sports (`sports`: L1, L2, L5 and L7 done, L3, L4 and L8 in parts; its engine hooks next, on track C). The lanes run at high
+  track L's live sports (`sports`: L1, L2, L5 and L7 done, L3, L4 and L8 in parts; synced with master `846436c3` on 2026-11-06 and its engine hooks in parts: L3 part 2a, points per stat, 2b, the daily and weekly locks, 2c, the sports settles in a game of questions, 2d, categories and roto, 2e, squares and a bracket question, 2f part 1, a slate's week game by game, and 2f part 2, a question per game of a week (confidence points, each pick locking at its own game's start), built; L8 part 1's other engine items next). The lanes run at high
   since 2026-11-05 (the user; C2 at xhigh) under the usage cap ([PARALLEL-SESSIONS.md](PARALLEL-SESSIONS.md), "The usage
   cap"). Waiting on the
   user: S3 after two matching episodes; which rule a preset meets (open until the engine is complete: the user, 2026-10-30);

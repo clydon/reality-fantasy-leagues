@@ -18,7 +18,8 @@
 //
 // Pure CommonJS, like ./schema.js.
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
-const { CARD_OUT_HOURS, PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, spanEnd, spanEndPhase, playsAs, callsAsk, finaleIn, draftQuestions, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion, matchupParts, questionsGame, poolByPoints, teamParts, handicapParts, stageOn, ON_CHANGE, nextStageAts, fallsTo, stageSide, mainCount, stageAlongside, stageSeason, seasonKey, isPlayers, isBeat, waiverOwnOf, waiverMoves, weekParts, momentsPick, bankOf, isTicket, ticketOf, cardOf, isCardQuestion, onlyCard, questionLines, lifeRides, askOf: linesOf } = require('./schema.js');
+const { LINE_GAME, CARD_OUT_HOURS, PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, spanEnd, spanEndPhase, playsAs, callsAsk, finaleIn, draftQuestions, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion, matchupParts, categoryParts, squaresParts, ordinalWord, questionsGame, poolByPoints, teamParts, handicapParts, stageOn, ON_CHANGE, nextStageAts, fallsTo, stageSide, mainCount, stageAlongside, stageSeason, seasonKey, isPlayers, isBeat, waiverOwnOf, waiverMoves, weekParts, momentsPick, bankOf, isTicket, ticketOf, cardOf, isCardQuestion, onlyCard, questionLines, lifeRides, askOf: linesOf } = require('./schema.js');
+const { PLAYOFFS } = require('../sequence/bracket.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const NUMBER_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
@@ -50,6 +51,15 @@ function wordsOf(ctx) {
     group: typeof c.group === 'string' && c.group ? c.group.toLowerCase() : 'group',
     moments: Array.isArray(c.moments) ? c.moments : null,
     stats: new Map((Array.isArray(c.stats) ? c.stats : []).map((x) => (isObj(x) ? [x.key, x.label || x.key] : [x, x]))),
+    // L4 part 1b: the stats a categories game can name, each with its label ("Field goal percentage"), which way is better and
+    // whether it's a rate.
+    categories: new Map((Array.isArray(c.categories) ? c.categories : []).map((x) => (isObj(x) ? [x.key, { label: x.label || x.key, better: x.better, rate: !!x.rate }] : [x, { label: x, better: undefined, rate: false }]))),
+    // L1 part 4a: a sport's position groups ("Goalkeepers") and its bouts' formats ("5 sets"), for a stats score's tables.
+    positions: new Map((Array.isArray(c.positions) ? c.positions : []).map((x) => (isObj(x) ? [x.key, x.label || x.key] : [x, x]))),
+    formats: new Map((Array.isArray(c.formats) ? c.formats : []).map((x) => (isObj(x) ? [String(x.key), x.label || String(x.key)] : [String(x), String(x)]))),
+    // L4 part 2: a sport's word for its periods (squares pay at their ends), and the draws a bracket can be of ("Men's singles").
+    period: isObj(c.periods) && c.periods.word ? { word: c.periods.word, plural: c.periods.plural || `${c.periods.word}s` } : { word: 'period', plural: 'periods' },
+    draws: new Map((Array.isArray(c.draws) ? c.draws : []).map((x) => (isObj(x) ? [x.key, x.label || x.key] : [x, x]))),
     phases: new Map((Array.isArray(c.phases) ? c.phases : []).filter(isObj).map((p) => [p.id, p.name || p.id])),
     // A12 part 2, inside a game in stages: a stage a format change starts says where it starts in these words, and the stage
     // before it runs until then.
@@ -125,6 +135,48 @@ const statsWords = (points, w) => listOf(Object.entries(points).map(([k, p]) => 
   return `${p} ${article(label)} ${label}`;
 }));
 
+const nth = (n) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th'}`;
+/**
+ * L1 part 4a: a stats score in words: each stat's points, a position's own beside it ("6 a goal (10 for goalkeepers)"), each
+ * place's ("by place: 25 for 1st and 8 for 4th–10th") and a bout's format's ("scheduled for 5 sets: 2 a game won").
+ */
+/** When lineups or picks lock (`what`): at each part's start, or (L3 part 2b, a sport's daily or weekly lock) at the day's or week's
+ *  first start, for everything that day or week (impeccable clarify, 2026-11-06: a later game's lineup locks early with the rest). A
+ *  part that's itself a calendar word (a slate's day, week or round) is its games. */
+function lockRule(what, s, w) {
+  const tail = 'Change yours as often as you like until then.';
+  // L8 part 1's engine items, a lineup locking at each game's start (impeccable clarify, 2026-11-06: the one fact first, each person at
+  // their own game; then what's still yours to change; then which lineup a game counts for).
+  if (s.closes === 'game') return `Each ${w.castaway} locks when their game starts, for the rest of that day. Change the rest of your lineup as often as you like until theirs start: each game counts for whoever's in your lineup when it starts.`;
+  if (s.closes !== 'daily' && s.closes !== 'weekly') return `${what} lock when the ${w.part} starts. ${tail}`;
+  const span = s.closes === 'daily' ? 'day' : 'week';
+  const one = ['day', 'week', 'round', 'gameweek', 'matchday'].includes(w.part) ? 'game' : w.part;
+  return `${what} lock when the ${span}'s first ${one} starts, for every ${one} that ${span}. ${tail}`;
+}
+function statScoreWords(sc, w) {
+  const flat = isObj(sc.points) ? sc.points : {};
+  const pos = isObj(sc.byPosition) ? sc.byPosition : {};
+  const label = (k) => w.stats.get(k) || k;
+  const each = (p, k) => `${p} ${article(label(k))} ${label(k)}`;
+  const out = [];
+  for (const k of [...new Set([...Object.keys(flat), ...Object.keys(pos)])]) {
+    const own = isObj(pos[k]) ? Object.entries(pos[k]).filter(([, p]) => p !== flat[k]).map(([g, p]) => `${p} for ${(w.positions.get(g) || g).toLowerCase()}`) : [];
+    if (flat[k] !== undefined) out.push(own.length ? `${each(flat[k], k)} (${listOf(own)})` : each(flat[k], k));
+    else if (own.length) out.push(`${article(label(k))} ${label(k)}: ${listOf(own)}`);
+  }
+  const words = [];
+  if (out.length) words.push(listOf(out));
+  for (const [k, t] of Object.entries(isObj(sc.byPlace) ? sc.byPlace : {})) {
+    const at = Object.entries(t).map(([r, p]) => {
+      const [a, b] = String(r).split('-');
+      return `${p} for ${b === undefined ? nth(Number(a)) : `${nth(Number(a))}–${nth(Number(b))}`}`;
+    });
+    words.push(`by ${label(k)}: ${listOf(at)}`);
+  }
+  for (const [f, t] of Object.entries(isObj(sc.byFormat) ? sc.byFormat : {})) words.push(`scheduled for ${w.formats.get(f) || f}: ${statsWords(t, w)}`);
+  return words.join('; ');
+}
+
 /** A question's words, or its id while it has none yet. */
 const askOf = (q) => String(q.ask || q.id || 'A question').trim();
 /** A moment by its words, as the show calls it (its id when the context doesn't say). */
@@ -170,6 +222,7 @@ const ticketIn = (q, s) => ticketOf((s ? linesOf(s) : []).find((x) => x.id === q
 function questionPhrase(q) {
   const text = askOf(q).replace(/\?$/, '');
   const phrase = /^[A-Z][a-z]/.test(text) ? text.charAt(0).toLowerCase() + text.slice(1) : text;
+  if (q.answer === 'overUnder' && q.line === LINE_GAME) return `${phrase} (the game's line)`;
   return q.answer === 'overUnder' && typeof q.line === 'number' ? `${phrase} (${q.line})` : phrase;
 }
 
@@ -322,7 +375,11 @@ function sentenceParts(s, w) {
   } else if (by === 'card') {
     put(`a new bingo card every ${w.part}`, 'get');
   } else if (by === 'squares') {
-    put('everyone takes squares on the grid', 'get');
+    // L4 part 2: squares, picked or dealt.
+    const sq = squaresParts(s);
+    const grid = sq ? `${sq.grid}-by-${sq.grid}` : '10-by-10';
+    put(sq && sq.take === 'deal' ? `everyone is dealt squares at random on a ${grid} grid of the two scores' last digits` : `everyone takes squares on a ${grid} grid of the two scores' last digits`, 'get');
+    if (sq && sq.take === 'pick' && sq.each) put(`, up to ${say(sq.each)} each`, 'get');
   } else if (s.score.by === 'answers' && callsAsk(s.ask)) {
     put(`two calls before every ${w.part}`, 'get');
   } else if (s.score.by === 'answers') {
@@ -376,7 +433,9 @@ function sentenceParts(s, w) {
   }
   else if (sc.by === 'answers' && callsAsk(s.ask)) put(' Most right by the finale wins.', 'score');
   else if (sc.by === 'lines') put(isNum(sc.points) && sc.points !== 1 ? ` ${cap(pointsWord(sc.points))} a line; most points by the finale wins.` : ' Most lines by the finale wins.', 'score');
-  else if (sc.by === 'stats' && isObj(sc.points)) put(` Scored ${statsWords(sc.points, w)}.`, 'score');
+  else if (sc.by === 'stats' && categoryParts(s)) put(` ${categoryPhrase(categoryParts(s), w)}`, 'score');
+  else if (sc.by === 'squares' && squaresParts(s)) put(` ${squaresPayPhrase(squaresParts(s), w)} Most points wins.`, 'score');
+  else if (sc.by === 'stats' && statScoreWords(sc, w)) put(` Scored ${statScoreWords(sc, w)}.`, 'score');
   else if (sc.by === 'answers') answersPhrases(s.ask, parlaysOf(sc), put, bankOf(s), s);
   // C2 part 4c: a draft's own questions, their points beside the team's.
   if (by === 'draft' && draftQuestions(s).length) answersPhrases(draftQuestions(s), [], (text) => put(text, 'ask'));
@@ -394,9 +453,10 @@ function sentenceParts(s, w) {
   const handicap = handicapParts(s);
   if (handicap) put(` ${handicapPhrase(handicap, w)}`, 'rank');
   // C2 part 4b: a pool ranked by its points says who wins (its teams say it themselves).
+  const cats = categoryParts(s);
   // C5: weeks won.
   const weeks = weekParts(s);
-  const rank = h2h ? ` ${matchupPhrase(h2h, w, !!teams)}` : weeks ? ` ${weekPhrase(weeks, w, !!teams)}` : (poolByPoints(s) || momentsPick(s)) && !teams ? ' Most points wins.' : { worth: " Most worth wins: cash plus the team at today's prices.", matchups: ' Played head to head.', categories: ' Ranked by category.', roto: ' Ranked roto-style.' }[s.rank.by];
+  const rank = cats ? ` ${categoryRankPhrase(cats, w)}` : h2h ? ` ${matchupPhrase(h2h, w, !!teams)}` : weeks ? ` ${weekPhrase(weeks, w, !!teams)}` : (poolByPoints(s) || momentsPick(s)) && !teams ? ' Most points wins.' : { worth: " Most worth wins: cash plus the team at today's prices.", matchups: ' Played head to head.', categories: ' Ranked by category.', roto: ' Ranked roto-style.' }[s.rank.by];
   if (rank) put(rank, 'rank');
   // A10 part 4b: a team two people share.
   if (seatPeople(s) > 1) put(` Up to ${say(seatPeople(s))} of you can share a team.`, 'extras');
@@ -509,6 +569,17 @@ function questionRule(q, w, each, ask, bank, s) {
     if (q.answer === 'pairs') earn = ` ${cap(say(q.pairs))} ${q.pairs === 1 ? 'pair' : 'pairs'}, the same for everyone: ${pointsWord(pts)} for each one you call.`;
     // A13: the round of trivia before each one, about the one before it.
     if (q.answer === 'trivia') earn = ` A few questions about the ${w.part} before it and the season so far, the same for everyone: ${pointsWord(pts)} for each one right.`;
+    // L4 part 2: a draw's bracket.
+    if (q.answer === 'bracket') {
+      const of = isObj(q.settle) && typeof q.settle.of === 'string' ? w.draws.get(q.settle.of) || q.settle.of : null;
+      const draw = of ? `the ${of.charAt(0).toLowerCase()}${of.slice(1)} draw` : 'the draw';
+      // L8 part 1's engine items, part 2: a league's playoffs, each round's series (or the NFL's games), picked before they start.
+      const playoffs = isObj(q.settle) && q.settle.of === PLAYOFFS;
+      const what = playoffs ? 'Before the playoffs start, pick the winner of every matchup, round by round to the final' : `Pick the winner of every match of ${draw}, round by round to the final`;
+      earn = q.rounds === 'same'
+        ? ` ${what}: ${pointsWord(pts)} for each one right.`
+        : ` ${what}: ${pointsWord(pts)} for each one right in the first round, doubling each round after it.`;
+    }
   }
   // A14 part 2: played against the bot's own call, and its fallback (an episode fact's own, below, still said).
   if (isBeat(q) && pts !== null) earn = beatWords(q, pts);
@@ -517,12 +588,26 @@ function questionRule(q, w, each, ask, bank, s) {
   // A14 part 1: the players' own answers settle it, and its fallbacks.
   if (isPlayers(q) && pts !== null) earn = playersWords(q, pts, ask);
   // A question about each person (A6): an answer for each of them, each graded on its own.
-  if (q.each && pts !== null) {
+  // L3 part 2f part 2: or each game of the episode, each pick graded on its own game; confidence, each right pick worth its rank.
+  if (q.each === 'game' && pts !== null) {
+    earn = q.confidence === true
+      ? ` Answer for each game of the ${w.part}, and rank your picks by how sure you are: the surest worth as many as there are games, the least sure 1. Each one right scores ${pts === 1 ? 'its rank' : `its rank times ${pointsWord(pts)}`}.`
+      : q.answer === 'number'
+        ? ` Answer for each game of the ${w.part}: the closest on each wins ${pointsWord(pts)}.`
+        : ` Answer for each game of the ${w.part}: ${pointsWord(pts)} for each one right.`;
+  } else if (q.each && pts !== null) {
     earn = q.answer === 'number'
       ? ` Answer for each ${w.castaway} still in: the closest on each wins ${pointsWord(pts)}.`
       : ` Answer for each ${w.castaway} still in: ${pointsWord(pts)} for each one right.`;
   }
-  const line = q.answer === 'overUnder' && typeof q.line === 'number' ? ` The line is ${q.line}.` : '';
+  // L3 part 3b: the game's own line, kept as the question opens (impeccable clarify's words).
+  const line = q.answer !== 'overUnder'
+    ? ''
+    : q.line === LINE_GAME
+      ? q.each === 'game'
+        ? " Each game is over or under its own line, set when you can first pick it, and it won't change after."
+        : " The line is the game's own, set when the question opens, and it won't change after."
+      : typeof q.line === 'number' ? ` The line is ${q.line}.` : '';
   const from = q.answer === 'person' && q.from === 'team' ? ' From your own team.' : '';
   // A wager (A8): its stake, double or nothing; A9's, any of your points. C6: of your bank, at the pool's odds, and apart from a share,
   // a rollover or a shrink.
@@ -743,6 +828,76 @@ function matchupPhrase(h, w, teams) {
   const p = h.playoffs;
   return `${play} The top ${say(p.teams)}${teams ? ' teams' : ''} by wins make the playoffs, ${p.from !== null ? playoffWhen(p, w) : `over ${playoffWhen(p, w)}`}.`;
 }
+/** Head to head's playoffs as a rule (A11 part 4; L4 part 1b's by categories): who makes them, when, a round a part, `how` a game
+ *  is won, and the byes. */
+function playoffRule(p, w, teams, how) {
+  const byes = 2 ** p.rounds - p.teams;
+  return `The playoffs: the top ${say(p.teams)}${teams ? ' teams' : ''} in the standings, ${p.from !== null ? '' : 'over '}${playoffWhen(p, w)}, a round ${article(w.part)} ${w.part}. The best seed plays the lowest, and ${how}.${byes === 1 ? ' The top seed gets a bye in the first round.' : byes > 0 ? ` The top ${say(byes)} seeds get a bye in the first round.` : ''}`;
+}
+/** How head to head's playoffs end the game. */
+const finalRule = (p) => `Whoever wins the final wins the game${p.from !== null ? ': it ends there' : ''}. If the season ends before the final, the best seed still in wins.`;
+/** A category's name in a sentence, from the sport's label ("field goal percentage", "turnovers"); its key when there's none. */
+function categoryName(k, w) {
+  const c = w.categories.get(k);
+  const t = c ? c.label : k;
+  return /^[A-Z][a-z]/.test(t) ? t.charAt(0).toLowerCase() + t.slice(1) : t;
+}
+/** Where less is better, as words from the sport's stats: "fewer is better in turnovers", "lower is better in earned run average"
+ *  (a rate is lower, a count fewer); "" for none. */
+function lessWords(h, w) {
+  const less = h.categories.filter((k) => (w.categories.get(k) || {}).better === 'lower');
+  const counts = less.filter((k) => !w.categories.get(k).rate).map((k) => categoryName(k, w));
+  const rates = less.filter((k) => w.categories.get(k).rate).map((k) => categoryName(k, w));
+  return [counts.length ? `fewer is better in ${listOf(counts)}` : '', rates.length ? `lower is better in ${listOf(rates)}` : ''].filter(Boolean).join('; ');
+}
+/** L4 part 1b: a categories game's categories in the sentence: "Nine categories: field goal percentage, ... and turnovers (fewer
+ *  is better in turnovers)." */
+function categoryPhrase(h, w) {
+  const n = h.categories.length;
+  const less = lessWords(h, w);
+  return `${cap(say(n))} ${n === 1 ? 'category' : 'categories'}: ${listOf(h.categories.map((k) => categoryName(k, w)))}${less ? ` (${less})` : ''}.`;
+}
+/** L4 part 1b: how a categories game ranks, in the sentence: head to head by each category, by most categories, or roto. */
+function categoryRankPhrase(h, w) {
+  if (h.by === 'roto') return 'Each category ranks everyone on their totals so far, the best earning the most points: most points wins.';
+  const play = h.by === 'categories'
+    ? `Each ${w.part} you play one of the others head to head in every category: each one you win is a win.`
+    : `Each ${w.part} you play one of the others head to head: whoever wins more categories wins it.`;
+  if (!h.playoffs) return `${play} Most wins at the end wins.`;
+  const p = h.playoffs;
+  return `${play} The top ${say(p.teams)} by wins make the playoffs, ${p.from !== null ? playoffWhen(p, w) : `over ${playoffWhen(p, w)}`}.`;
+}
+/** How a categories game works (L4 part 1b: schema.js categoryParts), a rule a line, as the scorer works it out
+ *  (src/lib/game/sequence/categories.js). */
+function categoryRules(s, w) {
+  const h = categoryParts(s);
+  if (!h) return [];
+  const out = [];
+  const who = countKind(s.count) === 'start' ? 'your starters\' stats' : 'the stats of everyone you drafted';
+  out.push(`Your total in each category: ${who}, added up ${h.by === 'roto' ? 'from the start' : `over the ${w.part}`}.`);
+  if (h.categories.some((k) => (w.categories.get(k) || {}).rate)) {
+    out.push(`A percentage or an average is worked out from what's added up (made over attempted), never an average of each ${w.part}'s. Have no number for one (none of yours took a shot) and you're last in it, tied with anyone else who has none.`);
+  }
+  const less = lessWords(h, w);
+  if (less) out.push(`${cap(less)}.`);
+  if (h.by === 'roto') {
+    out.push('Each category ranks all of you on your totals: the best gets as many points as there are of you, the next one fewer, down to 1 for the last. Tied, you share your places\' points.');
+    out.push('Most points at the end wins.');
+    return out;
+  }
+  out.push(h.by === 'categories'
+    ? `Each ${w.part} you play one of the others head to head, everyone in turn: each category you win is a win, each you lose a loss, and the same total a tie (half a win).`
+    : `Each ${w.part} you play one of the others head to head, everyone in turn: win more categories than them and you win it; the same number is a tie (half a win).`);
+  out.push(h.odd === 'bye' ? `With an odd number of you, one of you sits each ${w.part} out, in turn.` : `With an odd number of you, whoever has nobody to play that ${w.part} plays the middle of everyone else's totals in each category.`);
+  out.push(`${cap(article(w.part))} ${w.part} where nobody has anything in any category ${h.quiet === 'tie' ? 'is a tie for everyone' : 'counts for nobody'}.`);
+  out.push('The standings: the most wins (a tie is half).');
+  if (h.playoffs) {
+    const p = h.playoffs;
+    out.push(playoffRule(p, w, false, 'whoever wins more categories goes through; the same number goes to the better seed'));
+    out.push(finalRule(p));
+  } else out.push('Most wins at the end wins.');
+  return out;
+}
 /** The sentence's words for teams of players (A11 part 5: schema.js teamParts): "Played in two teams, drawn at random at the start:
  *  a team's points are its members' average." */
 function teamPhrase(t) {
@@ -848,8 +1003,8 @@ function matchupRules(s, w) {
   out.push('The standings: the most wins (a tie is half), then the most points.');
   if (h.playoffs) {
     const p = h.playoffs;
-    out.push(`The playoffs: the top ${say(p.teams)}${teams ? ' teams' : ''} in the standings, ${p.from !== null ? '' : 'over '}${playoffWhen(p, w)}, a round ${article(w.part)} ${w.part}. The best seed plays the lowest, and whoever wins goes through; a tie goes to the better seed.${2 ** p.rounds - p.teams === 1 ? ' The top seed gets a bye in the first round.' : 2 ** p.rounds > p.teams ? ` The top ${say(2 ** p.rounds - p.teams)} seeds get a bye in the first round.` : ''}`);
-    out.push(`Whoever wins the final wins the game${p.from !== null ? `: it ends there` : ''}. If the season ends before the final, the best seed still in wins.`);
+    out.push(playoffRule(p, w, teams, 'whoever wins goes through; a tie goes to the better seed'));
+    out.push(finalRule(p));
   } else {
     out.push('Most wins at the end wins.');
   }
@@ -1001,6 +1156,38 @@ function drawRules(s, w) {
   return out;
 }
 
+/** L4 part 2: when a squares pay comes, in the sport's words: "the end of the first quarter", "halftime", "the final score". */
+function payWhen(at, w) {
+  if (at === 'final') return 'the final score';
+  if (at === 'half') return 'halftime';
+  return `the end of the ${ordinalWord(at)} ${w.period.word}`;
+}
+/** L4 part 2: what a squares game's pays are worth, in a sentence. */
+function squaresPayPhrase(sq, w) {
+  return `The square of the two scores' last digits wins ${listOf(sq.pays.map((p) => `${pointsWord(p.points)} at ${payWhen(p.at, w)}`))}.`;
+}
+/** L4 part 2: a squares game's How it works. */
+function squaresRules(s, w) {
+  const sq = squaresParts(s);
+  if (!sq) return ['Take your squares on the grid before it starts.'];
+  const out = [];
+  const grid = `${sq.grid} by ${sq.grid}`;
+  out.push(sq.take === 'deal'
+    ? `Before it starts, everyone is dealt ${sq.each ? say(sq.each) : 'the same number of'} squares at random on a grid ${grid}${sq.each ? '' : ': as many as go round evenly'}.`
+    : `Before it starts, take your squares on a grid ${grid}: ${sq.each ? `up to ${say(sq.each)} each` : 'as many as you like'}, first come, first served.`);
+  out.push(sq.grid === 10
+    ? "Then the digits 0 to 9 are drawn at random onto the rows (the first team's score) and the columns (the other's), so nobody picks a good number."
+    : "Then the digits 0 to 9 are drawn at random onto the rows (the first team's score) and the columns (the other's), two to a row and two to a column, so nobody picks a good number.");
+  out.push(squaresPayPhrase(sq, w).replace(/^The square/, 'Each time, the square'));
+  if (sq.pays.some((p) => p.at === 'final')) out.push('The final score counts overtime.');
+  out.push(sq.empty === 'next' ? 'A square nobody holds rolls its points on to the next pay.' : 'A square nobody holds pays nobody.');
+  if (sq.pays.some((p) => p.at !== 'final')) out.push(sq.unread === 'void' ? `If the score at the end of a ${w.period.word} isn't known (a game called early), that pay goes to nobody.` : `If the score at the end of a ${w.period.word} isn't known (a game called early), that pay goes on the final score.`);
+  const span = s.span;
+  if (!(isObj(span) && Number.isInteger(span.from) && span.to === span.from)) out.push(`Your squares are yours for every ${w.part}; the digits are drawn again before each one.`);
+  out.push('Most points wins.');
+  return out;
+}
+
 /** How it works: today's five games say what the Rules sheet says (game-rules.ts), the rest in the same voice. */
 function rulesOf(s, w) {
   const rules = [];
@@ -1027,7 +1214,7 @@ function rulesOf(s, w) {
     if (count === 'best') rules.push(`Each ${w.part}, your best ${say(s.count.best)} count, whoever they are: no lineups to set.`);
     if (count === 'all' && s.score.by !== 'place') rules.push('Everyone you draft scores.');
     if (s.score.by === 'moments') rules.push(w.groups.length ? `Points come from what happens: ${listOf(w.groups)}.` : `Points come from what happens in each ${w.part}.`);
-    if (s.score.by === 'stats' && isObj(s.score.points)) rules.push(`Points come from their stats: ${statsWords(s.score.points, w)}.`);
+    if (s.score.by === 'stats' && statScoreWords(s.score, w)) rules.push(`Points come from their stats: ${statScoreWords(s.score, w)}.`);
     if (count === 'start' && isObj(s.score.captain) && isNum(s.score.captain.times)) {
       rules.push(`Name one of your starters captain each ${w.part}: their points count ${timesWord(s.score.captain.times)}. Name nobody and your last captain keeps it, while they're starting.`);
     }
@@ -1039,7 +1226,7 @@ function rulesOf(s, w) {
     // C3: a multiplier on how a holding joined.
     const joinedSaid = s.score.by === 'moments' || s.score.by === 'place' ? joinedRules(s.score) : [];
     if (joinedSaid.length && s.score.by === 'moments') rules.push(...joinedSaid, joinedHow(s.score));
-    if (count === 'start') rules.push(`Lineups lock when the ${w.part} starts. Change yours as often as you like until then.`);
+    if (count === 'start') rules.push(lockRule('Lineups', s, w));
     rules.push(...groupSlotRules(s, w));
     if (s.score.by === 'place' && s.score.reverse === true) {
       rules.push(`Each ${w.castaway} earns 1 point, plus 1 for everyone who outlasts them.`);
@@ -1078,6 +1265,8 @@ function rulesOf(s, w) {
     if (!teamsOut) rules.push(...teams);
     // A11 part 4: head to head, with playoffs.
     rules.push(...matchupRules(s, w));
+    // L4 part 1b: a sport's categories, head to head or roto.
+    rules.push(...categoryRules(s, w));
     // C5: weeks won.
     rules.push(...weekRules(s, w));
   } else if (by === 'pick' && momentsPick(s)) {
@@ -1089,7 +1278,7 @@ function rulesOf(s, w) {
     if (s.get.repeat === 'never') rules.push(`You can't pick the same ${w.castaway} twice, all season.`);
     else if (s.get.repeat === 'cycle') rules.push(`You can't pick the same ${w.castaway} again until you've used everyone still in, and never two ${w.parts} in a row.`);
     else rules.push(`Pick anyone still in, every ${w.part}: the same ${n === 1 ? w.castaway : w.castaways} as last time too.`);
-    rules.push(`Picks lock when the ${w.part} starts. Change yours as often as you like until then.`);
+    rules.push(lockRule('Picks', s, w));
     rules.push(...handicapRules(s, w));
     rules.push(...teamRules(s, w, !!matchupParts(s) || !!weekParts(s)));
     rules.push(...matchupRules(s, w));
@@ -1148,7 +1337,7 @@ function rulesOf(s, w) {
     rules.push('A square counts once the couch agrees it happened: two of you ticking it, or saying so, settles it.');
     rules.push(isNum(s.score.points) && s.score.points !== 1 ? `Each line is worth ${pointsWord(s.score.points)}. Most points by the finale wins.` : 'Most lines by the finale wins.');
   } else if (by === 'squares') {
-    rules.push('Take your squares on the grid before it starts.');
+    rules.push(...squaresRules(s, w));
   }
   if (s.score.by === 'answers' && !callsAsk(s.ask)) {
     const each = s.ask.some((q) => q.asked !== 'once');
@@ -1168,7 +1357,9 @@ function rulesOf(s, w) {
     }
     // C6: a bank, every stake drawn from it.
     if (bank) rules.push(`Everyone starts with a bank of ${pointsWord(bank.start)}, and every stake comes out of it: you can't stake more than you have left, less what's still riding on answers to be settled.${bank.out ? " Run out and you're out." : ' Run out and you can still answer, with nothing to stake.'}`);
-    rules.push(each ? `Change an answer until its ${w.part} starts. Nobody sees them until then.` : 'Change your answers until it starts. Nobody sees them until then.');
+    // L3 part 2f part 2: a question about each game locks game by game.
+    if (s.ask.some((q) => q.each === 'game')) rules.push(`Change a game's pick until that game starts: each locks on its own. Nobody sees anyone's until the ${w.part}'s last game starts.`);
+    else rules.push(each ? `Change an answer until its ${w.part} starts. Nobody sees them until then.` : 'Change your answers until it starts. Nobody sees them until then.');
     // A late lock (A7).
     if (isObj(s.extras.lateLock)) rules.push(`Watching late? Answer before you watch: until you've seen it, up to ${s.extras.lateLock.hours} hours after it airs.`);
     // A11 part 2b: a race, cuts and lives say who wins; part 4b, head to head.
@@ -1185,10 +1376,8 @@ function rulesOf(s, w) {
   }
   // A11 part 4: a draft's head to head, and a game of questions' (part 4b), say themselves (matchupRules); a sports spec's, which
   // the engine doesn't play yet, its name.
-  const rank = {
+  const rank = categoryParts(s) ? null : {
     matchups: matchupParts(s) ? null : `You play someone head to head each ${w.part}: the most points wins it.`,
-    categories: 'Ranked by category: the most in each stat earns the most.',
-    roto: 'Ranked roto-style: each stat ranks everyone, and the ranks add up.',
   }[s.rank.by];
   if (rank) rules.push(rank);
   // A10 part 4b: a team two people share.

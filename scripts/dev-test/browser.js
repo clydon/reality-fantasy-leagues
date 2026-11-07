@@ -111,6 +111,11 @@ async function api({ user, pass, headers = {} }) {
   return { user, call, raw };
 }
 
+// The headless Chromium alone, for a check with no app server (check-espn-browser.js: a page on its own origin asking ESPN).
+async function launch() {
+  return findPlaywright().chromium.launch({ executablePath: findChrome() });
+}
+
 /** Opens one of Settings' folds (src/new/settings/controls.tsx Fold: notify, auto, sharing, couches, ai, account)
  *  if it's shut, and waits for it. Folds start shut on every visit. */
 async function openFold(page, id) {
@@ -120,4 +125,4 @@ async function openFold(page, id) {
   await page.waitForFunction((i) => document.querySelector(`[data-fold="${i}"]`)?.getAttribute("data-open") === "open", id, { timeout: 5000 });
 }
 
-module.exports = { open, api, BASE, openFold };
+module.exports = { open, api, launch, BASE, openFold };

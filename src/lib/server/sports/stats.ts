@@ -2,6 +2,7 @@ import { after } from "next/server";
 import { comingInLabel, comingInSeason, ordinal, type LineTable } from "@/lib/game/sports-stats";
 import { easternDay } from "@/lib/game/tv-listings";
 import { pool } from "../db";
+import { saveFinals, type EventRef } from "./finals";
 import { sportsProviders } from "./index";
 import { SportsUnavailable, type BoxScore, type SportsEvent, type SportsProvider } from "./types";
 
@@ -111,21 +112,22 @@ async function releaseStats(seasonId: string, message: string | null, through: n
   await pool.query("UPDATE stat_fills SET asking_at = NULL, message = $2, through = $3, updated_at = now() WHERE season_id = $1", [seasonId, message, through]);
 }
 
-/** Replace an episode's lines with these, read `at`, and say whether they're final. */
-async function saveGame(seasonId: string, episode: number, provider: string, lines: PlayerLines[], final: boolean, at: Date) {
+/** Replace an episode's game's lines with these (a slate's episode has several games: L8), read `at`, and say whether they're final. */
+async function saveGame(seasonId: string, episode: number, event: string, provider: string, lines: PlayerLines[], final: boolean, at: Date) {
   const c = await pool.connect();
   try {
     await c.query("BEGIN");
-    await c.query("DELETE FROM game_lines WHERE season_id = $1 AND episode = $2", [seasonId, episode]);
+    // Its lines before 0304 were the episode's alone ('').
+    await c.query("DELETE FROM game_lines WHERE season_id = $1 AND episode = $2 AND event_id IN ($3, '')", [seasonId, episode, event]);
     if (lines.length) {
       await c.query(
-        `INSERT INTO game_lines (season_id, episode, provider, athlete, name, team, tables)
-         SELECT $1, $2, $3, x.athlete, left(x.name, 120), left(x.team, 120), x.tables FROM jsonb_to_recordset($4::jsonb) AS x(athlete text, name text, team text, tables jsonb)
+        `INSERT INTO game_lines (season_id, episode, event_id, provider, athlete, name, team, tables)
+         SELECT $1, $2, $3, $4, x.athlete, left(x.name, 120), left(x.team, 120), x.tables FROM jsonb_to_recordset($5::jsonb) AS x(athlete text, name text, team text, tables jsonb)
          ON CONFLICT DO NOTHING`,
-        [seasonId, episode, provider, JSON.stringify(lines)]
+        [seasonId, episode, event, provider, JSON.stringify(lines)]
       );
     }
-    await c.query("UPDATE season_events SET lines_at = $4, lines_final = $3 WHERE season_id = $1 AND episode = $2", [seasonId, episode, final, at]);
+    await c.query("UPDATE season_events SET lines_at = $4, lines_final = $3 WHERE season_id = $1 AND episode = $2 AND event_id = $5", [seasonId, episode, final, at, event]);
     await c.query("COMMIT");
   } catch (e) {
     await c.query("ROLLBACK").catch(() => {});
@@ -171,8 +173,15 @@ export async function statsFromEvents(seasonId: string, opts: { providers?: Spor
       "SELECT episode, provider, league, event_id, part, starts_at, teams, lines_at, lines_final FROM season_events WHERE season_id = $1 ORDER BY episode",
       [seasonId]
     );
-    // An episode no longer linked (its listing moved it off its game) has no lines.
+    // An episode no longer linked (its listing moved it off its game) has no lines; nor a game a slate's episode no longer has (L8:
+    // moved to another day's episode).
     await pool.query("DELETE FROM game_lines WHERE season_id = $1 AND episode > 0 AND NOT (episode = ANY($2::int[]))", [seasonId, rows.map((r) => r.episode)]);
+    await pool.query(
+      `DELETE FROM game_lines g WHERE g.season_id = $1 AND g.episode > 0 AND g.event_id <> ''
+          AND NOT EXISTS (SELECT 1 FROM season_events e WHERE e.season_id = g.season_id AND e.episode = g.episode AND e.event_id = g.event_id)`,
+      [seasonId]
+    );
+    const finals: EventRef[] = [];
     for (const l of rows) {
       const start = l.starts_at ? (l.starts_at as Date).getTime() : null;
       if (l.lines_final || start == null || start > now - OVER_AFTER_MS) continue;
@@ -193,9 +202,20 @@ export async function statsFromEvents(seasonId: string, opts: { providers?: Spor
       }
       // Nothing from the provider two days on: it isn't coming.
       if (!lines.length && start < now - GIVE_UP_MS) final = true;
-      await saveGame(seasonId, l.episode, p.id, lines, final, new Date(now));
+      await saveGame(seasonId, l.episode, l.event_id, p.id, lines, final, new Date(now));
+      if (final) finals.push({ provider: p.id, league: l.league, event: l.event_id });
       out.games++;
       through = Math.max(through ?? 0, l.episode);
+    }
+    // L3 part 1: a team game just read as final, its counts saved with it too (finals.ts: once its own row says it's final). Its
+    // own step: what it can't do never fails the fill (the daily job tries again).
+    if (finals.length) {
+      try {
+        const f = await saveFinals({ providers, only: finals, now: new Date(now) });
+        if (f.errors.length) console.error("[sports] finals:", f.errors.join("; "));
+      } catch (e) {
+        console.error("[sports] finals:", e);
+      }
     }
     out.comingIn = await fillComingIn(seasonId, rows[0], providers);
   } catch (e) {
@@ -243,7 +263,7 @@ async function fillComingIn(seasonId: string, first: { provider: string; league:
       await pool.query(
         `INSERT INTO game_lines (season_id, episode, provider, athlete, name, label, tables)
          SELECT $1, 0, $2, x.athlete, left(x.name, 120), left(x.label, 80), x.tables FROM jsonb_to_recordset($3::jsonb) AS x(athlete text, name text, label text, tables jsonb)
-         ON CONFLICT (season_id, episode, provider, athlete) DO UPDATE SET label = EXCLUDED.label, tables = EXCLUDED.tables, updated_at = now()`,
+         ON CONFLICT (season_id, episode, provider, athlete, event_id) DO UPDATE SET label = EXCLUDED.label, tables = EXCLUDED.tables, updated_at = now()`,
         [seasonId, p.id, JSON.stringify(done)]
       );
     }

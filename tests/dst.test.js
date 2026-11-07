@@ -87,3 +87,51 @@ test("final results at noon the day after, on the clock, across the change", () 
   assert.equal(iso(Final.finalResultsAt("2026-11-05T01:00:00Z", NY)), "2026-11-05T17:00:00.000Z", "Nov 5, 12 PM EST");
   assert.equal(iso(Final.finalResultsAt("2027-03-14T01:00:00Z", NY)), "2027-03-14T16:00:00.000Z", "Sat Mar 13's: Sun 12 PM EDT");
 });
+
+test("a sport's daily and weekly lineup locks group games by the Eastern day and week, a slate's by its episode, across the change", () => {
+  const path = require("path");
+  const jiti = require("jiti")(__filename, { alias: { "@": path.join(__dirname, "..", "src") } });
+  const { locksOf } = jiti("../src/lib/sports/locks.ts");
+  // Sat Oct 31, 10:30 PM EDT is Nov 1 02:30 UTC: still Saturday's, so it locks with Saturday's 7 PM EDT game, not Sunday's.
+  const starts = [
+    { episode: 1, at: "2026-10-31T23:00:00Z" }, // Sat 7 PM EDT
+    { episode: 2, at: "2026-11-01T02:30:00Z" }, // Sat 10:30 PM EDT
+    { episode: 3, at: "2026-11-01T18:00:00Z" }, // Sun 1 PM EST
+    { episode: 4, at: "2026-11-03T01:15:00Z" }, // Mon 8:15 PM EST: still the week from Tue Oct 27
+    { episode: 5, at: "2026-11-04T00:30:00Z" }, // Tue 7:30 PM EST: the next week
+  ];
+  const daily = locksOf(starts, "daily");
+  assert.deepEqual([1, 2, 3, 4, 5].map((n) => daily.get(n)), ["2026-10-31T23:00:00.000Z", "2026-10-31T23:00:00.000Z", "2026-11-01T18:00:00.000Z", "2026-11-03T01:15:00.000Z", "2026-11-04T00:30:00.000Z"]);
+  const weekly = locksOf(starts, "weekly");
+  assert.deepEqual([1, 2, 3, 4, 5].map((n) => weekly.get(n)), [...Array(4).fill("2026-10-31T23:00:00.000Z"), "2026-11-04T00:30:00.000Z"]);
+  // L8 part 3: a league's slate whose Monday-to-Sunday week starts on Monday Nov 2 (8:15 PM EST, Nov 3 in UTC) locks at that game,
+  // its own first, where the Tuesday-to-Monday calendar puts it in the week from Tue Oct 27, before the change.
+  const slate = [
+    { episode: 1, at: "2026-10-31T23:00:00Z" }, // Sat 7 PM EDT
+    { episode: 1, at: "2026-11-01T18:00:00Z" }, // Sun 1 PM EST
+    { episode: 2, at: "2026-11-03T01:15:00Z" }, // Mon 8:15 PM EST
+    { episode: 2, at: "2026-11-04T00:30:00Z" }, // Tue 7:30 PM EST
+  ];
+  const own = locksOf(slate, "weekly", { slate: true });
+  assert.deepEqual([own.get(1), own.get(2)], ["2026-10-31T23:00:00.000Z", "2026-11-03T01:15:00.000Z"]);
+  assert.equal(locksOf(slate, "daily", { slate: true }).get(2), "2026-11-03T01:15:00.000Z");
+});
+
+test("a lineup locking at each game's start holds each holding to the end of its game's Eastern day, across the change", () => {
+  const path = require("path");
+  const jiti = require("jiti")(__filename, { alias: { "@": path.join(__dirname, "..", "src") } });
+  const { gameLocksOf } = jiti("../src/lib/sports/locks.ts");
+  const games = [
+    { episode: 1, eventId: "sat", at: "2026-11-01T02:30:00Z", teams: ["Hawks"] }, // Sat 10:30 PM EDT: Saturday's, to midnight EDT
+    { episode: 1, eventId: "sun", at: "2026-11-01T18:00:00Z", teams: ["hawks", "Bulls"] }, // Sun 1 PM EST: to midnight EST
+    { episode: 1, eventId: "spring", at: "2026-03-08T18:00:00Z", teams: ["Bulls"] }, // Sun Mar 8 2 PM EDT, the change's day
+    { episode: 2, eventId: "tbd", at: null, teams: ["Hawks"] },
+  ];
+  const locks = gameLocksOf(games, new Map([["h1", "Hawks"], ["b1", "Bulls"]]));
+  const one = locks.get(1);
+  assert.deepEqual(one.gameStarts.sat, { at: "2026-11-01T02:30:00.000Z", until: "2026-11-01T04:00:00.000Z" });
+  assert.deepEqual(one.gameStarts.sun, { at: "2026-11-01T18:00:00.000Z", until: "2026-11-02T05:00:00.000Z" });
+  assert.equal(one.gameStarts.spring.until, "2026-03-09T04:00:00.000Z");
+  assert.deepEqual(one.holdingGames, { h1: ["sat", "sun"], b1: ["sun", "spring"] }, "by the team's name, ignoring case");
+  assert.equal(locks.has(2), false, "a game with no start has none");
+});

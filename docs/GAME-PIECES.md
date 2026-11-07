@@ -30,7 +30,8 @@ settings are all read from it. A league carries its spec as `settings.game`.
   "score":  { ... },   // how what counts earns points                 → How it scores
   "rank":   { ... },   // how the table is ordered and who wins        → How you win
   "ask":    [ ... ],   // questions answered before their lock         → Questions
-  "closes": "start",   // moves lock when each episode starts
+  "closes": "start",   // moves lock when each episode starts; a sport's `daily` or `weekly`: at the day's or week's first start;
+                       // a sport's lineup's `game`: each holding at its own game's start
   "extras": { ... },   // the details nobody asked about               → The extras
   "stages": [ ... ],   // a game in stages instead: 2 to 6 games       → Stages
   "overall": { ... },  //   and how their tables add up
@@ -89,7 +90,7 @@ How each of you gets what you play with. Five ways (`get.by`):
 | `pick` | one person, picked fresh each episode | plays |
 | `card` | a bingo card, a new one each episode | plays |
 | `none` | nothing: you answer questions | plays |
-| `squares` | a sports squares grid | the sports branch |
+| `squares` | a grid of a team game's two scores' last digits (`grid` 10 or 5), its squares picked (`take: 'pick'`, up to `each`, first come, changed until the game's first lock; a seat with none then takes what's left, from the next game) or dealt at random at the first lock (`deal`, evenly, the seats then kept), each episode's digits drawn by the server at its lock from a secret nobody reads, then kept in the league (L4 part 2: `sequence/squares.js`; played since L3 part 2e: `SquaresLogic`) | scored by `squares` alone, nothing counting |
 
 ### A draft: `{ by: "draft", each, order, own, ... }`
 
@@ -213,6 +214,16 @@ Of what you hold, what scores. One of:
 | `{ "pick": true }` | your pick | a pick |
 | `null` | nothing is held | a card, or `none` |
 
+**A lineup that locks at each game's start** (sports, L8 part 1's engine items: Yahoo's daily lineups inside a week's episode):
+`"closes": "game"` on a lineup (`{ "start": n }`) scored by a sport's stats, points or categories. Each holding locks when its own
+game starts and stays where it is, in the lineup or out, for the rest of that day (the East's), so one place in a lineup never counts
+twice in a day; the rest change as often as you like until their games. Each game of the week counts for whoever was in the lineup
+when it started: a change on Tuesday counts from the next game to start, the games before it for the lineup that held them. The
+episode locks at its last game's start. No captain (a captain is the whole episode's: lock at the start, daily or weekly to have
+one); kept open past its start by whoever runs the game, or with no games' starts known (a league at its own pace), it plays as one
+lineup. The server stamps each game's start and its day's end and each holding's games by its team (`ep.gameStarts`,
+`ep.holdingGames`, never saved); every lineup set is kept with its time (`ep.lineupsAt`).
+
 ---
 
 ## How it scores: `score`
@@ -227,7 +238,8 @@ How what counts earns points. **`score.by`**:
 | `lines` | bingo lines | a card |
 | `answers` | right answers to the game's questions | `none` |
 | `stages` | a game in stages: its stages' tables (see Stages) | a game in stages only |
-| `stats` | a sport's stat keys | the sports branch |
+| `stats` | a sport's stat keys at the game's table: each holding's stat line in an episode is its moments there (`sequence/stats.js` statMoments), so a lineup's starters, a captain, `times` and best ball's best n take it as they take moments (L3 part 2) | a draft (a lineup, best ball, or everyone drafted counting); with `categories`, its rank compares them (below); a pick each episode by its stats not yet (the sports branch) |
+| `squares` | each pay's points (`pays: [{ at: a period's end, 'half' or 'final', points }]`) to whoever holds the square of the two scores' last digits then; an empty square pays nobody or rolls on (`empty`), a period never read pays on the final or nobody (`unread`) (L4 part 2). Played since L3 part 2e: each episode's pays from its game's kept final (the server's stamp: each period's end, the sport's regulation periods), the table their sum | `squares`, ranked by the total with nobody racing, cut, in teams or handicapped, nothing beside it |
 
 Each one's own options:
 
@@ -324,7 +336,7 @@ Limits: up to 12 questions a game; an `id` is letters, digits, `.`, `_` or `-`, 
 | `group` | a tribe, team or couple (or `pick` of them) | `pick` 1 to 10 |
 | `yesNo` | yes or no | |
 | `number` | a number: the closest wins, ties all score | |
-| `overUnder` | over or under a line | `line` (null: the wizard asks) |
+| `overUnder` | over or under a line | `line` (null: the wizard asks); `"game"` (sports, L3 part 3b), settled `final` `total`: the game's own line (ESPN's over/under), the latest read when the question opens for answers in the league, kept then and never changed (the server's `question_lines`); before ESPN has one it waits ("Line coming"), an answer refused; none kept by the game's start, it doesn't count |
 | `choice` | one of the options ("0", "1", "2+") | `options`: 2 to 12; a count's are numbers or ranges, a yes or no's are Yes and No |
 | `order` | an order (the boot order, a leaderboard) | `pick` 2 to 24; `within` 0 to 5 places still scores |
 | `confidence` | a ranking, surest first | `pick` 2 to 24 |
@@ -334,11 +346,29 @@ Limits: up to 12 questions a game; an `id` is letters, digits, `.`, `_` or `-`, 
 | `trivia` | the round's trivia questions (the episode before) | asked each episode |
 | `calls` | the show's two calls (Weekly Calls) | a game of its own |
 | `ticket` | a ticket (C6): the questions you put on it and a stake, `{ legs: [ids], stake }`, each leg your own answer to it | settled by its `legs` (below); `legs: { min, max }`, `pays`; a stake (`wager`) |
-| `side` | a team (sports) | the sports branch |
+| `side` | one of a team game's two sides (sports): its team's id, the faces the server's (`sidesFor`); `draw: true` takes a draw too (soccer's three ways) | settled `final` `winner` (L3 part 2c) |
+| `bracket` | a draw's winners round by round, by distance from the final (`{ "7": [...], ..., "1": [the champion] }`), each right pick worth the points, doubling each round (`rounds: 'double'`, the default, or `'same'`) (L4 part 2: `sequence/bracket.js`) | settled `final` `bracket` of a draw (tennis's `MS`, `WS`...); played since L3 part 2e: graded on the server's facts, an answer checked against the draw as listed then (`drawNow`: the kept card once final, else the provider's). Or `of: 'playoffs'`, a league's playoffs (L8 part 1's engine items, part 2: only on a season made of them, a playoffs slate, `asked: 'once'` before they start): each series a bout of the draw (`src/lib/sports/playoffs.ts`: its round from ESPN's note, its winner the side that took a majority of its games, the NFL's a game each; a postseason that isn't one bracket, college's, none), graded on the server's `facts.playoffs`; the NBA's, WNBA's, NHL's, MLB's and NFL's defaults (`bracket`, `on: 'playoffs'`) |
 
 **One question about each person still in:** `each: "person"` with a `yesNo`, `number`, `overUnder` or `choice` answer, answered
 `{ castawayId: answer }`, each settled by that person's own moment or whether they go home or stay. Example: "each couple's
 judges' score: over or under 24.5" on Dancing with the Stars.
+
+**One question about each game of the episode (sports, L3 part 2f part 2):** `each: "game"`, asked each episode about its games as
+linked (a week's slate, or an episode's one game), answered `{ eventId: answer }`: who wins each (`side`, settled `final` `winner`),
+its total's or margin's range (`choice`) or the closest to it (`number`, settled `final` `total` or `margin`). Each pick is graded on
+its own game's final (a game called off doesn't count either way), known once every game of the episode is over, and locks as its
+own game starts: a started game's pick is kept as it was, a change or a first pick there refused (the server's), and the question
+closes, everyone's picks shown, as the episode's last game starts. `confidence: true` (who wins only) ranks the picks by how sure
+you are, each `{ answer, confidence }`, the ranks each used once from 1 to the episode's games, a right pick worth its rank times the
+points: a confidence pool. An over/under on each game (`overUnder`, settled `final` `total`, `line: "game"`: L3 part 3b) takes each
+game's own line as its pick opens, a game with no line yet unpickable until it has one; a fixed line for every game is refused. Not
+yet: a share, rollover or shrink. Example: "the NFL's Week 10, every game: who wins, ranked 1 to 14".
+
+**A game called off** (sports, L3 part 3b: ESPN's postponed or cancelled, over without being played; a makeup is a game of its own):
+every question on it doesn't count either way (said why: postponed, cancelled), its episode has results with nothing in them (the
+reveal and the week move past it), it locks nothing (a day's or a week's lock is its first game played; a holding of its team stays
+free to move), and a lineup's holdings of its teams score nothing in it. A suspended game is still being played, finished later as
+the same game.
 
 ### What settles it: `settle`
 
@@ -357,12 +387,19 @@ players' own mechanics below, which settle the game, never a fact about the show
 | `calls` | none | the show's calls (Weekly Calls) |
 | `players` | `majority`, `minority` | the players' own answers: see "The players' own mechanics" |
 | `legs` | none | a ticket's legs (C6): `{ by: "legs", of: [the game's question ids] }`, your own answers to them in the window |
-| `final`, `stat` | | a sport's finals and stats (the sports branch) |
+| `final` | `winner`, `total`, `margin` (`of`: a card's bout, `main` its main event) | a sport's game at its final (L3 part 2c): who won (extra time and penalties in it; a field's first, a bout's winner), both sides' points, the margin; a game called off, a tie or a bout with no winner is off. `bracket`, a draw's winners round by round (L4 part 2; played since L3 part 2e) |
+| `stat` | `most`, `least`, `value` (`stat`: a sport's stat key; `of`: a player or a team) | a stat in a sport's game (L3 part 2c): who has the most (a tie, all of them), the fewest, or a value (a team's players' added; asked once over a span, its games' added up) |
+
+A sport's game settles its questions from the server's facts (`facts.games`: each episode's game as of the viewer's mark, its
+kept final once it's final; answer-points.ts serverFacts), and its episode has results once its game is final: the server stamps
+`ep.gameFinal` on the copy it reads (sports/score.ts stampStats, StateLogic.StatsLogic: never stored), so the reveal, the week's
+results, a viewer's mark and a span's end read it as a show's results, and the spoiler view drops it past the mark (L3 part 2c).
 
 Which answers each settle can grade (`SETTLES_FOR` in the schema): a `person` by anything that names people (`results` out,
-stays, winner, placed, top; `moment` who, most, first; `role` who, end; `points` most; `fact` who; `players`); a `group` by
+stays, winner, placed, top; `moment` who, most, first; `role` who, end; `points` most; `fact` who; `players`; a sport's `stat` most, least and `final` winner, a field's first or a
+bout's winner); a `side` by `final` winner; a `group` by
 `results` out, `moment` who, `fact` who, `players`; a `yesNo` by `moment` happened, `phase` happened, `players`; a `number` by
-a count (`moment` count, `role` count, `phase` starts, `moment` first); an `overUnder` by those or `players`; an `order` by
+a count (`moment` count, `role` count, `phase` starts, `moment` first; a sport's `final` total, margin, `stat` value); an `overUnder` by those or `players`; an `order` by
 `results`, `moment` or `points` order; `confidence` and `chips` by anything that names people; `split` by `results` split;
 `pairs` by `results` outlast; a `choice` by anything (its options matched to the verdict).
 
@@ -580,7 +617,7 @@ How the table is ordered. **`rank.by`**:
 | `coop` | everyone wins or loses together, against the show | a game of questions with lives |
 | `matchups` | head to head each episode, more points wins it; the standings by wins | a draft, a game of questions or a pool (C2 part 4b: on what each episode's pick earned), with nobody racing, cut or losing a life beside it; a pick scored by moments (C5) |
 | `weeks` | weeks won (C5): each episode, whoever added the most points wins it; the most weeks won wins, ties to the points | wherever head to head plays, on the same series of totals and seats (teams of players: each team's), with nobody racing, cut or losing a life beside it |
-| `categories`, `roto` | sports formats | the sports branch |
+| `categories`, `roto` | a sport's categories (`score: { by: 'stats', categories }`): head to head by each category won (`categories`; `matchups` on a categories score: whoever wins more of them), or each category ranking everyone, points by rank (`roto`); the scorer `sequence/categories.js` (L4 part 1b). Played since L3 part 2d: head to head each episode on each seat's counted holdings' totals then (its starters, or everyone drafted), the record the categories' (by each, or by most), the categories won breaking a tie, the playoffs a round by most categories, a tie to the better seed (`categoryMatchups`, MatchupLogic); roto over the game so far, the row's total its roto points (RotoLogic); the server hands the sport's stats over beside the lines (`state.statDefs`: Sport.categoryDefs, a rate's parts) | a draft's lineup or everyone drafted, scored by a sport's categories, with nobody racing or cut |
 
 Beside it:
 
@@ -835,7 +872,10 @@ Every game scores as one sequence of six steps, for each of you and each episode
 1. **Hold**: what of yours counts for that episode. A draft's team as it stood then (a pickup counts from the episode after
    it's made; `heldAt`), a lineup's starters, best ball's whole team, a group slot's group. Someone two of you hold (a shared
    draft's, or since C4 a shared replacement in an exclusive draft) is on each team, each by its own holding. Since C7, the card's
-   lines that episode (`cardLines`): the questions on it it asks, and the moments that count.
+   lines that episode (`cardLines`): the questions on it it asks, and the moments that count. Since L3 part 2e, a seat's squares
+   that episode (`SquaresLogic.heldAt`: a late seat's count from the game they took them for). Since L8 part 1, a lineup locking at
+   each game's start holds, for each game of a week, the lineup in force when that game started (`ActiveRosterLogic.gameHeld`), and
+   its lines are each game's of whoever it held then.
 2. **Score each line**: a line is one holding's points in one episode, from one source (since C5, a pick scored by moments holds
    that episode's picks, each a line as a lineup's starter is). An Outlast's line is a **place**, a
    value rather than points earned while held (whoever holds someone now has their whole place: `placed`, `stillIn`); a
@@ -850,6 +890,8 @@ Every game scores as one sequence of six steps, for each of you and each episode
    first episode. Which answers are right, and how many right ones each has, is
    the grading's (the settles above), never the sequence's. A right call (Weekly Calls) and a bingo line are lines too, counted
    (`tally`). A draft's own questions (since C2 part 4c) are graded the same way, their sum a line of the draft's beside its team's.
+   A pay of squares (since L3 part 2e) is a line for whoever holds the square of the score then (`squaresPays`), and a sport's
+   stat line a holding's moments (L3 part 2: `statMoments`).
 3. **Multipliers**: each line times whatever applies to it, in order (`multiply`), each a factor of the one multiplier piece
    keyed by its condition (`factorOf`, since C3): a captain's, then the episode's own (`score.times`), then how the holding
    joined your team (`score.multiply`, from its stint: `stints`); a parlay's on what each of its windows gave you (after the
