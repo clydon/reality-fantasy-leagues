@@ -9210,6 +9210,42 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     the Fan Who Forgets 12, the Fan 6. The Survivor 51 rehearsal (`season-forward.js rehearse --from=backups/prod-2026-10-30
     --scenario=realistic,rough,dst --before=master`): every invariant holds, flag off against on and master's engine against this
     tree's, 2,856 reads each, every one the same.
+
+  **Master's sports release merged into `engine` (2026-11-07, `e732eaaa`, merging `a1c8f429`: track L, migrations 0300 to 0306).**
+  The main session ran `lane.js sync engine`; this session resolved its 13 files, keeping both sides: A14 parts 2b to 7 and track
+  L's sports pieces. What each kept:
+  - **state-logic.js**: `combines` reads a sport's stats first (always its own path), then a moments lineup with the twist among its
+    reasons; `timesFor` keeps the twist's factor and takes master's `lineupScores` test (a stats lineup reads its windows too: a
+    twist is only ever a moments game's); the exports carry StatsLogic, RotoLogic, SquaresLogic and SquaresScoringStrategy beside
+    BountyLogic, SecretRoleLogic, TwistLogic and HostLogic.
+  - **schema.js**: `ask.settle` has `outside` and sports' `final`/`stat` both 'now', with `ask.settle.source`; `final` takes
+    `bracket`; KEYS keep bounty, roles and twist on moments (bounty and roles on place) beside master's stats and squares keys and
+    `pay`; a question's keys gain `draw`, `rounds` and `confidence`, a settle's keep `source` and `after`; the twist's keys are
+    checked inside master's `moments || stats` block (a twist on stats is refused by `twistProblems`' moments-only rule, as before);
+    the old one-line stats points check went for master's `statScoreProblems`; the exports both sides'.
+  - **answers.js**: `outsideVerdict` and master's sports graders (`standingIn`, `spanGame`, `sportsVerdict`, `lineOf`,
+    `gameVerdict`, `eachGameVerdict`) side by side; a `side` answer and a rating's 0-to-10 number both checked; the walk's facts
+    carry `outside` with `games`, `slate` and `playoffs`.
+  - **settings.js**: bounty, secret roles and the twist read on any lineup, master's `!stats` kept on joinedTimes and the counts;
+    the round-trip fields list both sides' (countAll, squaresGet, statScoring, squaresScore with bounty, secretRoles, twist).
+  - **describe.js**: both imports (rolesOf, twistOf, OUTSIDE with master's categories, squares, ordinals and PLAYOFFS); the bounty,
+    roles and twist rules before master's `lockRule`.
+  - **Server**: air-times.ts keeps `stampAirs` (A14's order: vote records, air times, roles, host cards, twists) with master's
+    clearing of `locksAt`, `gameStarts` and `holdingGames`; db.ts and league-read.ts pass the league id to `stampAirTimes` and then
+    `stampStats`; answer-points.ts `serverFacts` reads the outside numbers and a sport's games together (and the viewer's mark);
+    answers.ts imports both. tests/game-spec.test.js's lineup fields both sides'.
+  - **Docs**: GAME-PIECES.md's settle table has the `outside` row and master's `final` and `stat` rows; this plan merged three ways
+    once both sides' line endings matched (engine had stored it with CRLF since before A14 part 5: the whole file conflicted; it's LF
+    again, as master has it).
+  - **Checked**, on `e732eaaa`: the type check; eslint on the resolved files; the unit tests (1,928, every one passing);
+    `npm run migrate` (0300 to 0306); no check of allowed values set on both sides (0300-0306 add their own tables and columns;
+    0209's kind list stands); check-stats-game.js and check-slate.js all passing; A14's API checks on the dev server (check-beat-bot
+    27, check-bot-calls-run 16, check-bounty 17, check-secret-roles 25, check-twist 24, check-host 27, check-outside 14: all
+    passing). The long checks, once: golden (`--before=d4e1fe84`, engine before the merge): 7 seasons, 160 games, **19,361 reads,
+    every one the same**; blind (`blind.js run`): every game played through and over on all five seasons (The Challenge 41 123,
+    40 117, 39 125, Survivor 49 161, The Traitors 4 114, as after A14 part 7); the Survivor 51 rehearsal (`rehearse
+    --from=../reality-fantasy-leagues/backups/prod-2026-10-30 --scenario=realistic,rough,dst --before=master`): every invariant
+    holds, flag off against on and master's engine against this tree's, 2,856 reads each, every one the same.
 - **A15. Live and replay** (with the watch along, docs/PLAN-couch-and-episode-night.md §6, and the sports branch's
   `GameClock`). It needs A7. The watch along is in its infancy (the user, 2026-10-28): its concept, how it's built and how it
   connects to games are all open, so A15 is where the games shape it, not only where they plug into it.
