@@ -58,8 +58,8 @@ const WAIVER_FIELDS = ["replaceRule", "replenishAt", "waiverWindows", "waiverFee
 const DRAFT_FIELDS = ["ownershipMode", "draftScheduledAt", "draftTimer", "draftAway", "draftOpens", "finalePredictionsEnabled", "finaleTop3Points", "finaleWinnerPoints", "finalePredictionScope", "draftQuestions", "draftDraw", "draftAcross", "draftAuction", "draftBudget", "draftKeep", "draftRank", "draftRace", "draftCut", "rankOneLeft", "rankMatchups", "rankTeams", "rankHandicap", "rankTies"];
 const GAME_FIELDS = {
   // A12 part 1: an end at a phase.
-  // L3 part 2b: a sport's day's or week's lock (lockCloses).
-  every: ["leagueTypeId", "startEpisode", "startPhase", "endEpisode", "endPhase", "allowLateJoiners", "joinMode", "lockedDown", "bonusEnabled", "defaultBetPoints", "lockCloses"],
+  // L3 part 2b: a sport's day's or week's lock (lockCloses). G3 part 3b: a pool of some teams' or positions' players (poolWhere).
+  every: ["leagueTypeId", "startEpisode", "startPhase", "endEpisode", "endPhase", "allowLateJoiners", "joinMode", "lockedDown", "bonusEnabled", "defaultBetPoints", "lockCloses", "poolWhere"],
   // A9 part 2: Outlast in reverse; best ball, a lineup's captain, points that multiply by when. A10 part 3c: a stock market
   // ranked by worth.
   // C3: a multiplier on how a holding joined (joinedTimes), an Outlast's or a lineup's.
@@ -294,7 +294,8 @@ test("the Rules sheet (game-rules.ts, describeSpec since A2) says what it always
     "No draft, no team. Every show you get a new bingo card: eight things that might happen, the middle one free.",
     "Tick a square when it happens. Three in a row, down or across makes a line.",
     "A square counts once the couch agrees it happened: two of you ticking it, or saying so, settles it.",
-    "Most lines by the finale wins.",
+    // G3 part 3b (part 3a's Noticed): a game that stops before the finale is won by its end.
+    "Most lines by Episode 1 wins.",
     "It's one episode: Episode 1, then it's over.",
   ]);
   // A sport's pool survives by scoring, and the sheet says so; finale predictions are on it when they're on.

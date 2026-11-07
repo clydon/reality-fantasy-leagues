@@ -19,7 +19,7 @@ const {
   SPEC_VERSION, TYPE_PRESETS, REPLACE_RULES, WINDOW_SCHEDULES, WAIVER_FEELS, WAIVER_ORDERS, WAIVER_HOURS, DRAFT_TIMERS,
   MAX_BET_POINTS, ORDER_OF, CALLS, fullSpec, typeOf, playsAs, specProblems, waiversFit, sameValue, spanStart, spanPhase,
   finaleQuestions, finaleIn, draftQuestions, LATE_HOURS, MAX_SEAT_PEOPLE, seatPeople, NEVER, VOCAB, MATCHUP_KEYS, spanEnd, spanEndPhase, OVERALL,
-  bankOf,
+  bankOf, poolFilter,
 } = require('./schema.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
@@ -255,7 +255,8 @@ function readSpec(st, copy) {
     spec: SPEC_VERSION,
     preset: TYPE_PRESETS[type] || null,
     span: spanOf(st),
-    pool: { of: 'cast', where: { stillIn: true } },
+    // G3 part 3b: a pool of some teams' or positions' players (settings.poolWhere, as the spec says it).
+    pool: { of: 'cast', where: isObj(st.poolWhere) ? (copy ? clone(st.poolWhere) : st.poolWhere) : { stillIn: true } },
   };
   let R = 0;
   // A9 part 2: best ball (settings.bestBall: its best activeSlots count, the rest are benchSlots), a lineup's captain
@@ -477,6 +478,8 @@ function settingsOf(spec) {
     // A12 part 1: an end at a phase is endPhase, with endEpisode once it's settled.
     endEpisode: spanEnd(s.span),
     endPhase: spanEndPhase(s.span) || undefined,
+    // G3 part 3b: a pool of some teams' or positions' players, its where as the spec says it.
+    poolWhere: poolFilter(s) ? clone(s.pool.where) : undefined,
     allowLateJoiners: e.join !== 'locked',
     joinMode: e.join === null ? undefined : e.join,
     lockedDown: e.lockedDown === true,
@@ -683,6 +686,8 @@ const WAIVER_FIELDS = ['replaceRule', 'replenishAt', 'waiverWindows', 'waiverFee
 const PARTS = [
   { fields: ['leagueTypeId'], read: (s) => typeOf(s) },
   { fields: ['startEpisode', 'startPhase', 'endEpisode', 'endPhase'], read: (s) => s.span },
+  // G3 part 3b: who can be picked, when it's some teams' or positions' players.
+  { fields: ['poolWhere'], read: (s) => (poolFilter(s) ? s.pool.where : null) },
   // A12 part 1: a game in stages' stages and its overall.
   { fields: ['stages', 'stageOverall'], read: (s) => [s.stages || null, s.overall || null] },
   // A12 part 2: how a game a format change moves takes the change.

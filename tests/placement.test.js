@@ -69,6 +69,8 @@ const OPENED = [
   // questions beside it, only they wait (a stage alongside), as beside a pool.
   { why: "a pick each episode, one or several, scored by what they do", test: (n) => /^pick(-never|-two)?\|moments(-cap|-times)?\|(total|total-teams|total-hc|matchups|matchups-po|matchups-teams|matchups-hc)\|/.test(n),
     to: (was, n) => (n.endsWith("|none") ? (n.includes("|moments-cap|") ? "pp-" : "p--") : ".-w") },
+  // G3 part 3b: a pool of some teams' players (a sport's: PoolLogic) plays as the same game picking from everyone still in.
+  { why: "a pool of some teams' players", test: (n) => /^parts\|[^|]+\|teams$/.test(n), to: (was, n, now) => now(n.replace(/teams$/, "anyone")) },
   // C6, money: a stake beside a share or a rollover, and a parlay's staked leg (the stake a line of its own; a parlay multiplies it
   // with the leg's points): each loses only its problem ("A wager plays alone", "a parlay's legs aren't staked").
   { why: "a stake beside a share, a rollover or a parlay", test: (n) => /\|(idol-wager-split|idol-wager-rollover|wager-imm)$/.test(n),
@@ -132,7 +134,8 @@ test("the placement corpus: every verdict as the seven shapes gave it, but the c
   // questions, 7 drafts asking it), the rest held back as their twin is. L3 part 2f part 2's 68: a question about each game (ranked by
   // confidence) across the question holds, scores and ranks (recorded from 6b8b1269's engine, where `each: 'game'` was refused), each
   // as its twin asking who goes home: 22 playing now (15 games of questions, 7 drafts asking it), the rest held back as their twin is.
-  assert.equal(moved.length, 169 + 770 + 819 + 215 + 354 + 15 + 66 + 500 + 14 + 198 + 69 + 68);
+  // G3 part 3b's 7: a pool of some teams' players on each kind of game, every one playing as its twin picking from anyone.
+  assert.equal(moved.length, 169 + 770 + 819 + 215 + 354 + 15 + 66 + 500 + 14 + 198 + 69 + 68 + 7);
   // What plays: 933 before part 4, and every opening that plays now (none played before: each had a problem or a wait).
   assert.ok(moved.every((i) => !C.plays(was[i])));
   assert.equal(now.filter(C.plays).length, 933 + moved.filter((i) => C.plays(now[i])).length);
@@ -171,8 +174,9 @@ test("a piece with no place says which, and why", () => {
     stages: [{ id: "a", name: null, game: { ...P.outlast, span: { from: 1, to: 5 } } }, { id: "b", name: null, game: { ...P.outlast, span: { from: 6, to: null }, ask: [{ ...boot, wager: "total" }] } }] };
   one(staged, "stages[1].game.ask[0].wager", "staking any of your points is a game of questions'");
   // A piece still to build is its step's, never "no game plays this way".
-  // (Roto plays since L3 part 2d, on a sport's categories: a pool of two teams' players is still the sports branch's.)
-  assert.deepEqual(waits({ ...P.outlast, pool: { of: "cast", where: { teams: ["a"] } } }).map(([at, step]) => `${at}:${step}`), ["pool.where:sports"]);
+  // (Roto plays since L3 part 2d, on a sport's categories; a pool of some teams' or positions' players since G3 part 3b: one group's waits.)
+  assert.deepEqual(waits({ ...P.outlast, pool: { of: "cast", where: { teams: ["a"] } } }), []);
+  assert.deepEqual(waits({ ...P.outlast, pool: { of: "cast", where: { group: "t1" } } }).map(([at, step]) => `${at}:${step}`), ["pool.where:later"]);
 });
 
 test("each shape is still named for the screens, from its lines", () => {

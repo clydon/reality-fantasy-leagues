@@ -30,6 +30,7 @@ const WORDS = {
       squares: "a grid of a team game's two scores' last digits (score.by squares)",
     },
     sport: ['squares'],
+    show: ['card'],
   },
   'get.order': {
     what: 'how a draft runs',
@@ -75,6 +76,7 @@ const WORDS = {
       squares: "each pay's points to whoever holds the square of the two scores' last digits",
     },
     sport: ['stats', 'squares'],
+    show: ['moments', 'place', 'lines'],
   },
   'score.means': { what: "what a pool's right pick means", values: { staysIn: 'the person stays in that episode', scores: 'the player scores (a sport)' }, sport: ['scores'] },
   'rank.by': {
@@ -104,6 +106,7 @@ const WORDS = {
       bot: 'chosen from them by our bot before each episode',
       host: 'chosen by a host, a different one of you each episode',
     },
+    show: ['moments', 'bot', 'host'],
   },
   'card.fallback': { what: "a card nobody chose in time", values: { spec: "the spec's own list", void: "that episode's card doesn't count" } },
   closes: {
@@ -111,7 +114,7 @@ const WORDS = {
     values: { start: 'as each episode starts', daily: "at the day's first game", weekly: "at the week's first game", game: "each holding at its own game's start" },
     sport: ['daily', 'weekly', 'game'],
   },
-  'pool.where': { what: 'who can be picked (pool: { of: "cast", where })', values: { stillIn: 'nobody gone before the game starts', teams: "a sport's teams", group: 'one group of the show' }, sport: ['teams'] },
+  'pool.where': { what: 'who can be picked (pool: { of: "cast", where })', values: { stillIn: 'nobody gone before the game starts', teams: "only these teams' players (a list of the page's team ids)", positions: "only these positions' players (a list of the page's position groups)", group: 'one group of the show' }, sport: ['teams', 'positions'] },
   'ask.answer': {
     what: "how a question is answered (each question: { id, ask, answer, points, asked, settle })",
     values: {
@@ -133,6 +136,7 @@ const WORDS = {
       ticket: 'a ticket: the questions you put on it and a stake (settle legs)',
     },
     sport: ['side', 'bracket'],
+    show: ['calls', 'split', 'pairs', 'trivia'],
   },
   'ask.settle': {
     what: 'what data settles a question (settle: { by, take })',
@@ -148,10 +152,11 @@ const WORDS = {
       players: 'the players\' own answers (take: majority or minority)',
       legs: "a ticket's legs (of: the question ids)",
       outside: 'a number from an outside source',
-      final: "a sport's game at its final (take: winner, total, margin)",
+      final: "a sport's game at its final (take: winner, total, margin; a field's top, with place: a podium's 3)",
       stat: "a stat in a sport's game (stat; take: most, least, value)",
     },
     sport: ['final', 'stat'],
+    show: ['results', 'moment', 'role', 'phase', 'calls', 'trivia', 'fact', 'outside'],
   },
   'ask.settle.source': { what: "an outside number's source", values: { tvmaze: "TVmaze's episode rating" } },
   'ask.settle.tie': { what: 'a tie at the majority', values: { none: "nobody's right", all: 'everyone tied is right' } },
@@ -197,6 +202,7 @@ const WORDS = {
   'score.roles.on': {
     what: 'secret roles among the players (score.roles: { count, name, points, on })',
     values: { out: "a role scores each time someone another seat holds goes home", votedOut: '... is voted out' },
+    show: ['out', 'votedOut'],
   },
   'score.roles.deal': { what: 'how the roles are dealt', values: { random: 'at random once the game starts' } },
   'score.roles.reveal': { what: 'when the roles are revealed', values: { end: "at the game's end (or an episode's number)" } },
@@ -206,7 +212,7 @@ const WORDS = {
   },
   'score.twist.by': { what: 'top by what', values: { episode: "that episode's points", total: 'the standings through it' } },
   'score.twist.tie': { what: 'a tie for the twist', values: { total: 'broken by the standings', none: 'nobody chooses' } },
-  'get.groups.own': { what: "group slots' ownership (get.groups: { slots: 1 or 2 }: a slot for a pair or team the show forms)", values: { shared: 'shared (the default)', exclusive: 'exclusive' } },
+  'get.groups.own': { what: "group slots' ownership (get.groups: { slots: 1 or 2 }: a slot for a pair or team the show forms)", values: { shared: 'shared (the default)', exclusive: 'exclusive' }, show: ['shared', 'exclusive'] },
   'extras.waivers.own': { what: "a waiver move's ownership (extras.waivers.own: { replace, swap })", values: { exclusive: 'only someone on nobody\'s team', shared: "anyone still in, even on another team" } },
   'get.groups.fallback': { what: "a group slot's episode whose groups aren't sure", values: { void: 'no points (the default)', 'carry-on': 'follow the people', 'next-stage': 'start the next stage' } },
   'get.groups.points': { what: 'what a group slot scores', values: { mean: "its members' mean (the default)", sum: 'their sum' } },
@@ -282,7 +288,7 @@ const FIELDS = {
   'score.twist': "{ of: [{ id, name, times }] }: each episode's top scorer chooses the next episode's twist",
   'ask.pick': 'how many people or groups an answer names (each right one scores)',
   'ask.options': 'a choice\'s options (2 to 12; a count\'s are numbers or ranges, "0", "1", "2+")',
-  'ask.line': "an over/under's line",
+  'ask.line': "an over/under's line; on a sport's game, \"game\": ESPN's line on its total, kept when the question opens (never a number they didn't say)",
   'ask.within': 'an order: how many places off still scores',
   'ask.chips': 'chips to spread over people',
   'ask.pairs': 'how many pairs (who outlasts whom), drawn at the start',
@@ -331,10 +337,11 @@ function fieldsOf(spec, path = '', out = new Set()) {
 const MAX_FIELD_EXAMPLE = 320;
 
 /** For each field, the shortest request of the tracker that plays on this page and uses it (the page's own show first). */
-function fieldExamples(ctx, rows, { show } = {}) {
+function fieldExamples(ctx, rows, { show, kind = 'show' } = {}) {
   const out = new Map();
   const own = (r) => (show && r.page && r.page.show === show ? 0 : 1);
-  const sorted = (rows || []).filter((r) => r && r.words && r.spec).slice().sort((a, b) => own(a) - own(b) || JSON.stringify(a.spec).length - JSON.stringify(b.spec).length);
+  // G3: a page's examples are its kind's (a show's requests never teach a sport's page, nor a sport's a show's).
+  const sorted = (rows || []).filter((r) => r && r.words && r.spec && kindOfPage(r.page) === kind).slice().sort((a, b) => own(a) - own(b) || JSON.stringify(a.spec).length - JSON.stringify(b.spec).length);
   for (const r of sorted) {
     const fields = fieldsOf(r.spec);
     const wanted = Object.keys(FIELDS).filter((f) => fields.has(f) && !out.has(f));
@@ -387,7 +394,7 @@ function examplesFor(ctx, rows, { limit = 24, cant = 6, show, kind = 'show', ski
   const sorted = (rows || []).filter((r) => r && r.words).slice().sort((a, b) => own(a) - own(b) || oneLine(a.spec || {}).length - oneLine(b.spec || {}).length);
   for (const r of sorted) {
     if (skip.has(r.words)) continue;
-    if (r.spec && !specProblems(r.spec, ctx || null).length && !specWaitsFor(r.spec).length) {
+    if (r.spec && kindOfPage(r.page) === kind && !specProblems(r.spec, ctx || null).length && !specWaitsFor(r.spec).length) {
       const sig = signature(r.spec);
       if (seen.has(sig) || playing.length >= limit) continue;
       seen.add(sig);
@@ -442,11 +449,57 @@ function settleLines(kind) {
     .filter(Boolean);
 }
 
+/** A sport's standard game as the manual shows it: its spec with its scoring tables left out (our check fills in the standard ones). */
+function sportGameSpec(spec) {
+  const s = JSON.parse(JSON.stringify(spec || {}));
+  for (const k of ['spec', 'span', 'pool']) delete s[k];
+  if (isObj(s.score) && s.score.by === 'stats') for (const k of ['points', 'byPosition', 'byPlace', 'byFormat']) delete s.score[k];
+  return s;
+}
+
+/** G3: what a sport's page adds (in place of a show's presets): how its games, stats, finals and lines go in a game. G3 part 3b:
+ *  `positions`, the sport's position groups (ctx.positions: { key, label }), for a pool of some positions' players. */
+function sportLines(games, positions = []) {
+  const lines = [];
+  lines.push("THIS PAGE IS A SPORT'S: its episodes are the page's games (the pack's games, by episode number), its people the players (each with their team as group, and position as role), and nobody goes home. Nothing from a show plays here (no moments, phases or roles).");
+  lines.push(`- Points per stat: "score": { "by": "stats", "points": { statKey: points } }, each key one of the page's stats (the pack's stats: their words "home run" is the key "HR"). Leave points out for the sport's standard table (the pack's standard.scoring).`);
+  lines.push(`- A question about a game: settle { "by": "final", "take": "winner" } (answer "side": a team), "total" or "margin" (answer "overUnder" or "number"), a field's (a race's, a tournament's) "top" with "place" (a podium: { "by": "final", "take": "top", "place": 3 }, answer "person" with "pick": 3); or { "by": "stat", "stat": statKey, "take": "most" | "least" (answer "person": a player), or "value" (answer "number" or "overUnder"), "of": a team's id from the pack's teams for one team's players }.`);
+  lines.push(`- An over/under on a game's total: "line": "game" (ESPN's own line, kept when the question opens). Never a line they didn't say.`);
+  lines.push(`- A final, or a game's stat, asked once is one game's: a span of that one game ("span": { "from": n, "to": n }), or "asked": "each" for every game.`);
+  lines.push(`- Every game of an episode that has several (a week's slate): "each": "game" on the question.`);
+  const groups = positions.filter((p) => isObj(p) && p.key).map((p) => (p.label ? `${p.key} (${p.label})` : p.key));
+  lines.push(`- Only some players can be picked ("draft 3 strikers", "only the Lakers' players"): "pool": { "of": "cast", "where": { "teams": [team ids from the pack's teams] } }, or "positions": [${groups.length ? `the sport's position groups: ${groups.join(', ')}` : "the sport's position groups"}], or both. Leave pool out when anyone can be picked.`);
+  lines.push(`- When moves lock: "closes": "start" (each game's start), "daily" or "weekly" (a lineup, at the day's or week's first game), "game" (each player at their own game's start).`);
+  lines.push(`- A span names the page's games: "the next 5 games" is the next 5 episodes still to play; a game already started can't be played (ask about the next one instead).`);
+  if (games.length) {
+    lines.push('');
+    lines.push("THE SPORT'S STANDARD GAMES (start from one when the words fit it, then change only what they said; scoring left out is the standard table):");
+    for (const g of games) lines.push(`- "${g.id}": ${g.about} ${oneLine(sportGameSpec(g.spec))}`);
+  }
+  return lines;
+}
+
+/** G3 part 2: what a team's page adds: the games their words mean, named as a matchup from the team's schedule. */
+function teamLines() {
+  return [
+    "THIS PAGE IS A TEAM'S SCHEDULE, before any games are picked (the pack's team and schedule: each game by id, its day in the East, home or away, against whom, and played: true once it's started). Name the games their words mean as \"matchup\", beside \"game\", one of:",
+    '- { "kind": "opener", "home": true }: their first game of the regular season ("the home opener": home true; "the opener": leave home out).',
+    `- { "kind": "series", "against": a team id from the pack's teams }: their next series against that team, all of it ("the upcoming Red Sox-Yankees series").`,
+    `- { "kind": "next", "count": n }: their next n games still to play ("the Lakers' next 5 games"), with "against": a team id for only their games against that team.`,
+    `- { "kind": "day", "day": "YYYY-MM-DD" }: their games that day in the East ("tonight" is the pack's today).`,
+    '- { "kind": "games", "events": [game ids from the schedule] }: these games, one by one.',
+    'Name what their words mean even when it has been played: our check asks about the next one. Words that name no games ("a game for the Red Sox"): "matchup": null, and our check asks which games.',
+    'The games picked are the whole game, numbered from 1 in order: leave "span" out.',
+  ];
+}
+
 /**
  * The manual, as the bot reads it. `kind`: 'show' (the default) or 'sport', which values play; `examples`: the tracker's rows
- * (capabilities.js rowsOf), its requests become the examples; `show`: the page's show, whose own requests come first.
+ * (capabilities.js rowsOf), its requests become the examples; `show`: the page's show, whose own requests come first. G3: `games`,
+ * a sport's standard games ({ id, about, spec }: sports/page.ts sportGames), shown on a sport's page in place of a show's presets.
+ * G3 part 2: `team`, a team's page (no games picked yet): how to name the games their words mean (`matchup`).
  */
-function manualFor(ctx, { kind = 'show', examples = [], limit = 16, show = null } = {}) {
+function manualFor(ctx, { kind = 'show', examples = [], limit = 16, show = null, games = [], team = false } = {}) {
   const lines = [];
   lines.push('THE ENGINE\'S MANUAL: what a game can be. Only these parts and values play; anything else goes under cantYet.');
   lines.push(
@@ -454,8 +507,13 @@ function manualFor(ctx, { kind = 'show', examples = [], limit = 16, show = null 
       'Leave out every part their words don\'t decide: a preset fills in the rest, and our defaults fill what no preset does.'
   );
   lines.push('');
-  lines.push('PRESETS (whole games; start from one when the words fit it, then change only what they said):');
-  lines.push(...presetLines(ctx));
+  if (kind === 'sport') {
+    lines.push(...sportLines(Array.isArray(games) ? games : [], isObj(ctx) && Array.isArray(ctx.positions) ? ctx.positions : []));
+    if (team) lines.push('', ...teamLines());
+  } else {
+    lines.push('PRESETS (whole games; start from one when the words fit it, then change only what they said):');
+    lines.push(...presetLines(ctx));
+  }
   lines.push('');
   lines.push('SPAN: "span": { "from": an episode number or { "phase": id }, "to": an episode number, null for the season\'s end, or { "phase": id } it ends before }. Left out: from the next episode to air to the season\'s end.');
   lines.push('');
@@ -476,7 +534,7 @@ function manualFor(ctx, { kind = 'show', examples = [], limit = 16, show = null 
     lines.push('');
     lines.push("CAN'T YET (never in a game; say so under cantYet): " + later.join('; ') + '.');
   }
-  const fieldLines = fieldExamples(ctx, examples, { show });
+  const fieldLines = fieldExamples(ctx, examples, { show, kind });
   lines.push('');
   lines.push('FIELDS (numbers, lists and switches; each with a request that plays on this page, where there is one):');
   for (const [field, words] of Object.entries(FIELDS)) {
@@ -497,4 +555,4 @@ function manualFor(ctx, { kind = 'show', examples = [], limit = 16, show = null 
   return lines.join('\n');
 }
 
-module.exports = { WORDS, FIELDS, manualFor, examplesFor, fieldExamples, fieldsOf, signature, plays };
+module.exports = { WORDS, FIELDS, manualFor, examplesFor, fieldExamples, fieldsOf, signature, plays, sportGameSpec };

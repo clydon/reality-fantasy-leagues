@@ -25,7 +25,7 @@ const Formats = require("./formats/index.js");
 
 const {
   Core, DraftLogic, BlindDraftLogic, AuctionLogic, BudgetLogic, PriceLogic, MarketLogic, ActiveRosterLogic, PickEmLogic, MidSeasonLogic,
-  KeeperLogic, EpisodeLogic, FinaleLogic, GroupSlotLogic, KnockoutLogic, piecesOf, inPlay, closedForPlay,
+  KeeperLogic, EpisodeLogic, FinaleLogic, GroupSlotLogic, KnockoutLogic, PoolLogic, piecesOf, inPlay, closedForPlay,
   currentEpisode, finalePredictionsAvailable, seasonWinner,
 } = StateLogic;
 
@@ -224,7 +224,9 @@ function snakeDraft(state) {
     // A game at your own pace drafts together at its start (docs/PLAN-own-pace-games.md, sync point 1): on the cast as it stood
     // before it, never the season's later statuses (on a finished season only the winner is still in).
     const on = draftCopy(state);
-    const free = on.castaways.filter((c) => c.status === "active" && !(c.ownerIds || []).length).map((c) => c.id);
+    // G3 part 3b: only those in the game's pool (PoolLogic), as the pick takes them.
+    const inPool = PoolLogic.test(state);
+    const free = on.castaways.filter((c) => c.status === "active" && !(c.ownerIds || []).length && inPool(c.id)).map((c) => c.id);
     // A draft spread across the cast's groups (step A10 part 3) or under a salary cap (part 3b): only who keeps the team spread
     // and within it, read over every free agent as the pick's own checks read it (else whoever keeps it that this list lacks).
     const fits = StateLogic.draftFitsFor(on, turn.playerId);
@@ -245,7 +247,8 @@ function blindSubmissions(state) {
   if (!botIds(state).length) return [];
   if (!BlindDraftLogic.on(state) || !piecesOf(state).hasRoster) return [];
   if (!DraftLogic.isStarted(state) || BlindDraftLogic.isRevealed(state)) return [];
-  const active = state.castaways.filter((c) => c.status === "active").map((c) => c.id);
+  // G3 part 3b: only those in the game's pool (PoolLogic).
+  const active = PoolLogic.offered(state).map((c) => c.id);
   return botIds(state)
     .filter((pid) => !BlindDraftLogic.hasLocked(state, pid) && BlindDraftLogic.eligiblePlayers(state).some((p) => p.id === pid))
     .map((pid) => {
@@ -270,7 +273,8 @@ function blindSubmissions(state) {
 function auctionBids(state) {
   if (!botIds(state).length || !AuctionLogic.on(state) || !piecesOf(state).hasRoster) return [];
   if (!DraftLogic.isStarted(state) || !AuctionLogic.ready(state)) return [];
-  const free = state.castaways.filter((c) => c.status === "active" && !(c.ownerIds || []).length).map((c) => c.id);
+  // G3 part 3b: only those in the game's pool (PoolLogic).
+  const free = PoolLogic.offered(state).filter((c) => !(c.ownerIds || []).length).map((c) => c.id);
   return botIds(state)
     .filter((pid) => !AuctionLogic.hasLocked(state, pid))
     // Step A10 part 4: a sheet for the places its keepers leave.

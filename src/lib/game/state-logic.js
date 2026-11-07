@@ -2397,7 +2397,8 @@ class SnakeDraftStrategy {
     KeeperLogic.settle(state);
     const turn = SnakeDraftStrategy.currentTurn(state);
     const c = Core.getCastaway(state, castawayId);
-    if(!turn || turn.isComplete || !c || leagueOwnersOf(state, c).length) return;
+    // G3 part 3b: only someone in the game's pool (PoolLogic).
+    if(!turn || turn.isComplete || !c || leagueOwnersOf(state, c).length || !PoolLogic.has(state, c)) return;
     // A10 part 3: a draft spread across the cast's groups takes only a pick that keeps the team spread (pickProblem says why).
     if(SpreadLogic.pickProblem(state, turn.playerId, castawayId)) return;
     // Part 3b: a salary cap takes only a pick that keeps the team within it (pickProblem says why); its price goes in the log.
@@ -2539,6 +2540,7 @@ class BlindDraftLogic {
     const teamSize = KeeperLogic.places(state, playerId);
     if(ids.length !== teamSize) return `Pick exactly ${teamSize} castaway${teamSize===1?'':'s'}${keep.length ? ` beside your keeper${keep.length === 1 ? '' : 's'}` : ''}`;
     if(new Set(ids).size !== ids.length) return 'Same castaway picked more than once';
+    const inPool = PoolLogic.test(state);
     for(const id of ids){
       const c = Core.getCastaway(state, id);
       if(!c) return 'Unknown castaway in submission';
@@ -2546,6 +2548,8 @@ class BlindDraftLogic {
       // No free-agent check: shared mode never removes anyone from availability, so the whole
       // active cast is offered to every player every time (see RosterLogic.freeAgents' comment).
       if(c.status !== 'active') return `${c.name} is already eliminated`;
+      // G3 part 3b: only those in the game's pool (PoolLogic).
+      if(!inPool(c)) return PoolLogic.reason(state, c);
     }
     // A10 part 3: spread across the cast's groups, as the data has them now; part 3b: within a salary cap at today's prices.
     return SpreadLogic.teamProblem(state, ids, keep) || BudgetLogic.teamProblem(state, ids, keep);
@@ -2636,7 +2640,8 @@ class SpreadLogic {
     if(!a || a.of !== 'group') return null;
     const tribes = new Set((state.tribes || []).map(t => t.id));
     const of = new Map();
-    (state.castaways || []).forEach(c => { if(c.status === 'active') of.set(c.id, c.tribeId && tribes.has(c.tribeId) ? c.tribeId : null); });
+    // G3 part 3b: the groups of those in the game's pool (PoolLogic).
+    PoolLogic.offered(state).forEach(c => { of.set(c.id, c.tribeId && tribes.has(c.tribeId) ? c.tribeId : null); });
     const groups = [...new Set([...of.values()].filter(Boolean))].sort();
     const each = rosterSize(state);
     const bounds = Spec.spreadBounds(each, groups.length);
@@ -2700,7 +2705,7 @@ class SpreadLogic {
   static teamProblem(state, castawayIds, keep){
     const g = SpreadLogic.groupsNow(state);
     if(!g) return null;
-    const cast = (state.castaways || []).filter(c => c.status === 'active').map(c => c.id);
+    const cast = PoolLogic.offered(state).map(c => c.id);
     const picked = [...(keep || [])];
     for(const id of castawayIds){
       if(!SpreadLogic.allowed(state, picked, cast.filter(c => !picked.includes(c)), g).includes(id)) return SpreadLogic.reason(state, g);
@@ -2734,7 +2739,8 @@ class DrawLogic {
     const shuffled = (ids, key) => [...ids].sort((a, b) => hashUnit(`${seed}|${key}|${a}`) - hashUnit(`${seed}|${key}|${b}`) || (a < b ? -1 : a > b ? 1 : 0));
     // The seats in the rotation, in the order the seed deals to (whatever order the league lists them in).
     const order = shuffled((state.players || []).filter(inLeagueRotation).map(p => p.id), 'seat');
-    const cast = (state.castaways || []).filter(c => c.status === 'active').map(c => c.id).sort();
+    // G3 part 3b: the hat holds only those in the game's pool (PoolLogic).
+    const cast = PoolLogic.offered(state).map(c => c.id).sort();
     const g = SpreadLogic.groupsNow(state);
     // `priced`: a salary cap's prices when the caller read them already (draw records them in the log).
     const prices = priced !== undefined ? priced : BudgetLogic.cap(state) === null ? null : PriceLogic.prices(state);
@@ -2962,7 +2968,7 @@ class BudgetLogic {
     if(cost <= cap) return null;
     const g = SpreadLogic.groupsNow(state);
     const from = Array.isArray(pool) ? new Set(pool) : null;
-    const cheap = (state.castaways || []).filter(c => c.status === 'active' && !mine.includes(c.id) && (!from || from.has(c.id))).map(c => c.id).sort((x, y) => (prices.get(x) || 0) - (prices.get(y) || 0));
+    const cheap = PoolLogic.offered(state).filter(c => !mine.includes(c.id) && (!from || from.has(c.id))).map(c => c.id).sort((x, y) => (prices.get(x) || 0) - (prices.get(y) || 0));
     const team = [...mine];
     while(team.length < rosterSize(state)){
       const next = SpreadLogic.allowed(state, team, cheap.filter(id => !team.includes(id)), g)[0];
@@ -3131,7 +3137,9 @@ class KeeperLogic {
     if(!KeeperLogic.config(state) || KeeperLogic.locked(state)) return false;
     const was = JSON.stringify(state.keepers || null);
     const rec = state.keepers || (state.keepers = { options: {}, chosen: {} });
-    const inCast = id => { const c = Core.getCastaway(state, id); return !!c && c.status === 'active'; };
+    // G3 part 3b: only those in the game's pool (PoolLogic).
+    const inPool = PoolLogic.test(state);
+    const inCast = id => { const c = Core.getCastaway(state, id); return !!c && c.status === 'active' && inPool(c); };
     rec.options = {};
     Object.entries(options || {}).forEach(([pid, ids]) => {
       if(!Core.getPlayer(state, pid) || !Array.isArray(ids)) return;
@@ -3200,8 +3208,9 @@ class KeeperLogic {
     const named = order.filter(id => KeeperLogic.chosen(state, id) !== null)
       .sort((a, b) => String(rec.chosen[a].at || '').localeCompare(String(rec.chosen[b].at || '')));
     const rest = order.filter(id => KeeperLogic.chosen(state, id) === null);
+    const inPool = PoolLogic.test(state);
     [...named, ...rest].forEach(pid => {
-      const opts = KeeperLogic.options(state, pid).filter(id => { const c = Core.getCastaway(state, id); return !!c && c.status === 'active'; });
+      const opts = KeeperLogic.options(state, pid).filter(id => { const c = Core.getCastaway(state, id); return !!c && c.status === 'active' && inPool(c); });
       const want = KeeperLogic.chosen(state, pid) !== null ? KeeperLogic.named(state, pid).filter(id => opts.includes(id)) : k.fallback === 'best' ? opts : [];
       const list = [];
       for(const id of want){
@@ -3266,7 +3275,8 @@ class KeeperLogic {
     const seats = new Set(oldPlayerIds || []);
     const mine = new Set((old.castaways || []).filter(c => ownerListOf(c).some(id => seats.has(id))).map(c => c.id));
     const here = new Map();
-    (state.castaways || []).forEach(c => { if(c.status === 'active'){ const key = KeeperLogic.nameKey(c.name); if(key && !here.has(key)) here.set(key, c.id); } });
+    // G3 part 3b: only those in this game's pool (PoolLogic).
+    PoolLogic.offered(state).forEach(c => { const key = KeeperLogic.nameKey(c.name); if(key && !here.has(key)) here.set(key, c.id); });
     const out = [];
     KeeperLogic.rankFrom(old).forEach(id => {
       if(!mine.has(id)) return;
@@ -3342,12 +3352,15 @@ class AuctionLogic {
     if(bids.length > most) return `Bid on up to ${most}`;
     const max = AuctionLogic.maxBid(state, playerId);
     const seen = new Set();
+    const inPool = PoolLogic.test(state);
     for(const x of bids){
       const c = x && typeof x === 'object' ? Core.getCastaway(state, x.castawayId) : null;
       if(!c) return 'Unknown castaway in your bids';
       if(seen.has(c.id)) return `${c.name} is in your bids twice`;
       seen.add(c.id);
       if(c.status !== 'active') return `${c.name} is already out`;
+      // G3 part 3b: only those in the game's pool (PoolLogic).
+      if(!inPool(c)) return PoolLogic.reason(state, c);
       if(leagueOwnersOf(state, c).length) return `${c.name} is on a team already`;
       if(!Number.isInteger(x.bid) || x.bid < b.floor || x.bid > max) return `A bid is a whole number from ${b.floor} to ${max} (you need ${b.floor} for each other place on your team)`;
     }
@@ -3380,7 +3393,8 @@ class AuctionLogic {
     const byRank = prefix => (x, y) => rank(`${prefix}|${x}`) - rank(`${prefix}|${y}`) || (x < y ? -1 : x > y ? 1 : 0);
     const order = AuctionLogic.eligiblePlayers(state).map(p => p.id).sort(byRank('seat'));
     const aside = ownersAside(state);
-    const free = new Set((state.castaways || []).filter(c => c.status === 'active' && !leagueOwnersOf(state, c, aside).length).map(c => c.id));
+    // G3 part 3b: only those in the game's pool (PoolLogic).
+    const free = new Set(PoolLogic.offered(state).filter(c => !leagueOwnersOf(state, c, aside).length).map(c => c.id));
     const g = SpreadLogic.groupsNow(state);
     // A10 part 4: each team starts with its keepers, and what they cost.
     const teams = Object.fromEntries(order.map(id => [id, KeeperLogic.keptIds(state, id)]));
@@ -3516,7 +3530,9 @@ function roundPoints(n){ return Seq.round(n); }
 // L3 part 2f: a league's slate (several games an episode), each game's lines beside the week's (`ep.statGames`: event id to castaway
 // id to counts), so a table scores each game on its own and adds them up (a double-double, a bonus at 100 yards, a defense's points
 // allowed: each a game's); stamped only once every game of the week is over, so a partial week is never its results.
-const STAMPED = { episode: ['statLines', 'statBouts', 'gameFinal', 'gameScore', 'squareDigits', 'statGames'], state: ['statGroups', 'statDefs', 'statPeriods'] };
+// G3 part 3b: a game whose pool is some teams' or positions' players (PoolLogic), every castaway's position group from their
+// roster (`state.statGroups`, a kept final or not) and the ESPN id of the team they're listed on now (`state.statTeams`).
+const STAMPED = { episode: ['statLines', 'statBouts', 'gameFinal', 'gameScore', 'squareDigits', 'statGames'], state: ['statGroups', 'statDefs', 'statPeriods', 'statTeams'] };
 // The settles a sport's game answers (L1 part 4b).
 const SPORTS_SETTLES = ['final', 'stat'];
 class StatsLogic {
@@ -3524,7 +3540,10 @@ class StatsLogic {
   static on(state){ return playedGame(state).score.by === 'stats'; }
   // L3 part 2c: the game that's played reads a sport's games: scored by their stats, or asking a question one settles (a game of
   // questions', a draft's own).
-  static reads(state){
+  // G3 part 3b: or picks from some teams' or positions' players (the stamp's teams and groups only: readsGames says whether its
+  // games' finals are stamped too).
+  static reads(state){ return StatsLogic.readsGames(state) || !!PoolLogic.filter(state); }
+  static readsGames(state){
     const g = playedGame(state);
     return g.score.by === 'stats' || g.score.by === 'squares' || Spec.askOf(g).some(q => q && q.settle && SPORTS_SETTLES.includes(q.settle.by));
   }
@@ -3565,7 +3584,8 @@ class StatsLogic {
   // one else can be held), `o.bouts` the same for a card's bouts, `o.groups` { castawayId: position group }, `o.finals` the episode
   // numbers whose game is final (L3 part 2c); L3 part 2e, `o.games` { [episode number]: { status, sides, periods } } (a final game's
   // score, a squares game's), `o.digits` { [episode number]: digits } (a locked episode's, drawn by the server) and `o.periods` (the
-  // sport's regulation periods). An episode left out keeps no lines (its game isn't final for this copy). Returns the state.
+  // sport's regulation periods). An episode left out keeps no lines (its game isn't final for this copy). G3 part 3b: `o.teams`
+  // { castawayId: ESPN team id } (the pool's teams: PoolLogic). Returns the state.
   static stamp(state, o){
     const cast = new Set((state.castaways || []).map(c => c.id));
     const only = rec => Object.fromEntries(Object.entries(rec || {}).filter(([id]) => cast.has(id)));
@@ -3588,6 +3608,9 @@ class StatsLogic {
     });
     const groups = only(o && o.groups);
     if(Object.keys(groups).length) state.statGroups = groups;
+    // G3 part 3b: each castaway's team as an ESPN id (`o.teams`), for a pool of some teams' players.
+    // Stamped whenever it's given, none matched or not (the season names its teams: someone on none of them is out of the pool).
+    if(o && o.teams && typeof o.teams === 'object') state.statTeams = only(o.teams);
     if(o && o.defs && typeof o.defs === 'object') state.statDefs = o.defs;
     if(o && Number.isInteger(o.periods) && o.periods > 0) state.statPeriods = o.periods;
     return state;
@@ -4708,7 +4731,8 @@ class PickEmLogic {
   // that doesn't count). After a pool's early end (one or none left) nobody picks: { available: [], blocked: {}, ended }.
   static eligibility(state, epId, playerId){
     const ep = PickEmLogic.findEpisode(state, epId);
-    const remaining = state.castaways.filter(c => c.status === 'active').map(c => c.id);
+    // G3 part 3b: only those in the game's pool (PoolLogic); a cycle is over the pool's.
+    const remaining = PoolLogic.offered(state).map(c => c.id);
     const blocked = {};
     if(!ep) return { available: remaining, blocked };
     const parts = PickEmLogic.parts(state);
@@ -5801,12 +5825,64 @@ class StageLogic {
   }
 }
 
+// ---------- PoolLogic: who can be picked (G3 part 3b: the spec's pool.where, a sport's teams and positions) ----------
+// "Draft 3 strikers each", "the Lakers' players": a game picks only from some teams' or positions' players (Spec.poolFilter).
+// Each one's team is the server's stamp (state.statTeams: castaway id to the ESPN id of the team they're listed on now, as the
+// season's linked games name it) and their position group its stamp too (state.statGroups: their roster's position, groupOf),
+// neither ever stored (StatsLogic.stamp). Every place a draft, a pickup or a pick offers someone asks it, for who it lists and who
+// it takes: the free agents, a move's people, a late joiner's pool, a blind team, a draw's hat, an auction's bids, keepers, a
+// pool's pick, a bot's, and the exclusive-or-shared count as a draft opens (a filtered pool counts smaller). Fallbacks from the
+// start: someone whose team or position isn't known isn't in the pool; a league with no stamp of it at all (nothing read yet, a
+// season with no linked games) holds no filter on it, so a draft never stalls; someone already on a team stays on it (a trade
+// moves nobody: only new picks are filtered).
+class PoolLogic {
+  // The game's filter ({ teams?, positions? }), or null: everyone still in. Read once per spec (a league's spec is replaced, never
+  // changed in place, whenever its game changes: Spec.gameOf).
+  static filter(state){
+    const g = gameOf(state);
+    if(g && typeof g === 'object' && POOL_FILTERS.has(g)) return POOL_FILTERS.get(g);
+    const f = Spec.poolFilter(playedGame(state));
+    if(g && typeof g === 'object') POOL_FILTERS.set(g, f);
+    return f;
+  }
+  // A test of whether a castaway (or its id) is in the pool (Spec.inFilter), read once for a pass over the cast: each part of the
+  // filter whose stamp is missing holds nothing (statTeams for its teams, statGroups for its positions).
+  static test(state){
+    const f = PoolLogic.filter(state);
+    if(!f) return () => true;
+    const teams = f.teams && state.statTeams && typeof state.statTeams === 'object' ? state.statTeams : null;
+    const groups = f.positions && state.statGroups && typeof state.statGroups === 'object' ? state.statGroups : null;
+    if(!teams && !groups) return () => true;
+    const held = { ...(teams ? { teams: f.teams } : {}), ...(groups ? { positions: f.positions } : {}) };
+    return c => {
+      const id = typeof c === 'string' ? c : c && c.id;
+      return Spec.inFilter(held, { team: teams ? teams[id] || null : null, position: groups ? groups[id] || null : null });
+    };
+  }
+  static has(state, c){ return PoolLogic.test(state)(c); }
+  // Everyone still in who can be picked.
+  static offered(state){ const inPool = PoolLogic.test(state); return (state.castaways || []).filter(c => c.status === 'active' && inPool(c)); }
+  // Why someone can't be picked here, for a refusal that says it, in the words' style ("forwards only"): the teams by their names
+  // (the groups their players are listed in), the positions by their keys (GK, FWD, guards: the sport's own).
+  static reason(state, c){
+    const f = PoolLogic.filter(state) || {};
+    const list = xs => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} or ${xs[xs.length - 1]}`);
+    const tribes = new Map((state.tribes || []).map(t => [t.id, t.name]));
+    const teams = f.teams ? [...new Set((state.castaways || []).filter(x => state.statTeams && f.teams.includes(state.statTeams[x.id])).map(x => tribes.get(x.tribeId)).filter(Boolean))] : [];
+    const what = [f.teams ? (teams.length ? list(teams) : "some teams'") : null, f.positions ? list(f.positions) : 'players'].filter(Boolean).join(' ');
+    return `${c && c.name ? c.name : 'They'} can't be picked in this game: it's ${what} only`;
+  }
+}
+// PoolLogic.filter's reading of each spec.
+const POOL_FILTERS = new WeakMap();
+
 // ---------- RosterLogic: players, tribes, castaways, league settings ----------
 class RosterLogic {
   // Both of these are EXCLUSIVE-ownership concepts and stay that way: in a shared-ownership league
   // nothing is ever removed from availability (every pick offers the full cast every time), so
   // there is no such thing as a free agent. Shared-mode draft/roster UI simply doesn't call these.
-  static freeAgents(state){ const aside = ownersAside(state); return state.castaways.filter(c=>leagueOwnersOf(state, c, aside).length===0 && c.status==='active'); }
+  // G3 part 3b: only those in the game's pool (PoolLogic).
+  static freeAgents(state){ const aside = ownersAside(state); const inPool = PoolLogic.test(state); return state.castaways.filter(c=>leagueOwnersOf(state, c, aside).length===0 && c.status==='active' && inPool(c)); }
   static activeOwnedCount(state, playerId){ return state.castaways.filter(c=>ownerListOf(c).includes(playerId) && c.status==='active').length; }
   static totalCastCount(state){ return state.castaways.length; }
 
@@ -5851,9 +5927,11 @@ class RosterLogic {
     if(!p) return null;
     const prices = BudgetLogic.priced(state) ? PriceLogic.prices(state) : null;
     const given = [];
+    // G3 part 3b: only those in the game's pool (PoolLogic).
+    const inPool = PoolLogic.test(state);
     (castawayIds||[]).forEach(cid=>{
       const c = Core.getCastaway(state, cid);
-      if(c && leagueOwnersOf(state, c).length===0){ Core.setOwner(state, cid, playerId); c.acquiredVia = 'draft'; given.push(cid); }
+      if(c && leagueOwnersOf(state, c).length===0 && inPool(c)){ Core.setOwner(state, cid, playerId); c.acquiredVia = 'draft'; given.push(cid); }
     });
     if(prices && given.length) p.joinPaid = roundPoints((p.joinPaid || 0) + BudgetLogic.cost(given, prices));
     p.active = true;
@@ -6340,7 +6418,8 @@ class RosterLogic {
     const g = gameOf(state);
     if(g.get.by !== 'draft' || g.get.own !== 'exclusive' || g.get.order === 'auction' || !g.extras.draft || g.extras.draft.opens !== 'start') return null;
     if(DraftLogic.waits(state) || DraftLogic.begun(state)) return null;
-    const pool = (state.castaways || []).filter(c => c.status === 'active').length;
+    // G3 part 3b: a filtered pool counts smaller (PoolLogic).
+    const pool = PoolLogic.offered(state).length;
     const teams = (state.players || []).filter(inLeagueRotation).length;
     const each = g.get.each;
     if(!teams || Spec.covers({ pool, people: teams, each })) return null;
@@ -6543,7 +6622,9 @@ class MidSeasonLogic {
   static availableFor(state, playerId, kind){
     const shared = kind ? MidSeasonLogic.isShared(state, kind) : MidSeasonLogic.isShared(state, 'replace') || MidSeasonLogic.isShared(state, 'swap');
     const aside = shared ? null : ownersAside(state);
-    return state.castaways.filter(c => c.status === 'active' && (shared
+    // G3 part 3b: only those in the game's pool (PoolLogic).
+    const inPool = PoolLogic.test(state);
+    return state.castaways.filter(c => c.status === 'active' && inPool(c) && (shared
       ? !ownerListOf(c).includes(playerId)
       : leagueOwnersOf(state, c, aside).length === 0));
   }
@@ -9116,8 +9197,10 @@ class GhostLogic {
   static draftPool(state, start, freeAgents){
     const before = SpoilerLogic.viewThrough(state, Math.max(0, start - 1));
     const aside = freeAgents ? ownersAside(state) : null;
+    // G3 part 3b: only those in the game's pool (PoolLogic).
+    const inPool = PoolLogic.test(state);
     return before.castaways
-      .filter(c => c.status === 'active' && !(freeAgents && leagueOwnersOf(state, Core.getCastaway(state, c.id) || c, aside).length))
+      .filter(c => c.status === 'active' && inPool(c.id) && !(freeAgents && leagueOwnersOf(state, Core.getCastaway(state, c.id) || c, aside).length))
       .map(c => c.id);
   }
   // How many they draft: the league's roster size, or none for a league type with no draft.
@@ -9771,7 +9854,7 @@ return {
   // EliminationOrderScoringStrategy/PickEmScoringStrategy are those pieces,
   // exported directly for code that wants to bypass the dispatch.
   Core, ScoringLogic, DraftLogic, RosterLogic, WaiverLogic, EpisodeLogic, BetLogic, FinaleLogic, AnswerLogic, PickEmLogic, BlindDraftLogic, ActiveRosterLogic, StatsLogic, RotoLogic, SquaresLogic, SquaresScoringStrategy, GroupSlotLogic, SetupLogic, RevealLogic, SpoilerLogic, GhostLogic, Migrations,
-  SpreadLogic, DrawLogic, PriceLogic, BudgetLogic, MarketLogic, AuctionLogic, KeeperLogic, KnockoutLogic, MatchupLogic, WeekLogic, TeamLogic, HandicapLogic, StageLogic, BountyLogic, SecretRoleLogic, TwistLogic, HostLogic, draftFits, draftFitsFor, rankKey,
+  PoolLogic, SpreadLogic, DrawLogic, PriceLogic, BudgetLogic, MarketLogic, AuctionLogic, KeeperLogic, KnockoutLogic, MatchupLogic, WeekLogic, TeamLogic, HandicapLogic, StageLogic, BountyLogic, SecretRoleLogic, TwistLogic, HostLogic, draftFits, draftFitsFor, rankKey,
   SnakeDraftStrategy, StagesScoringStrategy, EliminationOrderScoringStrategy, NoDraftStrategy, PickEmScoringStrategy, BlindDraftStrategy, ActiveRosterEventScoringStrategy, DrawDraftStrategy, AuctionDraftStrategy
 };
 

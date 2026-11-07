@@ -552,8 +552,11 @@ declare const StateLogic: {
   /** L3 part 2: a game scored by a sport's stats, from the lines the server stamps on the copy it reads (never stored). */
   StatsLogic: {
     on(state: LeagueState): boolean;
-    /** L3 part 2c: the game reads a sport's games (scored by their stats, or asking a question one settles). */
+    /** L3 part 2c: the game reads a sport's games (scored by their stats, or asking a question one settles); G3 part 3b, or picks
+     *  from some teams' or positions' players (its stamp's teams and groups). */
     reads(state: LeagueState): boolean;
+    /** G3 part 3b: the game reads its games' finals (reads, without a pool's filter alone). */
+    readsGames(state: LeagueState): boolean;
     /** An episode's stat lines as its moments at the game's table, or null before its lines are in. */
     scored(state: LeagueState, ep: Episode | null | undefined): { castawayId: string; points: number }[] | null;
     /** One holding's line in an episode at the game's table (its points and the stats that made them), or null. */
@@ -915,6 +918,15 @@ declare const StateLogic: {
     allLockedIn(state: LeagueState, lockedPlayerIds: string[]): boolean;
     validateSubmission(state: LeagueState, playerId: string, castawayIds: string[]): string | null;
     reveal(state: LeagueState, picksByPlayer: Record<string, string[]>, revealedAt?: string): boolean;
+  };
+  /** G3 part 3b: who can be picked (the spec's pool.where: a sport's teams and positions), on the server's stamp (statTeams,
+   *  statGroups); no stamp of one holds no filter on it. */
+  PoolLogic: {
+    filter(state: LeagueState): { teams?: string[]; positions?: string[] } | null;
+    test(state: LeagueState): (castaway: Castaway | string) => boolean;
+    has(state: LeagueState, castaway: Castaway | string): boolean;
+    offered(state: LeagueState): Castaway[];
+    reason(state: LeagueState, castaway: Castaway | null | undefined): string;
   };
   /** Step A10 part 3: a draft spread across the cast's groups (the spec's get.across), on the groups the data has them on now. */
   SpreadLogic: {

@@ -73,11 +73,33 @@ Which episodes of the season the game plays. **`span: { from, to }`**.
 - Example: "from the merge on": `"span": { "from": { "phase": "merged" }, "to": null }` → "...from when Merged starts".
 - Goes with everything. A question about the season's end (who wins, the final three, the jury's vote) needs a game that runs to
   it (`to: null`).
+- **A sport's games picked by their words** (G3 part 2): on a team's page there's no season yet, so "the home opener", "the upcoming
+  series", "the next 5 games" or "tonight" names the games instead (a matchup ask, `src/lib/sports/matchup.ts` `MatchupAsk`: `opener`,
+  `series`, `next`, `day`, `games`), and those games become a season of their own (a matchup), numbered from 1: the game's span is
+  that season, so it leaves `span` out. A game already played is never picked: our check asks about the next one.
 
 ## Who can be picked: the pool
 
-**`pool: { of: "cast", where }`**. Today always the cast, `where: { "stillIn": true }` (nobody gone before the game starts) or
-`null`. A sport's `{ teams: [...] }` is the sports branch's; a pool of one group, `{ group: id }`, has no step yet.
+**`pool: { of: "cast", where }`**. Always the cast: `where: { "stillIn": true }` (nobody gone before the game starts) or `null`,
+everyone still in. Since G3 part 3b, a sport's game can pick from only some of its players:
+
+- **`teams`**: `{ "teams": ["13"] }`, ESPN team ids from the page's teams ("the Lakers' players"; our check reads a team named by
+  its name as its id, and asks "Which team's players?" for one the page hasn't got). A team sport's only.
+- **`positions`**: `{ "positions": ["FWD"] }`, the sport's position groups (`ctx.positions`: soccer's GK, DEF, MID, FWD;
+  "draft 3 strikers each" is FWD; a position named by its label, "forwards", is its key).
+- Both together ("the Lakers' guards"), `stillIn` beside them or not (the same: nobody gone is offered anyway).
+
+Who's on which team is the server's stamp, never stored: each castaway's team as the season's linked games name it (`statTeams`,
+from the group they're listed in now) and their position group from their roster (`statGroups`, `season_cast.role`). Every place
+a draft, a pickup or a pick offers someone asks the pool (`PoolLogic`): the free agents, a waiver move's people, a late joiner's
+pool, a blind team, a draw's hat, an auction's bids, keepers, a pool's pick, a bot's picks (a question names anyone: a race's
+winner or a game's top scorer can be outside it). Fallbacks
+from the start: someone whose team or position isn't known isn't in the pool; a league with no stamp of it at all (nothing read
+yet, a season with no linked games or none naming its teams) holds no filter on it, so a draft never stalls; someone already on your team stays on it
+(a trade moves nobody: only new picks are filtered). Finale predictions aren't picks: they name anyone. An exclusive draft's count
+counts the filtered pool (`ctx.poolOf` where it's made, the pool as it opens later): "4 of you × 3 picks is more than the 9 who can
+be drafted". The words: "everyone drafts 3, forwards only"; the short form's chip "Forwards only". A pool of one group of a
+show, `{ group: id }`, has no step yet.
 
 ---
 
@@ -453,7 +475,7 @@ players' own mechanics below, which settle the game, never a fact about the show
 | `players` | `majority`, `minority` | the players' own answers: see "The players' own mechanics" |
 | `legs` | none | a ticket's legs (C6): `{ by: "legs", of: [the game's question ids] }`, your own answers to them in the window |
 | `outside` | `rating` | off (the user, 2026-11-07: below); a number from a vetted outside source (A14 part 7): `{ by: "outside", take: "rating", source: "tvmaze", after: 7 }`, the episode's TVmaze rating (0 to 10) as it stood `after` days (1 to 30, 7 by default) after it aired, read once and stored |
-| `final` | `winner`, `total`, `margin` (`of`: a card's bout, `main` its main event) | a sport's game at its final (L3 part 2c): who won (extra time and penalties in it; a field's first, a bout's winner), both sides' points, the margin; a game called off, a tie or a bout with no winner is off. `bracket`, a draw's winners round by round (L4 part 2; played since L3 part 2e) |
+| `final` | `winner`, `total`, `margin` (`of`: a card's bout, `main` its main event); `top` with `place` (a field's) | a sport's game at its final (L3 part 2c): who won (extra time and penalties in it; a field's first, a bout's winner), both sides' points, the margin; a game called off, a tie or a bout with no winner is off. G3 part 3: a field's top `place` (a podium: `{ by: 'final', take: 'top', place: 3 }`, a `person` answer naming up to `place`, `pick: 3`, each one who finishes there right, the tied at its last place all in; a team game and a card's bout have none). `bracket`, a draw's winners round by round (L4 part 2; played since L3 part 2e) |
 | `stat` | `most`, `least`, `value` (`stat`: a sport's stat key; `of`: a player or a team) | a stat in a sport's game (L3 part 2c): who has the most (a tie, all of them), the fewest, or a value (a team's players' added; asked once over a span, its games' added up) |
 
 A sport's game settles its questions from the server's facts (`facts.games`: each episode's game as of the viewer's mark, its
@@ -980,7 +1002,8 @@ page + words ──(bot + the engine's manual)──▶ a draft spec ──(our 
   and says the verdict, the words and the shape on a real season, and can start it as a test game.
 - **The tracker** (`tests/fixtures/engine-capabilities.json`, rendered by `node scripts/engine-capabilities.js` into
   `docs/ENGINE-CAPABILITIES.md`): the dials' values and the requests people would type on a show's page, each with its spec (or
-  the step it waits on, or a rule question). A row plays when its spec passes `specProblems` (with its page's show) and
+  the step it waits on, or a rule question). A row plays when its spec passes `specProblems` (with its page's show, or on a
+  sport's page its ESPN league's sport: the page's `espn`, G3) and
   `specWaitsFor` has nothing; its words are `describeSpec`'s. So the tracker is the engine's progress, and the place to try an
   idea: add a row, run the script, and see whether it plays and how it reads.
 - **Our check decides** (the plan's "Our check"): ids only from the show's context pack, numbers only from their words (or
@@ -1001,6 +1024,30 @@ page + words ──(bot + the engine's manual)──▶ a draft spec ──(our 
   second game offered. Every change is listed; nothing is fixed silently. The server's side: `src/lib/server/game-words.ts`, POST
   `/api/seasons/[seasonId]/game-words`, 10 asks a person a day. A moment offered and taken (POST `added-moments`, G1 part 4) is a
   moment of the season's from the next episode, and asking again drafts a game on it.
+- **On a sport's page** (G3, 2026-11-07: a season of a sport's games, a matchup or a slate, whose show is a sport and whose games
+  ESPN reads): the ctx is the sport's (`src/lib/sports/page.ts` `sportPageContext`: its stats, position groups, shape and
+  periods, nobody going home, no moments), the pack adds the sport and its league, its teams, its games (each episode's: when, its
+  sides and which is home, whether it's started, ESPN's line on the total while it's still to play; never a score), its players
+  with their team and position, the stats a request can name in their words (`statWords`) and the sport's standard scoring and
+  games; the manual swaps a show's presets for a sports section (points per stat by key, the final and stat settles, `line:
+  "game"`, one game's span, `each: "game"`, the locks) and the sport's standard games, and shows only a sport's values (`WORDS`'
+  `show` lists keep a show's out) and a sport's requests as examples. Our check reads a sport's words as the engine's (each a named
+  change, shown as assumed): a stat by its words its key (`statKeyIn`: "home runs" is HR, never a guess), a stats score with no
+  table the sport's standard one, an over/under on a game's total with no line of theirs the game's own (ESPN's, kept when the
+  question opens), a team by its name its id (one the page hasn't got, out and asked whose), and a show's preset the sport's own
+  game most like it (asked which). **A piece a sport adds reaches the bot** through its words in `WORDS` (a value marked `sport`),
+  a stat through its Sport's `StatDef` (label, short, noun), and a standard game through the sport's defaults
+  (`src/lib/sports/defaults/<sport>.json`'s `specs`, each with its `about`).
+- **On a team's page** (G3 part 2, 2026-11-07: `src/lib/server/team-words.ts`, POST `/api/sports/game-words { league, team, words }`):
+  before there's a season. The pack is a sport's with the team and its schedule in place of a season's games (`src/lib/sports/team-page.ts`
+  `teamSchedulePack`: the last 3 played and the next 20, each by id, its day in the East, home or away, against whom; never a score);
+  the manual adds how to name the games their words mean (`matchup`, beside `game`). One ask drafts both. Our check holds the
+  matchup against the schedule (`holdMatchup`): the games, or a question with what each option picks ("The 76ers home opener has
+  already been played. Their next home game?", "No Knicks game tonight. Their next game?", "Which of their games?"); a pick sent
+  back (`change: { from, matchup }`) needs no bot and isn't counted against the day's asks. The games are made (or found) as their
+  matchup's season (shared by everyone who picks the same games; a new one under the day's cap on new games), its players filled
+  from the teams' rosters, and the same draft checked again on that season's page, so the game is the matchup's own. A typed change
+  goes to the bot on the team's page until its games are made, on the matchup's page after.
 - **Randomize** (G4, built 2026-11-07: `src/lib/game/game-spec/roll.js`, no screen yet): the other door, no bot. `rollSpec(page,
   locks, seed)` rolls a game on the page's rules (G1's ctx and pack: the episodes left, the couch, the moments research answers, the
   phases to come, the groups): a base (an Outlast, a lineup, best ball, a pool, a pick scored by what they do, a game of questions
@@ -1014,7 +1061,11 @@ page + words ──(bot + the engine's manual)──▶ a draft spec ──(our 
 - **The short form** (`describeSpec(...).short`, every game): `{ title, line, more }`, a title up to 28 characters (the game's name,
   or what it is: Best Ball, Weekly Picks, Predictions, Co-op; a game in stages its stages', "Outlast, redrafted", "Bingo + Trivia")
   and a line up to 60, chips joined by " · ": when it plays, what you do, how it's won when that isn't the game's own, then its
-  twists, as many as fit (`more`: how many didn't).
+  twists, as many as fit (`more`: how many didn't). **Every chip it shows has its words in the sentence** (G3 part 3, the main
+  session's note: finale picks, a pot split, unique answers or a stake on only some of the questions are said of those; the table of
+  chips to words is `tests/fixtures/short-words.js`, checked on every roll in tests/roll.test.js and roll-check.js): a new chip comes
+  with its words, or the test names it. A draft stage after one that didn't draft isn't a redraft, and a stage on another season is
+  "Then The Traitors". On a sport's page an episode is the sport's word: a race, a tournament, an event, else a game.
 
 ---
 

@@ -13,6 +13,8 @@ import { seasonSchedules } from "./schedule";
 import { games, seasonHeaders } from "./show-space";
 import { startFrom } from "./start-game";
 import { groupsGoingInto } from "@db/format-timeline.js";
+import { groupOf, sportOf } from "@/lib/sports";
+import { sportGames, sportPageContext, sportStandard, statWords } from "@/lib/sports/page";
 
 // The Start-a-game GPT's words to a game (docs/PLAN-start-a-game-gpt.md step G1; POST /api/seasons/[seasonId]/game-words): someone
 // on a show's page types the game they want; our bot drafts it from the context pack (what the app knows about the page, gathered
@@ -46,11 +48,87 @@ export interface GameWordsResult {
 }
 
 /** The asks someone has made in the last day, and how many they have left (null: no cap, the desk). An ask the bot never
- *  answered (its error kept) isn't counted: a bot that's down doesn't use up anyone's day. */
-async function asksToday(user: SessionUser): Promise<{ used: number; left: number | null }> {
-  const { rows } = await pool.query("SELECT count(*)::int AS n FROM game_word_asks WHERE user_id = $1 AND created_at > now() - interval '1 day' AND error IS NULL", [user.id]);
+ *  answered (its error kept) isn't counted: a bot that's down doesn't use up anyone's day; nor is a pick of games (G3 part 2: no bot). */
+export async function asksToday(user: SessionUser): Promise<{ used: number; left: number | null }> {
+  const { rows } = await pool.query("SELECT count(*)::int AS n FROM game_word_asks WHERE user_id = $1 AND created_at > now() - interval '1 day' AND error IS NULL AND picked IS NULL", [user.id]);
   const used = rows[0].n as number;
   return { used, left: isSuperAdminUser(user) ? null : GAME_ASKS_A_DAY - used };
+}
+
+/** G3: at most this many of a sport's players in the pack (a team's whole season casts every team it plays: its first teams'
+ *  first), and this many games (the next to play, then the last few played). */
+const SPORT_CAST = 150;
+const SPORT_GAMES = 16;
+const SPORT_PLAYED = 3;
+
+/** A slate's cadences, each its episode's word (G3 part 2, part 1's Noticed): NFL week 9 is "Week 9", never "Game 9". */
+const CADENCES = new Set(["day", "week", "round"]);
+
+type SportPart = { input: Partial<PackInput>; ctx: SpecContext; games: Words.SportGameSpec[]; league: string; teams: { id: string; name: string }[] };
+
+/**
+ * G3: a sport's season's part of the pack, or null when none of its games is linked to a league a sport reads: its league (its linked
+ * games' most common), its games (each episode's: when, its sides and which is home, whether it's started, ESPN's line on the total
+ * while it's still to play; never a score, so nothing spoils a game someone hasn't watched), its teams, the stats a request can name
+ * in their words and its standard game; the ctx a spec on it is checked against (the sport's: sports/page.ts sportPageContext, a
+ * playoffs slate's with its bracket); and the sport's standard games for our check's tables.
+ */
+async function sportPart(seasonId: string, label: string, terms: { castaway?: string | null; people?: string | null; episode?: string | null }, now: Date): Promise<SportPart | null> {
+  const [{ rows }, { rows: slate }] = await Promise.all([
+    pool.query(
+      `SELECT e.episode, e.event_id, e.league, COALESCE(f.name, e.name) AS name, COALESCE(f.starts_at, e.starts_at) AS starts_at, COALESCE(f.teams, e.teams) AS teams,
+              f.state, f.called, CASE WHEN jsonb_typeof(f.odds->'overUnder') = 'number' THEN (f.odds->>'overUnder')::float8 END AS line
+         FROM season_events e LEFT JOIN sports_events f ON f.provider = e.provider AND f.league = e.league AND f.event_id = e.event_id
+        WHERE e.season_id = $1 ORDER BY e.episode, starts_at NULLS LAST`,
+      [seasonId]
+    ),
+    pool.query("SELECT stage, cadence FROM sports_slates WHERE season_id = $1", [seasonId]),
+  ]);
+  const counts = new Map<string, number>();
+  for (const r of rows) if (sportOf(r.league)) counts.set(r.league, (counts.get(r.league) ?? 0) + 1);
+  const league = [...counts].sort((a, b) => b[1] - a[1])[0]?.[0];
+  const sport = league ? sportOf(league) : null;
+  if (!league || !sport) return null;
+  const playoffs = slate[0]?.stage === "post";
+  const one = terms.castaway?.trim() || "player";
+  // A slate's episode is its cadence's (a week of games, a day's), else the show's word for one (a matchup's: a game).
+  const cadence = slate[0]?.cadence as string | undefined;
+  const part = cadence && CADENCES.has(cadence) ? cadence : terms.episode?.toLowerCase();
+  const ctx = sportPageContext(league, { show: label, person: { one: one.toLowerCase(), many: (terms.people?.trim() || `${one}s`).toLowerCase() }, ...(part ? { part: { singular: part, plural: `${part}s` } } : {}), playoffs });
+  if (!ctx) return null;
+  const at = (v: unknown) => (v ? new Date(v as string).toISOString() : null);
+  const all = rows
+    .filter((r) => r.league === league)
+    .map((r) => {
+      const start = at(r.starts_at);
+      const started = r.state === "in" || r.state === "post" || (!!start && Date.parse(start) <= now.getTime());
+      const sides = (Array.isArray(r.teams) ? (r.teams as { id?: unknown; name?: unknown; home?: unknown }[]) : [])
+        .filter((t) => typeof t.id === "string" && typeof t.name === "string")
+        .map((t) => ({ id: t.id as string, name: t.name as string, ...(t.home === true ? { home: true as const } : {}) }));
+      return { episode: r.episode as number, id: r.event_id as string, ...(r.name ? { name: r.name as string } : {}), ...(start ? { at: start } : {}), sides, started, ...(typeof r.line === "number" && !started ? { line: r.line } : {}), ...(r.called ? { called: r.called as string } : {}) };
+    });
+  // The games to come first (the next SPORT_GAMES), and the last few played, in the order they're played.
+  const ahead = all.filter((g) => !g.started).slice(0, SPORT_GAMES);
+  const played = all.filter((g) => g.started).slice(-SPORT_PLAYED);
+  const games = [...played, ...ahead];
+  const teams = new Map<string, { id: string; name: string }>();
+  for (const g of all) for (const t of g.sides) if (!teams.has(t.id)) teams.set(t.id, { id: t.id, name: t.name });
+  const standard = sportStandard(league);
+  const standardGames = sportGames(league, { playoffs });
+  return {
+    league,
+    teams: [...teams.values()],
+    input: {
+      sport: { id: sport.id, name: sport.name, league },
+      teams: [...teams.values()],
+      games,
+      ...(all.length > games.length ? { gamesMore: all.length - games.length } : {}),
+      stats: statWords(sport),
+      ...(standard ? { standard: { ...standard, games: standardGames.map((g) => ({ id: g.id, about: g.about })) } } : {}),
+    },
+    ctx: ctx as unknown as SpecContext,
+    games: standardGames,
+  };
 }
 
 /**
@@ -59,24 +137,40 @@ async function asksToday(user: SessionUser): Promise<{ used: number; left: numbe
  * the couch plays by: its own copy, else the season's), and the couch (how many, its games here). And the ctx our check reads, sized
  * by the couch and who's still in as they've seen it.
  */
-export async function packFor(user: SessionUser, seasonId: string, couchId: string | null, now = new Date()): Promise<{ pack: Pack; ctx: SpecContext; kind: "show" | "sport"; show: string }> {
-  const [headers, schedules, mark, rules] = await Promise.all([seasonHeaders([seasonId]), seasonSchedules([seasonId], now), seenThrough(user.id, seasonId), stageContext(seasonId, couchId)]);
+export async function packFor(user: SessionUser, seasonId: string, couchId: string | null, now = new Date()): Promise<{ pack: Pack; ctx: SpecContext; kind: "show" | "sport"; show: string; games: Words.SportGameSpec[] }> {
+  // A show's rules beside the rest (a show not yet a game is a 404, thrown only for a show's page: a sport's needn't be one).
+  const [headers, schedules, mark, showRules] = await Promise.all([
+    seasonHeaders([seasonId]),
+    seasonSchedules([seasonId], now),
+    seenThrough(user.id, seasonId),
+    stageContext(seasonId, couchId).catch((e: unknown) => e),
+  ]);
   const h = headers.get(seasonId);
   if (!h) throw new HttpError(404, "Season not found");
   const schedule = schedules.get(seasonId);
   const label = `${h.show.name}${h.seasonNumber ? ` ${h.seasonNumber}` : ""}`;
-  const kind = h.show.kind === "sport" ? "sport" : "show";
+  // G3: a sport's page is its linked games' sport (a show of kind sport whose games aren't linked to one ESPN reads is a show's).
+  const sport = h.show.kind === "sport" ? await sportPart(seasonId, label, h.show.terms, now) : null;
+  const kind = sport ? "sport" : "show";
+  // A show's rules (the couch's copy, else the season's); a sport's are the sport's own, and its league's show needn't be a game yet
+  // (a matchup's is "Not a game yet" until someone plays one).
+  if (!sport && showRules instanceof Error) throw showRules;
+  const rules: SpecContext = sport ? sport.ctx : (showRules as SpecContext);
   const [{ rows: cast }, { rows: outs }, members, here, now_] = await Promise.all([
-    pool.query("SELECT id, name, tribe_name FROM season_cast WHERE season_id = $1 ORDER BY sort_order, name", [seasonId]),
-    pool.query(
-      `SELECT lower(COALESCE(d.applied->>'castawayName', d.castaway_name)) AS name, min(d.episode_number)::int AS ep, min(d.method) AS how
-         FROM season_decisions d WHERE d.season_id = $1 AND d.kind = 'elimination' AND d.status = 'accepted' AND d.episode_number <= $2 GROUP BY 1`,
-      [seasonId, mark]
-    ),
+    // A sport's people are shown from the game whose box score brought them in (season_cast.shown_from): through their mark only.
+    pool.query("SELECT id, name, tribe_name, role, shown_from, provider_ids IS NOT NULL AS linked FROM season_cast WHERE season_id = $1 AND (shown_from IS NULL OR shown_from <= $2) ORDER BY sort_order, name", [seasonId, mark]),
+    // Who's gone, and who's with whom: a show's (nobody goes home in a sport, and its groups are its teams).
+    sport
+      ? Promise.resolve({ rows: [] as Record<string, unknown>[] })
+      : pool.query(
+          `SELECT lower(COALESCE(d.applied->>'castawayName', d.castaway_name)) AS name, min(d.episode_number)::int AS ep, min(d.method) AS how
+             FROM season_decisions d WHERE d.season_id = $1 AND d.kind = 'elimination' AND d.status = 'accepted' AND d.episode_number <= $2 GROUP BY 1`,
+          [seasonId, mark]
+        ),
     couchId ? couchMembers([couchId]) : Promise.resolve(new Map()),
     couchId ? games(user.id, { couchIds: [couchId], seasonId }) : Promise.resolve([]),
     // G1 part 4: who is with whom now, as far as they've seen (F3's timeline from the season's research): the starting groups until then.
-    groupsGoingInto(pool, seasonId, mark + 1),
+    sport ? Promise.resolve(null) : groupsGoingInto(pool, seasonId, mark + 1),
   ]);
   const out = new Map(outs.map((r) => [r.name as string, { episode: r.ep as number, how: (r.how as string | null) ?? undefined }]));
   const eps = schedule?.episodes ?? [];
@@ -95,26 +189,71 @@ export async function packFor(user: SessionUser, seasonId: string, couchId: stri
       ...(h.episodeCount ? { total: h.episodeCount } : {}),
       next: nextEp ? { number: nextEp.number, ...(nextEp.airAt ? { airs: nextEp.airAt } : {}) } : null,
     },
-    phases: (rules.phases ?? []).map((p) => ({ id: p.id, name: p.name ?? p.id })),
-    cast: cast.map((c) => {
+    phases: sport ? [] : (rules.phases ?? []).map((p) => ({ id: p.id, name: p.name ?? p.id })),
+    cast: (sport ? cast.slice(0, SPORT_CAST) : cast).map((c) => {
+      // A sport's players: each with their team and position, nobody gone.
+      if (sport) return { id: c.id as string, name: c.name as string, in: true, group: (c.tribe_name as string | null) ?? null, role: (c.role as string | null) ?? null };
       const gone = out.get(String(c.name).toLowerCase());
       const key = String(c.name).toLowerCase();
       const group = now_ && now_.has(key) ? now_.get(key)! : ((c.tribe_name as string | null) ?? null);
       return { id: c.id as string, name: c.name as string, in: !gone, out: gone ?? null, group: gone ? ((c.tribe_name as string | null) ?? null) : group };
     }),
+    ...(sport && cast.length > SPORT_CAST ? { castMore: cast.length - SPORT_CAST } : {}),
     ctx: rules,
+    ...(sport ? sport.input : {}),
     couch: couchId ? { people, games: here.filter((g) => !g.archived).map((g) => ({ name: g.name, says: g.gameName })) } : null,
   };
   const pack = Words.packOf(input);
-  const ctx: SpecContext = { ...rules, show: label, ...(people ? { couch: people } : {}), ...(pack.cast.length ? { pool: pack.stillIn } : {}) };
-  return { pack, ctx, kind, show: h.show.name };
+  // G3 part 3b: on a sport's page, everyone as a pool of some teams' or positions' players counts them (their team's ESPN id by its
+  // name, their position group from their role), so an exclusive draft from one is counted where it's made.
+  const sportIs = sport ? sportOf(sport.league) : null;
+  const teamIdOf = new Map((sport?.teams ?? []).map((t) => [t.name.toLowerCase(), t.id]));
+  // Only those a league on it has (a sport's league is made of its players with provider ids: make-game.ts).
+  const poolOf = sportIs ? cast.filter((c) => c.linked).map((c) => ({ team: teamIdOf.get(String(c.tribe_name ?? "").toLowerCase()) ?? null, position: groupOf(sportIs, c.role as string | null) })) : null;
+  const ctx: SpecContext = { ...rules, show: label, ...(people ? { couch: people } : {}), ...(pack.cast.length ? { pool: pack.stillIn } : {}), ...(poolOf ? { poolOf } : {}), ...(sport?.teams.length ? { teamList: sport.teams } : {}) };
+  return { pack, ctx, kind, show: h.show.name, games: sport?.games ?? [] };
 }
 
-/** The manual for a page: generated from VOCAB, its examples the tracker's requests that play there. */
-const manualFor = (ctx: SpecContext, kind: "show" | "sport", show: string) => Words.manualFor(ctx, { kind, examples: Capabilities.rowsOf(tracker as never), show });
+/** The manual for a page: generated from VOCAB, its examples the tracker's requests that play there (a sport's: its standard games;
+ *  G3 part 2, `team`: a team's page, how to name its games). */
+export const manualFor = (ctx: SpecContext, kind: "show" | "sport", show: string, games: Words.SportGameSpec[], team = false) =>
+  Words.manualFor(ctx, { kind, examples: Capabilities.rowsOf(tracker as never), show, games, team });
+
+/**
+ * A new ask's row (G3 part 2: a season's, or a team's page's: `league` and `team`), counted against the day's cap with itself in it, so
+ * asks sent at once can't all slip under it; one over it is taken back with a 429. Its id, and the asks left.
+ */
+export async function openAsk(user: SessionUser, row: { seasonId: string | null; league?: string; team?: string; couchId: string | null; from: string | null; words: string; change: string | null }): Promise<{ id: string; left: number | null }> {
+  const { rows } = await pool.query("INSERT INTO game_word_asks (user_id, season_id, league, team, couch_id, change_of, words, change) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id", [
+    user.id,
+    row.seasonId,
+    row.league ?? null,
+    row.team ?? null,
+    row.couchId,
+    row.from,
+    row.words,
+    row.change,
+  ]);
+  const id = rows[0].id as string;
+  const { left } = await asksToday(user);
+  if (left !== null && left < 0) {
+    await pool.query("DELETE FROM game_word_asks WHERE id = $1", [id]);
+    throw new HttpError(429, `You've asked our bot for ${GAME_ASKS_A_DAY} games today. Try again tomorrow, or start one with the taps.`);
+  }
+  return { id, left };
+}
+
+/** Who may start a game on a couch: a member (a viewer can't); none, null. */
+export async function couchFor(user: SessionUser, couch: unknown): Promise<string | null> {
+  const couchId = typeof couch === "string" && couch ? couch : null;
+  if (!couchId) return null;
+  if (!isUuid(couchId)) throw new HttpError(400, "couch");
+  if ((await requireCouch(user, couchId)) === "viewer") throw new HttpError(403, "Join the couch to start a game on it");
+  return couchId;
+}
 
 /** Each new moment the check found, rated by the reliability ask while there's time (at most MOMENT_ASKS). */
-async function rateMoments(result: CheckResult, pack: Pack, o: { bot?: string; deadline: number }): Promise<{ result: CheckResult; seconds: number }> {
+export async function rateMoments(result: CheckResult, pack: Pack, o: { bot?: string; deadline: number }): Promise<{ result: CheckResult; seconds: number }> {
   const ratings: Record<string, MomentRating> = {};
   let seconds = 0;
   for (const m of result.newMoments.slice(0, MOMENT_ASKS)) {
@@ -137,11 +276,7 @@ async function rateMoments(result: CheckResult, pack: Pack, o: { bot?: string; d
  */
 export async function gameWords(user: SessionUser, seasonId: string, body: { words?: unknown; couch?: unknown; change?: unknown }, bot?: string, now = new Date()): Promise<GameWordsResult> {
   if (!isUuid(seasonId)) throw new HttpError(404, "Season not found");
-  const couchId = typeof body.couch === "string" && body.couch ? body.couch : null;
-  if (couchId) {
-    if (!isUuid(couchId)) throw new HttpError(400, "couch");
-    if ((await requireCouch(user, couchId)) === "viewer") throw new HttpError(403, "Join the couch to start a game on it");
-  }
+  const couchId = await couchFor(user, body.couch);
   const change = body.change && typeof body.change === "object" ? (body.change as { from?: unknown; words?: unknown }) : null;
   let words = typeof body.words === "string" ? body.words.trim() : "";
   let changeWords: string | null = null;
@@ -164,30 +299,16 @@ export async function gameWords(user: SessionUser, seasonId: string, body: { wor
   if (!words) throw new HttpError(400, "Say what game you want");
   if (words.length > 2000 || (changeWords?.length ?? 0) > 2000) throw new HttpError(400, "That's longer than a game needs: 2,000 characters at most");
   // The season (a 404) before the bot (a 503) before the cap (a 429, counted once this ask is a row).
-  const { pack, ctx, kind, show } = await packFor(user, seasonId, couchId, now);
+  const { pack, ctx, kind, show, games: standard } = await packFor(user, seasonId, couchId, now);
   if (!(await askBotStatus({ bot })).available) throw new HttpError(503, "Our bot isn't answering right now. Start a game's taps work.");
-  const manual = manualFor(ctx, kind, show);
+  const manual = manualFor(ctx, kind, show, standard);
   const prompt = change ? Words.changePrompt({ pack, manual, words, spec, change: changeWords! }) : Words.gamePrompt({ pack, manual, words });
-  const { rows } = await pool.query("INSERT INTO game_word_asks (user_id, season_id, couch_id, change_of, words, change) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id", [
-    user.id,
-    seasonId,
-    couchId,
-    from,
-    words,
-    changeWords,
-  ]);
-  const id = rows[0].id as string;
-  // Counted with this ask in it, so asks sent at once can't all slip under the cap; one over it is taken back.
-  const { left } = await asksToday(user);
-  if (left !== null && left < 0) {
-    await pool.query("DELETE FROM game_word_asks WHERE id = $1", [id]);
-    throw new HttpError(429, `You've asked our bot for ${GAME_ASKS_A_DAY} games today. Try again tomorrow, or start one with the taps.`);
-  }
+  const { id, left } = await openAsk(user, { seasonId, couchId, from, words, change: changeWords });
   const deadline = Date.now() + BUDGET_MS;
   try {
     const asked = await askBot(prompt, { bot, budgetMs: BUDGET_MS, search: false, priority: "now" });
     // A change's quotes come from what they typed now or first; what the first ask said and assumed comes with it (carry).
-    let result: AnswerResult = Words.checkAnswer(asked.answer, { ctx, pack, words: change ? `${words}\n${changeWords}` : words, kind, carry: carry as never });
+    let result: AnswerResult = Words.checkAnswer(asked.answer, { ctx, pack, words: change ? `${words}\n${changeWords}` : words, kind, carry: carry as never, games: standard });
     let seconds = asked.seconds;
     if (result.state !== "unreadable" && result.newMoments.length) {
       const rated = await rateMoments(result, pack, { bot, deadline });

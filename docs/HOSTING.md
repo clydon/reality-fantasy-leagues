@@ -186,6 +186,13 @@ asking ChatGPT yourself (the /b/ brief, then paste) does every step free. While 
 `GET /api/seasons/[id]/fill` every 4 s (a few KB: the steps, the cast's names and photo URLs, a state per aired episode), only
 while the page is visible; nothing polls once it's done. Storage: one small `season_fills` row per season added.
 
+**The Start-a-game GPT (G1, live 2026-11-07; a team's page, G3 part 2, on `engine`)**: `POST /api/seasons/[id]/game-words` and
+`POST /api/sports/game-words` each wait for one bot ask (search off, ahead of the bot's queue: ~20-30 s, `maxDuration` 300), 10 a
+person a day; a pick of games from our check's question asks nothing. A team's page reads the team's season from ESPN (its schedule,
+cached half a day, and its league's team list, a week), and making its games a season (a matchup, shared by everyone who picks the
+same games, under the day's cap on new games) reads each game's day and the teams' rosters once (cached). Storage: one
+`game_word_asks` row an ask (the prompt's answer and our check's result: a few KB), and a matchup's season, episodes and people.
+
 **Fill in what happened (2026-10-27, `src/lib/server/episode-recaps.ts`, migration 0143)** is one bot ask per season when someone
 taps it (only aired episodes with no recap, so a season is asked about again only for new ones), run after the response like Make
 it a game's (`maxDuration` 300, the bot's ~1-3 min). While it asks, the Episodes tab polls `/api/seasons/[id]/recaps` every 4 s
@@ -1256,3 +1263,19 @@ never handles it: the user does the reset and the pasting.
   each a row in `game_word_asks`; a season's added moment adds one short ask inside research's full run after each
   episode (capped at 150 s, only for seasons with an added moment: none yet). Same bot as research; no paid key. The
   bot's priority queue for these asks isn't on the VM yet (with U1): until then such an ask waits its turn there.
+- **2026-11-07, the ask-AI bot (no app change).** The PC's ChatGPT signed the bot out ("Sign in to continue": ChatGPT no
+  longer answers signed out). Both bots now run a server.py that clicks the sign-in page's remembered account ("Continue
+  as …", never typing anything), closes ChatGPT's promo pop-ups, and re-asks a question that fails at the door through
+  Codex (the Codex CLI on the user's ChatGPT Plus plan; its sign-in refreshes itself). **On the Oracle VM:** Node 18 and
+  npm (Ubuntu's) and `@openai/codex@0.166.0` installed, Codex signed in as the bot's user by device code (the account's
+  device code authorization switched on at chatgpt.com/#settings/Security), and the self-test **hourly** (was daily):
+  one small ChatGPT question an hour, failing to healthchecks.io when ChatGPT had to fall back. Still free (the VM's 1 GB
+  has room: Codex is a CLI, no browser). The PC and the VM share the account's ChatGPT and Codex limits. **On the PC:**
+  the bot runs as the Windows task `llm-browser-api` (hidden, at logon, restarted on crash). The details are in the bot's
+  own READMEs (`llm-browser-api/README.md`, `deploy/README.md`).
+- **2026-11-07 afternoon, the bot answers up to 3 Codex questions at once** (`CODEX_PARALLEL`, on the PC and the VM; the
+  sports lane's step 1 of the bot's throughput). On the VM three one-word asks took 10.6 s together (one alone about
+  10 s), MemAvailable 701 MB before and 570 MB at the lowest, so the free 1 GB VM holds it. ChatGPT stays one at a
+  time (one browser). Codex's limit reached drops it back to one and queues the rest. The research clock still starts
+  one run a call, so it helps when asks come together. Next, with the app's part merged: the trivia and bingo banks
+  sent to Codex (the user's yes, 2026-11-07), through the desk's `bot_ai_runs` setting.

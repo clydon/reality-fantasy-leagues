@@ -459,7 +459,7 @@ const TWISTS = [
   {
     id: 'majority', cost: 1, weight: 1,
     fits: (s) => s.score && s.score.by === 'answers' && askList(s).some((q) => q.id === 'boot') && askList(s).length < 4,
-    apply: (s) => ({ ...s, ask: [...askList(s), { id: 'most', ask: 'Who will most of us say goes home?', answer: 'person', points: 2, asked: 'each', settle: { by: 'players', take: 'majority', of: 'boot' } }] }),
+    apply: (s) => ({ ...s, ask: [...askList(s), { id: 'most', ask: 'Who will most of you say goes home?', answer: 'person', points: 2, asked: 'each', settle: { by: 'players', take: 'majority', of: 'boot' } }] }),
     seen: (s) => askList(s).some((q) => q.settle && q.settle.by === 'players'),
   },
   // ---- anyone's ----

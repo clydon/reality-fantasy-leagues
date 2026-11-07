@@ -2,7 +2,8 @@
 // season on tape that this database has loaded (`tapes.js load`), thousands of seeds rolled on its page at its premiere (blind.js
 // rollPage: the engine lab's own rules for the season, a couch of four, the whole cast in, every episode to air) with the
 // tracker's weights, each checked again by our check on those rules (specProblems, specWaitsFor, a place in the scoring
-// sequence), its short form within its caps, and its words free of undefined or NaN. Prints, a line a season, how many passed,
+// sequence), its short form within its caps, its sentence saying every piece the short form shows (tests/fixtures/short-words.js),
+// and its words free of undefined or NaN. Prints, a line a season, how many passed,
 // how many distinct games, and how often each base, way to win and twist came up; exits 1 on any roll that failed. Writes nothing
 // (no league is made: blind.js run --rolls=N plays rolls to the end).
 //
@@ -15,6 +16,7 @@ const Blind = require("./blind.js");
 const G = require("../../src/lib/game/game-spec/index.js");
 const Roll = require("../../src/lib/game/game-spec/roll.js");
 const { SHORT_TITLE, SHORT_LINE } = require("../../src/lib/game/game-spec/describe.js");
+const { unsaid } = require("../../tests/fixtures/short-words.js");
 
 /** Every season on tape (the tapes' folders), as [show, season]. */
 function taped() {
@@ -51,6 +53,8 @@ async function check(show, season, n, from, weights) {
     const s = r.describe && r.describe.short;
     if (r.ok && !(s && s.title.length <= SHORT_TITLE && s.line.length <= SHORT_LINE)) problems.push(`short form over its caps: ${s && s.title} | ${s && s.line}`);
     if (r.ok && /undefined|NaN/.test(`${s.title} ${s.line} ${r.describe.sentence}`)) problems.push(`words: ${s.title} | ${s.line}`);
+    // G3 part 3: the sentence says every piece the short form shows.
+    if (r.ok) for (const chip of unsaid(s, r.describe.sentence)) problems.push(`the sentence doesn't say "${chip}": ${r.describe.sentence}`);
     if (problems.length) bad.push({ seed, problems });
     games.add(JSON.stringify(r.spec));
     tally(bases, r.base);

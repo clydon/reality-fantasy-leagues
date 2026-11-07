@@ -1,7 +1,7 @@
 // The Start-a-game GPT's three examples (docs/PLAN-start-a-game-gpt.md, "The three examples as specs"): what someone
 // types, the game spec it becomes, what the spec refers to (ctx: the show's words, the data that settles it) and what the
-// wizard says. Fixtures for tests/game-spec.test.js now (A1); end to end in G2 and G3. Team ids are the plan's
-// placeholders until the sports branch resolves them from ESPN.
+// wizard says. Fixtures for tests/game-spec.test.js now (A1); end to end in G2 and G3. G3: the two sports examples are on their
+// own matchup's page (a season of the series' games, of the opener alone), whose people are its two teams' players.
 module.exports = [
   {
     name: "a fantasy league for Survivor 51",
@@ -21,10 +21,10 @@ module.exports = [
   {
     name: "the Red Sox–Yankees series",
     words: "For this upcoming Red Sox–Yankees series I want a draft where we draft 3 players each. We'll score 5 points for every home run and 1 point for each total base.",
-    // The series' games, as a season of their own (the sports branch).
+    // The series' games, as a season of their own (a matchup: L1 part 3), whose people are its two teams' players (G3: so no
+    // filter by team is needed on its page).
     spec: {
       spec: 1, span: { from: 1, to: 3 },
-      pool: { of: "cast", where: { teams: ["<BOS>", "<NYY>"] } },
       get: { by: "draft", each: 3, order: "snake", own: "exclusive" }, count: { all: true },
       score: { by: "stats", points: { HR: 5, TB: 1 } }, rank: { by: "total" }, closes: "start",
     },
@@ -34,28 +34,28 @@ module.exports = [
       stats: [{ key: "AB" }, { key: "R" }, { key: "H" }, { key: "RBI" }, { key: "HR", label: "home run" }, { key: "BB" }, { key: "K" }, { key: "TB", label: "total base" }],
     },
     sentence: "A game for the Red Sox–Yankees series: everyone drafts 3, Games 1–3. Scored 5 a home run and 1 a total base.",
-    type: null,
-    // L3 part 2: the engine scores a sport's stats; the pool of two teams' players is still the sports branch's.
-    waits: [{ at: "pool.where", step: "sports" }],
+    // G3: it plays today (everyone drafted, scored by the sport's stats: L3 part 2a's hook on a draft's type).
+    type: "active-roster",
+    // L3 part 2: the engine scores a sport's stats; G3: the matchup's own page has the two teams' players.
+    waits: [],
   },
   {
     name: "the 76ers home opener",
     words: "I want to make a game for the 76ers home opener. I want us all to predict 3 things: winner, top scorer, and over/under total points.",
     spec: {
-      spec: 1, span: { from: 1, to: 1 }, pool: { of: "cast", where: { teams: ["<PHI>", "<opponent>"] } },
+      spec: 1, span: { from: 1, to: 1 },
       get: { by: "none" }, score: { by: "answers" }, rank: { by: "total" }, closes: "start",
       ask: [
         { id: "winner", ask: "Who wins?", answer: "side", points: 1, settle: { by: "final", take: "winner" } },
         { id: "top", ask: "Who scores the most points?", answer: "person", points: 1, settle: { by: "stat", stat: "PTS", take: "most" } },
-        // line null: ESPN's line when its scoreboard lists one (e.g. 237.5 for Sixers at Pacers, Oct 28), else the wizard asks.
-        { id: "total", ask: "Total points: over or under?", answer: "overUnder", line: null, points: 1, settle: { by: "final", take: "total" } },
+        // L3 part 3b: the game's own line (ESPN's, kept when the question opens: 237.5 from the opener's summary).
+        { id: "total", ask: "Total points: over or under?", answer: "overUnder", line: "game", points: 1, settle: { by: "final", take: "total" } },
       ],
     },
-    ctx: { show: "the 76ers home opener", castaway: "player", part: { singular: "game", plural: "games" }, stats: [{ key: "PTS", label: "point" }, { key: "REB" }, { key: "AST" }] },
-    sentence: "A game for the 76ers home opener: everyone answers three questions before Game 1: who wins, who scores the most points and total points: over or under. A point for each right answer.",
-    type: null,
-    // L3 part 2c: the engine plays the sports settles and the side answer; the pool of two teams' players is still the sports
-    // branch's.
-    waits: [{ at: "pool.where", step: "sports" }],
+    ctx: { show: "the 76ers home opener", castaway: "player", part: { singular: "game", plural: "games" }, shape: "team", stats: [{ key: "PTS", label: "point" }, { key: "REB" }, { key: "AST" }] },
+    sentence: "A game for the 76ers home opener: everyone answers three questions before Game 1: who wins, who scores the most points and total points: over or under (the game's line). A point for each right answer.",
+    type: "questions",
+    // L3 part 2c: the engine plays the sports settles and the side answer; G3: the game's own page has its two teams' players.
+    waits: [],
   },
 ];

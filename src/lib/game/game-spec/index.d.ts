@@ -67,8 +67,9 @@ export interface SpecOverall {
 
 export interface SpecPool {
   of: "cast";
-  /** null or { stillIn: true }: today. sports: { teams }. later: { group }. */
-  where: null | { stillIn: true } | { teams: string[] } | { group: string };
+  /** null or { stillIn: true }: everyone still in. G3 part 3b, a sport's: teams (ESPN team ids) and positions (the sport's position
+   *  group keys), together or not (poolFilter). Later: { group }. */
+  where: null | { stillIn?: true; teams?: string[]; positions?: string[] } | { group: string };
 }
 
 export type SpecGet =
@@ -694,6 +695,11 @@ export interface SpecContext {
   /** A10 part 3: how many can be drafted in each of the cast's groups where the game drafts: an exclusive spread draft has every
    *  group cover its share of every team. */
   poolGroups?: number[];
+  /** G3 part 3b: everyone still in where the game drafts, each as { team, position } (an ESPN team id and a position group key,
+   *  null where unknown): a pool of some teams or positions is counted as those in it (poolCount). Left out: not counted. */
+  poolOf?: { team: string | null; position: string | null }[];
+  /** G3 part 3b: the page's teams (a sport's): a pool's teams are ids among them, named by them in its words. */
+  teamList?: { id: string; name: string }[];
   /** A10 part 3: what the show calls one of its groups, lower case ("tribe"), for the words. */
   group?: string;
   /** A12 part 4b: the game's own season's key (seasonKey: "<show>/<number>"), so a stage naming it is told to leave it out. */
@@ -1127,6 +1133,12 @@ export interface PoolParts {
   allOut: "points" | "share" | "back" | null;
 }
 export function poolParts(spec: GameSpec | SpecInput | null | undefined): PoolParts | null;
+/** G3 part 3b: who a game picks from beyond everyone still in (teams: ESPN team ids, positions: position group keys), or null. */
+export function poolFilter(spec: GameSpec | SpecInput | null | undefined): { teams?: string[]; positions?: string[] } | null;
+/** G3 part 3b: how many can be drafted as the exclusive count counts them (ctx.pool, or those of ctx.poolOf in a filter), or null. */
+export function poolCount(spec: GameSpec | SpecInput, ctx: SpecContext): number | null;
+/** G3 part 3b: whether one person ({ team, position }) is in a filter's pool. */
+export function inFilter(filter: { teams?: string[]; positions?: string[] }, person: { team: string | null; position: string | null } | null | undefined): boolean;
 /** A10 part 3: a spread draft's defaults, a draw's ownership said alone, and a spread's bounds for a team of `each` over
  *  `groups` groups (null: not divided). */
 export const DRAFT_ACROSS: { then: "keep" };

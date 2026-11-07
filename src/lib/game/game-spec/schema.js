@@ -12,7 +12,10 @@
 //            runs on), { phase, at } once data says where the phase starts (at: the episode before it, the game's last), settled
 //            as a start at a phase is (state-logic.js RosterLogic.settleStart), so a game to a phase and one from it meet
 //   pool     { of: 'cast', where }: who can be picked. where { stillIn: true } (today: nobody gone before the start);
-//            sports: { teams: [ids] }; later: { group: id }
+//            G3 part 3b, a sport's: { teams: [ESPN team ids] } (one team's players, or a few teams'), { positions: [group keys] }
+//            (the sport's position groups, ctx.positions: soccer's GK, DEF, MID, FWD), or both (a team's guards), stillIn beside
+//            them or not (the same: nobody gone is offered anyway); only a draft or a pick picks from it (state-logic.js
+//            PoolLogic, poolFilter); later: { group: id }
 //   get      how you get yours. { by: 'draft', each, order: snake | blind, own: exclusive | shared, groups? } (the order follows
 //            the ownership today: exclusive drafts snake, shared drafts blind. A10 part 1's groups: { slots: 1 | 2, own:
 //            shared | exclusive, swap, fallback: void | carry-on, points: mean | sum }, group slots beside a draft scored by
@@ -237,7 +240,8 @@ const VOCAB = {
   'card.fallback': { spec: 'now', void: 'now' },
   // L3 part 2b: a sport's day's or week's lock (each episode's own first start: the server's ep.locksAt), the engine's lock reading it.
   closes: { start: 'now', daily: 'now', weekly: 'now', game: 'now' },
-  'pool.where': { stillIn: 'now', teams: 'sports', group: 'later' },
+  // G3 part 3b: a pool of one team's or one position's players, or both (poolFilter).
+  'pool.where': { stillIn: 'now', teams: 'now', positions: 'now', group: 'later' },
   'ask.answer': {
     person: 'now', group: 'now', yesNo: 'now', number: 'now', overUnder: 'now', choice: 'now', calls: 'now',
     order: 'now', confidence: 'now', chips: 'now', split: 'now', pairs: 'now',
@@ -502,7 +506,9 @@ const VOCAB = {
 //               minority, void it (no points either way); a tie, `tie`: none (the default, void) or all (each tied one is
 //               right). A game of questions only, with one lock for everyone (no late lock)
 //           sports (L1 part 4b): { by: 'final', take: winner | total | margin, of? } a game's final (who wins, both sides'
-//               points, the margin), a field's winner (whoever finishes first), a card's bout's (of: 'main', the main event,
+//               points, the margin), a field's winner (whoever finishes first) or (G3 part 3) its top `place` (take: top, a
+//               podium: { take: 'top', place: 3 }, a person answer picking up to 3, each who finishes in it right; ties at the
+//               last place all in), a card's bout's (of: 'main', the main event,
 //               the default, or the bout's id); | { by: 'stat', stat, take: most | least | value, of? } a stat in the game:
 //               who has the most or least of it (of: a team, among its players), or how many (of: a player's, a team's; left
 //               out, the game's). A game an episode: asked each episode (once, on a game of one). Graded from the sports'
@@ -532,7 +538,7 @@ const TAKES = {
   fact: ['who'],
   players: ['majority', 'minority'],
   outside: ['rating'],
-  final: ['winner', 'total', 'margin', 'bracket'],
+  final: ['winner', 'total', 'margin', 'bracket', 'top'],
   stat: ['most', 'least', 'value'],
 };
 /** The settles that are the season's (known at its end): asked once, in a game that runs to the season's end. */
@@ -545,7 +551,7 @@ const PEOPLE = ['results:winner', 'results:out', 'results:placed', 'results:top'
 /** A14 part 1: the players' own answers, as a settle ('by:take'). A choice takes them too (it takes anything). */
 const PLAYERS_TAKES = ['players:majority', 'players:minority'];
 const SETTLES_FOR = {
-  person: [...PEOPLE, 'stat:most', 'stat:least', 'fact:who', 'final:winner', ...PLAYERS_TAKES],
+  person: [...PEOPLE, 'stat:most', 'stat:least', 'fact:who', 'final:winner', 'final:top', ...PLAYERS_TAKES],
   group: ['results:out', 'moment:who', 'fact:who', ...PLAYERS_TAKES],
   order: ['results:order', 'moment:order', 'points:order'],
   confidence: PEOPLE,
@@ -2270,10 +2276,9 @@ function shapeOf(s) {
 /** The parts every game today shares: a span (from an episode, or a phase), the cast still in, a list of questions (each
  *  game says which it plays), moves locking at the start. */
 function plainParts(s) {
-  const where = s.pool && s.pool.where;
   return (
     isObj(s.span) && (isInt(s.span.from, 1) || phaseFrom(s.span.from)) &&
-    isObj(s.pool) && s.pool.of === 'cast' && (where === null || (isObj(where) && where.stillIn === true && Object.keys(where).length === 1)) &&
+    isObj(s.pool) && s.pool.of === 'cast' && poolWhereOk(s.pool.where) &&
     Array.isArray(s.ask) &&
     (s.closes === 'start' || s.closes === 'daily' || s.closes === 'weekly' || s.closes === 'game')
   );
@@ -2286,6 +2291,44 @@ function playable(q) {
   if (q.answer === 'overUnder' && !isNum(q.line) && q.line !== LINE_GAME) return false;
   if (q.fallback !== undefined && own(VOCAB['ask.fallback'], q.fallback) !== 'now') return false;
   return !(q.answer === 'person' && q.from === 'team');
+}
+
+/** The keys a pool's `where` plays today (G3 part 3b): stillIn, and a sport's teams and positions, together or not. */
+const POOL_WHERE = ['stillIn', 'teams', 'positions'];
+const idList = (v) => Array.isArray(v) && v.length > 0 && v.every((t) => typeof t === 'string' && !!t) && new Set(v).size === v.length;
+/** Whether a pool's `where` plays: null, or some of stillIn (true), teams and positions (lists of ids, none twice). */
+function poolWhereOk(where) {
+  if (where === null) return true;
+  if (!isObj(where)) return false;
+  const keys = Object.keys(where);
+  return keys.length > 0 && keys.every((k) => POOL_WHERE.includes(k)) && (where.stillIn === undefined || where.stillIn === true) &&
+    (where.teams === undefined || idList(where.teams)) && (where.positions === undefined || idList(where.positions));
+}
+/**
+ * G3 part 3b: who a game picks from beyond everyone still in, as { teams?, positions? } (ESPN team ids, the sport's position group
+ * keys), or null when it's everyone (a show's game, every game before). Read by state-logic.js's PoolLogic at every place a draft,
+ * a pickup or a pick offers someone, by the settings (poolWhere) and by the exclusive-or-shared count (a filtered pool counts
+ * smaller: poolCount).
+ */
+function poolFilter(spec) {
+  const w = isObj(spec) && isObj(spec.pool) ? spec.pool.where : null;
+  if (!isObj(w) || !poolWhereOk(w)) return null;
+  const out = {};
+  if (w.teams) out.teams = w.teams.slice();
+  if (w.positions) out.positions = w.positions.slice();
+  return Object.keys(out).length ? out : null;
+}
+/** Whether one person ({ team, position }: an ESPN team id and a position group key, either null) is in a filter's pool. */
+const inFilter = (f, p) => (!f.teams || (isObj(p) && f.teams.includes(p.team))) && (!f.positions || (isObj(p) && f.positions.includes(p.position)));
+/**
+ * How many can be drafted where the game drafts, as the exclusive count counts them (the 9:10 PM decision: a filtered pool counts
+ * smaller): ctx.pool, or with a filter those of ctx.poolOf (each one still in as { team, position }) in it; a filter with no
+ * poolOf isn't counted (null).
+ */
+function poolCount(s, ctx) {
+  const f = poolFilter(s);
+  if (!f) return isInt(ctx.pool, 0) ? ctx.pool : null;
+  return Array.isArray(ctx.poolOf) ? ctx.poolOf.filter((p) => inFilter(f, p)).length : null;
 }
 
 /** A start at a phase, well formed: { phase: an id, at?: the episode it plays from }. */
@@ -2433,6 +2476,10 @@ function sizesOf(s) {
  *                shared, and the problem says why ("12 of you × 3 picks is more than 18 castaways"). Either left out: not
  *                counted. A pool that shrinks later (a stage's or a side draft, group slots) is counted where it drafts again
  *                (GroupSlotLogic counts each opening)
+ *   ctx.poolOf   (G3 part 3b) everyone still in where the game drafts, each { team, position } (an ESPN team id and a position
+ *                group key, null where unknown): a pool of some teams or positions is counted as those of them in it. Left out:
+ *                a filtered pool isn't counted
+ *   ctx.teamList (G3 part 3b) the page's teams, [{ id, name }]: a pool's teams are ids among them (and named by them in its words)
  *   ctx.teams    (A10 part 4b) how many teams the couch makes when some share one (extras.seats): counted in place of
  *                ctx.couch, a shared team once (teamsOf). Left out: ctx.couch, everyone their own
  *
@@ -2482,10 +2529,14 @@ function specProblems(spec, ctx, opts) {
   else if (s.pool.where !== null) {
     const w = s.pool.where;
     const keys = isObj(w) ? Object.keys(w) : [];
-    if (keys.length !== 1 || !one('pool.where', keys[0])) add('pool.where', 'Who can be picked: { stillIn: true }, { teams: [...] } or { group: id }');
-    else if (keys[0] === 'stillIn' && w.stillIn !== true) add('pool.where.stillIn', 'stillIn is true, or leave it out');
-    else if (keys[0] === 'teams' && !(Array.isArray(w.teams) && w.teams.length && w.teams.every((t) => typeof t === 'string' && t))) add('pool.where.teams', 'The teams are a list of team ids');
-    else if (keys[0] === 'group' && !(typeof w.group === 'string' && w.group)) add('pool.where.group', 'The group is an id');
+    // G3 part 3b: stillIn, teams and positions together or not; a group (later) on its own.
+    if (!keys.length || !keys.every((k) => one('pool.where', k)) || (keys.includes('group') && keys.length > 1)) add('pool.where', "Who can be picked: { stillIn: true }, a sport's { teams: [...] } and { positions: [...] }, or { group: id }");
+    else {
+      if (w.stillIn !== undefined && w.stillIn !== true) add('pool.where.stillIn', 'stillIn is true, or leave it out');
+      if (w.teams !== undefined && !idList(w.teams)) add('pool.where.teams', 'The teams are a list of team ids, each once');
+      if (w.positions !== undefined && !idList(w.positions)) add('pool.where.positions', "The positions are a list of the sport's position groups, each once");
+      if (w.group !== undefined && !(typeof w.group === 'string' && w.group)) add('pool.where.group', 'The group is an id');
+    }
   }
 
   // get and count
@@ -2818,8 +2869,12 @@ function questionProblems(q, at, s, ids, league) {
     if (!(st.by === 'stat' || st.take === 'winner' || st.take === 'bracket')) add('settle.of', "Only a stat, who wins a card's bout, or a draw's bracket says whose");
     else if (typeof st.of !== 'string' || !st.of) add('settle.of', "Whose: a player's or a team's id (a card's bout: 'main' or its id)");
   }
-  if (st.by === 'results' && (st.take === 'placed' || st.take === 'top') && !isInt(st.place, 1)) add('settle.place', 'Which place: 1 or more');
-  if (st.place !== undefined && !(st.by === 'results' && (st.take === 'placed' || st.take === 'top'))) add('settle.place', 'Only a place or a top settles by a place');
+  // G3 part 3: or a field's top few in a sport's game (a podium: { by: 'final', take: 'top', place: 3 }).
+  const placedBy = (st.by === 'results' && (st.take === 'placed' || st.take === 'top')) || (st.by === 'final' && st.take === 'top');
+  if (placedBy && !isInt(st.place, 1)) add('settle.place', 'Which place: 1 or more');
+  // A field's top few: name no more than there are places in it (naming 10 for a podium would nearly always get all 3).
+  else if (st.by === 'final' && st.take === 'top' && isInt(q.pick, 1) && q.pick > st.place) add('pick', `Name ${st.place} at most: the top ${st.place}`);
+  if (st.place !== undefined && !placedBy) add('settle.place', 'Only a place or a top settles by a place');
   // What the season's results say only at its end: asked once, in a game that runs to it.
   if (SEASON_TAKES.includes(how)) {
     const what = st.take === 'winner' ? 'Who wins' : st.take === 'split' ? "The jury's vote split" : 'Where they finish';
@@ -4133,18 +4188,32 @@ function settleProblems(s, ctx, opts) {
   const get = isObj(s.get) ? s.get : {};
   // A10 part 4b: teams, not people (teamsOf: ctx.teams, else ctx.couch).
   const teams = teamsOf(ctx);
-  if (!opts.league && get.by === 'draft' && get.own === 'exclusive' && isInt(get.each, 1) && isInt(ctx.pool, 0) && teams && !covers({ pool: ctx.pool, people: teams.n, each: get.each })) {
-    const more = `${teams.said} × ${get.each} ${get.each === 1 ? 'pick' : 'picks'} is more than the ${ctx.pool} who can be drafted`;
+  // G3 part 3b: a filtered pool counts smaller (poolCount: those of ctx.poolOf in it).
+  const pooled = poolCount(s, ctx);
+  if (!opts.league && get.by === 'draft' && get.own === 'exclusive' && isInt(get.each, 1) && pooled !== null && teams && !covers({ pool: pooled, people: teams.n, each: get.each })) {
+    const more = `${teams.said} × ${get.each} ${get.each === 1 ? 'pick' : 'picks'} is more than the ${pooled} who can be drafted`;
     // A10 part 3b: an auction can't be shared; its shared version is a salary cap (prices from the data, no bidding).
     out.push(['get.own', get.order === 'auction' ? `${more}: an auction needs castaways nobody else can have, so make it a salary cap (prices from the data, no bidding), where two of you can have the same one` : `${more}: make it shared, so two of you can have the same one`]);
-  } else if (!opts.league && marketOf(s) && get.own === 'exclusive' && isInt(get.each, 1) && isInt(ctx.pool, 0) && teams && teams.n * get.each >= ctx.pool) {
+  } else if (!opts.league && marketOf(s) && get.own === 'exclusive' && isInt(get.each, 1) && pooled !== null && teams && teams.n * get.each >= pooled) {
     // A10 part 3c: an exclusive stock market needs someone left over to buy, or nobody can ever trade (the count where it drafts;
     // as people go home a replacement waits for someone free, as an exclusive draft's waivers do).
-    out.push(['get.own', `${teams.said} × ${get.each} ${get.each === 1 ? 'pick' : 'picks'} takes all ${ctx.pool} who can be drafted, so nobody's left to buy: make it shared, so two of you can hold the same one${get.order === 'auction' ? ' (a salary cap: prices from the data, no bidding)' : ''}`]);
-  } else if (!opts.league && get.by === 'draft' && get.own === 'exclusive' && !marketOf(s) && isInt(get.each, 1) && isInt(ctx.pool, 0) && teams && teams.n * get.each >= ctx.pool && freeNeverComes(s)) {
+    out.push(['get.own', `${teams.said} × ${get.each} ${get.each === 1 ? 'pick' : 'picks'} takes all ${pooled} who can be drafted, so nobody's left to buy: make it shared, so two of you can hold the same one${get.order === 'auction' ? ' (a salary cap: prices from the data, no bidding)' : ''}`]);
+  } else if (!opts.league && get.by === 'draft' && get.own === 'exclusive' && !marketOf(s) && isInt(get.each, 1) && pooled !== null && teams && teams.n * get.each >= pooled && freeNeverComes(s)) {
     // C4: the count per holding. An exclusive draft that takes everyone, whose waivers replace someone gone home with only someone
     // on nobody's team and nothing else ever frees anyone (no swaps, nobody knocked out), never has anyone to replace them with.
-    out.push(['extras.waivers.own', `${teams.said} × ${get.each} ${get.each === 1 ? 'pick' : 'picks'} takes all ${ctx.pool} who can be drafted, so nobody's ever free to replace someone gone home with: make the replacements shared ({ "replace": "shared" }), so one can be someone on another team`]);
+    out.push(['extras.waivers.own', `${teams.said} × ${get.each} ${get.each === 1 ? 'pick' : 'picks'} takes all ${pooled} who can be drafted, so nobody's ever free to replace someone gone home with: make the replacements shared ({ "replace": "shared" }), so one can be someone on another team`]);
+  }
+  // G3 part 3b: a pool of some positions' or teams' players is a sport's: each position one of the sport's position groups
+  // (ctx.positions), each team one of a team sport's (ctx.shape), and one of the page's when it lists them (ctx.teamList).
+  const filter = poolFilter(s);
+  if (filter && filter.positions) {
+    const groups = new Set((Array.isArray(ctx.positions) ? ctx.positions : []).map((x) => String(isObj(x) ? x.key : x)));
+    for (const g of filter.positions) if (!groups.has(g)) out.push(['pool.where.positions', groups.size ? `"${g}" isn't one of the sport's positions: ${[...groups].join(', ')}` : "Only a sport's players have positions to pick from"]);
+  }
+  if (filter && filter.teams) {
+    const listed = Array.isArray(ctx.teamList) ? new Set(ctx.teamList.map((t) => String(isObj(t) ? t.id : t))) : null;
+    if (ctx.shape !== 'team') out.push(['pool.where.teams', "Only a team sport's players have teams to pick from"]);
+    else if (listed && listed.size) for (const t of filter.teams) if (!listed.has(t)) out.push(['pool.where.teams', `"${t}" isn't one of the page's teams`]);
   }
   // A11 part 4: the playoffs take no more than the couch has teams (a bracket short of seeds gives the top ones byes, so fewer is
   // fine: the engine's fallback for a couch that shrinks).
@@ -4315,11 +4384,17 @@ function settleProblems(s, ctx, opts) {
       if (shape === 'field' || !draws.length) out.push([`ask[${i}].settle`, shape === 'card' ? "A bracket is a draw's, and this card's bouts aren't in one" : shape === 'team' ? "A team game's bracket is its league's playoffs: this season isn't them" : "A bracket is a draw's (tennis's) or a league's playoffs: a field has none"]);
       else if (typeof st.of === 'string' && st.of && !draws.includes(st.of)) out.push([`ask[${i}].settle.of`, `"${st.of}" isn't one of the draws: ${draws.join(', ')}`]);
     } else if (st.by === 'final' && (shape === 'team' || shape === 'field' || shape === 'card')) {
-      if (shape !== 'team' && st.take !== 'winner') out.push([`ask[${i}].settle.take`, `A ${shape}'s final says who wins: no total or margin`]);
+      // G3 part 3: a field's final has its top few (a podium) too; a team game's and a card's bout have only a winner on top.
+      if (st.take === 'top' && shape !== 'field') out.push([`ask[${i}].settle.take`, shape === 'team' ? "A team game has two sides: who wins, the total or the margin, no top few" : "A card's bout has a winner: no top few"]);
+      else if (shape !== 'team' && st.take !== 'winner' && !(shape === 'field' && st.take === 'top')) out.push([`ask[${i}].settle.take`, `A ${shape}'s final says who wins${shape === 'field' ? ' and its top few' : ''}: no total or margin`]);
+      if (st.take === 'top' && q && q.answer !== 'person') out.push([`ask[${i}].answer`, "A field's top few are people: answer person"]);
       if (st.take === 'winner' && q && (q.answer === 'side' || q.answer === 'person') && q.answer !== (shape === 'team' ? 'side' : 'person')) out.push([`ask[${i}].answer`, shape === 'team' ? 'A team game is won by a side: answer side' : `A ${shape} is won by someone: answer person`]);
       if (st.of !== undefined && shape !== 'card') out.push([`ask[${i}].settle.of`, "Only a card's bout says whose win: a game has one winner"]);
       if (q && q.draw === true && shape !== 'team') out.push([`ask[${i}].draw`, `A ${shape}'s winner is someone: no draw to pick`]);
       if (q && q.asked === 'once' && !oneGame) out.push([`ask[${i}].asked`, "A final is one game's: ask it each episode, or once in a game of just one"]);
+    } else if (st.by === 'final' && shape === undefined) {
+      // G3 part 3b (blind.js): a show's page (no sport's shape) has no game's final to settle it (a podium, a margin: never settled).
+      out.push([`ask[${i}].settle`, "A show's episodes have no final score: only a sport's games settle a final"]);
     }
     if (st.by === 'results' && ctx.results === false) out.push([`ask[${i}].settle`, "The show's results don't say who goes home or wins"]);
     else if (st.by === 'results' && ['winner', 'placed', 'top', 'split'].includes(st.take) && ctx.winner === false) out.push([`ask[${i}].settle`, "Nobody wins this show: its results don't crown a winner"]);
@@ -4382,8 +4457,8 @@ function specWaitsFor(spec) {
     const step = own(VOCAB[key], v);
     if (step && step !== 'now') need(at, step, what);
   };
-  const where = isObj(s.pool) && isObj(s.pool.where) ? Object.keys(s.pool.where)[0] : null;
-  if (where) val('pool.where', 'pool.where', where, where === 'teams' ? 'Picking from teams' : 'Picking from a group');
+  // G3 part 3b: a pool's teams and positions play; a group waits.
+  for (const where of isObj(s.pool) && isObj(s.pool.where) ? Object.keys(s.pool.where) : []) val('pool.where', 'pool.where', where, where === 'group' ? 'Picking from a group' : 'Picking from ' + where);
   if (isObj(s.get)) val('get.by', 'get.by', s.get.by, 'Squares');
   if (isObj(s.get) && isObj(s.get.across)) val('get.across.of', 'get.across.of', s.get.across.of, 'A draft of a guy and a girl each');
   if (isObj(s.get) && isObj(s.get.budget)) val('get.budget.left', 'get.budget.left', s.get.budget.left, "Bidding on waivers with the draft's money left over");
@@ -4658,7 +4733,7 @@ function stagedWaits(s) {
 module.exports = {
   SPEC_VERSION, VOCAB, TAKES, SETTLES_FOR, SEASON_TAKES, EACH_SETTLES_FOR, NAMES, NUMBERS, MAX_WINDOW, LATE_HOURS, windowed,
   RANKS, MAX_ORDER, MAX_WITHIN, MAX_CHIPS, MAX_PAIRS, WAGERS, WAGER_TOTAL, ODDS, MAX_BANK, BANK, bankOf, drawsOnBank, isTicket, ticketOf, MAX_TICKET_LEGS, MAX_PAYS, TICKET, SHARES, SHRINK_PER, LEGS, MAX_LEGS, MAX_TIMES, MAX_WHEN, WHEN, MAX_JOINED, JOINED, multipliersOf, MAX_BOUNTY, BOUNTY, bountyOf, MAX_ROLE_SEATS, MAX_ROLE_POINTS, MAX_ROLE_NAME, ROLES, rolesOf, MAX_TWISTS, MAX_TWIST_NAME, MAX_TWIST_HOURS, TWIST, twistOf, PRESETS, PRESET_TYPES, TYPE_PRESETS, PRESET_LABELS, NO_WAIVERS, DRAFT_ROOM,
-  MAX_GROUP_SLOTS, GROUP_SLOTS, covers, MAX_LIVES, MAX_BUYBACKS, MAX_MULLIGANS, MAX_BUYBACK_COST, BUYBACK, SECOND_PICK, NEVER, poolParts,
+  MAX_GROUP_SLOTS, GROUP_SLOTS, covers, poolFilter, poolCount, inFilter, MAX_LIVES, MAX_BUYBACKS, MAX_MULLIGANS, MAX_BUYBACK_COST, BUYBACK, SECOND_PICK, NEVER, poolParts,
   DRAFT_ACROSS, DRAW_OWN, spreadBounds, MAX_BUDGET, BUDGET, CAP, AUCTION, MAX_BIDS, ceilingFor, budgetParts, TRADE, MARKET_LEFT,
   marketWaivers, marketOf, waiverOwnOf, waiverMoves, KEEP, keepParts, SEATS, MAX_SEAT_PEOPLE, seatPeople, teamsOf,
   MAX_RACE, MAX_CUTS, MAX_CUT_OUT, CUT, CUT_AT, knockoutParts, DRAFT_END, POOL_END, ANSWERS_END, COOP, answerParts, livesQuestion, questionsGame, isPool, poolByPoints,

@@ -190,6 +190,20 @@ export async function seasonGames(p: SportsProvider, league: string, team: strin
     .sort((a, b) => (a.at ?? "").localeCompare(b.at ?? ""));
 }
 
+/**
+ * G3 part 2: a team's season as the Start-a-game GPT reads it on a team's page: the provider that answered, the team's games past
+ * and coming (seasonGames: its regular season and postseason), and the team as its league's list has it. Null when the provider has
+ * no such team in the league; SportsUnavailable when it doesn't answer.
+ */
+export async function teamGames(league: string, team: string, opts: { providers?: SportsProvider[] } = {}): Promise<{ provider: SportsProvider; games: SportsEvent[]; team: TeamHit } | null> {
+  const p = (opts.providers ?? sportsProviders())[0];
+  if (!p) return null;
+  const games = await seasonGames(p, league, team);
+  if (!games) return null;
+  const me = teamOf(await listOf(p, league), games, league, team);
+  return me ? { provider: p, games, team: me } : null;
+}
+
 /** What adding some games makes: their season's name, its games, and the season already made for them, if one is. */
 export interface AddOption {
   name: string;
@@ -302,8 +316,9 @@ export interface Added {
 /** Matchups and slates one person can make a day (finding one already made is free), as many as new shows (add-show.ts). */
 export const MATCHUPS_A_DAY = NEW_SHOWS_A_DAY;
 
-/** 429 once `userId` has made the day's matchups and slates (one count for both: each is a season made). */
-async function underCap(userId: string): Promise<void> {
+/** 429 once `userId` has made the day's matchups and slates (one count for both: each is a season made). G3 part 2's words on a
+ *  team's page count here too. */
+export async function underCap(userId: string): Promise<void> {
   const { rows } = await pool.query(
     `SELECT (SELECT count(*) FROM sports_matchups WHERE made_by = $1 AND made_at > now() - interval '1 day')
           + (SELECT count(*) FROM sports_slates WHERE made_by = $1 AND made_at > now() - interval '1 day') AS n`,

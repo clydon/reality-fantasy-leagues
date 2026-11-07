@@ -61,7 +61,8 @@ export function readOdds(o: EspnOdds | undefined): Odds | null {
  * - `opener`: its first game of the regular season (at home, with `home`: "the 76ers home opener");
  * - `series`: the run of games in a row against `against` that the next one still to play is in, all of it ("the Red
  *   Sox–Yankees series", asked mid-series, is still the whole series);
- * - `next`: its next `count` games still to play (only against `against`, if given).
+ * - `next`: its next `count` games still to play (only against `against`, if given);
+ * - `day`: its games on that day in the East, where ESPN's days are (G3 part 2: "the Knicks game tonight", "Sunday's game").
  * "Still to play" is as the provider says now, or with `from` (an ISO time), starting from then: "the upcoming Red Sox–Yankees
  * series" as of the day it was asked, on a schedule read after it was played.
  */
@@ -69,7 +70,11 @@ export type MatchupAsk =
   | { kind: "games"; events: string[] }
   | { kind: "opener"; home?: boolean }
   | { kind: "series"; against: string; from?: string }
-  | { kind: "next"; count: number; against?: string; from?: string };
+  | { kind: "next"; count: number; against?: string; from?: string }
+  | { kind: "day"; day: string };
+
+/** A moment's day in the East (where ESPN's days are), as YYYY-MM-DD. */
+export const eastDay = (at: string | number | Date): string => new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(at));
 
 /** Games of one regular-season series are this close together, at most (a four-game set over four days; never a home-and-home
  *  weeks apart). A postseason series is its games against them in a row, however far apart (a Final's days off). */
@@ -92,6 +97,7 @@ export function oneSeries(a: Game, b: Game, team: string): boolean {
 export function pickMatchup(team: string, schedule: Game[], ask: MatchupAsk): Game[] {
   const mine = schedule.filter((g) => plays(g, team)).sort((a, b) => (a.at ?? "").localeCompare(b.at ?? ""));
   if (ask.kind === "games") return mine.filter((g) => ask.events.includes(g.id));
+  if (ask.kind === "day") return mine.filter((g) => g.at && eastDay(g.at) === ask.day);
   if (ask.kind === "opener") {
     const regular = mine.some((g) => g.stage) ? mine.filter((g) => g.stage === "regular") : mine;
     const first = regular.find((g) => !ask.home || atHome(g, team));

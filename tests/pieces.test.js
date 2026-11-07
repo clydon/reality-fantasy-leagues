@@ -24,7 +24,7 @@ const FLAGS = ["hasRoster", "hasActiveRoster", "hasBestBall", "hasWeeklyPicks", 
 const flags = (o) => FLAGS.map((f) => !!o[f]);
 // The pieces each part of a spec names.
 const DRAFTS = { snake: "SnakeDraftStrategy", blind: "BlindDraftStrategy", draw: "DrawDraftStrategy", auction: "AuctionDraftStrategy" };
-const SCORERS = { place: "EliminationOrderScoringStrategy", moments: "ActiveRosterEventScoringStrategy", survive: "PickEmScoringStrategy", answers: "CallsScoringStrategy", lines: "CallsScoringStrategy", stages: "StagesScoringStrategy" };
+const SCORERS = { place: "EliminationOrderScoringStrategy", moments: "ActiveRosterEventScoringStrategy", survive: "PickEmScoringStrategy", answers: "CallsScoringStrategy", lines: "CallsScoringStrategy", stages: "StagesScoringStrategy", stats: "ActiveRosterEventScoringStrategy" };
 
 /** A league as makeLeague sets one up (tests/game-spec.test.js made), without the database. */
 function made(type, after) {
@@ -93,7 +93,11 @@ test("every game the tracker plays: the pieces its spec names, with the flags th
     assert.equal(p.draft.name, game.get.by === "draft" ? DRAFTS[game.get.order] : "NoDraftStrategy", x.row.id);
     assert.equal(p.scorer.name, SCORERS[game.score.by], x.row.id);
     assert.deepEqual([p.holds, p.scores, p.ranks], [game.get.by, game.score.by, game.rank.by], x.row.id);
-    assert.deepEqual(flags(p), flags(S.getLeagueType(state)), `${x.row.id}: the screens' flags`);
+    // G3's Noticed: everyone drafted and scored by a sport's stats is typed active-roster (the one type scored by what holdings do),
+    // whose flags say a lineup; its pieces say none (count all), and the pieces are right. Its other flags agree.
+    const allByStats = game.score.by === "stats" && game.count && game.count.all;
+    const skip = (o) => FLAGS.map((f, i) => (allByStats && f === "hasActiveRoster" ? null : flags(o)[i]));
+    assert.deepEqual(skip(p), skip(S.getLeagueType(state)), `${x.row.id}: the screens' flags`);
   }
   assert.ok(n >= 150, `the tracker's games (${n})`);
 });

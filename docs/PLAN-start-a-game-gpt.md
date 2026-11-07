@@ -209,7 +209,8 @@ and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track
 | Game pages (2026-10-30) | **Planned** (the user's idea): the Games tab stays the overview (the moves and each game's brief first) and launches each game's own page, opened over the show (no per-game tabs). Pages are generated from the spec, the game's state and the seat, never designed one by one: track V (a research spike, a first look, a review set of a few hundred games), then U0 frames them and U1 builds them. |
 | A pool's finale (2026-10-30) | **Only the winner survives the finale** (the user: "it keeps the game rules consistent: pick the player that survives the episode"; chosen over the finalists surviving it, high stakes accepted). A finale pick is right only when its person is who the results record as winning (each winner, on a show with several); a finalist who loses is out like any exit; on a show with no winner, whoever isn't among the episode's exits survives, as on any night. Data settles it. It changes today's pools' finales (Survivor 51's Survival Pool on Dec 16): built and merged before then. |
 | A preset's rule (2026-10-30) | **Open until the engine is complete** (the user). Whether a tapped preset meets the same data-can-settle rule as the GPT's games: R1 part 1's question, options (a) to (c) in its Noticed (Claude recommends (a)). The user's reason: what the moments say research can answer may differ from what research reliably returns at the end of each episode. So decide it on what research actually returns: the season tapes hold every research answer, episode by episode, so each moment's real rate can be measured then. Nothing running is affected meanwhile (no couch plays a show with couch-answered moments). A fourth option, from "Custom moments" below: (d) a preset's couch-answered moment goes through the same feasibility ask, becoming a question research answers each episode if it's feasible, else scoring 0. |
-| Custom moments (2026-10-30) | **Allowed, sometimes encouraged** (the user: "a fun league of Below Deck that just every week players guess 'did someone cry'"). A moment the show's research doesn't cover, typed to the GPT or added by hand (Make it ours included), takes the new-moment path in "Our check": a short feasibility ask at the start (how reliably research can answer it each episode, from recaps), and, if it's feasible, a question research asks after every episode (it won't come up unless it's asked explicitly). The user leans toward allowing somewhat-reliable moments (crying "will likely be mentioned in post episode recaps"); the bar (high only, or medium too) is still open. Claude's recommendation: medium too, with three nets: the feasibility answer shown to the maker, an episode research can't settle voided (no points either way), and the game's real answer rate shown as the season goes. Before the bar is set, measure on the season tapes whether the feasibility ask predicts what research actually returns (the user's concern in "A preset's rule"). **Measured (G1 part 4, 2026-11-07, docs/STUDY-added-moments.md):** the rating orders reliability but not its level: on questions research already asks, high settled 99% of episodes, medium 93%, low 83%; on new moments none was rated high, medium settled 60% (3 of 10 at 90% or more), low 53%. Claude still recommends medium, with the void (built) and, after a moment's first three episodes, its real rate shown and a warning under 50% (U1). |
+| Custom moments (2026-10-30) | **Allowed, sometimes encouraged** (the user: "a fun league of Below Deck that just every week players guess 'did someone cry'"). A moment the show's research doesn't cover, typed to the GPT or added by hand (Make it ours included), takes the new-moment path in "Our check": a short feasibility ask at the start (how reliably research can answer it each episode, from recaps), and, if it's feasible, a question research asks after every episode (it won't come up unless it's asked explicitly). The user leans toward allowing somewhat-reliable moments (crying "will likely be mentioned in post episode recaps"); the bar (high only, or medium too) is still open. Claude's recommendation: medium too, with three nets: the feasibility answer shown to the maker, an episode research can't settle voided (no points either way), and the game's real answer rate shown as the season goes. Before the bar is set, measure on the season tapes whether the feasibility ask predicts what research actually returns (the user's concern in "A preset's rule"). **Measured (G1 part 4, 2026-11-07, docs/STUDY-added-moments.md):** the rating orders reliability but not its level: on questions research already asks, high settled 99% of episodes, medium 93%, low 83%; on new moments none was rated high, medium settled 60% (3 of 10 at 90% or more), low 53%. Claude still recommends medium, with the void (built) and, after a moment's first three episodes, its real rate shown and a warning under 50% (U1). **Decided (the user, 2026-11-07): the bar stays medium** ("G1's answers", below). |
+| G1's answers (2026-11-07) | **The user, on G1's open questions:** the four prompts approved (the words to a game, a typed change, the reliability ask, and the added moments' short ask); the new-moment bar stays **medium**; the bot's priority queue (llm-browser-api's `JobQueue`) is **not deployed to the VM until U1**; an added moment's 0-point lines in a game that doesn't name it are **hidden in U1** (the episode breakdown leaves them out). |
 | A replacement's multiplier (2026-11-05) | **On what the replacement earns while it's yours, on every kind of draft, an Outlast included** (the user: "your assumptions are correct"; C1's Noticed). "The new player who replaces your lost one scores 0.5x" multiplies the points they earn from the episode after they join, never their whole place: in an Outlast, the boots they outlast while yours. An Outlast without a multiplier keeps today's count (whoever holds someone now has their whole place). Built in C3. |
 | A shared game's two holders (2026-11-06) | **Per holder, from the live games' next episode on** (the user, on C4's Noticed): someone who goes home in an episode not yet played is owed a replacement on every team that held them, one replacing them settling only their own. Every exit already played stays as it played out (no past loss owed again, no standings moving backwards); games made from now on are per holder from the start; C4's games as they are. As data, never a date or a league named in code: each existing game carries its cutover (`settings.perHolderFrom`, migration 0207: the first episode it hadn't played; Survivor 51's live games, Episode 8). Built as C4b, before Episode 8's results (Wed Nov 11). |
 | A sports week (2026-11-06) | **The episode, wherever the season has episodes of its own** (the main session's call, as the sports track's orchestrator; built in L8 part 3): a league's slate's episode (ESPN's own week for football, Monday to Sunday or a day for the NBA, NHL and MLB, a round for soccer) is the week for its locks, its matchups and the screens, locking at its own first game whatever the spec's `closes` says. Tuesday to Monday (Eastern) only where nothing else defines the week: a team's season and a matchup's series, one game an episode. |
@@ -11045,6 +11046,337 @@ first), and proves it on these games and on the tracker's other rows that use it
     (U0/U1, impeccable).
 - **G3. The GPT learns sports** (after the sports branch merges): teams and games from ESPN's schedule, stat words to the
   Sport's keys, sports settles, and the over/under line from ESPN's odds. The Red Sox and 76ers sentences pass end to end.
+  **In parts (2026-11-07):** part 1, a sport's season as G1's page (the pack, the manual, our check, the server's pack, the
+  tracker's sports pages: built, As built below); part 2, a team's page (the words pick the games from the team's schedule:
+  "the upcoming series", "the home opener", "the next 5 games"; our check holds them against the schedule, a game already
+  played asked about; the route makes the matchup, L1 part 3's `makeMatchup`, and drafts on its page); part 3, the tracker's
+  sports rows that wait on a piece (a field's top three for a podium, w053; a draft from one position, w055) and the rolled
+  game's sentence (the main session's 12:15 PM note: every piece the short form shows is in the sentence; the majority
+  question's words).
+  **Part 1 as built (2026-11-07, `engine`; no migration, no screen):**
+  - **A sport's page** (`src/lib/sports/page.ts`, new, pure): `sportPageContext(league, { show, person, part, playoffs })`, what
+    a spec on a sport's games is checked against: `specContextOf`'s (stats, positions, formats, shape, periods, sizes, a playoffs
+    slate's draw) with its words and what a sport's results never say (`results`, `winner`, `trivia`, `jury`, `votes` false; no
+    moments, phases or roles), so a show's questions ("who goes home") are refused on it. `statWords(sport)` (each stat's key,
+    label, short form and noun: the Sport's own `StatDef`s), `statKeyOf(sport, words)` (game-words pack.js `statKeyIn`, the one
+    reading our check uses: a key in any case, a column's short form where one stat has it, a label or noun singular or plural,
+    "RBIs" RBI; words that fit two stats name neither), `sportGames(league, { playoffs })` (the defaults' specs with their `about`,
+    a playoffs-only one only on a playoffs page), `sportStandard(league)` (the standard table, starters, bench, locks).
+  - **The pack** (`pack.js`, a sport's input): its sport and ESPN's league, its teams, its games (each episode's: when, its sides
+    and which is home, whether it's started, ESPN's line on the total only while it's still to play, called off; never a score,
+    so the pack can't spoil a game someone hasn't watched), `gamesMore`, its players each with their team as group and position
+    as role (`castMore` past a cap), the stats in their words, the sport's standard scoring and games; no moments, roles or
+    couch's-word list; `knows` the finals, players' stats and lines. `idsOf` adds teams and stats.
+  - **The manual** (`manual.js`): on a sport's page, a sports section in place of the presets (points per stat by key, the
+    `final` and `stat` settles with their answers and `of` a team, `line: "game"` and never a line they didn't say, one game's span
+    for a final asked once, `each: "game"`, the locks, a span of the page's games) and the sport's standard games (their tables
+    left out: our check fills them in, so a football table's 31 keys never reach the prompt); `WORDS` gains `show` lists (a show's
+    scoring, settles, answers, cards, roles and group slots), so a sport's page offers only what plays on it; a page's examples
+    and field examples are its kind's only (a sport's page shows sports requests, a show's never a sport's). FIELDS `ask.line`
+    says `"game"`.
+  - **Our check** (`check.js` `sportFixes`, on a sport's page, before the numbers): a stat named by its words its key ("home_run",
+    "total bases", "points": a `quiet` fix, shown as assumed, never asked: it's what they said), a stats score with no table the
+    sport's standard one (Yahoo's), a pool's right pick one who scores (`score.means`), an over/under on a game's total with no line
+    of theirs `line: "game"` (a number they said stays theirs), a team named by its name its id (one the page hasn't got: out, and
+    asked "Count it for one team, or the whole game?"), a show's preset (or a show's scoring) the sport's own game most like it
+    (asked which); a sport's page whose pack lists every game takes its last game as the season's end (a one-game matchup's span
+    1 to 1 isn't a number they didn't say); "Which game?" offers the sport's standard games (`SPORT_GAME_LABELS`).
+  - **The server** (`game-words.ts`): a show of kind sport whose linked games ESPN reads is a sport's page (`sportPart`: the
+    league its linked games mostly are, the games from `season_events` and `sports_events`, the next 16 to play and the last 3
+    played, a playoffs slate's bracket), its rules the sport's (a matchup's league show needn't be a game yet: a show's rules are
+    read only for a show), its players through the asker's mark (`shown_from`) up to 150; the manual and our check get the
+    sport's standard games.
+  - **The tracker** (`capability-rows.ts`, `capabilities.js`): a sport's page names its ESPN league (`espn`), checked against the
+    sport (`playoffs` for a playoffs page). Specs for p2 (the homer draft), w002 (the user's Red Sox–Yankees sentence), w003 (the
+    76ers sentence, on the game's own line), w029 (NFL pick'em for week 9, each game), w030 and s62 (football's season, head to
+    head), w031 (World Series game 5: the winner and the runs on the game's line), w051 (the winner and the margin), w052 (the
+    Lakers' next five: 2 each, points, rebounds and assists), w057 (the Knicks tonight); s59 to s61 now A15's (live calls on its
+    clock), w053 and w055 G3's (part 3), w054 (an MVP: no such data) and w104 (the Ryder Cup: match play) not planned. **233 ✅**
+    (was 223), 28 ⏳ (A15 19, A14 2, L4 1, G1 3, G3 2). `tests/fixtures/game-specs.js`'s two sports examples are on their own
+    matchup's page now (no team filter, the game's own line): they play today (active-roster, questions).
+  - **impeccable (clarify)** on the words our check hands the wizard on a sport's page: the "Which game?" chips as short parallel
+    names fans use ("Season-long league", "Draft a few players", "Pick'em", "Pick the game's top players", "Categories, head to
+    head", "Roto", "Best ball", "Squares", "Bracket"; no articles, each fits a chip at 390), "table" (our word) out of "Players score
+    by their stats. Use the standard points?" ("Standard points"), and "Count it for one team, or the whole game?" over "Whose:
+    which team, or the whole game?". U0 settles them with the wizard.
+  - **Checks:** `tests/game-words-sports.test.js` (7, new: the stat words, the sport's ctx, the pack, the manual, the Red Sox and
+    76ers sentences drafted as a bot might and the Red Sox game set as a league's game on the sport's ctx, the check's readings);
+    the bank (`tests/fixtures/game-words/bank.js`: a sport's page's pack and standard games, `checkOpts`) so the ideal-draft test
+    covers the sports rows too; `tests/pieces.test.js` knows stats' scorer; 1,967 unit tests passing; the type check;
+    `scripts/dev-test/check-sports-words.js` (new, reusable: stand-in ESPN and bot, zt- rows, through `gameWords`): 17 checks pass
+    (the pack's sport, teams, game with its home side and line and no score, players by team and position, stats and standard
+    games, no moments; the manual; the 76ers sentence the tracker's own game with PTS and the game's line read; the ask kept; a
+    typed change; the Lakers request on a series' page). `check-game-words.js --real` takes sports requests (`--only=w002,w003`).
+    **The real bot** (the local bot, ChatGPT, one at a time while idle; the bank's pages, which have no schedule): 8 sports requests,
+    8 games, **5 the tracker's exact game** (p2, the Red Sox sentence w002, the 76ers sentence w003, w051, w057) and 3 its shape:
+    w029 without `each: "game"` (the bank's NFL page lists no games, so nothing says a week has several), w031 with "Who wins
+    Game 5?" for its question's words, w052 with the span the words said (the next 5 games, more exact than the tracker's). The
+    Red Sox sentence came back asking how much of the series and whether players can be shared; the one-game ones asked "Which
+    episode does it end with?", because the bank's pages have no games (on a real page the pack's games make it the season's end:
+    check-sports-words.js shows it).
+  - **The code review** (`/code-review` at medium, before the commit). Fixed: a show's preset swapped for the sport's game left the
+    parts it copied unassumed, so the standard table's every number was dropped as unsaid (each copied part is now assumed, the
+    preset dropped and asked which game, never a sport game's id in `preset`); a stat's key read from its words was recorded at the
+    old path with the key as its value, and a number said of it was dropped (the fix at the new path with its points, what was said
+    or assumed of the old path moved with it); a team named by words that fit two teams picked the first (now neither, and asked);
+    a line ESPN stored as text would have failed the whole pack's query (read only when it's a number); a show's page read its rules
+    after the season's headers instead of beside them (in parallel again, its 404 thrown only for a show); a sport's page ran a
+    show's exits and groups queries for nothing; repeated ternaries; a doc comment on the wrong field. Not taken: "a season with two
+    slates" (a slate is keyed by its season: one at most). G1's `check-game-words.js` (through the route, on the stand-in: 27
+    checks) passes on the final code, as does `check-sports-words.js`.
+  - **Long checks:** none. `state-logic.js` and the scorers are untouched (the tracker's new specs and our check's words only), so
+    golden, blind and the rehearsal read the same by construction.
+  **Noticed (G3 part 1):**
+  - **Everyone drafted and scored by a sport's stats is typed active-roster** (`typeOf`), whose flags say a lineup
+    (`hasActiveRoster`), while its pieces say none (count all). The pieces are right; a screen reading the type's flag would show
+    a lineup that isn't there. `tests/pieces.test.js` checks that flag apart for this shape. Recommended: the screens read the
+    pieces (U1), or R3 drops the type's flags. (R3 or U1.)
+  - **A player's own stat can't be asked** (`settle.of` a player): a spec's player is the league's castaway id, which exists only
+    once the league is made, so our check takes an `of` that isn't a team out and asks. Recommended: Start a game maps the
+    season's cast ids to the league's (U1), then `of` takes a player from the pack. (U1, with G3 part 2.)
+  - **A slate's episode is a week, but the words say "Game 9"** ("before Game 9" for NFL week 9): describe.js reads the part's word
+    from the ctx, and a slate's show is "Games". Recommended: a slate's part word "week" (or its cadence's) in `sportPart` and the
+    tracker's page. (G3 part 2, small.)
+  - **A team's whole season casts every team it plays** (rosterFromEvents), so its pack's players are capped at 150 (its first
+    teams first) and a draft from "the Lakers' players" can't be said (`pool.where.teams` is still the sports branch's value in
+    VOCAB). Recommended: part 2 builds `pool.where.teams` (a holding from those teams only), or a team's page drafts from its own.
+    (G3 part 2.)
+  **Part 2 as built (2026-11-07, `engine`; migration 0215, no screen): a team's page.**
+  - **The games their words mean** (`src/lib/sports/team-page.ts`, new, pure): `teamSchedulePack(team, games, now)`, the schedule as the
+    pack carries it (the last 3 played and the next 20 still to play, each by id, its day in the East, home or away, against whom, played
+    once it's started by the provider or the clock; never a score; every team it plays, the bot's ids for `against`);
+    `readMatchupAsk(raw, teams, now)`, the bot's ask read (`opener` with `home`, `series` against a team by id or a name only one team
+    has, `next` n, `day` a day in the East or "tonight"/"tomorrow" from the clock, a calendar day's step, never 24 hours: a case in
+    tests/dst.test.js; `games` by id; never the bot's `from`); `holdMatchup(team, schedule, ask, { now, short })`, the ask held against
+    the schedule: the games, or our check's question (`part: "matchup"`) with up to 4 options (the next game, the next series, the next
+    five, the next home game, each named as its season would be, `matchupName`) and what each picks (a `games` ask of its ids, for the
+    wizard to send back as it is). A set some of whose games have been played is kept (a series asked mid-series is the whole series:
+    the game starts at its next one); one every game of which has been played, a day with no game, a series none of which is left, an
+    opener the schedule hasn't got, games not all on it, or more than 30 is asked. `pickMatchup` gains `day` (matchup.ts, with
+    `eastDay`).
+  - **The GPT's side**: the pack (`pack.js`) takes a team's page's `team` and `schedule` (and `scheduleMore`); the manual (`manualFor(...,
+    { team: true })`) adds THIS PAGE IS A TEAM'S SCHEDULE (the five kinds, "name what their words mean even when it's been played",
+    "leave span out"); the prompt (`gamePrompt`, `changePrompt` with `matchup`, its games so far) asks for `matchup` at the answer's top
+    level; `readDraft` reads it beside the game, or inside it (the local bot put it there: taken out of the game, noted), and
+    `checkAnswer` carries it as `result.matchup`. Our check counts a quote around an ellipsis as said when each piece is in their
+    words in order (the local bot quotes "points ... all count 1"; every request's, not only a sport's).
+  - **The server** (`src/lib/server/team-words.ts`, new; POST `/api/sports/game-words { league, team, words, couch?, change? }`, new route,
+    `maxDuration` 300): the team's season from ESPN (`find.ts` `teamGames`, new: `seasonGames` and the team as its league's list has it;
+    a 404 for a team it hasn't got, a 503 when ESPN doesn't answer, a 400 for a sport that isn't a team sport), its pack and the sport's
+    ctx (`sportPageContext`, named for the team), **one bot ask** that drafts the game and names its games, our check on the team's page,
+    the matchup held; then the games made or found as their matchup's season (`matchupSeason`, keyed by its games, so it's the season
+    anyone who adds the same games shares: finding one is free, a new one under `MATCHUPS_A_DAY`, `find.ts` `underCap` exported, a refusal
+    answered as `refused` beside the team page's result), its players filled from the teams' rosters before the check, and the same
+    answer checked again on that season's page (`packFor`, part 1's path; new moments rated, `rateMoments`). The result is G1's with
+    `page` and `matchup`. **A pick** (`change: { from, matchup }`, one of the options' picks) asks no bot: the same answer, those games;
+    its row (`picked`) isn't counted against the day's asks. **A typed change** (`change: { from, words }`) goes to the bot on the team's
+    page with the game and its games so far (once they're made, those games by id), so "just the next 3" picks again. A draft our check
+    can't play makes no games. `game-words.ts` shares its pieces (`openAsk`, the cap's insert-then-count, now one function; `couchFor`;
+    `asksToday`, which leaves picks out; `rateMoments`; `manualFor` with `team`).
+  - **Migration 0215** (`game_word_asks`): `season_id` nullable, `league` and `team` (a team's page's), `picked` (a pick's), a check that
+    an ask is a season's or a team's, and 0214's change check kept with a pick as a change of its own. Additive.
+  - **Part 1's Noticed, folded in:** a slate's episode is its cadence's word (`sportPart` reads `sports_slates.cadence`; the tracker's league
+    pages with no event their usual cadence's, `capability-rows.ts`): NFL week 9 is "before Week 9" and fantasy football "starts 9 each
+    week" (w029, w030). `pool.where.teams` is **not** built: state-logic.js has no pool filter (`plainParts` takes `stillIn` only), and a
+    matchup's people are its teams' players already; it goes with part 3's pool filters (a draft from one position, w055: the same piece).
+  - **impeccable (clarify)** on the questions and chips the wizard will show: the fact, then the question, the team's name as a modifier
+    never a sentence's subject (so a club's reads as well: "No Arsenal game tonight"), "Which of their games?" apart from part 1's "Which
+    game?" (which kind of game), "already" where it was played, "them" named ("No Yankees series is left against the Red Sox."), and "A
+    game here" (our jargon) out: "The 76ers home opener has already been played. Their next home game?", "No Knicks game tonight. Their
+    next game?", "Some of those games aren't on the 76ers schedule. Which of their games?", "A game can cover up to 30 of their games.
+    The next 30?", "No 76ers games are left to play this season." The chips are the matchups' own names ("Knicks at 76ers, Oct 30").
+    U0 settles them with the wizard.
+  - **Checks:** `tests/sports-team-page.test.js` (8, new: on ESPN's recorded 76ers and Yankees schedules, each as of a moment: the day kind,
+    the pack's schedule, the ask read, the 76ers sentence before and after its opener, the Red Sox–Yankees series before, during and
+    after, the next games, a day with none, too many, a season with none left, a quote around an ellipsis, the pack, manual, prompt and
+    answer on a team's page); a DST case (tests/dst.test.js); 1,976 unit tests passing; the type check; the tracker (`--check`).
+    `scripts/dev-test/check-sports-words.js` (extended: 30 checks, 15 new) through the server's code on the stand-in ESPN and bot: the
+    team's pack, the 76ers home opener found as the opener's own season (shared, free) with the tracker's game, the opener played two
+    days on and our check's question, a pick (no bot, not counted) making the next game's season with its players and the tracker's game,
+    a typed change before and after its games are made, the next 5 games (the 3 the stand-in has) made as one season with the tracker's
+    w052, "the Knicks game tonight" with no game tonight, a 404. G1's `check-game-words.js` (through the route) passes; the new route
+    answers (401 signed out). `check-game-words.js --real --part=team` (new) asks the local bot on team pages built from the recorded
+    schedules and holds its matchup. **The real bot** (the local bot, ChatGPT, one at a time while idle), first run: w002 (the Red
+    Sox–Yankees sentence on the Yankees' page) named `{ kind: "series", against: "2" }`, both its games right; w003 and w052 named theirs
+    (the home opener; the next 5) but inside the game, which the reader now takes (their answers read again by the fixed code: the
+    games right, w003 the tracker's exact game, w052 its shape with its numbers said); w057 got no reply. A second run (w003, w052, w057)
+    got no reply to any (ChatGPT on the local bot, "No reply after 240s" from 18:10 UTC): left there. The same run also asked the bank's
+    24 hand cases by mistake (the flag let them through, fixed): 18 as expected.
+  - **The code review** (`/code-review` at medium). Fixed: a draft our check can't play went on to make a matchup and spend the day's
+    cap; "tomorrow" was 24 hours on (a clock change's day); a failure after the bot answered left a counted row with no error (now kept,
+    and ESPN down a 503); a pick answered `left: null` (no cap); a team page's new moments went unrated; a typed change after the games
+    were made went to the season's page, which can't pick games again (and fetched ESPN for a name). Not taken: `teamGames` reads the
+    first provider only, and the day's cap is checked before the season is made (both as `find.ts`'s `addGames` does).
+  - **Long checks:** none. `state-logic.js` and the scorers are untouched (the GPT's words, the server and the tracker's words only).
+  **Noticed (G3 part 2):**
+  - **"The next 5 games" with fewer left takes what's left** (the 3 there are) without a word. Recommended: the wizard says "only 3 left"
+    beside the game (U1), from the matchup's games against the ask's count.
+  - **"Who wins" each game of a week reads "one question before Week 9: who wins"** (w029, `each: "game"`): describe.js says nothing of
+    each game. Recommended: "who wins each game" (describe's words; part 3, with the 12:15 PM note's sentence work).
+  - **The route has no browser or HTTP check with a session**: check-sports-words.js calls the server's code directly (as part 1's
+    does), and the route is a few lines. Recommended: U1's wizard check goes through it.
+  - **The local bot put `span` on a team page's draft** although the manual says to leave it out (harmless: the matchup's page reads its
+    last game as the season's end). Fine as is.
+  - **Closed (part 3b: all 4 asked, every team page's games right).** **The local bot's ChatGPT stopped answering** from about 18:10 UTC on 2026-11-07 (every ask "No reply after 240s"; /health ok, nothing
+    busy), so w057 on a team page and a second run of w003 and w052 have no real answer yet. Recommended: when it answers again, `node
+    scripts/dev-test/check-game-words.js --real --part=team` (4 asks) before the merge; if it stays silent, the user looks at the bot
+    (its ChatGPT sign-in). (The next G3 session, or the merge.)
+  **Part 3 in two (2026-11-07):** 3a, the podium and the words (built, below); 3b, the pool filters (a draft from one team's or one
+  position's players: w055, part 1's and 2's Noticed `pool.where.teams`), which change `state-logic.js` at every place a draft, a
+  pickup or a pick offers someone, so the long checks run once, at its end.
+  **Part 3a as built (2026-11-07, `engine`; no migration, no screen): a field's top few, and a rolled game's sentence saying every piece.**
+  - **A field's top few** (`settle: { by: 'final', take: 'top', place }`, schema.js TAKES and SETTLES_FOR, answers.js `standingIn`): the
+    F1 podium is `place: 3`, a `person` answer with `pick: 3`, each one who finishes in the top 3 right (the tied at the last place all in:
+    golf's T3), graded on the field's places (`g.places`); nobody placed yet is off. Our check: only a field has one (a team game: "who
+    wins, the total or the margin, no top few"; a card's bout: "a winner: no top few"), it's a person answer, a place of 1 or more, and no
+    more names than places ("Name 3 at most: the top 3"). The manual's sports lines and VOCAB words say it (a prompt: the user's at the
+    merge). The tracker's **w053** plays on the race's own page (✅, 234 now).
+  - **A sport's episode word** (`sportPageContext`, `PART_WORDS`): a race (racing), a tournament (golf, tennis), an event (a fight card),
+    else a game, so the podium reads "before Race 1". A slate's cadence still wins (part 2's "Week 9").
+  - **The sentence says every piece the short form shows** (the main session's 12:15 PM note, describe.js): a draft's finale predictions
+    ("Before the finale, everyone names their final three and the winner.", "from their own team" when it says so; Survivor 49 seed 42);
+    a pot split, unique answers only and a stake on only some of a game's questions, said of those ("On who goes home, the points are
+    split between everyone right."); a question naming several says how many ("who makes the final three (pick 3)"), and when every
+    question does, "A point for each of them you get." (beside others: "On ..., each of them you get counts."); a question of each game
+    "who wins each game" (part 2's Noticed, w029), any other "(each game)". The short form: a draft stage after one that didn't draft is
+    "Draft from Episode 5" (it said "Redraft"), and a stage on another season than the one before is "Then The Traitors" (it said
+    "Redraft at Episode 1").
+  - **The majority's question** (roll.js): "Who will most of you say goes home?" (the game speaks to the players), said "who most of you
+    will say goes home" (only the majority's wording is turned round: "Who will have the final say?" stays).
+  - **impeccable (clarify)** on those words: the finale picks a sentence of their own after the span (so "all season" doesn't trail a
+    finale clause), "you" for the players, "(pick 3)" and "each game" in the style of "(the game's line)", "a point for each of them you
+    get" for a question naming several, and a race's word. U0 settles them with the wizard.
+  - **Checks:** `tests/fixtures/short-words.js` (new: each chip the short form can show and the words its sentence must have, a chip it
+    doesn't know named so a new chip comes with its words, a chip cut to fit read by its start), asserted on every roll of
+    tests/roll.test.js's 9 pages × 600 seeds and every game the tracker says plays, and in `scripts/dev-test/roll-check.js` (every taped
+    season loaded here, 2,000 seeds each: 16,000 of 16,000 pass); the podium's check and grade on F1's recorded 2025 Chinese Grand Prix
+    (tests/sports-settles.test.js: Piastri, Norris, Russell; Hamilton disqualified, out of the places; two of three right at 2 each, 4);
+    1,978 unit tests passing; the type check; the tracker (`--check`).
+  - **The code review** (`/code-review` at medium). Fixed: the reported-question rewrite caught any "will ... say" ("Who will have the
+    final say?"), now the majority's wording only; "Then ..." compared each stage with the first, now with the one before; a podium took
+    any number of names; "each of them you get" only for a game of one question; a podium on a game without places said "A team game has
+    two sides" (now only when it has two); roll-check.js didn't check the sentence; two scratch scripts; a doc comment moved off its
+    function; NAMES reused; the rolls ran twice in the test. Not taken: a place as big as the field (our check can't know a field's size
+    before the race; every driver right): Noticed.
+  - **Long checks:** none here: answers.js gains a take no stored game has, and describe.js is words, so every read is the same by
+    construction; part 3b changes `state-logic.js`, and the long checks run once at its end, on its commit, covering this part too.
+  **Noticed (G3 part 3a):**
+  - **Closed (part 3b, as above).** **The local bot's ChatGPT is still silent** (part 2's Noticed): asked again at 18:37 UTC on 2026-11-07, idle first, `check-game-words.js
+    --real --part=team`'s first ask (w002) got "No reply after 240s" too (/health ok, its last answer 17:56 UTC), so the run was stopped
+    there. The user looks at the bot (its ChatGPT sign-in is theirs); then the 4 asks before the merge. (The user, then the merge.)
+  - **A top as big as the field** (a podium of 20 on a 20-car race) makes everyone right. Our check can't know a field's size before it
+    starts (a race's entry list comes late). Recommended: the wizard shows the field's size when it has one (U1), or our check takes the
+    pack's field where it has it. Small. (U1.)
+  - **A stage's "Most lines by the finale wins"** in a bingo stage that ends at Episode 4 (shape.minis): a stage's rule says the finale for
+    the stage's end. Recommended: "by the end of the stage" in a stage's words. Small. (Built in part 3b.)
+  - **A one-race page says "before Race 1"**: the race's own page has one race, so "before the race" would read better, as a one-game
+    page could say "before the game". Recommended: the page's one-game words in describe.js. Small. (U0.)
+  - **The pool filters' map** (for part 3b): no engine code reads `spec.pool` today (`plainParts` takes `where` null or `{ stillIn: true }`
+    only, so a spec with another `where` doesn't play). The places a draft, a pickup or a pick offers someone, each a choke point for one
+    helper (`PoolLogic.has(state, castaway)`): `RosterLogic.freeAgents`, `MidSeasonLogic.availableFor` and `isAvailableFor`,
+    `GhostLogic.draftPool`; the raw "everyone still in" lists in `SpreadLogic.teamProblem`, `DrawLogic.outcome`, `BudgetLogic.teamProblem`
+    and `PickEmLogic.eligibility`; the per-id checks in `BlindDraftLogic.validateSubmission`, `AuctionLogic.validateBids` and `.outcome`,
+    `PickEmLogic.setPick`, `KeeperLogic.setOptions`, `.lock` and `.optionsFrom`, `RosterLogic.activatePlayer`; the pool's size in
+    `RosterLogic.settleDraftShare` (exclusive or shared by the math: a filtered pool is smaller); bot-logic.js's own free lists
+    (`snakeDraft`, `blindSubmissions`, `auctionBids`, `finalePicks`); the server's draft route (draft.ts: the own-pace check, the timer's
+    auto-pick from the queue) and the views that list who can be picked (game-view.ts `pickEmEligibility`, waiver-view.ts
+    `availableFor`). The data: a castaway's team is its group (`tribeId`, the team's name as the roster had it; the spec's teams are ESPN
+    ids, so the stamp maps the season's linked games' team names to ids); a position is `state.statGroups` (stamped on read and before a
+    write, `StatsLogic.stamp`, but today only for those in a kept final: 3b stamps every castaway's from `season_cast.role`, `groupOf`).
+    VOCAB's `pool.where` gains `positions` (the sport's position groups, ctx.positions) and `teams` turns 'now'. Recommended fallbacks:
+    someone whose team or position isn't known isn't in the pool; a league with no stamp at all (nothing read yet) holds no filter, so
+    a draft never stalls; someone traded away stays on your team (only new picks are filtered). (Part 3b: built, below.)
+  **Part 3b as built (2026-11-07, `engine`; no migration, no screen): the pool filters, a draft from some teams' or positions' players.**
+  So **G3 is done** (parts 1 to 3b), for the main folder's merge with migration 0215.
+  - **The spec** (`schema.js`): `pool.where` takes a sport's `teams` (ESPN team ids) and `positions` (its position groups, `ctx.positions`:
+    soccer's GK, DEF, MID, FWD; basketball's guards, forwards, centers), together or not, `stillIn` beside them or not (VOCAB: `teams` and
+    `positions` 'now', `group` still 'later' and only on its own). `plainParts` plays them (`poolWhereOk`); new `poolFilter(spec)` ({ teams?,
+    positions? } or null), `inFilter(filter, { team, position })` and `poolCount(spec, ctx)`. Our check: each list of ids each once; a
+    position one of the sport's ("Only a sport's players have positions to pick from" on a show), a team a team sport's ("Only a team sport's
+    players have teams to pick from" on a show or golf) and one of the page's when the ctx lists them (new `ctx.teamList`). **Exclusive or
+    shared by the math** counts the filtered pool: new `ctx.poolOf` (everyone still in as { team, position }), "4 of you × 2 picks is more than
+    the 6 who can be drafted"; a filter with no poolOf isn't counted; as a draft opens later, `settleDraftShare` counts `PoolLogic.offered`.
+    `specWaitsFor` reads every key of a `where`. index.d.ts has the shapes.
+  - **The settings** (`settings.js`): `poolWhere` (the `where` as said, only when it filters), read back by `specOf`, a part of `withSpec`
+    (taking the filter off takes the field out).
+  - **The engine** (`state-logic.js`, new `PoolLogic`: `filter` (read once per spec, a WeakMap), `test` (one pass's test, `Spec.inFilter`),
+    `has`, `offered`, `reason`): every choke point the map named asks it. `RosterLogic.freeAgents`, `MidSeasonLogic.availableFor` (and so
+    `isAvailableFor`, auto-fill, free agency and the Replace items), `GhostLogic.draftPool`, `SpreadLogic.groupsNow` (a spread is over the
+    pool's groups) and `.teamProblem`, `DrawLogic.outcome` (the hat), `BudgetLogic.teamProblem`, `PickEmLogic.eligibility` (a pool's cycle is
+    over the pool's, and `setPick` goes through it), `BlindDraftLogic.validateSubmission` and `AuctionLogic.validateBids` (refused, saying
+    why), `AuctionLogic.outcome` (the bids and the fill), `SnakeDraftStrategy.pick`, `KeeperLogic.setOptions`, `.lock` and `.optionsFrom`,
+    `RosterLogic.activatePlayer`, `RosterLogic.settleDraftShare`. bot-logic.js's `snakeDraft`, `blindSubmissions` and `auctionBids`
+    (replacements and swaps go through `availableFor`). The data (`StatsLogic.stamp`): `state.statGroups` (every castaway's) and new
+    `state.statTeams` (castaway id to ESPN team id, a STAMPED key, never saved); `StatsLogic.reads` is true for a filtered pool too, and new
+    `readsGames` says whether the finals are stamped (a game that reads only because of its pool gets its teams and groups alone, so no
+    episode gets results it didn't have). **Functions changed in state-logic.js** (for the own-pace session's merge): the ones above, plus
+    `StatsLogic.reads`, `.stamp`, STAMPED, and the export list (`PoolLogic`).
+  - **Its fallbacks** (part 3a's Noticed, as recommended): someone whose team or position isn't known isn't in the pool; a league with no
+    stamp of a part holds no filter on that part (nothing read yet, a season with no linked games, or none naming its teams), so a draft
+    never stalls; when the season names its teams, `statTeams` is stamped even if it matches nobody, so a team-name mismatch keeps people out
+    rather than letting every team in; someone already on a team stays on it (a trade moves nobody: only new picks are filtered).
+    **Decided here (sensible defaults, the user can overrule):** finale predictions and a question's person answers name anyone, not only
+    the pool (a race's winner or a game's top scorer can be outside it: the pool is who can be held), and a public pool's Who goes home?
+    call too.
+  - **The server.** `sports/score.ts`: `leagueGames` stamps every castaway's position group from their `season_cast.role` (`groupOf`, a kept
+    final's position filling in for one with none), and keeps each team's ESPN id by its name from the linked games (`teamIds`);
+    `stampStats` stamps a filtered pool's groups and teams (`teamsOf`: the name of the group each castaway is in now, as the games name it).
+    `game-words.ts`: a sport's page's ctx carries `poolOf` (its players with provider ids, as a league has them: team by name to id,
+    position by role) and `teamList`. `draft.ts`: a pick outside the pool refused with its reason (the timer's queue reads `freeAgents`).
+    The views (game-view.ts `pickOf`, waiver-view.ts) read eligibility and `availableFor`: nothing to change there.
+  - **The GPT's side** (a prompt: the user's to approve at the merge): the manual's sports section says the pool ("Only some players can be
+    picked ("draft 3 strikers", "only the Lakers' players"): "pool": ..., "teams": [...], or "positions": [the sport's position groups: GK
+    (Goalkeepers), ...], or both"), and VOCAB's words name both. Our check (`check.js` `sportFixes`): a team named by its name read as its id
+    (`teamNamed`, shared with a question's `of`), a position by its label singular or plural ("forwards") read as its key, one fix per list at
+    the list's path; one the page hasn't got out and asked ("Which team's players?" with Any team and the page's teams; "Which positions?").
+  - **The words** (`describe.js`): "everyone drafts 3, forwards only" (a pick's too), "Arsenal forwards only" (a team by the page's name,
+    `ctx.teamList`; one it hasn't named, "one team's" or "two teams' players only"), the short form's chip "Forwards only" (and
+    tests/fixtures/short-words.js's pattern for it). **Part 3a's Noticed, folded in:** bingo's and calls' "Most lines by the finale wins" says a
+    game's end when it stops early ("by Episode 4"; "by the end of the game" at a phase) and "by the end of the stage" in a stage. The Rules
+    sheet changes there for a live game that ends before the finale (its last line): words only.
+  - **impeccable (clarify)** on those words: the refusal names what's allowed instead of "the position it names": "Arsenal 1 can't be picked
+    in this game: it's FWD only" (teams by their names, the positions by the sport's keys, which fans read: the engine has no labels), in
+    the style of "forwards only"; "by Episode 4" over "by the end"; the questions keep "Any team" / "Any position" as the way out. U0 settles
+    them with the wizard.
+  - **The tracker:** **w055** plays (a draft of 3 forwards each, goals 5 and assists 3, everyone drafted counting: "everyone drafts 3,
+    forwards only, just Week 1"): **235 ✅**, 26 ⏳ (A15 18, A14 2, L3 1, L4 2, G1 3; G3's none).
+  - **Checks:** `tests/pool-filter.test.js` (7, new: the spec against the soccer page, a show and golf; the settings; the exclusive count
+    with poolOf and as a draft opens; a snake pick and its fallbacks (unknown out, no stamp, a trade); teams and both; a bot's snake; a blind
+    team and a bot's; a draw's hat; an auction's bids and fill; waivers' replacements; a pool's pick; a person answer naming anyone; the
+    words, our check's readings and asks, the manual; the refusal's words and a stage's end); tests/placement.test.js (the corpus' 7 pools of
+    some teams' players play as their twins), tests/game-spec.test.js (poolWhere, the Rules sheet's line); 1,985 unit tests passing; the type
+    check; eslint; the tracker. `scripts/dev-test/check-stats-game.js` (extended: an eighth season, the 76ers' guards, through readyLeague
+    and withLeagueLock on this lane's database: the stamp's teams and groups with nothing kept, only the 76ers' guard free, a Cavalier
+    refused, the row saved without the stamp): all pass. `check-sports-words.js`: 30 pass.
+  - **The code review** (`/code-review` at medium). Fixed: person answers were limited to the pool (a race's winner outside it couldn't be
+    named; now anyone); `poolOf` counted cast rows a league never has (no provider ids); a team-name mismatch dropped the team filter
+    silently (now stamped empty: everyone out); a game reading its games only for its pool got finals stamped (episodes with results they
+    hadn't had: now `readsGames`); the season page's ctx had no `teamList`; a list's fixes pointed at entries that moved; the refusal's words;
+    the filter read again per castaway in the blind and auction loops (now once, and cached per spec); `PoolLogic.test` copied `inFilter`.
+    Not taken: the repeated `active && inPool` at a few sites (each reads its own list; `offered` where it's the whole cast).
+  - **Long checks** (once, last, covering parts 1 to 3b, whose state-logic.js and scorer changes are 3b's and 3a's): on `a71e8e29`,
+    **golden.js --before=master** (7 seasons, 160 games, 19,361 reads, every one the same) and **the Survivor 51 rehearsal**
+    (`season-forward.js rehearse --from=backups/prod-2026-10-30 --scenario=realistic,rough,dst --before=master`: each scenario 2,856 reads,
+    flag off against on and master's engine against this tree's, every one the same). **blind.js run** (every season loaded: The Challenge
+    41, 40 and 39 played every game through; Survivor 49 and The Traitors 4 had 2 games each never settled, the tracker's w051 margin and
+    w053 podium played on a show's season): **fixed** in our check, a question settled by a game's final on a show's page (no sport's
+    `shape`) is refused ("A show's episodes have no final score: only a sport's games settle a final"; tests/fixtures/game-specs.js's
+    hand-written 76ers ctx gets the `shape` every real sport ctx has; a case in tests/sports-settles.test.js). Blind again on the fix for
+    those two: Survivor 49 160 of 160 and The Traitors 4 113 of 113 played through. The fix is our check alone (a league's own spec is checked
+    without a ctx), so golden and the rehearsal read the same by construction and weren't run again.
+  - **The real bot** (part 2's and 3a's Noticed): the local bot answered again from 19:15 UTC, and `check-game-words.js --real --part=team`
+    (4 asks, idle, asked of ChatGPT) got every team page's games right: w002, w003 and w052 the tracker's exact game, w057 its shape. (The
+    script records the provider asked, not the one that answered: whether any came through Codex isn't known.)
+  **Noticed (G3 part 3b):**
+  - **A league's own pages have no `teamList`**, so outside our check (a league's game page, its Rules sheet's sentence) a team pool reads
+    "one team's players only". The league knows its teams' names (its groups). Recommended: the league's ctx carries `teamList` from its
+    tribes and the stamp's `statTeams` (U1, with the game page). Small.
+  - **The refusal names positions by key** (FWD, guards): the engine has no position labels. Recommended: the stamp carries the sport's
+    labels beside `statGroups`, or the screen says it from the sport (U1).
+  - **A team renamed in the desk** (a tribe's name no longer the games') matches nobody, so its players are out of a team pool (the safe
+    side). Recommended: the desk warns when a sports season's group names stop matching its linked teams (desk, small).
+  - **The pack doesn't list the sport's positions**; the manual does (from ctx.positions). Fine as is; the bot named FWD in the stand-in
+    flows. The real bot hasn't been asked a pool request yet (w055 isn't in the bank's sports requests: add it when the bank is next asked).
 - **G4. Randomize, no UI** (the user, 2026-10-29; the wizard's other door, above). `rollSpec(ctx, locks, seed)` in
   `src/lib/game/game-spec/`, pure like the rest: a seeded roll over the spec's vocabulary within the context pack, the locks
   held, our check the gate (a roll that fails is rolled again from the next seed, a bounded number of times, then the nearest

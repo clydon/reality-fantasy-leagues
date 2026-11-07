@@ -135,3 +135,18 @@ test("a lineup locking at each game's start holds each holding to the end of its
   assert.deepEqual(one.holdingGames, { h1: ["sat", "sun"], b1: ["sun", "spring"] }, "by the team's name, ignoring case");
   assert.equal(locks.has(2), false, "a game with no start has none");
 });
+
+test("G3 part 2: a team's \"tonight\" and \"tomorrow\" are days in the East, a calendar day apart across each clock change", () => {
+  const path = require("path");
+  const jiti = require("jiti")(__filename, { alias: { "@": path.join(__dirname, "..", "src") } });
+  const T = jiti("../src/lib/sports/team-page.ts");
+  const day = (at, words) => T.readMatchupAsk({ kind: "day", day: words }, [], Date.parse(at)).day;
+  // 00:30 EDT on the day the clocks go back (Sun 2026-11-01): 24 hours on is still Nov 1 in the East; tomorrow is Nov 2.
+  assert.equal(day("2026-11-01T04:30:00Z", "tonight"), "2026-11-01");
+  assert.equal(day("2026-11-01T04:30:00Z", "tomorrow"), "2026-11-02");
+  // 11:30 PM EST the night before the clocks go forward (Sat 2027-03-13): tomorrow is Sunday.
+  assert.equal(day("2027-03-14T04:30:00Z", "tonight"), "2027-03-13");
+  assert.equal(day("2027-03-14T04:30:00Z", "tomorrow"), "2027-03-14");
+  // A 7 PM tip in New York is the next day in UTC's terms, and still tonight.
+  assert.equal(day("2026-11-07T23:30:00Z", "tonight"), "2026-11-07");
+});
