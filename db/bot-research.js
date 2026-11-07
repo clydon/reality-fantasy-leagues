@@ -71,6 +71,7 @@ const Research = require("./episode-research.js");
 const Trivia = require("./trivia-research.js");
 const Bingo = require("./bingo-research.js");
 const FactsRun = require("./facts-research.js");
+const MomentsRun = require("./moments-research.js");
 const FinalResults = require("../src/lib/game/final-results.js");
 const CardResearch = require("./card-research.js");
 const CallResearch = require("./call-research.js");
@@ -1080,10 +1081,21 @@ async function runJob(pool, job, { ask, send = null, dry = false } = {}) {
       // An answer about another episode (the bot's chat can carry an earlier question over) is a failed try.
       checkEpisode: !!send,
     });
+    // G1 part 4: the season's added moments the stored answer still leaves unsure, asked on their own and filed into it and into
+    // what's sent (db/moments-research.js askUnsure), so the leagues get them with the rest. Its failing doesn't fail the run.
+    let moments = null;
+    if (!dry) {
+      try {
+        moments = await MomentsRun.askUnsure(pool, season, episode, ask, run);
+      } catch (e) {
+        moments = { asked: [], line: `Added moments: ${e.message}`, changed: [], repairs: [] };
+      }
+    }
     const d = run.decisions || {};
     const result = {
       researchId: run.id || null,
       merged: again,
+      ...(moments ? { moments } : {}),
       ...(only ? { only } : {}),
       inserted: d.inserted || 0,
       updated: d.updated || 0,
@@ -1099,9 +1111,9 @@ async function runJob(pool, job, { ask, send = null, dry = false } = {}) {
       const filed = replaces ? { ...run, submitted: run.payload } : run;
       const sent = await send.full({ seasonId: season.id, episode, run: filed, source: kind === "tiebreak" ? "tiebreak" : "autopilot", ...(replaces ? { replaces } : {}) });
       const lead = kind === "tiebreak" ? "Tie-break: " : "";
-      return finish(true, `${lead}${sent.count} of ${sent.facts} result(s) in every league${again ? " (the stored answers merged too)" : ""}`, { ...result, submission: sent.researchId, live: sent.count });
+      return finish(true, `${lead}${sent.count} of ${sent.facts} result(s) in every league${again ? " (the stored answers merged too)" : ""}${moments ? `. ${moments.line}` : ""}`, { ...result, submission: sent.researchId, live: sent.count });
     }
-    return finish(true, `${result.inserted} new result(s) to review${again ? " (merged into the earlier answers)" : ""}`, result);
+    return finish(true, `${result.inserted} new result(s) to review${again ? " (merged into the earlier answers)" : ""}${moments ? `. ${moments.line}` : ""}`, result);
   } catch (e) {
     return finish(false, e instanceof Error ? e.message : String(e), null);
   }

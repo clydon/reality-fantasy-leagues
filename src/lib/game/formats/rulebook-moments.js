@@ -238,6 +238,8 @@ function customMoment(m, blocks) {
     id: m.id, label: m.label, from, defaultPoints: 0, custom: true, ask: { key, type, question }, answeredBy: m.answeredBy,
     ...(key !== m.id ? { uses: key } : {}), ...(m.reliability ? { reliability: m.reliability } : {}), ...(winners.length ? { unless: winners } : {}),
     ...(per ? { per } : {}),
+    // G1 part 4: a season's added moment, asked from this episode on (formats/added-moments.js).
+    ...(Number.isInteger(m.addedFrom) ? { addedFrom: m.addedFrom } : {}),
   };
 }
 

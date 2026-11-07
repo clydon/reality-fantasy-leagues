@@ -156,7 +156,7 @@ questions (2026-11-06: `card.from: 'host'`, each episode one of the seats in tur
 migration 0212, until the host's deadline, then filed and stamped on the episode; tracker rows s43 and who.host), and so is part 7,
 a number from a vetted outside source (2026-11-06: `settle.by: 'outside'`, an episode's TVmaze rating read once seven days after it
 airs and stored per season in `outside_numbers`, migration 0213; built and checked, but off since 2026-11-07: the user said no to
-TVmaze's ratings as a source, so `outside` is 'later' in VOCAB and tracker rows s42 and settle.outside wait): **A14 is done**, and the A track stops before A15 for the user. The live-sports plan is
+TVmaze's ratings as a source, so `outside` is 'later' in VOCAB and tracker rows s42 and settle.outside wait): **A14 is done**, and the A track stops before A15 for the user. **G1, words to a spec, is built** (2026-11-07, on `engine`, parts 1 to 3: the engine's manual generated from VOCAB, the context pack, the prompts, reading the answer and our check, the bank of requests, the server's route with a daily cap, and llm-browser-api's priority queue on this PC; migration 0214; no screen), and **its part 4, a new moment research answers** (a season's added moments: in its rulebook from the next episode, asked by the full run and a short ask of its own, void where research can't say; measured on the tapes first; no migration). **G4, Randomize, is built** (2026-11-07, on `engine`, no UI, no migration: `rollSpec`, a game rolled from a seed on a page's rules with locks held, our check the gate; the short form in `describeSpec`). The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5, at
 high since 2026-11-05; C2 at xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: folded in here as track L; its file keeps the details)
 and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track S here).
@@ -208,7 +208,7 @@ and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track
 | Game pages (2026-10-30) | **Planned** (the user's idea): the Games tab stays the overview (the moves and each game's brief first) and launches each game's own page, opened over the show (no per-game tabs). Pages are generated from the spec, the game's state and the seat, never designed one by one: track V (a research spike, a first look, a review set of a few hundred games), then U0 frames them and U1 builds them. |
 | A pool's finale (2026-10-30) | **Only the winner survives the finale** (the user: "it keeps the game rules consistent: pick the player that survives the episode"; chosen over the finalists surviving it, high stakes accepted). A finale pick is right only when its person is who the results record as winning (each winner, on a show with several); a finalist who loses is out like any exit; on a show with no winner, whoever isn't among the episode's exits survives, as on any night. Data settles it. It changes today's pools' finales (Survivor 51's Survival Pool on Dec 16): built and merged before then. |
 | A preset's rule (2026-10-30) | **Open until the engine is complete** (the user). Whether a tapped preset meets the same data-can-settle rule as the GPT's games: R1 part 1's question, options (a) to (c) in its Noticed (Claude recommends (a)). The user's reason: what the moments say research can answer may differ from what research reliably returns at the end of each episode. So decide it on what research actually returns: the season tapes hold every research answer, episode by episode, so each moment's real rate can be measured then. Nothing running is affected meanwhile (no couch plays a show with couch-answered moments). A fourth option, from "Custom moments" below: (d) a preset's couch-answered moment goes through the same feasibility ask, becoming a question research answers each episode if it's feasible, else scoring 0. |
-| Custom moments (2026-10-30) | **Allowed, sometimes encouraged** (the user: "a fun league of Below Deck that just every week players guess 'did someone cry'"). A moment the show's research doesn't cover, typed to the GPT or added by hand (Make it ours included), takes the new-moment path in "Our check": a short feasibility ask at the start (how reliably research can answer it each episode, from recaps), and, if it's feasible, a question research asks after every episode (it won't come up unless it's asked explicitly). The user leans toward allowing somewhat-reliable moments (crying "will likely be mentioned in post episode recaps"); the bar (high only, or medium too) is still open. Claude's recommendation: medium too, with three nets: the feasibility answer shown to the maker, an episode research can't settle voided (no points either way), and the game's real answer rate shown as the season goes. Before the bar is set, measure on the season tapes whether the feasibility ask predicts what research actually returns (the user's concern in "A preset's rule"). |
+| Custom moments (2026-10-30) | **Allowed, sometimes encouraged** (the user: "a fun league of Below Deck that just every week players guess 'did someone cry'"). A moment the show's research doesn't cover, typed to the GPT or added by hand (Make it ours included), takes the new-moment path in "Our check": a short feasibility ask at the start (how reliably research can answer it each episode, from recaps), and, if it's feasible, a question research asks after every episode (it won't come up unless it's asked explicitly). The user leans toward allowing somewhat-reliable moments (crying "will likely be mentioned in post episode recaps"); the bar (high only, or medium too) is still open. Claude's recommendation: medium too, with three nets: the feasibility answer shown to the maker, an episode research can't settle voided (no points either way), and the game's real answer rate shown as the season goes. Before the bar is set, measure on the season tapes whether the feasibility ask predicts what research actually returns (the user's concern in "A preset's rule"). **Measured (G1 part 4, 2026-11-07, docs/STUDY-added-moments.md):** the rating orders reliability but not its level: on questions research already asks, high settled 99% of episodes, medium 93%, low 83%; on new moments none was rated high, medium settled 60% (3 of 10 at 90% or more), low 53%. Claude still recommends medium, with the void (built) and, after a moment's first three episodes, its real rate shown and a warning under 50% (U1). |
 | A replacement's multiplier (2026-11-05) | **On what the replacement earns while it's yours, on every kind of draft, an Outlast included** (the user: "your assumptions are correct"; C1's Noticed). "The new player who replaces your lost one scores 0.5x" multiplies the points they earn from the episode after they join, never their whole place: in an Outlast, the boots they outlast while yours. An Outlast without a multiplier keeps today's count (whoever holds someone now has their whole place). Built in C3. |
 | A shared game's two holders (2026-11-06) | **Per holder, from the live games' next episode on** (the user, on C4's Noticed): someone who goes home in an episode not yet played is owed a replacement on every team that held them, one replacing them settling only their own. Every exit already played stays as it played out (no past loss owed again, no standings moving backwards); games made from now on are per holder from the start; C4's games as they are. As data, never a date or a league named in code: each existing game carries its cutover (`settings.perHolderFrom`, migration 0207: the first episode it hadn't played; Survivor 51's live games, Episode 8). Built as C4b, before Episode 8's results (Wed Nov 11). |
 | A sports week (2026-11-06) | **The episode, wherever the season has episodes of its own** (the main session's call, as the sports track's orchestrator; built in L8 part 3): a league's slate's episode (ESPN's own week for football, Monday to Sunday or a day for the NBA, NHL and MLB, a round for soccer) is the week for its locks, its matchups and the screens, locking at its own first game whatever the spec's `closes` says. Tuesday to Monday (Eastern) only where nothing else defines the week: a team's season and a matchup's series, one game an episode. |
@@ -10853,6 +10853,195 @@ first), and proves it on these games and on the tracker's other rows that use it
     104-request corpus rewritten for a page, with the worked examples above. Run on the stand-in bot
     (`scripts/dev-test/fake-bot.js`), and `scripts/dev-test/check-game-words.js` against the real bot (writes nothing).
   - A daily cap per person (Make it a game's is 5).
+  **As built (G1 parts 1 to 3, 2026-11-07, on `engine`; migration 0214).** One session, the three parts chained (they share the
+  same new module). No screen: the wizard is U0/U1's, through the impeccable skill.
+  - **Part 1, the words to a spec, pure** (`src/lib/game/game-words/`, CommonJS like game-spec, with `index.d.ts`):
+    - **The manual, generated** (`manual.js` `manualFor(ctx, { kind, examples, show })`): the presets whole (their spec and the
+      engine's sentence on this page); the span; each `VOCAB` key with the values that play now on the page's kind (a sport's left
+      off a show's page, a show's off a sport's), each in its words (`WORDS`); every answer with the settles that can grade it,
+      from the schema's own `SETTLES_FOR`; "can't yet" for every value `VOCAB` has as later or the sports branch's (a group pool,
+      bids on waivers, TVmaze's ratings, a guy and a girl); the other fields (`FIELDS`: numbers, lists and switches, 51 of them),
+      each with the shortest request of the tracker that plays on the page and uses it; then up to 16 more of the tracker's
+      requests that play there (each a different set of pieces, the page's own show first, with the engine's sentence) and a few it
+      can't do yet. **Every example plays on the page** (each is checked with the page's ctx before it's shown), and a unit test
+      keeps `WORDS` the same shape as `VOCAB` and each `FIELDS` entry used by a request that plays: a step that adds a value or a
+      field teaches the bot in the same commit, or the test fails. Survivor 51's manual is about 38,000 characters; the whole ask
+      about 43,000 (some 12,000 tokens).
+    - **The context pack** (`pack.js` `packOf`): the page as JSON: the show and season, its status and today, the episodes aired
+      and the next (number and air time), its phases, what the show calls its people and groups, the cast (each one's id, name,
+      group, and whether and how they went), who's still in, the moments research answers with their points (the couch's word
+      apart, `couchWordOnly`: a game can't score them), its roles, what its data knows (who goes home, who wins, groups, a jury, who
+      voted for whom, trivia) and the couch (how many, its games here). `idsOf` gives the ids a draft may name.
+    - **The prompts** (`prompt.js`): `gamePrompt` (the pack, the manual, their words fenced as data, never instructions, a fence
+      of theirs taken out, and what to answer: `{ draft, game, said, assumed, ask, cantYet, about, also, summary }` with the
+      rules: their exact words quoted, never a number they didn't say, a preset said only when their words name it or how it plays,
+      a moment the show doesn't have never made up but listed as `newMoment`, another show as `about`, a second game as `also`, not
+      a game as `game: null`), `changePrompt` (the game so far and the change typed, the whole game back), `momentPrompt` (the
+      reliability ask: how reliably research can answer it each episode from recaps, high, medium or low, the question, a label and
+      the nearest of the show's moments). No web search in any of them. **All three prompts are the user's to approve at the
+      merge** (they're in `prompt.js`, whole).
+    - **Reading the answer** (`read.js` `readDraft`): the JSON as `parseRulebookAnswer` finds it (chatter and fences, the last
+      object that parses), tidied when it won't parse (comments, trailing commas, curly quotes outside strings), a bare spec read
+      as the game, each list read in the shapes a chat writes (an array, a map of part to words, a string). `readMoment` (an unknown
+      rating is low). `checkAnswer` reads then checks; no JSON at all is `unreadable`, never a throw.
+    - **Our check** (`check.js` `checkDraft(draft, { ctx, pack, words })`): only a game's own parts (anything else dropped, named);
+      a quote that isn't in their words isn't said; **each number** in a said quote for its part, listed as assumed, or our default,
+      else dropped and asked (kept as the bot's choice and asked when the game can't do without it: two lives for last one
+      standing); then **the validator, problem by problem**, each made a named change: a moment the show doesn't have taken out
+      (a new moment to rate; one the rulebook scores that only the couch can answer set to 0, our check's offer, and asked), a part
+      the game needs filled from a preset (the one that leaves the fewest problems) and asked, a value replaced by the nearest that
+      plays, one change or two together (a snake that's shared: blind and shared; an exclusive draft the cast can't cover: shared;
+      a phase or role that isn't the show's: the one that is) and asked, else the smallest part taken out (never what the game is:
+      its preset, get, count, score, rank or stages); then **what waits for a later step**, taken out where the rest still plays and
+      said; the draft's own questions on parts still in the game; **which game** asked when nothing they said decided it; another
+      show and a second game offered. The result: `state` (game, ask, cantYet, none), the spec, the engine's description, said,
+      assumed (the bot's and ours), ask (each with its part and options), cantYet, newMoments, fixed, dropped, offers. Nothing is
+      fixed silently: every change our check makes is in `fixed` or `dropped` and asked. `withMoments(result, ratings, { bar })`
+      folds the reliability asks in: at the bar (medium by default) an offer to add it as a question research answers each
+      episode; under it a can't-yet with why and the nearest of the show's own moments.
+  - **Part 2, the bank** (`tests/fixtures/game-words/`): `cases.json`, 24 hand-written cases, each the stand-in bot's raw answer and
+    what our check makes of it (an ideal draft in chatter, broken JSON, a bare spec, a number nobody said, a quote not in their
+    words, a moment the show doesn't have in a points map and as a game's only question, the bot listing a new moment itself,
+    Below Deck's couch-word moments, a snake that's shared, an exclusive draft for 12 of 18, a part that isn't a game's, another
+    show, two games, not a game, a group pool that waits, a phase that isn't the season's, a sport's scoring on a show's page, the
+    worked example "a fantasy league for Survivor 51", no JSON, a Traitors role misnamed, and the two the real bot showed); `bank.js`, the tracker's requests (one
+    list: the words corpus, the worked examples and the stretch requests are its rows) with each one's **ideal draft** (its spec,
+    their words quoted, any number they didn't say assumed): all **132 requests that play come back the same game**, nothing fixed or
+    dropped. `tests/game-words.test.js`, 15 tests (the manual against `VOCAB`, its kinds and examples; the fields; the pack; the
+    prompts; reading; the numbers words say; the hand cases; the ideal drafts; preset defaults; the reliability ask).
+  - **Part 3, the server** (`src/lib/server/game-words.ts`, POST `/api/seasons/[seasonId]/game-words` `{ words, couch?, change?: {
+    from, words } }`): the pack from the database (`packFor`: the season's header and schedule, the next episode as Start a game
+    reads it, the cast with each one's starting group, the accepted exits **through the asker's own mark** (guard.ts
+    `seenThrough`: nothing the wizard says can spoil an exit), the rules the couch plays by (engine-lab.ts `stageContext`), the
+    couch's size and games), the ctx sized by the couch and who's still in, the manual, the prompt; one ask of our bot with
+    **`search: false` and `priority: "now"`** (`askBot`'s two new options), our check, then the reliability ask for up to two new
+    moments while there's time. **10 asks a person a day** (`GAME_ASKS_A_DAY`, a first ask or a typed change each; the desk aside;
+    429 after), a 503 when the bot's away (Start a game's taps work), a typed change only of your own ask. Each ask is a row of
+    `game_word_asks` (migration 0214: the words, the change, the bot's answer, our check's result, its seconds or its error), the
+    cap's count and the record to measure the prompt on. `fake-bot.js` knows the three prompts (`gameWords`, `gameChange`,
+    `momentAsk`) and keeps each question's `search` and `priority`.
+    `scripts/dev-test/check-game-words.js`: through the API on the stand-in (new-fixture.js's couch: 21 checks, all passing), and
+    `--real`, the bank against the local bot directly (one at a time, only while it's idle, loopback only, writes nothing).
+  - **llm-browser-api's priority queue** (`C:\Users\conor\llm-browser-api`, not a git repository: `server.py.bak-2026-11-07` and
+    `README.md.bak-2026-11-07` are the copies before): `JobQueue`, a priority queue a worker takes its questions from, first in,
+    first out, except that `priority: "now"` goes ahead of every question still queued (never the one being answered); `/ask`
+    takes `priority` (400 for anything but "now"). `venv/Scripts/python test_priority.py` checks it (asks no AI). **Not deployed:**
+    the VM is the user's OK, and the PC's bot runs the code it started with until it restarts (the change is additive: a bot
+    without it asks in turn, and an old bot ignores the field).
+  - **The real bot** (the local bot at 127.0.0.1:8765, signed-in ChatGPT, one question at a time while it was idle, about 17 s
+    each): two samples of the bank, asked directly at
+    127.0.0.1:8765 (never production's bot, never through a lane's askBot). The first (12: 6 hand cases, 6 of the tracker's
+    requests) found three gaps, fixed before the second: the manual had no words for the fields that aren't `VOCAB` values (the bot
+    said a rollover can't be done: now `FIELDS`); "a fantasy league" was read as naming a preset (now the prompt says a preset is
+    said only when their words name it or how it plays, else assumed and asked); a part the draft left out failed the game (now our
+    default, a preset's, filled and asked). The second (14: 3 hand cases, 11 requests, after the fixes): every hand case as the bank
+    expects, 7 requests the shape the tracker has (`typeOf`), the 4 that can't play yet asked or refused, none missed; it found two
+    more, fixed and made bank cases (g23: a request that's only a new moment is still rated; g24: an extra's details the bot left out
+    are our defaults, chips, never questions). No request matched the tracker's spec exactly: the tracker's specs carry numbers
+    nobody said (points 2 where the words name none), which our check rightly leaves as defaults. The answers are in the session's
+    scratch folder (not the repo: they're the bot's words).
+  - **The code review** (`/code-review` at medium, before the commit). Fixed: a number taken out of a list moved the ones after it
+    (now last first); a typed change lost what the first ask had said (now carried); five quotes in their words closed the fence
+    (now any run is one); a quote matched inside a word ("3" in "30": now on word boundaries); "a", "each" and "every" backed a 1
+    anywhere (now only where they count something: "a point", "every week"); the cap could be raced and counted asks the bot never
+    answered (now counted with the ask in it, one over taken back, failures not counted); the same show read by its first word or
+    without its season (now the pack's show and season); an empty season read as 0; two small server cleanups.
+  - **Long checks:** none (nothing in `state-logic.js` or a scorer changed). The tracker unchanged (`--check`).
+  **As built (G1 part 4, 2026-11-07, on `engine`; no migration): a new moment research answers.** One session: the measure first
+  (the bot asked in the background while the rest was built), then the store, the research, the void. No screen.
+  - **The measure** (the user's concern in the Decisions table's "A preset's rule"; `scripts/dev-test/moment-asks.js`, the numbers
+    in full in `docs/STUDY-added-moments.md`):
+- **Asked:** the feasibility ask (`momentPrompt`, no search) for every yes-or-no question research already asks on one season
+      of each taped show (43) and for 18 moments the shows don't have (someone cries, a blindside, a fight, a hookup, a standing
+      ovation...); the new moments' short ask (with search) on 4 recorded episodes of each season (19 of 20 answers read); and what
+      every taped full research returned for each question (15 seasons, no bot). An episode is settled when someone's answer is a
+      sure yes or everyone's a no. Accuracy isn't measured (no truth on file).
+    - **The rating orders reliability, but doesn't give its level.** Questions research already asks: rated high, settled 99% of
+      episodes on average (all 10 at 90% or more); medium 93% (24: 17 at 90% or more, 1 under 70%); low 83% (9: 5 at 90% or more).
+      New moments: none rated high; medium 60% on average (10: 3 at 90% or more, Survivor's crying and blindside and The Traitors'
+      accusations; 6 under 70%, The Challenge's fight one week in four); low 53% (8). So a new moment is far less reliable than the
+      show's own at the same rating, and a medium one would be void about 40% of episodes.
+    - **Recommended (the bar stays the user's):** keep medium (high would offer almost no new moment), with the void (built) and a
+      net before games lean on it: after a moment's first three asked episodes its settled rate is known, and under 50% the wizard
+      says so and a game's maker is told (U1). The full doc: `docs/STUDY-added-moments.md`.
+  - **What an added moment is** (`src/lib/game/formats/added-moments.js`): a moment added by hand to the **season's rulebook**
+    (`customMoments`) with **`addedFrom`**, the first episode research asks it about (checked: a whole number from 1, only on a yes
+    or no of its own answered by research; `rulebook-moments.js` passes it through), **worth 0 in the rulebook's points**, so no game
+    scores it but one that names it and every game already playing is untouched. One home, so everything that reads moments reads
+    it: the ctx our check reads (`momentsFor`: research's, so `specProblems` takes a game on it), the compile (a checklist question
+    for each person and a rule awarding it), the desk's What scores. `addedOf(blocks)`, `standingOf(castaways, id)` (yes with who,
+    no from everyone, else unsure), `unsureIn`, `fillMoments` (a second pass fills in: a sure yes names who and is everyone else's
+    no, a sure no is everyone's, nothing over what research said, and a yes for people research said no for changes nothing).
+    Up to 12 a season.
+  - **Adding one** (`src/lib/server/added-moments.ts` `addMoment`, POST `/api/seasons/[seasonId]/added-moments` `{ ask, moment? }`):
+    only a moment our check offered in one of your own asks (`game_word_asks.result.offers.moments`, rated at the bar), added from
+    the next episode to air (`startFrom`), its question and label the rating's, `reliability` reliable (high) or usually (medium);
+    the same question again is the one already added; refused for a season with nothing left to air, at 12, or when the ask's
+    couch plays the season by its own copy of the rules (Make it ours: its games read the copy's moments). The season's rulebook
+    is made if it has none (`ensureSeasonRulebook`), read and saved under an advisory lock (two at once both kept), as a fix of the
+    base (`saveChain`, as the maker's scoring saves), logged on the desk with its undo. It answers with the moment and the ask's
+    words: asking again drafts a game on it (the pack lists it among the moments research answers).
+  - **Research asks it**: the full run's checklist asks it of each person (compiled in, no change to the shared prompt's text), and
+    then **a short ask of its own inside the full run** (`db/moments-research.js` `askUnsure`, called by `db/bot-research.js`
+    runJob after the answer is stored and before it's sent, both of an episode's full runs): only the added moments the stored
+    answer leaves unsure, from `addedFrom` on, one prompt with the cast list and web search (`buildMomentsPrompt`), its answer read
+    loosely (`parseMomentsAnswer`: happened yes, no or unknown, who from the list, how sure, a source), checked to be about the
+    episode (its title), filed into the stored answer under the research lock (`storeMoments`) and into what the run sends, so the
+    leagues get it with the rest; at most 150 s, and its failing never fails the run (the run's message says what it said). No run
+    kind of its own, so no kind check changes. **The prompt is the user's to approve at the merge.**
+  - **The void** (`answers.js` `addedVerdict`, `facts.unsureMoments` from the server: `added-moments.ts` `unsureMomentsFor`, wired
+    into answer-points.ts serverFacts): a question settled by an added moment, in a window with an episode research left it unsure
+    in (nobody's yes, not everyone's no, no stored answer, or before `addedFrom`), is off, "Research couldn't say whether it happened:
+    it doesn't count either way", unless what research did say settles it anyway (it happened; it first happened before that
+    episode). A draft scored by it simply scores nothing there. One small query a read for a game whose questions settle on
+    moments, none for any other.
+  - **The feasibility ask says what it's about** (`prompt.js` `momentPrompt`'s new `about`: a person, asked who; the episode itself,
+    asked whether; `readMoment` reads a missing one from the question: a person only when it asks who): an added moment is asked
+    about each person, so one about the episode ("did it rain?") is never offered (`withMoments`: a can't-yet with why and the
+    nearest). The prompt's change is the user's at the merge with the rest.
+  - **The pack's groups are today's** (Noticed, taken): `db/format-timeline.js` `groupsGoingInto(pool, seasonId, n)`, a league-free
+    reader of F3's timeline, gives who is with whom going into the episode after the asker's mark (someone who sees results right
+    away: everything stored), so the pack never says more than they've seen; the starting groups until research has said.
+  - **The tracker**: a page can name its season's added moments (`page.added`, capability-rows.ts `pageCtx`), so a row is checked as
+    it would be once one's added: **s26** (a blindside within 3 episodes) plays now (223 ✅). p6 (rain) stays ⏳ G1 (about the
+    episode); w048 and w061 (words rows with no spec) stay ⏳ G1 until the real bot's rating is part of the bank.
+  - **Checks:** `tests/added-moments.test.js` (7: the rulebook's moment, its standing, filing, the prompt and its reading, the full
+    run's second pass on a stand-in pool and bot, our check before and after, the void) and `tests/game-words.test.js`'s new cases
+    (about); 1,951 unit tests passing; the type check; `scripts/dev-test/check-game-words.js` on the stand-in (new-fixture.js's
+    couch: 27 checks, the six new ones adding a moment from an offer, the rulebook's row, again, someone else's ask, an ask with no
+    offer, and the pack after); the tracker regenerated (`--check`). `fake-bot.js` knows the short ask (`momentsRun`).
+  - **The code review** (`/code-review` at medium, before the commit). Fixed: the pack's groups for someone who sees results right
+    away (their mark is Infinity); a sure yes for someone research said no for turned everyone into a no; a couch on its own copy
+    of the rules would get an added moment its games never read (now refused, with why); two moments added at once could lose one
+    (now under a lock); the short ask had no time limit while the run's results waited (now 150 s); the grader's read was heavier
+    than it needed for games on the rulebook's own moments; the short ask's question now the rulebook's own (`questionFor`) when it
+    has none; the run's header described a run kind that isn't one; a rating with no `about` was taken as a person.
+  - **Long checks:** none. `state-logic.js` is untouched; `answers.js` grades differently only with the server's `unsureMoments`,
+    which no replay passes (and no season has an added moment), so golden, blind and the rehearsal read the same by construction.
+  **Noticed (G1):**
+  - **The user's, at the merge:** the three prompts (`prompt.js`, `momentPrompt` now asking `about`) and the added moments' short
+    ask (`db/moments-research.js` `buildMomentsPrompt`), shared by no other research (the full run's prompt text doesn't change; a
+    season's checklist gains a question for each moment added to it); the cap (10 asks a person a day, Claude's call, against Make
+    it a game's 5 shows: a draft plus a few typed changes); the moment bar (medium, the Decisions table's "Custom moments" still
+    open: `withMoments`' `bar`; the measure above is for it); deploying `JobQueue` to the VM.
+  - **An added moment shows on games that don't use it** once their rules pick up the season's new rulebook version: a 0-point line
+    in an episode's breakdown (team-episode-breakdown.ts lists every event; the rulebook's own 0-point moments already show that
+    way). Recommended: the breakdown leaves out an added moment's lines in a game that doesn't name it. (U1, through impeccable.)
+  - **A moment about the episode itself** ("did it rain?", tracker p6) isn't offered: an added moment is asked about each person,
+    and the engine records moments for people. Recommended: an added moment `about: 'episode'`, asked once in the short ask and
+    recorded as the episode's (answers.js reading it for `happened` and `count`; never a person's points), when a request needs it.
+    (A part of its own, or G2.)
+  - **The words rows that need a new moment** (w048 Below Deck's charter and hookups, w061 drama) stay ⏳ G1: they play through the
+    offer, but whether they do depends on the real bot's rating, which the bank doesn't hold. Recommended: record ratings in the
+    bank when the bank is next asked of the real bot.
+  - **The desk doesn't say which moments were added by the GPT** beyond its History line ("A moment added for research to ask from
+    Episode N"): What scores lists it as a moment added by hand. Recommended: a tag on What scores. (The desk lane, U1.)
+  - **A multiplier of 1 the person said** ("these players score 1x", the user's second game) is refused by the schema ("not 1"),
+    so it comes back as a can't-yet; it means no multiplier, so our check could drop it quietly. Left as is: it's said, and honest.
+  - **A typed change's quotes are checked against both their first words and the change**, so a quote from the first ask still
+    counts as said after a change. Fine for now; a change that says nothing of a part keeps what the first draft had.
+  - **The engine lab doesn't take words yet** (it takes a spec or a tracker row): plugging the GPT in is a screen, the UI track's
+    (U0/U1, impeccable).
 - **G3. The GPT learns sports** (after the sports branch merges): teams and games from ESPN's schedule, stat words to the
   Sport's keys, sports settles, and the over/under line from ESPN's odds. The Red Sox and 76ers sentences pass end to end.
 - **G4. Randomize, no UI** (the user, 2026-10-29; the wizard's other door, above). `rollSpec(ctx, locks, seed)` in
@@ -10864,6 +11053,85 @@ first), and proves it on these games and on the tracker's other rows that use it
   the end in the blind replays (F4's `blind.js`); the same seed and locks make the same game; every lock holds; every short
   form fits its cap. After A14 (the pieces it rolls) and before U0, so the mocks show real rolls. No migration: a rolled game
   is an ordinary spec.
+  **As built (2026-11-07, `engine`; no migration, no screen):**
+  - **`rollSpec(page, locks, seed, opts)`** (`src/lib/game/game-spec/roll.js`, pure, exported from game-spec's index with its types):
+    `page` is G1's `{ ctx, pack }` (or a SpecContext alone). From the pack: where a game can start (the next episode to air; a
+    season that's aired, from its start at your own pace), the episodes left, the couch, who's in; from the ctx: the moments research
+    answers (the couch's-word ones scored 0, by our check's rule), the phases still to come, whether the show has groups, votes,
+    trivia, a winner. A roll is a **base** (`outlast`, `lineup`, `best-ball`, `pool`, `picks` scored by what they do, `questions`
+    from a bank built from the show's data, `bingo`, `calls`), a **way to win** (`total`, the base's own, `points`, `standing`:
+    lives or a cut, `matchups` with playoffs over six episodes or more, `weeks`, `coop`, `race` to about 60% of a good score), a
+    **length** (`rest` most, `few`, `half`, `one`, `phase`, `until-phase`; an Outlast at least 4 episodes, a pool 3) and **one or two
+    twists** (31: a draft's captain, the finale or first episode counting double, reverse, names out of a hat, an auction, finale
+    picks, who goes home beside the draft, a bounty, secret roles, the top scorer's twist, only some moments, a new card of
+    objectives, a group slot, a spread, discounted shared replacements; a pool's mulligan, second pick, no repeats, buyback; a game
+    of questions' split pot, only the lone right one, rollover, double or nothing, a bank, a parlay, beat the bot, match the
+    majority; teams of players; a redraft at the next phase or each big format change; trivia beside bingo). Each twist costs 1 or
+    2 and a way to win other than the game's own 1, within a budget of 3, and twists of one family (two multipliers by when, say)
+    never stack. Each piece's taste is a weight, times 1 plus the square root of how often the tracker's games that play use it
+    (`weightsFrom(rows, ctxOf)`, the caller's: blind.js and roll-check.js pass the tracker's).
+  - **The gate:** our check (`specProblems`, `specWaitsFor`, a place in the scoring sequence: `typeOf`), then taste: a roll whose
+    short form can't show every piece goes again with a twist fewer, then the next try. A seed's tries are `"<seed>.1"`,
+    `"<seed>.2"`, ... (never the next seed's own, so Roll again on the next number is its own game), up to 24 (`MAX_TRIES`); none
+    passing, the nearest found (fewest problems) with our check's words for why (`ok: false`); locks nothing fits: "Nothing fits
+    those locks on this show: unlock one and roll again". The result says the seed it landed on (rolling it again is the same game
+    in one try: a shared roll, and Back), its base, way to win, twists, length and `describeSpec`.
+  - **Locks** (`ROLL` lists them, the wizard's chips): `length` (an id, a number of episodes, or a span), `play` (draft, pick,
+    questions, card), `base`, `win`, `twists` (up to two; `[]` for none), and `keep`, part of a spec held over the roll (what someone
+    typed: the doors mixed). A locked length too short for a base rules it out unless the base is locked too.
+  - **The short form** (`describeSpec(...).short`, every spec, a game in stages too): `{ title, line, more }`, a title up to 28
+    characters (the game's name, or what it is: Best Ball, Weekly Picks, Predictions, Co-op, Reverse Outlast; a game in stages its
+    stages', "Outlast, redrafted", "Bingo + Trivia") and a line up to 60, chips joined by " · ": when it plays ("Episode 7",
+    "Episodes 7–9", "From Episode 7", "All season", "From Merged", "Episode 7 until Merged"), what you do ("Draft 5, start 3", "6 from
+    a hat, best 2 count", "Pick 1 to stay in", "Pick 3 to score", "2 questions", "New card each episode", "2 calls"), how it's won
+    when that isn't the game's own ("Head to head", "Most episodes won", "Last one standing", "First to 40"), then its twists
+    ("Captain scores double", "Finale counts double", "Bounties", "A secret Traitor", "Plus who goes home", "1 wrong pick forgiven",
+    "2nd pick counts if 2 go", "Split the pot", "Only unique answers score", "Parlay pays triple", "In 2 teams", "Redraft at
+    Merged"), as many as fit; `more` counts those left out (a screen can say "+1"). The plan's own example: "Weekly Lineup / Episode
+    7 · Draft 2, start 1 · Captain scores double".
+  - **impeccable (clarify)** on the short form's words changed: digits throughout ("2 calls", not "Two calls"), "From Episode 7" over
+    "Episode 7 on", "6 from a hat" (the product's own words for a draw), "Plus ..." over a bare "+", "episode" over "week" (the
+    product's word), and plain words for the jargon ("1 wrong pick forgiven" over "1 mulligan", "2nd pick counts if 2 go" over "2nd
+    pick on doubles", "Only unique answers score" over "Only the lone right one scores", "Unwon points roll over" over "Rollover"); the
+    way to win moved ahead of the twists (a main rule); a chip the title already says left out (Reverse Outlast's "First out scores
+    most"). The words are the UI track's to settle in U0 with the rest of the wizard.
+  - **Checks:** `tests/roll.test.js` (7: 600 seeds on each of nine pages, every rulebook the tracker names, each roll passing our
+    check again, within its caps and starting where the page is; the same page, locks and seed the same game, 200 seeds near 200
+    games, a landed seed in one try; every lock holding; locks nothing fits; the tracker's weights; every base, way to win and twist
+    coming up; the short form within its caps on every game the tracker says plays); 1,958 unit tests passing; the type check.
+    `scripts/dev-test/roll-check.js` (new): 3,000 seeds on each season on tape this database has loaded (Survivor 49 and 51, The
+    Challenge 39 to 41, The Traitors 4, Dancing with the Stars 34, Below Deck 12), on the engine lab's own rules at the premiere:
+    21,000 rolls, every one passing, 1,700 to 2,000 distinct games a season, 1.1 tries a roll. `blind.js run --rolls=N [--seed=S]`
+    (new): N distinct rolls in place of the tracker's games, made from the season's page at its premiere and played to the end
+    blind. **Played:** 80 rolls a season on The Challenge 41, 40 and 39, Survivor 49 and The Traitors 4 (the seasons F1 studied), 400
+    rolls in 528 games (a game in stages plays each stage, and each redraft at a change, as a game of its own beside it): every one
+    played through to its end, every score a finite number, no problem in the moves, every base, way to win and all 31 twists
+    among them. That run began before the code review's fixes, which changed the tracker's weights a little (3 of 80 seeds roll
+    another game now), so 40 more rolls (seeds from 5001) were played on the final code on The Challenge 41 and Survivor 49: 114
+    games, every one through. Records in `~\rfl-tapes\replays\blind\<show>-<season>-rolls.json` and `.md` (the first run's The
+    Challenge 41 and Survivor 49 as `-rolls-80`). Some tables end all at 0 (bingo, the show's calls, co-op, a short game of
+    questions): the tracker's own bingo and calls do the same in the replay, whose seats don't play bingo cards or the calls, and
+    co-op's table is the couch's lives together, not points.
+  - **The code review** (`/code-review` at medium, before the commit). Fixed: a locked length the page can't have (from a phase on a
+    show with none to come, half a season of unknown length) threw or rolled an empty span, and now fits nothing; a base's least
+    (an Outlast's 4, a pool's 3) is weighed against what's left of the season, not only a short length; a roll that only ever found
+    games too busy for its short form named a try's seed that doesn't replay it (now the seed rolled); a locked twist now rolls a
+    base it goes on (a captain, a lineup); the length a roll reports is the one it chose (a lock keeps it); a draft still being made
+    no longer says "Draft null", a draft's question without words no longer throws; a tracker row counts each piece once (a game in
+    stages counted a stage's twice); a try weighs only the short form, the whole description made once; one lowercase helper.
+  - **Long checks:** blind.js with rolls (above). golden.js and the Survivor 51 rehearsal didn't run: `state-logic.js` and the scorers
+    are untouched (roll.js only writes specs our check already passes; describe.js gains the short form beside what it said).
+  **Noticed (G4):**
+  - **"Most right by the finale wins" on a game that ends before the finale** (Weekly Calls, Weekly Bingo for a few episodes:
+    describe.js's sentence for their rank says "by the finale" whatever the span). Recommended: "by the end" when the game ends
+    before the season does. Small; the next step that touches describe.js.
+  - **The rolled questions' wording** ("Who'll be the one: won the Immunity challenge?", "Will anyone: played an idol or
+    advantage?") reads from the moment's label, which is past tense. Players see it. Recommended: a present-tense question per
+    moment in the rulebook (a moment's own `ask`, as an added moment's `question`), or the GPT writing it; U0's, through impeccable.
+  - **A secret role on a show without one is still "a Traitor"** (roles' default name), on The Challenge or Dancing with the Stars.
+    Plays fine; a roll could name it from the show once the roles' name is a setting the wizard shows.
+  - **Lengths are taste, not data**: a roll's "few" is 2 to 4 episodes and "half" is half what's left; a season whose length isn't
+    known yet rolls the rest of it, a few, or one. Fine until U0 shows the length chip.
 
 **V. Game pages, generated** (the user, 2026-10-30; "The Games tab and game pages", above).
 - **V1. The page generator: a research spike, then a prototype** (heavy; likely two sessions). First how others turn data

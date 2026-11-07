@@ -55,8 +55,9 @@ Three things decide whether a spec is a game (`src/lib/game/game-spec/schema.js`
   its lines: an Outlast-style draft (`classic-draft`), a draft scored by moments (`active-roster`), a pool (`pickem`), Weekly
   Calls, Weekly Bingo, a game of questions (`questions`) or a game in stages (`stages`). The screens read that name until R3.
 
-`describeSpec(spec, ctx)` then says the game in plain words: a sentence, How it works (a rule a line) and the details nobody
-asked about.
+`describeSpec(spec, ctx)` then says the game in plain words: a sentence, How it works (a rule a line), the details nobody
+asked about, and (G4) its short form, a title and one line: "Weekly Lineup / Episode 7 · Draft 2, start 1 · Captain scores
+double" (below, "Randomize").
 
 ---
 
@@ -442,7 +443,7 @@ players' own mechanics below, which settle the game, never a fact about the show
 | `settle.by` | `take` | What it reads |
 |---|---|---|
 | `results` | `out`, `stays`, `winner`, `placed` (with `place`), `top` (with `place`), `order`, `split`, `outlast` | who went home, who won, where they finished, the jury's votes |
-| `moment` | `happened`, `count`, `who`, `most`, `first`, `order` | a moment of the rulebook that research answers (`moment`: its id) |
+| `moment` | `happened`, `count`, `who`, `most`, `first`, `order` | a moment of the rulebook that research answers (`moment`: its id), a season's added moment included (G1 part 4, below: void where research couldn't say) |
 | `points` | `most`, `order` | each person's points by the game's rules in the episode or window |
 | `phase` | `starts`, `happened` | a phase of the season (not its first): the episode it starts, or whether it starts in the window |
 | `role` | `who`, `end`, `count` | a secret role (The Traitors' Traitor): who held it, who held it at the end, how many |
@@ -864,8 +865,20 @@ each other stay hidden until the lock; what the players decide changes the game,
   guessed. Beside a draft.
 - **Bingo's honour system** and a talk show's Weekly Calls (the couch's word, `ctx.calls: "couch"`) stay as they are; the bot
   never makes rules like them.
-- **Custom moments** (Make it ours, or typed): allowed through the new-moment path (a feasibility ask, then a question research
-  asks each episode); the reliability bar is the user's (the Decisions table, "Custom moments").
+- **Custom moments** (Make it ours, or typed): allowed through the new-moment path; the reliability bar is the user's (the
+  Decisions table, "Custom moments"). **A season's added moments** (G1 part 4, built 2026-11-07; `formats/added-moments.js`): a
+  moment typed to the GPT that the show's research doesn't answer is rated by the feasibility ask (`momentPrompt`: how reliably
+  recaps say it, and whether it happens to someone in the cast or is about the episode itself), and at the bar our check offers
+  it. Taken (POST `/api/seasons/[seasonId]/added-moments`, the offer of one of your own asks), it becomes a moment of the season's
+  rulebook: a moment added by hand (`customMoments`) with `addedFrom`, the next episode to air, a yes or no about each person,
+  answered by research and **worth 0 in the rulebook**, so no game scores it but one that names it. From then it's in the ctx
+  like any moment research answers, so any piece can use it: a question settled by it, a draft scored by it (with the spec's own
+  points), a card's line, a multiplier's condition. Research asks it after every episode from `addedFrom` on: the full run's
+  checklist, then, for what that left unknown, a short ask of its own inside the full run (`db/moments-research.js`), filed into
+  the stored answer and sent to the leagues with the rest. **An episode research can't settle it in is void** for a question on
+  it (no points either way: `facts.unsureMoments`, the server's, answers.js), unless what research did say settles it anyway (it
+  happened; it first happened before); a draft simply scores nothing for it there. Not yet: a moment about the episode itself
+  ("did it rain?"), which isn't anyone's to score: our check says so and offers the nearest. Up to 12 a season.
 - **Bounties** `score.bounty: { points }` (A14 part 3, above under "How it scores"): one of your castaways votes out someone
   else's, and you take its points from them; who voted for whom from research, void on an episode research isn't sure of.
 - **Secret roles** `score.roles: { count, points, on, reveal }` (A14 part 4, above under "How it scores"): some of you dealt a role
@@ -972,9 +985,36 @@ page + words ──(bot + the engine's manual)──▶ a draft spec ──(our 
   idea: add a row, run the script, and see whether it plays and how it reads.
 - **Our check decides** (the plan's "Our check"): ids only from the show's context pack, numbers only from their words (or
   listed as assumed), defaults ours, and anything that doesn't hold becomes a question or a can't-yet, never a silent fix.
-- **The bot drafts** (G1, planned): opened on a show's page, it gets the context pack (the show, the cast, the rulebook's
-  moments, the couch) and the engine's manual (from the schema's `VOCAB`: only what plays now), and answers a spec with each part
-  marked said, assumed, to ask, or can't yet.
+- **The bot drafts** (G1, built 2026-11-07: `src/lib/game/game-words/`, no screen yet): opened on a show's page, it gets the
+  context pack (`packOf`: the show and season, its episodes and the next, its phases, the cast as the asker has seen it with each
+  one's group, the moments research answers apart from the couch's word, the couch and its games) and the engine's manual
+  (`manualFor`), and answers a spec with each part marked said, assumed, to ask, or can't yet. **The manual is generated:** each
+  `VOCAB` key and value has its words in `manual.js` `WORDS` (a unit test fails when a value has none, so a step that adds a value
+  teaches the bot in the same commit), each other field (numbers, lists, switches) in `FIELDS` (each one used by a request of the
+  tracker that plays), and its examples are the tracker's own requests that play on the page, each with the engine's sentence.
+  So **a piece added here reaches the bot by adding its words to `WORDS` or `FIELDS` and a row to the tracker.** Our check
+  (`checkDraft`) then turns the draft into a spec: their quotes checked against their words, a number they didn't say dropped and
+  asked (or kept as the bot's choice and asked, when the game can't do without it), a moment the show doesn't have taken out and
+  rated by a second short ask (`momentPrompt`, `withMoments`: offered as a question research answers each episode at the bar,
+  medium by default), a value that doesn't go with the rest replaced by the nearest that plays (one change or two together) and
+  asked, a part the game needs filled from a preset and asked, what waits for a later step taken out and said, another show or a
+  second game offered. Every change is listed; nothing is fixed silently. The server's side: `src/lib/server/game-words.ts`, POST
+  `/api/seasons/[seasonId]/game-words`, 10 asks a person a day. A moment offered and taken (POST `added-moments`, G1 part 4) is a
+  moment of the season's from the next episode, and asking again drafts a game on it.
+- **Randomize** (G4, built 2026-11-07: `src/lib/game/game-spec/roll.js`, no screen yet): the other door, no bot. `rollSpec(page,
+  locks, seed)` rolls a game on the page's rules (G1's ctx and pack: the episodes left, the couch, the moments research answers, the
+  phases to come, the groups): a base (an Outlast, a lineup, best ball, a pool, a pick scored by what they do, a game of questions
+  from the show's data, bingo, the calls), a way to win, a length that fits what's left, and one or two twists within a budget (each
+  piece weighed; two of one family never stack), leaning toward what the tracker's games use (`weightsFrom`). Our check is the gate,
+  then taste (a roll whose short form can't show every piece goes again with a twist fewer); a seed that doesn't pass tries its next
+  tries, then gives the nearest with why. The same page, locks and seed make the same game, and the seed it lands on is the roll to
+  share. Locks hold any part: the length, how you play (draft, pick, questions, card), the base, how you win, the twists, or part of
+  a spec someone typed (`keep`, the doors mixed). **A piece added here reaches the roll by adding it to roll.js** (a twist: its cost,
+  family, where it fits, how it's applied), and its words to the short form (describe.js `twistShorts`), or it never comes up.
+- **The short form** (`describeSpec(...).short`, every game): `{ title, line, more }`, a title up to 28 characters (the game's name,
+  or what it is: Best Ball, Weekly Picks, Predictions, Co-op; a game in stages its stages', "Outlast, redrafted", "Bingo + Trivia")
+  and a line up to 60, chips joined by " · ": when it plays, what you do, how it's won when that isn't the game's own, then its
+  twists, as many as fit (`more`: how many didn't).
 
 ---
 

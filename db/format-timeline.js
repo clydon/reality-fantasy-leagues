@@ -100,4 +100,29 @@ async function seasonNewcomerCues(pool, seasonId) {
   return got ? Timeline.newcomerCues(got.timeline, got.cast) : [];
 }
 
-module.exports = { REPORTS, REPORTS_BY_SLUG, reportOf, seasonReports, seasonFormatTimeline, timelineForSeason, timelineForShow, leagueGroupFacts, seasonNewcomerCues };
+/**
+ * Who is with whom going into episode `n` of a season (format-timeline.js goingInto, from what research stored of the episodes
+ * before it), by name (lowercased): their group's name (groupLabel), or null for someone on their own. Null when nothing is known
+ * yet (the season's starting groups stand). The Start-a-game GPT's pack reads it (G1 part 4: src/lib/server/game-words.ts packFor),
+ * `n` the episode after the asker's mark, so it never says more than they've seen.
+ */
+async function groupsGoingInto(pool, seasonId, n) {
+  const { rows } = await pool.query(
+    `SELECT ss.show_id, ss.season_number, COALESCE(array_agg(sc.name ORDER BY sc.sort_order, sc.name) FILTER (WHERE sc.name IS NOT NULL), '{}') AS cast_names
+       FROM show_seasons ss LEFT JOIN season_cast sc ON sc.season_id = ss.id
+      WHERE ss.id = $1 GROUP BY ss.show_id, ss.season_number`,
+    [seasonId]
+  );
+  // Someone who sees results right away (n Infinity: guard.ts EVERYTHING) gets everything research has stored.
+  const all = n === Number.POSITIVE_INFINITY;
+  if (!rows.length || !(all || (Number.isInteger(n) && n > 1))) return null;
+  const tl = await seasonFormatTimeline(pool, { showId: rows[0].show_id, season: rows[0].season_number, cast: rows[0].cast_names, before: all ? null : n });
+  const g = Timeline.goingInto(tl, all ? Math.max(0, ...tl.episodes.map((e) => e.episode)) + 1 : n);
+  if (!g.known) return null;
+  const out = new Map();
+  for (const name of rows[0].cast_names) out.set(String(name).toLowerCase(), null);
+  for (const group of g.divided ? g.groups || [] : []) for (const m of group.members || []) out.set(String(m).toLowerCase(), Timeline.groupLabel(group));
+  return out;
+}
+
+module.exports = { REPORTS, REPORTS_BY_SLUG, reportOf, seasonReports, seasonFormatTimeline, timelineForSeason, timelineForShow, leagueGroupFacts, seasonNewcomerCues, groupsGoingInto };

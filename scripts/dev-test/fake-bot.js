@@ -26,6 +26,12 @@ function kindOf(prompt) {
   if (/as a rulebook for a fantasy game/.test(prompt)) return /changed how the game is played/.test(prompt) ? "rulebook" : "setup";
   if (/which rung of the ladder below each moment stands on/.test(prompt)) return "scores";
   if (/List the full starting cast of/.test(prompt)) return "cast";
+  // The Start-a-game GPT (docs/PLAN-start-a-game-gpt.md step G1): the words to a game, a typed change to one, and the
+  // reliability ask for a moment the show doesn't have.
+  if (/You turn the words someone typed into a game/.test(prompt)) return /THE CHANGE THEY TYPED NOW/.test(prompt) ? "gameChange" : "gameWords";
+  if (/Rate how reliably research could answer it/.test(prompt)) return "momentAsk";
+  // G1 part 4: a season's added moments, the short ask after the full run (db/moments-research.js).
+  if (/one entry for each question by its id/.test(prompt)) return "momentsRun";
   return "other";
 }
 
@@ -55,7 +61,7 @@ async function start(opts = {}) {
         // stream "progress" (the real bot's, llm-browser-api): a line asking, half the delay, a line with half the answer
         // written (its pattern counted in it), the other half, then the answer on a line (a failure as { detail }).
         const streamed = body.stream === "progress";
-        bot.asked.push({ kind: kindOf(prompt), prompt, at: Date.now(), stream: streamed ? "progress" : null, provider: body.provider || null });
+        bot.asked.push({ kind: kindOf(prompt), prompt, at: Date.now(), stream: streamed ? "progress" : null, provider: body.provider || null, search: body.search !== false, priority: body.priority || null });
         bot.busy++;
         const started = Date.now();
         const wait = (ms) => (ms ? new Promise((r) => setTimeout(r, ms)) : null);

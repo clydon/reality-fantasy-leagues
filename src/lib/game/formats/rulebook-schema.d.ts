@@ -79,6 +79,8 @@ export interface RulebookCustomMoment {
   reliability?: "reliable" | "usually" | "patchy";
   /** During a segment someone wins: whoever won it, alone or in the winning group, can't have it. */
   exceptWinners?: boolean;
+  /** G1 part 4, a season's added moment (formats/added-moments.js): the first episode research asks it about (yes or no, research's). */
+  addedFrom?: number;
 }
 
 /** How research asks one question: its own words, whether a yes needs a source, or (with a type) a question asked besides;
