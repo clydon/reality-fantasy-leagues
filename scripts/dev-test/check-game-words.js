@@ -17,8 +17,8 @@
 //    non-local database. Shares new-fixture's zt_nd_ couch with other checks: never run two at once. Prints PASS/FAIL.
 //
 // 2. The bank against the real bot (`--real`): the bank's requests (tests/fixtures/game-words/: its hand cases' words and the
-//    tracker's requests on a show's page) asked of the LOCAL bot directly, one at a time and only while it's idle (its /health
-//    names nobody busy), with this folder's LLM_BROWSER_API_KEY: never through the app's askBot (a lane's LLM_BROWSER_API_URL lists
+//    tracker's requests on a show's page, and G3's on a sport's: --only=w002,w003) asked of the LOCAL bot directly, one at a time
+//    and only while it's idle (its /health names nobody busy), with this folder's LLM_BROWSER_API_KEY: never through the app's askBot (a lane's LLM_BROWSER_API_URL lists
 //    production's bot first) and never production's bot (a URL that isn't loopback is refused). Each answer goes through our check
 //    and is scored against the bank: a request the engine plays, the same game (exact) or its shape (typeOf); one it can't, a
 //    can't-yet or a question. Writes nothing to any database; the answers go to --out (default: the system's temp folder).
@@ -73,7 +73,8 @@ async function real() {
   if (part !== "requests") for (const c of B.cases()) items.push({ id: c.id, page: c.page, words: c.words, expect: c.expect, kind: "case" });
   if (part !== "cases")
     for (const r of B.requests()) {
-      if (!r.page || r.page.sport || !r.page.rulebook) continue;
+      // A show's page with its rules, or (G3) a sport's with its ESPN league.
+      if (!r.page || (r.page.sport ? !r.page.espn : !r.page.rulebook)) continue;
       const ctx = B.ctxOf(r.page);
       const plays = !!r.spec && ctx && !S.specProblems(r.spec, ctx).length && !S.specWaitsFor(r.spec).length;
       items.push({ id: r.id, page: r.page, words: r.words, spec: plays ? r.spec : null, gpt: !!r.gpt, kind: "request" });
@@ -97,7 +98,8 @@ async function real() {
   for (const x of todo) {
     const ctx = B.ctxOf(x.page);
     const pack = B.packOf(x.page, ctx);
-    const manual = W.manualFor(ctx, { examples, show: x.page.show });
+    const kind = x.page.sport ? "sport" : "show";
+    const manual = W.manualFor(ctx, { examples, show: x.page.show, kind, games: B.gamesOf(x.page) });
     const prompt = W.gamePrompt({ pack, manual, words: x.words });
     if (!(await idle())) throw new Error("the bot stayed busy for 20 minutes: stopped");
     const t0 = Date.now();
@@ -117,7 +119,7 @@ async function real() {
       error = e.message;
     }
     const seconds = (Date.now() - t0) / 1000;
-    const r = answer ? W.checkAnswer(answer, { ctx, pack, words: x.words }) : { state: "error" };
+    const r = answer ? W.checkAnswer(answer, { ...B.checkOpts(x.page, x.words, ctx), kind }) : { state: "error" };
     let verdict;
     if (x.kind === "case") verdict = r.state === x.expect.state ? "as expected" : `expected ${x.expect.state}`;
     else if (x.spec) {

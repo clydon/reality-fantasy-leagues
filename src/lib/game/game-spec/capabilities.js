@@ -57,7 +57,8 @@ function rowProblems(row) {
   if (row.words && !(row.page && (row.page.show || row.page.sport))) out.push(`${row.id}: a request is typed on a show's or a sport's page`);
   // A spec is checked against what a show can settle: never the shape alone, or a row could say it plays when the show's data
   // can't settle it.
-  if (row.spec && !(row.page && row.page.rulebook)) out.push(`${row.id}: a spec is checked against a page's rulebook (a built-in, a sample, or a stand-in with checkedAs)`);
+  if (row.spec && !(row.page && (row.page.rulebook || (row.page.sport && row.page.espn))))
+    out.push(`${row.id}: a spec is checked against a page's rulebook (a built-in, a sample, or a stand-in with checkedAs), or a sport's page against its ESPN league (espn)`);
   return out;
 }
 

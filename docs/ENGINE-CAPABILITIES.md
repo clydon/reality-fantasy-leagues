@@ -9,8 +9,8 @@ A row plays now when its spec passes the validator (`specProblems`, with what it
 needs waits (`specWaitsFor`); it then says the game in the engine's own words (`describeSpec`). A show the tracker has no
 rules for is checked against a show of its kind, and says so.
 
-**Now:** 223 ✅ · 40 ⏳ · 1 🆕 · 4 ❓ · 23 💬, of 291.
-**Waiting, by step:** A14 2 · A15 15 · L3 7 · L4 13 · G1 3.
+**Now:** 233 ✅ · 28 ⏳ · 3 🆕 · 4 ❓ · 23 💬, of 291.
+**Waiting, by step:** A14 2 · A15 18 · L3 1 · L4 2 · G1 3 · G3 2.
 
 ## The dials
 
@@ -166,7 +166,7 @@ The plan's worked examples, as people would type them on a show's page.
 | | Id | On the page of | They type | Dials | Plays as, or needs |
 |---|---|---|---|---|---|
 | ✅ | p1 | Survivor 51 | bingo cards and trivia every episode, bingo lines are worth 5 points, correct trivia questions earn one point | shape, score, what | A game in two stages for Survivor 51: Bingo, a Weekly Bingo: a new bingo card every episode, all season. 5 points a line; most points by the finale wins; and beside it, Trivia, a game: everyone answers one question before each episode: trivia about the episode before, all season. A point for each right answer. Overall, each stage's points add up. |
-| ⏳ | p2 | baseball: Red Sox–Yankees series | a homer draft: everyone picks 3 players they think gets a home run | settle | L3: a shared draft, 3 each, scored by stats |
+| ✅ | p2 | baseball: Red Sox–Yankees series | a homer draft: everyone picks 3 players they think gets a home run | settle | A game for baseball: Red Sox–Yankees series: everyone drafts 3, all season. Scored 1 a home run. |
 | ✅ | p3 | Survivor 51 | each week you must correctly predict the tribe winner and who goes home | what | A game for Survivor 51: everyone answers two questions before each episode: which tribe wins immunity and who goes home, all season. Points for each right answer. |
 | ✅ | p4 | Survivor 51 | a single episode game where we must predict different things, most correct wins | when, what | A game for Survivor 51: everyone answers three questions before Episode 6: who goes home, an idol played and how many idols get played this episode. Points for each right answer. |
 | ✅ | p5 | Dancing with the Stars 35 | everyone predicts the scores of each couple; whoever's closest to the average gets a point; ties both get points | what, answer | A game for Dancing with the Stars 35: everyone answers one question before each episode: each couple's judges' score, all season. A point for each right answer. |
@@ -256,10 +256,10 @@ Requests that push the dials, from fantasy leagues, beyond them, and live with t
 | ⏳ | s56 | Survivor 51 | My sister watched live, we're watching Thursday: we play against her answers as we reach them. | live | A15 |
 | ⏳ | s57 | Survivor 51 | Only the people watching together right now can play; everyone later just sees how it went. | live | A15 |
 | ❓ | s58 | Dancing with the Stars 35 | Score each dance 1-10 as you watch; closest to the judges wins. | live | a lock inside the episode that data can't place: nothing records when each dance airs (A6 and A15 bring the rest) |
-| ⏳ | s59 | baseball: a Yankees game | Every at-bat: hit or out? | live | L4 |
-| ⏳ | s60 | football: an Eagles game | Next drive: touchdown, field goal or punt? | live | L4 |
-| ⏳ | s61 | soccer: a Premier League match | Predict the minute of the first goal. | live, what | L4 |
-| ⏳ | s62 | football: this week's NFL games | Our fantasy players' points tick live, head to head. | live, win | L4 |
+| ⏳ | s59 | baseball: a Yankees game | Every at-bat: hit or out? | live | A15: live calls run on the episode's clock (L2's clock, A15's calls) |
+| ⏳ | s60 | football: an Eagles game | Next drive: touchdown, field goal or punt? | live | A15: live calls run on the episode's clock (L2's clock, A15's calls) |
+| ⏳ | s61 | soccer: a Premier League match | Predict the minute of the first goal. | live, what | A15: a call during the match (the minute of the first goal: no settle reads a goal's minute yet), on A15's clock |
+| ✅ | s62 | football: this week's NFL games | Our fantasy players' points tick live, head to head. | live, win | A game for football: this week's NFL games: everyone drafts 15 and starts 9 each game, all season. Scored 0.04 a passing yard, 4 a passing touchdown, -1 an interception thrown, 0.1 a rushing yard, 6 a rushing touchdown, 0.5 a reception, 0.1 a receiving yard, 6 a receiving touchdown, 6 a return touchdown, 6 a fumble return touchdown, 2 a two-point conversion, -2 a fumble lost, 3 a field goal from under 20 yards, 3 a field goal from 20-29 yards, 3 a field goal from 30-39 yards, 4 a field goal from 40-49 yards, 5 a field goal from 50 yards or more, 1 an extra point, 1 a team sack, 2 a team interception, 2 a team fumble recovery, 6 a team defense touchdown, 2 a team safety, 2 a team blocked kick, 10 a shutout, 7 a game allowing 1 to 6, 4 a game allowing 7 to 13, 1 a game allowing 14 to 20, 0 a game allowing 21 to 27, -1 a game allowing 28 to 34 and -4 a game allowing 35 or more. Each game you play one of the others head to head: more points wins it. Most wins at the end wins. |
 | ⏳ | s63 | baseball: last night's game | Replay last night's game in sync and play its live calls as if it were on. | live | A15 |
 
 ## The words corpus
@@ -269,8 +269,8 @@ Start a game's eval set (the playtest lane's P2, 2026-10-28), each request now t
 | | Id | On the page of | They type | Plays as, or needs |
 |---|---|---|---|---|
 | ✅ | w001 | Survivor 51 | I want to set up a fantasy league for Survivor 51. | A Weekly Lineup for Survivor 51: everyone drafts 5 and starts 3 each episode, all season. Scored by Survivor 51's rules. |
-| ⏳ | w002 | baseball: Red Sox vs Yankees | For this upcoming Red Sox–Yankees series I want a draft where we draft 3 players each. We'll score 5 points for every home run and 1 point for each total base. | L3 |
-| ⏳ | w003 | basketball: home opener | I want to make a game for the 76ers home opener. I want us all to predict 3 things: winner, top scorer, and over/under total points. | L4 |
+| ✅ | w002 | baseball: Red Sox vs Yankees | For this upcoming Red Sox–Yankees series I want a draft where we draft 3 players each. We'll score 5 points for every home run and 1 point for each total base. | A game for baseball: Red Sox vs Yankees: everyone drafts 3, all season. Scored 5 a home run and 1 a total base. |
+| ✅ | w003 | basketball: home opener | I want to make a game for the 76ers home opener. I want us all to predict 3 things: winner, top scorer, and over/under total points. | A game for basketball: home opener: everyone answers three questions before Game 1: who wins, who scores the most points and total points: over or under (the game's line). A point for each right answer. |
 | ✅ | w004 | Survivor 51 | survivor league | A Weekly Lineup for Survivor 51: everyone drafts 5 and starts 3 each episode, all season. Scored by Survivor 51's rules. |
 | ✅ | w005 | The Traitors (US) 5 | traitors game for me and my friends | A Weekly Lineup for The Traitors (US) 5: everyone drafts 5 and starts 3 each episode, all season. Scored by The Traitors (US) 5's rules. |
 | ✅ | w006 | Dancing with the Stars 35 | something fun for dancing with the stars | A Survival Pool for Dancing with the Stars 35: everyone picks one person to stay in each episode, all season. Longest streak wins. (Checked against The Amazing Race's rules, a show of its kind.) |
@@ -296,9 +296,9 @@ Start a game's eval set (the playtest lane's P2, 2026-10-28), each request now t
 | ✅ | w026 | Dancing with the Stars 35 | we have 40 people in our watch party, can everyone just guess who goes home each episode of dwts | A game for Dancing with the Stars 35: everyone answers one question before each episode: who goes home, all season. 2 points for each right answer. (Checked against The Amazing Race's rules, a show of its kind.) |
 | ✅ | w027 | Survivor 51 | a 20 team survivor league, everyone drafts 2, no duplicates | An Outlast for Survivor 51: everyone drafts 2, all season. Each scores by how long they last: the last one standing carries you. |
 | ✅ | w028 | Below Deck 13 | bingo for the whole dorm floor during below deck | A Weekly Bingo for Below Deck 13: a new bingo card every episode, all season. Most lines by the finale wins. |
-| ⏳ | w029 | football: NFL | NFL pick'em for week 9 | L4 |
-| ⏳ | w030 | football: NFL | fantasy football but only for the rest of the season with my coworkers | L3 |
-| ⏳ | w031 | baseball: World Series game 5 | world series game for game 5, predict the winner and the total runs | L4 |
+| ✅ | w029 | football: NFL | NFL pick'em for week 9 | A game for football: NFL: everyone answers one question before Game 9: who wins. A point for each right answer. |
+| ✅ | w030 | football: NFL | fantasy football but only for the rest of the season with my coworkers | A game for football: NFL: everyone drafts 15 and starts 9 each game, all season. Scored 0.04 a passing yard, 4 a passing touchdown, -1 an interception thrown, 0.1 a rushing yard, 6 a rushing touchdown, 0.5 a reception, 0.1 a receiving yard, 6 a receiving touchdown, 6 a return touchdown, 6 a fumble return touchdown, 2 a two-point conversion, -2 a fumble lost, 3 a field goal from under 20 yards, 3 a field goal from 20-29 yards, 3 a field goal from 30-39 yards, 4 a field goal from 40-49 yards, 5 a field goal from 50 yards or more, 1 an extra point, 1 a team sack, 2 a team interception, 2 a team fumble recovery, 6 a team defense touchdown, 2 a team safety, 2 a team blocked kick, 10 a shutout, 7 a game allowing 1 to 6, 4 a game allowing 7 to 13, 1 a game allowing 14 to 20, 0 a game allowing 21 to 27, -1 a game allowing 28 to 34 and -4 a game allowing 35 or more. Each game you play one of the others head to head: more points wins it. Most wins at the end wins. |
+| ✅ | w031 | baseball: World Series game 5 | world series game for game 5, predict the winner and the total runs | A game for baseball: World Series game 5: everyone answers two questions before Game 1: who wins and total runs: over or under (the game's line). A point for each right answer. |
 | ✅ | w032 | Love Island USA | love island usa draft | A Weekly Lineup for Love Island USA: everyone drafts 5 and starts 3 each episode, all season. Scored by Love Island USA's rules. (Checked against Survivor's rules, a show of its kind.) |
 | ✅ | w033 | Big Brother US | Big Brother league for the next season | A Weekly Lineup for Big Brother US: everyone drafts 5 and starts 3 each episode, all season. Scored by Big Brother US's rules. (Checked against Survivor's rules, a show of its kind.) |
 | ✅ | w034 | RuPaul's Drag Race | drag race fantasy, draft 3 queens each | A Weekly Lineup for RuPaul's Drag Race: everyone drafts 3 and starts 3 each episode, all season. Scored by RuPaul's Drag Race's rules. (Checked against The Challenge's rules, a show of its kind.) |
@@ -318,13 +318,13 @@ Start a game's eval set (the playtest lane's P2, 2026-10-28), each request now t
 | ⏳ | w048 | Below Deck 13 | Below Deck: draft 3 crew, 2 points every time they're on charter, 5 if they get fired, 3 for a hookup, minus 1 for crying | G1: on charter and a hookup aren't moments research answers: the new-moment path |
 | ✅ | w049 | The Challenge 42 | blind draft for the challenge 42 finale only, 2 each, whoever has the winner gets 10 | A Weekly Lineup for The Challenge 42: everyone drafts 2 and starts 2 each episode, just Episode 13. Scored by The Challenge 42's rules. |
 | ✅ | w050 | Survivor 51 | weekly lineup with a bench of 2, waivers every tuesday, survivor 51, no trades | A Weekly Lineup for Survivor 51: everyone drafts 5 and starts 3 each episode, all season. Scored by Survivor 51's rules. |
-| ⏳ | w051 | football: Eagles vs Cowboys | Eagles vs Cowboys Sunday, everyone pick the winner and the margin | L4 |
-| ⏳ | w052 | basketball: Lakers | Lakers next 5 games, draft 2 players each, points rebounds assists all count 1 | L3 |
-| ⏳ | w053 | racing: F1 | F1 season finale pick the podium | L4 |
-| ⏳ | w054 | baseball: World Series | world series mvp pool | L4 |
-| ⏳ | w055 | soccer: Premier League | Premier League this weekend, draft 3 strikers each, goals 5 assists 3 | L3 |
-| ⏳ | w056 | basketball: March Madness | march madness bracket | L4 |
-| ⏳ | w057 | basketball: Knicks | the knicks game tonight: top scorer and whether they win | L4 |
+| ✅ | w051 | football: Eagles vs Cowboys | Eagles vs Cowboys Sunday, everyone pick the winner and the margin | A game for football: Eagles vs Cowboys: everyone answers two questions before Game 1: who wins and by how many points. A point for each right answer. |
+| ✅ | w052 | basketball: Lakers | Lakers next 5 games, draft 2 players each, points rebounds assists all count 1 | A game for basketball: Lakers: everyone drafts 2, all season. Scored 1 a point, 1 a rebound and 1 an assist. |
+| ⏳ | w053 | racing: F1 | F1 season finale pick the podium | G3: the podium is a field's top three, and a field's final says only who wins (final winner; POS least is first only): a top-three settle is G3's |
+| 🆕 | w054 | baseball: World Series | world series mvp pool | ESPN's data names no MVP: the GPT offers the nearest that plays (who has the most hits or home runs in the series) |
+| ⏳ | w055 | soccer: Premier League | Premier League this weekend, draft 3 strikers each, goals 5 assists 3 | G3: strikers only is a pool of one position (forwards): the draft and its table play now (G 5, A 3), a pool by position is G3's |
+| ⏳ | w056 | basketball: March Madness | march madness bracket | L4: a bracket of a league's playoffs plays on the NBA's (L8 part 1's engine items, part 2: the defaults' bracket); college's tournament isn't read as a playoffs slate yet |
+| ✅ | w057 | basketball: Knicks | the knicks game tonight: top scorer and whether they win | A game for basketball: Knicks: everyone answers two questions before Game 1: who scores the most points and do the Knicks win. A point for each right answer. |
 | ✅ | w058 | Below Deck 13 | Below Deck game | A Weekly Lineup for Below Deck 13: everyone drafts 5 and starts 3 each episode, all season. Scored by Below Deck 13's rules, with two moments' points changed. |
 | ✅ | w059 | The Late Show with Stephen Colbert | game for the late show with stephen colbert | A Weekly Bingo for The Late Show with Stephen Colbert: a new bingo card every episode, all season. Most lines by the finale wins. (Checked against Saturday Night Live's rules, a show of its kind.) |
 | ✅ | w060 | Saturday Night Live | SNL bingo this weekend | A Weekly Bingo for Saturday Night Live: a new bingo card every episode, just Episode 1. Most lines by the finale wins. |
@@ -371,4 +371,4 @@ Start a game's eval set (the playtest lane's P2, 2026-10-28), each request now t
 | ✅ | w101 | Survivor 51 | survivor 51, each of us drafts 3, but points only count once your castaway makes the merge | A Weekly Lineup for Survivor 51: everyone drafts 3 and starts 3 each episode, from when Merged starts. Scored by Survivor 51's rules. |
 | ✅ | w102 | The Traitors (US) 5 | the traitors, my book club, 7 people, everyone guesses the traitors before episode 2 | A game for The Traitors (US) 5: everyone answers one question before it starts: who are the Traitors, Episode 2 to the finale. A point for each right answer. |
 | 💬 | w103 | Survivor 51 | whatever's on tonight, make it a game |  |
-| ⏳ | w104 | golf: Ryder Cup | ryder cup draft | L3 |
+| 🆕 | w104 | golf: Ryder Cup | ryder cup draft | the Ryder Cup is match play: ESPN's golf here is stroke play (golf.ts reads a field's rounds, not matches) |

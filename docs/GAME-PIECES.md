@@ -980,7 +980,8 @@ page + words ──(bot + the engine's manual)──▶ a draft spec ──(our 
   and says the verdict, the words and the shape on a real season, and can start it as a test game.
 - **The tracker** (`tests/fixtures/engine-capabilities.json`, rendered by `node scripts/engine-capabilities.js` into
   `docs/ENGINE-CAPABILITIES.md`): the dials' values and the requests people would type on a show's page, each with its spec (or
-  the step it waits on, or a rule question). A row plays when its spec passes `specProblems` (with its page's show) and
+  the step it waits on, or a rule question). A row plays when its spec passes `specProblems` (with its page's show, or on a
+  sport's page its ESPN league's sport: the page's `espn`, G3) and
   `specWaitsFor` has nothing; its words are `describeSpec`'s. So the tracker is the engine's progress, and the place to try an
   idea: add a row, run the script, and see whether it plays and how it reads.
 - **Our check decides** (the plan's "Our check"): ids only from the show's context pack, numbers only from their words (or
@@ -1001,6 +1002,20 @@ page + words ──(bot + the engine's manual)──▶ a draft spec ──(our 
   second game offered. Every change is listed; nothing is fixed silently. The server's side: `src/lib/server/game-words.ts`, POST
   `/api/seasons/[seasonId]/game-words`, 10 asks a person a day. A moment offered and taken (POST `added-moments`, G1 part 4) is a
   moment of the season's from the next episode, and asking again drafts a game on it.
+- **On a sport's page** (G3, 2026-11-07: a season of a sport's games, a matchup or a slate, whose show is a sport and whose games
+  ESPN reads): the ctx is the sport's (`src/lib/sports/page.ts` `sportPageContext`: its stats, position groups, shape and
+  periods, nobody going home, no moments), the pack adds the sport and its league, its teams, its games (each episode's: when, its
+  sides and which is home, whether it's started, ESPN's line on the total while it's still to play; never a score), its players
+  with their team and position, the stats a request can name in their words (`statWords`) and the sport's standard scoring and
+  games; the manual swaps a show's presets for a sports section (points per stat by key, the final and stat settles, `line:
+  "game"`, one game's span, `each: "game"`, the locks) and the sport's standard games, and shows only a sport's values (`WORDS`'
+  `show` lists keep a show's out) and a sport's requests as examples. Our check reads a sport's words as the engine's (each a named
+  change, shown as assumed): a stat by its words its key (`statKeyIn`: "home runs" is HR, never a guess), a stats score with no
+  table the sport's standard one, an over/under on a game's total with no line of theirs the game's own (ESPN's, kept when the
+  question opens), a team by its name its id (one the page hasn't got, out and asked whose), and a show's preset the sport's own
+  game most like it (asked which). **A piece a sport adds reaches the bot** through its words in `WORDS` (a value marked `sport`),
+  a stat through its Sport's `StatDef` (label, short, noun), and a standard game through the sport's defaults
+  (`src/lib/sports/defaults/<sport>.json`'s `specs`, each with its `about`).
 - **Randomize** (G4, built 2026-11-07: `src/lib/game/game-spec/roll.js`, no screen yet): the other door, no bot. `rollSpec(page,
   locks, seed)` rolls a game on the page's rules (G1's ctx and pack: the episodes left, the couch, the moments research answers, the
   phases to come, the groups): a base (an Outlast, a lineup, best ball, a pool, a pick scored by what they do, a game of questions

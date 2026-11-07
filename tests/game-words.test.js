@@ -169,7 +169,7 @@ test("another show or season is offered, the page's own isn't", () => {
 test("our check on the bank's hand-written cases: each mistake a question or a can't-yet, never a silent fix", () => {
   for (const c of B.cases()) {
     const ctx = B.ctxOf(c.page);
-    const r = W.checkAnswer(B.answerOf(c), { ctx, pack: B.packOf(c.page, ctx), words: c.words });
+    const r = W.checkAnswer(B.answerOf(c), B.checkOpts(c.page, c.words, ctx));
     const e = c.expect;
     assert.equal(r.state, e.state, `${c.id} (${c.note}): its state`);
     if (e.state === "unreadable") continue;
@@ -183,7 +183,7 @@ test("our check on the bank's hand-written cases: each mistake a question or a c
     // Every change our check made is a question, and every game it returns plays.
     // Every change our check made is asked, or (a detail nobody set, an extra's) shown as our default.
     for (const f of r.fixed) {
-      const detail = f.from === undefined && /^extras\./.test(f.part);
+      const detail = (f.from === undefined && /^extras\./.test(f.part)) || f.quiet === true;
       assert.ok(detail ? r.assumed.some((a) => a.part === f.part && a.by === "check") : r.ask.some((a) => a.part === f.part), `${c.id}: ${f.part} changed, so it's ${detail ? "assumed" : "asked"}`);
     }
     if (r.state === "game" || r.state === "ask") {
@@ -200,11 +200,11 @@ test("every request the engine plays, drafted ideally, comes back the same game:
     const ctx = B.ctxOf(row.page);
     if (!row.spec || !ctx || S.specProblems(row.spec, ctx).length || S.specWaitsFor(row.spec).length) continue;
     n++;
-    const r = W.checkAnswer(JSON.stringify(B.idealDraft(row)), { ctx, pack: B.packOf(row.page, ctx), words: row.words });
+    const r = W.checkAnswer(JSON.stringify(B.idealDraft(row)), B.checkOpts(row.page, row.words, ctx));
     assert.equal(r.state, "game", `${row.id}: ${JSON.stringify({ ask: r.ask, dropped: r.dropped, fixed: r.fixed })}`);
     assert.deepEqual(r.spec, row.spec, row.id);
     // The same words make the same game.
-    assert.deepEqual(W.checkAnswer(JSON.stringify(B.idealDraft(row)), { ctx, pack: B.packOf(row.page, ctx), words: row.words }).spec, r.spec);
+    assert.deepEqual(W.checkAnswer(JSON.stringify(B.idealDraft(row)), B.checkOpts(row.page, row.words, ctx)).spec, r.spec);
   }
   assert.ok(n >= 100, `the tracker's requests that play (${n})`);
 });

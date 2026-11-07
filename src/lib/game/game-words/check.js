@@ -13,6 +13,7 @@ const schema = require('../game-spec/schema.js');
 const { describeSpec } = require('../game-spec/describe.js');
 const { WORDS, plays } = require('./manual.js');
 const { SPEC_PARTS } = require('./read.js');
+const { statKeyIn } = require('./pack.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const { VOCAB, PRESETS, PRESET_LABELS, fullSpec, specProblems, specWaitsFor } = schema;
@@ -325,6 +326,125 @@ function fixWaits(start, ctx) {
   return { spec, out, waits: specWaitsFor(spec) };
 }
 
+// ---- a sport's page (G3) ----
+
+/** The wizard's words for a sport's standard games (sports/page.ts sportGames' ids), for "Which game?". */
+const SPORT_GAME_LABELS = {
+  season: 'Season-long league',
+  short: 'Draft a few players',
+  pickem: "Pick'em",
+  pickAFew: "Pick the game's top players",
+  categories: 'Categories, head to head',
+  roto: 'Roto',
+  bestBall: 'Best ball',
+  squares: 'Squares',
+  bracket: 'Bracket',
+};
+const sportGameLabel = (g) => SPORT_GAME_LABELS[g.id] || g.id;
+
+/** A stats score's own tables. */
+const STAT_TABLES = ['points', 'byPosition', 'byPlace', 'byFormat'];
+
+/**
+ * What a sport's page changes in a draft before the validator, each named (`fixes`: part, why, from, to; `asks`: a question for the
+ * wizard): a show's preset off (a sport plays the sport's own games), a show's way of scoring the standard table, a stat named by
+ * its words its key ("home_run" or "home runs" is HR), a stats score with no table the sport's standard one, an over/under on a
+ * game's total ESPN's own line where they didn't say one ("line": "game"), and a team named by its name its id (one the page
+ * doesn't have, out and asked). `games`: the sport's standard games (sports/page.ts sportGames: their specs hold the tables).
+ */
+function sportFixes(spec, { pack, said, games }) {
+  const fixes = [];
+  const asks = [];
+  /** [old path, new path]: a stat's key read from its words moves what was said or assumed of it. */
+  const renames = [];
+  const stats = (pack && pack.stats) || [];
+  const teams = (pack && pack.teams) || [];
+  const table = (games || []).map((g) => g.spec && g.spec.score).find((sc) => isObj(sc) && sc.by === 'stats') || null;
+  const standard = table ? Object.fromEntries(STAT_TABLES.filter((k) => table[k] !== undefined).map((k) => [k, clone(table[k])])) : null;
+  const fix = (part, why, from, to) => fixes.push({ part, why, from, to });
+  if (spec.preset) {
+    // A show's game: the sport's own most like it (a draft with a lineup, a draft, a pick, questions), its parts the draft left out.
+    const label = PRESET_LABELS[spec.preset] || spec.preset;
+    const like = PRESETS[spec.preset] ? fullSpec({ preset: spec.preset }) : null;
+    const by = like && isObj(like.get) ? like.get.by : null;
+    const lineup = !!(like && isObj(like.count) && like.count.start);
+    const list = (games || []).filter((g) => isObj(g.spec) && isObj(g.spec.get));
+    const std = list.find((g) => g.spec.get.by === by && !!(isObj(g.spec.count) && g.spec.count.start) === lineup) || list.find((g) => g.spec.get.by === by) || null;
+    fixes.push({ part: 'preset', why: `${label} is a show's game: a sport plays its own${std ? ` (${sportGameLabel(std)})` : ''}`, from: spec.preset, to: undefined });
+    delete spec.preset;
+    // The parts the draft left out, the sport's game's own (each assumed: its numbers ours, and "Which game?" asks it).
+    if (std)
+      for (const k of ['get', 'count', 'score', 'rank', 'closes', 'ask'])
+        if (spec[k] === undefined && std.spec[k] !== undefined) {
+          spec[k] = clone(std.spec[k]);
+          fix(k, `From the sport's ${sportGameLabel(std)}, in place of ${label}`, undefined, clone(std.spec[k]));
+        }
+    asks.push({ part: 'preset', question: 'Which game?', options: [std, ...list.filter((g) => g !== std)].filter(Boolean).map(sportGameLabel) });
+  }
+  if (isObj(spec.score) && ['moments', 'place', 'lines'].includes(spec.score.by) && standard) {
+    fixes.push({ part: 'score', why: "A sport's people score by their stats, not a show's moments: the sport's standard table", from: clone(spec.score), to: { by: 'stats', ...clone(standard) }, ask: true });
+    spec.score = { by: 'stats', ...clone(standard) };
+    asks.push({ part: 'score', question: 'Players score by their stats. Use the standard points?', options: ['Standard points'] });
+  }
+  // A pool on a sport: nobody goes home, so a right pick is one who scores (Start a game's sport rule, start-game.ts).
+  if (isObj(spec.score) && spec.score.by === 'survive' && spec.score.means !== 'scores') {
+    fix('score.means', "Nobody goes home in a sport: a right pick is one who scores", spec.score.means, 'scores');
+    spec.score.means = 'scores';
+  }
+  if (isObj(spec.score) && spec.score.by === 'stats') {
+    if (isObj(spec.score.points))
+      for (const k of Object.keys(spec.score.points)) {
+        if (stats.some((x) => x.key === k)) continue;
+        const key = statKeyIn(stats, k.replace(/_/g, ' '));
+        if (!key || spec.score.points[key] !== undefined) continue;
+        fix(`score.points.${key}`, `"${k}" is the stat ${key}`, undefined, spec.score.points[k]);
+        renames.push([`score.points.${k}`, `score.points.${key}`]);
+        spec.score.points = Object.fromEntries(Object.entries(spec.score.points).map(([x, v]) => [x === k ? key : x, v]));
+      }
+    if (!STAT_TABLES.some((k) => spec.score[k] !== undefined) && standard) {
+      // The table alone (a stat's points), or with its tables by position, place or format (soccer's, golf's, tennis's).
+      const why = `No points named: the sport's standard table${table.source ? ` (${table.source})` : ''}`;
+      if (Object.keys(standard).length === 1 && standard.points) fix('score.points', why, undefined, clone(standard.points));
+      else fix('score', why, undefined, { ...clone(spec.score), ...clone(standard) });
+      Object.assign(spec.score, clone(standard));
+    }
+  }
+  (Array.isArray(spec.ask) ? spec.ask : []).forEach((q, i) => {
+    if (!isObj(q) || !isObj(q.settle)) return;
+    const st = q.settle;
+    if (st.by === 'stat' && typeof st.stat === 'string' && !stats.some((x) => x.key === st.stat)) {
+      const key = statKeyIn(stats, st.stat.replace(/_/g, ' '));
+      if (key) {
+        fix(`ask[${i}].settle.stat`, `"${st.stat}" is the stat ${key}`, st.stat, key);
+        st.stat = key;
+      }
+    }
+    // An over/under on a game's total: ESPN's line unless they said one (a number of theirs stays, as said).
+    if (q.answer === 'overUnder' && st.by === 'final' && st.take === 'total' && q.line !== 'game') {
+      const theirs = typeof q.line === 'number' && said(`ask[${i}].line`, q.line);
+      if (!theirs) {
+        fix(`ask[${i}].line`, "ESPN's line for the game, kept when the question opens", q.line === undefined || q.line === null ? undefined : q.line, 'game');
+        q.line = 'game';
+      }
+    }
+    if (typeof st.of === 'string' && st.of && st.of !== 'main' && teams.length) {
+      // Its id, its whole name, else the one team whose name ends with the words ("Yankees"); two that fit name neither.
+      const named = teams.filter((t) => plain(t.name) === plain(st.of));
+      const ends = teams.filter((t) => plain(t.name).endsWith(` ${plain(st.of)}`) || plain(t.name) === plain(st.of));
+      const byName = teams.find((t) => t.id === st.of) || (named.length === 1 ? named[0] : null) || (ends.length === 1 ? ends[0] : null);
+      if (byName && byName.id !== st.of) {
+        fix(`ask[${i}].settle.of`, `"${st.of}" is the team ${byName.name}`, st.of, byName.id);
+        st.of = byName.id;
+      } else if (!byName) {
+        fix(`ask[${i}].settle.of`, `"${st.of}" isn't one of the page's teams (a player's own stat isn't asked yet: one team's, or the game's)`, st.of, undefined);
+        delete st.of;
+        asks.push({ part: `ask[${i}].settle.of`, question: 'Count it for one team, or the whole game?', options: ['The whole game', ...teams.map((t) => t.name)].slice(0, 4) });
+      }
+    }
+  });
+  return { fixes, asks, standard, renames };
+}
+
 // ---- the check ----
 
 /** Whether the show (and the season, when the bot names one) is the page's: the pack's show and season, else its label ("Survivor
@@ -341,7 +461,7 @@ function sameShow(pack, about) {
  * The draft to a game. `ctx`: what the page's show can settle (game-spec SpecContext); `pack`: the context pack the bot was given
  * (pack.js packOf); `words`: what they typed (said quotes are checked against it); `kind`: 'show' or 'sport'.
  */
-function checkDraft(draft, { ctx = null, pack = null, words = '', kind, carry = null } = {}) {
+function checkDraft(draft, { ctx = null, pack = null, words = '', kind, carry = null, games = [] } = {}) {
   const d = isObj(draft) ? draft : {};
   const pageKind = kind || (pack && pack.kind) || 'show';
   const wordsPlain = plain(words);
@@ -393,8 +513,34 @@ function checkDraft(draft, { ctx = null, pack = null, words = '', kind, carry = 
   }
   if (spec.spec !== undefined && spec.spec !== schema.SPEC_VERSION) spec.spec = schema.SPEC_VERSION;
 
+  // G3: a sport's page: its stats by key, its standard table, ESPN's line, its teams (each a named change, before the numbers).
+  if (pageKind === 'sport') {
+    const saidNumber = (path, n) => result.said.some((s) => (!s.part || covers(s.part, path) || covers(path, s.part)) && numbersIn(s.quote).has(Math.abs(n)));
+    const sport = sportFixes(spec, { pack, said: saidNumber, games });
+    const moved = (part) => {
+      if (!part) return part;
+      const r = sport.renames.find(([from]) => covers(from, part));
+      return r ? r[1] + part.slice(r[0].length) : part;
+    };
+    for (const s of result.said) s.part = moved(s.part);
+    for (const a of result.assumed) a.part = moved(a.part);
+    // What's taken out is dropped (and asked where it matters); a reading of their words (a stat's key, ESPN's line, the standard
+    // table, a team's id) is our check's, shown as assumed (`quiet`: the same thing they said, so never a question); the rest asked.
+    for (const f of sport.fixes) {
+      if (f.to === undefined) {
+        result.dropped.push({ part: f.part, value: f.from, why: f.why });
+        continue;
+      }
+      result.fixed.push({ part: f.part, problem: f.why, from: f.from, to: { [f.part]: f.to }, options: [], ...(f.ask ? {} : { quiet: true }) });
+      result.assumed.push({ part: f.part, value: f.to, why: f.why, by: 'check' });
+    }
+    for (const a of sport.asks) result.ask.push({ ...a, by: 'check' });
+  }
+
   // Numbers as said: each in a said quote for its part, listed as assumed, or our own default; any other is dropped and asked.
   const next = pack && pack.episodes && pack.episodes.next ? pack.episodes.next.number : null;
+  const sportGames = pageKind === 'sport' && pack && Array.isArray(pack.games) && pack.games.length && !pack.gamesMore ? pack.games : null;
+  const lastGame = sportGames ? Math.max(...sportGames.map((g) => g.episode)) : null;
   // Last first: taking a number out of a list moves the ones after it, never the ones before.
   for (const [path, n] of numbersOf(spec).reverse()) {
     if (path === 'spec') continue;
@@ -405,6 +551,8 @@ function checkDraft(draft, { ctx = null, pack = null, words = '', kind, carry = 
     const dflt = getAt(fullSpec(without), path);
     if (dflt === n) continue;
     if (path === 'span.from' && n === next) continue;
+    // G3: a sport's page whose games the pack lists whole: its last game is the season's end (a one-game matchup's 1 to 1).
+    if (path === 'span.to' && pageKind === 'sport' && n === lastGame) continue;
     // Without it the game wouldn't play (a budget needs its total): keep it, but as the bot's choice, asked.
     if (count(without, ctx) > count(spec, ctx)) {
       result.assumed.push({ part: path, value: n, why: "they didn't say: the bot's choice", by: 'check' });
@@ -460,9 +608,16 @@ function checkDraft(draft, { ctx = null, pack = null, words = '', kind, carry = 
   // Nothing in their words said which game: which game is a question, the one drafted first.
   const kindSaid = result.said.some((s) => s.part && ['preset', 'get', 'score', 'count', 'rank', 'stages', 'ask'].some((k) => covers(k, s.part) || s.part === k));
   if (!kindSaid && !result.ask.some((q) => q.part === 'preset' || q.part === 'get' || q.part === 'get.by')) {
-    const first = spec.preset && PRESETS[spec.preset] ? spec.preset : null;
-    const ids = [first, ...Object.keys(PRESETS).filter((p) => p !== first)].filter(Boolean);
-    result.ask.push({ part: 'preset', question: 'Which game?', options: ids.map((p) => PRESET_LABELS[p]), by: 'check' });
+    if (pageKind === 'sport') {
+      // A sport's own games (its standard ones), the one most like the draft first.
+      const like = (games || []).find((g) => isObj(g.spec) && isObj(g.spec.get) && isObj(spec.get) && g.spec.get.by === spec.get.by);
+      const list = [like, ...(games || []).filter((g) => g !== like)].filter(Boolean);
+      if (list.length) result.ask.push({ part: 'get', question: 'Which game?', options: list.map(sportGameLabel), by: 'check' });
+    } else {
+      const first = spec.preset && PRESETS[spec.preset] ? spec.preset : null;
+      const ids = [first, ...Object.keys(PRESETS).filter((p) => p !== first)].filter(Boolean);
+      result.ask.push({ part: 'preset', question: 'Which game?', options: ids.map((p) => PRESET_LABELS[p]), by: 'check' });
+    }
   }
 
   // New moments, each once, for the reliability ask.
@@ -539,4 +694,4 @@ function withMoments(result, ratings, { bar = 'medium', pack = null } = {}) {
   return out;
 }
 
-module.exports = { checkDraft, withMoments, numbersIn, stepsOf, getAt, withAt, vocabKeyOf, fixProblems };
+module.exports = { sportFixes, SPORT_GAME_LABELS, checkDraft, withMoments, numbersIn, stepsOf, getAt, withAt, vocabKeyOf, fixProblems };

@@ -2314,14 +2314,31 @@
       "id": "p2",
       "page": {
         "sport": "baseball",
-        "event": "Red Sox–Yankees series"
+        "event": "Red Sox–Yankees series",
+        "espn": "baseball/mlb"
       },
       "words": "a homer draft: everyone picks 3 players they think gets a home run",
-      "step": "L3",
       "dials": [
         "settle"
       ],
-      "note": "a shared draft, 3 each, scored by stats"
+      "note": "G3: on the series' own page (its two teams' players), a shared draft of 3 each, a point for each home run (HR, the words' stat)",
+      "spec": {
+        "spec": 1,
+        "get": {
+          "by": "draft",
+          "each": 3,
+          "own": "shared"
+        },
+        "count": {
+          "all": true
+        },
+        "score": {
+          "by": "stats",
+          "points": {
+            "HR": 1
+          }
+        }
+      }
     },
     {
       "id": "p3",
@@ -4586,10 +4603,11 @@
         "event": "a Yankees game"
       },
       "words": "Every at-bat: hit or out?",
-      "step": "L4",
+      "step": "A15",
       "dials": [
         "live"
-      ]
+      ],
+      "note": "live calls run on the episode's clock (L2's clock, A15's calls)"
     },
     {
       "id": "s60",
@@ -4598,10 +4616,11 @@
         "event": "an Eagles game"
       },
       "words": "Next drive: touchdown, field goal or punt?",
-      "step": "L4",
+      "step": "A15",
       "dials": [
         "live"
-      ]
+      ],
+      "note": "live calls run on the episode's clock (L2's clock, A15's calls)"
     },
     {
       "id": "s61",
@@ -4610,24 +4629,78 @@
         "event": "a Premier League match"
       },
       "words": "Predict the minute of the first goal.",
-      "step": "L4",
+      "step": "A15",
       "dials": [
         "live",
         "what"
-      ]
+      ],
+      "note": "a call during the match (the minute of the first goal: no settle reads a goal's minute yet), on A15's clock"
     },
     {
       "id": "s62",
       "page": {
         "sport": "football",
-        "event": "this week's NFL games"
+        "event": "this week's NFL games",
+        "espn": "football/nfl"
       },
       "words": "Our fantasy players' points tick live, head to head.",
-      "step": "L4",
       "dials": [
         "live",
         "win"
-      ]
+      ],
+      "spec": {
+        "spec": 1,
+        "get": {
+          "by": "draft",
+          "each": 15,
+          "order": "snake",
+          "own": "exclusive"
+        },
+        "count": {
+          "start": 9
+        },
+        "score": {
+          "by": "stats",
+          "points": {
+            "PYDS": 0.04,
+            "PTD": 4,
+            "INT": -1,
+            "RYDS": 0.1,
+            "RTD": 6,
+            "REC": 0.5,
+            "RECYDS": 0.1,
+            "RECTD": 6,
+            "RETTD": 6,
+            "FRTD": 6,
+            "2PT": 2,
+            "FUML": -2,
+            "FGM0": 3,
+            "FGM20": 3,
+            "FGM30": 3,
+            "FGM40": 4,
+            "FGM50": 5,
+            "XPM": 1,
+            "DSTSACK": 1,
+            "DSTINT": 2,
+            "DSTFR": 2,
+            "DSTTD": 6,
+            "DSTSAF": 2,
+            "DSTBLK": 2,
+            "PA0": 10,
+            "PA1_6": 7,
+            "PA7_13": 4,
+            "PA14_20": 1,
+            "PA21_27": 0,
+            "PA28_34": -1,
+            "PA35": -4
+          }
+        },
+        "rank": {
+          "by": "matchups"
+        },
+        "closes": "weekly"
+      },
+      "note": "head to head each week on the NFL's standard table (football's default season); the points tick live on the phone (L3 part 3a's livePoints), its screen U1's"
     },
     {
       "id": "s63",
@@ -4680,10 +4753,10 @@
         "group": "example",
         "page": {
           "sport": "baseball",
-          "event": "Red Sox vs Yankees"
+          "event": "Red Sox vs Yankees",
+          "espn": "baseball/mlb"
         },
         "words": "For this upcoming Red Sox–Yankees series I want a draft where we draft 3 players each. We'll score 5 points for every home run and 1 point for each total base.",
-        "step": "L3",
         "expect": {
           "about": {
             "sport": "baseball",
@@ -4711,6 +4784,23 @@
             "which series (the next one listed)"
           ],
           "flag": null
+        },
+        "spec": {
+          "spec": 1,
+          "get": {
+            "by": "draft",
+            "each": 3
+          },
+          "count": {
+            "all": true
+          },
+          "score": {
+            "by": "stats",
+            "points": {
+              "HR": 5,
+              "TB": 1
+            }
+          }
         }
       },
       {
@@ -4718,10 +4808,10 @@
         "group": "example",
         "page": {
           "sport": "basketball",
-          "event": "home opener"
+          "event": "home opener",
+          "espn": "basketball/nba"
         },
         "words": "I want to make a game for the 76ers home opener. I want us all to predict 3 things: winner, top scorer, and over/under total points.",
-        "step": "L4",
         "expect": {
           "about": {
             "sport": "basketball",
@@ -4746,6 +4836,53 @@
           "flag": "question",
           "flagBy": "resolver",
           "why": "the 76ers' home opener (Oct 22) is past"
+        },
+        "spec": {
+          "spec": 1,
+          "span": {
+            "from": 1,
+            "to": 1
+          },
+          "get": {
+            "by": "none"
+          },
+          "score": {
+            "by": "answers"
+          },
+          "ask": [
+            {
+              "id": "winner",
+              "ask": "Who wins?",
+              "answer": "side",
+              "points": 1,
+              "settle": {
+                "by": "final",
+                "take": "winner"
+              }
+            },
+            {
+              "id": "top",
+              "ask": "Who scores the most points?",
+              "answer": "person",
+              "points": 1,
+              "settle": {
+                "by": "stat",
+                "stat": "PTS",
+                "take": "most"
+              }
+            },
+            {
+              "id": "total",
+              "ask": "Total points: over or under?",
+              "answer": "overUnder",
+              "line": "game",
+              "points": 1,
+              "settle": {
+                "by": "final",
+                "take": "total"
+              }
+            }
+          ]
         }
       },
       {
@@ -5604,10 +5741,10 @@
         "page": {
           "sport": "football",
           "league": "NFL",
-          "event": null
+          "event": null,
+          "espn": "football/nfl"
         },
         "words": "NFL pick'em for week 9",
-        "step": "L4",
         "expect": {
           "about": {
             "sport": "football",
@@ -5624,6 +5761,33 @@
           "flag": "question",
           "flagBy": "resolver",
           "why": "sports formats wait for the sports branch (G3)"
+        },
+        "spec": {
+          "spec": 1,
+          "span": {
+            "from": 9,
+            "to": 9
+          },
+          "get": {
+            "by": "none"
+          },
+          "score": {
+            "by": "answers"
+          },
+          "ask": [
+            {
+              "id": "winner",
+              "ask": "Who wins?",
+              "answer": "side",
+              "each": "game",
+              "asked": "each",
+              "points": 1,
+              "settle": {
+                "by": "final",
+                "take": "winner"
+              }
+            }
+          ]
         }
       },
       {
@@ -5632,10 +5796,10 @@
         "page": {
           "sport": "football",
           "league": "NFL",
-          "event": null
+          "event": null,
+          "espn": "football/nfl"
         },
         "words": "fantasy football but only for the rest of the season with my coworkers",
-        "step": "L3",
         "expect": {
           "about": {
             "sport": "football",
@@ -5650,6 +5814,58 @@
           "flag": "question",
           "flagBy": "resolver",
           "why": "season-long fantasy football is the sports branch's"
+        },
+        "spec": {
+          "spec": 1,
+          "get": {
+            "by": "draft",
+            "each": 15,
+            "order": "snake",
+            "own": "exclusive"
+          },
+          "count": {
+            "start": 9
+          },
+          "score": {
+            "by": "stats",
+            "points": {
+              "PYDS": 0.04,
+              "PTD": 4,
+              "INT": -1,
+              "RYDS": 0.1,
+              "RTD": 6,
+              "REC": 0.5,
+              "RECYDS": 0.1,
+              "RECTD": 6,
+              "RETTD": 6,
+              "FRTD": 6,
+              "2PT": 2,
+              "FUML": -2,
+              "FGM0": 3,
+              "FGM20": 3,
+              "FGM30": 3,
+              "FGM40": 4,
+              "FGM50": 5,
+              "XPM": 1,
+              "DSTSACK": 1,
+              "DSTINT": 2,
+              "DSTFR": 2,
+              "DSTTD": 6,
+              "DSTSAF": 2,
+              "DSTBLK": 2,
+              "PA0": 10,
+              "PA1_6": 7,
+              "PA7_13": 4,
+              "PA14_20": 1,
+              "PA21_27": 0,
+              "PA28_34": -1,
+              "PA35": -4
+            }
+          },
+          "rank": {
+            "by": "matchups"
+          },
+          "closes": "weekly"
         }
       },
       {
@@ -5658,10 +5874,10 @@
         "page": {
           "sport": "baseball",
           "league": "MLB",
-          "event": "World Series game 5"
+          "event": "World Series game 5",
+          "espn": "baseball/mlb"
         },
         "words": "world series game for game 5, predict the winner and the total runs",
-        "step": "L4",
         "expect": {
           "about": {
             "sport": "baseball",
@@ -5680,6 +5896,42 @@
             "the line for total runs"
           ],
           "flag": null
+        },
+        "spec": {
+          "spec": 1,
+          "span": {
+            "from": 1,
+            "to": 1
+          },
+          "get": {
+            "by": "none"
+          },
+          "score": {
+            "by": "answers"
+          },
+          "ask": [
+            {
+              "id": "winner",
+              "ask": "Who wins?",
+              "answer": "side",
+              "points": 1,
+              "settle": {
+                "by": "final",
+                "take": "winner"
+              }
+            },
+            {
+              "id": "runs",
+              "ask": "Total runs: over or under?",
+              "answer": "overUnder",
+              "line": "game",
+              "points": 1,
+              "settle": {
+                "by": "final",
+                "take": "total"
+              }
+            }
+          ]
         }
       },
       {
@@ -6482,10 +6734,10 @@
         "group": "sports",
         "page": {
           "sport": "football",
-          "event": "Eagles vs Cowboys"
+          "event": "Eagles vs Cowboys",
+          "espn": "football/nfl"
         },
         "words": "Eagles vs Cowboys Sunday, everyone pick the winner and the margin",
-        "step": "L4",
         "expect": {
           "about": {
             "sport": "football",
@@ -6509,6 +6761,41 @@
             "which game (the next one between them)"
           ],
           "flag": null
+        },
+        "spec": {
+          "spec": 1,
+          "span": {
+            "from": 1,
+            "to": 1
+          },
+          "get": {
+            "by": "none"
+          },
+          "score": {
+            "by": "answers"
+          },
+          "ask": [
+            {
+              "id": "winner",
+              "ask": "Who wins?",
+              "answer": "side",
+              "points": 1,
+              "settle": {
+                "by": "final",
+                "take": "winner"
+              }
+            },
+            {
+              "id": "margin",
+              "ask": "By how many points?",
+              "answer": "number",
+              "points": 1,
+              "settle": {
+                "by": "final",
+                "take": "margin"
+              }
+            }
+          ]
         }
       },
       {
@@ -6516,10 +6803,10 @@
         "group": "sports",
         "page": {
           "sport": "basketball",
-          "event": "Lakers"
+          "event": "Lakers",
+          "espn": "basketball/nba"
         },
         "words": "Lakers next 5 games, draft 2 players each, points rebounds assists all count 1",
-        "step": "L3",
         "expect": {
           "about": {
             "sport": "basketball",
@@ -6548,6 +6835,24 @@
           },
           "wizard": [],
           "flag": null
+        },
+        "spec": {
+          "spec": 1,
+          "get": {
+            "by": "draft",
+            "each": 2
+          },
+          "count": {
+            "all": true
+          },
+          "score": {
+            "by": "stats",
+            "points": {
+              "PTS": 1,
+              "REB": 1,
+              "AST": 1
+            }
+          }
         }
       },
       {
@@ -6556,10 +6861,11 @@
         "page": {
           "sport": "racing",
           "league": "F1",
-          "event": null
+          "event": null,
+          "espn": "racing/f1"
         },
         "words": "F1 season finale pick the podium",
-        "step": "L4",
+        "step": "G3",
         "expect": {
           "about": {
             "sport": "racing",
@@ -6574,7 +6880,8 @@
           },
           "wizard": [],
           "flag": null
-        }
+        },
+        "note": "the podium is a field's top three, and a field's final says only who wins (final winner; POS least is first only): a top-three settle is G3's"
       },
       {
         "id": "w054",
@@ -6584,7 +6891,6 @@
           "event": "World Series"
         },
         "words": "world series mvp pool",
-        "step": "L4",
         "expect": {
           "about": {
             "sport": "baseball",
@@ -6601,7 +6907,9 @@
           "flag": "refuse",
           "flagBy": "resolver",
           "why": "an award isn't in the box scores"
-        }
+        },
+        "planned": false,
+        "note": "ESPN's data names no MVP: the GPT offers the nearest that plays (who has the most hits or home runs in the series)"
       },
       {
         "id": "w055",
@@ -6609,10 +6917,11 @@
         "page": {
           "sport": "soccer",
           "league": "Premier League",
-          "event": null
+          "event": null,
+          "espn": "soccer/eng.1"
         },
         "words": "Premier League this weekend, draft 3 strikers each, goals 5 assists 3",
-        "step": "L3",
+        "step": "G3",
         "expect": {
           "about": {
             "sport": "soccer",
@@ -6638,7 +6947,8 @@
           },
           "wizard": [],
           "flag": null
-        }
+        },
+        "note": "strikers only is a pool of one position (forwards): the draft and its table play now (G 5, A 3), a pool by position is G3's"
       },
       {
         "id": "w056",
@@ -6646,7 +6956,8 @@
         "page": {
           "sport": "basketball",
           "league": "NCAA",
-          "event": "March Madness"
+          "event": "March Madness",
+          "espn": "basketball/mens-college-basketball"
         },
         "words": "march madness bracket",
         "step": "L4",
@@ -6662,17 +6973,18 @@
           "flag": "question",
           "flagBy": "resolver",
           "why": "March Madness is months away"
-        }
+        },
+        "note": "a bracket of a league's playoffs plays on the NBA's (L8 part 1's engine items, part 2: the defaults' bracket); college's tournament isn't read as a playoffs slate yet"
       },
       {
         "id": "w057",
         "group": "sports",
         "page": {
           "sport": "basketball",
-          "event": "Knicks"
+          "event": "Knicks",
+          "espn": "basketball/nba"
         },
         "words": "the knicks game tonight: top scorer and whether they win",
-        "step": "L4",
         "expect": {
           "about": {
             "sport": "basketball",
@@ -6695,6 +7007,42 @@
           "flag": "question",
           "flagBy": "resolver",
           "why": "check there's a Knicks game tonight"
+        },
+        "spec": {
+          "spec": 1,
+          "span": {
+            "from": 1,
+            "to": 1
+          },
+          "get": {
+            "by": "none"
+          },
+          "score": {
+            "by": "answers"
+          },
+          "ask": [
+            {
+              "id": "top",
+              "ask": "Who scores the most points?",
+              "answer": "person",
+              "points": 1,
+              "settle": {
+                "by": "stat",
+                "stat": "PTS",
+                "take": "most"
+              }
+            },
+            {
+              "id": "winner",
+              "ask": "Do the Knicks win?",
+              "answer": "side",
+              "points": 1,
+              "settle": {
+                "by": "final",
+                "take": "winner"
+              }
+            }
+          ]
         }
       },
       {
@@ -8270,7 +8618,6 @@
           "event": "Ryder Cup"
         },
         "words": "ryder cup draft",
-        "step": "L3",
         "expect": {
           "about": {
             "sport": "golf",
@@ -8282,7 +8629,9 @@
           "flag": "question",
           "flagBy": "resolver",
           "why": "the Ryder Cup isn't this year"
-        }
+        },
+        "planned": false,
+        "note": "the Ryder Cup is match play: ESPN's golf here is stroke play (golf.ts reads a field's rounds, not matches)"
       }
     ]
   }

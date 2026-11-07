@@ -209,7 +209,8 @@ and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track
 | Game pages (2026-10-30) | **Planned** (the user's idea): the Games tab stays the overview (the moves and each game's brief first) and launches each game's own page, opened over the show (no per-game tabs). Pages are generated from the spec, the game's state and the seat, never designed one by one: track V (a research spike, a first look, a review set of a few hundred games), then U0 frames them and U1 builds them. |
 | A pool's finale (2026-10-30) | **Only the winner survives the finale** (the user: "it keeps the game rules consistent: pick the player that survives the episode"; chosen over the finalists surviving it, high stakes accepted). A finale pick is right only when its person is who the results record as winning (each winner, on a show with several); a finalist who loses is out like any exit; on a show with no winner, whoever isn't among the episode's exits survives, as on any night. Data settles it. It changes today's pools' finales (Survivor 51's Survival Pool on Dec 16): built and merged before then. |
 | A preset's rule (2026-10-30) | **Open until the engine is complete** (the user). Whether a tapped preset meets the same data-can-settle rule as the GPT's games: R1 part 1's question, options (a) to (c) in its Noticed (Claude recommends (a)). The user's reason: what the moments say research can answer may differ from what research reliably returns at the end of each episode. So decide it on what research actually returns: the season tapes hold every research answer, episode by episode, so each moment's real rate can be measured then. Nothing running is affected meanwhile (no couch plays a show with couch-answered moments). A fourth option, from "Custom moments" below: (d) a preset's couch-answered moment goes through the same feasibility ask, becoming a question research answers each episode if it's feasible, else scoring 0. |
-| Custom moments (2026-10-30) | **Allowed, sometimes encouraged** (the user: "a fun league of Below Deck that just every week players guess 'did someone cry'"). A moment the show's research doesn't cover, typed to the GPT or added by hand (Make it ours included), takes the new-moment path in "Our check": a short feasibility ask at the start (how reliably research can answer it each episode, from recaps), and, if it's feasible, a question research asks after every episode (it won't come up unless it's asked explicitly). The user leans toward allowing somewhat-reliable moments (crying "will likely be mentioned in post episode recaps"); the bar (high only, or medium too) is still open. Claude's recommendation: medium too, with three nets: the feasibility answer shown to the maker, an episode research can't settle voided (no points either way), and the game's real answer rate shown as the season goes. Before the bar is set, measure on the season tapes whether the feasibility ask predicts what research actually returns (the user's concern in "A preset's rule"). **Measured (G1 part 4, 2026-11-07, docs/STUDY-added-moments.md):** the rating orders reliability but not its level: on questions research already asks, high settled 99% of episodes, medium 93%, low 83%; on new moments none was rated high, medium settled 60% (3 of 10 at 90% or more), low 53%. Claude still recommends medium, with the void (built) and, after a moment's first three episodes, its real rate shown and a warning under 50% (U1). |
+| Custom moments (2026-10-30) | **Allowed, sometimes encouraged** (the user: "a fun league of Below Deck that just every week players guess 'did someone cry'"). A moment the show's research doesn't cover, typed to the GPT or added by hand (Make it ours included), takes the new-moment path in "Our check": a short feasibility ask at the start (how reliably research can answer it each episode, from recaps), and, if it's feasible, a question research asks after every episode (it won't come up unless it's asked explicitly). The user leans toward allowing somewhat-reliable moments (crying "will likely be mentioned in post episode recaps"); the bar (high only, or medium too) is still open. Claude's recommendation: medium too, with three nets: the feasibility answer shown to the maker, an episode research can't settle voided (no points either way), and the game's real answer rate shown as the season goes. Before the bar is set, measure on the season tapes whether the feasibility ask predicts what research actually returns (the user's concern in "A preset's rule"). **Measured (G1 part 4, 2026-11-07, docs/STUDY-added-moments.md):** the rating orders reliability but not its level: on questions research already asks, high settled 99% of episodes, medium 93%, low 83%; on new moments none was rated high, medium settled 60% (3 of 10 at 90% or more), low 53%. Claude still recommends medium, with the void (built) and, after a moment's first three episodes, its real rate shown and a warning under 50% (U1). **Decided (the user, 2026-11-07): the bar stays medium** ("G1's answers", below). |
+| G1's answers (2026-11-07) | **The user, on G1's open questions:** the four prompts approved (the words to a game, a typed change, the reliability ask, and the added moments' short ask); the new-moment bar stays **medium**; the bot's priority queue (llm-browser-api's `JobQueue`) is **not deployed to the VM until U1**; an added moment's 0-point lines in a game that doesn't name it are **hidden in U1** (the episode breakdown leaves them out). |
 | A replacement's multiplier (2026-11-05) | **On what the replacement earns while it's yours, on every kind of draft, an Outlast included** (the user: "your assumptions are correct"; C1's Noticed). "The new player who replaces your lost one scores 0.5x" multiplies the points they earn from the episode after they join, never their whole place: in an Outlast, the boots they outlast while yours. An Outlast without a multiplier keeps today's count (whoever holds someone now has their whole place). Built in C3. |
 | A shared game's two holders (2026-11-06) | **Per holder, from the live games' next episode on** (the user, on C4's Noticed): someone who goes home in an episode not yet played is owed a replacement on every team that held them, one replacing them settling only their own. Every exit already played stays as it played out (no past loss owed again, no standings moving backwards); games made from now on are per holder from the start; C4's games as they are. As data, never a date or a league named in code: each existing game carries its cutover (`settings.perHolderFrom`, migration 0207: the first episode it hadn't played; Survivor 51's live games, Episode 8). Built as C4b, before Episode 8's results (Wed Nov 11). |
 | A sports week (2026-11-06) | **The episode, wherever the season has episodes of its own** (the main session's call, as the sports track's orchestrator; built in L8 part 3): a league's slate's episode (ESPN's own week for football, Monday to Sunday or a day for the NBA, NHL and MLB, a round for soccer) is the week for its locks, its matchups and the screens, locking at its own first game whatever the spec's `closes` says. Tuesday to Monday (Eastern) only where nothing else defines the week: a team's season and a matchup's series, one game an episode. |
@@ -11045,6 +11046,101 @@ first), and proves it on these games and on the tracker's other rows that use it
     (U0/U1, impeccable).
 - **G3. The GPT learns sports** (after the sports branch merges): teams and games from ESPN's schedule, stat words to the
   Sport's keys, sports settles, and the over/under line from ESPN's odds. The Red Sox and 76ers sentences pass end to end.
+  **In parts (2026-11-07):** part 1, a sport's season as G1's page (the pack, the manual, our check, the server's pack, the
+  tracker's sports pages: built, As built below); part 2, a team's page (the words pick the games from the team's schedule:
+  "the upcoming series", "the home opener", "the next 5 games"; our check holds them against the schedule, a game already
+  played asked about; the route makes the matchup, L1 part 3's `makeMatchup`, and drafts on its page); part 3, the tracker's
+  sports rows that wait on a piece (a field's top three for a podium, w053; a draft from one position, w055) and the rolled
+  game's sentence (the main session's 12:15 PM note: every piece the short form shows is in the sentence; the majority
+  question's words).
+  **Part 1 as built (2026-11-07, `engine`; no migration, no screen):**
+  - **A sport's page** (`src/lib/sports/page.ts`, new, pure): `sportPageContext(league, { show, person, part, playoffs })`, what
+    a spec on a sport's games is checked against: `specContextOf`'s (stats, positions, formats, shape, periods, sizes, a playoffs
+    slate's draw) with its words and what a sport's results never say (`results`, `winner`, `trivia`, `jury`, `votes` false; no
+    moments, phases or roles), so a show's questions ("who goes home") are refused on it. `statWords(sport)` (each stat's key,
+    label, short form and noun: the Sport's own `StatDef`s), `statKeyOf(sport, words)` (game-words pack.js `statKeyIn`, the one
+    reading our check uses: a key in any case, a column's short form where one stat has it, a label or noun singular or plural,
+    "RBIs" RBI; words that fit two stats name neither), `sportGames(league, { playoffs })` (the defaults' specs with their `about`,
+    a playoffs-only one only on a playoffs page), `sportStandard(league)` (the standard table, starters, bench, locks).
+  - **The pack** (`pack.js`, a sport's input): its sport and ESPN's league, its teams, its games (each episode's: when, its sides
+    and which is home, whether it's started, ESPN's line on the total only while it's still to play, called off; never a score,
+    so the pack can't spoil a game someone hasn't watched), `gamesMore`, its players each with their team as group and position
+    as role (`castMore` past a cap), the stats in their words, the sport's standard scoring and games; no moments, roles or
+    couch's-word list; `knows` the finals, players' stats and lines. `idsOf` adds teams and stats.
+  - **The manual** (`manual.js`): on a sport's page, a sports section in place of the presets (points per stat by key, the
+    `final` and `stat` settles with their answers and `of` a team, `line: "game"` and never a line they didn't say, one game's span
+    for a final asked once, `each: "game"`, the locks, a span of the page's games) and the sport's standard games (their tables
+    left out: our check fills them in, so a football table's 31 keys never reach the prompt); `WORDS` gains `show` lists (a show's
+    scoring, settles, answers, cards, roles and group slots), so a sport's page offers only what plays on it; a page's examples
+    and field examples are its kind's only (a sport's page shows sports requests, a show's never a sport's). FIELDS `ask.line`
+    says `"game"`.
+  - **Our check** (`check.js` `sportFixes`, on a sport's page, before the numbers): a stat named by its words its key ("home_run",
+    "total bases", "points": a `quiet` fix, shown as assumed, never asked: it's what they said), a stats score with no table the
+    sport's standard one (Yahoo's), a pool's right pick one who scores (`score.means`), an over/under on a game's total with no line
+    of theirs `line: "game"` (a number they said stays theirs), a team named by its name its id (one the page hasn't got: out, and
+    asked "Count it for one team, or the whole game?"), a show's preset (or a show's scoring) the sport's own game most like it
+    (asked which); a sport's page whose pack lists every game takes its last game as the season's end (a one-game matchup's span
+    1 to 1 isn't a number they didn't say); "Which game?" offers the sport's standard games (`SPORT_GAME_LABELS`).
+  - **The server** (`game-words.ts`): a show of kind sport whose linked games ESPN reads is a sport's page (`sportPart`: the
+    league its linked games mostly are, the games from `season_events` and `sports_events`, the next 16 to play and the last 3
+    played, a playoffs slate's bracket), its rules the sport's (a matchup's league show needn't be a game yet: a show's rules are
+    read only for a show), its players through the asker's mark (`shown_from`) up to 150; the manual and our check get the
+    sport's standard games.
+  - **The tracker** (`capability-rows.ts`, `capabilities.js`): a sport's page names its ESPN league (`espn`), checked against the
+    sport (`playoffs` for a playoffs page). Specs for p2 (the homer draft), w002 (the user's Red Sox–Yankees sentence), w003 (the
+    76ers sentence, on the game's own line), w029 (NFL pick'em for week 9, each game), w030 and s62 (football's season, head to
+    head), w031 (World Series game 5: the winner and the runs on the game's line), w051 (the winner and the margin), w052 (the
+    Lakers' next five: 2 each, points, rebounds and assists), w057 (the Knicks tonight); s59 to s61 now A15's (live calls on its
+    clock), w053 and w055 G3's (part 3), w054 (an MVP: no such data) and w104 (the Ryder Cup: match play) not planned. **233 ✅**
+    (was 223), 28 ⏳ (A15 19, A14 2, L4 1, G1 3, G3 2). `tests/fixtures/game-specs.js`'s two sports examples are on their own
+    matchup's page now (no team filter, the game's own line): they play today (active-roster, questions).
+  - **impeccable (clarify)** on the words our check hands the wizard on a sport's page: the "Which game?" chips as short parallel
+    names fans use ("Season-long league", "Draft a few players", "Pick'em", "Pick the game's top players", "Categories, head to
+    head", "Roto", "Best ball", "Squares", "Bracket"; no articles, each fits a chip at 390), "table" (our word) out of "Players score
+    by their stats. Use the standard points?" ("Standard points"), and "Count it for one team, or the whole game?" over "Whose:
+    which team, or the whole game?". U0 settles them with the wizard.
+  - **Checks:** `tests/game-words-sports.test.js` (7, new: the stat words, the sport's ctx, the pack, the manual, the Red Sox and
+    76ers sentences drafted as a bot might and the Red Sox game set as a league's game on the sport's ctx, the check's readings);
+    the bank (`tests/fixtures/game-words/bank.js`: a sport's page's pack and standard games, `checkOpts`) so the ideal-draft test
+    covers the sports rows too; `tests/pieces.test.js` knows stats' scorer; 1,967 unit tests passing; the type check;
+    `scripts/dev-test/check-sports-words.js` (new, reusable: stand-in ESPN and bot, zt- rows, through `gameWords`): 17 checks pass
+    (the pack's sport, teams, game with its home side and line and no score, players by team and position, stats and standard
+    games, no moments; the manual; the 76ers sentence the tracker's own game with PTS and the game's line read; the ask kept; a
+    typed change; the Lakers request on a series' page). `check-game-words.js --real` takes sports requests (`--only=w002,w003`).
+    **The real bot** (the local bot, ChatGPT, one at a time while idle; the bank's pages, which have no schedule): 8 sports requests,
+    8 games, **5 the tracker's exact game** (p2, the Red Sox sentence w002, the 76ers sentence w003, w051, w057) and 3 its shape:
+    w029 without `each: "game"` (the bank's NFL page lists no games, so nothing says a week has several), w031 with "Who wins
+    Game 5?" for its question's words, w052 with the span the words said (the next 5 games, more exact than the tracker's). The
+    Red Sox sentence came back asking how much of the series and whether players can be shared; the one-game ones asked "Which
+    episode does it end with?", because the bank's pages have no games (on a real page the pack's games make it the season's end:
+    check-sports-words.js shows it).
+  - **The code review** (`/code-review` at medium, before the commit). Fixed: a show's preset swapped for the sport's game left the
+    parts it copied unassumed, so the standard table's every number was dropped as unsaid (each copied part is now assumed, the
+    preset dropped and asked which game, never a sport game's id in `preset`); a stat's key read from its words was recorded at the
+    old path with the key as its value, and a number said of it was dropped (the fix at the new path with its points, what was said
+    or assumed of the old path moved with it); a team named by words that fit two teams picked the first (now neither, and asked);
+    a line ESPN stored as text would have failed the whole pack's query (read only when it's a number); a show's page read its rules
+    after the season's headers instead of beside them (in parallel again, its 404 thrown only for a show); a sport's page ran a
+    show's exits and groups queries for nothing; repeated ternaries; a doc comment on the wrong field. Not taken: "a season with two
+    slates" (a slate is keyed by its season: one at most). G1's `check-game-words.js` (through the route, on the stand-in: 27
+    checks) passes on the final code, as does `check-sports-words.js`.
+  - **Long checks:** none. `state-logic.js` and the scorers are untouched (the tracker's new specs and our check's words only), so
+    golden, blind and the rehearsal read the same by construction.
+  **Noticed (G3 part 1):**
+  - **Everyone drafted and scored by a sport's stats is typed active-roster** (`typeOf`), whose flags say a lineup
+    (`hasActiveRoster`), while its pieces say none (count all). The pieces are right; a screen reading the type's flag would show
+    a lineup that isn't there. `tests/pieces.test.js` checks that flag apart for this shape. Recommended: the screens read the
+    pieces (U1), or R3 drops the type's flags. (R3 or U1.)
+  - **A player's own stat can't be asked** (`settle.of` a player): a spec's player is the league's castaway id, which exists only
+    once the league is made, so our check takes an `of` that isn't a team out and asks. Recommended: Start a game maps the
+    season's cast ids to the league's (U1), then `of` takes a player from the pack. (U1, with G3 part 2.)
+  - **A slate's episode is a week, but the words say "Game 9"** ("before Game 9" for NFL week 9): describe.js reads the part's word
+    from the ctx, and a slate's show is "Games". Recommended: a slate's part word "week" (or its cadence's) in `sportPart` and the
+    tracker's page. (G3 part 2, small.)
+  - **A team's whole season casts every team it plays** (rosterFromEvents), so its pack's players are capped at 150 (its first
+    teams first) and a draft from "the Lakers' players" can't be said (`pool.where.teams` is still the sports branch's value in
+    VOCAB). Recommended: part 2 builds `pool.where.teams` (a holding from those teams only), or a team's page drafts from its own.
+    (G3 part 2.)
 - **G4. Randomize, no UI** (the user, 2026-10-29; the wizard's other door, above). `rollSpec(ctx, locks, seed)` in
   `src/lib/game/game-spec/`, pure like the rest: a seeded roll over the spec's vocabulary within the context pack, the locks
   held, our check the gate (a roll that fails is rolled again from the next seed, a bounded number of times, then the nearest

@@ -3,8 +3,13 @@
 // pure, so a test or the bank (tests/fixtures/game-words/) can build one without a database. Only the moments research answers
 // can score (the data-can-settle rule), so the couch's-word ones are listed apart, as moments a game can't score.
 //
+// G3: a sport's page adds its sport (id, name and ESPN's league), its teams, its games (each episode's: when, its sides and
+// which is home, whether it's started, and ESPN's line on its total while it's still to play: never a score, so the pack can't
+// spoil a game someone hasn't watched), the stats a request can name (each key with its words: the Sport's own) and the sport's
+// standard scoring, lineup and games; its people are its players, each with their team (as a group) and position.
+//
 //   packOf(input) -> the pack (plain JSON, as the prompt embeds it)
-//   idsOf(pack)   -> { moments, phases, roles, groups, people }: the ids a draft may name, each a Set
+//   idsOf(pack)   -> { moments, phases, roles, groups, people, teams, stats }: the ids a draft may name, each a Set
 const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
 const str = (v) => (typeof v === 'string' && v.trim() ? v.trim() : null);
 const int = (v) => (Number.isInteger(v) ? v : null);
@@ -53,8 +58,10 @@ function packOf(input) {
       in: c.in !== false,
       ...(isObj(c.out) && int(c.out.episode) ? { out: { episode: c.out.episode, ...(str(c.out.how) ? { how: c.out.how } : {}) } } : {}),
       ...(str(c.group) ? { group: c.group } : {}),
+      ...(str(c.role) ? { role: c.role.trim() } : {}),
     })),
-    stillIn: cast.filter((c) => c.in !== false).length,
+    ...(int(i.castMore) ? { castMore: i.castMore } : {}),
+    stillIn: cast.filter((c) => c.in !== false).length + (int(i.castMore) ?? 0),
     moments: scored.map((m) => ({ id: m.id, says: str(m.label) || m.id, ...(pointsOf(m.defaultPoints) !== null ? { points: pointsOf(m.defaultPoints) } : {}) })),
     ...(couchWord.length ? { couchWordOnly: couchWord.map((m) => ({ id: m.id, says: str(m.label) || m.id })) } : {}),
     roles: Array.isArray(ctx.roles) ? ctx.roles.filter(str) : [],
@@ -73,7 +80,88 @@ function packOf(input) {
         }
       : null,
   };
-  return pack;
+  return i.kind === 'sport' ? sportPack(pack, i) : pack;
+}
+
+/** A sport's page: its sport, teams, games, stats and standard game in place of a show's moments, phases and roles. */
+function sportPack(pack, i) {
+  const sport = isObj(i.sport) && str(i.sport.league) ? { id: str(i.sport.id) || i.sport.league.split('/')[0], ...(str(i.sport.name) ? { name: i.sport.name.trim() } : {}), league: i.sport.league.trim() } : null;
+  const side = (x) => (isObj(x) && str(x.id) && str(x.name) ? { id: x.id, name: x.name.trim(), ...(x.home === true ? { home: true } : {}) } : null);
+  const games = (Array.isArray(i.games) ? i.games : [])
+    .filter((g) => isObj(g) && int(g.episode))
+    .map((g) => ({
+      episode: g.episode,
+      ...(str(g.at) ? { at: g.at } : {}),
+      ...(str(g.id) ? { id: g.id } : {}),
+      ...(str(g.name) ? { name: g.name.trim() } : {}),
+      sides: (Array.isArray(g.sides) ? g.sides : []).map(side).filter(Boolean),
+      started: g.started === true,
+      ...(typeof g.line === 'number' && Number.isFinite(g.line) && g.started !== true ? { line: g.line } : {}),
+      ...(str(g.called) ? { called: g.called } : {}),
+    }));
+  const teams = new Map();
+  for (const t of Array.isArray(i.teams) ? i.teams : []) if (side(t)) teams.set(t.id, { id: t.id, name: t.name.trim() });
+  for (const g of games) for (const t of g.sides) if (!teams.has(t.id)) teams.set(t.id, { id: t.id, name: t.name });
+  const stats = (Array.isArray(i.stats) ? i.stats : [])
+    .filter((x) => isObj(x) && str(x.key))
+    .map((x) => ({
+      key: x.key,
+      says: str(x.says) || x.key,
+      ...(str(x.short) && x.short !== x.key ? { short: x.short } : {}),
+      ...(str(x.one) && plain(x.one) !== plain(str(x.says) || '') ? { one: x.one } : {}),
+      ...(x.place ? { place: true } : {}),
+      ...(x.rate ? { rate: true } : {}),
+    }));
+  const st = isObj(i.standard) ? i.standard : null;
+  const rest = { ...pack };
+  for (const k of ['moments', 'couchWordOnly', 'roles']) delete rest[k];
+  return {
+    ...rest,
+    ...(sport ? { sport } : {}),
+    teams: [...teams.values()],
+    games,
+    ...(int(i.gamesMore) ? { gamesMore: i.gamesMore } : {}),
+    stats,
+    ...(st
+      ? {
+          standard: {
+            ...(isObj(st.scoring) ? { scoring: st.scoring } : {}),
+            ...(int(st.starters) ? { starters: st.starters } : {}),
+            ...(int(st.bench) !== null ? { bench: st.bench } : {}),
+            ...(str(st.locks) ? { locks: st.locks } : {}),
+            games: (Array.isArray(st.games) ? st.games : []).filter((g) => isObj(g) && str(g.id) && str(g.about)).map((g) => ({ id: g.id, about: g.about })),
+          },
+        }
+      : {}),
+    knows: { finals: true, playerStats: stats.length > 0, lines: games.some((g) => g.line !== undefined) },
+  };
+}
+
+/** Words as compared: lower case, letters and digits, single spaces. */
+const plain = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9+%]+/g, ' ').trim();
+/** "home runs" and "home run" alike, "rbis" and "rbi": each word's last s taken off (never a pass's or a bonus's), on both sides. */
+const singular = (s) => s.replace(/\b([a-z0-9]{2,}?)s\b/g, (m, stem) => (/(s|u)$/.test(stem) ? m : stem));
+const said = (s) => singular(plain(s).replace(/^(an?|one|each|every|per|the)\s+/, ''));
+
+/**
+ * G3: the stat some words name among a sport's `stats` ({ key, says, short?, one? }: the pack's, or sports/page.ts statWords), its
+ * key, or null: a key as it is ("HR", any case), a column's short form where only one stat has it (a hitter's hits and a pitcher's
+ * hits allowed share "H"), or its words or its noun, singular or plural ("home runs", "a home run", "total bases", "RBIs"). Never a
+ * guess: words that fit two stats name neither.
+ */
+function statKeyIn(stats, words) {
+  const w = String(words == null ? '' : words).trim();
+  const list = (Array.isArray(stats) ? stats : []).filter((x) => isObj(x) && str(x.key));
+  if (!w || !list.length) return null;
+  const exact = list.find((x) => x.key === w) || list.find((x) => x.key.toUpperCase() === w.toUpperCase());
+  if (exact) return exact.key;
+  const w2 = said(w);
+  const hits = new Set();
+  for (const x of list) {
+    if (said(x.short || x.key) === w2) hits.add(x.key);
+    if ([x.says, x.one].some((y) => str(y) && said(y) === w2)) hits.add(x.key);
+  }
+  return hits.size === 1 ? [...hits][0] : null;
 }
 
 /** The ids a draft may name, from its pack. */
@@ -86,7 +174,9 @@ function idsOf(pack) {
     roles: new Set(p.roles || []),
     groups: new Set((p.cast || []).map((c) => c.group).filter(Boolean)),
     people: new Set((p.cast || []).map((c) => c.id || c.name)),
+    teams: new Set((p.teams || []).map((t) => t.id)),
+    stats: new Set((p.stats || []).map((x) => x.key)),
   };
 }
 
-module.exports = { packOf, idsOf };
+module.exports = { packOf, idsOf, statKeyIn };
