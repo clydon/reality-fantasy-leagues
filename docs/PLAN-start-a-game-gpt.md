@@ -3622,6 +3622,13 @@ week: L8 part 3), and its lineup is set game by game inside it.
   the lineup then and tomorrow's for the one set today. `check-slate.js` passes. The placement corpus: no spec moves (its kinds score
   by moments, which refuse 'game' as the engine before refused an unknown lock). 1,858 unit tests pass; `tsc` clean.
 
+- **The long checks, last, on `3f73a27c` (it touches state-logic.js):** `golden.js --before=596b69d2` (the step before): Survivor 49,
+  The Challenge 40 and The Traitors US 4, 74 games, 9,548 reads, every one the same. The Survivor 51 rehearsal (`season-forward.js
+  rehearse --from=../reality-fantasy-leagues/backups/prod-2026-10-30 --scenario=realistic,rough,dst --before=596b69d2`): every
+  invariant holds in all three scenarios, flag off and on the same, the engine before against this tree's the same (2,856 reads
+  each). The blind replays (`blind.js run` on each season loaded here): every game played through, Survivor 49 156 of 156, The
+  Challenge 40 115 of 115, The Traitors 4 110 of 110.
+
 **L8 part 1's engine items, part 1 noticed, not fixed:**
 - **The lineup screens show the episode open until its last game** (`isLineupLocked`), not who's locked: U1's screen (through
   impeccable) reads `heldLocked` per holding (`ep.gameStarts`, `ep.holdingGames` are on the view) to show each locked one and until
