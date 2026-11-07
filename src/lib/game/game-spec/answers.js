@@ -38,6 +38,10 @@
 //     bot           (A14 part 2) Map 'question|episode' (the window's key: 0 asked once) -> the bot's own call on a question played
 //                   against it (q.beat), for each window whose lock has passed and the bot called (bot_calls); the server's
 //                   (answer-points.ts botCallsFor), never the state's: without it, a question played against the bot waits
+//     outside       (A14 part 7) Map episode -> each outside number asked of it, by its key (schema.js outsideKey: 'tvmaze:rating:7'):
+//                   { state: 'value', value } once it's read and stored, { state: 'none', why } when the source had none by its
+//                   moment, { state: 'pending' } before; the server's (outside-numbers.ts outsideNumbersFor), never the state's:
+//                   without it, an outside number waits
 //   }
 //   and each episode's `points` (A8): each person's points in it by the game's rules, once its full results are in
 //
@@ -62,7 +66,7 @@
 //   factsThrough(facts, k)        the facts as they stood once episode k was in (A11 part 2b's walk)
 //   answerProblem(q, value, faces) why an answer can't be given (null: it can), faces: who (or which groups) it can name
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
-const { YES_NO, NAMES, NUMBERS, optionRange, isBeat, ODDS, ticketOf, isCardLine, cardMoment, cardWaiting } = require('./schema.js');
+const { YES_NO, NAMES, NUMBERS, optionRange, isBeat, ODDS, ticketOf, isCardLine, cardMoment, cardWaiting, outsideKey } = require('./schema.js');
 // C2 part 3 (docs/PLAN-start-a-game-gpt.md track C): a window's points are the scoring sequence's lines and combines; the grading
 // (which answers are right, and how many right ones each has) is here.
 const Seq = require('../sequence/index.js');
@@ -362,6 +366,23 @@ function factVerdict(q, episode, facts) {
 }
 
 /**
+ * A14 part 7: a number from a vetted outside source (facts.outside: the stored number, the server's), graded once its episode has
+ * results as far as the viewer has seen (the spoiler guard's, as any question about the episode) and its number is stored: read once,
+ * `after` days after the episode aired, so every league on the season reads the same one. Its fallback from the start is void, no
+ * points either way: the source had none by then (TVmaze's rating needs enough votes), or the season wasn't linked to it any more.
+ * Not read yet (its moment is still to come, or the read is still being tried): waiting. No numbers read at all: waiting.
+ */
+function outsideVerdict(q, episode, facts) {
+  if (!facts.episodes.has(episode)) return WAITING;
+  if (!(facts.outside instanceof Map)) return WAITING;
+  const said = facts.outside.get(episode);
+  const o = said ? said[outsideKey(q.settle)] : undefined;
+  if (!o || o.state === 'pending') return WAITING;
+  if (o.state === 'value' && Number.isFinite(o.value)) return known([], o.value);
+  return off(`${o.why || 'There was no rating for it'}: it doesn't count either way`);
+}
+
+/**
  * A14 part 1: a question the players' own answers settle (settle.by 'players'), from `answers`, the window's answers that settle it
  * (its own, or with `of` the game's question it names: the grader's, [{ playerId, answer }]): the answer most of them gave is right
  * (majority), or the one fewest did (minority). Data settles it, the couch's answers, never what happened on the show. Known once its
@@ -482,6 +503,7 @@ function plainVerdict(q, episode, facts, answers) {
   const st = q && q.settle;
   if (st && st.by === 'players') return playersVerdict(q, episode, facts, answers);
   if (st && st.by === 'trivia') return triviaVerdict(episode, facts);
+  if (st && st.by === 'outside') return outsideVerdict(q, episode, facts);
   if (st && st.by === 'fact') {
     const fg = timelineGroups(q, episode, facts);
     return fg ? onTimeline(q, factVerdict(q, episode, facts), fg, facts) : forGroups(q, factVerdict(q, episode, facts));
@@ -673,7 +695,9 @@ function rightAnswers(q, v, facts) {
     let right;
     // A count's range (never who it happened to most, whose verdict carries the top count too), a yes or no, or names.
     if (NUMBERS.includes(`${q.settle.by}:${q.settle.take}`)) {
-      right = value === null ? [] : opts.filter((o) => { const r = optionRange(o); return r && value >= r.min && value <= r.max; });
+      // A14 part 7: an outside number's ranges go to a tenth (a rating).
+      const decimals = q.settle.by === 'outside';
+      right = value === null ? [] : opts.filter((o) => { const r = optionRange(o, decimals); return r && value >= r.min && value <= r.max; });
     } else if (v.right.length && v.right.every((r) => YES_NO.includes(r))) right = opts.filter((o) => v.right.includes(norm(o)));
     else {
       // Names: the people who were right, and the groups they were on (which tribe won).
@@ -842,8 +866,11 @@ function pointsFor(q, v, answers, facts) {
     const value = valueOf(v);
     const given = answers.filter((a) => isNum(a.answer));
     if (value === null || !given.length) return out;
-    const best = Math.min(...given.map((a) => Math.abs(a.answer - value)));
-    for (const a of given) if (Math.abs(a.answer - value) === best) out.set(a.playerId, (out.get(a.playerId) || 0) + pts);
+    // A14 part 7: how far off, to a millionth, so two guesses a tenth either side of a rating tie (8.2 and 8.4 on an 8.3 aren't
+    // 0.0999... and 0.1000...1 apart); a count's are whole numbers, as before.
+    const gap = (a) => Math.round(Math.abs(a.answer - value) * 1e6) / 1e6;
+    const best = Math.min(...given.map(gap));
+    for (const a of given) if (gap(a) === best) out.set(a.playerId, (out.get(a.playerId) || 0) + pts);
     return out;
   }
   const right = rightAnswers(q, v, facts);
@@ -1051,7 +1078,9 @@ function answerProblem(q, value, faces, o) {
       return null;
     }
     case 'yesNo': return YES_NO.includes(value) ? null : 'Yes or no';
-    case 'number': return isNum(value) && value >= 0 && value <= 100000 ? null : 'A number, 0 or more';
+    // A14 part 7: an episode's rating, 0 to 10.
+    case 'number': if (isObj(q.settle) && q.settle.by === 'outside') return isNum(value) && value >= 0 && value <= 10 ? null : 'A rating, 0 to 10';
+      return isNum(value) && value >= 0 && value <= 100000 ? null : 'A number, 0 or more';
     case 'overUnder': return value === 'over' || value === 'under' ? null : 'Over or under';
     case 'choice': return Array.isArray(q.options) && q.options.includes(value) ? null : 'One of its options';
     // A8's kinds.
@@ -1116,6 +1145,7 @@ function factsThrough(facts, k) {
     seen: Number.isInteger(facts.seen) ? Math.min(facts.seen, k) : k,
     ...(facts.formatGroups ? { formatGroups: upTo(facts.formatGroups) } : {}),
     ...(facts.episodeFacts ? { episodeFacts: upTo(facts.episodeFacts) } : {}),
+    ...(facts.outside ? { outside: upTo(facts.outside) } : {}),
   };
 }
 

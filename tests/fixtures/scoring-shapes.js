@@ -49,7 +49,9 @@
 // stamped on the league as the server stamps it, o.twists) likewise, from part 5's engine, proven by hand in tests/twist.test.js; the
 // 2,628 before them stay. A14 part 6's (a rotating host's questions: q-card-host and q-card-host-void in outsideShapes, each episode's
 // card as the server files it, its host named, CARD.HOSTED) likewise, from part 6's engine, proven by hand in tests/host-card.test.js;
-// the 2,718 before them stay:
+// the 2,718 before them stay. A14 part 7's (a number from a vetted outside source: q-outside, q-outside-lives and q-outside-pot in
+// outsideShapes, each episode's TVmaze rating as the server stores it, SERVER.outside) likewise, from part 7's engine, proven by hand
+// in tests/outside-number.test.js; the 2,754 before them stay:
 //   node tests/fixtures/scoring-shapes.js --write [--ref=<git ref>]      the record, from this tree's engine (or the ref's)
 //   node tests/fixtures/scoring-shapes.js --print <shape> <seat|-> <mark|-|all> [--ref=<git ref>]   one read, in full
 //   node tests/fixtures/scoring-shapes.js --diff [<shape>] [--ref=d5222e68]   where this tree's reads part from the ref's (the
@@ -388,6 +390,10 @@ const Q = {
   BET: { id: "bet", ask: "An idol found tonight?", answer: "yesNo", points: 1, asked: "each", wager: 5, settle: { by: "moment", moment: "idolFound", take: "happened" } },
   TRIVIA: { id: "trivia", ask: "Trivia about the episode before", answer: "trivia", points: 1, asked: "each", settle: { by: "trivia" } },
   QUOTE: { id: "quote", ask: "Who says the title quote?", answer: "person", points: 2, asked: "each", settle: { by: "fact", fact: "titleQuote", take: "who" } },
+  // A14 part 7: an episode's TVmaze rating, read 7 days after it airs: the closest, over or under 7.5, and a range.
+  RATING: { id: "rating", ask: "The episode's TVmaze rating?", answer: "number", points: 3, asked: "each", settle: { by: "outside", take: "rating" } },
+  RATING_OU: { id: "ratingou", ask: "Over or under 7.5 on TVmaze?", answer: "overUnder", line: 7.5, points: 1, asked: "each", settle: { by: "outside", take: "rating", source: "tvmaze", after: 7 } },
+  RATING_BAND: { id: "ratingband", ask: "Its TVmaze rating, roughly?", answer: "choice", options: ["0-6.9", "7-7.9", "8+"], points: 2, asked: "each", settle: { by: "outside", take: "rating" } },
   HERD: { id: "herd", ask: "Who goes home, as most of us say?", answer: "person", points: 2, asked: "each", settle: { by: "players", take: "majority" } },
   GUESS: { id: "guess", ask: "Who will most of us say goes home?", answer: "person", points: 3, asked: "each", settle: { by: "players", take: "majority", of: "boot" } },
   // C2 part 4a: a shrinking call that's shared.
@@ -458,6 +464,10 @@ const SAID = {
   many: { 2: { ann: 2, bo: 1, cy: 3, di: 0 }, 4: { ann: 0, bo: 1 }, 6: { ann: 1, cy: 1, di: 2 } },
   tribe: { 1: { ann: "t1", bo: "t2", cy: "t1" }, 2: { ann: "t2", di: "t1" } },
   winner: { 0: { ann: "c0", bo: "c4", cy: "c2", di: "c0" } },
+  // A14 part 7: guesses at each episode's TVmaze rating (SERVER.outside has what was read).
+  rating: { 1: { ann: 7.1, bo: 8, cy: 6.9, di: 7.6 }, 2: { ann: 8.2, bo: 8.4, cy: 7 }, 3: { ann: 7, bo: 9 }, 4: { ann: 6.5, bo: 7.5, cy: 7.4, di: 7.8 }, 5: { bo: 8, di: 8.1 }, 6: { ann: 7, cy: 8 } },
+  ratingou: { 1: { ann: "over", bo: "under", cy: "under" }, 2: { ann: "over", di: "under" }, 4: { ann: "under", bo: "over", cy: "under", di: "over" }, 5: { cy: "over" } },
+  ratingband: { 1: { ann: "7-7.9", bo: "8+" }, 2: { bo: "8+", cy: "7-7.9", di: "8+" }, 4: { ann: "0-6.9", di: "7-7.9" }, 5: { ann: "8+", bo: "7-7.9" } },
   only2: { 4: { ann: ["c6", "c9"], bo: ["c9", "c0"], cy: ["c4"] }, 5: { ann: ["c1"], di: ["c10", "c1"] }, 6: { ann: ["c11", "c8"], bo: ["c8", "c12"], di: ["c12", "c2"] } },
   chips: { 1: { ann: { c0: 6, c4: 4 }, bo: { c0: 10 }, cy: { c4: 10 } }, 3: { ann: { c2: 5, c0: 5 }, di: { c2: 3 } }, 5: { bo: { c4: 10 }, di: { c4: 1, c0: 9 } } },
   bet: { 1: { ann: { answer: "yes", stake: 3 }, bo: { answer: "no", stake: 5 }, cy: { answer: "yes", stake: 0 } }, 2: { ann: { answer: "no", stake: 2 }, bo: { answer: "yes", stake: 4 } }, 4: { cy: { answer: "yes", stake: 5 }, di: { answer: "no", stake: 1 } } },
@@ -499,6 +509,17 @@ const SERVER = {
       [4, { titleQuote: { state: "who", who: "c13", name: "C13" } }],
       [5, { titleQuote: { state: "who", who: "c2", name: "C2" } }],
       [6, { titleQuote: { state: "outside", name: "The host" } }],
+    ]),
+  }),
+  // A14 part 7: each episode's TVmaze rating as stored: Episode 1 7.0, 2 8.3, 3 none (void), 4 7.5 (right on the line), 5 8.0,
+  // 6 and 7 not read yet (waiting).
+  outside: () => ({
+    outside: new Map([
+      [1, { "tvmaze:rating:7": { state: "value", value: 7 } }],
+      [2, { "tvmaze:rating:7": { state: "value", value: 8.3 } }],
+      [3, { "tvmaze:rating:7": { state: "none", why: "TVmaze had no rating for it 7 days after it aired" } }],
+      [4, { "tvmaze:rating:7": { state: "value", value: 7.5 } }],
+      [5, { "tvmaze:rating:7": { state: "value", value: 8 } }],
     ]),
   }),
   bot: () => {
@@ -627,6 +648,11 @@ function outsideShapes() {
     // A14 part 6: a card a host chooses; then its fallback void and each host sitting out their own card.
     shape("q-card-host", game([CARD.HOSTSHEET], {}, undefined, { card: CARD.HOST }), CARD.HOSTLINES, { over: CARD.HOSTSAID, o: { cardChoices: CARD.HOSTED } }),
     shape("q-card-host-void", game([CARD.HOSTSHEET], {}, undefined, { card: { ...CARD.HOST, fallback: "void", hostAnswers: false } }), CARD.HOSTLINES, { over: CARD.HOSTSAID, o: { cardChoices: CARD.HOSTED } }),
+    // A14 part 7: an episode's TVmaze rating, as a number, an over/under and a range (Episode 3 void, 6 and 7 waiting); then a
+    // life on it (one, the closest keeps it) and a pot of it split.
+    shape("q-outside", game([Q.RATING, Q.RATING_OU, Q.RATING_BAND]), [Q.RATING, Q.RATING_OU, Q.RATING_BAND], { extra: SERVER.outside }),
+    shape("q-outside-lives", game([Q.RATING_OU, BOOT], { lives: 1, livesOn: ["ratingou"] }, { by: "standing" }), [Q.RATING_OU, BOOT], { extra: SERVER.outside }),
+    shape("q-outside-pot", game([{ ...Q.RATING_BAND, share: "split" }]), [Q.RATING_BAND], { extra: SERVER.outside }),
     ["calls", { preset: "weekly-calls" }, null, { none: true, outside: { each: 1 } }],
     ["bingo", { preset: "weekly-bingo", score: { by: "lines", points: 2 } }, null, { none: true, outside: { each: 2 } }],
     ["stages-points", stages("points"), null, { none: true, stages: true }],

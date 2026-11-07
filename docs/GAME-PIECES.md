@@ -421,12 +421,14 @@ players' own mechanics below, which settle the game, never a fact about the show
 | `calls` | none | the show's calls (Weekly Calls) |
 | `players` | `majority`, `minority` | the players' own answers: see "The players' own mechanics" |
 | `legs` | none | a ticket's legs (C6): `{ by: "legs", of: [the game's question ids] }`, your own answers to them in the window |
+| `outside` | `rating` | a number from a vetted outside source (A14 part 7): `{ by: "outside", take: "rating", source: "tvmaze", after: 7 }`, the episode's TVmaze rating (0 to 10) as it stood `after` days (1 to 30, 7 by default) after it aired, read once and stored |
 | `final`, `stat` | | a sport's finals and stats (the sports branch) |
 
 Which answers each settle can grade (`SETTLES_FOR` in the schema): a `person` by anything that names people (`results` out,
 stays, winner, placed, top; `moment` who, most, first; `role` who, end; `points` most; `fact` who; `players`); a `group` by
 `results` out, `moment` who, `fact` who, `players`; a `yesNo` by `moment` happened, `phase` happened, `players`; a `number` by
-a count (`moment` count, `role` count, `phase` starts, `moment` first); an `overUnder` by those or `players`; an `order` by
+a count (`moment` count, `role` count, `phase` starts, `moment` first) or an outside number (`outside` rating); an `overUnder` by
+those or `players`; an `order` by
 `results`, `moment` or `points` order; `confidence` and `chips` by anything that names people; `split` by `results` split;
 `pairs` by `results` outlast; a `choice` by anything (its options matched to the verdict).
 
@@ -443,6 +445,14 @@ What's refused here, and why:
   episode needs a window of several.
 - An episode fact is asked each episode, about that episode; trivia each episode, about the one before (its key is written
   after that one).
+- **An outside number** (A14 part 7): an episode's TVmaze rating, asked each episode about that one (never once, over a few or
+  about each person), answered as a `number` (the closest; a rating 0 to 10), an `overUnder` (its line) or a `choice` of ranges to
+  a tenth ("0-6.9", "7-7.9", "8+"). `db/outside-numbers.js` reads it once, `after` days after the episode aired, and stores it
+  (`outside_numbers`, per season: every league on the season reads the same number, and a later rating never changes it); the
+  server hands it to the grader (`facts.outside`). Its fallback, from the start: void ("it doesn't count either way") when
+  TVmaze had no rating then, the season isn't linked to TVmaze any more, or TVmaze couldn't be reached for three days past the
+  moment; until it's read, it waits. Refused: a season not linked to TVmaze ("This season isn't linked to TVmaze, so nothing can
+  settle its episodes' ratings"), another source, against the bot ("The bot doesn't call an episode's rating yet").
 
 ### Its window: `asked`, `every`, `over`, `closes`
 
@@ -827,7 +837,9 @@ each other stay hidden until the lock; what the players decide changes the game,
 - **A rotating host's questions** `card: { from: "host", ... }` (A14 part 6, above under "A new card each week"): each episode one
   of you, in turn, chooses the card's moments from the spec's list, and everyone answers them as the card's questions; the host's
   lines secret until the deadline, then filed on the episode; data still settles every line.
-- Still to build (A14's later part): numbers from a vetted outside source (an episode's TVmaze rating, settled once and stored).
+- **A number from a vetted outside source** `settle: { by: "outside", ... }` (A14 part 7, above under "What settles it"): an
+  episode's TVmaze rating, read once a few days after it airs and stored, so every league on the season reads the same number.
+  Not the players' own (data settles it), but the last of A14's pieces.
 
 ---
 
@@ -1000,7 +1012,8 @@ predictions, a handicap, a stock market's worth), the week's results (a pool's w
 playoffs, teams of players, co-op's night), and what the server scores outside the league's state, handing the sequence its
 lines (a game of questions' windows, every way they combine, and its walk: lives, a race, cuts, co-op, head to head and teams
 on it, a handicap; Weekly Calls' right calls and bingo's lines, through each episode; a game in stages' overall). What only the
-server knows (the format's groups, the trivia key, episode facts, the bot's calls) stays out of the league's state: the server
+server knows (the format's groups, the trivia key, episode facts, the bot's calls, since A14 part 7 the stored outside numbers)
+stays out of the league's state: the server
 grades with it and hands over the lines. Each part keeps every game scoring exactly as before unless it says otherwise. Part
 4b adds a pool's series of totals (head to head, teams of players and a handicap on a pool ranked by its points) and the week's
 result on teams' totals (a draft's teams knocked out or racing); part 4c a draft's own questions, graded as a game of questions'
@@ -1063,6 +1076,10 @@ tracker row (`docs/ENGINE-CAPABILITIES.md`, p13 to p25) with the step that bring
   the spec's list. A twist that adds a question (one of the game's own, asked only the episode it's chosen), one on a game of
   questions or an Outlast's place, a twist that's only the chooser's, the twist beside cuts or a race (someone knocked out would
   still choose), in a stage, and chosen at your own pace (each seat's own week) are later.
+- **An outside number is one source's, one number's** (A14 part 7): TVmaze's episode rating, asked each episode; another source
+  (IMDb's has no free API with terms that allow it), another number (a viewership figure, a show's season rating), a window's
+  average, a question about each person, against the bot, and the bot's call on it are later. A new source goes into HOSTING.md
+  first (the Decisions table).
 - **A ticket's legs are one window's**: a ticket is built from questions asked when it is, each window its own (a ticket across
   episodes, or a leg that's a pot split, a ranking or a question about each person, isn't built).
 - **A card is the show's moments** (C7): in turn, chosen by the AI before each episode (part 2) or by a host, one of you each
@@ -1213,6 +1230,7 @@ picks x cast members that they think will achieve as many objectives as possible
 | A ticket | 2 to 6 legs; pays up to 1,000 times its stake |
 | A card | 1 to 12 lines an episode, from 1 to 40 moments |
 | A host's card | the host's deadline 1 to 48 hours before the episode airs |
+| An outside number | read 1 to 30 days after the episode airs |
 
 (`tests/game-pieces-doc.test.js` checks this table against the schema's limits, and that every value the schema plays now is
 named in this guide.)

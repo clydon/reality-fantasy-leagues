@@ -361,6 +361,9 @@ export interface AnswerFacts {
   bot?: Map<string, unknown>;
   /** A14 part 2: every window the bot has made its call on that the game still asks, locked or not (nothing of what it said). */
   botCalled?: Set<string>;
+  /** A14 part 7: each outside number stored for the game's season, by episode and key (outsideKey): the server's
+   *  (outside-numbers.ts outsideNumbersFor). A key with none stored, or no map at all, an outside number waits. */
+  outside?: Map<number, Record<string, OutsideOutcome>>;
 }
 /** A13: one question of a round's trivia key (trivia_questions, live and not pulled): what the grader reads (id, answer) and what
  *  the round shows (the rest). */
@@ -585,6 +588,9 @@ export interface SpecContext {
   votes?: boolean;
   /** A13: false when the season's research writes no trivia (its trivia run off): no trivia question. Left out: it's written. */
   trivia?: boolean;
+  /** A14 part 7: whether the season is linked to its TVmaze listing (an outside number, an episode's rating, needs it). Left out:
+   *  not checked. */
+  tvmaze?: boolean;
   /** A13 part 2: what research returned of each episode fact on the show (the season tapes' measure and the show's stored
    *  episodes: episode-facts.ts factContext): a question it settles only at the bar (episode-facts.js ratingOf). Left out: not
    *  checked. */
@@ -685,6 +691,12 @@ export function isCalls(q: unknown): boolean;
 export function isTrivia(q: unknown): boolean;
 /** A13 part 2: a question an episode fact settles. */
 export function isFact(q: unknown): boolean;
+/** A14 part 7: an outside number, as the grader reads it (facts.outside): stored, void (why), or not read yet. */
+export type OutsideOutcome = { state: "value"; value: number } | { state: "none"; why: string } | { state: "pending" };
+export function isOutside(q: unknown): boolean;
+export const OUTSIDE: { source: "tvmaze"; after: number };
+export const MAX_OUTSIDE_DAYS: number;
+export function outsideKey(settle: unknown): string;
 /** A14 part 1: a question the players' own answers settle. */
 export function isPlayers(q: unknown): boolean;
 /** A14 part 1: a question the players settle, its default on a tie. */
@@ -698,7 +710,7 @@ export const BEATS: readonly SpecQuestion["answer"][];
 export function callsAsk(ask: unknown): boolean;
 export function fullQuestion(q: SpecQuestion): Question;
 /** A choice option as the range a count falls in ("2", "3+", "0-1"), else null. */
-export function optionRange(o: string): { min: number; max: number } | null;
+export function optionRange(o: string, decimals?: boolean): { min: number; max: number } | null;
 export const MAX_QUESTIONS: number;
 export const MAX_PICK: number;
 export const MAX_QUESTION_POINTS: number;

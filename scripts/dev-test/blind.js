@@ -667,6 +667,29 @@ async function standInHost(s, r, n) {
   return moments;
 }
 
+/**
+ * A14 part 7: a stand-in for db/outside-numbers.js's read of an episode's TVmaze rating (nothing on tape has one, and a replay never
+ * asks TVmaze): for every key a game on the copy asks, stored once as the read stores it, right after the episode's results (in a
+ * live season it lands a few days later: the grade waits for it either way). The rating is made up from the episode's number, and
+ * every fifth episode has none (void, recorded as null), so both ways play. Undefined when no game asks one.
+ */
+async function standInOutside(seasonId, n) {
+  const { pool } = app();
+  const { asked } = require("../../db/outside-numbers.js");
+  const { rows } = await pool.query("SELECT l.state FROM leagues l JOIN show_seasons ss ON ss.season_number::text = l.state->'settings'->>'wikiSeason' JOIN shows sh ON sh.id = ss.show_id AND sh.slug = l.state->'settings'->>'showId' WHERE ss.id = $1 AND l.deleted_at IS NULL AND l.state::text LIKE '%\"outside\"%'", [seasonId]);
+  const keys = new Map();
+  for (const { state } of rows) for (const a of asked(state)) keys.set(`${a.source}:${a.what}:${a.after}`, a);
+  if (!keys.size) return undefined;
+  const value = n % 5 === 0 ? null : Math.round((6.5 + ((n * 7) % 30) / 10) * 10) / 10;
+  for (const a of keys.values()) {
+    await pool.query(
+      "INSERT INTO outside_numbers (season_id, episode, source, what, after_days, value, why) VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT DO NOTHING",
+      [seasonId, n, a.source, a.what, a.after, value, value === null ? "none" : null]
+    );
+  }
+  return value;
+}
+
 /** The league as it stands (A11 part 2b: a game of questions that races or knocks players out walked over its answers, as the
  *  app reads it: answer-points.ts asItStands; C2 part 4c, a draft's own questions' lines on it). */
 async function standing(r) {
@@ -965,6 +988,9 @@ async function run(show, season, opts = {}) {
   if (!t) throw new Error(`no fixture for ${show} ${season} (tests/fixtures/format-timelines)`);
   console.log(`(first) removed ${await H.down()}`);
   const copy = await H.copySeason(show, season, await loadedSeason(show, season));
+  // A14 part 7: the copy linked to a stand-in TVmaze listing, so a game an episode's rating settles is made (our check refuses one on a
+  // season that isn't linked) and played on the stand-in's ratings (standInOutside): nothing ever asks TVmaze.
+  await pool.query("UPDATE show_seasons SET listing_id = 999001 WHERE id = $1", [copy.seasonId]);
   const E = copy.episodeCount;
   const through = Math.min(E, Number(opts.through) || E);
   const format = (await app().Research.resolveSeasonResearchContext(pool, H.SLUG(show), season, 1)).format;
@@ -1063,6 +1089,9 @@ async function run(show, season, opts = {}) {
     const tt = triviaTapes.find((f) => f.episode === ep);
     if (tt) record.trivia[ep] = { live: await app().Trivia.storeTrivia(pool, copy.seasonId, ep, tt.result.questions, null), of: tt.result.questions.length };
     await pool.query("UPDATE season_episodes SET air_at = air_at + make_interval(days => $2::int) WHERE season_id = $1 AND air_at < now()", [copy.seasonId, copy.shiftDays]);
+    // A14 part 7: each outside number the games ask of this episode, as the read would store it a few days after it airs.
+    const outside = await standInOutside(copy.seasonId, ep);
+    if (outside !== undefined) record.outside = { ...(record.outside || {}), [ep]: outside };
     if (reshaped && (reshaped.left.length || reshaped.stayed.length || reshaped.added.length)) record.exits[ep] = { left: reshaped.left, stayed: reshaped.stayed, added: reshaped.added };
     const fmt = await formatAfter(copy, ep, E);
     fmt.source = src.from;

@@ -9,8 +9,8 @@ A row plays now when its spec passes the validator (`specProblems`, with what it
 needs waits (`specWaitsFor`); it then says the game in the engine's own words (`describeSpec`). A show the tracker has no
 rules for is checked against a show of its kind, and says so.
 
-**Now:** 222 ✅ · 41 ⏳ · 1 🆕 · 4 ❓ · 23 💬, of 291.
-**Waiting, by step:** A14 2 · A15 15 · L3 7 · L4 13 · G1 4.
+**Now:** 224 ✅ · 39 ⏳ · 1 🆕 · 4 ❓ · 23 💬, of 291.
+**Waiting, by step:** A15 15 · L3 7 · L4 13 · G1 4.
 
 ## The dials
 
@@ -81,7 +81,7 @@ Every watch-along game is a setting on these dials (the plan's "Where the engine
 | ✅ | Episode facts (the title quote) | A game for Survivor 51: everyone answers one question before each episode: which tribe does the title quote come from, all season. A point for each right answer. |
 | ✅ | The group's own answers (match the majority) | A game for Survivor 51: everyone answers two questions before each episode: who goes home and who will most of us say goes home, all season. Points for each right answer. |
 | ✅ | The bot's own call, as an opponent | A game for Survivor 51: everyone answers one question before each episode: will an idol be played, all season. 2 points when you're right and the bot isn't. |
-| ⏳ | A number from a vetted outside source (an episode's TVmaze rating) | A14 |
+| ✅ | A number from a vetted outside source (an episode's TVmaze rating) | A game for Dancing with the Stars 35: everyone answers one question before each episode: what will the episode's TVmaze rating be, all season. 3 points for each right answer. (Checked against The Amazing Race's rules, a show of its kind.) |
 | ⏳ | A sport's stats and finals | L3 |
 
 ### Scoring
@@ -239,7 +239,7 @@ Requests that push the dials, from fantasy leagues, beyond them, and live with t
 | ✅ | s39 | Survivor 51 | Pre-merge and post-merge are separate games with their own drafts, plus an overall winner. | shape | A game in two stages for Survivor 51: Pre-merge, an Outlast: everyone drafts 3, until Merged starts. Each scores by how long they last: the last one standing carries you; then Post-merge, an Outlast: everyone drafts 3, from when Merged starts. Each scores by how long they last: the last one standing carries you. Overall, the most stages won wins (ties all win a stage); level on that, by your places, then your points. |
 | ✅ | s40 | Big Brother | Each week's top scorer picks a twist for next week. | who | A Weekly Lineup for Big Brother: everyone drafts 5 and starts 3 each episode, all season. Scored by Big Brother's rules. After each episode, its top scorer chooses a twist for the next one: Double points (every point counts double) or Half points (every point counts half). (Checked against Survivor's rules, a show of its kind.) |
 | ✅ | s41 | Survivor 51 | My brother watches a day late: let him lock later. | when | A game for Survivor 51: everyone answers one question before each episode: who goes home, all season. 2 points for each right answer. |
-| ⏳ | s42 | Dancing with the Stars 35 | Predict each episode's IMDb rating. | settle | A14: outside numbers from a vetted source: TVmaze's rating, not IMDb's |
+| ✅ | s42 | Dancing with the Stars 35 | Predict each episode's IMDb rating. | settle | A game for Dancing with the Stars 35: everyone answers one question before each episode: what will the episode's TVmaze rating be, all season. 3 points for each right answer. (Checked against The Amazing Race's rules, a show of its kind.) |
 | ✅ | s43 | Survivor 51 | Each week a different one of us writes 3 questions. | who | A game for Survivor 51: everyone answers three questions before each episode: whether each of the card's three moments happens, all season. Each episode, one of you hosts and chooses its card: three of got an idol or advantage, played an idol or advantage, played an idol or advantage that cancelled votes, went on a journey, learned of an idol or advantage privately, had an idol or advantage used against them, won the reward challenge, tribe won the immunity challenge and won the immunity challenge. A point for each right answer. |
 | ✅ | s44 | Survivor 51 | Seal a winner pick before the premiere; every change costs a point. | score | A game for Survivor 51: everyone answers one question before the finale: who wins, all season. 10 points for each right answer. Changing your call once it starts costs points. |
 | ❓ | s45 | Survivor 51 | A season of mini-games: bingo one week, a draft the next. | shape | stages that take turns all season (bingo one episode, a draft the next, again and again: a new piece, a fresh copy of each stage every other episode on part 2's copies, for any season's length), or the season written out as stages (MAX_STAGES 6 can't hold a season of one-episode stages; raising it to a season's length is a league per episode, each read by every overall); a season of mini-games one after another plays since A12 part 4a (shape.minis); the user's (A12 part 4a's Noticed) |

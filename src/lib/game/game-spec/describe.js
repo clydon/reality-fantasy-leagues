@@ -18,7 +18,7 @@
 //
 // Pure CommonJS, like ./schema.js.
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
-const { CARD_OUT_HOURS, PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, spanEnd, spanEndPhase, playsAs, callsAsk, finaleIn, draftQuestions, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion, matchupParts, questionsGame, poolByPoints, teamParts, handicapParts, stageOn, ON_CHANGE, nextStageAts, fallsTo, stageSide, mainCount, stageAlongside, stageSeason, seasonKey, isPlayers, isBeat, waiverOwnOf, waiverMoves, weekParts, momentsPick, bankOf, isTicket, ticketOf, rolesOf, twistOf, cardOf, isCardQuestion, onlyCard, questionLines, lifeRides, askOf: linesOf } = require('./schema.js');
+const { CARD_OUT_HOURS, PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, spanEnd, spanEndPhase, playsAs, callsAsk, finaleIn, draftQuestions, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion, matchupParts, questionsGame, poolByPoints, teamParts, handicapParts, stageOn, ON_CHANGE, nextStageAts, fallsTo, stageSide, mainCount, stageAlongside, stageSeason, seasonKey, isPlayers, isBeat, waiverOwnOf, waiverMoves, weekParts, momentsPick, bankOf, isTicket, ticketOf, rolesOf, twistOf, cardOf, isCardQuestion, onlyCard, questionLines, lifeRides, askOf: linesOf, OUTSIDE } = require('./schema.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const NUMBER_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
@@ -625,6 +625,12 @@ function questionRule(q, w, each, ask, bank, s) {
   if (isBeat(q) && pts !== null) earn = beatWords(q, pts);
   // A13 part 2: an episode fact's fallback, void.
   if (isObj(q.settle) && q.settle.by === 'fact') earn += " If research can't say for sure, or it's nobody you could pick, it doesn't count either way.";
+  // A14 part 7: an outside number, when it's read and its fallback, void.
+  if (isObj(q.settle) && q.settle.by === 'outside') {
+    const days = Number.isInteger(q.settle.after) && q.settle.after >= 1 ? q.settle.after : OUTSIDE.after;
+    const when = `${days === 1 ? 'a day' : `${days} days`} after it airs`;
+    earn += ` It's settled by the ${w.part}'s TVmaze rating ${when}. If TVmaze has no rating by then, it doesn't count either way.`;
+  }
   // A14 part 1: the players' own answers settle it, and its fallbacks.
   if (isPlayers(q) && pts !== null) earn = playersWords(q, pts, ask);
   // A question about each person (A6): an answer for each of them, each graded on its own.

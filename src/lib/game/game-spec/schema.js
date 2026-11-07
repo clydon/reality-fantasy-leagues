@@ -220,7 +220,9 @@ const VOCAB = {
     ticket: 'now',
   },
   // A14 part 1: the players' own answers (the answer most of you give, or fewest), as data: the couch never decides what happened.
-  'ask.settle': { results: 'now', moment: 'now', role: 'now', phase: 'now', points: 'now', calls: 'now', trivia: 'now', fact: 'now', players: 'now', legs: 'now', final: 'sports', stat: 'sports' },
+  'ask.settle': { results: 'now', moment: 'now', role: 'now', phase: 'now', points: 'now', calls: 'now', trivia: 'now', fact: 'now', players: 'now', legs: 'now', outside: 'now', final: 'sports', stat: 'sports' },
+  // A14 part 7: where an outside number comes from (one vetted source so far: TVmaze, its episode rating).
+  'ask.settle.source': { tvmaze: 'now' },
   // A14 part 1: a question the players' own answers settle, on a tie for the most (or the fewest): nobody's right (void, no points
   // either way), or each of the tied answers is.
   'ask.settle.tie': { none: 'now', all: 'now' },
@@ -441,6 +443,13 @@ const VOCAB = {
 //               group they were on); asked each episode, about that one. Void when research isn't sure, the title isn't a
 //               line, or whoever said it couldn't be picked (the host, someone already out): no points either way. Our check
 //               takes it only where research says it reliably on the show (ctx.facts, what it returned there: ratingOf, BAR)
+//             { by: 'outside', take: 'rating', source?: 'tvmaze', after?: days } (A14 part 7) a number from a vetted outside
+//               source: the episode's TVmaze rating (its rating.average, 0 to 10) as it stood `after` days after the episode aired
+//               (OUTSIDE: 7 by default, 1 to MAX_OUTSIDE_DAYS), read once then and stored (outside_numbers, migration 0213), so every
+//               league on the season reads the same number and a later rating never changes it. A number (the closest), an
+//               over/under (its line) or a choice (its options ranges: "7-7.9", "8+"), asked each episode about that one. Its
+//               fallback, from the start: the source had no rating by then (or the season isn't linked to it any more) voids it, no
+//               points either way. Our check takes it only for a season linked to its TVmaze listing (ctx.tvmaze)
 //             { by: 'players', take: majority | minority, of?, tie? } (A14 part 1) the players' own answers, as data (the
 //               couch never decides what happened on the show: what's right is what you said, not what happened): the answer
 //               most of you gave in its window (majority: "guess what most of us will pick; you score if you match the
@@ -476,6 +485,7 @@ const TAKES = {
   legs: [],
   fact: ['who'],
   players: ['majority', 'minority'],
+  outside: ['rating'],
   final: ['winner', 'total', 'margin'],
   stat: ['most', 'least', 'value'],
 };
@@ -483,7 +493,7 @@ const TAKES = {
 const SEASON_TAKES = ['results:winner', 'results:placed', 'results:top', 'results:split'];
 /** The settles each kind of answer can be graded by ('by:take'). A choice is matched to whatever settles it: a count's (and
  *  an episode's) range, a yes or no, or names. */
-const NUMBERS = ['moment:count', 'role:count', 'phase:starts', 'final:total', 'final:margin', 'stat:value'];
+const NUMBERS = ['moment:count', 'role:count', 'phase:starts', 'final:total', 'final:margin', 'stat:value', 'outside:rating'];
 /** Who's right, as people (A8's confidence and chips are graded by any of them). */
 const PEOPLE = ['results:winner', 'results:out', 'results:placed', 'results:top', 'results:stays', 'moment:who', 'moment:most', 'moment:first', 'role:who', 'role:end', 'points:most'];
 /** A14 part 1: the players' own answers, as a settle ('by:take'). A choice takes them too (it takes anything). */
@@ -1484,6 +1494,14 @@ function cardQuestionProblems(q, s) {
 }
 /** A13 part 2: a question an episode fact settles (who says the title quote). */
 const isFact = (q) => isObj(q) && isObj(q.settle) && q.settle.by === 'fact';
+/** A14 part 7: a question a number from a vetted outside source settles (an episode's TVmaze rating). */
+const isOutside = (q) => isObj(q) && isObj(q.settle) && q.settle.by === 'outside';
+/** A14 part 7: an outside number's source and when it's read, by default: TVmaze, seven days after the episode airs (the Decisions
+ *  table's "a rating seven days after airing"; the default is the user's to change: Noticed). Up to MAX_OUTSIDE_DAYS. */
+const OUTSIDE = { source: 'tvmaze', after: 7 };
+const MAX_OUTSIDE_DAYS = 30;
+/** The stored number an outside settle reads ('tvmaze:rating:7'): every league on the season asking it the same way reads one row. */
+const outsideKey = (st) => `${(isObj(st) && st.source) || OUTSIDE.source}:${(isObj(st) && st.take) || 'rating'}:${isObj(st) && isInt(st.after, 1) ? st.after : OUTSIDE.after}`;
 /** A14 part 1: a question the players' own answers settle (the answer most of you give, or fewest). */
 const isPlayers = (q) => isObj(q) && isObj(q.settle) && q.settle.by === 'players';
 /** A14 part 1: a question the players settle, on a tie: nobody's right by default (void). The default is the user's (Noticed). */
@@ -1511,17 +1529,24 @@ function fullQuestion(q) {
   if (out.answer === 'person' && out.from === undefined) out.from = 'cast';
   if (isPlayers(out) && out.settle.tie === undefined) out.settle = { ...out.settle, tie: PLAYERS.tie };
   if (isBeat(out) && out.beat.none === undefined) out.beat = { ...out.beat, none: BEAT.none };
+  if (isOutside(out)) out.settle = { ...out.settle, source: out.settle.source === undefined ? OUTSIDE.source : out.settle.source, after: out.settle.after === undefined ? OUTSIDE.after : out.settle.after };
   return out;
 }
 
-/** A choice option as a range a count falls in: "2" (exactly), "3+" (3 or more), "0-1" (0 to 1); else null. */
-function optionRange(o) {
+/** optionRange's patterns: a number alone, "n+" and "a-b", in whole numbers or (A14 part 7) to a tenth. */
+const rangePatterns = (n) => [new RegExp(`^${n}$`), new RegExp(`^${n}\\s*\\+$`), new RegExp(`^${n}\\s*[-\\u2013]\\s*${n}$`)];
+const RANGE_WHOLE = rangePatterns('(\\d+)');
+const RANGE_TENTHS = rangePatterns('(\\d+(?:\\.\\d)?)');
+/** A choice option as a range a count falls in: "2" (exactly), "3+" (3 or more), "0-1" (0 to 1); else null. A14 part 7: with
+ *  `decimals`, an outside number's too, to a tenth ("7.5", "7-7.9", "8.5+": a rating). */
+function optionRange(o, decimals = false) {
   const t = String(o).trim();
-  let m = /^(\d+)$/.exec(t);
+  const [one, plus, span] = decimals ? RANGE_TENTHS : RANGE_WHOLE;
+  let m = one.exec(t);
   if (m) return { min: +m[1], max: +m[1] };
-  m = /^(\d+)\s*\+$/.exec(t);
+  m = plus.exec(t);
   if (m) return { min: +m[1], max: Infinity };
-  m = /^(\d+)\s*[-\u2013]\s*(\d+)$/.exec(t);
+  m = span.exec(t);
   if (m && +m[1] <= +m[2]) return { min: +m[1], max: +m[2] };
   return null;
 }
@@ -2527,7 +2552,7 @@ function questionProblems(q, at, s, ids, league) {
   else if (q.closes === 'finale' && q.asked !== 'once') add('closes', 'Only a question asked once waits for the finale: one asked each episode closes as it starts');
   const st = isObj(q.settle) ? q.settle : {};
   let settled = false;
-  if (!one('ask.settle', st.by)) add('settle', 'Data settles every question: results, moment, role, phase, points, calls, trivia, fact, players (your own answers), legs (a ticket\'s), final or stat');
+  if (!one('ask.settle', st.by)) add('settle', 'Data settles every question: results, moment, role, phase, points, calls, trivia, fact, players (your own answers), legs (a ticket\'s), outside (a number from a vetted source), final or stat');
   else if (NO_TAKE.includes(st.by)) {
     if (st.take !== undefined) add('settle.take', st.by === 'calls' ? 'The calls settle themselves: no take' : st.by === 'legs' ? 'Its legs settle it: no take' : 'The trivia key settles it: no take');
     else settled = true;
@@ -2556,6 +2581,14 @@ function questionProblems(q, at, s, ids, league) {
     if (q.asked !== 'each' || q.over !== undefined) add('asked', "An episode fact is that episode's: ask it each episode");
   }
   if (st.fact !== undefined && st.by !== 'fact') add('settle.fact', 'Only an episode fact settles by a fact');
+  // A14 part 7: a number from a vetted outside source (an episode's TVmaze rating), about one episode: asked each episode, closing as
+  // it starts, read once a few days after it airs.
+  if (st.by === 'outside') {
+    if (st.source !== undefined && !one('ask.settle.source', st.source)) add('settle.source', 'Where the rating comes from: tvmaze');
+    if (st.after !== undefined && !(isInt(st.after, 1) && st.after <= MAX_OUTSIDE_DAYS)) add('settle.after', `The rating is read 1 to ${MAX_OUTSIDE_DAYS} days after the episode airs`);
+    if (q.asked !== 'each' || q.over !== undefined) add('asked', "An episode's rating is that episode's: ask it each episode");
+  }
+  for (const k of ['source', 'after']) if (st[k] !== undefined && st.by !== 'outside') add(`settle.${k}`, 'Only a rating from an outside source says where it comes from and when');
   // A14 part 1: the players' own answers, one each, in a game of questions with one lock for everyone (each answer is hidden until
   // it; a late lock would show some of you the answers while others can still give theirs).
   if (st.by === 'players') {
@@ -2588,6 +2621,7 @@ function questionProblems(q, at, s, ids, league) {
     if (!(isObj(s.score) && (s.score.by === 'answers' || s.score.by === 'place' || s.score.by === 'moments'))) add('beat', "The bot plays a game of questions' own questions, or a draft's own");
     if (q.wager !== undefined) add('beat', "A wager is on your own call: not with the bot's");
     if (q.from === 'team') add('beat', 'The bot has no team: it names from the cast, so ask from the cast');
+    if (st.by === 'outside') add('beat', "The bot doesn't call an episode's rating yet: play it without the bot");
   }
   if (st.of !== undefined && st.by !== 'players' && st.by !== 'legs') add('settle.of', "Only your own answers settle by another question's");
   // C6 part 2: a ticket, and only a ticket, is settled by its legs, and has legs and pays.
@@ -2691,6 +2725,7 @@ function questionProblems(q, at, s, ids, league) {
     } else if (new Set(opts.map((o) => o.trim().toLowerCase())).size !== opts.length) add('options', 'Two of its options are the same');
     else if (yesNo && !opts.every((o) => YES_NO.includes(o.trim().toLowerCase()))) add('options', 'Whether it happened is Yes or No');
     else if ((how === 'moment:count' || how === 'role:count') && !opts.every((o) => optionRange(o))) add('options', 'A count\'s options are numbers or ranges: "0", "1-2", "3+"');
+    else if (how === 'outside:rating' && !opts.every((o) => optionRange(o, true))) add('options', 'A rating\'s options are numbers or ranges, to a tenth: "7-7.9", "8+"');
   } else if (q.options !== undefined) add('options', 'Only a choice has options');
   // A13: the episode's trivia, a round before every episode about the one before it, its answers' window that episode's (the batch
   // written after the one before), closing as it starts: so nobody answers what they haven't seen, and it's graded with the rest.
@@ -2765,7 +2800,7 @@ const KEYS = {
   draft: ['at', 'timer', 'away', 'opens'],
   bets: ['points'],
   question: ['id', 'ask', 'answer', 'points', 'settle', 'asked', 'closes', 'pick', 'from', 'line', 'options', 'each', 'every', 'over', 'within', 'chips', 'pairs', 'wager', 'odds', 'share', 'rollover', 'shrink', 'fallback', 'beat', 'legs', 'pays', 'card'],
-  settle: ['by', 'take', 'moment', 'role', 'phase', 'stat', 'place', 'fact', 'of', 'tie'],
+  settle: ['by', 'take', 'moment', 'role', 'phase', 'stat', 'place', 'fact', 'of', 'tie', 'source', 'after'],
   beat: ['by', 'none'],
 };
 /** The paths of keys a spec has that no game spec does. */
@@ -3875,6 +3910,9 @@ function settleProblems(s, ctx, opts) {
       const p = EpisodeFacts.factProblem(st.fact, ctx.facts[st.fact]);
       if (p) out.push([`ask[${i}].settle.fact`, p]);
     }
+    // A14 part 7: an outside number only for a season linked to its listing there (ctx.tvmaze: the season's TVmaze listing).
+    // Left out, not checked, as ctx.trivia.
+    if (st.by === 'outside' && ctx.tvmaze === false) out.push([`ask[${i}].settle`, "This season isn't linked to TVmaze, so nothing can settle its episodes' ratings"]);
   });
   // C7: every moment a card is drawn from is the show's, one research answers: its lines are questions and objectives data settles.
   const card = cardOf(s);
@@ -4196,7 +4234,7 @@ module.exports = {
   MAX_CARD, CARD, CARD_OUT_HOURS, CARD_FALLBACK, CARD_TAKES, CARD_ANSWERS, MAX_HOST_HOURS, HOST_CARD, drawInTurn, cardOf, botCard, hostCard, chosenCard, hostLines, rankedLines, cardLines, cardWaiting, cardEach, questionLines, isCardQuestion, isCardLine, cardMoment, onlyCard, onlyAt, askOf, linesAsked, lifeRides,
   REPLACE_RULES, WINDOW_SCHEDULES, WAIVER_FEELS, WAIVER_ORDERS, WAIVER_HOURS, DRAFT_TIMERS, MAX_BET_POINTS, JOINS, ORDER_OF,
   MAX_TEAM, MAX_STARTERS, MAX_BENCH, MAX_LINEUP_TEAM, MAX_QUESTIONS, MAX_PICK, MAX_QUESTION_POINTS, MAX_OPTIONS, YES_NO,
-  CALLS, finaleQuestions, finaleOf, finaleIn, draftQuestions, draftPlayable, isCalls, isTrivia, isFact, isPlayers, PLAYERS, isBeat, BEAT, BEATS, callsAsk, fullQuestion, optionRange, playable,
+  CALLS, finaleQuestions, finaleOf, finaleIn, draftQuestions, draftPlayable, isCalls, isTrivia, isFact, isOutside, OUTSIDE, MAX_OUTSIDE_DAYS, outsideKey, isPlayers, PLAYERS, isBeat, BEAT, BEATS, callsAsk, fullQuestion, optionRange, playable,
   fullSpec, typeOf, playsAs, flagsOf, sizesOf, specProblems, specWaitsFor, waiversFit, finaleFits, betsFit, countKind, presetOf, sameValue, own,
   spanStart, spanPhase, spanEnd, spanEndPhase, phaseTo,
   MAX_STAGES, MAX_STAGE_NAME, MAX_PLACES, OVERALL, STAGE_KINDS, stageGames, stagesOverlap,
