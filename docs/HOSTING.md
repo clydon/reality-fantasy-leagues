@@ -1279,13 +1279,13 @@ never handles it: the user does the reset and the pasting.
   time (one browser). Codex's limit reached drops it back to one and queues the rest. The research clock still starts
   one run a call, so it helps when asks come together. Next, with the app's part merged: the trivia and bingo banks
   sent to Codex (the user's yes, 2026-11-07), through the desk's `bot_ai_runs` setting.
-- **2026-11-07, the bot's throughput, step 1 (the bot built on the PC, not on the VM yet; the app on the `sports` branch, not
+- **2026-11-07, the bot's throughput, step 1 (the bot on the PC and the VM; the app merged and live 2026-11-07, `7ec197d8`; not
   merged; no migration).** The bot answers up to `CODEX_PARALLEL` Codex questions at once (default 3, in `.env`; 1 is one
   at a time): a CLI, no browser, so each is one more `codex` process; ChatGPT, Gemini and Claude stay one at a time. It's
   speed, not more allowance: the PC, the VM and the playtests share the plan's Codex limits, and once Codex says a limit is
   reached it goes back to one at a time, the rest queued, until an answer comes again. `/health` says `running` and
   `parallel` (`slots`, `taking`, `held`). On the PC, three one-word asks took 5.6 s at once and 15.1 s one after another.
-  Memory on the VM isn't measured yet: watch `free -m` with three running, and set `CODEX_PARALLEL=2` if it's tight. **The
+  Memory on the VM, measured: MemAvailable 701 MB before three at once, 570 MB at the lowest. Before that it read: watch `free -m` with three running, and set `CODEX_PARALLEL=2` if it's tight. **The
   app:** each bot run kind (quick, full, schedule, tiebreak, rulebook, trivia, bingo, facts, card, call) can ask an AI of
   its own (`app_settings` 'bot_ai_runs', `{ kind: "codex" }`, set with the desk's `PUT /api/desk/settings` `botAiRuns`,
   logged with Undo; no screen yet); one small row read with each ask, beside 'bot_ai'. **None is switched:** every run

@@ -11,8 +11,10 @@ them next (the user's, in production). **Merged and live in production (2026-10-
 0207), then C6 and C7 part 1 (2026-11-06, 3:53 PM, `abfa4a74`, no migration), then C7 part 2 (2026-11-06, 5:57 PM, `9d74258d`, migration 0208), and track L's live sports, released with no screens yet (2026-11-07, 1:05 AM, `e7f5dc0b`, migrations 0300 to 0306);
 then A14 parts 2b to 7b (2026-11-07, 9:09 AM, `fbc7dc0a`, migrations 0209 to 0213; the call prompt approved by the user, the bot's
 reason kept hidden; TVmaze ratings off, the user's no); A15 waits for a concept session on the watch along with the user
-(2026-11-07); then G1, words to a spec, and G4, Randomize (2026-11-07, 11:48 PM, `f4ace1d8`, migration 0214; G1's four prompts approved by
-the user, the new-moment bar at medium, the bot's priority queue not on the VM until U1); later engine parts stay on
+(2026-11-07); then G1, words to a spec, and G4, Randomize (2026-11-07, 11:48 AM, `f4ace1d8`, migration 0214; G1's four prompts approved by
+the user, the new-moment bar at medium, the bot's priority queue not on the VM until U1); then G3, the GPT learns sports (2026-11-07, 3:50 PM, `7ec197d8`, migration 0215; its manual's sports
+wording approved by the user), with the bot's throughput's app part (a provider per bot run kind); later engine parts
+stay on
 `engine` until the main folder merges them, after each
 lettered step. A1–A4 are built on `engine` (A4 in two parts: the engine and storage, then the Prediction Sheet's screens, built before
 the screens moved to U1), merged and live since 2026-10-30 (above).
@@ -11053,7 +11055,7 @@ first), and proves it on these games and on the tracker's other rows that use it
   sports rows that wait on a piece (a field's top three for a podium, w053; a draft from one position, w055) and the rolled
   game's sentence (the main session's 12:15 PM note: every piece the short form shows is in the sentence; the majority
   question's words).
-  **Part 1 as built (2026-11-07, `engine`; no migration, no screen):**
+  **Part 1 as built (2026-11-07, `engine`; merged and live 2026-11-07, `7ec197d8`; no migration, no screen):**
   - **A sport's page** (`src/lib/sports/page.ts`, new, pure): `sportPageContext(league, { show, person, part, playoffs })`, what
     a spec on a sport's games is checked against: `specContextOf`'s (stats, positions, formats, shape, periods, sizes, a playoffs
     slate's draw) with its words and what a sport's results never say (`results`, `winner`, `trivia`, `jury`, `votes` false; no
@@ -11141,7 +11143,7 @@ first), and proves it on these games and on the tracker's other rows that use it
     teams first) and a draft from "the Lakers' players" can't be said (`pool.where.teams` is still the sports branch's value in
     VOCAB). Recommended: part 2 builds `pool.where.teams` (a holding from those teams only), or a team's page drafts from its own.
     (G3 part 2.)
-  **Part 2 as built (2026-11-07, `engine`; migration 0215, no screen): a team's page.**
+  **Part 2 as built (2026-11-07, `engine`; merged and live 2026-11-07, `7ec197d8`; migration 0215, no screen): a team's page.**
   - **The games their words mean** (`src/lib/sports/team-page.ts`, new, pure): `teamSchedulePack(team, games, now)`, the schedule as the
     pack carries it (the last 3 played and the next 20 still to play, each by id, its day in the East, home or away, against whom, played
     once it's started by the provider or the clock; never a score; every team it plays, the bot's ids for `against`);
@@ -11224,7 +11226,7 @@ first), and proves it on these games and on the tracker's other rows that use it
   **Part 3 in two (2026-11-07):** 3a, the podium and the words (built, below); 3b, the pool filters (a draft from one team's or one
   position's players: w055, part 1's and 2's Noticed `pool.where.teams`), which change `state-logic.js` at every place a draft, a
   pickup or a pick offers someone, so the long checks run once, at its end.
-  **Part 3a as built (2026-11-07, `engine`; no migration, no screen): a field's top few, and a rolled game's sentence saying every piece.**
+  **Part 3a as built (2026-11-07, `engine`; merged and live 2026-11-07, `7ec197d8`; no migration, no screen): a field's top few, and a rolled game's sentence saying every piece.**
   - **A field's top few** (`settle: { by: 'final', take: 'top', place }`, schema.js TAKES and SETTLES_FOR, answers.js `standingIn`): the
     F1 podium is `place: 3`, a `person` answer with `pick: 3`, each one who finishes in the top 3 right (the tied at the last place all in:
     golf's T3), graded on the field's places (`g.places`); nobody placed yet is off. Our check: only a field has one (a team game: "who
@@ -11286,7 +11288,7 @@ first), and proves it on these games and on the tracker's other rows that use it
     VOCAB's `pool.where` gains `positions` (the sport's position groups, ctx.positions) and `teams` turns 'now'. Recommended fallbacks:
     someone whose team or position isn't known isn't in the pool; a league with no stamp at all (nothing read yet) holds no filter, so
     a draft never stalls; someone traded away stays on your team (only new picks are filtered). (Part 3b: built, below.)
-  **Part 3b as built (2026-11-07, `engine`; no migration, no screen): the pool filters, a draft from some teams' or positions' players.**
+  **Part 3b as built (2026-11-07, `engine`; merged and live 2026-11-07, `7ec197d8`; no migration, no screen): the pool filters, a draft from some teams' or positions' players.**
   So **G3 is done** (parts 1 to 3b), for the main folder's merge with migration 0215.
   - **The spec** (`schema.js`): `pool.where` takes a sport's `teams` (ESPN team ids) and `positions` (its position groups, `ctx.positions`:
     soccer's GK, DEF, MID, FWD; basketball's guards, forwards, centers), together or not, `stillIn` beside them or not (VOCAB: `teams` and

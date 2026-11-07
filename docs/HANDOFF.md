@@ -343,7 +343,19 @@ it doesn't go in the menu.** The audit (checked in the code, 2026-10-30), per ol
   full target first (A5, the capability tracker, then A6–A15), today's games rebuilt on it (R1–R3), the UI last (U0–U1), the
   GPT's words alongside (G1), and live sports folded in as track L. Lanes (worktree + branch + database + port + session loop):
   [PARALLEL-SESSIONS.md](PARALLEL-SESSIONS.md); season tapes and playtests: [PLAN-playtests.md](PLAN-playtests.md).
-- **Merged and pushed 2026-11-07, 11:48 PM: the engine's G1, words to a spec, and G4, Randomize, with no screens yet** (`f4ace1d8`,
+- **Merged and pushed 2026-11-07, 3:50 PM: the engine's G3, the GPT learns sports, and the bot's throughput's app part** (`7ec197d8`;
+  migration 0215, rehearsed on the Neon branch `rehearse-g3-2026-11-07` by the main session: applied, `[check] all good`,
+  rulebooks backfilled, the game-specs check PASS on all 6 leagues; the snapshot to roll back to `pre-g3-2026-11-07`). G3:
+  a sport's season as a page typed words become a game on (stats by their words, the sports settles, ESPN's line kept when
+  the question opens, never a score in the pack), a team's page (the words pick the games: the opener, a series, the next
+  few, a day; POST /api/sports/game-words), a field's top few (the F1 podium), and the pool filters (a draft from some
+  teams' or positions' players). Its manual's sports wording approved by the user (2026-11-07). The sports lane's part:
+  each bot run kind can ask its own AI (`app_settings` 'bot_ai_runs', the desk's settings API; every default ChatGPT).
+  The bot itself answers up to 3 Codex questions at once on the PC and the VM (deployed the same afternoon). Checked: the
+  engine's long checks on `a71e8e29` and blind again after its fix `aac96473` (golden 19,361 reads the same; the Survivor 51
+  rehearsal every invariant; blind every game through); on the merged tree (rfl-merge, branch merge-g3): unit tests 1990,
+  eslint on the changed source files and `next build`. Nothing reaches players until the screens (U0, U1).
+- **Merged and pushed 2026-11-07, 11:48 AM: the engine's G1, words to a spec, and G4, Randomize, with no screens yet** (`f4ace1d8`,
   merging the engine's `36d852a4`; migration 0214, rehearsed on the Neon branch `rehearse-c4b-2026-11-06` by the main
   session: applied, `[check] all good`, rulebooks backfilled, the game-specs check PASS on all 6 leagues). G1: someone's
   typed words become a checked game spec (POST /api/seasons/[seasonId]/game-words; the manual generated from VOCAB, the
@@ -561,7 +573,7 @@ it doesn't go in the menu.** The audit (checked in the code, 2026-10-30), per ol
   **Waiting on the user:** restart the main bot (8765) on the new code, then the tapes move back to it and 8766 goes. The
   playtest branch is merged into master (`2c945d31`).
 - **Neon is on Launch** since 2026-10-28 (the user upgraded it at 98.3% of the free transfer; about $5 a month; HOSTING.md).
-- **On branches, not merged:** the engine's G3, the GPT learning sports (`engine`); A15 waits for the watch along's concept,
+- **On branches, not merged:** nothing on `engine` (the G track is done); A15 waits for the watch along's concept,
   track L's live sports released (above; next: G3 and the screens). The lanes run at high
   since 2026-11-05 (the user; C2 at xhigh) under the usage cap ([PARALLEL-SESSIONS.md](PARALLEL-SESSIONS.md), "The usage
   cap"). Waiting on the
