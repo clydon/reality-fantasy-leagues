@@ -84,6 +84,24 @@
           "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "squares", "grid": 10, "take": "pick" }, "count": null, "score": { "by": "squares", "pays": [{ "at": 1, "points": 1 }, { "at": "final", "points": 2 }] }, "rank": { "by": "total" }, "closes": "start" }
         }
       }
+    },
+    "nba": {
+      "specs": {
+        "bracket": {
+          "about": "A playoff bracket: before the NBA playoffs start, pick who wins every series, round by round to the Finals. A point for each one right in the first round, doubling each round after it; most points wins.",
+          "on": "playoffs",
+          "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers" }, "rank": { "by": "total" }, "closes": "start", "ask": [{ "id": "bracket", "ask": "Who wins every series of the NBA playoffs?", "answer": "bracket", "points": 1, "rounds": "double", "settle": { "by": "final", "take": "bracket", "of": "playoffs" }, "asked": "once", "closes": "start" }] }
+        }
+      }
+    },
+    "wnba": {
+      "specs": {
+        "bracket": {
+          "about": "A playoff bracket: before the WNBA playoffs start, pick who wins every series, round by round to the Finals. A point for each one right in the first round, doubling each round after it; most points wins.",
+          "on": "playoffs",
+          "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers" }, "rank": { "by": "total" }, "closes": "start", "ask": [{ "id": "bracket", "ask": "Who wins every series of the WNBA playoffs?", "answer": "bracket", "points": 1, "rounds": "double", "settle": { "by": "final", "take": "bracket", "of": "playoffs" }, "asked": "once", "closes": "start" }] }
+        }
+      }
     }
   }
 }

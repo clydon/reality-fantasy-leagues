@@ -73,5 +73,16 @@
       "about": "Best ball: draft a full roster and never set a lineup: each game, your best eighteen count, most points wins.",
       "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "draft", "each": 23, "order": "snake", "own": "exclusive" }, "count": { "best": 18 }, "score": { "by": "stats", "points": { "R": 1, "TB": 1, "RBI": 1, "BB": 1, "K": -1, "SB": 1, "IP": 3, "PH": -1, "ER": -2, "PBB": -1, "PK": 1, "W": 2, "L": -2, "SV": 5, "HLD": 2 } }, "rank": { "by": "total" }, "closes": "start" }
     }
+  },
+  "leagues": {
+    "mlb": {
+      "specs": {
+        "bracket": {
+          "about": "A playoff bracket: before the MLB playoffs start, pick who wins every series, round by round to the World Series. A point for each one right in the first round, doubling each round after it; most points wins.",
+          "on": "playoffs",
+          "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers" }, "rank": { "by": "total" }, "closes": "start", "ask": [{ "id": "bracket", "ask": "Who wins every series of the MLB playoffs?", "answer": "bracket", "points": 1, "rounds": "double", "settle": { "by": "final", "take": "bracket", "of": "playoffs" }, "asked": "once", "closes": "start" }] }
+        }
+      }
+    }
   }
 }

@@ -281,7 +281,7 @@ test("the bracket spec: tennis's passes against tennis and plays (L3 part 2e); w
   const s = spec("tennis", "bracket");
   const q = s.ask[0];
   const asked = (more) => ({ ...s, ask: [{ ...q, ...more }] });
-  assert.ok(problems(s, specContextOf(nfl)).includes("ask[0].settle: A bracket is a draw's (tennis's): a team game has none"));
+  assert.ok(problems(s, specContextOf(nfl)).includes("ask[0].settle: A team game's bracket is its league's playoffs: this season isn't them"));
   assert.ok(problems(s, specContextOf(sportOf("mma/ufc"))).includes("ask[0].settle: A bracket is a draw's, and this card's bouts aren't in one"));
   assert.ok(problems(asked({ settle: { ...q.settle, of: "XX" } }), specContextOf(tennis)).includes('ask[0].settle.of: "XX" isn\'t one of the draws: MS, WS, MD, WD, XD'));
   assert.ok(problems(asked({ settle: { by: "final", take: "bracket" } }), null).includes("ask[0].settle.of: Which draw it's the bracket of: its key (tennis's MS, WS...)"));

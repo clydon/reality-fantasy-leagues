@@ -713,6 +713,11 @@ never handles it: the user does the reset and the pasting.
   over a slate, confidence points) plays. Its questions' reads and answers take the league's games as they already do (one query of
   `season_events` and `sports_events`, now with each game's name too), handing each game's facts over by event id; an answer is a
   pick per game in `game_answers` (a week of the NFL's 14 games ~1 KB). No new ESPN call or table.
+- **2026-11-06, `sports` branch (not merged).** L8 part 1's engine items, part 2, a bracket of a league's playoffs (migration 0305):
+  each playoff game a slate links keeps its note and its series' length (`season_events.note`, `best_of`: ~30 bytes a game, the
+  NBA's ~85 playoff games ~2.5 KB; NULL on every other link), from the same day's scoreboards the sync already reads (ESPN's `notes`
+  and `series` were in them). A playoffs slate's reads group them into series in memory (no query of their own: the same
+  `season_events` read, two more columns). No new ESPN call or table.
 - **2026-11-06, `sports` branch (not merged).** L8 part 1's engine items, daily lineups inside a week (no migration): a lineup that
   locks at each game's start (`closes: 'game'`) has each game's start and each holding's games stamped on every read and write of its
   league (`air-times.ts` stampGameLocks: two small queries, `season_events` for the game's episodes and `season_cast`'s teams, only for

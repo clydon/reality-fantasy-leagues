@@ -19,6 +19,7 @@
 // Pure CommonJS, like ./schema.js.
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
 const { CARD_OUT_HOURS, PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, spanEnd, spanEndPhase, playsAs, callsAsk, finaleIn, draftQuestions, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion, matchupParts, categoryParts, squaresParts, ordinalWord, questionsGame, poolByPoints, teamParts, handicapParts, stageOn, ON_CHANGE, nextStageAts, fallsTo, stageSide, mainCount, stageAlongside, stageSeason, seasonKey, isPlayers, isBeat, waiverOwnOf, waiverMoves, weekParts, momentsPick, bankOf, isTicket, ticketOf, cardOf, isCardQuestion, onlyCard, questionLines, lifeRides, askOf: linesOf } = require('./schema.js');
+const { PLAYOFFS } = require('../sequence/bracket.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const NUMBER_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
@@ -571,9 +572,12 @@ function questionRule(q, w, each, ask, bank, s) {
     if (q.answer === 'bracket') {
       const of = isObj(q.settle) && typeof q.settle.of === 'string' ? w.draws.get(q.settle.of) || q.settle.of : null;
       const draw = of ? `the ${of.charAt(0).toLowerCase()}${of.slice(1)} draw` : 'the draw';
+      // L8 part 1's engine items, part 2: a league's playoffs, each round's series (or the NFL's games), picked before they start.
+      const playoffs = isObj(q.settle) && q.settle.of === PLAYOFFS;
+      const what = playoffs ? 'Before the playoffs start, pick the winner of every matchup, round by round to the final' : `Pick the winner of every match of ${draw}, round by round to the final`;
       earn = q.rounds === 'same'
-        ? ` Pick the winner of every match of ${draw}, round by round to the final: ${pointsWord(pts)} for each one right.`
-        : ` Pick the winner of every match of ${draw}, round by round to the final: ${pointsWord(pts)} for each one right in the first round, doubling each round after it.`;
+        ? ` ${what}: ${pointsWord(pts)} for each one right.`
+        : ` ${what}: ${pointsWord(pts)} for each one right in the first round, doubling each round after it.`;
     }
   }
   // A14 part 2: played against the bot's own call, and its fallback (an episode fact's own, below, still said).

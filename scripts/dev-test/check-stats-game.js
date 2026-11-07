@@ -383,6 +383,68 @@ async function down() {
       check(pts.ann === 2 && pts.bo === 2 && g.points === 2, "  each right pick its confidence: ann's 76ers at 2, bo's Hawks at 2", JSON.stringify([pts, g.points]));
     }
 
+    // L8 part 1's engine items, part 2: a bracket of a league's playoffs, a fifth season of the show made of them (a playoffs slate):
+    // the two conference finals tomorrow (Episode 1, a game each here), the Finals in Episode 2, answered by ann's account through
+    // answers.ts (the route's own code), then played and graded on the series.
+    {
+      const season5 = (await pool.query("INSERT INTO show_seasons (show_id, season_number, status) SELECT id, 5, 'upcoming' FROM shows WHERE slug = $1 RETURNING id", [SLUG])).rows[0].id;
+      await pool.query("INSERT INTO sports_slates (season_id, provider, league, season, stage, cadence, windows, key) VALUES ($1, $2, 'basketball/nba', 2027, 'post', 'day', '[]'::jsonb, $3)", [season5, P, `${SLUG}-playoffs`]);
+      await pool.query("INSERT INTO season_episodes (season_id, number, air_at, source) VALUES ($1, 1, $2, 'listing'), ($1, 2, $3, 'listing')", [season5, iso(DAY), iso(3 * DAY)]);
+      const teams = { 1: "Hawks", 2: "Celtics", 3: "Thunder", 4: "Spurs" };
+      const side = (n) => ({ id: String(n), name: teams[n] });
+      for (const [event, ep, at, a, b, note] of [["zt-po-e1", 1, DAY, 1, 2, "East Finals - Game 1"], ["zt-po-w1", 1, DAY + 3600_000, 3, 4, "West Finals - Game 1"], ["zt-po-f1", 2, 3 * DAY, 1, 3, "NBA Finals - Game 1"]]) {
+        await pool.query("INSERT INTO season_events (season_id, episode, provider, league, event_id, starts_at, teams, note) VALUES ($1, $2, $3, 'basketball/nba', $4, $5, $6::jsonb, $7)", [season5, ep, P, event, iso(at), JSON.stringify([side(a), side(b)]), note]);
+        await pool.query("INSERT INTO sports_events (provider, league, event_id, starts_at, state, teams, final) VALUES ($1, 'basketball/nba', $2, $3, 'pre', $4::jsonb, false)", [P, event, iso(at), JSON.stringify([{ id: String(a) }, { id: String(b) }])]);
+      }
+      const q = S.defaultState();
+      S.updateSettings(q, "showId", SLUG);
+      S.updateSettings(q, "wikiSeason", 5);
+      q.settings.game = null;
+      q.players = ["ann", "bo"].map((id) => ({ id, name: id, color: "#000" }));
+      S.updateSettings(q, "setupComplete", true);
+      const spec = defaultsFor("basketball", "nba").specs.bracket.spec;
+      const wrong = S.setGame(q, spec, { ctx: specContextOf(nba, "nba", { playoffs: true }) });
+      check(wrong.length === 0 && q.settings.game?.ask?.[0]?.asked === "once", "a bracket of the NBA's playoffs written as a league's own (the NBA's default, on its playoffs)", JSON.stringify(wrong));
+      for (let n = 1; n <= 2; n++) S.ensureEpisodeNumber(q, n, false);
+      const id = (await pool.query("INSERT INTO leagues (name, slug, join_code, state) VALUES ('ZT playoffs', $1, 'ZTPOFF', $2) RETURNING id", [`${SLUG}-playoffs`, JSON.stringify(q)])).rows[0].id;
+      await pool.query("INSERT INTO league_memberships (league_id, user_id, player_id, role) VALUES ($1, $2, 'ann', 'member')", [id, USER]);
+      await pool.query("INSERT INTO show_follows (user_id, season_id, seen_through, following) VALUES ($1, $2, 0, true)", [USER, season5]);
+      const user = { id: USER, name: "zt each", email: "zt-stats-game@example.invalid" };
+      const said = async (body) => {
+        try {
+          return { ok: !!(await answerQuestions(user, season5, id, body)) };
+        } catch (e) {
+          return { status: e.status, why: e.message };
+        }
+      };
+      const bracketQ = (g) => g.questions.find((x) => x.id === "bracket");
+      let w = bracketQ(await gameQuestions(user, season5, id));
+      const named = (f) => f.map((x) => x.name).join("-");
+      check(w?.status === "open" && w.draw?.first === 2 && w.draw.matches.map(named).join() === "Hawks-Celtics,Thunder-Spurs" && w.draw.entrants.length === 4 && w.draw.entrants.every((e) => e.enters === 2), "before they start: open, its draw the two conference finals by the teams' names", JSON.stringify(w && { status: w.status, draw: w.draw }));
+      let r = await said({ episode: w?.episode ?? 0, answers: { bracket: { 2: ["1", "2"] } } });
+      check(r.status === 400 && r.why === "Pick one winner of each match", "  both sides of a series picked: refused (400)", JSON.stringify(r));
+      r = await said({ episode: w?.episode ?? 0, answers: { bracket: { 2: ["9"] } } });
+      check(r.status === 400 && r.why === "Pick only who's in the draw", "  a team not in them: refused (400)", JSON.stringify(r));
+      r = await said({ episode: w?.episode ?? 0, answers: { bracket: { 2: ["1", "3"], 1: ["1"] } } });
+      const kept = (await pool.query("SELECT episode, answer FROM game_answers WHERE league_id = $1 AND player_id = 'ann' AND question = 'bracket'", [id])).rows;
+      check(r.ok && kept.length === 1 && G.sameValue(kept[0].answer, { 2: ["1", "3"], 1: ["1"] }), "  a whole bracket: kept", JSON.stringify([r, kept]));
+      await pool.query("INSERT INTO game_answers (league_id, player_id, question, episode, answer) VALUES ($1, 'bo', 'bracket', $2, $3::jsonb)", [id, kept[0]?.episode ?? 0, JSON.stringify({ 2: ["2", "3"], 1: ["3"] })]);
+      // Played and kept: the Hawks and the Thunder through, the Hawks the champions.
+      for (const [event, a, b, sa, sb, ago] of [["zt-po-e1", 1, 2, 110, 100, 3 * DAY], ["zt-po-w1", 3, 4, 120, 99, 3 * DAY], ["zt-po-f1", 1, 3, 101, 98, DAY]]) {
+        await pool.query("UPDATE season_events SET starts_at = $3 WHERE season_id = $1 AND event_id = $2", [season5, event, iso(-ago)]);
+        await pool.query("UPDATE sports_events SET starts_at = $2, state = 'post', final = true, final_at = $2, teams = $3::jsonb, lines = '{}'::jsonb, people = '{}'::jsonb, lines_at = now() WHERE provider = $1 AND event_id = $4", [P, iso(-ago), JSON.stringify([{ id: String(a), score: sa }, { id: String(b), score: sb }]), event]);
+      }
+      await pool.query("UPDATE season_episodes SET air_at = $3 WHERE season_id = $1 AND number = $2", [season5, 1, iso(-3 * DAY)]);
+      await pool.query("UPDATE season_episodes SET air_at = $3 WHERE season_id = $1 AND number = $2", [season5, 2, iso(-DAY)]);
+      await pool.query("UPDATE show_follows SET seen_through = 2 WHERE user_id = $1 AND season_id = $2", [USER, season5]);
+      const g = await gameQuestions(user, season5, id, 2);
+      w = bracketQ(g);
+      const pts = Object.fromEntries((w?.people ?? []).map((x) => [x.playerId, x.earned]));
+      check(w?.status === "closed" && w.verdict?.state === "known" && pts.ann === 4 && pts.bo === 1 && g.points === 4, "played: closed and known on the series, ann's bracket 4 (1 + 1, the champion 2), bo's 1", JSON.stringify({ status: w?.status, verdict: w?.verdict?.state, pts, mine: g.points }));
+      r = await said({ episode: kept[0]?.episode ?? 0, answers: { bracket: { 2: ["1", "4"] } } });
+      check(r.status === 409 || r.status === 403, "  changed once they've started: refused", JSON.stringify(r));
+    }
+
     // L8 part 1's engine items: daily lineups inside a week's slate (closes 'game'), a fourth season of the show: its week the kept
     // 76ers opener (yesterday), a game going on now (the Hawks' and the Celtics') and one tomorrow (the 76ers' and the Cavaliers'
     // again). Ann's lineup, set before the game locked at each game's start, is two of the 76ers' (ann[0]) and a Hawk (ann[2]).

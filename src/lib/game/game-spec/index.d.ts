@@ -345,6 +345,9 @@ export interface SportsGameFacts {
   /** L3 part 2f part 2, a question about each game's (AnswerFacts.slate's): the game as linked, its name, when it starts (its pick
    *  locks then) and its sides by name, as listed. */
   listing?: { name: string | null; startsAt: string | null; sides: { id: string; name: string | null }[] };
+  /** L8 part 1's engine items, part 2: a league's playoffs (AnswerFacts.playoffs), the episode their final was won in, where the
+   *  games say (a walk's week before it grades the bracket as still being played: answers.js factsThrough). */
+  wonAt?: number;
 }
 /** What a game's results say, for grading its questions (answers.js). */
 export interface AnswerFacts {
@@ -394,6 +397,9 @@ export interface AnswerFacts {
   episodeFacts?: Map<number, Record<string, FactOutcome>>;
   /** L1 part 4b: each episode's game as of the viewer's moment, a sport's (src/lib/sports/spec.ts gameFacts). */
   games?: Map<number, SportsGameFacts>;
+  /** L8 part 1's engine items, part 2: a league's playoffs slate's series as one card (each a bout of the draw "playoffs"), as of
+   *  the viewer's moment: a bracket of the playoffs' (the server's: sports/score.ts leagueGames). */
+  playoffs?: SportsGameFacts | null;
   /** L3 part 2f part 2: each episode's games by the provider's event id (a week's slate's, or an episode's one), as of the viewer's
    *  mark (sports/score.ts leagueGames' eachGame), for a question about each game. */
   slate?: Map<number, Map<string, SportsGameFacts>>;

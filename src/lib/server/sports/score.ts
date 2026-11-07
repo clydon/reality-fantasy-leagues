@@ -6,7 +6,7 @@ import type { BracketField } from "@/lib/game/sequence/bracket";
 import type { SportsGameFacts } from "@/lib/game/game-spec";
 import type { LeagueState } from "@/lib/game/types";
 import type { CategoryDefs } from "@/lib/game/sequence/categories";
-import { BoutSport, TeamSport, boutsOf, groupOf, renamed, sportOf, storedFacts, type StatBout, type StoredFinal, type StoredPeople, type StoredShape, type Stats } from "@/lib/sports";
+import { BoutSport, PLAYOFFS, TeamSport, boutsOf, groupOf, playoffsFacts, playoffsStart, renamed, sportOf, storedFacts, type PlayoffGame, type StatBout, type StoredFinal, type StoredPeople, type StoredShape, type Stats } from "@/lib/sports";
 import { pool } from "../db";
 import { sportsProviders } from "./index";
 import type { SportsProvider } from "./types";
@@ -30,6 +30,10 @@ import type { SportsProvider } from "./types";
 // on its own, a bonus at 100 yards, adds them up); its `lines` are each castaway's counts over the episode's final games added
 // together (a category over a week: the hook's window), derived stats worked out on the sum. `games` and `sides` are an
 // episode's one game's: an episode of several has its own in `slate` (the engine lane's hook says how a question names one).
+//
+// L8 part 1's engine items, part 2: a league's playoffs slate's games, grouped into their series (src/lib/sports/playoffs.ts: each
+// game's round from its note, each series' winner the side that took it), are one draw, "playoffs", a series a bout of it
+// (`playoffs`: a card's facts, as the grader reads a tennis draw's), as of the mark, for a bracket of the playoffs.
 
 /** A league's sports games, as far as the server knows them. */
 export interface LeagueGames {
@@ -59,6 +63,9 @@ export interface LeagueGames {
   /** L3 part 2f part 2: every episode's games by event id (a slate's, or an episode's one), each as the grader reads it as far as
    *  the mark, with its listing (its name, start and sides by name): a question about each game's (AnswerFacts.slate). */
   eachGame: Map<number, Map<string, SportsGameFacts>>;
+  /** L8 part 1's engine items, part 2: a playoffs slate's series as one card's bouts (the draw "playoffs"), as far as the mark:
+   *  final once the final's series is won. Null for any other season. */
+  playoffs: SportsGameFacts | null;
 }
 
 /** The season a league plays (its show's slug and season number), or null. */
@@ -91,30 +98,36 @@ export async function leagueGames(state: LeagueState, o: { mark?: number | null;
   if (!seasonId) return undefined;
   const [{ rows }, { rows: cast }, { rows: slated }] = await Promise.all([
     pool.query(
-      `SELECT e.episode, e.provider, e.league, e.event_id, e.name AS title, e.starts_at, e.teams AS linked, f.state, f.final, f.teams, f.lines, f.people, f.shape
+      `SELECT e.episode, e.provider, e.league, e.event_id, e.name AS title, e.starts_at, e.teams AS linked, e.note, e.best_of, f.state, f.final, f.teams, f.lines, f.people, f.shape
          FROM season_events e LEFT JOIN sports_events f ON f.provider = e.provider AND f.league = e.league AND f.event_id = e.event_id
         WHERE e.season_id = $1 ORDER BY e.episode`,
       [seasonId]
     ),
     pool.query("SELECT name, role, provider_ids FROM season_cast WHERE season_id = $1 AND provider_ids IS NOT NULL", [seasonId]),
-    pool.query("SELECT 1 FROM sports_slates WHERE season_id = $1", [seasonId]),
+    pool.query("SELECT stage FROM sports_slates WHERE season_id = $1", [seasonId]),
   ]);
   if (!rows.length) return undefined;
   const now = (o.now ?? new Date()).getTime();
   const mark = o.mark ?? null;
   const who = peopleOf(state, cast);
-  const out: LeagueGames = { lines: new Map(), byGame: new Map(), slate: new Map(), groups: {}, bouts: new Map(), games: new Map(), sides: new Map(), defs: {}, periods: null, done: new Set(), eachGame: new Map() };
+  const out: LeagueGames = { lines: new Map(), byGame: new Map(), slate: new Map(), groups: {}, bouts: new Map(), games: new Map(), sides: new Map(), defs: {}, periods: null, done: new Set(), eachGame: new Map(), playoffs: null };
   // L3 part 2f: a slate's episodes with a game not over yet (still to play, being played, or final without its counts kept).
   const open = new Set<number>();
   const slateEps = new Set<number>();
   // L8: a slate's every episode is of several games (one with a single game listed so far too: its shape never changes as more are
   // linked).
   const slate = slated.length > 0;
+  // L8 part 1's engine items, part 2: a playoffs slate's every game as the series read it (its note and series length as linked).
+  // An event linked to several episodes is one game, its last episode's row (keyed by its id: a later row replaces it).
+  const playoffs: Map<string, PlayoffGame> | null = slated[0]?.stage === "post" ? new Map() : null;
+  let row: { note: string | null; best_of: number | null; starts_at: Date | null } | null = null;
+  const teamNames = new Map<string, string | null>();
   /** A game's facts: an episode's one, or one of a slate's episode's; with its listing, every episode's by event id (eachGame). */
   let listing: SportsGameFacts["listing"] = undefined;
   const setGame = (n: number, event: string, facts: SportsGameFacts) => {
     if (!out.eachGame.has(n)) out.eachGame.set(n, new Map());
     out.eachGame.get(n)!.set(event, { ...facts, listing });
+    if (playoffs && row) playoffs.set(event, { id: event, note: row.note, bestOf: row.best_of, at: row.starts_at ? row.starts_at.toISOString() : null, status: facts.status, sides: facts.sides, episode: n });
     if (!slate) return void out.games.set(n, facts);
     if (!out.slate.has(n)) out.slate.set(n, new Map());
     out.slate.get(n)!.set(event, facts);
@@ -135,10 +148,12 @@ export async function leagueGames(state: LeagueState, o: { mark?: number | null;
   }
   for (const r of rows) {
     const n = Number(r.episode);
+    row = r;
     // The row's sides with the score it last saw (a final's, before its counts are kept); a game it hasn't seen, the link's.
     const known = ((r.teams ?? r.linked ?? []) as { id: string; score?: number | string | null }[]).map((t) => ({ id: String(t.id), score: Number(t.score) || 0 }));
     const teams = known.map((t) => t.id);
     const named = new Map(((r.linked ?? []) as { id: string; name?: string | null }[]).map((t) => [String(t.id), t.name ?? null]));
+    if (playoffs) for (const [id, name] of named) if (!teamNames.get(id)) teamNames.set(id, name);
     listing = { name: (r.title as string | null) ?? null, startsAt: r.starts_at ? (r.starts_at as Date).toISOString() : null, sides: teams.map((id) => ({ id, name: named.get(id) ?? null })) };
     if (teams.length && !slate) out.sides.set(n, teams);
     const event = String(r.event_id);
@@ -193,6 +208,11 @@ export async function leagueGames(state: LeagueState, o: { mark?: number | null;
     if (g.kind === "card") out.bouts.set(n, Object.fromEntries(Object.keys(g.lines).map((id) => [id, boutsOf(g.card, g.byBout, id)])));
   }
   for (const n of slateEps) if (!open.has(n)) out.done.add(n);
+  if (playoffs) {
+    // Its teams by name as linked (a bracket's faces: QuestionView.draw), and its first game's start.
+    const games = [...playoffs.values()];
+    out.playoffs = { ...playoffsFacts(games), listing: { name: null, startsAt: playoffsStart(games), sides: [...teamNames].map(([id, name]) => ({ id, name })) } };
+  }
   return out;
 }
 
@@ -214,10 +234,17 @@ function peopleOf(state: LeagueState, cast: { name: string; role: string | null;
  * (sequence/bracket.js bracketOf: who's in it, each round's matches and winners so far): the kept final's once it's final (`games`,
  * the grader's, when it has them), else the provider's card as it stands (provider.game: cached an hour until it's final, cache.ts),
  * so an answer made before the event starts is checked against the draw as listed then. Null for an episode with no card linked,
- * or a card with none of that draw. `providers` is for checks.
+ * or a card with none of that draw. `providers` is for checks. L8 part 1's engine items, part 2: the draw "playoffs" is a league's
+ * playoffs slate's series as linked now (leagueGames' `playoffs`, or `playoffs` when the grader has them), whatever the episode.
  */
-export async function drawNow(state: LeagueState, episode: number, cls: string, o: { games?: Map<number, SportsGameFacts>; providers?: SportsProvider[] } = {}): Promise<BracketField | null> {
-  const field = (f: SportsGameFacts | undefined) => (f?.bouts ? Bracket.bracketOf(f.bouts, cls) : null);
+export async function drawNow(state: LeagueState, episode: number, cls: string, o: { games?: Map<number, SportsGameFacts>; playoffs?: SportsGameFacts | null; providers?: SportsProvider[] } = {}): Promise<BracketField | null> {
+  const field = (f: SportsGameFacts | null | undefined) => (f?.bouts ? Bracket.bracketOf(f.bouts, cls) : null);
+  // L8 part 1's engine items, part 2: a league's playoffs, its series as linked now (the grader's, when it has them).
+  if (cls === PLAYOFFS) {
+    // Given (null too: the caller looked), else read now.
+    const out = field("playoffs" in o ? o.playoffs : (await leagueGames(state))?.playoffs);
+    return out && out.first !== null ? out : null;
+  }
   const known = field(o.games?.get(episode));
   if (known && known.first !== null) return known;
   const seasonId = await seasonIdOf(state);

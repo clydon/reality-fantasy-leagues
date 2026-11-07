@@ -456,9 +456,12 @@ function spanGame(q, facts) {
  * L1 part 4b: a question a sport's game settles (facts.games), graded once the game is final as of the viewer's moment (a later
  * watch's: the game as far as they've seen it), its answers locked at the game's start as any episode's. An over on the total is
  * known the moment the total passes its line (scores only add: `early`); anything else live is still waiting, with where it
- * stands (`live`: the value or who's ahead, for the phone). A game called off, a tie, a bout with no winner: off.
+ * stands (`live`: the value or who's ahead, for the phone). A game called off, a tie, a bout with no winner: off. L8 part 1's
+ * engine items, part 2: a bracket of the playoffs, on a league's playoffs' series as one card (facts.playoffs: the server's, as of
+ * the viewer's moment), known once the final's series is won.
  */
 function sportsVerdict(q, episode, facts) {
+  if (q.settle.take === 'bracket' && q.settle.of === Bracket.PLAYOFFS) return gameVerdict(q, facts.playoffs || null);
   if (!(facts.games instanceof Map)) return WAITING;
   return gameVerdict(q, q.asked === 'once' ? spanGame(q, facts) : facts.games.get(episode));
 }
@@ -1318,6 +1321,8 @@ function factsThrough(facts, k) {
     ...(facts.games instanceof Map ? { games: upTo(facts.games) } : {}),
     // L3 part 2f part 2: and each episode's games, by event id.
     ...(facts.slate instanceof Map ? { slate: upTo(facts.slate) } : {}),
+    // L8 part 1's engine items, part 2: a league's playoffs, still being played for a week before the one their final was won in.
+    ...(facts.playoffs && facts.playoffs.status === 'final' && !(Number.isInteger(facts.playoffs.wonAt) && facts.playoffs.wonAt <= k) ? { playoffs: { ...facts.playoffs, status: 'in' } } : {}),
   };
 }
 

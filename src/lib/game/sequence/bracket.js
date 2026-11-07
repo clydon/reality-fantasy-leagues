@@ -9,6 +9,10 @@
 
 const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
 
+/** L8 part 1's engine items, part 2: the draw a league's playoffs are (src/lib/sports/playoffs.ts: a playoffs slate's series, each a
+ *  bout of it with its round's distance from the final), as a bracket question names it (`of`). */
+const PLAYOFFS = 'playoffs';
+
 /**
  * A draw as a card's facts have it (SportsGameFacts.bouts: each bout's sides, winner, `class` and `fromFinal`), `cls` the draw (the
  * sport's position key: tennis's "MS"): { first, entrants, matches, winners, over }. `first` its first round's distance from the
@@ -82,4 +86,4 @@ function bracketPoints(q, field, answer) {
   return n;
 }
 
-module.exports = { bracketOf, bracketProblem, bracketPoints, roundWorth };
+module.exports = { PLAYOFFS, bracketOf, bracketProblem, bracketPoints, roundWorth };

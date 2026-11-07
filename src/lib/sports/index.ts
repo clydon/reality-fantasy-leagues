@@ -21,6 +21,7 @@ import { Soccer } from "./soccer";
 import { Golf } from "./golf";
 import { RACING_SERIES, Racing } from "./racing";
 import { MMA } from "./mma";
+import { PLAYOFFS } from "./playoffs";
 import { Tennis } from "./tennis";
 import baseballDefaults from "./defaults/baseball.json";
 import basketballDefaults from "./defaults/basketball.json";
@@ -105,7 +106,9 @@ export interface SportDefaults {
   /** `squad`: how many of each position group a roster holds (FPL's 2 goalkeepers, 5 defenders, 5 midfielders, 3 forwards). */
   slots: { source: string; lineup: DefaultSlot[]; bench: number; squad?: Record<string, number> };
   closes: LockCadence;
-  specs: Record<string, { about: string; spec: Record<string, unknown> }>;
+  /** `on`: the season a spec plays on, where it isn't any (L8 part 1's engine items, part 2: a bracket of the playoffs is a
+   *  league's playoffs slate's: specContextOf's `playoffs`). */
+  specs: Record<string, { about: string; on?: "playoffs"; spec: Record<string, unknown> }>;
   /** A league's own, where its standard game differs from the sport's (racing's F1 and IndyCar from NASCAR's): each part given
    *  replaces the sport's, and its specs each of the sport's of the same name (defaultsFor with the league). */
   leagues?: Record<string, Partial<Pick<SportDefaults, "about" | "scoring" | "categories" | "slots" | "specs">>>;
@@ -140,17 +143,19 @@ export function defaultsFor(sportId: string, league?: string): SportDefaults | n
  * its bouts' formats (byFormat) and its standard roster from its defaults (the lineup's starters and the bench), which raise a
  * show's size limits; and its shape, what its games' finals say (a team game's a side's win, a total and a margin; a field's
  * and a card's someone's win). L4 part 2: its periods (squares pay at their ends) and, a sport whose cards are draws (tennis's),
- * the draws a bracket can be of. `league` as defaultsFor's (racing's F1); else the sport's own first.
+ * the draws a bracket can be of. `league` as defaultsFor's (racing's F1); else the sport's own first. L8 part 1's engine items,
+ * part 2: a team sport's season made of a league's playoffs (`playoffs`: a playoffs slate) has them as its one draw.
  */
-export function specContextOf(sport: AnySport, league?: string): { stats: { key: string; label: string; place?: true }[]; categories: { key: string; label: string; better: "higher" | "lower"; rate?: true }[]; positions: { key: string; label: string }[]; formats: { key: string; label: string }[]; shape: "team" | "field" | "card"; periods: { word: string; plural: string; regulation: number }; draws?: { key: string; label: string }[]; sizes?: { starters: number; bench: number } } {
+export function specContextOf(sport: AnySport, league?: string, o: { playoffs?: boolean } = {}): { stats: { key: string; label: string; place?: true }[]; categories: { key: string; label: string; better: "higher" | "lower"; rate?: true }[]; positions: { key: string; label: string }[]; formats: { key: string; label: string }[]; shape: "team" | "field" | "card"; periods: { word: string; plural: string; regulation: number }; draws?: { key: string; label: string }[]; sizes?: { starters: number; bench: number } } {
   const d = defaultsFor(sport.id, league ?? sport.leagues?.[0]);
   const positions = sport.groups.map((g) => ({ key: g.key, label: g.label }));
   // What a game's final says (L1 part 4b): a team game's sides have a total and a margin; a field and a card have a winner.
   const shape = sport instanceof TeamSport ? ("team" as const) : sport instanceof FieldSport ? ("field" as const) : ("card" as const);
   const periods = { word: sport.periods.word, plural: sport.periods.plural, regulation: sport.periods.regulation };
   // A card whose bouts are in draws (tennis's: Tennis.draws) has its draws, the sport's positions (men's singles...), for a bracket.
-  const draws = typeof (sport as { draws?: unknown }).draws === "function" ? sport.positions.map((p) => ({ key: p.key, label: p.label })) : null;
+  const draws = typeof (sport as { draws?: unknown }).draws === "function" ? sport.positions.map((p) => ({ key: p.key, label: p.label })) : sport instanceof TeamSport && o.playoffs ? [{ key: PLAYOFFS as string, label: "Playoffs" }] : null;
   const ctx = { stats: sport.specStats(), categories: sport.specCategories(), positions, formats: sport.formats.map((n) => ({ key: String(n), label: `${n} ${sport.periods.plural}` })), shape, periods, ...(draws ? { draws } : {}) };
   return d ? { ...ctx, sizes: { starters: d.slots.lineup.reduce((n, s) => n + s.n, 0), bench: d.slots.bench } } : ctx;
 }
 export * from "./slate";
+export { PLAYOFFS, roundOf, seriesOf, gameWinner, isBracket, playoffsFacts, playoffsStart, type PlayoffRound, type PlayoffGame, type PlayoffSeries } from "./playoffs";

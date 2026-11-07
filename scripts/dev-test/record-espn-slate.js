@@ -1,12 +1,14 @@
 // Dev-only: records a league's slate as ESPN answers it (docs/PLAN-start-a-game-gpt.md track L, L8), as a test fixture in
 // tests/fixtures/espn/: its bare scoreboard's season and calendar (days, or football's weeks), its season's stages (the core's
 // types, each with its bounds) and its games month by month (the scoreboard's `dates=YYYYMM`), each event trimmed to what
-// readScoreboard reads (its teams' names, its state, its stage, its note and line). Plain calls (no browser), a few, each once;
-// no app server, no database.
+// readScoreboard reads (its teams' names, its state, its stage, its note, its playoff series' length and wins, and its line). Plain
+// calls (no browser), a few, each once; no app server, no database.
 //
 //   node scripts/dev-test/record-espn-slate.js --league=football/nfl [--stage=2] [--months=2026-09,2026-10] [--note="..."]
-//        [--out=tests/fixtures/espn/nfl-schedule-league-2026.json]
+//        [--only=post] [--out=tests/fixtures/espn/nfl-schedule-league-2026.json]
 //
+// --only=post keeps a month's postseason games alone (a past season's playoffs, recorded for its series: the NBA's 2026 with
+// --months=2026-04,2026-05,2026-06; the months' regular-season games left out).
 // Without --months it records every month of the stage (--stage: ESPN's number, 2 the regular season, unless said; a soccer
 // league's season is its own). Its name holds "schedule", so the tests that read every recorded game skip it.
 const fs = require("fs");
@@ -43,6 +45,7 @@ function trim(e) {
         ...pick(c, ["id", "date"]),
         status: status(c.status),
         notes: (c.notes ?? []).map((n) => pick(n, ["headline"])),
+        ...(c.series ? { series: { ...pick(c.series, ["type", "summary", "completed", "totalCompetitions"]), competitors: (c.series.competitors ?? []).map((x) => pick(x, ["id", "wins"])) } } : {}),
         competitors: (c.competitors ?? []).map((x) => ({ ...pick(x, ["homeAway", "score", "winner"]), team: team(x.team) })),
         ...(c.odds?.[0] ? { odds: [{ ...pick(c.odds[0], ["details", "overUnder", "spread"]), provider: pick(c.odds[0].provider, ["name"]) }] } : {}),
       },
@@ -78,7 +81,7 @@ function monthsOf(from, to) {
   let n = 0;
   for (const m of months) {
     const raw = await get(`${SITE}/${league}/scoreboard?dates=${m.replace("-", "")}&limit=1000`);
-    byMonth[m] = { events: (raw.events ?? []).map(trim) };
+    byMonth[m] = { events: (raw.events ?? []).filter((e) => args.only !== "post" || e.season?.type === 3).map(trim) };
     n += byMonth[m].events.length;
     console.log(`  ${m}: ${byMonth[m].events.length} events`);
   }

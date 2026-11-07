@@ -96,5 +96,16 @@
       "about": "Squares on each game (the Super Bowl's party game): take squares on a 10-by-10 grid of the two scores' last digits, the digits drawn at random once everyone has theirs. The square of the score wins a point at the end of each of the first three quarters and two for the final score, most points wins.",
       "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "squares", "grid": 10, "take": "pick" }, "count": null, "score": { "by": "squares", "pays": [{ "at": 1, "points": 1 }, { "at": 2, "points": 1 }, { "at": 3, "points": 1 }, { "at": "final", "points": 2 }] }, "rank": { "by": "total" }, "closes": "start" }
     }
+  },
+  "leagues": {
+    "nfl": {
+      "specs": {
+        "bracket": {
+          "about": "A playoff bracket: before the NFL playoffs start, pick who wins every game, round by round to the Super Bowl. A point for each one right in the first round, doubling each round after it; most points wins.",
+          "on": "playoffs",
+          "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers" }, "rank": { "by": "total" }, "closes": "start", "ask": [{ "id": "bracket", "ask": "Who wins every game of the NFL playoffs?", "answer": "bracket", "points": 1, "rounds": "double", "settle": { "by": "final", "take": "bracket", "of": "playoffs" }, "asked": "once", "closes": "start" }] }
+        }
+      }
+    }
   }
 }

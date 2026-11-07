@@ -14,7 +14,12 @@
 //   read: a day's locks at its first game, a weekly one's too (the episode is the week: L8 part 3); the Players tab's lines a game each (the doubleheader's two for one player);
 //   leagueGames on an episode of two final games: each game's facts and lines apart, the episode's added up, every episode of a
 //   slate in its shape (one of one game too);
-//   a soccer league ("soccer/zt-slate") by round: its fixtures read month by month, each team once a round, all linked at once.
+//   a soccer league ("soccer/zt-slate") by round: its fixtures read month by month, each team once a round, all linked at once;
+//   the playoffs as a bracket (L8 part 1's engine items, part 2): two conference finals and the Finals, each best of 3 as ESPN
+//   notes them, linked with their notes and lengths; a bracket of them set as a league's game (the NBA's default); the draw as
+//   listed before any is played (drawNow) and an answer checked against it; played (each final kept), each series to the side
+//   that took two, the champion, the teams by name, as of a viewer's mark the Finals still to play; graded on the series (and
+//   waiting before the champion); a regular season's slate none.
 // And finding and adding one (L8 part 2: slate.ts leagueSlates, find.ts searchTeams' leagues and addSlate): what a league's slate
 // can be (its season, its stages, each cut each way with its episodes; a soccer league's rounds from its fixtures; the seasons made
 // for them once made, the playoffs' grown); a tour's league no slate; no such league none; a league found by its list's names
@@ -48,7 +53,11 @@ const { searchTeams, addSlate, MATCHUPS_A_DAY } = jiti("../../src/lib/server/spo
 const { refreshSportsEvents } = jiti("../../src/lib/server/sports/matchup.ts");
 const { linkSeason } = jiti("../../src/lib/server/sports/link.ts");
 const { statsFromEvents } = jiti("../../src/lib/server/sports/stats.ts");
-const { leagueGames } = jiti("../../src/lib/server/sports/score.ts");
+const { leagueGames, drawNow } = jiti("../../src/lib/server/sports/score.ts");
+const { defaultsFor, specContextOf, sportOf } = jiti("../../src/lib/sports/index.ts");
+const StateLogic = require("../../src/lib/game/state-logic.js");
+const G = require("../../src/lib/game/game-spec/index.js");
+const Br = require("../../src/lib/game/sequence/bracket.js");
 const { sportLocks } = jiti("../../src/lib/server/air-times.ts");
 const { sportsProviders } = jiti("../../src/lib/server/sports/index.ts");
 const { easternDay } = jiti("../../src/lib/game/tv-listings.ts");
@@ -200,6 +209,64 @@ const forget = () => pool.query("DELETE FROM sports_cache WHERE key LIKE $1", [`
     const pc = (await pool.query("SELECT episode_count FROM show_seasons WHERE id = $1", [post.seasonId])).rows[0].episode_count;
     check(grew.appended === 1 && grew.added === 1 && pc === 6 && (await epOf(post.seasonId, "zt-sl-p1")) === 6, "a playoff game past its last day: an episode after it", JSON.stringify({ grew, pc }));
     check((await epOf(s.seasonId, "zt-sl-p1")) === null, "the playoffs' game in no regular season's episode");
+
+    // L8 part 1's engine items, part 2: the playoffs as a bracket. Two conference finals and the Finals, each best of 3, as ESPN
+    // notes them; linked with their notes and lengths, read as series, a bracket of them asked once and graded on them.
+    const series = (id, n, home, away, note) => game(id, n, home, away, { stage: "post", note, bestOf: 3 });
+    const poGames = [
+      series("pe1", 32, 1, 2, "East Finals - Game 1"), series("pw1", 32, 3, 4, "West Finals - Game 1"),
+      series("pe2", 33, 2, 1, "East Finals - Game 2"), series("pw2", 33, 4, 3, "West Finals - Game 2"),
+      series("pe3", 34, 1, 2, "East Finals - Game 3"),
+      series("pf1", 35, 3, 1, "NBA Finals - Game 1"), series("pf2", 36, 1, 3, "NBA Finals - Game 2"),
+    ];
+    espn.events.push(...poGames);
+    await syncSlate(post.seasonId, { providers, now, days: [32, 33, 34, 35, 36].map(day), cast: false });
+    const noted = (await pool.query("SELECT event_id, episode, note, best_of FROM season_events WHERE season_id = $1 AND event_id LIKE 'zt-sl-p%' ORDER BY event_id", [post.seasonId])).rows;
+    check(noted.length === 8 && noted.find((x) => x.event_id === "zt-sl-pe3")?.note === "East Finals - Game 3" && noted.filter((x) => x.event_id !== "zt-sl-p1").every((x) => x.best_of === 3) && noted.find((x) => x.event_id === "zt-sl-p1")?.best_of === null, "each playoff game linked with its note and its series' length", JSON.stringify(noted));
+    const poShow = (await pool.query("SELECT s.slug, ss.season_number FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id = $1", [post.seasonId])).rows[0];
+    const bracketSpec = defaultsFor("basketball", "nba").specs.bracket.spec;
+    const poState = StateLogic.defaultState();
+    StateLogic.addCastaway(poState, "Slate Player 1A");
+    poState.players = ["ann", "bo"].map((id) => ({ id, name: id, color: "#000" }));
+    StateLogic.updateSettings(poState, "setupComplete", true);
+    StateLogic.updateSettings(poState, "showId", poShow.slug);
+    StateLogic.updateSettings(poState, "wikiSeason", poShow.season_number);
+    const setProblems = StateLogic.setGame(poState, bracketSpec, { ctx: specContextOf(sportOf(NBA), "nba", { playoffs: true }) });
+    check(setProblems.length === 0, "a bracket of the playoffs set as a league's game", JSON.stringify(setProblems));
+    // Before any is played: the draw as listed, its two conference finals, four teams; nobody's won.
+    const draw0 = await drawNow(poState, 1, "playoffs");
+    check(draw0?.first === 2 && draw0.matches[2]?.length === 2 && Object.keys(draw0.entrants).length === 4 && !Object.keys(draw0.winners).length, "before they start: the draw as listed (two series, four teams)", JSON.stringify(draw0));
+    check(G.answerProblem(bracketSpec.ask[0], { 2: ["zt-sl-t1", "zt-sl-t3"], 1: ["zt-sl-t3"] }, draw0) === null && G.answerProblem(bracketSpec.ask[0], { 2: ["zt-sl-t1", "zt-sl-t2"] }, draw0) === "Pick one winner of each match", "an answer checked against it");
+    // Played: the East's to three games (1 wins, 2, 1), the West's in two (3), the Finals in two (3).
+    const finalOf = (id, home, away, h, a) =>
+      pool.query(
+        `INSERT INTO sports_events (provider, league, event_id, state, teams, final, lines, people) VALUES ('espn', $1, $2, 'post', $3, true, '{}', '{}')
+         ON CONFLICT (provider, league, event_id) DO UPDATE SET state = 'post', teams = EXCLUDED.teams, final = true, lines = '{}', people = '{}'`,
+        [NBA, `zt-sl-${id}`, JSON.stringify([{ id: `zt-sl-t${home}`, score: h }, { id: `zt-sl-t${away}`, score: a }])]
+      );
+    await finalOf("pe1", 1, 2, 100, 90);
+    await finalOf("pw1", 3, 4, 100, 90);
+    await finalOf("pe2", 2, 1, 100, 90);
+    await finalOf("pw2", 4, 3, 90, 100);
+    await finalOf("pe3", 1, 2, 100, 90);
+    await finalOf("pf1", 3, 1, 100, 90);
+    await finalOf("pf2", 1, 3, 90, 100);
+    const pg = await leagueGames(poState, { now });
+    const done = Br.bracketOf(pg?.playoffs?.bouts, "playoffs");
+    check(pg?.playoffs?.status === "final" && done.winners[2]?.slice().sort().join() === "zt-sl-t1,zt-sl-t3" && done.winners[1]?.join() === "zt-sl-t3", "played: each series to the side that took two (the East's in three), the Finals' champion", JSON.stringify({ status: pg?.playoffs?.status, winners: done.winners }));
+    check(pg?.playoffs?.listing?.sides.length === 4 && pg.playoffs.listing.sides.find((t) => t.id === "zt-sl-t3")?.name === "ZT Slate 3s", "its teams by name (a bracket's faces)", JSON.stringify(pg?.playoffs?.listing));
+    // A viewer who's seen the first three days: the Finals still to play.
+    const at3 = await leagueGames(poState, { now, mark: 3 });
+    const mid = Br.bracketOf(at3?.playoffs?.bouts, "playoffs");
+    check(at3?.playoffs?.status === "in" && mid.winners[2]?.length === 2 && !mid.winners[1], "as of a viewer's mark: the Finals still to play", JSON.stringify(mid.winners));
+    const answers = [{ playerId: "ann", question: "bracket", episode: 0, answer: { 2: ["zt-sl-t1", "zt-sl-t3"], 1: ["zt-sl-t3"] } }, { playerId: "bo", question: "bracket", episode: 0, answer: { 2: ["zt-sl-t1", "zt-sl-t3"], 1: ["zt-sl-t1"] } }];
+    const graded = StateLogic.AnswerLogic.grade(poState, answers, { ...StateLogic.AnswerLogic.facts(poState), playoffs: pg.playoffs });
+    check(graded.points.get("ann") === 4 && graded.points.get("bo") === 2, "graded on the series: each conference final 1, the champion 2", JSON.stringify([...graded.points]));
+    const gradedMid = StateLogic.AnswerLogic.grade(poState, answers, { ...StateLogic.AnswerLogic.facts(poState), playoffs: at3.playoffs });
+    check((gradedMid.points.get("ann") || 0) === 0 && gradedMid.verdicts.get("bracket|0")?.state === "waiting", "before the Finals' champion: waiting", JSON.stringify([...gradedMid.verdicts]));
+    // The regular season is no playoffs.
+    const regular = (await pool.query("SELECT s.slug, ss.season_number FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id = $1", [s.seasonId])).rows[0];
+    check(((await leagueGames({ settings: { showId: regular.slug, wikiSeason: regular.season_number }, castaways: [] }, { now }))?.playoffs ?? null) === null, "a regular season's slate: no playoffs");
 
     // Kept current.
     espn.events.find((e) => e.id === "zt-sl-g4").at = at(3);

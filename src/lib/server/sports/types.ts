@@ -117,6 +117,9 @@ export interface SportsEvent {
   stage: SeasonStage | null;
   /** A note the provider puts on it ("World Series - Game 1"). */
   note: string | null;
+  /** L8 part 1's engine items, part 2: a playoff series' most games (ESPN's series.totalCompetitions: best of 7), or null for a
+   *  game of no series (the NFL's playoffs, the regular season); an answer cached before has none. */
+  bestOf?: number | null;
   competitors: Competitor[];
   /** Its parts, when it has more than one; else empty. */
   parts: EventPart[];

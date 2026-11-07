@@ -17,6 +17,7 @@ import { gamesHere, type GameHere } from "./season-games";
 import { playedInSheet, triviaWritten } from "./trivia-key";
 import { factContextForSeason } from "./episode-facts";
 import { drawNow, sidesFor } from "./sports/score";
+import { PLAYOFFS } from "@/lib/sports/playoffs";
 
 // A game's questions (docs/PLAN-start-a-game-gpt.md step A4; migration 0200 game_answers):
 //   GET  /api/seasons/[id]/answers?league=&episode=   the game's questions as you may see them: this week's (asked each
@@ -282,15 +283,20 @@ function castFace(view: LeagueState, id: string): QuestionFace {
 
 /** L3 part 2e: a bracket question's draw for its window, as listed (QuestionView.draw: as it was made, none of what's been played),
  *  or null. */
-async function drawView(view: LeagueState, state: LeagueState, q: Question, episode: number, games?: Map<number, SportsGameFacts>): Promise<QuestionView["draw"]> {
+async function drawView(view: LeagueState, state: LeagueState, q: Question, episode: number, facts: Pick<AnswerFacts, "games" | "playoffs">): Promise<QuestionView["draw"]> {
   const of = (q.settle as { of?: string }).of;
-  const field = of ? await drawNow(state, episode, of, { games }) : null;
+  // L8 part 1's engine items, part 2: a league's playoffs are its teams (by name as linked), not its people.
+  // As the grader read them, as of the viewer's mark (serverFacts: every game asking a sport's final has them).
+  const playoffs = of === PLAYOFFS ? (facts.playoffs ?? null) : null;
+  const field = of ? await drawNow(state, episode, of, { games: facts.games, playoffs }) : null;
   if (!field || field.first === null) return null;
   const first = field.first;
+  const teams = new Map((playoffs?.listing?.sides ?? []).map((t) => [t.id, t.name]));
+  const face = (id: string): QuestionFace => (playoffs ? { id, name: teams.get(id) ?? "A team", photo: null } : castFace(view, id));
   return {
     first,
-    matches: (field.matches[first] ?? []).map(([a, b]) => [castFace(view, a), castFace(view, b)] as [QuestionFace, QuestionFace]),
-    entrants: Object.entries(field.entrants).map(([id, enters]) => ({ ...castFace(view, id), enters })).sort((a, b) => b.enters - a.enters || a.name.localeCompare(b.name)),
+    matches: (field.matches[first] ?? []).map(([a, b]) => [face(a), face(b)] as [QuestionFace, QuestionFace]),
+    entrants: Object.entries(field.entrants).map(([id, enters]) => ({ ...face(id), enters })).sort((a, b) => b.enters - a.enters || a.name.localeCompare(b.name)),
   };
 }
 
@@ -562,7 +568,7 @@ async function readQuestions(r: Read, episodeIn?: unknown): Promise<GameQuestion
       closesAt: (q.each === "game" ? lastStartOf(facts, ep) : null) ?? airAt,
       // A pairs question's faces are its pairs'.
       faces: namesSomeone(q) && q.answer !== "pairs" && !behind ? facesFor(view, q, me, facts.formatGroups?.get(ep)) : null,
-      draw: q.answer === "bracket" && !behind ? await drawView(view, h.state, q, ep || (StateLogic.startEpisode(h.state) ?? 1), facts.games) : null,
+      draw: q.answer === "bracket" && !behind ? await drawView(view, h.state, q, ep || (StateLogic.startEpisode(h.state) ?? 1), facts) : null,
       offWhy: !behind ? (triviaOff ?? offWhy(q, facts.formatGroups?.get(ep))) : null,
       trivia: round,
       mine,
@@ -716,7 +722,7 @@ export async function answerQuestions(user: SessionUser, seasonId: string, leagu
                   await sidesFor(h.state, ep || (StateLogic.startEpisode(h.state) ?? 1), r.facts.games)
                 : q.answer === "bracket"
                   ? // L3 part 2e: a bracket, its draw as listed now (who's in it, its matches so far).
-                    await drawNow(h.state, ep || (StateLogic.startEpisode(h.state) ?? 1), (q.settle as { of?: string }).of ?? "", { games: r.facts.games })
+                    await drawNow(h.state, ep || (StateLogic.startEpisode(h.state) ?? 1), (q.settle as { of?: string }).of ?? "", { games: r.facts.games, playoffs: r.facts.playoffs ?? null })
                   : null;
       let most: number | undefined;
       if (Spec.drawsOnBank(q, bank)) {

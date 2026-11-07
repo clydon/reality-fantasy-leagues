@@ -31,8 +31,10 @@ function everyDefaults() {
 test("every sport's default specs pass the game spec's own check against the sport, and wait only for the sports branch's pieces", () => {
   for (const [sport, league, d] of everyDefaults()) {
     const ctx = specContextOf(sport, league);
-    for (const [name, { spec }] of Object.entries(d.specs)) {
-      assert.deepEqual(problems(spec, ctx), [], `${sport.name} ${name}`);
+    for (const [name, { spec, on }] of Object.entries(d.specs)) {
+      // L8 part 1's engine items, part 2: a bracket of the playoffs is checked against a league's playoffs slate's ctx, and only it.
+      if (on === "playoffs") assert.ok(problems(spec, ctx).length, `${sport.name} ${name}: only on the playoffs`);
+      assert.deepEqual(problems(spec, on === "playoffs" ? specContextOf(sport, league, { playoffs: true }) : ctx), [], `${sport.name} ${name}`);
       for (const w of specWaitsFor(spec)) assert.equal(w.step, "sports", `${sport.name} ${name}: ${w.at}`);
       // A game scored by stats carries the sport's table (L4 part 1a's pick'em and pick a few are scored by their answers), or its
       // categories (L4 part 1b's categories and roto).

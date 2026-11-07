@@ -29,6 +29,7 @@
 //   //             stage?: "pre" | "regular" | "post" (its season's, as ESPN's slug says it; "regular" unless said),
 //   //             season? (ESPN's year for it; the year it starts in, UTC, unless said), off? (called off: over, not completed),
 //   //             odds?: { details: "ZPH -2.5", overUnder: 237.5, spread: -2.5, provider? } (on the scoreboard while "pre"),
+//   //             bestOf? (a playoff series' most games: the scoreboard's series.totalCompetitions, as ESPN's 2026 playoffs list it),
 //   //             box?: { [teamId]: { labels: ["D", "G"], rows: [{ id, name, position, stats: ["21", "2"] }] }
 //   //                            or { tables: [{ name: "batting", labels, rows }, { name: "pitching", labels, rows }] } } }]
 //   //          or a field's event (a race): [{ league, id, at, name, state, field: [{ id, name, headshot? }] }] (its order the place)
@@ -109,6 +110,7 @@ async function start(opts = {}) {
           date: e.at,
           status,
           notes: e.note ? [{ headline: e.note }] : [],
+          ...(e.bestOf ? { series: { type: "playoff", title: "Playoff Series", totalCompetitions: e.bestOf } } : {}),
           competitors: [
             { homeAway: "home", team: rawTeam(home), score: e.score ? String(e.score[0]) : "0", winner: e.state === "post" && e.score ? e.score[0] > e.score[1] : undefined },
             { homeAway: "away", team: rawTeam(away), score: e.score ? String(e.score[1]) : "0", winner: e.state === "post" && e.score ? e.score[1] > e.score[0] : undefined },

@@ -274,6 +274,9 @@ export async function leagueSlates(league: string, opts: { providers?: SportsPro
 const inStage = (e: SportsEvent, stage: SlateStage) => (e.stage ?? "regular") === stage;
 const teamsOf = (e: SportsEvent) => e.competitors.map((x) => x.team).filter((t): t is NonNullable<typeof t> => !!t);
 const slateGame = (e: SportsEvent): SlateGame => ({ id: e.id, at: e.at, teams: teamsOf(e).map((t) => t.id) });
+/** A link's note and series length as the provider lists them (season_events.note and best_of: a playoff's round and its series,
+ *  src/lib/sports/playoffs.ts). */
+const roundCols = (e: SportsEvent) => ({ note: e.note?.slice(0, 200) || null, best_of: Number.isInteger(e.bestOf) && (e.bestOf as number) >= 1 && (e.bestOf as number) <= 15 ? (e.bestOf as number) : null });
 
 /** An episode's air time: its first game's start, else its first day's start in the East (before any game of it: a lock never
  *  late), until its games are linked. */
@@ -292,11 +295,11 @@ async function insertLinks(db: Queryable, seasonId: string, provider: string, le
   if (!links.length) return;
   const rows = links.map(({ episode, event: e }) => {
     const sides = teamsOf(e);
-    return { n: episode, id: e.id, title: e.name.slice(0, 200) || null, at: e.at, teams: sides.map((t) => ({ id: t.id, name: t.name })) };
+    return { n: episode, id: e.id, title: e.name.slice(0, 200) || null, at: e.at, teams: sides.map((t) => ({ id: t.id, name: t.name })), ...roundCols(e) };
   });
   await db.query(
-    `INSERT INTO season_events (season_id, episode, provider, league, event_id, part, name, starts_at, teams)
-     SELECT $1, r.n, $2, $3, r.id, NULL, r.title, r.at, r.teams FROM jsonb_to_recordset($4::jsonb) AS r(n int, id text, title text, at timestamptz, teams jsonb)
+    `INSERT INTO season_events (season_id, episode, provider, league, event_id, part, name, starts_at, teams, note, best_of)
+     SELECT $1, r.n, $2, $3, r.id, NULL, r.title, r.at, r.teams, r.note, r.best_of FROM jsonb_to_recordset($4::jsonb) AS r(n int, id text, title text, at timestamptz, teams jsonb, note text, best_of int)
      ON CONFLICT DO NOTHING`,
     [seasonId, provider, league, JSON.stringify(rows)]
   );
@@ -367,9 +370,11 @@ export async function syncSlate(seasonId: string, opts: { providers?: SportsProv
       }
       const was = linkedTo.get(e.id);
       if (was === n) {
-        // Its name, start and sides as listed now (a playoff game's sides once they're set).
+        // Its name, start and sides as listed now (a playoff game's sides once they're set), and its note and series length (a
+        // playoff's round: L8 part 1's engine items, part 2), never written over with none (an answer cached before it had them).
         const sides = teamsOf(e).map((t) => ({ id: t.id, name: t.name }));
-        await c.query("UPDATE season_events SET name = $3, starts_at = $4, teams = $5 WHERE season_id = $1 AND event_id = $2", [seasonId, e.id, e.name.slice(0, 200) || null, e.at, JSON.stringify(sides)]);
+        const { note, best_of } = roundCols(e);
+        await c.query("UPDATE season_events SET name = $3, starts_at = $4, teams = $5, note = coalesce($6, note), best_of = coalesce($7, best_of) WHERE season_id = $1 AND event_id = $2", [seasonId, e.id, e.name.slice(0, 200) || null, e.at, JSON.stringify(sides), note, best_of]);
         continue;
       }
       if (was !== undefined) {

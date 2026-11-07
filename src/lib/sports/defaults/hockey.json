@@ -68,5 +68,16 @@
       "about": "Best ball: draft a full roster and never set a lineup: each game, your best twelve count, most points wins.",
       "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "draft", "each": 16, "order": "snake", "own": "exclusive" }, "count": { "best": 12 }, "score": { "by": "stats", "points": { "G": 6, "A": 4, "PM": 2, "PPP": 2, "SOG": 0.9, "BLK": 1, "W": 5, "GA": -3, "SV": 0.6, "SO": 5 } }, "rank": { "by": "total" }, "closes": "start" }
     }
+  },
+  "leagues": {
+    "nhl": {
+      "specs": {
+        "bracket": {
+          "about": "A playoff bracket: before the NHL playoffs start, pick who wins every series, round by round to the Stanley Cup Final. A point for each one right in the first round, doubling each round after it; most points wins.",
+          "on": "playoffs",
+          "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers" }, "rank": { "by": "total" }, "closes": "start", "ask": [{ "id": "bracket", "ask": "Who wins every series of the NHL playoffs?", "answer": "bracket", "points": 1, "rounds": "double", "settle": { "by": "final", "take": "bracket", "of": "playoffs" }, "asked": "once", "closes": "start" }] }
+        }
+      }
+    }
   }
 }

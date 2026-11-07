@@ -198,6 +198,9 @@ const { TRIGGER_KINDS, MAJOR } = require('../formats/format-timeline.js');
 // A13 part 2: the episode facts research answers (who says the title quote), and how reliably it does on a show.
 // eslint-disable-next-line @typescript-eslint/no-require-imports -- CommonJS on purpose, as index.js
 const EpisodeFacts = require('../formats/episode-facts.js');
+// L8 part 1's engine items, part 2: the draw a league's playoffs are (sports/playoffs.ts: each series a bout of it).
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- CommonJS on purpose, as index.js
+const { PLAYOFFS } = require('../sequence/bracket.js');
 
 /** Who builds each value. A value not listed isn't one. */
 const VOCAB = {
@@ -2784,6 +2787,9 @@ function questionProblems(q, at, s, ids, league) {
   if (q.answer === 'bracket') {
     if (typeof st.of !== 'string' || !st.of) add('settle.of', "Which draw it's the bracket of: its key (tennis's MS, WS...)");
     if (q.share !== undefined || q.rollover !== undefined || q.shrink !== undefined || each) add('', "A bracket's points are each right pick's: no share, rollover, shrink or each");
+    // L8 part 1's engine items, part 2: a league's playoffs are one draw across the whole game (a playoffs slate's every
+    // episode), picked once before they start.
+    if (st.of === PLAYOFFS && q.asked !== 'once') add('asked', "A bracket of the playoffs is picked once, before they start: ask it once");
   }
   if (q.rounds !== undefined) {
     if (q.answer !== 'bracket') add('rounds', "Only a bracket's rounds are worth more as they go");
@@ -4029,10 +4035,11 @@ function settleProblems(s, ctx, opts) {
     // What a sport's final says (ctx.shape, the sports' specContextOf): a team game's, who wins (a side), the total and the margin;
     // a field's and a card's, who wins (a person: a card's bout by `of`). A final asked once is one game's: a game of just one.
     const shape = ctx.shape;
-    // L4 part 2: a bracket is a card's draw's (tennis's: ctx.draws), named by its key.
+    // L4 part 2: a bracket is a card's draw's (tennis's: ctx.draws), named by its key. L8 part 1's engine items, part 2: or a
+    // team sport's playoffs, on a season made of a league's playoffs (its ctx's draws are them: specContextOf's `playoffs`).
     if (st.by === 'final' && st.take === 'bracket' && (shape === 'team' || shape === 'field' || shape === 'card')) {
       const draws = (Array.isArray(ctx.draws) ? ctx.draws : []).map((d) => (isObj(d) ? d.key : d));
-      if (shape !== 'card' || !draws.length) out.push([`ask[${i}].settle`, shape === 'card' ? "A bracket is a draw's, and this card's bouts aren't in one" : `A bracket is a draw's (tennis's): a ${shape === 'team' ? 'team game' : 'field'} has none`]);
+      if (shape === 'field' || !draws.length) out.push([`ask[${i}].settle`, shape === 'card' ? "A bracket is a draw's, and this card's bouts aren't in one" : shape === 'team' ? "A team game's bracket is its league's playoffs: this season isn't them" : "A bracket is a draw's (tennis's) or a league's playoffs: a field has none"]);
       else if (typeof st.of === 'string' && st.of && !draws.includes(st.of)) out.push([`ask[${i}].settle.of`, `"${st.of}" isn't one of the draws: ${draws.join(', ')}`]);
     } else if (st.by === 'final' && (shape === 'team' || shape === 'field' || shape === 'card')) {
       if (shape !== 'team' && st.take !== 'winner') out.push([`ask[${i}].settle.take`, `A ${shape}'s final says who wins: no total or margin`]);

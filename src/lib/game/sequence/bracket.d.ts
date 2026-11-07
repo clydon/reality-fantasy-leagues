@@ -13,6 +13,8 @@ export interface BracketField {
 /** A bracket answer: each round's winners by its distance from the final ("1" the final). */
 export type BracketAnswer = Record<string, string[]>;
 
+/** The draw a league's playoffs are, as a bracket question names it. */
+export const PLAYOFFS: "playoffs";
 export function bracketOf(bouts: SportsGameFacts["bouts"], cls: string): BracketField;
 export function bracketProblem(value: unknown, field?: BracketField | null): string | null;
 export function bracketPoints(q: { points?: number; rounds?: "double" | "same" }, field: BracketField | null, answer: unknown): number;

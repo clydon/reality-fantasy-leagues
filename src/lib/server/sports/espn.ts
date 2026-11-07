@@ -62,6 +62,8 @@ interface RawCompetition {
   status?: RawStatus;
   competitors?: RawCompetitor[];
   notes?: { headline?: string }[];
+  /** A playoff series' record (a scoreboard's and a schedule's): how many games it is at most, each side's wins. */
+  series?: { type?: string; totalCompetitions?: number };
   /** The line, on a scoreboard before the game. */
   odds?: RawOdds[];
 }
@@ -216,6 +218,7 @@ export function readScoreboard(league: string, raw: { events?: RawEvent[]; leagu
       season: Number.isInteger(e.season?.year) ? (e.season!.year as number) : null,
       stage: stageOf({ ...e.season, type: e.season?.type ?? e.seasonType?.type }),
       note: str(comps[0]?.notes?.[0]?.headline),
+      bestOf: comps[0]?.series?.type === "playoff" && Number.isInteger(comps[0].series.totalCompetitions) ? (comps[0].series.totalCompetitions as number) : null,
       competitors: comps.length === 1 ? (comps[0].competitors ?? []).map(readCompetitor) : [],
       parts,
       odds: readOdds(comps[0]?.odds?.[0]),

@@ -339,20 +339,21 @@ async function scheduleLock(leagueId: string, state: LeagueState, now: Date): Pr
  *  trivia key (A13: trivia-key.ts triviaKeyFor), for one an episode fact settles each episode's facts as research said them
  *  (A13 part 2: episode-facts.ts episodeFactsFor), and for one played against the bot its calls (A14 part 2: botCallsFor). Each
  *  only when the game reads it. */
-async function serverFacts(state: LeagueState, view: LeagueState, leagueId: string, mark: number | null = null): Promise<Pick<AnswerFacts, "formatGroups" | "trivia" | "episodeFacts" | "bot" | "botCalled" | "games" | "slate">> {
+async function serverFacts(state: LeagueState, view: LeagueState, leagueId: string, mark: number | null = null): Promise<Pick<AnswerFacts, "formatGroups" | "trivia" | "episodeFacts" | "bot" | "botCalled" | "games" | "slate" | "playoffs">> {
   const [formatGroups, trivia, episodeFacts, bot, games] = await Promise.all([formatGroupsFor(state, view), triviaKeyFor(state), episodeFactsFor(state, view), botCallsFor(leagueId, state), sportsGamesFor(state, mark)]);
   return { ...(formatGroups ? { formatGroups } : {}), ...(trivia ? { trivia } : {}), ...(episodeFacts ? { episodeFacts } : {}), ...(bot ?? {}), ...(games ?? {}) };
 }
 
 /** L3 part 1: each episode's game as of the viewer's mark (null: as it stands), for a game that asks a question a sport's game
  *  settles (sports/score.ts leagueGames: from the counts saved at its final), only when it asks one. L3 part 2f part 2: a question
- *  about each game, each episode's games by event id too (`slate`, with each one's listing). */
-async function sportsGamesFor(state: LeagueState, mark: number | null): Promise<Pick<AnswerFacts, "games" | "slate"> | undefined> {
+ *  about each game, each episode's games by event id too (`slate`, with each one's listing). L8 part 1's engine items, part 2: a
+ *  bracket of the playoffs, a playoffs slate's series as one card (`playoffs`). */
+async function sportsGamesFor(state: LeagueState, mark: number | null): Promise<Pick<AnswerFacts, "games" | "slate" | "playoffs"> | undefined> {
   const qs = StateLogic.AnswerLogic.questions(state).filter((q) => q.settle?.by === "final" || q.settle?.by === "stat");
   if (!qs.length) return undefined;
   const g = await leagueGames(state, { mark });
   if (!g) return undefined;
-  return { games: g.games, ...(qs.some((q) => q.each === "game") ? { slate: g.eachGame } : {}) };
+  return { games: g.games, ...(qs.some((q) => q.each === "game") ? { slate: g.eachGame } : {}), ...(g.playoffs ? { playoffs: g.playoffs } : {}) };
 }
 
 /** The facts a game's questions are graded on as a viewer sees them (StateLogic.AnswerLogic.facts), the timeline's groups, the

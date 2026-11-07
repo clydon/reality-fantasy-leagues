@@ -3644,6 +3644,86 @@ week: L8 part 3), and its lineup is set game by game inside it.
 - **The bots** set their best lineup each run; mid-week one that moves a locked holding is refused, so they keep what they had. A bots
   step.
 
+**L8 part 1's engine items, part 2 as built: a playoff's series as a bracket (2026-11-06, `sports`, not merged; migration 0305;
+HOSTING.md updated).** L4 part 2's Noticed: a bracket question asked over a league's playoffs, its draw their series.
+- **The spec** (`schema.js`): a bracket `of: 'playoffs'` (`sequence/bracket.js` `PLAYOFFS`), the whole playoffs one draw, so it's
+  asked once (`asked: 'once'`, closing at the first playoff game: "A bracket of the playoffs is picked once, before they start: ask it
+  once"). Against the sport: a team game's bracket is its league's playoffs, on a season made of them only (the ctx's draws:
+  `specContextOf(sport, league, { playoffs: true })`, a team sport's playoffs slate; "A team game's bracket is its league's playoffs:
+  this season isn't them" otherwise, where it said "a team game has none"); a field none; tennis's draws aren't it. An answer names
+  the teams (their provider ids, the sides'), each round's winners by its distance from the final as tennis's.
+- **The words** (`describe.js`, impeccable clarify): "Before the playoffs start, pick the winner of every matchup, round by round to
+  the final: 1 point for each one right in the first round, doubling each round after it." ("matchup": the NFL's rounds are games,
+  the others' series; the timing first, the scoring as tennis's bracket says it.) **The defaults**: `bracket` for the NBA, the WNBA,
+  MLB and the NFL (each a league's own, since college shares their sport's id) and the NHL (`on: 'playoffs'`, a new field on a
+  default: the season it plays on), "Who wins every series of the NBA playoffs?" ("every game" the NFL's), "A playoff bracket: before
+  the NBA playoffs start, pick who wins every series, round by round to the Finals. A point for each one right in the first round,
+  doubling each round after it; most points wins." (the World Series, the Stanley Cup Final, the Super Bowl).
+- **The series** (`src/lib/sports/playoffs.ts`, new, pure): `roundOf(note)`, a game's round from ESPN's note, on the words ESPN's 2026
+  playoffs use (read 2026-11-06): its half ("East", "AL", "AFC"; none for the final or a league without halves) and its distance from
+  the final where the words name it (the final 1: "NBA Finals", "Stanley Cup Final", "World Series", "Super Bowl LX"; a half's final
+  2: "East Finals", "ALCS", "AFC Championship"; a half's semifinals and a division series 3; a wild card 4; the WNBA's semifinals,
+  halfless, 2), else its number ("1st Round", "First Round", "Round Two"); a note naming none (the Pro Bowl, the play-in) isn't the
+  bracket's. `seriesOf(games)`: the games with a round and two sides, grouped by round and teams; a numbered round's distance counted
+  back from the named rounds after it, or from its first round's series (8 is four from the final), whichever is more (as tennis's
+  before its later rounds are listed); each one's wins from its final games' winners, its winner the side with a majority of its most
+  (`bestOf`: ESPN's `series.totalCompetitions`, best of 3, 5 or 7; a game of no series, the NFL's, best of 1). `isBracket`: each
+  round no more series than it holds and each team once in it, else (college's postseason: the NCAA's two Final Four games both read
+  as its final, beside the NIT's) no draw. `playoffsFacts(games)`: a card's facts, each series a bout of the draw `playoffs` with its
+  `fromFinal`, final once the final's series is won.
+- **Kept with the links** (migration 0305: `season_events.note` and `best_of`, from the same day's and month's scoreboards; ESPN's
+  reader keeps `bestOf` beside its note, `SportsEvent.bestOf`): a slate writes them as it links a game and refreshes them at each sync
+  (the update path); every other link has none.
+- **The server** (`sports/score.ts`): `leagueGames` on a playoffs slate (`sports_slates.stage` 'post') reads each game's note and
+  length beside its facts as of the mark and hands `playoffs` over (the series as one card, its teams by name as linked in its
+  `listing`); `drawNow(state, _, 'playoffs')` reads it (the grader's when it has them); `answer-points.ts` gives the grader
+  `facts.playoffs`; `answers.js` `sportsVerdict` grades a bracket of the playoffs on it (known once the final's series is won, waiting
+  with the draw so far before); `server/answers.ts` checks an answer against it and its view's `draw` names the teams (not the cast).
+- **Checks.** `tests/sports-playoffs.test.js` (new, 9), on ESPN's own 2026 playoffs recorded (`tests/fixtures/espn/{nba,nhl,mlb,nfl}
+  -schedule-playoffs-2026.json`, `record-espn-slate.js --only=post`, which now keeps the series record): every note's round; each
+  league's four rounds, its series by round (the NBA's and NHL's 8, 4, 2, 1; MLB's 4, 4, 2, 1 with four byes; the NFL's 6, 4, 2, 1 with
+  two), each series' length and its wins equal to ESPN's own record after its last game, the champions; before they start (the NBA's
+  eight Game 1s: four from the final, sixteen in it), a first round of four three, the NHL's second round once listed, a series still
+  on; college's no draw; the NBA's bracket graded through the engine (the perfect 32, the wrong champion 24, waiting before the
+  final's won), an MLB answer checked against the Wild Card's draw and a bye entering at the division series (the perfect 28); the
+  spec's check, every pro league's default, none for college's, the words; a series whose length nobody listed (another series' of its
+  round, else no winner yet), the NFL's a game each, a conference's semifinals with no half named; a week-by-week walk grading the
+  bracket only from the week the final was won (`wonAt`, `factsThrough`). `check-slate.js` (68, all pass: a stand-in's playoffs of
+  two conference finals and the Finals, best of 3, linked with their notes and lengths; the draw before any is played; each series to
+  the side that took two, the champion, a viewer's mark, graded; a regular season's none). `check-stats-game.js` (69, all pass: a fifth
+  season, a playoffs slate, answered by a zt account through answers.ts: the draw by the teams' names, a series' both sides and a team
+  not in it refused, a whole bracket kept, closed and known once played, 4 and 1). 1,867 unit tests pass; `tsc` clean; eslint clean on
+  the files changed; the placement corpus unchanged (no spec moved).
+- `/code-review` on the diff (its fixes: a series with no length listed read as best of 1, so its first win took it (now its round's
+  others' length, else no winner), and the sync's refresh writing an empty note or length over a kept one (`coalesce`); a week-by-week
+  walk grading the bracket with a later week's champion (`factsThrough` keeps the playoffs still on before `wonAt`); an event linked
+  to two episodes counted twice in its series (keyed by its id); the playoffs' status and first start from games outside the bracket
+  (the play-in's); the draw read twice, and the view's draw read past the viewer's mark (the grader's own, as of the mark); hockey's
+  default under the NHL's own; a halfless "Conference Semifinals" read as the league's semifinals. Declined: a first round listed in
+  part, below; nothing building a sport's ctx on the server yet, below).
+
+**L8 part 1's engine items, part 2 noticed, not fixed:**
+- **A bye's team isn't in the draw at the lock**: MLB's four and the NFL's two top seeds first play in the second round, which ESPN
+  lists only once its other side is known, so a bracket answered before the Wild Card can't name them ("Pick only who's in the
+  draw"): for MLB and the NFL a bracket is the first round and whoever the picks carry. ESPN's standings' seeds would let them in
+  (an entrant at round 3 before their series is listed), or a lock at the second round's start; U1 or its own step, before a couch
+  plays one. L4 part 2's "A seed with a bye" is the same gap.
+- **The lock is the first playoff game**: one bracket, picked once. A rolling one (each round picked as it comes) is L4 part 2's
+  "A rolling bracket".
+- **College's postseason is no draw** (the NCAA's tournament beside the NIT and the Crown, ESPN's notes "NCAA Men's Basketball
+  Championship - Final Four"; college football's bowls and the CFP): a bracket of the NCAA's tournament needs its own reader (its
+  regions, the First Four as a play-in, "Sweet 16", "Elite 8"), March's likeliest ask: its own step when a couch asks.
+- **Soccer's playoffs and cups** (MLS's, a cup's knockout rounds) aren't read: their notes are untried. Their own step.
+- **Nothing builds a sport's ctx on the server yet**: `specContextOf` is the tests' and checks'; the screens' Start a game (U0) and
+  the GPT's context pack pass `{ playoffs: true }` for a playoffs slate, so a default with `on: 'playoffs'` is offered only there.
+- **A series' wins are ours**, from the kept finals, not ESPN's own `series.competitors.wins`: a game whose final is kept late shows
+  its series a game behind until it is, as every sports result waits for its kept final.
+- **A first round listed in part reads short**: with only numbered rounds listed, the first round's distance is counted from its
+  series (eight: four from the final), so an NBA first round answered while fewer than five of its series have both sides (the play-in
+  still to settle the 7 and 8 seeds' opponents) reads three from the final, and picks made then are keyed a round short. The NBA lists
+  six before the play-in, so it reads right; a league that lists fewer would need its rounds from ESPN's standings or bracket. With
+  the bye's seeds, above.
+
 **L3 part 2f part 1 noticed, not fixed:**
 - **A week's live points wait for its last game** on the server (its results are the week's): the phone's live lines (L2) are what
   show a week as it goes; U1's to say "so far".
@@ -4053,7 +4133,7 @@ little more: HOSTING.md).**
   - VOCAB: `score.by` `squares` and `ask.answer` `bracket` to 'now' with it.
 
 **L4 part 2 noticed, not fixed:**
-- **A playoff's series as a bracket** (the NBA's, the NHL's) needs a season made of a league's playoffs (each series its games): the
+- **A playoff's series as a bracket** (built in L8 part 1's engine items, part 2, on L8's playoffs slate) (the NBA's, the NHL's) needs a season made of a league's playoffs (each series its games): the
   same gap as a league's slate (L4 part 1a's Noticed, L7 or its own step). `bracketOf` takes a series as a bout once something gives
   each one its class and distance from the final.
 - **A rolling bracket** (each round picked as it comes, from who's still in) needs a lock for each round inside one episode (a Grand
@@ -4242,7 +4322,8 @@ A season made of a whole league's games, several an episode, shared by everyone 
   - **Daily lineups inside a week's episode** (built in L8 part 1's engine items, part 1: `closes: 'game'`, each holding locking at its
     own game's start for the rest of that day, each game counting the lineup in force when it started) (Yahoo's NBA: set each day,
     scored over the week): a holding locks at its own game's start; today an episode locks once, at its first game.
-  - **A playoff's series as a bracket** (L4 part 2's Noticed): a playoffs slate's games, grouped by `oneSeries` (matchup.ts), are each
+  - **A playoff's series as a bracket** (built in L8 part 1's engine items, part 2: each game's round from ESPN's note, kept with its
+    link, grouped by round and teams rather than `oneSeries`; a bracket `of: 'playoffs'`, asked once) (L4 part 2's Noticed): a playoffs slate's games, grouped by `oneSeries` (matchup.ts), are each
     series' games; `bracketOf` takes each series as a bout once its round is known (ESPN's note: "East 1st Round - Game 3").
 
 **L8 part 1 noticed, not fixed:**
