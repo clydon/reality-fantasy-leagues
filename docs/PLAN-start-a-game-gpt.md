@@ -5568,6 +5568,12 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     filing (only for a choice, again only after a filing that changes points); the route reading the rows three times (once); its
     spoiler mark copied from the roles route (one helper, `seatMark`); the moment check in `pointsFor` for every game (gone with
     the move); the first episode's words for a game starting at a phase ("The game's first episode has no twist").
+  - **The long checks** (once, last, on `700df755`): golden (`golden.js --before=master`): 7 seasons, 160 games, **19,361 reads, every
+    one the same**. The Survivor 51 rehearsal (`season-forward.js rehearse --from=backups/prod-2026-10-30
+    --scenario=realistic,rough,dst --before=master`): every invariant holds, flag off against on and master's engine against this
+    tree's, 2,856 reads each, every one the same. Blind (`blind.js run`): every game played through and over on all five seasons, The
+    Challenge 41 122, 40 116 and 39 124, Survivor 49 159 and The Traitors 4 113 (one more each: s40, a lineup, which plays on every
+    show; nobody chooses in a replay, so it plays without a twist: Noticed).
 - **A15. Live and replay** (with the watch along, docs/PLAN-couch-and-episode-night.md §6, and the sports branch's
   `GameClock`). It needs A7. The watch along is in its infancy (the user, 2026-10-28): its concept, how it's built and how it
   connects to games are all open, so A15 is where the games shape it, not only where they plug into it.
@@ -7925,6 +7931,9 @@ From A14 part 5 (2026-11-06):
 - **Not in a stage yet**: a stage's league is its own, so the filing would work per stage, but who chooses at a stage's first
   episode (the game's standings or the stage's own) is a rule to decide. Recommended: the stage's own first episode has none, as a
   game's. (A12's stages, with a request.)
+- **A blind replay has nobody to choose a twist**: blind.js plays the engine without the server's filing, so s40 replays as a plain
+  lineup (no episode stamped). A stand-in chooser (the top scorer by the walk choosing, say, the twist that would have helped them
+  most last week, filed as the server files it) would replay the twist itself. (Whoever next works on blind.js.)
 - **The twist route's refusals are the server's English** (e.g. "You don't choose Episode 6's twist"), written without the show's
   word for an episode; U1's screens say them through impeccable's clarify. (U1.)
 - **For the hosting notes, at the merge:** a read or write of a game with a twist runs one query for its twist_choices rows, and the
