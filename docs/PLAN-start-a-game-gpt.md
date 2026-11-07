@@ -11,7 +11,8 @@ them next (the user's, in production). **Merged and live in production (2026-10-
 0207), then C6 and C7 part 1 (2026-11-06, 3:53 PM, `abfa4a74`, no migration), then C7 part 2 (2026-11-06, 5:57 PM, `9d74258d`, migration 0208), and track L's live sports, released with no screens yet (2026-11-07, 1:05 AM, `e7f5dc0b`, migrations 0300 to 0306);
 then A14 parts 2b to 7b (2026-11-07, 9:09 AM, `fbc7dc0a`, migrations 0209 to 0213; the call prompt approved by the user, the bot's
 reason kept hidden; TVmaze ratings off, the user's no); A15 waits for a concept session on the watch along with the user
-(2026-11-07); later engine parts stay on
+(2026-11-07); then G1, words to a spec, and G4, Randomize (2026-11-07, 11:48 PM, `f4ace1d8`, migration 0214; G1's four prompts approved by
+the user, the new-moment bar at medium, the bot's priority queue not on the VM until U1); later engine parts stay on
 `engine` until the main folder merges them, after each
 lettered step. A1–A4 are built on `engine` (A4 in two parts: the engine and storage, then the Prediction Sheet's screens, built before
 the screens moved to U1), merged and live since 2026-10-30 (above).
@@ -10853,7 +10854,7 @@ first), and proves it on these games and on the tracker's other rows that use it
     104-request corpus rewritten for a page, with the worked examples above. Run on the stand-in bot
     (`scripts/dev-test/fake-bot.js`), and `scripts/dev-test/check-game-words.js` against the real bot (writes nothing).
   - A daily cap per person (Make it a game's is 5).
-  **As built (G1 parts 1 to 3, 2026-11-07, on `engine`; migration 0214).** One session, the three parts chained (they share the
+  **As built (G1 parts 1 to 3, 2026-11-07, on `engine`; merged and live 2026-11-07, `f4ace1d8`; migration 0214).** One session, the three parts chained (they share the
   same new module). No screen: the wizard is U0/U1's, through the impeccable skill.
   - **Part 1, the words to a spec, pure** (`src/lib/game/game-words/`, CommonJS like game-spec, with `index.d.ts`):
     - **The manual, generated** (`manual.js` `manualFor(ctx, { kind, examples, show })`): the presets whole (their spec and the
@@ -10947,7 +10948,7 @@ first), and proves it on these games and on the tracker's other rows that use it
     answered (now counted with the ask in it, one over taken back, failures not counted); the same show read by its first word or
     without its season (now the pack's show and season); an empty season read as 0; two small server cleanups.
   - **Long checks:** none (nothing in `state-logic.js` or a scorer changed). The tracker unchanged (`--check`).
-  **As built (G1 part 4, 2026-11-07, on `engine`; no migration): a new moment research answers.** One session: the measure first
+  **As built (G1 part 4, 2026-11-07, on `engine`; merged and live 2026-11-07, `f4ace1d8`; no migration): a new moment research answers.** One session: the measure first
   (the bot asked in the background while the rest was built), then the store, the research, the void. No screen.
   - **The measure** (the user's concern in the Decisions table's "A preset's rule"; `scripts/dev-test/moment-asks.js`, the numbers
     in full in `docs/STUDY-added-moments.md`):
@@ -11053,7 +11054,7 @@ first), and proves it on these games and on the tracker's other rows that use it
   the end in the blind replays (F4's `blind.js`); the same seed and locks make the same game; every lock holds; every short
   form fits its cap. After A14 (the pieces it rolls) and before U0, so the mocks show real rolls. No migration: a rolled game
   is an ordinary spec.
-  **As built (2026-11-07, `engine`; no migration, no screen):**
+  **As built (2026-11-07, `engine`; merged and live 2026-11-07, `f4ace1d8`; no migration, no screen):**
   - **`rollSpec(page, locks, seed, opts)`** (`src/lib/game/game-spec/roll.js`, pure, exported from game-spec's index with its types):
     `page` is G1's `{ ctx, pack }` (or a SpecContext alone). From the pack: where a game can start (the next episode to air; a
     season that's aired, from its start at your own pace), the episodes left, the couch, who's in; from the ctx: the moments research

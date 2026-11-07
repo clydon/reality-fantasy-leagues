@@ -343,6 +343,21 @@ it doesn't go in the menu.** The audit (checked in the code, 2026-10-30), per ol
   full target first (A5, the capability tracker, then A6–A15), today's games rebuilt on it (R1–R3), the UI last (U0–U1), the
   GPT's words alongside (G1), and live sports folded in as track L. Lanes (worktree + branch + database + port + session loop):
   [PARALLEL-SESSIONS.md](PARALLEL-SESSIONS.md); season tapes and playtests: [PLAN-playtests.md](PLAN-playtests.md).
+- **Merged and pushed 2026-11-07, 11:48 PM: the engine's G1, words to a spec, and G4, Randomize, with no screens yet** (`f4ace1d8`,
+  merging the engine's `36d852a4`; migration 0214, rehearsed on the Neon branch `rehearse-c4b-2026-11-06` by the main
+  session: applied, `[check] all good`, rulebooks backfilled, the game-specs check PASS on all 6 leagues). G1: someone's
+  typed words become a checked game spec (POST /api/seasons/[seasonId]/game-words; the manual generated from VOCAB, the
+  context pack only as far as the asker has watched, our check turning every change into a question or an assumption,
+  10 asks a person a day logged in `game_word_asks`), and a season's added moments (POST
+  /api/seasons/[seasonId]/added-moments; research's full run asks them, a short ask covers what it left unsure, and an
+  episode research can't settle is void). The user's answers (2026-11-07): the four prompts approved as written, the
+  new-moment bar stays at medium (measured: new moments rated medium settle 60% of episodes), the bot's priority queue
+  (llm-browser-api JobQueue, built on this PC with .bak copies) not on the VM until U1, and an added moment's 0-point
+  lines in other games hidden in U1. G4: `rollSpec`, a game rolled from a seed with locks held, our check the gate, each
+  with a title, a short line and the engine's sentence. Nothing reaches players until the screens (U0, U1). Checked: the
+  lanes' checks (G4's 21,000 rolls and blind replays of 642 rolled games; G1's bank, its API checks and two samples on
+  the local bot; `state-logic.js` untouched, so golden and the Survivor 51 rehearsal stand from the A14 merge); on the
+  merged tree (rfl-merge, branch merge-g1): unit tests 1960, eslint on the changed source files and `next build`.
 - **Merged and pushed 2026-11-07, 9:09 AM: the engine's A14 parts 2b to 7b, the players' own mechanics** (`fbc7dc0a`, merging the
   engine's `6b343c1c`; migrations 0209 to 0213, rehearsed by the user on the Neon branch `rehearse-c4b-2026-11-06`, which
   also took the sports release's 0300 to 0306: all applied, `[check] all good`, rulebooks backfilled, the game-specs check
@@ -546,7 +561,7 @@ it doesn't go in the menu.** The audit (checked in the code, 2026-10-30), per ol
   **Waiting on the user:** restart the main bot (8765) on the new code, then the tapes move back to it and 8766 goes. The
   playtest branch is merged into master (`2c945d31`).
 - **Neon is on Launch** since 2026-10-28 (the user upgraded it at 98.3% of the free transfer; about $5 a month; HOSTING.md).
-- **On branches, not merged:** nothing on `engine` past A14 (A15 waits for the watch along's concept, the user's session),
+- **On branches, not merged:** the engine's G3, the GPT learning sports (`engine`); A15 waits for the watch along's concept,
   track L's live sports released (above; next: G3 and the screens). The lanes run at high
   since 2026-11-05 (the user; C2 at xhigh) under the usage cap ([PARALLEL-SESSIONS.md](PARALLEL-SESSIONS.md), "The usage
   cap"). Waiting on the

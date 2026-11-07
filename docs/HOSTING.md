@@ -1251,3 +1251,8 @@ never handles it: the user does the reset and the pasting.
   unused while TVmaze ratings are off), and a bot research run kind, `call`: one ask a game a lock, six hours before the
   episode, only for games with a beat-the-bot question (none can be made yet). Same bot as research's other runs; no paid
   key, no new service or schedule.
+- **2026-11-07, pushed to master (`f4ace1d8`, migration 0214).** The engine's G1 and G4. **Nothing runs until a screen asks:**
+  a typed request is one bot ask with search off (about 12,000 tokens of manual and page), at most 10 a person a day,
+  each a row in `game_word_asks`; a season's added moment adds one short ask inside research's full run after each
+  episode (capped at 150 s, only for seasons with an added moment: none yet). Same bot as research; no paid key. The
+  bot's priority queue for these asks isn't on the VM yet (with U1): until then such an ask waits its turn there.
