@@ -78,6 +78,8 @@ export type AnswerResult = (CheckResult & { notes: string[]; botSummary: string 
 export interface MomentRating {
   reliable: Reliability;
   why: string;
+  /** G1 part 4: whether it happens to someone in the cast (asked who) or is about the episode itself (not offered yet). */
+  about?: "person" | "episode";
   question: string;
   label: string;
   nearest: string[];

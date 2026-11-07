@@ -12,6 +12,7 @@ import { seenThrough } from "./guard";
 import { seasonSchedules } from "./schedule";
 import { games, seasonHeaders } from "./show-space";
 import { startFrom } from "./start-game";
+import { groupsGoingInto } from "@db/format-timeline.js";
 
 // The Start-a-game GPT's words to a game (docs/PLAN-start-a-game-gpt.md step G1; POST /api/seasons/[seasonId]/game-words): someone
 // on a show's page types the game they want; our bot drafts it from the context pack (what the app knows about the page, gathered
@@ -54,7 +55,7 @@ async function asksToday(user: SessionUser): Promise<{ used: number; left: numbe
 
 /**
  * The context pack's input for a season, as `user` has seen it on `couchId`: the show and season, its episodes and the next, its
- * phases, its cast (who's gone and how, through their mark; each one's starting group), the moments research answers (the rules
+ * phases, its cast (who's gone and how, through their mark; each one's group now as far as they've seen it, G1 part 4: F3's timeline, else their starting one), the moments research answers (the rules
  * the couch plays by: its own copy, else the season's), and the couch (how many, its games here). And the ctx our check reads, sized
  * by the couch and who's still in as they've seen it.
  */
@@ -65,7 +66,7 @@ export async function packFor(user: SessionUser, seasonId: string, couchId: stri
   const schedule = schedules.get(seasonId);
   const label = `${h.show.name}${h.seasonNumber ? ` ${h.seasonNumber}` : ""}`;
   const kind = h.show.kind === "sport" ? "sport" : "show";
-  const [{ rows: cast }, { rows: outs }, members, here] = await Promise.all([
+  const [{ rows: cast }, { rows: outs }, members, here, now_] = await Promise.all([
     pool.query("SELECT id, name, tribe_name FROM season_cast WHERE season_id = $1 ORDER BY sort_order, name", [seasonId]),
     pool.query(
       `SELECT lower(COALESCE(d.applied->>'castawayName', d.castaway_name)) AS name, min(d.episode_number)::int AS ep, min(d.method) AS how
@@ -74,6 +75,8 @@ export async function packFor(user: SessionUser, seasonId: string, couchId: stri
     ),
     couchId ? couchMembers([couchId]) : Promise.resolve(new Map()),
     couchId ? games(user.id, { couchIds: [couchId], seasonId }) : Promise.resolve([]),
+    // G1 part 4: who is with whom now, as far as they've seen (F3's timeline from the season's research): the starting groups until then.
+    groupsGoingInto(pool, seasonId, mark + 1),
   ]);
   const out = new Map(outs.map((r) => [r.name as string, { episode: r.ep as number, how: (r.how as string | null) ?? undefined }]));
   const eps = schedule?.episodes ?? [];
@@ -95,7 +98,9 @@ export async function packFor(user: SessionUser, seasonId: string, couchId: stri
     phases: (rules.phases ?? []).map((p) => ({ id: p.id, name: p.name ?? p.id })),
     cast: cast.map((c) => {
       const gone = out.get(String(c.name).toLowerCase());
-      return { id: c.id as string, name: c.name as string, in: !gone, out: gone ?? null, group: (c.tribe_name as string | null) ?? null };
+      const key = String(c.name).toLowerCase();
+      const group = now_ && now_.has(key) ? now_.get(key)! : ((c.tribe_name as string | null) ?? null);
+      return { id: c.id as string, name: c.name as string, in: !gone, out: gone ?? null, group: gone ? ((c.tribe_name as string | null) ?? null) : group };
     }),
     ctx: rules,
     couch: couchId ? { people, games: here.filter((g) => !g.archived).map((g) => ({ name: g.name, says: g.gameName })) } : null,

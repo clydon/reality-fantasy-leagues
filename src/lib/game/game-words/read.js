@@ -122,12 +122,15 @@ function readDraft(answer) {
 
 const RELIABLE = ['high', 'medium', 'low'];
 
-/** The reliability ask's answer: its rating (low when it's anything else), why, the question and its label. */
+/** The reliability ask's answer: its rating (low when it's anything else), why, whether it's about a person or the episode (G1
+ *  part 4: as it says; when it doesn't, a person only when its question asks who), the question and its label. */
 function readMoment(answer) {
   const { value } = objectIn(answer);
   const reliable = RELIABLE.includes(String(value.reliable || '').toLowerCase()) ? String(value.reliable).toLowerCase() : 'low';
   const nearest = Array.isArray(value.nearest) ? value.nearest.map(str).filter(Boolean).slice(0, 3) : [];
-  return { reliable, why: str(value.why) || '', question: str(value.question) || '', label: str(value.label) || str(value.question) || '', nearest };
+  const said = String(value.about || '').toLowerCase();
+  const about = said === 'episode' || said === 'person' ? said : /\bwho\b/i.test(str(value.question) || '') ? 'person' : 'episode';
+  return { reliable, why: str(value.why) || '', about, question: str(value.question) || '', label: str(value.label) || str(value.question) || '', nearest };
 }
 
-module.exports = { readDraft, readMoment, tidy, SPEC_PARTS };
+module.exports = { readDraft, readMoment, tidy, objectIn, SPEC_PARTS };

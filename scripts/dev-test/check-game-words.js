@@ -151,7 +151,7 @@ async function api() {
   // The stand-in: the bank's own answers by their words, the change made, every new moment rated high.
   const bot = await fakeBot.start({
     answer: (prompt, kind) => {
-      if (kind === "momentAsk") return JSON.stringify({ reliable: "high", why: "Recaps say when it rains.", question: "Did it rain during the episode?", label: "It rained", nearest: ["medevac"] });
+      if (kind === "momentAsk") return JSON.stringify({ reliable: "high", why: "Recaps say who got caught out in the rain.", about: "person", question: "This episode, who got caught out in the rain?", label: "Caught in the rain", nearest: ["medevac"] });
       if (kind === "gameChange") return JSON.stringify({ draft: 1, game: { preset: "outlast", get: { by: "draft", each: 4, order: "snake", own: "exclusive" } }, said: [{ part: "get.each", quote: "make it 4 each" }, { part: "preset", quote: "last one standing carries you" }] });
       const words = fencedAfter(prompt, "THEIR WORDS");
       const c = B.cases().find((x) => x.words === words);
@@ -207,10 +207,30 @@ async function api() {
     check(rated.length === 1 && rated[0].search === false && /Will it rain\?/.test(rated[0].prompt), "a new moment: the reliability ask goes out, search off", JSON.stringify(rated.map((a) => a.prompt.slice(0, 120))));
     check(r3.state === "cantYet" && r3.offers && r3.offers.moments && r3.offers.moments.length === 1 && r3.ask.some((a) => a.part === "newMoment"), "...rated high, it comes back as an offer to add it", JSON.stringify(r3).slice(0, 400));
 
+    // G1 part 4: taking the offer adds it to the season's rules, a moment research answers from the next episode to air.
+    const addUrl = `/api/seasons/${sid}/added-moments`;
+    const add = await jordan.call("POST", addUrl, { ask: rain.body.id });
+    const { rows: book } = await pool.query("SELECT r.blocks FROM rulebooks r WHERE r.owner_kind = 'season' AND r.season_id = $1 AND r.status <> 'archived'", [sid]);
+    const added = ((book[0] && book[0].blocks.customMoments) || []).find((m) => m.addedFrom);
+    check(add.status === 200 && add.body.moment && add.body.existing === false && add.body.words === g08.words, "the offer taken: a moment added", JSON.stringify(add.body).slice(0, 300));
+    check(added && added.id === add.body.moment.id && added.answeredBy === "research" && added.counted === "yesNo" && added.question === "This episode, who got caught out in the rain?" && added.reliability === "reliable", "...in the season's rules, research's, its question the rating's", JSON.stringify(added));
+    check(added && added.addedFrom === 6 && !((book[0].blocks.points || {})[added.id]), `...asked from the next episode to air (${added && added.addedFrom}), worth nothing in the rules themselves`);
+    const again = await jordan.call("POST", addUrl, { ask: rain.body.id });
+    check(again.status === 200 && again.body.existing === true && again.body.moment.id === add.body.moment.id, "the same offer again: the one already added, nothing changed");
+    const theirs = await (await signIn({ user: "zt_nd_sam", pass: fixture.PASSWORD, headers })).call("POST", addUrl, { ask: rain.body.id });
+    check(theirs.status === 404, `someone else's ask can't add it (${theirs.status})`);
+    const noOffer = await jordan.call("POST", addUrl, { ask: first.body.id });
+    check(noOffer.status === 400, `an ask with no moment offered adds nothing (${noOffer.status})`);
+    // Asked again, it's on the page: one of the moments research answers, so a game on it can be made.
+    const reask = await jordan.call("POST", url, { words: g08.words, couch });
+    const reasked = bot.asked.filter((a) => a.kind === "gameWords").at(-1);
+    const pack2 = JSON.parse((reasked ? reasked.prompt : "").split("\n").find((l) => l.startsWith('{"page"')) || "{}");
+    check(reask.status === 200 && (pack2.moments || []).some((m) => m.id === add.body.moment.id), "asked again, the pack lists it among the moments research answers", JSON.stringify((pack2.moments || []).map((m) => m.id)));
+
     // The cap, the bot down, a season that isn't one.
     await pool.query(
       "INSERT INTO game_word_asks (user_id, season_id, words) SELECT $1, $2, 'filler' FROM generate_series(1, $3)",
-      [fx.users.jordan, sid, 10 - 3 - 1]
+      [fx.users.jordan, sid, 10 - 4 - 1]
     );
     const tenth = await jordan.call("POST", url, { words: g01.words, couch });
     check(tenth.status === 200 && tenth.body.left === 0, `the tenth ask today is answered, the last (${tenth.status}, ${tenth.body && tenth.body.left} left)`);

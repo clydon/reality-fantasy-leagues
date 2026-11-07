@@ -39,6 +39,9 @@
 //                   { status: pre | in | final | off, sides: [{ id, score }], lines: { id: stats }, teams: { id: team id },
 //                   places?: { id: place } a field's, placed?: the stats that are places, bouts?: { id: { sides, winner, outcome, main } } a card's): the server's
 //                   from a stored final, the phone's from the poller's stateAt(t); without it, a sports question waits
+//     unsureMoments (G1 part 4) Map episode -> Set of the moments a season added (formats/added-moments.js) research couldn't
+//                   settle in it (nobody's answer yes, not everyone's no), and every episode before the one it was first asked
+//                   about; the server's (added-moments.ts unsureMomentsFor), never the state's: a question on one is void there
 //     bot           (A14 part 2) Map 'question|episode' (the window's key: 0 asked once) -> the bot's own call on a question played
 //                   against it (q.beat), for each window whose lock has passed and the bot called (bot_calls); the server's
 //                   (answer-points.ts botCallsFor), never the state's: without it, a question played against the bot waits
@@ -663,6 +666,9 @@ function plainVerdict(q, episode, facts, answers) {
     return plainVerdict({ ...q, card: undefined, settle: { ...q.settle, moment: m } }, episode, facts, answers);
   }
   const st = q && q.settle;
+  // G1 part 4: a moment a season added, in a window with an episode research couldn't settle it in (facts.unsureMoments, the
+  // server's): void, no points either way, unless what research did say settles it anyway (it happened; it first happened before).
+  if (st && st.by === 'moment' && facts && facts.unsureMoments instanceof Map && facts.unsureMoments.size) return addedVerdict(q, episode, facts, answers);
   if (st && st.by === 'players') return playersVerdict(q, episode, facts, answers);
   if (st && st.by === 'trivia') return triviaVerdict(episode, facts);
   if (st && st.by === 'outside') return outsideVerdict(q, episode, facts);
@@ -759,6 +765,25 @@ function pairsVerdict(q, facts) {
   for (const pair of pairs) each[pairKey(pair)] = verdict(pair[0], pair[1]);
   return Object.values(each).some((v) => v.state !== 'waiting') ? { state: 'known', right: [], each } : WAITING;
 }
+/**
+ * G1 part 4: a question on a moment a season added (formats/added-moments.js), graded as any moment's, then voided where research
+ * couldn't say: facts.unsureMoments, Map episode -> the added moments research left unsure in it (and every episode before the one
+ * it was first asked about). In its window (one episode asked each; else windowOf's), an episode it was unsure in voids the verdict
+ * unless the answer stands whatever that episode held: it happened (a yes is a yes), or it first happened in an episode before it.
+ */
+function addedVerdict(q, episode, facts, answers) {
+  const id = q.settle.moment;
+  const v = plainVerdict(q, episode, { ...facts, unsureMoments: undefined }, answers);
+  const single = q.asked === 'each' && !(Number.isInteger(q.over) && q.over > 1) && !['first', 'order'].includes(q.settle.take) && q.settle.by !== 'points';
+  const eps = single ? [episode] : windowOf(q, episode, facts).eps;
+  const unsure = eps.filter((n) => { const m = facts.unsureMoments.get(n); return !!m && m.has(id); });
+  // Waiting stays waiting; a known answer or an off one ("It didn't happen") is research's word, which it couldn't give.
+  if (!unsure.length || v.state === 'waiting') return v;
+  if (q.settle.take === 'happened' && Array.isArray(v.right) && v.right.includes('yes')) return v;
+  if (q.settle.take === 'first' && Number.isInteger(v.value) && v.value < Math.min(...unsure)) return v;
+  return off("Research couldn't say whether it happened: it doesn't count either way");
+}
+
 function verdictFor(q, episode, facts) {
   const st = q.settle;
   const how = `${st.by}:${st.take}`;
@@ -1370,6 +1395,7 @@ function factsThrough(facts, k) {
     seen: Number.isInteger(facts.seen) ? Math.min(facts.seen, k) : k,
     ...(facts.formatGroups ? { formatGroups: upTo(facts.formatGroups) } : {}),
     ...(facts.episodeFacts ? { episodeFacts: upTo(facts.episodeFacts) } : {}),
+    ...(facts.unsureMoments ? { unsureMoments: upTo(facts.unsureMoments) } : {}),
     ...(facts.outside ? { outside: upTo(facts.outside) } : {}),
     // L3 part 2c: a sport's games, as known through k (a walk's week k never grades a later game's question).
     ...(facts.games instanceof Map ? { games: upTo(facts.games) } : {}),

@@ -409,6 +409,9 @@ export interface AnswerFacts {
   /** A13 part 2: what research said of each episode fact, by episode, for each episode whose stored research has the section: the
    *  server's (episode-facts.ts episodeFactsFor). No map at all, a fact question waits. */
   episodeFacts?: Map<number, Record<string, FactOutcome>>;
+  /** G1 part 4: the moments a season added (formats/added-moments.js) research couldn't settle, by episode (and every episode before
+   *  the one each was first asked about): the server's (added-moments.ts unsureMomentsFor). A question on one is void there. */
+  unsureMoments?: Map<number, Set<string>>;
   /** L1 part 4b: each episode's game as of the viewer's moment, a sport's (src/lib/sports/spec.ts gameFacts). */
   games?: Map<number, SportsGameFacts>;
   /** L8 part 1's engine items, part 2: a league's playoffs slate's series as one card (each a bout of the draw "playoffs"), as of

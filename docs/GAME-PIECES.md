@@ -442,7 +442,7 @@ players' own mechanics below, which settle the game, never a fact about the show
 | `settle.by` | `take` | What it reads |
 |---|---|---|
 | `results` | `out`, `stays`, `winner`, `placed` (with `place`), `top` (with `place`), `order`, `split`, `outlast` | who went home, who won, where they finished, the jury's votes |
-| `moment` | `happened`, `count`, `who`, `most`, `first`, `order` | a moment of the rulebook that research answers (`moment`: its id) |
+| `moment` | `happened`, `count`, `who`, `most`, `first`, `order` | a moment of the rulebook that research answers (`moment`: its id), a season's added moment included (G1 part 4, below: void where research couldn't say) |
 | `points` | `most`, `order` | each person's points by the game's rules in the episode or window |
 | `phase` | `starts`, `happened` | a phase of the season (not its first): the episode it starts, or whether it starts in the window |
 | `role` | `who`, `end`, `count` | a secret role (The Traitors' Traitor): who held it, who held it at the end, how many |
@@ -864,8 +864,20 @@ each other stay hidden until the lock; what the players decide changes the game,
   guessed. Beside a draft.
 - **Bingo's honour system** and a talk show's Weekly Calls (the couch's word, `ctx.calls: "couch"`) stay as they are; the bot
   never makes rules like them.
-- **Custom moments** (Make it ours, or typed): allowed through the new-moment path (a feasibility ask, then a question research
-  asks each episode); the reliability bar is the user's (the Decisions table, "Custom moments").
+- **Custom moments** (Make it ours, or typed): allowed through the new-moment path; the reliability bar is the user's (the
+  Decisions table, "Custom moments"). **A season's added moments** (G1 part 4, built 2026-11-07; `formats/added-moments.js`): a
+  moment typed to the GPT that the show's research doesn't answer is rated by the feasibility ask (`momentPrompt`: how reliably
+  recaps say it, and whether it happens to someone in the cast or is about the episode itself), and at the bar our check offers
+  it. Taken (POST `/api/seasons/[seasonId]/added-moments`, the offer of one of your own asks), it becomes a moment of the season's
+  rulebook: a moment added by hand (`customMoments`) with `addedFrom`, the next episode to air, a yes or no about each person,
+  answered by research and **worth 0 in the rulebook**, so no game scores it but one that names it. From then it's in the ctx
+  like any moment research answers, so any piece can use it: a question settled by it, a draft scored by it (with the spec's own
+  points), a card's line, a multiplier's condition. Research asks it after every episode from `addedFrom` on: the full run's
+  checklist, then, for what that left unknown, a short ask of its own inside the full run (`db/moments-research.js`), filed into
+  the stored answer and sent to the leagues with the rest. **An episode research can't settle it in is void** for a question on
+  it (no points either way: `facts.unsureMoments`, the server's, answers.js), unless what research did say settles it anyway (it
+  happened; it first happened before); a draft simply scores nothing for it there. Not yet: a moment about the episode itself
+  ("did it rain?"), which isn't anyone's to score: our check says so and offers the nearest. Up to 12 a season.
 - **Bounties** `score.bounty: { points }` (A14 part 3, above under "How it scores"): one of your castaways votes out someone
   else's, and you take its points from them; who voted for whom from research, void on an episode research isn't sure of.
 - **Secret roles** `score.roles: { count, points, on, reveal }` (A14 part 4, above under "How it scores"): some of you dealt a role
@@ -986,7 +998,8 @@ page + words ──(bot + the engine's manual)──▶ a draft spec ──(our 
   medium by default), a value that doesn't go with the rest replaced by the nearest that plays (one change or two together) and
   asked, a part the game needs filled from a preset and asked, what waits for a later step taken out and said, another show or a
   second game offered. Every change is listed; nothing is fixed silently. The server's side: `src/lib/server/game-words.ts`, POST
-  `/api/seasons/[seasonId]/game-words`, 10 asks a person a day.
+  `/api/seasons/[seasonId]/game-words`, 10 asks a person a day. A moment offered and taken (POST `added-moments`, G1 part 4) is a
+  moment of the season's from the next episode, and asking again drafts a game on it.
 
 ---
 

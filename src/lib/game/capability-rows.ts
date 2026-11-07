@@ -12,10 +12,13 @@ import SAMPLES from "../../../tests/fixtures/rulebook-samples.js";
 // tests/fixtures/rulebook-samples.js (belowDeck, pluribus, snl, formula1, amazingRace, dancing). A show with neither names a
 // show of its kind as a stand-in (`checkedAs`: Love Island against Survivor's, someone out each week and a winner). A12 part 4b: one
 // game across two shows names the other seasons its stages play on (`also`: each with its show's id, the id a stage's `season` names,
-// and its rulebook), each checked on its own rules (ctx.seasons).
+// and its rulebook), each checked on its own rules (ctx.seasons). G1 part 4: a page can name moments its season has added (`added`:
+// each { id, label, question }, a season's added moment as formats/added-moments.js has it), so a row that needs one is checked as it
+// would be once it's added.
 
 type Also = { id: string; show: string; season: number; rulebook: string };
-type Page = { show?: string; season?: number | null; sport?: string; league?: string; event?: string | null; rulebook?: string | null; checkedAs?: boolean; also?: Also[] } | null | undefined;
+type Added = { id: string; label: string; question: string };
+type Page = { show?: string; season?: number | null; sport?: string; league?: string; event?: string | null; rulebook?: string | null; checkedAs?: boolean; also?: Also[]; added?: Added[] } | null | undefined;
 
 /** The rules a `rulebook` key names, or null. */
 export function bookOf(key: string | null | undefined): CallBook | null {
@@ -28,19 +31,21 @@ export function bookOf(key: string | null | undefined): CallBook | null {
 }
 
 const ctxCache = new Map<string, SpecContext | null>();
-/** The rules a rulebook key names, as a ctx (cached), or null. */
-function bookCtx(key: string): SpecContext | null {
-  if (!ctxCache.has(key)) {
+/** The rules a rulebook key names, as a ctx (cached), or null; with the season's added moments (`added`) when the page names some. */
+function bookCtx(key: string, added: Added[] = []): SpecContext | null {
+  const at = added.length ? `${key}+${added.map((m) => m.id).join(",")}` : key;
+  if (!ctxCache.has(at)) {
     const book = bookOf(key);
-    ctxCache.set(key, book ? contextOf(book) : null);
+    const blocks = book && added.length ? { ...(book.blocks as object), customMoments: [...(((book.blocks as { customMoments?: unknown[] }).customMoments) ?? []), ...added.map((m) => ({ ...m, counted: "yesNo", answeredBy: "research", addedFrom: 1 }))] } : null;
+    ctxCache.set(at, book ? contextOf(blocks ? ({ ...book, blocks } as CallBook) : book) : null);
   }
-  return ctxCache.get(key) ?? null;
+  return ctxCache.get(at) ?? null;
 }
 
 /** What a row's page can settle (game-spec specProblems' ctx), or null when its page names no rules. A12 part 4b: with each other season
  *  it names (`also`) as ctx.seasons, by its key ("<show id>/<number>"). */
 export function pageCtx(page: Page): SpecContext | null {
-  const base = bookCtx(page?.rulebook ?? "");
+  const base = bookCtx(page?.rulebook ?? "", (page?.added ?? []).filter((m) => m && typeof m.id === "string" && m.id));
   const also = (page?.also ?? []).filter((a) => a && a.id && Number.isInteger(a.season));
   if (!base || !also.length) return base;
   const seasons: Record<string, SpecContext> = {};

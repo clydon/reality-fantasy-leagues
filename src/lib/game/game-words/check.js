@@ -509,7 +509,8 @@ const BARS = { high: 2, medium: 1, low: 0 };
  * The reliability ask's answers folded in (`ratings`: { [label]: { reliable, why, question, label, nearest } }): a moment rated at
  * or over the bar (`bar`, 'medium' by default: the user leans that way, the Decisions table's "Custom moments" still open) is an
  * offer to add it as a question research answers each episode; under it, it stays a can't-yet, with the nearest moments that are
- * settled (the pack's own, by id).
+ * settled (the pack's own, by id). G1 part 4: a season's added moment is asked about each person (who cried?), so one about the
+ * episode itself (did it rain?) stays a can't-yet whatever its rating, with why.
  */
 function withMoments(result, ratings, { bar = 'medium', pack = null } = {}) {
   const out = clone(result);
@@ -520,7 +521,12 @@ function withMoments(result, ratings, { bar = 'medium', pack = null } = {}) {
     if (!r) continue;
     const c = out.cantYet.find((x) => x.newMoment === m.label);
     const nearest = (Array.isArray(r.nearest) ? r.nearest : []).filter((id) => ids.has(id)).slice(0, 3);
-    if (BARS[r.reliable] >= BARS[bar]) {
+    if (r.about === 'episode') {
+      if (c) {
+        c.why = `${c.why}${c.why ? ' ' : ''}It's about the episode, not someone in it: research answers added moments about people for now.`.trim();
+        c.nearest = nearest.length ? nearest.map((id) => ids.get(id)).join('; ') : c.nearest;
+      }
+    } else if (BARS[r.reliable] >= BARS[bar]) {
       out.offers.moments.push({ label: r.label || m.label, question: r.question, reliable: r.reliable, why: r.why });
       out.ask.push({ part: 'newMoment', question: `Add "${r.label || m.label}" as a question research answers each episode?`, options: ['Yes, add it', 'No'], by: 'check', moment: { label: r.label || m.label, question: r.question, reliable: r.reliable, why: r.why } });
       if (c) c.offered = true;

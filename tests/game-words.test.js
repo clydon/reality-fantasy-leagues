@@ -113,7 +113,9 @@ test("reading the bot's answer: chatter, fences, broken JSON, a bare spec, the l
   assert.deepEqual(loose.ask, [{ part: null, question: "How many?", options: [] }]);
   assert.throws(() => W.readDraft("no JSON here"), /no JSON/);
   assert.equal(W.checkAnswer("no JSON here").state, "unreadable");
-  assert.deepEqual(W.readMoment('{"reliable":"maybe","why":"x","question":"Did it rain?","nearest":["a","b","c","d"]}'), { reliable: "low", why: "x", question: "Did it rain?", label: "Did it rain?", nearest: ["a", "b", "c"] });
+  assert.deepEqual(W.readMoment('{"reliable":"maybe","why":"x","question":"Did it rain?","nearest":["a","b","c","d"]}'), { reliable: "low", why: "x", about: "episode", question: "Did it rain?", label: "Did it rain?", nearest: ["a", "b", "c"] }, "no about said: a person only when its question asks who");
+  assert.equal(W.readMoment('{"reliable":"high","question":"This episode, who cried?"}').about, "person");
+  assert.equal(W.readMoment('{"reliable":"high","about":"EPISODE"}').about, "episode", "G1 part 4: about the episode, said so");
 });
 
 test("the numbers their words say, and a quote found only on word boundaries", () => {
@@ -224,6 +226,10 @@ test("the reliability ask folded in: a moment at the bar is offered as a questio
   const cy = low.cantYet.find((x) => x.newMoment === label);
   assert.match(cy.why, /can't answer it reliably: nobody writes it/);
   assert.ok(!/notAMoment/.test(cy.nearest || ""), "only the page's own moments are offered as the nearest");
+  // G1 part 4: a moment about the episode itself, not someone in it, isn't offered whatever its rating (added moments are asked who).
+  const episode = W.withMoments(r, { [label]: { reliable: "high", why: "recaps say it", about: "episode", question: "Did it rain this episode?", label: "It rained", nearest: [] } }, { pack });
+  assert.equal(episode.offers.moments.length, 0);
+  assert.match(episode.cantYet.find((x) => x.newMoment === label).why, /about the episode, not someone in it/);
 });
 
 test("every field the manual explains is one some request of the tracker plays with, so its words can't outlive it", () => {

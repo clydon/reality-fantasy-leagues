@@ -14,3 +14,5 @@ export function seasonNewcomerCues(
   pool: unknown,
   seasonId: string
 ): Promise<{ name: string; episode: number; replaces: string | null; group: string | null; leftIn: number | null }[]>;
+/** Who is with whom going into episode n, by lowercased name: their group's name, or null on their own; null when nothing's known (G1 part 4). */
+export function groupsGoingInto(pool: unknown, seasonId: string, n: number): Promise<Map<string, string | null> | null>;

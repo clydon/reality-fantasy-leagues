@@ -11,7 +11,8 @@
 //                  groupWin?, places?, skippedBy? }],
 //     waysOut:  [{ id, name, means, cause?: { segment } | ownChoice | medical | removed | story, winnerToo? }],
 //     twists:   [{ id, type, name, summary?, ...that type's answers (an advantage's cancelled?, a side trip's away?) }],
-//     customMoments: [{ id, label, question?, uses?, during?: { segment } | { twist }, counted, per?, answeredBy, reliability?, exceptWinners? }],
+//     customMoments: [{ id, label, question?, uses?, during?: { segment } | { twist }, counted, per?, answeredBy, reliability?, exceptWinners?,
+//                      addedFrom? (G1 part 4: a season's added moment, asked from that episode on: formats/added-moments.js) }],
 //       (uses: the key of a question the rulebook already asks, scored instead of asking one of its own:
 //       "−0.5 a vote received at the Round Table" on roundTableVotesReceived; docs/PLAN-maker-scoring.md)
 //     points:   { [momentId]: number | { exclusive, shared } },   suggested-point overrides
@@ -638,6 +639,11 @@ function blocksProblems(blocks) {
     }
     oneOf(`${at}.answeredBy`, name, 'answeredBy', m.answeredBy, 'who answers it');
     if (m.reliability !== undefined) oneOf(`${at}.reliability`, name, 'reliability', m.reliability, 'how reliably recaps report it');
+    // G1 part 4, a season's added moment: research asks it from this episode on, a yes or no of its own.
+    if (m.addedFrom !== undefined) {
+      if (!(Number.isInteger(m.addedFrom) && m.addedFrom >= 1)) add(`${at}.addedFrom`, `${name}: the episode it's asked from should be a whole number from 1`);
+      else if (m.answeredBy !== 'research' || m.counted !== 'yesNo' || m.uses !== undefined) add(`${at}.addedFrom`, `${name}: a moment added for research to ask is a yes or no of its own, answered by research`);
+    }
     if (m.exceptWinners !== undefined) {
       const seg = isObj(m.during) ? segs.find((s) => isObj(s) && s.id === m.during.segment) : null;
       // A segment that isn't there is already said, above.

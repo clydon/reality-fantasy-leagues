@@ -34,6 +34,8 @@ export interface Moment {
   custom?: true;
   /** A custom moment scored from a question the rulebook already asks: that question's key (ask.key). */
   uses?: string;
+  /** G1 part 4: a season's added moment, asked from this episode on (formats/added-moments.js). */
+  addedFrom?: number;
   answeredBy?: "research" | "league";
   reliability?: "reliable" | "usually" | "patchy";
   /** What it says about someone's place in the game (moment-tags.js): its structure's, or the rulebook's own for it. */

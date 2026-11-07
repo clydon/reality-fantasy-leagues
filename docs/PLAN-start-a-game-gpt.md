@@ -156,7 +156,7 @@ questions (2026-11-06: `card.from: 'host'`, each episode one of the seats in tur
 migration 0212, until the host's deadline, then filed and stamped on the episode; tracker rows s43 and who.host), and so is part 7,
 a number from a vetted outside source (2026-11-06: `settle.by: 'outside'`, an episode's TVmaze rating read once seven days after it
 airs and stored per season in `outside_numbers`, migration 0213; built and checked, but off since 2026-11-07: the user said no to
-TVmaze's ratings as a source, so `outside` is 'later' in VOCAB and tracker rows s42 and settle.outside wait): **A14 is done**, and the A track stops before A15 for the user. **G1, words to a spec, is built** (2026-11-07, on `engine`, parts 1 to 3: the engine's manual generated from VOCAB, the context pack, the prompts, reading the answer and our check, the bank of requests, the server's route with a daily cap, and llm-browser-api's priority queue on this PC; migration 0214; no screen); its part 4, a new moment research answers, is next. The live-sports plan is
+TVmaze's ratings as a source, so `outside` is 'later' in VOCAB and tracker rows s42 and settle.outside wait): **A14 is done**, and the A track stops before A15 for the user. **G1, words to a spec, is built** (2026-11-07, on `engine`, parts 1 to 3: the engine's manual generated from VOCAB, the context pack, the prompts, reading the answer and our check, the bank of requests, the server's route with a daily cap, and llm-browser-api's priority queue on this PC; migration 0214; no screen), and **its part 4, a new moment research answers** (a season's added moments: in its rulebook from the next episode, asked by the full run and a short ask of its own, void where research can't say; measured on the tapes first; no migration). The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5, at
 high since 2026-11-05; C2 at xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: folded in here as track L; its file keeps the details)
 and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track S here).
@@ -208,7 +208,7 @@ and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track
 | Game pages (2026-10-30) | **Planned** (the user's idea): the Games tab stays the overview (the moves and each game's brief first) and launches each game's own page, opened over the show (no per-game tabs). Pages are generated from the spec, the game's state and the seat, never designed one by one: track V (a research spike, a first look, a review set of a few hundred games), then U0 frames them and U1 builds them. |
 | A pool's finale (2026-10-30) | **Only the winner survives the finale** (the user: "it keeps the game rules consistent: pick the player that survives the episode"; chosen over the finalists surviving it, high stakes accepted). A finale pick is right only when its person is who the results record as winning (each winner, on a show with several); a finalist who loses is out like any exit; on a show with no winner, whoever isn't among the episode's exits survives, as on any night. Data settles it. It changes today's pools' finales (Survivor 51's Survival Pool on Dec 16): built and merged before then. |
 | A preset's rule (2026-10-30) | **Open until the engine is complete** (the user). Whether a tapped preset meets the same data-can-settle rule as the GPT's games: R1 part 1's question, options (a) to (c) in its Noticed (Claude recommends (a)). The user's reason: what the moments say research can answer may differ from what research reliably returns at the end of each episode. So decide it on what research actually returns: the season tapes hold every research answer, episode by episode, so each moment's real rate can be measured then. Nothing running is affected meanwhile (no couch plays a show with couch-answered moments). A fourth option, from "Custom moments" below: (d) a preset's couch-answered moment goes through the same feasibility ask, becoming a question research answers each episode if it's feasible, else scoring 0. |
-| Custom moments (2026-10-30) | **Allowed, sometimes encouraged** (the user: "a fun league of Below Deck that just every week players guess 'did someone cry'"). A moment the show's research doesn't cover, typed to the GPT or added by hand (Make it ours included), takes the new-moment path in "Our check": a short feasibility ask at the start (how reliably research can answer it each episode, from recaps), and, if it's feasible, a question research asks after every episode (it won't come up unless it's asked explicitly). The user leans toward allowing somewhat-reliable moments (crying "will likely be mentioned in post episode recaps"); the bar (high only, or medium too) is still open. Claude's recommendation: medium too, with three nets: the feasibility answer shown to the maker, an episode research can't settle voided (no points either way), and the game's real answer rate shown as the season goes. Before the bar is set, measure on the season tapes whether the feasibility ask predicts what research actually returns (the user's concern in "A preset's rule"). |
+| Custom moments (2026-10-30) | **Allowed, sometimes encouraged** (the user: "a fun league of Below Deck that just every week players guess 'did someone cry'"). A moment the show's research doesn't cover, typed to the GPT or added by hand (Make it ours included), takes the new-moment path in "Our check": a short feasibility ask at the start (how reliably research can answer it each episode, from recaps), and, if it's feasible, a question research asks after every episode (it won't come up unless it's asked explicitly). The user leans toward allowing somewhat-reliable moments (crying "will likely be mentioned in post episode recaps"); the bar (high only, or medium too) is still open. Claude's recommendation: medium too, with three nets: the feasibility answer shown to the maker, an episode research can't settle voided (no points either way), and the game's real answer rate shown as the season goes. Before the bar is set, measure on the season tapes whether the feasibility ask predicts what research actually returns (the user's concern in "A preset's rule"). **Measured (G1 part 4, 2026-11-07, docs/STUDY-added-moments.md):** the rating orders reliability but not its level: on questions research already asks, high settled 99% of episodes, medium 93%, low 83%; on new moments none was rated high, medium settled 60% (3 of 10 at 90% or more), low 53%. Claude still recommends medium, with the void (built) and, after a moment's first three episodes, its real rate shown and a warning under 50% (U1). |
 | A replacement's multiplier (2026-11-05) | **On what the replacement earns while it's yours, on every kind of draft, an Outlast included** (the user: "your assumptions are correct"; C1's Noticed). "The new player who replaces your lost one scores 0.5x" multiplies the points they earn from the episode after they join, never their whole place: in an Outlast, the boots they outlast while yours. An Outlast without a multiplier keeps today's count (whoever holds someone now has their whole place). Built in C3. |
 | A shared game's two holders (2026-11-06) | **Per holder, from the live games' next episode on** (the user, on C4's Noticed): someone who goes home in an episode not yet played is owed a replacement on every team that held them, one replacing them settling only their own. Every exit already played stays as it played out (no past loss owed again, no standings moving backwards); games made from now on are per holder from the start; C4's games as they are. As data, never a date or a league named in code: each existing game carries its cutover (`settings.perHolderFrom`, migration 0207: the first episode it hadn't played; Survivor 51's live games, Episode 8). Built as C4b, before Episode 8's results (Wed Nov 11). |
 | A sports week (2026-11-06) | **The episode, wherever the season has episodes of its own** (the main session's call, as the sports track's orchestrator; built in L8 part 3): a league's slate's episode (ESPN's own week for football, Monday to Sunday or a day for the NBA, NHL and MLB, a round for soccer) is the week for its locks, its matchups and the screens, locking at its own first game whatever the spec's `closes` says. Tuesday to Monday (Eastern) only where nothing else defines the week: a team's season and a matchup's series, one game an episode. |
@@ -10947,20 +10947,95 @@ first), and proves it on these games and on the tracker's other rows that use it
     answered (now counted with the ask in it, one over taken back, failures not counted); the same show read by its first word or
     without its season (now the pack's show and season); an empty season read as 0; two small server cleanups.
   - **Long checks:** none (nothing in `state-logic.js` or a scorer changed). The tracker unchanged (`--check`).
+  **As built (G1 part 4, 2026-11-07, on `engine`; no migration): a new moment research answers.** One session: the measure first
+  (the bot asked in the background while the rest was built), then the store, the research, the void. No screen.
+  - **The measure** (the user's concern in the Decisions table's "A preset's rule"; `scripts/dev-test/moment-asks.js`, the numbers
+    in full in `docs/STUDY-added-moments.md`):
+- **Asked:** the feasibility ask (`momentPrompt`, no search) for every yes-or-no question research already asks on one season
+      of each taped show (43) and for 18 moments the shows don't have (someone cries, a blindside, a fight, a hookup, a standing
+      ovation...); the new moments' short ask (with search) on 4 recorded episodes of each season (19 of 20 answers read); and what
+      every taped full research returned for each question (15 seasons, no bot). An episode is settled when someone's answer is a
+      sure yes or everyone's a no. Accuracy isn't measured (no truth on file).
+    - **The rating orders reliability, but doesn't give its level.** Questions research already asks: rated high, settled 99% of
+      episodes on average (all 10 at 90% or more); medium 93% (24: 17 at 90% or more, 1 under 70%); low 83% (9: 5 at 90% or more).
+      New moments: none rated high; medium 60% on average (10: 3 at 90% or more, Survivor's crying and blindside and The Traitors'
+      accusations; 6 under 70%, The Challenge's fight one week in four); low 53% (8). So a new moment is far less reliable than the
+      show's own at the same rating, and a medium one would be void about 40% of episodes.
+    - **Recommended (the bar stays the user's):** keep medium (high would offer almost no new moment), with the void (built) and a
+      net before games lean on it: after a moment's first three asked episodes its settled rate is known, and under 50% the wizard
+      says so and a game's maker is told (U1). The full doc: `docs/STUDY-added-moments.md`.
+  - **What an added moment is** (`src/lib/game/formats/added-moments.js`): a moment added by hand to the **season's rulebook**
+    (`customMoments`) with **`addedFrom`**, the first episode research asks it about (checked: a whole number from 1, only on a yes
+    or no of its own answered by research; `rulebook-moments.js` passes it through), **worth 0 in the rulebook's points**, so no game
+    scores it but one that names it and every game already playing is untouched. One home, so everything that reads moments reads
+    it: the ctx our check reads (`momentsFor`: research's, so `specProblems` takes a game on it), the compile (a checklist question
+    for each person and a rule awarding it), the desk's What scores. `addedOf(blocks)`, `standingOf(castaways, id)` (yes with who,
+    no from everyone, else unsure), `unsureIn`, `fillMoments` (a second pass fills in: a sure yes names who and is everyone else's
+    no, a sure no is everyone's, nothing over what research said, and a yes for people research said no for changes nothing).
+    Up to 12 a season.
+  - **Adding one** (`src/lib/server/added-moments.ts` `addMoment`, POST `/api/seasons/[seasonId]/added-moments` `{ ask, moment? }`):
+    only a moment our check offered in one of your own asks (`game_word_asks.result.offers.moments`, rated at the bar), added from
+    the next episode to air (`startFrom`), its question and label the rating's, `reliability` reliable (high) or usually (medium);
+    the same question again is the one already added; refused for a season with nothing left to air, at 12, or when the ask's
+    couch plays the season by its own copy of the rules (Make it ours: its games read the copy's moments). The season's rulebook
+    is made if it has none (`ensureSeasonRulebook`), read and saved under an advisory lock (two at once both kept), as a fix of the
+    base (`saveChain`, as the maker's scoring saves), logged on the desk with its undo. It answers with the moment and the ask's
+    words: asking again drafts a game on it (the pack lists it among the moments research answers).
+  - **Research asks it**: the full run's checklist asks it of each person (compiled in, no change to the shared prompt's text), and
+    then **a short ask of its own inside the full run** (`db/moments-research.js` `askUnsure`, called by `db/bot-research.js`
+    runJob after the answer is stored and before it's sent, both of an episode's full runs): only the added moments the stored
+    answer leaves unsure, from `addedFrom` on, one prompt with the cast list and web search (`buildMomentsPrompt`), its answer read
+    loosely (`parseMomentsAnswer`: happened yes, no or unknown, who from the list, how sure, a source), checked to be about the
+    episode (its title), filed into the stored answer under the research lock (`storeMoments`) and into what the run sends, so the
+    leagues get it with the rest; at most 150 s, and its failing never fails the run (the run's message says what it said). No run
+    kind of its own, so no kind check changes. **The prompt is the user's to approve at the merge.**
+  - **The void** (`answers.js` `addedVerdict`, `facts.unsureMoments` from the server: `added-moments.ts` `unsureMomentsFor`, wired
+    into answer-points.ts serverFacts): a question settled by an added moment, in a window with an episode research left it unsure
+    in (nobody's yes, not everyone's no, no stored answer, or before `addedFrom`), is off, "Research couldn't say whether it happened:
+    it doesn't count either way", unless what research did say settles it anyway (it happened; it first happened before that
+    episode). A draft scored by it simply scores nothing there. One small query a read for a game whose questions settle on
+    moments, none for any other.
+  - **The feasibility ask says what it's about** (`prompt.js` `momentPrompt`'s new `about`: a person, asked who; the episode itself,
+    asked whether; `readMoment` reads a missing one from the question: a person only when it asks who): an added moment is asked
+    about each person, so one about the episode ("did it rain?") is never offered (`withMoments`: a can't-yet with why and the
+    nearest). The prompt's change is the user's at the merge with the rest.
+  - **The pack's groups are today's** (Noticed, taken): `db/format-timeline.js` `groupsGoingInto(pool, seasonId, n)`, a league-free
+    reader of F3's timeline, gives who is with whom going into the episode after the asker's mark (someone who sees results right
+    away: everything stored), so the pack never says more than they've seen; the starting groups until research has said.
+  - **The tracker**: a page can name its season's added moments (`page.added`, capability-rows.ts `pageCtx`), so a row is checked as
+    it would be once one's added: **s26** (a blindside within 3 episodes) plays now (223 ✅). p6 (rain) stays ⏳ G1 (about the
+    episode); w048 and w061 (words rows with no spec) stay ⏳ G1 until the real bot's rating is part of the bank.
+  - **Checks:** `tests/added-moments.test.js` (7: the rulebook's moment, its standing, filing, the prompt and its reading, the full
+    run's second pass on a stand-in pool and bot, our check before and after, the void) and `tests/game-words.test.js`'s new cases
+    (about); 1,951 unit tests passing; the type check; `scripts/dev-test/check-game-words.js` on the stand-in (new-fixture.js's
+    couch: 27 checks, the six new ones adding a moment from an offer, the rulebook's row, again, someone else's ask, an ask with no
+    offer, and the pack after); the tracker regenerated (`--check`). `fake-bot.js` knows the short ask (`momentsRun`).
+  - **The code review** (`/code-review` at medium, before the commit). Fixed: the pack's groups for someone who sees results right
+    away (their mark is Infinity); a sure yes for someone research said no for turned everyone into a no; a couch on its own copy
+    of the rules would get an added moment its games never read (now refused, with why); two moments added at once could lose one
+    (now under a lock); the short ask had no time limit while the run's results waited (now 150 s); the grader's read was heavier
+    than it needed for games on the rulebook's own moments; the short ask's question now the rulebook's own (`questionFor`) when it
+    has none; the run's header described a run kind that isn't one; a rating with no `about` was taken as a person.
+  - **Long checks:** none. `state-logic.js` is untouched; `answers.js` grades differently only with the server's `unsureMoments`,
+    which no replay passes (and no season has an added moment), so golden, blind and the rehearsal read the same by construction.
   **Noticed (G1):**
-  - **The user's, at the merge:** the three prompts (`prompt.js`), shared by no other research; the cap (10 asks a person a day,
-    Claude's call, against Make it a game's 5 shows: a draft plus a few typed changes); the moment bar (medium, the Decisions
-    table's "Custom moments" still open: `withMoments`' `bar`); deploying `JobQueue` to the VM.
-  - **Part 4, next: a new moment research answers** (the custom-moments path's research side). Today a moment rated at the bar is
-    an offer only: nothing adds it to the season's research, so a game on it can't be made yet, and the tracker's rows that need
-    it stay ⏳ G1 (p6 rain, s26 a blindside, w048 Below Deck's charter). It needs a season's own added moments (stored per season,
-    in the ctx as research-answered from the episode after they're added), the research prompt asking each one (a change to the
-    prompt every show's research shares: production's included, the user's to approve), and a void for an episode research
-    can't settle. Measure on the season tapes first whether the feasibility ask predicts what research returns (the user's
-    concern in the Decisions table's "A preset's rule").
-  - **The pack's groups are the starting ones** (`season_cast.tribe_name`): who's with whom now is in each episode's research
-    (F3's timeline), but the timeline is read from a league's state today; a league-free reader would give the pack today's groups.
-    (Part 4 or U1.)
+  - **The user's, at the merge:** the three prompts (`prompt.js`, `momentPrompt` now asking `about`) and the added moments' short
+    ask (`db/moments-research.js` `buildMomentsPrompt`), shared by no other research (the full run's prompt text doesn't change; a
+    season's checklist gains a question for each moment added to it); the cap (10 asks a person a day, Claude's call, against Make
+    it a game's 5 shows: a draft plus a few typed changes); the moment bar (medium, the Decisions table's "Custom moments" still
+    open: `withMoments`' `bar`; the measure above is for it); deploying `JobQueue` to the VM.
+  - **An added moment shows on games that don't use it** once their rules pick up the season's new rulebook version: a 0-point line
+    in an episode's breakdown (team-episode-breakdown.ts lists every event; the rulebook's own 0-point moments already show that
+    way). Recommended: the breakdown leaves out an added moment's lines in a game that doesn't name it. (U1, through impeccable.)
+  - **A moment about the episode itself** ("did it rain?", tracker p6) isn't offered: an added moment is asked about each person,
+    and the engine records moments for people. Recommended: an added moment `about: 'episode'`, asked once in the short ask and
+    recorded as the episode's (answers.js reading it for `happened` and `count`; never a person's points), when a request needs it.
+    (A part of its own, or G2.)
+  - **The words rows that need a new moment** (w048 Below Deck's charter and hookups, w061 drama) stay ⏳ G1: they play through the
+    offer, but whether they do depends on the real bot's rating, which the bank doesn't hold. Recommended: record ratings in the
+    bank when the bank is next asked of the real bot.
+  - **The desk doesn't say which moments were added by the GPT** beyond its History line ("A moment added for research to ask from
+    Episode N"): What scores lists it as a moment added by hand. Recommended: a tag on What scores. (The desk lane, U1.)
   - **A multiplier of 1 the person said** ("these players score 1x", the user's second game) is refused by the schema ("not 1"),
     so it comes back as a can't-yet; it means no multiplier, so our check could drop it quietly. Left as is: it's said, and honest.
   - **A typed change's quotes are checked against both their first words and the change**, so a quote from the first ask still

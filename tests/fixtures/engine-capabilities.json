@@ -2496,7 +2496,7 @@
       "dials": [
         "settle"
       ],
-      "note": "no rain moment: the new-moment path (Our check), likely a can't-yet with the nearest settled questions"
+      "note": "no rain moment: the new-moment path, but rain is about the episode, not someone in it, and a season's added moments (G1 part 4) are asked about each person: a can't-yet with the nearest settled questions until an added moment can be about the episode"
     },
     {
       "id": "p7",
@@ -3747,14 +3747,21 @@
       "page": {
         "show": "Survivor",
         "season": 51,
-        "rulebook": "survivor"
+        "rulebook": "survivor",
+        "added": [
+          {
+            "id": "blindside",
+            "label": "Blindsided",
+            "question": "This episode, who was blindsided when they were voted out (sent home without seeing it coming)?"
+          }
+        ]
       },
       "words": "Within the next 3 episodes, will there be a blindside?",
       "step": "G1",
       "dials": [
         "when"
       ],
-      "note": "the window plays now (A7); a blindside isn't a moment research answers, so it's the new-moment path (G1: rated reliable, or the nearest settled question)",
+      "note": "the window plays now (A7); a blindside isn't a moment research answers, so it's the new-moment path: G1 part 4 adds it to the season (rated medium on the tapes), and the row is checked with it added; an episode research can't say is void",
       "spec": {
         "get": {
           "by": "none"
