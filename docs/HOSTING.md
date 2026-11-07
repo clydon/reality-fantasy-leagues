@@ -1290,3 +1290,7 @@ never handles it: the user does the reset and the pasting.
   its own (`app_settings` 'bot_ai_runs', `{ kind: "codex" }`, set with the desk's `PUT /api/desk/settings` `botAiRuns`,
   logged with Undo; no screen yet); one small row read with each ask, beside 'bot_ai'. **None is switched:** every run
   asks ChatGPT, as before, until the user says otherwise.
+- **2026-11-07, 3:54 PM ET: the trivia and bingo banks ask Codex** (the user's yes; the desk's `bot_ai_runs` = `{ trivia:
+  codex, bingo: codex }`, set through `PUT /api/desk/settings`, in Settings history with Undo). Every other run kind
+  (the quick and full research that settle results first) still asks ChatGPT. Codex's limits are the plan's, shared by
+  the PC, the VM and the playtests; the bot queues rather than spends past them.
