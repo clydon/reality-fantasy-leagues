@@ -972,9 +972,21 @@ page + words ──(bot + the engine's manual)──▶ a draft spec ──(our 
   idea: add a row, run the script, and see whether it plays and how it reads.
 - **Our check decides** (the plan's "Our check"): ids only from the show's context pack, numbers only from their words (or
   listed as assumed), defaults ours, and anything that doesn't hold becomes a question or a can't-yet, never a silent fix.
-- **The bot drafts** (G1, planned): opened on a show's page, it gets the context pack (the show, the cast, the rulebook's
-  moments, the couch) and the engine's manual (from the schema's `VOCAB`: only what plays now), and answers a spec with each part
-  marked said, assumed, to ask, or can't yet.
+- **The bot drafts** (G1, built 2026-11-07: `src/lib/game/game-words/`, no screen yet): opened on a show's page, it gets the
+  context pack (`packOf`: the show and season, its episodes and the next, its phases, the cast as the asker has seen it with each
+  one's group, the moments research answers apart from the couch's word, the couch and its games) and the engine's manual
+  (`manualFor`), and answers a spec with each part marked said, assumed, to ask, or can't yet. **The manual is generated:** each
+  `VOCAB` key and value has its words in `manual.js` `WORDS` (a unit test fails when a value has none, so a step that adds a value
+  teaches the bot in the same commit), each other field (numbers, lists, switches) in `FIELDS` (each one used by a request of the
+  tracker that plays), and its examples are the tracker's own requests that play on the page, each with the engine's sentence.
+  So **a piece added here reaches the bot by adding its words to `WORDS` or `FIELDS` and a row to the tracker.** Our check
+  (`checkDraft`) then turns the draft into a spec: their quotes checked against their words, a number they didn't say dropped and
+  asked (or kept as the bot's choice and asked, when the game can't do without it), a moment the show doesn't have taken out and
+  rated by a second short ask (`momentPrompt`, `withMoments`: offered as a question research answers each episode at the bar,
+  medium by default), a value that doesn't go with the rest replaced by the nearest that plays (one change or two together) and
+  asked, a part the game needs filled from a preset and asked, what waits for a later step taken out and said, another show or a
+  second game offered. Every change is listed; nothing is fixed silently. The server's side: `src/lib/server/game-words.ts`, POST
+  `/api/seasons/[seasonId]/game-words`, 10 asks a person a day.
 
 ---
 

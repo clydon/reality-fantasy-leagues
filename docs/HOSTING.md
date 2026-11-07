@@ -669,6 +669,15 @@ never handles it: the user does the reset and the pasting.
 
 ## Changelog
 
+- **2026-11-07, `engine` branch (not merged).** G1, the Start-a-game GPT's words to a spec (docs/PLAN-start-a-game-gpt.md;
+  migration 0214). One new table, `game_word_asks` (a row each time someone's words or a typed change go to our bot: the words,
+  the bot's answer and our check's result, about 5 to 15 KB; capped at 10 a person a day, the desk aside), empty until a screen
+  asks (none does yet: the wizard is U0/U1's). Each ask is one question to the same bot as research, **search off** (about 20 s
+  on signed-in ChatGPT for a prompt of about 43,000 characters), plus a short one for each moment the show doesn't have (two at
+  most). `priority: "now"` puts it ahead of the bot's queue: llm-browser-api's `JobQueue`, built and tested on this PC
+  (server.py, 2026-11-07), **not on the VM until the user deploys it** (a bot without it asks in turn). No paid key, no new
+  service or schedule; nothing polls.
+
 - **2026-11-06, `sports` branch (not merged).** L3 part 3b (docs/PLAN-start-a-game-gpt.md track L; migration 0306): which line a
   question plays by, and postponed, suspended and moved games. Stored: `sports_events.called` (a word a game, for games called off)
   and `question_lines` (one row a league, question, window and game for an over/under on a game's own line, ~120 bytes: a pick'em

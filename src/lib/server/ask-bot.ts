@@ -53,6 +53,12 @@ export interface BotChoice {
   progress?: { pattern?: string | null; on: (p: BotProgress) => void };
   /** Which AI it asks (default: the desk's setting, botProvider). */
   provider?: BotProvider;
+  /** Whether the AI may search the web (default true: research needs it). The Start-a-game GPT's asks don't: everything they
+   *  need is in the prompt (docs/PLAN-start-a-game-gpt.md step G1), so they're short. */
+  search?: boolean;
+  /** "now": ahead of every question queued behind the one the bot is answering (llm-browser-api's priority queue, the Decisions
+   *  table's "The bot's queue": a person is waiting on it). A bot without the queue reads it as an ordinary question. */
+  priority?: "now";
 }
 
 type BotAnswer = { response?: string; seconds?: number; detail?: string };
@@ -178,7 +184,8 @@ export async function askBot(prompt: string, o: BotChoice = {}): Promise<{ answe
         body: JSON.stringify({
           provider,
           prompt,
-          search: true,
+          search: o.search ?? true,
+          ...(o.priority ? { priority: o.priority } : {}),
           max_wait: Math.floor((left - 15_000) / 1000),
           ...(o.progress ? { stream: "progress", ...(o.progress.pattern ? { progress_pattern: o.progress.pattern } : {}) } : { keepalive: true }),
         }),

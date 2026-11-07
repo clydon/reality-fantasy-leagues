@@ -1,0 +1,197 @@
+{
+  "about": "The Start-a-game GPT's bank, its hand-written part (docs/PLAN-start-a-game-gpt.md step G1): requests typed on a show's page, each with the stand-in bot's answer (`answer`: the raw text, or a JSON object sent as the bot would) and what our check makes of it (`expect`). They cover what an ideal draft can't: the bot's mistakes (a number nobody said, a moment the show doesn't have, a value that doesn't go with the rest, chatter and broken JSON) and the paths around a game (another show, two games, not a game). The rest of the bank is the capability tracker's requests (tests/fixtures/engine-capabilities.json), drafted ideally by bank.js idealDraft: one list of requests, never two. `page.couch` and `page.pool` size the couch and who can be drafted where the case needs them. Read by tests/game-words.test.js and scripts/dev-test/check-game-words.js. `expect`: state (game | ask | cantYet | none), spec (the checked spec, exactly), asks (the parts asked, in any order), cantYet (how many), newMoments (how many), dropped (the parts dropped), fixed (the parts our check changed), offers (the offers' keys).",
+  "cases": [
+    {
+      "id": "g01",
+      "note": "an ideal draft, in a code fence with chatter around it",
+      "page": { "show": "Survivor", "season": 51, "rulebook": "survivor" },
+      "words": "6 of us, snake draft, 3 castaways each, last one standing carries you",
+      "answer": "Here's the game:\n```json\n{\"draft\":1,\"game\":{\"preset\":\"outlast\",\"get\":{\"by\":\"draft\",\"each\":3,\"order\":\"snake\",\"own\":\"exclusive\"}},\"said\":[{\"part\":\"get.order\",\"quote\":\"snake draft\"},{\"part\":\"get.each\",\"quote\":\"3 castaways each\"},{\"part\":\"preset\",\"quote\":\"last one standing carries you\"}],\"assumed\":[],\"ask\":[],\"cantYet\":[],\"summary\":\"An Outlast: everyone drafts 3.\"}\n```\nLet me know if you want changes!",
+      "expect": { "state": "game", "spec": { "preset": "outlast", "get": { "by": "draft", "each": 3, "order": "snake", "own": "exclusive" } } }
+    },
+    {
+      "id": "g02",
+      "note": "broken JSON a chat writes: comments, trailing commas, curly quotes",
+      "page": { "show": "Survivor", "season": 51, "rulebook": "survivor" },
+      "words": "a weekly lineup, 4 castaways each, start 2",
+      "answer": "{ “draft”: 1, // the draft\n \"game\": { \"preset\": \"weekly-lineup\", \"get\": { \"by\": \"draft\", \"each\": 4, \"order\": \"blind\", \"own\": \"shared\", }, \"count\": { \"start\": 2 }, },\n \"said\": [{ \"part\": \"get.each\", \"quote\": \"4 castaways each\" }, { \"part\": \"count.start\", \"quote\": \"start 2\" }, { \"part\": \"preset\", \"quote\": \"a weekly lineup\" },],\n \"summary\": \"A Weekly Lineup\" }",
+      "expect": { "state": "game", "spec": { "preset": "weekly-lineup", "get": { "by": "draft", "each": 4, "order": "blind", "own": "shared" }, "count": { "start": 2 } } }
+    },
+    {
+      "id": "g03",
+      "note": "a bare spec, no draft around it: read as the game, and nothing said, so which game is asked",
+      "page": { "show": "Survivor", "season": 51, "rulebook": "survivor" },
+      "words": "something fun for the merge",
+      "answer": { "preset": "survival-pool" },
+      "expect": { "state": "ask", "spec": { "preset": "survival-pool" }, "asks": ["preset"] }
+    },
+    {
+      "id": "g04",
+      "note": "a number nobody said that the game can't do without (2 lives, for last one standing): kept as the bot's choice, and asked",
+      "page": { "show": "Survivor", "season": 51, "rulebook": "survivor" },
+      "words": "a survival pool with lives, last one standing",
+      "answer": { "draft": 1, "game": { "preset": "survival-pool", "score": { "by": "survive", "lives": 2 }, "rank": { "by": "standing" } }, "said": [{ "part": "score.lives", "quote": "with lives" }, { "part": "rank.by", "quote": "last one standing" }, { "part": "preset", "quote": "a survival pool" }] },
+      "expect": { "state": "ask", "dropped": [], "asks": ["score.lives"], "spec": { "preset": "survival-pool", "score": { "by": "survive", "lives": 2 }, "rank": { "by": "standing" } } }
+    },
+    {
+      "id": "g05",
+      "note": "a number listed as assumed stays, with why",
+      "page": { "show": "Survivor", "season": 51, "rulebook": "survivor" },
+      "words": "a survival pool with lives, last one standing",
+      "answer": { "draft": 1, "game": { "preset": "survival-pool", "score": { "by": "survive", "lives": 2 }, "rank": { "by": "standing" } }, "said": [{ "part": "score.lives", "quote": "with lives" }, { "part": "rank.by", "quote": "last one standing" }, { "part": "preset", "quote": "a survival pool" }], "assumed": [{ "part": "score.lives", "value": 2, "why": "lives without a number: two" }], "ask": [{ "part": "score.lives", "question": "How many lives?", "options": ["2", "1", "3"] }] },
+      "expect": { "state": "ask", "spec": { "preset": "survival-pool", "score": { "by": "survive", "lives": 2 }, "rank": { "by": "standing" } }, "asks": ["score.lives"] }
+    },
+    {
+      "id": "g06",
+      "note": "a quote that isn't in their words isn't said, so its number isn't either",
+      "page": { "show": "Survivor", "season": 51, "rulebook": "survivor" },
+      "words": "an outlast for the couch",
+      "answer": { "draft": 1, "game": { "preset": "outlast", "get": { "by": "draft", "each": 4, "order": "snake", "own": "exclusive" } }, "said": [{ "part": "get.each", "quote": "4 each" }, { "part": "preset", "quote": "an outlast" }] },
+      "expect": { "state": "ask", "spec": { "preset": "outlast", "get": { "by": "draft", "order": "snake", "own": "exclusive" } }, "dropped": ["get.each", "get.each"], "asks": ["get.each"] }
+    },
+    {
+      "id": "g07",
+      "note": "points for a moment the show doesn't have: taken out, a new moment to rate",
+      "page": { "show": "Survivor", "season": 51, "rulebook": "survivor" },
+      "words": "weekly lineup, 5 points when someone finds an idol and 3 points if it rains",
+      "answer": { "draft": 1, "game": { "preset": "weekly-lineup", "score": { "by": "moments", "points": { "idolFound": 5, "itRained": 3 } } }, "said": [{ "part": "score.points.idolFound", "quote": "5 points when someone finds an idol" }, { "part": "score.points.itRained", "quote": "3 points if it rains" }, { "part": "preset", "quote": "weekly lineup" }] },
+      "expect": { "state": "ask", "spec": { "preset": "weekly-lineup", "score": { "by": "moments", "points": { "idolFound": 5 } } }, "newMoments": 1, "dropped": ["score.points.itRained"] }
+    },
+    {
+      "id": "g08",
+      "note": "a game of only a question on a moment the show doesn't have: can't yet, a new moment to rate",
+      "page": { "show": "Survivor", "season": 51, "rulebook": "survivor" },
+      "words": "every week we predict if it's going to rain",
+      "answer": { "draft": 1, "game": { "get": { "by": "none" }, "score": { "by": "answers" }, "ask": [{ "id": "rain", "ask": "Will it rain?", "answer": "yesNo", "points": 1, "asked": "each", "settle": { "by": "moment", "moment": "rained", "take": "happened" } }] }, "said": [{ "part": "ask[0]", "quote": "every week we predict if it's going to rain" }], "assumed": [{ "part": "ask[0].points", "value": 1, "why": "no points named" }] },
+      "expect": { "state": "cantYet", "newMoments": 1 }
+    },
+    {
+      "id": "g09",
+      "note": "the bot did it right: the new moment under cantYet, nothing made up, the nearest it put in",
+      "page": { "show": "Survivor", "season": 51, "rulebook": "survivor" },
+      "words": "each week: who goes home, and will someone cry at tribal",
+      "answer": { "draft": 1, "game": { "get": { "by": "none" }, "score": { "by": "answers" }, "ask": [{ "id": "boot", "ask": "Who goes home?", "answer": "person", "points": 1, "asked": "each", "settle": { "by": "results", "take": "out" } }] }, "said": [{ "part": "ask[0]", "quote": "who goes home" }], "assumed": [{ "part": "ask[0].points", "value": 1, "why": "no points named" }], "cantYet": [{ "what": "will someone cry at tribal", "why": "crying isn't one of the show's moments", "nearest": "ask[0]", "newMoment": "Did someone cry at Tribal Council?" }] },
+      "expect": { "state": "ask", "spec": { "get": { "by": "none" }, "score": { "by": "answers" }, "ask": [{ "id": "boot", "ask": "Who goes home?", "answer": "person", "points": 1, "asked": "each", "settle": { "by": "results", "take": "out" } }] }, "newMoments": 1, "cantYet": 1 }
+    },
+    {
+      "id": "g10",
+      "note": "a moment only the couch can answer (Below Deck's crying on camera, and its hookups the rulebook scores) can't score: each 0, asked, the crying the draft named a new moment to rate",
+      "page": { "show": "Below Deck", "season": 13, "rulebook": "belowDeck" },
+      "words": "draft 3 crew, minus 1 every time they cry",
+      "answer": { "draft": 1, "game": { "preset": "weekly-lineup", "get": { "by": "draft", "each": 3, "order": "blind", "own": "shared" }, "count": { "best": 3 }, "score": { "by": "moments", "points": { "criesOnCamera": -1 } } }, "said": [{ "part": "get.each", "quote": "draft 3 crew" }, { "part": "count.best", "quote": "draft 3 crew" }, { "part": "score.points.criesOnCamera", "quote": "minus 1 every time they cry" }] },
+      "expect": { "state": "ask", "newMoments": 1, "fixed": ["score.points.crewHookup", "score.points.criesOnCamera"] }
+    },
+    {
+      "id": "g11",
+      "note": "a snake draft that's shared: the nearest that plays is the two together, blind and shared",
+      "page": { "show": "Survivor", "season": 51, "rulebook": "survivor", "couch": 4, "pool": 18 },
+      "words": "everyone drafts 5 in turns but you can have the same castaway",
+      "answer": { "draft": 1, "game": { "preset": "weekly-lineup", "get": { "by": "draft", "each": 5, "order": "snake", "own": "shared" } }, "said": [{ "part": "get.each", "quote": "everyone drafts 5" }, { "part": "get.order", "quote": "in turns" }, { "part": "get.own", "quote": "you can have the same castaway" }] },
+      "expect": { "state": "ask", "fixed": ["get.order"], "asks": ["get.order"] }
+    },
+    {
+      "id": "g12",
+      "note": "an exclusive draft the cast can't cover (12 of us x 3 is more than 18): made shared, and asked",
+      "page": { "show": "Survivor", "season": 51, "rulebook": "survivor", "couch": 12, "pool": 18 },
+      "words": "an outlast, 3 each, nobody shares",
+      "answer": { "draft": 1, "game": { "preset": "outlast", "get": { "by": "draft", "each": 3, "order": "snake", "own": "exclusive" } }, "said": [{ "part": "get.each", "quote": "3 each" }, { "part": "get.own", "quote": "nobody shares" }, { "part": "preset", "quote": "an outlast" }] },
+      "expect": { "state": "ask", "fixed": ["get.own"], "spec": { "preset": "outlast", "get": { "by": "draft", "each": 3, "order": "blind", "own": "shared" } } }
+    },
+    {
+      "id": "g13",
+      "note": "a part that isn't a game's is dropped",
+      "page": { "show": "Survivor", "season": 51, "rulebook": "survivor" },
+      "words": "a survival pool called The Hunger Games",
+      "answer": { "draft": 1, "game": { "preset": "survival-pool", "name": "The Hunger Games" }, "said": [{ "part": "preset", "quote": "a survival pool" }] },
+      "expect": { "state": "game", "spec": { "preset": "survival-pool" }, "dropped": ["name"] }
+    },
+    {
+      "id": "g14",
+      "note": "another show than the page's: asked",
+      "page": { "show": "Survivor", "season": 51, "rulebook": "survivor" },
+      "words": "a traitors draft",
+      "answer": { "draft": 1, "game": { "preset": "outlast" }, "said": [{ "part": "preset", "quote": "draft" }], "about": { "show": "The Traitors", "season": 4 } },
+      "expect": { "state": "ask", "asks": ["about"], "offers": ["otherShow"] }
+    },
+    {
+      "id": "g15",
+      "note": "two games in one request: the first drafted, the second offered after",
+      "page": { "show": "Survivor", "season": 51, "rulebook": "survivor" },
+      "words": "a survivor draft and also a pool",
+      "answer": { "draft": 1, "game": { "preset": "outlast" }, "said": [{ "part": "preset", "quote": "a survivor draft" }], "also": "A Survival Pool for Survivor 51." },
+      "expect": { "state": "game", "spec": { "preset": "outlast" }, "offers": ["second"] }
+    },
+    {
+      "id": "g16",
+      "note": "not a game at all",
+      "page": { "show": "Survivor", "season": 51, "rulebook": "survivor" },
+      "words": "who won last night?",
+      "answer": { "draft": 1, "game": null, "cantYet": [{ "what": "who won last night?", "why": "a question about the show, not a game" }] },
+      "expect": { "state": "none", "cantYet": 1 }
+    },
+    {
+      "id": "g17",
+      "note": "picking from one tribe waits for a later step: taken out, said so",
+      "page": { "show": "Survivor", "season": 51, "rulebook": "survivor" },
+      "words": "a pool where you pick from one tribe each week",
+      "answer": { "draft": 1, "game": { "preset": "survival-pool", "pool": { "of": "cast", "where": { "group": "Kele" } } }, "said": [{ "part": "pool.where", "quote": "pick from one tribe" }, { "part": "preset", "quote": "a pool" }] },
+      "expect": { "state": "ask", "dropped": ["pool.where"], "cantYet": 1 }
+    },
+    {
+      "id": "g18",
+      "note": "a phase that isn't the season's: the nearest phase that is",
+      "page": { "show": "Survivor", "season": 51, "rulebook": "survivor" },
+      "words": "an outlast from the merge on",
+      "answer": { "draft": 1, "game": { "preset": "outlast", "span": { "from": { "phase": "merge" }, "to": null } }, "said": [{ "part": "span.from", "quote": "from the merge on" }, { "part": "preset", "quote": "an outlast" }] },
+      "expect": { "state": "ask", "spec": { "preset": "outlast", "span": { "from": { "phase": "merged" }, "to": null } }, "fixed": ["span.from.phase"] }
+    },
+    {
+      "id": "g19",
+      "note": "a sport's scoring on a show's page: it can't be a show's game",
+      "page": { "show": "Survivor", "season": 51, "rulebook": "survivor" },
+      "words": "draft 3, 5 points for every home run",
+      "answer": { "draft": 1, "game": { "get": { "by": "draft", "each": 3, "order": "blind", "own": "shared" }, "count": { "all": true }, "score": { "by": "stats", "points": { "HR": 5 } } }, "said": [{ "part": "get.each", "quote": "draft 3" }, { "part": "score.points.HR", "quote": "5 points for every home run" }] },
+      "expect": { "state": "cantYet" }
+    },
+    {
+      "id": "g20",
+      "note": "the worked example: a fantasy league, nothing else said; the wizard asks which game and how many",
+      "page": { "show": "Survivor", "season": 51, "rulebook": "survivor" },
+      "words": "I want to set up a fantasy league for Survivor 51.",
+      "answer": { "draft": 1, "game": { "preset": "weekly-lineup" }, "said": [], "assumed": [{ "part": "preset", "value": "weekly-lineup", "why": "a fantasy league: Weekly Lineup is the closest" }], "ask": [{ "part": "get.each", "question": "How many castaways does each of you draft?", "options": ["5", "4", "3"] }] },
+      "expect": { "state": "ask", "spec": { "preset": "weekly-lineup" }, "asks": ["get.each", "preset"] }
+    },
+    {
+      "id": "g21",
+      "note": "no JSON at all: unreadable",
+      "page": { "show": "Survivor", "season": 51, "rulebook": "survivor" },
+      "words": "a pool",
+      "answer": "Sorry, I can't help with that.",
+      "expect": { "state": "unreadable" }
+    },
+    {
+      "id": "g22",
+      "note": "the Traitors: a role that isn't the show's, the nearest that is",
+      "page": { "show": "The Traitors", "season": 4, "rulebook": "traitors" },
+      "words": "before the finale, guess who the traitors are",
+      "answer": { "draft": 1, "game": { "get": { "by": "none" }, "score": { "by": "answers" }, "ask": [{ "id": "traitors", "ask": "Who are the Traitors?", "answer": "person", "pick": 3, "points": 1, "asked": "once", "settle": { "by": "role", "role": "Traitors", "take": "who" } }] }, "said": [{ "part": "ask[0]", "quote": "guess who the traitors are" }], "assumed": [{ "part": "ask[0].pick", "value": 3, "why": "three Traitors at the start" }, { "part": "ask[0].points", "value": 1, "why": "no points named" }] },
+      "expect": { "state": "ask", "fixed": ["ask[0].settle.role"] }
+    },
+    {
+      "id": "g23",
+      "note": "a request that's only a moment the show doesn't have (the real bot answered this way): no game, but the moment is still rated",
+      "page": { "show": "Survivor", "season": 51, "rulebook": "survivor" },
+      "words": "Within the next 3 episodes, will there be a blindside?",
+      "answer": { "draft": 1, "game": null, "cantYet": [{ "what": "Will there be a blindside within the next 3 episodes?", "why": "Blindside is not one of the show's moments", "nearest": null, "newMoment": "Did a blindside happen this episode?" }] },
+      "expect": { "state": "none", "newMoments": 1, "cantYet": 1 }
+    },
+    {
+      "id": "g24",
+      "note": "waivers the bot half filled in (the real bot did, on the user's second game): each detail left out is our default, a chip, never a question",
+      "page": { "show": "Survivor", "season": 51, "rulebook": "survivor" },
+      "words": "an outlast where a replacement can be anyone still in, even someone else's",
+      "answer": { "draft": 1, "game": { "preset": "outlast", "extras": { "waivers": { "replace": "always", "own": { "replace": "shared" } } } }, "said": [{ "part": "preset", "quote": "an outlast" }, { "part": "extras.waivers", "quote": "a replacement can be anyone still in, even someone else's" }] },
+      "expect": { "state": "game", "asks": [] }
+    }
+  ]
+}
