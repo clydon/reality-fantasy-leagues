@@ -5471,6 +5471,12 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     season sync (a seat without the role's castaway voted out): the state carries the deal at 6, the Games tab as each of the three
     who've seen 6 the engine's table on that copy, each Traitor up by its points so far (6), sam (through 3) none of it and the roles
     route revealing nothing to them; the flag's check. check-bounty.js again (the stamp chain): ALL PASS.
+  - **The long checks** (once, last, on `151f2c12`): golden (`golden.js --before=master`): 7 seasons, 160 games, **19,361 reads, every
+    one the same**. The Survivor 51 rehearsal (`season-forward.js rehearse --from=backups/prod-2026-10-30
+    --scenario=realistic,rough,dst --before=master`): every invariant holds, flag off against on and master's engine against this
+    tree's, 2,856 reads each, every one the same. Blind (`blind.js run`): every game played through and over on all five seasons, The
+    Challenge 41 121, 40 115 and 39 123 (as after part 3: nobody's voted out there, so a role on votedOut doesn't play), Survivor 49
+    158 and The Traitors 4 112 (one more each: s24 and who.secret share a spec, and blind plays each distinct spec once).
 - **A15. Live and replay** (with the watch along, docs/PLAN-couch-and-episode-night.md §6, and the sports branch's
   `GameClock`). It needs A7. The watch along is in its infancy (the user, 2026-10-28): its concept, how it's built and how it
   connects to games are all open, so A15 is where the games shape it, not only where they plug into it.
