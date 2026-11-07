@@ -114,7 +114,7 @@ const WORDS = {
     values: { start: 'as each episode starts', daily: "at the day's first game", weekly: "at the week's first game", game: "each holding at its own game's start" },
     sport: ['daily', 'weekly', 'game'],
   },
-  'pool.where': { what: 'who can be picked (pool: { of: "cast", where })', values: { stillIn: 'nobody gone before the game starts', teams: "a sport's teams", group: 'one group of the show' }, sport: ['teams'] },
+  'pool.where': { what: 'who can be picked (pool: { of: "cast", where })', values: { stillIn: 'nobody gone before the game starts', teams: "only these teams' players (a list of the page's team ids)", positions: "only these positions' players (a list of the page's position groups)", group: 'one group of the show' }, sport: ['teams', 'positions'] },
   'ask.answer': {
     what: "how a question is answered (each question: { id, ask, answer, points, asked, settle })",
     values: {
@@ -457,8 +457,9 @@ function sportGameSpec(spec) {
   return s;
 }
 
-/** G3: what a sport's page adds (in place of a show's presets): how its games, stats, finals and lines go in a game. */
-function sportLines(games) {
+/** G3: what a sport's page adds (in place of a show's presets): how its games, stats, finals and lines go in a game. G3 part 3b:
+ *  `positions`, the sport's position groups (ctx.positions: { key, label }), for a pool of some positions' players. */
+function sportLines(games, positions = []) {
   const lines = [];
   lines.push("THIS PAGE IS A SPORT'S: its episodes are the page's games (the pack's games, by episode number), its people the players (each with their team as group, and position as role), and nobody goes home. Nothing from a show plays here (no moments, phases or roles).");
   lines.push(`- Points per stat: "score": { "by": "stats", "points": { statKey: points } }, each key one of the page's stats (the pack's stats: their words "home run" is the key "HR"). Leave points out for the sport's standard table (the pack's standard.scoring).`);
@@ -466,6 +467,8 @@ function sportLines(games) {
   lines.push(`- An over/under on a game's total: "line": "game" (ESPN's own line, kept when the question opens). Never a line they didn't say.`);
   lines.push(`- A final, or a game's stat, asked once is one game's: a span of that one game ("span": { "from": n, "to": n }), or "asked": "each" for every game.`);
   lines.push(`- Every game of an episode that has several (a week's slate): "each": "game" on the question.`);
+  const groups = positions.filter((p) => isObj(p) && p.key).map((p) => (p.label ? `${p.key} (${p.label})` : p.key));
+  lines.push(`- Only some players can be picked ("draft 3 strikers", "only the Lakers' players"): "pool": { "of": "cast", "where": { "teams": [team ids from the pack's teams] } }, or "positions": [${groups.length ? `the sport's position groups: ${groups.join(', ')}` : "the sport's position groups"}], or both. Leave pool out when anyone can be picked.`);
   lines.push(`- When moves lock: "closes": "start" (each game's start), "daily" or "weekly" (a lineup, at the day's or week's first game), "game" (each player at their own game's start).`);
   lines.push(`- A span names the page's games: "the next 5 games" is the next 5 episodes still to play; a game already started can't be played (ask about the next one instead).`);
   if (games.length) {
@@ -505,7 +508,7 @@ function manualFor(ctx, { kind = 'show', examples = [], limit = 16, show = null,
   );
   lines.push('');
   if (kind === 'sport') {
-    lines.push(...sportLines(Array.isArray(games) ? games : []));
+    lines.push(...sportLines(Array.isArray(games) ? games : [], isObj(ctx) && Array.isArray(ctx.positions) ? ctx.positions : []));
     if (team) lines.push('', ...teamLines());
   } else {
     lines.push('PRESETS (whole games; start from one when the words fit it, then change only what they said):');

@@ -80,10 +80,26 @@ Which episodes of the season the game plays. **`span: { from, to }`**.
 
 ## Who can be picked: the pool
 
-**`pool: { of: "cast", where }`**. Today always the cast, `where: { "stillIn": true }` (nobody gone before the game starts) or
-`null`. A sport's `{ teams: [...] }` ("the Lakers' players") is still the sports branch's: a matchup's people are its teams' players
-already, and a draft from one team's (or one position's, "only goalkeepers") waits for G3 part 3's pool filters; a pool of one group,
-`{ group: id }`, has no step yet.
+**`pool: { of: "cast", where }`**. Always the cast: `where: { "stillIn": true }` (nobody gone before the game starts) or `null`,
+everyone still in. Since G3 part 3b, a sport's game can pick from only some of its players:
+
+- **`teams`**: `{ "teams": ["13"] }`, ESPN team ids from the page's teams ("the Lakers' players"; our check reads a team named by
+  its name as its id, and asks "Which team's players?" for one the page hasn't got). A team sport's only.
+- **`positions`**: `{ "positions": ["FWD"] }`, the sport's position groups (`ctx.positions`: soccer's GK, DEF, MID, FWD;
+  "draft 3 strikers each" is FWD; a position named by its label, "forwards", is its key).
+- Both together ("the Lakers' guards"), `stillIn` beside them or not (the same: nobody gone is offered anyway).
+
+Who's on which team is the server's stamp, never stored: each castaway's team as the season's linked games name it (`statTeams`,
+from the group they're listed in now) and their position group from their roster (`statGroups`, `season_cast.role`). Every place
+a draft, a pickup or a pick offers someone asks the pool (`PoolLogic`): the free agents, a waiver move's people, a late joiner's
+pool, a blind team, a draw's hat, an auction's bids, keepers, a pool's pick, a bot's picks (a question names anyone: a race's
+winner or a game's top scorer can be outside it). Fallbacks
+from the start: someone whose team or position isn't known isn't in the pool; a league with no stamp of it at all (nothing read
+yet, a season with no linked games or none naming its teams) holds no filter on it, so a draft never stalls; someone already on your team stays on it
+(a trade moves nobody: only new picks are filtered). Finale predictions aren't picks: they name anyone. An exclusive draft's count
+counts the filtered pool (`ctx.poolOf` where it's made, the pool as it opens later): "4 of you × 3 picks is more than the 9 who can
+be drafted". The words: "everyone drafts 3, forwards only"; the short form's chip "Forwards only". A pool of one group of a
+show, `{ group: id }`, has no step yet.
 
 ---
 

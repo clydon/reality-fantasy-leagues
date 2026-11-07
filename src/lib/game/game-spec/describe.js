@@ -18,7 +18,7 @@
 //
 // Pure CommonJS, like ./schema.js.
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
-const { LINE_GAME, CARD_OUT_HOURS, PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, spanEnd, spanEndPhase, playsAs, callsAsk, finaleIn, draftQuestions, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion, matchupParts, categoryParts, squaresParts, ordinalWord, questionsGame, poolByPoints, teamParts, handicapParts, stageOn, ON_CHANGE, nextStageAts, fallsTo, stageSide, mainCount, stageAlongside, stageSeason, seasonKey, sameSeason, isPlayers, isBeat, waiverOwnOf, waiverMoves, weekParts, momentsPick, bankOf, isTicket, ticketOf, rolesOf, twistOf, cardOf, isCardQuestion, onlyCard, questionLines, lifeRides, askOf: linesOf, OUTSIDE } = require('./schema.js');
+const { LINE_GAME, CARD_OUT_HOURS, PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, spanEnd, spanEndPhase, playsAs, callsAsk, finaleIn, draftQuestions, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion, matchupParts, categoryParts, squaresParts, ordinalWord, questionsGame, poolByPoints, teamParts, handicapParts, stageOn, ON_CHANGE, nextStageAts, fallsTo, stageSide, mainCount, stageAlongside, stageSeason, seasonKey, sameSeason, isPlayers, isBeat, waiverOwnOf, waiverMoves, weekParts, momentsPick, bankOf, isTicket, ticketOf, rolesOf, twistOf, poolFilter, cardOf, isCardQuestion, onlyCard, questionLines, lifeRides, askOf: linesOf, OUTSIDE } = require('./schema.js');
 const { PLAYOFFS } = require('../sequence/bracket.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
@@ -57,6 +57,8 @@ function wordsOf(ctx) {
     categories: new Map((Array.isArray(c.categories) ? c.categories : []).map((x) => (isObj(x) ? [x.key, { label: x.label || x.key, better: x.better, rate: !!x.rate }] : [x, { label: x, better: undefined, rate: false }]))),
     // L1 part 4a: a sport's position groups ("Goalkeepers") and its bouts' formats ("5 sets"), for a stats score's tables.
     positions: new Map((Array.isArray(c.positions) ? c.positions : []).map((x) => (isObj(x) ? [x.key, x.label || x.key] : [x, x]))),
+    // G3 part 3b: the page's teams by id, for a pool of some teams' players.
+    teams: new Map((Array.isArray(c.teamList) ? c.teamList : []).filter((t) => isObj(t) && t.id).map((t) => [String(t.id), t.name || String(t.id)])),
     formats: new Map((Array.isArray(c.formats) ? c.formats : []).map((x) => (isObj(x) ? [String(x.key), x.label || String(x.key)] : [String(x), String(x)]))),
     // L4 part 2: a sport's word for its periods (squares pay at their ends), and the draws a bracket can be of ("Men's singles").
     period: isObj(c.periods) && c.periods.word ? { word: c.periods.word, plural: c.periods.plural || `${c.periods.word}s` } : { word: 'period', plural: 'periods' },
@@ -67,8 +69,12 @@ function wordsOf(ctx) {
     fromChange: typeof c.fromChange === 'string' ? c.fromChange : null,
     // A12 part 2b: the words for where the stage ends ("until there are no more teams"), else true: until the format changes.
     untilChange: typeof c.untilChange === 'string' && c.untilChange ? c.untilChange : c.untilChange === true,
+    // G3 part 3b (part 3a's Noticed): a stage of a game in stages, whose end is the stage's, not the finale.
+    stage: c.stage === true,
   };
 }
+/** G3 part 3b (part 3a's Noticed): when the most wins: by the finale, the end of a game that stops before it, or a stage's end. */
+const byEnd = (s, w) => (w.stage ? 'by the end of the stage' : isObj(s.span) && isNum(s.span.to) ? `by ${w.Part} ${s.span.to}` : isObj(s.span) && isObj(s.span.to) ? 'by the end of the game' : 'by the finale');
 // A12 part 2: the kinds of format change in words ("teams form", "everyone goes on alone"); a list that's F3's MAJOR is "a major
 // change of format". The words are the user's (U0).
 const CHANGE_WORDS = {
@@ -450,6 +456,8 @@ function sentenceParts(s, w) {
     // salary cap.
     const budget = budgetParts(s);
     put(s.get.order === 'draw' ? `everyone gets ${s.get.each} drawn at random` : s.get.order === 'auction' ? `everyone ${budget ? `has ${budget.total} to bid` : 'bids'} on a team of ${s.get.each}` : `everyone drafts ${s.get.each}`, 'get');
+    // G3 part 3b: a pool of some teams' or positions' players.
+    if (poolFilter(s)) put(`, ${poolPhrase(s, w)}`, 'pool');
     if (acrossOf(s)) put(` from across the ${w.group}s`, 'get');
     // Part 3c: a stock market buys and sells when its waiver windows open.
     if (budget && budget.trade && !budget.auction) put(` with ${budget.total} to spend`, 'get');
@@ -475,10 +483,12 @@ function sentenceParts(s, w) {
     // C5: a pick each episode, one or several, scored by what they do.
     const n = s.get.each;
     put(`everyone picks ${n === 1 ? `one ${w.castaway}` : `${say(n)} ${w.castaways}`} each ${w.part}`, 'get');
+    if (poolFilter(s)) put(`, ${poolPhrase(s, w)}`, 'pool');
     if (s.get.repeat === 'never') put(', never the same one twice', 'get');
     if (s.get.repeat === 'cycle') put(", nobody again until they've used everyone still in", 'get');
   } else if (by === 'pick') {
     put(`everyone picks one ${w.castaway} to ${s.score.means === 'scores' ? 'score' : 'stay in'} each ${w.part}`, 'get');
+    if (poolFilter(s)) put(`, ${poolPhrase(s, w)}`, 'pool');
     // A10 part 2: a second pick.
     const second = secondPickOf(s);
     if (second) put(second.fallback === 'counts' ? ', and a second' : ', and a second that counts when two go home', 'get');
@@ -556,8 +566,8 @@ function sentenceParts(s, w) {
     if (allOut === 'share') put(' If everyone left goes out together, they share the win.', 'rank');
     if (allOut === 'back') put(" If everyone left goes out together, they're all back in.", 'rank');
   }
-  else if (sc.by === 'answers' && callsAsk(s.ask)) put(' Most right by the finale wins.', 'score');
-  else if (sc.by === 'lines') put(isNum(sc.points) && sc.points !== 1 ? ` ${cap(pointsWord(sc.points))} a line; most points by the finale wins.` : ' Most lines by the finale wins.', 'score');
+  else if (sc.by === 'answers' && callsAsk(s.ask)) put(` Most right ${byEnd(s, w)} wins.`, 'score');
+  else if (sc.by === 'lines') put(isNum(sc.points) && sc.points !== 1 ? ` ${cap(pointsWord(sc.points))} a line; most points ${byEnd(s, w)} wins.` : ` Most lines ${byEnd(s, w)} wins.`, 'score');
   else if (sc.by === 'stats' && categoryParts(s)) put(` ${categoryPhrase(categoryParts(s), w)}`, 'score');
   else if (sc.by === 'squares' && squaresParts(s)) put(` ${squaresPayPhrase(squaresParts(s), w)} Most points wins.`, 'score');
   else if (sc.by === 'stats' && statScoreWords(sc, w)) put(` Scored ${statScoreWords(sc, w)}.`, 'score');
@@ -1475,12 +1485,12 @@ function rulesOf(s, w) {
     rules.push('No draft, no team. Before each show starts, make two calls about what will happen in it.');
     rules.push('The couch says what happened as it watches: two of you agreeing settles a call.');
     rules.push('Change your calls until it starts. Nobody sees them until then.');
-    rules.push('Most right calls by the finale wins.');
+    rules.push(`Most right calls ${byEnd(s, w)} wins.`);
   } else if (by === 'card') {
     rules.push('No draft, no team. Every show you get a new bingo card: eight things that might happen, the middle one free.');
     rules.push('Tick a square when it happens. Three in a row, down or across makes a line.');
     rules.push('A square counts once the couch agrees it happened: two of you ticking it, or saying so, settles it.');
-    rules.push(isNum(s.score.points) && s.score.points !== 1 ? `Each line is worth ${pointsWord(s.score.points)}. Most points by the finale wins.` : 'Most lines by the finale wins.');
+    rules.push(isNum(s.score.points) && s.score.points !== 1 ? `Each line is worth ${pointsWord(s.score.points)}. Most points ${byEnd(s, w)} wins.` : `Most lines ${byEnd(s, w)} wins.`);
   } else if (by === 'squares') {
     rules.push(...squaresRules(s, w));
   }
@@ -1654,7 +1664,7 @@ function describeStages(s, ctx) {
     const nextOn = next ? stageOn(next) : null;
     const until = !nextOn ? false : !fallsTo(stages, i + 1) ? true : nextOn.change.length ? `until the format changes, or there are no more ${w.group}s` : `until there are no more ${w.group}s`;
     const there = seasonOf(st);
-    const d = describeSpec(st.game, { ...(there ? there.ctx : isObj(ctx) ? ctx : {}), show: null, fromChange: fromWords(st, i), untilChange: until });
+    const d = describeSpec(st.game, { ...(there ? there.ctx : isObj(ctx) ? ctx : {}), show: null, fromChange: fromWords(st, i), untilChange: until, stage: true });
     return { label: st.name || `Stage ${i + 1}`, on: there ? there.label : null, d, sentence: d.sentence.replace(/^An? /, (m) => m.toLowerCase()).replace(/\.$/, '') };
   });
   const parts = [{ text: `A game in ${say(stages.length)} stages`, at: 'preset' }];
@@ -1752,6 +1762,21 @@ function holdShort(s, w) {
   return !asks.length ? 'Questions' : asks.length === 1 ? '1 question' : `${asks.length} questions`;
 }
 
+/**
+ * G3 part 3b: who a pool of some teams' or positions' players picks from, in words: "forwards only", "Los Angeles Lakers players
+ * only", "Arsenal forwards only" (the page's names: ctx.teamList, ctx.positions; a team it hasn't named, "one team's"). `chip`:
+ * as a chip, its first letter up.
+ */
+function poolPhrase(s, w, chip) {
+  const f = poolFilter(s);
+  if (!f) return null;
+  const known = f.teams ? f.teams.map((t) => w.teams.get(t)).filter(Boolean) : [];
+  const teams = !f.teams ? null : known.length === f.teams.length ? listOf(known) : f.teams.length === 1 ? "one team's" : `${say(f.teams.length)} teams'`;
+  const positions = f.positions ? listOf(f.positions.map((p) => String(w.positions.get(p) || p).toLowerCase())) : null;
+  const text = `${[teams, positions || w.castaways].filter(Boolean).join(' ')} only`;
+  return chip ? text.replace(/^./, (c) => c.toUpperCase()) : text;
+}
+
 /** What makes a game different, as chips in the order they're shown: its twists, then how it's won when that isn't the game's own. */
 function twistShorts(s, w) {
   const out = [];
@@ -1770,6 +1795,8 @@ function twistShorts(s, w) {
   else if (Array.isArray(sc.only)) out.push(`Only ${sc.only.length} moments count`);
   if (isObj(g.groups) && isNum(g.groups.slots)) out.push(g.groups.slots === 1 ? `Plus a ${w.group} slot` : `Plus ${g.groups.slots} ${w.group} slots`);
   if (isObj(g.across)) out.push(`1 from each ${w.group}`);
+  // G3 part 3b: a pool of some teams' or positions' players.
+  if ((g.by === 'draft' || g.by === 'pick') && poolFilter(s)) out.push(poolPhrase(s, w, true));
   if (Array.isArray(sc.multiply) && sc.multiply.length) {
     const m = sc.multiply[0];
     const first = Array.isArray(m.times) ? m.times[0] : m.times;

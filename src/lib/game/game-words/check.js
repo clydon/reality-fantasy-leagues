@@ -352,7 +352,7 @@ const STAT_TABLES = ['points', 'byPosition', 'byPlace', 'byFormat'];
  * game's total ESPN's own line where they didn't say one ("line": "game"), and a team named by its name its id (one the page
  * doesn't have, out and asked). `games`: the sport's standard games (sports/page.ts sportGames: their specs hold the tables).
  */
-function sportFixes(spec, { pack, said, games }) {
+function sportFixes(spec, { pack, said, games, positions = [] }) {
   const fixes = [];
   const asks = [];
   /** [old path, new path]: a stat's key read from its words moves what was said or assumed of it. */
@@ -428,10 +428,7 @@ function sportFixes(spec, { pack, said, games }) {
       }
     }
     if (typeof st.of === 'string' && st.of && st.of !== 'main' && teams.length) {
-      // Its id, its whole name, else the one team whose name ends with the words ("Yankees"); two that fit name neither.
-      const named = teams.filter((t) => plain(t.name) === plain(st.of));
-      const ends = teams.filter((t) => plain(t.name).endsWith(` ${plain(st.of)}`) || plain(t.name) === plain(st.of));
-      const byName = teams.find((t) => t.id === st.of) || (named.length === 1 ? named[0] : null) || (ends.length === 1 ? ends[0] : null);
+      const byName = teamNamed(teams, st.of);
       if (byName && byName.id !== st.of) {
         fix(`ask[${i}].settle.of`, `"${st.of}" is the team ${byName.name}`, st.of, byName.id);
         st.of = byName.id;
@@ -442,7 +439,47 @@ function sportFixes(spec, { pack, said, games }) {
       }
     }
   });
+  // G3 part 3b: a pool of some teams' players, each team by its id (its name read as one, as a question's "of" is; one the page
+  // hasn't got out and asked), and of some positions', each the sport's position group (its label, singular or plural, read as its key).
+  const where = isObj(spec.pool) && isObj(spec.pool.where) ? spec.pool.where : null;
+  // Each list one fix, the whole list before and after (its paths are the list's, so nothing points at an entry that moved).
+  const readList = (key, list, find, word) => {
+    const out = [];
+    const why = [];
+    let lost = false;
+    for (const x of list) {
+      const hit = typeof x === 'string' ? find(x) : null;
+      if (!hit) { why.push(`"${x}" isn't one of the ${word}`); lost = true; }
+      else if (hit.id !== x) why.push(`"${x}" is ${hit.says}`);
+      if (hit && !out.includes(hit.id)) out.push(hit.id);
+    }
+    if (why.length) fix(`pool.where.${key}`, why.join('; '), clone(list), out.length ? clone(out) : undefined);
+    if (out.length) where[key] = out;
+    else delete where[key];
+    return lost;
+  };
+  if (where && Array.isArray(where.teams) && teams.length) {
+    const lost = readList('teams', where.teams, (t) => { const team = teamNamed(teams, t); return team && { id: team.id, says: `the team ${team.name}` }; }, "page's teams");
+    if (lost) asks.push({ part: 'pool.where.teams', question: "Which team's players?", options: ['Any team', ...teams.map((t) => t.name)].slice(0, 4) });
+  }
+  if (where && Array.isArray(where.positions) && positions.length) {
+    const named = (p) => {
+      const said = plain(p).trim();
+      const g = positions.find((x) => x.key === p) || positions.find((x) => plain(x.key).trim() === said || [plain(x.label || '').trim(), plain(x.label || '').trim().replace(/s$/, '')].includes(said));
+      return g && { id: g.key, says: `${g.label || g.key} (${g.key})` };
+    };
+    const lost = readList('positions', where.positions, named, "sport's positions");
+    if (lost) asks.push({ part: 'pool.where.positions', question: 'Which positions?', options: ['Any position', ...positions.map((g) => g.label || g.key)].slice(0, 5) });
+  }
+  if (where && !Object.keys(where).length) spec.pool.where = { stillIn: true };
   return { fixes, asks, standard, renames };
+}
+
+/** A team by its id, its whole name, else the one team whose name ends with the words ("Yankees"); two that fit name neither. */
+function teamNamed(teams, said) {
+  const named = teams.filter((t) => plain(t.name) === plain(said));
+  const ends = teams.filter((t) => plain(t.name).endsWith(` ${plain(said)}`) || plain(t.name) === plain(said));
+  return teams.find((t) => t.id === said) || (named.length === 1 ? named[0] : null) || (ends.length === 1 ? ends[0] : null);
 }
 
 // ---- the check ----
@@ -479,6 +516,8 @@ function quoted(wordsPlain, quote) {
 function checkDraft(draft, { ctx = null, pack = null, words = '', kind, carry = null, games = [] } = {}) {
   const d = isObj(draft) ? draft : {};
   const pageKind = kind || (pack && pack.kind) || 'show';
+  // G3 part 3b: a sport's page's teams, so a pool's teams are checked against them and named by them.
+  if (pageKind === 'sport' && isObj(ctx) && !ctx.teamList && pack && Array.isArray(pack.teams) && pack.teams.length) ctx = { ...ctx, teamList: pack.teams.map((t) => ({ id: t.id, name: t.name })) };
   const wordsPlain = plain(words);
   const result = {
     state: 'game',
@@ -531,7 +570,7 @@ function checkDraft(draft, { ctx = null, pack = null, words = '', kind, carry = 
   // G3: a sport's page: its stats by key, its standard table, ESPN's line, its teams (each a named change, before the numbers).
   if (pageKind === 'sport') {
     const saidNumber = (path, n) => result.said.some((s) => (!s.part || covers(s.part, path) || covers(path, s.part)) && numbersIn(s.quote).has(Math.abs(n)));
-    const sport = sportFixes(spec, { pack, said: saidNumber, games });
+    const sport = sportFixes(spec, { pack, said: saidNumber, games, positions: isObj(ctx) && Array.isArray(ctx.positions) ? ctx.positions.filter((g) => isObj(g) && g.key) : [] });
     const moved = (part) => {
       if (!part) return part;
       const r = sport.renames.find(([from]) => covers(from, part));

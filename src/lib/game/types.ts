@@ -1181,6 +1181,9 @@ export interface LeagueState {
   /** L3 part 2: a game scored by a sport's stats, each castaway's position group from their roster (StatsLogic.stamp): never
    *  stored. */
   statGroups?: Record<string, string>;
+  /** G3 part 3b: a game whose pool is some teams' players, each castaway's team as an ESPN id (the team they're listed on now, as the
+   *  season's linked games name it: StatsLogic.stamp): never stored. */
+  statTeams?: Record<string, string>;
   /** L3 part 2e: a squares game's sport's regulation periods (halftime's), stamped with its scores: never stored. */
   statPeriods?: number;
   /** L3 part 2e: a squares game's squares (StateLogic.SquaresLogic): each seat's picks and the episode they count from, a deal's

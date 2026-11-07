@@ -75,6 +75,8 @@ export async function pickInDraft(a: DraftActor, leagueId: string, castawayId: s
       if (StateLogic.GhostLogic.ownPace(s) && !StateLogic.GhostLogic.draftPool(s, StateLogic.startEpisode(s) ?? 1, true).includes(castawayId)) {
         throw new HttpError(400, "Pick from who was still in before the start, and on nobody's team");
       }
+      // A pool of some teams' or positions' players (step G3 part 3b): someone outside it, and why.
+      if (!StateLogic.PoolLogic.has(s, castawayId)) throw new HttpError(400, StateLogic.PoolLogic.reason(s, StateLogic.Core.getCastaway(s, castawayId) ?? null));
       // A draft spread across the cast's groups (step A10 part 3): a pick that doesn't keep the team spread, and why.
       const spread = StateLogic.SpreadLogic.pickProblem(s, turn.playerId, castawayId);
       if (spread) throw new HttpError(400, spread);

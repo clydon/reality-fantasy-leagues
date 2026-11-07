@@ -40,6 +40,8 @@ const CHIP_WORDS = [
   [/^Only \d+ moments count$/, /only/i],
   [/slots?$/, /slot/],
   [/^1 from each/, /from across the/],
+  // G3 part 3b: a pool of some teams' or positions' players ("Forwards only": "everyone drafts 3, forwards only").
+  [/^(.+) only$/, (m) => new RegExp(`, ${esc(m[1])} only`, 'i')],
   [/^(Draftees|Swaps|Pickups|Replacements) score/, /draft|swap|pickup|replacement/i],
   [/^Finale picks$/, /final three and the winner/],
   [/^\d+ (life|lives)$/, /li(fe|ves)/],

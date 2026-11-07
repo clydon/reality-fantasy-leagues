@@ -13,7 +13,7 @@ import { seasonSchedules } from "./schedule";
 import { games, seasonHeaders } from "./show-space";
 import { startFrom } from "./start-game";
 import { groupsGoingInto } from "@db/format-timeline.js";
-import { sportOf } from "@/lib/sports";
+import { groupOf, sportOf } from "@/lib/sports";
 import { sportGames, sportPageContext, sportStandard, statWords } from "@/lib/sports/page";
 
 // The Start-a-game GPT's words to a game (docs/PLAN-start-a-game-gpt.md step G1; POST /api/seasons/[seasonId]/game-words): someone
@@ -64,7 +64,7 @@ const SPORT_PLAYED = 3;
 /** A slate's cadences, each its episode's word (G3 part 2, part 1's Noticed): NFL week 9 is "Week 9", never "Game 9". */
 const CADENCES = new Set(["day", "week", "round"]);
 
-type SportPart = { input: Partial<PackInput>; ctx: SpecContext; games: Words.SportGameSpec[] };
+type SportPart = { input: Partial<PackInput>; ctx: SpecContext; games: Words.SportGameSpec[]; league: string; teams: { id: string; name: string }[] };
 
 /**
  * G3: a sport's season's part of the pack, or null when none of its games is linked to a league a sport reads: its league (its linked
@@ -116,6 +116,8 @@ async function sportPart(seasonId: string, label: string, terms: { castaway?: st
   const standard = sportStandard(league);
   const standardGames = sportGames(league, { playoffs });
   return {
+    league,
+    teams: [...teams.values()],
     input: {
       sport: { id: sport.id, name: sport.name, league },
       teams: [...teams.values()],
@@ -156,7 +158,7 @@ export async function packFor(user: SessionUser, seasonId: string, couchId: stri
   const rules: SpecContext = sport ? sport.ctx : (showRules as SpecContext);
   const [{ rows: cast }, { rows: outs }, members, here, now_] = await Promise.all([
     // A sport's people are shown from the game whose box score brought them in (season_cast.shown_from): through their mark only.
-    pool.query("SELECT id, name, tribe_name, role, shown_from FROM season_cast WHERE season_id = $1 AND (shown_from IS NULL OR shown_from <= $2) ORDER BY sort_order, name", [seasonId, mark]),
+    pool.query("SELECT id, name, tribe_name, role, shown_from, provider_ids IS NOT NULL AS linked FROM season_cast WHERE season_id = $1 AND (shown_from IS NULL OR shown_from <= $2) ORDER BY sort_order, name", [seasonId, mark]),
     // Who's gone, and who's with whom: a show's (nobody goes home in a sport, and its groups are its teams).
     sport
       ? Promise.resolve({ rows: [] as Record<string, unknown>[] })
@@ -202,7 +204,13 @@ export async function packFor(user: SessionUser, seasonId: string, couchId: stri
     couch: couchId ? { people, games: here.filter((g) => !g.archived).map((g) => ({ name: g.name, says: g.gameName })) } : null,
   };
   const pack = Words.packOf(input);
-  const ctx: SpecContext = { ...rules, show: label, ...(people ? { couch: people } : {}), ...(pack.cast.length ? { pool: pack.stillIn } : {}) };
+  // G3 part 3b: on a sport's page, everyone as a pool of some teams' or positions' players counts them (their team's ESPN id by its
+  // name, their position group from their role), so an exclusive draft from one is counted where it's made.
+  const sportIs = sport ? sportOf(sport.league) : null;
+  const teamIdOf = new Map((sport?.teams ?? []).map((t) => [t.name.toLowerCase(), t.id]));
+  // Only those a league on it has (a sport's league is made of its players with provider ids: make-game.ts).
+  const poolOf = sportIs ? cast.filter((c) => c.linked).map((c) => ({ team: teamIdOf.get(String(c.tribe_name ?? "").toLowerCase()) ?? null, position: groupOf(sportIs, c.role as string | null) })) : null;
+  const ctx: SpecContext = { ...rules, show: label, ...(people ? { couch: people } : {}), ...(pack.cast.length ? { pool: pack.stillIn } : {}), ...(poolOf ? { poolOf } : {}), ...(sport?.teams.length ? { teamList: sport.teams } : {}) };
   return { pack, ctx, kind, show: h.show.name, games: sport?.games ?? [] };
 }
 

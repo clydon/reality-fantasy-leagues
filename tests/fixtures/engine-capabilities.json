@@ -6947,7 +6947,6 @@
           "espn": "soccer/eng.1"
         },
         "words": "Premier League this weekend, draft 3 strikers each, goals 5 assists 3",
-        "step": "G3",
         "expect": {
           "about": {
             "sport": "soccer",
@@ -6974,7 +6973,15 @@
           "wizard": [],
           "flag": null
         },
-        "note": "strikers only is a pool of one position (forwards): the draft and its table play now (G 5, A 3), a pool by position is G3's"
+        "note": "G3 part 3b: strikers only is a pool of one position (the forwards, FWD): a draft of 3 each from them, goals 5 and assists 3, everyone drafted counting, over the round",
+        "spec": {
+          "spec": 1,
+          "span": { "from": 1, "to": 1 },
+          "pool": { "of": "cast", "where": { "positions": ["FWD"] } },
+          "get": { "by": "draft", "each": 3 },
+          "count": { "all": true },
+          "score": { "by": "stats", "points": { "G": 5, "A": 3 } }
+        }
       },
       {
         "id": "w056",

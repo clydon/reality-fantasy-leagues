@@ -33,6 +33,9 @@
 // opener's episode has results (nothing scored) so the week moves on, the next game's over/under waiting ("Line coming") and refused
 // until its line's read, then open with it; a game moved to another day (not on its day's scoreboard) found on its team's schedule by
 // the daily job (refreshSportsEvents), its new start kept with it, on its link and as its episode's air time.
+// G3 part 3b: a pool of the 76ers' guards (an eighth season, nothing kept): a read stamps each castaway's team as its ESPN id (their
+// group's name as the linked game names it) and position group (their role), only the 76ers' guard is free, a write refuses anyone
+// else and saves none of the stamp.
 // No app server: readyLeague is what GET /api/leagues/[id]/state and season-games.ts read through. Every row it makes is keyed
 // "zt-stats-game" (the show's slug, the league's slug, its user "zt-stats-game-user") or provider "zt-espn-stats"; it removes them at the end (--keep leaves
 // them; the next run removes them first). Refuses a non-local database. Prints PASS/FAIL.
@@ -653,6 +656,49 @@ async function down() {
       const out = await refreshSportsEvents({ providers: [prov], now: new Date(at1 + 13 * DAY + now), only: [season7] });
       const at3 = (await pool.query("SELECT f.starts_at AS kept, e.starts_at AS linked, ep.air_at FROM sports_events f JOIN season_events e ON e.event_id = f.event_id JOIN season_episodes ep ON ep.season_id = e.season_id AND ep.number = e.episode WHERE f.provider = $1 AND f.event_id = $2 AND e.season_id = $3", [P, m3, season7])).rows[0];
       check(!out.errors.length && asked.filter((x) => x.startsWith("schedule")).length === 1 && [at3.kept, at3.linked, at3.air_at].every((d) => d.toISOString() === movedTo), "a game moved off its day: found on its team's schedule (one call), its new start kept, on its link and as its episode's air time", JSON.stringify({ out, asked, at3 }));
+    }
+
+    // G3 part 3b: a pool of some teams' and positions' players (an eighth season: the 76ers' guards only), nothing kept yet. A read
+    // stamps every castaway's position group from their role and their team's ESPN id from their group's name (as the linked game
+    // names it); only the 76ers' guard is free; a write refuses anyone else and saves none of the stamp.
+    {
+      const season8 = (await pool.query("INSERT INTO show_seasons (show_id, season_number) SELECT id, 8 FROM shows WHERE slug = $1 RETURNING id", [SLUG])).rows[0].id;
+      const sides = [{ id: "20", name: "Philadelphia 76ers" }, { id: "5", name: "Cleveland Cavaliers" }];
+      await pool.query("INSERT INTO season_episodes (season_id, number, air_at, source) VALUES ($1, 1, $2, 'listing')", [season8, iso(DAY)]);
+      await pool.query("INSERT INTO season_events (season_id, episode, provider, league, event_id, starts_at, teams) VALUES ($1, 1, $2, 'basketball/nba', 'zt-pool', $3, $4::jsonb)", [season8, P, iso(DAY), JSON.stringify(sides)]);
+      await pool.query("INSERT INTO sports_events (provider, league, event_id, starts_at, state, teams, final) VALUES ($1, 'basketball/nba', 'zt-pool', $2, 'pre', $3::jsonb, false)", [P, iso(DAY), JSON.stringify(sides)]);
+      const people = [["ZT Guard Sixer", "Philadelphia 76ers", "PG"], ["ZT Center Sixer", "Philadelphia 76ers", "C"], ["ZT Guard Cav", "Cleveland Cavaliers", "SG"], ["ZT Nobody Cav", "Cleveland Cavaliers", null]];
+      for (const [i, [name, team, role]] of people.entries()) {
+        await pool.query("INSERT INTO season_cast (season_id, name, tribe_name, role, provider_ids) VALUES ($1, $2, $3, $4, $5::jsonb)", [season8, name, team, role, JSON.stringify({ [P]: `zt-p${i}` })]);
+      }
+      const q = S.defaultState();
+      S.updateSettings(q, "showId", SLUG);
+      S.updateSettings(q, "wikiSeason", 8);
+      q.settings.game = null;
+      q.tribes = sides.map((t, i) => ({ id: `zt-t${i}`, name: t.name, color: "#000" }));
+      for (const [name, team] of people) S.addCastaway(q, name);
+      q.castaways.forEach((c, i) => { c.tribeId = `zt-t${people[i][1] === sides[0].name ? 0 : 1}`; });
+      q.players = ["ann", "bo"].map((id) => ({ id, name: id, color: "#000", active: true }));
+      q.draftOrder = ["ann", "bo"];
+      S.updateSettings(q, "setupComplete", true);
+      const pooled = { ...spec, pool: { of: "cast", where: { teams: ["20"], positions: ["guards"] } }, get: { by: "draft", each: 1, order: "snake", own: "exclusive" }, count: { all: true }, score: { by: "stats", points: POINTS } };
+      const wrong = S.setGame(q, pooled, { ctx: specContextOf(nba) });
+      check(wrong.length === 0 && G.poolFilter(S.gameOf(q))?.teams?.[0] === "20", "a pool of the 76ers' guards written as a league's own", JSON.stringify(wrong));
+      S.ensureEpisodeNumber(q, 1, false);
+      S.forceStartDraft(q);
+      const id = (await pool.query("INSERT INTO leagues (name, slug, join_code, state) VALUES ('ZT pool', $1, 'ZTPOOL', $2) RETURNING id", [`${SLUG}-pool`, JSON.stringify(q)])).rows[0].id;
+      const c = await readyLeague(id, (await leagueStates([id])).get(id));
+      const byName = (st, n) => st.castaways.find((x) => x.name === n).id;
+      const [g6, c6, gc, nc] = people.map(([n]) => byName(c, n));
+      check(c.statTeams?.[g6] === "20" && c.statTeams?.[c6] === "20" && c.statTeams?.[gc] === "5" && c.statGroups?.[g6] === "guards" && c.statGroups?.[c6] === "centers" && c.statGroups?.[gc] === "guards" && !(nc in (c.statGroups ?? {})),
+        "a read stamps each one's team (its ESPN id, by the group's name) and position group (from their role, nothing kept yet)", JSON.stringify({ teams: c.statTeams, groups: c.statGroups }));
+      check(S.freeAgents(c).map((x) => x.id).join() === g6, "only the 76ers' guard is free (a Cavaliers guard, a 76ers center and someone with no position aren't)", S.freeAgents(c).map((x) => x.name).join());
+      let made = null;
+      await withLeagueLock(id, (st) => { S.draftToCurrentTurn(st, byName(st, "ZT Guard Cav")); made = st.draftPicksMade || 0; });
+      check(made === 0, "a write refuses the Cavaliers' guard");
+      const after = await withLeagueLock(id, (st) => { S.draftToCurrentTurn(st, byName(st, "ZT Guard Sixer")); });
+      const row = (await pool.query("SELECT state FROM leagues WHERE id = $1", [id])).rows[0].state;
+      check(after.draftPicksMade === 1 && !("statTeams" in row) && !("statGroups" in row) && row.draftPicksMade === 1, "the 76ers' guard is drafted; the row saved has none of the stamp");
     }
 
     // A show's league is never stamped (nothing asked of the sports tables).

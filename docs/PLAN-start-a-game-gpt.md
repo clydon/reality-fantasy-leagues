@@ -11268,7 +11268,7 @@ first), and proves it on these games and on the tracker's other rows that use it
     starts (a race's entry list comes late). Recommended: the wizard shows the field's size when it has one (U1), or our check takes the
     pack's field where it has it. Small. (U1.)
   - **A stage's "Most lines by the finale wins"** in a bingo stage that ends at Episode 4 (shape.minis): a stage's rule says the finale for
-    the stage's end. Recommended: "by the end of the stage" in a stage's words. Small. (Part 3b, or U0.)
+    the stage's end. Recommended: "by the end of the stage" in a stage's words. Small. (Built in part 3b.)
   - **A one-race page says "before Race 1"**: the race's own page has one race, so "before the race" would read better, as a one-game
     page could say "before the game". Recommended: the page's one-game words in describe.js. Small. (U0.)
   - **The pool filters' map** (for part 3b): no engine code reads `spec.pool` today (`plainParts` takes `where` null or `{ stillIn: true }`
@@ -11285,7 +11285,85 @@ first), and proves it on these games and on the tracker's other rows that use it
     write, `StatsLogic.stamp`, but today only for those in a kept final: 3b stamps every castaway's from `season_cast.role`, `groupOf`).
     VOCAB's `pool.where` gains `positions` (the sport's position groups, ctx.positions) and `teams` turns 'now'. Recommended fallbacks:
     someone whose team or position isn't known isn't in the pool; a league with no stamp at all (nothing read yet) holds no filter, so
-    a draft never stalls; someone traded away stays on your team (only new picks are filtered). (Part 3b.)
+    a draft never stalls; someone traded away stays on your team (only new picks are filtered). (Part 3b: built, below.)
+  **Part 3b as built (2026-11-07, `engine`; no migration, no screen): the pool filters, a draft from some teams' or positions' players.**
+  So **G3 is done** (parts 1 to 3b), for the main folder's merge with migration 0215.
+  - **The spec** (`schema.js`): `pool.where` takes a sport's `teams` (ESPN team ids) and `positions` (its position groups, `ctx.positions`:
+    soccer's GK, DEF, MID, FWD; basketball's guards, forwards, centers), together or not, `stillIn` beside them or not (VOCAB: `teams` and
+    `positions` 'now', `group` still 'later' and only on its own). `plainParts` plays them (`poolWhereOk`); new `poolFilter(spec)` ({ teams?,
+    positions? } or null), `inFilter(filter, { team, position })` and `poolCount(spec, ctx)`. Our check: each list of ids each once; a
+    position one of the sport's ("Only a sport's players have positions to pick from" on a show), a team a team sport's ("Only a team sport's
+    players have teams to pick from" on a show or golf) and one of the page's when the ctx lists them (new `ctx.teamList`). **Exclusive or
+    shared by the math** counts the filtered pool: new `ctx.poolOf` (everyone still in as { team, position }), "4 of you × 2 picks is more than
+    the 6 who can be drafted"; a filter with no poolOf isn't counted; as a draft opens later, `settleDraftShare` counts `PoolLogic.offered`.
+    `specWaitsFor` reads every key of a `where`. index.d.ts has the shapes.
+  - **The settings** (`settings.js`): `poolWhere` (the `where` as said, only when it filters), read back by `specOf`, a part of `withSpec`
+    (taking the filter off takes the field out).
+  - **The engine** (`state-logic.js`, new `PoolLogic`: `filter` (read once per spec, a WeakMap), `test` (one pass's test, `Spec.inFilter`),
+    `has`, `offered`, `reason`): every choke point the map named asks it. `RosterLogic.freeAgents`, `MidSeasonLogic.availableFor` (and so
+    `isAvailableFor`, auto-fill, free agency and the Replace items), `GhostLogic.draftPool`, `SpreadLogic.groupsNow` (a spread is over the
+    pool's groups) and `.teamProblem`, `DrawLogic.outcome` (the hat), `BudgetLogic.teamProblem`, `PickEmLogic.eligibility` (a pool's cycle is
+    over the pool's, and `setPick` goes through it), `BlindDraftLogic.validateSubmission` and `AuctionLogic.validateBids` (refused, saying
+    why), `AuctionLogic.outcome` (the bids and the fill), `SnakeDraftStrategy.pick`, `KeeperLogic.setOptions`, `.lock` and `.optionsFrom`,
+    `RosterLogic.activatePlayer`, `RosterLogic.settleDraftShare`. bot-logic.js's `snakeDraft`, `blindSubmissions` and `auctionBids`
+    (replacements and swaps go through `availableFor`). The data (`StatsLogic.stamp`): `state.statGroups` (every castaway's) and new
+    `state.statTeams` (castaway id to ESPN team id, a STAMPED key, never saved); `StatsLogic.reads` is true for a filtered pool too, and new
+    `readsGames` says whether the finals are stamped (a game that reads only because of its pool gets its teams and groups alone, so no
+    episode gets results it didn't have). **Functions changed in state-logic.js** (for the own-pace session's merge): the ones above, plus
+    `StatsLogic.reads`, `.stamp`, STAMPED, and the export list (`PoolLogic`).
+  - **Its fallbacks** (part 3a's Noticed, as recommended): someone whose team or position isn't known isn't in the pool; a league with no
+    stamp of a part holds no filter on that part (nothing read yet, a season with no linked games, or none naming its teams), so a draft
+    never stalls; when the season names its teams, `statTeams` is stamped even if it matches nobody, so a team-name mismatch keeps people out
+    rather than letting every team in; someone already on a team stays on it (a trade moves nobody: only new picks are filtered).
+    **Decided here (sensible defaults, the user can overrule):** finale predictions and a question's person answers name anyone, not only
+    the pool (a race's winner or a game's top scorer can be outside it: the pool is who can be held), and a public pool's Who goes home?
+    call too.
+  - **The server.** `sports/score.ts`: `leagueGames` stamps every castaway's position group from their `season_cast.role` (`groupOf`, a kept
+    final's position filling in for one with none), and keeps each team's ESPN id by its name from the linked games (`teamIds`);
+    `stampStats` stamps a filtered pool's groups and teams (`teamsOf`: the name of the group each castaway is in now, as the games name it).
+    `game-words.ts`: a sport's page's ctx carries `poolOf` (its players with provider ids, as a league has them: team by name to id,
+    position by role) and `teamList`. `draft.ts`: a pick outside the pool refused with its reason (the timer's queue reads `freeAgents`).
+    The views (game-view.ts `pickOf`, waiver-view.ts) read eligibility and `availableFor`: nothing to change there.
+  - **The GPT's side** (a prompt: the user's to approve at the merge): the manual's sports section says the pool ("Only some players can be
+    picked ("draft 3 strikers", "only the Lakers' players"): "pool": ..., "teams": [...], or "positions": [the sport's position groups: GK
+    (Goalkeepers), ...], or both"), and VOCAB's words name both. Our check (`check.js` `sportFixes`): a team named by its name read as its id
+    (`teamNamed`, shared with a question's `of`), a position by its label singular or plural ("forwards") read as its key, one fix per list at
+    the list's path; one the page hasn't got out and asked ("Which team's players?" with Any team and the page's teams; "Which positions?").
+  - **The words** (`describe.js`): "everyone drafts 3, forwards only" (a pick's too), "Arsenal forwards only" (a team by the page's name,
+    `ctx.teamList`; one it hasn't named, "one team's" or "two teams' players only"), the short form's chip "Forwards only" (and
+    tests/fixtures/short-words.js's pattern for it). **Part 3a's Noticed, folded in:** bingo's and calls' "Most lines by the finale wins" says a
+    game's end when it stops early ("by Episode 4"; "by the end of the game" at a phase) and "by the end of the stage" in a stage. The Rules
+    sheet changes there for a live game that ends before the finale (its last line): words only.
+  - **impeccable (clarify)** on those words: the refusal names what's allowed instead of "the position it names": "Arsenal 1 can't be picked
+    in this game: it's FWD only" (teams by their names, the positions by the sport's keys, which fans read: the engine has no labels), in
+    the style of "forwards only"; "by Episode 4" over "by the end"; the questions keep "Any team" / "Any position" as the way out. U0 settles
+    them with the wizard.
+  - **The tracker:** **w055** plays (a draft of 3 forwards each, goals 5 and assists 3, everyone drafted counting: "everyone drafts 3,
+    forwards only, just Week 1"): **235 ✅**, 26 ⏳ (A15 18, A14 2, L3 1, L4 2, G1 3; G3's none).
+  - **Checks:** `tests/pool-filter.test.js` (7, new: the spec against the soccer page, a show and golf; the settings; the exclusive count
+    with poolOf and as a draft opens; a snake pick and its fallbacks (unknown out, no stamp, a trade); teams and both; a bot's snake; a blind
+    team and a bot's; a draw's hat; an auction's bids and fill; waivers' replacements; a pool's pick; a person answer naming anyone; the
+    words, our check's readings and asks, the manual; the refusal's words and a stage's end); tests/placement.test.js (the corpus' 7 pools of
+    some teams' players play as their twins), tests/game-spec.test.js (poolWhere, the Rules sheet's line); 1,985 unit tests passing; the type
+    check; eslint; the tracker. `scripts/dev-test/check-stats-game.js` (extended: an eighth season, the 76ers' guards, through readyLeague
+    and withLeagueLock on this lane's database: the stamp's teams and groups with nothing kept, only the 76ers' guard free, a Cavalier
+    refused, the row saved without the stamp): all pass. `check-sports-words.js`: 30 pass.
+  - **The code review** (`/code-review` at medium). Fixed: person answers were limited to the pool (a race's winner outside it couldn't be
+    named; now anyone); `poolOf` counted cast rows a league never has (no provider ids); a team-name mismatch dropped the team filter
+    silently (now stamped empty: everyone out); a game reading its games only for its pool got finals stamped (episodes with results they
+    hadn't had: now `readsGames`); the season page's ctx had no `teamList`; a list's fixes pointed at entries that moved; the refusal's words;
+    the filter read again per castaway in the blind and auction loops (now once, and cached per spec); `PoolLogic.test` copied `inFilter`.
+    Not taken: the repeated `active && inPool` at a few sites (each reads its own list; `offered` where it's the whole cast).
+  **Noticed (G3 part 3b):**
+  - **A league's own pages have no `teamList`**, so outside our check (a league's game page, its Rules sheet's sentence) a team pool reads
+    "one team's players only". The league knows its teams' names (its groups). Recommended: the league's ctx carries `teamList` from its
+    tribes and the stamp's `statTeams` (U1, with the game page). Small.
+  - **The refusal names positions by key** (FWD, guards): the engine has no position labels. Recommended: the stamp carries the sport's
+    labels beside `statGroups`, or the screen says it from the sport (U1).
+  - **A team renamed in the desk** (a tribe's name no longer the games') matches nobody, so its players are out of a team pool (the safe
+    side). Recommended: the desk warns when a sports season's group names stop matching its linked teams (desk, small).
+  - **The pack doesn't list the sport's positions**; the manual does (from ctx.positions). Fine as is; the bot named FWD in the stand-in
+    flows. The real bot hasn't been asked a pool request yet (w055 isn't in the bank's sports requests: add it when the bank is next asked).
 - **G4. Randomize, no UI** (the user, 2026-10-29; the wizard's other door, above). `rollSpec(ctx, locks, seed)` in
   `src/lib/game/game-spec/`, pure like the rest: a seeded roll over the spec's vocabulary within the context pack, the locks
   held, our check the gate (a roll that fails is rolled again from the next seed, a bounded number of times, then the nearest

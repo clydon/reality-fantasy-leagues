@@ -44,8 +44,11 @@ export interface LeagueGames {
   byGame: Map<number, Map<string, Record<string, Stats>>>;
   /** L8: an episode of several games, each one as the grader reads it (event id to its facts), as far as the mark. */
   slate: Map<number, Map<string, SportsGameFacts>>;
-  /** Each castaway's position group, where their roster says one (for a table by position). */
+  /** Each castaway's position group, where their roster says one (for a table by position; G3 part 3b, a pool of some positions'
+   *  players): every castaway's from their season_cast role, else a kept final's position. */
   groups: Record<string, string>;
+  /** G3 part 3b: each team's ESPN id by its name, as the season's linked games name it (a castaway's group is their team's name). */
+  teamIds: Record<string, string>;
   /** On a card (a fight card, a tennis event's draws), each episode's bouts by castaway, each its own line at its rounds or sets
    *  (statMoments' boutsOf: a table by format). */
   bouts: Map<number, Record<string, StatBout[]>>;
@@ -111,7 +114,7 @@ export async function leagueGames(state: LeagueState, o: { mark?: number | null;
   const now = (o.now ?? new Date()).getTime();
   const mark = o.mark ?? null;
   const who = peopleOf(state, cast);
-  const out: LeagueGames = { lines: new Map(), byGame: new Map(), slate: new Map(), groups: {}, bouts: new Map(), games: new Map(), sides: new Map(), defs: {}, periods: null, done: new Set(), eachGame: new Map(), playoffs: null };
+  const out: LeagueGames = { lines: new Map(), byGame: new Map(), slate: new Map(), groups: {}, teamIds: {}, bouts: new Map(), games: new Map(), sides: new Map(), defs: {}, periods: null, done: new Set(), eachGame: new Map(), playoffs: null };
   // L3 part 2f: a slate's episodes with a game not over yet (still to play, being played, or final without its counts kept).
   const open = new Set<number>();
   const slateEps = new Set<number>();
@@ -144,6 +147,11 @@ export async function leagueGames(state: LeagueState, o: { mark?: number | null;
   const rates = new Set<string>();
   const sportOfRows = rows.length ? sportOf(rows[0].league) : null;
   if (sportOfRows) for (const [k, d] of Object.entries(sportOfRows.categoryDefs())) if (d.parts) rates.add(k);
+  // G3 part 3b: every castaway's position group from their roster's role (a kept final's position fills in for one with none).
+  if (sportOfRows) for (const c of who.values()) {
+    const group = groupOf(sportOfRows, c.role);
+    if (group && !out.groups[c.id]) out.groups[c.id] = group;
+  }
   for (const r of rows) {
     const k = `${r.provider}|${r.league}|${r.event_id}`;
     lastOf.set(k, Math.max(lastOf.get(k) ?? 0, Number(r.episode)));
@@ -156,6 +164,7 @@ export async function leagueGames(state: LeagueState, o: { mark?: number | null;
     const teams = known.map((t) => t.id);
     const named = new Map(((r.linked ?? []) as { id: string; name?: string | null }[]).map((t) => [String(t.id), t.name ?? null]));
     if (playoffs) for (const [id, name] of named) if (!teamNames.get(id)) teamNames.set(id, name);
+    for (const [id, name] of named) if (name && !out.teamIds[name]) out.teamIds[name] = id;
     // L3 part 3b: with the latest line read for it (an over/under on the game's own line keeps the one when it opened: answers.ts).
     listing = { name: (r.title as string | null) ?? null, startsAt: r.starts_at ? (r.starts_at as Date).toISOString() : null, sides: teams.map((id) => ({ id, name: named.get(id) ?? null })), line: Number.isFinite(r.line) ? (r.line as number) : null, lineAt: r.line_at ? (r.line_at as Date).toISOString() : null };
     if (teams.length && !slate) out.sides.set(n, teams);
@@ -297,7 +306,7 @@ export async function sidesFor(state: LeagueState, episode: number, games?: Map<
 /** A final game's score as the squares read it (StatsLogic.stamp's `o.games`). */
 type GameScore = Pick<SportsGameFacts, "status" | "sides" | "periods">;
 /** What a stamp writes (StateLogic.StatsLogic.stamp's `o`). */
-type Stamp = { lines: Record<number, Record<string, Stats>>; bouts: Record<number, Record<string, StatBout[]>>; groups: Record<string, string>; finals: number[]; defs: CategoryDefs; games: Record<number, GameScore>; periods: number | null; byGame: Record<number, Record<string, Record<string, Stats>>> };
+type Stamp = { lines: Record<number, Record<string, Stats>>; bouts: Record<number, Record<string, StatBout[]>>; groups: Record<string, string>; teamIds: Record<string, string>; finals: number[]; defs: CategoryDefs; games: Record<number, GameScore>; periods: number | null; byGame: Record<number, Record<string, Record<string, Stats>>> };
 // The league poll reads every 15 s (league-read.ts readyLeague), and a season's kept finals are big (everyone's counts, a game an
 // episode): each server instance keeps the last stamp it worked out for a league, with a fingerprint of what it read (32 bytes: the
 // season's kept finals, its games called off, its cast's provider ids and positions, the league's castaways), and reads the finals again only when it moves.
@@ -353,7 +362,7 @@ export async function stampStats(state: LeagueState): Promise<LeagueState> {
     // the week's and each game's (a table scored game by game: byGame).
     const lines = Object.fromEntries([...g.lines].filter(([n]) => !g.slate.has(n) || g.done.has(n)));
     const byGame = Object.fromEntries([...g.byGame].filter(([n]) => g.done.has(n)).map(([n, m]) => [n, Object.fromEntries(m)]));
-    hit = { key, stamp: { lines, bouts: Object.fromEntries(g.bouts), groups: g.groups, finals: [...finals, ...g.done], defs: g.defs, games, periods: g.periods, byGame } };
+    hit = { key, stamp: { lines, bouts: Object.fromEntries(g.bouts), groups: g.groups, teamIds: g.teamIds, finals: [...finals, ...g.done], defs: g.defs, games, periods: g.periods, byGame } };
     stamps.delete(id);
     stamps.set(id, hit);
     if (stamps.size > MAX_STAMPS) stamps.delete(stamps.keys().next().value!);
@@ -361,13 +370,32 @@ export async function stampStats(state: LeagueState): Promise<LeagueState> {
   // Each league its own copy of the lines (stamp keeps only its castaways' and the copy is the league's to change); a game of
   // questions, its finals alone (the grader reads the games); the sport's stats' defs only for a game ranked by categories; squares
   // their finals' scores, the sport's periods and each locked episode's digits; a slate's each game's lines beside its week's.
-  const { defs, games, periods, ...lines } = hit.stamp;
+  const { defs, games, periods, teamIds, ...lines } = hit.stamp;
   const stamp = StateLogic.SquaresLogic.on(state)
     ? { finals: [...hit.stamp.finals], games: structuredClone(games), periods, digits: squareDigits(state) }
     : StateLogic.StatsLogic.on(state)
       ? { ...structuredClone(lines), ...(StateLogic.StatsLogic.categories(state) ? { defs } : {}) }
-      : { finals: [...hit.stamp.finals] };
+      : StateLogic.StatsLogic.readsGames(state)
+        ? { finals: [...hit.stamp.finals] }
+        : {};
+  // G3 part 3b: a pool of some teams' or positions' players (PoolLogic), each castaway's position group and the ESPN id of the team
+  // they're listed on now (their group's name, as the season's linked games name it).
+  const filter = StateLogic.PoolLogic.filter(state);
+  if (filter) Object.assign(stamp, { groups: { ...hit.stamp.groups }, ...(Object.keys(teamIds).length ? { teams: teamsOf(state, teamIds) } : {}) });
   return StateLogic.StatsLogic.stamp(state, stamp);
+}
+
+/** G3 part 3b: each castaway's team as an ESPN id: the name of the group they're in now (castaway.tribeId) as the linked games name it. */
+function teamsOf(state: LeagueState, ids: Record<string, string>): Record<string, string> {
+  const named = new Map(Object.entries(ids).map(([name, id]) => [name.toLowerCase(), id]));
+  const tribes = new Map((state.tribes ?? []).map((t) => [t.id, t.name]));
+  const out: Record<string, string> = {};
+  for (const c of state.castaways ?? []) {
+    const name = c.tribeId ? tribes.get(c.tribeId) : null;
+    const id = name ? named.get(name.toLowerCase()) : undefined;
+    if (id) out[c.id] = id;
+  }
+  return out;
 }
 
 /**
