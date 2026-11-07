@@ -3517,6 +3517,13 @@ in the placement corpus with the roto refusal kept on the 7 of them ranked roto)
   the viewer and the save. `check-slate.js` (58, all pass): an episode done once its two finals and a postponed game are over, one
   with a game to play not; the week's line with a rate worked out. `check-stats-game.js` (41) still passes. 1,842 unit tests pass.
 
+- **The long checks, last, on `101e5844` (parts 2e and 2f part 1 together; they touch state-logic.js):** `golden.js --before=7f354e2b`
+  (part 2d's docs, the code before them): Survivor 49, The Challenge 40 and The Traitors US 4, 74 games, 9,548 reads, every one the same.
+  The Survivor 51 rehearsal (`season-forward.js rehearse --from=../reality-fantasy-leagues/backups/prod-2026-10-30
+  --scenario=realistic,rough,dst --before=7f354e2b`): every invariant holds in all three scenarios, flag off and on the same, the
+  engine before against this tree's the same (2,856 reads each). The blind replays (`blind.js run` on each season loaded here): every
+  game played through, Survivor 49 156 of 156, The Challenge 40 115 of 115, The Traitors 4 110 of 110.
+
 **L3 part 2f part 1 noticed, not fixed:**
 - **A week's live points wait for its last game** on the server (its results are the week's): the phone's live lines (L2) are what
   show a week as it goes; U1's to say "so far".
