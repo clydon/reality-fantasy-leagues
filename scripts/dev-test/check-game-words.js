@@ -24,7 +24,11 @@
 //    can't-yet or a question. Writes nothing to any database; the answers go to --out (default: the system's temp folder).
 //
 //      node scripts/dev-test/check-game-words.js --real [--bot=http://127.0.0.1:8765] [--only=g01,w004] [--limit=10]
-//           [--part=cases|requests] [--out=<file.json>] [--provider=chatgpt]
+//           [--part=cases|requests|team] [--out=<file.json>] [--provider=chatgpt]
+//    G3 part 2, `--part=team`: the tracker's team-page requests on a team's page (TEAM_PAGES below: ESPN's recorded schedules,
+//    each as of a moment, src/lib/sports/team-page.ts teamSchedulePack), the bot's matchup held against the schedule (holdMatchup)
+//    and its games checked against the ones the request means, its game against the tracker's (span aside: the matchup's games
+//    are its span). A request whose fixture is another team's is asked in that team's words (said so in its line).
 require("dotenv").config({ path: ".env.local", quiet: true });
 const fs = require("fs");
 const os = require("os");
@@ -53,6 +57,52 @@ function fencedAfter(prompt, heading) {
 
 // ---- 2. the bank against the real bot ----
 
+/** G3 part 2: team pages from ESPN's recorded schedules, as of a moment (a game after it still to play), each with the games its
+ *  request means. The Lakers and Knicks requests are asked on the 76ers' schedule, in the 76ers' words (no recording of theirs). */
+const TEAM_PAGES = {
+  w002: { league: "baseball/mlb", team: "10", name: "New York Yankees", short: "Yankees", fixture: "mlb-schedule-10-2026-3.json", at: "2026-09-29T12:00:00Z", games: ["401907924", "401907963"] },
+  w003: { league: "basketball/nba", team: "20", name: "Philadelphia 76ers", short: "76ers", fixture: "nba-schedule-20.json", at: "2026-10-21T12:00:00Z", games: ["401909093"] },
+  w052: { league: "basketball/nba", team: "20", name: "Philadelphia 76ers", short: "76ers", fixture: "nba-schedule-20.json", at: "2026-10-28T12:00:00Z", words: (w) => w.replace(/Lakers/g, "76ers"), games: ["401909884", "401909280", "401909897", "401909912", "401909922"] },
+  w057: { league: "basketball/nba", team: "20", name: "Philadelphia 76ers", short: "76ers", fixture: "nba-schedule-20.json", at: "2026-10-28T15:00:00Z", words: (w) => w.replace(/knicks/gi, "76ers"), games: ["401909884"] },
+};
+
+/** A team page's pack, its schedule as ESPN would have listed it then, for a --real ask. */
+function teamPageFor(id) {
+  const t = TEAM_PAGES[id];
+  const jiti = require("jiti")(__filename, { alias: { "@": path.join(__dirname, "..", "..", "src") } });
+  const { readScoreboard } = jiti("../../src/lib/server/sports/espn.ts");
+  const T = jiti("../../src/lib/sports/team-page.ts");
+  const SP = jiti("../../src/lib/sports/page.ts");
+  const { sportOf } = jiti("../../src/lib/sports/index.ts");
+  const W = require("../../src/lib/game/game-words/index.js");
+  const now = Date.parse(t.at);
+  const schedule = readScoreboard(t.league, require(`../../tests/fixtures/espn/${t.fixture}`)).map((g) =>
+    Date.parse(g.at) > now ? { ...g, state: "pre", final: false, competitors: g.competitors.map((c) => ({ ...c, score: null, winner: null })) } : g
+  );
+  const part = T.teamSchedulePack(t.team, schedule, now);
+  const sport = sportOf(t.league);
+  const std = SP.sportStandard(t.league);
+  const games = SP.sportGames(t.league);
+  const ctx = { ...SP.sportPageContext(t.league, { show: t.short }), show: t.short };
+  const pack = W.packOf({
+    label: t.name,
+    kind: "sport",
+    today: new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(now)),
+    episodes: { aired: 0, next: null },
+    ctx,
+    sport: { id: sport.id, name: sport.name, league: t.league },
+    teams: part.teams,
+    games: [],
+    team: { id: t.team, name: t.name, short: t.short },
+    schedule: part.schedule,
+    ...(part.more ? { scheduleMore: part.more } : {}),
+    stats: SP.statWords(sport),
+    ...(std ? { standard: { ...std, games: games.map((g) => ({ id: g.id, about: g.about })) } } : {}),
+  });
+  const hold = (matchup) => T.holdMatchup(t.team, schedule, T.readMatchupAsk(matchup, [...part.teams, { id: t.team, name: t.name, short: t.short }], now), { now, short: t.short });
+  return { t, ctx, pack, games, hold };
+}
+
 async function real() {
   const B = require("../../tests/fixtures/game-words/bank.js");
   const W = require("../../src/lib/game/game-words/index.js");
@@ -70,8 +120,10 @@ async function real() {
   const provider = value("provider", "chatgpt");
 
   const items = [];
-  if (part !== "requests") for (const c of B.cases()) items.push({ id: c.id, page: c.page, words: c.words, expect: c.expect, kind: "case" });
-  if (part !== "cases")
+  if (part !== "requests" && part !== "team") for (const c of B.cases()) items.push({ id: c.id, page: c.page, words: c.words, expect: c.expect, kind: "case" });
+  if (part === "team")
+    for (const r of B.requests()) if (TEAM_PAGES[r.id]) items.push({ id: r.id, page: r.page, words: (TEAM_PAGES[r.id].words || ((w) => w))(r.words), spec: r.spec, kind: "team" });
+  if (part !== "cases" && part !== "team")
     for (const r of B.requests()) {
       // A show's page with its rules, or (G3) a sport's with its ESPN league.
       if (!r.page || (r.page.sport ? !r.page.espn : !r.page.rulebook)) continue;
@@ -96,10 +148,11 @@ async function real() {
     return false;
   };
   for (const x of todo) {
-    const ctx = B.ctxOf(x.page);
-    const pack = B.packOf(x.page, ctx);
+    const team = x.kind === "team" ? teamPageFor(x.id) : null;
+    const ctx = team ? team.ctx : B.ctxOf(x.page);
+    const pack = team ? team.pack : B.packOf(x.page, ctx);
     const kind = x.page.sport ? "sport" : "show";
-    const manual = W.manualFor(ctx, { examples, show: x.page.show, kind, games: B.gamesOf(x.page) });
+    const manual = W.manualFor(ctx, { examples, show: team ? team.t.short : x.page.show, kind, games: team ? team.games : B.gamesOf(x.page), team: !!team });
     const prompt = W.gamePrompt({ pack, manual, words: x.words });
     if (!(await idle())) throw new Error("the bot stayed busy for 20 minutes: stopped");
     const t0 = Date.now();
@@ -119,9 +172,18 @@ async function real() {
       error = e.message;
     }
     const seconds = (Date.now() - t0) / 1000;
-    const r = answer ? W.checkAnswer(answer, { ...B.checkOpts(x.page, x.words, ctx), kind }) : { state: "error" };
+    const r = answer ? W.checkAnswer(answer, team ? { ctx, pack, words: x.words, kind, games: team.games } : { ...B.checkOpts(x.page, x.words, ctx), kind }) : { state: "error" };
     let verdict;
-    if (x.kind === "case") verdict = r.state === x.expect.state ? "as expected" : `expected ${x.expect.state}`;
+    if (team) {
+      // Its games as our check holds them, and its game against the tracker's with the span aside (the matchup's games are its span).
+      const h = r.state === "error" ? null : team.hold(r.matchup);
+      const right = !!h && !h.question && h.games.map((g) => g.id).join() === team.t.games.join();
+      const noSpan = (v) => (v ? { ...S.fullSpec(v), span: null } : null);
+      const same = r.spec && JSON.stringify(noSpan(r.spec)) === JSON.stringify(noSpan(x.spec));
+      const shape = r.spec && S.typeOf(r.spec) === S.typeOf(x.spec);
+      verdict = `${right ? "games right" : h?.question ? "games asked" : "games wrong"}, ${same ? "exact" : shape ? "its shape" : "missed"}`;
+      r.held = h ? { games: h.games.map((g) => g.id), question: h.question } : null;
+    } else if (x.kind === "case") verdict = r.state === x.expect.state ? "as expected" : `expected ${x.expect.state}`;
     else if (x.spec) {
       const same = r.spec && JSON.stringify(S.fullSpec(r.spec)) === JSON.stringify(S.fullSpec(x.spec));
       const shape = r.spec && S.typeOf(r.spec) === S.typeOf(x.spec);
@@ -133,6 +195,8 @@ async function real() {
   }
   const count = (v) => report.filter((x) => x.verdict === v).length;
   console.log(`\n${report.length} asked: ${["exact", "its shape", "missed", "as expected", "asked or refused", "made a game"].map((v) => `${v} ${count(v)}`).join(" · ")}`);
+  const teams = report.filter((x) => TEAM_PAGES[x.id] && part === "team");
+  if (teams.length) console.log(`team pages: ${teams.map((x) => `${x.id} ${x.verdict}`).join(" · ")}`);
   console.log(`answers in ${out}`);
 }
 

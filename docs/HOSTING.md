@@ -186,6 +186,13 @@ asking ChatGPT yourself (the /b/ brief, then paste) does every step free. While 
 `GET /api/seasons/[id]/fill` every 4 s (a few KB: the steps, the cast's names and photo URLs, a state per aired episode), only
 while the page is visible; nothing polls once it's done. Storage: one small `season_fills` row per season added.
 
+**The Start-a-game GPT (G1, live 2026-11-07; a team's page, G3 part 2, on `engine`)**: `POST /api/seasons/[id]/game-words` and
+`POST /api/sports/game-words` each wait for one bot ask (search off, ahead of the bot's queue: ~20-30 s, `maxDuration` 300), 10 a
+person a day; a pick of games from our check's question asks nothing. A team's page reads the team's season from ESPN (its schedule,
+cached half a day, and its league's team list, a week), and making its games a season (a matchup, shared by everyone who picks the
+same games, under the day's cap on new games) reads each game's day and the teams' rosters once (cached). Storage: one
+`game_word_asks` row an ask (the prompt's answer and our check's result: a few KB), and a matchup's season, episodes and people.
+
 **Fill in what happened (2026-10-27, `src/lib/server/episode-recaps.ts`, migration 0143)** is one bot ask per season when someone
 taps it (only aired episodes with no recap, so a season is asked about again only for new ones), run after the response like Make
 it a game's (`maxDuration` 300, the bot's ~1-3 min). While it asks, the Episodes tab polls `/api/seasons/[id]/recaps` every 4 s

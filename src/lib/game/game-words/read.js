@@ -4,7 +4,7 @@
 // shape our check reads. Nothing here decides what's a game: a part that isn't the right shape is kept out and noted, and our
 // check (check.js) decides the rest. Pure.
 //
-//   readDraft(answer)  -> { draft: { game, said, assumed, ask, cantYet, about, also, summary }, notes } (throws: no JSON)
+//   readDraft(answer)  -> { draft: { game, said, assumed, ask, cantYet, about, also, summary, matchup }, notes } (throws: no JSON)
 //   readMoment(answer) -> { reliable, why, question, label, nearest } (throws: no JSON)
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ../game-spec/schema.js */
 const { jsonObjectsIn } = require('../formats/rulebook-research.js');
@@ -117,7 +117,15 @@ function readDraft(answer) {
   const n = isObj(raw.about) ? (typeof raw.about.season === 'number' ? raw.about.season : /^\s*\d+\s*$/.test(String(raw.about.season ?? '')) ? Number(raw.about.season) : NaN) : NaN;
   const about = isObj(raw.about) && str(raw.about.show) ? { show: str(raw.about.show), ...(Number.isInteger(n) && n > 0 ? { season: n } : {}) } : null;
   const also = str(raw.also) || (isObj(raw.also) ? str(raw.also.summary) || JSON.stringify(raw.also) : null);
-  return { draft: { game, said, assumed, ask, cantYet, about, also, summary: str(raw.summary) || '' }, notes };
+  // G3 part 2: on a team's page, the games their words mean (a matchup ask: the server holds it against the schedule), or null; a
+  // bot that put it inside the game (the local bot did, 2026-11-07) is read the same, and the game keeps only its own parts.
+  const inGame = game && isObj(game.matchup) ? game.matchup : null;
+  if (game && 'matchup' in game) {
+    delete game.matchup;
+    if (inGame) notes.push('the matchup was inside the game: read it beside it');
+  }
+  const matchup = isObj(raw.matchup) ? raw.matchup : inGame;
+  return { draft: { game, said, assumed, ask, cantYet, about, also, summary: str(raw.summary) || '', matchup }, notes };
 }
 
 const RELIABLE = ['high', 'medium', 'low'];

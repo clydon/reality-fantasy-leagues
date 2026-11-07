@@ -7,6 +7,8 @@
 // which is home, whether it's started, and ESPN's line on its total while it's still to play: never a score, so the pack can't
 // spoil a game someone hasn't watched), the stats a request can name (each key with its words: the Sport's own) and the sport's
 // standard scoring, lineup and games; its people are its players, each with their team (as a group) and position.
+// G3 part 2: a team's page (no season yet) adds its team and schedule (sports/team-page.ts teamSchedulePack: each game by id, its
+// day in the East, home or away, against whom, whether it's started; never a score), and no games, players or episodes of its own.
 //
 //   packOf(input) -> the pack (plain JSON, as the prompt embeds it)
 //   idsOf(pack)   -> { moments, phases, roles, groups, people, teams, stats }: the ids a draft may name, each a Set
@@ -121,6 +123,7 @@ function sportPack(pack, i) {
     teams: [...teams.values()],
     games,
     ...(int(i.gamesMore) ? { gamesMore: i.gamesMore } : {}),
+    ...teamPart(i),
     stats,
     ...(st
       ? {
@@ -134,6 +137,28 @@ function sportPack(pack, i) {
         }
       : {}),
     knows: { finals: true, playerStats: stats.length > 0, lines: games.some((g) => g.line !== undefined) },
+  };
+}
+
+/** G3 part 2: a team's page's team and schedule (each game as teamSchedulePack lists it), or nothing. */
+function teamPart(i) {
+  const t = isObj(i.team) && str(i.team.id) && str(i.team.name) ? { id: i.team.id, name: i.team.name.trim(), ...(str(i.team.short) ? { short: i.team.short.trim() } : {}) } : null;
+  if (!t) return {};
+  const line = (g) => ({
+    id: g.id,
+    ...(str(g.day) ? { day: g.day } : {}),
+    ...(str(g.at) ? { at: g.at } : {}),
+    home: g.home === true ? true : g.home === false ? false : null,
+    against: isObj(g.opponent) && str(g.opponent.id) && str(g.opponent.name) ? { id: g.opponent.id, name: g.opponent.name.trim() } : null,
+    played: g.played === true,
+    ...(str(g.stage) ? { stage: g.stage } : {}),
+    ...(str(g.note) ? { note: g.note.trim() } : {}),
+    ...(str(g.called) ? { called: g.called } : {}),
+  });
+  return {
+    team: t,
+    schedule: (Array.isArray(i.schedule) ? i.schedule : []).filter((g) => isObj(g) && str(g.id)).map(line),
+    ...(int(i.scheduleMore) ? { scheduleMore: i.scheduleMore } : {}),
   };
 }
 

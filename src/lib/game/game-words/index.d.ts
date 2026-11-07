@@ -23,7 +23,24 @@ export interface PackInput {
   gamesMore?: number;
   stats?: { key: string; says?: string; short?: string; one?: string; place?: boolean; rate?: boolean }[];
   standard?: SportStandard | null;
+  /** G3 part 2, a team's page (no season yet): the team, its schedule (sports/team-page.ts teamSchedulePack) and what it leaves out. */
+  team?: { id: string; name: string; short?: string } | null;
+  schedule?: ScheduleLine[];
+  scheduleMore?: number;
   couch?: { people?: number | null; games?: { name: string; says?: string }[] } | null;
+}
+
+/** A team's game as a team's page lists it (sports/team-page.ts ScheduleLine). */
+export interface ScheduleLine {
+  id: string;
+  day?: string | null;
+  at?: string | null;
+  home: boolean | null;
+  opponent?: SportTeam | null;
+  played: boolean;
+  stage?: string;
+  note?: string;
+  called?: string;
 }
 
 export interface SportTeam {
@@ -72,12 +89,17 @@ export interface Pack {
   gamesMore?: number;
   stats?: { key: string; says: string; short?: string; one?: string; place?: true; rate?: true }[];
   standard?: SportStandard;
+  team?: { id: string; name: string; short?: string };
+  schedule?: (Omit<ScheduleLine, "opponent"> & { against: SportTeam | null })[];
+  scheduleMore?: number;
   knows: Record<string, boolean>;
   couch: { people: number | null; games: { name: string; says?: string }[] } | null;
 }
 
 export interface Draft {
   game: Record<string, unknown> | null;
+  /** G3 part 2, a team's page: the games their words mean, as the bot named them (a matchup ask, unread). */
+  matchup?: Record<string, unknown> | null;
   said: { part: string | null; quote: string }[];
   assumed: { part: string; value: unknown; why: string }[];
   ask: { part: string | null; question: string; options: string[] }[];
@@ -92,6 +114,8 @@ export interface WizardAsk {
   question: string;
   options: string[];
   by: "bot" | "check";
+  /** G3 part 2, which games (part "matchup"): what each option picks (a matchup ask), for the wizard to send back as it is. */
+  picks?: Record<string, unknown>[];
   moment?: { label: string; question: string; reliable: Reliability; why: string };
 }
 
@@ -114,7 +138,7 @@ export interface CheckResult {
   waits: { at: string; step: string; problem: string }[];
 }
 
-export type AnswerResult = (CheckResult & { notes: string[]; botSummary: string }) | { state: "unreadable"; why: string; notes: string[] };
+export type AnswerResult = (CheckResult & { notes: string[]; botSummary: string; matchup?: Record<string, unknown> }) | { state: "unreadable"; why: string; notes: string[] };
 
 export interface MomentRating {
   reliable: Reliability;
@@ -138,7 +162,7 @@ export interface CheckOptions {
 }
 
 export const WORDS: Record<string, { what: string; values: Record<string, string>; sport?: string[]; show?: string[] }>;
-export function manualFor(ctx: SpecContext | null, o?: { kind?: "show" | "sport"; examples?: unknown[]; limit?: number; show?: string | null; games?: SportGameSpec[] }): string;
+export function manualFor(ctx: SpecContext | null, o?: { kind?: "show" | "sport"; examples?: unknown[]; limit?: number; show?: string | null; games?: SportGameSpec[]; team?: boolean }): string;
 /** A sport's standard game (sports/page.ts sportGames). */
 export interface SportGameSpec {
   id: string;
@@ -156,7 +180,7 @@ export function packOf(input: PackInput): Pack;
 export function idsOf(pack: Pack): Record<string, Set<string>>;
 export function statKeyIn(stats: { key: string; says?: string; short?: string; one?: string }[], words: string): string | null;
 export function gamePrompt(o: { pack: Pack; manual: string; words: string }): string;
-export function changePrompt(o: { pack: Pack; manual: string; words: string; spec: unknown; change: string }): string;
+export function changePrompt(o: { pack: Pack; manual: string; words: string; spec: unknown; change: string; matchup?: unknown }): string;
 export function momentPrompt(o: { pack: Pack; moment: string }): string;
 export function readDraft(answer: string): { draft: Draft; notes: string[] };
 export function readMoment(answer: string): MomentRating;

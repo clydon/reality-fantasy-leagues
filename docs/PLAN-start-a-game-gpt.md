@@ -11141,6 +11141,86 @@ first), and proves it on these games and on the tracker's other rows that use it
     teams first) and a draft from "the Lakers' players" can't be said (`pool.where.teams` is still the sports branch's value in
     VOCAB). Recommended: part 2 builds `pool.where.teams` (a holding from those teams only), or a team's page drafts from its own.
     (G3 part 2.)
+  **Part 2 as built (2026-11-07, `engine`; migration 0215, no screen): a team's page.**
+  - **The games their words mean** (`src/lib/sports/team-page.ts`, new, pure): `teamSchedulePack(team, games, now)`, the schedule as the
+    pack carries it (the last 3 played and the next 20 still to play, each by id, its day in the East, home or away, against whom, played
+    once it's started by the provider or the clock; never a score; every team it plays, the bot's ids for `against`);
+    `readMatchupAsk(raw, teams, now)`, the bot's ask read (`opener` with `home`, `series` against a team by id or a name only one team
+    has, `next` n, `day` a day in the East or "tonight"/"tomorrow" from the clock, a calendar day's step, never 24 hours: a case in
+    tests/dst.test.js; `games` by id; never the bot's `from`); `holdMatchup(team, schedule, ask, { now, short })`, the ask held against
+    the schedule: the games, or our check's question (`part: "matchup"`) with up to 4 options (the next game, the next series, the next
+    five, the next home game, each named as its season would be, `matchupName`) and what each picks (a `games` ask of its ids, for the
+    wizard to send back as it is). A set some of whose games have been played is kept (a series asked mid-series is the whole series:
+    the game starts at its next one); one every game of which has been played, a day with no game, a series none of which is left, an
+    opener the schedule hasn't got, games not all on it, or more than 30 is asked. `pickMatchup` gains `day` (matchup.ts, with
+    `eastDay`).
+  - **The GPT's side**: the pack (`pack.js`) takes a team's page's `team` and `schedule` (and `scheduleMore`); the manual (`manualFor(...,
+    { team: true })`) adds THIS PAGE IS A TEAM'S SCHEDULE (the five kinds, "name what their words mean even when it's been played",
+    "leave span out"); the prompt (`gamePrompt`, `changePrompt` with `matchup`, its games so far) asks for `matchup` at the answer's top
+    level; `readDraft` reads it beside the game, or inside it (the local bot put it there: taken out of the game, noted), and
+    `checkAnswer` carries it as `result.matchup`. Our check counts a quote around an ellipsis as said when each piece is in their
+    words in order (the local bot quotes "points ... all count 1"; every request's, not only a sport's).
+  - **The server** (`src/lib/server/team-words.ts`, new; POST `/api/sports/game-words { league, team, words, couch?, change? }`, new route,
+    `maxDuration` 300): the team's season from ESPN (`find.ts` `teamGames`, new: `seasonGames` and the team as its league's list has it;
+    a 404 for a team it hasn't got, a 503 when ESPN doesn't answer, a 400 for a sport that isn't a team sport), its pack and the sport's
+    ctx (`sportPageContext`, named for the team), **one bot ask** that drafts the game and names its games, our check on the team's page,
+    the matchup held; then the games made or found as their matchup's season (`matchupSeason`, keyed by its games, so it's the season
+    anyone who adds the same games shares: finding one is free, a new one under `MATCHUPS_A_DAY`, `find.ts` `underCap` exported, a refusal
+    answered as `refused` beside the team page's result), its players filled from the teams' rosters before the check, and the same
+    answer checked again on that season's page (`packFor`, part 1's path; new moments rated, `rateMoments`). The result is G1's with
+    `page` and `matchup`. **A pick** (`change: { from, matchup }`, one of the options' picks) asks no bot: the same answer, those games;
+    its row (`picked`) isn't counted against the day's asks. **A typed change** (`change: { from, words }`) goes to the bot on the team's
+    page with the game and its games so far (once they're made, those games by id), so "just the next 3" picks again. A draft our check
+    can't play makes no games. `game-words.ts` shares its pieces (`openAsk`, the cap's insert-then-count, now one function; `couchFor`;
+    `asksToday`, which leaves picks out; `rateMoments`; `manualFor` with `team`).
+  - **Migration 0215** (`game_word_asks`): `season_id` nullable, `league` and `team` (a team's page's), `picked` (a pick's), a check that
+    an ask is a season's or a team's, and 0214's change check kept with a pick as a change of its own. Additive.
+  - **Part 1's Noticed, folded in:** a slate's episode is its cadence's word (`sportPart` reads `sports_slates.cadence`; the tracker's league
+    pages with no event their usual cadence's, `capability-rows.ts`): NFL week 9 is "before Week 9" and fantasy football "starts 9 each
+    week" (w029, w030). `pool.where.teams` is **not** built: state-logic.js has no pool filter (`plainParts` takes `stillIn` only), and a
+    matchup's people are its teams' players already; it goes with part 3's pool filters (a draft from one position, w055: the same piece).
+  - **impeccable (clarify)** on the questions and chips the wizard will show: the fact, then the question, the team's name as a modifier
+    never a sentence's subject (so a club's reads as well: "No Arsenal game tonight"), "Which of their games?" apart from part 1's "Which
+    game?" (which kind of game), "already" where it was played, "them" named ("No Yankees series is left against the Red Sox."), and "A
+    game here" (our jargon) out: "The 76ers home opener has already been played. Their next home game?", "No Knicks game tonight. Their
+    next game?", "Some of those games aren't on the 76ers schedule. Which of their games?", "A game can cover up to 30 of their games.
+    The next 30?", "No 76ers games are left to play this season." The chips are the matchups' own names ("Knicks at 76ers, Oct 30").
+    U0 settles them with the wizard.
+  - **Checks:** `tests/sports-team-page.test.js` (8, new: on ESPN's recorded 76ers and Yankees schedules, each as of a moment: the day kind,
+    the pack's schedule, the ask read, the 76ers sentence before and after its opener, the Red Sox–Yankees series before, during and
+    after, the next games, a day with none, too many, a season with none left, a quote around an ellipsis, the pack, manual, prompt and
+    answer on a team's page); a DST case (tests/dst.test.js); 1,976 unit tests passing; the type check; the tracker (`--check`).
+    `scripts/dev-test/check-sports-words.js` (extended: 30 checks, 15 new) through the server's code on the stand-in ESPN and bot: the
+    team's pack, the 76ers home opener found as the opener's own season (shared, free) with the tracker's game, the opener played two
+    days on and our check's question, a pick (no bot, not counted) making the next game's season with its players and the tracker's game,
+    a typed change before and after its games are made, the next 5 games (the 3 the stand-in has) made as one season with the tracker's
+    w052, "the Knicks game tonight" with no game tonight, a 404. G1's `check-game-words.js` (through the route) passes; the new route
+    answers (401 signed out). `check-game-words.js --real --part=team` (new) asks the local bot on team pages built from the recorded
+    schedules and holds its matchup. **The real bot** (the local bot, ChatGPT, one at a time while idle), first run: w002 (the Red
+    Sox–Yankees sentence on the Yankees' page) named `{ kind: "series", against: "2" }`, both its games right; w003 and w052 named theirs
+    (the home opener; the next 5) but inside the game, which the reader now takes (their answers read again by the fixed code: the
+    games right, w003 the tracker's exact game, w052 its shape with its numbers said); w057 got no reply. A second run (w003, w052, w057)
+    got no reply to any (ChatGPT on the local bot, "No reply after 240s" from 18:10 UTC): left there. The same run also asked the bank's
+    24 hand cases by mistake (the flag let them through, fixed): 18 as expected.
+  - **The code review** (`/code-review` at medium). Fixed: a draft our check can't play went on to make a matchup and spend the day's
+    cap; "tomorrow" was 24 hours on (a clock change's day); a failure after the bot answered left a counted row with no error (now kept,
+    and ESPN down a 503); a pick answered `left: null` (no cap); a team page's new moments went unrated; a typed change after the games
+    were made went to the season's page, which can't pick games again (and fetched ESPN for a name). Not taken: `teamGames` reads the
+    first provider only, and the day's cap is checked before the season is made (both as `find.ts`'s `addGames` does).
+  - **Long checks:** none. `state-logic.js` and the scorers are untouched (the GPT's words, the server and the tracker's words only).
+  **Noticed (G3 part 2):**
+  - **"The next 5 games" with fewer left takes what's left** (the 3 there are) without a word. Recommended: the wizard says "only 3 left"
+    beside the game (U1), from the matchup's games against the ask's count.
+  - **"Who wins" each game of a week reads "one question before Week 9: who wins"** (w029, `each: "game"`): describe.js says nothing of
+    each game. Recommended: "who wins each game" (describe's words; part 3, with the 12:15 PM note's sentence work).
+  - **The route has no browser or HTTP check with a session**: check-sports-words.js calls the server's code directly (as part 1's
+    does), and the route is a few lines. Recommended: U1's wizard check goes through it.
+  - **The local bot put `span` on a team page's draft** although the manual says to leave it out (harmless: the matchup's page reads its
+    last game as the season's end). Fine as is.
+  - **The local bot's ChatGPT stopped answering** from about 18:10 UTC on 2026-11-07 (every ask "No reply after 240s"; /health ok, nothing
+    busy), so w057 on a team page and a second run of w003 and w052 have no real answer yet. Recommended: when it answers again, `node
+    scripts/dev-test/check-game-words.js --real --part=team` (4 asks) before the merge; if it stays silent, the user looks at the bot
+    (its ChatGPT sign-in). (The next G3 session, or the merge.)
 - **G4. Randomize, no UI** (the user, 2026-10-29; the wizard's other door, above). `rollSpec(ctx, locks, seed)` in
   `src/lib/game/game-spec/`, pure like the rest: a seeded roll over the spec's vocabulary within the context pack, the locks
   held, our check the gate (a roll that fails is rolled again from the next seed, a bounded number of times, then the nearest

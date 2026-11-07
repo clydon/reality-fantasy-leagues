@@ -48,9 +48,9 @@ export interface GameWordsResult {
 }
 
 /** The asks someone has made in the last day, and how many they have left (null: no cap, the desk). An ask the bot never
- *  answered (its error kept) isn't counted: a bot that's down doesn't use up anyone's day. */
-async function asksToday(user: SessionUser): Promise<{ used: number; left: number | null }> {
-  const { rows } = await pool.query("SELECT count(*)::int AS n FROM game_word_asks WHERE user_id = $1 AND created_at > now() - interval '1 day' AND error IS NULL", [user.id]);
+ *  answered (its error kept) isn't counted: a bot that's down doesn't use up anyone's day; nor is a pick of games (G3 part 2: no bot). */
+export async function asksToday(user: SessionUser): Promise<{ used: number; left: number | null }> {
+  const { rows } = await pool.query("SELECT count(*)::int AS n FROM game_word_asks WHERE user_id = $1 AND created_at > now() - interval '1 day' AND error IS NULL AND picked IS NULL", [user.id]);
   const used = rows[0].n as number;
   return { used, left: isSuperAdminUser(user) ? null : GAME_ASKS_A_DAY - used };
 }
@@ -60,6 +60,9 @@ async function asksToday(user: SessionUser): Promise<{ used: number; left: numbe
 const SPORT_CAST = 150;
 const SPORT_GAMES = 16;
 const SPORT_PLAYED = 3;
+
+/** A slate's cadences, each its episode's word (G3 part 2, part 1's Noticed): NFL week 9 is "Week 9", never "Game 9". */
+const CADENCES = new Set(["day", "week", "round"]);
 
 type SportPart = { input: Partial<PackInput>; ctx: SpecContext; games: Words.SportGameSpec[] };
 
@@ -79,7 +82,7 @@ async function sportPart(seasonId: string, label: string, terms: { castaway?: st
         WHERE e.season_id = $1 ORDER BY e.episode, starts_at NULLS LAST`,
       [seasonId]
     ),
-    pool.query("SELECT stage FROM sports_slates WHERE season_id = $1", [seasonId]),
+    pool.query("SELECT stage, cadence FROM sports_slates WHERE season_id = $1", [seasonId]),
   ]);
   const counts = new Map<string, number>();
   for (const r of rows) if (sportOf(r.league)) counts.set(r.league, (counts.get(r.league) ?? 0) + 1);
@@ -88,7 +91,10 @@ async function sportPart(seasonId: string, label: string, terms: { castaway?: st
   if (!league || !sport) return null;
   const playoffs = slate[0]?.stage === "post";
   const one = terms.castaway?.trim() || "player";
-  const ctx = sportPageContext(league, { show: label, person: { one: one.toLowerCase(), many: (terms.people?.trim() || `${one}s`).toLowerCase() }, ...(terms.episode ? { part: { singular: terms.episode.toLowerCase(), plural: `${terms.episode.toLowerCase()}s` } } : {}), playoffs });
+  // A slate's episode is its cadence's (a week of games, a day's), else the show's word for one (a matchup's: a game).
+  const cadence = slate[0]?.cadence as string | undefined;
+  const part = cadence && CADENCES.has(cadence) ? cadence : terms.episode?.toLowerCase();
+  const ctx = sportPageContext(league, { show: label, person: { one: one.toLowerCase(), many: (terms.people?.trim() || `${one}s`).toLowerCase() }, ...(part ? { part: { singular: part, plural: `${part}s` } } : {}), playoffs });
   if (!ctx) return null;
   const at = (v: unknown) => (v ? new Date(v as string).toISOString() : null);
   const all = rows
@@ -200,11 +206,46 @@ export async function packFor(user: SessionUser, seasonId: string, couchId: stri
   return { pack, ctx, kind, show: h.show.name, games: sport?.games ?? [] };
 }
 
-/** The manual for a page: generated from VOCAB, its examples the tracker's requests that play there (a sport's: its standard games). */
-const manualFor = (ctx: SpecContext, kind: "show" | "sport", show: string, games: Words.SportGameSpec[]) => Words.manualFor(ctx, { kind, examples: Capabilities.rowsOf(tracker as never), show, games });
+/** The manual for a page: generated from VOCAB, its examples the tracker's requests that play there (a sport's: its standard games;
+ *  G3 part 2, `team`: a team's page, how to name its games). */
+export const manualFor = (ctx: SpecContext, kind: "show" | "sport", show: string, games: Words.SportGameSpec[], team = false) =>
+  Words.manualFor(ctx, { kind, examples: Capabilities.rowsOf(tracker as never), show, games, team });
+
+/**
+ * A new ask's row (G3 part 2: a season's, or a team's page's: `league` and `team`), counted against the day's cap with itself in it, so
+ * asks sent at once can't all slip under it; one over it is taken back with a 429. Its id, and the asks left.
+ */
+export async function openAsk(user: SessionUser, row: { seasonId: string | null; league?: string; team?: string; couchId: string | null; from: string | null; words: string; change: string | null }): Promise<{ id: string; left: number | null }> {
+  const { rows } = await pool.query("INSERT INTO game_word_asks (user_id, season_id, league, team, couch_id, change_of, words, change) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id", [
+    user.id,
+    row.seasonId,
+    row.league ?? null,
+    row.team ?? null,
+    row.couchId,
+    row.from,
+    row.words,
+    row.change,
+  ]);
+  const id = rows[0].id as string;
+  const { left } = await asksToday(user);
+  if (left !== null && left < 0) {
+    await pool.query("DELETE FROM game_word_asks WHERE id = $1", [id]);
+    throw new HttpError(429, `You've asked our bot for ${GAME_ASKS_A_DAY} games today. Try again tomorrow, or start one with the taps.`);
+  }
+  return { id, left };
+}
+
+/** Who may start a game on a couch: a member (a viewer can't); none, null. */
+export async function couchFor(user: SessionUser, couch: unknown): Promise<string | null> {
+  const couchId = typeof couch === "string" && couch ? couch : null;
+  if (!couchId) return null;
+  if (!isUuid(couchId)) throw new HttpError(400, "couch");
+  if ((await requireCouch(user, couchId)) === "viewer") throw new HttpError(403, "Join the couch to start a game on it");
+  return couchId;
+}
 
 /** Each new moment the check found, rated by the reliability ask while there's time (at most MOMENT_ASKS). */
-async function rateMoments(result: CheckResult, pack: Pack, o: { bot?: string; deadline: number }): Promise<{ result: CheckResult; seconds: number }> {
+export async function rateMoments(result: CheckResult, pack: Pack, o: { bot?: string; deadline: number }): Promise<{ result: CheckResult; seconds: number }> {
   const ratings: Record<string, MomentRating> = {};
   let seconds = 0;
   for (const m of result.newMoments.slice(0, MOMENT_ASKS)) {
@@ -227,11 +268,7 @@ async function rateMoments(result: CheckResult, pack: Pack, o: { bot?: string; d
  */
 export async function gameWords(user: SessionUser, seasonId: string, body: { words?: unknown; couch?: unknown; change?: unknown }, bot?: string, now = new Date()): Promise<GameWordsResult> {
   if (!isUuid(seasonId)) throw new HttpError(404, "Season not found");
-  const couchId = typeof body.couch === "string" && body.couch ? body.couch : null;
-  if (couchId) {
-    if (!isUuid(couchId)) throw new HttpError(400, "couch");
-    if ((await requireCouch(user, couchId)) === "viewer") throw new HttpError(403, "Join the couch to start a game on it");
-  }
+  const couchId = await couchFor(user, body.couch);
   const change = body.change && typeof body.change === "object" ? (body.change as { from?: unknown; words?: unknown }) : null;
   let words = typeof body.words === "string" ? body.words.trim() : "";
   let changeWords: string | null = null;
@@ -258,21 +295,7 @@ export async function gameWords(user: SessionUser, seasonId: string, body: { wor
   if (!(await askBotStatus({ bot })).available) throw new HttpError(503, "Our bot isn't answering right now. Start a game's taps work.");
   const manual = manualFor(ctx, kind, show, standard);
   const prompt = change ? Words.changePrompt({ pack, manual, words, spec, change: changeWords! }) : Words.gamePrompt({ pack, manual, words });
-  const { rows } = await pool.query("INSERT INTO game_word_asks (user_id, season_id, couch_id, change_of, words, change) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id", [
-    user.id,
-    seasonId,
-    couchId,
-    from,
-    words,
-    changeWords,
-  ]);
-  const id = rows[0].id as string;
-  // Counted with this ask in it, so asks sent at once can't all slip under the cap; one over it is taken back.
-  const { left } = await asksToday(user);
-  if (left !== null && left < 0) {
-    await pool.query("DELETE FROM game_word_asks WHERE id = $1", [id]);
-    throw new HttpError(429, `You've asked our bot for ${GAME_ASKS_A_DAY} games today. Try again tomorrow, or start one with the taps.`);
-  }
+  const { id, left } = await openAsk(user, { seasonId, couchId, from, words, change: changeWords });
   const deadline = Date.now() + BUDGET_MS;
   try {
     const asked = await askBot(prompt, { bot, budgetMs: BUDGET_MS, search: false, priority: "now" });

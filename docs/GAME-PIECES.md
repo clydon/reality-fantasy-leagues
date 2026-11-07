@@ -73,11 +73,17 @@ Which episodes of the season the game plays. **`span: { from, to }`**.
 - Example: "from the merge on": `"span": { "from": { "phase": "merged" }, "to": null }` → "...from when Merged starts".
 - Goes with everything. A question about the season's end (who wins, the final three, the jury's vote) needs a game that runs to
   it (`to: null`).
+- **A sport's games picked by their words** (G3 part 2): on a team's page there's no season yet, so "the home opener", "the upcoming
+  series", "the next 5 games" or "tonight" names the games instead (a matchup ask, `src/lib/sports/matchup.ts` `MatchupAsk`: `opener`,
+  `series`, `next`, `day`, `games`), and those games become a season of their own (a matchup), numbered from 1: the game's span is
+  that season, so it leaves `span` out. A game already played is never picked: our check asks about the next one.
 
 ## Who can be picked: the pool
 
 **`pool: { of: "cast", where }`**. Today always the cast, `where: { "stillIn": true }` (nobody gone before the game starts) or
-`null`. A sport's `{ teams: [...] }` is the sports branch's; a pool of one group, `{ group: id }`, has no step yet.
+`null`. A sport's `{ teams: [...] }` ("the Lakers' players") is still the sports branch's: a matchup's people are its teams' players
+already, and a draft from one team's (or one position's, "only goalkeepers") waits for G3 part 3's pool filters; a pool of one group,
+`{ group: id }`, has no step yet.
 
 ---
 
@@ -1016,6 +1022,16 @@ page + words ──(bot + the engine's manual)──▶ a draft spec ──(our 
   game most like it (asked which). **A piece a sport adds reaches the bot** through its words in `WORDS` (a value marked `sport`),
   a stat through its Sport's `StatDef` (label, short, noun), and a standard game through the sport's defaults
   (`src/lib/sports/defaults/<sport>.json`'s `specs`, each with its `about`).
+- **On a team's page** (G3 part 2, 2026-11-07: `src/lib/server/team-words.ts`, POST `/api/sports/game-words { league, team, words }`):
+  before there's a season. The pack is a sport's with the team and its schedule in place of a season's games (`src/lib/sports/team-page.ts`
+  `teamSchedulePack`: the last 3 played and the next 20, each by id, its day in the East, home or away, against whom; never a score);
+  the manual adds how to name the games their words mean (`matchup`, beside `game`). One ask drafts both. Our check holds the
+  matchup against the schedule (`holdMatchup`): the games, or a question with what each option picks ("The 76ers home opener has
+  already been played. Their next home game?", "No Knicks game tonight. Their next game?", "Which of their games?"); a pick sent
+  back (`change: { from, matchup }`) needs no bot and isn't counted against the day's asks. The games are made (or found) as their
+  matchup's season (shared by everyone who picks the same games; a new one under the day's cap on new games), its players filled
+  from the teams' rosters, and the same draft checked again on that season's page, so the game is the matchup's own. A typed change
+  goes to the bot on the team's page until its games are made, on the matchup's page after.
 - **Randomize** (G4, built 2026-11-07: `src/lib/game/game-spec/roll.js`, no screen yet): the other door, no bot. `rollSpec(page,
   locks, seed)` rolls a game on the page's rules (G1's ctx and pack: the episodes left, the couch, the moments research answers, the
   phases to come, the groups): a base (an Outlast, a lineup, best ball, a pool, a pick scored by what they do, a game of questions

@@ -476,12 +476,27 @@ function sportLines(games) {
   return lines;
 }
 
+/** G3 part 2: what a team's page adds: the games their words mean, named as a matchup from the team's schedule. */
+function teamLines() {
+  return [
+    "THIS PAGE IS A TEAM'S SCHEDULE, before any games are picked (the pack's team and schedule: each game by id, its day in the East, home or away, against whom, and played: true once it's started). Name the games their words mean as \"matchup\", beside \"game\", one of:",
+    '- { "kind": "opener", "home": true }: their first game of the regular season ("the home opener": home true; "the opener": leave home out).',
+    `- { "kind": "series", "against": a team id from the pack's teams }: their next series against that team, all of it ("the upcoming Red Sox-Yankees series").`,
+    `- { "kind": "next", "count": n }: their next n games still to play ("the Lakers' next 5 games"), with "against": a team id for only their games against that team.`,
+    `- { "kind": "day", "day": "YYYY-MM-DD" }: their games that day in the East ("tonight" is the pack's today).`,
+    '- { "kind": "games", "events": [game ids from the schedule] }: these games, one by one.',
+    'Name what their words mean even when it has been played: our check asks about the next one. Words that name no games ("a game for the Red Sox"): "matchup": null, and our check asks which games.',
+    'The games picked are the whole game, numbered from 1 in order: leave "span" out.',
+  ];
+}
+
 /**
  * The manual, as the bot reads it. `kind`: 'show' (the default) or 'sport', which values play; `examples`: the tracker's rows
  * (capabilities.js rowsOf), its requests become the examples; `show`: the page's show, whose own requests come first. G3: `games`,
  * a sport's standard games ({ id, about, spec }: sports/page.ts sportGames), shown on a sport's page in place of a show's presets.
+ * G3 part 2: `team`, a team's page (no games picked yet): how to name the games their words mean (`matchup`).
  */
-function manualFor(ctx, { kind = 'show', examples = [], limit = 16, show = null, games = [] } = {}) {
+function manualFor(ctx, { kind = 'show', examples = [], limit = 16, show = null, games = [], team = false } = {}) {
   const lines = [];
   lines.push('THE ENGINE\'S MANUAL: what a game can be. Only these parts and values play; anything else goes under cantYet.');
   lines.push(
@@ -489,8 +504,10 @@ function manualFor(ctx, { kind = 'show', examples = [], limit = 16, show = null,
       'Leave out every part their words don\'t decide: a preset fills in the rest, and our defaults fill what no preset does.'
   );
   lines.push('');
-  if (kind === 'sport') lines.push(...sportLines(Array.isArray(games) ? games : []));
-  else {
+  if (kind === 'sport') {
+    lines.push(...sportLines(Array.isArray(games) ? games : []));
+    if (team) lines.push('', ...teamLines());
+  } else {
     lines.push('PRESETS (whole games; start from one when the words fit it, then change only what they said):');
     lines.push(...presetLines(ctx));
   }

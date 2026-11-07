@@ -457,6 +457,21 @@ function sameShow(pack, about) {
   return !about.season && label.startsWith(`${show} `) && /^ \d+ $/.test(label.slice(show.length));
 }
 
+/** Whether a quote is in their words: as it is, or (G3 part 2: the local bot quotes "points ... all count 1") each piece around an
+ *  ellipsis in them, in order. */
+function quoted(wordsPlain, quote) {
+  const pieces = String(quote).split(/\s*(?:\.{3}|\u2026)\s*/).map(plain).filter(Boolean);
+  if (!pieces.length) return false;
+  let at = 0;
+  for (const p of pieces) {
+    const i = wordsPlain.indexOf(p, at);
+    if (i < 0) return false;
+    // Each piece is padded with a space (plain's): the next one may start at this one's last.
+    at = i + p.length - 1;
+  }
+  return true;
+}
+
 /**
  * The draft to a game. `ctx`: what the page's show can settle (game-spec SpecContext); `pack`: the context pack the bot was given
  * (pack.js packOf); `words`: what they typed (said quotes are checked against it); `kind`: 'show' or 'sport'.
@@ -483,7 +498,7 @@ function checkDraft(draft, { ctx = null, pack = null, words = '', kind, carry = 
   // Their words, quoted: only a quote that's in them is said. A typed change carries what the ask it changes had said and
   // assumed (`carry`), so what the change doesn't touch stays backed.
   for (const s of [...(Array.isArray(d.said) ? d.said : []), ...((carry && carry.said) || [])]) {
-    if (s && s.quote && wordsPlain.includes(plain(s.quote))) result.said.push({ part: s.part || null, quote: s.quote });
+    if (s && s.quote && quoted(wordsPlain, s.quote)) result.said.push({ part: s.part || null, quote: s.quote });
     else if (s && s.quote) result.dropped.push({ part: s.part || null, value: s.quote, why: "said, but it isn't in their words" });
   }
   result.assumed = [...(Array.isArray(d.assumed) ? d.assumed : []), ...((carry && carry.assumed) || [])]

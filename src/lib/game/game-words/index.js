@@ -20,7 +20,7 @@ function checkAnswer(answer, opts = {}) {
   } catch (e) {
     return { state: 'unreadable', why: e instanceof Error ? e.message : String(e), notes: [] };
   }
-  return { ...check.checkDraft(read.draft, opts), notes: read.notes, botSummary: read.draft.summary };
+  return { ...check.checkDraft(read.draft, opts), notes: read.notes, botSummary: read.draft.summary, ...(read.draft.matchup ? { matchup: read.draft.matchup } : {}) };
 }
 
 const { readDraft } = read;
