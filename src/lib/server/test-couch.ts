@@ -348,7 +348,7 @@ async function researchLater(t: Record<string, unknown>, bot: BotChoice): Promis
   const season = await one(pool, "SELECT s.name, ss.season_number, ss.status FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id = $1", [t.source_season_id]);
   const run = async () => {
     try {
-      const { answer } = await askBot(buildRulebookPrompt({ show: (season?.name as string) ?? "the show", season: season?.season_number != null ? String(season.season_number) : undefined, airing: season?.status !== "completed" }), { ...bot, budgetMs: 280_000 });
+      const { answer } = await askBot(buildRulebookPrompt({ show: (season?.name as string) ?? "the show", season: season?.season_number != null ? String(season.season_number) : undefined, airing: season?.status !== "completed" }), { ...bot, budgetMs: 280_000, kind: "rulebook" });
       await inTransaction(async (client) => {
         await client.query("UPDATE test_couches SET rules = 'researched', rules_answer = $2, researching_at = NULL, message = NULL, updated_at = now() WHERE couch_id = $1", [t.couch_id, answer]);
         await copyRules(client, { couch_id: t.couch_id as string, source_season_id: t.source_season_id as string, rules: "researched", rules_answer: answer });

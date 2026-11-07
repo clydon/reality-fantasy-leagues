@@ -1266,3 +1266,14 @@ never handles it: the user does the reset and the pasting.
   has room: Codex is a CLI, no browser). The PC and the VM share the account's ChatGPT and Codex limits. **On the PC:**
   the bot runs as the Windows task `llm-browser-api` (hidden, at logon, restarted on crash). The details are in the bot's
   own READMEs (`llm-browser-api/README.md`, `deploy/README.md`).
+- **2026-11-07, the bot's throughput, step 1 (the bot built on the PC, not on the VM yet; the app on the `sports` branch, not
+  merged; no migration).** The bot answers up to `CODEX_PARALLEL` Codex questions at once (default 3, in `.env`; 1 is one
+  at a time): a CLI, no browser, so each is one more `codex` process; ChatGPT, Gemini and Claude stay one at a time. It's
+  speed, not more allowance: the PC, the VM and the playtests share the plan's Codex limits, and once Codex says a limit is
+  reached it goes back to one at a time, the rest queued, until an answer comes again. `/health` says `running` and
+  `parallel` (`slots`, `taking`, `held`). On the PC, three one-word asks took 5.6 s at once and 15.1 s one after another.
+  Memory on the VM isn't measured yet: watch `free -m` with three running, and set `CODEX_PARALLEL=2` if it's tight. **The
+  app:** each bot run kind (quick, full, schedule, tiebreak, rulebook, trivia, bingo, facts, card, call) can ask an AI of
+  its own (`app_settings` 'bot_ai_runs', `{ kind: "codex" }`, set with the desk's `PUT /api/desk/settings` `botAiRuns`,
+  logged with Undo; no screen yet); one small row read with each ask, beside 'bot_ai'. **None is switched:** every run
+  asks ChatGPT, as before, until the user says otherwise.

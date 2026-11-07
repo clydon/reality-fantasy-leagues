@@ -1,10 +1,11 @@
 import { pool, HttpError } from "./db";
 import { isSuperAdminUser, type SessionUser } from "./auth-helpers";
+import { BOT_PROVIDER_NAMES, deskProvider, providerFor, runProviders, type BotProvider, type BotRunKind, type RunProvider } from "../bot-runs";
 
 // The ask-AI bot: a separate service (C:\Users\conor\llm-browser-api, deployed per its deploy/README.md)
 // that drives ChatGPT in a real browser. It pastes one of our prompts in, waits for the answer and hands
 // it back, which is the copy, open, paste-back loop an admin does by hand, minus the hands. Free (no API
-// key), but slow (30-60s for an episode with web search) and one at a time. Off unless
+// key), but slow (30-60s for an episode with web search) and one at a time (Codex: several at once). Off unless
 // LLM_BROWSER_API_URL and LLM_BROWSER_API_KEY are set.
 //
 // LLM_BROWSER_API_URL can list several bots, comma-separated, tried in order: the VM, then a fallback
@@ -21,16 +22,35 @@ export const askBotConfigured = URLS.length > 0 && !!KEY;
 
 /** Which AI the bot asks (the desk's Settings › Which AI our bot asks, app_settings 'bot_ai'; docs/PLAN-desk-parity.md part
  *  7c): ChatGPT signed in on its computer (the default), or Claude through the Claude Code CLI there. Gemini can't do the
- *  research prompts, so it isn't one. */
-export const BOT_PROVIDERS = ["chatgpt", "claude"] as const;
-export type BotProvider = (typeof BOT_PROVIDERS)[number];
-export const BOT_PROVIDER_NAMES: Record<BotProvider, string> = { chatgpt: "ChatGPT", claude: "Claude" };
+ *  research prompts, so it isn't one. A run kind can ask an AI of its own, Codex too (app_settings 'bot_ai_runs': bot-runs.ts). */
+export { BOT_PROVIDERS, BOT_PROVIDER_NAMES, BOT_RUN_KINDS, RUN_PROVIDERS, type BotProvider, type BotRunKind, type RunProvider } from "../bot-runs";
 
 /** The bot's AI, as the desk set it: read with each ask (one small row), so a change reaches the next question. */
 export async function botProvider(): Promise<BotProvider> {
   try {
     const { rows } = await pool.query("SELECT value FROM app_settings WHERE key = 'bot_ai'");
-    return BOT_PROVIDERS.includes(rows[0]?.value) ? rows[0].value : "chatgpt";
+    return deskProvider(rows[0]?.value);
+  } catch {
+    return "chatgpt";
+  }
+}
+
+/** The run kinds sent to an AI of their own (app_settings 'bot_ai_runs'; none by default). */
+export async function botRunProviders(): Promise<Partial<Record<BotRunKind, RunProvider>>> {
+  try {
+    const { rows } = await pool.query("SELECT value FROM app_settings WHERE key = 'bot_ai_runs'");
+    return runProviders(rows[0]?.value);
+  } catch {
+    return {};
+  }
+}
+
+/** The AI a question of this run kind asks (bot-runs.ts providerFor): read with each ask, as botProvider is. */
+async function askedProvider(kind?: BotRunKind): Promise<RunProvider> {
+  try {
+    const { rows } = await pool.query("SELECT key, value FROM app_settings WHERE key IN ('bot_ai', 'bot_ai_runs')");
+    const of = (key: string) => rows.find((r) => r.key === key)?.value;
+    return providerFor(of("bot_ai"), of("bot_ai_runs"), kind);
   } catch {
     return "chatgpt";
   }
@@ -51,8 +71,11 @@ export interface BotChoice {
   budgetMs?: number;
   /** Hear how the answer is going while it comes (`pattern`, a regular expression, counted in what's written so far). */
   progress?: { pattern?: string | null; on: (p: BotProgress) => void };
-  /** Which AI it asks (default: the desk's setting, botProvider). */
-  provider?: BotProvider;
+  /** Which AI it asks (default: its run kind's own, else the desk's setting: askedProvider). */
+  provider?: RunProvider;
+  /** The bot run it's for (db/bot-research.js runJob's kind, or a rulebook's research), so a kind sent to an AI of its own
+   *  (app_settings 'bot_ai_runs') asks that one. Left out: the desk's AI. */
+  kind?: BotRunKind;
   /** Whether the AI may search the web (default true: research needs it). The Start-a-game GPT's asks don't: everything they
    *  need is in the prompt (docs/PLAN-start-a-game-gpt.md step G1), so they're short. */
   search?: boolean;
@@ -164,7 +187,7 @@ export async function askBotStatus(o: BotChoice = {}): Promise<{ available: bool
 export async function askBot(prompt: string, o: BotChoice = {}): Promise<{ answer: string; seconds: number }> {
   if (!configured(o)) throw new HttpError(404, "The ask-AI bot isn't set up here.");
   const deadline = Date.now() + Math.min(BUDGET_MS, o.budgetMs ?? BUDGET_MS);
-  const provider = o.provider ?? (await botProvider());
+  const provider = o.provider ?? (await askedProvider(o.kind));
   const failures: string[] = [];
   for (const url of urlsFor(o)) {
     const left = deadline - Date.now();
