@@ -342,6 +342,16 @@ Limits: up to 12 questions a game; an `id` is letters, digits, `.`, `_` or `-`, 
 `{ castawayId: answer }`, each settled by that person's own moment or whether they go home or stay. Example: "each couple's
 judges' score: over or under 24.5" on Dancing with the Stars.
 
+**One question about each game of the episode (sports, L3 part 2f part 2):** `each: "game"`, asked each episode about its games as
+linked (a week's slate, or an episode's one game), answered `{ eventId: answer }`: who wins each (`side`, settled `final` `winner`),
+its total's or margin's range (`choice`) or the closest to it (`number`, settled `final` `total` or `margin`). Each pick is graded on
+its own game's final (a game called off doesn't count either way), known once every game of the episode is over, and locks as its
+own game starts: a started game's pick is kept as it was, a change or a first pick there refused (the server's), and the question
+closes, everyone's picks shown, as the episode's last game starts. `confidence: true` (who wins only) ranks the picks by how sure
+you are, each `{ answer, confidence }`, the ranks each used once from 1 to the episode's games, a right pick worth its rank times the
+points: a confidence pool. Not yet: an over/under on each game (each game's own line, the odds' when it opens: L3 part 3b), or a
+share, rollover or shrink. Example: "the NFL's Week 10, every game: who wins, ranked 1 to 14".
+
 ### What settles it: `settle`
 
 Data settles every question (the user's rule, 2026-10-27: never the couch's word or the maker's call; the exceptions are the

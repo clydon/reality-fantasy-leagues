@@ -144,6 +144,8 @@ const ASKS = [
   ["sports-total", [{ id: "total", ask: "Total points: over or under?", answer: "overUnder", line: 220.5, points: 1, asked: "each", closes: "start", settle: { by: "final", take: "total" } }]],
   // L3 part 2e: a draw's bracket (tennis's men's singles), each round's winners.
   ["sports-bracket", [{ id: "bracket", ask: "Who wins each round of the men's singles?", answer: "bracket", points: 1, rounds: "double", asked: "each", closes: "start", settle: { by: "final", take: "bracket", of: "MS" } }]],
+  // L3 part 2f part 2: a question about each game of the episode (a week's slate's pick'em), its picks ranked by confidence.
+  ["sports-each-game", [{ id: "slate", ask: "Who wins each game?", answer: "side", each: "game", confidence: true, points: 1, asked: "each", closes: "start", settle: { by: "final", take: "winner" } }]],
 ];
 /** The asks crossed with every hold, score and rank (the rest go with the games of questions only: below). */
 const EVERYWHERE = ["none", "finale", "boot", "boot-imm", "calls", "finale-boot"];

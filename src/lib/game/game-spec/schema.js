@@ -258,7 +258,9 @@ const VOCAB = {
   'ask.asked': { once: 'now', each: 'now', every: 'now', phase: 'now' },
   'ask.closes': { start: 'now', finale: 'now' },
   'ask.from': { cast: 'now', team: 'now' },
-  'ask.each': { person: 'now' },
+  // L3 part 2f part 2: or each game of the episode (a week's slate's pick'em), answered { [eventId]: answer }, each pick locking at its
+  // own game's start (the server's), graded on each game's final.
+  'ask.each': { person: 'now', game: 'now' },
   // A9: how a right answer's points are shared, and what makes them shrink.
   'ask.share': { split: 'now', only: 'now' },
   // C6, money: what a stake pays when it's right: even money (A8's wager: the stake), or the pool (the couch's own odds, a tote: the
@@ -537,6 +539,14 @@ const EACH_SETTLES_FOR = {
   number: ['moment:count'],
   overUnder: ['moment:count'],
   choice: ['moment:happened', 'moment:count', 'results:out', 'results:stays'],
+};
+/** L3 part 2f part 2: a question asked of each game of the episode (each: 'game'), by its answer: who wins it, its total's or margin's
+ *  range, or the closest to its total or margin. An over/under on each game needs each game's own line (the odds' when it opens: L3
+ *  part 3b's), so it isn't one yet. */
+const EACH_GAME_SETTLES_FOR = {
+  side: ['final:winner'],
+  choice: ['final:total', 'final:margin'],
+  number: ['final:total', 'final:margin'],
 };
 /** The answers that name someone (a person) or something (a group), `pick` of them. */
 const NAMES = ['person', 'group'];
@@ -1482,6 +1492,29 @@ function cardProblems(s) {
   if (!readers) out.push(['card', "A card is for questions on it (card: true) or the moments that count each week (score.only: 'card')"]);
   return out;
 }
+/**
+ * L3 part 2f part 2: a question asked of each game of the episode (each: 'game': a week's slate's pick'em), one answer for each game
+ * ({ [eventId]: answer }), each graded on its own game's final, each pick locking at its own game's start (the server's: a pick for a
+ * game that's started is kept as it was). Asked each episode, about the one episode, closing as each game starts. With `confidence`
+ * (true), who wins each game ranked: each pick { answer, confidence }, the confidences each used once from 1 to the episode's games, a
+ * right pick worth its confidence times the question's points.
+ */
+function eachGameProblems(q, settled, how) {
+  const out = [];
+  const takes = own(EACH_GAME_SETTLES_FOR, q.answer);
+  if (!takes) out.push(['answer', "Each game gets who wins it (a side), its total's or margin's range (a choice), or the closest to its total or margin (a number)"]);
+  else if (settled && !takes.includes(how)) out.push(['settle', `Each game's ${q.answer} is settled by ${takes.map((x) => x.replace(':', ' ')).join(', ')}`]);
+  if (q.asked !== 'each' || windowed(q)) out.push(['asked', "Each game is the episode's: ask it each episode"]);
+  if (q.closes !== 'start') out.push(['closes', 'Each game closes as it starts']);
+  if (isObj(q.settle) && q.settle.of !== undefined) out.push(['settle.of', 'Each game is its own: no of']);
+  for (const k of ['share', 'rollover', 'shrink']) if (q[k] !== undefined) out.push([k, `A question about each game is a pick for each game, worth its own points: no ${k}`]);
+  if (q.confidence !== undefined) {
+    if (q.confidence !== true) out.push(['confidence', 'Ranked by confidence (confidence: true), or leave it out']);
+    else if (q.answer !== 'side') out.push(['confidence', 'Confidence ranks who wins each game: answer side']);
+  }
+  return out;
+}
+
 /**
  * C7: a question on the card's problems, as [[where, problem]]: asked each episode (the card is each episode's), settled by the line's
  * moment (`{ by: 'moment', take: happened | count | who | most }`, no moment of its own), a yes or no, a count, or who (a person or a
@@ -2665,13 +2698,15 @@ function questionProblems(q, at, s, ids, league) {
   // Who stays is one episode's (over a game, everyone but the winner leaves by its end).
   if (how === 'results:stays' && (q.asked !== 'each' || windowed(q))) add('asked', 'Who stays is an episode\'s: ask it each episode');
   // One question about each person still in, an answer for each, settled for each by their own moment or exit.
-  if (each) {
+  if (each && q.each === 'game') eachGameProblems(q, settled, how).forEach(([where, p]) => add(where, p));
+  else if (each) {
     const takes = own(EACH_SETTLES_FOR, q.answer);
-    if (!one('ask.each', q.each)) add('each', "A question about each one is about each person: 'person'");
+    if (!one('ask.each', q.each)) add('each', "A question about each one is about each person ('person') or each game of the episode ('game')");
     else if (!takes) add('answer', 'Each person gets a yes or no, a number, an over/under or a choice');
     else if (settled && !takes.includes(how)) add('settle', `Each person's ${q.answer} is settled by ${takes.map((x) => x.replace(':', ' ')).join(', ')}`);
     if (q.closes !== 'start') add('closes', 'A question about each person closes as it starts');
   }
+  if (q.confidence !== undefined && q.each !== 'game') add('confidence', "Only a question about each game ranks its picks by confidence");
   // Only what the finale decides waits for it: anything else could be settled before then (an idol played this season, who
   // finished fifth), and answered once it's known.
   if (q.closes === 'finale' && q.asked === 'once') {
@@ -2834,7 +2869,7 @@ const KEYS = {
   windows: ['schedule', 'every', 'swaps'],
   draft: ['at', 'timer', 'away', 'opens'],
   bets: ['points'],
-  question: ['id', 'ask', 'answer', 'points', 'settle', 'asked', 'closes', 'pick', 'from', 'line', 'options', 'each', 'every', 'over', 'within', 'chips', 'pairs', 'wager', 'odds', 'share', 'rollover', 'shrink', 'fallback', 'beat', 'legs', 'pays', 'card', 'draw', 'rounds'],
+  question: ['id', 'ask', 'answer', 'points', 'settle', 'asked', 'closes', 'pick', 'from', 'line', 'options', 'each', 'every', 'over', 'within', 'chips', 'pairs', 'wager', 'odds', 'share', 'rollover', 'shrink', 'fallback', 'beat', 'legs', 'pays', 'card', 'draw', 'rounds', 'confidence'],
   settle: ['by', 'take', 'moment', 'role', 'phase', 'stat', 'place', 'fact', 'of', 'tie'],
   beat: ['by', 'none'],
 };

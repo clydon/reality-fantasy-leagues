@@ -56,6 +56,9 @@ export interface LeagueGames {
   periods: number | null;
   /** L3 part 2f: a slate's episodes whose every game is over (final and kept, or off), as far as the mark: its results are in. */
   done: Set<number>;
+  /** L3 part 2f part 2: every episode's games by event id (a slate's, or an episode's one), each as the grader reads it as far as
+   *  the mark, with its listing (its name, start and sides by name): a question about each game's (AnswerFacts.slate). */
+  eachGame: Map<number, Map<string, SportsGameFacts>>;
 }
 
 /** The season a league plays (its show's slug and season number), or null. */
@@ -88,7 +91,7 @@ export async function leagueGames(state: LeagueState, o: { mark?: number | null;
   if (!seasonId) return undefined;
   const [{ rows }, { rows: cast }, { rows: slated }] = await Promise.all([
     pool.query(
-      `SELECT e.episode, e.provider, e.league, e.event_id, e.starts_at, e.teams AS linked, f.state, f.final, f.teams, f.lines, f.people, f.shape
+      `SELECT e.episode, e.provider, e.league, e.event_id, e.name AS title, e.starts_at, e.teams AS linked, f.state, f.final, f.teams, f.lines, f.people, f.shape
          FROM season_events e LEFT JOIN sports_events f ON f.provider = e.provider AND f.league = e.league AND f.event_id = e.event_id
         WHERE e.season_id = $1 ORDER BY e.episode`,
       [seasonId]
@@ -100,15 +103,18 @@ export async function leagueGames(state: LeagueState, o: { mark?: number | null;
   const now = (o.now ?? new Date()).getTime();
   const mark = o.mark ?? null;
   const who = peopleOf(state, cast);
-  const out: LeagueGames = { lines: new Map(), byGame: new Map(), slate: new Map(), groups: {}, bouts: new Map(), games: new Map(), sides: new Map(), defs: {}, periods: null, done: new Set() };
+  const out: LeagueGames = { lines: new Map(), byGame: new Map(), slate: new Map(), groups: {}, bouts: new Map(), games: new Map(), sides: new Map(), defs: {}, periods: null, done: new Set(), eachGame: new Map() };
   // L3 part 2f: a slate's episodes with a game not over yet (still to play, being played, or final without its counts kept).
   const open = new Set<number>();
   const slateEps = new Set<number>();
   // L8: a slate's every episode is of several games (one with a single game listed so far too: its shape never changes as more are
   // linked).
   const slate = slated.length > 0;
-  /** A game's facts: an episode's one, or one of a slate's episode's. */
+  /** A game's facts: an episode's one, or one of a slate's episode's; with its listing, every episode's by event id (eachGame). */
+  let listing: SportsGameFacts["listing"] = undefined;
   const setGame = (n: number, event: string, facts: SportsGameFacts) => {
+    if (!out.eachGame.has(n)) out.eachGame.set(n, new Map());
+    out.eachGame.get(n)!.set(event, { ...facts, listing });
     if (!slate) return void out.games.set(n, facts);
     if (!out.slate.has(n)) out.slate.set(n, new Map());
     out.slate.get(n)!.set(event, facts);
@@ -132,6 +138,8 @@ export async function leagueGames(state: LeagueState, o: { mark?: number | null;
     // The row's sides with the score it last saw (a final's, before its counts are kept); a game it hasn't seen, the link's.
     const known = ((r.teams ?? r.linked ?? []) as { id: string; score?: number | string | null }[]).map((t) => ({ id: String(t.id), score: Number(t.score) || 0 }));
     const teams = known.map((t) => t.id);
+    const named = new Map(((r.linked ?? []) as { id: string; name?: string | null }[]).map((t) => [String(t.id), t.name ?? null]));
+    listing = { name: (r.title as string | null) ?? null, startsAt: r.starts_at ? (r.starts_at as Date).toISOString() : null, sides: teams.map((id) => ({ id, name: named.get(id) ?? null })) };
     if (teams.length && !slate) out.sides.set(n, teams);
     const event = String(r.event_id);
     const sport = sportOf(r.league);

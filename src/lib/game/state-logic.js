@@ -7809,7 +7809,8 @@ class AnswerLogic {
   // results, and says nothing of them to someone who hasn't seen them. A finale nobody's listed yet: at the game's end.
   // A game with a late lock (A7: extras.lateLock) keeps a question open for someone who hasn't seen the episode that closes it
   // (`mark`, their spoiler mark, before it) until its air time plus the lock's hours: they answer before they watch.
-  //   o: { now, finale (the season's last episode, from its schedule), airAt, mark (the one answering's; null: sees all) }
+  //   o: { now, finale (the season's last episode, from its schedule), airAt, mark (the one answering's; null: sees all),
+  //        lastStart (a question about each game: its episode's last game's start) }
   static closed(state, q, episode, o){
     const opt = o || {};
     if(q.asked !== 'once' && !AnswerLogic.opensAt(state, q, episode)) return true;
@@ -7823,6 +7824,9 @@ class AnswerLogic {
       const now = opt.now !== undefined ? Number(opt.now) : Date.now();
       if(now < Date.parse(airsAt) + late.hours * 3600 * 1000) return false;
     }
+    // L3 part 2f part 2: a question about each game closes as the episode's last game starts (`o.lastStart`, the server's; each
+    // pick locks at its own game's start before then: answers.ts), whoever runs the game's overrides as they are.
+    if(q.each === 'game' && opt.lastStart) return EpisodeLogic.hasResults(ep) || closedForPlay({ ...ep, airsAt: opt.lastStart, locksAt: undefined }, opt.now);
     return EpisodeLogic.hasResults(ep) || closedForPlay({ ...ep, airsAt }, opt.now);
   }
   // The episode someone answers for now with a late lock (A7): the one after their mark while it's still open for them, else

@@ -1231,7 +1231,7 @@ declare const StateLogic: {
     /** A7: the window an episode is in (where it opens), or null. */
     windowAt(state: LeagueState, q: Question, episode: number | null, seen?: number | null): number | null;
     closesAt(state: LeagueState, q: Question, episode: number, finale?: number | null): number | null;
-    closed(state: LeagueState, q: Question, episode: number, o?: { now?: number; finale?: number | null; airAt?: string | null; mark?: number | null }): boolean;
+    closed(state: LeagueState, q: Question, episode: number, o?: { now?: number; finale?: number | null; airAt?: string | null; mark?: number | null; lastStart?: string | null }): boolean;
     episodeNow(state: LeagueState): number | null;
     /** A7: the episode someone answers for now with a late lock (the one after their mark while it's open for them). */
     lateEpisode(state: LeagueState, mark: number | null, o?: { now?: number; airAtOf?: (episode: number) => string | null }): number | null;

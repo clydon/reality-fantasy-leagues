@@ -312,7 +312,10 @@ export interface SpecQuestion {
   options?: string[];
   /** A6: asked about each person still in when it closes, answered { castawayId: answer } (a yes or no, a number, an over/under or
    *  a choice for each), settled for each by their own moment or whether they go home or stay. */
-  each?: "person";
+  each?: "person" | "game";
+  /** L3 part 2f part 2, a question about each game (each: "game", a side answer): the picks ranked by how sure you are, each
+   *  { answer, confidence } (the ranks each used once, 1 to the episode's games), a right pick worth its rank times its points. */
+  confidence?: true;
   /** F3 part 2: a group answer asked each episode, on a season played in groups the league doesn't hold (pairs, from the format's
    *  state over time): void (the default) when its groups aren't sure, no points either way; carry-on follows the people;
    *  next-stage is A12's. */
@@ -339,6 +342,9 @@ export interface SportsGameFacts {
   bouts?: Record<string, { sides: string[]; winner: string | null; outcome: string | null; main: boolean; class?: string | null; fromFinal?: number | null }>;
   /** L4 part 2: a team game's periods' ends, each side's score then, in order (regulation's and any extra), as far as they're read. */
   periods?: Record<string, number>[];
+  /** L3 part 2f part 2, a question about each game's (AnswerFacts.slate's): the game as linked, its name, when it starts (its pick
+   *  locks then) and its sides by name, as listed. */
+  listing?: { name: string | null; startsAt: string | null; sides: { id: string; name: string | null }[] };
 }
 /** What a game's results say, for grading its questions (answers.js). */
 export interface AnswerFacts {
@@ -388,6 +394,9 @@ export interface AnswerFacts {
   episodeFacts?: Map<number, Record<string, FactOutcome>>;
   /** L1 part 4b: each episode's game as of the viewer's moment, a sport's (src/lib/sports/spec.ts gameFacts). */
   games?: Map<number, SportsGameFacts>;
+  /** L3 part 2f part 2: each episode's games by the provider's event id (a week's slate's, or an episode's one), as of the viewer's
+   *  mark (sports/score.ts leagueGames' eachGame), for a question about each game. */
+  slate?: Map<number, Map<string, SportsGameFacts>>;
   /** A14 part 2: the bot's own call on each window of a question played against it ("question|episode", the window's key: 0 asked
    *  once), each once its window's lock has passed (bot_calls): the server's (answer-points.ts botCallsFor). A window with none has
    *  no entry; no map at all, a question played against the bot waits. */
@@ -428,7 +437,7 @@ export type PlayersTally = { answer: string; n: number }[];
  *  groups the right people were on; a question about each person, each one's verdict by castaway id). */
 export type Verdict =
   /** L1 part 4b: a sports question live, where it stands now (the value, or who's ahead). */
-  | { state: "waiting"; live?: { right?: string[]; value?: number } }
+  | { state: "waiting"; live?: { right?: string[]; value?: number; each?: Record<string, Verdict> } }
   | { state: "off"; why: string; tally?: PlayersTally }
   | {
       state: "known";
@@ -741,7 +750,7 @@ export function pointsFor(q: Question, v: Verdict, answers: { playerId: string; 
 export function isRight(q: Question, v: Verdict, mine: { playerId: string; answer: unknown }, answers: { playerId: string; answer: unknown }[], facts?: AnswerFacts): boolean | null;
 /** o.most: a wager of any of your points (A9), your points as they stand; C6, beside a bank, what's left of it for any stake. */
 /** L4 part 2: a bracket's `faces` is its draw as it stands (sequence/bracket.js bracketOf). */
-export function answerProblem(q: Question, value: unknown, faces?: Set<string> | import("../sequence/bracket").BracketField | null, o?: { most?: number }): string | null;
+export function answerProblem(q: Question, value: unknown, faces?: Set<string> | Map<string, Set<string> | null> | import("../sequence/bracket").BracketField | null, o?: { most?: number }): string | null;
 /** A9: what each answer earns on one window with its ways of combining (a split pot, only the only right one, a rollover's worth,
  *  a shrinking call). */
 export function windowPoints(

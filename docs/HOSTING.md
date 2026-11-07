@@ -709,6 +709,10 @@ never handles it: the user does the reset and the pasting.
   league keeps its squares, deal and drawn digits in its state, a few KB at most); a bracket question plays, its answers and view
   reading the draw as listed (an event's board, cached an hour before it's final: the same ESPN call the finals make, one small
   query a read). No new table.
+- **2026-11-06, `sports` branch (not merged).** L3 part 2f part 2 (no migration): a question about each game of a week (pick'em
+  over a slate, confidence points) plays. Its questions' reads and answers take the league's games as they already do (one query of
+  `season_events` and `sports_events`, now with each game's name too), handing each game's facts over by event id; an answer is a
+  pick per game in `game_answers` (a week of the NFL's 14 games ~1 KB). No new ESPN call or table.
 - **2026-11-06, `sports` branch (not merged).** L3 part 2d (no migration): categories and roto play; a categories league's reads
   carry the sport's stats' definitions beside its lines (a couple of KB in the response, no query of their own). Nothing stored.
 - **2026-11-06, `sports` branch (not merged).** L8 part 1 (docs/PLAN-start-a-game-gpt.md track L; migration 0304): a league's slate,

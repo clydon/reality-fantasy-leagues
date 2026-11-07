@@ -580,7 +580,14 @@ function questionRule(q, w, each, ask, bank, s) {
   // A14 part 1: the players' own answers settle it, and its fallbacks.
   if (isPlayers(q) && pts !== null) earn = playersWords(q, pts, ask);
   // A question about each person (A6): an answer for each of them, each graded on its own.
-  if (q.each && pts !== null) {
+  // L3 part 2f part 2: or each game of the episode, each pick graded on its own game; confidence, each right pick worth its rank.
+  if (q.each === 'game' && pts !== null) {
+    earn = q.confidence === true
+      ? ` Answer for each game of the ${w.part}, and rank your picks by how sure you are: the surest worth as many as there are games, the least sure 1. Each one right scores ${pts === 1 ? 'its rank' : `its rank times ${pointsWord(pts)}`}.`
+      : q.answer === 'number'
+        ? ` Answer for each game of the ${w.part}: the closest on each wins ${pointsWord(pts)}.`
+        : ` Answer for each game of the ${w.part}: ${pointsWord(pts)} for each one right.`;
+  } else if (q.each && pts !== null) {
     earn = q.answer === 'number'
       ? ` Answer for each ${w.castaway} still in: the closest on each wins ${pointsWord(pts)}.`
       : ` Answer for each ${w.castaway} still in: ${pointsWord(pts)} for each one right.`;
@@ -1335,7 +1342,9 @@ function rulesOf(s, w) {
     }
     // C6: a bank, every stake drawn from it.
     if (bank) rules.push(`Everyone starts with a bank of ${pointsWord(bank.start)}, and every stake comes out of it: you can't stake more than you have left, less what's still riding on answers to be settled.${bank.out ? " Run out and you're out." : ' Run out and you can still answer, with nothing to stake.'}`);
-    rules.push(each ? `Change an answer until its ${w.part} starts. Nobody sees them until then.` : 'Change your answers until it starts. Nobody sees them until then.');
+    // L3 part 2f part 2: a question about each game locks game by game.
+    if (s.ask.some((q) => q.each === 'game')) rules.push(`Change a game's pick until that game starts: each locks on its own. Nobody sees anyone's until the ${w.part}'s last game starts.`);
+    else rules.push(each ? `Change an answer until its ${w.part} starts. Nobody sees them until then.` : 'Change your answers until it starts. Nobody sees them until then.');
     // A late lock (A7).
     if (isObj(s.extras.lateLock)) rules.push(`Watching late? Answer before you watch: until you've seen it, up to ${s.extras.lateLock.hours} hours after it airs.`);
     // A11 part 2b: a race, cuts and lives say who wins; part 4b, head to head.

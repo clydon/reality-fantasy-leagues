@@ -1,7 +1,7 @@
 // Playing by placement (docs/PLAN-start-a-game-gpt.md track C, C2 part 4): a spec plays when each piece it names has its place in
 // the scoring sequence (game-spec schema.js unplaced: what's held, its lines, the questions beside them, the week's result and the
 // rank), not when it matches one of seven shapes; the shape it plays as (typeOf) is still named for the screens (shapeOf). Proven on
-// the placement corpus (tests/fixtures/placement-corpus.js: 60,645 specs, every way of holding, scoring, ranking and asking crossed,
+// the placement corpus (tests/fixtures/placement-corpus.js: 61,041 specs, every way of holding, scoring, ranking and asking crossed,
 // games in stages, and the parts every game shares), each verdict as the seven shapes gave it before part 4 (placement-corpus.json, 6b8b1269's engine) except the
 // combinations part 4 opens, each listed with why. Run with `npm test`.
 const test = require("node:test");
@@ -23,6 +23,9 @@ const OPENED = [
   // L3 part 2e: a bracket on a draw (graded on the server's facts.games, checked against the draw as listed) plays wherever a show's
   // question asked each episode does (its twin asking who goes home), as the other sports questions do.
   { why: "a bracket question", test: (n) => /\|sports-bracket$/.test(n), to: (was, n, now) => now(n.replace(/[^|]+$/, "boot")) },
+  // L3 part 2f part 2: a question about each game of the episode (each pick graded on its own game, on the server's facts.slate,
+  // locking at its own game's start) plays wherever a show's question asked each episode does, as the other sports questions do.
+  { why: "a question about each game", test: (n) => /\|sports-each-game$/.test(n), to: (was, n, now) => now(n.replace(/[^|]+$/, "boot")) },
   // L3 part 2c: a question on a sport's game (its final, a stat in it, a side to pick) plays wherever a show's question asked each
   // episode does (its twin asking who goes home): the same places in the sequence, graded on the server's facts.games.
   { why: "a question on a sport's game", test: (n) => /\|sports-(pickem|few|total)$/.test(n), to: (was, n, now) => now(n.replace(/[^|]+$/, "boot")) },
@@ -126,8 +129,10 @@ test("the placement corpus: every verdict as the seven shapes gave it, but the c
   // L3 part 2e's 69: squares scored by their squares and ranked by their points, playing as squares (the corpus' only new score,
   // recorded from 6b8b1269's engine: every other pairing of it was refused there and still is); the bracket ask across the question
   // holds, scores and ranks (68, recorded the same way), each as its twin asking who goes home: 22 playing now (15 games of
-  // questions, 7 drafts asking it), the rest held back as their twin is.
-  assert.equal(moved.length, 169 + 770 + 819 + 215 + 354 + 15 + 66 + 500 + 14 + 198 + 69);
+  // questions, 7 drafts asking it), the rest held back as their twin is. L3 part 2f part 2's 68: a question about each game (ranked by
+  // confidence) across the question holds, scores and ranks (recorded from 6b8b1269's engine, where `each: 'game'` was refused), each
+  // as its twin asking who goes home: 22 playing now (15 games of questions, 7 drafts asking it), the rest held back as their twin is.
+  assert.equal(moved.length, 169 + 770 + 819 + 215 + 354 + 15 + 66 + 500 + 14 + 198 + 69 + 68);
   // What plays: 933 before part 4, and every opening that plays now (none played before: each had a problem or a wait).
   assert.ok(moved.every((i) => !C.plays(was[i])));
   assert.equal(now.filter(C.plays).length, 933 + moved.filter((i) => C.plays(now[i])).length);

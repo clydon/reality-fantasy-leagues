@@ -536,3 +536,105 @@ test("a slate's week: each game at the table on its own and added up, a double-d
   const keys = new Set(S.StatsLogic.stampedKeys());
   assert.equal(JSON.parse(JSON.stringify(s, (k, v) => (keys.has(k) ? undefined : v))).episodes.some((e) => e.statGames), false);
 });
+
+// L3 part 2f part 2: a question about each game of the episode (a week's slate's pick'em, confidence points). Episode 1's games: the
+// 76ers' opener (the 76ers, "20", won), a second final ("7" beat "9") and a third called off; Episode 2's, one final and one to play.
+function eachGame(ask = {}) {
+  const pickem = defaultsFor("basketball").specs.pickem.spec;
+  const spec = { ...pickem, ask: [{ ...pickem.ask[0], each: "game", ...ask }] };
+  const s = league(spec);
+  s.castaways.forEach((c) => { c.ownerIds = []; });
+  const idOf = (athlete) => s.castaways.find((c) => c.name === box.people[athlete]?.name)?.id ?? `espn:${athlete}`;
+  const fin = (a, b, sa, sb) => ({ status: "final", sides: [{ id: a, score: sa }, { id: b, score: sb }], lines: {}, teams: {} });
+  const slate = new Map([
+    [1, new Map([["g1", storedFacts(nba, renamed(kept, idOf), "final")], ["g2", fin("7", "9", 101, 96)], ["g3", { status: "off", sides: [{ id: "1", score: 0 }, { id: "2", score: 0 }], lines: {}, teams: {} }]])],
+    [2, new Map([["g4", fin("7", "1", 99, 100)], ["g5", { status: "pre", sides: [{ id: "9", score: 0 }, { id: "2", score: 0 }], lines: {}, teams: {} }]])],
+  ]);
+  const facts = (st) => ({ ...S.AnswerLogic.facts(st), slate });
+  return { s, q: S.AnswerLogic.questions(s)[0], slate, facts };
+}
+const facesOf = (slate, n) => new Map([...slate.get(n)].map(([id, g]) => [id, new Set(g.sides.map((x) => x.id))]));
+
+test("a question about each game: it plays (who wins, a total's range, the closest), confidence on who wins; the rest refused", () => {
+  const pickem = defaultsFor("football").specs.pickem.spec;
+  const withAsk = (ask) => ({ ...pickem, ask: [{ ...pickem.ask[0], each: "game", ...ask }] });
+  for (const ask of [{}, { confidence: true }, { answer: "choice", settle: { by: "final", take: "total" }, options: ["0-40", "41-50", "51+"] }, { answer: "number", settle: { by: "final", take: "margin" } }]) {
+    assert.deepEqual(G.specProblems(withAsk(ask)), [], JSON.stringify(ask));
+    assert.deepEqual(G.specWaitsFor(withAsk(ask)), []);
+    assert.equal(G.typeOf(withAsk(ask)), "questions");
+  }
+  const refused = (ask, where) => assert.ok(G.specProblems(withAsk(ask)).some((p) => p.at === `ask[0].${where}`), `${JSON.stringify(ask)} at ${where}`);
+  refused({ answer: "overUnder", settle: { by: "final", take: "total" }, line: 44 }, "answer");
+  refused({ asked: "once" }, "asked");
+  refused({ answer: "choice", settle: { by: "final", take: "total" }, options: ["0-40", "41+"], confidence: true }, "confidence");
+  refused({ share: "split" }, "share");
+  refused({ confidence: "yes" }, "confidence");
+  assert.ok(G.specProblems({ ...pickem, ask: [{ ...pickem.ask[0], confidence: true }] }).some((p) => p.at === "ask[0].confidence"), "confidence only on each game");
+  assert.deepEqual(G.specProblems({ ...pickem, ask: [{ ...pickem.ask[0], each: "team" }] }).map((p) => p.at), ["ask[0].each"]);
+  // Its words: each game, each locking on its own; confidence, each right pick its rank.
+  const rules = G.describeSpec(withAsk({ confidence: true })).rules.join(" ");
+  assert.match(rules, /Answer for each game of the/);
+  assert.match(rules, /rank your picks by how sure you are/);
+  assert.match(rules, /each locks on its own/);
+});
+
+test("a question about each game graded game by game: a game called off doesn't count, confidence a right pick's rank, waiting till the last", () => {
+  const { s, q, slate, facts } = eachGame();
+  const answers = [
+    { playerId: "ann", question: "winner", episode: 1, answer: { g1: "20", g2: "9", g3: "1" } },
+    { playerId: "bo", question: "winner", episode: 1, answer: { g1: "5", g2: "7" } },
+    { playerId: "ann", question: "winner", episode: 2, answer: { g4: "1", g5: "9" } },
+  ];
+  const g = S.AnswerLogic.grade(s, answers, facts(s));
+  const v1 = g.verdicts.get("winner|1");
+  assert.equal(v1.state, "known");
+  assert.deepEqual(Object.keys(v1.each), ["g1", "g2", "g3"]);
+  assert.deepEqual(v1.each.g1.right, ["20"]);
+  assert.equal(v1.each.g3.state, "off", "the game called off");
+  assert.equal(g.points.get("ann"), 1, "the 76ers right, the rest wrong or off");
+  assert.equal(g.points.get("bo"), 1);
+  assert.equal(G.isRight(q, v1, answers[0], answers.slice(0, 2), facts(s)), true);
+  // Episode 2 waits for its last game, with where each stands.
+  const v2 = g.verdicts.get("winner|2");
+  assert.equal(v2.state, "waiting");
+  assert.deepEqual(v2.live.each.g4.right, ["1"]);
+  // A walk's week k never grades a later week's games.
+  assert.deepEqual([...G.factsThrough(facts(s), 1).slate.keys()], [1]);
+  // Confidence: a right pick its rank, times the question's points.
+  const c = eachGame({ confidence: true, points: 2 });
+  const ranked = [
+    { playerId: "ann", question: "winner", episode: 1, answer: { g1: { answer: "20", confidence: 3 }, g2: { answer: "9", confidence: 2 }, g3: { answer: "1", confidence: 1 } } },
+    { playerId: "bo", question: "winner", episode: 1, answer: { g1: { answer: "5", confidence: 1 }, g2: { answer: "7", confidence: 3 } } },
+  ];
+  const cg = S.AnswerLogic.grade(c.s, ranked, c.facts(c.s));
+  assert.equal(cg.points.get("ann"), 6, "the 76ers at 3, times 2");
+  assert.equal(cg.points.get("bo"), 6, "7 at 3, times 2");
+  assert.equal(G.isRight(c.q, cg.verdicts.get("winner|1"), ranked[1], ranked, c.facts(c.s)), true);
+  // No slate handed over (a show's facts): it waits.
+  assert.equal(G.verdictOf(q, 1, S.AnswerLogic.facts(s)).state, "waiting");
+  void slate;
+});
+
+test("a question about each game's answers: its games' sides only, each rank once from 1 to its games; it closes at its last game's start", () => {
+  const { s, q, slate } = eachGame();
+  const faces = facesOf(slate, 1);
+  assert.equal(G.answerProblem(q, { g1: "20", g2: "9" }, faces), null);
+  assert.equal(G.answerProblem(q, { g9: "20" }, faces), "Answer only for its games");
+  assert.equal(G.answerProblem(q, { g1: "7" }, faces), "Pick one of the sides");
+  assert.equal(G.answerProblem(q, "20", faces), "An answer for each game: { game: answer }");
+  assert.equal(G.answerProblem(q, {}, faces), "Answer for a game");
+  const c = eachGame({ confidence: true });
+  assert.equal(G.answerProblem(c.q, { g1: { answer: "20", confidence: 3 }, g2: { answer: "9", confidence: 1 } }, faces), null);
+  assert.equal(G.answerProblem(c.q, { g1: { answer: "20", confidence: 3 }, g2: { answer: "9", confidence: 3 } }, faces), "Use each confidence once");
+  assert.equal(G.answerProblem(c.q, { g1: { answer: "20", confidence: 4 } }, faces), "Confidence is 1 to 3");
+  assert.equal(G.answerProblem(c.q, { g1: "20" }, faces), "Your pick and how sure you are: { answer, confidence }");
+  // The lock: the episode's own start (its first game) doesn't close it; its last game's start does (the server's lastStart).
+  ep(s, 1).airsAt = "2026-11-08T18:00:00.000Z";
+  const at = (iso) => Date.parse(iso);
+  const o = { lastStart: "2026-11-09T01:20:00.000Z" };
+  assert.equal(S.AnswerLogic.closed(s, q, 1, { now: at("2026-11-08T19:00:00.000Z") }), true, "without it, the episode's start");
+  assert.equal(S.AnswerLogic.closed(s, q, 1, { ...o, now: at("2026-11-08T19:00:00.000Z") }), false);
+  assert.equal(S.AnswerLogic.closed(s, q, 1, { ...o, now: at("2026-11-09T01:20:00.000Z") }), true);
+  ep(s, 1).lineupsLocked = true;
+  assert.equal(S.AnswerLogic.closed(s, q, 1, { ...o, now: at("2026-11-08T19:00:00.000Z") }), true, "locked early by hand");
+});

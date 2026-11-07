@@ -107,8 +107,15 @@ export interface QuestionView {
   shrink: { points: number; per: "episode" | "change" } | null;
   worth: number | null;
   stakeMost: number | null;
-  /** "person": asked about each person still in (A6), answered { castawayId: answer } for any of `faces`. */
-  each: "person" | null;
+  /** "person": asked about each person still in (A6), answered { castawayId: answer } for any of `faces`. L3 part 2f part 2:
+   *  "game", asked of each game of the episode, answered { eventId: answer } for any of `games` (ranked by confidence: each
+   *  { answer, confidence }), each pick locking as its own game starts. */
+  each: "person" | "game" | null;
+  /** L3 part 2f part 2, a question about each game: whether its picks are ranked by confidence (1 to the episode's games). */
+  confidence: boolean;
+  /** L3 part 2f part 2, a question about each game: the episode's games as linked, in the order they start, each with its sides
+   *  (a side answer's faces: the teams by name) and whether it's started (its pick locked, kept as it was); null for any other. */
+  games: { id: string; name: string | null; startsAt: string | null; started: boolean; sides: QuestionFace[] }[] | null;
   /** The episode it's answered for (asked each), or null (the game's own). */
   episode: number | null;
   /** open: yours to answer; behind: see Episode `catchUp` first (it says who's still in), or catch up on the game first (null);
@@ -179,7 +186,67 @@ const questionsOf = (state: LeagueState): Question[] => StateLogic.AnswerLogic.q
 
 /** Whether a question's answers name someone still in, or ask about each of them (A6): what you can answer depends on who's still in
  *  (and on what group), so it waits until you've seen the episode before it. */
-const namesSomeone = (q: Question) => Spec.NAMES.includes(q.answer) || Spec.RANKS.includes(q.answer) || q.answer === "chips" || q.answer === "pairs" || !!q.each;
+const namesSomeone = (q: Question) => Spec.NAMES.includes(q.answer) || Spec.RANKS.includes(q.answer) || q.answer === "chips" || q.answer === "pairs" || q.each === "person";
+
+/** L3 part 2f part 2: whether a game of an episode has started (its listing's start passed; a game with none, once it's on). */
+const gameStarted = (g: SportsGameFacts, now: number) => (g.listing?.startsAt ? Date.parse(g.listing.startsAt) <= now : g.status !== "pre");
+
+/** L3 part 2f part 2: a question about each game closes as its episode's last game starts (each pick at its own game's start before
+ *  then): that start, or null when a game's start isn't known (the episode's own lock, then). */
+function lastStartOf(facts: AnswerFacts, ep: number): string | null {
+  const games = facts.slate?.get(ep);
+  if (!games?.size) return null;
+  let last: string | null = null;
+  for (const g of games.values()) {
+    const at = g.listing?.startsAt;
+    if (!at) return null;
+    if (last === null || Date.parse(at) > Date.parse(last)) last = at;
+  }
+  return last;
+}
+
+/** L3 part 2f part 2: a question about each game's games at a window, as the view lists them (QuestionView.games). */
+function gamesView(facts: AnswerFacts, ep: number, now: number): NonNullable<QuestionView["games"]> {
+  return [...(facts.slate?.get(ep) ?? new Map<string, SportsGameFacts>())]
+    .map(([id, g]) => ({
+      id,
+      name: g.listing?.name ?? null,
+      startsAt: g.listing?.startsAt ?? null,
+      started: gameStarted(g, now),
+      sides: (g.listing?.sides ?? g.sides.map((x) => ({ id: x.id, name: null }))).map((x) => ({ id: x.id, name: x.name ?? "A team", photo: null })),
+    }))
+    .sort((a, b) => (a.startsAt ?? "").localeCompare(b.startsAt ?? "") || a.id.localeCompare(b.id));
+}
+
+/** L3 part 2f part 2: a question about each game's faces at a window, each game by event id with its sides. */
+function gameFaces(facts: AnswerFacts, ep: number): Map<string, Set<string>> {
+  return new Map([...(facts.slate?.get(ep) ?? new Map<string, SportsGameFacts>())].map(([id, g]) => [id, new Set(g.sides.map((x) => x.id))]));
+}
+
+/**
+ * L3 part 2f part 2: an answer to a question about each game with each started game's pick kept as it was (a pick there left out
+ * stays; one there for a game that started with none, or changed, is refused); taken back (null), only the games still to start.
+ * Null when nothing's left.
+ */
+function keepStarted(r: Read, q: Question, ep: number, value: unknown): unknown {
+  const games = r.facts.slate?.get(ep);
+  if (!games?.size) return value;
+  const given = value === null ? {} : value;
+  if (!given || typeof given !== "object" || Array.isArray(given)) return value;
+  const before = (r.rows.find((a) => a.playerId === r.h.playerId && a.question === q.id && a.episode === ep)?.answer ?? {}) as Record<string, unknown>;
+  const out: Record<string, unknown> = { ...(given as Record<string, unknown>) };
+  const now = r.now.getTime();
+  for (const [id, g] of games) {
+    if (!gameStarted(g, now)) continue;
+    const had = Object.prototype.hasOwnProperty.call(before, id);
+    if (Object.prototype.hasOwnProperty.call(given, id) && (!had || JSON.stringify(out[id]) !== JSON.stringify(before[id]))) {
+      throw new HttpError(409, `${g.listing?.name ?? "That game"} has started: its pick is locked`);
+    }
+    if (had) out[id] = before[id];
+    else delete out[id];
+  }
+  return value === null && !Object.keys(out).length ? null : out;
+}
 
 /** A pairs question's pairs (step A8): drawn from who was in at the game's start (AnswerLogic.startIn, as the grader draws them),
  *  the same every time, each with its key (its answers' { "a|b": who }). */
@@ -290,7 +357,9 @@ const triviaBefore = (r: Read, q: Question, ep: number) =>
  *  lock (step A7) keeps it open while you haven't seen it. */
 function isClosed(r: Read, q: Question, episode: number): boolean {
   const { airAt } = closing(r, q, episode);
-  return StateLogic.AnswerLogic.closed(r.h.state, q, episode, { now: r.now.getTime(), finale: r.finale?.number ?? null, airAt, mark: r.h.mark });
+  // L3 part 2f part 2: a question about each game, at its episode's last game's start.
+  const lastStart = q.each === "game" ? lastStartOf(r.facts, episode) : null;
+  return StateLogic.AnswerLogic.closed(r.h.state, q, episode, { now: r.now.getTime(), finale: r.finale?.number ?? null, airAt, mark: r.h.mark, lastStart });
 }
 
 /** How many of the game's episodes have started now (A9: when an answer is made), the schedule's air time for one the league
@@ -485,10 +554,12 @@ async function readQuestions(r: Read, episodeIn?: unknown): Promise<GameQuestion
       stakeMost: Spec.drawsOnBank(q, bank) ? Math.min(stakeMost(points, held, `${q.id}|${ep}`), typeof q.wager === "number" ? q.wager : Infinity) : null,
       pairs: q.answer === "pairs" && !behind ? pairsOf(h.state, q).map((p) => ({ key: p.key, faces: [castFace(view, p.ids[0]), castFace(view, p.ids[1])] })) : null,
       each: q.each ?? null,
+      confidence: q.confidence === true,
+      games: q.each === "game" ? gamesView(facts, ep, r.now.getTime()) : null,
       episode: each ? ep : null,
       status: closed ? "closed" : behind ? "behind" : "open",
       catchUp: behind && !catching ? seen : null,
-      closesAt: airAt,
+      closesAt: (q.each === "game" ? lastStartOf(facts, ep) : null) ?? airAt,
       // A pairs question's faces are its pairs'.
       faces: namesSomeone(q) && q.answer !== "pairs" && !behind ? facesFor(view, q, me, facts.formatGroups?.get(ep)) : null,
       draw: q.answer === "bracket" && !behind ? await drawView(view, h.state, q, ep || (StateLogic.startEpisode(h.state) ?? 1), facts.games) : null,
@@ -600,7 +671,8 @@ export async function answerQuestions(user: SessionUser, seasonId: string, leagu
       const legs = (given as { legs?: unknown } | null | undefined)?.legs;
       return Array.isArray(legs) && legs.includes(id);
     });
-  for (const [key, value] of Object.entries(body.answers)) {
+  for (const [key, said] of Object.entries(body.answers)) {
+    let value = said;
     const q = qs.find((x) => x.id === key);
     if (!q) throw new HttpError(400, `"${key}" isn't one of this game's questions`);
     let ep = 0;
@@ -621,6 +693,8 @@ export async function answerQuestions(user: SessionUser, seasonId: string, leagu
       const { at } = closing(r, q, ep);
       throw new HttpError(409, at === null ? `"${q.ask}" is closed` : `"${q.ask}" closed when Episode ${at} started`);
     }
+    // L3 part 2f part 2: a question about each game, each started game's pick kept as it was.
+    if (q.each === "game") value = keepStarted(r, q, ep, value);
     if (value !== null) {
       // Step C7 part 2: a line of a card the bot chooses waits for its card (its moment isn't known till then).
       if (Spec.cardWaiting(q, ep, r.facts.cardChoices?.get(ep))) throw new HttpError(409, CARD_NOT_OUT);
@@ -629,7 +703,9 @@ export async function answerQuestions(user: SessionUser, seasonId: string, leagu
       // Who it can name (still in, your team, a group); for a pairs question, each pair's "index:id" (A8); a trivia round (A13), each
       // of its questions' "id:option".
       const faces =
-        q.answer === "pairs"
+        q.each === "game"
+          ? gameFaces(r.facts, ep)
+          : q.answer === "pairs"
           ? new Set(pairsOf(h.state, q).flatMap((p) => p.ids.map((id) => `${p.key}:${id}`)))
           : Spec.isTrivia(q)
             ? new Set(roundKey(r, ep).flatMap((t) => t.options.map((o) => `${t.id}:${o}`)))
@@ -723,6 +799,8 @@ export async function answerQuestions(user: SessionUser, seasonId: string, leagu
       }
       const shut = rows.find((w) => isClosed({ ...r, now: new Date() }, w.q, w.ep));
       if (shut) throw new HttpError(409, `"${shut.q.ask}" closed as it was answered`);
+      // L3 part 2f part 2: and each game's pick of a question about each game, at its own game's start.
+      for (const w of rows) if (w.q.each === "game") keepStarted({ ...r, now: new Date() }, w.q, w.ep, w.value);
       await client.query("COMMIT");
     } catch (e) {
       await client.query("ROLLBACK").catch(() => {});

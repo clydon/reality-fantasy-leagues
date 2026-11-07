@@ -1138,7 +1138,7 @@ engine track; L brings each sport's data to it. Its screens wait for the UI trac
     categories and roto to 'now': built 2026-11-06, As built below); 2e, squares and a bracket question (the squares themselves, their pays from the facts, a
     bracket's faces on the server: built 2026-11-06, As built below); 2f, a week's slate (part 1, a week scored game by game and its
     results once all its games are over: built 2026-11-06, As built below; part 2, a question per game of an episode, each pick
-    locking at its own game's start). Each
+    locking at its own game's start: built 2026-11-06, As built below). Each
     part's proof a sports game played end to end on the recorded fixtures.
 - **L4. The formats, as the engine's pieces with sports data:** head-to-head, categories and roto (A11), best ball (A9),
   pick'em and pick a few (A4's questions with the sports settles), brackets (A8), squares (a sports way to `get`), live calls
@@ -3527,6 +3527,53 @@ in the placement corpus with the roto refusal kept on the 7 of them ranked roto)
   engine before against this tree's the same (2,856 reads each). The blind replays (`blind.js run` on each season loaded here): every
   game played through, Survivor 49 156 of 156, The Challenge 40 115 of 115, The Traitors 4 110 of 110.
 
+**L3 part 2f part 2 as built: a question about each game of the episode (2026-11-06, `sports`, not merged; no migration; HOSTING.md updated).**
+- **The spec** (`schema.js`): VOCAB `ask.each` `game` to 'now' (beside `person`); `confidence` a question key. `eachGameProblems`: who
+  wins each game (`side`, settled `final` `winner`), its total's or margin's range (`choice`) or the closest to it (`number`, `final`
+  `total` or `margin`); asked each episode about that one (no `over`, not once), closing at the start, no `settle.of` (each game is its
+  own), no share, rollover or shrink (a wager and a bot's call are refused as for any `each`). `confidence: true` on who wins only.
+  **An over/under on each game is refused** (each game needs its own line, the odds' when it opens: the main session's 11:05 AM call,
+  L3 part 3b's). Its words (`describe.js`): "Answer for each game of the week" (confidence: ranked by how sure you are, each right pick
+  its rank), and the lock line "Change a game's pick until that game starts: each locks on its own. Nobody sees anyone's until the
+  week's last game starts."
+- **The grade** (`answers.js`): `eachGameVerdict` over `facts.slate` (new: each episode's games by event id), each game graded as one
+  game's question is (`gameVerdict`, split out of `sportsVerdict`): known once every game of the episode is over (final, or off: that
+  game's picks void), its verdict `each` by event id; before, waiting with `live.each`. `pointsFor` and `isRight` take it through
+  `each`'s path (`pickOf` unwraps a confidence pick), confidence a right pick's rank times the points (`windowPoints` multiplies as for
+  any). `answerProblem` (`eachGameProblem`): `{ eventId: answer }` for the episode's games only (`faces` a Map of each game's sides),
+  each answer checked as the base question's, confidences each once from 1 to the episode's games. `factsThrough` cuts `slate` at k.
+- **The engine** (`state-logic.js`, one line): `AnswerLogic.closed` takes `o.lastStart` for a question about each game, the
+  episode's last game's start, in place of the episode's own (its first game's) start; the hand's overrides as they are.
+- **The server**: `leagueGames` `eachGame` (every episode's games by event id, a slate's or an episode's one, each with its `listing`:
+  name, start, sides by name, from `season_events`), handed over as `facts.slate` only to a game asking about each game
+  (`answer-points.ts` sportsGamesFor). `answers.ts`: the question closes at the last game's start (`lastStartOf`, its `closesAt`);
+  `keepStarted` keeps each started game's pick as it was (a change, or a first pick there, refused 409; taken back, only the games
+  still to start go), checked again at the write; the faces each game's sides; the view's `games` (each with its sides by name, its
+  start, whether it's started) and `confidence`. **This week doesn't move on at the week's first game** (it moves on at the
+  episode's results, which wait for its last game: part 1), so the question stays this week's to its last game.
+- **Checks.** `tests/sports-hook.test.js` (22): it plays (each answer kind; confidence) and the rest refused; graded game by game (a
+  game called off void, the week waiting till its last, the walk's cut), confidence a right pick's rank times 2; its answers checked
+  (games, sides, ranks) and its lock at the last start (the hand's early lock still wins). The placement corpus' 396 more (the ask
+  across every hold, score and rank, recorded from 6b8b1269's engine): 68 move, each as its twin asking who goes home, 22 playing now.
+  `check-stats-game.js` (53, all pass): a third season, a slate of the kept 76ers opener and a game tomorrow, a confidence pick'em
+  answered by a zt user's seat through `gameQuestions` and `answerQuestions` (open past its episode's own lock, its games in order with
+  their sides by name, closing at the last start; a pick for the game to come, the started game's kept; a change there, a first pick
+  there, a rank taken twice, another week's game and a side not in the game refused; taken back, the started pick kept), then closed
+  and graded game by game (ann's 76ers at 2, bo's Hawks at 2). GAME-PIECES.md's "One question about each game". 1,854 unit tests pass;
+  `tsc` clean.
+
+**L3 part 2f part 2 noticed, not fixed:**
+- **The questions screen says "answered for each one still in"** for a question about each game (its placeholder for `each`, in
+  src/new/show/questions.tsx): U1's screen for it (through impeccable) reads the view's `games` (each with its sides by name and
+  whether it's started), `confidence`, and `mine`.
+- **Others' picks for a game that's started stay hidden until the week's last game starts** (the question's one lock shows
+  everyone's): a pool that shows each game's picks as it starts would need the view to show them game by game. U1's call.
+- **No over/under on each game** until each game's line is read when the question opens (L3 part 3b, with "which line a game plays
+  by"); then `EACH_GAME_SETTLES_FOR.overUnder` and each game's line in the view.
+- **The bots answer nothing about each game** (their answers are a show's question's). A bots step.
+- **A game linked to the week after its picks opened** joins the question (its faces are the games as linked at each read): a pick
+  for it is open until it starts. Right for a makeup; a confidence pool's ranks then run to one more.
+
 **L3 part 2f part 1 noticed, not fixed:**
 - **A week's live points wait for its last game** on the server (its results are the week's): the phone's live lines (L2) are what
   show a week as it goes; U1's to say "so far".
@@ -4116,7 +4163,8 @@ A season made of a whole league's games, several an episode, shared by everyone 
     are over): `leagueGames`' `lines` for an episode of several games are its counts added up, so a categories matchup over
     a week reads them as it reads one game's (L4 part 1b's window is the episode); points per stat with a per-game bonus (100 yards,
     a double-double) score each game of `byGame` through `statLine` and add them (`statMoments` over each game, summed per holding).
-  - **A question per game of an episode** (pick'em over a week's slate, confidence points): `facts.games` is an episode's one game
+  - **A question per game of an episode** (built in L3 part 2f part 2: `each: 'game'`, confidence points, each pick locking at its own
+    game's start; an over/under on each game waits for L3 part 3b's lines) (pick'em over a week's slate, confidence points): `facts.games` is an episode's one game
     today; an episode of several hands `slate` (event id to facts) over, and a question asked over "every game this week" answers a
     side per game (`{ [eventId]: side }`, like a bracket's picks), graded per game against its facts, each pick locking at its own
     game's start (a lock per game inside an episode: L4 part 1a's `closedForPlay` reads `locksAt`, the episode's first game, today).
