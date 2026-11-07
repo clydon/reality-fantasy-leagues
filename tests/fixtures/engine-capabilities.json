@@ -2107,7 +2107,17 @@
         {
           "id": "who.host",
           "what": "A rotating host writes the questions",
-          "step": "A14"
+          "step": "A14",
+          "spec": {
+            "get": { "by": "none" },
+            "count": null,
+            "score": { "by": "answers" },
+            "rank": { "by": "total" },
+            "card": { "from": "host", "each": 3, "of": ["idolFound", "idolPlayed", "votesNegated", "wentOnJourney", "learnedOfAdvantage", "advantageTargeted", "rewardWin", "tribeImmunity", "individualImmunity"] },
+            "ask": [ { "id": "host", "ask": "The host's questions", "answer": "yesNo", "points": 1, "asked": "each", "card": true, "settle": { "by": "moment", "take": "happened" } } ]
+          },
+          "page": { "show": "Survivor", "season": 51, "rulebook": "survivor" },
+          "note": "a rotating host's questions (A14 part 6: card.from 'host'): each episode one of the seats, in turn (the order they joined, skipping anyone who left), chooses the card's three moments from the spec's list (each one research answers, so data still settles every line), kept by the server until the host's deadline (host_cards: host-cards.ts) and then stamped on the episode for everyone to answer; too few chosen, the rest from the list in turn"
         }
       ]
     },
@@ -4236,7 +4246,16 @@
       "step": "A14",
       "dials": [
         "who"
-      ]
+      ],
+      "spec": {
+        "get": { "by": "none" },
+        "count": null,
+        "score": { "by": "answers" },
+        "rank": { "by": "total" },
+        "card": { "from": "host", "each": 3, "of": ["idolFound", "idolPlayed", "votesNegated", "wentOnJourney", "learnedOfAdvantage", "advantageTargeted", "rewardWin", "tribeImmunity", "individualImmunity"] },
+        "ask": [ { "id": "host", "ask": "The host's questions", "answer": "yesNo", "points": 1, "asked": "each", "card": true, "settle": { "by": "moment", "take": "happened" } } ]
+      },
+      "note": "a rotating host's questions (A14 part 6: card.from 'host'): each episode one of the seats, in turn (the order they joined, skipping anyone who left), chooses the card's three moments from the spec's list (each one research answers, so data still settles every line), kept by the server until the host's deadline (host_cards: host-cards.ts) and then stamped on the episode for everyone to answer; too few chosen, the rest from the list in turn"
     },
     {
       "id": "s44",

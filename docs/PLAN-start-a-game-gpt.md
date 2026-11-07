@@ -148,8 +148,10 @@ episode research isn't sure of; tracker row s16; no migration), and so is part 4
 never in the state; each scoring when someone a seat without it holds goes home, its points added at the reveal; tracker rows s24 and
 who.secret), and so is part 5, the top scorer's twist (2026-11-06: `score.twist` on a game scored by moments, each episode's top
 scorer choosing one of the spec's twists for the next episode, every point or one moment's times its own, kept in `twist_choices`,
-migration 0211, until it closes, then filed and stamped on the episode; tracker row s40). A14's other parts are next (a rotating
-host's questions, a number from a vetted outside source), then a stop before A15. The live-sports plan is
+migration 0211, until it closes, then filed and stamped on the episode; tracker row s40), and so is part 6, a rotating host's
+questions (2026-11-06: `card.from: 'host'`, each episode one of the seats in turn choosing the card's moments, kept in `host_cards`,
+migration 0212, until the host's deadline, then filed and stamped on the episode; tracker rows s43 and who.host). A14's last part is
+next (a number from a vetted outside source), then a stop before A15. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5, at
 high since 2026-11-05; C2 at xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: folded in here as track L; its file keeps the details)
 and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track S here).
@@ -5574,6 +5576,101 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     tree's, 2,856 reads each, every one the same. Blind (`blind.js run`): every game played through and over on all five seasons, The
     Challenge 41 122, 40 116 and 39 124, Survivor 49 159 and The Traitors 4 113 (one more each: s40, a lineup, which plays on every
     show; nobody chooses in a replay, so it plays without a twist: Noticed).
+  **As built (A14 part 6, a rotating host's questions, 2026-11-06, on `engine`; migration 0212).** One session, after `lane.js sync
+  engine` (nothing new from master; 1624 tests). The host is a third way a card is chosen (C7: in turn, the AI's, now a host's), so
+  the piece is C7's: the lines, the stamp, the grading and the answers route are the card's, and what's new is whose turn it is, the
+  host's deadline and where the host's lines wait. No screen; no prompt change; every game that played before scores the same (only
+  a card with `from: 'host'` reads a host).
+  - **The piece** (game-spec `schema.js`): `card: { from: 'host', each, of, fallback, closes, hostAnswers }` on a game of questions
+    with questions on its card (`card: true`). The host chooses which of `of` (each one the show's and research answers: the
+    data-can-settle rule, as any card's list; the couch's own words for a moment stay the custom-moments path, the user's) make the
+    card's `each` lines that episode, in their order; how each line is asked is the questions on the card's (a yes or no, a count,
+    who), as for any card. `fallback` (shared with a card the bot chooses): `spec`, lines the host hasn't chosen in time are the list's
+    next in turn (the host's first: `rankedLines`), or `void`, only the host's count (`hostLines`; none chosen, no card that episode).
+    `closes`: the host has until 1 to `MAX_HOST_HOURS` (48) hours before the episode airs (12 by default, the card's out time; never
+    0, so everyone has time to answer). `hostAnswers`: true (the default) the host answers too, false they sit their own card out.
+    `HOST_CARD` the defaults; `cardOf` fills them in; `hostCard`, `chosenCard` (a card the bot or a host chooses); a line carries
+    `by: 'host'` and `hostAnswers`. Refused (`cardProblems`, `stagedProblems`, the words through impeccable's clarify): the moments
+    that count chosen by a host (`score.only: 'card'`: "A host would choose the moments their own team scores by"), in a stage ("The
+    host's turn goes round the whole game's players"), a deadline of 0 or past 48 hours or not whole, `hostAnswers` not true or
+    false, `closes` or `hostAnswers` on any other card. Settings both ways ride `settings.gameCard` (the card whole, as C7's).
+  - **Whose turn** (`HostLogic.hostAt`, `HostLogic.turn`): the game's seats in the order the league lists them (the order they
+    joined, so a seat that joins later comes last), each episode the one after the episode before's host, skipping anyone not in the
+    rotation (who left, a ghost: `SecretRoleLogic.seats`); the game's first episode, the first seat. A filed episode's host is its
+    stamp's (`episode.cardChoice.host`), so the turn goes on from whoever really hosted, a seat leaving or joining moving only what's
+    still to come; a seat taken out of the league altogether (no place in its order any more) has the turn go on from the host
+    before them (`HostLogic.walk`'s anchor). `HostLogic.after`: who hosts after an episode, each seat once.
+  - **The host's lines and their deadline** (`src/lib/server/host-cards.ts`, new; **`host_cards`, migration 0212**: one row a game's
+    episode, the host's lines while they choose them, then what's filed): `writeHostCard` keeps the host's lines (1 to `each` of the
+    list, none twice; none takes them back) while the episode is open and they host it, changed as often as they like; the upsert
+    carries the deadline, so lines reaching it after never land. `stampHostCards`, from `stampAirTimes` (after the air times its
+    deadline reads, before the twist) and again after a write's mutation (db.ts `withLeagueLock`), files each episode once the host's
+    time is up (`HostLogic.closed`: `closes` hours before it airs, or once it locks or has results; with no air time known, once its
+    host has chosen a whole card, else at the lock), in order: the host's lines if
+    whoever chose them still hosts it by the data then (`HostLogic.file`), else the fallback; filed once (an upsert that never
+    overwrites a filed row, and only from the row as read: lines written since leave it for the next read), then stamped on the episode (`episode.cardChoice`: `{ moments, host, how: 'host' }` or `{ fallback:
+    true, host, how: 'fallback' }`), public, as a card the bot chooses is (card-choices.ts now leaves a host's card to host-cards.ts).
+    A failure partway puts the state's stamps back. **Never in the state while open** (the state route sends it whole). **They
+    publish at the deadline, not at the host's submit:** everyone gets the card at the same moment, nothing anyone answers can then
+    change, and it's one filing the card's existing out rule already reads (Noticed has the other way). A game at your own pace files
+    nothing: every episode is stamped with the fallback. A game with no host costs no query.
+  - **The host's own answers:** `hostAnswers: true` (built as the default, recommended: the card is settled by data after the
+    episode, everyone sees it at the same moment, so choosing it is no advantage, and sitting out would cost the host a whole
+    episode's points, unevenly when the seats don't divide the season); `false`, the answers route refuses the host's answers to
+    their own card ("You chose this episode's card, so you sit it out."), its read marks the lines `sitOut` so they're no move due,
+    and the grader drops any (`AnswerLogic.grade`, by the episode's stamp: `HostLogic.sitsOut`).
+  - **The host route** (`GET /api/leagues/[leagueId]/host`, new; no screen): the card's rules (its moments with their words); the
+    episode being chosen now, its deadline, its host, whether you host it and your lines so far (only while you do); the turn after
+    it, each seat once (`turn`); each filed episode's host, how and lines. Nothing in it is a spoiler (who hosts goes by the seats,
+    never results; a card is out before its episode airs), so no seat mark. `POST { moments }`: your lines while you host the open
+    episode (refused for anyone else, by name: "It's Sam's turn to choose Episode 6's card"; a moment not on the list, twice, too
+    many; nothing open; already out).
+  - **Where it sits in the sequence:** step 1, the card's lines that episode (C7's), read by a game of questions' windows (step 2's
+    `windowLines`), graded on the server as any card's lines (`facts.cardChoices` now for a card the bot or a host chooses). Nothing
+    else in the sequence changes.
+  - **state-logic.js** (for the own-pace merge, the functions changed): `HostLogic` (new: `of`, `episodes`, `closesAt`, `closed`,
+    `hostAt`, `walk`, `after`, `turn`, `file`, `sitsOut`), `AnswerLogic.facts` (cardChoices for a host's card too), `AnswerLogic.cardChoices` (the
+    same), `AnswerLogic.grade` (a host sitting out), the exports.
+  - **Its fallbacks, from the start:** the host choosing nothing in time, or too few (the list in turn, or only theirs with `void`);
+    the host leaving before the deadline (the turn skips them, the next seat hosts with nothing chosen: the fallback); a choice by
+    someone the data no longer names as host (dropped for the fallback); a game at your own pace (the fallback every episode); a seat
+    who joins (the end of the turn).
+  - **The words** (describe.js `cardSentence` and `hostRules`, through impeccable's clarify: one verb, "chooses", never "writes"
+    (the host picks from the show's moments, never free text) or "picks" (a pick game's word); one noun, "the card", in the
+    description, How it works and every error): "Each episode, one of you hosts and chooses its card: three of won immunity, found an
+    idol and won reward." How it works adds "You take turns hosting, in the order you joined. Anyone who joins later goes last;
+    anyone who leaves is skipped.", "The host has until 12 hours before the episode airs to choose, and can change the card until
+    then. Only the host sees it until then; then everyone does.", "If the host chooses fewer than three in time, the rest come from
+    the list, in turn." (or "..., only theirs count. If they choose none, nothing scores that episode.") and "The host answers the
+    card too." (or "The host sits out the card they chose."). The answers route: "This episode's card isn't out yet. The host has
+    until 12 hours before it airs to choose it: answer it then." (with no air time known, "It's out once the host has chosen it");
+    a line not chosen in time: "The host didn't choose this one in time:
+    it doesn't count either way".
+  - **The tracker:** s43 plays ("Each week a different one of us writes 3 questions.": a game of questions on Survivor 51, three
+    yes-or-no lines a host chooses from nine of the show's moments) and so does who.host: 222 ✅ · 41 ⏳ (A14 2 waiting: s42 and
+    settle.outside, the outside number). `engine-capabilities.js --check` current; `game-specs-flag.js check`: PASS.
+  - **Proof:** `tests/host-card.test.js` (new, 5): the shape, defaults, words and settings both ways, and every refusal; whose turn
+    (the league's order, a stamped host, someone leaving, someone joining, a ghost, someone taken out of the league, a game starting
+    later; the turn after a seat);
+    what's filed (the host's, someone else's, nothing, nothing on the list) and the lines (too few with each fallback, the fallback, not
+    out); graded by hand (the host's lines, a short card filled from the list, the fallback; void; the host sitting out); when the
+    host's time is up (with no air time, a whole card chosen). `tests/card.test.js`, `tests/card-bot.test.js`: the card's refusals name the host. `tests/game-pieces-doc.test.js`:
+    the limit's row. `npm test` 1631; `tsc` clean. The shapes fixture: two host shapes (`q-card-host`, `q-card-host-void` with the host
+    sitting out, in outsideShapes; `CARD.HOSTED` the stamps as the server files them), 36 new reads, the 2,718 before them
+    byte-identical: 2,754. **API check:** `scripts/dev-test/check-host.js` (new), ALL PASS (27): a game of questions on a host's card
+    (48 hours, the host sitting out) through setGame with the show's ctx; the host route as each of three (jordan, the first seat,
+    hosts Episode 6; the deadline 48 hours before it airs; then riley, sam, jordan); the lines not answerable before it's out (the
+    host's words); riley choosing refused by name, jordan's bad choices refused (the couch's word, twice, three, not a list); his lines
+    kept, changed, secret (not in the state as read, not in riley's route); the deadline passes and the next read files them, stamped;
+    the answers route asks them in his order; jordan's own answers refused, his read marking them his to sit out; riley and sam answer; Episode 6's results through the
+    season sync score riley 2, sam 1, jordan nothing, and the Games tab ranks them; the played list; Episode 7 open with riley its
+    host; the flag's check. check-card.js, check-card-bot.js and check-twist.js again (the stamp chain): ALL PASS.
+  - **Code review** (high, before the commit): eight findings, five fixed: a card with no air time coming out only at the lock (no
+    time to answer: now out once its host has chosen it all); a host sitting out still shown the lines as a move due; the turn
+    restarting at the first seat when a host was taken out of the league (now from the host before them); a filing racing the host's
+    last write when an episode locks early (filed only from the row as read); the spec not saying a host card's defaults (`fullSpec`
+    now does). Three left (Noticed): the stamp's savepoint boilerplate, now four copies; the host's write reading its rows again; the
+    turn worked out again for each episode filed.
 - **A15. Live and replay** (with the watch along, docs/PLAN-couch-and-episode-night.md §6, and the sports branch's
   `GameClock`). It needs A7. The watch along is in its infancy (the user, 2026-10-28): its concept, how it's built and how it
   connects to games are all open, so A15 is where the games shape it, not only where they plug into it.
@@ -7891,6 +7988,52 @@ From R1 part 2 (2026-10-30):
   (R3, or whoever next works in Game settings.)
 - **For the hosting notes, at the merge:** `/api/me` (classic's sign-in and every classic load) now sends each league's settings, not its
   whole state (20-40 KB each): less Neon transfer than before. (The main folder: docs/HOSTING.md, with the merge.)
+
+From A14 part 6 (2026-11-06):
+- **For the user, in the design session (decide nothing a person sees), each built with a recommendation:**
+  1. **The host's own answers.** Built: both, as `hostAnswers`; true (the host answers too) the default. Option: false (the host
+     sits their card out: a whole episode's points lost each turn, unevenly when the seats don't divide the season). Recommended: true
+     (the card is settled by data after the episode and published to everyone at once, so choosing it is no advantage).
+  2. **When the host's card publishes.** Built: at the deadline (everyone gets it at the same moment; nothing answered can change).
+     Option: at the host's submit (more time to answer, but the host couldn't change it once anyone answered, and early hosts give
+     some weeks more time than others). Recommended: as built.
+  3. **The deadline's default.** Built: 12 hours before the episode airs (the card's out time), 1 to 48 a setting. On a show that
+     airs on consecutive nights the next card opens only once the episode before has results (below), so a host there gets a few
+     hours: Start a game should set fewer hours (or the user picks another rule).
+  4. **Too few chosen.** Built: the rest from the list in turn (`spec`, the default), or only the host's (`void`). Recommended: as built.
+  5. **Who hosts first, and the order.** Built: the league's order (the commissioner, usually, then the order they joined).
+     Options: a random order dealt once (a seed, as secret roles are dealt); the standings' last place hosting next. Recommended: as
+     built until a couch asks.
+  6. **What players are told.** The route has it all (whose turn, the deadline, your lines, the turn after, each episode's card); the
+     screens (U1) don't show it: a "your turn to host" move on the Games tab with the card's moments to choose from, and the turn on
+     the game's page, are U1's, through impeccable's shape.
+- **The next card opens only once the league has its episode**, which the season sync adds with the episode before's results, so
+  between one episode's deadline and its results nothing is open (the route's `turn` names who's next). A host on a weekly show has
+  about five days; on consecutive nights, hours. Opening the next episode's card at the deadline before (an episode the league
+  doesn't carry yet) needs the episode in the state ahead of its results. (U1, with the screens; or a request that needs it.)
+- **The host choosing how each line is asked** (a yes or no, a count, who, per line) isn't built: a line's answer kind is its
+  question's, read from the spec by every reader (the answers route, the grader, the sheet), so a kind that changes each episode is a
+  change to all of them. Today a spec asks each line one way, or two ways with two questions on the card. (A later part or a
+  request that needs it.)
+- **A host's card for the moments that count** (`score.only: 'card'`) is refused: the host would choose the moments their own team
+  scores by. A couch that wants it would need the host to sit out that episode's points, or the guardrail relaxed (the user's).
+- **Not in a stage yet**: the turn is the game's, a stage's league its own. Recommended: the turn goes on across stages (the game's
+  order, from the last host). (A12's stages, with a request.)
+- **A game at your own pace plays its fallback every episode** (its season has aired and its seats are at different weeks, so no
+  host can choose for everyone, and choosing knowing the results would be no question at all). With `void` it has no card at all:
+  Start a game should refuse a host's card at your own pace, or the own-pace merge decide. (Own pace.)
+- **A blind replay has no host**: blind.js plays the engine without the server's filing, so a host's card replays as its fallback
+  (the list in turn). The tracker's s43 adds no game to blind's corpus beyond a card in turn's. (Whoever next works on blind.js.)
+- **The host route's refusals are the server's English** ("It's Sam's turn to choose Episode 6's card"), the player's name as the
+  league has it; U1's screens say them through impeccable's clarify. (U1.)
+- **The code review's three left:** the stamp modules' savepoint-and-restore boilerplate is now four copies (twists.ts,
+  secret-roles.ts, card-choices.ts, host-cards.ts): a shared `withSavepoint` and snapshot helper would replace them (whoever next adds
+  a stamp); the host route's POST reads host_cards again after readyLeague's stamp read them (one query a write); `HostLogic.hostAt`
+  walks the game's episodes each call, so filing k episodes in one read is O(k x episodes x seats), small for a season. (A later
+  tidy, with the own-pace merge.)
+- **For the hosting notes, at the merge:** a read or write of a game with a host's card runs one query for its host_cards rows, and
+  the first read after each episode's deadline one upsert and one read back; none for any other game. (The main folder:
+  docs/HOSTING.md.)
 
 From A14 part 5 (2026-11-06):
 - **For the user, in the design session (decide nothing a person sees), each built with a recommendation:**

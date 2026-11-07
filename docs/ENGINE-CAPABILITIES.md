@@ -9,8 +9,8 @@ A row plays now when its spec passes the validator (`specProblems`, with what it
 needs waits (`specWaitsFor`); it then says the game in the engine's own words (`describeSpec`). A show the tracker has no
 rules for is checked against a show of its kind, and says so.
 
-**Now:** 220 ✅ · 43 ⏳ · 1 🆕 · 4 ❓ · 23 💬, of 291.
-**Waiting, by step:** A14 4 · A15 15 · L3 7 · L4 13 · G1 4.
+**Now:** 222 ✅ · 41 ⏳ · 1 🆕 · 4 ❓ · 23 💬, of 291.
+**Waiting, by step:** A14 2 · A15 15 · L3 7 · L4 13 · G1 4.
 
 ## The dials
 
@@ -133,7 +133,7 @@ Every watch-along game is a setting on these dials (the plan's "Where the engine
 | ✅ | Group slots: a solo draft, plus a +1 or +2 slot for a pair or team the show forms, riding with it while it lasts | A Weekly Lineup for The Challenge 41: everyone drafts 5 and starts 3 each episode, plus two slots for a pair or team the show forms, all season. Scored by The Challenge 41's rules. |
 | ✅ | A draft spread across the show's groups (one from each tribe), as the data has them when it drafts | A Weekly Lineup for The Challenge 41: everyone drafts 5 from across the teams and starts 3 each episode, all season. Scored by The Challenge 41's rules. |
 | ✅ | Secret roles among the players | An Outlast for The Traitors (US) 4: everyone drafts 3, all season. Each scores by how long they last: the last one standing carries you. Secret roles: two of you are secretly Traitors. A Traitor scores 2 points each time someone who isn't a Traitor has a person voted out. |
-| ⏳ | A rotating host writes the questions | A14 |
+| ✅ | A rotating host writes the questions | A game for Survivor 51: everyone answers three questions before each episode: whether each of the card's three moments happens, all season. Each episode, one of you hosts and chooses its card: three of got an idol or advantage, played an idol or advantage, played an idol or advantage that cancelled votes, went on a journey, learned of an idol or advantage privately, had an idol or advantage used against them, won the reward challenge, tribe won the immunity challenge and won the immunity challenge. A point for each right answer. |
 
 ### Shape over time
 
@@ -240,7 +240,7 @@ Requests that push the dials, from fantasy leagues, beyond them, and live with t
 | ✅ | s40 | Big Brother | Each week's top scorer picks a twist for next week. | who | A Weekly Lineup for Big Brother: everyone drafts 5 and starts 3 each episode, all season. Scored by Big Brother's rules. After each episode, its top scorer chooses a twist for the next one: Double points (every point counts double) or Half points (every point counts half). (Checked against Survivor's rules, a show of its kind.) |
 | ✅ | s41 | Survivor 51 | My brother watches a day late: let him lock later. | when | A game for Survivor 51: everyone answers one question before each episode: who goes home, all season. 2 points for each right answer. |
 | ⏳ | s42 | Dancing with the Stars 35 | Predict each episode's IMDb rating. | settle | A14: outside numbers from a vetted source: TVmaze's rating, not IMDb's |
-| ⏳ | s43 | Survivor 51 | Each week a different one of us writes 3 questions. | who | A14 |
+| ✅ | s43 | Survivor 51 | Each week a different one of us writes 3 questions. | who | A game for Survivor 51: everyone answers three questions before each episode: whether each of the card's three moments happens, all season. Each episode, one of you hosts and chooses its card: three of got an idol or advantage, played an idol or advantage, played an idol or advantage that cancelled votes, went on a journey, learned of an idol or advantage privately, had an idol or advantage used against them, won the reward challenge, tribe won the immunity challenge and won the immunity challenge. A point for each right answer. |
 | ✅ | s44 | Survivor 51 | Seal a winner pick before the premiere; every change costs a point. | score | A game for Survivor 51: everyone answers one question before the finale: who wins, all season. 10 points for each right answer. Changing your call once it starts costs points. |
 | ❓ | s45 | Survivor 51 | A season of mini-games: bingo one week, a draft the next. | shape | stages that take turns all season (bingo one episode, a draft the next, again and again: a new piece, a fresh copy of each stage every other episode on part 2's copies, for any season's length), or the season written out as stages (MAX_STAGES 6 can't hold a season of one-episode stages; raising it to a season's length is a league per episode, each read by every overall); a season of mini-games one after another plays since A12 part 4a (shape.minis); the user's (A12 part 4a's Noticed) |
 | ✅ | s46 | Survivor 51 | For 10 random pairs, who outlasts whom? | what | A game for Survivor 51: everyone answers one question before it starts: who outlasts whom, all season. A point for each right answer. |

@@ -888,6 +888,110 @@ class TwistLogic {
   }
 }
 
+// A14 part 6 (docs/PLAN-start-a-game-gpt.md): a rotating host's questions. A card a host writes (game-spec `card.from: 'host'`): each
+// episode one of the game's seats, in turn, writes its lines from the card's list (the show's moments research answers: the
+// data-can-settle rule holds, the host only chooses which), and everyone answers them as the questions on the card (C7: askOf, a
+// question for each line, graded by its moment that episode). The turn goes round the seats in the order the league lists them (the
+// order they joined: a seat that joins later comes at the end), from the one after the episode before's host, skipping anyone who
+// left. The host's lines live in host_cards (src/lib/server/host-cards.ts) while they write them, never in the state; once the
+// host's time is up (`closes` hours before the episode airs, or once it locks or has results) the first read or write files what the
+// card plays (file) and stamps it on the episode (`episode.cardChoice`: { moments, host, how }, or { fallback: true, host, how }),
+// public, as a card the bot chooses is; filed once, it stands, so a line answered never changes its moment.
+class HostLogic {
+  /** The game's card when a host writes it ({ from: 'host', each, of, fallback, closes, hostAnswers }), or null. */
+  static of(state){
+    const c = Spec.cardOf(gameOf(state));
+    return Spec.hostCard(c) ? c : null;
+  }
+  /** The episodes the card plays: the game's, from its first to its end. */
+  static episodes(state){
+    const start = startEpisode(state);
+    if(start === null) return [];
+    const last = lastEpisode(state);
+    return (state.episodes || []).filter(e => inPlay(state, e.number) && (last === null || e.number <= last)).map(e => e.number).sort((a, b) => a - b);
+  }
+  /** When the host's time for episode `n`'s card is up (ms): `closes` hours before it airs, or null when its air time isn't known. */
+  static closesAt(state, n){
+    const cfg = HostLogic.of(state);
+    const ep = (state.episodes || []).find(e => e.number === n);
+    return cfg && ep && ep.airsAt ? Date.parse(ep.airsAt) - cfg.closes * HOUR_MS : null;
+  }
+  /** Whether the host's time for episode `n` is up: at closesAt, or once it locks or has results. With no air time known there's no
+   *  deadline to wait for, so it's up once its host has chosen a whole card (`choice`, the one stored: { playerId, moments }), else at
+   *  the lock (the code review's: waiting for the lock alone left nothing to answer). */
+  static closed(state, n, now, choice){
+    const ep = (state.episodes || []).find(e => e.number === n);
+    if(!ep) return false;
+    if(EpisodeLogic.hasResults(ep) || closedForPlay(ep, now)) return true;
+    const at = HostLogic.closesAt(state, n);
+    if(at === null){
+      const cfg = HostLogic.of(state);
+      return !!(cfg && choice && choice.playerId === HostLogic.hostAt(state, n) && Spec.hostLines(cfg.of, cfg.each, { moments: choice.moments }).length >= Math.min(cfg.each, cfg.of.length));
+    }
+    return (now === undefined ? Date.now() : now) >= at;
+  }
+  /** Who hosts episode `n` (a seat's id), or null (an episode the card doesn't play, or nobody playing). A filed episode's host is its
+   *  stamp's; any other's, the seat after the episode before's host in the league's order (the first episode's, the first seat),
+   *  skipping anyone not in the rotation (who left, a ghost). */
+  static hostAt(state, n){
+    if(!HostLogic.of(state)) return null;
+    const { hosts } = HostLogic.walk(state, n);
+    const last = hosts[hosts.length - 1];
+    return last && last[0] === n ? last[1] : null;
+  }
+  /** Each episode's host through `n` ([[episode, host]], in order) and where the turn goes on from: the last of them the league still
+   *  lists (a seat taken out of the league altogether has no place in its order, so the turn goes on from the one before them: the
+   *  code review's). */
+  static walk(state, n){
+    const listed = new Set((state.players || []).map(p => p.id));
+    const hosts = [];
+    let anchor = null;
+    for(const k of HostLogic.episodes(state)){
+      if(k > n) break;
+      const ep = state.episodes.find(e => e.number === k);
+      const stamp = ep && ep.cardChoice;
+      const host = stamp && typeof stamp === 'object' && stamp.host !== undefined ? stamp.host : (HostLogic.turn(state, anchor)[0] || null);
+      hosts.push([k, host]);
+      if(host !== null && listed.has(host)) anchor = host;
+    }
+    return { hosts, anchor };
+  }
+  /** Who hosts after episode `n`, in turn, every seat once (the next first). */
+  static after(state, n){ return HostLogic.turn(state, HostLogic.walk(state, n).anchor); }
+  /** The turn after seat `id` (null: from the start), every seat in the rotation once, in the league's order: the next host first,
+   *  `id` itself last when it's still in it. */
+  static turn(state, id){
+    const all = (state.players || []).filter(p => !isGhost(p)).map(p => p.id);
+    const seats = new Set(SecretRoleLogic.seats(state));
+    const i = id === null || id === undefined ? -1 : all.indexOf(id);
+    const out = [];
+    for(let k = 1; k <= all.length; k++){
+      const next = all[(i + k) % all.length];
+      if(seats.has(next)) out.push(next);
+    }
+    return out;
+  }
+  /** What episode `n`'s card plays once the host's time is up, changing nothing: the host's lines, { moments (as hostLines reads
+   *  them), host, how: 'host' }, when `choice` ({ playerId, moments }, the one stored, or null) is its host's by the data now and names
+   *  one of the list's moments at least; else { fallback: true, host, how: 'fallback' } (the list in turn, or none). */
+  static file(state, n, choice){
+    const cfg = HostLogic.of(state);
+    const host = HostLogic.hostAt(state, n);
+    if(cfg && choice && host && choice.playerId === host){
+      const moments = Spec.hostLines(cfg.of, cfg.each, { moments: choice.moments });
+      if(moments.length) return { moments, host, how: 'host' };
+    }
+    return { fallback: true, host, how: 'fallback' };
+  }
+  /** Whether `playerId` sits out episode `n`'s card: they host it and the card says the host doesn't answer their own questions. */
+  static sitsOut(state, n, playerId){
+    const cfg = HostLogic.of(state);
+    if(!cfg || cfg.hostAnswers !== false) return false;
+    const c = cardChoiceAt(state, n);
+    return !!c && c.host === playerId;
+  }
+}
+
 // Thin dispatcher -- see "The pieces" comment near the top of this file. Delegates to the scorer the
 // spec's score.by names (scorePiece): EliminationOrderScoringStrategy (the boot order: Outlast),
 // ActiveRosterEventScoringStrategy (moments: Weekly Lineup, best ball), PickEmScoringStrategy (who
@@ -7600,8 +7704,8 @@ class AnswerLogic {
       groupNames: new Map((state.tribes || []).map(t => [t.id, t.name])),
       phases, windows, seen,
       startIn: AnswerLogic.startIn(state),
-      // C7 part 2: a card the bot chooses, each episode's choice (none for any other game).
-      ...(Spec.botCard(Spec.cardOf(gameOf(state))) ? { cardChoices: AnswerLogic.cardChoices(state) } : {}),
+      // C7 part 2: a card the bot chooses, each episode's choice (none for any other game); A14 part 6, or a host writes.
+      ...(Spec.chosenCard(Spec.cardOf(gameOf(state))) ? { cardChoices: AnswerLogic.cardChoices(state) } : {}),
       // The finalists' jury votes (A8: the split), once the season is over.
       jury: ended ? new Map(eps.flatMap(e => (e.events || []).filter(ev => Number.isInteger(ev.juryVotes)).map(ev => [ev.castawayId, ev.juryVotes]))) : null,
     };
@@ -7622,10 +7726,11 @@ class AnswerLogic {
       .sort((a, b) => { for(let i = 0; i < a.k.length; i++){ if(a.k[i] !== b.k[i]) return b.k[i] - a.k[i]; } return 0; })
       .map(x => x.id);
   }
-  // C7 part 2: a card the bot chooses, each episode's choice as the league's stamp has it (cardChoiceAt), for the grader.
+  // C7 part 2: a card the bot chooses, each episode's choice as the league's stamp has it (cardChoiceAt), for the grader. A14 part 6:
+  // a card a host writes, the same (its stamp names the host too).
   static cardChoices(state){
     const card = Spec.cardOf(gameOf(state));
-    if(!Spec.botCard(card)) return undefined;
+    if(!Spec.chosenCard(card)) return undefined;
     const out = new Map();
     (state.episodes || []).forEach(ep => {
       const c = cardChoiceAt(state, ep.number);
@@ -7772,12 +7877,15 @@ class AnswerLogic {
       return starts.get(q.id);
     };
     const opens = (q, ep) => (q.asked === 'each' ? inPlay(state, ep) : windows(q).set.has(ep) && inPlay(state, ep));
+    // A14 part 6: a host who sits their own card out (card.hostAnswers false): their answers to its lines that episode earn nothing.
+    const hostSits = !!(HostLogic.of(state) && HostLogic.of(state).hostAnswers === false && f.cardChoices instanceof Map);
     (answers || []).forEach(a => {
       const q = qs.get(a.question);
       if(!q || !seats.has(a.playerId)) return;
       // An answer is for its window (the episode it opens at; 0 asked once): one that opens nowhere earns nothing.
       const ep = q.asked === 'once' ? 0 : a.episode;
       if(q.asked !== 'once' && !opens(q, ep)) return;
+      if(hostSits && Spec.isCardLine(q) && (f.cardChoices.get(ep) || {}).host === a.playerId) return;
       const key = q.id + '|' + ep;
       if(!groups.has(key)) groups.set(key, { q, ep, list: [] });
       const row = { playerId: a.playerId, answer: a.answer };
@@ -9191,7 +9299,7 @@ return {
   // EliminationOrderScoringStrategy/PickEmScoringStrategy are those pieces,
   // exported directly for code that wants to bypass the dispatch.
   Core, ScoringLogic, DraftLogic, RosterLogic, WaiverLogic, EpisodeLogic, BetLogic, FinaleLogic, AnswerLogic, PickEmLogic, BlindDraftLogic, ActiveRosterLogic, GroupSlotLogic, SetupLogic, RevealLogic, SpoilerLogic, GhostLogic, Migrations,
-  SpreadLogic, DrawLogic, PriceLogic, BudgetLogic, MarketLogic, AuctionLogic, KeeperLogic, KnockoutLogic, MatchupLogic, WeekLogic, TeamLogic, HandicapLogic, StageLogic, BountyLogic, SecretRoleLogic, TwistLogic, draftFits, draftFitsFor, rankKey,
+  SpreadLogic, DrawLogic, PriceLogic, BudgetLogic, MarketLogic, AuctionLogic, KeeperLogic, KnockoutLogic, MatchupLogic, WeekLogic, TeamLogic, HandicapLogic, StageLogic, BountyLogic, SecretRoleLogic, TwistLogic, HostLogic, draftFits, draftFitsFor, rankKey,
   SnakeDraftStrategy, StagesScoringStrategy, EliminationOrderScoringStrategy, NoDraftStrategy, PickEmScoringStrategy, BlindDraftStrategy, ActiveRosterEventScoringStrategy, DrawDraftStrategy, AuctionDraftStrategy
 };
 

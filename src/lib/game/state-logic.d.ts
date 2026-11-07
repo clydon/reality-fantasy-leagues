@@ -939,6 +939,20 @@ declare const StateLogic: {
     chooserAt(state: LeagueState, n: number, series?: unknown[]): { playerId: string } | { playerId: null; why: "first" | "waiting" | "tie" | "nobody" };
     file(state: LeagueState, n: number, choice: { playerId: string; twist: string } | null, series?: unknown[]): { id: string | null; by: string | null; how: "chosen" | "fallback" };
   };
+  /** Step A14 part 6: a rotating host's questions (card.from 'host'): the host's lines kept in the server's own table (host-cards.ts)
+   *  until the host's time is up, then filed and stamped on the episode (episode.cardChoice) for the card's questions to read. */
+  HostLogic: {
+    of(state: LeagueState): { from: string; each: number; of: string[]; fallback: "spec" | "void"; closes: number; hostAnswers: boolean } | null;
+    episodes(state: LeagueState): number[];
+    closesAt(state: LeagueState, n: number): number | null;
+    closed(state: LeagueState, n: number, now?: number, choice?: { playerId: string | null; moments: string[] } | null): boolean;
+    hostAt(state: LeagueState, n: number): string | null;
+    walk(state: LeagueState, n: number): { hosts: [number, string | null][]; anchor: string | null };
+    after(state: LeagueState, n: number): string[];
+    turn(state: LeagueState, id: string | null): string[];
+    file(state: LeagueState, n: number, choice: { playerId: string; moments: string[] } | null): { moments: string[]; host: string; how: "host" } | { fallback: true; host: string | null; how: "fallback" };
+    sitsOut(state: LeagueState, n: number, playerId: string): boolean;
+  };
   /** Step A11 part 1: a draft's race (rank.race: the first to N points wins, and the game ends there) and players knocked out
    *  (rank.cut), worked out from the data on every read. `out`: the last episode that counts for someone knocked out. */
   KnockoutLogic: {

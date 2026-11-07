@@ -592,8 +592,13 @@ episode."
   ranks the moments for it (could go either way, matters to where the season is; those that can't happen in it last), and the card
   is the first `each` of its list in that order: "Each episode's card is four of ..., picked by the AI from what's in play that
   episode. It's out by 12 hours before the episode airs. If the AI hasn't picked by then, it's the next four in turn."
-- `fallback` (a card the bot chooses only): `spec`, the list's next `each` in turn (the default), or `void`, that episode has no
-  card ("nothing scores for it either way"), when the AI hasn't picked by the time the card's out.
+- Or `host` (A14 part 6, a rotating host's questions): each episode one of you hosts and chooses the card's lines from its list,
+  in their order: "Each episode, one of you hosts and chooses its card: three of won immunity, found an idol and won reward." The
+  host only chooses which of the list's moments (each one research answers, so data still settles every line); how each line is
+  asked is the questions on the card's, as for any card. Below.
+- `fallback` (a card the bot chooses, or a host): `spec`, the list's next `each` in turn (the default), or `void`, that episode has
+  no card ("nothing scores for it either way"), when the AI hasn't picked by the time the card's out; for a host, the lines they
+  haven't chosen in time: the rest from the list in turn, or only theirs count (none chosen: nothing scores that episode).
 - `each`: its lines each episode, 1 to 12. `of`: the moments it's drawn from, 1 to 40, at least `each`, none twice; each one the
   show's and one research answers (the data-can-settle rule: "Cried is the couch's word: research doesn't answer it, so data can't
   settle it").
@@ -605,6 +610,22 @@ episode."
   its fallback, filed then so it stands. Each league's episodes are stamped with it as the air times are (`episode.cardChoice`), so
   everything reads it from the league; once out it never changes, so a line answered never changes its moment. Before it's out, its
   lines wait ("This episode's card isn't out yet. It's out by 12 hours before the episode airs: answer it then.").
+
+**A card a host chooses** (A14 part 6): `card: { from: "host", each, of, fallback, closes, hostAnswers }`.
+
+- **Whose turn:** the game's seats in the order the league lists them (the order they joined: a seat that joins later comes
+  last), each episode the one after the episode before's host, skipping anyone who left (and a ghost); the first episode's, the
+  first seat (`HostLogic.hostAt`). A filed episode's host is its stamp's, so the turn goes on from whoever really hosted.
+- **The host's time:** `closes`, 1 to 48 hours before the episode airs (12 by default, the card's out time); at the lock or once it
+  has results when its air time isn't known. Until then the host's lines are theirs alone (`host_cards`, never the state) and can
+  change; then the first read or write files the card (`HostLogic.file`: the host's lines if whoever chose them still hosts it by
+  the data, else the fallback) and stamps it on the episode (`episode.cardChoice`: `{ moments, host, how }`), public; filed once,
+  it stands, so a line answered never changes its moment. A game at your own pace plays its fallback every episode.
+- **The host's own answers:** `hostAnswers: true` (the default) the host answers the card too; `false`, they sit out the card they
+  chose (their answers to it refused and earning nothing). The defaults are the user's.
+- Refused, in our check's words: the moments that count chosen by a host ("A host would choose the moments their own team scores
+  by: a card a host chooses is for questions everyone answers"), in a stage ("The host's turn goes round the whole game's players"),
+  a deadline at the airtime or more than 48 hours before, and `closes` or `hostAnswers` on any other card.
 
 Two things read it:
 
@@ -803,8 +824,10 @@ each other stay hidden until the lock; what the players decide changes the game,
 - **The top scorer's twist** `score.twist: { of, who, by, closes, fallback }` (A14 part 5, above under "How it scores"): each
   episode's top scorer chooses one of the spec's twists for the next episode (every point, or one moment's, times its own), secret
   until it closes, then filed on the episode for everyone; data still settles every point.
-- Still to build (A14's later parts): a rotating host (choosing among data-settled questions), numbers from a vetted outside source
-  (an episode's TVmaze rating, settled once and stored).
+- **A rotating host's questions** `card: { from: "host", ... }` (A14 part 6, above under "A new card each week"): each episode one
+  of you, in turn, chooses the card's moments from the spec's list, and everyone answers them as the card's questions; the host's
+  lines secret until the deadline, then filed on the episode; data still settles every line.
+- Still to build (A14's later part): numbers from a vetted outside source (an episode's TVmaze rating, settled once and stored).
 
 ---
 
@@ -1000,7 +1023,7 @@ one of seven shapes (`schema.js` `noPlace`; `typeOf` names the shape the screens
 
 | Step | The pieces, and what each needs from the steps before it |
 |---|---|
-| 1. Hold | a draft (its order with its ownership, a draw, or an auction for castaways nobody else can have) counting its whole team, a lineup or its best few, its waiver moves each exclusive or shared (shared beside an exclusive draft, not beside a stock market); a pick each episode (1 to 8, cycling, never repeating or any: C5); nothing; a bingo card. Beside any of them, a new card each week (C7), read by a game of questions' questions on it or the moments that count |
+| 1. Hold | a draft (its order with its ownership, a draw, or an auction for castaways nobody else can have) counting its whole team, a lineup or its best few, its waiver moves each exclusive or shared (shared beside an exclusive draft, not beside a stock market); a pick each episode (1 to 8, cycling, never repeating or any: C5); nothing; a bingo card. Beside any of them, a new card each week (C7: in turn, the AI's or, since A14 part 6, a host's, one of you each episode), read by a game of questions' questions on it or the moments that count (never a host's) |
 | 2. Lines | a place, the whole team held; moments, a lineup or best few held, or (C5) a pick each episode held, only some moments or each a hit; a bounty (A14 part 3) beside a draft's place or moments, not a stock market's, not beside cuts; secret roles (A14 part 4) beside a draft's place or moments, not a stock market's, not in a stage, not beside cuts, a race, head to head or weeks won; a pick staying in (or scoring), one pick held; answers, nothing held, each a question a game of questions plays (or the show's calls alone); bingo lines, a card held. Beside them: a draft's finale predictions and (part 4c) its own questions, each one a draft plays (a game of questions' kind, or a person from your own team), not a stake of any of your points, not beside its cuts or a race, not beside a stock market by its worth |
 | 3 and 4. Multipliers, combine | each checked where it's said (`specProblems`): a captain on a lineup, points by when on moments, the top scorer's twist on moments (A14 part 5: a lineup, best ball or a pick scored by moments; not a stock market's, not beside cuts or a race, not in a stage), parlays on a game of questions, how a holding joined on a draft's team (a lineup, best ball or an Outlast not in reverse, not a stock market) whose waivers make that move; best ball's best n; a question's share, rollover, shrink, wager (since C6 beside any of them, at even money or the pool's odds, and as a parlay's leg) and the bot's call (not with a wager), combining in the sequence's order (the stake, a line's worth, the multipliers, the share) |
 | 5 and 6. The week's result, rank | weeks won (C5) wherever head to head plays; a pick scored by moments by its points, head to head or weeks won; a running total on any game's (a game of questions' with a bank, C6: its start a line before the first, and out when it runs out, so last one standing too; a pool's by its points with no lives: its series of totals, since C2 part 4b; else its streak or who's still standing); last one standing on a draft's or a game of questions' cuts, or a pool's or a game of questions' lives, and a draft's teams on their cuts (part 4b); a race on a draft's or a game of questions' totals, or a draft's teams'; head to head on a draft's, a game of questions' or a pool's totals, with nobody racing, cut or losing a life; teams of players and a handicap on any of those totals (a draft's teams knocked out or racing; a game of questions' and a pool's by their points or head to head); worth, a stock market's on a lineup; co-op, a game of questions' lives together; the show's calls and bingo lines, most wins |
@@ -1042,7 +1065,9 @@ tracker row (`docs/ENGINE-CAPABILITIES.md`, p13 to p25) with the step that bring
   still choose), in a stage, and chosen at your own pace (each seat's own week) are later.
 - **A ticket's legs are one window's**: a ticket is built from questions asked when it is, each window its own (a ticket across
   episodes, or a leg that's a pot split, a ranking or a question about each person, isn't built).
-- **A card is the show's moments** (C7): in turn, or chosen by the AI before each episode (part 2); the bot writing new questions
+- **A card is the show's moments** (C7): in turn, chosen by the AI before each episode (part 2) or by a host, one of you each
+  episode (A14 part 6: questions on it only, never the moments that count, not in a stage; the host choosing how each line is
+  asked, a different answer kind each episode, waits); the bot writing new questions
   that research then answers is the custom-moments path, the user's; a card's lines ride no parlay, life or question about the
   players' own answers, and a question on it is a game of questions' (not a draft's own).
 - **Refused for their own reasons** (not a menu: the sequence wouldn't make them sensible): co-op on a draft (a night needs a
@@ -1187,6 +1212,7 @@ picks x cast members that they think will achieve as many objectives as possible
 | A bank | 1 to 10,000 to start |
 | A ticket | 2 to 6 legs; pays up to 1,000 times its stake |
 | A card | 1 to 12 lines an episode, from 1 to 40 moments |
+| A host's card | the host's deadline 1 to 48 hours before the episode airs |
 
 (`tests/game-pieces-doc.test.js` checks this table against the schema's limits, and that every value the schema plays now is
 named in this guide.)

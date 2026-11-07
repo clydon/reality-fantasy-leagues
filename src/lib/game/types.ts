@@ -219,7 +219,7 @@ export interface Episode {
   formatGroups?: EpisodeFormatGroups;
   /** Step C7 part 2: a card the bot chooses, its choice for this episode as it stood when the card came out (stamped with the air
    *  times from card_choices: card-choices.ts), or { fallback: true } once it came out without one; none while it isn't out. */
-  cardChoice?: { moments?: string[]; cannot?: string[]; fallback?: true };
+  cardChoice?: { moments?: string[]; cannot?: string[]; fallback?: true; host?: string | null; how?: "host" | "fallback" };
   /** Step A14 part 3, stamped on every read and write for a game with a bounty (vote-records.ts; the engine only reads it): who
    *  voted for whom in the episode as its research says, by the league's castaway ids, and whether research is sure of it. */
   voteRecord?: { sure: boolean; why?: string; votes: [string, string][]; out: string[] };

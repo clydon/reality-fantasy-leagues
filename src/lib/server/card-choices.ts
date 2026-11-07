@@ -19,6 +19,8 @@ import type { LeagueState } from "@/lib/game/types";
 /** Stamps a league's episodes with its card's choices (db/card-research.js stampLeague). A failure is logged and leaves the stamps
  *  it had. */
 export async function stampCardChoices(db: Pool | PoolClient, state: LeagueState, now = Date.now()): Promise<void> {
+  // Step A14 part 6: a card a host writes is stamped from the league's own rows (host-cards.ts), never the season's.
+  if (Spec.hostCard(Spec.cardOf(StateLogic.gameOf(state)))) return;
   if (!Spec.botCard(Spec.cardOf(StateLogic.gameOf(state))) && !state.episodes?.some((e) => e.cardChoice)) return;
   const inWrite = "release" in db && typeof db.release === "function";
   try {

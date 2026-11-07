@@ -147,6 +147,8 @@ function cardPhrase(q, c) {
 /** C7: the card itself, as the sentence and How it works say it: what it's drawn from and how. */
 function cardSentence(c, w) {
   const list = c.of.map(momentWord(w));
+  // A14 part 6: a card a host chooses (its words through impeccable's clarify, 2026-11-06: "chooses", never "writes" or "picks").
+  if (c.from === 'host') return `Each ${w.part}, one of you hosts and chooses its card: ${say(c.each)} of ${listOf(list)}.`;
   if (c.each >= c.of.length) return `Each ${w.part}'s card: ${listOf(list)}.`;
   // C7 part 2: a card the bot chooses (its words through impeccable's clarify, 2026-11-06).
   if (c.from === 'bot') {
@@ -156,6 +158,19 @@ function cardSentence(c, w) {
     return `Each ${w.part}'s card is ${say(c.each)} of ${listOf(list)}, picked by the AI from what's in play that ${w.part}. It's out by ${CARD_OUT_HOURS} hours before the ${w.part} airs. If the AI hasn't picked by then, ${late}.`;
   }
   return `Each ${w.part}'s card is the next ${say(c.each)} of ${listOf(list)}, in turn, so it's new each ${w.part}.`;
+}
+/** A14 part 6: a card a host chooses, How it works' rules after its sentence: the turn, the deadline, too few, the host's own answers. */
+function hostRules(c, w) {
+  if (!c || c.from !== 'host') return [];
+  const n = say(c.each);
+  return [
+    'You take turns hosting, in the order you joined. Anyone who joins later goes last; anyone who leaves is skipped.',
+    `The host has until ${c.closes} ${c.closes === 1 ? 'hour' : 'hours'} before the ${w.part} airs to choose, and can change the card until then. Only the host sees it until then; then everyone does.`,
+    c.fallback === 'void'
+      ? `If the host chooses fewer than ${n} in time, only theirs count. If they choose none, nothing scores that ${w.part}.`
+      : `If the host chooses fewer than ${n} in time, the rest come from the list, in turn.`,
+    c.hostAnswers === false ? 'The host sits out the card they chose.' : 'The host answers the card too.',
+  ];
 }
 /** C7: the questions a ticket is built from, as the spec names them (a question on the card once, for all its lines). */
 const legsOf = (q, all) => (isObj(q.settle) && Array.isArray(q.settle.of) ? q.settle.of : []).map((id) => all.find((x) => x.id === id)).filter(Boolean);
@@ -1259,7 +1274,7 @@ function rulesOf(s, w) {
     const card = cardOf(s);
     const asked = s.ask.filter((q) => !isTicket(q)).reduce((n, q) => n + questionLines(q, s), 0);
     rules.push(`${teamParts(s) ? 'No draft.' : 'No draft, no team.'} Answer ${say(asked)} ${asked === 1 ? 'question' : 'questions'}${each ? '' : ' before it starts'}:`);
-    if (card && card.of.length && Number.isInteger(card.each) && s.ask.some(isCardQuestion)) rules.push(cardSentence(card, w));
+    if (card && card.of.length && Number.isInteger(card.each) && s.ask.some(isCardQuestion)) rules.push(cardSentence(card, w), ...hostRules(card, w));
     const bank = bankOf(s);
     for (const q of s.ask) rules.push(questionRule(q, w, each, s.ask, bank, s));
     // A9's parlays.

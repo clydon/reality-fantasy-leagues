@@ -47,7 +47,9 @@
 // the deal stamped on the league once revealed as the server stamps it, o.roles) likewise, from part 4's engine, proven by hand in
 // tests/secret-roles.test.js; the 2,538 before them stay. A14 part 5's (the top scorer's twist: twistShapes, each episode's filed twist
 // stamped on the league as the server stamps it, o.twists) likewise, from part 5's engine, proven by hand in tests/twist.test.js; the
-// 2,628 before them stay:
+// 2,628 before them stay. A14 part 6's (a rotating host's questions: q-card-host and q-card-host-void in outsideShapes, each episode's
+// card as the server files it, its host named, CARD.HOSTED) likewise, from part 6's engine, proven by hand in tests/host-card.test.js;
+// the 2,718 before them stay:
 //   node tests/fixtures/scoring-shapes.js --write [--ref=<git ref>]      the record, from this tree's engine (or the ref's)
 //   node tests/fixtures/scoring-shapes.js --print <shape> <seat|-> <mark|-|all> [--ref=<git ref>]   one read, in full
 //   node tests/fixtures/scoring-shapes.js --diff [<shape>] [--ref=d5222e68]   where this tree's reads part from the ref's (the
@@ -419,6 +421,16 @@ const CARD = {
     "botsheet.1": { 1: { ann: "yes", bo: "no" }, 2: { ann: "no", cy: "yes" }, 3: { ann: "yes", di: "yes" } },
     "botsheet.2": { 1: { ann: "no", bo: "yes" }, 2: { ann: "no", cy: "no" }, 3: { ann: "yes", di: "no" } },
   },
+  // A14 part 6: the same four moments, chosen by a host, one of the seats in turn (the stamps as the server files them: HOSTED): ann
+  // one line (too few), bo nothing in time, cy two; each host answering their own card.
+  HOST: { from: "host", each: 2, of: ["individualImmunity", "idolPlayed", "idolFound", "tribeImmunity"] },
+  HOSTSHEET: { id: "hostsheet", ask: "The host's questions", answer: "yesNo", points: 1, asked: "each", card: true, settle: { by: "moment", take: "happened" } },
+  HOSTLINES: ["hostsheet.1", "hostsheet.2"].map((id) => ({ id })),
+  HOSTED: { 1: { moments: ["idolFound"], host: "ann", how: "host" }, 2: { fallback: true, host: "bo", how: "fallback" }, 3: { moments: ["tribeImmunity", "individualImmunity"], host: "cy", how: "host" } },
+  HOSTSAID: {
+    "hostsheet.1": { 1: { ann: "yes", bo: "no" }, 2: { bo: "yes", cy: "yes" }, 3: { cy: "no", di: "yes" } },
+    "hostsheet.2": { 1: { ann: "no", bo: "yes" }, 2: { bo: "no", cy: "no" }, 3: { cy: "yes", di: "no" } },
+  },
 };
 const STAKE = {
   POT: { ...BOOT, id: "stakepot", ask: "Who goes home? Stake up to 5, the pot split", points: 10, wager: 5, share: "split" },
@@ -612,6 +624,9 @@ function outsideShapes() {
     // lines are off: ann 3, cy 0 (no engine before C7 part 2 plays them: their reads are new).
     shape("q-card-bot", game([CARD.BOTSHEET], {}, undefined, { card: CARD.BOT }), CARD.BOTLINES, { over: CARD.BOTSAID, o: { cardChoices: CARD.CHOICES } }),
     shape("q-card-bot-void", game([CARD.BOTSHEET], {}, undefined, { card: { ...CARD.BOT, fallback: "void" } }), CARD.BOTLINES, { over: CARD.BOTSAID, o: { cardChoices: CARD.CHOICES } }),
+    // A14 part 6: a card a host chooses; then its fallback void and each host sitting out their own card.
+    shape("q-card-host", game([CARD.HOSTSHEET], {}, undefined, { card: CARD.HOST }), CARD.HOSTLINES, { over: CARD.HOSTSAID, o: { cardChoices: CARD.HOSTED } }),
+    shape("q-card-host-void", game([CARD.HOSTSHEET], {}, undefined, { card: { ...CARD.HOST, fallback: "void", hostAnswers: false } }), CARD.HOSTLINES, { over: CARD.HOSTSAID, o: { cardChoices: CARD.HOSTED } }),
     ["calls", { preset: "weekly-calls" }, null, { none: true, outside: { each: 1 } }],
     ["bingo", { preset: "weekly-bingo", score: { by: "lines", points: 2 } }, null, { none: true, outside: { each: 2 } }],
     ["stages-points", stages("points"), null, { none: true, stages: true }],

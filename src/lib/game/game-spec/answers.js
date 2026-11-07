@@ -474,6 +474,8 @@ function plainVerdict(q, episode, facts, answers) {
     const m = cardMoment(q, episode, choice);
     // A card the bot chooses that came out without its choice, its fallback the week void.
     if (!m && q.card.by === 'bot' && q.card.fallback === 'void' && choice && choice.fallback === true) return off("The AI didn't pick this episode's card in time: it doesn't count either way");
+    // A14 part 6: a card a host writes, its fallback void: a line the host didn't write in time.
+    if (!m && q.card.by === 'host' && q.card.fallback === 'void') return off("The host didn't choose this one in time: it doesn't count either way");
     if (!m) return off("There's no line on the card for it: it doesn't count either way");
     return plainVerdict({ ...q, card: undefined, settle: { ...q.settle, moment: m } }, episode, facts, answers);
   }

@@ -94,7 +94,7 @@ export interface QuestionView {
   /** Step C7, a line of the game's card (a question on it, asked for each of its lines: `<id>.<n>`): the question it's from, and the
    *  moment it's about this window, in the league's rules' words; null for any other question. */
   /** Step C7 part 2: `waiting`, a card the bot chooses that isn't out yet (its moment and label null till then). */
-  card: { from: string; moment: string | null; label: string | null; waiting?: true } | null;
+  card: { from: string; moment: string | null; label: string | null; waiting?: true; sitOut?: true } | null;
   pairs: { key: string; faces: [QuestionFace, QuestionFace] }[] | null;
   /** A9: how its points combine. share: split (a pot split between everyone right) or only (only the only right one scores);
    *  rollover: a window nobody earns anything on carries its points into the next (`jackpot`: what's carried into this one, once
@@ -298,8 +298,14 @@ function cardView(state: LeagueState, q: Question, ep: number, facts: AnswerFact
   return { from: q.card.from, moment, label };
 }
 
-/** Step C7 part 2: why a line of a card the bot chooses can't be answered yet. */
+/** Step C7 part 2: why a line of a card the bot chooses can't be answered yet. A14 part 6: or a host writes (by `hours` before). */
 const CARD_NOT_OUT = `This episode's card isn't out yet. It's out by ${Spec.CARD_OUT_HOURS} hours before the episode airs: answer it then.`;
+const hostNotOut = (hours: number | null) =>
+  hours === null
+    ? "This episode's card isn't out yet. It's out once the host has chosen it: answer it then."
+    : `This episode's card isn't out yet. The host has until ${hours} ${hours === 1 ? "hour" : "hours"} before it airs to choose it: answer it then.`;
+/** Step A14 part 6: why the host can't answer their own card (a card whose host sits it out). */
+const HOST_SITS_OUT = "You chose this episode's card, so you sit it out.";
 
 /** The game's bank (step C6: score.bank), or null: beside one, every stake is drawn from it (Spec.drawsOnBank). */
 const bankOf = (state: LeagueState) => Spec.bankOf(StateLogic.gameOf(state));
@@ -436,7 +442,9 @@ async function readQuestions(r: Read, episodeIn?: unknown): Promise<GameQuestion
     }
     const triviaOff = round && !round.length ? (v?.state === "off" ? v.why : "No trivia questions for this round yet") : null;
     // Step C7: a line of the card says its moment this window, its words the line's own ("This week's sheet: Found an idol").
-    const line = cardView(view, q, ep, r.facts);
+    // Step A14 part 6: a host who sits their own card out: its lines aren't theirs to answer (not a move, refused if sent).
+    const card0 = cardView(view, q, ep, r.facts);
+    const line = card0 && StateLogic.HostLogic.sitsOut(h.state, ep, h.playerId) ? { ...card0, sitOut: true as const } : card0;
     const view1: QuestionView = {
       id: q.id,
       ask: line?.label ? `${q.ask}: ${line.label}` : q.ask,
@@ -602,7 +610,12 @@ export async function answerQuestions(user: SessionUser, seasonId: string, leagu
     }
     if (value !== null) {
       // Step C7 part 2: a line of a card the bot chooses waits for its card (its moment isn't known till then).
-      if (Spec.cardWaiting(q, ep, r.facts.cardChoices?.get(ep))) throw new HttpError(409, CARD_NOT_OUT);
+      if (Spec.cardWaiting(q, ep, r.facts.cardChoices?.get(ep))) {
+        const host = StateLogic.HostLogic.of(h.state);
+        throw new HttpError(409, host ? hostNotOut(StateLogic.HostLogic.closesAt(h.state, ep) === null ? null : host.closes) : CARD_NOT_OUT);
+      }
+      // Step A14 part 6: a host who sits their own card out.
+      if (Spec.isCardLine(q) && StateLogic.HostLogic.sitsOut(h.state, ep, h.playerId)) throw new HttpError(409, HOST_SITS_OUT);
       const seen = needsSeen(r, q, ep);
       if (seen !== null && mark < seen) throw new HttpError(403, Spec.isTrivia(q) ? `See Episode ${seen} first: the round is about it` : `See Episode ${seen} first: it says who's still in`);
       // Who it can name (still in, your team, a group); for a pairs question, each pair's "index:id" (A8); a trivia round (A13), each
@@ -762,7 +775,8 @@ function summaryOf(g: GameQuestions, finale: boolean, skip: Set<string> = new Se
   if (g.out !== null) return null;
   const questions = g.questions.filter((q) => !skip.has(q.id));
   // A13: a trivia round with nothing you can answer yet (no questions, or every one played in the trivia sheet) asks nothing of you.
-  const open = questions.filter((q) => q.status === "open" && !(q.trivia && !q.trivia.some((t) => !t.played)));
+  // A14 part 6: nor do the lines of a card you chose and sit out.
+  const open = questions.filter((q) => q.status === "open" && !q.card?.sitOut && !(q.trivia && !q.trivia.some((t) => !t.played)));
   const behind = questions.find((q) => q.status === "behind")?.catchUp ?? null;
   if (!open.length && behind === null) return null;
   const locks = open.map((q) => (q.closesAt ? Date.parse(q.closesAt) : Infinity));

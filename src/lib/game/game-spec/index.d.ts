@@ -479,10 +479,16 @@ export interface GameSpec {
 
 /** C7: a game's card each episode. */
 export interface SpecCard {
-  /** moments: the show's own, the list in turn (Weekly Calls' rotation); bot (part 2): the bot ranks them before each episode. */
-  from?: "moments" | "bot";
-  /** Part 2, a card the bot chooses: an episode it hasn't chosen by the time the card's out plays the list in turn (spec) or is void. */
+  /** moments: the show's own, the list in turn (Weekly Calls' rotation); bot (part 2): the bot ranks them before each episode; host
+   *  (A14 part 6): a different one of the players writes it each episode, from them. */
+  from?: "moments" | "bot" | "host";
+  /** Part 2, a card the bot chooses: an episode it hasn't chosen by the time the card's out plays the list in turn (spec) or is void.
+   *  A14 part 6, a card a host writes: the lines the host hasn't written by then are the list's next in turn (spec), or none (void). */
   fallback?: "spec" | "void";
+  /** A14 part 6, a card a host writes: the host has until this many hours before the episode airs (1 to MAX_HOST_HOURS; 12). */
+  closes?: number;
+  /** A14 part 6, a card a host writes: the host answers their own questions too (true, the default) or sits them out. */
+  hostAnswers?: boolean;
   /** Its lines each episode, 1 to MAX_CARD. */
   each: number;
   /** The show's moments it's drawn from, 1 to MAX_ONLY, at least `each`. */
@@ -931,7 +937,7 @@ export const CARD: { from: "moments"; fallback: "spec" };
 export const CARD_TAKES: string[];
 export const CARD_ANSWERS: string[];
 export function drawInTurn<T>(list: T[], each: number, episode: number): T[];
-export function cardOf(s: unknown): { from: string; each: number; of: string[]; fallback?: string } | null;
+export function cardOf(s: unknown): { from: string; each: number; of: string[]; fallback?: string; closes?: number; hostAnswers?: boolean } | null;
 /** C7: a card's lines for an episode; part 2, a card the bot chooses reads the episode's choice, and is null while it isn't out. */
 export function cardLines(card: { from?: string; of: string[]; each: number; fallback?: string } | null, episode: number, choice?: CardChoice | null): string[] | null;
 export function isCardQuestion(q: unknown): boolean;
@@ -941,6 +947,15 @@ export function cardMoment(q: Question, episode: number, choice?: CardChoice | n
 export function cardWaiting(q: Question, episode: number, choice?: CardChoice | null): boolean;
 /** C7 part 2: a card the bot chooses. */
 export function botCard(card: unknown): boolean;
+/** A14 part 6: a card a host writes (a different one of the players each episode). */
+export function hostCard(card: unknown): boolean;
+/** A14 part 6: a card chosen before each episode, by the bot or a host (its lines read the episode's stamp). */
+export function chosenCard(card: unknown): boolean;
+/** A14 part 6: a host's lines as written, those on the list, none twice, `each` at most. */
+export function hostLines(of: string[], each: number, choice: CardChoice): string[];
+/** A14 part 6: a card a host writes: the most hours before its episode the host has, and its defaults. */
+export const MAX_HOST_HOURS: number;
+export const HOST_CARD: { closes: number; hostAnswers: boolean };
 /** C7 part 2: `each` of `of` for an episode as the bot ranked the season's moments. */
 export function rankedLines(of: string[], each: number, episode: number, choice: CardChoice): string[];
 /** C7 part 2: how many hours before its episode airs a card the bot chooses is out. */
@@ -949,7 +964,7 @@ export const CARD_OUT_HOURS: number;
 export const CARD_FALLBACK: CardChoice;
 /** C7 part 2: an episode's stamp for a card the bot chooses (episode.cardChoice): the bot's ranking of the season's moments, or the
  *  card's fallback once it came out without one. */
-export type CardChoice = { moments?: string[]; cannot?: string[]; fallback?: true };
+export type CardChoice = { moments?: string[]; cannot?: string[]; fallback?: true; host?: string | null; how?: "host" | "fallback" };
 export function onlyCard(score: unknown): boolean;
 export function onlyAt(s: unknown, episode?: number, choice?: CardChoice | null): string[] | undefined;
 export function askOf(s: unknown): Question[];
