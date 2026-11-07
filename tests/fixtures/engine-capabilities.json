@@ -1329,7 +1329,7 @@
             "ask": [ { "id": "rating", "ask": "What will the episode's TVmaze rating be?", "answer": "number", "points": 3, "asked": "each", "settle": { "by": "outside", "take": "rating", "source": "tvmaze", "after": 7 } } ]
           },
           "page": { "show": "Dancing with the Stars", "season": 35, "rulebook": "amazingRace", "checkedAs": true },
-          "note": "an episode's TVmaze rating as it stood 7 days after it aired (A14 part 7: settle.by 'outside'), read once and stored per season (outside_numbers: db/outside-numbers.js), so every league on the season reads the same number; void when TVmaze has none by then"
+          "note": "built and checked, but waiting: the user said no to TVmaze's ratings as a source (2026-11-07), so ask.settle's outside is 'later' in VOCAB and nothing runs db/outside-numbers.js; a yes is that flip and one step of the hourly job. Built: an episode's TVmaze rating as it stood 7 days after it aired (A14 part 7: settle.by 'outside'), read once and stored per season (outside_numbers: db/outside-numbers.js), so every league on the season reads the same number; void when TVmaze has none by then"
         },
         {
           "id": "settle.stats",
@@ -4249,7 +4249,7 @@
         "rank": { "by": "total" },
         "ask": [ { "id": "rating", "ask": "What will the episode's TVmaze rating be?", "answer": "number", "points": 3, "asked": "each", "settle": { "by": "outside", "take": "rating", "source": "tvmaze", "after": 7 } } ]
       },
-      "note": "a number from a vetted outside source (A14 part 7: settle.by 'outside'): TVmaze's rating, not IMDb's (no free API with terms that allow it); each episode's TVmaze rating as it stood 7 days after it aired, read once and stored per season (outside_numbers: db/outside-numbers.js), the closest guess scoring; void when TVmaze has none by then"
+      "note": "built and checked, but waiting: the user said no to TVmaze's ratings as a source (2026-11-07), so nobody can make it. Built: a number from a vetted outside source (A14 part 7: settle.by 'outside'): TVmaze's rating, not IMDb's (no free API with terms that allow it); each episode's TVmaze rating as it stood 7 days after it aired, read once and stored per season (outside_numbers: db/outside-numbers.js), the closest guess scoring; void when TVmaze has none by then"
     },
     {
       "id": "s43",

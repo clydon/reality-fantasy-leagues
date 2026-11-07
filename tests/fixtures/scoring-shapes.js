@@ -1006,11 +1006,14 @@ function readAll(S, G, T, only, GV) {
 }
 const hash = (read) => crypto.createHash("sha1").update(read).digest("hex");
 
+// The record still plays the pieces built but off (built-off.js: A14 part 7's outside number, in q-outside, q-outside-lives and
+// q-outside-pot), in the engine's own game-spec and the copy game-view.ts loads through jiti.
+const { builtOn } = require("./built-off.js");
 function engine(root = path.join(__dirname, "..", "..")) {
   let gv = null;
   return {
     S: require(path.join(root, "src/lib/game/state-logic.js")),
-    G: require(path.join(root, "src/lib/game/game-spec/index.js")),
+    G: builtOn(require(path.join(root, "src/lib/game/game-spec/index.js"))),
     T: require(path.join(root, "src/lib/game/formats/format-timeline.js")),
     // Loaded when a read first needs it (C2 part 3: the Games tab's table).
     get GV() { return (gv = gv || gameView(root)); },
@@ -1019,6 +1022,7 @@ function engine(root = path.join(__dirname, "..", "..")) {
 /** An engine's game-view.ts (the Games tab's table), through jiti, as the server and the tests load it. */
 function gameView(root = path.join(__dirname, "..", "..")) {
   const jiti = require("jiti")(__filename, { alias: { "@": path.join(root, "src") } });
+  builtOn(jiti(path.join(root, "src/lib/game/game-spec/index.js")));
   return jiti(path.join(root, "src/lib/game/game-view.ts"));
 }
 /** A git ref's engine (its src/lib/game, exported into a temp folder): { ...engine, done() } to take the folder out. */

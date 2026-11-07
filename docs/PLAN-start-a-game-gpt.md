@@ -153,8 +153,8 @@ migration 0211, until it closes, then filed and stamped on the episode; tracker 
 questions (2026-11-06: `card.from: 'host'`, each episode one of the seats in turn choosing the card's moments, kept in `host_cards`,
 migration 0212, until the host's deadline, then filed and stamped on the episode; tracker rows s43 and who.host), and so is part 7,
 a number from a vetted outside source (2026-11-06: `settle.by: 'outside'`, an episode's TVmaze rating read once seven days after it
-airs and stored per season in `outside_numbers`, migration 0213; nothing runs the read until the user approves the source at the
-merge; tracker rows s42 and settle.outside): **A14 is done**, and the A track stops before A15 for the user. The live-sports plan is
+airs and stored per season in `outside_numbers`, migration 0213; built and checked, but off since 2026-11-07: the user said no to
+TVmaze's ratings as a source, so `outside` is 'later' in VOCAB and tracker rows s42 and settle.outside wait): **A14 is done**, and the A track stops before A15 for the user. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5, at
 high since 2026-11-05; C2 at xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: folded in here as track L; its file keeps the details)
 and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track S here).
@@ -199,7 +199,7 @@ and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track
 | Progress (2026-10-28) | **Living tables:** the dials and the stretch requests, each row's status generated from the engine itself (A5), so the user sees what's possible as the engine grows. |
 | Live sports (2026-10-28) | **Folded into this plan** ("Live sports in the same engine"): one engine for shows and sports. The difference is when results arrive: a sport's live, play by play, a show's after the episode. The sports plan's own decisions stand. |
 | Mechanics the players decide (2026-10-28) | **Allowed** (the user's hunch, Claude's call): votes among the players, matching the majority, the top scorer's twist, a rotating host, secret roles, bounties. Guardrails: facts about the show are still settled only by data (a host's questions must be data-settled; the couch never decides what happened); answers that depend on each other stay hidden until the lock; a player-decided outcome changes the game only, never someone's place on the couch. |
-| Numbers from outside research (2026-10-28) | **Allowed from vetted sources** (the user's hunch, Claude's call): free, with terms that allow it (TVmaze's episode ratings, ESPN's stats), settled once at a fixed moment (a rating seven days after airing) and stored, because outside numbers drift. A new source goes into HOSTING.md first. |
+| Numbers from outside research (2026-10-28) | **Allowed from vetted sources** (the user's hunch, Claude's call): free, with terms that allow it (ESPN's stats; TVmaze's episode ratings were the example until the user said no, 2026-11-07: below), settled once at a fixed moment (a rating seven days after airing) and stored, because outside numbers drift. A new source goes into HOSTING.md first. |
 | The engine lab (2026-10-28) | **Yes**, in A5: an admin-only, plain page on the desk for trying the engine's pieces before the UI exists. |
 | Exclusive or shared (2026-10-28) | **Shared whenever the math says so** (the user: "many things will just mathematically have to be shared, no way around it", as in a 12-person Survivor game where everyone drafts several castaways). An exclusive draft only when the pool covers every pick, counted where the game drafts and as the pool shrinks (a later stage, a side draft, group slots among fourteen pairs); otherwise our check makes it shared and the wizard says why ("12 players × 3 picks is more than 18 castaways: two of you can have the same one"). Group slots are shared by default. |
 | Randomize (2026-10-29) | **Planned** (the user's idea): the wizard's other door, designed in U0 with the rest of it, its engine piece G4 built before U1. No bot: a roll is instant, free and works when the bot is away. |
@@ -211,6 +211,7 @@ and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track
 | A shared game's two holders (2026-11-06) | **Per holder, from the live games' next episode on** (the user, on C4's Noticed): someone who goes home in an episode not yet played is owed a replacement on every team that held them, one replacing them settling only their own. Every exit already played stays as it played out (no past loss owed again, no standings moving backwards); games made from now on are per holder from the start; C4's games as they are. As data, never a date or a league named in code: each existing game carries its cutover (`settings.perHolderFrom`, migration 0207: the first episode it hadn't played; Survivor 51's live games, Episode 8). Built as C4b, before Episode 8's results (Wed Nov 11). |
 | A sports week (2026-11-06) | **The episode, wherever the season has episodes of its own** (the main session's call, as the sports track's orchestrator; built in L8 part 3): a league's slate's episode (ESPN's own week for football, Monday to Sunday or a day for the NBA, NHL and MLB, a round for soccer) is the week for its locks, its matchups and the screens, locking at its own first game whatever the spec's `closes` says. Tuesday to Monday (Eastern) only where nothing else defines the week: a team's season and a matchup's series, one game an episode. |
 | Which line a game plays by (2026-11-06) | **The line when the question opens for answers, shown with it, never changing once anyone can answer** (the main session's call at 11:05 AM, as the sports track's orchestrator; the user can overrule; built in L3 part 3b). Not the line at the lock (answers made earlier would be graded against a line their makers never saw), nor the line when the game is made (a game made weeks ahead has none yet for its later games). Each question (each game, for a question about each game) takes the latest line read when it opens (the daily odds read is enough: no hourly read); one that opens before ESPN has a line waits ("Line coming") and opens when there is one. "Opens" is the first time the question is served open in the league (a read of its questions or an answer to it), the line kept then for good: it's the line every answer to it was made against. The phone's `lineAtStart` stays the live display's line, not the question's. |
+| Outside numbers: TVmaze ratings (2026-11-07) | **No** (the user, on A14 part 7's Noticed): TVmaze's episode ratings aren't taken as a source, so `ask.settle`'s `outside` is 'later' in VOCAB (nobody can make a rating game), nothing runs `db/outside-numbers.js` and the hourly job has no step for it. The piece stays built and checked (its code, tests, migration 0213 and the `outside_numbers` table, unused): a later yes is that flip and one step of the job. |
 
 ## What's there today (mapped 2026-10-27)
 
@@ -9246,6 +9247,43 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     40 117, 39 125, Survivor 49 161, The Traitors 4 114, as after A14 part 7); the Survivor 51 rehearsal (`rehearse
     --from=../reality-fantasy-leagues/backups/prod-2026-10-30 --scenario=realistic,rough,dst --before=master`): every invariant
     holds, flag off against on and master's engine against this tree's, 2,856 reads each, every one the same.
+
+  **As built (A14 part 7b, the outside number off, 2026-11-07, on `engine`; no migration).** The user's answer to part 7's Noticed:
+  TVmaze's ratings as a source, no (the Decisions table, "Outside numbers: TVmaze ratings"). One small step, before the main
+  session's merge of A14 parts 2b to 7; `lane.js sync engine` had nothing new.
+  - **schema.js**: VOCAB's `ask.settle.outside` is 'later' (its comment says why and what a yes is), so `specWaitsFor` names any
+    question an outside number settles, `withSpec` plays nothing with one, and `setGame` refuses it: nobody can make a rating game.
+    `ask.settle.source`'s `tvmaze` stays 'now' (only an outside settle reads it). Nothing else changed: the piece's code, its words,
+    `db/outside-numbers.js`, `outside-numbers.ts`, migration 0213 and the `outside_numbers` table stay, built, checked and unused.
+    Nothing runs the read and the hourly job has no step for it. A later yes is the flip back and one step of
+    `.github/workflows/reminders-waivers.yml` (part 7's Noticed has it).
+  - **state-logic.js** (for the own-pace merge): no function changed.
+  - **The tracker:** s42 and settle.outside wait again (⏳, step A14, their notes saying why): 222 ✅ · 41 ⏳ · 1 🆕 · 4 ❓ · 23 💬;
+    `engine-capabilities.js --check` current.
+  - **Tests:** `tests/fixtures/built-off.js` (new) lists the pieces built but off (`BUILT_OFF`: this one), with `builtOn` and
+    `withBuilt` to turn them on in a test's own process. `tests/outside-number.test.js` has a first test that it's off (VOCAB
+    'later', no problems but a wait at `ask[0]`, no settings, `setGame` refusing it), and its other three run with it on
+    (`withBuilt`, each put back as it was), so the built code stays checked for a later yes. The shapes fixture turns it on in its
+    engine's game-spec and in the copy game-view.ts loads through jiti (the record's three outside shapes, 54 reads, unchanged).
+    settle's refusal ("Data settles every question: ...") no longer offers `outside`; a yes puts it back (VOCAB's comment says so). The placement corpus has no outside number (its verdicts don't move). `npm test` 1,929, every one passing; `tsc`
+    clean; eslint on the changed files only the files' usual `require` notes. `scripts/dev-test/check-outside.js`: while off, after
+    the unlinked refusal, a linked season's game waits too and stays a Survival Pool, the rest skipped: ALL PASS (5).
+  - **Docs:** GAME-PIECES.md's settle table and its outside-number entries say it's off and why; this plan's Status, Decisions
+    table and part 7's Noticed (answered).
+  - **Long checks: none** (the user's call for a flip that turns a piece off). Nothing reads differently where they look: golden's
+    and the Survivor 51 rehearsal's games have no outside number; blind plays every game the tracker says plays, so s42 drops out of
+    each season's run (one game fewer, the rating game: part 7's run had it as the one more).
+  - **Code review** (high, before the commit): nine findings, six fixed: check-outside's off check read the league from the database
+    though `setGame` ran on a copy (now it checks the state itself is untouched) and its skip names what it skipped; the test's
+    wrapper put the piece back to 'later' rather than as it was; settle's refusal still offered `outside`; the turn-on written twice
+    (now `built-off.js`); the jiti-loaded copy of game-spec not turned on; the Decisions row naming TVmaze's ratings as allowed.
+    Three left (Noticed, below).
+  - **Noticed (A14 part 7b):** a league made with an outside question before the flip (only possible on a lane's or the local
+    database since part 7: production never had it) keeps it, and with nothing running the read its rating questions wait for good;
+    none is known, and none can be made now. `questionContext` and the engine lab still ask
+    whether a season is linked to TVmaze (one small query each), for a piece nobody can make; kept so a yes is one flip (a later
+    tidy, with part 7's third). Turning a piece off by VOCAB means a test reaching for it turns it on itself (`built-off.js`); a
+    `built but off` state the engine knows would put the list beside VOCAB (worth it only if more pieces wait on a source).
 - **A15. Live and replay** (with the watch along, docs/PLAN-couch-and-episode-night.md §6, and the sports branch's
   `GameClock`). It needs A7. The watch along is in its infancy (the user, 2026-10-28): its concept, how it's built and how it
   connects to games are all open, so A15 is where the games shape it, not only where they plug into it.
@@ -11584,7 +11622,9 @@ From R1 part 2 (2026-10-30):
   whole state (20-40 KB each): less Neon transfer than before. (The main folder: docs/HOSTING.md, with the merge.)
 
 From A14 part 7 (2026-11-06):
-- **For the user, at the merge (a new data source):** asking TVmaze for episode ratings (`db/outside-numbers.js`: one call to
+- **Answered (the user, 2026-11-07): no.** TVmaze's ratings aren't taken as a source, so `outside` went to 'later' in VOCAB (A14 part
+  7b, below its As built; the Decisions table, "Outside numbers: TVmaze ratings"); the design session's questions below wait with
+  the piece. What was asked: **For the user, at the merge (a new data source):** asking TVmaze for episode ratings (`db/outside-numbers.js`: one call to
   `https://api.tvmaze.com/seasons/{listing}/episodes` a season with a rating due, at most hourly; free, no key, CC BY-SA, at least 20
   calls every 10 seconds per IP, the same API the listings job uses: docs/HOSTING.md has it). **Nothing runs it yet.** Approved, it's
   one step of `.github/workflows/reminders-waivers.yml` after waivers.js (`node db/outside-numbers.js`, the same secrets), and a line

@@ -13,6 +13,8 @@
 //     before it) and stores it; the next read grades it: riley 4 (closest, under), sam 1 (under), jordan 0; the
 //     Games tab ranks them. A second read with a later rating (9.9) stores nothing and changes nothing.
 //   - The flag's check.
+// Off since 2026-11-07 (the user said no to TVmaze's ratings as a source: ask.settle's outside is 'later' in VOCAB), so after the
+// refusal it checks that a linked season's game waits too, and skips the rest until the piece is on again.
 //
 //   node scripts/lane.js dev   (or npm run dev; in another terminal)
 //   node scripts/dev-test/check-outside.js [--keep]
@@ -86,6 +88,16 @@ const LISTING = 990777;
       "  the season not linked to TVmaze: refused, in our check's words", JSON.stringify(refused));
     await pool.query("UPDATE show_seasons SET listing_id = $2 WHERE id = $1", [sid, LISTING]);
     const ctx = await questionContext(QG, sid);
+    if (G.VOCAB["ask.settle"].outside !== "now") {
+      // Off (the user said no to TVmaze's ratings as a source, 2026-11-07): linked or not, nobody can make it. The rest runs once
+      // `outside` is 'now' again (tests/outside-number.test.js keeps the built code checked meanwhile).
+      const was = JSON.stringify(state0);
+      const waits = S.setGame(state0, spec, { ctx });
+      check(waits.length === 2 && waits.every((p) => /^ask\[[01]\]$/.test(p.at)) && JSON.stringify(state0) === was && state0.settings.leagueTypeId !== "questions",
+        "  linked, but off (the user, 2026-11-07): it waits, the game untouched (still a Survival Pool)", JSON.stringify(waits));
+      console.log("SKIP  the rest (its answers, the read, the grade, the flag): an outside number is off until the user says yes to a source");
+      return;
+    }
     const problems = S.setGame(state0, spec, { ctx });
     if (!problems.length) await pool.query("UPDATE leagues SET state = $1, updated_at = now() WHERE id = $2", [JSON.stringify(state0), QG]);
     const made = (await league(QG)).state;

@@ -451,7 +451,7 @@ players' own mechanics below, which settle the game, never a fact about the show
 | `calls` | none | the show's calls (Weekly Calls) |
 | `players` | `majority`, `minority` | the players' own answers: see "The players' own mechanics" |
 | `legs` | none | a ticket's legs (C6): `{ by: "legs", of: [the game's question ids] }`, your own answers to them in the window |
-| `outside` | `rating` | a number from a vetted outside source (A14 part 7): `{ by: "outside", take: "rating", source: "tvmaze", after: 7 }`, the episode's TVmaze rating (0 to 10) as it stood `after` days (1 to 30, 7 by default) after it aired, read once and stored |
+| `outside` | `rating` | off (the user, 2026-11-07: below); a number from a vetted outside source (A14 part 7): `{ by: "outside", take: "rating", source: "tvmaze", after: 7 }`, the episode's TVmaze rating (0 to 10) as it stood `after` days (1 to 30, 7 by default) after it aired, read once and stored |
 | `final` | `winner`, `total`, `margin` (`of`: a card's bout, `main` its main event) | a sport's game at its final (L3 part 2c): who won (extra time and penalties in it; a field's first, a bout's winner), both sides' points, the margin; a game called off, a tie or a bout with no winner is off. `bracket`, a draw's winners round by round (L4 part 2; played since L3 part 2e) |
 | `stat` | `most`, `least`, `value` (`stat`: a sport's stat key; `of`: a player or a team) | a stat in a sport's game (L3 part 2c): who has the most (a tie, all of them), the fewest, or a value (a team's players' added; asked once over a span, its games' added up) |
 
@@ -482,7 +482,7 @@ What's refused here, and why:
   episode needs a window of several.
 - An episode fact is asked each episode, about that episode; trivia each episode, about the one before (its key is written
   after that one).
-- **An outside number** (A14 part 7): an episode's TVmaze rating, asked each episode about that one (never once, over a few or
+- **An outside number** (A14 part 7, built but off): an episode's TVmaze rating, asked each episode about that one (never once, over a few or
   about each person), answered as a `number` (the closest; a rating 0 to 10), an `overUnder` (its line) or a `choice` of ranges to
   a tenth ("0-6.9", "7-7.9", "8+"). `db/outside-numbers.js` reads it once, `after` days after the episode aired, and stores it
   (`outside_numbers`, per season: every league on the season reads the same number, and a later rating never changes it); the
@@ -490,6 +490,9 @@ What's refused here, and why:
   TVmaze had no rating then, the season isn't linked to TVmaze any more, or TVmaze couldn't be reached for three days past the
   moment; until it's read, it waits. Refused: a season not linked to TVmaze ("This season isn't linked to TVmaze, so nothing can
   settle its episodes' ratings"), another source, against the bot ("The bot doesn't call an episode's rating yet").
+  **Off:** the user said no to TVmaze's ratings as a source (2026-11-07), so `ask.settle`'s `outside` is 'later' in VOCAB: nobody
+  can make a game it settles, and nothing runs the read. The code, its tests, migration 0213 and the `outside_numbers` table stay;
+  a later yes is that flip and one step of the hourly job.
 
 ### Its window: `asked`, `every`, `over`, `closes`
 
@@ -876,7 +879,8 @@ each other stay hidden until the lock; what the players decide changes the game,
   lines secret until the deadline, then filed on the episode; data still settles every line.
 - **A number from a vetted outside source** `settle: { by: "outside", ... }` (A14 part 7, above under "What settles it"): an
   episode's TVmaze rating, read once a few days after it airs and stored, so every league on the season reads the same number.
-  Not the players' own (data settles it), but the last of A14's pieces.
+  Not the players' own (data settles it), but the last of A14's pieces. Built and checked, but off: the user said no to TVmaze's
+  ratings as a source (2026-11-07).
 
 ---
 

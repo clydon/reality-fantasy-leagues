@@ -4,12 +4,15 @@
 // the server's facts.outside as a number, an over/under or a choice of ranges. Its shape, defaults, refusals, words and settings; the
 // grade (the closest, the line, a range; void when TVmaze had none; waiting before it's read; the spoiler guard); what's due and
 // stored (its moment, nothing twice, unlisted, TVmaze not answering and its grace). TVmaze is never asked: its reads are stubbed.
-// Run with `npm test`.
+// The piece is off (the user said no to TVmaze's ratings as a source, 2026-11-07: ask.settle's outside is 'later' in VOCAB, nothing
+// runs db/outside-numbers.js): the first test says nobody can make it; the rest turn it on in this process to keep the built code
+// checked, for a later yes. Run with `npm test`.
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const S = require("../src/lib/game/state-logic.js");
 const G = require("../src/lib/game/game-spec/index.js");
 const { settleOutside, asked, GRACE_DAYS } = require("../db/outside-numbers.js");
+const { withBuilt } = require("./fixtures/built-off.js");
 
 const A = S.AnswerLogic;
 const CTX = { moments: [{ id: "eliminated", label: "Eliminated", defaultPoints: 0, answeredBy: "research" }], results: true, winner: true, roles: [], grouped: false, jury: false, phases: [], tvmaze: true };
@@ -36,7 +39,22 @@ function league(spec) {
 }
 const outside = (entries) => new Map(entries.map(([n, o]) => [n, { "tvmaze:rating:7": o }]));
 
-test("an outside number: its shape, defaults, words and settings; what's refused", () => {
+test("off: nobody can make a game an outside number settles, until the user says yes to a source", () => {
+  assert.equal(G.VOCAB["ask.settle"].outside, "later");
+  assert.deepEqual(at(S42), [], "built and checked: nothing wrong with it");
+  assert.deepEqual(G.specWaitsFor(S42).map((w) => [w.at, w.step]), [["ask[0]", "later"]], "but it waits");
+  assert.equal(G.withSpec(S.defaultState().settings, S42), null, "no settings play it");
+  const s = S.defaultState();
+  S.updateSettings(s, "leagueTypeId", "questions");
+  assert.deepEqual(S.setGame(s, S42, { ctx: CTX }).map((p) => p.at), ["ask[0]"], "a game can't be made it");
+  // With a spec it doesn't settle, the same game plays.
+  assert.deepEqual(G.specWaitsFor(questions([{ ...RATING, settle: { by: "results", take: "eliminated" } }])), []);
+});
+
+/** The rest: the built piece, turned on for each test's while (tests/fixtures/built-off.js). */
+const built = (fn) => withBuilt(G, fn);
+
+test("an outside number: its shape, defaults, words and settings; what's refused", built(() => {
   const over = { ...RATING, id: "ou", answer: "overUnder", line: 7.5 };
   const range = { ...RATING, id: "band", answer: "choice", options: ["0-6.9", "7-7.9", "8+"] };
   for (const s of [S42, questions([over]), questions([range]), questions([{ ...RATING, settle: { by: "outside", take: "rating", source: "tvmaze", after: 3 } }])]) {
@@ -76,9 +94,9 @@ test("an outside number: its shape, defaults, words and settings; what's refused
   // An answer is a rating, 0 to 10.
   assert.equal(G.answerProblem(RATING, 7.4), null);
   assert.equal(G.answerProblem(RATING, 11), "A rating, 0 to 10");
-});
+}));
 
-test("graded: the closest, the line, a range; void when TVmaze had none; waiting before it's read, and past what you've seen", () => {
+test("graded: the closest, the line, a range; void when TVmaze had none; waiting before it's read, and past what you've seen", built(() => {
   const over = { ...RATING, id: "ou", answer: "overUnder", line: 7.5, points: 1 };
   const range = { ...RATING, id: "band", answer: "choice", options: ["0-6.9", "7-7.9", "8+"], points: 2 };
   const s = league(questions([RATING, over, range]));
@@ -113,7 +131,7 @@ test("graded: the closest, the line, a range; void when TVmaze had none; waiting
   assert.deepEqual(Object.fromEntries(tie), { ann: 3, bo: 3 });
   // The walk through Episode 1 doesn't see Episode 2's.
   assert.equal(G.factsThrough(facts, 1).outside.has(2), false);
-});
+}));
 
 /** A pool that answers settleOutside's queries from `db`: the leagues, the seasons, the stored numbers, the listing; records inserts. */
 function fakePool(db) {
@@ -137,7 +155,7 @@ function fakePool(db) {
   };
 }
 
-test("what's due and stored: each episode once, its moment after it airs; unlisted; TVmaze not answering, then its grace", async () => {
+test("what's due and stored: each episode once, its moment after it airs; unlisted; TVmaze not answering, then its grace", built(async () => {
   const s = league(S42);
   assert.deepEqual(asked(s), [{ source: "tvmaze", what: "rating", after: 7 }]);
   // A game from Episode 2 on reads nothing of Episode 1.
@@ -197,4 +215,4 @@ test("what's due and stored: each episode once, its moment after it airs; unlist
   // No game asking one: nothing read at all.
   pool = fakePool({ leagues: [], seasons: [season], stored: [], listing: 1234 });
   assert.deepEqual(await settleOutside(pool, { now: ep1 + 30 * DAY, fetchRatings, log }), []);
-});
+}));

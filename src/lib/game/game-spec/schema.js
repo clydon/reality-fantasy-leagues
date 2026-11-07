@@ -252,7 +252,11 @@ const VOCAB = {
     ticket: 'now',
   },
   // A14 part 1: the players' own answers (the answer most of you give, or fewest), as data: the couch never decides what happened.
-  'ask.settle': { results: 'now', moment: 'now', role: 'now', phase: 'now', points: 'now', calls: 'now', trivia: 'now', fact: 'now', players: 'now', legs: 'now', outside: 'now',
+  'ask.settle': { results: 'now', moment: 'now', role: 'now', phase: 'now', points: 'now', calls: 'now', trivia: 'now', fact: 'now', players: 'now', legs: 'now',
+    // A14 part 7: a number from a vetted outside source (an episode's TVmaze rating), built and checked but waiting: the user said no to
+    // TVmaze's ratings as a source (2026-11-07), so nothing runs db/outside-numbers.js and nobody can make a rating game. A yes is this
+    // flip, one step of the hourly job and "outside (a number from a vetted source)" back in settle's refusal (questionProblems).
+    outside: 'later',
     // L3 part 2c: a sport's game, its final (who wins, the total, the margin) or a stat in it (answers.js sportsVerdict, on the server's
     // facts.games), its episode's results once it's final (StatsLogic.stamp's gameFinal).
     final: 'now', stat: 'now' },
@@ -2725,7 +2729,7 @@ function questionProblems(q, at, s, ids, league) {
   else if (q.closes === 'finale' && q.asked !== 'once') add('closes', 'Only a question asked once waits for the finale: one asked each episode closes as it starts');
   const st = isObj(q.settle) ? q.settle : {};
   let settled = false;
-  if (!one('ask.settle', st.by)) add('settle', 'Data settles every question: results, moment, role, phase, points, calls, trivia, fact, players (your own answers), legs (a ticket\'s), outside (a number from a vetted source), final or stat');
+  if (!one('ask.settle', st.by)) add('settle', 'Data settles every question: results, moment, role, phase, points, calls, trivia, fact, players (your own answers), legs (a ticket\'s), final or stat');
   else if (NO_TAKE.includes(st.by)) {
     if (st.take !== undefined) add('settle.take', st.by === 'calls' ? 'The calls settle themselves: no take' : st.by === 'legs' ? 'Its legs settle it: no take' : 'The trivia key settles it: no take');
     else settled = true;
