@@ -3847,6 +3847,10 @@ migration 0306; HOSTING.md updated).**
   it, its link and its episode). check-slate.js, check-matchup.js, check-finals.js and check-find-game.js pass as before. The
   placement corpus: no recorded spec moves (none has a game's own line). 1,873 unit tests; `tsc` clean; eslint clean on the files
   changed.
+- **The long check, last, on `ea2c146f`:** `golden.js --before=79071d64`: Survivor 49, The Challenge 40 and The Traitors US 4, 74
+  games, 9,548 reads, every one the same. blind.js and the rehearsal not run: state-logic.js untouched, every show game's read the
+  same (golden alone). **Track L before L6 is done** but live calls (L4's, waiting for A15's clock: not this lane's); every "For the
+  engine lane" list is built.
 
 **L3 part 3b noticed, not fixed:**
 - **A matchup doesn't take a postponed game's makeup** (a team's season, a series: its episodes are its games as made, one an
