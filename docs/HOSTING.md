@@ -1256,3 +1256,13 @@ never handles it: the user does the reset and the pasting.
   each a row in `game_word_asks`; a season's added moment adds one short ask inside research's full run after each
   episode (capped at 150 s, only for seasons with an added moment: none yet). Same bot as research; no paid key. The
   bot's priority queue for these asks isn't on the VM yet (with U1): until then such an ask waits its turn there.
+- **2026-11-07, the ask-AI bot (no app change).** The PC's ChatGPT signed the bot out ("Sign in to continue": ChatGPT no
+  longer answers signed out). Both bots now run a server.py that clicks the sign-in page's remembered account ("Continue
+  as …", never typing anything), closes ChatGPT's promo pop-ups, and re-asks a question that fails at the door through
+  Codex (the Codex CLI on the user's ChatGPT Plus plan; its sign-in refreshes itself). **On the Oracle VM:** Node 18 and
+  npm (Ubuntu's) and `@openai/codex@0.166.0` installed, Codex signed in as the bot's user by device code (the account's
+  device code authorization switched on at chatgpt.com/#settings/Security), and the self-test **hourly** (was daily):
+  one small ChatGPT question an hour, failing to healthchecks.io when ChatGPT had to fall back. Still free (the VM's 1 GB
+  has room: Codex is a CLI, no browser). The PC and the VM share the account's ChatGPT and Codex limits. **On the PC:**
+  the bot runs as the Windows task `llm-browser-api` (hidden, at logon, restarted on crash). The details are in the bot's
+  own READMEs (`llm-browser-api/README.md`, `deploy/README.md`).
