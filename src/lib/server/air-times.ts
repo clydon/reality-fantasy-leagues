@@ -3,7 +3,7 @@ import type { LeagueState } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
 import * as Air from "@/lib/game/air-schedule.js";
 import * as Spec from "@/lib/game/game-spec";
-import { locksOf, type Closes } from "@/lib/sports/locks";
+import { gameLocksOf, locksOf, type Closes } from "@/lib/sports/locks";
 import { stampCardChoices } from "./card-choices";
 
 // Stamps each episode with when it airs (ep.airsAt), from the league's season schedule in the
@@ -24,6 +24,8 @@ export async function stampAirTimes(db: Pool | PoolClient, state: LeagueState): 
   const clear = () => state.episodes.forEach((ep) => {
     delete ep.airsAt;
     delete ep.locksAt;
+    delete ep.gameStarts;
+    delete ep.holdingGames;
   });
   const { showId, wikiSeason } = state.settings;
   if (!showId || wikiSeason == null || StateLogic.RevealLogic.isCatchingUp(state)) return clear();
@@ -52,15 +54,56 @@ export async function stampAirTimes(db: Pool | PoolClient, state: LeagueState): 
  * episode's lock (ep.locksAt: a league's slate's episode at its own first game, else its day's or week's first start among the
  * game's own episodes, from their games' starts, season_events.starts_at: src/lib/sports/locks.ts); any other league, and an episode with no linked game, none. Asks nothing of
  * the database otherwise.
+ * L8 part 1's engine items: one that closes at each game's start, each episode's games with their starts and each holding's games
+ * (stampGameLocks), never saved (StatsLogic.stampedKeys).
  */
 async function stampSportLocks(db: Pool | PoolClient, state: LeagueState, seasonId: string): Promise<void> {
-  state.episodes.forEach((ep) => delete ep.locksAt);
+  state.episodes.forEach((ep) => {
+    delete ep.locksAt;
+    delete ep.gameStarts;
+    delete ep.holdingGames;
+  });
   const closes = Spec.gameOf(state.settings).closes;
+  if (closes === "game") return stampGameLocks(db, state, seasonId);
   if (closes !== "daily" && closes !== "weekly") return;
   const locks = await sportLocks(db, seasonId, closes, { from: StateLogic.startEpisode(state) ?? 1, to: StateLogic.endEpisode(state) });
   for (const ep of state.episodes) {
     const at = locks.get(ep.number);
     if (at) ep.locksAt = at;
+  }
+}
+
+/**
+ * L8 part 1's engine items: a lineup locking at each game's start, each episode's games in the game's span (their starts, and the end
+ * of each one's day: a holding's lock) and each holding's games by its team (season_cast's group, the team's name as the link has it).
+ * Two queries, only for such a game.
+ */
+async function stampGameLocks(db: Pool | PoolClient, state: LeagueState, seasonId: string): Promise<void> {
+  const to = StateLogic.endEpisode(state);
+  const { rows } = await db.query(
+    `SELECT episode, event_id, starts_at, teams FROM season_events WHERE season_id = $1 AND episode >= $2 AND ($3::int IS NULL OR episode <= $3)`,
+    [seasonId, StateLogic.startEpisode(state) ?? 1, to]
+  );
+  if (!rows.length) return;
+  const { rows: cast } = await db.query("SELECT name, tribe_name FROM season_cast WHERE season_id = $1 AND tribe_name IS NOT NULL", [seasonId]);
+  const teamByName = new Map(cast.map((c) => [String(c.name).toLowerCase(), String(c.tribe_name)]));
+  const teamOf = new Map<string, string>();
+  for (const c of state.castaways ?? []) {
+    const team = teamByName.get(c.name.toLowerCase());
+    if (team) teamOf.set(c.id, team);
+  }
+  const games = rows.map((r) => ({
+    episode: r.episode as number,
+    eventId: String(r.event_id),
+    at: r.starts_at ? (r.starts_at as Date).toISOString() : null,
+    teams: ((r.teams ?? []) as { name?: string | null }[]).map((t) => t.name).filter((n): n is string => !!n),
+  }));
+  const locks = gameLocksOf(games, teamOf);
+  for (const ep of state.episodes) {
+    const l = locks.get(ep.number);
+    if (!l) continue;
+    ep.gameStarts = l.gameStarts;
+    ep.holdingGames = l.holdingGames;
   }
 }
 

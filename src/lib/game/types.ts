@@ -170,6 +170,14 @@ export interface Episode {
    *  day's or week's first start, from the games' own starts. Stamped by the server (air-times.ts stampSportLocks); the engine's
    *  lock reads it (closedForPlay: L3 part 2b). */
   locksAt?: string;
+  /** L8 part 1's engine items, a lineup that locks at each game's start (spec closes 'game'): the episode's games (event id to its
+   *  start and the end of its day in the East) and each holding's games in it, stamped by the server (air-times.ts stampSportLocks),
+   *  never stored. */
+  gameStarts?: Record<string, { at: string; until: string }>;
+  holdingGames?: Record<string, string[]>;
+  /** Each lineup a player set in the episode with its time, for a lineup locking at each game's start: each game counts the one in
+   *  force when it started (ActiveRosterLogic.lineupAt). Stored. */
+  lineupsAt?: Record<string, { at: string; ids: string[] }[]>;
   /** L3 part 2: a game scored by a sport's stats, its game's lines by castaway once it's final and kept (counts, derived stats
    *  worked out), and on a card each one's bouts: stamped by the server on the copy it reads (sports/score.ts stampStats,
    *  StateLogic.StatsLogic.stamp), never stored; the spoiler view drops them past a viewer's mark. */

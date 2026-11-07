@@ -30,7 +30,8 @@ settings are all read from it. A league carries its spec as `settings.game`.
   "score":  { ... },   // how what counts earns points                 → How it scores
   "rank":   { ... },   // how the table is ordered and who wins        → How you win
   "ask":    [ ... ],   // questions answered before their lock         → Questions
-  "closes": "start",   // moves lock when each episode starts; a sport's `daily` or `weekly`: at the day's or week's first start
+  "closes": "start",   // moves lock when each episode starts; a sport's `daily` or `weekly`: at the day's or week's first start;
+                       // a sport's lineup's `game`: each holding at its own game's start
   "extras": { ... },   // the details nobody asked about               → The extras
   "stages": [ ... ],   // a game in stages instead: 2 to 6 games       → Stages
   "overall": { ... },  //   and how their tables add up
@@ -212,6 +213,16 @@ Of what you hold, what scores. One of:
 | `{ "best": n }` | your best n each episode, worked out for you (best ball, no lineups) | a draft; 1 to 8 |
 | `{ "pick": true }` | your pick | a pick |
 | `null` | nothing is held | a card, or `none` |
+
+**A lineup that locks at each game's start** (sports, L8 part 1's engine items: Yahoo's daily lineups inside a week's episode):
+`"closes": "game"` on a lineup (`{ "start": n }`) scored by a sport's stats, points or categories. Each holding locks when its own
+game starts and stays where it is, in the lineup or out, for the rest of that day (the East's), so one place in a lineup never counts
+twice in a day; the rest change as often as you like until their games. Each game of the week counts for whoever was in the lineup
+when it started: a change on Tuesday counts from the next game to start, the games before it for the lineup that held them. The
+episode locks at its last game's start. No captain (a captain is the whole episode's: lock at the start, daily or weekly to have
+one); kept open past its start by whoever runs the game, or with no games' starts known (a league at its own pace), it plays as one
+lineup. The server stamps each game's start and its day's end and each holding's games by its team (`ep.gameStarts`,
+`ep.holdingGames`, never saved); every lineup set is kept with its time (`ep.lineupsAt`).
 
 ---
 
@@ -855,7 +866,9 @@ Every game scores as one sequence of six steps, for each of you and each episode
    it's made; `heldAt`), a lineup's starters, best ball's whole team, a group slot's group. Someone two of you hold (a shared
    draft's, or since C4 a shared replacement in an exclusive draft) is on each team, each by its own holding. Since C7, the card's
    lines that episode (`cardLines`): the questions on it it asks, and the moments that count. Since L3 part 2e, a seat's squares
-   that episode (`SquaresLogic.heldAt`: a late seat's count from the game they took them for).
+   that episode (`SquaresLogic.heldAt`: a late seat's count from the game they took them for). Since L8 part 1, a lineup locking at
+   each game's start holds, for each game of a week, the lineup in force when that game started (`ActiveRosterLogic.gameHeld`), and
+   its lines are each game's of whoever it held then.
 2. **Score each line**: a line is one holding's points in one episode, from one source (since C5, a pick scored by moments holds
    that episode's picks, each a line as a lineup's starter is). An Outlast's line is a **place**, a
    value rather than points earned while held (whoever holds someone now has their whole place: `placed`, `stillIn`); a

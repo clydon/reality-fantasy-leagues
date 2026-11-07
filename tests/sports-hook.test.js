@@ -537,6 +537,96 @@ test("a slate's week: each game at the table on its own and added up, a double-d
   assert.equal(JSON.parse(JSON.stringify(s, (k, v) => (keys.has(k) ? undefined : v))).episodes.some((e) => e.statGames), false);
 });
 
+// L8 part 1's engine items: a lineup locking at each game's start (closes 'game'): Yahoo's daily lineups inside a week's episode.
+// Episode 1's games: Monday's (x and z play: g1) and Wednesday's (everyone: g2), each holding locked from its game's start to the end
+// of that day (the server's ep.gameStarts and ep.holdingGames).
+const H = 3_600_000;
+const MON = Date.parse("2026-11-09T00:00:00Z"); // Sun Nov 8, 7 PM EST
+function eachGameLineup(spec = base({ closes: "game", score: { by: "stats", points: { PTS: 1 } } })) {
+  const s = league(spec);
+  const [x, y, z] = s.castaways.map((c) => c.id);
+  const e = ep(s, 1);
+  e.airsAt = new Date(MON).toISOString();
+  e.gameStarts = {
+    g1: { at: new Date(MON).toISOString(), until: new Date(MON + 5 * H).toISOString() },
+    g2: { at: new Date(MON + 48 * H).toISOString(), until: new Date(MON + 53 * H).toISOString() },
+  };
+  e.holdingGames = { [x]: ["g1", "g2"], [y]: ["g2"], [z]: ["g1", "g2"] };
+  return { s, e, x, y, z };
+}
+
+test("a lineup locking at each game's start: a lineup scored by stats plays it; anything else is refused, and its words", () => {
+  const { s } = eachGameLineup();
+  assert.deepEqual(G.specWaitsFor(G.gameOf(s.settings)), []);
+  assert.equal(G.gameOf(s.settings).closes, "game", "the settings say it (lockCloses)");
+  const why = (spec) => G.specProblems(spec, CTX).map((p) => p.at);
+  assert.deepEqual(why(base({ closes: "game" })), []);
+  assert.deepEqual(why(base({ closes: "game", count: { best: 2 } })), ["closes"], "best ball has no lineup");
+  assert.deepEqual(why(base({ closes: "game", count: { all: true } })), ["closes"]);
+  assert.deepEqual(why(base({ closes: "game", score: { by: "moments", points: null } })), ["closes"], "a show's moments have no games");
+  assert.deepEqual(why({ ...CAPTAIN, closes: "game" }), ["score.captain"], "a captain is the episode's");
+  const rule = G.describeSpec(base({ closes: "game" }), { ...CTX, part: { singular: "week", plural: "weeks" } }).rules.find((r) => r.startsWith("Each "));
+  assert.equal(rule, "Each person locks when their game starts, for the rest of that day. Change the rest of your lineup as often as you like until theirs start: each game counts for whoever's in your lineup when it starts.");
+});
+
+test("a lineup locking at each game's start: each holding locks at its own game for the rest of its day, the week at its last game", () => {
+  const { s, e, x, y, z } = eachGameLineup();
+  const A = S.ActiveRosterLogic;
+  const set = (ids, t) => A.setLineup(s, e.id, "ann", ids, t);
+  assert.equal(set([x, z], MON - 24 * H), true, "Sunday, before the week");
+  assert.equal(set([x, y], MON - 23 * H), true, "changed again before any game: the one before is replaced");
+  assert.equal(set([x, z], MON - 22 * H), true);
+  assert.equal(e.lineupsAt.ann.length, 1);
+  // Monday night, during x's and z's game: neither moves, out or in; y (no game today) can't take z's place.
+  assert.equal(A.isLineupLocked(s, e.id, MON + H), false, "the week is open to its last game");
+  assert.equal(A.validateLineup(s, e.id, "ann", [x, y], MON + H), `${s.castaways[2].name}'s game has started: they stay in your lineup until the day's over`);
+  assert.equal(A.validateLineup(s, e.id, "bo", [s.castaways[3].id], MON + H), null, "bo's own aren't playing");
+  // Tuesday: Monday's day is over, so z makes way for y for Wednesday's game.
+  assert.equal(set([x, y], MON + 14 * H), true);
+  assert.equal(e.lineupsAt.ann.length, 2, "the Sunday lineup counted for Monday's game: kept");
+  // Wednesday's game started: everyone locked, the week too.
+  assert.equal(A.heldLocked(e, y, MON + 49 * H), true);
+  assert.equal(A.isLineupLocked(s, e.id, MON + 49 * H), true, "locked at the week's last game");
+  assert.equal(A.isLineupLocked(s, e.id, MON + 47 * H), false);
+  // Each game counts its own lineup: Monday's x and z, Wednesday's x and y (z's 20 on Wednesday was on the bench).
+  S.StatsLogic.stamp(s, { lines: { 1: { [x]: { PTS: 13 }, [y]: { PTS: 7 }, [z]: { PTS: 25 } } }, byGame: { 1: { g1: { [x]: { PTS: 10 }, [z]: { PTS: 5 } }, g2: { [x]: { PTS: 3 }, [y]: { PTS: 7 }, [z]: { PTS: 20 } } } }, finals: [1] });
+  assert.equal(score(s, "ann"), 10 + 5 + 3 + 7);
+  assert.deepEqual(A.lineupAt(s, e, "ann", MON), [x, z]);
+  // Kept open past its start by whoever runs the game: one lineup, as it stands, for every game.
+  e.openPastAir = true;
+  assert.equal(score(s, "ann"), 13 + 7);
+  delete e.openPastAir;
+  // The server's game starts are never saved; the lineups set are.
+  const keys = new Set(S.StatsLogic.stampedKeys());
+  const saved = JSON.parse(JSON.stringify(s, (k, v) => (keys.has(k) ? undefined : v))).episodes[0];
+  assert.equal(saved.gameStarts, undefined);
+  assert.equal(saved.holdingGames, undefined);
+  assert.equal(saved.lineupsAt.ann.length, 2);
+});
+
+test("a lineup locking at each game's start: a lineup set before it, a game with no start, categories game by game, no games stamped", () => {
+  const cats = base({ closes: "game", score: { by: "stats", categories: ["PTS", "REB"] }, rank: { by: "categories" } });
+  const { s, e, x, y, z } = eachGameLineup(cats);
+  const A = S.ActiveRosterLogic;
+  // A lineup set before the game locked at each game's start counts from the week's start.
+  e.lineups = { ann: [x, z] };
+  assert.equal(A.setLineup(s, e.id, "ann", [x, y], MON + 14 * H), true);
+  assert.deepEqual(e.lineupsAt.ann.map((l) => l.ids), [[x, z], [x, y]]);
+  // Categories: each game's lines of whoever was in at its start.
+  const g1 = { [x]: { PTS: 10, REB: 1 }, [z]: { PTS: 5, REB: 9 } };
+  const g2 = { [x]: { PTS: 3, REB: 2 }, [y]: { PTS: 7, REB: 0 }, [z]: { PTS: 20, REB: 20 } };
+  S.StatsLogic.stamp(s, { lines: { 1: {} }, byGame: { 1: { g1, g2, g3: { [z]: { PTS: 1, REB: 1 } } } }, finals: [1], defs: DEFS });
+  // g3 has no start stamped: the lineup as it stands (x and y), so z's line there isn't counted.
+  const counted = S.StatsLogic.countedLines(s, e, "ann");
+  assert.deepEqual(counted, [g1[x], g1[z], g2[x], g2[y]]);
+  // No games stamped (no schedule, a league at its own pace): one lineup, as at the start.
+  S.StatsLogic.unstamp(s);
+  delete e.gameStarts;
+  assert.equal(A.eachGame(s, e), false);
+  assert.equal(A.validateLineup(s, e.id, "ann", [x, z], MON - H), null);
+  assert.equal(A.validateLineup(s, e.id, "ann", [x, z], MON + H), "This episode has started -- lineups are locked");
+});
+
 // L3 part 2f part 2: a question about each game of the episode (a week's slate's pick'em, confidence points). Episode 1's games: the
 // 76ers' opener (the 76ers, "20", won), a second final ("7" beat "9") and a third called off; Episode 2's, one final and one to play.
 function eachGame(ask = {}) {

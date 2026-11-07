@@ -125,7 +125,10 @@
 //   ask      questions answered before their lock, each settled by data (A4: the question below). Beside a draft, its
 //            finale predictions (finaleQuestions); a game scored by answers, its own (Weekly Calls': the show's calls,
 //            CALLS)
-//   closes   'start': moves lock at each episode's start (today's airtime lock); sports: 'daily' | 'weekly'
+//   closes   'start': moves lock at each episode's start (today's airtime lock); sports: 'daily' | 'weekly' | 'game' (L8 part 1's
+//            engine items: a lineup scored by a sport's stats whose every holding locks at its own game's start, for the rest of
+//            that day, the rest changing until theirs: each game counts for whoever was in the lineup when it started, so a
+//            week's episode is set day by day, Yahoo's daily lineups; no captain: closesProblems)
 //   extras   the details nobody asked about, recommended and out of sight (EXTRAS below). A12 part 1: the draft room's opens,
 //            'any' (any time before the game starts: today's, and what leaving it out means) | 'start' (once the game's start is
 //            known and the episode before it has results, so it drafts from who's still in then: a second draft at the merge;
@@ -228,7 +231,7 @@ const VOCAB = {
   // C7 part 2: a card the bot chooses, in an episode it hasn't chosen by the time the card's out: the spec's list in turn, or void.
   'card.fallback': { spec: 'now', void: 'now' },
   // L3 part 2b: a sport's day's or week's lock (each episode's own first start: the server's ep.locksAt), the engine's lock reading it.
-  closes: { start: 'now', daily: 'now', weekly: 'now' },
+  closes: { start: 'now', daily: 'now', weekly: 'now', game: 'now' },
   'pool.where': { stillIn: 'now', teams: 'sports', group: 'later' },
   'ask.answer': {
     person: 'now', group: 'now', yesNo: 'now', number: 'now', overUnder: 'now', choice: 'now', calls: 'now',
@@ -2162,7 +2165,7 @@ function plainParts(s) {
     isObj(s.span) && (isInt(s.span.from, 1) || phaseFrom(s.span.from)) &&
     isObj(s.pool) && s.pool.of === 'cast' && (where === null || (isObj(where) && where.stillIn === true && Object.keys(where).length === 1)) &&
     Array.isArray(s.ask) &&
-    (s.closes === 'start' || s.closes === 'daily' || s.closes === 'weekly')
+    (s.closes === 'start' || s.closes === 'daily' || s.closes === 'weekly' || s.closes === 'game')
   );
 }
 /** A question a game of questions plays today: a show's (graded from its results or its moments), its line set when it's an
@@ -2503,7 +2506,8 @@ function specProblems(spec, ctx, opts) {
   if (rank.handicap !== undefined) handicapProblems(rank, s).forEach(([at, p]) => add(at, p));
   // A10 part 3c: worth is a stock market's: cash plus the team at today's prices.
   if (rank.by === 'worth' && !marketOf(s)) add('rank.by', "Ranking by worth is a stock market's (cash plus your team at today's prices): a budget that trades");
-  if (!one('closes', s.closes)) add('closes', 'Moves close at the start, daily or weekly');
+  if (!one('closes', s.closes)) add('closes', "Moves close at the start, daily, weekly or at each game's start");
+  else if (s.closes === 'game') closesProblems(s, count).forEach(([at, p]) => add(at, p));
 
   // ask
   if (!Array.isArray(s.ask)) add('ask', 'ask is a list of questions');
@@ -3043,6 +3047,21 @@ function squaresProblems(s, count) {
   for (const k of ['race', 'cut', 'oneLeft', 'allOut', 'teams', 'handicap', ...MATCHUP_KEYS]) if (rank[k] !== undefined) out.push([`rank.${k}`, 'Squares rank by what they win, nothing else: most points wins']);
   if (Array.isArray(s.ask) && s.ask.length) out.push(['ask', 'Squares are their own game: questions beside them play in a stage alongside it']);
   if (s.closes !== undefined && s.closes !== 'start') out.push(['closes', 'Squares are taken before the game starts: closes start']);
+  return out;
+}
+
+/**
+ * L8 part 1's engine items: a lineup locking at each game's start (closes 'game'), as [[at, problem]]. Each holding locks at its own
+ * game's start for the rest of that day, each game counting for whoever was in the lineup when it started (the server's game
+ * starts: ep.gameStarts), so it's a lineup's (count.start) scored by a sport's stats (points or categories). A captain is named for
+ * the whole episode, so it isn't built with one.
+ */
+function closesProblems(s, count) {
+  const out = [];
+  const score = isObj(s.score) ? s.score : {};
+  if (!(isObj(s.get) && s.get.by === 'draft' && count === 'start')) out.push(['closes', "Locking at each game's start is a lineup's: draft a team and start a lineup ({ start: n })"]);
+  else if (score.by !== 'stats') out.push(['closes', "Locking at each game's start is a sport's: score the lineup by its stats"]);
+  else if (score.captain !== undefined) out.push(['score.captain', "A captain is named for the whole episode: lock at the start, daily or weekly to have one"]);
   return out;
 }
 

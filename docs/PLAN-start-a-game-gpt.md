@@ -3582,6 +3582,61 @@ in the placement corpus with the roto refusal kept on the 7 of them ranked roto)
 - **A game linked to the week after its picks opened** joins the question (its faces are the games as linked at each read): a pick
   for it is open until it starts. Right for a makeup; a confidence pool's ranks then run to one more.
 
+**L8 part 1's engine items, part 1 as built: daily lineups inside a week's episode (2026-11-06, `sports`, not merged; no migration; HOSTING.md updated).**
+Yahoo's NBA (set each day, scored over the week), as a lock rather than as episodes: a week's episode stays the week (one meaning of a
+week: L8 part 3), and its lineup is set game by game inside it.
+- **The spec** (`schema.js`): `closes: 'game'` (VOCAB 'now'), a lineup's (`count.start`) scored by a sport's stats (points or
+  categories): each holding locks at its own game's start **for the rest of that day** (the East's), in the lineup or out, so one place
+  in it never counts twice in a day (Yahoo's and ESPN's daily lineups); the rest change until their games; each game counts for
+  whoever was in the lineup when it started. `closesProblems`: refused on best ball, everyone drafted, a pick, a show's moments, and
+  with a captain (the whole episode's). The settings carry it (`lockCloses`). **Decided here:** the lock lasts to the day's end, not
+  the episode's (a football week's Thursday player is then free on Friday: a football game keeps `weekly`, its default; a kept-for-the-
+  week lock is Noticed), and a change counts from the next game to start, never reaching back.
+- **The words** (`describe.js` lockRule; impeccable clarify: the one fact first, each person at their own game, then what's still
+  yours to change, then which lineup a game counts for): "Each player locks when their game starts, for the rest of that day. Change
+  the rest of your lineup as often as you like until theirs start: each game counts for whoever's in your lineup when it starts." (the
+  show's word for its people: "person" on today's sports contexts). The refusal (clarify: who, why, when it frees up): "Maxey's game
+  has started: they stay in your lineup until the day's over" (or "out of").
+- **The engine** (`state-logic.js` ActiveRosterLogic): `eachGame` (the spec closes 'game', the episode's games stamped, not kept open
+  past its start: openPastAir plays it as one lineup, as does a league with no games' starts); `isLineupLocked` locks such an episode
+  at its **last** game's start (the hand's lock and results as before; questions, bets and picks still lock at its first:
+  `closedForPlay` unchanged); `heldLocked` (a holding's game started and its day not over); `validateLineup` (now `now`) refuses moving
+  a locked holding in or out; `setLineup` keeps each set with its time (`ep.lineupsAt[playerId]`, `logLineup`: a set no game started
+  after is replaced by the next; a lineup set before the log began counts from the episode's start); `lineupAt` (the lineup in force at
+  an instant; before the first set, the one carried in: `carriedLineup`, split out of `lineupFor`); `gameHeld` (each game's counted
+  holdings). The sequence's hold step reads it: `episodeScore` scores each game's moments (`StatsLogic.scoredByGame`) of whoever was
+  in the lineup at its start; categories (`StatsLogic.countedLines`) each game's lines of whoever was in. `stampedKeys` leaves the
+  server's `gameStarts` and `holdingGames` out of a save.
+- **The server** (`air-times.ts` stampGameLocks, run by stampSportLocks for such a game on every read and write): each episode's games
+  in the game's span with their start and the end of their day (`locks.ts` gameLocksOf: the next midnight in the East, DST-safe) and
+  each holding's games by its team (`season_cast`'s group, the team's name as the link names it, ignoring case). Two queries, only for
+  such a game.
+- **Checks.** `tests/sports-hook.test.js` (25): it plays and the rest are refused, its words; a Sunday set replaced by the next before
+  any game, a holding locked mid-game in and out, the next day free, the week locked at its last game, each game scored by its own
+  lineup (z's 20 on the bench not counted), openPastAir one lineup, the stamp never saved and the log saved; a lineup set before the
+  log, a game with no start (the lineup as it stands), categories game by game, no games stamped. `tests/dst.test.js`: a game's day
+  ending at midnight EDT on Saturday Oct 31 and EST on Sunday Nov 1, and on March 8. `check-stats-game.js` (62, all pass): a fourth
+  season, a week of the kept opener, a game on now and one tomorrow, daily lineups as a league's own: a read stamps each game's start
+  and its day's end and each holding's games by its team; the Hawk mid-game can't be benched (through withLeagueLock); yesterday's 76er
+  swapped out, saved with its time beside the lineup before it and none of the stamp; once the games are kept, the opener counted for
+  the lineup then and tomorrow's for the one set today. `check-slate.js` passes. The placement corpus: no spec moves (its kinds score
+  by moments, which refuse 'game' as the engine before refused an unknown lock). 1,858 unit tests pass; `tsc` clean.
+
+**L8 part 1's engine items, part 1 noticed, not fixed:**
+- **The lineup screens show the episode open until its last game** (`isLineupLocked`), not who's locked: U1's screen (through
+  impeccable) reads `heldLocked` per holding (`ep.gameStarts`, `ep.holdingGames` are on the view) to show each locked one and until
+  when, and each holding's week as the games it counted in (`gameHeld`), where `StatsLogic.lineOf` gives every game of theirs.
+- **A change applies from now on**: a lineup for tomorrow can't be set while one of today's games holds someone in it (wait for
+  midnight). Yahoo lets you pick the day; a `day` on the lineup route if U1 wants it.
+- **A lock kept for the week** (ESPN's football: a Thursday player locked through Monday) isn't a word yet; football's default is
+  `weekly` (the week's first game). A word for it if a couch asks.
+- **The sports defaults on a week's slate**: the NBA's, NHL's and MLB's `daily` locks a week's slate at its first game (L8 part 3); a
+  slate by week of a daily sport would likelier want `game`. U1's Start a game for a slate decides its default.
+- **A holding's team is the cast's group, by name**: a player traded mid-week locks with their old team until the cast refreshes (their
+  lines still count where they played, for the lineup at that game's start).
+- **The bots** set their best lineup each run; mid-week one that moves a locked holding is refused, so they keep what they had. A bots
+  step.
+
 **L3 part 2f part 1 noticed, not fixed:**
 - **A week's live points wait for its last game** on the server (its results are the week's): the phone's live lines (L2) are what
   show a week as it goes; U1's to say "so far".
@@ -4177,8 +4232,9 @@ A season made of a whole league's games, several an episode, shared by everyone 
     side per game (`{ [eventId]: side }`, like a bracket's picks), graded per game against its facts, each pick locking at its own
     game's start (a lock per game inside an episode: L4 part 1a's `closedForPlay` reads `locksAt`, the episode's first game, today).
     The faces are the episode's games as linked at the lock (`sidesFor` reads `games`: an episode of several needs the game named).
-  - **Daily lineups inside a week's episode** (Yahoo's NBA: set each day, scored over the week): a holding locks at its own game's
-    start; today an episode locks once, at its first game.
+  - **Daily lineups inside a week's episode** (built in L8 part 1's engine items, part 1: `closes: 'game'`, each holding locking at its
+    own game's start for the rest of that day, each game counting the lineup in force when it started) (Yahoo's NBA: set each day,
+    scored over the week): a holding locks at its own game's start; today an episode locks once, at its first game.
   - **A playoff's series as a bracket** (L4 part 2's Noticed): a playoffs slate's games, grouped by `oneSeries` (matchup.ts), are each
     series' games; `bracketOf` takes each series as a bout once its round is known (ESPN's note: "East 1st Round - Game 3").
 

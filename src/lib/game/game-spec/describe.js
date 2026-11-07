@@ -144,6 +144,9 @@ const nth = (n) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', '
  *  part that's itself a calendar word (a slate's day, week or round) is its games. */
 function lockRule(what, s, w) {
   const tail = 'Change yours as often as you like until then.';
+  // L8 part 1's engine items, a lineup locking at each game's start (impeccable clarify, 2026-11-06: the one fact first, each person at
+  // their own game; then what's still yours to change; then which lineup a game counts for).
+  if (s.closes === 'game') return `Each ${w.castaway} locks when their game starts, for the rest of that day. Change the rest of your lineup as often as you like until theirs start: each game counts for whoever's in your lineup when it starts.`;
   if (s.closes !== 'daily' && s.closes !== 'weekly') return `${what} lock when the ${w.part} starts. ${tail}`;
   const span = s.closes === 'daily' ? 'day' : 'week';
   const one = ['day', 'week', 'round', 'gameweek', 'matchday'].includes(w.part) ? 'game' : w.part;

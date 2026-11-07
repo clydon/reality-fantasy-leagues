@@ -22,7 +22,11 @@
 // graded on it. L3 part 2f part 2: a week's slate (a third season): the opener and a game tomorrow, a pick'em of each game ranked by
 // confidence, answered through answers.ts (gameQuestions, answerQuestions) by a zt user's seat: the week's question open past its
 // episode's own lock, its games with their sides by name, each pick locking at its own game's start (a started game's pick kept, a change
-// or a first pick there refused), the confidences each once, then closed at its last game and graded game by game.
+// or a first pick there refused), the confidences each once, then closed at its last game and graded game by game. L8 part 1's
+// engine items: daily lineups on a week's slate (a fourth season, closes 'game'): a read stamps each game's start and day's end and
+// each holding's games by its team; a holding whose game is on today can't be benched (refused through withLeagueLock), one whose
+// game was yesterday can, saved with its time beside the lineup before it (never the stamp); once the week's games are kept, each
+// game counts the lineup in force when it started.
 // No app server: readyLeague is what GET /api/leagues/[id]/state and season-games.ts read through. Every row it makes is keyed
 // "zt-stats-game" (the show's slug, the league's slug, its user "zt-stats-game-user") or provider "zt-espn-stats"; it removes them at the end (--keep leaves
 // them; the next run removes them first). Refuses a non-local database. Prints PASS/FAIL.
@@ -53,6 +57,7 @@ const G = require("../../src/lib/game/game-spec/index.js");
 const USOPEN = require("../../tests/fixtures/espn/atp-189-2026.json");
 const { statLine, cents } = require("../../src/lib/game/sequence/stats.js");
 const S = require("../../src/lib/game/state-logic.js");
+const Air = require("../../src/lib/game/air-schedule.js");
 const SIXERS = require("../../tests/fixtures/espn/nba-401909093.json");
 
 let failures = 0;
@@ -376,6 +381,73 @@ async function down() {
       check(w?.status === "closed" && w.verdict?.state === "known" && G.sameValue(each["401909093"]?.right, ["20"]) && G.sameValue(each[later]?.right, ["1"]), "once its last game started it's closed; once both are final, known game by game", JSON.stringify(w?.verdict));
       const pts = Object.fromEntries((w?.people ?? []).map((x) => [x.playerId, x.earned]));
       check(pts.ann === 2 && pts.bo === 2 && g.points === 2, "  each right pick its confidence: ann's 76ers at 2, bo's Hawks at 2", JSON.stringify([pts, g.points]));
+    }
+
+    // L8 part 1's engine items: daily lineups inside a week's slate (closes 'game'), a fourth season of the show: its week the kept
+    // 76ers opener (yesterday), a game going on now (the Hawks' and the Celtics') and one tomorrow (the 76ers' and the Cavaliers'
+    // again). Ann's lineup, set before the game locked at each game's start, is two of the 76ers' (ann[0]) and a Hawk (ann[2]).
+    {
+      const season4 = (await pool.query("INSERT INTO show_seasons (show_id, season_number, premiere_date, air_time, air_tz, status) SELECT id, 4, (now() AT TIME ZONE 'UTC')::date - 1, '12:00', 'UTC', 'airing' FROM shows WHERE slug = $1 RETURNING id", [SLUG])).rows[0].id;
+      await pool.query("INSERT INTO sports_slates (season_id, provider, league, season, stage, cadence, windows, key) VALUES ($1, $2, 'basketball/nba', 2027, 'regular', 'week', '[]'::jsonb, $3)", [season4, P, `${SLUG}-daily`]);
+      await pool.query("INSERT INTO season_episodes (season_id, number, air_at, source) VALUES ($1, 1, $2, 'listing'), ($1, 2, $3, 'listing')", [season4, iso(-DAY), iso(6 * DAY)]);
+      const live = "zt-daily-live";
+      const tom = "zt-daily-tom";
+      const sixers = [{ id: "20", name: "76ers" }, { id: "5", name: "Cavaliers" }];
+      for (const [event, at, teams] of [["401909093", -DAY, sixers], [live, -60_000, [{ id: "1", name: "Hawks" }, { id: "2", name: "Celtics" }]], [tom, DAY, sixers]]) {
+        await pool.query("INSERT INTO season_events (season_id, episode, provider, league, event_id, starts_at, teams) VALUES ($1, 1, $2, 'basketball/nba', $3, $4, $5::jsonb)", [season4, P, event, iso(at), JSON.stringify(teams)]);
+      }
+      await pool.query("INSERT INTO sports_events (provider, league, event_id, starts_at, state, teams, final) VALUES ($1, 'basketball/nba', $2, $3, 'in', '[]'::jsonb, false), ($1, 'basketball/nba', $4, $5, 'pre', '[]'::jsonb, false)", [P, live, iso(-60_000), tom, iso(DAY)]);
+      // Each one's team as the cast has it (season_cast's group): ann[2] a Hawk and bo[2] a Celtic, for the check.
+      const teamOf = new Map([[ann[0], "76ers"], [ann[1], "76ers"], [ann[2], "Hawks"], [bo[0], "Cavaliers"], [bo[1], "Cavaliers"], [bo[2], "Celtics"]]);
+      for (const id of [...ann, ...bo]) {
+        await pool.query("INSERT INTO season_cast (season_id, name, tribe_name, role, provider_ids) VALUES ($1, $2, $3, $4, $5::jsonb)", [season4, box.people[id].name, teamOf.get(id), null, JSON.stringify({ [P]: id })]);
+      }
+      const q = S.defaultState();
+      S.updateSettings(q, "showId", SLUG);
+      S.updateSettings(q, "wikiSeason", 4);
+      q.settings.game = null;
+      for (const id of [...ann, ...bo]) S.addCastaway(q, box.people[id].name);
+      q.players = ["ann", "bo"].map((id) => ({ id, name: id, color: "#000" }));
+      S.updateSettings(q, "setupComplete", true);
+      const daily = {
+        spec: 1, span: { from: 1, to: null }, pool: { of: "cast", where: null }, get: { by: "draft", each: 3, order: "snake", own: "exclusive" },
+        count: { start: 2 }, score: { by: "stats", points: POINTS }, rank: { by: "total" }, closes: "game",
+      };
+      const wrong = S.setGame(q, daily, { ctx: specContextOf(nba) });
+      check(wrong.length === 0 && q.settings.game?.closes === "game", "daily lineups (each locking at its own game's start), written as a league's own", JSON.stringify(wrong));
+      const qid = (athlete) => q.castaways.find((c) => c.name === box.people[athlete].name).id;
+      q.castaways.forEach((c, i) => { c.ownerIds = [i < 3 ? "ann" : "bo"]; });
+      for (let n = 1; n <= 2; n++) S.ensureEpisodeNumber(q, n, false);
+      const qe1 = q.episodes.find((e) => e.number === 1);
+      qe1.lineups = { ann: [qid(ann[0]), qid(ann[2])], bo: [qid(bo[0]), qid(bo[1])] };
+      const id = (await pool.query("INSERT INTO leagues (name, slug, join_code, state) VALUES ('ZT daily lineups', $1, 'ZTDAYS', $2) RETURNING id", [`${SLUG}-daily`, JSON.stringify(q)])).rows[0].id;
+      const readD = async () => readyLeague(id, (await leagueStates([id])).get(id));
+      let s4 = await readD();
+      let w1 = s4.episodes.find((e) => e.number === 1);
+      const endOfDay = (ms) => Air.zonedToUtc(Air.addDays(Air.localDate(new Date(now + ms), "America/New_York"), 1), "00:00", "America/New_York").toISOString();
+      check(Object.keys(w1.gameStarts ?? {}).sort().join() === ["401909093", live, tom].sort().join() && w1.gameStarts[live].at === iso(-60_000) && w1.gameStarts[live].until === endOfDay(-60_000), "a read stamps the week's games: each one's start and the end of its day in the East", JSON.stringify(w1.gameStarts));
+      check(G.sameValue((w1.holdingGames?.[qid(ann[2])] ?? []), [live]) && G.sameValue([...(w1.holdingGames?.[qid(ann[0])] ?? [])].sort(), ["401909093", tom].sort()), "  and each holding's games, by its team", JSON.stringify(w1.holdingGames));
+      check(!S.ActiveRosterLogic.isLineupLocked(s4, w1.id) && S.ActiveRosterLogic.heldLocked(w1, qid(ann[2])) && !S.ActiveRosterLogic.heldLocked(w1, qid(ann[0])), "the week open until its last game; the Hawk locked while their game is on today, yesterday's 76ers not");
+      let why = null;
+      await withLeagueLock(id, (st) => { why = S.ActiveRosterLogic.validateLineup(st, w1.id, "ann", [qid(ann[0]), qid(ann[1])]); });
+      check(why === `${box.people[ann[2]].name}'s game has started: they stay in your lineup until the day's over`, "benching the Hawk mid-game: refused, as the write sees it", why);
+      let set = false;
+      await withLeagueLock(id, (st) => { set = S.ActiveRosterLogic.setLineup(st, w1.id, "ann", [qid(ann[1]), qid(ann[2])]); });
+      const row = (await pool.query("SELECT state FROM leagues WHERE id = $1", [id])).rows[0].state;
+      const r1 = row.episodes.find((e) => e.number === 1);
+      check(set && r1.lineupsAt?.ann?.length === 2 && G.sameValue(r1.lineupsAt.ann[1].ids, [qid(ann[1]), qid(ann[2])]) && !("gameStarts" in r1) && !("holdingGames" in r1), "swapping yesterday's 76er for another for tomorrow: saved with its time beside the lineup before it, none of the stamp", JSON.stringify(r1.lineupsAt));
+      // Both games played and kept (tomorrow's as the opener's lines again, for the check): each game counts its own lineup.
+      await pool.query("UPDATE sports_events SET state = 'post', final = true, final_at = now(), lines = '{}'::jsonb, people = '{}'::jsonb, lines_at = now() WHERE provider = $1 AND event_id = $2", [P, live]);
+      await pool.query(
+        "UPDATE sports_events t SET state = 'post', final = true, final_at = now(), teams = o.teams, lines = o.lines, people = o.people, shape = o.shape, lines_at = now() FROM sports_events o WHERE t.provider = $1 AND t.event_id = $2 AND o.provider = $1 AND o.event_id = '401909093'",
+        [P, tom]
+      );
+      s4 = await readD();
+      w1 = s4.episodes.find((e) => e.number === 1);
+      const annDaily = cents(phoneOf(ann[0]) + phoneOf(ann[2]) + phoneOf(ann[1]) + phoneOf(ann[2]));
+      const boDaily = cents(2 * (phoneOf(bo[0]) + phoneOf(bo[1])));
+      check(!!w1.statGames && total(s4, "ann") === annDaily && total(s4, "bo") === boDaily, "the week: the opener for the lineup then, tomorrow's for the one set today (ann), bo's one lineup for both", `${total(s4, "ann")} vs ${annDaily}, ${total(s4, "bo")} vs ${boDaily}`);
+      check(S.ActiveRosterLogic.isLineupLocked(s4, w1.id), "once its games are over: locked");
     }
 
     // A show's league is never stamped (nothing asked of the sports tables).

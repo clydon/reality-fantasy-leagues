@@ -625,9 +625,15 @@ declare const StateLogic: {
     lineupFor(state: LeagueState, epId: string, playerId: string): string[];
     /** True when lineupFor is carrying an earlier episode's lineup rather than one set for this episode. */
     lineupIsCarried(state: LeagueState, epId: string, playerId: string): boolean;
-    isLineupLocked(state: LeagueState, epId: string): boolean;
-    validateLineup(state: LeagueState, epId: string, playerId: string, castawayIds: string[]): string | null;
-    setLineup(state: LeagueState, epId: string, playerId: string, castawayIds: string[]): boolean;
+    isLineupLocked(state: LeagueState, epId: string, now?: number): boolean;
+    validateLineup(state: LeagueState, epId: string, playerId: string, castawayIds: string[], now?: number): string | null;
+    setLineup(state: LeagueState, epId: string, playerId: string, castawayIds: string[], now?: number): boolean;
+    /** L8 part 1's engine items: a lineup locking at each game's start (closes 'game', its games stamped). */
+    eachGame(state: LeagueState, ep: Episode): boolean;
+    /** Whether a holding is locked now: one of its games in the episode has started and its day isn't over. */
+    heldLocked(ep: Episode, castawayId: string, now?: number): boolean;
+    /** The lineup a player had in force at instant `t` (ms). */
+    lineupAt(state: LeagueState, ep: Episode, playerId: string, t: number): string[];
     /** Step A9 part 2: best ball's n (0: none); a captain's multiplier (0: no captain); whether the lineups score any way but
      *  plainly; what an episode's points multiply by (1: plainly). */
     bestOf(state: LeagueState): number;

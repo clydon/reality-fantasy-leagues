@@ -511,8 +511,8 @@ export interface GameSpec {
   score: SpecScore;
   rank: SpecRank;
   ask: Question[];
-  /** start: today. sports: daily, weekly. */
-  closes: "start" | "daily" | "weekly";
+  /** start: today. sports: daily, weekly, game (each holding of a lineup locks at its own game's start, for the rest of that day). */
+  closes: "start" | "daily" | "weekly" | "game";
   extras: SpecExtras;
   /** A12 part 1: a game in stages' stages (2 to MAX_STAGES) and how they add up; its own parts are then what fullStaged fills. */
   stages?: SpecStage[];

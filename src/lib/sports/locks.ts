@@ -59,3 +59,35 @@ export function locksOf(starts: { episode: number; at: string | null }[], closes
   for (const s of timed) earliest(s.episode, first.get(keyOf(s.at!))!);
   return out;
 }
+
+/** L8 part 1's engine items: an episode's games and each holding's in it, for a lineup that locks at each game's start. */
+export interface GameLocks {
+  /** Each game (event id) with its start and the end of its day (the next midnight in the zone): its holdings' lock. */
+  gameStarts: Record<string, { at: string; until: string }>;
+  /** Each holding (castaway id) with its games in the episode, by its team. */
+  holdingGames: Record<string, string[]>;
+}
+
+/**
+ * L8 part 1's engine items (closes 'game'): each episode's games with their starts and their day's end, and each holding's games, from
+ * the linked games (`teams` their sides' names) and each holding's team (`teamOf`: castaway id to its team's name). A holding locks
+ * at its own game's start for the rest of that day (StateLogic.ActiveRosterLogic.heldLocked), so one place in a lineup is never
+ * counted twice in a day; a game with no start has none. Names match ignoring case. Days are the zone's (Eastern, as `locksOf`'s).
+ */
+export function gameLocksOf(games: { episode: number; eventId: string; at: string | null; teams: string[] }[], teamOf: Map<string, string>, zone = LOCK_ZONE): Map<number, GameLocks> {
+  const out = new Map<number, GameLocks>();
+  const byTeam = new Map<string, string[]>();
+  for (const [id, team] of teamOf) {
+    const k = team.toLowerCase();
+    byTeam.set(k, [...(byTeam.get(k) ?? []), id]);
+  }
+  for (const g of games) {
+    if (!g.at || Number.isNaN(Date.parse(g.at))) continue;
+    const at = new Date(g.at);
+    const until = Air.zonedToUtc(Air.addDays(Air.localDate(at, zone), 1), "00:00", zone).toISOString();
+    const ep = out.get(g.episode) ?? out.set(g.episode, { gameStarts: {}, holdingGames: {} }).get(g.episode)!;
+    ep.gameStarts[g.eventId] = { at: at.toISOString(), until };
+    for (const team of g.teams) for (const id of byTeam.get(team.toLowerCase()) ?? []) (ep.holdingGames[id] ??= []).push(g.eventId);
+  }
+  return out;
+}

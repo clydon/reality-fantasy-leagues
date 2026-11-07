@@ -3235,7 +3235,8 @@ class StatsLogic {
     return state;
   }
   // The keys a stamp writes, for a save that leaves them out (JSON.stringify's replacer: db.ts withLeagueLock).
-  static stampedKeys(){ return [...STAMPED.episode, ...STAMPED.state]; }
+  // L8 part 1's engine items: the server's game starts for a lineup locking at each game's (air-times.ts), never saved either.
+  static stampedKeys(){ return [...STAMPED.episode, ...STAMPED.state, 'gameStarts', 'holdingGames']; }
   // L3 part 2d: a game ranked by a sport's categories (Spec.categoryParts: head to head by each, by most, or roto), or null.
   static categories(state){
     const g = playedGame(state);
@@ -3253,7 +3254,21 @@ class StatsLogic {
   // { [stat]: value | null }.
   static totals(state, eps, seats, cats){
     const defs = state.statDefs || {};
-    return new Map(seats.map(id => [id, Cats.categoryTotals(eps.flatMap(ep => StatsLogic.heldAt(state, ep, id).map(c => ep.statLines[c]).filter(Boolean)), cats, defs)]));
+    return new Map(seats.map(id => [id, Cats.categoryTotals(eps.flatMap(ep => StatsLogic.countedLines(state, ep, id)), cats, defs)]));
+  }
+  // A seat's counted lines in an episode: each holding's line there; L8 part 1's engine items, a lineup locking at each game's start,
+  // each game's lines of whoever was in the lineup when it started (ActiveRosterLogic.gameHeld).
+  static countedLines(state, ep, playerId){
+    const each = ep.statGames && typeof ep.statGames === 'object' ? ActiveRosterLogic.gameHeld(state, ep, playerId) : null;
+    if(each) return Object.entries(ep.statGames).flatMap(([event, lines]) => [...each.get(event)].map(c => lines && lines[c]).filter(Boolean));
+    return StatsLogic.heldAt(state, ep, playerId).map(c => ep.statLines[c]).filter(Boolean);
+  }
+  // L8 part 1's engine items: a slate's week's moments game by game ([[event id, moments]]), for a lineup that locks at each game's
+  // start (each game counts its own lineup's).
+  static scoredByGame(state, ep){
+    const groups = state.statGroups || {};
+    const score = playedGame(state).score;
+    return Object.entries(ep.statGames || {}).map(([event, lines]) => [event, Stats.statMoments(lines || {}, score, id => groups[id] || null)]);
   }
   // A draft whose whole team counts (count { all: true }: tonight's three, everyone you draft scoring), no lineups to set.
   static wholeTeam(state){
@@ -3574,11 +3589,15 @@ class ActiveRosterLogic {
     // C5: a pick each episode scored by what they do holds that episode's picks.
     // L3 part 2: a draft scored by a sport's stats whose whole team counts holds its team, as best ball does, every line counted.
     const team = best || StatsLogic.wholeTeam(state);
-    const held = gameOf(state).get.by === 'pick' ? PickEmLogic.picked(PickEmLogic.pickFor(state, ep.id, playerId)) : team ? ActiveRosterLogic.teamFor(state, ep, playerId) : ActiveRosterLogic.lineupFor(state, ep.id, playerId);
+    // L8 part 1's engine items: a lineup locking at each game's start, a slate's week game by game, each game's moments of whoever was
+    // in the lineup when it started (gameHeld); everyone who counted in any of them is a line.
+    const each = !team && gameOf(state).get.by !== 'pick' && ep.statGames && typeof ep.statGames === 'object' ? ActiveRosterLogic.gameHeld(state, ep, playerId) : null;
+    const held = gameOf(state).get.by === 'pick' ? PickEmLogic.picked(PickEmLogic.pickFor(state, ep.id, playerId)) : team ? ActiveRosterLogic.teamFor(state, ep, playerId) : each ? [...each.values()].flatMap(s => [...s]) : ActiveRosterLogic.lineupFor(state, ep.id, playerId);
     const ids = [...new Set(held)];
     const captain = team ? null : ActiveRosterLogic.captainFor(state, ep.id, playerId);
     const times = pre && pre.times !== undefined ? pre.times : ActiveRosterLogic.timesFor(state, ep.number);
-    const scored = (pre && pre.scored) || ActiveRosterLogic.episodeScored(state, ep, pre && pre.events) || [];
+    const scored = each ? StatsLogic.scoredByGame(state, ep).flatMap(([event, moments]) => moments.filter(m => each.get(event).has(m.castawayId)))
+      : (pre && pre.scored) || ActiveRosterLogic.episodeScored(state, ep, pre && pre.events) || [];
     const raw = Seq.momentRaw(ids, scored, ActiveRosterLogic.hits(state));
     // The captain's factor (C3: the one multiplier piece, on 'captain').
     const cap = { on: 'captain', times: captain ? ActiveRosterLogic.captainTimes(state) : 1 };
@@ -3615,6 +3634,10 @@ class ActiveRosterLogic {
     const ep = state.episodes.find(e => e.id === epId);
     if(!ep) return [];
     if(ep.lineups && Object.prototype.hasOwnProperty.call(ep.lineups, playerId)) return ep.lineups[playerId] || [];
+    return ActiveRosterLogic.carriedLineup(state, ep, playerId);
+  }
+  // The lineup a player carries into an episode from their most recent earlier one (lineupFor's, for one not set for it).
+  static carriedLineup(state, ep, playerId){
     const earlier = state.episodes
       .filter(e => e.number < ep.number && e.lineups && Object.prototype.hasOwnProperty.call(e.lineups, playerId))
       .sort((a,b) => b.number - a.number)[0];
@@ -3642,18 +3665,68 @@ class ActiveRosterLogic {
   // Locked once the episode starts airing (ep.airsAt, stamped by the server from the season's
   // schedule -- src/lib/server/air-times.ts), once it has results (a league whose season has no
   // schedule), or when a commissioner locked it by hand (the same fallback, kept for old leagues).
-  static isLineupLocked(state, epId){
+  // L8 part 1's engine items: a lineup locking at each game's start locks the episode at its last game's start (each holding at its
+  // own: heldLocked).
+  static isLineupLocked(state, epId, now){
     const ep = state.episodes.find(e => e.id === epId);
-    return !!ep && (closedForPlay(ep) || EpisodeLogic.hasResults(ep));
+    if(!ep) return false;
+    if(EpisodeLogic.hasResults(ep)) return true;
+    const last = ActiveRosterLogic.eachGame(state, ep) ? ActiveRosterLogic.lastStartOf(ep) : null;
+    if(last !== null) return !!ep.lineupsLocked || (now || Date.now()) >= last;
+    return closedForPlay(ep, now);
+  }
+
+  // ---- a lineup that locks at each game's start (L8 part 1's engine items: the spec's closes 'game') ----
+  // The server stamps each episode's games (`ep.gameStarts`: event id to { at, until }, its start and the end of its day in the East)
+  // and each holding's games in it (`ep.holdingGames`: castaway id to event ids), never saved (air-times.ts stampSportLocks). A holding
+  // locks at its own game's start for the rest of that day (nobody moves in or out of the lineup while it's locked: Yahoo's daily
+  // lineups, so one place in it isn't counted twice in a day), and each game counts for whoever was in the lineup when it started.
+  // Every lineup set is kept with its time (`ep.lineupsAt[playerId]`: [{ at, ids }] in order, the latest also `ep.lineups` as ever),
+  // so a change mid-week counts from the next game to start; a set no game started after is replaced by the next. The episode locks
+  // at its last game's start (isLineupLocked). Kept open past its start by whoever runs the game (openPastAir), or with no games
+  // stamped (no schedule, a league at its own pace), it plays as one lineup, as at the start.
+  static eachGame(state, ep){
+    return !!ep && gameOf(state).closes === 'game' && !ep.openPastAir && !!ep.gameStarts && typeof ep.gameStarts === 'object' && Object.keys(ep.gameStarts).length > 0;
+  }
+  // The episode's last game's start (ms), or null.
+  static lastStartOf(ep){
+    const t = Object.values(ep.gameStarts || {}).map(g => Date.parse(g && g.at)).filter(Number.isFinite);
+    return t.length ? Math.max(...t) : null;
+  }
+  // Whether a holding is locked now: one of its games in the episode has started and its day isn't over.
+  static heldLocked(ep, castawayId, now){
+    const t = now || Date.now();
+    return ((ep.holdingGames && ep.holdingGames[castawayId]) || []).some(e => {
+      const g = ep.gameStarts && ep.gameStarts[e];
+      return !!g && t >= Date.parse(g.at) && t < Date.parse(g.until);
+    });
+  }
+  // The lineup a player had in force at instant `t` (ms): the last they set before it; before their first set this episode, the one
+  // they carried in.
+  static lineupAt(state, ep, playerId, t){
+    const log = ep.lineupsAt && ep.lineupsAt[playerId];
+    if(!Array.isArray(log) || !log.length) return ActiveRosterLogic.lineupFor(state, ep.id, playerId);
+    const before = log.filter(x => Date.parse(x.at) < t);
+    return before.length ? before[before.length - 1].ids || [] : ActiveRosterLogic.carriedLineup(state, ep, playerId);
+  }
+  // Each game's counted holdings for a player (Map event id -> Set of castaway ids: the lineup in force at its start; a game with no
+  // start stamped, the lineup as it stands), or null when the episode plays as one lineup.
+  static gameHeld(state, ep, playerId){
+    if(!ActiveRosterLogic.eachGame(state, ep) || !ep.statGames || typeof ep.statGames !== 'object') return null;
+    return new Map(Object.keys(ep.statGames).map(event => {
+      const g = ep.gameStarts[event];
+      const t = g ? Date.parse(g.at) : NaN;
+      return [event, new Set(Number.isFinite(t) ? ActiveRosterLogic.lineupAt(state, ep, playerId, t) : ActiveRosterLogic.lineupFor(state, ep.id, playerId))];
+    }));
   }
   // Returns null if the lineup is acceptable, else a human-readable reason. Like blind draft (and
   // unlike most of this file) this reports WHY rather than silently no-opping -- a rejected lineup is
   // something the player needs to understand and fix.
-  static validateLineup(state, epId, playerId, castawayIds){
+  static validateLineup(state, epId, playerId, castawayIds, now){
     if(!piecesOf(state).hasActiveRoster) return 'This league type has no active roster';
     const ep = state.episodes.find(e => e.id === epId);
     if(!ep) return 'No such episode';
-    if(ActiveRosterLogic.isLineupLocked(state, epId)) return 'This episode has started -- lineups are locked';
+    if(ActiveRosterLogic.isLineupLocked(state, epId, now)) return 'This episode has started -- lineups are locked';
     if(!inPlay(state, ep.number)){
       const start = startEpisode(state);
       if(start === null) return "This game hasn't started: it waits for its phase of the season";
@@ -3676,12 +3749,23 @@ class ActiveRosterLogic {
       // before going, so excluding them would lose real points.
       if(!ownerListOf(c).includes(playerId)) return c.name + " isn't on your roster";
     }
+    // L8 part 1's engine items: a lineup locking at each game's start never moves anyone whose game has started today, in or out
+    // (impeccable clarify: who, why, and when it frees up).
+    if(ActiveRosterLogic.eachGame(state, ep)){
+      const had = ActiveRosterLogic.lineupFor(state, epId, playerId);
+      const moved = [...had.filter(id => !ids.includes(id)), ...ids.filter(id => !had.includes(id))];
+      const stuck = moved.find(id => ActiveRosterLogic.heldLocked(ep, id, now));
+      if(stuck) return Core.getCastaway(state, stuck).name + "'s game has started: they stay " + (had.includes(stuck) ? 'in' : 'out of') + " your lineup until the day's over";
+    }
     return null;
   }
-  static setLineup(state, epId, playerId, castawayIds){
-    if(ActiveRosterLogic.validateLineup(state, epId, playerId, castawayIds)) return false;
+  // `now` (ms) is a check's; a write's is the clock's.
+  static setLineup(state, epId, playerId, castawayIds, now){
+    if(ActiveRosterLogic.validateLineup(state, epId, playerId, castawayIds, now)) return false;
     const ep = state.episodes.find(e => e.id === epId);
     if(!ep.lineups) ep.lineups = {};
+    // L8 part 1's engine items: a lineup locking at each game's start keeps each set with its time (eachGame, above).
+    if(ActiveRosterLogic.eachGame(state, ep)) ActiveRosterLogic.logLineup(ep, playerId, castawayIds, now || Date.now());
     ep.lineups[playerId] = [...castawayIds];
     // A captain named for this episode is one of its starters: benching them takes the armband off.
     if(ep.captains && ep.captains[playerId] && !castawayIds.includes(ep.captains[playerId])) ep.captains[playerId] = null;
@@ -3718,6 +3802,17 @@ class ActiveRosterLogic {
     if(!ep.captains) ep.captains = {};
     ep.captains[playerId] = castawayId || null;
     return true;
+  }
+  // Keeps a set in the episode's log at `t` (ms): one a game started after stays (it counted for that game); one none did is
+  // replaced. A lineup set before the log began (the game changed to lock at each game's start) counts from the episode's start.
+  static logLineup(ep, playerId, ids, t){
+    if(!ep.lineupsAt) ep.lineupsAt = {};
+    const log = ep.lineupsAt[playerId] || (ep.lineupsAt[playerId] = []);
+    if(!log.length && ep.lineups && Object.prototype.hasOwnProperty.call(ep.lineups, playerId)) log.push({ at: new Date(0).toISOString(), ids: [...(ep.lineups[playerId] || [])] });
+    const last = log[log.length - 1];
+    const counted = !!last && Object.values(ep.gameStarts || {}).some(g => { const s = Date.parse(g && g.at); return s > Date.parse(last.at) && s <= t; });
+    if(last && !counted) log.pop();
+    log.push({ at: new Date(t).toISOString(), ids: [...ids] });
   }
   static lockLineups(state, epId){
     const ep = state.episodes.find(e => e.id === epId);

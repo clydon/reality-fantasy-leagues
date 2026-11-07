@@ -30,6 +30,8 @@ const clone = (v) => (v === undefined ? undefined : JSON.parse(JSON.stringify(v)
 const POOL_RANKS = ['standing', 'total', 'matchups', 'weeks'];
 /** C5: a pick's repeats as its settings say them (poolRepeat); a pool's default cycles, a pick scored by moments' repeats freely. */
 const REPEATS = ['cycle', 'never', 'any'];
+/** A sport's locks the settings carry (lockCloses): the day's or week's first start (L3 part 2b), each game's own (L8 part 1). */
+const LOCK_CLOSES = ['daily', 'weekly', 'game'];
 /** C5: only these moments count and hits counted (scoreOnly, scoreHits), a game scored by moments', each only when it's set. */
 function countsOf(st, score, copy) {
   if (Array.isArray(st.scoreOnly) && st.scoreOnly.length) score.only = copy ? clone(st.scoreOnly) : st.scoreOnly;
@@ -381,8 +383,8 @@ function readSpec(st, copy) {
   } else spec.ask = [];
   // C7: a new card each week (settings.gameCard, as its spec says it), only when it's set.
   if (isObj(st.gameCard)) spec.card = copy ? clone(st.gameCard) : st.gameCard;
-  // L3 part 2b: a sport's day's or week's lock (lockCloses), only when it's set.
-  spec.closes = st.lockCloses === 'daily' || st.lockCloses === 'weekly' ? st.lockCloses : 'start';
+  // L3 part 2b: a sport's day's or week's lock (lockCloses), only when it's set; L8 part 1's, each game's.
+  spec.closes = LOCK_CLOSES.includes(st.lockCloses) ? st.lockCloses : 'start';
 
   // Who can join (GhostLogic.joinMode): classic's late-joiner switch off locks it; open only where castaways can be on
   // several teams (else it reads as ask); anything else is the recommendation.
@@ -596,8 +598,8 @@ function settingsOf(spec) {
   out.scoreOnly = (lineup || pickMoments) && (Array.isArray(s.score.only) || s.score.only === 'card') ? clone(s.score.only) : undefined;
   // C7: a new card each week.
   out.gameCard = isObj(s.card) ? clone(s.card) : undefined;
-  // L3 part 2b: a sport's day's or week's lock.
-  out.lockCloses = s.closes === 'daily' || s.closes === 'weekly' ? s.closes : undefined;
+  // L3 part 2b: a sport's day's or week's lock; L8 part 1's, each game's.
+  out.lockCloses = LOCK_CLOSES.includes(s.closes) ? s.closes : undefined;
   out.scoreHits = (lineup || pickMoments) && s.score.hits !== undefined ? s.score.hits : undefined;
   out.reverseOrder = type === 'classic-draft' && s.score.reverse === true ? true : undefined;
   // C3: a draft's multiplier on how a holding joined (an Outlast's or a lineup's).
