@@ -58,7 +58,8 @@ const WAIVER_FIELDS = ["replaceRule", "replenishAt", "waiverWindows", "waiverFee
 const DRAFT_FIELDS = ["ownershipMode", "draftScheduledAt", "draftTimer", "draftAway", "draftOpens", "finalePredictionsEnabled", "finaleTop3Points", "finaleWinnerPoints", "finalePredictionScope", "draftQuestions", "draftDraw", "draftAcross", "draftAuction", "draftBudget", "draftKeep", "draftRank", "draftRace", "draftCut", "rankOneLeft", "rankMatchups", "rankTeams", "rankHandicap", "rankTies"];
 const GAME_FIELDS = {
   // A12 part 1: an end at a phase.
-  every: ["leagueTypeId", "startEpisode", "startPhase", "endEpisode", "endPhase", "allowLateJoiners", "joinMode", "lockedDown", "bonusEnabled", "defaultBetPoints"],
+  // L3 part 2b: a sport's day's or week's lock (lockCloses).
+  every: ["leagueTypeId", "startEpisode", "startPhase", "endEpisode", "endPhase", "allowLateJoiners", "joinMode", "lockedDown", "bonusEnabled", "defaultBetPoints", "lockCloses"],
   // A9 part 2: Outlast in reverse; best ball, a lineup's captain, points that multiply by when. A10 part 3c: a stock market
   // ranked by worth.
   // C3: a multiplier on how a holding joined (joinedTimes), an Outlast's or a lineup's.
@@ -66,7 +67,9 @@ const GAME_FIELDS = {
   // A14 part 4: secret roles (secretRoles), an Outlast's or a lineup's.
   // A14 part 5: the top scorer's twist (twist), a lineup's or a pick's scored by moments.
   "classic-draft": [...DRAFT_FIELDS, "teamSize", "reverseOrder", "joinedTimes", "bounty", "secretRoles"],
-  "active-roster": [...DRAFT_FIELDS, "activeSlots", "benchSlots", "eventPoints", "hideStartersUntilLock", "bestBall", "captainTimes", "pointsTimes", "groupSlots", "joinedTimes", "bounty", "secretRoles", "twist", "scoreOnly", "scoreHits", "gameCard"],
+  "active-roster": [...DRAFT_FIELDS, "activeSlots", "benchSlots", "eventPoints", "hideStartersUntilLock", "bestBall", "captainTimes", "pointsTimes", "groupSlots", "joinedTimes", "bounty", "secretRoles", "twist", "scoreOnly", "scoreHits", "gameCard",
+    // L3 part 2: a lineup scored by a sport's stats, its table; everyone drafted counting.
+    "statScoring", "countAll"],
   // A10 part 2: a pool's lives, buyback, mulligans, second pick and last one standing. A11 part 2: a pick that never repeats and
   // its fallback; last one standing's end.
   // C5: a pick scored by what they do (poolScore, its points eventPoints and by when pointsTimes, several each episode poolEach),
@@ -81,6 +84,8 @@ const GAME_FIELDS = {
   // A12 part 1: a game in stages' stages and overall.
   // A12 part 2: how a game a format change moves takes the change.
   stages: ["stages", "stageOverall", "formatChanges"],
+  // L3 part 2e: squares' grid and take, and their pays.
+  squares: ["squaresGet", "squaresScore"],
 };
 // A10 part 4b: a team two people share, wherever a seat has something to share (not a call or a bingo card).
 GAME_FIELDS["classic-draft"].push("seatPeople");
@@ -449,10 +454,13 @@ test("specWaitsFor: what a spec needs that isn't built, and the step that builds
   // Best ball plays (A9 part 2): Weekly Lineup's game, with no lineups.
   assert.deepEqual(waits({ ...P["weekly-lineup"], count: { best: 3 } }), []);
   assert.equal(G.typeOf({ ...P["weekly-lineup"], count: { best: 3 } }), "active-roster");
-  // A11 part 4: head to head plays on a show's draft; a sports spec's daily lock is still the sports branch's.
-  assert.deepEqual(waits({ ...P["weekly-lineup"], rank: { by: "matchups" }, closes: "daily" }), ["closes:sports"]);
-  assert.deepEqual(waits({ ...P["weekly-lineup"], rank: { by: "categories" }, closes: "daily" }), ["rank.by:sports", "closes:sports"]);
-  assert.deepEqual(waits({ spec: 1, get: { by: "squares" }, score: { by: "stats", points: { PTS: 1 } } }), ["get.by:sports", "score.by:sports"]);
+  // A11 part 4: head to head plays on a show's draft; L3 part 2b, a sports spec's daily lock too (the engine's lock reads the day's
+  // first start: ep.locksAt).
+  assert.deepEqual(waits({ ...P["weekly-lineup"], rank: { by: "matchups" }, closes: "daily" }), []);
+  // L3 part 2d: ranked by categories on a show's moments plays nowhere (a categories rank needs a sport's categories: categoryProblems).
+  assert.deepEqual(waits({ ...P["weekly-lineup"], rank: { by: "categories" }, closes: "daily" }), ["rank.by:null"]);
+  // L3 part 2: the engine scores a sport's stats; L3 part 2e, squares too (scored by their own pays: by stats, no place).
+  assert.deepEqual(waits({ spec: 1, get: { by: "squares" }, score: { by: "stats", points: { PTS: 1 } } }), ["score.by:null"]);
   assert.deepEqual(waits({ ...P.outlast, pool: { of: "cast", where: { group: "tribe-1" } } }), ["pool.where:later"]);
   // Every part built, but no game plays a draft where everyone scores moments without a lineup: C2 part 4 says which piece has no
   // place in the scoring sequence, and why.

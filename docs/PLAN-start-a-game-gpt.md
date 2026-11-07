@@ -8,7 +8,8 @@ them next (the user's, in production). **Merged and live in production (2026-10-
 **the game-specs flag is on** (R2, 2:39 PM: every league carries its spec), then the rest of A12 (parts 2–4c) and R1 part 3
 (2026-10-31, 12:31 AM, `075d193e`, no migration), then A13 (2026-11-05, 9:26 PM, `1d4b20a0`, migrations 0204 and 0436), then A14 parts 1-2, C1 and C2
 (2026-11-06, 9:33 AM, `e450fcd4`, migrations 0205 and 0206), then C3, C4, C4b and C5 (2026-11-06, 12:37 PM, `f22c9753`, migration
-0207), then C6 and C7 part 1 (2026-11-06, 3:53 PM, `abfa4a74`, no migration), then C7 part 2 (2026-11-06, 5:57 PM, `9d74258d`, migration 0208); later parts (A14 part 2b on) stay on
+0207), then C6 and C7 part 1 (2026-11-06, 3:53 PM, `abfa4a74`, no migration), then C7 part 2 (2026-11-06, 5:57 PM, `9d74258d`, migration 0208), and track L's live sports, released with no screens yet (2026-11-07, 1:05 AM, `e7f5dc0b`, migrations 0300 to 0306);
+later engine parts (A14 part 2b on) stay on
 `engine` until the main folder merges them, after each
 lettered step. A1–A4 are built on `engine` (A4 in two parts: the engine and storage, then the Prediction Sheet's screens, built before
 the screens moved to U1), merged and live since 2026-10-30 (above).
@@ -208,6 +209,8 @@ and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track
 | Custom moments (2026-10-30) | **Allowed, sometimes encouraged** (the user: "a fun league of Below Deck that just every week players guess 'did someone cry'"). A moment the show's research doesn't cover, typed to the GPT or added by hand (Make it ours included), takes the new-moment path in "Our check": a short feasibility ask at the start (how reliably research can answer it each episode, from recaps), and, if it's feasible, a question research asks after every episode (it won't come up unless it's asked explicitly). The user leans toward allowing somewhat-reliable moments (crying "will likely be mentioned in post episode recaps"); the bar (high only, or medium too) is still open. Claude's recommendation: medium too, with three nets: the feasibility answer shown to the maker, an episode research can't settle voided (no points either way), and the game's real answer rate shown as the season goes. Before the bar is set, measure on the season tapes whether the feasibility ask predicts what research actually returns (the user's concern in "A preset's rule"). |
 | A replacement's multiplier (2026-11-05) | **On what the replacement earns while it's yours, on every kind of draft, an Outlast included** (the user: "your assumptions are correct"; C1's Noticed). "The new player who replaces your lost one scores 0.5x" multiplies the points they earn from the episode after they join, never their whole place: in an Outlast, the boots they outlast while yours. An Outlast without a multiplier keeps today's count (whoever holds someone now has their whole place). Built in C3. |
 | A shared game's two holders (2026-11-06) | **Per holder, from the live games' next episode on** (the user, on C4's Noticed): someone who goes home in an episode not yet played is owed a replacement on every team that held them, one replacing them settling only their own. Every exit already played stays as it played out (no past loss owed again, no standings moving backwards); games made from now on are per holder from the start; C4's games as they are. As data, never a date or a league named in code: each existing game carries its cutover (`settings.perHolderFrom`, migration 0207: the first episode it hadn't played; Survivor 51's live games, Episode 8). Built as C4b, before Episode 8's results (Wed Nov 11). |
+| A sports week (2026-11-06) | **The episode, wherever the season has episodes of its own** (the main session's call, as the sports track's orchestrator; built in L8 part 3): a league's slate's episode (ESPN's own week for football, Monday to Sunday or a day for the NBA, NHL and MLB, a round for soccer) is the week for its locks, its matchups and the screens, locking at its own first game whatever the spec's `closes` says. Tuesday to Monday (Eastern) only where nothing else defines the week: a team's season and a matchup's series, one game an episode. |
+| Which line a game plays by (2026-11-06) | **The line when the question opens for answers, shown with it, never changing once anyone can answer** (the main session's call at 11:05 AM, as the sports track's orchestrator; the user can overrule; built in L3 part 3b). Not the line at the lock (answers made earlier would be graded against a line their makers never saw), nor the line when the game is made (a game made weeks ahead has none yet for its later games). Each question (each game, for a question about each game) takes the latest line read when it opens (the daily odds read is enough: no hourly read); one that opens before ESPN has a line waits ("Line coming") and opens when there is one. "Opens" is the first time the question is served open in the league (a read of its questions or an answer to it), the line kept then for good: it's the line every answer to it was made against. The phone's `lineAtStart` stays the live display's line, not the question's. |
 
 ## What's there today (mapped 2026-10-27)
 
@@ -1107,22 +1110,3462 @@ engine track; L brings each sport's data to it. Its screens wait for the UI trac
   reducers (the reduced box score at the end equals ESPN's own), games straight from ESPN's schedule, finals and odds stored,
   fixtures and tests (the user's two examples among them). The sports parts of the spec (`score.by: stats`, the sports
   settles, the default specs) once master has A2.
+  - **Split in three (2026-10-28):** part 1, the framework with baseball (built: As built below); part 2, basketball, hockey
+    and football on it (all three built: As built below; football, whose plays are text only, in a session of its own);
+    part 3, games straight from ESPN's schedule as a season of their own, finals and odds stored (the migration,
+    HOSTING.md) and the 76ers example's game from the schedule (its recorded game is part 2's fixture) (built: As built
+    below). L1 is done but its spec parts, which wait for A1-A4 on master.
+  - **Its spec parts, split in two (2026-11-06; master has had A1-A4 since 2026-10-30):** part 4a, `score.by: stats` (the spec's
+    tables as the defaults keep them: points each, by position, by place, by a bout's format; the check against a sport's ctx;
+    one scorer for every shape; the default specs passing the engine's own check: built 2026-11-06, As built below); part 4b, the
+    sports settles (`final` and `stat`, settled from a game as of a moment, `settle.of`, the `side` answer), on the recorded
+    fixtures and a live recording through the poller in virtual time (built 2026-11-06, As built below). **L1 is done**; L3
+    builds on both.
 - **L2. The live clock.** The phone's poller and `GameClock` (live, synced, snapped), shared with A15; fake-espn replaying a
-  recorded game in real time or 60x; HOSTING.md.
+  recorded game in real time or 60x; HOSTING.md. (Built 2026-10-28, in one session: As built below. Its one open check, a
+  real game recorded in progress against its final, is a script waiting for a game: L2's Noticed.)
+  - **Part 2 (2026-11-05): the pollers for fields, fight cards and tennis draws**, on the live recordings' numbers, keeping the
+    moment each result was first seen (the main session's order). Split in two: 2a, the shared poller and golf's and tennis's
+    feeds (one or two plain calls: built 2026-11-05, As built below); 2b, racing's and MMA's (their core API's calls, brought from
+    the dev scripts into the app: built 2026-11-05, As built below). **L2 is done.**
 - **L3. Live scoring through the spec.** Points per stat from box scores and plays (`score.by: stats`), live on the phone and
   saved once when final, replacing today's ChatGPT research of sports moments.
+  - **Split in three (2026-11-06, after master's C2 merged in):** part 1, the server's side, in this lane's files: the scoring
+    sequence's line for a stat (`sequence/stats.js`: a holding's stat line at the game's table is its moments, so a captain, the
+    episode's multiplier and best ball's best n take it from there), a team game's counts saved once when final (migration 0301),
+    a league's games read from them in its own people with their roster's position groups, `facts.games` for the sports settles as
+    of a viewer's mark, a side answer's faces (built 2026-11-06: As built below); part 2, **the engine's hook** (the engine lane's:
+    state-logic.js and schema.js's placement; written down in part 1's As built, "For the engine lane"); part 3, live on the phone
+    and the rest of what's saved: each holding's points live from the poller's `stateAt(t)` through the same line, the saved
+    final replacing the phone's provisional points (corrections at the final), a field's and a card's finals saved (their answers
+    are several calls: new server calls, HOSTING.md), the server's line at the lock (`lineAtStart`'s), postponed and suspended
+    games.
+  - **Part 3 split in two (2026-11-06):** 3a, live points on the phone (`points.ts` livePoints: the poller's state through the
+    sequence's line, the saved final replacing it at the end, what it changed said) and a field's and a card's finals kept and read
+    as a team game's (migration 0302, HOSTING.md) (built 2026-11-06: As built below); 3b, the server's line at the lock and
+    postponed, suspended and moved games (they need ESPN's own answers for a postponed game, none recorded yet, and a call on
+    which line a game plays by: 3a's Noticed) (built 2026-11-06 on ESPN's own answers for the Yankees' 2026 rainouts, recorded
+    after the fact, and the main session's call, the line when the question opens: As built below; migration 0306).
+  - **Part 2, the engine's hooks, in parts (2026-11-06, once track C was merged in: the main session's note of 3:45 PM; every "For
+    the engine lane" item of L3, L4 and L8 with it):** 2a, points per stat in the engine (a lineup, best ball or everyone drafted
+    scored by a sport's stats; a card's bouts at their formats: built 2026-11-06, As built below); 2b, the daily and weekly locks
+    (`closedForPlay` reading `locksAt`, `closes` daily and weekly to 'now', their words: built 2026-11-06, As built below); 2c, a
+    game of questions on the sports settles (pick'em and pick a few: `final`, `stat`, the `side` answer to 'now', an episode's game
+    final as its results: built 2026-11-06, As built below); 2d, categories and roto (`MatchupLogic` on `categoryParts`, the server handing `statDefs` over, `rank.by`
+    categories and roto to 'now': built 2026-11-06, As built below); 2e, squares and a bracket question (the squares themselves, their pays from the facts, a
+    bracket's faces on the server: built 2026-11-06, As built below); 2f, a week's slate (part 1, a week scored game by game and its
+    results once all its games are over: built 2026-11-06, As built below; part 2, a question per game of an episode, each pick
+    locking at its own game's start: built 2026-11-06, As built below). Each
+    part's proof a sports game played end to end on the recorded fixtures.
 - **L4. The formats, as the engine's pieces with sports data:** head-to-head, categories and roto (A11), best ball (A9),
   pick'em and pick a few (A4's questions with the sports settles), brackets (A8), squares (a sports way to `get`), live calls
   (A15); lineup locks per sport.
-- **L5. More of ESPN:** soccer; college and the WNBA; golf, racing, MMA and tennis (the field and bout shapes).
-- **L6. Release:** `sports` merges into master at once (migrations checked against a production backup first), then G3
+  - **Split (2026-11-06), on what's there:** a season here is one game (or one event) an episode (a team's schedule, a series, a
+    listing: `season_events`' key is the episode), and a stats game doesn't play on the server until the engine's hook (L3 part 2)
+    lands, so L4 builds first what doesn't wait on it. Part 1a, pick'em and pick a few as data on the sports settles (the server
+    grades them already) and lineup locks per sport from each sport's cadence and ESPN's starts (built 2026-11-06: As built
+    below); part 1b, categories and roto (the spec's shape, the check, a pure scorer beside the sequence for the hook to call: each
+    category over a window from summed counts, a rate from its parts) with head-to-head's and best ball's specs on the recorded
+    fixtures (built 2026-11-06: As built below); part 2, squares (a sports way to `get`: a grid of the two sides' last digits, paid by period from the sport's
+    period scores) and brackets (A8's order on a draw: tennis's `draws()`, a playoff's series) (built 2026-11-06: As built below; a
+    playoff's series waits for a season of a league's playoffs: its Noticed); live calls wait for A15 (not built
+    yet: its clock is L2's), and every stats format plays once the hook does (written down for the engine lane below).
+- **L5. More of ESPN:** soccer; college and the WNBA; golf, racing, MMA and tennis (the field and bout shapes). A part per
+  session: part 1, soccer (built 2026-10-28: As built below); part 2, college (basketball, football, baseball, hockey) and the
+  WNBA; then golf and racing (FieldSport); then MMA and tennis (BoutSport).
+  - **Part 3 split in two (2026-10-30):** 3a, golf (FieldSport and Golf: built 2026-10-30, As built below); 3b, racing (F1,
+    NASCAR's three series, IndyCar on FieldSport: built 2026-10-30, As built below).
+  - **Part 4 split in two (2026-10-30):** 4a, MMA (BoutSport and MMA: built 2026-10-30, As built below); 4b, tennis (Tennis on
+    BoutSport, an event's draws of matches over days: built 2026-10-30, As built below). **L5 is done.**
+  - **Part 2 split in three (2026-10-28):** 2a, college basketball and the WNBA (built: As built below); 2b, college football
+    (its own grammar of plays, on Football's vocabulary and box reader: built 2026-10-30, As built below); 2c, college baseball
+    (its own box and two feeds: built 2026-10-30, As built below). **College hockey isn't readable from ESPN** (looked at in
+    2a, below): left out, as boxing is.
+- **L7. Finding a game** (the user, 2026-11-06: "make adding games easier because right now adding by the tvmaze show interface
+  isnt intuitive. wed search by team, teams schedule, team v opponent, etc."; after L4's data parts, before L6). The data side, as
+  an API the screens (U0, U1: U0's sports brief on master) can read, no UI: search teams by name across the leagues ESPN covers;
+  a team's schedule, past and coming; a team against an opponent (their meetings this season); and what adding one makes (one
+  game, a team's season, a matchup), on master's Add a team pieces (docs/PLAN-sports-add.md: `espn.schedule`, `matchupSeason`,
+  the daily refresh, L1 part 3's, brought to master early). A season of a whole league's slate (several games an episode, for
+  pick'em over a week and a season-long league: L4 part 1a's Noticed) is a question for it or a step of its own. The guide's
+  Sports filter (src/new/hub/guide.tsx, "coming soon" today) turns on with the release. **Built 2026-11-06 (As built below).** A
+  league's slate is **its own step, L8** (decided in L7: below).
+- **L8. A league's slate** (decided in L7, 2026-11-06: its own step, not L7's). A season made of a whole league's games, several
+  an episode (a day's or a week's: an NFL week, a soccer round), for pick'em over a week's slate, a season-long fantasy league
+  over a league (the default `season` specs' "play someone head to head each week"), categories over a week (L4 part 1b's
+  Noticed) and a playoff's series as a bracket (L4 part 2's Noticed). It isn't L7's because it changes what an episode is: today
+  `season_events` keys one game to an episode and `leagueGames` reads one, so a slate needs several events an episode (each its own
+  part), what the week is (Tuesday to Monday, a soccer round ESPN doesn't number), and the engine's reads of a week's games (the
+  hook's: with L3 part 2), where L7 only finds and adds a team's games one an episode on what L1 part 3 built. Finding one reads
+  ESPN's search's leagues (L7's search finds teams only).
+  - **Split in two (2026-11-06):** part 1, the slate itself (what an episode is, from ESPN's calendar: a day, a week, football's
+    weeks, a soccer round; several linked events an episode, migration 0304; made and found by league, season, stage and cadence,
+    shared; its games linked as they near, a makeup or a moved game finding its episode; the daily refresh, the finals, the stats and
+    the cast reading several an episode; `leagueGames` keeping each game apart: built 2026-11-06, As built below); part 2, finding one
+    by the league's name beside L7's teams (ESPN's search's leagues and the team sports' own), what each league's slate can be (its
+    stages and cadences, each named, with the season already made for it) and adding one, as routes the screens can read
+    (`/api/sports/search`'s leagues, a league's slates, `/api/sports/add`'s slate), with check-find-game.js's cases (built
+    2026-11-06, As built below: the cases went into check-slate.js). A tour's season (golf's, F1's: an event an episode) is its
+    Noticed, not a part.
+  - **Part 3 (2026-11-06, the main session's note of 2:25 PM): one meaning of a sports week.** A slate's episode is the week
+    everywhere: its lock its own first game whatever `closes` says, L4's weekly lock reading the episode instead of its own
+    Tuesday-to-Monday calendar; Tuesday to Monday kept only where nothing else defines the week (built, As built below).
+- **L6. Release:** **released 2026-11-07, 1:05 AM (`e7f5dc0b`), with no screens yet: nobody can start a sports game until U0 and U1 build
+  them; the migrations rehearsed on a Neon copy of production first.** `sports` merges into master at once (migrations checked against a production backup first), then G3
   teaches the GPT these formats.
 - Its screens (the scorebug, the live box score, the couch's play feed, players organised, the matchup, sync, each format's
   own) are in U0 and U1.
 
+**L1 part 1 as built (2026-10-28, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration, no ESPN calls from the app, nothing stored).** The
+framework and baseball: a game is its plays, so the box score at any moment is the plays up to it, added up, and the final box
+score is the truth.
+- **`src/lib/sports/`** (new, pure: the server, the phone and the tests share it; nothing in it asks ESPN).
+  - `sport.ts`: `Sport` (abstract: its groups and positions, stat groups, stats, periods, lock cadence; `stat`, `full`,
+    `specStats`, `where`) and `TeamSport` (a box score and timestamped plays: `readBox`, `readPlays`, `reduce`, `correction`,
+    `timeline`, `stateAt`). `FieldSport` and `BoutSport` come with L5.
+  - A stat is `{ key, label, short, noun, better, group, kind }`: keys unique in the sport (what a spec names: `{ HR: 5 }`,
+    `{ stat: "PTS" }`); `short` as a column says it (a hitter's K and a pitcher's PK are both "K"); `noun` for a sentence ("5 a
+    home run": the spec's `ctx.stats` label, as A1's describe reads it); `kind` count (plays carry them), derived (from one
+    game's counts, added game by game: TB, IP, a quality start) or rate (never added: AVG, ERA). `known: "final"` for what only
+    the final box score knows (a pitcher's win, loss, save, hold, blown save); `judged` for the official scorer's calls
+    (earned runs, RBIs).
+  - A `Play` is `{ id, at, period, half, clock, text, kind, team, unit, people, score, deltas }`: `at` is ESPN's wallclock but
+    never before the play before it (`inOrder`: ESPN stamps a change made in the break with when it was made, filed after the
+    next inning's start, up to minutes back), so a moment's plays are always the first so many; `unit` is the at-bat (later
+    the drive: live calls' "this at-bat"); `deltas` what it adds to whose line.
+  - `reduce(plays, t)` is the game as of t (Date, ms or ISO). `timeline(summary)` is the plays and, once final, the final's
+    correction: one more play, at the last one's time, whose deltas make the plays' box score ESPN's own (its wins and holds,
+    a scoring change after the play, someone the plays credited who isn't in the box score). A play with no time (only a final
+    with no timed plays) counts only at the end, so a moment never sees it.
+  - `index.ts`: `sportOf(league)` by ESPN's sport slug ("baseball/mlb", "baseball/college-baseball": Baseball), `sportById`,
+    `allSports`, `defaultsFor(sport)`.
+- **`Baseball`** (`baseball.ts`): batters and pitchers; ESPN's position abbreviations as keys (C, 1B... DH, PH, PR, SP, RP, P);
+  batting PA AB R H 1B 2B 3B HR TB RBI BB IBB HBP K SB CS SF SH GIDP NP (#P) and AVG OBP SLG; pitching GS OUTS IP PH PR ER PBB
+  PK PHR PC PST W L SV HLD BS QS and ERA WHIP; nine innings ("Top 3rd"); daily locks.
+  - **The box score**: ESPN's batting and pitching tables by their labels, only the columns a table has, zeros kept (the
+    correction needs both); IP to outs; the first pitcher listed is the starter; decisions from the notes ("W, 1-0", "L, 3-2,
+    B, 1"); the team's own totals (doubles, total bases, plate appearances, GIDPs, outs, strikes), but not its earned runs,
+    which MLB works out again over the inning and can be fewer than its pitchers'.
+  - **The plays**: every pitch (the batter's pitches seen, the pitcher's count and strikes; an automatic ball isn't a pitch)
+    and every play-result. The play-result's text says what happened, read clause by clause by who each starts with (names as
+    ESPN writes them: last names, "Mesa Jr." or "Mesa", "We. Wilson" when two share one, no accents), lists of names sharing a
+    verb ("McMahon, Jones, and Goldschmidt scored"), MLB's own sentences after a 2026 ABS challenge ("...overturned: Eli White
+    walks. Ozzie Albies scores."). Runs come from each play's `scoreValue`, who scored from the text (else the runners gone,
+    lead runner first), outs from the text and, on a batter's play, ESPN's outs after it. **Total bases are counted from the
+    plays** (single 1, double 2, triple 3, home run 4), since ESPN's per-player batting has none.
+  - **Runs charged** to the pitcher who put the runner on (a pinch runner takes over his base and his pitcher; a fielder's
+    choice keeps an earlier pitcher's runner his); earned unless the runner reached on an error, was safe on a botched play
+    made on him, took a base on an error and didn't come in on a hit, scored on a passed ball, or the inning would have been
+    over without the errors (the rules' 9.16). RBIs as 9.04 says (none on a ground ball's double play; on an error only from
+    third with fewer than two outs; "scored on error" with no fielder named goes with the batter's play, "scored on throwing
+    error by third baseman Ortiz" doesn't).
+  - **ESPN's quirks, handled**: steals and wild pitches recorded twice (a typed play and a play-result, one with a review note
+    the other lacks); an at-bat's start and any play in the middle of it carrying the at-bat's final outs and score; the last
+    pitch filed again when the scorer changes the call; pitches filed under an at-bat after its end (an overturned strike
+    three); a pinch runner the next at-bat's start doesn't show; extra innings' runner on second nobody lists (the half's
+    first pitcher's, unearned); a half-inning missing its last out (the pitcher on the mound gets it, and the reader notes it).
+- **Baseball's defaults as data** (`src/lib/sports/defaults/baseball.json`): ESPN's standard points (R, TB, RBI, BB, SB 1; K
+  −1; IP 3; PH, PBB −1; ER −2; PK 1; W 2, L −2, SV 5, HLD 2), Yahoo's 5x5 categories, Yahoo's standard roster (C, 1B, 2B, 3B,
+  SS, 3 OF, 2 Util, 2 SP, 2 RP, 4 P, 5 bench; each slot takes positions or groups), daily locks, and two specs in A1's shape:
+  `season` (draft 23, start 18, head to head, daily) and `short` (one game, a series, a team's next few: draft 3 each, all
+  count, most points). They plug into the spec when master has A2 (merged in here first); slots and categories aren't in A1's
+  schema yet (L4 adds them), so they sit beside it.
+- **How a sport's Make it a game will start from its default spec, not ChatGPT.** Today Make it a game (`make-game.ts`) asks
+  the bot to write a rulebook of sports moments (2–4 minutes) and the game scores from ChatGPT's research of them. For a sport
+  ESPN carries, `sportOf(season's league)` gives the Sport and `defaultsFor` its specs: the game is `short` for a span of a few
+  games and `season` for a season, scored by stats from ESPN's box scores and plays (L3), with no rulebook and no bot. The
+  wizard's sentence reads from the spec as for any game; the bot stays for a sport ESPN hasn't got.
+- **Fixtures**: the 2026 AL Wild Card Series, Red Sox at Yankees (ESPN 401907924 and 401907963: the Yankees in two, 9-0 and
+  9-2), in `tests/fixtures/espn/`, trimmed to what the readers read (~225 KB each from ~930 KB) by
+  `scripts/dev-test/record-espn.js` (new, reusable: `--league --event --note`; refuses a game that isn't final). It's the
+  user's first example, made real: `tests/fixtures/sports-examples.js` has both examples as words, spec (ESPN's team ids:
+  BOS 2, NYY 10; PHI 20, CLE 5), games and what they settle to. The series at 5 a home run and 1 a total base: Ben Rice 22
+  (2 HR, 12 TB), Bellinger 11, García Jr. 11, Contreras 10, Sogard 9. The 76ers home opener was 2026-10-22, Cavaliers at
+  76ers (ESPN 401909093): 114-106, ESPN's line PHI −2.5 and 237.5 (DraftKings), so the total 220 is under, and the top
+  scorers tied at 32 (Maxey, Mitchell). It's part 2's basketball fixture.
+- **Checks.**
+  - `tests/sports-baseball.test.js` (13): the vocabulary; derived and rate stats; the box score in Baseball's keys; **the
+    proof** for each recorded game (the plays alone reduce to ESPN's own box score, 266 and 268 numbers, every team total
+    ESPN gives and the score, with no notes from the reader); plays in time order with their inning, half, at-bat, people and
+    deltas (Rice's grand slam: his RBIs, the three runners, the runs charged to the two pitchers who put them on); `stateAt`
+    at moments; the final's correction (only final-only stats; with it, every number of ESPN's; a scoring change after the
+    play taken back; someone not in the box score taken back; a live game has none; a final with no timed plays spoils no
+    moment); the reader's words; ESPN's quirks on a made-up game; a thinner box score; the series scored as typed; the
+    defaults.
+  - `scripts/dev-test/check-sport-reduce.js` (new, reusable: `--league --from --days --max` or `--events`; caches only
+    finished answers): the same proof on real games. **126 of 128 games reduce exactly** to ESPN's box score on every
+    player's every count (2026 regular season, July, September and May, three days each, plus the six Wild Card and World
+    Series games; about 61,000 plays). The two others are ESPN's team totals counting a steal no play shows. The scorer's
+    calls, apart: earned runs right on 1,081 of 1,110 pitcher lines, RBIs on 2,777 of 2,779 (the final's correction
+    settles them).
+  - 849 unit tests; `tsc` clean; eslint clean on `src/lib/sports` (tests and dev scripts use `require`, as everywhere).
+  - `/code-review` on the diff (its fixes: only the columns a box score has, a final with no timed plays spoiling no moment,
+    the botched force's out in the earned-run count, RBIs on a fly's double play, typed plays' twins both ways, the dev
+    scripts caching only finished answers, someone the plays credited who isn't in the box score, the derived stats' docs,
+    and `ordinal`, `str` and `idOf` shared, not copied: `server/sports/espn.ts` reads the last two from `sport.ts`).
+  - No HOSTING.md change: nothing here calls ESPN from the app, adds a table or stores data (part 3 does).
+
+**L1 part 1 addendum: baseball on days it wasn't tuned on (2026-10-28, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration, nothing stored).**
+Part 2's Noticed item, taken. Each difference was a count, read against ESPN's data before changing the reader:
+- **A dropped third strike** ("Friedl struck out, Friedl to first on passed ball by Ruiz"): ESPN lists the batter only on
+  first, so the strikeout was lost. The batter is now the at-bat's (from its start and pitches) when a clause starts with him
+  doing a batter's thing; reaching on a passed ball or an error is an out the fielders missed (his run unearned), on a wild
+  pitch it isn't. ESPN's outs on such a play are left alone.
+- **A pitch challenged under ABS is filed twice** ("Ball 2", then "Strike 1 Looking" typed `strike-looking---overturned`), and
+  **so is a result the scorer changed** ("struck out, to first on passed ball", then "safe at first on throwing error"): the
+  last filing stands (every case seen: 6 pitches and 1 result). This replaces part 1's "a pitch once, the first".
+- **A walk a relief pitcher came in to at 2-0, 2-1, 3-0, 3-1 or 3-2** is the pitcher's before him (the rules' 9.16(h)), and
+  so is that runner's run; ESPN's box agrees.
+- **A muffed foul fly** ("Wells continues to at bat after dropped foul ball by catcher Rutschman") isn't a plate appearance;
+  the batter reaching afterwards is an out the fielders missed.
+- **MLB's own words after a challenge or review**: "steals (6) 2nd base", "steals (4) home" (a run), "catcher Henry Davis picks
+  off Mickey Moniak at 3rd", "Umpire reviewed (home run), call on the field was upheld:", two challenges in a row. A typed play's
+  twin is now also the play-result on the same pitch of the same at-bat that tells it otherwise (in MLB's words, or with the
+  batter's result naming the runner: "Young struck out swinging, Abrams caught stealing second", which had counted a caught
+  stealing twice). The review note after a play no longer eats the name before it ("...by Jensen. Kansas City Royals
+  challenged").
+- **A ground ball's double play is grounded into (GIDP) only as a force or a reverse force**: a runner who had to run, put out
+  at the base he had to reach. Not "Holliday grounded into double play, ..., Alonso out at third" (Alonso from first), nor a
+  runner on second with first empty run down; ESPN's totals agree.
+- **The first pitcher listed is the starter whatever ESPN's `starter` flag says**: it's false for Ohtani starting on the mound
+  as a two-way player (2026-06-17); the only such row in 680 pitching tables.
+- **The numbers.** The days part 2 named: May 12-14 **41 of 41** (was 33), September 1-3 **39 of 39** (was 37). Part 1's days
+  as before: May 2-4 41 of 42, July 18-20 45 of 46, September 10-12 35 of 35, the six Wild Card and World Series games 6 of 6
+  (the two left: ESPN's team totals counting a steal no play shows). **New days, honestly, on their first run**: April 14-16
+  37 of 40, June 16-18 35 of 37, August 11-13 37 of 39; after the GIDP, twin and starter fixes 38 of 40, 36 of 37, 39 of 39.
+  **Every cached MLB game: 335 of 340** (314 before; ~163,000 plays); the five left are ESPN's own: four team totals with a
+  steal no play shows (one a double steal's runner who "scored on throwing error"), and a suspended game (stopped June 16,
+  resumed June 17) whose plays lack two at-bats. The scorer's calls, apart: earned runs right on 2,861 of 2,928 pitcher lines
+  (2,857 before), RBIs on 7,276 of 7,290 (unchanged).
+- `tests/sports-baseball.test.js` (14): a test of these quirks on made-up games (a challenged pitch, a dropped third strike,
+  a muffed foul fly, steals in MLB's words with their typed twins, an inherited walk at 2-0 and one at 1-0, a force and a
+  non-force double play, a result filed twice, a caught stealing told twice), and the new clause shapes in the reader's words.
+  Both fail on part 1's reader.
+
+**L1 part 1 noticed, not fixed:**
+- **Earned runs are the scorer's reconstruction**: 97% of pitcher lines from the rules as the plays say them; the rest come
+  right at the final. A full inning-by-inning reconstruction (each error's would-be out and the runners it moved) could close
+  more, if L3's live points need it.
+- **ESPN's team totals can count a steal no play shows** (2 of 128 games): nothing to read; the final box score is the truth
+  for a team's question.
+- **Live plays are untested**: every check is on finished games. A live summary's at-bat start may carry the outs and score
+  so far rather than the at-bat's end (ESPN updates it as the at-bat goes); the reader doesn't trust either, but L2 should
+  check a live game's plays against the same game's final (fake-espn's replay can't show it). (L2.) **L2:** every answer of
+  the recorded games, cut as live, reads as the recording does but for two runs a later play settles; a real game in
+  progress is still to record (`record-espn-live.js`, L2's Noticed).
+- **Slots should take the roster's position, not the game's**: the box score gives the position played that day (DH, PH,
+  PR), the roster ESPN's (SP, RP, OF: `season_cast.role`). A slot's eligibility reads the roster's. (L4.)
+- **A tie for "the most"**: the 76ers opener's top scorers tied at 32. The `stat: most` settle needs its rule (both right, as
+  A4's closest number does). (L4, with A4's questions.)
+- ~~**`GameState.score` is empty before the first play**~~ (no teams yet): **done** in L2 (each side at 0 from the header).
+- **College baseball reads as Baseball but isn't checked**: its box scores are thinner (L5, with college). **Checked** in L5
+  part 2a: it isn't read right (its box below), so `sportOf("baseball/college-baseball")` is null since (Baseball reads the MLB
+  only) until 2c reads it.
+- ~~**A game's plays are ~60% pitches**~~ (~450 Plays, a few hundred KB as JSON): fine for the phone, which reads ESPN's summary
+  (~1 MB) anyway. **L2:** reading a whole answer takes 2-5 ms in Node, every 15 s.
+
+**L1 part 2 as built: basketball and hockey (2026-10-28, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration, no ESPN calls from the app,
+nothing stored).** Football, whose plays are text only, is part 2's next session.
+- **`sport.ts`** gains what they need: the header's season type, status detail and a hockey game's goalies of record
+  (`featuredAthletes`); basketball's shot flags and hockey's strength and net on a play; `Play.shootout`; `pair` ("6-10");
+  the helpers every sport shares (`count`, `position`, `val`, `ratio`, `rosterOf`, `cleanDeltas`, a default `positionKey`:
+  Baseball uses them now); `Sport.leagues`, the ESPN leagues a sport reads when not all of its sport's play alike. The final's
+  correction also takes back what the plays credit to someone ESPN's box lists with no line (a player who didn't play), and
+  the final keeps the shootout flag.
+- **`Basketball`** (`basketball.ts`; the NBA and the WNBA; college basketball plays halves, so `sportOf` gives it null until
+  L5; read since L5 part 2a, below): guards, forwards, centers (PG SG G, SF PF F, C: a box score says G, F or C, a roster PG to C); MIN PTS FGM FGA 3PM 3PA
+  FTM FTA OREB DREB REB AST STL BLK TO PF PM (+/−), FG% 3P% FT%, DD and TD game by game; four quarters ("2nd quarter, 5:32");
+  daily locks. **Known at the final: MIN and PM** (who's on the floor, which ESPN's substitutions only mostly say).
+  **Judged: REB, OREB, DREB, AST, STL, BLK, TO** (the statistician's calls, which ESPN's box can credit to a teammate after the
+  play).
+  - The box score: its one table by label, made-attempted pairs, zeros kept, a player who didn't play with no line at all; the
+    team's totals (its pairs from their text).
+  - The plays: typed, their people with no roles but in a set order (the shooter, then the assister or blocker; who turned it
+    over, then who stole it; who enters, then who leaves). Counts come from the type and the shot flags (`shootingPlay`,
+    `pointsAttempted`, `scoringPlay`, `scoreValue`); a free throw by its type alone; **a missed heave isn't an attempt** (the
+    NBA's rule since 2025-26; ESPN's box agrees in every quarter, the 4th's included); a team rebound or team turnover is
+    nobody's; personal fouls include a flagrant, not a technical, a defensive three seconds or a delay; a double personal
+    foul comes as two plays, each its fouler's. The unit is **a possession**: a new one when the ball changes hands, or after a
+    made basket, a turnover or the last free throw (an and-one's free throw stays in its basket's, a technical's in whoever's
+    it is, and a held ball won back keeps it).
+- **`Hockey`** (`hockey.ts`; the NHL; college hockey ends a tie otherwise, so null until L5): forwards, defense, goalies (C LW
+  RW F, D, G); skating G A PTS PM PPG PPA PPP SHG SHA SHP SOG SM BLK HIT TK GV FW FL FO% SHFT SOGOAL; goaltending GA SA SV SV%
+  GAA ESSV PPSV SHSV W L OTL SO SOSV SOGA; ice time and penalties TOI PPTOI SHTOI ESTOI (in seconds, so they add) PN PIM; three
+  periods ("2nd period, 5:32 in": ESPN's hockey clock counts up; "overtime, 1:10 in"; "shootout"); daily locks. **Known at the
+  final: PM, TOI and its kinds, SHFT, and the goalies of record** (W; L, or OTL past regulation in the regular season; SO, the
+  winner's when he was his side's only goalie and the other side scored none). **Judged: SOG, SM (and so SA, SV and the
+  strength saves), HIT, BLK, TK, GV** (the real-time scorer's).
+  - The box score: forwards, defenses and goalies by label, zeros kept, but not its shootout columns (ESPN leaves them at 0);
+    the decisions from the header's `featuredAthletes`, overtime from the detail ("Final/OT", "Final/SO": the summary's header
+    has no period); the team's totals, but not its penalties (a bench minor is nobody's).
+  - The plays: by type and the people's roles (scorer, assister, shooter, saver, defender, hit-credited, giver, taker,
+    face-off-winner; a penalty's committer first). **A goal is against** the goalie the last shot at that net named (a missed
+    shot's goalie comes untyped), or after an intermission the one the next shot names; an empty net's is nobody's. Power-play
+    and shorthanded goals and assists by the goal's strength (the scoring side's); an empty-net goal's from the play before it
+    (a play's strength is its own side's, so the other side's is flipped). A shot blocked by a teammate isn't a block; saves
+    count by the shot's strength. **The shootout** ("SO") is its own: shootout goals, saves and goals against, never the game's
+    goals, shots or score, and its winner's one goal at its end. The unit is **the run of play from a faceoff**.
+- **Defaults as data**: `defaults/basketball.json` (Yahoo's head-to-head points PTS 1, REB 1.2, AST 1.5, STL 3, BLK 3, TO −1;
+  its 9 categories; PG, SG, G, SF, PF, F, 2 C, 2 Util, 3 bench; daily; `season` drafts 13 and starts 10 head to head, `short`
+  drafts 3, all count) and `defaults/hockey.json` (Yahoo's G 6, A 4, +/− 2, PPP 2, SOG 0.9, BLK 1, and for goalies W 5,
+  GA −3, SV 0.6, SO 5; its 10 categories; 2 C, 2 LW, 2 RW, 4 D, 2 G, 4 bench; daily; drafts 16 and starts 12).
+- **Fixtures** (`record-espn.js` now keeps each sport's play fields, the status detail, the goalies of record and ESPN's line,
+  `pickcenter`): the 76ers opener (`nba-401909093.json`, 201 KB, now in `sports-examples.js`'s `recorded`), Kings at Rangers
+  2026-10-26 (`nhl-401892582.json`: the Rangers' goalie pulled after the 1st, an empty-net goal, power plays) and Red Wings at
+  Kraken 2026-10-20 (`nhl-401892547.json`: overtime, then a shootout).
+- **Checks.**
+  - `tests/sports-basketball.test.js` (10) and `tests/sports-hockey.test.js` (12): the vocabulary, derived and rate stats, the
+    box score, **the proof** on each recorded game (the plays alone come to ESPN's box score: 285, 453 and 446 numbers, every
+    team total and the score, with no notes from the reader and nobody credited who didn't play), the plays and their units,
+    `stateAt` at moments, the final's correction (only final-only stats in it; with it, every number), the rules the
+    recordings don't show on made-up games, and the defaults. **The 76ers example settles as typed**: PHI wins 114-106, 220 is
+    under DraftKings' 237.5 (read from the fixture's own line), and Maxey and Mitchell tie at 32.
+  - `check-sport-reduce.js` now fails a count the plays credit to someone who didn't play, and sets apart only stats a sport
+    marks `judged`. On real games: **basketball 59 of 73** (the NBA's first eight days, four days of last May's playoffs, three
+    July days of the WNBA; ~36,200 plays; one more game ESPN answered 404), with a judged count in 20 (settled at the final);
+    the 14 left are ESPN's own: 7 a shot attempt its plays have and its box doesn't, or the other way round (a buzzer shot the
+    official count wiped, a putback missing from the plays), 5 a personal foul (a double technical its box counts as a foul in
+    some games and not others, or a foul missing from the plays), and 2 a basket its box credits to a teammate. **Hockey 63 of
+    64** (eight October days and four playoff days, ~20,600 plays), a judged shot in 3; the one left is ESPN's "Penalty Shot
+    Infraction", charged in its box to a teammate of the one its play names. Baseball reads as before.
+  - 871 unit tests; `tsc` clean; eslint clean on `src/lib/sports`.
+  - `/code-review` on the diff (its fixes: a player who didn't play taken back at the final and failed by the check; Hockey
+    for the NHL only; the check's "credited to a teammate" bucket replaced by the sports' own `judged`; a goalie changed at the
+    intermission; the shootout read from the period's name before the 5th-period rule; the final keeping the shootout flag; a
+    free throw by its type; a held ball's possession; the shared helpers; one set of goalies, read once. Two it raised were
+    checked against ESPN's data and kept: a missed 4th-quarter heave isn't an attempt either, and a penalty typed "Bench" can be
+    a player's own, so whoever a penalty names is charged).
+  - No HOSTING.md change: nothing calls ESPN from the app, adds a table or stores data.
+
+**L1 part 2 (basketball and hockey) noticed, not fixed:**
+- **Minutes and plus/minus, time on ice and shifts come only at the final.** ESPN's NBA substitutions cover the floor in most
+  games (quarter-start changes too), so tracking who's on could give live minutes and +/−; hockey's plays say nothing of
+  shifts. (L3, if live points need them.)
+- **A goalie changed mid-period whose first shot faced is a goal** is charged to the one pulled until the final: no play says
+  a goalie changed (the intermission's case is handled). (L3.)
+- ~~**The heave rule is checked on the NBA only**~~: the WNBA's ten games had none. (L5, with the WNBA's next season.)
+  **Done** in L5 part 2a: the WNBA has no heave rule (no play typed one in 120 games of 2026, and its 39 long misses in a
+  quarter's last 3 s are each the shooter's attempt in ESPN's box), which the reader already did.
+- **A possession's neutral plays** (the defense's foul right after a steal) stay in the possession before. (L4's live calls,
+  if "this possession" needs them exact.)
+- **A shutout in a 0-0 game won in a shootout** goes to the winner's goalie only; the NHL's own rule wasn't checked. Rare.
+  (L4.)
+- ~~**Baseball's reader does less well on days part 1 didn't tune it on**~~ (May 12-14 33 of 41, September 1-3 37 of 39):
+  **done** in part 1's addendum (above): 41 of 41 and 39 of 39, every cached MLB game 335 of 340.
+
+**L1 part 2 as built: football (2026-10-28, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration, no ESPN calls from the app, nothing
+stored).** Part 2 is done: L1 part 3 (games from ESPN's schedule) is next, or L2.
+- **`Football`** (`football.ts`; **the NFL only**: college football's plays are another grammar, below), registered in
+  `index.ts` with `defenseId` exported. Positions as ESPN's rosters say them (QB RB FB WR TE OT G C OL; DE DT NT DL LB CB S
+  DB; PK P LS; DEF, the team defense) in offense, defense, kicking and team; four quarters ("2nd quarter, 5:32", "overtime");
+  **weekly locks**. Stat keys, unique in the sport: passing CMP PATT PYDS (gross, as a passer's line) PTD INT SACKED SACKYDS,
+  NPYDS (net) worked out, CMP% YPA; rushing RATT RYDS RTD, YPC; receiving REC RECYDS RECTD TGT, YPR; two-point P2PT R2PT
+  RE2PT and 2PT (Yahoo's: the passer and the catcher both); fumbles FUM FUML FREC FRTD; defense TCK SOLO SACK (halves)
+  TFL PD QBH DTD FF SAF BLKK; interceptions DINT DINTYDS DINTTD; returns KR KRYDS KRTD PR PRYDS PRTD, RETTD; kicking FGM FGA,
+  **made by distance** FGM0 FGM20 FGM30 FGM40 FGM50 (from the plays: ESPN's box has only totals), XPM XPA, FGMISS XPMISS
+  KPTS FG%; punting PUNT PUNTYDS PUNTTB PUNTIN20, PUNTAVG.
+  - **The team defense is a line of its own per side** (`def:<ESPN team id>`, Yahoo's DEF): DSTG (its game, so a shutout
+    still has a line), DSTSACK DSTINT DSTFR (the other side's fumbles it recovered, a muffed punt's too) DSTTD (defense and
+    special teams touchdowns) DSTSAF DSTBLK, and PA, **points allowed as Yahoo counts them** (not a safety, a turnover's
+    return touchdown or a defensive two-point return; a kick's or punt's return touchdown is), with Yahoo's brackets PA0
+    PA1_6 ... PA35 worked out from it. The box score gives each side's DEF its sacks, interceptions, the other side's fumbles
+    lost and ESPN's "Defensive / Special Teams TDs"; safeties, blocks and points allowed only the plays say. Checked on 236
+    team defenses: never more allowed than the other side scored, the gaps exactly their return touchdowns and safeties.
+  - **Known at the final: nothing** (every count ESPN's box has, the plays carry). **Judged** (the stat crew's calls, which
+    ESPN's box makes otherwise after the play: it splits a sack the text gives one player, or counts a tackle, a tackle for
+    loss, a hit or a target the text doesn't name): **TGT, TCK, SOLO, SACK, TFL, PD, QBH, FF, DSTSACK**.
+- **The box score**: its ten tables by name and label (only the columns a table has, zeros kept; "27/40" and "2-11" two counts
+  each); no positions (ESPN's NFL box has none: the roster's say); the team's totals (completions, attempts, net passing
+  yards, sacks, interceptions, carries, rushing yards, fumbles lost).
+- **The plays** sit in `drives.previous[].plays` (and live `drives.current`, read once); each Play's unit is its drive, its team
+  the side with the ball at the snap, its score ESPN's after it (which never goes down: ESPN gives a two-minute warning 0-0).
+  They're text only, read sentence by sentence: names become placeholders, each matched on the side its place says (the
+  passer, runner and receiver the offense's, tacklers the other side's, a kick's returner the receiving side's, "RECOVERED by
+  ATL-G.Dexter" whoever ATL is), by first-name letters and last name ("Bi.Robinson", "A.St. Brown", "J.van den Berg", a
+  suffix dropped, a hyphenated name's first part: "S.Joseph" is Sebastian Joseph-Day), else by last name alone on that side (a
+  box score's nickname: "Bam Knight" is "Z.Knight"). **The text's team codes are the league's** (HST, BLT, CLV, ARZ, LA, WAS),
+  learned per game from its kickoffs; spots are placed from the home side's goal line, as ESPN's `start.yardLine` is.
+  - **Tackles**: "(A)" solo, "(A; B)" shared, "(A, B)" A's with B's help (A solo); a tackle for loss the first tackler's
+    when the play ends behind the line; "[A]" a hit on the quarterback, and a sacker's unless he fumbled or ran out ("sacked
+    ob"); "sack split by A and B" half each, no tackle for loss; a pass defended from "incomplete ... (A)" and the
+    interceptor's.
+  - **Yards as ESPN's box counts them** (each rule from the data, checked on every case seen): a spot foul by the side with the
+    ball behind where its gain ended counts the gain to the spot (a return's too, and a negative return whose foul is at the
+    catch counts nothing); "TOUCHDOWN NULLIFIED by Penalty" is no touchdown but the run to the foul's spot; a fumble the other
+    side (or a teammate) got counts to where it was first touched or recovered, but never past the fumble spot when that was a
+    gain, while the fumbler's own recovery moves it either way, and one out of bounds forward comes back to its spot (the
+    rules'); a sack's yards with a fumble are to where the other side first touched it, or where the play ended for the
+    quarterback's side, never a gain; a lateral's yards are the second man's and all the passer's, the catch the first's;
+    a punt's yards run to "impetus ends at", and on a muff on to where the ball ended when that's farther; "inside the 20" is
+    where the ball ended, a receiving side's foul during the return ending it at the foul's spot.
+  - **ESPN's quirks, handled**: the quarter's last play recorded twice (the next play from scrimmage starts at the same down
+    and spot: the first is left out); a fumbled snap told as a move ("C.Stroud to HST 11 for -5 yards. FUMBLES, and recovers")
+    isn't a run when a pass or sack follows; an aborted snap is the quarterback's carry for no gain, from the line when he runs
+    with it, never below nothing; a muffed punt is a fumble and a return of nothing (a kickoff's kept isn't a fumble, but is a
+    return); a blocked punt isn't a punt; "Illegal Forward Pass" isn't an attempt; "Fumble Forced by 55-D.Hunter" moves the
+    forced fumble; a reversed call reads what follows "REVERSED."; replay, injury and "reported in" notes are skipped; a
+    scoring play ESPN tells only as a summary with full names ("Dallas Goedert 9 Yd pass from Jalen Hurts (Jake Elliott
+    Kick)") and the phrases it writes when the league's text is missing ("Kirk Cousins Pass Complete for 5 Yds to Michael
+    Mayer", "Incomplete Pass, Intended For", "Team Safety") are read for what they say.
+- **Defaults as data** (`defaults/football.json`): **Yahoo's default half-PPR** (help.yahoo.com/kb/SLN6489.html): PYDS 0.04,
+  PTD 4, INT −1, RYDS 0.1, RTD 6, REC 0.5, RECYDS 0.1, RECTD 6, RETTD 6, FRTD 6, 2PT 2, FUML −2; kickers FG 0-39 3, 40-49 4, 50+
+  5, XPM 1; team defense sack 1, interception 2, fumble recovery 2, touchdown 6, safety 2, blocked kick 2, points allowed 0: 10,
+  1-6: 7, 7-13: 4, 14-20: 1, 21-27: 0, 28-34: −1, 35+: −4. No categories (Yahoo's football is points). Yahoo's roster: QB, 2 WR,
+  2 RB, TE, W/R/T, K (takes PK), DEF, 6 bench; weekly; `season` drafts 15 and starts 9 head to head, `short` drafts 3, all count.
+- **Fixtures** (`record-espn.js` keeps football's drives, only the fields the reader reads, one drive a line: 74-80 KB from
+  ~570 KB): 49ers at Falcons 2026-10-25 (`nfl-401873017.json`) and Cardinals at 49ers 2026-09-27 (`nfl-401872958.json`). No
+  college fixture: college isn't read (below).
+- **Checks.**
+  - `tests/sports-football.test.js` (16): the vocabulary, derived and rate stats (points allowed's brackets), the names and
+    sentences, the box score, **the proof** on each recorded game (471 and 458 numbers: the plays alone come to ESPN's box
+    score, every team total and the score, with no notes; the second's only differences four of the crew's tackles), the plays
+    (a sack, shared and helped tackles, an interception, a spot foul, a lateral, a fumble short of the catch's end, an aborted
+    snap), the 49ers' quirks (a lateral touchdown, a nullified touchdown, a muffed punt, a play recorded twice), `stateAt` at
+    the half, the final's correction (only judged stats in it; with it every number; a live game has none, its current drive
+    read once), and on made-up games the fumble and snap rules, the scoring summaries and phrases, two points, a pick-six and a
+    safety and the points allowed, sacks, tackles, punts and kickoffs, whose a safety or a muff's touchdown is, a name on its
+    own side; the defaults.
+  - `check-sport-reduce.js` takes `--weeks`, `--season`, `--seasontype` (and `--groups` for college once read). On real NFL
+    games: **weeks 3-7, 62 of 75; the 2025-26 playoffs, 11 of 14; weeks 1-2, 22 of 32** (15 of 32 on its first run there, before
+    the phrases only those weeks had): **95 of 121, ~22,300 plays**, with a judged count otherwise in 91 (tackles in most;
+    settled at the final), and **with the final's correction every game equals ESPN's box on every number**. The 26 left are
+    ESPN's own: 3 games with no box score at all (one the Pro Bowl), ~14 one-yard differences where its box was corrected after
+    the game but the play's text wasn't, fumbles and a sack no text describes (summary-only plays, three fumbles), an aborted
+    snap credited to the back who picked it up (in another game to the quarterback), a punt typed "-12 yards" (38 in the box).
+  - 887 unit tests; `tsc` clean; eslint clean on `src/lib/sports`.
+  - `/code-review` on the diff (its fixes: a safety on a return is the kicking side's; a muff the coverage recovers and scores
+    is its defense and special teams' touchdown, not an offensive fumble return; a phrase's fumble a teammate recovered isn't
+    lost; a name looked up on its own side by last name before the other side exactly; a two-point pass only when complete,
+    and a defensive two-point return's 2 points; one penalty regex; the check's `--weeks` stops at `--max`; the recorder's play
+    count with a live drive).
+  - No HOSTING.md change: nothing calls ESPN from the app, adds a table or stores data (the dev check asked ESPN ~170 times,
+    every finished answer cached).
+
+**L1 part 2 (football) noticed, not fixed:**
+- ~~**College football isn't read**~~: its plays are another grammar ("#12 K.Russell pass complete short right to #40 J.Ford
+  caught at ALA40, for 16 yards to the ALA41 (#7 D.Brooks), 1ST DOWN", "QB hurried by"), all 30 games checked, and its box has
+  no sacks taken or targets, "QB HUR" for hits and half tackles for loss. A `CollegeFootball` reader on Football's vocabulary
+  and box reader, its own text grammar. (L5, with college.) **Done** in L5 part 2b (below).
+- **A one-yard difference ESPN corrected after the game** (~14 lines in 121 games): its box is right and the play's text isn't,
+  so a live point can be a tenth off until the final settles it. (L3, nothing to do but the final.)
+- **A box score ESPN never filled in** (3 of 121 games, tables named "xfl", "nfl", "ufl" with no one in them): no final's
+  correction is possible; the plays would have to be the final. (L3, when it saves a final: fall back to the plays.)
+- **Plays only the plays carry**: forced fumbles, safeties, blocked kicks, offensive fumble return touchdowns, two-point
+  conversions, field goals by distance and points allowed have no ESPN number to prove them against; they're checked on
+  made-up plays and (points allowed) the 236 defenses' sanity check. The Yahoo points that read them can't be proven against
+  a box. (L3.)
+- **A team defense needs a cast entry**: its line is `def:<team>`, so a game's cast needs one per team for a DEF slot
+  (`season_cast.provider_ids.espn = "def:12"`). (L4, with slots.)
+- **Live drives are untested**: every check is on finished games; `drives.current` is read but never seen live. (L2.) **L2:**
+  read once on the replay (also when `drives.previous` lists it too); a real game is still to record (L2's Noticed).
+- **A muffed punt's foul** (a holding call at the recovery spot): ESPN kept the return whole and the punt where it was, the one
+  such case seen; the reader does too. Rare. (L3.)
+- **Baseball's reader on days part 1 didn't tune it on**: done since, in part 1's addendum (above).
+
+**L1 part 3 as built: games straight from ESPN's schedule (2026-10-28, `sports`; merged and live 2026-11-07, `e7f5dc0b`; migration 0300; HOSTING.md
+updated).** A matchup (one game, a series, a team's next few) is a season of its own, made from a team's ESPN schedule, keyed
+by its games and shared by everyone who asks for them; each linked game's final and line are kept. No UI, no API route: the
+GPT (G3) and the wizard (U1) will call `makeMatchup`.
+- **`src/lib/sports/matchup.ts`** (new, pure: the server, the phone and the tests share it). `pickMatchup(team, schedule, ask)`:
+  `games` (by ESPN's ids), `opener` (the first regular-season game; `home: true` for the home opener), `series` (the whole run of
+  games in a row against a team, at most 3 days apart, that the next one still to play is in: asked mid-series it's still the
+  whole series, never a run weeks on), `next` (the next few, against one team if asked); "still to play" is ESPN's state, or as
+  of `from` (an ISO time: "the upcoming series" asked on a schedule read after it). `matchupKey` (provider, league, the event
+  ids sorted: "espn:basketball/nba:401909093"), `matchupName` ("Cavaliers at 76ers, Oct 22", "Red Sox at Yankees, Sep 29 –
+  Sep 30", "Yankees vs Red Sox, ..." home and away, "76ers, 3 games, ..."; dates in the East), `matchupStatus`, `leagueName`
+  ("NBA"), `factsOf` (a game's sides, final and line as kept) and `finalOf` (what a final settles: the winner, each score, the
+  total, and against a line over, under or a push).
+- **ESPN** (`server/sports/espn.ts`, `types.ts`, `cache.ts`): `schedule(league, team, { season, type })`, a team's schedule
+  (`teams/{id}/schedule`, the scoreboard's own event shape: `readScoreboard` reads it, its stage from `seasonType`, its scores
+  from `{ value, displayValue }`), cached 12 hours (an hour when a game is within the day, 3 minutes while one's on). **Lines**
+  (`Odds`: provider, details, overUnder, spread, the home side's): the scoreboard's `competitions[0].odds[0]` before a game
+  (ESPN drops it from the scoreboard once the game's over, and a schedule has none), and a summary's `pickcenter[0]` (kept
+  after: the box score now carries it).
+- **`server/sports/matchup.ts`** (new): `makeMatchup({ league, team, ask, season?, type? })` reads the schedule, picks the
+  games and makes or finds their season: `matchupSeason` puts it on its league's show (`shows.sports_league`, "espn:basketball/
+  nba": made once, "NBA", kind sport, Players, Teams and Games, "Not a game yet" like a show added from its listing), the next
+  season number, named by `matchupName`, its status from its games; an episode per game (air time, ESPN's name, its note),
+  each linked to its event at once (`season_events` with the teams; `sports_links` saying all linked, so the daily linking never
+  looks for it); `sports_matchups` keys it (two people asking at once: the second gets the first's). Its people are the teams'
+  rosters after the answer (`castFromEvents`; `castable` now lets a matchup season's people come from its teams even once its
+  league's show is a game). **Each game's facts** (`storeEvents`, `sports_events`: its sides and state, its final once over,
+  never changed after, and its line: taken while the game is still to play, after only when none was kept): made for a
+  matchup's games (the line from the game's day's scoreboard, or a finished game's summary), and **the daily listings job**
+  (`refreshSportsEvents`) reads every linked game's day's scoreboard from three days back to a week ahead until it's final (a
+  matchup's or a TV listing's, at most 40 days a run, each cached), then sets each matchup season's status from its games.
+- **Migration 0300** (`sports_events`, `sports_matchups`, `shows.sports_league`), applied to `rfl_sports`.
+- **The user's examples from the schedule**: `tests/fixtures/sports-examples.js` gains each one's `matchup` (the 76ers: team 20,
+  `opener` at home; the Red Sox–Yankees: team 10, the 2026 postseason, `series` against 2 as of 2026-09-29). Fixtures recorded
+  by `scripts/dev-test/record-espn-schedule.js` (new, reusable: `--league --team [--season --seasontype --note]`, ~55 KB from
+  ~815 KB): the 76ers' 2026-27 (`nba-schedule-20.json`, 80 games) and the Yankees' 2026 postseason (`mlb-schedule-10-2026-3.json`).
+- **Checks.**
+  - `tests/sports-matchup.test.js` (8): a schedule read as games, lines from a scoreboard and a pickcenter, the picks on the
+    76ers' real schedule (the home opener 401909093, the opener at the Knicks, the next few, against one team, by ids) and on a
+    made-up series, the key, names, status and league names, the schedule's cache time, **the Red Sox–Yankees example's two
+    games from the Yankees' postseason**, and **the 76ers example made from the schedule settling as typed**: the home opener
+    is the example's game, its final from the schedule (114-106, the summary's own), DraftKings' 237.5 from its summary is the
+    spec's line, and the final settles it: the 76ers, 220, under (the top scorers, the box score's, part 2's test).
+  - `scripts/dev-test/check-matchup.js` (new, reusable; this lane's database and the stand-in ESPN, keyed `zt-`, cleaned up):
+    19 checks, all pass: the home opener made (the league's show, the season, its linked episode, its link, its key, both
+    teams' players with ESPN's ids, its final and its line from the summary: under), asked again (the same season), a series
+    and the next game (seasons 2 and 3 of the same show, the next game's line from its scoreboard), the daily job's part (a
+    line moved before the game taken, the final once played with the line before it kept, each matchup's status, a final
+    kept once, a linked game first seen after it ended given its summary's line), and a matchup's people once its show is a
+    game. `fake-espn.js` gains a team's schedule and lines (a
+    scoreboard's before the game, a summary's pickcenter). `check-sports-links.js` still passes.
+  - Measured on the real ESPN (the 76ers opener): 5 calls in 0.5 s, none a second time (HOSTING.md).
+  - 896 unit tests; `tsc` clean; eslint clean on `src/lib/sports`, `src/lib/server/sports` and `tv-listings.ts`.
+  - `/code-review` on the diff (its fixes: a line is only a default, so ESPN not answering for one leaves it out, never the
+    matchup; lines looked for only within the week; the daily job's refresh reads past days first and gives a game first seen
+    after it started its summary's line (the box score stats.ts reads, cached for good); a matchup is completed only when
+    every game has a row and is over; a postseason series stays whole however many days off; `num` for scores; the daily job's
+    three sports steps each on its own).
+
+**L1 part 3 noticed, not fixed:**
+- **The line kept is the last one read before the game**, and the daily job reads once a day, so it can be up to a day older
+  than the game's start. A spec's line is fixed when its game is made (from the kept one); a live game's lock could read the
+  scoreboard's line itself. (L2, the phone's poller; L3.) **L2:** the poller keeps the last line read before the start
+  (`lineAtStart`), on the phone only; the server's is L3's.
+- **Closed (L3 part 3b, 2026-11-06: called off, its episode's results nothing; a matchup doesn't take its makeup: 3b's Noticed).** **A postponed game** comes from ESPN as `post` but not completed: its matchup reads as completed and its final never comes.
+  ESPN moves it to a new event or date; the matchup would need its new game. (L3.)
+- **Closed (L3 part 3b, 2026-11-06: a suspended game read for 30 days; a moved one found on its team's schedule).** **A game not final three days after it starts** (suspended, resumed later) isn't read again by the daily job, and **a game
+  moved to another day** is looked for on its first day's scoreboard (`season_events.starts_at` isn't updated for a matchup).
+  (L3, with postponements.)
+- **A league's show is named from its slug** ("NBA", "Mens College Basketball"; soccer's "eng.1" would be "Eng 1"): L5 should
+  take ESPN's own (the scoreboard's `leagues[0].name` and `abbreviation`). And it's always its own show: a TV listing's show
+  already called "NBA" would sit beside it in search as a second "NBA" (`nba-2`). Whether a league's matchups join a listing's
+  show of the same league is a call for the wizard (U0) or the GPT's context pack (G1).
+- **A full season's schedule is ~60 KB of cache row** (the read shape keeps every side's logo and names): fine kept 12 hours;
+  trim it if many teams' schedules are asked. (When the GPT asks for them, G3.)
+- **Nothing makes a matchup yet** but code: the GPT's ask (G3), the wizard (U1) or an engine lab page (A5) will call
+  `makeMatchup`; a route for it comes with the first of them.
+
+**L2 as built: the live clock (2026-10-28, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration, nothing stored, no ESPN calls from our server;
+HOSTING.md updated).** A game's clock for someone, a game live on the phone, and every recorded game replayed through them. No
+UI.
+- **`src/lib/sports/clock.ts`** (new; pure, plain data; A15 uses it unchanged: its shape is under A15 in Steps). A `Moment` is
+  ms on the game's own clock (a sport's: ESPN's wallclock on each play; a show's: its airing's start plus the runtime). A
+  `GameClock` is `live` (now), `synced` (`{ at, wall, running }`: at the viewer's real time `wall` the game was at `at`,
+  running on or paused; never ahead of live) or `snapped` (`{ at }`; null is the end, for anyone not watching). Every function
+  takes the viewer's real time rather than reading one: `startAt` (press play), `pause`, `resume`, `nudge` (±30 s: back from
+  live is a stream's delay; forward never passes live, and a running clock that catches up is live again), `setTo` (tap the
+  last play you saw: its `playMoment`), `momentOf`, `behind`, `playAt` (the last play at or before a moment: a snapped clock's
+  play) and `stateOn` (`reduce` through a clock). For A15: `GameWindow { opens, closes }`, `isOpen`, `isLocked` (each viewer's
+  own lock), `stamp` (a call's moment on its caller's clock, the real time and which clock), `earliness` (1 at the opening, 0
+  at the close) and `unitWindow` (an at-bat, a drive or a possession, from its first play to its last).
+- **`src/lib/sports/live.ts`** (new; pure: fetch, the time, timers and the screen's visibility are passed in): `LiveGame`, the
+  phone's poller. It asks ESPN's summary (`base` plus ESPN's own path: ESPN's site API, a stand-in, or the fallback route) once
+  at `start()`, then waits for the game's start (ESPN's start time wins while it's still to start: a start moved later; asking
+  again at least every 10 minutes: one moved earlier; 0-3 s more, so a couch's phones don't ask at the start's second), then
+  every 15 s ±10% while the screen is visible; it doubles from 30 s to 5 minutes while ESPN fails (15 s again on an answer),
+  never asks while hidden (`visibilityChanged()`: back on, the next ask when it's due by the same rhythm, at once if it already
+  is), and stops once the game is final or called off (`post`). One ask at a time; a page's callback that throws never stops it. Each answer is read
+  whole by the game's Sport (`timeline`: its plays, and the final's correction once final) and **merged** (`mergeTimeline`):
+  the answer's plays win (each answer holds every play so far, read in its context, so a scoring change or a play ESPN dropped
+  reads as ESPN has it now), unless it's behind what's had (an older cache edge's: the newest play had isn't in it and its own
+  newest is one had before, or earlier) or its status goes back ("in" after "post"); then nothing changes, so times never go
+  back. An answer behind twice in a row, 15 s apart, isn't an old edge's: it's ESPN dropping its newest play (a basket wiped on
+  review), and it's taken. `state(clock)` is the game on someone's clock now, 0-0 before the first play. It keeps the sides (the
+  header's, without its score or winner), who's who (the box score's people, without their numbers) and the line: the latest,
+  and the last one read before the start (`lineAtStart`: L1 part 3's Noticed, on the phone only). Its `status`, `final` and
+  `detail` are the game's now, for asking and for someone watching live; anyone else is shown only `state(clock)`, since the
+  rest can be ahead of their clock (a later watch's spoiler). `readOdds` moved to `src/lib/sports/matchup.ts` (pure) so the phone reads the line without a server file;
+  `server/sports/espn.ts` re-exports it.
+- **`sport.ts`**: `reduce(plays, at, sides)` starts each side at 0, and `stateAt` passes the header's sides, so a game before
+  its first play has a score (L1's Noticed), never the header's own (a later watch's spoiler). Infinity is the end, as no moment
+  is; a moment that isn't one (NaN: a clock stored badly) counts nothing, never the whole game. `msOf` exported; the header's
+  `date` typed.
+- **ESPN answers browsers, as far as its headers show**: `Access-Control-Allow-Origin: *` to a request with an `Origin` (a local
+  one too) and a normal browser's user agent; `Cache-Control: max-age=1` to `7`; no ETag (so no 304s); gzip. **But its CDN
+  (Akamai) refuses a headless browser's user agent** ("HeadlessChrome": a 403 with no CORS header, which a page reports as
+  "blocked by CORS policy"). So a headless check can't ask the real ESPN, and dressing it up as a phone would be circumventing
+  a bot check (the session's auto mode refused it, rightly). A person's own browser is the real check: the one-liner in
+  `check-espn-browser.js`'s header comment, run in a phone's or a desktop's browser console before U1 ships a live screen.
+- **The fallback's shape** (built only if phones are ever refused): `GET /api/espn/apis/site/v2/sports/{sport}/{league}/summary
+  ?event=` (`src/app/api/espn/[...path]/route.ts`, that one path only): our server asks ESPN with our user agent and answers
+  with `Cache-Control: public, max-age=0, s-maxage=15, stale-while-revalidate=15`, trimmed to what the readers read
+  (record-espn.js's KEEP, ~5x smaller), so Vercel's CDN shares one ESPN call per game every 15 s per region; the poller's
+  `base` becomes `/api/espn`. Nothing in Neon. Its cost is in HOSTING.md.
+- **Every recorded game replayed through it.** `scripts/dev-test/espn-replay.js` (new): a recording as ESPN would have answered
+  at a moment (the plays in ESPN's order up to where their times pass it, football's drive going on in `drives.current`, the
+  score so far, status pre then in, and a minute after the last play the recording itself, final; the box score's people kept,
+  every number 0 until then), a replay clock, and the checks' shared reference: the recording **as known** at a moment (its
+  plays up to then, and the final's correction only once it's final, since that's when it becomes known: the timeline stamps it
+  at the last play's moment). `fake-espn.js` replays recordings (`espn.replay(fixture, { speed, from })`, real time or 60x, a
+  game's own `down`, every answer logged with its moment).
+- **What a later play settles, live** (found by the replay). The readers read a play in the context of the plays after it, and
+  the recordings show it twice: a third-quarter-ending play wiped in the break (Cardinals at 49ers: the next quarter's first
+  play starts at the same down and spot, so the first is left out; live it counts for the break's 166-170 s), and a goal on the
+  game's first shot, before any shot named the goalie in that net (Kings at Rangers: his goal against waits ~5.5 minutes for
+  the next shot at him). Live, the phone shows what ESPN's feed said then, and both settle when the later play comes. Every
+  other moment of the seven games equals the recording.
+- **Checks.**
+  - `tests/sports-live.test.js` (13): the clock (live, synced, snapped and every move; plain JSON); a clock's game (`playAt`,
+    `stateOn`, 0-0 before the first play); the seeded score in every recorded game; A15's pieces (a viewer 30 minutes behind
+    locks 30 minutes later); the replay's answers (pre; in with the score so far and ESPN's words for where; the box's people
+    and no numbers; then the recording); football's current drive, read once (also when ESPN lists it in previous too); the
+    merge (an answer behind ignored, a dropped or re-filed play taken); the asks in virtual time (once, then at the start;
+    15 s ±10%; 30, 60, 120, 240, 300, 300 s while failing and 15 s again; none while hidden; one at once when back, the backoff
+    kept while failing; none after the final; the line before the start); an answer behind changing nothing, and ESPN's dropped
+    newest play taken the second time; ESPN's start time winning, and a throwing callback not stopping it; a bad moment counting
+    nothing; and **every recorded game through the poller in
+    virtual time**: each answer equal to the recording as known then but for the two runs above, each settled within 6 minutes;
+    someone 20 minutes behind always equal; the end ESPN's box score on every number.
+  - `scripts/dev-test/check-live-clock.js` (new, reusable: `--speed --games --every --within`): the same through real HTTP at
+    60x, the seven games at once (198 s): every answer, a viewer 20 minutes behind and one who tapped a play, the asks' rhythm
+    (a 16.7 s median, with the check's own work at 60x), the stand-in failing for 3 minutes (30, 60, 120 s) and the screen
+    hidden for 5 (no asks; one at once after), none after the final, and the end: **7 of 7, all 3,237 numbers of ESPN's box
+    scores**.
+  - `scripts/dev-test/check-espn-browser.js` (new, reusable): the poller in headless Chromium, its TypeScript transpiled as the
+    page asks for it (no bundler), against the stand-in at another origin (a real cross-origin fetch, answered with ESPN's CORS
+    header) at 240x: a game of each sport to its final, each end ESPN's box score on every number (50 s). `--espn` asks the
+    real ESPN as the browser is (refused by its CDN: above). `browser.js` gains `launch()`.
+  - `scripts/dev-test/record-espn-live.js` (new, reusable): a real game recorded in progress and compared with its final
+    (L2's Noticed); checked end to end on the stand-in's replay.
+  - 909 unit tests; `tsc` clean; eslint clean on `src/lib/sports` and `src/lib/server/sports`; `check-matchup.js` still passes.
+  - `/code-review` on the diff (its fixes: a page's callback that throws no longer stops the asking; who's who without ESPN's
+    numbers, not its box score, and the header's status said to be now's, not a later watch's; ESPN dropping its newest play
+    taken the second time; ESPN's start time winning while it's still to start; the screen back on keeping the backoff and the
+    wait for the start; 0-3 s more at the start; a moment that isn't one counting nothing; `state` through `stateOn`; the
+    replay clock's `resume` on a running clock; the browser check's time cap by its speed).
+- **Cost** (HOSTING.md): nothing on Vercel or Neon while a game is live; ESPN's calls come from phones, 240 an hour for each
+  phone watching (cached by ESPN's CDN). A phone's data: a finished game's summary is 45-80 KB over the wire, so an estimated
+  15-30 MB for a game watched live with the screen on (`record-espn-live.js` measures it).
+- **L1's Noticed items marked L2**: the score before the first play, done; a game's plays being ~60% pitches, fine (reading a
+  whole answer takes 2-5 ms in Node, every 15 s); live plays and football's `drives.current`, done on the replay, with the real
+  game still to record (below); the line up to a day old at the start, kept on the phone (below).
+
+**L2 noticed, not fixed:**
+- **A real game recorded in progress, against its final, is still to do.** fake-espn's replay cuts a finished game, so it
+  can't show how ESPN's live answers differ (L1's "Live plays are untested", football's "Live drives are untested"). No game of
+  the four sports was on during the session (the NBA's and NHL's started at 7 PM ET, the World Series' at 8). During a game:
+  `node scripts/dev-test/record-espn-live.js --league=<league> --event=<id>`, then `--compare` once it's final. What to read
+  in its report: plays ESPN listed live and dropped; plays the final reads otherwise (a pitch filed twice, a scoring change);
+  baseball's outs and score on an at-bat's start live (the final's carry the at-bat's end; the reader reads neither); football's
+  `drives.current`, and whether `drives.previous` lists it too (the reader reads a play once either way); whether a hockey box
+  lists a goalie who hasn't played (if it doesn't, a goal on the first shot finds its goalie as the side's only one live, and
+  the 5.5-minute wait above goes); ESPN's lag from a play's wallclock to its first answer (how fair a live call's moment is:
+  A15); the bytes per answer (a phone's data). Next chances: the NBA and NHL every night, the World Series, and the NFL on
+  Thursday 2026-10-29 (Panthers at Packers, 8:15 PM ET). (The next session in this lane that runs during a game.)
+  **L5 part 1 (2026-10-28):** two soccer cup ties recorded live and compared (L5 part 1's As built: one answer came cut short,
+  and the poller now keeps what it had; ESPN's commentary ~48 s behind the play), and the night's 76ers at Pacers (NBA
+  401909884), Flyers at Capitals (NHL 401892596) and World Series Game 5, Brewers at Rays (MLB 401908046), being recorded by
+  detached recorders that stop themselves at each final (in the OS temp folder's `rfl-espn-live/`, a log `.out.txt` beside
+  each): the next session runs `--compare` on each (`--league --event` as above) and writes what it shows here.
+  **L5 part 2b (2026-10-30): the three compared.** All three were final (the World Series' at 11:14 PM ET); each final reduces
+  exactly to ESPN's box (`check-sport-reduce.js --events`). The compare now also follows each count from the first answer a phone
+  showed it otherwise to the first that matched (the stat crew's judged counts apart) and says how many people the live box listed:
+  - **76ers at Pacers (NBA 401909884):** 243 of 321 answers equal the final at their moment. 50 counts shown otherwise settled in a
+    median 38 s (most 194 s), 29 judged ones in 40 s (most 533 s). All of it ESPN rewriting plays live: a free throw restamped up
+    to a minute later, a turnover rewritten as a blocked layup (for 30 s a "No Shot (Default Shot)" 79-foot attempt), a steal's
+    turnover moved to a teammate and back; 2 plays dropped. The live box listed all 25 people from the first answer.
+  - **Flyers at Capitals (NHL 401892596):** only 11 of 301 answers equal, nearly all the crew's calls: 127 judged counts (hits,
+    blocks, giveaways, takeaways; median 65 s, most 6,625 s, one only at the final). Of 49 others (median 2 s), ESPN **flipped the
+    winner of 6 of 53 faceoffs** after first listing them (up to 21 minutes later) and added a goal's assists a minute or two
+    after it ("assists: none", then one, then two). **The live NHL box lists a player only once he's played** (0 people at the
+    opening faceoff, 38 by the final), so a block by a teammate not yet listed had counted as a block (Tom Wilson, 30 s):
+    `hockey.ts` now learns a side from the plays too (every role but a blocked shot's shooter is on a set side of the play's
+    team: checked on 64 games, every role of each kind). And with the box listing only who's played, a goal on the game's first
+    shot finds its goalie as the side's only one listed: the 5.5-minute wait above was the replay's, which lists the final's
+    people from the start.
+  - **World Series Game 5 (MLB 401908046):** 347 of 361 equal; 30 counts (median 26 s, most 200 s), none judged: ESPN stamps an
+    at-bat's start (and a half-inning's) when it opens it and restamps it to its first pitch up to 3 minutes later (a phone shows
+    a starter's game started early), restamps a pitch a few seconds, and dropped 3 pitches it filed again. **188 of 325 at-bat
+    starts and pitches seen live carried the outs so far, 5 the score so far** (the final's carry the at-bat's end): the reader
+    reads neither, as designed.
+  - **ESPN's lag** from a play's wallclock to its first answer: NBA a median 51 s (90th 91 s), NHL 63 s (90th 201 s, most 20
+    minutes), MLB 59 s (90th 81 s); with soccer's ~48 s, about a minute (A15's live calls).
+  - **A phone's data:** NBA 31 KB an answer over the wire (7 MB an hour at 15 s), NHL 28 KB (6 MB), MLB 55 KB (13 MB, ~40 MB for a
+    three-hour game: more than the 15-30 MB estimated above; HOSTING.md updated).
+  - Still to record live: the NFL's `drives.current` (Sunday's games), college football (two FBS games of 2026-10-30 being
+    recorded, below) and the WNBA's first live game (its Finals' Game 7, 2026-10-31, being recorded).
+  **L5 part 2c (2026-10-30, from 02:30 ET):** none of the three was final (Baylor at UCF and Tulane at Charlotte start that
+  evening, the WNBA's Game 7 the next): their `--compare` is handed on. No NFL game was on during the session.
+  **L5 part 3a (2026-10-30, from 04:00 ET):** still none final (the college games that evening, the WNBA's Game 7 on 10-31): handed
+  on again. Three more being recorded, each a detached process that stops itself (in `rfl-espn-live/`, a `.out.txt` beside each):
+  the PGA Tour's Mexico Open round 2 (`golf/pga` 401850978, 10-30 from 13:05 UTC to its play complete), F1's Mexico City Grand Prix
+  weekend (`racing/f1` 600057447, FP1 10-30 to the race 11-01, `--until=final`) and NASCAR's Cup race at Martinsville
+  (`racing/nascar-premier` 202611010020, 11-01 19:00 UTC): a field's `--compare` is still to write (L5 part 3a's Noticed), so
+  their answers wait for it (golf's and F1's final answers: the event's final, Sunday).
+  **L5 part 3b (2026-10-30, from 05:30 ET):** still none final (the college games that evening, the WNBA's Game 7 on 10-31, golf's
+  round 2 from 13:05 UTC, F1's FP1 from 18:30 UTC): handed on. F1's and NASCAR's recorders were restarted at 09:56 UTC, to the same
+  ends, to record the core API's session on too (`record-espn-live.js`: L5 part 3b's As built); a field's `--compare` is written,
+  so golf's, F1's and NASCAR's compare once final (golf's against the event's final, Sunday; before it, against the round's last
+  answer, which the compare says). No NFL game was on: Sunday's Ravens at Bills (`football/nfl` 401873026, 11-01 18:00 UTC) is
+  being recorded for its `drives.current` (a detached recorder started 10-30, waiting for the kickoff).
+  **L5 part 4a (2026-10-30, from 06:30 ET):** still none final (Baylor at UCF and Tulane at Charlotte that evening, the WNBA's Game
+  7 on 10-31, the Ravens at Bills on 11-01; golf's round 2 from 13:05 UTC, F1's FP1 from 18:30 UTC, Martinsville on 11-01):
+  handed on. One more being recorded, a detached process that stops itself at the final: the UFC's Fight Night, Moicano vs. Nolan
+  (`mma/ufc` 600061420, 10-31 from 21:00 UTC, its main card from 11-01 00:00 UTC; `record-espn-live.js`'s card recorder: L5 part
+  4a's As built; its log `mma-ufc-600061420.out2.txt`, restarted at 11:22 UTC on the reviewed recorder), MMA's first live card.
+  **L5 part 4b (2026-10-30, from 07:30 ET):** still none final (Baylor at UCF and Tulane at Charlotte that evening, the WNBA's Game
+  7 on 10-31, the Ravens at Bills on 11-01; golf's round 2 under way, F1's FP1 from 18:30 UTC, the UFC's card from 10-31 21:00 UTC,
+  Martinsville on 11-01): handed on. Two more being recorded, detached processes that stop themselves once every match is over:
+  tennis's first live answers, the ATP's Swiss Indoors Basel (`tennis/atp` 23-2026) and the WTA's Guangzhou Open (`tennis/wta`
+  232-2026), from 11:44 UTC 10-30 to their finals on 11-01 (`record-espn-live.js`'s draw recorder: L5 part 4b's As built; logs
+  `tennis-atp-23-2026.out.txt` and `tennis-wta-232-2026.out.txt`).
+  **After the pause (2026-11-05): every weekend recording compared** (all final; F1's only for FP1: L5 part 3b's Noticed). The
+  team sports (`record-espn-live.js --compare`):
+  - **Baylor at UCF and Tulane at Charlotte (college football 401856844, 401862813), college football's first live games:** 229 of
+    369 and 254 of 428 answers equal the final at their moment. **`scoringPlays` comes as the game goes**: every scoring play in
+    the same answer as the play itself (21 of 21; one 30 s before it). **A touchdown's try is added to its text an answer or more
+    later** ("... for a TD", then "... for a TD (R. Armstrong KICK)" 30-180 s on), so a phone's extra point, and a two-point try
+    (read from that text), lands then: the score a point short for an answer at each touchdown (the compare's "for 0 s" lines).
+    4 plays dropped live (ESPN replaced them: a penalty's, a run rewritten as a sack, a turnover on downs); 53 and 34 read
+    otherwise (tacklers and targets added, yards changed by one). 12 of Baylor's first-quarter plays had their own wallclocks live
+    and **one later moment in the final** (23:52:48 for plays of 23:39-23:49): a later watch sees them bunched, a live phone at
+    their times. The judged counts (tackles, hurries) settled in a median 40 and 170 s, the others 52 and 28 s. The box listed 2
+    and 0 people at first, 75 and 64 at the end (as the NHL's: only who's played).
+  - **The WNBA Finals' Game 7, Dream at Valkyries (401918311), the WNBA's first live game:** as the NBA's: 63 of 255 answers
+    equal, 7 plays dropped (a block and its rebound, two free throws, turnovers rewritten), 174 read otherwise (nearly all
+    rebounds restamped by a second or a few); counts settled in a median 35 s (judged 46 s); the box listed all 27 from the start.
+  - **Ravens at Bills (NFL 401873026), for `drives.current`:** **`drives.current` is in 392 of 393 live answers, and in
+    `drives.previous` too in all 392**: ESPN lists the drive on in both, so the reader's reading a play once either way is
+    needed, and right. 15 of 393 answers equal: 55 plays read otherwise (tacklers and a pass defended added later, yards one off;
+    the judged counts settled in a median 404 s, the rest at once), none dropped. The box listed 7 people at first, 76 at the end.
+  - **ESPN's lag** from a play's wallclock to its first answer: college football a median 51 and 54 s (90th 77 and 78 s), the NFL
+    59 s (84 s), the WNBA 45 s (64 s): about a minute, as the others.
+  - **A phone's data**: college football 30 and 31 KB an answer (7 MB an hour at 15 s), the NFL 38 KB (9 MB), the WNBA 35 KB
+    (8 MB).
+  The fields, the card and the draws: their parts' Noticed (L5 part 3a, 3b, 4a and 4b).
+- **A phone's data**: an estimated 15-30 MB a game at 15 s, since every answer is the whole summary (no ETag, so no 304s).
+  ESPN's core API pages a game's plays (`sports.core.api.espn.com/v2/sports/{sport}/leagues/{league}/events/{id}/competitions/
+  {id}/plays?limit=&page=`, CORS `*`, cached 15 minutes once final), so a poll could fetch only the newest page and a small
+  status, but its plays are another shape (refs), needing readers of their own. Or ask every 30 s when nothing on the screen
+  ticks. (U1, or L3 if the measured numbers say so.)
+- **The final's correction is stamped at the last play's moment** (TeamSport.timeline), but live it's known only when ESPN says
+  final, a minute or more later: a later watch sees a pitcher's win at the last out, live it comes with the final. Fine as is;
+  the checks compare against the recording as known.
+- **What a later play settles can be more than the two the recordings show**: baseball's last filing standing (an ABS
+  challenge's pitch), its missing third out filled in when the next inning starts, football's fumbled snap told as a move. The
+  poller reads every answer whole, so they settle the same way; the live recording would show how often. (L3, if live points
+  need them sooner.)
+- **The over/under's line at the start** is on the phone only (`lineAtStart`; nothing reaches our server while live), so the
+  server's kept line can still be a day old at the lock. Whether a game's line is the one when it was made (today) or the one
+  at the lock is A4's or L3's call. (L3.)
+- **A phone's IP reaches ESPN** when it asks (a plain cross-origin fetch sends no cookies): a line for a privacy note when
+  there is one. (U1.)
+
+**L5 part 1 as built: soccer (2026-10-28, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration, no new ESPN call from the app, nothing stored but
+a league's own name on read shapes already cached; HOSTING.md updated).** Master still hadn't A1-A4, so L5 came before L1's
+spec parts and L3 (the main session's order).
+- **What ESPN gives** (checked on 315 finished matches across 17 competitions, and two cup ties live). A soccer summary has no
+  `boxscore.players` and no `plays`:
+  - `rosters`, each side's match sheet: every player's line by stat name (appearances, sub appearances, goals, assists, shots,
+    shots on target, own goals, yellows, reds, fouls committed and suffered, offsides, goals conceded **while he was on**, a
+    keeper's saves; `shotsFaced` is always 0), his formation slot (CD-L, AM-R, CF-R; "SUB" for the bench) and whether he
+    started. **No minutes.** A team's own roster says G, D, M or F.
+  - `commentary`: the play by play, every foul, shot, offside, corner, card, substitution, goal and shootout kick, each entry
+    with its `play` (type, period, clock: `value` in seconds held at the half's end, so stoppage time is "45'+2'" at 2700;
+    wallclock; its team and people **by name only**, always exactly the match sheet's names, while its text's can differ: "Pascal
+    Groß" for "Pascal Gross", "Tasos Douvikas" for "Anastasios Douvikas"). A foul is two entries sharing one play.
+  - `keyEvents`: the goals, cards and substitutions again with ESPN's ids, and what the commentary leaves out (the kickoff, half
+    time, the end of normal time, extra time's halves, the shootout's start, the end).
+  - Every league writes it alike (the Premier League, the Championship, MLS, the NWSL, Liga MX, the Champions and Europa Leagues,
+    La Liga, the Bundesliga, Serie A, Ligue 1, the Eredivisie, the Brasileirão, the World Cup, the Carabao Cup), so `Sport.leagues`
+    is null: Soccer reads every soccer league. **The DFB-Pokal's is thinner**: its commentary is its key events again ("Nicolas
+    Seiwald (RB Leipzig) Red Card at 44'"), so its shots, fouls, offsides, saves and assists come only from the final, and its
+    shootout's kicks are filed in period 0 after extra time ("Penalty - Scored at 122'": read as the shootout's).
+- **A play is the commentary's**, once each, its ids from the key event of the same id (else the match sheet's names); the key
+  events it hasn't are placed by period and time. Key events alone couldn't reduce: shots, fouls and offsides are only in the
+  commentary. Also read: a commentary sentence with **no play of its own** that ESPN's lines count (a foul's other sentence,
+  joined to its play at the same time; else a foul of its own; "has gone down, but the referee deems it simulation", "Back pass
+  by", "Penalty conceded by ... with a handball"), and **a foul filed twice** under two ids, a sentence each (counted once).
+- **What a line counts**, read off ESPN's data, each rule from a difference it closed: a goal is a shot on target (a header, a
+  volley, a penalty); a saved penalty is too, a missed one only a shot; off the woodwork or blocked is a shot; **"Attempt saved."
+  is a save even on a play typed "Shot Blocked"**; the save is the keeper's the text names (else the side's keeper on the
+  pitch); a handball is a foul committed; **a foul's names are its sentences'** ("Foul by Boubacar Kamara" where its people say
+  Ross Barkley: Kamara's line has it); an offside is the one its text says was caught (its person played the pass); **a second
+  yellow is a red and the first yellow comes off** (ESPN's line: RC 1, YC 0), told by "Second yellow" or, in the thinner feed, by
+  a red to someone already booked ("is shown the red card" is a straight red); **goals conceded are everyone's on the pitch** in
+  ESPN's order (the lineup at the kickoff, substitutions, reds, "went off injured after ... had used all subs"); an own goal is
+  its scorer's and the other side's goal; the shootout (period 5, or 0 once the match is played) is its own (shootout goals,
+  misses, saves and goals against:
+  never the match's goals, shots or score; the header's `shootoutScore` is the team total). ESPN's team penalty goals are 0 for
+  every converted penalty (left out), and its team penalty kicks too in the thinner feed (left out).
+- **`Soccer`** (`src/lib/sports/soccer.ts`, registered in `index.ts`): groups GK, DEF, MID, FWD; positions as ESPN says them (G,
+  D, M, F from a team's roster; CD, CD-L, CD-R, SW, LB, RB, DM, CM, CM-L, CM-R, LM, RM, AM, AM-L, AM-R, CF-L, CF-R, LF, RF from a
+  match sheet; "SUB" is no position). Stats, keys unique in the sport: playing time APP GS SUB **MIN** MIN60; attacking G A SHOT
+  SOG PKG PKA PKM (missed or saved: FPL's) OF, SOG%; defending GA (conceded while on) CS GA2 OG; goalkeeping SV PKSV SV3, SV%;
+  discipline FC FA YC RC; the shootout SOGOAL SOMISS SOSV SOGA. Derived game by game: MIN60 (60 minutes or more), **CS** (FPL's:
+  60 minutes and nothing conceded while on; `full` works it out for anyone who played, though he has nothing in defending's
+  counts), GA2 (every two conceded), SV3 (every three saves). **Minutes come from the plays** (ESPN's lines have none): the
+  minute shown, stoppage time held at the half's end as FPL counts it, credited at each substitution, red card and period's end
+  (a starter 45 at half time, 90 at full time, 120 after extra time); a finished match whose end no event says (the thinner feed
+  has no kickoff, half time or end) ends with a play of the final's, "Full time", counting everyone on to the end (both halves
+  always, extra time's when either of its halves had a play). **Known at the final: nothing.** **Judged: A, SHOT, SOG, OF,
+  SV, FC, FA** (the data provider's calls, which ESPN's lines can count otherwise after the play). Two halves, extra time's two
+  ("extra time, 1st half, 98'") and "penalty shootout"; **weekly locks** (FPL's deadline is per gameweek, about a week; ESPN's
+  soccer scoreboards don't number rounds).
+- **Defaults as data** (`defaults/soccer.json`): FPL's 2025/26 points: playing 1, 60 minutes 1 more, an assist 3, every 3 saves
+  1, a penalty saved 5, missed −2, a yellow −1, a red −3, an own goal −2; a goal 10/6/5/4 and a clean sheet 4/4/1/0 by GK, DEF,
+  MID, FWD, every 2 conceded −1 for keepers and defenders. **The spec's points are one number a stat**, so `scoring.points` (and
+  the specs') has a midfielder's, and `scoring.byPosition` the rest. **What `score.by: stats` would need for points by position**
+  (for the engine lane, not changed here): a stat's points as a number or a map from the sport's position groups to numbers
+  (`{ "G": { "GK": 10, "DEF": 6, "MID": 5, "FWD": 4 }, "A": 3 }`), the group being the player's roster position's
+  (`season_cast.role`'s G, D, M or F through the Sport's positions), fixed for the span (FPL keeps a player's position all
+  season). Not FPL's defensive contributions (2 for 10 clearances, blocks, interceptions and tackles; 12 with recoveries for
+  midfielders and forwards) or its bonus points: ESPN's lines have neither. Slots: FPL's squad of 15 (`slots.squad`: 2 GK, 5
+  DEF, 5 MID, 3 FWD), 11 starting (GK 1, DEF 3, MID 2, FWD 1 and 4 outfield slots: any formation FPL allows), 4 on the bench;
+  `season` (FPL Draft's: draft 15, start 11, head to head, weekly) and `short` (draft 3 each, all count, most points). No
+  categories.
+- **A league's show is named from ESPN's own name** (L1 part 3's Noticed): `SportsEvent.leagueName` (`server/sports/types.ts`)
+  from a scoreboard's league or, on a soccer team's schedule, each game's own (a club's cups are other leagues: only a game of the
+  same slug names it); the matchup's day scoreboard names it too when its schedule doesn't (a basketball team's). `leagueName`
+  takes what people call it: ESPN's abbreviation when that's words or four letters at most ("Premier League" of "English Premier
+  League", "Liga MX", "NBA", "NWSL"), else its full name (college's codes nobody says: "NCAA Men's Basketball", not "NCAAM";
+  "NCAA Football" of "NCAA - Football"; checked on 31 leagues' scoreboards), else the slug's name as before. No migration: a show
+  already made keeps its name.
+- **Live**, recorded (L2's open check, for soccer): Liverpool–Chelsea in the Carabao Cup from 90'+2' through the shootout, and
+  Holstein Kiel–Hoffenheim in the DFB-Pokal through extra time (both 2026-10-28). **One of ESPN's live answers came cut short**
+  (22:14:41: 40 commentary entries between answers of 119, its key events whole and its newest play still in it), which the
+  poller would have taken; now `mergeTimeline` (`live.ts`) also treats an answer missing more than 3 of the plays had as behind
+  (taken only the second time in a row, as before). Through the poller, 84 of 85 answers equal the final at their moment (the
+  other a wallclock ESPN moved a second later); the DFB-Pokal's, 164 of 164. **ESPN's commentary came a median 48 s after its
+  wallclock** (90th percentile 76 s; the plays after the recording began: the end of normal time and the shootout), **the thinner
+  feed's 73 s** (90th 104 s). 21-29 KB an answer over the wire, 5-7 MB an hour at 15 s (HOSTING.md). The night's NBA, NHL and World Series games are being recorded (L2's Noticed).
+- **Fixtures** (`record-espn.js` keeps soccer's match sheets, key events, commentary and the half's length, a list entry a line;
+  88-129 KB from 370-470 KB): Chelsea 0-2 Tottenham (`epl-401878767.json`: the keeper's own goal, Palmer's second yellow, two
+  handballs), San Diego 2-2 Seattle in MLS (`mls-761901.json`: a penalty saved, one scored in stoppage time), Australia 1-1 Egypt
+  in the World Cup's Round of 32 (`wc-760499.json`: an own goal, extra time, a keeper brought on at 119' for the shootout, Egypt
+  through 4-2) and the World Cup final, Spain 1-0 Argentina (`wc-760517.json`: a second yellow in stoppage time, extra time's
+  winner), and the thinner feed's Holstein Kiel 1-1 Hoffenheim in the DFB-Pokal (`dfb-401917034.json`, 50 KB: extra time, Kiel
+  through 4-3 on kicks filed in period 0; recorded live too). `espn-replay.js` replays soccer (its commentary and key events cut by
+  time, the match sheets' numbers 0 until the end).
+- **Checks.**
+  - `tests/sports-soccer.test.js` (17): the vocabulary (every soccer league is Soccer); the derived stats and names; the match
+    sheets; **the proof** on each fixture (the plays alone come to ESPN's lines, 420-476 numbers each, the team totals and the
+    score, with no notes, nobody credited who didn't play, at most one judged count); the plays (the kickoff's lineup, the own
+    goal, the second yellow and the ten men left, handballs, offsides by the text, saves, minutes); penalties; extra time and the
+    shootout; `stateAt` at the final's 90th minute and its end; the final's correction (only judged stats; with it every number;
+    none live); the thinner feed (goals, cards, substitutions and minutes exact, the rest at the final, its period-0 shootout,
+    its full time counted at the final); and on made-up matches the commentary's sentences (names, a sentence with no play, a foul filed twice,
+    simulation, a handball's penalty) and the thinner feed (a red after a yellow, a straight red, a substitution then a goal, a
+    player off injured); the defaults. `tests/sports-live.test.js` gains the cut answer; `tests/sports-espn.test.js` and
+    `tests/sports-matchup.test.js` a league's own name.
+  - `check-sport-reduce.js` on real matches: **313 of 315 reduce exactly** to ESPN's lines on every non-judged count (~28,000
+    plays): the Premier League's August, September and October matchdays 39 of 39, MLS 44 of 45, the Champions League 18 of 18,
+    the Europa League 18 of 18, the Carabao Cup 7 of 7 (two shootouts), the Championship 11 of 11, La Liga, the Bundesliga, Serie
+    A, Ligue 1 and the Eredivisie 43 of 43, the Brasileirão 2 of 2, Liga MX 7 of 7, the NWSL 5 of 5, the 2026 World Cup 103 of 104
+    (the group stage and every knockout, nine with extra time), the DFB-Pokal's thinner feed 16 of 16. **156 of 156 on days read
+    only after the reader's last change** (the first run there). The two left are ESPN's own (Noticed). Judged counts otherwise
+    in about a third of matches, almost all a shot ESPN's lines count on target and saved that its commentary calls blocked.
+  - `check-live-clock.js` replays the five fixtures through the poller over HTTP at 60x unchanged: 5 of 5, every number of
+    ESPN's lines at the end. `record-espn-live.js` counts soccer's plays, reads what a phone had through the poller's
+    merge, measures ESPN's lag only on plays after the first answer, and reports cut answers.
+  - 928 unit tests; `tsc` clean; eslint clean on `src/lib/sports` and `src/lib/server/sports`; `check-matchup.js` still passes.
+  - `/code-review` on the diff (its fixes: the thinner feed's full time counted at the final, where a full match had given 45
+    minutes; the day scoreboard's league name reaching the show, which it hadn't; college's league codes; a key event in period
+    0 placed after the match, not before the kickoff; a missing side never the home side; two fouls with no people never merged;
+    the "Rear Center Forward" slot, the only one missing in 315 matches; the compare taking answers through a LiveGame itself, not
+    a copy of its rule; the replay's soccer cut done once. Kept, after reading the data: the cut-short rule for every sport, since
+    any answer can come cut and a review drops one play at a time; a sub's position as null, his roster's being `season_cast`'s).
+
+**L5 part 1 noticed, not fixed:**
+- **Two matches ESPN's own data can't settle** (the final's correction does): D.C. United–Cincinnati (MLS, 2026-10-24), an
+  injury substitution at 34:10 and a goal at 34:56, which ESPN's lines give to the player who went off (everywhere else, the 2026
+  World Cup's Brazil–Norway among them, the one who came on concedes a goal after his substitution); and Argentina–Switzerland
+  at the World Cup, whose team total counts the first yellow of a second yellow that Embolo's own line takes off.
+- **Shots on target and saves the commentary calls blocked** (ESPN's lines count them saved): no cue in the commentary (a corner
+  conceded by the keeper follows 2 of 1,016 blocked shots). Live, a keeper's saves (FPL's every 3) can be one or two short until
+  the final. (L3.)
+- **Minutes, and so 60 minutes and clean sheets, move only at a substitution, a red card or a period's end**: a starter is on 45
+  until full time, so a clean sheet shows at full time (FPL's live shows it from the 60th minute). The phone could add the
+  running minute from the game clock to everyone on. (L3.)
+- **The thinner feed (the DFB-Pokal's)**: its shots, fouls, offsides, saves and assists come only at the final, a saved
+  penalty in its shootout is only "Penalty - Missed" (no keeper's save), its plays come ~73 s late, its minutes for the last
+  period only at the final, and an extra time with nothing in either half would be missed (30 minutes short; none seen). How many competitions
+  ESPN carries this way isn't known (one of 17 checked). (L3, if a game scores them live.)
+- **Points by position need the spec** (above): the engine lane's call; until then a game scores goals at a midfielder's 5.
+  And FPL's defensive contributions and bonus points have no ESPN data (team totals only: tackles, interceptions, clearances).
+- **A gameweek lock needs rounds**: FPL's deadline is 90 minutes before a gameweek's first kickoff, and ESPN's soccer
+  scoreboards don't number gameweeks; a weekly lock by dates is close but not a matchday (midweek rounds). (L4, with locks.)
+- **ESPN's soccer commentary is ~48 s behind the play** (median; the thinner feed's ~73 s): a live call's moment, and how late
+  one may lock, should allow for it (A15).
+- **A keeper sent off, or out injured with no subs left**: the next save goes to the keeper the text names; one it doesn't name
+  waits for the final (no case seen).
+- **A sub's position is his roster's** (a match sheet says "SUB"): slots read `season_cast.role` (G, D, M, F), as L1's Noticed
+  says for every sport. (L4.)
+
+**L5 part 2a as built: college basketball and the WNBA (2026-10-28, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration, no ESPN calls from the
+app, nothing stored).** Master still hadn't A1-A4 (the main session's order). College is split in three (L5's line): this is
+2a; 2b is college football, 2c college baseball and hockey.
+- **What ESPN gives** (checked on 348 men's and 168 women's college games of 2025-26 and 120 of the WNBA's 2026, 2026-10-28):
+  - **The WNBA writes its plays as the NBA does** (the same types, people in the same order, the same shot flags): `Basketball`
+    reads it unchanged. No play is typed a heave in its 2026 season (the NBA's first week has 53): its 39 long misses in a
+    quarter's last 3 s (36 feet or more) are typed as any shot and ESPN's box counts each as the shooter's attempt. So the
+    WNBA has no heave rule, and the reader (a heave only when typed or said) already agreed.
+  - **College basketball is another feed, the men's and the women's alike** (both the NCAA's): plays typed "JumpShot",
+    "LayUpShot", "TipShot", "DunkShot", "MadeFreeThrow" (a miss too), "PersonalFoul", "Technical Foul", "Lost Ball Turnover"
+    (every turnover), "Offensive Rebound", "Defensive Rebound", "Dead Ball Rebound", with the NBA's shot flags and every play's
+    wallclock (67,000 plays in 147 games, none without). **A block and a steal are plays of their own** ("Aday Mara Block.",
+    "Elliot Cadeau Steal.", after the shot or turnover at the same clock, naming only their own player), so a shot's second
+    person is only ever its assister. Texts come two ways ("makes 10-foot hook shot (X assists)", "made Layup. Assisted by
+    X."), and a free throw's may not say which of how many ("made Free Throw."). The jump ball is "Jump Ball won by UConn" and
+    "lost by Michigan", a play for each side. **The men's play two halves of 20 minutes, the women's four quarters of 10**
+    (ESPN's `format`; the NCAA's rules since 2015-16), overtimes of 5. A college box has no plus/minus and says G, F or C.
+  - **A college box's team totals count the team's own**: its rebounds and turnovers are its players' plus the team's own plays
+    (a team rebound, a shot clock turnover) in 293 of 294 sides, its fouls its players' plus bench technicals in 294 of 294
+    (the NBA's leave them out).
+  - **A player's technical is one of his personal fouls** in ESPN's college box (the NCAA's rule): 65 of 69 player technicals;
+    the other 4 aren't (the plays don't say a technical's class).
+- **`CollegeBasketball`** (`basketball.ts`, a subclass of `Basketball`): Basketball's vocabulary but `PM`; an instance a league
+  (`new CollegeBasketball("mens-college-basketball", "Men's college basketball", HALVES)`, the women's with `QUARTERS`), so its
+  `periods` are the league's ("2nd half, 5:32", "2nd overtime"); `id` stays "basketball" (ESPN's slug: its defaults are
+  basketball's). `index.ts`: a sport slug can have more than one sport (`sportOf` finds the one naming the league; `sportById`
+  gives the slug's first, the pro leagues'; `Sport.id` says a sport is found by its league). Both readers share
+  `Basketball.readFeed` (the score, possessions and the Play), each reading a play its own way. College's: shots by the flags
+  (a three by `pointsAttempted` or "three point": they agree on 61,558 of 61,570 shots; "blocked" when its block is the next
+  play at its clock, as the NBA's says it), a free throw by its type, an assist from the shot's text, a block and a steal from
+  their own plays, rebounds and turnovers (a team's own nobody's), personal fouls and a player's technicals (a bench's
+  nobody's); possessions as the NBA's (a free throw with no count ends one when no more of the side's follow at that clock
+  before a technical; a dead ball's team rebound changes it only when the ball changes hands; **a technical owes the other
+  side two free throws at its clock**, which stay in the possession they interrupt: ESPN's sequences around 69 technicals). **A player
+  the plays name by an id the box doesn't have** (a women's game: Tierra Simon's 22 plays under another id) is the one on the
+  play's side its text names (as a whole name), when only one is. Its box: Basketball's, its team totals without REB, OREB,
+  DREB, TO and PF (the team's own: above).
+- **Defaults: basketball's file, unchanged** (`defaultsFor("basketball")`): a WNBA or college box says G, F or C and every
+  default slot takes them (a PG slot takes G); the points and categories are the same stats. Neither Yahoo nor ESPN runs a
+  college basketball game to take other defaults from.
+- **Fixtures** (`record-espn.js`, 167-203 KB each): the 2026 men's final, Michigan 69 UConn 63 (`ncaam-401856600.json`), Navy at
+  Lehigh in two overtimes (`ncaam-401820165.json`), the 2026 women's final, UCLA 79 South Carolina 51 (`ncaaw-401856590.json`),
+  Mount St. Mary's at Richmond (`ncaaw-401813906.json`: the other id), and the 2026 WNBA Finals' Game 2, Dream 79 Valkyries 65
+  (`wnba-401918306.json`: a 55-foot miss at the first quarter's buzzer).
+- **Checks.**
+  - `tests/sports-college-basketball.test.js` (10): the vocabulary (both leagues, halves and quarters, no plus/minus, the NBA's
+    still the slug's own); the defaults' slots filled by G, F and C; the box score, and ESPN's college team totals as players
+    plus the team's own plays on every fixture; **the proof** on each fixture (255-390 numbers, the team totals and the score,
+    no notes, nobody credited who didn't play); the plays (the jump ball's possession, a block and a steal of their own, an
+    assist each way, a team's rebound, free throws in one possession); the other id resolved; `stateAt` at the half and
+    through two overtimes; the final's correction (only minutes; with it every number; none live); and on a made-up game
+    technicals (a player's, a bench's), a technical's free throws, free throws with no count, a team's turnover and dead ball
+    rebound, a name the box hasn't by that id (and one the text can't tell). `tests/sports-basketball.test.js` gains the
+    WNBA's Finals game: the proof (300 numbers), its buzzer miss an attempt, the final.
+  - `check-sport-reduce.js` takes `--groups` on days too (`--groups=50`: every Division I game; ESPN's board lists only its
+    featured ones). On real games, **the days it was tuned on** (featured games, seven men's days and six women's of 2025-26):
+    men's 88 of 91, women's 56 of 56. **Then on their first run after the reader's last change**: men's full Division I days,
+    November 8 53 of 68, January 17 94 of 100, February 7 93 of 100, and the tournament's March 26-28 9 of 10; women's
+    November 8 35 of 38, January 18 43 of 44, February 8 30 of 31, March 27-29 10 of 10. **Every cached game: men's 316 of
+    348, women's 163 of 168 (~240,000 plays); the WNBA 118 of 120** (~49,000). What's left is ESPN's own, each read in its
+    data: a basket or free throws the plays credit to a teammate (the box corrected after: most of them, more in small
+    conferences' games), an attempt one more or fewer (a shot missing from the plays, a nameless "missed Three Point Jumper.",
+    "misses 5-foot three point pullup jump shot"), a player's technical the box doesn't count (4), players named all game by
+    teammates' ids (FGCU's Staton sisters, text and id both the other's), and **Ohio State–TCU (March 19), its plays filed
+    twice from two scorers' feeds** (47 plays a second apart, the copies' clocks and distances off by one). The WNBA's two: a
+    basket its box credits to a teammate. The final's correction settles them all.
+  - `check-live-clock.js` replays the five new fixtures unchanged, and every recorded game at once: 17 of 17. Its asks now
+    note the screen hidden as they're sent (an answer coming back after the screen hid had counted as an ask while hidden: the
+    run of the five new games at once showed it).
+  - 939 unit tests; `tsc` clean; eslint clean on `src/lib/sports`.
+  - `/code-review` on the diff (its fixes: a technical's free throws bounded to its two at its clock, where a flag had held
+    until the next shot; the no-count look-ahead stopping at a technical; a name matched whole, not inside a longer one;
+    college's blocked shot "blocked" as the NBA's; the two readers' loop shared, not copied (`readFeed`); each college league
+    its own name; `QUARTERS` shared; the roster read once; `--groups` one helper. Kept, after reading the data: a college
+    box's team totals without the team's own, as hockey's leave out its bench minors, since ESPN counts plays in them that are
+    nobody's line). The NBA's cached games read as before (50 of 63), and every college and WNBA number above is after it.
+  - No HOSTING.md change: nothing calls ESPN from the app, adds a table or stores data (the dev checks asked ESPN ~700 times,
+    every finished answer cached).
+
+**L5 part 2a noticed, not fixed:**
+- **A doubled feed** (Ohio State–TCU, 1 of 516 college games): live, its score and lines run up to a quarter high until the
+  final. Nothing tells a copy from a real repeat (a made basket that doesn't move ESPN's running score happens in 40 normal
+  games too: ESPN's per-play scores lag). (L3, if a live screen needs it: the scorebug from the header's score at each answer.)
+- **Small conferences' plays are sloppier** (November 8's full Division I day 53 of 68; the featured games 95%+): live points
+  there can be a basket off until the final. (L3; nothing to read.)
+- **Minutes come only at the final**, as the NBA's: college's substitutions ("subbing in for", "subbing out for") could track
+  who's on. (L3, with the NBA's.)
+- **A technical's class isn't in the plays**: a live personal-foul count can be one high (4 of 69). Rare.
+- **A college team's fouls** (for the bonus: a scorebug's "bonus" or "double bonus") aren't in its box's totals here (they count
+  bench technicals): a screen counts them from the plays, its players' fouls and its technicals. (U1, with the scorebug.)
+- **The WNBA's first live game is still to record**: its Finals' Game 6 is 2026-10-29 at Atlanta (the Valkyries lead 3-2; Game
+  7, if needed, 10-31), `record-espn-live.js --league=basketball/wnba`. College basketball's season starts in November.
+
+**College hockey and college baseball, looked at in 2a (2026-10-28) for 2c:**
+- **College hockey isn't readable from ESPN.** Its regular season's summaries have only the score: 44 of 44 men's games of
+  October 2026 and 12 of 12 women's, no box lines and no plays. The men's NCAA tournament's do (7 of 7, March and April 2026):
+  a box (goals, assists, shots, +/-, penalties; a goalie's shots against and saves; hits, blocks, takeaways, faceoffs, ice time
+  all 0) and plays that are only its goals and penalties ("Even Strength Goal Scored by Kyle Chyzowski assisted by Brendan
+  McMorrow and Kieran Cebrian", "Penalty to Tyler Duke 2 minutes for Holding"), **every one stamped with the same wallclock**,
+  written after the game, and a double overtime's winner typed "Shootout GOAL scored by" in "2nd OT". So no live play by play
+  and no game outside the tournament: `sportOf("hockey/mens-college-hockey")` stays null. A tournament game's final could be
+  read as a final only (G, A, PIM, a goalie's saves) if a game ever asks for one. (Backlog, with boxing.)
+- **College baseball needs its own reading (2c).** Its plays are the MLB's shape (pitches, "Start Batter/Pitcher", "X.
+  Mercurius pitches to J. Schaffner", play results "J. Walk singled to center."), names as an initial and a last name (which
+  `callNames` already says). Its box is another: batting H-AB AB R H RBI HR BB K #P AVG OBP SLG with **#P 0 for everyone**, and
+  pitching IP H R ER BB K HR PC-ST ERA PC with **some pitchers named "Hunter - P Elliott"** (a two-way player's position in his
+  name), so the reader's outs and strikes go to nobody (Ole Miss–Troy, 2026-06-14: a starter's 14 outs read as 3). 2c: the
+  box's own names and columns, then the proof on the 2026 season's days and the College World Series.
+
+**L5 part 2b as built: college football (2026-10-30, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration, no ESPN calls from the app, nothing
+stored).** Master still hadn't A1-A4 (the main session's order).
+- **What ESPN gives** (checked on 2026's FBS weeks 6-8, 176 games): plays in drives as the NFL's, typed alike ("Rush", "Pass
+  Reception", "Sack"), each with its wallclock, the score after it and who had the ball where (`start.yardLine`), and, unlike the
+  NFL's, where it ended (`end.yardLine`) and ESPN's yards for it (`statYardage`); no people. **The text is the home stat crew's,**
+  one run-on sentence with jersey numbers ("(15:00) #12 K.Russell pass complete short right to #40 J.Ford caught at ALA40, for 16
+  yards to the ALA41 (#7 D.Brooks), 1ST DOWN"); spots a side's code and yard line, run together or not ("ALA40", "IU 34", "U-M00",
+  "Sac St45", "`SMU25"), in the crew's own codes (TAM for ESPN's TA&M, CANES, UTK, Mizzou); a review's call, then "(Original Play:
+  ...)"; the try in the touchdown's play ("#24 D.Olano kick attempt good (H: ..., LS: ...)"), told again after a penalty on it.
+  **Some plays are ESPN's own phrases**, where the crew's text is missing: a scoring summary as the NFL's ("Kenny Minchey 2 Yd Run
+  (Adam Zouagui Kick)"), "T. Owens pass to H. Summers for 20 yds, for a TD (C. Van Andel KICK)", and in 38 of 46 bowl games "Trey
+  Kukuk run for 5 yds to the KU30", "Peyton Woodring kickoff for 65 yds for a touchback". **The box** is the NFL's tables with
+  college's columns: no sacks taken in the passing table, no targets, "QB HUR" (hurries) for hits, halves in sacks and tackles for
+  loss, each line's jersey, a side's own line ("Team", a negative id), and no "defensiveTouchdowns" team stat. The FCS (`groups=81`)
+  is written alike.
+- **What the NCAA counts otherwise, read off ESPN's box** (each rule from a difference it closed): **a sack is the quarterback's
+  rush** for its loss (Reed's 17 carries for 23 yards are 15 runs and two sacks for -17), so passing yards are net already;
+  **intentional grounding is a sack too** (ESPN types it "Sack"; its loss is only in `statYardage`), never an attempt (21 of 21
+  lines); **a kneel-down and a spike are the team's** (11 of 11 spikes); a side rushing by its name ("Auburn rush middle for 4 yards
+  loss") is a fumbled snap, the team's fumble whether the text says so or not; **a fumble recovered counts only on the other side's**
+  (163 of 163; own and teammates' recoveries are 0, 84 of 84); a muffed punt is the muffer's fumble and his return, its yards to
+  where his side got it back; a blocked punt is the team's punt, a punt with no name the side's punter's; return touchdowns count in
+  the defensive TD column too; a pick-six told only as a summary is the returner's interception (the NFL's too, and its defense's)
+  and the side's passer's (the one in its box, else its last to throw); **a sack's "(A, B)" is a split one** (half a sack and half a
+  tackle for loss each, no solo: 182 defenders) and a loss's "(A; B)" half a tackle for loss each; an illegal forward pass isn't
+  a pass; a "NO PLAY" after a touchdown and its try is the try's. As the NFL's: a spot foul by the side with the ball behind where
+  its gain ended counts it to the spot (a run's text says it: "for 17 yards gain (16)", or "(-10)").
+- **`CollegeFootball`** (`src/lib/sports/college-football.ts`, a subclass of `Football`; `sportOf("football/college-football")`,
+  `id` "football", so its defaults are football's): Football's vocabulary but hurries (HUR, judged) for QB hits and no sack yards
+  (they're rushing yards; SACKED, times sacked, from the plays); untimed overtimes ("overtime", "2nd overtime", no clock). Its box:
+  Football's reader with college's tables (`boxTables`, `teamTotals`, now overridable) and a team defense without touchdowns when
+  the box has no "defensiveTouchdowns" (the NFL's unchanged). Its plays: **Football's drive frame, now shared** (`readDrives`: the
+  drives, a play recorded again, the score, each defense's game and points allowed), with college's own reader: names and spots to
+  placeholders, then the events read left to right by patterns compiled once (the play; then a return, a fumble, a muff, a block, a
+  lateral, tacklers, a touchdown, a safety, hurries, a pass broken up, the try, a penalty), anything unread noted. **Each game's team
+  codes** come from ESPN's own yard lines (a play ending "to the ALA43" that ESPN ends at 43 votes ALA the home side's; a lone code is
+  the other side's), and **each name** by jersey and name on the side the sentence says, the box's jersey first (ESPN's box follows
+  the crew's jerseys even where the text's name is another's: "#2 D.Ricks" is Morrow's return in the box), a name and number no box
+  line has learned from the whole game ("#2 M.Williams" where the box has Marcel #9 and Marquese #24, whose "#24 M.Williams" the
+  text has too). **Two-point tries are read from the summary's `scoringPlays`** ("Keyone Jenkins Pass to Tyren Hornes for Two-Point
+  Conversion"): the text names one person and not his role ("#2 T.Hornes pass attempt Successful"); a run's runner is the text's
+  own. ESPN's own phrases (`readPhrases`), by full name or initials, and the summaries (Football's reader) are read for what they say.
+- **Football's frame, one fix:** a play is "recorded again" only by one in its own drive (college's overtime starts every possession
+  at the 25, so the next possession's first play started where UCF's first-overtime touchdown had, which was dropped). The NFL's 121
+  cached games read as before (95 of 121).
+- **Defaults: football's file, unchanged.** A college roster says QB, RB, WR, TE, OL, DL, LB, DB, PK, P, LS (Alabama's), and every
+  default slot takes them; neither Yahoo nor ESPN runs a college fantasy football game to take other defaults from.
+- **Fixtures** (`record-espn.js` now keeps a box line's jersey, a play's end and stat yards, and the scoring plays' summaries; 85-93 KB
+  from ~480 KB): Texas A&M at Alabama, 2026-10-24 (`college-football-401856727.json`: a pick-six, an interception a review gave, sacks
+  and a split sack, kneel-downs) and BYU at UCF in two overtimes the same day (`college-football-401856835.json`: a two-point pass told
+  only in the scoring plays).
+- **Checks.**
+  - `tests/sports-college-football.test.js` (12): the vocabulary (the NFL's still the slug's own; hurries, no sack yards, untimed
+    overtimes); the defaults' slots filled by a college roster's positions; the box (no sacks taken or targets, a side's own line, the
+    team totals, a defense without touchdowns); **the proof** on both fixtures (387 and 443 numbers, the team totals and the score, no
+    notes, at most 4 of the crew's calls otherwise); the plays (the Noticed's own example, hurries, a sack as the quarterback's rush, a
+    split sack, a kneel-down, the pick-six and what its defense allowed, a review's call); overtime (a touchdown kept, "2nd overtime",
+    the two-point pass from the scoring plays); `stateAt` at the half and before the kickoff; the final's correction (only the crew's
+    calls; with it every number; none live; a drive going on read once); and on made-up games the NCAA's counting (spikes, grounding,
+    kneels, fumbled snaps, recoveries, muffs, blocked and nameless punts), yards and tries (a return's spot foul, a run's own count to
+    a foul and one below nothing, a lateral, an illegal pass, a try told again, a try's "NO PLAY", a declined grounding with its fouler
+    named, a touchdown to someone the box hasn't, a fouler who isn't a tackler), scoring (two points, a pick-six only summarized, return
+    touchdowns, a safety) and the text (codes from yard lines, a number learned, ESPN's own phrases, a review). `sports-football.test.js`
+    now says college is CollegeFootball's.
+  - `check-sport-reduce.js` on real games. **The weeks it was tuned on** (2026 FBS weeks 6-8): **68 of 176** games every number, and
+    **98.5-98.9% of ESPN's box numbers** (the crew's judged calls apart); 128 within two numbers. **Then on their first run after the
+    reader's last change** (2026-10-30): weeks 2-4 **60 of 232**, the 2025-26 bowls and playoff **7 of 46**, an FCS week (7) **10 of 59**;
+    after the fixes their data showed (ESPN's own phrases in the bowls, a code typed with a backtick, "ll" for "II", "J.von Grote") and
+    the review's: **69 of 232** (98.0-98.7% of numbers, 145 within two), **8 of 46** (95.8%, 19 within two; most of the bowls' text is
+    ESPN's own phrases and summaries), **12 of 59** (98.2%, 30 within two). **Every cached college game: 157 of 513** every number, 98.4%
+    of ~94,000 numbers (~91,000 plays). What's left is ESPN's own, each kind read in its data: a play the box counts that no play lists
+    (two runs in 176 games no text names at all), or that the box credits to someone else (the crew's jerseys and names disagree: "#6
+    B.Donelson"'s 21-yard catch is Freeman's in the box); a play filed out of order or twice (a "1st & 10 at 66" between a 9-yard run
+    from 56 and the "2nd & 1 at 65" after it: dropping such plays would be right in 9 of 24 and wrong in 15); a team fumble no play
+    shows; a scoring play told only as a summary (its fumble and the sack before it unsaid); a pass interference "NO PLAY" counted as
+    an attempt in some games and not others; intentional grounding counted in some and not others. The final's correction settles
+    them all. The crew's judged calls: tackles ±1 on ~450 lines of 176 games (settled at the final), sacks and tackles for loss far
+    fewer since the split-sack rule.
+  - `check-live-clock.js` replays the two fixtures unchanged (2 of 2, every number of ESPN's box score at the end) and every recorded
+    game at once, 19 of 19.
+  - 951 unit tests; `tsc` clean; eslint clean on `src/lib/sports`.
+  - `/code-review` on the diff (its fixes: a summary's pick-six giving the defense its interception (the NFL's too) and the passer from
+    the side's last throw when the box lists two; a summary's return touchdown a defensive one; a count to a foul's spot below nothing;
+    a side's rush by a name of two words read as the crew's; recoveries by "NC St."; no match by jersey for a name with none; a
+    touchdown pass the passer's whoever caught it; a fouler never a tackler; a summary for "E.J. Williams Jr." (Football's `SUMMARY`,
+    the NFL's too); a declined grounding or illegal pass with its fouler named; a two-point run without the scoring plays; "yards" in
+    ESPN's phrases; the lone code's fallback; a suffix at a text's end; the patterns compiled once and each text cleaned once (a college
+    timeline 9.8 ms, the NFL's 6.1)).
+  - No HOSTING.md change for the reader (nothing calls ESPN from the app, adds a table or stores data; the dev checks asked ESPN ~500
+    times, every finished answer cached); HOSTING.md gets L2's measured phone data (above).
+
+**L5 part 2b noticed, not fixed:**
+- **A college game reads exactly less often than an NFL game** (39% of the tuning weeks' games; the NFL's 79%), though 98-99% of its
+  numbers do: the home crews' data disagrees with itself more (above). Live, a college player's points can be a play off until the
+  final.
+- **The bowls' text is mostly ESPN's own phrases** (38 of 46 games have some), with no tacklers, jerseys or many spots: their tackles,
+  a punt's inside the 20 and a return's spot fouls come only at the final. (L3, if live points need them.)
+- **Two-point passes need the scoring plays** (`scoringPlays`): a live answer has them as the game goes, to check on tonight's
+  recordings; without them a two-point pass waits for the final (a run doesn't).
+- **College's third overtime on** (two-point tries alone, no possession) wasn't in the data read (no game went three): the reader
+  reads a try as a try; check when one comes. (L3.)
+- **A spot foul during a punt's return and "inside the 20"**: the NFL reader ends the return at the foul's spot for it; college's isn't
+  checked against ESPN's data, so the reader doesn't. A punter's In 20 can be one off until the final.
+- **A college roster's ATH (athlete)** wasn't on Alabama's; a team that lists it has players no default slot takes. (L4, with slots.)
+- **Tackles are the crew's calls, ±1 on many lines**: an IDP game on college football would move at the final. (L3.)
+- Live: two FBS games of 2026-10-30 (Baylor at UCF 401856844, Tulane at Charlotte 401862813) are being recorded by detached recorders
+  that stop themselves at each final (`rfl-espn-live/`, a log beside each): the next session runs `--compare` on each.
+
+**L5 part 2c as built: college baseball (2026-10-30, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration, no ESPN calls from the app, nothing
+stored).** Master still hadn't A1-A4 (the main session's order). With it, L5 part 2 (college and the WNBA) is done.
+- **What ESPN gives** (checked on the 2026 season, February to June, 476 games' summaries, 2026-10-30):
+  - **Every game ESPN lists has its score; a box and play by play only where its scoreboard says `playByPlayAvailable`**: its
+    networks' games (SEC Network, ACC Network, B1G+, ESPN+: 13 of 94 on March 14, 7 of 81 on April 18, 50 on May 9) and every
+    NCAA tournament game (the regionals, super regionals and College World Series). The rest are a score alone, no box lines
+    (152 of 155 such games). The scoreboard with no `groups` lists every game ESPN has (`groups=26` the same; its groups list
+    names 15 Division I conferences).
+  - **Two feeds.** The tournament's is the MLB's shape (every pitch a play, play-results in MLB's words), but its types have no
+    slug, only their text ("Strike Looking"), so the MLB's reader saw no inning start and no pitch's call: 2a's "a starter's 14
+    outs read as 3". The regular season's is **the NCAA stat crew's**: each at-bat a start (its pitcher and batter, who's on and
+    the outs before it) and a result whose text is the official scorer's ("Rylen Stockt doubled to left field, RBI (2-0 BB);
+    David Mendez scored.", "TarpleyJr,Derrick walked (3-1 FBBBB)."): names cut to 12 characters, or last, or last then first,
+    whole or cut ("Rasmu,Cooper", "Allen, He.", "Duplantier J", once the other way round, "M,ILGENFRITZ"); the pitches as
+    letters (B, K called, S swinging, F foul: a strikeout's and a walk's include their last pitch, a ball in play or a hit
+    batter is one more, a signalled intentional walk none); the RBIs ("RBI", "2 RBI", "3RBI") and unearned runs ("scored,
+    unearned") the scorer's own; a steal or a wild pitch in the middle of an at-bat a result of its own; substitutions, notes
+    ("UK mound visit.", the weather) and reviews (12 seen, every call stood) results too. Every regular-season game with plays
+    is the crew's (188 of 188 cached), nearly every tournament game the MLB's shape (130 of 133).
+  - **The crew's wallclocks are its Eastern time on a 12-hour clock, read as the morning but for the noon hour**: 159 of 191
+    games' first plays 12 hours before their start, wherever the game is (California's 24 games and Oregon's 7 as Alabama's), and
+    a game crossing noon steps back 12 hours at 1 PM ("16:04Z" for its first pitch, "06:35Z" for its last). The tournament
+    feed's are right (127 of 130 games within the hour of the start).
+  - **ESPN's box**: #P 0 for every batter (the team's pitches seen too), some pitchers named with their position ("Hunter - P
+    Elliott": 108 of 108 such names a pitcher's " - P "), the team's `pitchCount` 0 (its `pitches` right), its GIDPs, sacrifice
+    flies and bunts always 0. **Its quirks**: the crew's `scoreValue` is 1 for a three-run homer; the tournament's says fewer
+    runs than the text names now and then ("J. Walk and C. Johnson scored" for 1: its box has both), or the text names a runner
+    again after his run on a balk; ESPN's college outs on a play-result count one out at most (a double play's says 1); a
+    runner's play-result in the tournament feed lists no one on base after it, and can say only "." (its words on its typed
+    twin); a college intentional walk is signalled (three "Automatic Ball"s and an "Intentional Ball", none in the box's count);
+    the crew's substitutions and pitching changes list 0 outs, a half can come without its "Start Inning", and an "End Inning"
+    can be filed before the half's last at-bat, or with the next day's time; ids the box hasn't (C. James 95613 in the plays,
+    45549 in the box; Alabama's starter Tyler Adams in the box and "Z. Adams" in the plays, in two games); people the box leaves
+    out (a pinch hitter, a pinch runner).
+  - **College's rules, from the data**: no runner on second in extra innings (every extra inning's first batter came up with the
+    bases empty, 7 games); seven-inning games by the 10-run rule (13-2, 19-3, 10-0 after seven: "Final/7"); the designated
+    hitter as a position (DH), a two-way pitcher listed P in the batting table (1 game): nothing more to read.
+- **`CollegeBaseball`** (`src/lib/sports/college-baseball.ts`, a subclass of `Baseball`; `sportOf("baseball/college-baseball")`,
+  `id` "baseball", so its defaults are baseball's): Baseball's vocabulary. **Its box**: names without their position, no pitches
+  seen (people's or team's), the team's pitches from `pitches`, no team GIDPs, sacrifice flies or bunts. **Its plays, by the feed**:
+  - **The tournament's: Baseball's reader** on the answer normalized (type slugs from their text, "Intentional Ball" automatic,
+    a "." result given its typed twin's words, before or after it), with four hooks in `Baseball`, each the MLB's as before:
+    `runnerOnSecond` (college: none), `outsSaid` (ESPN's college outs settle only an out the text doesn't say), `namedRunsStand`
+    (college: the text's runners, each on base before it, stand when `scoreValue` says fewer) and `basesFromText` (college: a
+    runner's play-result that lists no one on base moves them as its text says, `movedBy`); and one fix for both leagues: a
+    runner the text says scored who wasn't on base (he'd scored already) isn't counted again. `batterLines(outcome)`, the
+    outcome vocabulary (`Outcome`, `HITS`, `NOT_AB`) and `BASES` are exported for both readers. **The MLB's 341 cached games
+    read exactly as before**, every count of every line.
+  - **The stat crew's: its own reader** (`readCrew`): ESPN's bases, outs and pitcher from each start and result, the rest from the
+    text: its clauses (`crewClauses`), the batter's outcome (`crewOutcome`: catcher's interference puts him on, a batter's or a
+    runner's is an out), the pitches (`crewPitches`), each name by `crewNameFit` (the forms above); the batter the one ESPN lists
+    however the crew spells him ("Stanford" for Cole Standford); an id the box hasn't is the one on his side the at-bat's start
+    names ("Z. Adams pitches to C. James"; by the last name when only one there has it); someone the box leaves out kept under
+    ESPN's id (his run is still a run, his strikeout the pitcher's; the final's correction takes his own line back); runs charged
+    to the pitcher who put the runner on (a pinch runner takes his runner's, listed in the box or not; a batter safe on a
+    fielder's choice the forced runner's); the outs the text's (ESPN's only check them: they lag it now and then, a sacrifice's
+    out missing from the next start), never more than three a half, and a half the game went on from ending on three (the
+    pitcher on the mound getting any the text didn't say), each half by its plays' own inning; notes and reviews nothing (one
+    overturned is noted for the checks).
+  - **The crew's clock put right** (`crewTimes`): each play its stamp, or 12 hours more (or past midnight, "12:15" read as noon
+    on the new date, 12 hours less): the first the one nearest the scheduled start, each after it the earliest not before the
+    play before it, never between 2 and 9 in the morning Eastern (a game suspended at night resumes the next afternoon: 4 such
+    games read right); only an at-bat's start and results set it, any other row at the clock's time. **`TeamSport.playTimes
+    (summary)`** (new): when each of ESPN's plays happened (its wallclock, but the crew's put right), by which `espn-replay.js`
+    now cuts a recording (`bounds(summary, sport)`; `fake-espn.js` and `sports-live.test.js` pass the sport, and a replay starts
+    5 minutes before the earlier of the first play and the scheduled start).
+- **Defaults: baseball's file, unchanged.** A college box's positions (C, 1B, 2B, 3B, SS, LF, CF, RF, DH, PH, PR, P) each fill a
+  default slot; neither Yahoo nor ESPN runs a college baseball game to take other defaults from.
+- **Fixtures** (`record-espn.js` now keeps a play type's text, a play's score after it and the header's start time, which the
+  crew's clock is read against; 102-285 KB from 292-745 KB): the 2026 College World Series final's Game 3, Oklahoma 13 North
+  Carolina 2 (`college-baseball-401874453.json`: the tournament feed, "J. Walk and C. Johnson scored" for a `scoreValue` of 1),
+  Georgia 26 at Arkansas 14, 2026-04-18 (`college-baseball-401847137.json`: the crew's, its clock 12 hours early, "OShaughnessy",
+  "Allen, He.", unearned runs) and LSU at Ole Miss, 12-2 in seven innings, 2026-04-11 (`college-baseball-401847368.json`).
+- **Checks.**
+  - `tests/sports-college-baseball.test.js` (12): the vocabulary (the MLB's still the slug's own); the defaults' slots filled by
+    a college box's positions; the box (names, no pitches seen, the team's pitches); **the proof** on all three fixtures (every
+    number but one of LJ Mercurius's pitches, ESPN's own; the team totals and the score); the tournament feed (types by their
+    text, the text's runners standing); the crew's text (clauses, outcomes, pitches from the letters, 16 name forms and 5 that
+    aren't a fit); the crew's plays (RBIs and unearned runs the scorer's, runs charged to whoever put the runner on, a runner's
+    play of its own); the clock (12 hours early, noon, a Pacific game, past midnight, a late start, a suspension, an "End
+    Inning" filed late; the recorded games at their start); college's rules (seven innings by the run rule; a tenth inning's
+    runner nobody put on is earned, the MLB's reader has him unearned); `stateAt` at moments and the final's correction (only
+    final-only stats and ESPN's pitch count; with it every number; none live; a cut answer reads as the whole's first so many);
+    and on made-up games the crew's quirks (a misspelled batter, ids the box hasn't, a pinch runner it leaves out, notes, "picked
+    off, stole third", batter's interference, a sacrifice safe on an error, a fielder's choice's pitcher, an out the text didn't
+    say) and the tournament's (a "." result with its twin before or after it, a run named again, a signalled intentional walk, a
+    double play ESPN's outs call one). `sports-baseball.test.js` now says college is CollegeBaseball's.
+  - `check-sport-reduce.js` takes `--pbp` (only the games the board says have play by play) and `--apart=PC,PST` (those stats'
+    differences listed apart, not failing a game), lists an empty feed apart (a box and only innings: one game), and says the
+    share of ESPN's numbers the plays come to. On real games, **the days it was tuned on**: the crew's March 14, 21 and 28, April
+    11 and 18 and May 9, **32 of 97** every number and **79** every number but pitch counts; the tournament's super regionals
+    (June 5-8) and College World Series (June 12-22), **3 of 34** and **25**. **Then on their first run after the reader's last
+    change** (before the review): the crew's February 21 **4 of 14** every number, **8** but for pitch counts (98.5% of numbers),
+    April 25 **4 of 9**, **6** (99.1%), May 16 **3 of 68**, **46** (97.2%); the tournament's regionals (May 29-June 1) **21 of
+    105**, **51** (97.6%). After the review's fixes and what their data showed (a half with no "Start Inning", "popped up to 1b,
+    interference", the weather as a play): 5 of 14 and 10 (98.7%), 6 of 9 and 9 (99.5%), 3 of 68 and 50 (97.4%), 21 of 105 and
+    52 (97.6%). **Every cached game**: the crew's **45 of 190** every number and **150** but for pitch counts (97.9% of ~52,000
+    numbers, ~38,000 plays); the tournament's **24 of 130** and **71** (97.8% of ~35,000 numbers, ~68,000 plays). **Pitch counts
+    are ESPN's**: 1,171 of the crew's 1,518 pitcher lines exact, 1,381 within one (Jordan Stephens's five at-bats have 19 pitches
+    in the letters, his box line 20, his change between innings); a hit batter's pitch is in some crews' counts and not others'
+    (pitchers one over hit 0.93 batters each, exact ones 0.13; leaving it out moves them under: 1,170 exact). What's left is
+    ESPN's own, each kind read in its data: a box that leaves someone out (Mershon, C. James, Turner), a team total of 30 outs for
+    eight innings, a result the plays never list (a walk of Jarren Purify's), a run ESPN's `scoreValue` and the text disagree on
+    that its bases don't settle, a runner's charged pitcher, and **walks a relief pitcher came in to at 2-0 and the like**:
+    ESPN's college box charges them to the reliever in some games and the pitcher before him in others (the MLB's rule 9.16(h)),
+    23 walks off either way, so the reader keeps the MLB's. The final's correction settles them all.
+  - `check-live-clock.js` replays the three new fixtures unchanged (3 of 3 at 60x, every number of ESPN's box score at the end;
+    each recording's every 15 s, cut and read whole, is the recording as known then: the crew's clock looks only back), and every
+    recorded game at once at 30x, 22 of 22 (at 60x, with the other lanes' sessions on the machine, all 22
+    fail only on the gaps between asks: Noticed).
+  - 963 unit tests; `tsc` clean; eslint clean on `src/lib/sports`.
+  - `/code-review` on the diff (its fixes: a batter safe on a fielder's choice charged to the forced runner's pitcher, which the
+    runner's line being dropped first had lost; a "." result's twin looked for before and after it; the crew's clock Eastern
+    whatever the venue (ESPN's data: a late start had read an hour early) and past midnight; outs per half, at most three, a half
+    ending on three; an overturned review noted; `movedBy` only where a feed's runner plays list no bases (the MLB's stay as
+    before); a play's people by the box's ids; the batter's line and outcome vocabulary shared, not copied, and the roster from
+    `rosterOf`; the box read without copying the plays; the empty-feed rule only for plays with no one in them; the tests'
+    `bounds` with the sport and `instanceof CollegeBaseball`. Kept, after ESPN's data: a runner nobody put on charged to the
+    half's first pitcher (the pitcher on the mound read 2 tournament games worse); 9.16(h) for the crew's walks, which can't be
+    read from its letters).
+  - No HOSTING.md change: nothing calls ESPN from the app, adds a table or stores data (the dev checks asked ESPN ~500 times,
+    every finished answer cached).
+
+**L5 part 2c noticed, not fixed:**
+- **Most college baseball games have no play by play on ESPN** (85% of a regular-season day's; every tournament game has it): a
+  stats game on college baseball can only use the games the board says `playByPlayAvailable`, the rest a score. L1 part 3's
+  games from ESPN's schedule should carry the flag, and a game's maker see which games count. (L3 and L4.)
+- **A crew game's pitch counts can be a pitch off** (9% of pitcher lines by more than one, mostly ESPN's own): live pitch-count
+  points move at the final. (L3.)
+- **The crew's live answers are untested**: no college baseball is on in November (its season starts in February), so the
+  crew's clock and its results as they come are checked on recordings only. Record a crew game with `record-espn-live.js` in
+  February: what the crew files live (a result before its start? its letters as the at-bat goes?), ESPN's lag, and whether a
+  12:xx AM play is stamped as the clock reads it. `record-espn-live.js`'s lag is from a play's raw wallclock: for a crew game it
+  would read 12 hours; measure it from `playTimes`.
+- **A tournament game's first moments** (an at-bat's start, no pitch yet) read through the crew's reader, since the reader picks
+  the feed by whether any play is a pitch: the same start, nothing counted, then the MLB's reader from the first pitch. Fine;
+  noted for the live recording.
+- **Earned runs and RBIs in the tournament feed are the reader's reconstruction** (as the MLB's; its walks by 9.16(h) ESPN's
+  either way, above); the crew's are the scorer's own words. The final's correction settles them.
+- **A crew walk after a mid-at-bat pitching change** is the pitcher's on the result: the letters don't say where the change came,
+  so 9.16(h) can't be read, nor each pitcher's share of that at-bat's pitches. Rare. (L3.)
+- **A pitcher ESPN's plays name by an id and a name its box hasn't** ("B. Alcock", in no box line) keeps his line under ESPN's id
+  until the final takes it back.
+- **The live-clock check's rhythm needs a quiet machine**: with the other lanes' sessions running, all 22 recordings at once at
+  60x fail only on gaps between asks (every answer, every later watch and every end right); the three new ones alone pass.
+
+**L5 part 3a as built: golf (2026-10-30, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration, no ESPN calls from the app, nothing stored).**
+Master still hadn't A1-A4 (the main session's order). Part 3 is split in two: 3a golf (this), 3b racing (next: what ESPN gives
+for it is below, looked at in this session).
+- **What ESPN gives for golf** (checked 2026-10-30 on every finished event of the 2025 and 2026 seasons of six tours, ~340):
+  - **No summary** (`golf/<tour>/summary?event=` is a 404): a tournament is two answers. Its **board**
+    (`site.api.espn.com/apis/site/v2/sports/golf/<tour>/scoreboard/<event>`, the event itself; `.../scoreboard` lists the week's):
+    each competitor's rounds (strokes, score to par) and, on the PGA Tour, PGA Tour Champions and the Korn Ferry Tour, **every hole
+    in the order played** (a back-nine start's 10 to 18 then 1 to 9), its strokes and its score to par typed "E", "-1" ... "+3",
+    "OTHER" for four over or worse; the round's counts unnamed and in order (birdies, bogeys, bunkers, double bogeys, eagles or
+    better, pars, the tee time in Eastern time labelled PDT), all 0 in some events (the U.S. Open's, The Open's, the Zurich's).
+    The LPGA's, the DP World Tour's and LIV's boards have rounds only. Its **leaderboard** (`.../sports/golf/leaderboard?event=`,
+    any tour's): places ("T9", "-"), statuses (finished; cut, withdrawn or disqualified all `STATUS_CUT`, told apart by
+    `shortDetail` CUT, WD, DQ; `STATUS_MDF`, made the cut but didn't finish; `playoff`), each round's ISO tee time, its nines
+    (`outScore`, `inScore`) and two places: `startPosition` (the places after the round before, as the round began) and
+    `currentPosition` (in some events the place when each player finished the round: at the 2026 U.S. Open an early finisher at
+    -2 is 4th, passed later that day); earnings, the tour's season points (`cupPoints`), the courses with each hole's par; the
+    tournament's rounds, its cut (after which round, a score, how many made it, 0 until made) and its scoring ("Medal";
+    "Teamstroke", the Zurich Classic's pairs as one competitor with a roster; "Match", the Presidents Cup's and Solheim Cup's;
+    "Modified Stableford", PGA Tour Champions' Mitsubishi Electric Classic, scored in points); a playoff as a round of its own
+    (`isPlayoff`). A player's summary (`site.web.api.espn.com/.../golf/pga/leaderboard/<event>/playersummary?player=`) names the
+    round's counts and gives each hole's par, one player a call. ESPN carries ten golf leagues: pga, lpga, eur, liv,
+    champions-tour, ntw (Korn Ferry), mens- and womens-olympics-golf (stroke play) and tgl, wtgl (team match play: a bout's shape,
+    left out).
+  - **No hole has a time, anywhere** (board, leaderboard, player summary, core API): a round's tee times are the only clock. **A
+    round is over before the next one starts**: in every event, a round's last tee time was 2.8 to 23 hours before the next
+    round's first (LIV Indianapolis's third round, suspended and resumed on the Sunday morning, included).
+  - **Where ESPN's data is wrong or uneven** (each read in its data): a hole's type wrong in some events (the 2026 Chubb
+    Classic's 2 on a par 3 "+2", a 7 on a par 5 "-3"), where the course's par is right; two courses and which a round was on not
+    said (the PURE Insurance Championship's), its types wrong too; the round's counts take a double eagle as an eagle; the cut
+    score isn't always the line (the 2026 Turkish Airlines Open's says +2 and cut everyone at +2; the Soudal Open's and Tulum's
+    otherwise again), so who's cut is its statuses'; a playoff's holes listed in some events (Bermuda's three), only the winner's
+    or none in others (the WM Phoenix Open's, the LPGA's JM Eagle's): its places say who won; the DP World Tour's feed gives a
+    playoff's losers "2", "2" (not tied; the LPGA's "T2"); a withdrawal's unfinished round a hole off its holes either way in its
+    round's score (Séamus Power's 2025 Canadian Open leaves his tenth out, Mark Calcavecchia's 2025 Insperity counts a ninth it
+    doesn't list), its nines the holes; a status for the round the event was in when a withdrawal was flagged, not the one played
+    (Greyserman's, 10 holes into the second, says the third); MDF typed on someone who played all four (the 2026 Volvo China
+    Open's), placed by his score; the leaderboard's `startPosition` its leaderboard as the round began, a place or two lower for
+    everyone below someone it then listed and later dropped; an ESPN 500 for one 2025 LPGA board.
+- **`FieldSport`** (in `sport.ts`): a field of competitors and its standings. `FieldAnswer` (`{ _asked, board, leaderboard }`:
+  `_asked` is when the answers were had, a live poll's or a recording's), `FieldEntry` (an athlete or a team and its members),
+  `Standing` (`place`, null when out; `tied`; `status` in, cut, wd or dq; `madeCut` once a cut's made), `FieldEvent` (the field,
+  how many parts, the cut: the team sports' sides), `FieldBox` (ESPN's own numbers, parts and standings), `FieldPlay` (a `Play`
+  with its `who`, golf's `hole`, and on the final's correction ESPN's `places`), `FieldState` (lines, numbers part by part, each
+  one's score, standings). `reduce(plays, at, event)` adds up the plays to a moment (no moment or Infinity the end, one that isn't
+  a moment nothing), then the standings as the sport ranks them (`rank`), or after the final's correction ESPN's own (a copy),
+  and each place in the line of whoever's played (`placeStats`: before anything's known nobody's placed or won). `correction`,
+  `timeline` and `stateAt` as TeamSport's: the final's correction is what only the final says (golf: the earnings), with ESPN's
+  places. `fieldEventOf` picks the event from a tour's list by the leaderboard's id (an opposite-field week lists two).
+  `sportOf` returns `AnySport` (TeamSport or FieldSport); nothing in the app called it. `LiveGame` stays TeamSport's (Noticed).
+- **`Golf`** (`src/lib/sports/golf.ts`; `sportOf` for its eight stroke-play leagues, not TGL's): one golfer group (G, and TEAM for
+  a pair), rounds as its periods (a playoff its extra), locks per event. **Its vocabulary**: holes (STR strokes, TOPAR, HOLES,
+  ALB double eagles, EAG, BIR, PAR, BOG, DBL, WORSE triple bogey or worse, HIO), rounds on their 18th hole (RND, BFR bogey-free,
+  U70, UPAR, the longest birdie-or-better streak BS3, BS4, BS5, BS6 six or more, BS derived), a playoff (PO, POW won, POH holes,
+  POSTR strokes: never the tournament's), the finish (POS, W, TOP5, TOP10, TOP20, TOP25, CUT made: the standings'; MC, WD, DQ,
+  MDF: ESPN's statuses, as plays), money (EARN, CUPPTS: known at the final). **Its plays**: each competitor's holes in the order
+  played (where the board has none, each round whole: strokes and to par, RND, U70 and UPAR, no kinds of holes; a withdrawal's
+  last round counted a round only from 55 strokes up, no tour round having been under 57), each hole's score to par from a
+  course's pars or ESPN's types, whichever comes to ESPN's round score (the course first where there's one, ESPN's first where
+  there are more, and between two that both do, the one the board's own counts of the kinds agree with; one hole left unknown is
+  what the round leaves); a missed cut at the cut round's end, a withdrawal or disqualification at the end of the last round
+  played (before teeing off, the first's), MDF (only for someone who didn't play the last round anyone played); then a playoff
+  (its holes where ESPN lists them, the leaderboard's with par, else the board's round past the tournament's own, else its
+  strokes; then who was in it and, once final, who won it by ESPN's place). **Each at the moment it's known by**: a round's holes
+  at the next round's first tee time (or `_asked` if earlier), the last round's and the playoff's at `_asked`, or for a finished
+  event with none 12 hours after its last tee time; a live answer with none only at the end. So a later watch moves round by
+  round. **Its standings** (`rank`): everyone in by score to par, the tied sharing a place; after everyone who finished, MDF; a
+  playoff's winner by its place (live, by holes survived and strokes), everyone beaten tied for second; out (no place) the cut, the
+  withdrawn, the disqualified, ESPN's order kept among equals. `placesAfter(state, round, among)`: the places after a round as
+  ESPN starts the next one (its `startPosition`).
+- **Defaults** (`src/lib/sports/defaults/golf.json`): **Yahoo's daily fantasy golf** (2018's table; its official rules: the tied
+  each take the place's points, playoff holes score nothing, a withdrawal keeps its holes' points but has no place): a hole in one
+  5 (on top of its eagle), a double eagle 15, an eagle 9, a birdie 3.5, a par 0.5, a bogey -1.3, a double bogey or worse -5, a
+  bogey-free round 5, a round's longest streak 3, 5, 10, 18 for three, four, five, six or more; **the places beside** (`byPlace`,
+  a new optional field of `SportDefaults`: 1st 25, 2nd 12, 3rd 10, 4th-10th 8, 11th-20th 3), since the spec's points are one
+  number a stat; no categories (Yahoo's and DraftKings' golf are points); six golfers (Yahoo's lineup; its salary cap isn't a
+  slot); locks per event; specs `season` (draft six, all six play each tournament, total) and `short` (one tournament, draft
+  three each, all count).
+- **Fixtures** (`record-espn.js` records a field: its board and leaderboard together, trimmed by FIELD_KEEP, each competitor on a
+  line): the 2026 Butterfield Bermuda Championship (`pga-401850917.json`, 516 KB from 802: cut to 54 holes, Smotherman beat Power
+  in a three-hole playoff on the Monday, Greyserman withdrew 10 holes into round 2, 47 cut, holes four and five over), the 2026
+  TOUR Championship (`pga-401811964.json`, 177 KB: 30 players, Scheffler at -16, Justin Rose's hole in one, Spaun withdrew after 5
+  holes) and the 2026 Buick LPGA Shanghai (`lpga-401835172.json`, 144 KB: rounds only, five withdrawals, one before teeing off).
+- **Checks.**
+  - `tests/sports-golf.test.js` (14): the vocabulary and leagues; a hole's kind and a round's stats; the leaderboard in Golf's keys;
+    **the proof** on all three fixtures (the plays alone come to every number of ESPN's, round by round, the nines, the board's
+    counts, and its final places; the final's correction only the earnings; with it every number); the plays (the order played,
+    a hole's deltas, a round's on its 18th, OTHER from the course, a hole in one, the cut, a withdrawal, the playoff); **the
+    moments** (each round known at the next one's first tee, ESPN's start places after round 1 and 2 exactly, the cut and the
+    withdrawal with round 2, Smotherman and Power tied until the playoff's known, the end; a finished answer read months later;
+    nobody placed before anything's known); the LPGA's rounds; a live round (`_asked`, thru, places now, a later watch at round
+    2's start); playoffs (the winner by place, live by holes, losers tied, a lone loser second, only flagged); the cut from
+    ESPN's statuses, MDF; wrong types, two courses chosen by the board's counts, an OTHER left to the round; a tour's board
+    listing two events; not stroke play; the defaults.
+  - `scripts/dev-test/check-field-reduce.js` (new, reusable, check-sport-reduce.js's sibling for a field: `--league --season
+    --max` or `--events`, `--verbose`; caches finished answers): each event's plays against ESPN's numbers, nines, the board's
+    counts and final places (failing an event), ESPN's own differences listed apart (a withdrawal's round a hole off its nines,
+    a tie ESPN doesn't mark), and the places after each round against ESPN's start places: in ESPN's order (the tied tied) and
+    how many exactly. **The 2026 seasons** (what the reader was written against): PGA Tour 41 of 41 events every number and
+    place, LPGA 26 of 26, DP World Tour 32 of 33 (33 but for Bahrain's "2", "2"), LIV 12 of 12, PGA Tour Champions 25 of 25, Korn
+    Ferry 25 of 25 (619,445 plays; 463,888 numbers, all ESPN's but Bahrain's two apart). **The 2025 seasons, never tuned on, on their first run**: 45
+    of 47, 29 of 31, 32 of 35, 14 of 14, 26 of 28 and 24 of 26 (170 of 181; 100.0% of each tour's numbers): the rest the
+    withdrawals' rounds a hole off, the DP World Tour's untied losers, the 2025 PURE Insurance's MDF places "52" untied, an ESPN
+    500, and Bailey Tardy (2025 FM Championship), typed MDF after two rounds and placed 123rd, after the cut (the 2026 PURE's
+    MDFs come right after the finishers): **179 of 181 but for ESPN's own**. The places after a round are in ESPN's start order
+    in 94% of rounds (896 of 950; the rest a withdrawal ESPN listed then and dropped, and LIV Hong Kong's Varner, at -17 by his rounds and
+    7th by ESPN's start of round 4, his final place right).
+  - `check-sport-reduce.js` points a field at its sibling; `sports-live.test.js` and `check-live-clock.js` replay the team sports'
+    recordings only (a field's has no timed plays): **check-live-clock.js at 30x, 22 of 22**, every number of ESPN's box scores.
+  - `record-espn-live.js` records a field (golf's board and leaderboard every 60 s from play on to play stopped, `--until=final`
+    on through the rounds or sessions; racing's event board); its `--compare` for a field is still to write (Noticed).
+  - 977 unit tests; `tsc` clean; eslint clean on `src/lib/sports`.
+  - `/code-review` on the diff (its fixes: a finished answer read with no `_asked` saw its last round only at the end, now 12 hours
+    after its last tee time; a withdrawal before teeing off ranked at even par all week (ESPN's status says the round it was
+    flagged in), now out from round 1; nobody placed, or winning, before anything's known; a withdrawal's partial round on a
+    rounds-only tour counted a round under 70; a board's playoff read as a round where the leaderboard only flags it; a tour's list
+    picked by the leaderboard's id; the season spec's draft equal to its slots; ESPN's places copied, not shared; the cut check out
+    of the loop, `lastPlayed`, `ORDER` and `inOrder` shared; the field recorder's `--until=final` 120 hours by default, keeping one
+    answer between rounds, not one every 5 minutes. Checked against the data and kept: the fake replay already refuses a field's
+    recording; a withdrawal between the cut and the next round's tee isn't told apart from one before the cut, ESPN's status saying
+    neither: noted on `madeCut`).
+  - No HOSTING.md change: nothing calls ESPN from the app, adds a table or stores data (the dev checks asked ESPN ~700 times, every
+    finished answer cached).
+- **Racing, looked at for 3b** (2026-10-30): the site API has **no summary** (404 for F1, 502 for NASCAR and IndyCar) and its event
+  board (`racing/<series>/scoreboard/<event>`) gives each session in finishing order only (`order`, `winner`, the driver's name and
+  flag; the session's `status.period` its laps): F1 its five sessions (FP1-3, Qual, Race), NASCAR and IndyCar the race alone; no
+  laps, times, points, pit stops or DNFs. The **core API** has them: the competition's competitors in one call
+  (`sports.core.api.espn.com/v2/sports/racing/leagues/<series>/events/<id>/competitions/<id>/competitors?limit=100`: order,
+  `startOrder` (the grid), winner, the car's number, maker, team color, NASCAR's sponsor), each driver's
+  `.../competitors/<id>/statistics` one call each (laps led, laps completed, championship points, bonus, penalty points, pits
+  taken, place, wins, pole, top 5 and 10, total time, Q1-Q3 times; NASCAR's laps behind, fastest lap, highest position), and F1's
+  `.../status` ("Classified"; NASCAR's a 400), and the competition's `statistics` (laps, length, average speed, margin, pole
+  speed). F1's feed is "scrubbed, full", NASCAR's "basic/manual". Series: f1, irl (IndyCar), nascar-premier (Cup),
+  nascar-secondary (O'Reilly), nascar-truck. Recording live now (below): F1's Mexico City weekend and NASCAR's Cup at Martinsville.
+
+**L5 part 3a (golf) noticed, not fixed:**
+- **Golf's live poller is built** (L2 part 2a: `golfFeed` on `LiveEvent`, the board and leaderboard every minute, each hole at
+  its first sight).
+- **What a live golf answer has**, from the Mexico Open's round 2 (`golf/pga` 401850978, recorded 10-30 13:10 to 00:20 UTC, 616
+  answers a minute apart, compared 2026-11-05 against the event's final): **the board lists each hole as it's played** (2,142
+  holes in the first answer, round 1's, 4,283 in the last: ~3 a minute; 43 answers added none, none lost any); **`thru` moves a
+  hole at a time** (2,143 moves, one back, none by more than a hole); **`currentPosition` is filled as each one finishes** (118
+  of 118 who'd finished by the last answer), and the last live answer's places are the places after round 2 (68 of 68). **ESPN
+  rescores a hole now and then**: 47 shown otherwise, settled in a median 5 minutes, 90th 1.9 hours, most 4.2 hours (Keefer's
+  11th a birdie for four hours, then a par), so a phone's birdie can go. 4 rounds were read whole for a while (the leaderboard's
+  strokes after a first hole, before the board listed it) and then by their holes, as built. The first hole showed 13 minutes
+  after the first tee time (nothing timed, so no lag to measure). **A phone's data**: 33 KB an answer over the wire for both
+  answers (576 KB unpacked), 2 MB an hour at 60 s, 7.8 MB at 15 s.
+- **Hole times can't come from ESPN**, so a later watch of a golf broadcast moves round by round, and a game's "live" moment for a
+  hole is when a phone first saw it (live calls on golf: A15's window per round, or per hole by first sight).
+- **A round's known-by is the next round's first tee time**: right in every event looked at, but a round finished early the next
+  morning after a delay, while the next round's early wave tees off, would be stamped a little early (a spoiler of minutes for a
+  later watch synced to those hours). And with no `_asked`, a finished event's last round counts 12 hours after its last tee time.
+- **The kinds of holes need a feed with holes**: on the LPGA, the DP World Tour and LIV a game can score strokes, to par, rounds
+  under 70 or par and places, not birdies or streaks; the wizard should say so for those tours. (G3, U0.)
+- **The playoff's losers' tie and MDF's place are ESPN's to say**: the plays give the losers tied for second (the PGA Tour's way;
+  the DP World Tour's feed doesn't mark it), and MDF after the finishers (ESPN once placed one after the cut); the final's
+  correction takes ESPN's places either way.
+- **A withdrawal between the cut and the next round's tee** isn't told apart from one before the cut (ESPN's status says neither):
+  no CUT for them.
+- **Bermuda's fixture is 516 KB**, the biggest (120 players' holes); trimming a hole further would leave ESPN's shape.
+- **ESPN's season points (`cupPoints`) are 0 in the fall events** (Bermuda's, the TOUR Championship's): known at the final, so
+  read then; whether they're filled later is unchecked.
+- **Match play (the Presidents Cup, Solheim Cup, TGL) and Stableford** aren't read: match play with the bouts (BoutSport, MMA and
+  tennis's part), Stableford if ever asked for (its points are its own table).
+
+**L5 part 3b as built: racing (2026-10-30, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration, no ESPN calls from the app, nothing stored).**
+Master still hadn't A1-A4 (the main session's order).
+- **What ESPN gives for racing** (checked 2026-10-30 on every finished event of the 2025 and 2026 seasons of its five series: F1's
+  42 weekends, NASCAR's 79 Cup, 64 O'Reilly and 48 Truck races, IndyCar's 35; ~13,000 calls, ~51 MB, cached):
+  - **No summary** (F1's a 404, the others' a 502). An event is its **board** (`racing/<series>/scoreboard/<event>`, one call,
+    `max-age` 1-10 s, 1-11 KB unpacked): its sessions with their start, status (`period`: laps) and competitors in finishing order
+    (`order`, `winner`, the driver's name and flag). F1's: FP1, FP2, FP3, Qual, Race, or on its six sprint weekends a season FP1,
+    SS (sprint qualifying), SR (the sprint), Qual, Race; NASCAR's and IndyCar's: the race alone, untyped, whoever didn't qualify
+    listed without an `order` (a doubleheader, or a Duel, is an event of its own). And the **core API**: each session's
+    competitors (`sports.core.api.espn.com/v2/sports/racing/leagues/<series>/events/<id>/competitions/<id>/competitors?limit=200`,
+    one call: `order`, `startOrder` the grid, `winner`, the car's number, maker or team, NASCAR's sponsor), each driver's
+    statistics (`.../competitors/<id>/statistics`, a call each: laps completed and led, championship, bonus and penalty points,
+    pits taken, place, wins, `pole` (the place started, not a pole), top 5 and 10, total time, behind, the qualifying runs'
+    times, the fastest lap's number) and F1's status (`.../status`, a call each: classified, retired, disqualified; NASCAR's and
+    IndyCar's a 400, "not supported"), `max-age` 600-900 s once final. Practice's core adds nothing a game reads.
+  - **An event's answer** is the board and each scored session's core: an F1 weekend ~211 calls and ~410 KB unpacked (a sprint
+    weekend's four sessions, two calls a driver), a NASCAR or IndyCar race ~40 calls and ~200 KB. **A phone could poll the board**
+    (one call: the running order, if ESPN fills it in live, which the recordings will say) **and the core's list** (one call,
+    16-27 KB unpacked: the grid), **not the statistics** (20-44 calls an ask): they're the final's, saved once by the server (L3).
+  - **Where ESPN's numbers aren't what they say** (each read in its data): **F1's `lapsLead` isn't laps** (1 to 4 for each who led,
+    a race's adding up to 1 to 5), so F1 reads only who led; **F1's race `championshipPts` are the weekend's** (the sprint's taken
+    off, F1's table by place in 875 of 875 finishes; the sprint's its table in 252 of 252), a practice's, qualifying's or sprint
+    qualifying's a copy of the sprint's or 0; **the grid is `startOrder`** (the `pole` statistic), not the qualifying place in
+    163 of 875 F1 starts; **ESPN's `winner`, wins, top 5 and 10 are 0 for everyone in 25 of 226 NASCAR and IndyCar races** (12
+    Cup: the Clash, the Duels, the All-Star races, Martinsville 2025, Pocono and Atlanta 2026; 6 O'Reilly; 5 Truck; IndyCar's
+    Detroit 2025 and Mid-Ohio 2026; some of them at Road America 2026); NASCAR's and IndyCar's laps led add up to the race's laps
+    but in 10 of 226 (the 2025 Daytona 500's 202 of 201, Indianapolis 2025's 161 of 168, Thermal 2025's none); NASCAR's stage
+    points are one `bonus`, never stage by stage; IndyCar's `bonus` is its qualifying points and lap-led bonuses; **the
+    championship points are before a penalty's** (`penaltyPts`: IndyCar's season standings are their sum less them); NASCAR and
+    IndyCar have no pit stops, fastest lap or status, so a car out of the race isn't told from one running laps down; whoever
+    didn't qualify has no order and mostly no statistics (4 with laps: ESPN's own); F1's 2026 sprint qualifying statuses are
+    missing at the Dutch and Singapore Grands Prix.
+- **`Racing`** (`src/lib/sports/racing.ts`, a FieldSport): an instance a series (`RACING_SERIES`: NASCAR's Cup, O'Reilly and Truck
+  series, F1, IndyCar; Cup first, so `sportById("racing")` is the series whose defaults are the sport's), each reading what its
+  feed has (`feed`: F1's, or NASCAR's and IndyCar's "counted"); sessions as its parts (a play's `period`; `FieldPlay.session`,
+  ESPN's abbreviation); one group of drivers; locks per event. **Its vocabulary** (keys unique in the sport, a series offering
+  what its feed has): the race (FIN, GRID, PG places gained, POLE, LAPS, LEADLAP, LEDANY led at all; NASCAR's and IndyCar's LED
+  laps led and MOSTLED; F1's FL fastest lap, PITS, DNF, DQ; NASCAR's and IndyCar's DNQ), F1's sprint (SPR, SGRID, SPG, SLAPS,
+  SFL, SDNF, SDQ), qualifying (QUAL, Q2 and Q3 reached: a time set in them, QDQ, SQ sprint qualifying), practice (FP1-FP3 places),
+  the standings (POS, W, PODIUM, TOP5, TOP10) and points (CHPTS the series' own for the event, BONUS, PEN). Places are counts,
+  lower better: added over events, their average is the series' average finish. **Its plays**: each session's result for each
+  driver in the session's own keys (its place the board's order, else the core's), known when the next session starts (or the
+  answers' `_asked`, if earlier); the last session's at `_asked`, or for a finished event read with none 12 hours after its
+  start; a race's or a sprint's grid, and NASCAR's and IndyCar's non-qualifiers once the race's order is out, at its start; the
+  race's points less the sprint's. **Its standings**: the race's order (live, the running order); the disqualified out (their
+  FIN kept), whoever didn't qualify out after them (golf's "cut"); nobody placed before the race has an order. Its `score`: the
+  series' points so far less penalties. `coreStats` reads a competitor's statistics by name. In `sport.ts`: `FieldAnswer.core`
+  (`EspnCoreSession`, `EspnCoreCompetitor`), `FieldEntry.car` (number, team), `FieldPlay.session`.
+- **Defaults** (`src/lib/sports/defaults/racing.json`): the sport's own, **DraftKings' NASCAR** (45, 42, 41 for the first three,
+  then a point less a place and two less after the 10th, 20th and 30th, as three guides give it; a place gained 1, a place lost
+  -1; a lap led 0.25; its fastest laps left out, not in ESPN's NASCAR feed; six drivers); `leagues` for F1, **the official F1
+  Fantasy, 2026** (qualifying 10 down to 1, -5 disqualified; the sprint 8 down to 1, its fastest lap 5, a retirement -10; the race
+  25 down to 1, a place gained 1, its fastest lap 10, a retirement or disqualification -20; overtakes and driver of the day left
+  out, ESPN hasn't them; its constructors L4's; five drivers) and IndyCar, **its own championship points less penalties** (the
+  INDYCAR Fantasy Challenge publishes no values). `defaultsFor(sport, league)` gives a league's own parts. `SportDefaults.byPlace`
+  is now each place stat's table, keyed by the stat (golf's `{ POS: ... }`; racing's POS, SPR, QUAL).
+- **Fixtures** (`record-espn.js` records a race weekend: its board and each scored session's core, only the statistics the reader
+  reads): F1's 2025 Chinese Grand Prix (`f1-600052046.json`, 54 KB: a sprint weekend, three disqualified after the race), F1's
+  2026 Miami Grand Prix (`f1-600057432.json`, 59 KB: 22 cars, a sprint and a qualifying disqualification, retirements), NASCAR's
+  2025 Daytona 500 (`nascar-premier-202502160001.json`, 32 KB: four didn't qualify, penalties, 202 laps led of 201) and
+  IndyCar's 2025 Indianapolis 500 (`irl-202505250106.json`, 26 KB: one didn't qualify, three moved to the back after the race,
+  one out before the start).
+- **Checks.**
+  - `tests/sports-racing.test.js` (8): the vocabulary per series; **the proof** on all four (each driver's plays come to ESPN's
+    own numbers session by session, ESPN's `pole` statistic is the grid and its place the board's order, the standings ESPN's
+    order, the final's correction nothing); F1's weekend (each session's keys, the sprint's points and the race's apart, the
+    disqualified, the fastest laps, Q2 and Q3); NASCAR's and IndyCar's (laps led and the most, bonus, penalties and the score,
+    non-qualifiers); **the moments** (practice known at sprint qualifying's start, the sprint's grid at its start, its result
+    and points at qualifying's, the race 12 hours after its start read later or when asked, NASCAR's grid at the green flag);
+    live (the running order at `_asked`, a grid before the start, a penalised grid, no `_asked` only at the end); ESPN's own
+    (no wins flags, laps for a non-qualifier, one on the board only, nobody a non-qualifier before the order's out); the defaults
+    (scored by the tables on Byron's Daytona 500, Piastri's and Hamilton's Chinese Grand Prix).
+  - `check-field-reduce.js` reads racing (`--league=racing/<series> --season`; its cache `racing-<series>-board-<event>` and
+    `-core-<event>-<session>`; `--standings` checks the season's standings): **F1 42 of 42 weekends every number** (25,854) **and
+    its season standings event by event** (875 of 875; Bahrain and Saudi Arabia 2026 called off); NASCAR's Cup 62 of 79 races
+    exactly, 79 but for ESPN's own (its wins flags, laps led, laps for a non-qualifier), O'Reilly 54 of 64 (64), Truck 40 of 48
+    (48), **IndyCar 31 of 35 (35), and its season standings exactly** (67 of 67 drivers, their points less penalties); NASCAR's
+    are reset for its playoffs (told). 229 of 268 events exactly, all 268 but for ESPN's own; F1's points against its tables from
+    2025 (the sprint's and the race's split). The reader was written against both seasons: none was held out (golf's 2025 was).
+  - `espn-race-core.js` (new, reusable): a session's core answer for the three scripts, a few calls at a time, cached only
+    complete.
+  - `record-espn-live.js`: racing's recordings ask the core too (the session on's competitors every ask, their statistics every
+    5 minutes, a session's in full once it's over); F1's and NASCAR's recorders restarted on it (L2's Noticed). **Its `--compare`
+    for a field is written** (3a's Noticed): each answer recorded while play was on, read by Golf or Racing, against the event's
+    final (check-field-reduce.js's cache, asked once final; before then the recording's last answer, which it says): plays shown
+    otherwise and how long they took to settle, plays dropped; golf's holes per answer, how `thru` moved, whether
+    `currentPosition` is filled in as each one finishes, the places shown against the places after the round; racing's laps,
+    order and leader changes, the answers with the final order and from when, the core's order against the board's and its
+    statistics as they went; the bytes per answer and per hour. Exercised on recordings made up from cached finished events (a
+    one-off, not kept); the real ones aren't final yet.
+  - check-live-clock.js at 30x, 22 of 22 (a field's recordings aren't replayed); golf's 2026 PGA Tour 41 of 41 still; 985 unit
+    tests; `tsc` clean; eslint clean on `src/lib/sports`.
+  - `/code-review` on the diff (its fixes: a live race's first answers, before ESPN's order is out, read everyone as a
+    non-qualifier, now only once others are placed; one on the board but not in the core had no DNQ; failed or partial core
+    answers could be cached, now one shared fetch caching only complete ones; `sportById("racing")` was F1's while
+    `defaultsFor("racing")` is NASCAR's, now Cup comes first; the score less penalties; each session's statistics worked out
+    once; the core's calls batched; an unused names map. Checked and kept: two untyped competitions in one event aren't guessed
+    at, never seen, a doubleheader being two events).
+  - No HOSTING.md change: nothing calls ESPN from the app, adds a table or stores data (the dev checks asked ESPN ~13,000 times,
+    every finished answer cached).
+
+**L5 part 3b (racing) noticed, not fixed:**
+- **What a live racing answer has** (recorded with the core, compared 2026-11-05 against the finals):
+  - **F1's Mexico City weekend (`racing/f1` 600057447), only its FP1**: ESPN's board says final from a session's end (its own
+    status is the last session over's, FP2 to the race still scheduled), and the recorder took that for the weekend's end.
+    **Fixed**: a weekend is over once every session is (`weekendOver` in `racing.ts`); the reader's `final` read it the same way,
+    so a live answer after FP1 would have had the final's correction. FP1: nobody placed for its first 6 minutes, **the board's
+    order changed in only 8 answers in the hour** and reached the final's 16 minutes after the session's end: a practice's live
+    order isn't its running order (places shown otherwise settled in a median 34 minutes). The core's order the board's in 79 of
+    166 answers; of its statistics only laps completed moved. `check-field-reduce.js --events=600057447`: every number of the
+    weekend's five sessions (650 of 650). 2 KB an answer over the wire; the core 6 calls and 23 KB unpacked an ask.
+  - **NASCAR's Martinsville Cup race (`racing/nascar-premier` 202611010020)**: **the board's order is the running order** (it
+    changed in 30 of 400 answers, about every 7 minutes, the leader 6 times; at lap 493 its top 13 were the final's, at the first
+    final answer all 37). **The core's statistics aren't the cars' until after the race**: every car's laps completed are the
+    race's laps so far (Cindric, out from about lap 222, at 493), nobody has a lap led and nobody points, still in the first final
+    answer (500 laps each); ESPN fills them in later. **Fixed**: a counted series' race with laps run and none led reads only the
+    core's place and grid (`CORE_BEFORE_FILLED` in `racing.ts`, said in the reader's issues), so a phone's live points are places
+    and places gained; laps, laps led and the lead lap come once ESPN fills them (L3's stored final). The core's order the
+    board's in 129 of 400. `check-field-reduce.js --events=202611010020`: 546 of 546; the Cup's 2025 and 2026 seasons as before
+    (63 of 80 races exactly, all but for ESPN's own), IndyCar's 2025 15 of 17 (none read as not filled in). 2 KB an answer, the
+    core 5 calls and 39 KB unpacked.
+  - No lap has a time, so ESPN's lag can't be measured; a session's first order showed 6 (FP1) and 11 minutes (the race) after
+    its listed start.
+- **Racing's live poller is built** (L2 part 2b: `raceFeed` on `LiveEvent`, the board every 30 s while a session's on, the core's
+  list at a race's or a sprint's start for the grid, its statistics and F1's statuses once it's over, a counted series' waited
+  for till ESPN fills them in).
+- **NASCAR's and IndyCar's retirements aren't in ESPN's data** (no status): a car out isn't told from one laps down, so a game
+  scores laps completed or the lead lap instead; nor NASCAR's stage results (one `bonus`), DraftKings' fastest laps, or F1's laps
+  led (its `lapsLead` counts something else). The wizard should say what a series can't score. (G3, U0.)
+- **ESPN's wins, top-5 and top-10 flags are unreliable** (0 for everyone in 25 of 226 races): the reader takes them from the
+  order; anything else reading ESPN's flags (the server's stored finals, L1 part 3) should too.
+- **A session's results are known by the next one's start**: F1's sessions are 1.5 to 24 hours apart, so a later watch sees
+  practice's places up to a day late; a finished event read with no `_asked` puts the race 12 hours after its start (a later
+  watch synced to the race sees its result late, never early).
+- **Q2 and Q3 are a time set in them**: one through who set no time isn't told (2026 Miami's Q3 has nine times; one qualifier
+  was disqualified).
+- **NASCAR's playoff resets aren't modelled**: a season-long game adds the events' points (F1's add up to its standings event by
+  event, IndyCar's less penalties to its season's).
+- **Teams**: `FieldEntry.car.team` is read (F1's constructor, NASCAR's team) but nothing scores a team; F1 Fantasy's constructors
+  and DraftKings' constructor slot need team scoring (L4).
+- **DraftKings' NASCAR finish table is from guides** (its own rules page wasn't readable; three agree on 45, 42, 41 and the
+  steps); F1 Fantasy's from a page listing it (fantasy.formula1.com needs a browser).
+- **No racing season was held out**: the next races (Mexico City, Martinsville) are the first the reader wasn't written against.
+
+**L5 part 4a as built: MMA (2026-10-30, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration, no ESPN calls from the app, nothing stored).** Master
+still hadn't A1-A4 (the main session's order). Part 4 is split in two: 4a MMA (this), 4b tennis (next).
+- **What ESPN gives for MMA** (checked 2026-10-30 on every finished card of 2025 and 2026 of the UFC (99 cards, 1,088 bouts), the
+  PFL (28, 281), LFA (36, 121), Cage Warriors (11) and ACA (3), 65 of the "other" league's (Road to UFC, PFL MENA and Africa, a
+  hundred regional promotions), and 2024's Bellator, KSW, Rizin and Cage Warriors, the last cards ESPN has of them; ~7,500 calls,
+  cached):
+  - **No summary** (`mma/<league>/summary?event=` is a 404). A card is three answers: its **board**
+    (`site.api.espn.com/apis/site/v2/sports/mma/<league>/scoreboard/<event>`, one call, ~3 KB over the wire, `max-age` 1-2 s): the
+    bouts in the order fought (the main event last), each one's weight class, its scheduled start (its segment's: every main-card
+    bout has the main card's), its status (the round it ended in and the time into it), its two fighters (`order` 1 and 2,
+    `winner`), each judge's score under each fighter (the UFC's), and the last ten of its plays untimed; not how it ended. Its
+    **FightCenter** (`site.web.api.espn.com/apis/common/v3/sports/mma/<league>/fightcenter/<event>`, one call, ~17 KB over the wire
+    of which most is videos and news, `max-age` 298 s once final): the card's segments (main, prelims1, prelims2), each bout's
+    number counted back from the main event, its note ("Main Event - Title Fight"), a title (`types`), its result (`kotko` with
+    what did it, "Punches", and where, "head"; `submission`, "Rear Naked Choke"; `decision---unanimous`, `---split`, `---majority`;
+    `tko---doctors-stoppage`; `dq`; `draw`; `no-contest`), the judges' scores as text (the winner's first in only 263 of 474) and,
+    on the UFC's cards, each fighter's totals (knockdowns, total and significant strikes landed of attempted, significant strikes
+    to the head, body and legs, control time, takedowns, submission attempts). And the **core API**: the event (one call: each
+    bout's rounds as ESPN describes them, "3 Rnd (5-5-5)", "5 Rnd (5-5-5-5-5)", "3 Rnd + OT (5-5-5-5)" a tournament's overtime round
+    the board's `format` counts as 4, "3 Rnd (10-5-5)" once), each bout's status (the same result), its **plays**
+    (`.../competitions/<id>/plays`, a call a bout, ~1.3 KB: the fight's opening, the walkouts, the tale of the tape and the staredown,
+    each round's start and end, every knockdown, takedown, takedown attempt, submission attempt and reversal, pauses and their
+    reason, the fight over, the unofficial winner and the results, each with its round, the clock left in it and its **wallclock**:
+    the only times in an MMA answer; the UFC's since April 2025) and each fighter's **statistics** (`.../competitors/<id>/statistics`,
+    a call a fighter, ~1.5 KB: the FightCenter's totals and more, significant strikes by target and position, slams, reversals,
+    advances to half guard, side control, mount and the back; a 404 for every other promotion), `max-age` up to 900 s once final; and
+    each bout's odds (ESPN BET's moneyline, "P. Pimblett -210"), not read. CORS `*` on all three.
+  - **A card's answer**: for a phone, **the board and the FightCenter** (two calls, ~20 KB over the wire: every bout, who won and
+    how, every fighter's totals; 2.3 MB an hour at 30 s), and the core's plays of the bout on (a call, 1-2 KB) for its times; the
+    whole card from the core is 1 + 4 a bout calls (~55 for a UFC card, ~75 KB over the wire, ~660 KB unpacked): the server's, once,
+    at the final (L3).
+  - **What isn't there**: **no play names a fighter** (none of the UFC's ~20,000 has a fighter or a team), and **no statistics by round**
+    anywhere (the core's `statistics/1` is the totals again): a fighter's numbers are their bout's totals, known when it ends; a
+    bout's rounds are its own counts, timed. No Fight or Performance of the Night bonuses. The PFL, LFA and the rest have results
+    only (no statistics, no plays, so no times); LFA's and the regional promotions' boards list a few of a night's bouts. Every bout
+    listed in 2025-26 is final: **a bout called off is taken off the card**, never shown canceled.
+  - **Where ESPN's data is its own** (each read in its data): the plays don't always come to the totals (the knockdowns in 858 of
+    930 UFC bouts with plays, takedowns in 851, their attempts in 811, submission attempts 896, reversals 906: a play filed twice
+    or missing; some cards' plays have the rounds and none of the moments); a bout's Fight Over to its announcement takes a median
+    103 s (90th 173 s, most 906 s); ESPN's smaller promotions put the how in the result's name ("tko-punches", "submission-armbar",
+    "technical-submission", "ko-head-kick", "dq-illegal-kick"); "decision---split-draw" is a draw (Road to UFC's), and once a win
+    (a 2024 Rizin bout named so and flagged a win on the board, the FightCenter and the core: the flags win); "technical-decision"
+    (Cage Warriors'); the PFL's five-round bouts decided in round 3 on five cards of 2026 (a technical decision, or ESPN's rounds
+    wrong: its core describes none); a 2026 Rizin card ESPN calls final with its one bout still "scheduled"; a one-night
+    tournament's fighters on the card twice (Cage Warriors 174 and 176, KSW); the statistics' own `wallclock` hours after the bout.
+    ESPN's totals agree with themselves: the FightCenter's are the core's on 10,880 of 10,880 numbers, the winner is the same on
+    the board, the FightCenter and the core for 2,176 of 2,176 fighters, the board's judges are the FightCenter's text on 483 of 483
+    bouts, a strike cell's parts add up (4,352 of 4,352), and control time never exceeds the fight.
+- **`BoutSport`** (in `sport.ts`): a card of one-on-one bouts. `BoutAnswer` (`{ _asked, board, fightcenter, event, core }`),
+  `Bout` (its order on the card, its two sides, its rounds and their lengths, an overtime round, its segment, the main event, a
+  title, its scheduled start, its class), `BoutCard` (the bouts and the field), `BoutResult` (`{ outcome: win, draw or nc; winner;
+  loser; method, the sport's key; how, ESPN's words; round; time; cards }`), `BoutBox` (each fighter's totals over every bout of
+  theirs on the card, and the results), `BoutPlay` (a `Play` of a bout, its `unit` the bout, `who` only on a result; `tally`: what
+  it adds to the bout's own count for its round), `BoutState` (lines; each bout's stage, pre, in, over or done, its round, its
+  rounds' tallies and its result; the results in the card's order). `reduce`, `correction`, `timeline` and `stateAt` as the
+  field's: a bout's numbers at its "bout-end" play, its result at its "result" play, ESPN's results after the final's correction.
+  `sportOf` returns `AnySport`, now TeamSport, FieldSport or BoutSport; `LiveGame` stays TeamSport's (Noticed).
+- **`MMA`** (`src/lib/sports/mma.ts`; `sportOf` for every `mma/<league>`, which ESPN writes alike): one group of fighters, the
+  weight classes as positions (HW to FLW, SW, CW, the women's WFW to WSW and WCW, from ESPN's "Lightweight", "W Flyweight", "Catch
+  Weight"), rounds as its periods (3 by default; each bout says its own), locks per event. **Its vocabulary**: the result (BOUT, W,
+  L, D, NC; how a win came: KO for KO/TKO with a doctor's or a corner's stoppage and a retirement, SUB with a technical one, DEC
+  and its kinds UD, SD, MD, DQ; WR1-WR5 a win before the final bell in its round; FIN, derived, their sum; QW a win in the fight's
+  first 60 seconds; TIME the fight's seconds), striking (KD, SSL, SSA, TSL, TSA; significant strikes by target, SHL to SLA, and by
+  position, SDL to SGA; SSACC a rate) and grappling (TDL, TDA, SLAM, TDACC a rate, SUBA, REV, ADV and its four kinds, CTRL in
+  seconds). `methodOf` reads every result name seen (the prefix, a draw anywhere in it, a technical decision). **Its plays**: for
+  each bout in the order fought, each of ESPN's timed moments (a knockdown, a takedown or its attempt, a submission attempt or a
+  reversal counted in its round's tally), the bout's end at its Fight Over (or its last round's end) with each fighter's totals
+  (the core's statistics, else the FightCenter's) and its time, and its result at its announcement (the first "Unofficial Winner"
+  or "Results" after the end). A bout ESPN times nothing of ends, with its result, when the answers were had (`_asked`), else at
+  the next bout's first moment, else for a finished card 12 hours after its last segment's start (a live answer's with none only
+  at the end). A bout on, live, has each fighter's totals so far at `_asked` (a "so-far" play). The judges' scores are the board's
+  (only side by side there).
+- **Defaults** (`src/lib/sports/defaults/mma.json`): **DraftKings' MMA** (from stokastic.com's guide of 2026-07-12 and rotowire's
+  of its 2021 change; DraftKings' rules page answers a 403): a strike landed 0.2 and a significant one 0.2 more, a second of
+  control 0.03, a takedown 5, a reversal or sweep 5 (ESPN counts reversals), a knockdown 10; a win in the 1st round 90, the 2nd
+  70, the 3rd 45, the 4th or 5th 40, by decision 30, a quick win (60 seconds or less) 25 more; nothing left out but the bonuses
+  ESPN hasn't, which no standard table scores. Six fighters, no positions (its salary cap isn't a slot); no categories (Yahoo,
+  ESPN and FanDuel run no MMA game); locks per event; specs `season` (draft six, each scores on the nights they fight, total) and
+  `short` (one card, draft three each, all count). On the PFL's and the rest, only the result's parts score (the wizard should
+  say so: Noticed).
+- **Fixtures** (`record-espn.js` records a card: its board, its FightCenter, the core's rounds and each bout's status, plays and
+  the statistics the reader reads, each bout on a line): UFC 324 (`ufc-600057024.json`, 95 KB: Gaethje over Pimblett for the
+  interim title over five rounds, every bout timed), UFC Fight Night: Usman vs. Buckley (`ufc-600053732.json`, 119 KB: a no
+  contest and a technical draw), UFC Fight Night: Rosas Jr. vs. Barcelos (`ufc-600061266.json`, 111 KB: a disqualification, two
+  bouts of three rounds and an overtime, a 57-second submission), UFC 312 (`ufc-600050481.json`, 66 KB: statistics, no plays, a
+  draw, two titles), PFL Dubai (`pfl-600056964.json`, 24 KB: results only) and Cage Warriors 176 (`cage-warriors-600049962.json`,
+  13 KB: a one-night tournament, its winner on the card twice).
+- **Checks.**
+  - `tests/sports-mma.test.js` (10): the vocabulary, the weight classes and the leagues; every result name seen; **the proof** on
+    all six (the plays alone come to ESPN's own numbers and results for every fighter, the final's correction nothing, the winner
+    every answer flags, the method, round and time ESPN gives, the judges' scores the FightCenter's text, the core's statistics the
+    FightCenter's); UFC 324 read (the order fought, the segments, the main event's totals, its rounds' tallies from the plays
+    adding up to the totals); **the moments** (nothing before the card; a bout on in its round with its tallies and no numbers yet;
+    over at its Fight Over with the totals and no result; done at its announcement; as of each result, that bout and every one
+    before done and none after); draws, no contests, a disqualification, the overtime round, quick wins; ESPN's draw with a winner
+    flagged; no times (a card read later: 12 hours after; when asked: then) and results only; a one-night tournament; live (a bout
+    on with its totals so far at `_asked`, the bouts before done, a later watch seeing none of it, a bout not started with nothing,
+    no final's correction); the defaults (Gaethje's DraftKings points, a quick submission's, the PFL's result alone).
+  - `scripts/dev-test/check-bout-reduce.js` (new, reusable, check-field-reduce.js's sibling for a card: `--league --season --max`
+    or `--events`, `--verbose`; caches finished cards through `espn-mma-card.js`): each card's plays against ESPN's numbers and
+    results, ESPN's two sets of totals against each other, each result against every winner flag, its name, its round and the
+    judges, the moments (each end before the next bout's first moment, each result after its end, the card as of each result),
+    ESPN's own apart. **The UFC: 99 of 99 cards every number and result but for ESPN's own** (2025's 52 and 2026's 47; 44 with
+    nothing apart; 87,833 of 88,163 numbers, the 330 apart the plays' moments against the totals and a bout's plays with no rounds;
+    1,088 bouts, 930 timed). The PFL 28 of 28 (22 with nothing apart, the rest a decision before the last scheduled round), LFA 36 of
+    36, Cage Warriors 28 of 28, ACA 3 of 3, the "other" league's 65 of 65, Bellator, KSW and Rizin's 2024 23 of 23 (the Rizin draw
+    flagged a win, apart). The reader was written against 2025 and 2026: none was held out (Noticed).
+  - `espn-mma-card.js` (new, reusable): a card's answers for the three scripts (the board and the FightCenter alone, `core: false`;
+    some bouts' core, `bouts`; what's had already, `have`), a few calls at a time; a 404 is ESPN's "none", not a failure; cached only
+    complete and final.
+  - `record-espn-live.js` records a card (its board and FightCenter every 30 s while it's on; the core's bouts on, each one in and
+    the next to start, their status and plays every ask and statistics every `--stats-every`; a bout just over in full once and
+    then until its announcement shows; the whole card once final; every 30 s from 15 minutes before the first segment's start) and
+    **compares** one (ESPN's lag from a play's wallclock to the first answer with it, by kind; plays shown otherwise or dropped; each
+    bout as it went, on, over and its result against its first round, its Fight Over and its announcement, a result shown otherwise,
+    its totals moving while on; bouts called off or added; a phone's data). Exercised on a recording made up from UFC 324's cache (a
+    one-off, not kept); Saturday's card is being recorded (L2's Noticed).
+  - `check-sport-reduce.js` points a card at its sibling. 995 unit tests; `tsc` clean; eslint clean on `src/lib/sports`;
+    `check-live-clock.js` at 30x, 22 of 22; golf's 2026 PGA Tour 41 of 41 and F1's 18 of 18 still.
+  - `/code-review` on the diff (its fixes: the card recorder asked every finished bout in full again on every ask, now only the
+    bouts still to finish (the detached recorder restarted on it); a live bout with no plays stayed "pre", now it's on from any
+    play in a round or its totals so far; a win ESPN doesn't say how of scored a round's finish, now the win alone; the winner was
+    read from the board only, now the FightCenter's or the core's flag where the board hasn't one yet; an ESPN play with no
+    wallclock went to the end, now it takes the play before it's time; a one-night tournament's fighter was twice in the field;
+    the card read once a reader, not twice; the board's round length as a fallback; `isoOf` and `nonzero` shared from `sport.ts`,
+    golf's and racing's copies gone. Checked and kept: the three corrections, a team's, a field's and a card's, differ by design (a
+    team's box lacks counts its plays have, which stay; a field's places are the standings'; a card's totals are all ESPN's), so
+    one shared helper isn't taken).
+  - No HOSTING.md change: nothing calls ESPN from the app, adds a table or stores data (the dev checks asked ESPN ~7,500 times,
+    every finished answer cached).
+
+**L5 part 4a (MMA) noticed, not fixed:**
+- **What a live card has**, from the UFC's Fight Night, Moicano vs. Nolan (`mma/ufc` 600061420, 691 answers 30 s apart over 5.8
+  hours, compared 2026-11-05): **the FightCenter's and the core's totals move during a bout** (the FightCenter's significant
+  strikes every answer or two, the core's every 5 minutes) **but run ahead of the official count**: the last live total is above
+  the final's in 8 of 12 bouts, by up to 30% (Sezinando and Berggren's 68 to 47, Lebosnoyani and Hasanov's 181 to 157), so live
+  points from them would climb and then drop at the bout's end. So a bout's numbers stay known at its end (the final's), as
+  built; a live strikes count is U1's to show as provisional, or L3's to leave out. **ESPN's lag** from a play's wallclock to its
+  first answer: a median 35 s (90th 55 s, most 88 s; round starts, takedowns, the knockdown and the fight's end alike). **A
+  result shows a median 55 s after its announcement** (33 to 88 s), the bout's Fight Over 10-66 s before it. Each bout was on 8-17
+  minutes before its first round (the walkouts). No bout was called off on the night (none to see), none added. Every play seen
+  live is in the final, read the same. `check-bout-reduce.js --events=600061420`: every number but one of ESPN's own (a bout
+  whose plays go to round 3 and whose status ended it in round 2, 401928106). **A phone's data**: 23 KB an answer for the board
+  and the FightCenter (248 KB unpacked), 2.7 MB an hour at 30 s; the core 6 calls and 24 KB unpacked an ask.
+- **A card's live poller is built** (L2 part 2b: `cardFeed` on `LiveEvent`, the board and the FightCenter every 30 s while a bout's
+  on, the core's plays of the bout on, each fighter's statistics once the bout's settled; no core status: the plays carry the
+  moments).
+- **No play says whose it is, and nothing is by round per fighter**: a game can't score "a knockdown in round 1" for a fighter, nor
+  live points round by round; a bout's own rounds (its knockdowns and takedowns, timed) can settle a live call about the bout ("a
+  takedown this round"). (A15, L4.)
+- **The PFL's, LFA's and the rest's results only**: no strikes, takedowns or control, no times (a later watch sees the card's
+  results all at once, 12 hours after its start when read with no `_asked`), no judges' scores; a game on them scores the result's
+  parts. The wizard should say what a promotion can't score. (G3, U0.)
+- **ESPN's regional promotions** (the "other" league: hundreds of cards a year, a bout or a few each): readable, but a game on them
+  would have one bout a card; the wizard could leave them out of its list. (U0.)
+- **The judges' scores are side by side only on the UFC's boards**; the FightCenter's text doesn't say whose is first. A game
+  scoring rounds won on the cards can't (ESPN gives each judge's total, not rounds).
+- **Odds per bout are in the core** (`competitions/<id>/odds`: ESPN BET's moneyline): a pick'em's favourite and an upset bonus could
+  read them as L1 part 3 reads a game's line. (L4, A4.)
+- **A one-night tournament's fighter is on a card twice**: the box adds both bouts (`people[id].bouts`); a game scoring a fighter
+  per bout (tennis's per match, 4b) would want lines per bout as well. **Done** in 4b: `BoutState.byBout`, each bout's own lines.
+- **A decision before the last scheduled round** (the PFL's, five cards of 2026): a technical decision or ESPN's rounds wrong; the
+  reader keeps ESPN's rounds, and the result's round is the status's either way.
+- **DraftKings' MMA table is from guides** (its rules page answers a 403; a 2026 guide agrees with the 2021 change). Fight and
+  Performance of the Night bonuses would need a source ESPN isn't (HOSTING.md first, the decision's "vetted sources").
+- **No season was held out**: the reader was written against 2025 and 2026; Saturday's card is the first it wasn't.
+
+**L5 part 4b as built: tennis (2026-10-30, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration, no ESPN calls from the app, nothing stored).** Master
+still hadn't A1-A4 (the main session's order). With it, L5 is done: soccer, college and the WNBA, golf, racing, MMA and tennis.
+- **What ESPN gives for tennis** (checked 2026-10-30 on every ATP and WTA event of 2025 and 2026: 318 boards, 278 events over,
+  24,594 matches; ~360 calls, ~93 MB unpacked, cached):
+  - **One answer per event: its board** (`site.api.espn.com/apis/site/v2/sports/tennis/<tour>/scoreboard/<event>`, the event's id
+    the tournament's and the year's, "23-2026"; `max-age` 1-7 s, CORS `*`; 12 KB over the wire for an ATP 500 or a WTA 250, ~150 KB
+    unpacked; a Grand Slam's ~1.7 MB unpacked). Every draw's matches in `groupings` (men's and women's singles and doubles, mixed,
+    each with its qualifying; a combined event, a Grand Slam, Indian Wells or Miami, on both tours' boards), each with its round
+    ("Round 1" to "Round 4", "Quarterfinal", "Semifinal", "Final", "Qualifying 1st Round", "Qualifying 2nd Round", "Qualifying
+    Final", "Group Stage"), its start (`date`, always on the five minutes; `timeValid` false for one not yet scheduled, at the day's
+    04:00 UTC), its court, its status (STATUS_FINAL, STATUS_RETIRED, STATUS_WALKOVER, STATUS_CANCELED, STATUS_IN_PROGRESS,
+    STATUS_SCHEDULED; `period` the set it's in or ended in, equal to the sets listed in all 24,293 finished and retired matches),
+    its two sides (`order` 1 and 2; a player, or a doubles pair typed "team" whose id is its players' joined, "1627-2695", its
+    people in `roster`; "TBD", ids -3 and -4, for a place not yet known), each side's `winner`, seed (`curatedRank.current`) and
+    sets (`linescores`: the games, the set's `winner`, a tiebreak's points), and ESPN's result in words (`notes`: "Jerome Kym (SUI)
+    bt (1) Ben Shelton (USA) 6-3 6-7 (4-7) 7-6 (7-1)", "... 7-5 ret", "... w/o"). **A phone could poll it**: one call every 30 s
+    while a match is on, 1.4 MB an hour (2.9 at 15 s), 12 KB an answer for a 250 or 500 (the recordings below).
+  - **Nothing else has more.** No summary (`tennis/<tour>/summary?event=` is a 400: ESPN asks its own core for the match as an event
+    of its own); the core API's match (`sports.core.api.espn.com/v2/sports/tennis/leagues/<tour>/events/<event>/competitions/
+    <match>`: its competitors with `tournamentSeed`, their `linescores`, its `status`, a court) is the board's numbers again, its
+    `statsSource` "none": a competitor's `statistics` is a 404 ("No competitor stats found"), its `plays` and `odds` empty, even for
+    the 2026 US Open's men's final. **So no aces, double faults, break points, serve or return numbers, durations, or times for a
+    set or a game, anywhere in ESPN's answers**: a match is its score. ESPN carries two tennis leagues, `atp` and `wta`: **no team
+    events** (the Davis Cup, the United Cup, the Laver Cup), as boxing isn't carried. Each tour's season is 61 events in ESPN's core
+    list (`seasons/<year>/types/2/events`).
+  - **What has a time**: a match's listed start, nothing else. A live answer's sets and games are ESPN's as it goes (one recorded
+    today: below), so a set's or a match's end is known only by when a phone saw it. **A match ends before either side's next match
+    starts**: in all but 2 of 34,216 consecutive pairs (a player's, any draw), the next listed start is 40 minutes or more after
+    (median 27 hours); the 2 under 40 minutes are ESPN's own (a walkover listed 25 minutes on).
+  - **Where ESPN's data is its own** (each read in its data): `format` isn't the match's (5 sets for nearly every ATP match, 3 or 5
+    for the WTA's), so a round's format is its finished matches' (the sets their winners won, the most common: a Grand Slam's men's
+    singles best of five, and Wimbledon's qualifying final round, 16 matches each year; the Next Gen ATP Finals' short sets best of five; the
+    rest best of three); a doubles match tiebreak written "1-0 (10-8)" or as games, "10-8" (a few dozen), a few "0-0 (10-6)"
+    flagged nowhere; a winner flagged nowhere (5 finished matches, 12 retirements, 1 walkover: the sets, or ESPN's note, say who); 5
+    finished matches whose note still says "leads"; every retirement's last listed set unflagged, the one it stopped in, but for 87
+    of 585 whose last set is complete (a retirement between sets: ESPN's note "6-3 7-6 (9-7) 0-0 ret"); 290 matches of 2025 doubles
+    draws with no round; 6 matches called off (the 2026 Samsun Open's qualifying finals, both sides TBD); its 2025 boards of five ATP
+    events (Canada, Cincinnati, Winston-Salem, Washington, Beijing) missing later-round matches, ABN Amro's 2025 listing its main
+    singles draw only; a winner of three sets in a best of three twice (Rublev's 6-3 6-4 6-4 at ABN Amro 2025).
+- **`BoutSport` grows what tennis needs, MMA unchanged** (`sport.ts`): `Bout.place` (a `DrawPlace`: its draw, its round as ESPN
+  names it, how many rounds from the final, qualifying, a group stage) and `Bout.seeds`; `BoutResult.sets` (each a `SetScore`:
+  games and tiebreak points by side, who won it, a match tiebreak); `BoutState.byBout`, **each bout's own lines** (a player in
+  several matches of an event: the reduce adds a play's deltas to its bout's as well; the final's correction is the card's, no
+  bout's) and `BoutBox.byBout`, ESPN's; `EspnBoutCard.groupings`, `major`, `endDate` and a match's tennis fields; `EspnLinescore`'s
+  set `winner` and `tiebreak`. The reduce, correction and timeline are the same code for both sports.
+- **`Tennis`** (`src/lib/sports/tennis.ts`; `sportOf` for `tennis/atp` and `tennis/wta`): two groups (players, doubles pairs), the
+  draws as positions (MS, WS, MD, WD, XD, from ESPN's slug or name), sets as its periods (each match says its format: `Bout.rounds`
+  3 or 5), a lineup a day (`daily`, as DraftKings' slates). **Its vocabulary**: a match (MP played, W, L, WPCT a rate, STR straight
+  sets, WRET a win by the opponent's retirement and WRET1-WRET5 its set, RET, WWO and LWO a walkover won and given: a walkover isn't
+  a match played, won or lost, as the tours' records have it; a retirement is), sets and games (SW, SL, GW, GL, TBW, TBL, CS a set
+  won without losing a game, CSL, SPCT and GPCT rates; a match tiebreak a set of one game; a set a retirement stopped counts its
+  games, not the set), the draw (QLF through qualifying, R16, QF, SF, FNL reached, TTL the title: counted from the final, whatever
+  the draw's size). `setOf` reads a set (a match tiebreak however it's written), `setComplete` whether its games end it (a
+  retirement between sets), `noteWinner` who ESPN's note says won (by each side's names before "bt" against after, so a name the
+  note spells otherwise, "Daria" for "Darya", still reads). **Its plays**: each match's sets (a `set` play each, in its `period`),
+  its end (MP) and its result (the win, how, the round its win reached), **all at the moment it's known by**: when the answers were
+  had (`_asked`) or the next listed start of a match either side plays (a pair's players apart: Mertens's singles), whichever's
+  first; else, for an event read over with neither (a final, a side's last match), 12 hours after its start; a live answer's with
+  neither only at the end. A match on, live: its sets over and the set on's games (`so-far`) at `_asked`. A round reached by a win
+  comes with the win's result; reached otherwise (a bye, a round robin's semifinal, a lucky loser) at the match's start (`reached`,
+  or `_asked` if earlier). A round's format from its finished matches; a draw ESPN names no rounds of read from its matches (each
+  winner's next match, one final), named down to its first full round, the matches before it (qualifying or a first round with
+  byes, which its shape can't tell apart) unnamed. **Its standings**: each result (`BoutState.results`), and `draws(state, card)`,
+  each draw's entries as of the moment (the furthest round they're in, still in qualifying, out, the champion; a round robin's
+  non-qualifiers out once every semifinal place is known).
+- **Defaults** (`src/lib/sports/defaults/tennis.json`): **DraftKings' tennis** (rotowire.com's table, 2018-07-24; actionnetwork's
+  Wimbledon guide agrees on aces and breaks; DraftKings' own page answers a 403), best of three in `points` (a match played 30, a
+  game won 2.5 and lost -2, a set won 6 and lost -3, a match won 6, a clean set 4, straight sets 6, a win by retirement in the 1st
+  set 20 with the match won, the 2nd 15, the 3rd 10) and **best of five apart** (`scoring.byFormat["5"]`, a new optional field of
+  `SportDefaults`: 30, 2, -1.6, 5, -2.5, 5, 2.5, 5; retirement 20, 16, 12, 8, 8). **Left out, ESPN having no match statistics**: an
+  ace (0.4; 0.25), a double fault (-1), a break (0.75; 0.5), no double fault (2.5; 5), 10 or more aces (2; 15 or more). A walkover
+  scores nothing (not a match played; DraftKings' rule for it unread). Six players, no positions; no categories; daily; specs
+  `season` (draft six, each scores in every match they play) and `short` (one event, draft three each).
+- **Fixtures** (`record-espn.js` records a tennis event: its board, trimmed by DRAW_KEEP to what the reader reads, a match a line):
+  the 2026 US Open (`atp-189-2026.json`, 469 KB from 1.7 MB: five draws and their qualifying, 625 matches, men's singles best of
+  five, mixed doubles' short sets and match tiebreaks written both ways, walkovers ESPN never scheduled, retirements in the 1st, 2nd
+  and 3rd sets), the 2025 Nitto ATP Finals (`atp-339-2025.json`, 25 KB: round robins to semifinals), the 2025 Qatar ExxonMobil Open
+  (`atp-119-2025.json`, 45 KB: a doubles draw with no rounds and three qualifying matches) and the 2026 Nordea Open
+  (`wta-306-2026.json`, 75 KB: an ATP 250 and a WTA 250 on one board, a semifinal flagged nowhere).
+- **Checks.**
+  - `tests/sports-tennis.test.js` (9): the vocabulary, the draws and both tours; a set's reading (flags, tiebreaks, a match tiebreak
+    "1-0 (10-8)", "0-0 (10-6)" and "10-7", complete or under way) and ESPN's note's winner; **the proof** on all four (each side's
+    plays come to ESPN's own numbers over the event and match by match, set by set; the final's correction nothing; every result's
+    winner ESPN's flag; a match's sets, end and result at one moment, in time order); the US Open read (formats, Zverev's line and
+    his final's, a pair's, the walkover known by the pair's next start, retirements in each set, one between sets as ESPN writes
+    them, the mixed's short sets, 34 qualifiers); **the moments** (Mertens and Shnaider's first round pre a moment before Mertens's
+    next start and done at it; a final 12 hours on; as of every 50th result, every match known by then done and none after; read
+    when asked); a draw's rounds (the ATP Finals' semifinals reached at their starts, the standings during the groups, once the
+    semifinals are set and at the end; a knockout win reaching the next round; Doha's doubles named from its matches); ESPN's own
+    (a winner flagged nowhere, from the sets or the note; a stale note; a match called off; a place TBD); live (a match on: its set
+    and the set on's games at `_asked`, a later watch seeing none of it, one to come nothing, no final's correction); the defaults
+    (Zverev's final 66.7 points by best of five, Rybakina's 61.5 by best of three, a 1st-set retirement 20).
+  - `scripts/dev-test/check-draw-reduce.js` (new, reusable, check-bout-reduce.js's sibling for a draw: `--league --season --max` or
+    `--events`, `--verbose`; caches each finished board through `espn-tennis-board.js`, new): each event's plays against ESPN's
+    numbers over the event and match by match, the timeline, each result against the winner flag and ESPN's note (who beat whom,
+    each set's games and tiebreak, "ret" and "w/o" against its status), each match's format against its winner's sets, each round
+    against the draw (a winner's next match the next round; the final's plays no more), one champion a draw and everyone else out,
+    and the moments (none before its start; as of every 7th result, every match known by then done and none after); ESPN's own apart.
+    **ATP 2026 54 of 54 events, 2025 59 of 59; WTA 2026 100 of 100, 2025 102 of 102** (a combined event on both lists: 278
+    unique, **24,588 matches, every one of ESPN's 522,472 numbers and every result**; 223 with nothing of ESPN's own apart). Apart:
+    78 main-draw winners with no next match on ESPN's board (its five 2025 ATP boards missing rounds), 18 winners flagged nowhere, 11
+    qualifiers with no next match, 20 draws with no rounds read from their matches (5 with matches before their first full round
+    unnamed) and 7 that don't make one final (left unnamed), 5 stale notes, 5 winners of more sets than the format has, 2 rounds
+    missing between (De Minaur's Indian Wells 2026), 2 winners into a round on none of its matches, 1 note's score not the sets'.
+    The moments (each tour's list): 34,808 matches known by a next start, 849 only 12 hours after their start (finals, and a
+    side's last match), none only at the end. The reader was written against both seasons: none was held out (Noticed).
+  - `check-sport-reduce.js` and `check-bout-reduce.js` point tennis at its sibling. 1004 unit tests; `tsc` clean; eslint clean on
+    `src/lib/sports`; `check-bout-reduce.js` still reads the UFC's 99 cards of 2025-26 (52 and 47, every number and result but
+    ESPN's own); `check-live-clock.js` at 30x, 22 of 22.
+  - `/code-review` on the diff (its fixes: a main-draw player before their first match read as in qualifying, now in the round they
+    enter, and a qualifier into the main draw once through; a round's distance from the final counted from the rounds the board
+    listed, so a board not yet listing its later rounds would make a quarterfinal the final, now from ESPN's round ids (5, 6, 7 the
+    quarterfinal, semifinal and final, "Round N" back from them); a match never scheduled sorted first in a no-rounds draw's chain
+    and last elsewhere, now last in both; the check's dead dedup and a message's precedence; the recorder's own copy of the board's
+    matches, now `espn-tennis-board.js`'s; the fixture writer's splice. Checked and kept, Noticed: a live match tiebreak under 8
+    points read as a set's games; a live answer's moments moving on with each poll).
+  - `record-espn-live.js` records a tennis event (its board every 30 s while a match is on, every 5 minutes otherwise, until every
+    match is over; an answer kept only when a match changed) and **compares** one (each match as it went: on, its games answer by
+    answer, over, a result shown otherwise, whether ESPN moved its start once it began; matches called off or added; how soon after
+    its listed start a match showed on, its result after the last ask with it on; a phone's data). Two recorded live from 11:44 UTC
+    (detached, to their finals on 11-01): the ATP's Swiss Indoors Basel (`tennis/atp` 23-2026) and the WTA's Guangzhou Open
+    (`tennis/wta` 232-2026). Their first 25 minutes compared (the rest is the next session's): a doubles quarterfinal's games
+    changed in 8 of 9 answers kept, Sun over Liu in Guangzhou's quarterfinal showed over 30 s after the last ask with it on, no start
+    moved, no result shown otherwise, 12 KB an answer.
+  - No HOSTING.md change: nothing calls ESPN from the app, adds a table or stores data (the dev checks asked ESPN ~400 times,
+    every finished answer cached).
+
+**L5 part 4b (tennis) noticed, not fixed:**
+- **What a live draw has**, from Basel and Guangzhou (`tennis/atp` 23-2026 and `tennis/wta` 232-2026, 10-30 11:44 UTC to their
+  finals on 11-01: 359 and 196 answers kept of 2,281 and 1,887 asks, 30 s apart while a match was on; compared 2026-11-05): 11
+  and 7 matches seen on (the recordings began at the quarterfinals). ESPN's games come about one per answer that changes (Basel's
+  final: 21 changes for 26 games). **ESPN moves a match's start once it begins** (10 of 11, 6 of 7): from its listing (the day's
+  04:00 UTC placeholder, or the order of play's time) to about its real start, still on the five minutes; its first answer on
+  came a median 292 s after that (90th 406 s): ESPN's live answers run about 5 minutes behind a match. A result showed a median
+  30 s after the last ask with it on. **ESPN's feed stalls and calls the match STATUS_SUSPENDED** ("post", `completed` false,
+  its note already "bt" on the games so far, its last set's games behind), then has it on again: 3 of Basel's 11 (Rune and
+  Vacherot at 5-2 in the 1st, after 38 minutes on with no games listed, its first set never listed live; Fritz and Fils at 5-2,
+  15 minutes before it was on again, then Fils retired; the final at one set all, where the recorder stopped, taking it for
+  over), none of Guangzhou's. The reader read a suspension as a result (Vacherot over Rune "5-2"): **fixed**, a match is over
+  only once ESPN says it's completed (`tennis.ts`: a suspended one is on, its sets so far; the recorder and `drawOver` the same,
+  `matchOver` in `espn-tennis-board.js`; the compare lists suspensions); no finished board of 2025-26 has one (34,539 final, 829
+  retired and 414 walkovers, all completed). **A live match tiebreak is written 0-0 with its points** ("0-0 (5-6)") until it's
+  won ("1-0 (10-8)"), so it reads as a set of no games while on and one game at its end: no game points swing (Guangzhou's
+  doubles semifinal listed none of its points live). Nothing called off or added; no note said "leads" after the end. 12 KB an
+  answer over the wire (~150 KB unpacked), 1.5 MB an hour at 30 s.
+- **ESPN has no match statistics** (aces, double faults, breaks of serve, first serves, points won, a match's length): DraftKings'
+  table's statistical parts can't be scored, nor "most aces" or "a break in the first game" as a question. The wizard should say
+  what tennis can score (the score's parts and the draw). A source with them (the tours' own match stats) would need HOSTING.md first
+  and the decision's vetted sources. (G3, U0.)
+- **Nothing is timed but a match's listed start**: a later watch moves match by match, known by the next listed start of either
+  side's next match (median 27 hours on: a later watch of a day's play sees its results only the next day, or 12 hours on for a
+  final); a live phone knows a set or a match when it sees it (`_asked`). Never early but for the 2 of 34,216 ESPN listed under
+  40 minutes on. Live calls on tennis: A15's window per match, or per set by first sight. (Once a match is on, ESPN's start is
+  about its real one: above.)
+- **ESPN's start is on the five minutes, the same court's matches as little as 0-5 minutes apart**: a scheduled time, not when one
+  began. ESPN moves it once a match begins, to about its real start (above): a match's start read after it began is about
+  when it began; before, a listing.
+- **A tennis event's live poller is built** (L2 part 2a: `drawFeed` on `LiveEvent`, the board every 30 s while a match is on,
+  each result at the moment a phone first saw it, not each poll's).
+- **A short set (to 4 games: the Next Gen ATP Finals', the US Open's mixed doubles) isn't told complete by its games**, so a
+  retirement between short sets would read its last set as unfinished: never seen. And a live match tiebreak ESPN writes as points
+  ("7-5" while under way) would read as a set's games until it reaches 8 or ends: ESPN writes one under way as 0-0 with its
+  points (above), so it doesn't.
+- **A match never scheduled** (a walkover at ESPN's placeholder start) sorts last in the order played (`Bout.order`), and last in a
+  no-rounds draw's chain of each winner's next match, which can misplace its round there: never seen.
+- **A round robin's semifinal places are known at the semifinals' starts** (`reached`): ESPN's board fills a semifinal's sides once
+  the groups end, which only a live recording of the WTA Finals (from 2026-11-07) or the ATP Finals (from 11-14) can time. Its
+  group standings (wins, then sets and games won) aren't worked out: who advanced is the semifinal's sides.
+- **A draw ESPN names no rounds of** (20 of 2025's doubles draws read from their matches, 7 left unnamed) can't tell qualifying from
+  a first round with byes; its matches before the first full round are unnamed (no QLF for their qualifiers).
+- **Seeds are read** (`Bout.seeds`, ESPN's `curatedRank`) but nothing scores an upset; ESPN's per-match odds are empty. (L4, A4.)
+- **A player's doubles is a pair's line** (ESPN's pair id), not their own: a game scoring a player's doubles too would add the pair's
+  lines to each of its people (`FieldEntry.members`). (L4.)
+- **A bracket game** (pick each round's winners) reads `Bout.place` and `draws()`: A8's piece with tennis's data. (L4.)
+- **DraftKings' tennis table is from rotowire's 2018 copy** (DraftKings' page answers a 403; actionnetwork's 2021 guide agrees on
+  aces and breaks): its walkover rule unread, so a walkover scores nothing here.
+- **The US Open fixture is 469 KB** (625 matches; Bermuda's golf is 516 KB): a Grand Slam's whole board, trimmed to what's read.
+- **No season was held out**: the reader was written against 2025 and 2026; Basel's and Guangzhou's live recordings are the first
+  it wasn't, and it read every result right but the suspensions (above).
+
+**The weekend's recordings compared, as built (2026-11-05, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration, no ESPN calls from the app, nothing
+stored).** After the lane's pause (for the week's usage): master merged in first (`lane.js sync`: the engine to A12 and R1 part
+3, track C's plan; one conflict, `browser.js`'s exports, both kept), the lane's database migrated (0155-0162, 0203). Then every
+weekend recording, all final, compared (`record-espn-live.js --compare`); what each shows is in its part's Noticed: the team
+sports in L2's ("After the pause"), golf in L5 part 3a's, racing in 3b's, the UFC's card in 4a's, the draws in 4b's. Fixed from
+them (ESPN's data read first each time):
+- **A tennis match ESPN calls suspended is on, not over** (`tennis.ts`: `matchSuspended`, `matchOver`, exported; a suspended
+  match's sets so far, no result, the reader's issues say so). Basel's board called three matches STATUS_SUSPENDED ("post", its
+  note already "bt" on games behind) for 10-15 minutes before having them on again; the reader had read a result from it. The
+  dev scripts share the rule (`espn-tennis-board.js` loads `tennis.ts`'s: `drawOver`, the cache, the recorder's "every match
+  over", which had stopped Basel's recording at its final's one set all).
+- **A racing weekend is over once every session is** (`racing.ts`: `weekendOver`, exported). ESPN's board says final from FP1's
+  end (its status is the last session over's), which stopped F1's recording after FP1; the reader's `final` read it the same
+  way (a live answer after FP1 would have had the final's correction), and so did the server's scoreboard reader for the
+  schedule (`src/lib/server/sports/espn.ts`: an event in parts is "in" and not final until every part is, so `linesOfField`
+  doesn't mark an F1 weekend's lines final, with none, after FP1). The recorder uses the reader's rule.
+- **NASCAR's and IndyCar's core before ESPN fills it in** (`racing.ts`: `CORE_BEFORE_FILLED`, `Session.unfilled`): a race with
+  laps run, its statistics there and nobody a lap led reads only the core's place and grid (live, every car had the race's laps
+  and nobody led or scored, still at the first final answer), and the event isn't final until they're filled (so the truth L3
+  stores waits for them).
+- `record-espn-live.js`'s draw compare: suspensions listed (each pause and how long), the "note behind its sets" count only for
+  matches over, a match's moved start said the right way round.
+- **Checks**: 1,423 unit tests (`tests/sports-tennis.test.js`: a suspended match on; `tests/sports-racing.test.js`: the weekend
+  after FP1, a called-off session, the core before and after it's filled, a core without statistics; `tests/sports-espn.test.js`:
+  an F1 weekend under way); `tsc` clean; eslint clean on `src/lib/sports` and `src/lib/server/sports`. `check-draw-reduce.js`: ATP
+  2025 59 of 59, 2026 56 of 56, WTA 2025 102 of 102, 2026 104 of 104, every number and result (each 2026 list two events longer,
+  finished since). `check-bout-reduce.js`: the UFC's 100 cards of 2025-26 (52 and 48, Saturday's with them), every number and
+  result but ESPN's own. `check-field-reduce.js`: Mexico City 650 of 650, Martinsville 546 of 546, the Cup's 2025 and 2026 63 of 80
+  races exactly and all but for ESPN's own (as before), IndyCar 2025 15 of 17. `check-live-clock.js` at 30x: 22 of 22.
+- `/code-review` on the diff (its fixes: the server's scoreboard reader had the FP1 final too; a called-off session held the
+  weekend open; a final read before the core was filled carried its stripped numbers as the truth; a core asked without its
+  statistics was taken for one not filled in; the rule for a suspended match narrowed to STATUS_SUSPENDED, so another unfinished
+  status reads as before, and shared with the dev scripts rather than copied; the recorder's racing final now the reader's; the
+  compare's pauses each timed; a test for the core's rule).
+- No HOSTING.md change: no new ESPN call from the app (the server's scoreboard reader reads the same answer), no table, nothing
+  stored.
+
+**L2 part 2a as built: the pollers for golf and tennis (2026-11-05, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration, nothing stored; HOSTING.md
+updated).**
+- **`Poller`** (`live.ts`): the asking rhythm, now shared: one ask at a time, on its own while the screen's visible, the next when
+  due once it's back, doubling to 5 minutes while ESPN fails, until there's nothing more to ask; a subclass says how to ask and
+  take an answer (`fetchAndTake`), when the next ask is (`nextDelay`), and tells its page (`notify`). `LiveGame` is one, unchanged
+  (its 14 tests; `check-live-clock.js` at 30x).
+- **`LiveEvent`** (`src/lib/sports/live-event.ts`, new): a field's, a card's or a draw's event on the phone, one class for any
+  `EventFeed` (the calls asked together, the answer they make, the sport's timeline and reduce, and where the event is: on,
+  between with the next start, over). **Each play at its first sight** (`firstSeen`): a play an answer has again as it is (its
+  id, kind, words and numbers; not its moment, nor a running score or standings, which a rescore before it moves) keeps its
+  earliest moment; one ESPN changes (a hole rescored, the set on's games) counts from the answer that first had it that way; one
+  an answer lacked keeps its moment when it's back; the plays in time order. So a later watch never sees a result before a phone
+  could have, and a poll never moves one on. An answer with no plays once some are had changes nothing; one lacking more than 3
+  plays had (`CUT_SHORT`, `live.ts`'s) is taken only the second time in a row (cut short, or an older cache edge's).
+  `stateAt(t)` and `state(clock)` as `LiveGame`'s.
+- **Golf's feed** (`golfFeed`): the event's board and the leaderboard together every minute while the leaderboard's competition is
+  in play, or while a tee time has gone in the last hour with ESPN not in play yet; between rounds, until the next tee time
+  listed (asking at least every 10 minutes); over at the event's final. **Tennis's** (`drawFeed`): the event's board every 30 s
+  while a match is on (a suspended one too, for six hours from its start), or while a listed start has gone in the last three
+  hours with its match not on yet (the court's match before it running long); between, until the next listed start (not ESPN's
+  placeholder for one not yet scheduled); over once every match is (a suspended one too once the event's last day is gone) and
+  that day's gone. A board's matches are `tennis.ts`'s own (`boardMatches`, exported, and the dev scripts' too).
+- **Checks.** `tests/sports-live-event.test.js` (4): first sight (kept, changed, lacked and back, a reader's earlier known-by, in
+  order); a draw live in virtual time (Båstad's final put back to its 2nd set, then suspended, then over: its 1st set at its first
+  sight throughout, no result while suspended, the result at the ask that first had it and not moved by the next; every 30 s,
+  then every 10 minutes to the event's last day, then done); a draw's where between matches; golf's where in play, between
+  rounds and final, the final asked twice at its first moment, an answer cut short once and then twice. The virtual clock moved to
+  `tests/harness/virtual-time.js`, shared with `sports-live.test.js`. **`scripts/dev-test/check-live-event.js`** (new, reusable:
+  `--league --event`, or every tennis and golf recording in `rfl-espn-live/`): each live recording replayed through the poller in
+  virtual time, a stand-in answering each ask with the recording as of then; every play no earlier than its first recorded answer
+  as it is and no later than two asks after it, none moved on by a later poll and no result re-stamped at all, no ask after the
+  poller's done, the end the recording's last answer's, line by line. **Basel** (2,304 asks, 2,079 of them 30 s apart; 281 plays), **Guangzhou** (1,759 asks; 302 plays) and **the Mexico
+  Open's round 2** (677 asks, 671 of them a minute apart; 4,285 plays, 2,142 holes first seen after its first answer) pass.
+  1,427 unit tests; `tsc` clean; eslint clean on `src/lib/sports`; `check-live-clock.js` at 30x as before. `sports-live.test.js`'s
+  replay of every recorded game now asks with a fixed jitter (`random`), so it's the same each run: once in the full suite an NHL
+  goalie's count settled 2.9 s past its 6-minute limit on a random jitter.
+- `/code-review` on the diff (its fixes: an empty answer twice in a row would have wiped the plays; a suspended match held the draw
+  on and open for good, now six hours from its start and not past the event's last day; golf's first tee time gone before ESPN
+  has the round in play waited up to 10 minutes; the check couldn't see a result re-stamped, nor asks after the end; each poll
+  built two signatures of every play, now a first sight says it; the check's own copies of the virtual clock and the play key,
+  the poller's cut-short threshold and a board's matches, now shared; `nextDelay`'s sentinel for no start known, now said).
+
+**L2 part 2a noticed, not fixed:**
+- **A phone joining mid-event sees what's been played at its first ask** (nothing in ESPN's answers for golf or tennis is timed):
+  its moments are a live phone's own. A later watch is better served by the stored final's known-by moments (each match by the
+  next start of either side's next match, each round by the next round's first tee: L5 parts 3a and 4b), so L3's store keeps
+  those, and the poller's only for live points.
+- **A hole rescored counts from its rescore** (its first sight as it is): a later watch synced between the two sees no score for
+  that hole (47 of the Mexico Open's 4,283 live holes, settled in a median 5 minutes, most 4.2 hours). Keeping the first version
+  until the second arrives would need the poller to keep both; fine as is.
+- **Between rounds and between days the poller asks every 10 minutes** while the screen is on, though nothing's to come until
+  the next tee time or the next day's order of play (tennis's placeholder starts): U1 could stop at a day's end and say when it's
+  back. (U1.)
+
+**L2 part 2b as built: the pollers for a race weekend and a fight card (2026-11-05, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration, nothing
+stored; HOSTING.md updated).**
+- **An ask in rounds** (`live-event.ts`): an `EventFeed` can say, after its first round (`paths`, every ask), what else the answers
+  so far want (`more`: the core API's calls, from everything had and this ask's own), up to four rounds; each call's last answer is
+  kept between asks (`LiveEvent.had`), so a session's grid or a bout's statistics are asked once and carried. A later round's call
+  ESPN answers 404 is had as none (not asked again), unless something was had for it before (kept); one that fails otherwise is
+  left to the next ask, tried once an ask; a first-round call can be `optional` (a card's FightCenter). Paths name ESPN's host:
+  the site API's, `core:` (`sports.core.api.espn.com`) or `web:` (`site.web.api.espn.com`), each a stand-in's in a check
+  (`base`, `core`, `web`). Golf's and tennis's feeds are as before.
+- **Racing's feed** (`raceFeed`): the weekend's board every 30 s while a session's on (or its listed start gone within the hour
+  with ESPN not on yet); between sessions until the next start. From the core, only what the reader reads (`racing.ts`'s
+  `coreReads`): a race's or a sprint's list from its start, for the grid (asked again while it's on until it has one); qualifying's,
+  a sprint's and a race's statistics once it's over, with F1's statuses; practice and sprint qualifying the board's order alone
+  (the core's order the board's in under half the live answers: L5 part 3b). A counted series' race (`fills`): the winner's
+  statistics first, every ask (every 10 minutes once over) for 12 hours from its start, and everyone's once they're filled in
+  (`coreFilled`: a lap led or points; before, nobody's). Over once every session is (`weekendOver`) and its statistics are had.
+- **A card's feed** (`cardFeed`): its board and FightCenter every 30 s while a bout's on or between bouts (or its listed start
+  gone, no bout on); before it, until its start. From the core: the card's rounds once (its event), the plays of the bout on every
+  ask and of one just over until they announce its result (10 minutes at most), and each fighter's statistics once the bout's
+  settled: 10 minutes from its end, and again each ask while they don't agree with the FightCenter's totals on its keys, until 30
+  minutes on. A fighter's core statistics are read only while they agree (until then the FightCenter's are the fresher), so a
+  bout's live and just-ended totals are the FightCenter's. No core status: the plays carry ESPN's moments (the core's status was
+  30 s ahead of the board's in 9 of 12 bouts, the plays the same, so a phone sees a result one ask later at the same moment). Over:
+  the card final and every bout's result announced and statistics settled (the main event's hold the card 10 minutes or so).
+- **The MMA reader** (`mma.ts`): a result its plays announce after rounds past its end (401928106's) is at the announcement; one no
+  play announces yet is when a live answer had it, not at the bout's end (a decision's announced ~2 minutes after it: a later
+  watch would have seen it early); the FightCenter's "-" for a clock read as no time (it flips between "5:00" and "-" on a
+  finished bout). `playsEnd` (when a bout ended, whether it's announced), in ESPN's order.
+- **A phone's calls**: racing's board 2-4 KB over the wire an ask (up to 0.5 MB an hour), a list 1.2 KB (F1) or 2.2 KB (NASCAR)
+  once a race or sprint, a session's statistics 0.7-0.9 KB a driver and F1's statuses 0.2 KB (44 calls, ~20 KB, an F1 session;
+  ~37 and 33 KB NASCAR's race): ~140 core calls an F1 sprint weekend, ~60 KB. A card's board and FightCenter 23 KB an ask (2.7 MB
+  an hour), the bout on's plays 1-1.3 KB more, the rounds 3.3 KB once, a fighter's statistics 1.4 KB (~35 KB a 12-bout card).
+  Measured with gzip on finished events (2026-11-05); CORS `*` on all three hosts.
+- **Checks.** `tests/sports-live-event.test.js` (+5, on fixtures in virtual time): Miami 2026 with its race put back on (the board
+  every 30 s, the sprint's and the race's lists once, the sprint's and qualifying's statistics and statuses at the first ask, the
+  race's in the ask that has it over, then done, every line the weekend's); Daytona 2025 before ESPN fills it in (the winner's
+  statistics every 10 minutes, places and the grid till then, everyone's once filled; a car with none, ESPN's 404, asked once);
+  UFC 324 with its main event put back on (every bout's plays once, the bout on's each ask, a bout's plays failing once asked
+  again, the rounds' 404 not; its end and result at ESPN's moments and not moved; held till its statistics settle, those running
+  ahead not used and asked again; every line the card's); a card whose FightCenter fails (the ask goes on), a 404 not wiping plays
+  had, a result announced late held for and at its first sight; where between sessions and before a card, one called off over.
+  **`check-live-event.js`** now replays racing and card recordings too (a stand-in for the core's calls from the recording as of
+  each ask; each kind of call's count and size said): **F1's FP1** (191 asks, 22 results), **Martinsville** (413 asks; the list
+  once; the winner's statistics every 10 minutes after the flag, still not filled at the recording's end, as ESPN had them) and
+  **the UFC's 600061420** (725 asks; 697 plays calls, 41 statistics calls) pass, with Basel, Guangzhou and the Mexico Open as before:
+  6 of 6. `check-bout-reduce.js`: the UFC's 2025 and 2026 cards every number and result but ESPN's own, as before. 1,432 unit tests;
+  `tsc` clean; eslint clean on `src/lib/sports`; `check-live-clock.js` at 30x 22 of 22.
+- `/code-review` on the diff (its fixes: a card's FightCenter failing failed the whole ask, now optional; ESPN's 404 for a race's
+  list stopped its grid's re-asks; a fighter's statistics ESPN has none of held the card open; a 404 could wipe an answer kept
+  from before; the counted series' filling-in rule reached qualifying, now a race's or a sprint's (`coreReads`' `fills`); a session
+  with no start was waited for forever; a bout's plays not yet announcing its result weren't asked on once the card was final, now
+  held for; `playsEnd` in ESPN's order; the check's stand-in on a missing part; one league path in the feeds).
+
+**L2 part 2b noticed, not fixed:**
+- **A bout's official totals come minutes after its end**, from the UFC's 600061420 recorded live: the FightCenter's reached the
+  final's a median 3 minutes after the bout's end (0 to 9 minutes, one 17); the core's statistics asked at a bout's end weren't
+  the final's in 11 of 12; live, the core's run ahead of the FightCenter's (178 of 422 asks ahead, 18 behind, 226 the same). When
+  the core's own reach the official count wasn't recorded (the recorder asked them at a bout's end and the card's final only; the
+  one bout asked between, 401921310, had both at once): the check's stand-in assumes they come with the FightCenter's. A live
+  strikes count is still U1's to show as provisional.
+- **When ESPN fills a counted series' statistics in isn't known**: Martinsville's recording stopped at the final, still unfilled.
+  The poller waits 12 hours from the race's start; the next Cup or IndyCar race recorded past its final (record-espn-live.js would
+  need an `--until=filled`) would say how long. L3's stored final waits for them either way (`readBox`'s final).
+- **F1's session stays "in" for ~24 minutes after its end** ("End of Session", STATUS_SESSION_COMPLETE, FP1), its order settling;
+  the poller asks every 30 s through it and its statistics once it's "post". A race's post-race penalties after that aren't asked
+  for (the weekend's over): L3's stored final has them.
+- **A phone opening a card mid-way** asks every bout's plays once (~1.3 KB each) and the settled ones' statistics (2 each); a
+  weekend opened after qualifying, its statistics and statuses once (44 calls).
+- **The check counts content, so the poller's own versions of a live bout's totals** (the FightCenter's, where the recording
+  read the core's) have no recorded twin and aren't timed against it; their results and ESPN-timed plays are.
+
+**L1 part 4a as built: a game scored by a sport's stats (2026-11-06, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration, no ESPN calls, nothing
+stored).** Master merged in first (`a8093de2`: A13, own-pace games, the rulebook research; its six migrations run on rfl_sports).
+The engine's spec already had `score.by: 'stats'` marked as the sports branch's; it now says everything a sport's standard table
+does, the engine's own check reads it against the sport, and one scorer works it out on every shape of sport.
+- **The spec's shape** (`game-spec/schema.js`, the engine's; small and contained, for the engine lane to see at L6):
+  `score: { by: 'stats', points, byPosition?, byPlace?, byFormat? }`, the defaults' own tables: `points` each (0.04 a passing
+  yard); `byPosition` a stat's points by the player's position group (FPL's goal, `{ G: { GK: 10, DEF: 6, MID: 5, FWD: 4 } }`; a
+  group it leaves out at `points`'); `byPlace` a place stat's points by place or range (`{ POS: { "1": 25, "4-10": 8 } }`: the tied
+  each the place's, a place it leaves out nothing; `placeRange`, exported, is the one reading of a range, which the scorer
+  imports); `byFormat` a bout's stats by the rounds or sets it's scheduled for (tennis's best of five, `{ "5": { GW: 2 } }`, a stat
+  it leaves out at `points`'). `statScoreProblems` checks the shape (ranges that overlap, a place also in `points`, something has
+  to score: a table by place or by format alone does). `statScoreSettles`, with a ctx, the data-can-settle rule: every key one
+  of the sport's stats, a place only by place (`POS is a place: score it by place`) and a count never by place, a position group
+  one of the sport's (`ctx.positions`; `ctx.groups` already meant a format's scoring groups), a format one its bouts are
+  scheduled for (`ctx.formats`: none for a sport without bouts). **A sport's roster raises a show's sizes** (`ctx.sizes`: its
+  lineup's starters and bench), so baseball's 23-man draft and 18 starters pass where a show stops at 14 and 8, and only as far as
+  the sport's (the bench keeps a show's 6 when the sport's is smaller). `describe.js` says the tables ("5 a goal (10 for
+  goalkeepers, 6 for defenders and 4 for forwards)", "by place: 25 for 1st … 8 for 4th–10th", "scheduled for 5 sets: 2 a game
+  won"). VOCAB keeps `score.by: stats` as the sports branch's until L3 plays it (`specWaitsFor` says so).
+- **A sport's ctx** (`specContextOf(sport, league?)`, `src/lib/sports/index.ts`): its `specStats` (a place marked `place`: the
+  new `StatDef.place`, on golf's POS and racing's places: POS, FIN, GRID, SPR, QUAL, the practices'), its position groups, its
+  bouts' formats (`Sport.formats`: MMA's and tennis's 3 and 5, labelled "5 rounds", "5 sets") and its standard roster from its
+  defaults (F1's own, 5).
+- **One scorer** (`src/lib/sports/spec.ts`, pure: the server, the phone and the tests share it). Every shape keeps its
+  competitors' numbers as lines in its own keys, so `linePoints(score, line, { group, format })` scores any of them (a part per
+  stat that scored, for a live box) and `statePoints(sport, score, state, { groupOf, card })` everyone as of a moment: a team
+  sport's lines with their derived stats worked out (`Sport.full`), a field's with each one's place in it, a card's with each
+  fighter's result; scored by format, each bout's own line at its rounds (`BoutState.byBout`, `Bout.rounds`) and the rest of the
+  card's line (the final's correction: the reducer adds every play to both at once) at `points`'. A card scored by format
+  without its card throws rather than score every bout as the usual. `specCloses`: an event sport's lock ("event") is the spec's
+  `closes: 'start'` (an event is an episode: a tournament, a race weekend, a card).
+- **The default specs as data, each passing the engine's check**: every sport's (and each league's: F1's, IndyCar's, college's)
+  `season` and `short` carry their table's `byPosition` (soccer), `byPlace` (golf, racing) and `byFormat` (tennis), and an event's
+  lock as `closes: 'start'`; `specProblems(spec, specContextOf(sport))` is empty for all 34, and all they wait for is the sports
+  branch's own pieces (`score.by: stats`, `closes` daily and weekly).
+- **Tests** (`tests/sports-spec.test.js`, 11, on the recorded fixtures): the defaults pass; the ctx; the sizes; the check's
+  refusals; places and the tables' precedence; the Red Sox-Yankees series scored from the plays (the user's example's own
+  numbers); soccer by position at the end and at half-time (nobody has their 60 minutes yet); Byron's Daytona 500 (51.5),
+  Piastri's and Hamilton's Chinese Grand Prix (42, -1) and every golfer at Bermuda (a tie in the top ten each the place's points);
+  Gaethje's UFC 324; Zverev's US Open final at best of five's (66.7) and his whole event at each match's format; the words; the
+  missing card. 1,496 unit tests pass.
+
+**L1 part 4a noticed, not fixed:**
+- **A stats question can be settled backwards by a place**: `settle: { by: 'stat', stat: 'POS', take: 'most' }` passed the check,
+  and the most POS is the last place. **Done in part 4b**: refused, with who places best being the least.
+- **A sub's position is the box's "SUB"**, so `groupOf` from the box gives a soccer sub no group (he scores the flat table: a
+  midfielder's). The roster's (`season_cast.role`) is the right one, as L5 part 1 noticed; L3's scorer reads it.
+- **The words are long**: F1's are four lists of places. The wizard's short form is the UI track's (U0) and G4's.
+
+**L1 part 4b as built: the sports settles (2026-11-06, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration, no ESPN calls, nothing stored).** A
+question a sport's game settles, checked by the engine's own check and graded by its own grader, from facts the sports build out
+of a game as of the viewer's moment.
+- **The settles** (`game-spec/schema.js`, the engine's): `{ by: 'final', take: winner | total | margin, of? }` (a team game's
+  winner, both sides' points, the margin; a field's winner, whoever's first; a card's bout's, `of: 'main'` by default or the
+  bout's id) and `{ by: 'stat', stat, take: most | least | value, of? }` (who has the most or least of it, `of` a team among its
+  players; how many, `of` a player's or a team's, else the game's). Asked each episode: that game's; asked once: a stat over the
+  game's span added up (the series' home runs), a final only in a game of just one; never over a window. `settle.of` only on a
+  stat or a winner; `settle.stat` only on a stat. With a sport's ctx (`ctx.shape`, specContextOf's `team`, `field` or `card`): a
+  team game is won by a side (`answer: side`), a field or a card by someone (`person`: `SETTLES_FOR.person` takes
+  `final:winner`), a field's or a card's final has no total or margin, only a card's bout takes `of`; a place's `most` is refused
+  (the most POS is the last place: who places best is the least), as is a place asked once over several games (places don't add
+  up).
+- **The grader** (`game-spec/answers.js` `sportsVerdict`, from `verdictOf`): reads `facts.games`, Map episode to the game as of
+  the viewer's moment (`SportsGameFacts`: status pre / in / final / off, the sides and their score, everyone's lines, their teams,
+  a field's places and which stats are places, a card's bouts). Known at the final; **an over on the total is known the moment the
+  total passes its line** (scores only add: `early`), and stays known; anything else live is still waiting, with where it stands
+  (`live`: the value, or who's ahead, for the phone). A game called off, a tie, a draw or a no contest, nobody with the stat: off,
+  no points either way. The least of a place is among those placed (a cut golfer has none); the most of a stat that can be under 0
+  (plus-minus) is among those who have it. A season-long stat asked once waits for the season's end (`facts.over`). The `side`
+  answer: a team's id, one of the game's sides (`answerProblem`'s faces).
+- **The facts** (`gameFacts(sport, state, { status, sides, people, card })`, `src/lib/sports/spec.ts`): from any shape's state
+  (its reduce or stateAt: the server's from a stored final, the phone's from the poller's), a team sport's lines with their
+  derived stats (`Sport.full`), the teams from the box's or the poller's who's who; a card's without its card throws (every bout
+  would read as not on the card).
+- **Tests** (`tests/sports-settles.test.js`, 6): the check; **the user's 76ers sentence** (`sixersOpener`: the 76ers win, Maxey and
+  Mitchell tied on 32 both right, 220 under 237.5, ESPN's line), with the margin, a team's and a player's points; the Red
+  Sox-Yankees series' home runs asked once (its two games added up: Ben Rice's two the most); what doesn't count; golf's winner
+  and least place at Bermuda, UFC 324's main event and Gaethje's bout by its id, a draw; and **live, the 76ers' opener through
+  the phone's poller in virtual time**: an over at 200.5 known the moment the total passed it, before the final, and kept;
+  nobody winning before the final, both sides leading at some point; someone 20 minutes behind knowing the over 20 minutes
+  later (from the poller's timeline at their moment); at the final, the winner and the under as the box score says. 1,502 unit
+  tests pass.
+
+**L1 part 4b noticed, not fixed:**
+- **The server doesn't grade a sports question yet**: no league plays one (VOCAB keeps `final` and `stat` the sports branch's),
+  `facts.games` is built by no server code, and `src/lib/server/answers.ts` builds an answer's faces only for one that names
+  someone, so a `side` answer isn't checked against the game's sides there. (L3: facts.games from the stored final, the faces.)
+- **An `of` isn't checked against the roster**: a mistyped player's id is a stat of nobody (0, or off for a most). The check has
+  no roster in its ctx; G3's context pack has the cast. (G3.)
+- **A least over a whole game counts everyone who played**, so "who has the fewest turnovers" names the bench. The question's to
+  avoid (G3 asks better ones), not the grader's.
+- **An over known early on the total stays known if the game is then called off** mid-way (a suspended baseball game resumed
+  another day keeps it; one wiped out, as a sportsbook voids, would flip it to off at the final). Rare; the final's verdict is
+  what's saved (L3). Only the total clinches: a stat can go down (plus-minus, to par, places gained).
+- **A soccer draw is off for a side answer**: a draw as a third side ("draw" an answer) isn't in the vocabulary. (L4's pick'em.)
+
+**L3 part 1 as built: the server's side of points per stat (2026-11-06, `sports`; merged and live 2026-11-07, `e7f5dc0b`; migration 0301; HOSTING.md
+updated).** Master merged in first (`572806d4`: C2's scoring sequence, A14 parts 1-2; the four spec files' conflicts kept both
+sides, and `settle.of` is now shared: the players' settles name a question with it, the sports settles a player, team or bout, each
+checked by its own rule). Nothing plays a stats game yet: the engine's hook is part 2, the engine lane's (below).
+- **The sequence's line for a stat** (`src/lib/game/sequence/stats.js`, new, plain CommonJS beside the sequence, with its types):
+  `statLine(score, line, { group, format })` is L1 part 4a's `linePoints` moved into the sequence (`src/lib/sports/spec.ts`
+  delegates to it, so the phone, the server and the engine score a line alike), and `statMoments(lines, score, groupOf)` turns an
+  episode's stat lines into momentRaw's moments (`[{ castawayId, points }]`, one per holding that scored): a stats game's step 2 is
+  the same as a lineup's from there (its captain, the episode's multiplier, best ball's best n, the rounding).
+- **A team game's final as it's kept** (`src/lib/sports/final.ts`, new, pure): `storedGame(sport, summary)`, everyone's counts at
+  the end of the timeline (the plays with the final's correction: ESPN's own box score), their teams and positions, the score;
+  `storedState` and `storedFacts` read a kept one back as the sport's state and as `facts.games`' one; `groupOf(sport, role,
+  position)` a position group from the roster first (season_cast.role, ESPN's roster's name: "Goalkeeper"), the game's after (a
+  soccer sub's "SUB" is none), so L1 part 4a's sub scores as his roster says. Derived stats are worked out at the read
+  (`Sport.full`), so a reader fixed later scores a kept final the new way.
+- **Saved once when final** (migration 0301: `sports_events.lines`, `people`, `lines_at`; `src/lib/server/sports/finals.ts`
+  `saveFinals`): the provider's new `game(league, event)` (espn.ts: the same summary as the box score, read into a StoredGame; null
+  for a field's or a card's league; cached a day once final, the row keeping it) for each team game that's final with none kept,
+  asking at most 60 a run; one the provider has nothing for two days after its final, or whose answer the sport's reader can't
+  read (said in the run's errors), kept as none (`{}`), so one game never holds up the rest. Run by the daily listings job
+  (`refreshSportsEvents`, for its own seasons when a check says `only`) and by a season's stats fill (`statsFromEvents`, for a game
+  it just read as final). A check's provider can never write another's rows (`seasons`, and a provider id of its own).
+- **A league's games** (`src/lib/server/sports/score.ts` `leagueGames(state, { mark })`): each episode's game from its saved
+  final, in the league's people (a castaway by their season_cast provider id, by name as research's results are; anyone the cast
+  hasn't got under the provider's id, so "who scores the most" is still right when it's nobody's pick); each episode's lines by
+  castaway with derived stats (what the engine's hook reads), each one's position group, each episode's `facts.games` one and its
+  sides. Status: final once its counts are kept (a final without them is still being played for everyone), off when the provider
+  says it's over without a final (postponed, called off), and a game past the viewer's mark still to play for them.
+- **The sports settles graded on the server**: `answer-points.ts` `serverFacts` adds `facts.games` (as of the viewer's mark: `walked`
+  passes it; as it stands, everything) only for a game that asks a question a sport's game settles; `answers.ts` checks a side
+  answer against its game's sides (`sidesFor`, from the facts it already read; a question asked once, the game's first), as L1
+  part 4b's Noticed asked. A game final whose counts aren't kept yet keeps its row's score (who's ahead, for the phone).
+- **Checks.** `tests/sports-final.test.js` (5, on the recorded fixtures, each read back as saved): the 76ers opener kept (every
+  count ESPN's box score has); the sequence's line on it equal to the phone's scorer, then a lineup with a captain through the
+  sequence's own steps; the Red Sox-Yankees series from kept finals (total bases worked out at the read: the user's numbers); the
+  position group from the roster (Tel's goal at a forward's points when his roster says Forward); the user's 76ers sentence graded
+  from the kept final. `scripts/dev-test/check-finals.js` (new, reusable; this lane's database, an in-process provider `zt-espn`
+  serving the recorded summary, `zt-` rows cleaned up): 19 checks, all pass (saved once and never asked again, kept as none, an
+  answer the reader can't read given up on without holding up the rest, a
+  field's and an unlinked game's left alone, the league's read in its people with positions and teams, off, still to play, past
+  the mark, the 76ers sentence graded from the read, the moments as the phone scores them, a side's faces). `check-matchup.js`
+  still passes (ALL PASS). 1,713 unit tests pass; `tsc` clean; eslint clean on src/lib/sports, src/lib/server/sports,
+  src/lib/game/sequence, answers.ts and answer-points.ts. `/code-review` on the diff (its fixes: one unreadable answer no longer
+  stops every run, the stats fill never fails for the finals' step, the run's limit counts only games asked, the cache keeps a
+  game's counts a day as the row keeps them, a side's faces from the facts already read; the league's season looked up from the
+  league's state, as episode-facts.ts does, since the reads here have no league id).
+- **The long checks, last, on `946300f8`:** `golden.js --before=master` (master `e4f3441d`): Survivor 49, The Traitors US 4 and The
+  Challenge 40 (the last two loaded into rfl_sports for it), 74 games, 9,548 reads, every one the same. blind.js and the
+  rehearsal not run: every read a game makes is kept the same (golden against master alone, as the lane's notes say).
+- **For the engine lane (L3 part 2, the hook; not changed here):**
+  - `schema.js` placement: `LINES.stats` as `LINES.moments` (a lineup or its best few held; the whole team, best ball with all of
+    it), `askPlace` and `rankPlace` taking `stats` where they take `moments` (not worth: a market prices moments), `shapeOf` the
+    lineup's or best ball's shape.
+  - `state-logic.js`: every `score.by === 'moments'` read that's a lineup's (`captainTimes`, `combines`, `timesFor`) takes `stats`
+    too; `episodeScore`'s moments for a stats game are `statMoments(state.statLines[ep.number], g.score, id =>
+    state.statGroups[id])` instead of `scoredEvents(episodeEvents)`; an episode of a stats game has results once its lines are in
+    (`EpisodeLogic.hasResults`, so the week's results and the spoiler view know it); `SpoilerLogic.viewThrough` drops
+    `statLines` past the mark (as it drops `answerLines`) and `spanView` keeps them.
+  - The server hands them over as it does a draft's own questions' lines (`AnswerLogic.withLines`): `leagueGames(state, { mark })`'s
+    `lines` and `groups` on the server's copies (`walked`, `asItStands`, the game view), under whatever names the engine picks.
+    **L3 part 3a adds** a card's bouts: `leagueGames`' `bouts` (each episode's, by castaway: each bout's own line at its rounds or
+    sets) as `statMoments`' fourth argument (`boutsOf`), so a table by format (tennis's default) scores on the server as on the phone;
+    and a field's and a card's games, read the same way (their lines with places in them, `facts.games`' places and bouts).
+  - VOCAB (done: 2a's `score.by: stats`, 2c's settles and `side`): `score.by: stats` to 'now' once the hook scores it; `settle.by` `final` and `stat` and the `side` answer to 'now' once a
+    game of questions plays them (the server grades them now: `playable` would take them, and the reveal's "results are in" for
+    a matchup's episode is the engine's to say: a game final for the viewer).
+
+**L3 part 1 noticed, not fixed:**
+- **Points wait for the daily job or a Players tab read**: a final's counts are saved by the daily listings job (once a day) or a
+  season's stats fill (when someone opens the Players tab), so the server's points can be up to a day behind the phone's live ones.
+  An hourly step (the desk's Reminders and waivers job) could save them sooner. (L3 part 3, or the main session's call: cron.)
+- **A stat correction after the final isn't read**: a final is saved once (ESPN corrects a scorer's call days later, rarely). (L3
+  part 3: read a final again once, a day on, if live points need it.)
+- **A field's and a card's events aren't saved** (golf, racing, MMA, tennis: their answers are several calls), so their games
+  are still to play on the server. (L3 part 3.)
+- **People are matched by name** (the league's castaway and the season_cast row of the same name), as research's results are: two
+  players of one name on a matchup's teams would both be the first. Rare. (When the cast carries the provider's id: R2 or U1.)
+- **`check-sports-data.js` fails one case against the real ESPN**: Yandy Díaz's 2026 lines no longer include a postseason
+  category (ESPN's answer changed; the regular season still reads). Not this step's code (season stats); the check's expectation
+  needs the answer as it is now. (A sports-data step.)
+
+**L3 part 2a as built: points per stat in the engine (2026-11-06, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration; HOSTING.md updated).** The
+engine's hook, after the sync of master `8c3bdc0d` (track C's C3 to C7 part 1; the merge's six conflicts kept both sides: C6's
+ticket and bank beside L4's bracket and squares, squares' `MAX_PAYS` renamed `MAX_SQUARE_PAYS` beside C6's ticket's, C6's openings
+in the placement corpus with the roto refusal kept on the 7 of them ranked roto).
+- **Where it goes in the sequence** (`schema.js`): `LINES.stats`, a draft's lineup, best ball or (new) everyone drafted counting
+  (`count: { all: true }`: the sports defaults' "short", tonight's three), its place as moments'; a pick each episode by its stats
+  and `categories` have no place yet (a wait that says why: 2c's). `askPlace` and `rankPlace` take `stats` where they take a
+  draft's moments (never ranked by worth: a market's prices are moments'); `shapeOf` 'active-roster'. A captain and `times` (an
+  episode's multiplier) on a lineup by stats too (their checks, `KEYS.score.stats`, `multipliersOf`). VOCAB `score.by: stats` to
+  'now'.
+- **The engine** (`state-logic.js` `StatsLogic`, new): the server stamps each final, kept game's lines on the copy of the league
+  it reads (`stamp`: `ep.statLines` by castaway, a card's `ep.statBouts`, the cast's `state.statGroups`; only the league's
+  castaways); an episode with its lines has results (`EpisodeLogic.hasResults`), so the spoiler view drops them past a viewer's
+  mark as it drops any result (`viewThrough`) and a span cuts them at its end (`spanView`). Step 2 reads them as each holding's
+  moments (`ActiveRosterLogic.episodeScored`: `statMoments` at the game's table, a card's bouts at their formats), so the walk,
+  `episodeScore` (the starters, a captain, `timesFor`, best ball's best n, everyone drafted as best ball with all of them) and
+  the table are a lineup's. `SCORE_PIECES.stats` is the lineup's scorer; `captainTimes`, `combines` (always, for stats: a stats
+  game has no show moments to list) and `timesFor` read stats as moments; a free agent's points so far are their stat lines'
+  (`WaiverLogic.castawayPoints`, waivers taking the best).
+- **The settings say it** (`settings.js`): `statScoring` (the table: the score without `by`, a captain or its windows, which keep
+  their own fields) and `countAll` (everyone drafted), so a league's spec reads back from its fields (`syncGame` writes
+  `settings.game` from them), the cast still in as a show's is (`pool.where` reads `stillIn`; nobody leaves a sport's).
+- **The server hands them over** (`src/lib/server/sports/score.ts` `stampStats`, new): on every read (`league-read.ts`
+  readyLeague: the state route's and the show space's, before every return) and around every write (`db.ts` withLeagueLock: stamped
+  after the load, so its moves see the points; what it saves leaves the stamped keys out, `StatsLogic.stampedKeys`, and the state
+  it hands back is stamped). As it stands (every kept final), so the client's own spoiler copy cuts it at the viewer's mark. Each
+  server instance keeps the last stamp per league with a 32-byte fingerprint of the season's kept finals, links and cast (one small
+  query a read; the finals read again only when it moves: HOSTING.md), since the league poll reads every 15 s.
+- **Checks.** `tests/sports-hook.test.js` (new, 7): where it goes and what still waits (a pick by stats, categories), the settings
+  round trip; the stamp (the league's castaways only, results once in, nothing saved, unstamp); a lineup with a captain on the
+  recorded 76ers opener, each seat's points the phone's scorer's on the same lines, the captain locked once its results are in, the
+  lines carried to a second game; the spoiler view and a span; best ball, everyone drafted and an episode's multiplier; a free agent's
+  points; a card's bouts at tennis's best-of-five table. `scripts/dev-test/check-stats-game.js` (new, reusable; this lane's
+  database, an in-process provider `zt-espn-stats`, `zt-stats-game` rows cleaned up): 11 checks, all pass (the game written as a
+  league's own; nothing before the final's kept; kept, a read stamps it and each seat scores its starters with the captain doubled;
+  the viewer's copy at their mark has none; a write hands back the stamp and saves none of it; a show's league untouched).
+  `check-finals.js` still passes. The placement corpus' 500 more moved (a draft by stats as its moments twin with a lineup, but a
+  stock market's: tests/placement.test.js). 1,830 unit tests pass; `tsc` clean; eslint clean on the files changed.
+- **For the next parts (2b to 2f):** as in the "Part 2" line above and the L3, L4 and L8 lists "For the engine lane", which stand
+  but for what's done (L3 part 2's hook and a card's bouts to `statMoments`, 2a; L4 part 1a's `closedForPlay` on `locksAt` and the
+  daily and weekly lock words, 2b).
+
+**L3 part 2b as built: the daily and weekly locks (2026-11-06, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration).**
+- **The engine's lock** (`state-logic.js` `closedForPlay`): an episode locks at `ep.locksAt` (the server's: air-times.ts
+  stampSportLocks, L4 part 1a and L8 part 3's day or week) when it's earlier than its own start or it has none, so a day's or a
+  week's episodes lock together; a later lock is never read (its start locks it); `lineupsLocked` and `openPastAir` as before.
+  Everything that asks whether a move is still open reads it (lineups, captains, picks, side bets: `isLineupLocked`, the pickers).
+- **The spec** (`schema.js`): `closes` `daily` and `weekly` to 'now', and `plainParts` takes them, so the sports defaults that lock
+  daily or weekly play (the NBA's, NHL's and MLB's season by the day; the NFL's by the week). A show's game may say them too: no
+  show's season has a `locksAt`, so it locks at each episode's start (universal, harmless; a show airing two episodes a night
+  could lock both at the first, when a show's schedule says so). The settings say it (`settings.js` `lockCloses`).
+- **The words** (`describe.js` lockRule; impeccable clarify: the one fact is when it locks, the consequence a later game's lineup
+  locking early with the rest): "Lineups lock when the week's first game starts, for every game that week. Change yours as often as
+  you like until then." (and the day's; "Picks" the same); a part that's itself a calendar word (a slate's day, week or round) is
+  its games.
+- **Checks.** `tests/sports-hook.test.js` (8 now): the lock at the week's first start, a later one never read, no start, the hand's
+  overrides, the words each way. The placement corpus' 14 more (each kind of game locking daily or weekly, all playing as the same
+  game locking at each start). 1,831 unit tests pass.
+
+- **The long checks, last, on `c89f424f` (parts 2a and 2b together; they touch state-logic.js):** `golden.js --before=09434af1`
+  (the sync's merge, the code before this step): Survivor 49, The Challenge 40 and The Traitors US 4, 74 games, 9,548 reads, every
+  one the same. The Survivor 51 rehearsal (`season-forward.js rehearse --from=../reality-fantasy-leagues/backups/prod-2026-10-30
+  --scenario=realistic,rough,dst --before=09434af1`): every invariant holds in all three scenarios, flag off and on the same, the
+  engine before against this tree's the same (2,856 reads each). The blind replays (`blind.js run` on each season loaded here; The
+  Challenge 39 and 41 aren't in this lane's database): every game played through and over, Survivor 49 156 of 156, The Challenge
+  40 115 of 115, The Traitors 4 110 of 110.
+
+**L3 part 2c as built: a game of questions on a sport's games (2026-11-06, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration; HOSTING.md updated).**
+- **The spec** (`schema.js`): VOCAB `ask.settle` `final` and `stat` and `ask.answer` `side` to 'now', so `playable` takes them and
+  every sport's `pickem` and `pickAFew` (src/lib/sports/defaults) plays as a game of questions; a draft may ask them too (its own
+  questions, C2 part 4c). `final`'s `bracket` and the `bracket` answer stay the sports branch's (2e). The 76ers opener's example
+  (tests/fixtures/game-specs.js) waits only for its pool of the two teams' players.
+- **Its episode's results** (`state-logic.js` StatsLogic): `StatsLogic.reads` (a game scored by stats, or asking a `final` or `stat`
+  question: a game of questions', a draft's own), and the stamp's `finals`, each episode whose one game is final, as
+  `ep.gameFinal` (`STAMPED`: never saved). `EpisodeLogic.hasResults` reads it, so the reveal, the week's results, a viewer's mark
+  (`latestWithResults`), `gameOver` at a span's end (a one-game pick'em is over at its final) and `AnswerLogic.facts`' episodes know
+  it; `SpoilerLogic.viewThrough` drops it past the mark. The grading is as it was (answers.js sportsVerdict on the server's
+  facts.games, as of the viewer's mark), plus **`factsThrough` cuts `games` at k** (`answers.js`), so a walk's week k (a race, cuts,
+  lives, a draft's own questions' lines) never grades a later game's question.
+- **The server** (`sports/score.ts` stampStats): stamps any league that `reads` (the same fingerprint and cache), a game of questions
+  with its `finals` alone (no lines: the grader reads the games), a game scored by stats with both. A league's slate's episodes get
+  none (their games are each kept apart, `slate`: 2f's).
+- **Checks.** `tests/sports-hook.test.js` (10 now): every sport's pick'em and pick a few plays; `reads`; pick'em graded on the opener
+  (the 76ers won), the game still to play waiting; the stamp's mark, its results, the spoiler view, unstamp; `factsThrough`'s cut;
+  a one-game pick'em over at its final (not for a viewer who hasn't seen it); pick a few on the opener (Maxey and Mitchell tied on
+  32: both right, 3 each). `scripts/dev-test/check-stats-game.js` (23 checks now, all pass): the NBA's pick'em and pick a few as
+  leagues on the zt season, answers in game_answers: before the final's kept no results and nothing graded; kept, a read marks the
+  opener final (no lines), `leagueAnswers` grades them (1-0, 6-0), the viewer at their mark sees neither, `answerStanding` is through
+  the opener, a write hands back the mark and saves none of it. The placement corpus' 198 more (its three new sports asks, recorded
+  from 6b8b1269's engine with the rest: each as its twin asking who goes home). GAME-PIECES.md's `side`, `final` and `stat`. 1,833
+  unit tests pass (2 more here); `tsc` clean; eslint clean on the src files changed.
+
+**L3 part 2d as built: categories and roto (2026-11-06, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration).**
+- **The spec** (`schema.js`): VOCAB `rank.by` `categories` and `roto` to 'now'. A categories score has no line of points (`LINES.stats`
+  takes it on a draft), its place the week's result and the rank's (`rankPlace`: head to head or roto, nobody racing or cut;
+  `categoryProblems` refuses the rest, as built in L4 part 1b). `flagsOf`: `hasMatchups` for head to head on categories too,
+  `hasCategories` new. The settings say it (`settings.js`: `draftRank` takes `categories` and `roto`, `rankMatchups` head to head's
+  playoffs and fallbacks for `categories`; the categories themselves ride in `statScoring`), so every sport's `categories` and `roto`
+  defaults read back from their fields.
+- **The engine** (`state-logic.js`, `sequence/categories.js`): `StatsLogic.categories`, `heldAt` (a seat's starters in an episode, or
+  everyone drafted), `played` (the span's episodes with their lines) and `totals` (each seat's `categoryTotals` over episodes, the
+  sport's stats from `state.statDefs`). `MatchupLogic.parts` reads head to head on categories (by each, or by most: `categoryParts`),
+  and its walk is `categoryMatchups` (new, in the sequence's `matchups` shape, so `apply`, `view`, `gameAt`, `endsAt` and the playoffs'
+  placing are head to head's): each regular-season episode a `categoryWeek` on the same round robin; the record by each category or
+  by each matchup, its `for` and `against` the categories won and lost (**a decision: the categories won break a tie in the
+  standings, then the order the seats joined**, where head to head on points uses its points); a game's `aPoints` and `bPoints` the
+  categories each side won, `cats` each category's values; the playoffs a round by most categories, a tie (or a night nobody has
+  anything) to the better seed. `rankKey` ranks `categories` as `matchups` (the record). `RotoLogic` (new): the table by `roto` over
+  the game so far (the copy's played episodes: a viewer's mark, a span's end), the row's total its roto points, `roto` each
+  category's points and totals. The categories game's own points stay 0 (its rows' totals are the record's or roto's: Noticed).
+- **The server** (`sports/score.ts`): `leagueGames`' `defs` (`Sport.categoryDefs()`, the season's games' sport), stamped as
+  `state.statDefs` (`STAMPED`: never saved) for a game ranked by categories only, beside its lines.
+- **Checks.** `tests/sports-hook.test.js` (13 now): every sport's categories and roto play; head to head by each category on the
+  76ers' opener twice (each seat's record each category won, lost or tied, as the scorer gives it straight from the lines; the
+  table by the record; by most categories; everyone drafted; the viewer's copy with nothing seen; the settings back); roto (each
+  row's total the scorer's over both episodes; nothing seen, every category tied at 1.5); the playoffs on the pure walk (seeded by the
+  record, a level final to the better seed). `check-stats-game.js` (26 now, all pass): a categories league read with the sport's
+  stats beside the lines, the opener's matchup each of the nine won, lost or tied; a game by points per stat gets none. The placement
+  corpus unchanged (**not extended: it's recorded from 6b8b1269's engine, which predates categories, so a categories spec has no
+  verdict before to compare; their placement is the hook test's**); game-spec.test.js and sports-categories.test.js say they play.
+  GAME-PIECES.md's categories row. 1,836 unit tests pass; `tsc` clean; eslint clean on the src files changed.
+
+- **The long checks, last, on `7365d989` (parts 2c and 2d together; they touch state-logic.js):** `golden.js --before=c89f424f`
+  (part 2b, the code before them): Survivor 49, The Challenge 40 and The Traitors US 4, 74 games, 9,548 reads, every one the same. The
+  Survivor 51 rehearsal (`season-forward.js rehearse --from=../reality-fantasy-leagues/backups/prod-2026-10-30
+  --scenario=realistic,rough,dst --before=c89f424f`): every invariant holds in all three scenarios, flag off and on the same, the
+  engine before against this tree's the same (2,856 reads each). The blind replays (`blind.js run` on each season loaded here): every
+  game played through, Survivor 49 156 of 156, The Challenge 40 115 of 115, The Traitors 4 110 of 110.
+
+**L3 part 2e as built: squares and a bracket question (2026-11-06, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration; HOSTING.md updated).**
+- **The spec** (`schema.js`): VOCAB `get.by` and `score.by` `squares` and `ask.answer` `bracket` to 'now'. Squares' place in the
+  sequence: `holdOf` 'squares' (a hold of its own, nothing counted), `LINES.squares` (its lines are its pays, for whoever holds the
+  square), `askPlace` nothing beside them (a stage alongside, as bingo's and a pool's), `rankPlace` the total with nobody racing or
+  cut, in no teams and with no handicap (`squaresProblems` refuses the rest). `shapeOf` 'squares', `flagsOf` `hasSquares`. A bracket
+  question plays wherever a show's question does (`playable` takes it: its line is `bracketPoints`, through `pointsFor` already). The
+  settings say it (`settings.js`: league type `squares`, `squaresGet` its grid, take and each, `squaresScore` its pays, empty and
+  unread, each as the spec says them, without `by`), so every sport's squares default reads back from its fields.
+- **The engine** (`state-logic.js` `SquaresLogic` and `SquaresScoringStrategy`, new; LEAGUE_TYPES `squares`, "Squares"): everyone's
+  squares kept in the league (`state.squares`): a pick's (`take`, `takeProblem`: a seat in the rotation, `pickProblem` against the
+  others' squares, first come, changed as often as you like until the game's first episode locks, an empty list giving them back;
+  after it a seat's squares are set, and a seat with none takes what's left, counting from the first episode still open: `from`);
+  a deal's at the first lock (`dealSquares` seeded by the first episode's id, the seats in the rotation then, kept at the next
+  write: `dealt`, so a seat joining later moves nobody's; a late joiner has none); each episode's digits once it locks (`digitsAt`:
+  kept in the league, else the server's stamp, never before the lock), drawn again each episode of a game of many. Each episode's
+  pays are `squaresPays` on its game's final score (the stamp's `ep.gameScore`: its sides and each period's end) at the sport's
+  regulation periods (`state.statPeriods`), so its results are its game's final (`ep.gameFinal`) and the spoiler view takes them out
+  past a viewer's mark (`viewThrough` drops `gameScore`); the table each seat's pays added up, most first (SCORE_PIECES.squares).
+  `settle` keeps the deal's seats and each locked episode's stamped digits (`due` says a write has some to keep).
+- **Decisions** (mine, the sports orchestrator's to overrule): **the digits come from the server, not a seed in the league** (L4
+  part 2's plan had a seed kept as DrawLogic's: the league's state goes to every phone, so a seed there could be worked out before the
+  lock): an HMAC of the server's secret (`BETTER_AUTH_SECRET`) and the episode's id, the same every read, drawn only once the episode
+  locks, and kept in the league at the next write (a read that finds them due writes once, as a due draw does), so the secret
+  changing later moves no pay already drawn. A late seat in a game of picked squares takes what's left from the next open game (the
+  pays before it were nobody's); in a dealt game, none. Squares rank by their points only (teams of players or a handicap on squares
+  would need their own series: a later step if a couch asks).
+- **The server** (`sports/score.ts`): `stampStats` stamps a squares league (`StatsLogic.reads` takes squares) with its finals, each
+  final game's score (`games`, from the same cached read: `leagueGames`' `periods`, the sport's regulation periods, new) and each
+  locked episode's digits (`squareDigits`, outside the cache: an HMAC each, no query). `db.ts` withLeagueLock settles the squares
+  after the load's stamp; `league-read.ts` readyLeague writes once when they're due. `PUT /api/leagues/[id]/squares` (new): a seat's
+  squares (`cells`), its own or anyone's for whoever runs the game, the engine saying why it refuses. **A bracket's faces** (`drawNow`,
+  new): the draw for an episode's card as listed now, in the league's people (`bracketOf` over the kept final's bouts once it's
+  final, else the provider's card as it stands: `provider.game`, cached an hour until final), handed to `answerProblem` when an answer
+  is made (`server/answers.ts`), so an answer before the event is checked against the draw as listed then; the questions' view
+  carries `draw` (the draw as made: its rounds, its first round's matches, who's in it with the round they enter: nothing it's played
+  since, no spoiler).
+- **Checks.** `tests/sports-hook.test.js` (18 now): squares' place, the settings round trip, every default plays; taken first come,
+  up to each, changed until the lock, then set, a late seat from the next game; paid on the 76ers' opener with the digits drawn plain
+  (85, 59, 20 and 46: ann 3, bo 1, the third quarter's square empty), nothing before the lock, the viewer at their mark paid nothing,
+  kept at the next write and read back with a different stamp the same (the kept digits win), an empty square rolled on; dealt at the
+  lock, evenly (33 each of 99), kept, a late joiner with none; a bracket plays. `sports-squares.test.js` and `game-spec.test.js` say
+  they play. `scripts/dev-test/check-stats-game.js` (41 now, all pass): a squares league read through `readyLeague` (the opener's kept
+  score and periods stamped, its digits drawn at its lock and kept by the read's write, none of the stamp saved, each pay to whoever
+  holds its square, read again the same, the viewer paid nothing, a seat's squares set after the lock, a late seat only what's left);
+  a bracket on the recorded US Open men's singles as a second season (`drawNow` before the final from the provider's card: 128 in
+  it, 64 first-round matches, seven rounds, the league's own by its castaway; an answer checked against it; kept, the draw over and
+  the champion's pick worth 64). The placement corpus' 69 more (recorded from 6b8b1269's engine with a squares score and a bracket
+  ask: squares by their squares playing as squares; the bracket as its twin asking who goes home, 22 playing now). GAME-PIECES.md's
+  squares and bracket rows and the sequence's steps 1 and 2. 1,841 unit tests pass; `tsc` clean; eslint clean on the files changed.
+
+**L3 part 2f part 1 as built: a slate's week, game by game (2026-11-06, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration).**
+- **The server** (`sports/score.ts` leagueGames): a slate's episode's `lines` are each game's counts with its derived stats worked out
+  on it, added up (a double-double, a defense's points-allowed bracket: a game's, where the week's sum read them off the sum before),
+  and its rates worked out on the week's counts (never a sum of rates); `done` (new): its episodes whose every game is over (final
+  and kept, or off). `stampStats` stamps a slate's week only once it's `done` (its results then: **a partial week is never in**, so
+  the reveal, a viewer's mark and the week's result wait for its last game: 2a's Noticed), with `gameFinal` and each game's lines
+  (`byGame`, stamped `ep.statGames`).
+- **The engine** (`StatsLogic.scored`, `lineOf`): a week with `statGames` is scored game by game at the table (a moment a game for
+  each holding that scored in it) and added up; its line's parts are each stat's over the week. Categories read the week's line.
+  `STAMPED` takes `statGames` (never saved); the spoiler view drops it.
+- **Checks.** `tests/sports-hook.test.js` (19): a week of two games, a double-double in the first (15 and 4: 19), the line's parts,
+  the viewer and the save. `check-slate.js` (58, all pass): an episode done once its two finals and a postponed game are over, one
+  with a game to play not; the week's line with a rate worked out. `check-stats-game.js` (41) still passes. 1,842 unit tests pass.
+
+- **The long checks, last, on `101e5844` (parts 2e and 2f part 1 together; they touch state-logic.js):** `golden.js --before=7f354e2b`
+  (part 2d's docs, the code before them): Survivor 49, The Challenge 40 and The Traitors US 4, 74 games, 9,548 reads, every one the same.
+  The Survivor 51 rehearsal (`season-forward.js rehearse --from=../reality-fantasy-leagues/backups/prod-2026-10-30
+  --scenario=realistic,rough,dst --before=7f354e2b`): every invariant holds in all three scenarios, flag off and on the same, the
+  engine before against this tree's the same (2,856 reads each). The blind replays (`blind.js run` on each season loaded here): every
+  game played through, Survivor 49 156 of 156, The Challenge 40 115 of 115, The Traitors 4 110 of 110.
+
+**L3 part 2f part 2 as built: a question about each game of the episode (2026-11-06, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration; HOSTING.md updated).**
+- **The spec** (`schema.js`): VOCAB `ask.each` `game` to 'now' (beside `person`); `confidence` a question key. `eachGameProblems`: who
+  wins each game (`side`, settled `final` `winner`), its total's or margin's range (`choice`) or the closest to it (`number`, `final`
+  `total` or `margin`); asked each episode about that one (no `over`, not once), closing at the start, no `settle.of` (each game is its
+  own), no share, rollover or shrink (a wager and a bot's call are refused as for any `each`). `confidence: true` on who wins only.
+  **An over/under on each game is refused** (each game needs its own line, the odds' when it opens: the main session's 11:05 AM call,
+  L3 part 3b's). Its words (`describe.js`): "Answer for each game of the week" (confidence: ranked by how sure you are, each right pick
+  its rank), and the lock line "Change a game's pick until that game starts: each locks on its own. Nobody sees anyone's until the
+  week's last game starts."
+- **The grade** (`answers.js`): `eachGameVerdict` over `facts.slate` (new: each episode's games by event id), each game graded as one
+  game's question is (`gameVerdict`, split out of `sportsVerdict`): known once every game of the episode is over (final, or off: that
+  game's picks void), its verdict `each` by event id; before, waiting with `live.each`. `pointsFor` and `isRight` take it through
+  `each`'s path (`pickOf` unwraps a confidence pick), confidence a right pick's rank times the points (`windowPoints` multiplies as for
+  any). `answerProblem` (`eachGameProblem`): `{ eventId: answer }` for the episode's games only (`faces` a Map of each game's sides),
+  each answer checked as the base question's, confidences each once from 1 to the episode's games. `factsThrough` cuts `slate` at k.
+- **The engine** (`state-logic.js`, one line): `AnswerLogic.closed` takes `o.lastStart` for a question about each game, the
+  episode's last game's start, in place of the episode's own (its first game's) start; the hand's overrides as they are.
+- **The server**: `leagueGames` `eachGame` (every episode's games by event id, a slate's or an episode's one, each with its `listing`:
+  name, start, sides by name, from `season_events`), handed over as `facts.slate` only to a game asking about each game
+  (`answer-points.ts` sportsGamesFor). `answers.ts`: the question closes at the last game's start (`lastStartOf`, its `closesAt`);
+  `keepStarted` keeps each started game's pick as it was (a change, or a first pick there, refused 409; taken back, only the games
+  still to start go), checked again at the write; the faces each game's sides; the view's `games` (each with its sides by name, its
+  start, whether it's started) and `confidence`. **This week doesn't move on at the week's first game** (it moves on at the
+  episode's results, which wait for its last game: part 1), so the question stays this week's to its last game.
+- **Checks.** `tests/sports-hook.test.js` (22): it plays (each answer kind; confidence) and the rest refused; graded game by game (a
+  game called off void, the week waiting till its last, the walk's cut), confidence a right pick's rank times 2; its answers checked
+  (games, sides, ranks) and its lock at the last start (the hand's early lock still wins). The placement corpus' 396 more (the ask
+  across every hold, score and rank, recorded from 6b8b1269's engine): 68 move, each as its twin asking who goes home, 22 playing now.
+  `check-stats-game.js` (53, all pass): a third season, a slate of the kept 76ers opener and a game tomorrow, a confidence pick'em
+  answered by a zt user's seat through `gameQuestions` and `answerQuestions` (open past its episode's own lock, its games in order with
+  their sides by name, closing at the last start; a pick for the game to come, the started game's kept; a change there, a first pick
+  there, a rank taken twice, another week's game and a side not in the game refused; taken back, the started pick kept), then closed
+  and graded game by game (ann's 76ers at 2, bo's Hawks at 2). GAME-PIECES.md's "One question about each game". 1,854 unit tests pass;
+  `tsc` clean.
+
+- **The long checks, last, on `a94d8e97` (part 2f part 2; it touches state-logic.js), after the sync of master `846436c3` (`ec423ef7`):**
+  `golden.js --before=ec423ef7` (the sync's merge, so master's own changes don't show): Survivor 49, The Challenge 40 and The
+  Traitors US 4, 74 games, 9,548 reads, every one the same. The Survivor 51 rehearsal (`season-forward.js rehearse
+  --from=../reality-fantasy-leagues/backups/prod-2026-10-30 --scenario=realistic,rough,dst --before=ec423ef7`): every invariant
+  holds in all three scenarios, flag off and on the same, the engine before against this tree's the same (2,856 reads each). The
+  blind replays (`blind.js run` on each season loaded here): every game played through, Survivor 49 156 of 156, The Challenge 40 115
+  of 115, The Traitors 4 110 of 110.
+
+**L3 part 2f part 2 noticed, not fixed:**
+- **The questions screen says "answered for each one still in"** for a question about each game (its placeholder for `each`, in
+  src/new/show/questions.tsx): U1's screen for it (through impeccable) reads the view's `games` (each with its sides by name and
+  whether it's started), `confidence`, and `mine`.
+- **Others' picks for a game that's started stay hidden until the week's last game starts** (the question's one lock shows
+  everyone's): a pool that shows each game's picks as it starts would need the view to show them game by game. U1's call.
+- **Closed (L3 part 3b, 2026-11-06).** **No over/under on each game** until each game's line is read when the question opens (L3 part 3b, with "which line a game plays
+  by"); then `EACH_GAME_SETTLES_FOR.overUnder` and each game's line in the view.
+- **The bots answer nothing about each game** (their answers are a show's question's). A bots step.
+- **A game linked to the week after its picks opened** joins the question (its faces are the games as linked at each read): a pick
+  for it is open until it starts. Right for a makeup; a confidence pool's ranks then run to one more.
+
+**L8 part 1's engine items, part 1 as built: daily lineups inside a week's episode (2026-11-06, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration; HOSTING.md updated).**
+Yahoo's NBA (set each day, scored over the week), as a lock rather than as episodes: a week's episode stays the week (one meaning of a
+week: L8 part 3), and its lineup is set game by game inside it.
+- **The spec** (`schema.js`): `closes: 'game'` (VOCAB 'now'), a lineup's (`count.start`) scored by a sport's stats (points or
+  categories): each holding locks at its own game's start **for the rest of that day** (the East's), in the lineup or out, so one place
+  in it never counts twice in a day (Yahoo's and ESPN's daily lineups); the rest change until their games; each game counts for
+  whoever was in the lineup when it started. `closesProblems`: refused on best ball, everyone drafted, a pick, a show's moments, and
+  with a captain (the whole episode's). The settings carry it (`lockCloses`). **Decided here:** the lock lasts to the day's end, not
+  the episode's (a football week's Thursday player is then free on Friday: a football game keeps `weekly`, its default; a kept-for-the-
+  week lock is Noticed), and a change counts from the next game to start, never reaching back.
+- **The words** (`describe.js` lockRule; impeccable clarify: the one fact first, each person at their own game, then what's still
+  yours to change, then which lineup a game counts for): "Each player locks when their game starts, for the rest of that day. Change
+  the rest of your lineup as often as you like until theirs start: each game counts for whoever's in your lineup when it starts." (the
+  show's word for its people: "person" on today's sports contexts). The refusal (clarify: who, why, when it frees up): "Maxey's game
+  has started: they stay in your lineup until the day's over" (or "out of").
+- **The engine** (`state-logic.js` ActiveRosterLogic): `eachGame` (the spec closes 'game', the episode's games stamped, not kept open
+  past its start: openPastAir plays it as one lineup, as does a league with no games' starts); `isLineupLocked` locks such an episode
+  at its **last** game's start (the hand's lock and results as before; questions, bets and picks still lock at its first:
+  `closedForPlay` unchanged); `heldLocked` (a holding's game started and its day not over); `validateLineup` (now `now`) refuses moving
+  a locked holding in or out; `setLineup` keeps each set with its time (`ep.lineupsAt[playerId]`, `logLineup`: a set no game started
+  after is replaced by the next; a lineup set before the log began counts from the episode's start); `lineupAt` (the lineup in force at
+  an instant; before the first set, the one carried in: `carriedLineup`, split out of `lineupFor`); `gameHeld` (each game's counted
+  holdings). The sequence's hold step reads it: `episodeScore` scores each game's moments (`StatsLogic.scoredByGame`) of whoever was
+  in the lineup at its start; categories (`StatsLogic.countedLines`) each game's lines of whoever was in. `stampedKeys` leaves the
+  server's `gameStarts` and `holdingGames` out of a save.
+- **The server** (`air-times.ts` stampGameLocks, run by stampSportLocks for such a game on every read and write): each episode's games
+  in the game's span with their start and the end of their day (`locks.ts` gameLocksOf: the next midnight in the East, DST-safe) and
+  each holding's games by its team (`season_cast`'s group, the team's name as the link names it, ignoring case). Two queries, only for
+  such a game.
+- **Checks.** `tests/sports-hook.test.js` (25): it plays and the rest are refused, its words; a Sunday set replaced by the next before
+  any game, a holding locked mid-game in and out, the next day free, the week locked at its last game, each game scored by its own
+  lineup (z's 20 on the bench not counted), openPastAir one lineup, the stamp never saved and the log saved; a lineup set before the
+  log, a game with no start (the lineup as it stands), categories game by game, no games stamped. `tests/dst.test.js`: a game's day
+  ending at midnight EDT on Saturday Oct 31 and EST on Sunday Nov 1, and on March 8. `check-stats-game.js` (62, all pass): a fourth
+  season, a week of the kept opener, a game on now and one tomorrow, daily lineups as a league's own: a read stamps each game's start
+  and its day's end and each holding's games by its team; the Hawk mid-game can't be benched (through withLeagueLock); yesterday's 76er
+  swapped out, saved with its time beside the lineup before it and none of the stamp; once the games are kept, the opener counted for
+  the lineup then and tomorrow's for the one set today. `check-slate.js` passes. The placement corpus: no spec moves (its kinds score
+  by moments, which refuse 'game' as the engine before refused an unknown lock). 1,858 unit tests pass; `tsc` clean.
+
+- **The long checks, last, on `3f73a27c` (it touches state-logic.js):** `golden.js --before=596b69d2` (the step before): Survivor 49,
+  The Challenge 40 and The Traitors US 4, 74 games, 9,548 reads, every one the same. The Survivor 51 rehearsal (`season-forward.js
+  rehearse --from=../reality-fantasy-leagues/backups/prod-2026-10-30 --scenario=realistic,rough,dst --before=596b69d2`): every
+  invariant holds in all three scenarios, flag off and on the same, the engine before against this tree's the same (2,856 reads
+  each). The blind replays (`blind.js run` on each season loaded here): every game played through, Survivor 49 156 of 156, The
+  Challenge 40 115 of 115, The Traitors 4 110 of 110.
+
+**L8 part 1's engine items, part 1 noticed, not fixed:**
+- **The lineup screens show the episode open until its last game** (`isLineupLocked`), not who's locked: U1's screen (through
+  impeccable) reads `heldLocked` per holding (`ep.gameStarts`, `ep.holdingGames` are on the view) to show each locked one and until
+  when, and each holding's week as the games it counted in (`gameHeld`), where `StatsLogic.lineOf` gives every game of theirs.
+- **A change applies from now on**: a lineup for tomorrow can't be set while one of today's games holds someone in it (wait for
+  midnight). Yahoo lets you pick the day; a `day` on the lineup route if U1 wants it.
+- **A lock kept for the week** (ESPN's football: a Thursday player locked through Monday) isn't a word yet; football's default is
+  `weekly` (the week's first game). A word for it if a couch asks.
+- **The sports defaults on a week's slate**: the NBA's, NHL's and MLB's `daily` locks a week's slate at its first game (L8 part 3); a
+  slate by week of a daily sport would likelier want `game`. U1's Start a game for a slate decides its default.
+- **A holding's team is the cast's group, by name**: a player traded mid-week locks with their old team until the cast refreshes (their
+  lines still count where they played, for the lineup at that game's start).
+- **The bots** set their best lineup each run; mid-week one that moves a locked holding is refused, so they keep what they had. A bots
+  step.
+
+**L8 part 1's engine items, part 2 as built: a playoff's series as a bracket (2026-11-06, `sports`; merged and live 2026-11-07, `e7f5dc0b`; migration 0305;
+HOSTING.md updated).** L4 part 2's Noticed: a bracket question asked over a league's playoffs, its draw their series.
+- **The spec** (`schema.js`): a bracket `of: 'playoffs'` (`sequence/bracket.js` `PLAYOFFS`), the whole playoffs one draw, so it's
+  asked once (`asked: 'once'`, closing at the first playoff game: "A bracket of the playoffs is picked once, before they start: ask it
+  once"). Against the sport: a team game's bracket is its league's playoffs, on a season made of them only (the ctx's draws:
+  `specContextOf(sport, league, { playoffs: true })`, a team sport's playoffs slate; "A team game's bracket is its league's playoffs:
+  this season isn't them" otherwise, where it said "a team game has none"); a field none; tennis's draws aren't it. An answer names
+  the teams (their provider ids, the sides'), each round's winners by its distance from the final as tennis's.
+- **The words** (`describe.js`, impeccable clarify): "Before the playoffs start, pick the winner of every matchup, round by round to
+  the final: 1 point for each one right in the first round, doubling each round after it." ("matchup": the NFL's rounds are games,
+  the others' series; the timing first, the scoring as tennis's bracket says it.) **The defaults**: `bracket` for the NBA, the WNBA,
+  MLB and the NFL (each a league's own, since college shares their sport's id) and the NHL (`on: 'playoffs'`, a new field on a
+  default: the season it plays on), "Who wins every series of the NBA playoffs?" ("every game" the NFL's), "A playoff bracket: before
+  the NBA playoffs start, pick who wins every series, round by round to the Finals. A point for each one right in the first round,
+  doubling each round after it; most points wins." (the World Series, the Stanley Cup Final, the Super Bowl).
+- **The series** (`src/lib/sports/playoffs.ts`, new, pure): `roundOf(note)`, a game's round from ESPN's note, on the words ESPN's 2026
+  playoffs use (read 2026-11-06): its half ("East", "AL", "AFC"; none for the final or a league without halves) and its distance from
+  the final where the words name it (the final 1: "NBA Finals", "Stanley Cup Final", "World Series", "Super Bowl LX"; a half's final
+  2: "East Finals", "ALCS", "AFC Championship"; a half's semifinals and a division series 3; a wild card 4; the WNBA's semifinals,
+  halfless, 2), else its number ("1st Round", "First Round", "Round Two"); a note naming none (the Pro Bowl, the play-in) isn't the
+  bracket's. `seriesOf(games)`: the games with a round and two sides, grouped by round and teams; a numbered round's distance counted
+  back from the named rounds after it, or from its first round's series (8 is four from the final), whichever is more (as tennis's
+  before its later rounds are listed); each one's wins from its final games' winners, its winner the side with a majority of its most
+  (`bestOf`: ESPN's `series.totalCompetitions`, best of 3, 5 or 7; a game of no series, the NFL's, best of 1). `isBracket`: each
+  round no more series than it holds and each team once in it, else (college's postseason: the NCAA's two Final Four games both read
+  as its final, beside the NIT's) no draw. `playoffsFacts(games)`: a card's facts, each series a bout of the draw `playoffs` with its
+  `fromFinal`, final once the final's series is won.
+- **Kept with the links** (migration 0305: `season_events.note` and `best_of`, from the same day's and month's scoreboards; ESPN's
+  reader keeps `bestOf` beside its note, `SportsEvent.bestOf`): a slate writes them as it links a game and refreshes them at each sync
+  (the update path); every other link has none.
+- **The server** (`sports/score.ts`): `leagueGames` on a playoffs slate (`sports_slates.stage` 'post') reads each game's note and
+  length beside its facts as of the mark and hands `playoffs` over (the series as one card, its teams by name as linked in its
+  `listing`); `drawNow(state, _, 'playoffs')` reads it (the grader's when it has them); `answer-points.ts` gives the grader
+  `facts.playoffs`; `answers.js` `sportsVerdict` grades a bracket of the playoffs on it (known once the final's series is won, waiting
+  with the draw so far before); `server/answers.ts` checks an answer against it and its view's `draw` names the teams (not the cast).
+- **Checks.** `tests/sports-playoffs.test.js` (new, 9), on ESPN's own 2026 playoffs recorded (`tests/fixtures/espn/{nba,nhl,mlb,nfl}
+  -schedule-playoffs-2026.json`, `record-espn-slate.js --only=post`, which now keeps the series record): every note's round; each
+  league's four rounds, its series by round (the NBA's and NHL's 8, 4, 2, 1; MLB's 4, 4, 2, 1 with four byes; the NFL's 6, 4, 2, 1 with
+  two), each series' length and its wins equal to ESPN's own record after its last game, the champions; before they start (the NBA's
+  eight Game 1s: four from the final, sixteen in it), a first round of four three, the NHL's second round once listed, a series still
+  on; college's no draw; the NBA's bracket graded through the engine (the perfect 32, the wrong champion 24, waiting before the
+  final's won), an MLB answer checked against the Wild Card's draw and a bye entering at the division series (the perfect 28); the
+  spec's check, every pro league's default, none for college's, the words; a series whose length nobody listed (another series' of its
+  round, else no winner yet), the NFL's a game each, a conference's semifinals with no half named; a week-by-week walk grading the
+  bracket only from the week the final was won (`wonAt`, `factsThrough`). `check-slate.js` (68, all pass: a stand-in's playoffs of
+  two conference finals and the Finals, best of 3, linked with their notes and lengths; the draw before any is played; each series to
+  the side that took two, the champion, a viewer's mark, graded; a regular season's none). `check-stats-game.js` (69, all pass: a fifth
+  season, a playoffs slate, answered by a zt account through answers.ts: the draw by the teams' names, a series' both sides and a team
+  not in it refused, a whole bracket kept, closed and known once played, 4 and 1). 1,867 unit tests pass; `tsc` clean; eslint clean on
+  the files changed; the placement corpus unchanged (no spec moved).
+- `/code-review` on the diff (its fixes: a series with no length listed read as best of 1, so its first win took it (now its round's
+  others' length, else no winner), and the sync's refresh writing an empty note or length over a kept one (`coalesce`); a week-by-week
+  walk grading the bracket with a later week's champion (`factsThrough` keeps the playoffs still on before `wonAt`); an event linked
+  to two episodes counted twice in its series (keyed by its id); the playoffs' status and first start from games outside the bracket
+  (the play-in's); the draw read twice, and the view's draw read past the viewer's mark (the grader's own, as of the mark); hockey's
+  default under the NHL's own; a halfless "Conference Semifinals" read as the league's semifinals. Declined: a first round listed in
+  part, below; nothing building a sport's ctx on the server yet, below).
+- **The long checks, last, on `32fcab3c`:** `golden.js --before=40d44783` (the step before): Survivor 49, The Challenge 40 and The
+  Traitors US 4, 74 games, 9,548 reads, every one the same. blind.js and the rehearsal not run: state-logic.js isn't touched, no
+  show's game asks a bracket of the playoffs, and every read is kept the same (golden alone). **L8 part 1's engine list is done.**
+
+**L8 part 1's engine items, part 2 noticed, not fixed:**
+- **A bye's team isn't in the draw at the lock**: MLB's four and the NFL's two top seeds first play in the second round, which ESPN
+  lists only once its other side is known, so a bracket answered before the Wild Card can't name them ("Pick only who's in the
+  draw"): for MLB and the NFL a bracket is the first round and whoever the picks carry. ESPN's standings' seeds would let them in
+  (an entrant at round 3 before their series is listed), or a lock at the second round's start; U1 or its own step, before a couch
+  plays one. L4 part 2's "A seed with a bye" is the same gap.
+- **The lock is the first playoff game**: one bracket, picked once. A rolling one (each round picked as it comes) is L4 part 2's
+  "A rolling bracket".
+- **College's postseason is no draw** (the NCAA's tournament beside the NIT and the Crown, ESPN's notes "NCAA Men's Basketball
+  Championship - Final Four"; college football's bowls and the CFP): a bracket of the NCAA's tournament needs its own reader (its
+  regions, the First Four as a play-in, "Sweet 16", "Elite 8"), March's likeliest ask: its own step when a couch asks.
+- **Soccer's playoffs and cups** (MLS's, a cup's knockout rounds) aren't read: their notes are untried. Their own step.
+- **Nothing builds a sport's ctx on the server yet**: `specContextOf` is the tests' and checks'; the screens' Start a game (U0) and
+  the GPT's context pack pass `{ playoffs: true }` for a playoffs slate, so a default with `on: 'playoffs'` is offered only there.
+- **A series' wins are ours**, from the kept finals, not ESPN's own `series.competitors.wins`: a game whose final is kept late shows
+  its series a game behind until it is, as every sports result waits for its kept final.
+- **A first round listed in part reads short**: with only numbered rounds listed, the first round's distance is counted from its
+  series (eight: four from the final), so an NBA first round answered while fewer than five of its series have both sides (the play-in
+  still to settle the 7 and 8 seeds' opponents) reads three from the final, and picks made then are keyed a round short. The NBA lists
+  six before the play-in, so it reads right; a league that lists fewer would need its rounds from ESPN's standings or bracket. With
+  the bye's seeds, above.
+
+**L3 part 2f part 1 noticed, not fixed:**
+- **A week's live points wait for its last game** on the server (its results are the week's): the phone's live lines (L2) are what
+  show a week as it goes; U1's to say "so far".
+- **A game linked to a week after it was done** (a makeup moved into it) reopens it: its results go until the new game is over.
+  Rare (L8's sync links a makeup to its own day's episode), and right: the week isn't over.
+
+**L3 part 2e noticed, not fixed:**
+- **The server pays squares on kept finals only**: a quarter's end pays once the game's final is kept (the listings job, then a read),
+  not as it happens. Live pays are the phone's (`TeamSport.periodScores` on the summary it polls: L2's), or the live poller's (L5 part
+  4's queue) if the screens want the server to say them.
+- **The bots take no squares** (a computer player in a game of picked squares holds none; a dealt game deals to it). A bots step.
+- **The screens** (U1, through impeccable): the grid to take squares on (the route is there), each episode's pays (`SquaresLogic.pays`:
+  each pay's square, score and who won it), the digits once drawn; a bracket's picker on the view's `draw` (its later rounds' matches,
+  for a viewer who's seen them, aren't in it: the screen builds them from the picks).
+- **A partial bracket is refused against the draw** (a round's winners must be among the round before's picks): picking only the
+  champion needs a path to them. As L4 part 2 built it; a screen fills the path from the picks, or the check could take a champion
+  alone (a "pick the champion" question is `final` `winner` on a card's main event, already).
+
+**L3 part 2d noticed, not fixed:**
+- **A categories game's table shows a total of 0 for head to head** (its rows' points are a stats table's, and categories have
+  none): the record (`r.matchups`) and roto's `r.roto` are what to show; the screens' (U1, through impeccable): a W-L-T record, each
+  category's value and who won it (`cats`), roto's points by category.
+- **The bots draft and set lineups for a categories game by nothing** (as 2a's Noticed: form reads moments). A bots step.
+
+**L3 part 2c noticed, not fixed:**
+- **Closed (L3 part 3b, 2026-11-06: its episode has results, nothing in them).** **A game called off never has results** (`status: 'off'`: ESPN's over without a final): its questions are off (void), but its
+  episode has no `gameFinal`, so a one-game pick'em on a postponed game never ends. Whether a postponed game's episode is over, or
+  waits for the game's new date, is L3 part 3b's (postponed, suspended and moved games, on a recorded postponement).
+- **Nothing pushes "results are in" for a sport's episode**: the shows' pushes come from results written (decision-apply.ts), and a
+  sport's results are a read's stamp. The listings job that keeps a final could say it (L6, with the release's jobs).
+- **A side answer's faces are team ids** ("20"): the Prediction Sheet's options for a `side` question need the teams' names and
+  logos from the season's games (U1's, through impeccable).
+
+**L3 part 2b noticed, not fixed:**
+- **The screens' lock badges and times read the episode's own start** (`week.tsx`'s locked badge `hasAired`, `status-plate.ts`'s
+  times, `episode-status.ts`), so a weekly game's Sunday episode shows open until Sunday though it locked on Thursday (the server
+  refuses the move, as it should). The screens' (U1, through impeccable): read `closedForPlay` and `locksAt`.
+
+**L3 part 2a noticed, not fixed:**
+- **A stats game's episode breakdown lists no stats** (`team-episode-breakdown.ts`): its points are the engine's (`combines` is
+  always true for stats) but its items are a show's moments, so a player's row has a total and no "32 PTS". `StatsLogic.lineOf`
+  gives each stat's part; the words are a screen's (U0/U1, through impeccable).
+- **A slate's episode has results once its first game is final** (L8: its lines are its final games' summed), so the reveal and
+  a viewer's mark treat a partial week as in. A week's own "all its games final" is 2e's (a slate's episode, its last game's final).
+- **The bots weigh a stats game's players by nothing** (`bot-logic.js`'s form is each player's recent moments,
+  `eventPoints` over `episodeEvents`, and a sport's episode has none), so a computer player's draft and lineup are by its taste and
+  safety alone; the stamp is there inside a write, so form could read `StatsLogic.lineOf`. (A bots step, or U1 with sports
+  lineups.)
+- **A salary cap or a stock market on stats** stays refused (their prices are moments': `PriceLogic.points`). (When a sports
+  salary cap is asked for: G3.)
+
+**L3 part 3b as built: which line a question plays by, and postponed, suspended and moved games (2026-11-06, `sports`; merged and live 2026-11-07, `e7f5dc0b`;
+migration 0306; HOSTING.md updated).**
+- **What ESPN says of a game called off, recorded after the fact** (`scripts/dev-test/record-espn-called-off.js`, new: each day's
+  scoreboard, the games of the team named, and each event's summary, trimmed; `tests/fixtures/espn/mlb-schedule-called-off-2026.json`,
+  8 KB): the Yankees' 2026. TB at NYY on May 23, `STATUS_POSTPONED` (state post, not completed, "Rain - Makeup date Sept 22"; its
+  summary says the same, no plays, its line still in its pickcenter), made up on Sept 22 as a new event ("Doubleheader - Game 1 -
+  Makeup from May 23"); BAL at NYY moved from Sept 26 to Sept 25 as the same event ("Doubleheader - Game 1 - Rescheduled from Sep.
+  26"), Sept 26's scoreboard without it; BAL at NYY on Sept 27 `STATUS_CANCELED`, never made up. ESPN's MLB 2025 and 2026 months list
+  no suspended game (no `STATUS_SUSPENDED` in any month's scoreboard: only postponed, cancelled, a rain-shortened final, "Game called
+  (rain) with 1 out in the top of the 9th", which is just a final). **Not recorded:** the live moment a game is called off (how long
+  before or after its start ESPN says so, and whether a postponed game's scoreboard keeps its line that day), and a suspended game's
+  answers. What that leaves: a game ESPN calls off after its start already locked what its start locked (below); a suspended game is
+  read by its status name alone, as ESPN's other sports name it (`readScoreboard`), never seen.
+- **The reader** (`espn.ts` stateOf): ESPN's status name read too (`SportsEvent.called`: `postponed`, `canceled`, or `suspended`,
+  `types.ts` Called); postponed and cancelled only when over and not completed; a suspended game is still being played (state 'in',
+  not final, whatever ESPN's state says: it's finished later as the same game). Kept with the game (migration 0306:
+  `sports_events.called`, `storeEvents`, never changed after a final), carried by the pure facts (`matchup.ts` Game and GameFacts).
+- **Which line a question plays by** (the Decisions table, "Which line a game plays by"): a spec's `line: 'game'` (`LINE_GAME`,
+  schema.js) on an over/under settled by its game's final total (the check refuses it on anything else), one game's (each episode's,
+  or asked once the span's first) or each game's of a week (`each: 'game'`: `EACH_GAME_SETTLES_FOR.overUnder`, now open, a fixed
+  line there refused: each game has its own). Playable (`playable`), nothing left to fill in (`specWaitsFor`: only a null line
+  waits for the wizard). Kept by the server as the question opens (`answers.ts` openLines, on every read of a league's questions and
+  every answer, while it isn't closed): each of its games still to start with a line read and none kept takes the latest one
+  (`leagueGames`' listing now carries `line` and `lineAt`: `sports_events.odds` and `odds_at`), kept once in `question_lines`
+  (migration 0306, `question-lines.ts` keepLines, never over one kept: two reads at once keep the first), read back for the grader
+  (`answer-points.ts`: `AnswerFacts.lines`, keyed `question|window|event` by answers.js `lineKey`, an episode's one game ''). The
+  view shows the kept line (`QuestionView.line`, each game's `games[].line`); before there's one, the question is `waiting`
+  (a new status: "Line coming: this one opens as soon as the game's line is out." on the questions sheet, impeccable clarify's words),
+  an answer refused (409 "The line isn't out yet: you can answer once it is"; for one game of a week, "No line for Hawks at Celtics
+  yet: pick it once there is one"). The grader (answers.js `lineOf`, `gameVerdict`): the kept line, carried on the verdict (`line`)
+  so `rightAnswers` reads it; over known early past it; none kept by the game's start, off ("No line came out before the game: it
+  doesn't count either way"). A sheet's summary counts a waiting question as nothing to do. Its words (describe.js, impeccable
+  clarify): "The line is the game's own, set when the question opens, and it won't change after." and for each game "Each game is
+  over or under its own line, set when you can first pick it, and it won't change after."; its phrase "(the game's line)".
+- **A game called off** (postponed, cancelled: state post, not final): **the grader** says why (`calledOffWhy`: "The game was
+  postponed: it doesn't count either way", "The game was cancelled: ...", one read before 0306 "The game wasn't played: ..."), from
+  `SportsGameFacts.called` (`leagueGames`); **its episode has results** (`stampStats`: an episode whose one game is called off is
+  among the `finals`, so `ep.gameFinal`, nothing scored: the reveal, the week, a viewer's mark and a span's end move past it; squares
+  get its status, paying nobody: L3 part 2c's Noticed closed), the fingerprint moving when a game is called off; **the locks** never
+  take its start (`air-times.ts` PLAYED: a day's or a week's lock is its first game played, a holding of its team free to move until
+  the lineup's own lock, for `closes` 'daily', 'weekly' and 'game'); **a question about each game** has it locked at once and says
+  so (`gameStarted`; `games[].called`; a pick refused "76ers at Cavaliers was postponed: its pick doesn't count either way"). **The
+  stats**: it has no lines and is never final, so finals.ts never asks for it, and a lineup's holding of its team scores nothing that
+  game. **Its makeup** is a game of its own: a slate's sync links it to its own day's episode (L8 part 1, as before); a matchup's
+  doesn't take it (Noticed).
+- **A suspended game** (state 'in'): read again by the daily job for 30 days from its start (`refreshSportsEvents`: L1 part 3's
+  Noticed, "a game not final three days after it starts", closed), so its final is kept once it's finished; it locks as it started.
+- **A game moved to another day** (the same event): a linked team game its day's scoreboard hasn't got is looked up on its first
+  side's schedule (`matchup.ts` movedGames, at most 10 a run, one call a team, cached as schedules are), kept with its new start
+  (`storeEvents`), its links' start moved for a matchup's or a slate's season (`season_events.starts_at`: the locks and the questions
+  read it), a matchup's episode's air time too (a game an episode); a slate's sync moves it to its new day's episode once that day's
+  read (as before), and a TV listing's links stay its listing's (link.ts). One the schedule hasn't got either is left as it is. L1
+  part 3's Noticed ("a game moved to another day is looked for on its first day's scoreboard") closed.
+- **Checks.** `tests/sports-called-off.test.js` (6, new): the recording read (the rainout and the cancellation over, not played, said
+  why; the makeup and the moved game final with their notes; the moved game's old day empty; a suspended game, made from the rainout,
+  still being played; a rain delay just a game); a game called off graded off with each kind's words, nothing earned; an over/under on
+  the game's own line graded on the kept line (the listing's moving after changes nothing), over known early past it, off with none
+  kept by the start, a fixed line as before; each game of a week on its own line (one with none kept off, the rainout off); the words;
+  an episode whose game is called off has results. `tests/sports-hook.test.js`: each game's over/under plays with `line: 'game'`, a
+  fixed one refused at its line. `check-stats-game.js` (+17, 86 in all, all pass: a sixth season, a week's slate with an over/under on
+  each game: each line kept as it opens, ESPN's moving after changing nothing, a game with no line refused until its line's read, a
+  postponed game locked and refused, the week's lock its first game played, graded game by game on the kept lines; a seventh, a
+  team's matchup: its postponed opener's episode with results and the week moved on, the next game's over/under waiting and refused,
+  then open with its line and answered, a game moved off its day found on its team's schedule by the daily job, its new start kept on
+  it, its link and its episode). check-slate.js, check-matchup.js, check-finals.js and check-find-game.js pass as before. The
+  placement corpus: no recorded spec moves (none has a game's own line). 1,873 unit tests; `tsc` clean; eslint clean on the files
+  changed.
+- **The long check, last, on `ea2c146f`:** `golden.js --before=79071d64`: Survivor 49, The Challenge 40 and The Traitors US 4, 74
+  games, 9,548 reads, every one the same. blind.js and the rehearsal not run: state-logic.js untouched, every show game's read the
+  same (golden alone). **Track L before L6 is done** but live calls (L4's, waiting for A15's clock: not this lane's); every "For the
+  engine lane" list is built.
+
+**L3 part 3b noticed, not fixed:**
+- **A matchup doesn't take a postponed game's makeup** (a team's season, a series: its episodes are its games as made, one an
+  episode, in order; a makeup listed later is a new event, often out of order with the rest: Sept 22 for May 23's). The postponed
+  game's episode has results with nothing in them, so the matchup plays one game fewer. Adding it as an episode after the last would
+  put an episode's air time before the ones it follows; master's plan's "Follow a team" (a team's season that grows) is where it
+  goes, with the screens saying which game made up which.
+- **A game called off after its start** locked what its start locked, and the locks then read without it (PLAYED): a day whose only
+  started game is called off unlocks until its next game's start. No game was played, so nothing was seen; the live moment isn't
+  recorded (above). If a recording shows ESPN calling games off well after their starts, a lock could keep the start it had.
+- **A game moved past a neighbouring game** (a matchup's game moved after the next one's) keeps its episode number, so the two
+  episodes' air times are out of order (the week reads the earlier number first). Rare (ESPN's 2026 Yankees moves were a day); the
+  screens could order by start (U1).
+- **A slate's game moved past the sync's window** (more than eight days on) stays in its old episode with its new start until the sync
+  reads its new day: a question about each game of the old week keeps it until then (its pick open until its new start), and a pick
+  made for it there is dropped when it moves. Right for the week it's played in; the each-game screen (U1) could say "moved".
+- **No default spec asks an over/under on the game's own line yet** (the sports' defaults: `src/lib/sports/defaults`); the GPT's
+  context pack (G1) and the wizard (U0) can offer it now. An over/under on the spread (a margin against ESPN's spread) isn't one:
+  `line: 'game'` is the total's. (G1 or U0.)
+- **The each-game screen** (U1, through impeccable) reads `games[].line` (null: "Line coming" for that game) and `games[].called`.
+- **College scoreboards list only ESPN's default selection of games**, so a linked college game off it is looked up on its team's
+  schedule each run (movedGames: up to 10 a run, cached as a schedule is). If that's every run for many games, a college game's own
+  `groups` scoreboard would be the better read (L1's college Noticed; master's plan's Later).
+
+**L3 part 3a as built: live points on the phone, and a field's and a card's finals kept (2026-11-06, `sports`; merged and live 2026-11-07, `e7f5dc0b`; migration
+0302; HOSTING.md updated).**
+- **Live points** (`src/lib/sports/points.ts`, new, pure: the screens' to call, U1): `livePoints(sport, score, { live, saved, card,
+  who, groupOf })`, each holding's points (by the league's castaway: `who` a provider id to theirs, else the provider's) from the
+  poller's state as of the viewer's moment (`stateAt(t)` or `state(clock)`: LiveGame's or LiveEvent's) through the sequence's line
+  (`statePoints`, `statLine`), provisional (`from: "live"`); once the viewer's moment reaches the end (the state's last play is the
+  final's correction: `atFinal`) and the server's kept final is in, its points (`from: "final"`) and what it changed from the
+  poller's end (`corrections`: a scorer's change after the final). No poller (a viewer past the end): the kept final alone; neither:
+  nothing. A later watch behind the end keeps the poller's even with the final saved. `asMoments` gives the sequence's moments.
+- **A card's bouts in the sequence's line** (`sequence/stats.js`): `statLine`'s `bouts` (each `{ id, format, line }`: a bout's own
+  line at its rounds or sets, the card's line besides at `points`') and `statMoments`' `boutsOf`, so the server scores a card by
+  format as the phone does; `statePoints` (spec.ts) now delegates to it (`boutsOf`). The scorer's card is just what it reads
+  (`CardBouts`: each bout's id, sides, rounds, main).
+- **A field's and a card's final as kept** (`final.ts`): `storedField(sport, answer)` (everyone's counts with their places, the
+  field, ESPN's final standings) and `storedCard(sport, answer)` (everyone's counts, each bout's own, the bouts as their id, order,
+  sides, rounds, main event and class, each result as who won and how it ended: a Grand Slam's draws ~240 KB, not ~520 KB), as
+  `storedGame` keeps a team game's; `StoredFinal` any of the three; `finalState` reads one back as its sport's state at the end,
+  `storedFacts` as the grader's facts, `shapeOf` what `sports_events.shape` keeps (migration 0302: a field's event and standings, a
+  card's bouts, each bout's counts and the results), `renamed` one in the league's people (lines, people, standings, sides, bouts'
+  counts, winners).
+- **Kept by the server from the pollers' calls, asked once** (`espn.ts` `eventFinal`, the provider's `game` for a field's or a
+  card's league): `LiveEvent` with the sport's feed (`feedOf`, new in live-event.ts) polled once, its rounds and all, on the
+  server's fetch, each answer read as the provider's own (`answerOf`, now shared with its other calls: ESPN's 404 "none", anything
+  else or not JSON SportsUnavailable); final once ESPN says so, the feed has nothing left to ask (a counted series' statistics
+  filled in, a card's settled) and every call answered. Its first call failing (the board) is ESPN down (the run stops); a later
+  one failing (a driver's statistics) leaves it not final that run, so one call never holds it or the run up; a first call's 404 or
+  answers with no event in them, none. `LiveEvent.answer` (new) is the last answer taken. `saveFinals` keeps any sport the app reads
+  (its `shape` too), at most 10 fields or cards a run (60 in all); an event old and still not wholly in is kept as far as it is, a
+  team game as none, as before. The daily listings job now keeps a linked field's or
+  card's event's row too (its first day's scoreboard, as the stats fill reads them, for 16 days from its start: a Grand Slam's
+  fortnight), so its final is seen; a field's final no longer asks a summary for a line (it has none). The stats fill hands its
+  field finals to `saveFinals` too.
+- **A league's games** (`score.ts` `leagueGames`): a field's and a card's episodes read from the kept final like a team game's, in
+  the league's people (its places, its bouts' sides and winners), their lines as the phone scores them (raw: a team game's derived
+  stats only are worked out), with `bouts` for a table by format; a field's or a card's link has no sides, so no side answer. An
+  event linked to several episodes (a listing's race-weekend sessions: `season_events.part`) is kept whole, so it's scored and
+  settled once, on the last of them; the earlier ones read as still being played (never the weekend's places on qualifying's
+  episode, nor its lines twice). `espn.ts` imports the sports' classes from `@/lib/sports` only: under jiti (the tests, the dev
+  scripts) `@/lib/sports/sport` loads a second copy of sport.ts, so `instanceof FieldSport` failed for golf.
+- **Checks.** `tests/sports-points.test.js` (3, new): the 76ers opener through LiveGame in virtual time (espn-replay.js), each
+  ask's points the recording's as known then, Maxey's as his castaway's, a later watch 20 minutes behind on the poller's even with
+  the final saved, the end the saved final's with nothing changed, a rebound added after the final said as its points; golf's
+  Bermuda through its poller (one ask), a mid-event moment provisional; the US Open's draws by format, the poller's card live, the
+  scorer refusing without it. `tests/sports-final.test.js` (+3): a field's and a card's kept final (Bermuda, the Daytona 500, UFC
+  324, the US Open) read back as saved, scored through `statMoments` (a card's bouts by format) and graded as ESPN's own answer;
+  `renamed`; the provider's `game` for all five from the pollers' calls (a stand-in, `tests/harness/espn-standin.js`, moved out of
+  sports-live-event.test.js with golf's leaderboard added), a core call failing not final, the board failing or an answer not JSON
+  SportsUnavailable, an optional FightCenter's 404 still read, a board's 404 none, a golf event not over not final, a league the app
+  doesn't read never asked. `check-finals.js` (+7, 26 in all, all pass): Bermuda and the US Open saved with their shape and read in
+  the league's people (the champion first, Zverev's matches each at their format as the phone scores them), the US Open on two
+  episodes settled on the later only, a league the app doesn't read left alone. `check-live-event.js` now scores every ask's points live and the
+  end from the final kept from the recording's last answer: 6 of 6 recordings pass (the UFC card's and Guangzhou's ends from the kept
+  final, nothing changed by it; the rest weren't final when recorded). `check-matchup.js` passes. 1,719 unit tests; `tsc` clean;
+  eslint clean on src/lib/sports, src/lib/server/sports, src/lib/game/sequence.
+- `/code-review` on the diff (its fixes: an event on several episodes counted the weekend on each; one later call failing for good
+  held every final behind it, now not final that run; the server worked a field's and a card's derived stats out where the phone
+  doesn't; the run's events capped at 10; "no such event" read from error words, now from the calls' own answers; a non-JSON answer
+  read as the reader's error (kept as none once old), now ESPN failing; ESPN's answers read by one helper; two ids for one person
+  kept the last on the server and the first on the phone, now the first; one `cents`).
+- **The long checks, last, on `95ed84ec`:** `golden.js --before=master` (master `54d58239`, nothing new in the engine's files since
+  `e4f3441d`): Survivor 49, The Traitors US 4 and The Challenge 40, 74 games, 9,548 reads, every one the same. blind.js and the
+  rehearsal not run: every read a show's game makes is kept the same (golden against master alone, as the lane's notes say).
+- **For the engine lane (L3 part 2):** as above, `statMoments(lines, score, groupOf, boutsOf)`, with `leagueGames`' `bouts`.
+
+**L3 part 3a noticed, not fixed:**
+- **Closed (L3 part 3b, 2026-11-06: the main session's call, the line when the question opens; the Decisions table).** **Which line a game plays by** (an over/under's): a spec's line is fixed when its game is made, from the line kept then
+  (`sports_events.odds`, read once a day), while the phone's poller keeps the last line before the start (`lineAtStart`). Keeping
+  the server's at the lock would be an hourly read of the day's scoreboard for games starting within the hour (the desk's hourly
+  Reminders and waivers job); whether a game made days ahead should take the line at the lock is a rule question (A4's questions,
+  or G3's wording: "locked at first pitch" in the user's example says the lock). (L3 part 3b, with the main session's call.)
+- **Closed (L3 part 3b, 2026-11-06, on ESPN's answers recorded after the fact).** **Postponed, suspended and moved games** are as L1 part 3 noticed: no recorded answer of ESPN's for a postponed game yet (its
+  event id kept or a new one, its date), so part 3b starts by recording one (`record-espn.js` on the next postponement: MLB's
+  rainouts, an NFL weather delay). A field's event is now refreshed 16 days from its start, so a golf round postponed a day still
+  turns final; a tennis event's suspended match too.
+- **A field's or a card's final kept after the season links it late** (a TV listing added after the event): the daily job looks back
+  16 days only; a season's stats fill (a Players tab read) hands its finals to `saveFinals`, but only events with a `sports_events`
+  row. As team games, fine; a linked event's row could be made at link time (L1 part 3's matchup does for its own). (When a field's
+  or a card's game is made: G3 or U1.)
+- **The server asks ~135 calls for an F1 weekend's final** (its core's statistics and F1's statuses, a call a driver a session, as
+  the phone's poller does); ~5 s with each round together. If the daily job's run grows long, the finals step could stop at a time
+  budget instead of a count (`MAX_A_RUN`). (When it shows in the job's log.)
+- **A race weekend's sessions on their own episodes settle only on the last** (the race's): the kept final is the weekend's, so
+  qualifying's episode waits for it. Each session's own (racing's keys are each session's: QUAL, SPR, FIN) could settle its own
+  episode once the kept field says which keys are whose (`Racing`'s sessions). (When a game is made on a listing's sessions: G3 or
+  U1.)
+- **A phone's live points for a card scored by format need the poller's card** (`shape`): `livePoints` throws without it, as
+  `statePoints` does; a screen always has it once the poller's answered (U1).
+
+**L4 part 1a as built: pick'em, pick a few and lineup locks per sport (2026-11-06, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration, no ESPN
+calls, nothing stored).**
+- **Pick'em and pick a few, as data** (`src/lib/sports/defaults/*.json`: `pickem`, `pickAFew` beside each sport's `season` and
+  `short`; racing's F1 and IndyCar too): games of questions (A4: `get.by: none`, `score.by: answers`), asked each episode, closing
+  at its start. Pick'em: who wins (a team game's side, a point each; a field's or a card's main event's person, 5); pick a few:
+  three names, each one who leads the game in the sport's headline stat scoring (points; receiving yards; total bases, worked
+  out from the plays' counts; points for hockey; goals), a field's three to win (5 if one does); MMA and tennis have the
+  pick'em only (a card's main event, a tournament's final). Each passes the engine's check against its sport's ctx and waits only
+  for the sports branch's own pieces (VOCAB's `final`, `stat`, `side`: the hook's flips). `defaultsFor` with a league now lays its
+  specs over the sport's one by one (F1's and IndyCar's own season and short beside racing's pick'em), not the whole set.
+- **A draw is an answer** (L1 part 4b's Noticed; `game-spec/schema.js`, `answers.js`, the engine's, small and contained): a side
+  question on who wins can say `draw: true` (soccer's pick'em does: a match's three ways); the check takes it only there and only on
+  a team game; on a level final its right answer is `DRAW` ('draw', exported), else a tie is off as before; `answerProblem` takes it
+  beside the sides (the server's faces check reads the question, so it does too).
+- **Who wins is who the final says won** (a decision: extra time and penalties included; a sportsbook's three ways settle at 90
+  minutes, not ours): a shootout's kicks are never the score (soccer.ts), so a cup tie level after one read as a tie, off. Now
+  `gameFacts` (spec.ts) gives each side its shootout goals (`sides[i].shootout`, the players' SOGOAL by team) when the score is
+  level and a shootout was taken, and the grader gives the winner on penalties: ESPN's own shootout score where it's given
+  (`o.shootout`), else the players' kicks added up (the phone's, from the plays). The kept final keeps ESPN's (its header's
+  `shootoutScore`) on its sides when the final is level, and in `sports_events.shape` (`{ kind: 'team', shootout }`, a few bytes,
+  no migration: a team game's shape was always null; HOSTING.md), read back onto its sides (score.ts storedOf), so a kept final
+  whose kicks went missing still has the winner. The total and the margin stay the match's goals.
+- **Lineup locks per sport** (`src/lib/sports/locks.ts`, new, pure): `locksOf(starts, closes)`, each episode's lock from its
+  game's start: `start` its own; `daily` its Eastern day's first start (DraftKings' slates: the NBA, NHL, MLB and tennis);
+  `weekly` its week's first, a week Tuesday to Monday in Eastern time (Yahoo's football week: Thursday night to Monday night;
+  football and soccer); never after its own start; an episode with no start has none (since L8 part 3, a league's slate's episode
+  is its own week instead: it locks at its own first game). A sport's cadence is `Sport.lock`, carried
+  into a spec by `specCloses` (an event's: `start`). **The server's side** (`air-times.ts`): `sportLocks(db, seasonId, closes,
+  span)` reads the season's linked games' starts within the game's own episodes (`season_events.starts_at`: ESPN's, not a
+  listing's air time; a game that starts on Sunday never locks with Thursday's) and `stampAirTimes` stamps `ep.locksAt` (new on
+  Episode, `types.ts`) beside `airsAt` for a league whose spec closes daily or weekly (asking the database nothing otherwise). Nothing reads it yet: `gameOf` reads such a spec only once VOCAB's `closes` daily and weekly flip,
+  and `closedForPlay` is the engine's (below).
+- **Checks.** `tests/sports-formats.test.js` (new, 4): every sport's pick'em and pick a few pass, the draw's refusals; soccer's
+  pick'em on the recorded matches (San Diego 2-2 Seattle a draw, off for a question without draws; Australia 1-1 Egypt and Kiel 1-1
+  Hoffenheim won on penalties; Spain 1-0 Argentina after extra time; the kept final's way too); pick a few on the 76ers' opener
+  (Maxey and Mitchell tied on 32: both right), Bermuda's winner, an MLB game's total bases; each sport's cadence; an NFL week's locks
+  by start, day and week. `tests/dst.test.js` (+1): daily and weekly locks across the November 1 change (Saturday 10:30 PM EDT is
+  Saturday's). The nine sports' own tests and sports-spec's read only their stats specs as tables. `check-matchup.js` (+1, all pass):
+  the series' locks from the database. `check-finals.js` (26) and `check-live-event.js` (6 of 6) pass. 1,724 unit tests; `tsc` clean;
+  eslint clean on src/lib/sports, src/lib/server/sports, src/lib/game/sequence, air-times.ts and the two spec files.
+- `/code-review` on the diff (its fixes: the locks ignored the game's span, so a game made on Friday from Sunday would lock with
+  Thursday's game, already past; a penalty winner read only from the players' kicks, a kept final whose kicks went missing a draw,
+  now ESPN's own shootout score kept with it; the season looked up twice; racing's three copies of the new specs, now one with
+  `defaultsFor` merging a league's specs; the doubleheader and the database's week checks, which tested the function with itself.
+  Declined: college hockey's ties after a shootout (college hockey isn't read: L5 part 2a), `locksAt` unread until the hook (by
+  design, below), soccer's Tuesday week (Noticed)).
+- **The long checks, last, on `6410c1c5`:** `golden.js --before=master` (master `54d58239`, nothing new in the engine's files since
+  `e4f3441d`): Survivor 49, The Traitors US 4 and The Challenge 40, 74 games, 9,548 reads, every one the same. blind.js and the
+  rehearsal not run: no show's game asks a draw or locks daily or weekly, so every read is kept the same (golden alone).
+- **For the engine lane (with L3 part 2's hook):**
+  - `closedForPlay` (state-logic.js) locks at `ep.locksAt` when it's earlier than `airsAt` (or there's no `airsAt`), so a daily
+    or weekly game's episodes lock together; the hand overrides (`lineupsLocked`, `openPastAir`) as they are. VOCAB's `closes`
+    `daily` and `weekly` to 'now' with it. A lineup carried across a day's or a week's episodes (set once for them all) is a rule
+    question for then: today each episode keeps its own lineup, locked at the shared moment.
+  - VOCAB's `draw` needs nothing: it's a question's key, and the grader and `answerProblem` read it.
+
+**L4 part 1a noticed, not fixed:**
+- **Pick'em over a week's slate** ("NFL pick'em with confidence points") needs a season of a whole league's games, several an
+  episode or a week of them: `season_events` keys one game to an episode, and `leagueGames` reads one. It's the same gap as a
+  season-long fantasy league over a league (the default `season` specs: "play someone head to head each week"); it waits for a
+  season made of a league's slate ("Finding a game", or its own step: the main session's call).
+- **A week is Tuesday to Monday for soccer too**, so a team's midweek match locks with the weekend's if they share one (FPL's
+  gameweeks are rounds, which ESPN's scoreboard doesn't number). With one team's games an episode it's rare; a league's slate
+  would want the round. **Closed for a league's slate (L8 part 3):** its episode (the round) is the week; a team's season keeps
+  Tuesday to Monday (L8 part 3's Noticed).
+- **Pick a few's stat is one per sport** (its headline: points, receiving yards, total bases, goals), so football's ignores a
+  rusher. A stat the sport works out (scrimmage yards, touchdowns of any kind) would be a derived stat in football.ts. (G3 asks
+  better ones; or L5's football.)
+
+**L4 part 1b as built: categories and roto, and head to head's and best ball's default specs (2026-11-06, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no
+migration, no ESPN calls, nothing stored).**
+- **The spec's shape** (`game-spec/schema.js`): the categories live on the score, `score: { by: 'stats', categories: ['FG%', 'REB',
+  ...] }` (1 to `MAX_CATEGORIES`, 20, each once, never beside a points table): what counts is the stats, and the rank says how
+  they're compared. `rank.by` `categories`: head to head, each category won a win, lost a loss, the same a tie (Yahoo's "each
+  category"), with head to head's playoffs, odd one out and quiet week (`matchupProblems` takes it); `matchups` on a categories
+  score: whoever wins more categories wins the matchup (Yahoo's "most categories"); `roto`: each category ranks everyone on the
+  game so far, points by rank. A categories score left without a rank is head to head by each category (`fullSpec`). Refused
+  (`categoryProblems`): a categories rank without a categories score (the corpus' 375 roto ranks on a show's game: the placement
+  test's `CLOSED`), a categories score ranked any other way, best ball's best few (best by what), a race, cuts, `oneLeft`, `allOut`,
+  teams of players, a handicap or questions beside it (all points), anything but a draft. `categoryParts(s)` reads it the one way
+  (`{ by, categories, odd, quiet, playoffs }`, head to head's from the same `h2hParts` as `matchupParts`, which now returns null for
+  a categories game: it isn't head to head on points). `categoriesOf`, `CATEGORY_RANKS`, the types (index.d.ts).
+- **Its check against the sport**: `ctx.categories` (`specContextOf`: the Sport's `specCategories`, every stat but a place's, a
+  rate's marked, which way is better, its label): a category is one of them (a rate too, though it never scores points), never a
+  place ("POS is a place").
+- **Rates as data** (`sport.ts`): every rate's `StatDef.parts` (`{ top, bottom }`, weighted counts over weighted counts: ERA's
+  `{ ER: 27 }` over `{ OUTS: 1 }`, GAA's `{ GA: 3600 }` over `{ TOI: 1 }`), its `of` made from them (`per`), so a game's line and a
+  window's agree; the nine sports' 24 rates now say theirs. `Sport.categoryDefs()` is what the engine reads of each stat (better,
+  group, parts), handed over by the server beside a league's lines, so the engine works a window's rates out without a sport's code.
+- **The scorer** (`src/lib/game/sequence/categories.js`, new, plain CommonJS with its types, beside `stats.js`): `categoryTotals`
+  (a seat's lines over a window, `windowLines` picking each episode's counted holdings: a count and a derived stat added, a rate from
+  its parts added over the lines in its own stat group, so a skater's time on ice is no goalie's, and a count in both parts added
+  once; null with nothing to divide by); `compareCategory` (lower better where the sport says; nothing to say loses, two of them
+  tie); `categoryMatchup` (each category won, lost or tied, and the result by most categories); `categoryWeek` (round r of the
+  sequence's `roundRobin`, the odd one out against everyone else's middle in each category or a bye, a quiet week skipped or tied);
+  `categoryRecords` (by each category or by each matchup); `roto` (points by rank, the best as many as there are seats, the tied
+  sharing their places', the most first, a tie keeping the seats' order).
+- **The words** (`describe.js`): "Nine categories: field goal percentage, ..., blocks and turnovers (fewer is better in turnovers)."
+  (a rate's "lower is better in earned run average"); "Each game you play one of the others head to head in every category: each one
+  you win is a win." / "whoever wins more categories wins it" / "Each category ranks everyone on their totals so far, the best earning
+  the most points: most points wins."; How it works (your starters' or everyone drafted's totals over the part or from the start, a
+  rate from what's added up and never an average, none last, the odd one out, a quiet part, the standings, the playoffs: their
+  sentences now shared with head to head on points, `playoffRule`, `finalRule`).
+- **The defaults**: `categories` and `roto` season specs for basketball (Yahoo's nine), hockey (Yahoo's ten) and baseball (Yahoo's
+  5x5), the season's draft, lineup and daily lock, the sport's `categories.stats`; `bestBall` for basketball, football, baseball,
+  hockey, soccer (the season's draft and table, its starters' number best) and golf (six drafted, the best four each event). Every
+  one passes the engine's check against its sport and waits only for the sports branch's pieces (`score.by` stats; categories and
+  roto; daily locks).
+- **Checks.** `tests/sports-categories.test.js` (new, 8): every rate's parts its `of`; **a week of basketball** (the 76ers' opener,
+  the WNBA's final, a men's and a women's college game: Maxey and three others against Mitchell and three) summed against ESPN's own
+  box scores, FG% and FT% the week's makes over attempts (not each game's averaged), the matchup category by category (Maxey and
+  Mitchell alone: 3-3-3, 32 points each a tie); a rate with nothing to divide by; FO% and OBP with a count in both parts; **GAA** on
+  Kings at Rangers (the Rangers' two goalies: 5 against over 3,485 seconds, the skaters' time left out); **baseball's 5x5 as roto**
+  over the Red Sox-Yankees series (ERA, WHIP and AVG from the series' counts, each category handing out 10 among four, better never
+  fewer points); roto's ties by hand; a week of categories with an odd one out, a bye, records both ways, a quiet week; the check's
+  refusals and `categoryParts`; the words; **best ball** on the 76ers' opener (thirteen held, the best ten through the sequence's
+  `best` and `episodeTotal`) and **head to head on points** (the season spec, the sequence's `matchups` over the opener and the
+  WNBA's final). `tests/placement.test.js`: `CLOSED`, the 354 roto ranks newly refused (375, 21 of them moved by part 4c already).
+  The sports' own tests and sports-spec's read a categories spec's categories, not a table. 1,732 unit tests; `tsc` clean; eslint
+  clean on src/lib/sports, src/lib/server/sports, src/lib/game/sequence, schema.js and describe.js. `check-finals.js` (all pass),
+  `check-matchup.js` (all pass), `check-live-event.js` (6 of 6).
+- `/code-review` on the diff (its fixes: a count in both of a rate's parts was added twice, FO%, OBP and tennis's win
+  percentages wrong; roto on a pick and questions beside categories passed the check; "fewer" said of a rate; "last" said of a
+  rate nobody has, now "tied with anyone else who has none"; the about lines' "each week" against a matchup a game; head to head's
+  parts and the playoffs' sentences read twice, now shared; the old "Ranked by category" fallbacks, dead, removed). Left for the hook
+  (below): `flagsOf`' `hasMatchups` and settings.js's `rankMatchups` don't read a categories game's head to head.
+- **The long checks, last, on `c6d7b424`:** `golden.js --before=master` (master `54d58239`, nothing new in the engine's files since
+  `e4f3441d`): Survivor 49, The Traitors US 4 and The Challenge 40, 74 games, 9,548 reads, every one the same. blind.js and the
+  rehearsal not run: no show's game is scored by categories or ranked roto (the only show specs whose check changed), and every read
+  is kept the same (golden alone).
+- **For the engine lane (with L3 part 2's hook):**
+  - `schema.js` placement: `LINES.stats` for a categories score has no lines of points; its place is step 5's (the week's result)
+    and step 6's (rank): `rankPlace` takes `categories`, `matchups` and `roto` on a categories score (`categoryParts`), nothing
+    racing or cut (the check refuses them already).
+  - `state-logic.js`: `MatchupLogic` on `categoryParts` when it's head to head (by `categories` or `matchups`): each regular-season
+    episode's pairs from the same round robin (`categoryWeek` takes the sequence's `roundRobin`), each seat's totals over the
+    episode (`categoryTotals(windowLines(state.statLines, k, k, heldAt), cats, state.statDefs)`: a lineup's starters then, or the
+    whole team), the standings by `categoryRecords` (by each category or each matchup: wins, a tie half) with no points to break
+    ties (a later rule: the categories' own totals, or the head-to-head record); the playoffs a matchup each round by most
+    categories, the same number to the better seed; `endsAt` as head to head's. `roto`: the table by `roto` over the game so far
+    (from its first episode to the viewer's mark), its points the row's total. `flagsOf` `hasMatchups` and settings.js's
+    `rankMatchups` read a categories game's head to head too.
+  - The server hands `Sport.categoryDefs()` over beside `leagueGames`' `lines` (as `statDefs`, or whatever name the engine picks).
+  - VOCAB: `rank.by` `categories` and `roto` to 'now' with `score.by` stats.
+  - A matchup over a week of games is the window `windowLines` takes; on a league's slate the week is its episode (L8 part 3:
+    one meaning of a week), so a matchup is an episode, as head to head on points is. On a team's season each episode is one
+    game, so a matchup is one game; it never reads `locks.ts`' Tuesday-to-Monday calendar as a window.
+
+**L4 part 1b noticed, not fixed:**
+- **A categories matchup is one game long** while a season is one game an episode (a team's schedule): Yahoo's are a week of a
+  whole league's games. The spec has no window of its own; the hook can take the week's episodes once a season is a league's slate
+  (L4 part 1a's Noticed, "Finding a game" or its own step). The about lines no longer say "each week".
+- **Head to head by categories has no tiebreak past the record** (a points game breaks ties on the points for). Yahoo breaks them on
+  the categories' own record; the hook's call, or the user's.
+- **A rate with too little behind it counts** (one at-bat's 1.000 AVG, a reliever's two outs' ERA): Yahoo and ESPN set minimums
+  (innings pitched a week, at-bats) below which a rate category is lost. A spec field for it (`minimums: { ERA: { OUTS: 60 } }`)
+  when a couch asks. (G3 or the user.)
+- **Hockey's goalie who played without facing a shot** has no goaltending counts, so his time on ice isn't in his team's GAA
+  (a rate adds only the lines with a count in its group, and a line keeps no zeros). Rare (a minute or two in relief). (A line
+  could keep a goalie's zero shots against.)
+- **The scorer compares rates at full precision**: Yahoo shows FG% to three places; two seats whose rates differ past the third
+  place aren't tied here. A rounding rule if a couch sees a "tie" lost. (U1's display, or the user.)
+
+**L4 part 2 as built: squares and brackets (2026-11-06, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration, no ESPN calls; a kept final keeps a
+little more: HOSTING.md).**
+- **Squares' spec** (`game-spec/schema.js`): `get: { by: 'squares', grid?, take?, each? }` (a grid of a team game's two scores'
+  last digits, 10 by 10 or 5 by 5, `grid` 10 the default; its squares picked, `take: 'pick'` the default, up to `each`, first come
+  and a square one person's, or dealt at random, `deal`, `each` each or as many as go round evenly), `count` null, `score: { by:
+  'squares', pays: [{ at, points }], empty?, unread? }` (each pay at a period's end, `at` its number, halftime `'half'` or the final
+  score `'final'`; `empty` what a square nobody holds does: `void`, nobody, the default, or `next`, rolled on to the next pay;
+  `unread` what a period whose end was never read does: `final`, paid on the final score, the default, or `void`), ranked by the
+  total, nothing beside it, closing at the start. VOCAB `score.by` `squares` as 'sports' (`get.by`'s was already). `squaresProblems`
+  (the grid, the take, `each` within the grid, 1 to `MAX_SQUARE_PAYS` (10; `MAX_PAYS` is C6's ticket's, renamed at the sync) pays in the order they're paid and each once, points 1 to 100,
+  `empty` and `unread`, rank total, no race, cut, teams, handicap or head to head, no questions beside it: a stage alongside, as
+  bingo's and a pool's) and, against the sport, `settleProblems`: a team game only (`ctx.shape`: "a field has none"), a pay's period
+  one of its regulation ones (`ctx.periods`, new in `specContextOf`: the Sport's `periods`), halftime only on an even number of them,
+  never beside the same period's end, and between its two halves' pays. `squaresParts` reads it the one way with `SQUARES`' defaults.
+  Scoring by stats no longer takes squares (it did: the corpus' 15, below).
+- **Decisions** (mine, the sports orchestrator's to overrule): the digits are drawn at the lock, once everyone has their squares, so
+  nobody picks a good number; on a game of many episodes (a team's schedule) your squares are yours for the game and the digits are
+  drawn again each episode (a seed of the game's and the episode's, the engine's to keep); the rows are the first side in ESPN's
+  header (the home side), the columns the second; `'final'` is ESPN's final score, overtime in it, a hockey shootout's winning goal in
+  it (ESPN's final has it) and a soccer shootout's kicks never; a period's pay at the end of the 4th is regulation's, the final's
+  overtime's. The defaults pay a point at the end of each of the first three quarters and two for the final (the Super Bowl pools'
+  usual 20/20/20/40).
+- **Each period's end** (`sport.ts`, new): `periodEnds(plays, sides, { final, ended })`, each side's score after each finished
+  period's last play: one a later period's play has begun after, or `ended` (ESPN's status between periods, `STATUS_HALFTIME` and
+  `STATUS_END_PERIOD`, as the recordings show them: halftime's pay comes when halftime does, not with the third quarter's first
+  play), and once final every period its plays reached (every sport's feed has plays in each period played: soccer's a half's
+  start, hockey's a period's; a shootout's never a period's), the last of them the final's corrected score unless a shootout followed.
+  A game called before a regulation period has no end read for it, nor does a summary with no plays: `unread` says what then.
+  `TeamSport.periodScores(summary, at?)` reads them as of a moment (now with the status, earlier by the plays alone). Kept with the
+  final (`StoredGame.periods`, `sports_events.shape` `{ kind: 'team', shootout?, periods? }`: ~100 bytes a basketball or football
+  game, ~160 an MLB game's; HOSTING.md), read back (`score.ts` storedOf) and handed to the grader's facts (`gameFacts`' `periods`,
+  `SportsGameFacts.periods`).
+- **The scorer** (`src/lib/game/sequence/squares.js`, new, plain CommonJS with its types): `digitsOf(seed, grid)` (each side's digits
+  shuffled from a seed and cut into the grid's rows or columns), `cellOf`, `dealSquares(seed, seats, grid, each)` (a square each in
+  turn in the seed's order of seats, evenly, the rest nobody's), `pickProblem` (a move's squares: on the grid, each once, at most
+  `each`, none taken), `payScore` (where a pay's score stands: known, waiting, unread, off), `squaresPays(parts, game, { digits,
+  holders, regulation })` (each pay in the order they come, paid, empty, void, waiting or off, its score, square and holder, what was
+  rolled on to it; the totals), `holdersOf`.
+- **Brackets, as a question** (A4's, beside A8's kinds): `answer: 'bracket'`, `settle: { by: 'final', take: 'bracket', of }` (`of`
+  the draw: the sport's key, tennis's `MS`, `WS`...), its `points` each right pick's in the first round, `rounds: 'double'` (the
+  default: each round's worth twice the one before, ESPN's Tournament Challenge) or `'same'`. An answer is each round's winners by its
+  distance from the final (`{ "7": [64 ids], ..., "1": [the champion] }`); a pick is right when they won a match of that round (a
+  consistent bracket's picks for a round come from their own matches' halves, so counting a round's right picks is grading it match by
+  match). VOCAB `ask.answer` `bracket` 'sports'; `final`'s takes `bracket`. The check: `of` named, nothing shared, rolled over,
+  shrunk, staked or asked about each person; against the sport, a card whose bouts are in draws (`ctx.draws`, new: a sport with
+  `draws()`, tennis's positions), never a team game, a field or MMA's card, and `of` one of them. **Graded** by `answers.js` through
+  `sequence/bracket.js` (new: `bracketOf`, the draw from a card's facts, its first round, who enters where, each round's matches and
+  winners so far; `bracketProblem`; `bracketPoints`; `roundWorth`): known once the card is final, the draw so far live; `pointsFor`;
+  `isRight` when any pick is (A8's kinds' way); `answerProblem` with the draw as its `faces` (who's in it, a round's winners among
+  the round before's picks or entering there with a bye, one winner a match, no more than the round has). A card's facts carry each
+  bout's `class` and `fromFinal` (`gameFacts`), the kept card each main-draw bout's `fromFinal` (`StoredBout`: ~5.5 KB a Grand Slam).
+- **Tennis's rounds before they're listed** (`tennis.ts`, the review's find): "Round 1" to "Round 4" counted back from the draw's
+  last listed, so before a Grand Slam's second round was on the board its first round read 4 from the final, not 7. Now, until a
+  draw's quarterfinals are on the board, its first round is also at least `ceil(log2 m) + rid` from its rounds' matches (a round of
+  m matches is that far from the final at least), so the board at the draw's making numbers a bracket's rounds right; once they're
+  listed, ESPN's ids alone as before (some events' "Round 1" holds two rounds: counting would misread them). Every cached finished
+  board reads as before (324 events, 21,138 matches in rounds 1 to 4: none moved).
+- **The defaults**: basketball's and football's `squares` (by quarter: the NBA, WNBA, women's college basketball, the NFL and college
+  football), men's college basketball's at halftime and the final (a league's own, `leagues`); tennis's `bracket` (men's singles,
+  the WTA's women's singles: a league's own). Each passes the engine's check against its sport and waits only for the sports
+  branch's pieces.
+- **The words** (`describe.js`): "everyone takes squares on a 10-by-10 grid of the two scores' last digits ... The square of the two
+  scores' last digits wins 1 point at the end of the first quarter, ... and 2 points at the final score. Most points wins."; How it
+  works (picked or dealt, the digits drawn after, each pay, overtime in the final, an empty square, a period never read, the digits
+  drawn again each game of many); a bracket's "Pick the winner of every match of the men's singles draw, round by round to the final:
+  1 point for each one right in the first round, doubling each round after it." `ordinalWord` (schema.js) for both.
+- **Checks.** `tests/sports-squares.test.js` (new, 11): each period's end from the plays on the 76ers' opener's quarters (18-35,
+  45-69, 82-90, 114-106), an NFL game's, Kings' shootout (3-3 after overtime, the shootout's goal only the final's), men's college
+  basketball's double overtime, a World Cup tie's penalties; live, an earlier moment's and ESPN's halftime status; a game called after
+  five innings; squares paid by quarter on the opener and the NFL game, live and kept alike, empty squares void and rolled on (past a
+  void pay too), a drawn grid and a 5 by 5; halftime live, the shootout, a kept final without periods (on the final, or void), a game
+  off or not started; the deal and the picks' check; the spec's check and each default against its sport; the words; **a bracket on
+  the US Open's men's singles** (64, 32, ... 1 winners, the perfect bracket 448, the wrong champion 384, the champion alone 64, 127
+  the same each round; live and from the kept final alike; waiting live; a draw not on the card off; the WTA's women's singles), the
+  board at the draw's making (64 first-round matches, seven from the final), an answer checked against the draw, the bracket spec's
+  check and words; a kept final's size. `tests/placement.test.js`: `CLOSED`, squares scored by anything but their squares (15 newly
+  refused: by moments, by moments multiplied in the finale or by stats, ranked by the total, asking nothing or the corpus' four).
+  `sports-formats.test.js` (a kept final's shape has its periods now), `sports-settles.test.js` (the `of` words). `check-finals.js`
+  (+2, all pass: the opener's quarters kept in its shape and read back, the men's singles draw read back round by round),
+  `check-matchup.js` (all pass), `check-live-event.js` (6 of 6). 1,743 unit tests; `tsc` clean; eslint clean on src/lib/sports,
+  src/lib/server/sports, src/lib/game/sequence, schema.js, describe.js and answers.js.
+- `/code-review` on the diff (its fixes: a Grand Slam's first round read 4 from the final until the later rounds were listed
+  (tennis.ts, above); a final game's periods filled to regulation, so a called game's unplayed innings paid on the final whatever
+  `unread` said, now only the periods its plays reached; points rolled on lost at a void pay; `squaresParts`' sort that didn't sort
+  halftime, now the check keeps the pays in order; `isRight` false for every bracket; two docs above the wrong function; two copies
+  of the ordinal words; a dead guard. Declined: the server's bracket faces, null today (the hook's: below); finals kept before this
+  step lacking a bout's round or a game's periods (nothing in production keeps finals before L6's release; a lane database's old ones
+  read as off or unread)).
+- **The long checks, last, on `c9aa1983`:** `golden.js --before=e20a4bd0` (the step before it: master had moved to `2432a70b`,
+  C3 to C5 and C4b, not yet synced here, so against master the engine's own changes would show): Survivor 49, The Traitors US 4
+  and The Challenge 40, 74 games, 9,548 reads, every one the same. blind.js and the rehearsal not run: no show's game plays squares
+  or asks a bracket (the only specs whose check changed besides the corpus' 15), and every read is kept the same (golden alone).
+- **For the engine lane (with L3 part 2's hook): all built in L3 part 2e (2026-11-06, As built above), but the server's digits from its secret rather than a seed in the league (its Decisions).**
+  - `schema.js` placement: `holdOf` 'squares' (a hold of its own), `LINES.squares` (its lines are its pays: `squaresPays`' totals
+    each episode), `rankPlace` total only (the check refuses the rest). A bracket question in a game of questions: `playable` takes it
+    (its line is `bracketPoints`, through `pointsFor` already).
+  - `state-logic.js`: the squares themselves: a move taking squares (`pickProblem` against everyone's, first come), or the deal at
+    the lock (`dealSquares`), and the digits drawn there (`digitsOf(seed + episode, grid)`), the seed kept and recorded as DrawLogic's
+    (`state.squares`: its seed and when); each episode's pays from the game's facts (`facts.games`' periods and sides: the server's
+    from the kept final, the phone's from `TeamSport.periodScores`) with the sport's regulation periods (the server hands
+    `Sport.periods` over beside the facts); the totals the table's. A late joiner takes squares left over (a pick) or none (a deal).
+  - The server's answers (`server/answers.ts`): a bracket's `faces` is the draw as listed at the time (`bracketOf` over the card's
+    facts' bouts and `of`), handed to `answerProblem`; today they're null for it (only the shape is checked). The engine's
+    `AnswerLogic.faces` doesn't read a card.
+  - VOCAB: `score.by` `squares` and `ask.answer` `bracket` to 'now' with it.
+
+**L4 part 2 noticed, not fixed:**
+- **A playoff's series as a bracket** (built in L8 part 1's engine items, part 2, on L8's playoffs slate) (the NBA's, the NHL's) needs a season made of a league's playoffs (each series its games): the
+  same gap as a league's slate (L4 part 1a's Noticed, L7 or its own step). `bracketOf` takes a series as a bout once something gives
+  each one its class and distance from the final.
+- **A rolling bracket** (each round picked as it comes, from who's still in) needs a lock for each round inside one episode (a Grand
+  Slam is one): an episode a round, or a lock per round (A15's clock, or its own step).
+- **A draw with a group stage** (the ATP Finals): its bracket is the semifinals and the final, whose sides aren't known until the
+  groups end, so an answer at the event's start can't be checked against the draw (nobody's in it yet). A lock after the groups, or
+  picks by group.
+- **A seed with a bye** isn't on the board until the second round's matches are listed, so a bracket answered before then can't name
+  them ("Pick only who's in the draw"). A Grand Slam's 128 has none; a 28 or 96 draw's has. ESPN's listing at the lock decides.
+- **Squares' other ways** (reverse squares, paying the digits the other way round too; every score change paying; new digits each
+  quarter; a pot split as money) aren't built: spec fields when a couch asks (G3).
+- **Some events' "Round 1" holds two rounds** (the 2025 Winston-Salem Open's men's singles: 32 matches, then an 8-match "Round 2";
+  two other events' draws are as uneven), so their first rounds' distance from the final, counted back from ESPN's ids, is one short
+  for the first of the two, and a bracket on such a draw would number them so. A tennis reader's fix when a couch plays one (L5's).
+- **ESPN's status at the end of the 4th quarter** had no period in the NFL recording ("End of 4th Quarter", period missing), so a
+  game level after regulation pays the 4th's end at overtime's first play, not when regulation ends. Small; the status's detail could
+  say it.
+
+**L7 as built: finding a game (2026-11-06, `sports`; merged and live 2026-11-07, `e7f5dc0b`; migration 0303; new ESPN calls and cache rows: HOSTING.md).**
+The data side of adding sports by team (the user, 2026-11-06), as three routes the screens (U0, U1) can read; no screen calls them
+yet. Built on L1 part 3's pieces (master's Add a team plan, docs/PLAN-sports-add.md, brings them to master early: nothing of it is on
+master yet, so its steps 1-3 are what this step built, here).
+- **Team lists** (`espn.ts` readTeams; the provider's new `teams(league)`, cached a week in `sports_cache`): ESPN's
+  `/{sport}/{league}/teams?limit=1000`, the active teams, each with its names (display, short, nickname, name, location: `Team.also`
+  as `readTeam` reads them), abbreviation, first logo and colour (`Team.color`, new), and the league's names. The stand-in
+  (`fake-espn.js`) answers it; `record-espn-teams.js` records one trimmed (`tests/fixtures/espn/<league>-teams.json`: the NFL's,
+  MLB's, the NBA's, the NHL's, college football's 762, men's college basketball's 362, the Premier League's).
+- **Finding a team** (`src/lib/sports/teams.ts`, pure): `wordsOf` (no accents, case or punctuation: "Texas A&M" is "texas am");
+  `teamScore`, how well some words fit a team (its abbreviation or whole name 100, another of its names 96, the start of one 85:
+  "new york y", every word the start of a name's word 70: "york yank", a plural people say: "yanks"); `findTeams`, the teams some
+  words fit best first (the better fit, then pro before college, so the Eagles are Philadelphia's before Boston College's unless the
+  words say "Boston College"; then a school in more of the leagues searched, so a D1 school before a D3 one; then the lists' order),
+  12 at most, each league named as its show is (`leagueName`: "NFL", "NCAA Men's Basketball", never "NCAAM"), and **two teams in
+  any order** as one matchup in their league: split where the words say ("at" and "@" put the second
+  at home, "vs", "v", "versus", "against"), else at the word that fits two teams best ("yankees red sox"), only when each side fits
+  better than the words fit any one team ("red sox" is the Red Sox, never Red Wings against White Sox; "new york y" the Yankees),
+  never at a one-letter side.
+- **A team's schedule** (`teams.ts` scheduleOf): each game from the team's side (home or away, the opponent, its score and result,
+  `calledOff` for a game over without being played: ESPN lists a postponed game as over and not completed, its makeup an event of
+  its own), its series (games in a row against one opponent within three days, or a postseason series: `oneSeries`, pickMatchup's
+  rule, now in matchup.ts and shared by both), each with its home, dates and state (past, now, coming), a game called off in none; the next to
+  play; `against` for their meetings with one opponent. `seasonName`: "Eagles, 2026 season", "76ers, 2026-27 season" (ESPN's year
+  for a season across two is the year it ends in; the years in the East).
+- **The server** (`src/lib/server/sports/find.ts`): `teamLeagues` (each team sport's own leagues: the NFL, MLB, the NBA, the WNBA,
+  the NHL, college football, college baseball and both college basketballs) plus any league a matchup's been made in
+  (`shows.sports_league`); `searchTeams` (the lists, held 10 minutes in a warm server; ESPN's own search when they find no one, for a
+  team sport's league, each hit from its league's list when there is one; the first three teams' and a matchup's next game from
+  their schedules); `seasonGames` (the schedule now, and its regular season or postseason besides when now's is another stage: one
+  stage at a time on ESPN); `teamSchedule` (its games, its series still to finish, its next, and what adding makes: each game, each
+  series, its regular season or with `against` their meetings, each with the season already made for it); `addGames` (one game or a
+  few named, 1 to 30, a team's regular season, `whole: 'season'`, up to 200, or their meetings, `whole: 'meetings'`: made or found
+  through `matchupSeason`, then followed; a league spelled in capitals the same league; 404 for no such team or a game not theirs,
+  400 for an ask that isn't one or a game called off, 429 past ten new ones a person a day, `MATCHUPS_A_DAY` as add-show's
+  `NEW_SHOWS_A_DAY`, finding one already made free: a soft cap, checked before it's made, as add-show's is). No add asks a summary
+  for a game already played (nobody can answer for it now; it would be up to 30 calls in the request).
+- **Routes:** `GET /api/sports/search?q=` (open signed out, edge-cached an hour: `{ teams, matchup }`, each with `next`), `GET
+  /api/sports/schedule?league=&team=[&against=]` (open, edge-cached 10 minutes: `TeamSchedule`), `POST /api/sports/add` (signed in:
+  `{ league, team, games }`, `{ league, team, whole: 'season' }` or `{ league, team, whole: 'meetings', against }`; answers `{
+  seasonId, made, name, games }`). Each reads the stand-in ESPN under `next dev` from `x-gys-sports`, as the other sports routes do.
+- **`matchupSeason`** (L1 part 3's): the three gotchas of master's Add a team plan fixed here: `episode_count` is its games (the
+  guide no longer invents a weekly episode after the last), each episode's `runtime_min` the sport's (`Sport.runtime`, new: three
+  hours unless the sport says; basketball 150, college basketball 120, football 195, college football 210, hockey 150, soccer 120),
+  and its name the matchup's (it was already `show_seasons.name`; screens that print the show and its number, "NBA 3", are U0's and
+  U1's to read the name). Also a `key` of its own (a team's season: `seasonKey`, "espn:baseball/mlb:season:10:2026", never its
+  games, so it stays short), `pastLines: false` (L7's adds: no summary for a game already played), its episodes and links inserted at once (up to 200),
+  and found, the games it was made with (`sports_matchups.events`: a team's season keeps the games listed when it was made).
+- **Migration 0303:** a matchup takes 1 to 200 games (it was 30).
+- **Checks:** `tests/sports-find.test.js` (9: the lists, the words, the Eagles, two teams, the Eagles' and Yankees' schedules on
+  real recordings, the names and keys, the runtimes); `scripts/dev-test/check-find-game.js` (35, the stand-in ESPN and this lane's
+  database: the search, ESPN's search as the fallback, a list kept a week, the schedule and its adds, a game called off, adding a
+  game, the same again, a 35-game season, their meetings, a series, the refusals, a league in capitals, the day's cap); `sports-live.test.js` and `check-live-clock.js` read no
+  team list as a recorded game. check-matchup.js, check-finals.js and check-live-event.js pass as before.
+- **The long checks, last, on `4aef9894`:** `golden.js --before=master` (`8d79d71e`: master's engine as it is, so it also checks the
+  sync's merge in schema.js and describe.js): Survivor 49, The Traitors US 4 and The Challenge 40, 74 games, 9,548 reads, every one
+  the same. blind.js and the rehearsal not run: the step changes no game's read (golden alone).
+- **The master sync before it** (`c0f60c2e`, master `2432a70b`: C3, C4, C5 and C4b): both sides kept in schema.js (head to head and
+  weeks won on C5's `perEpisode`, categories still read apart), describe.js, GAME-PIECES.md's rank table and the placement corpus (C5
+  opened two picks each episode ranked roto to a wait alone; on this branch a roto rank on no categories is refused, L4 part 1b's
+  CLOSED, so those 10 stay as they were: 215 of C5's 225 move here). One unit test fails on this lane's database, as on master's code
+  alone (checked on `224247fa`): "every league in the local database round-trips through its spec", on a local shadow Survival Pool
+  carrying `eventPoints` (C5 made them a pool's field, so rebuilt from its spec the pool drops them, and the test's points read lists
+  ids from the settings' keys; a pool's points are 0 either way). For the engine lane or the main session: master's, not this step's.
+
+**L7 noticed, not fixed:**
+- **Names ESPN's lists don't have** ("sixers", "niners", "Man U") are found only through ESPN's own search, and only when the lists
+  find no one: "miami" lists the Dolphins, Heat, Marlins and Hurricanes, never Inter Miami (MLS isn't a searched list until a matchup's
+  made in it). A soccer league's clubs are searched by list only once someone's added one of its games. A set of the soccer leagues
+  people follow is the user's call (universal, not curated, says no list of ours).
+- **College lists are every division** (college football's 762: FBS to NAIA): a D1 school ranks first by being in more of the
+  searched leagues, not by its division (ESPN's list has no group). ESPN's scoreboards still list only their default selection of
+  college games (master's plan's Later).
+- **A team's season doesn't grow:** it's the regular season as listed when it's added, keyed by the team and its season. The
+  postseason is a matchup of its own once listed, and a makeup game listed later (a new event id) isn't added; the same for a game
+  in a matchup that's postponed (its makeup isn't in it): L3 part 3b's postponed games, and master's plan's "Follow a team".
+- **A team's season's cast is every opponent's roster** (castFromEvents: ~30 roster calls and ~780 people for an MLB team's): fine
+  once, heavy for the Players tab. Its own roster first, each opponent's as its games near, when the screens show it.
+- **A search reads up to four schedules from Neon** for the next games (~100 KB an MLB team's): held in no memory, unlike the lists.
+  A smaller "next game" row or a memo if searches get busy (HOSTING.md has the numbers).
+- **Closed (L3 part 3b, 2026-11-06: ESPN still serves them after the fact, recorded and built on).** **ESPN's schedule shows a postponed game** (the Yankees' 2026: four, "Postponed", state post, not completed; each makeup a new event
+  id, in a later series). That's the schedule's view only: L3 part 3b still wants a postponement recorded live (a game's summary and
+  scoreboard as it's called off).
+- **A league by name** ("NFL", "Premier League") finds no team: L8's slate would be what it adds.
+
+**L8 part 1 as built: a league's slate (2026-11-06, `sports`; merged and live 2026-11-07, `e7f5dc0b`; migration 0304; new ESPN calls and stored data: HOSTING.md).**
+A season made of a whole league's games, several an episode, shared by everyone who asks for it; no route or screen calls it yet
+(part 2's routes, then U0 and U1).
+- **What an episode is** (`src/lib/sports/slate.ts`, new, pure), from ESPN's own answers: **by week** for a sport whose calendar is
+  weeks (football: ESPN's own, "Week 9" with its "Nov 1-3" detail, the playoffs' "Wild Card" ...), and for a sport that locks daily
+  Monday to Sunday (Yahoo's and ESPN's fantasy week for the NBA, NHL and MLB); **by day** (each of ESPN's days in the stage); **by
+  round** for soccer (ESPN numbers none: the core's weeks are empty): the league's days in order, a day joining the round unless one
+  of its teams has already played in it. `cadencesOf` says which a league takes, its usual first (football `week`; a daily sport
+  `week`, `day`; soccer `round`, `day`; a field's or a card's none: not a slate). Each episode is a window of days (the East's), and
+  the windows **tile** the stage, so a day without games belongs to the next episode and a game listed later always has one. On the
+  recordings: the NFL's 2026 regular season 18 weeks, every one of its 272 games in its week (the Wednesday opener and Monday night
+  in week 1); the Premier League's 2026-27, **exactly its 38 rounds of 10**; the NBA's 2026-27 from October 20 by day (election day,
+  no games, in the next day's window) or Monday-to-Sunday weeks; MLB's June 2026 with a postponed game kept on its day and its
+  makeup (a new event, a doubleheader's first) on its own. Names: "NFL 2026", "NBA 2026-27, day by day", "NBA 2026-27 playoffs",
+  "Premier League 2026-27"; keys `espn:football/nfl:slate:2026:regular:week`.
+- **ESPN** (`espn.ts`): `calendar(league)`, the league's season now from its bare scoreboard (its year, name, stage now and calendar
+  of days or weeks) with its stages' bounds from the core's season types (`/v2/sports/{sport}/leagues/{league}/seasons/{year}/types`,
+  each a call; the off season and the NBA's play-in neither stage, a soccer league's one type its whole season), cached a day;
+  `eventsIn(league, month)`, a month's scoreboard (`dates=YYYYMM&limit=1000`: ESPN refuses a range of days with a 400 but answers a
+  month; MLB's June is 401 games, 7.7 MB raw), cached as a schedule and 30 days once over. The stand-in (`fake-espn.js`) answers
+  both (`calendars`), and the month. `record-espn-slate.js` (new, reusable) records a league's calendar, types and months trimmed
+  (`tests/fixtures/espn/*-schedule-league-*.json`: the NFL's 2026, the Premier League's 2026-27, the NBA's November, MLB's June;
+  "schedule" in the name, so the tests reading every recorded game skip them).
+- **Migration 0304:** `season_events` keyed by episode and event (an episode links several; every season before links one, so every
+  row stays); `game_lines.event_id` (a player's line a game each: a week's games, a doubleheader's two; '' for the lines before and
+  coming in); `sports_slates` (provider, league, season, stage, cadence, each episode's window, its key, who made it, when it last
+  synced).
+- **Made** (`src/lib/server/sports/slate.ts` `makeSlate`): its league's show (L1 part 3's `leagueShow`, now shared), its episodes at
+  once from the calendar (titled "Week 9", "Round 12", "Sun, Nov 8", their dates in the note; each one's air time its first game's
+  start, or its first day's start in the East until its games are linked: a lock never late), the games from three days back to eight
+  ahead linked then, a soccer league's every fixture at once (its rounds need them: a month's scoreboard each), the links' `sports_links`
+  row so the listings' linking leaves it alone (and `linkSeason` refuses a slate besides), its people the linked teams' rosters after
+  the answer. Refused (`SlateRefused`) for a cadence the league isn't cut by, or a stage not listed yet; null for a league that isn't a
+  team sport ESPN has. Asked again: found, by its key.
+- **Kept current** (`syncSlate`, run first by the daily listings job's `refreshSportsEvents`, so its games' facts are kept in the same
+  run): each day's scoreboard from three back to eight ahead (the same answers the job reads for every linked game, cached), a game
+  not linked yet linked to the episode its day is in, one on another episode's day moved to its own (a flexed or rained-out game), a
+  game listed later (a makeup) linked, each touched episode's air time its first game's start, the season's status from its days
+  (completed only once every linked game is over); the playoffs, listed as they go, add episodes after the last (a regular season's
+  calendar holds all of it, so the play-in's games past its last day are never its); new teams' rosters added (cast.ts only adds).
+- **Several an episode, read** everywhere a season's links are read: `locksOf` locks an episode of several games at its own first
+  game (by start, day or week: never another episode's day or week, so a Monday-to-Sunday week's Monday isn't locked with the
+  Tuesday-to-Monday week before), a listing's episodes of one game each with their day's or week's first as before;
+  the listings' linking replaces an episode's link rather than adding one; the stats fill saves a game's lines by its event (the lines
+  from before 0304 replaced with it) and drops a game moved off its episode; `castable` takes a slate as a matchup; the spans' teams
+  are an episode of one game's. **`leagueGames`** (`score.ts`): a slate's every episode (one with a single game listed so far too, so
+  its shape never changes as more are linked) keeps each game apart, `slate` (event id to its facts, as the grader reads one, as of the
+  mark) and `byGame` (each final game's lines), and its `lines` are its final games' counts added up with the derived stats worked out
+  on the sum (a category over a week); `games` and `sides` stay a listing's or a matchup's (an episode of one game).
+- **A regular season's last episode reaches its stage's last day** (a makeup after the last listed day, a fixture moved past the last
+  round, is still its); the playoffs' grow, an episode at a time, as they're listed.
+- **Checks:** `tests/sports-slate.test.js` (8, on the recordings: the calendars, the cadences, the NFL's weeks, the NBA's days and
+  weeks, MLB's postponement and makeup, the Premier League's 38 rounds, the words, an episode's lock at its first game);
+  `scripts/dev-test/check-slate.js` (new, reusable; this lane's database and the stand-in, keyed `zt-slate-`, its events `zt-sl-*`,
+  cleaned up; never beside check-matchup.js): 33 checks, all pass (made by day, linked in the window, a day's games and a postponed one
+  in one episode, a doubleheader's two, a makeup on a day off in the next day's episode, air times, its key and status and facts, the
+  listings' linking leaving it alone, its people, found again, by week, by round refused, the playoffs from ESPN's days and an episode
+  added past their last, a moved game moved, a game listed later and one three weeks on linked, the daily job, a day's lock, the
+  Players tab's lines a game each, `leagueGames` on an episode of two finals and a postponed game, a soccer league by round read a month
+  at a time, a soccer week refused, no such league). `/code-review` on the diff (its fixes: a Monday-to-Sunday week's lock; a slate's
+  shape by its being one, not by its games so far; a regular season's last window to its stage's end; a team's roster retried while
+  it has nobody in, not only when the run linked it; the sync's windows and links read under its lock; the listings' link replaced in
+  one statement under its episode's row lock (two runs at once leave one); a linked game's sides refreshed (a playoff's once set); an
+  added day's episode named by its own day; a calendar ESPN didn't give kept an hour, not a day; no day read past a regular season's
+  last; the season's stages asked at once). `check-find-game.js`, `check-matchup.js`, `check-finals.js`,
+  `check-live-event.js` (6 of 6) and `check-sports-links.js` pass. 1,796 unit tests, the one round-trip failure aside (master's, as
+  before); `tsc` clean; eslint clean on src/lib/sports, src/lib/server/sports, src/lib/game/sequence, src/app/api/sports,
+  air-times.ts and start-game.ts. The real ESPN's calendars read right (the NBA's, the NFL's, the Premier League's, 2026-11-06).
+- **The long checks, last, on `e8aba91d`:** `golden.js --before=ae6211a7` (the step before): Survivor 49, The Traitors US 4 and The
+  Challenge 40, 74 games, 9,548 reads, every one the same. blind.js and the rehearsal not run: no show's game links several games an
+  episode, and every read is kept the same (golden alone).
+- **For the engine lane (with L3 part 2's hook):**
+  - A **week's games** (built in L3 part 2f part 1: each game scored on its own and added up, a week's results once all its games
+    are over): `leagueGames`' `lines` for an episode of several games are its counts added up, so a categories matchup over
+    a week reads them as it reads one game's (L4 part 1b's window is the episode); points per stat with a per-game bonus (100 yards,
+    a double-double) score each game of `byGame` through `statLine` and add them (`statMoments` over each game, summed per holding).
+  - **A question per game of an episode** (built in L3 part 2f part 2: `each: 'game'`, confidence points, each pick locking at its own
+    game's start; an over/under on each game waits for L3 part 3b's lines) (pick'em over a week's slate, confidence points): `facts.games` is an episode's one game
+    today; an episode of several hands `slate` (event id to facts) over, and a question asked over "every game this week" answers a
+    side per game (`{ [eventId]: side }`, like a bracket's picks), graded per game against its facts, each pick locking at its own
+    game's start (a lock per game inside an episode: L4 part 1a's `closedForPlay` reads `locksAt`, the episode's first game, today).
+    The faces are the episode's games as linked at the lock (`sidesFor` reads `games`: an episode of several needs the game named).
+  - **Daily lineups inside a week's episode** (built in L8 part 1's engine items, part 1: `closes: 'game'`, each holding locking at its
+    own game's start for the rest of that day, each game counting the lineup in force when it started) (Yahoo's NBA: set each day,
+    scored over the week): a holding locks at its own game's start; today an episode locks once, at its first game.
+  - **A playoff's series as a bracket** (built in L8 part 1's engine items, part 2: each game's round from ESPN's note, kept with its
+    link, grouped by round and teams rather than `oneSeries`; a bracket `of: 'playoffs'`, asked once) (L4 part 2's Noticed): a playoffs slate's games, grouped by `oneSeries` (matchup.ts), are each
+    series' games; `bracketOf` takes each series as a bout once its round is known (ESPN's note: "East 1st Round - Game 3").
+
+**L8 part 1 noticed, not fixed:**
+- **Only the season now**: `calendar(league)` reads ESPN's bare scoreboard, its season now (MLB's is its 2026 postseason in November;
+  its 2027 isn't readable until ESPN moves on). A season ahead (or one past, to replay) needs ESPN's calendar for another year
+  (`?dates=2027` or the core's season), when a couch wants to make one early.
+- **A day's slate puts a makeup on a day off into the next day's episode**, whose lock (its first game) then moves a day earlier. Rare
+  (an NBA makeup on an off day); its episode's lock is never late, only early.
+- **A soccer round with a match moved between two rounds** starts a short round (each team once a round), as FPL calls a double
+  gameweek otherwise. The Premier League's 2026-27 as listed today is 38 whole rounds; a moved match mid-season would show it. FPL's
+  own rounds aren't ESPN's.
+- **College slates read ESPN's default scoreboard**: college football's and basketball's day scoreboards list ESPN's own selection
+  (the top 25's and featured games), so a college slate is that selection (a "top 25 pick'em", not every D1 game: `groups=80` would
+  be every FBS game, master's plan's Later).
+- **A tour's season** (golf's, F1's, NASCAR's, the UFC's: an event an episode, a one-and-done pool) isn't a slate: `cadencesOf` gives
+  a field or a card none. It's L1 part 3's listing (an event an episode) made from the tour's calendar: its own step when a couch asks.
+- **Two players of one name in a league** (MLB's two Will Smiths) are one `season_cast` row (its key is the name): the second's
+  lines go to nobody. Matched by name already (L3 part 1's Noticed); a slate's whole league makes it likelier. (When the cast carries
+  the provider's id: R2 or U1.)
+- **The NBA's play-in** (its own stage, 5) is in neither slate: a playoffs slate starts at the first round.
+
+**L8 part 2 as built: finding and adding a league's slate (2026-11-06, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration; a new route, no new kind
+of ESPN call: HOSTING.md).** The data side of adding a whole league by its name, as routes the screens can read (U0, U1: no screen).
+- **A league by its name** (`src/lib/sports/teams.ts` findLeagues, pure): the leagues some words name, by the names their team lists
+  already give (ESPN's full name, its short one, its show's name and its path's words), on teamScore's rules: "nfl" and "NBA" (their
+  abbreviations, 100), "premier league" (its short name, 96: once a list of it is searched), "national football" (85), "football"
+  (the NFL and college football, 70), "ncaaf", "mens college basketball"; a team's name names none ("eagles", "yankees red sox").
+- **The search** (`find.ts` searchTeams; `/api/sports/search` answers `{ teams, matchup, leagues }`): the lists' leagues beside their
+  teams, at no cost (the lists are read anyway); ESPN's own search when the lists find no team and no league, now for its leagues
+  too (of a sport the app reads: a cricket league is left out), a team sport's named as its list names it (a `/teams` call a league
+  found, a week in the cache; the lists read at once): "premier league" is the Premier League (`soccer/eng.1`, "Premier League"), the
+  Premier League Asia Trophy, the Welsh Premier League, the Scottish Premiership and the Jamaican; "mls" MLS; "f1" Formula 1. Each
+  says `slate`: a team sport's league can be one, a tour's or a promotion's (Formula 1, the PGA Tour, the UFC) can't. ESPN's
+  search lists a league's clubs beside it ("premier league": Manchester United, Liverpool ...; "mls": the Whitecaps): a team of a
+  league it found is left out unless the words fit it, so a name only ESPN knows ("sixers") is kept whatever leagues it finds.
+- **What a league's slate can be** (`slate.ts` leagueSlates; `GET /api/sports/league?league=`, new, open signed out, edge-cached ten
+  minutes, a minute when a count is missing): its season now (ESPN's year and as people say it, "2026-27"), what an add that names
+  nothing makes (`usual`: the playoffs while the calendar's in them, else the regular season, by its usual cadence), and its stages
+  (the regular season or a soccer league's whole season, the playoffs), each with its days, whether they're past, now or coming, and
+  each way it's cut (`cadencesOf`, the usual first), named as its season would be (or is), with its episodes (as many as it has,
+  made; else as many as it would have: 0 when the stage lists none yet, so an add is refused; null when the provider didn't answer
+  for a round's fixtures) and the season made for it. A soccer league's rounds are counted from its fixtures (the month scoreboards a
+  round slate reads anyway, at once), only while its round slate isn't made. A tour's or a promotion's league: `slate: false`, no
+  stages; no such league 404, a path that isn't one 400, the provider down 503. On the real ESPN (2026-11-06): the NFL's 2026 by week,
+  18, and its playoffs' 4; the NBA's 2026-27, 25 weeks or 160 days, its playoffs 0 yet (ESPN's days don't list them in November); the
+  Premier League's 2026-27, 38 rounds or 77 days.
+- **Adding one** (`find.ts` addSlate; `POST /api/sports/add` with `{ league, slate: { stage?, cadence? } }`, signed in): made or found
+  through makeSlate (its new `beforeMake`, run only when it isn't made: the day's cap, so finding one is free) and followed; answers `{
+  seasonId, made, name, league, stage, cadence, episodes, games }` (`games` linked so far). The day's cap is one count for matchups and
+  slates (`underCap`: ten a person a day, `sports_matchups.made_by` and `sports_slates.made_by` both). 400 for an ask that isn't one, a
+  stage or cadence that isn't one, a tour's league ("Its season is an event an episode, not a slate"), and SlateRefused's words (a
+  cadence the league isn't cut by, a stage not listed yet, none listed); 404 for no such league; 429 past the cap; 503 for the
+  provider down. A league spelled in capitals is the same league (`leaguePath`, shared by the route and the add).
+- **Checks:** `tests/sports-find.test.js` (11: findLeagues on the real lists and the Premier League's; ESPN's search's leagues and
+  teams as its answers read on 2026-11-06, a stand-in provider); `scripts/dev-test/check-slate.js` (now 55; its user `zt-slate-user`):
+  what a league's slate can be before any's made (its season, its stages and days, each cut each way with its episodes, the playoffs'
+  from ESPN's days, a soccer league's rounds from its fixtures read a month at a time), a tour's league no slate, no such league none;
+  a league by its list's names (ESPN's search not asked), through ESPN's search named as its list names it, a promotion's no slate;
+  once made, the seasons made for them and the playoffs' grown; adding (one made found and followed, a new one made by them and
+  followed, a league in capitals, the asks refused, the day's cap counted with matchups, one made still free past it).
+  `/code-review` on the diff (its fixes: a found league's own clubs left out, never a nickname's team; a degraded answer kept a minute
+  at the edge; a made slate's own name, and a league named from its fixtures as makeSlate names it; the months and the lists read at
+  once; 503, not 404, with no sports; one league-path check; the add route's body read as unknown). `check-find-game.js`,
+  `check-matchup.js`, `check-finals.js`, `check-sports-links.js` and `check-live-event.js` (6 of 6) pass. 1,798 unit tests, the one
+  round-trip failure aside (master's, as before); `tsc` clean; eslint clean on src/lib/sports, src/lib/server/sports,
+  src/lib/game/sequence and src/app/api/sports. The routes read right on this lane's dev server against the real ESPN.
+- **The long checks, last, on `33b8e6de`:** `golden.js --before=55c985d8` (the step before): Survivor 49, The Traitors US 4 and The
+  Challenge 40, 74 games, 9,548 reads, every one the same. blind.js and the rehearsal not run: the step changes no game's read
+  (golden alone).
+
+**L8 part 2 noticed, not fixed:**
+- **The day's cap is soft**: counted before a slate is made, outside the transaction that makes it (as add-show's and the matchups'
+  are), so a person's adds sent at the same moment can each pass it. A lock per person if it's ever abused.
+- **A promotion's league isn't checked to exist**: mixed martial arts reads every league, so `/api/sports/league?league=mma/anything`
+  answers `slate: false` (200), where a team sport's unknown league is a 404. Harmless (nothing to add); a call to know would cost
+  ESPN one for nothing.
+- **ESPN's search's leagues include cups, preseason tournaments and lower leagues** (the Premier League Asia Trophy, the Jamaican
+  Premier League): each a team sport's, so `slate: true`, their calendars untried. A cup's knockout rounds by "round" would read
+  each team once a round as a league's do; a cup made of groups and knockouts may want its stages (U1, if a couch asks).
+- **The NBA's playoffs list 0 episodes until ESPN's day calendar has them** (in November it doesn't): an add is refused ("It has no
+  games listed yet") until it does. The screens can say "Playoffs: coming" from `episodes: 0`.
+
+**L8 part 3 as built: one meaning of a sports week (2026-11-06, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration, no ESPN calls, nothing stored).**
+The main session's note of 2:25 PM: L4 part 1a's weekly lock ran Tuesday to Monday for every weekly sport while L8's episodes are
+ESPN's weeks, Monday-to-Sunday weeks, days or rounds, so "a week" had two calendars. Now it has one: the episode's, where the season
+has episodes of its own (the Decisions table's "A sports week").
+- **A slate's episode is the week** (`src/lib/sports/locks.ts` `locksOf(starts, closes, { slate })`): on a league's slate every
+  episode locks at its own first game, whatever `closes` says (`start`, `daily` or `weekly`); its bounds are its window, and its
+  games are linked into it by their day (syncSlate), so its first linked game is the first game in its bounds. Part 1 got there by
+  counting (an episode of several games locked at its own first): an episode of one game (a soccer day's one match, a week with one
+  game linked so far, the playoffs' first day) fell back to the calendar and locked with an earlier episode's game. Now the season
+  says it (`sportLocks` reads `sports_slates` beside the starts, in the same query), and the count is gone. On the recorded Premier
+  League 2026-27 by round, some rounds share a Tuesday-to-Monday week with a midweek round before them: the calendar would lock the
+  weekend's round at the midweek one's first match; each now locks at its own.
+- **Where Tuesday to Monday still is**, and why: a **team's season** (L1 part 3's listing: one team's games, one an episode) and a
+  **matchup's series** (L7: two teams' meetings) that close weekly (football's, soccer's defaults): one game an episode and nothing
+  else defining a week, so a week of them is Yahoo's (Thursday night to Monday night), Eastern. `daily` on them stays the Eastern
+  day, `start` each game's own. Nothing else in the app reads a sports week: the guide's week (`server/guide.ts` weekOf) is the TV
+  listings' eight days, trivia's is its own, and the engine's matchup window is the episode (L4 part 1b's hook note, rewritten).
+- **The words already fit**: the default specs say "each week" ("set a lineup each week, play someone head to head each week") and
+  "each gameweek" (soccer's), which on a slate is the episode and on a team's season the calendar's week, one game in it. Nothing on
+  a screen yet (U0, U1: the episode's own label, "Week 9", "Round 12", "Sun, Nov 8", is the week a screen names).
+- **Checks.** `tests/sports-slate.test.js` (the lock test rewritten on the season's flag, +1: the Premier League's 38 rounds each at
+  its own first match, the calendar's earlier for some); `tests/dst.test.js` (+3 asserts: a Monday-to-Sunday slate week starting on
+  Monday Nov 2, 8:15 PM EST, Nov 3 in UTC, locks at that game, weekly and daily, where the calendar puts it in the week from Tue Oct
+  27); `scripts/dev-test/check-slate.js` (now 56, all pass: a weekly lock on the day slate, each episode at its own first game, from
+  the database); `check-matchup.js` (20, all pass: the series' locks by start, day and the calendar week, unchanged). 1,799 unit
+  tests, the one round-trip failure aside (master's, as before); `tsc` clean in src (two stale `.next/types` entries for routes
+  not on this branch); eslint clean on locks.ts and air-times.ts.
+- **The long checks, last, on `d7826503`:** `golden.js --before=5aeaf24a` (the step before): Survivor 49, The Traitors US 4 and The
+  Challenge 40, 74 games, 9,548 reads, every one the same. blind.js and the rehearsal not run: no show's game locks daily or weekly
+  or plays a slate, so every read is kept the same (golden alone).
+
+**L8 part 3 noticed, not fixed:**
+- **A team's season that closes weekly still has its own week beside a slate's**: a team's Tuesday-to-Monday week and, if the same
+  couch also plays the league's slate, ESPN's week (football: Thursday to Monday, the same games) or a soccer round. For football
+  they agree; for soccer a team's midweek match and its weekend one share a calendar week but are two rounds. A team's season could
+  read its league's slate's windows when one is made (or ESPN's calendar), at the cost of a team's week depending on whether someone
+  made the slate. Left: one game an episode, and a team's two matches in a week are rare outside cup weeks.
+- **A daily lineup inside a slate's week** (the NBA by week, `closes` daily) locks once, at the week's first game: part 1's "For the
+  engine lane" item (a holding locking at its own game's start) is where it changes, with the hook.
+
 **Open, from the sports plan:** head-to-head's schedule over a span, and playoffs; whether a sport's moves follow Weekly
 Lineup's waivers or need their own rhythm for daily sports; what a live call is worth, and how fast they open and close;
-tennis's draw, and how a bracket reads ESPN's. **Noticed:** golf, racing, MMA and tennis can sync a later watch only by round,
+tennis's draw, and how a bracket reads ESPN's (tennis's draw is read: L5 part 4b's `Bout.place` and `draws()`; a bracket game is
+A8's piece). **Noticed:** golf, racing, MMA and tennis can sync a later watch only by round,
 session or bout.
 
 ## The wizard (U0 designs it, last, with impeccable)
@@ -5776,6 +9219,25 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
   - **Each viewer's clock:** live (now), synced (the watch along: start, pause, nudge, ad breaks) or snapped (sports: tap the last
     play you saw). A person's lock is their own clock reaching the close, and every answer carries the runtime it was made at,
     so a call can be worth more the earlier it came.
+  - **The clock is built** (L2, `src/lib/sports/clock.ts` on `sports`, merged with L6 or sooner; pure, plain data: use it as it
+    is; its As built is under track L). Its shape:
+    - `Moment`: ms on the game's own clock. A sport's is ESPN's wallclock on each play (`Play.at`, `playMoment`); a show's is its
+      airing's start plus the runtime, so the engine turns "minute 30" into `start + 30 min` and the clock only compares.
+    - `GameClock`, kept as JSON: `{ mode: "live" }`; `{ mode: "synced", at, wall, running }` (at the viewer's real time `wall`
+      the game was at `at`; it runs on in real time, or stays while paused; never ahead of live); `{ mode: "snapped", at }`
+      (fixed; `at: null` is the end, for anyone not watching). Moves, each taking the viewer's real time `wall`: `startAt(from,
+      wall)` (press play), `pause`, `resume`, `nudge(clock, wall, ±30_000)`, `setTo(clock, wall, moment)` (a tapped play, or a
+      host's clock for a watch party); reads: `momentOf(clock, wall)`, `behind`, `playAt(plays, moment)`, `stateOn(sport, plays,
+      clock, wall, sides)`.
+    - `GameWindow { opens, closes }` (null: from the start, to the end): `isOpen(window, moment)` (from the opening up to, not
+      at, the close) and `isLocked(window, clock, wall)` (someone's own clock has reached the close).
+    - `stamp(clock, wall)` → `{ at, wall, mode }`: a call's moment on its caller's clock (what it's judged by), the real time it
+      was made, and which clock (live calls trust the viewer's clock: the risk below).
+    - `earliness(window, moment)`: 1 at the opening, 0 at the close, null outside it (what "earlier is worth more" pays is the
+      engine's scoring).
+    - `unitWindow(plays, unit)`: an at-bat, a drive or a possession, from its first play's moment to its last's.
+    - Not in it, A15's own: resolving a spec's words to windows, what a call is worth, the watch along's 30 s late bias on what
+      others' answers show, the ghost's replay, the episode's marks (credits, ad breaks).
   - **Settles stay data.** A runtime-pinned question about a show is settled by research after the episode: what happened, not
     when. In-episode timing settles only sports, from ESPN's timestamped plays. Show research has no timestamps. The watch
     along's first concept rejected "moment buttons" (tapping when something happens: spoiler-prone, and nobody does it); they

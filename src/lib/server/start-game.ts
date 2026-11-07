@@ -207,7 +207,9 @@ export function startFrom(schedule: SeasonSchedule | undefined, now: Date): numb
  */
 async function spanEpisodes(seasonId: string, schedule: SeasonSchedule | undefined, sport: boolean): Promise<SpanEpisode[]> {
   const { rows } = await pool.query("SELECT episode, teams FROM season_events WHERE season_id = $1", [seasonId]);
-  const teams = new Map(rows.map((r) => [r.episode as number, (r.teams as SpanEpisode["teams"]) ?? null]));
+  // An episode's game's teams; an episode of several games (a league's slate: L8) is no one game's.
+  const teams = new Map<number, SpanEpisode["teams"]>();
+  for (const r of rows) teams.set(r.episode as number, teams.has(r.episode as number) ? null : ((r.teams as SpanEpisode["teams"]) ?? null));
   return (schedule?.episodes ?? []).map((e) => {
     const linked = teams.get(e.number) ?? null;
     return { number: e.number, title: sport || linked ? (e.title ?? null) : null, teams: linked };

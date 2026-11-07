@@ -5,7 +5,7 @@ import type { LeagueSettings } from "../types";
 import type { FactEntry, FactOutcome } from "../formats/episode-facts.js";
 
 export type PresetId = "outlast" | "weekly-lineup" | "survival-pool" | "weekly-calls" | "weekly-bingo";
-export type LeagueTypeId = "classic-draft" | "active-roster" | "pickem" | "weekly-calls" | "weekly-bingo" | "questions" | "stages";
+export type LeagueTypeId = "classic-draft" | "active-roster" | "pickem" | "weekly-calls" | "weekly-bingo" | "questions" | "stages" | "squares";
 /** Who builds a value: today's engine, a later step, the sports branch, or no step yet. */
 export type Builder = "now" | "sports" | "later";
 
@@ -85,8 +85,9 @@ export type SpecGet =
   | { by: "pick"; each: number; repeat: "cycle" | "never" | "any"; second?: { fallback: "void" | "counts" }; fallback?: "miss" | "skip" }
   | { by: "card" }
   | { by: "none" }
-  /** sports */
-  | { by: "squares" };
+  /** sports. L4 part 2: a grid of a team game's two scores' last digits (10 by 10 or 5 by 5), its squares picked (up to `each`)
+   *  or dealt at random, the digits drawn at the lock (squaresProblems, sequence/squares.js). */
+  | { by: "squares"; grid?: 10 | 5; take?: "pick" | "deal"; each?: number };
 
 export type SpecCount =
   | { start: number }
@@ -154,7 +155,28 @@ export type SpecScore =
   /** A12 part 1: a game in stages, scored by its stages (its overall). */
   | { by: "stages" }
   /** sports: the Sport's stat keys -> points */
-  | { by: "stats"; points: Record<string, number> };
+  /** L1 part 4a: by a sport's stats (statScoreProblems): points each, and its table's points by position group, by place (a
+   *  place or a range, "4-10") and by a bout's format (its rounds or sets, "5"). L4 part 1b: `categories` instead of points, the
+   *  sport's stat keys whose totals are compared (head to head or roto: categoryProblems, sequence/categories.js). */
+  | { by: "stats"; points?: Record<string, number>; byPosition?: Record<string, Record<string, number>>; byPlace?: Record<string, Record<string, number>>; byFormat?: Record<string, Record<string, number>>; categories?: string[] }
+  /** L4 part 2: squares', each pay's points to whoever holds the square of the two scores' last digits then; a square nobody holds
+   *  pays nobody or rolls on; a period whose end was never read pays on the final, or nobody. */
+  | { by: "squares"; pays: SquaresPayAt[]; empty?: "void" | "next"; unread?: "final" | "void" };
+
+/** L4 part 2: a squares pay: at a period's end (its number), halftime or the final score. */
+export interface SquaresPayAt {
+  at: number | "half" | "final";
+  points: number;
+}
+/** L4 part 2: a squares game, read the one way (squaresParts), its defaults in. */
+export interface SquaresParts {
+  grid: 10 | 5;
+  take: "pick" | "deal";
+  each: number | null;
+  pays: SquaresPayAt[];
+  empty: "void" | "next";
+  unread: "final" | "void";
+}
 
 /** A9: a parlay of a game of questions' plain questions (2 to 4, asked the same way), its multiplier when all are right. */
 export interface SpecParlay {
@@ -234,10 +256,10 @@ export type SpecSettle =
   | { by: "players"; take: "majority" | "minority"; of?: string; tie?: "none" | "all" }
   /** C6 part 2: a ticket's legs, the game's questions it's built from. */
   | { by: "legs"; of: string[] }
-  /** sports */
-  | { by: "final"; take: "winner" | "total" | "margin" }
-  /** sports */
-  | { by: "stat"; stat: string; take: "most" | "least" | "value" };
+  /** L1 part 4b: a sport's game's final (a card's bout: `of` 'main' or its id). */
+  | { by: "final"; take: "winner" | "total" | "margin" | "bracket"; of?: string }
+  /** L1 part 4b: a stat in a sport's game, `of` a player or a team (else the game's). */
+  | { by: "stat"; stat: string; take: "most" | "least" | "value"; of?: string };
 
 /** A question answered before its lock (A4), each settled by data. */
 export interface SpecQuestion {
@@ -246,7 +268,9 @@ export interface SpecQuestion {
   ask: string;
   /** group: a tribe or team (A6). order, confidence, chips, split, pairs (A8). side: sports. calls: the show's calls (Weekly
    *  Calls'). trivia (A13): the round before each episode, from its trivia key, answered { [trivia question id]: option }. */
-  answer: "person" | "group" | "side" | "yesNo" | "number" | "overUnder" | "choice" | "calls" | "order" | "confidence" | "chips" | "split" | "pairs" | "trivia" | "ticket";
+  answer: "person" | "group" | "side" | "yesNo" | "number" | "overUnder" | "choice" | "calls" | "order" | "confidence" | "chips" | "split" | "pairs" | "trivia" | "bracket" | "ticket";
+  /** L4 part 2: a bracket's right picks, worth double each round from the first (the default) or the same. */
+  rounds?: "double" | "same";
   /** A8: an order scores each one within this many places of right (0: exactly). */
   within?: number;
   /** A8: a chips answer's chips to spread. */
@@ -290,13 +314,20 @@ export interface SpecQuestion {
   pick?: number;
   /** A person answer: the cast still in (default), or your own team (a draft's). */
   from?: "cast" | "team";
-  /** overUnder's line; null: the wizard asks (or ESPN's, the sports branch). */
-  line?: number | null;
+  /** overUnder's line; null: the wizard asks. L3 part 3b, "game": an over/under on a sport's game's total (`final` `total`, one
+   *  game's or each game's) plays by the game's own line, the latest read when the question opens for answers in a league (kept
+   *  then, never changed once anyone can answer: AnswerFacts.lines); before there's one it waits ("Line coming"). */
+  line?: number | null | "game";
+  /** L4 part 1a: a side answer on who wins that takes a draw too (a soccer match's three ways): `DRAW` is right on a tie. */
+  draw?: true;
   /** choice's options. */
   options?: string[];
   /** A6: asked about each person still in when it closes, answered { castawayId: answer } (a yes or no, a number, an over/under or
    *  a choice for each), settled for each by their own moment or whether they go home or stay. */
-  each?: "person";
+  each?: "person" | "game";
+  /** L3 part 2f part 2, a question about each game (each: "game", a side answer): the picks ranked by how sure you are, each
+   *  { answer, confidence } (the ranks each used once, 1 to the episode's games), a right pick worth its rank times its points. */
+  confidence?: true;
   /** F3 part 2: a group answer asked each episode, on a season played in groups the league doesn't hold (pairs, from the format's
    *  state over time): void (the default) when its groups aren't sure, no points either way; carry-on follows the people;
    *  next-stage is A12's. */
@@ -309,6 +340,29 @@ export interface SpecQuestion {
 /** A question as a spec holds it once it's whole (fullSpec): asked and closes always said. */
 export type Question = SpecQuestion & { asked: "once" | "each" | "every" | "phase"; closes: "start" | "finale" };
 
+/** L1 part 4b: a sport's game as the grader reads it (src/lib/sports/spec.ts gameFacts builds it). */
+export interface SportsGameFacts {
+  status: "pre" | "in" | "final" | "off";
+  /** `shootout`: L4 part 1a, each side's penalty shootout goals when the score is level after one (never in the score). */
+  sides: { id: string; score: number; shootout?: number }[];
+  lines: Record<string, Record<string, number>>;
+  teams: Record<string, string>;
+  places?: Record<string, number | null>;
+  /** The stats whose values are places (a missing one: out of the places). */
+  placed?: string[];
+  /** L4 part 2: a bout's draw (the sport's key: tennis's MS) and how many rounds it is from the draw's final, where it's in one. */
+  bouts?: Record<string, { sides: string[]; winner: string | null; outcome: string | null; main: boolean; class?: string | null; fromFinal?: number | null }>;
+  /** L4 part 2: a team game's periods' ends, each side's score then, in order (regulation's and any extra), as far as they're read. */
+  periods?: Record<string, number>[];
+  /** L3 part 2f part 2, a question about each game's (AnswerFacts.slate's): the game as linked, its name, when it starts (its pick
+   *  locks then) and its sides by name, as listed. */
+  listing?: { name: string | null; startsAt: string | null; sides: { id: string; name: string | null }[]; line?: number | null; lineAt?: string | null };
+  /** L3 part 3b: why a game that's off wasn't played (postponed: its makeup, when there is one, a game of its own; canceled). */
+  called?: "postponed" | "canceled";
+  /** L8 part 1's engine items, part 2: a league's playoffs (AnswerFacts.playoffs), the episode their final was won in, where the
+   *  games say (a walk's week before it grades the bracket as still being played: answers.js factsThrough). */
+  wonAt?: number;
+}
 /** What a game's results say, for grading its questions (answers.js). */
 export interface AnswerFacts {
   from: number | null;
@@ -355,6 +409,18 @@ export interface AnswerFacts {
   /** A13 part 2: what research said of each episode fact, by episode, for each episode whose stored research has the section: the
    *  server's (episode-facts.ts episodeFactsFor). No map at all, a fact question waits. */
   episodeFacts?: Map<number, Record<string, FactOutcome>>;
+  /** L1 part 4b: each episode's game as of the viewer's moment, a sport's (src/lib/sports/spec.ts gameFacts). */
+  games?: Map<number, SportsGameFacts>;
+  /** L8 part 1's engine items, part 2: a league's playoffs slate's series as one card (each a bout of the draw "playoffs"), as of
+   *  the viewer's moment: a bracket of the playoffs' (the server's: sports/score.ts leagueGames). */
+  playoffs?: SportsGameFacts | null;
+  /** L3 part 2f part 2: each episode's games by the provider's event id (a week's slate's, or an episode's one), as of the viewer's
+   *  mark (sports/score.ts leagueGames' eachGame), for a question about each game. */
+  slate?: Map<number, Map<string, SportsGameFacts>>;
+  /** L3 part 3b: the line each over/under on a game's own line (`line: 'game'`) plays by, kept when it opened in the league
+   *  ("question|window|event": an episode's one game's event ''; a question about each game, each game's id). None kept: it has
+   *  no line (nobody could answer it). */
+  lines?: Map<string, number>;
   /** A14 part 2: the bot's own call on each window of a question played against it ("question|episode", the window's key: 0 asked
    *  once), each once its window's lock has passed (bot_calls): the server's (answer-points.ts botCallsFor). A window with none has
    *  no entry; no map at all, a question played against the bot waits. */
@@ -397,7 +463,8 @@ export type PlayersTally = { answer: string; n: number }[];
 /** How a question stands: still to settle, off (nobody went home, right on the line), or what was right (and a count; the
  *  groups the right people were on; a question about each person, each one's verdict by castaway id). */
 export type Verdict =
-  | { state: "waiting" }
+  /** L1 part 4b: a sports question live, where it stands now (the value, or who's ahead). */
+  | { state: "waiting"; live?: { right?: string[]; value?: number; each?: Record<string, Verdict> } }
   | { state: "off"; why: string; tally?: PlayersTally }
   | {
       state: "known";
@@ -407,6 +474,10 @@ export type Verdict =
       value?: number;
       groups?: string[];
       each?: Record<string, Verdict>;
+      /** L1 part 4b: known before the game's final (an over on the total, past its line). */
+      early?: boolean;
+      /** L3 part 3b: an over/under on a game's own line (`line: 'game'`), the line it played by (AnswerFacts.lines). */
+      line?: number;
       /** A8, a ranking: the places each one could hold (0-based; ties share a block). */
       places?: Record<string, [number, number]>;
       /** F3 part 2, a group answer on the timeline's groups: the offered groups that played the episode as offered (a pick of
@@ -469,8 +540,8 @@ export interface GameSpec {
   score: SpecScore;
   rank: SpecRank;
   ask: Question[];
-  /** start: today. sports: daily, weekly. */
-  closes: "start" | "daily" | "weekly";
+  /** start: today. sports: daily, weekly, game (each holding of a lineup locks at its own game's start, for the rest of that day). */
+  closes: "start" | "daily" | "weekly" | "game";
   extras: SpecExtras;
   /** A12 part 1: a game in stages' stages (2 to MAX_STAGES) and how they add up; its own parts are then what fullStaged fills. */
   stages?: SpecStage[];
@@ -568,8 +639,22 @@ export interface SpecContext {
   groups?: string[];
   /** The show's moments (rulebook-moments.js momentsFor, or a format's events). */
   moments?: { id: string; label?: string; defaultPoints?: number | { exclusive: number; shared: number }; answeredBy?: "research" | "league"; auto?: boolean; off?: boolean }[];
-  /** The sport's stat keys (the Sport's, on the sports branch); a label is a singular noun ("home run"). */
-  stats?: ({ key: string; label?: string } | string)[];
+  /** The sport's stat keys (the Sport's, on the sports branch); a label is a singular noun ("home run"); `place`: its value is a
+   *  place (golf's POS), scored only by place. */
+  stats?: ({ key: string; label?: string; place?: boolean } | string)[];
+  /** L4 part 1b: the stats a categories game can name (the Sport's specCategories): every one but a place's, a rate's marked
+   *  (worked out over the window), and which way is better (a label is a singular noun: "turnover"). */
+  categories?: ({ key: string; label?: string; better?: "higher" | "lower"; rate?: boolean } | string)[];
+  /** L1 part 4a: the sport's position groups (a stat's points by position name them; a label is plural: "Goalkeepers"), its
+   *  bouts' formats (the rounds or sets they're scheduled for, { key: "5", label: "5 sets" }; a sport without bouts has none)
+   *  and its standard roster (its lineup's starters and its bench), which raise a show's size limits. The sports'
+   *  specContextOf builds all of them. */
+  positions?: ({ key: string; label?: string } | string)[];
+  formats?: ({ key: string; label?: string } | string)[];
+  sizes?: { starters?: number; bench?: number };
+  /** L1 part 4b: the sport's shape, what its games' finals say: a team game's winner (a side), total and margin; a field's
+   *  and a card's winner (a person; a card's bout by `of`). */
+  shape?: "team" | "field" | "card";
   /** false when the show's results don't say who goes home or wins. */
   results?: boolean;
   /** false when nobody wins the show (no way out that means winning): who wins, where they finish and a top can't settle. */
@@ -717,6 +802,8 @@ export const MAX_QUESTION_POINTS: number;
 /** Grading (answers.js): how a question stands, what each answer earns, whether one was right, why one can't be given. */
 /** `answers` (A14 part 1): the window's answers that settle a question the players settle (its own, or its `of` question's). */
 export function verdictOf(q: Question, episode: number, facts: AnswerFacts, answers?: { playerId: string; answer: unknown }[]): Verdict;
+/** L4 part 1a: the answer a question that takes a draw has right on a tie. */
+export const DRAW: "draw";
 /** F3 part 2: whether a group question reads its groups from the format's state over time where the season has them (asked
  *  each episode, about the one episode). */
 export function readsTimeline(q: Question): boolean;
@@ -724,7 +811,8 @@ export function rightAnswers(q: Question, v: Verdict, facts?: AnswerFacts): stri
 export function pointsFor(q: Question, v: Verdict, answers: { playerId: string; answer: unknown }[], facts?: AnswerFacts): Map<string, number>;
 export function isRight(q: Question, v: Verdict, mine: { playerId: string; answer: unknown }, answers: { playerId: string; answer: unknown }[], facts?: AnswerFacts): boolean | null;
 /** o.most: a wager of any of your points (A9), your points as they stand; C6, beside a bank, what's left of it for any stake. */
-export function answerProblem(q: Question, value: unknown, faces?: Set<string> | null, o?: { most?: number }): string | null;
+/** L4 part 2: a bracket's `faces` is its draw as it stands (sequence/bracket.js bracketOf). */
+export function answerProblem(q: Question, value: unknown, faces?: Set<string> | Map<string, Set<string> | null> | import("../sequence/bracket").BracketField | null, o?: { most?: number }): string | null;
 /** A9: what each answer earns on one window with its ways of combining (a split pot, only the only right one, a rollover's worth,
  *  a shrinking call). */
 export function windowPoints(
@@ -769,6 +857,10 @@ export function shrunk(q: Question, worth: number, a?: { late?: number; changes?
 export const WAGER_TOTAL: "total";
 /** C6, money: a stake's odds when the question leaves them out; a bank's most at the start, and its default (out at zero or not). */
 export const ODDS: "even";
+/** L3 part 3b: an over/under's line that's the game's own (Question.line), kept when the question opens in a league. */
+export const LINE_GAME: "game";
+/** L3 part 3b: a kept line's key (AnswerFacts.lines): the question, its window (0 asked once) and the game (an episode's one: ''). */
+export function lineKey(q: { id: string }, window: number, event: string): string;
 export const MAX_BANK: number;
 export const BANK: { out: boolean };
 /** C6: a game of questions' bank, { start, out }, or null. */
@@ -922,6 +1014,30 @@ export const MAX_PLAYOFF_TEAMS: number;
 /** The rank keys that are head to head's: playoffs, odd, quiet. */
 export const MATCHUP_KEYS: readonly ("playoffs" | "odd" | "quiet")[];
 export function playoffRounds(teams: number): number;
+/** L4 part 1b: how many categories a game compares; a categories game's ranks; a spec's categories (null when it has none). */
+export const MAX_CATEGORIES: number;
+export const CATEGORY_RANKS: readonly ("categories" | "matchups" | "roto")[];
+export function categoriesOf(spec: unknown): string[] | null;
+export interface CategoryParts {
+  by: "categories" | "matchups" | "roto";
+  categories: string[];
+  /** Head to head's (null for roto). */
+  odd: "median" | "bye" | null;
+  quiet: "skip" | "tie" | null;
+  playoffs: { teams: number; rounds: number; from: number | null } | null;
+}
+/** A game ranked by a sport's categories, read the one way from a whole spec; null for a game that isn't one. */
+export function categoryParts(spec: GameSpec | SpecInput | null | undefined): CategoryParts | null;
+/** L4 part 2: squares' grids, ways to take them, what an empty square and an unread period do, the defaults, the most pays; a
+ *  bracket's rounds' worth; a squares game read the one way (null for a game that isn't one). */
+export const SQUARE_GRIDS: readonly (10 | 5)[];
+export const SQUARE_TAKES: readonly ("pick" | "deal")[];
+export const SQUARE_EMPTY: readonly ("void" | "next")[];
+export const SQUARE_UNREAD: readonly ("final" | "void")[];
+export const SQUARES: { grid: 10; take: "pick"; empty: "void"; unread: "final" };
+export const MAX_SQUARE_PAYS: number;
+export const BRACKET_ROUNDS: readonly ("double" | "same")[];
+export function squaresParts(spec: GameSpec | SpecInput | null | undefined): SquaresParts | null;
 export interface MatchupParts {
   odd: "median" | "bye";
   quiet: "skip" | "tie";
@@ -1056,8 +1172,8 @@ export function typeOf(spec: SpecInput | GameSpec): LeagueTypeId | null;
 export function playsAs(spec: GameSpec): LeagueTypeId | null;
 /** The league type's flags, worked out from a whole spec. */
 export function flagsOf(spec: GameSpec): {
-  hasRoster: boolean; hasActiveRoster: boolean; hasBestBall: boolean; hasGroupSlots: boolean; hasKeepers: boolean; hasWeeklyPicks: boolean; hasCalls: boolean; hasQuestions: boolean; hasDraftQuestions: boolean; hasBingo: boolean;
-  hasRace: boolean; hasCuts: boolean; hasAnswerLives: boolean; hasCoop: boolean; hasMatchups: boolean; hasWeeks: boolean; hasTeams: boolean; hasHandicap: boolean; hasStages: boolean;
+  hasRoster: boolean; hasActiveRoster: boolean; hasBestBall: boolean; hasGroupSlots: boolean; hasKeepers: boolean; hasWeeklyPicks: boolean; hasCalls: boolean; hasQuestions: boolean; hasDraftQuestions: boolean; hasBingo: boolean; hasSquares: boolean;
+  hasRace: boolean; hasCuts: boolean; hasAnswerLives: boolean; hasCoop: boolean; hasMatchups: boolean; hasCategories: boolean; hasWeeks: boolean; hasTeams: boolean; hasHandicap: boolean; hasStages: boolean;
   supportsReplenish: boolean; supportsTrade: boolean; supportsFinalePredictions: boolean;
 };
 /**
@@ -1065,6 +1181,8 @@ export function flagsOf(spec: GameSpec): {
  * league), so its couch-answered moments (Make it ours) and points for moments its rules don't have stay as they are;
  * opts.was, with it: the spec it's changing from, so the size limits hold for what grows.
  */
+/** A place or a range of them in a stat's points by place ("1", "4-10"), or null. */
+export function placeRange(key: string): { min: number; max: number } | null;
 export function specProblems(spec: unknown, ctx?: SpecContext | null, opts?: { league?: boolean; was?: SpecInput | GameSpec }): SpecProblem[];
 /** What it needs that isn't built yet; empty when today's engine plays it. */
 export function specWaitsFor(spec: SpecInput | GameSpec): SpecWait[];

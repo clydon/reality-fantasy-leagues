@@ -1,0 +1,195 @@
+{
+  "sport": "tennis",
+  "about": "Tennis's defaults, as data (docs/PLAN-start-a-game-gpt.md track L, L5 part 4b): a sport's standard scoring, lineup slots and locks, and the game specs a sport's Make it a game starts from instead of asking the bot. Stat keys are tennis's (src/lib/sports/tennis.ts), one vocabulary for both tours. ESPN gives a match's score alone (its sets, games and tiebreaks, who won, a retirement or a walkover), so what a standard table scores from a match's statistics (aces, double faults, breaks of serve) isn't scored here. A best-of-five match (a Grand Slam's men's singles) scores by its own table (`byFormat`, by its sets: Bout.rounds). The specs are in the game spec's shape; slots aren't in that schema yet (L4 adds them), so they're kept beside it for the spec to read.",
+  "scoring": {
+    "source": "DraftKings' tennis (its classic contests, as rotowire.com/tennis/article.php?id=40548 gives its table, updated 2018-07-24; actionnetwork.com's Wimbledon guide agrees on its aces and breaks; DraftKings' own rules page answers a 403): best of three, a match played 30, a game won 2.5 and lost -2, a set won 6 and lost -3, a match won 6, a clean set (won without losing a game) 4, straight sets 6, and a win by the opponent's retirement in the 1st set 20, the 2nd 15, the 3rd 10 with the match won (so 14, 9 and 4 on top of it); best of five (byFormat 5), a match played 30, a game won 2 and lost -1.6, a set won 5 and lost -2.5, a match won 5, a clean set 2.5, straight sets 5, and a retirement in the 1st set 20, the 2nd 16, the 3rd 12, the 4th or 5th 8 with the match won (15, 11, 7 and 3 on top). Left out, ESPN having no match statistics: an ace (0.4; 0.25 in best of five), a double fault (-1), a break of serve (0.75; 0.5), no double fault (2.5; 5), 10 or more aces (2; 15 or more in best of five). A walkover isn't in the table read (DraftKings' rules page wasn't readable): a walkover isn't a match played, so it scores nothing here",
+    "points": {
+      "MP": 30,
+      "GW": 2.5,
+      "GL": -2,
+      "SW": 6,
+      "SL": -3,
+      "W": 6,
+      "CS": 4,
+      "STR": 6,
+      "WRET1": 14,
+      "WRET2": 9,
+      "WRET3": 4
+    },
+    "byFormat": {
+      "5": {
+        "MP": 30,
+        "GW": 2,
+        "GL": -1.6,
+        "SW": 5,
+        "SL": -2.5,
+        "W": 5,
+        "CS": 2.5,
+        "STR": 5,
+        "WRET1": 15,
+        "WRET2": 11,
+        "WRET3": 7,
+        "WRET4": 3,
+        "WRET5": 3
+      }
+    }
+  },
+  "categories": {
+    "source": "DraftKings' tennis scores points, not categories (Yahoo, ESPN and FanDuel run no tennis game): none by default",
+    "stats": []
+  },
+  "slots": {
+    "source": "DraftKings' tennis: six players (any six of a day's slate, one tour's; its $50,000 salary cap isn't a slot)",
+    "lineup": [
+      {
+        "slot": "P",
+        "n": 6,
+        "takes": [
+          "players"
+        ]
+      }
+    ],
+    "bench": 0
+  },
+  "closes": "daily",
+  "specs": {
+    "season": {
+      "about": "A season of events: draft 6 players, each scores in every match they play, most points over the season wins.",
+      "spec": {
+        "spec": 1,
+        "span": {
+          "from": 1,
+          "to": null
+        },
+        "pool": {
+          "of": "cast",
+          "where": null
+        },
+        "get": {
+          "by": "draft",
+          "each": 6,
+          "order": "snake",
+          "own": "exclusive"
+        },
+        "count": {
+          "start": 6
+        },
+        "score": {
+          "by": "stats",
+          "points": {
+            "MP": 30,
+            "GW": 2.5,
+            "GL": -2,
+            "SW": 6,
+            "SL": -3,
+            "W": 6,
+            "CS": 4,
+            "STR": 6,
+            "WRET1": 14,
+            "WRET2": 9,
+            "WRET3": 4
+          },
+          "byFormat": {
+            "5": {
+              "MP": 30,
+              "GW": 2,
+              "GL": -1.6,
+              "SW": 5,
+              "SL": -2.5,
+              "W": 5,
+              "CS": 2.5,
+              "STR": 5,
+              "WRET1": 15,
+              "WRET2": 11,
+              "WRET3": 7,
+              "WRET4": 3,
+              "WRET5": 3
+            }
+          }
+        },
+        "rank": {
+          "by": "total"
+        },
+        "closes": "daily"
+      }
+    },
+    "short": {
+      "about": "One event: everyone drafts a few players, every one of them scores in each match they play, most points wins.",
+      "spec": {
+        "spec": 1,
+        "span": {
+          "from": 1,
+          "to": null
+        },
+        "pool": {
+          "of": "cast",
+          "where": null
+        },
+        "get": {
+          "by": "draft",
+          "each": 3,
+          "order": "snake",
+          "own": "exclusive"
+        },
+        "count": {
+          "all": true
+        },
+        "score": {
+          "by": "stats",
+          "points": {
+            "MP": 30,
+            "GW": 2.5,
+            "GL": -2,
+            "SW": 6,
+            "SL": -3,
+            "W": 6,
+            "CS": 4,
+            "STR": 6,
+            "WRET1": 14,
+            "WRET2": 9,
+            "WRET3": 4
+          },
+          "byFormat": {
+            "5": {
+              "MP": 30,
+              "GW": 2,
+              "GL": -1.6,
+              "SW": 5,
+              "SL": -2.5,
+              "W": 5,
+              "CS": 2.5,
+              "STR": 5,
+              "WRET1": 15,
+              "WRET2": 11,
+              "WRET3": 7,
+              "WRET4": 3,
+              "WRET5": 3
+            }
+          }
+        },
+        "rank": {
+          "by": "total"
+        },
+        "closes": "start"
+      }
+    },
+    "pickem": {
+      "about": "Each tournament, before it starts: who wins the final? 5 points if you're right (a draw or no contest counts for nobody), most points wins.",
+      "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers" }, "rank": { "by": "total" }, "closes": "start", "ask": [{ "id": "winner", "ask": "Who wins the final?", "answer": "person", "from": "cast", "points": 5, "settle": { "by": "final", "take": "winner", "of": "main" }, "asked": "each", "closes": "start" }] }
+    },
+    "bracket": {
+      "about": "Each tournament, before it starts: pick the winner of every match of the men's singles draw, round by round to the final. A point for each right pick in the first round, doubling each round after it (64 for the champion of a Grand Slam's 128), most points wins.",
+      "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers" }, "rank": { "by": "total" }, "closes": "start", "ask": [{ "id": "bracket", "ask": "Who wins each round of the men's singles?", "answer": "bracket", "points": 1, "rounds": "double", "settle": { "by": "final", "take": "bracket", "of": "MS" }, "asked": "each", "closes": "start" }] }
+    }
+  },
+  "leagues": {
+    "wta": {
+      "specs": {
+        "bracket": {
+          "about": "Each tournament, before it starts: pick the winner of every match of the women's singles draw, round by round to the final. A point for each right pick in the first round, doubling each round after it (64 for the champion of a Grand Slam's 128), most points wins.",
+          "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers" }, "rank": { "by": "total" }, "closes": "start", "ask": [{ "id": "bracket", "ask": "Who wins each round of the women's singles?", "answer": "bracket", "points": 1, "rounds": "double", "settle": { "by": "final", "take": "bracket", "of": "WS" }, "asked": "each", "closes": "start" }] }
+        }
+      }
+    }
+  }
+}

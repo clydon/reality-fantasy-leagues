@@ -1,0 +1,537 @@
+{
+  "sport": "racing",
+  "about": "Racing's defaults, as data (docs/PLAN-start-a-game-gpt.md track L, L5 part 3b): a sport's standard scoring, lineup slots and locks, and the game specs a sport's Make it a game starts from instead of asking the bot. Stat keys are Racing's (src/lib/sports/racing.ts), one vocabulary for the five series ESPN carries, each series reading what its feed has (F1's sessions, statuses, pit stops and fastest lap; NASCAR's and IndyCar's laps led as laps, bonus and penalty points). The sport's own are NASCAR's (its three series alike); `leagues` has F1's and IndyCar's, which replace them for that series (defaultsFor('racing', 'f1')). A standard game scores a finishing place by a table of places; the game spec's points are one number a stat (A1's schema, on the engine branch), so `points` has the rest and `byPlace` each place stat's table (POS, the race's place in the standings: the disqualified and whoever didn't qualify have none), for when the spec scores places. Places gained (PG) count both ways: a place lost is -1 at 1 a place. The specs are in the game spec's shape; slots and the places aren't in that schema yet (L4 adds them), so they're kept beside it for the spec to read.",
+  "scoring": {
+    "source": "DraftKings' NASCAR (its classic contests, as rotowire.com/racing/article/dfs-nascar-101-tips-and-strategies-for-2023-69988, frontstretch.com/2025/02/14/daily-fantasy-nascar-draftkings-forecast-2025-daytona-500 and stokastic.com/articles/dfs-strategy/nascar-dfs-scoring-explained give it; DraftKings' own rules page wasn't readable): the finish 45 for 1st, 42 for 2nd, 41 for 3rd, then a point less a place and two less after the 10th, 20th and 30th (34 for 10th, 32 for 11th, 1 for 40th); a place gained from the start 1 (a place lost -1); a lap led 0.25. Left out: its fastest laps (0.45 each), which ESPN's NASCAR feed doesn't have",
+    "points": {
+      "PG": 1,
+      "LED": 0.25
+    },
+    "byPlace": {
+      "POS": {
+        "1": 45,
+        "2": 42,
+        "3": 41,
+        "4": 40,
+        "5": 39,
+        "6": 38,
+        "7": 37,
+        "8": 36,
+        "9": 35,
+        "10": 34,
+        "11": 32,
+        "12": 31,
+        "13": 30,
+        "14": 29,
+        "15": 28,
+        "16": 27,
+        "17": 26,
+        "18": 25,
+        "19": 24,
+        "20": 23,
+        "21": 21,
+        "22": 20,
+        "23": 19,
+        "24": 18,
+        "25": 17,
+        "26": 16,
+        "27": 15,
+        "28": 14,
+        "29": 13,
+        "30": 12,
+        "31": 10,
+        "32": 9,
+        "33": 8,
+        "34": 7,
+        "35": 6,
+        "36": 5,
+        "37": 4,
+        "38": 3,
+        "39": 2,
+        "40": 1
+      }
+    }
+  },
+  "categories": {
+    "source": "DraftKings', FanDuel's and F1 Fantasy's racing score points, not categories: none by default",
+    "stats": []
+  },
+  "slots": {
+    "source": "DraftKings' NASCAR: six drivers (any six: racing has no positions; its $50,000 salary cap isn't a slot)",
+    "lineup": [
+      {
+        "slot": "D",
+        "n": 6,
+        "takes": [
+          "drivers"
+        ]
+      }
+    ],
+    "bench": 0
+  },
+  "closes": "event",
+  "specs": {
+    "season": {
+      "about": "A season of races: draft 6 drivers, all 6 score each race, most points over the season wins.",
+      "spec": {
+        "spec": 1,
+        "span": {
+          "from": 1,
+          "to": null
+        },
+        "pool": {
+          "of": "cast",
+          "where": null
+        },
+        "get": {
+          "by": "draft",
+          "each": 6,
+          "order": "snake",
+          "own": "exclusive"
+        },
+        "count": {
+          "start": 6
+        },
+        "score": {
+          "by": "stats",
+          "points": {
+            "PG": 1,
+            "LED": 0.25
+          },
+          "byPlace": {
+            "POS": {
+              "1": 45,
+              "2": 42,
+              "3": 41,
+              "4": 40,
+              "5": 39,
+              "6": 38,
+              "7": 37,
+              "8": 36,
+              "9": 35,
+              "10": 34,
+              "11": 32,
+              "12": 31,
+              "13": 30,
+              "14": 29,
+              "15": 28,
+              "16": 27,
+              "17": 26,
+              "18": 25,
+              "19": 24,
+              "20": 23,
+              "21": 21,
+              "22": 20,
+              "23": 19,
+              "24": 18,
+              "25": 17,
+              "26": 16,
+              "27": 15,
+              "28": 14,
+              "29": 13,
+              "30": 12,
+              "31": 10,
+              "32": 9,
+              "33": 8,
+              "34": 7,
+              "35": 6,
+              "36": 5,
+              "37": 4,
+              "38": 3,
+              "39": 2,
+              "40": 1
+            }
+          }
+        },
+        "rank": {
+          "by": "total"
+        },
+        "closes": "start"
+      }
+    },
+    "short": {
+      "about": "One race: everyone drafts a few drivers, every one of them scores, most points wins.",
+      "spec": {
+        "spec": 1,
+        "span": {
+          "from": 1,
+          "to": null
+        },
+        "pool": {
+          "of": "cast",
+          "where": null
+        },
+        "get": {
+          "by": "draft",
+          "each": 3,
+          "order": "snake",
+          "own": "exclusive"
+        },
+        "count": {
+          "all": true
+        },
+        "score": {
+          "by": "stats",
+          "points": {
+            "PG": 1,
+            "LED": 0.25
+          },
+          "byPlace": {
+            "POS": {
+              "1": 45,
+              "2": 42,
+              "3": 41,
+              "4": 40,
+              "5": 39,
+              "6": 38,
+              "7": 37,
+              "8": 36,
+              "9": 35,
+              "10": 34,
+              "11": 32,
+              "12": 31,
+              "13": 30,
+              "14": 29,
+              "15": 28,
+              "16": 27,
+              "17": 26,
+              "18": 25,
+              "19": 24,
+              "20": 23,
+              "21": 21,
+              "22": 20,
+              "23": 19,
+              "24": 18,
+              "25": 17,
+              "26": 16,
+              "27": 15,
+              "28": 14,
+              "29": 13,
+              "30": 12,
+              "31": 10,
+              "32": 9,
+              "33": 8,
+              "34": 7,
+              "35": 6,
+              "36": 5,
+              "37": 4,
+              "38": 3,
+              "39": 2,
+              "40": 1
+            }
+          }
+        },
+        "rank": {
+          "by": "total"
+        },
+        "closes": "start"
+      }
+    },
+    "pickem": {
+      "about": "Each race weekend, before it starts: who wins? 5 points if you're right, most points wins.",
+      "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers" }, "rank": { "by": "total" }, "closes": "start", "ask": [{ "id": "winner", "ask": "Who wins?", "answer": "person", "from": "cast", "points": 5, "settle": { "by": "final", "take": "winner" }, "asked": "each", "closes": "start" }] }
+    },
+    "pickAFew": {
+      "about": "Each race weekend, before it starts: pick three drivers. 5 points if one of them wins, most points wins.",
+      "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers" }, "rank": { "by": "total" }, "closes": "start", "ask": [{ "id": "few", "ask": "Pick three drivers: one of them wins?", "answer": "person", "pick": 3, "from": "cast", "points": 5, "settle": { "by": "final", "take": "winner" }, "asked": "each", "closes": "start" }] }
+    }
+  },
+  "leagues": {
+    "f1": {
+      "about": "F1's own, from the official F1 Fantasy game (2026): its sessions are scored, not only the race.",
+      "scoring": {
+        "source": "The official F1 Fantasy game's driver scoring, 2026 (fantasy.formula1.com's rules aren't readable without a browser; as f1pitwall.dev/blog/f1-fantasy-scoring-2026 lists it): qualifying 10 for pole down to 1 for 10th, -5 disqualified; the sprint 8 for 1st down to 1 for 8th, its fastest lap 5, a retirement -10; the race 25, 18, 15, 12, 10, 8, 6, 4, 2, 1 for 1st to 10th, a place gained 1 (a place lost -1), its fastest lap 10, a retirement or disqualification -20. Left out: overtakes (1 each) and driver of the day (10), which ESPN doesn't have, and the constructors' scoring (their own slots: L4)",
+        "points": {
+          "PG": 1,
+          "FL": 10,
+          "SFL": 5,
+          "DNF": -20,
+          "DQ": -20,
+          "SDNF": -10,
+          "QDQ": -5
+        },
+        "byPlace": {
+          "POS": {
+            "1": 25,
+            "2": 18,
+            "3": 15,
+            "4": 12,
+            "5": 10,
+            "6": 8,
+            "7": 6,
+            "8": 4,
+            "9": 2,
+            "10": 1
+          },
+          "SPR": {
+            "1": 8,
+            "2": 7,
+            "3": 6,
+            "4": 5,
+            "5": 4,
+            "6": 3,
+            "7": 2,
+            "8": 1
+          },
+          "QUAL": {
+            "1": 10,
+            "2": 9,
+            "3": 8,
+            "4": 7,
+            "5": 6,
+            "6": 5,
+            "7": 4,
+            "8": 3,
+            "9": 2,
+            "10": 1
+          }
+        }
+      },
+      "slots": {
+        "source": "The official F1 Fantasy game: five drivers (its two constructors aren't drivers; its $100M budget isn't a slot)",
+        "lineup": [
+          {
+            "slot": "D",
+            "n": 5,
+            "takes": [
+              "drivers"
+            ]
+          }
+        ],
+        "bench": 0
+      },
+      "specs": {
+        "season": {
+          "about": "A season of races: draft 5 drivers, all 5 score each race weekend, most points over the season wins.",
+          "spec": {
+            "spec": 1,
+            "span": {
+              "from": 1,
+              "to": null
+            },
+            "pool": {
+              "of": "cast",
+              "where": null
+            },
+            "get": {
+              "by": "draft",
+              "each": 5,
+              "order": "snake",
+              "own": "exclusive"
+            },
+            "count": {
+              "start": 5
+            },
+            "score": {
+              "by": "stats",
+              "points": {
+                "PG": 1,
+                "FL": 10,
+                "SFL": 5,
+                "DNF": -20,
+                "DQ": -20,
+                "SDNF": -10,
+                "QDQ": -5
+              },
+              "byPlace": {
+                "POS": {
+                  "1": 25,
+                  "2": 18,
+                  "3": 15,
+                  "4": 12,
+                  "5": 10,
+                  "6": 8,
+                  "7": 6,
+                  "8": 4,
+                  "9": 2,
+                  "10": 1
+                },
+                "SPR": {
+                  "1": 8,
+                  "2": 7,
+                  "3": 6,
+                  "4": 5,
+                  "5": 4,
+                  "6": 3,
+                  "7": 2,
+                  "8": 1
+                },
+                "QUAL": {
+                  "1": 10,
+                  "2": 9,
+                  "3": 8,
+                  "4": 7,
+                  "5": 6,
+                  "6": 5,
+                  "7": 4,
+                  "8": 3,
+                  "9": 2,
+                  "10": 1
+                }
+              }
+            },
+            "rank": {
+              "by": "total"
+            },
+            "closes": "start"
+          }
+        },
+        "short": {
+          "about": "One race weekend: everyone drafts a few drivers, every one of them scores, most points wins.",
+          "spec": {
+            "spec": 1,
+            "span": {
+              "from": 1,
+              "to": null
+            },
+            "pool": {
+              "of": "cast",
+              "where": null
+            },
+            "get": {
+              "by": "draft",
+              "each": 3,
+              "order": "snake",
+              "own": "exclusive"
+            },
+            "count": {
+              "all": true
+            },
+            "score": {
+              "by": "stats",
+              "points": {
+                "PG": 1,
+                "FL": 10,
+                "SFL": 5,
+                "DNF": -20,
+                "DQ": -20,
+                "SDNF": -10,
+                "QDQ": -5
+              },
+              "byPlace": {
+                "POS": {
+                  "1": 25,
+                  "2": 18,
+                  "3": 15,
+                  "4": 12,
+                  "5": 10,
+                  "6": 8,
+                  "7": 6,
+                  "8": 4,
+                  "9": 2,
+                  "10": 1
+                },
+                "SPR": {
+                  "1": 8,
+                  "2": 7,
+                  "3": 6,
+                  "4": 5,
+                  "5": 4,
+                  "6": 3,
+                  "7": 2,
+                  "8": 1
+                },
+                "QUAL": {
+                  "1": 10,
+                  "2": 9,
+                  "3": 8,
+                  "4": 7,
+                  "5": 6,
+                  "6": 5,
+                  "7": 4,
+                  "8": 3,
+                  "9": 2,
+                  "10": 1
+                }
+              }
+            },
+            "rank": {
+              "by": "total"
+            },
+            "closes": "start"
+          }
+        }
+      }
+    },
+    "irl": {
+      "about": "IndyCar's own: its championship points less its penalties, since its fantasy game publishes no values.",
+      "scoring": {
+        "source": "IndyCar's own championship points, one a point (the finish, its qualifying points and its laps-led bonuses, as ESPN gives them), less a penalty's (ESPN's are before them; the season's standings are their sum less the penalties, 2025's and 2026's exactly): the INDYCAR Fantasy Challenge (indycar-fd.ims.com/fantasy/Scoring-Overview) scores the finish, places gained from qualifying, laps led, the best on each team and laps completed, but its values are only in a GridRival league's settings",
+        "points": {
+          "CHPTS": 1,
+          "PEN": -1
+        }
+      },
+      "specs": {
+        "season": {
+          "about": "A season of races: draft 6 drivers, all 6 score each race, most points over the season wins.",
+          "spec": {
+            "spec": 1,
+            "span": {
+              "from": 1,
+              "to": null
+            },
+            "pool": {
+              "of": "cast",
+              "where": null
+            },
+            "get": {
+              "by": "draft",
+              "each": 6,
+              "order": "snake",
+              "own": "exclusive"
+            },
+            "count": {
+              "start": 6
+            },
+            "score": {
+              "by": "stats",
+              "points": {
+                "CHPTS": 1,
+                "PEN": -1
+              }
+            },
+            "rank": {
+              "by": "total"
+            },
+            "closes": "start"
+          }
+        },
+        "short": {
+          "about": "One race: everyone drafts a few drivers, every one of them scores, most points wins.",
+          "spec": {
+            "spec": 1,
+            "span": {
+              "from": 1,
+              "to": null
+            },
+            "pool": {
+              "of": "cast",
+              "where": null
+            },
+            "get": {
+              "by": "draft",
+              "each": 3,
+              "order": "snake",
+              "own": "exclusive"
+            },
+            "count": {
+              "all": true
+            },
+            "score": {
+              "by": "stats",
+              "points": {
+                "CHPTS": 1,
+                "PEN": -1
+              }
+            },
+            "rank": {
+              "by": "total"
+            },
+            "closes": "start"
+          }
+        }
+      }
+    }
+  }
+}

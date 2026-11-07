@@ -35,10 +35,8 @@ module.exports = [
     },
     sentence: "A game for the Red Sox–Yankees series: everyone drafts 3, Games 1–3. Scored 5 a home run and 1 a total base.",
     type: null,
-    waits: [
-      { at: "pool.where", step: "sports" },
-      { at: "score.by", step: "sports" },
-    ],
+    // L3 part 2: the engine scores a sport's stats; the pool of two teams' players is still the sports branch's.
+    waits: [{ at: "pool.where", step: "sports" }],
   },
   {
     name: "the 76ers home opener",
@@ -56,11 +54,8 @@ module.exports = [
     ctx: { show: "the 76ers home opener", castaway: "player", part: { singular: "game", plural: "games" }, stats: [{ key: "PTS", label: "point" }, { key: "REB" }, { key: "AST" }] },
     sentence: "A game for the 76ers home opener: everyone answers three questions before Game 1: who wins, who scores the most points and total points: over or under. A point for each right answer.",
     type: null,
-    waits: [
-      { at: "pool.where", step: "sports" },
-      { at: "ask[0]", step: "sports" },
-      { at: "ask[1]", step: "sports" },
-      { at: "ask[2]", step: "sports" },
-    ],
+    // L3 part 2c: the engine plays the sports settles and the side answer; the pool of two teams' players is still the sports
+    // branch's.
+    waits: [{ at: "pool.where", step: "sports" }],
   },
 ];

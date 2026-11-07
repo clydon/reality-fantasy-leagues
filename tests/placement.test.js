@@ -1,7 +1,7 @@
 // Playing by placement (docs/PLAN-start-a-game-gpt.md track C, C2 part 4): a spec plays when each piece it names has its place in
 // the scoring sequence (game-spec schema.js unplaced: what's held, its lines, the questions beside them, the week's result and the
 // rank), not when it matches one of seven shapes; the shape it plays as (typeOf) is still named for the screens (shapeOf). Proven on
-// the placement corpus (tests/fixtures/placement-corpus.js: 56,025 specs, every way of holding, scoring, ranking and asking crossed,
+// the placement corpus (tests/fixtures/placement-corpus.js: 61,041 specs, every way of holding, scoring, ranking and asking crossed,
 // games in stages, and the parts every game shares), each verdict as the seven shapes gave it before part 4 (placement-corpus.json, 6b8b1269's engine) except the
 // combinations part 4 opens, each listed with why. Run with `npm test`.
 const test = require("node:test");
@@ -9,11 +9,38 @@ const assert = require("node:assert/strict");
 const G = require("../src/lib/game/game-spec/index.js");
 const C = require("./fixtures/placement-corpus.js");
 
+/** A corpus spec by its name (read once, when an opening needs its twin's spec rather than its name). */
+let SPECS = null;
+const specNamed = (name) => (SPECS || (SPECS = new Map(C.corpus()))).get(name);
 /** A moved verdict that loses only its problem: the same shape, the same waits. */
 const only = (was) => `${was[0]}-${was[2]}`;
 /** The combinations C2 part 4 opens, by the corpus' names (hold|score|rank|ask), each with the verdict a spec it moves has now
  *  (`to`: from its verdict before, its name, and any spec's verdict now by name). */
 const OPENED = [
+  // L3 part 2e: squares scored by their squares (paid at the final score), ranked by their points with nobody racing, cut, in teams
+  // or handicapped, asking nothing: it plays as squares (the rest of the corpus' squares keep the problems they had).
+  { why: "squares scored by their squares", test: (n) => n === "squares|squares|total|none", to: () => "x--" },
+  // L3 part 2e: a bracket on a draw (graded on the server's facts.games, checked against the draw as listed) plays wherever a show's
+  // question asked each episode does (its twin asking who goes home), as the other sports questions do.
+  { why: "a bracket question", test: (n) => /\|sports-bracket$/.test(n), to: (was, n, now) => now(n.replace(/[^|]+$/, "boot")) },
+  // L3 part 2f part 2: a question about each game of the episode (each pick graded on its own game, on the server's facts.slate,
+  // locking at its own game's start) plays wherever a show's question asked each episode does, as the other sports questions do.
+  { why: "a question about each game", test: (n) => /\|sports-each-game$/.test(n), to: (was, n, now) => now(n.replace(/[^|]+$/, "boot")) },
+  // L3 part 2c: a question on a sport's game (its final, a stat in it, a side to pick) plays wherever a show's question asked each
+  // episode does (its twin asking who goes home): the same places in the sequence, graded on the server's facts.games.
+  { why: "a question on a sport's game", test: (n) => /\|sports-(pickem|few|total)$/.test(n), to: (was, n, now) => now(n.replace(/[^|]+$/, "boot")) },
+  // L3 part 2b: a day's or a week's lock (closes daily or weekly: the engine's lock reads its first start, ep.locksAt) plays as the
+  // same game locking at each start, a show's too (nothing stamps a show's day, so it locks at each episode's start).
+  { why: "a day's or a week's lock", test: (n) => /^parts\|[^|]+\|(daily|weekly)$/.test(n), to: (was, n) => C.verdictOf(G, { ...specNamed(n), closes: "start" }) },
+  // L3 part 2 (the engine's hook): a draft scored by a sport's stats plays as its twin scored by moments with a lineup does (each
+  // holding's stat line its moments: the same places in the sequence; everyone drafted counting as best ball with all of them), but
+  // a stock market, whose prices are moments' (a problem). Ranked roto, squares and a pick each episode by its stats are track L's
+  // still (CLOSED below, and a pick's no place yet). First: before the openings below, which some of these are too.
+  { why: "a draft scored by a sport's stats", test: (n) => /^[a-z]+-(all|start|best)\|stats\|/.test(n) && !/\|roto\|/.test(n),
+    to: (was, n, now) => {
+      const twin = now(n.replace("|stats|", "|moments|").replace(/^([a-z]+)-(all|best)\|/, "$1-start|"));
+      return n.startsWith("market-") ? `${twin[0]}p${twin[2]}` : twin;
+    } },
   // A draft's own questions beyond its finale predictions (part 4c: the answers' lines join the draft's): it reads as the same game
   // asking nothing, but for a question's own problem (a wager plays alone) and its cuts or a race (no place yet: who's out decides the
   // moves its own writes take, which read it as stored). Before the teams' openings below, which some of these are too.
@@ -42,10 +69,22 @@ const OPENED = [
   // questions beside it, only they wait (a stage alongside), as beside a pool.
   { why: "a pick each episode, one or several, scored by what they do", test: (n) => /^pick(-never|-two)?\|moments(-cap|-times)?\|(total|total-teams|total-hc|matchups|matchups-po|matchups-teams|matchups-hc)\|/.test(n),
     to: (was, n) => (n.endsWith("|none") ? (n.includes("|moments-cap|") ? "pp-" : "p--") : ".-w") },
-  { why: "two picks each episode scored by what they do, ranked a sport's way", test: (n) => /^pick-two\|moments(-times)?\|roto\|/.test(n), to: () => ".-w" },
   // C6, money: a stake beside a share or a rollover, and a parlay's staked leg (the stake a line of its own; a parlay multiplies it
   // with the leg's points): each loses only its problem ("A wager plays alone", "a parlay's legs aren't staked").
-  { why: "a stake beside a share, a rollover or a parlay", test: (n) => /\|(idol-wager-split|idol-wager-rollover|wager-imm)$/.test(n), to: only },
+  { why: "a stake beside a share, a rollover or a parlay", test: (n) => /\|(idol-wager-split|idol-wager-rollover|wager-imm)$/.test(n),
+    // (On the sports branch one ranked roto keeps the roto's refusal, L4 part 1b's CLOSED below.)
+    to: (was, n) => (/^[^|]+\|[^|]+\|roto\|/.test(n) ? `${was[0]}p${was[2]}` : only(was)) },
+  // (C5 also opened two picks each episode ranked roto, to a wait alone: on the sports branch a rank by roto on no categories is
+  // refused, L4 part 1b's CLOSED below, so they stay as they were.)
+];
+
+/** What track L refuses that only waited before, the same wait with a problem: a rank by roto on anything but a sport's categories
+ *  (L4 part 1b, schema.js categoryProblems: score.by 'stats' with categories); squares scored by anything but their squares (L4
+ *  part 2, squaresProblems: score.by 'squares', which the corpus never says; scoring by stats, which the check took beside squares
+ *  before, needs a draft or a pick). */
+const CLOSED = [
+  { why: "a rank by roto on no categories", test: (n) => /^[^|]+\|[^|]+\|roto\|/.test(n), to: (was) => `${was[0]}p${was[2]}` },
+  { why: "squares scored by anything but their squares", test: (n) => /^squares\|/.test(n), to: (was) => `${was[0]}p${was[2]}` },
 ];
 
 test("the placement corpus: every verdict as the seven shapes gave it, but the combinations part 4 opens", () => {
@@ -58,25 +97,42 @@ test("the placement corpus: every verdict as the seven shapes gave it, but the c
   const moved = [];
   list.forEach(([name], i) => {
     if (now[i] === was[i]) return;
-    const open = OPENED.find((o) => o.test(name));
+    const open = OPENED.find((o) => o.test(name)) || CLOSED.find((o) => o.test(name));
     assert.ok(open, `${name}: ${was[i]} -> ${now[i]}, and part 4 opens nothing there`);
     // Its refusal is lifted, nothing else (or, where nothing else holds it back, it plays).
     assert.equal(now[i], open.to(was[i], name, nowOf), `${name}: ${open.why}`);
     moved.push(i);
   });
   // Each opening moves something (the corpus reaches it).
-  for (const o of OPENED) assert.ok(moved.some((i) => o.test(list[i][0])), `the corpus reaches ${o.why}`);
+  for (const o of [...OPENED, ...CLOSED]) assert.ok(moved.some((i) => o.test(list[i][0])), `the corpus reaches ${o.why}`);
   // Part 4a's 169 (a game of questions' combinations), part 4b's 770: 150 play now (28 pools by their points, 14 games in stages
   // with a stage of one, 108 drafts whose teams are knocked out or race), and 620 lose only a problem while something else still
   // waits (questions beside a pool or a draft, a count that doesn't fit, a sport's piece). Part 4c's 854 (against part 4b's engine; 35
   // of them part 4b had moved already, so 819 more here): 744 play now (728 drafts asking their own questions, 16 games in stages with
   // a stage of one), and 110 lose only a wait or a problem while something else still holds them back (a count that doesn't fit, a
-  // captain on best ball, a market's own problem, a wager with a share, their cuts or a race). C5's 225: a pick each episode, one or
-  // two, scored by what they do: 42 play now (asking nothing, ranked by its points or head to head, in teams or with a handicap), 21
-  // a captain still refuses (a lineup's), and 162 lose only a problem while their questions (a stage alongside) or a sport's rank
-  // still wait. C6's 73: a stake beside a share or a rollover, and a parlay's staked leg: 40 play now (games of questions), and 33 lose
-  // only their problem while something else still holds them back (a sport's rank, questions beside a pool).
-  assert.equal(moved.length, 169 + 770 + 819 + 225 + 73);
+  // captain on best ball, a market's own problem, a wager with a share, their cuts or a race). C5's 225: a pick each episode, one
+  // or two, scored by what they do: 42 play now (asking nothing, ranked by its points or head to head, in teams or with a
+  // handicap), 21 a captain still refuses (a lineup's), and 162 lose only a problem while their questions (a stage alongside) or
+  // a sport's rank still wait (on the sports branch 215: its 10 ranked roto stay refused, above). L4 part 1b's 354: a rank by
+  // roto on a show's game refused, as well as waiting for the sports branch (375 in all, 21 of them a draft's own questions part
+  // 4c had moved already, each refused the same way its twin asking nothing is). L4 part 2's 15: squares scored by moments (five
+  // of them multiplied in the finale) or stats and ranked by the total, refused as well as waiting (the rest of the corpus'
+  // squares had a problem already). C6's 73: a stake beside a share or a rollover, and a parlay's staked leg: 40 play
+  // now (games of questions), and 33 lose only their problem while something else still holds them back (a sport's rank, questions
+  // beside a pool); 66 more here, the other 7 ranked roto, which L4 part 1b's 354 had moved already (they keep its refusal). L3
+  // part 2's 500: a draft scored by a sport's stats, 600 in all (100 of them moved already by the teams' openings), 450 playing
+  // now (a lineup, best ball or everyone drafted, by points per stat), 90 a stock market's keeping its problem (its prices are
+  // moments'), 60 waiting only for their questions beside a draft's cuts. L3 part 2b's 14: each kind of game locking daily or weekly,
+  // every one playing now. L3 part 2c's 198 (the corpus' sports questions, recorded from 6b8b1269's engine: three asks across the
+  // question holds, scores and ranks), each as its twin asking who goes home: 66 playing now (45 games of questions, 21 drafts asking
+  // them), the rest held back as their twin is (a rank by roto, a race or a cut in teams, lives).
+  // L3 part 2e's 69: squares scored by their squares and ranked by their points, playing as squares (the corpus' only new score,
+  // recorded from 6b8b1269's engine: every other pairing of it was refused there and still is); the bracket ask across the question
+  // holds, scores and ranks (68, recorded the same way), each as its twin asking who goes home: 22 playing now (15 games of
+  // questions, 7 drafts asking it), the rest held back as their twin is. L3 part 2f part 2's 68: a question about each game (ranked by
+  // confidence) across the question holds, scores and ranks (recorded from 6b8b1269's engine, where `each: 'game'` was refused), each
+  // as its twin asking who goes home: 22 playing now (15 games of questions, 7 drafts asking it), the rest held back as their twin is.
+  assert.equal(moved.length, 169 + 770 + 819 + 215 + 354 + 15 + 66 + 500 + 14 + 198 + 69 + 68);
   // What plays: 933 before part 4, and every opening that plays now (none played before: each had a problem or a wait).
   assert.ok(moved.every((i) => !C.plays(was[i])));
   assert.equal(now.filter(C.plays).length, 933 + moved.filter((i) => C.plays(now[i])).length);
@@ -115,7 +171,8 @@ test("a piece with no place says which, and why", () => {
     stages: [{ id: "a", name: null, game: { ...P.outlast, span: { from: 1, to: 5 } } }, { id: "b", name: null, game: { ...P.outlast, span: { from: 6, to: null }, ask: [{ ...boot, wager: "total" }] } }] };
   one(staged, "stages[1].game.ask[0].wager", "staking any of your points is a game of questions'");
   // A piece still to build is its step's, never "no game plays this way".
-  assert.deepEqual(waits({ ...P.outlast, closes: "daily" }).map(([at, step]) => `${at}:${step}`), ["closes:sports"]);
+  // (Roto plays since L3 part 2d, on a sport's categories: a pool of two teams' players is still the sports branch's.)
+  assert.deepEqual(waits({ ...P.outlast, pool: { of: "cast", where: { teams: ["a"] } } }).map(([at, step]) => `${at}:${step}`), ["pool.where:sports"]);
 });
 
 test("each shape is still named for the screens, from its lines", () => {

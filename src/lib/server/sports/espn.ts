@@ -1,10 +1,16 @@
-import { SportsUnavailable, type BoxScore, type Competitor, type EventState, type Found, type League, type Person, type RosterPlayer, type SeasonLine, type SeasonStage, type SportsEvent, type SportsProvider, type StatTable, type Team } from "./types";
+import { readOdds, type EspnOdds } from "@/lib/sports/matchup";
+// One copy of the sports' classes (the index's): `instanceof` reads them alike wherever they're imported from.
+import { FieldSport, LiveEvent, TeamSport, feedOf, idOf, sportOf, storedCard, storedField, storedGame, str, type BoutAnswer, type BoutSport, type EspnSummary, type EventFeed, type FieldAnswer, type Play, type StoredCard, type StoredField } from "@/lib/sports";
+import type { CalendarStage, CalendarWeek, LeagueCalendar } from "@/lib/sports/slate";
+import { SportsUnavailable, type LeagueName, type LeagueTeams, type BoxScore, type Called, type Competitor, type EventState, type Found, type League, type Person, type RosterPlayer, type SeasonLine, type SeasonStage, type SportsEvent, type SportsProvider, type StatTable, type Team } from "./types";
 
 // ESPN (docs/PLAN-sports-data.md, docs/HOSTING.md): free, no key, but unofficial and undocumented, with no stated rate limit or
 // terms, so it's asked little (every call is cached: cache.ts) and credited in Credits. Three hosts:
-//   site.api.espn.com       a league's scoreboard on a day, a team's roster, a game's summary (its box score)
+//   site.api.espn.com       a league's scoreboard on a day (with its line before a game), a team's roster and schedule, a game's
+//                           summary (its box score, and its line in pickcenter)
 //   site.web.api.espn.com   search (teams and leagues by name), an athlete's stats by season
 //   sports.core.api.espn.com the index of every sport and league
+// and, for a field's or a card's final (L3 part 3: eventFinal), the calls the phone's poller makes for it, asked once.
 // A league's id is ESPN's own path for it ("baseball/mlb", "australian-football/afl", "soccer/eng.1", "racing/f1"), read from
 // its answers (search's sport and league slug, the index's refs), never from a table here. The readers below turn ESPN's
 // answers into the provider shapes (types.ts) and are pure, so tests feed them trimmed real answers (tests/sports-espn.test.js).
@@ -27,6 +33,8 @@ interface RawTeam {
   abbreviation?: string;
   logo?: string;
   logos?: { href?: string }[];
+  color?: string;
+  isActive?: boolean;
 }
 interface RawAthlete {
   id?: string | number;
@@ -37,7 +45,7 @@ interface RawAthlete {
   jersey?: string;
 }
 interface RawStatus {
-  type?: { state?: string; completed?: boolean };
+  type?: { state?: string; completed?: boolean; name?: string };
 }
 interface RawCompetitor {
   homeAway?: string;
@@ -54,15 +62,42 @@ interface RawCompetition {
   status?: RawStatus;
   competitors?: RawCompetitor[];
   notes?: { headline?: string }[];
+  /** A playoff series' record (a scoreboard's and a schedule's): how many games it is at most, each side's wins. */
+  series?: { type?: string; totalCompetitions?: number };
+  /** The line, on a scoreboard before the game. */
+  odds?: RawOdds[];
 }
+/** A sportsbook's line: a scoreboard's `odds[]`, a summary's `pickcenter[]` (read by matchup.ts's readOdds). */
+type RawOdds = EspnOdds;
 interface RawEvent {
   id?: string | number;
   date?: string;
   name?: string;
   shortName?: string;
   season?: { year?: number; type?: number; slug?: string };
+  /** A team schedule's word for the stage (its `season` has only the year). */
+  seasonType?: { type?: number };
   status?: RawStatus;
   competitions?: RawCompetition[];
+  /** A soccer team's schedule names each game's competition (a club's cups are other leagues). */
+  league?: RawLeague;
+}
+/** A scoreboard's league ("English Premier League", abbreviation "Premier League"; "National Basketball Association", "NBA"). */
+interface RawLeague {
+  name?: string;
+  abbreviation?: string;
+  slug?: string;
+  /** L8: a bare scoreboard's season now and its calendar: days (ISO instants), or weeks by stage (football's). */
+  season?: { year?: number; displayName?: string; type?: { type?: number } };
+  calendarType?: string;
+  calendar?: (string | { value?: string; entries?: { label?: string; detail?: string; startDate?: string; endDate?: string }[] })[];
+}
+/** L8: one of a season's types (the core's …/seasons/{year}/types/{n}): its stage and bounds. */
+interface RawSeasonType {
+  type?: number;
+  name?: string;
+  startDate?: string;
+  endDate?: string;
 }
 interface RawStatRow {
   athlete?: RawAthlete;
@@ -80,18 +115,25 @@ interface RawStatTable {
 interface RawSummary {
   header?: { id?: string | number; competitions?: RawCompetition[] };
   boxscore?: { players?: { team?: RawTeam; statistics?: RawStatTable[] }[] };
+  pickcenter?: RawOdds[];
   rosters?: { team?: RawTeam; roster?: (RawStatRow & { stats?: { abbreviation?: string; shortDisplayName?: string; displayValue?: string }[] })[] }[];
 }
 
-const str = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : typeof v === "number" && Number.isFinite(v) ? String(v) : null);
-const idOf = (v: unknown) => str(v) ?? "";
 
 /** A league's id from ESPN's sport and league slugs. */
 export const leagueId = (sport: string, league: string) => `${sport}/${league}`;
 
-function stateOf(s: RawStatus | undefined): { state: EventState; final: boolean } {
+/** ESPN's status names for a game not played as listed (L3 part 3b: the Yankees' 2026, recorded: STATUS_POSTPONED and
+ *  STATUS_CANCELED, each over and not completed; a makeup is an event of its own). */
+const CALLED: Record<string, Called> = { STATUS_POSTPONED: "postponed", STATUS_CANCELED: "canceled", STATUS_CANCELLED: "canceled", STATUS_SUSPENDED: "suspended" };
+
+function stateOf(s: RawStatus | undefined): { state: EventState; final: boolean; called: Called | null } {
   const st = s?.type?.state;
-  return { state: st === "in" || st === "post" ? st : "pre", final: s?.type?.completed === true };
+  const called = CALLED[s?.type?.name ?? ""] ?? null;
+  // A suspended game is finished later as the same game (its event id kept): still being played, whatever ESPN's state says, so
+  // it's never read as called off.
+  if (called === "suspended") return { state: "in", final: false, called };
+  return { state: st === "in" || st === "post" ? st : "pre", final: s?.type?.completed === true, called: called && st === "post" && s?.type?.completed !== true ? called : null };
 }
 
 /**
@@ -144,9 +186,23 @@ function readCompetitor(c: RawCompetitor): Competitor {
   };
 }
 
-/** A scoreboard's events (site.api …/scoreboard). An event in parts (an F1 weekend) keeps each part's field on the part. */
-export function readScoreboard(league: string, raw: { events?: RawEvent[] } | null): SportsEvent[] {
+/** A sportsbook's line (src/lib/sports/matchup.ts, shared with the phone's poller). */
+export { readOdds };
+
+/**
+ * A scoreboard's events (site.api …/scoreboard), or a team's schedule's (site.api …/teams/{id}/schedule: the same events, its
+ * stage in `seasonType`, its scores as { value, displayValue }). An event in parts (an F1 weekend) keeps each part's field on
+ * the part.
+ */
+export function readScoreboard(league: string, raw: { events?: RawEvent[]; leagues?: RawLeague[] } | null): SportsEvent[] {
   const out: SportsEvent[] = [];
+  // Its league as ESPN names it: the event's own (a soccer schedule's), else the scoreboard's of the same slug.
+  const slug = league.split("/").pop();
+  const named = (l: RawLeague | undefined): LeagueName | null => {
+    const name = str(l?.name) ?? str(l?.abbreviation);
+    return name ? { name, short: str(l?.abbreviation) } : null;
+  };
+  const board = named(raw?.leagues?.find((l) => l.slug === slug) ?? (raw?.leagues?.length === 1 ? raw.leagues[0] : undefined));
   for (const e of raw?.events ?? []) {
     const id = idOf(e.id);
     if (!id) continue;
@@ -156,22 +212,65 @@ export function readScoreboard(league: string, raw: { events?: RawEvent[] } | nu
       comps.length > 1
         ? comps.map((c) => ({ id: idOf(c.id), name: str(c.type?.abbreviation) ?? str(c.type?.name), at: str(c.date), state: stateOf(c.status).state, competitors: (c.competitors ?? []).map(readCompetitor) }))
         : [];
+    // An event of parts (a racing weekend's sessions) is over once every part is: ESPN's own status is its last part over's, final
+    // from FP1's end with FP2 to the race to come (Mexico City 2026, recorded live).
+    const partsOn = parts.some((p) => p.state !== "post");
     out.push({
       id,
       league,
       name: str(e.name) ?? "",
       short: str(e.shortName),
       at: str(e.date) ?? str(comps[0]?.date),
-      state: whole.state,
-      final: whole.final,
+      state: whole.state === "post" && partsOn ? "in" : whole.state,
+      final: whole.final && !partsOn,
+      called: partsOn ? null : whole.called,
       season: Number.isInteger(e.season?.year) ? (e.season!.year as number) : null,
-      stage: stageOf(e.season),
+      stage: stageOf({ ...e.season, type: e.season?.type ?? e.seasonType?.type }),
       note: str(comps[0]?.notes?.[0]?.headline),
+      bestOf: comps[0]?.series?.type === "playoff" && Number.isInteger(comps[0].series.totalCompetitions) ? (comps[0].series.totalCompetitions as number) : null,
       competitors: comps.length === 1 ? (comps[0].competitors ?? []).map(readCompetitor) : [],
       parts,
+      odds: readOdds(comps[0]?.odds?.[0]),
+      leagueName: (e.league && (!e.league.slug || e.league.slug === slug) ? named(e.league) : null) ?? board,
     });
   }
   return out;
+}
+
+/**
+ * L8: a league's season now (a bare scoreboard's league: its year, name, stage and calendar) with its stages' bounds (the core's
+ * season types); null when the scoreboard names no season.
+ */
+export function readCalendar(raw: { leagues?: RawLeague[] } | null, types: RawSeasonType[]): LeagueCalendar | null {
+  const l = raw?.leagues?.[0];
+  const season = l?.season?.year;
+  if (!l || !Number.isInteger(season)) return null;
+  const iso = (x: unknown) => (typeof x === "string" && !Number.isNaN(Date.parse(x)) ? x : null);
+  const stages: CalendarStage[] = [];
+  for (const t of types) {
+    const from = iso(t.startDate);
+    const to = iso(t.endDate);
+    if (!Number.isInteger(t.type) || !from || !to) continue;
+    // ESPN's 1 to 3; a soccer league's season is one type of its own number (14308): its whole season (null); the off season (4)
+    // and the NBA's play-in (5) are neither.
+    stages.push({ stage: stageOf({ type: t.type }) ?? (t.type! > 5 ? null : "other"), type: t.type!, name: str(t.name) ?? "", from, to });
+  }
+  const days: string[] = [];
+  const weeks: CalendarWeek[] = [];
+  for (const c of l.calendar ?? []) {
+    if (typeof c === "string") {
+      if (iso(c)) days.push(new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles" }).format(new Date(c)));
+      continue;
+    }
+    const type = Number(c.value);
+    for (const w of c.entries ?? []) {
+      const from = iso(w.startDate);
+      const to = iso(w.endDate);
+      if (Number.isInteger(type) && from && to) weeks.push({ type, label: str(w.label) ?? "", detail: str(w.detail), from, to });
+    }
+  }
+  const name = str(l.name) ?? str(l.abbreviation);
+  return { season: season!, label: str(l.season?.displayName) ?? String(season), now: l.season?.type?.type ?? 2, stages, days: [...new Set(days)].sort(), weeks, leagueName: name ? { name, short: str(l.abbreviation) } : null };
 }
 
 /** Search's teams and leagues (site.web …/search/v2), each with ESPN's league path; anything without one is left out. */
@@ -193,6 +292,21 @@ export function readSearch(raw: { results?: { type?: string; contents?: { uid?: 
     }
   }
   return out;
+}
+
+/**
+ * A league's teams (site.api …/{sport}/{league}/teams?limit=1000; L7): the active ones, each with its names, logo and colour, and
+ * the league's names; null when the answer has no league (ESPN answers an unknown league's list with none).
+ */
+export function readTeams(league: string, raw: { sports?: { leagues?: (RawLeague & { shortName?: string; teams?: { team?: RawTeam }[] })[] }[] } | null): LeagueTeams | null {
+  const l = raw?.sports?.[0]?.leagues?.[0];
+  if (!l) return null;
+  const name = str(l.name) ?? str(l.abbreviation);
+  const teams = (l.teams ?? [])
+    .map((x) => x.team)
+    .filter((t): t is RawTeam => !!t && t.isActive !== false && !!idOf(t.id))
+    .map((t) => ({ ...readTeam(t), color: str(t.color) }));
+  return { league, name: name ? { name, short: str(l.abbreviation) ?? str(l.shortName) } : null, teams };
 }
 
 /** A team's roster (site.api …/teams/{id}/roster): grouped by position (baseball) or one list; players only (its coaches are separate). */
@@ -257,7 +371,7 @@ export function readBoxScore(raw: RawSummary | null): BoxScore | null {
     }
   }
   if (!teams.some((t) => t.tables.length)) return null;
-  return { event: idOf(raw.header.id), state, final, teams };
+  return { event: idOf(raw.header.id), state, final, teams, odds: readOdds(raw.pickcenter?.[0]) };
 }
 
 /**
@@ -279,6 +393,80 @@ export function readSeasonStats(raw: { categories?: { name?: string; displayName
   return out.length ? out : null;
 }
 
+/**
+ * One of ESPN's answers: its body, or null for its "none" (404 or 400: no such league, team, game, athlete or event). ESPN not
+ * answering, answering otherwise than 2xx, or with something that isn't JSON: SportsUnavailable.
+ */
+async function answerOf(url: string): Promise<unknown> {
+  let res: Response;
+  try {
+    res = await fetch(url, { headers: UA, signal: AbortSignal.timeout(TIMEOUT_MS), cache: "no-store" });
+  } catch (e) {
+    throw new SportsUnavailable(`ESPN didn't answer (${(e as Error).name})`);
+  }
+  if (res.status === 404 || res.status === 400) return null;
+  if (!res.ok) throw new SportsUnavailable(`ESPN answered ${res.status}`);
+  try {
+    return await res.json();
+  } catch {
+    throw new SportsUnavailable("ESPN's answer wasn't JSON");
+  }
+}
+
+/**
+ * A field's or a card's final (L3 part 3), from the calls the phone's poller makes (live-event.ts's feed for its sport: golf's
+ * board and leaderboard; a race weekend's board, then its core's lists, statistics and F1's statuses; a tennis event's board; a
+ * card's board and FightCenter, then its rounds, each bout's plays and each fighter's statistics), asked once, in the feed's
+ * rounds, each answer as answerOf reads it. Final once ESPN says so and the feed has nothing left to ask (a counted series'
+ * statistics filled in, a card's settled) and every call answered. Null when ESPN has no such event (a first call's "none", or
+ * answers with no event in them); ESPN failing a first call (its board: an outage) is SportsUnavailable; failing a later one (a
+ * driver's statistics) keeps what's had as not final, so one call never holds the event up for good (saveFinals keeps it as far
+ * as it is once it's old).
+ */
+async function eventFinal(sport: FieldSport | BoutSport, league: string, event: string, hosts: { site: string; core: string; web: string }): Promise<StoredField | StoredCard | null> {
+  const feed = feedOf(sport);
+  if (!feed) return null;
+  let down: SportsUnavailable | null = null;
+  let none = false;
+  let short = false;
+  const ask = async <A, P extends Play, E, S>(f: EventFeed<A, P, E, S>): Promise<{ answer: A | null; had: A | null; done: boolean; error: string | null }> => {
+    const live: LiveEvent<A, P, E, S> = new LiveEvent({
+      feed: f,
+      league,
+      event,
+      base: hosts.site,
+      core: hosts.core,
+      web: hosts.web,
+      fetch: async (url) => {
+        // A first call (its board; not an optional one, a card's FightCenter) or a later round's.
+        const key = Object.entries(live.urls).find(([, u]) => u === url)?.[0];
+        const first = key != null && !(f.optional ?? []).includes(key);
+        try {
+          const body = await answerOf(url);
+          if (body === null) {
+            if (first) none = true;
+            return { ok: false, status: 404, json: async () => ({}) };
+          }
+          return { ok: true, status: 200, json: async () => body };
+        } catch (e) {
+          if (first) down ??= e as SportsUnavailable;
+          else short = true;
+          throw e;
+        }
+      },
+    });
+    await live.poll();
+    return { answer: live.answer, had: live.answer ?? f.answer(live.had, new Date().toISOString()), done: live.done, error: live.lastError };
+  };
+  const got = sport instanceof FieldSport ? await ask(feed as EventFeed<FieldAnswer, Play, unknown, unknown>) : await ask(feed as EventFeed<BoutAnswer, Play, unknown, unknown>);
+  if (down) throw down;
+  if (none || !got.had) return null;
+  // Answers with an event the sport's reader couldn't read.
+  if (!got.answer) throw new Error(got.error ?? "ESPN's answer couldn't be read");
+  const g = sport instanceof FieldSport ? storedField(sport, got.answer as FieldAnswer) : storedCard(sport, got.answer as BoutAnswer);
+  return g && { ...g, final: g.final && got.done && !short };
+}
+
 /** The index's refs ("http://sports.core.api.espn.com/v2/sports/baseball/leagues/mlb?lang=en") to the slug after `after`. */
 const slugsOf = (raw: { items?: { $ref?: string }[] } | null, after: string) =>
   (raw?.items ?? []).map((i) => new RegExp(`/${after}/([^/?]+)`).exec(i.$ref ?? "")?.[1]).filter((x): x is string => !!x);
@@ -291,22 +479,7 @@ export function espn(base?: string): SportsProvider {
   const site = base ?? SITE;
   const web = base ?? WEB;
   const core = base ?? CORE;
-  async function get<T>(url: string): Promise<T | null> {
-    let res: Response;
-    try {
-      res = await fetch(url, { headers: UA, signal: AbortSignal.timeout(TIMEOUT_MS), cache: "no-store" });
-    } catch (e) {
-      throw new SportsUnavailable(`ESPN didn't answer (${(e as Error).name})`);
-    }
-    // No such league, team, game or athlete.
-    if (res.status === 404 || res.status === 400) return null;
-    if (!res.ok) throw new SportsUnavailable(`ESPN answered ${res.status}`);
-    try {
-      return (await res.json()) as T;
-    } catch {
-      throw new SportsUnavailable("ESPN's answer wasn't JSON");
-    }
-  }
+  const get = async <T,>(url: string): Promise<T | null> => (await answerOf(url)) as T | null;
   const path = (league: string) => league.split("/").map(encodeURIComponent).join("/");
   return {
     id: "espn",
@@ -325,12 +498,46 @@ export function espn(base?: string): SportsProvider {
     async eventsOn(league, date) {
       return readScoreboard(league, await get(`${site}/apis/site/v2/sports/${path(league)}/scoreboard?dates=${date.replace(/-/g, "")}&limit=300`));
     },
+    // L8: a month's games at once (ESPN answers a month, "202611", where it refuses a range of days); a month of MLB's is ~400.
+    async eventsIn(league, month) {
+      return readScoreboard(league, await get(`${site}/apis/site/v2/sports/${path(league)}/scoreboard?dates=${month.replace(/-/g, "")}&limit=1000`));
+    },
+    async calendar(league) {
+      const raw = await get<{ leagues?: RawLeague[] }>(`${site}/apis/site/v2/sports/${path(league)}/scoreboard`);
+      const year = raw?.leagues?.[0]?.season?.year;
+      if (!raw || !Number.isInteger(year)) return null;
+      // Its stages' bounds, one call each (the core lists them as refs, at ESPN's own host: asked at ours).
+      const [sport, slug] = league.split("/").map(encodeURIComponent);
+      const refs = await get<{ items?: { $ref?: string }[] }>(`${core}/v2/sports/${sport}/leagues/${slug}/seasons/${year}/types?limit=20`);
+      const types = await Promise.all(
+        (refs?.items ?? []).map((r) => {
+          const at = /\/v2\/sports\/[^?]+/.exec(r.$ref ?? "")?.[0];
+          return at ? get<RawSeasonType>(`${core}${at}`) : Promise.resolve(null);
+        })
+      );
+      return readCalendar(raw, types.filter((t): t is RawSeasonType => !!t));
+    },
+    async schedule(league, team, opts = {}) {
+      const q = [opts.season ? `season=${opts.season}` : "", opts.type ? `seasontype=${opts.type}` : ""].filter(Boolean).join("&");
+      const raw = await get<{ events?: RawEvent[] }>(`${site}/apis/site/v2/sports/${path(league)}/teams/${encodeURIComponent(team)}/schedule${q ? `?${q}` : ""}`);
+      return raw ? readScoreboard(league, raw).sort((a, b) => (a.at ?? "").localeCompare(b.at ?? "")) : null;
+    },
+    async teams(league) {
+      return readTeams(league, await get(`${site}/apis/site/v2/sports/${path(league)}/teams?limit=1000`));
+    },
     async roster(league, team) {
       const raw = await get<Parameters<typeof readRoster>[0]>(`${site}/apis/site/v2/sports/${path(league)}/teams/${encodeURIComponent(team)}/roster`);
       return raw ? readRoster(raw) : null;
     },
     async boxScore(league, event) {
       return readBoxScore(await get(`${site}/apis/site/v2/sports/${path(league)}/summary?event=${encodeURIComponent(event)}`));
+    },
+    async game(league, event) {
+      const sport = sportOf(league);
+      if (!sport) return null;
+      if (!(sport instanceof TeamSport)) return eventFinal(sport, league, event, { site, core, web });
+      const raw = await get<EspnSummary>(`${site}/apis/site/v2/sports/${path(league)}/summary?event=${encodeURIComponent(event)}`);
+      return raw ? storedGame(sport, raw) : null;
     },
     async seasonStats(league, athlete, season) {
       return readSeasonStats(await get(`${web}/apis/common/v3/sports/${path(league)}/athletes/${encodeURIComponent(athlete)}/stats?season=${season}`), season);

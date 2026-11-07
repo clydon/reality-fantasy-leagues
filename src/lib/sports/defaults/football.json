@@ -1,0 +1,111 @@
+{
+  "sport": "football",
+  "about": "Football's defaults, as data (docs/PLAN-start-a-game-gpt.md track L, L1): a sport's standard scoring, categories, lineup slots and locks, and the game specs a sport's Make it a game starts from instead of asking the bot. Stat keys are Football's (src/lib/sports/football.ts): players' and a team defense's in one table, since a key is unique in the sport (a quarterback's interceptions thrown are INT, a defender's DINT, a team defense's DSTINT). The team defense is one line per side (Yahoo's DEF: football.ts's defenseId), its points allowed in Yahoo's brackets (PA0 a shutout ... PA35). Slots take its positions or position groups (ESPN's roster says PK for a kicker). The specs are in the game spec's shape (A1's schema, on the engine branch); slots and categories aren't in that schema yet (L4 adds them), so they're kept beside it for the spec to read.",
+  "scoring": {
+    "source": "Yahoo's default league scoring, half-PPR (help.yahoo.com/kb/SLN6489.html): offense, then kickers, then the team defense; 25 passing yards a point, 10 rushing or receiving yards a point, fractions kept",
+    "points": {
+      "PYDS": 0.04, "PTD": 4, "INT": -1,
+      "RYDS": 0.1, "RTD": 6,
+      "REC": 0.5, "RECYDS": 0.1, "RECTD": 6,
+      "RETTD": 6, "FRTD": 6, "2PT": 2, "FUML": -2,
+      "FGM0": 3, "FGM20": 3, "FGM30": 3, "FGM40": 4, "FGM50": 5, "XPM": 1,
+      "DSTSACK": 1, "DSTINT": 2, "DSTFR": 2, "DSTTD": 6, "DSTSAF": 2, "DSTBLK": 2,
+      "PA0": 10, "PA1_6": 7, "PA7_13": 4, "PA14_20": 1, "PA21_27": 0, "PA28_34": -1, "PA35": -4
+    }
+  },
+  "categories": {
+    "source": "Yahoo's football leagues score points, not categories: none by default",
+    "stats": []
+  },
+  "slots": {
+    "source": "Yahoo's default roster: QB, 2 WR, 2 RB, TE, a W/R/T flex, K, DEF and 6 bench (15)",
+    "lineup": [
+      { "slot": "QB", "n": 1, "takes": ["QB"] },
+      { "slot": "WR", "n": 2, "takes": ["WR"] },
+      { "slot": "RB", "n": 2, "takes": ["RB", "FB"] },
+      { "slot": "TE", "n": 1, "takes": ["TE"] },
+      { "slot": "W/R/T", "n": 1, "takes": ["WR", "RB", "FB", "TE"] },
+      { "slot": "K", "n": 1, "takes": ["PK"] },
+      { "slot": "DEF", "n": 1, "takes": ["DEF"] }
+    ],
+    "bench": 6
+  },
+  "closes": "weekly",
+  "specs": {
+    "season": {
+      "about": "A season-long league: draft a full roster, set a lineup each week, play someone head to head each week.",
+      "spec": {
+        "spec": 1,
+        "span": { "from": 1, "to": null },
+        "pool": { "of": "cast", "where": null },
+        "get": { "by": "draft", "each": 15, "order": "snake", "own": "exclusive" },
+        "count": { "start": 9 },
+        "score": {
+          "by": "stats",
+          "points": {
+            "PYDS": 0.04, "PTD": 4, "INT": -1,
+            "RYDS": 0.1, "RTD": 6,
+            "REC": 0.5, "RECYDS": 0.1, "RECTD": 6,
+            "RETTD": 6, "FRTD": 6, "2PT": 2, "FUML": -2,
+            "FGM0": 3, "FGM20": 3, "FGM30": 3, "FGM40": 4, "FGM50": 5, "XPM": 1,
+            "DSTSACK": 1, "DSTINT": 2, "DSTFR": 2, "DSTTD": 6, "DSTSAF": 2, "DSTBLK": 2,
+            "PA0": 10, "PA1_6": 7, "PA7_13": 4, "PA14_20": 1, "PA21_27": 0, "PA28_34": -1, "PA35": -4
+          }
+        },
+        "rank": { "by": "matchups" },
+        "closes": "weekly"
+      }
+    },
+    "short": {
+      "about": "One game, a team's next few or a week's slate: everyone drafts a few players, every one of them scores, most points wins.",
+      "spec": {
+        "spec": 1,
+        "span": { "from": 1, "to": null },
+        "pool": { "of": "cast", "where": null },
+        "get": { "by": "draft", "each": 3, "order": "snake", "own": "exclusive" },
+        "count": { "all": true },
+        "score": {
+          "by": "stats",
+          "points": {
+            "PYDS": 0.04, "PTD": 4, "INT": -1,
+            "RYDS": 0.1, "RTD": 6,
+            "REC": 0.5, "RECYDS": 0.1, "RECTD": 6,
+            "RETTD": 6, "FRTD": 6, "2PT": 2, "FUML": -2,
+            "FGM0": 3, "FGM20": 3, "FGM30": 3, "FGM40": 4, "FGM50": 5, "XPM": 1,
+            "DSTSACK": 1, "DSTINT": 2, "DSTFR": 2, "DSTTD": 6, "DSTSAF": 2, "DSTBLK": 2,
+            "PA0": 10, "PA1_6": 7, "PA7_13": 4, "PA14_20": 1, "PA21_27": 0, "PA28_34": -1, "PA35": -4
+          }
+        },
+        "rank": { "by": "total" },
+        "closes": "start"
+      }
+    },
+    "pickem": {
+      "about": "Each game, before it starts: who wins? A point for each one right, most points wins (a tie counts for nobody).",
+      "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers" }, "rank": { "by": "total" }, "closes": "start", "ask": [{ "id": "winner", "ask": "Who wins?", "answer": "side", "points": 1, "settle": { "by": "final", "take": "winner" }, "asked": "each", "closes": "start" }] }
+    },
+    "pickAFew": {
+      "about": "Each game, before it starts: pick three players. 3 points for each one who has the most receiving yards in the game (tied, each of them), most points wins.",
+      "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers" }, "rank": { "by": "total" }, "closes": "start", "ask": [{ "id": "few", "ask": "Pick three: who has the most receiving yards?", "answer": "person", "pick": 3, "from": "cast", "points": 3, "settle": { "by": "stat", "stat": "RECYDS", "take": "most" }, "asked": "each", "closes": "start" }] }
+    },
+    "bestBall": {
+      "about": "Best ball: draft a full roster and never set a lineup: each game, your best nine count, most points wins.",
+      "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "draft", "each": 15, "order": "snake", "own": "exclusive" }, "count": { "best": 9 }, "score": { "by": "stats", "points": { "PYDS": 0.04, "PTD": 4, "INT": -1, "RYDS": 0.1, "RTD": 6, "REC": 0.5, "RECYDS": 0.1, "RECTD": 6, "RETTD": 6, "FRTD": 6, "2PT": 2, "FUML": -2, "FGM0": 3, "FGM20": 3, "FGM30": 3, "FGM40": 4, "FGM50": 5, "XPM": 1, "DSTSACK": 1, "DSTINT": 2, "DSTFR": 2, "DSTTD": 6, "DSTSAF": 2, "DSTBLK": 2, "PA0": 10, "PA1_6": 7, "PA7_13": 4, "PA14_20": 1, "PA21_27": 0, "PA28_34": -1, "PA35": -4 } }, "rank": { "by": "total" }, "closes": "start" }
+    },
+    "squares": {
+      "about": "Squares on each game (the Super Bowl's party game): take squares on a 10-by-10 grid of the two scores' last digits, the digits drawn at random once everyone has theirs. The square of the score wins a point at the end of each of the first three quarters and two for the final score, most points wins.",
+      "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "squares", "grid": 10, "take": "pick" }, "count": null, "score": { "by": "squares", "pays": [{ "at": 1, "points": 1 }, { "at": 2, "points": 1 }, { "at": 3, "points": 1 }, { "at": "final", "points": 2 }] }, "rank": { "by": "total" }, "closes": "start" }
+    }
+  },
+  "leagues": {
+    "nfl": {
+      "specs": {
+        "bracket": {
+          "about": "A playoff bracket: before the NFL playoffs start, pick who wins every game, round by round to the Super Bowl. A point for each one right in the first round, doubling each round after it; most points wins.",
+          "on": "playoffs",
+          "spec": { "spec": 1, "span": { "from": 1, "to": null }, "pool": { "of": "cast", "where": null }, "get": { "by": "none" }, "count": null, "score": { "by": "answers" }, "rank": { "by": "total" }, "closes": "start", "ask": [{ "id": "bracket", "ask": "Who wins every game of the NFL playoffs?", "answer": "bracket", "points": 1, "rounds": "double", "settle": { "by": "final", "take": "bracket", "of": "playoffs" }, "asked": "once", "closes": "start" }] }
+        }
+      }
+    }
+  }
+}

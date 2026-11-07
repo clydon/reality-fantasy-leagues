@@ -35,6 +35,10 @@
 //                   { state: 'who', who } | 'outside' | 'none' | 'unsure'), for each episode research has stored its answer for
 //                   (one without the facts section: 'unsure', research didn't say); the server's (episode-facts.ts
 //                   episodeFactsFor), never the state's: without it, a fact question waits
+//     games         (L1 part 4b) Map episode -> its game as of the viewer's moment, a sport's (src/lib/sports/spec.ts gameFacts:
+//                   { status: pre | in | final | off, sides: [{ id, score }], lines: { id: stats }, teams: { id: team id },
+//                   places?: { id: place } a field's, placed?: the stats that are places, bouts?: { id: { sides, winner, outcome, main } } a card's): the server's
+//                   from a stored final, the phone's from the poller's stateAt(t); without it, a sports question waits
 //     bot           (A14 part 2) Map 'question|episode' (the window's key: 0 asked once) -> the bot's own call on a question played
 //                   against it (q.beat), for each window whose lock has passed and the bot called (bot_calls); the server's
 //                   (answer-points.ts botCallsFor), never the state's: without it, a question played against the bot waits
@@ -66,10 +70,12 @@
 //   factsThrough(facts, k)        the facts as they stood once episode k was in (A11 part 2b's walk)
 //   answerProblem(q, value, faces) why an answer can't be given (null: it can), faces: who (or which groups) it can name
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
-const { YES_NO, NAMES, NUMBERS, optionRange, isBeat, ODDS, ticketOf, isCardLine, cardMoment, cardWaiting, outsideKey } = require('./schema.js');
+const { YES_NO, NAMES, NUMBERS, optionRange, isBeat, ODDS, ticketOf, isCardLine, cardMoment, cardWaiting, outsideKey, LINE_GAME } = require('./schema.js');
 // C2 part 3 (docs/PLAN-start-a-game-gpt.md track C): a window's points are the scoring sequence's lines and combines; the grading
 // (which answers are right, and how many right ones each has) is here.
 const Seq = require('../sequence/index.js');
+// L4 part 2: a bracket's draw, its answers' check and their points.
+const Bracket = require('../sequence/bracket.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const WAITING = Object.freeze({ state: 'waiting' });
@@ -86,6 +92,8 @@ const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
 const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
 const ORDINAL = (n) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th'}`;
 const NOBODY = "It didn't happen";
+/** L4 part 1a: a draw, the answer a question that takes one (`draw: true`) has right on a tie: never a team's id. */
+const DRAW = 'draw';
 
 /** The game's episodes from its start, in order, as far as its results go (to its end once it's over). */
 function spanEpisodes(facts) {
@@ -383,6 +391,160 @@ function outsideVerdict(q, episode, facts) {
 }
 
 /**
+ * L1 part 4b: where a sports question stands in a game (facts.games' one): { right?, value? }, or { off: why } (a tie, a bout with
+ * no winner, nobody with the stat). A final: who wins (a team game's side, a field's first, a card's bout's winner), both sides'
+ * points, the margin. A stat: of a player, theirs; of a team, among its players (its players' added, for a value); else the game's.
+ */
+function standingIn(st, g, q) {
+  const lines = isObj(g.lines) ? g.lines : {};
+  if (st.by === 'final') {
+    if (isObj(g.bouts)) {
+      const bouts = Object.entries(g.bouts);
+      const found = st.of === undefined || st.of === 'main' ? bouts.find(([, b]) => b.main) : bouts.find(([id]) => id === st.of);
+      if (!found) return { off: "That bout isn't on the card: it doesn't count either way" };
+      if (st.take !== 'winner') return { off: 'A bout has no total' };
+      const b = found[1];
+      if (b.winner) return { right: [b.winner] };
+      return { off: b.outcome === 'draw' ? "A draw: it doesn't count either way" : b.outcome === 'nc' ? "No contest: it doesn't count either way" : 'Not decided yet' };
+    }
+    if (isObj(g.places)) {
+      if (st.take !== 'winner') return { off: 'A field has no total' };
+      const first = Object.keys(g.places).filter((id) => g.places[id] === 1);
+      return first.length ? { right: first } : { off: 'Nobody has won yet' };
+    }
+    const sides = Array.isArray(g.sides) ? g.sides : [];
+    if (sides.length !== 2) return { off: "The game's sides aren't known" };
+    const [a, b] = sides;
+    if (st.take === 'total') return { value: a.score + b.score };
+    if (st.take === 'margin') return { value: Math.abs(a.score - b.score) };
+    // L4 part 1a: who wins is who the final says won, extra time and penalties included (a sportsbook's three ways settle at 90
+    // minutes: not ours): level after a shootout, its winner. A question that takes a draw has it right on a tie; else it's off.
+    if (a.score === b.score && isNum(a.shootout) && isNum(b.shootout) && a.shootout !== b.shootout) return { right: [a.shootout > b.shootout ? a.id : b.id] };
+    if (a.score === b.score) return q && q.draw === true ? { right: [DRAW] } : { off: "A tie: it doesn't count either way" };
+    return { right: [a.score > b.score ? a.id : b.id] };
+  }
+  const teams = isObj(g.teams) ? g.teams : {};
+  const sideIds = new Set((Array.isArray(g.sides) ? g.sides : []).map((x) => x.id));
+  const ofTeam = st.of !== undefined && (sideIds.has(st.of) || Object.values(teams).includes(st.of));
+  let whose = Object.keys(lines).filter((id) => st.of === undefined || (ofTeam ? teams[id] === st.of : id === st.of));
+  const of = (id) => (isNum(lines[id] && lines[id][st.stat]) ? lines[id][st.stat] : 0);
+  if (st.take === 'value') return { value: whose.reduce((n, id) => n + of(id), 0) };
+  // A place's missing is out of the places (golf's cut): never its least. A count's missing is none of it.
+  if (Array.isArray(g.placed) && g.placed.includes(st.stat)) whose = whose.filter((id) => isNum(lines[id] && lines[id][st.stat]));
+  if (!whose.length) return { off: NOBODY };
+  let best = st.take === 'most' ? Math.max(...whose.map(of)) : Math.min(...whose.map(of));
+  if (st.take === 'most' && best <= 0) {
+    // A stat that can be under 0 (plus-minus): the most of those who have it; nobody with any of it, nobody.
+    const had = whose.filter((id) => isNum(lines[id] && lines[id][st.stat]));
+    if (!had.length || had.every((id) => lines[id][st.stat] === 0)) return { off: NOBODY };
+    whose = had;
+    best = Math.max(...had.map(of));
+  }
+  return { right: whose.filter((id) => of(id) === best), value: best };
+}
+
+/**
+ * L1 part 4b: a question asked once, the game's span's: its one game, or a stat over its games added up (each one's lines; a
+ * series' home runs), final once every game of the span is (one called off counts nothing), the span's end known; else where it
+ * stands so far.
+ */
+function spanGame(q, facts) {
+  if (facts.from === null) return null;
+  if (q.settle.by !== 'stat' || facts.to === facts.from) return facts.games.get(facts.from) || null;
+  const last = facts.to !== null ? facts.to : Math.max(facts.from, ...facts.games.keys());
+  const games = [];
+  for (let n = facts.from; n <= last; n++) if (facts.games.has(n)) games.push(facts.games.get(n));
+  if (!games.length) return null;
+  const lines = {};
+  const teams = {};
+  for (const g of games) {
+    if (g.status === 'off') continue;
+    // Places don't add up (the check refuses one asked so): only the counts.
+    const placed = new Set(Array.isArray(g.placed) ? g.placed : []);
+    for (const [id, l] of Object.entries(g.lines || {})) {
+      const into = (lines[id] = lines[id] || {});
+      for (const [k, v] of Object.entries(l)) if (isNum(v) && !placed.has(k)) into[k] = (into[k] || 0) + v;
+    }
+    Object.assign(teams, g.teams || {});
+  }
+  const counted = facts.to !== null ? last - facts.from + 1 : null;
+  const over = (counted === null ? facts.over : games.length === counted) && games.every((g) => g.status === 'final' || g.status === 'off');
+  const status = over ? 'final' : games.some((g) => g.status !== 'pre') ? 'in' : 'pre';
+  return { status, sides: [], lines, teams, placed: games[0].placed };
+}
+
+/**
+ * L1 part 4b: a question a sport's game settles (facts.games), graded once the game is final as of the viewer's moment (a later
+ * watch's: the game as far as they've seen it), its answers locked at the game's start as any episode's. An over on the total is
+ * known the moment the total passes its line (scores only add: `early`); anything else live is still waiting, with where it
+ * stands (`live`: the value or who's ahead, for the phone). A game called off, a tie, a bout with no winner: off. L8 part 1's
+ * engine items, part 2: a bracket of the playoffs, on a league's playoffs' series as one card (facts.playoffs: the server's, as of
+ * the viewer's moment), known once the final's series is won.
+ */
+function sportsVerdict(q, episode, facts) {
+  if (q.settle.take === 'bracket' && q.settle.of === Bracket.PLAYOFFS) return gameVerdict(q, facts.playoffs || null);
+  if (!(facts.games instanceof Map)) return WAITING;
+  return gameVerdict(q, q.asked === 'once' ? spanGame(q, facts) : facts.games.get(episode), lineOf(q, facts, episode, ''));
+}
+
+/**
+ * L3 part 3b: the key of the line an over/under on a game's own line plays by (AnswerFacts.lines): the question, its window (the
+ * grader's episode: 0 asked once) and the game (an episode's one game '', a question about each game each one's event id).
+ */
+const lineKey = (q, window, event) => `${q.id}|${window}|${event}`;
+/** The line a question plays by on a game: its own (a number), or on the game's own (`line: 'game'`) the one kept when it opened in
+ *  the league (none kept: null). */
+function lineOf(q, facts, window, event) {
+  if (q.line !== LINE_GAME) return isNum(q.line) ? q.line : null;
+  const v = facts && facts.lines instanceof Map ? facts.lines.get(lineKey(q, window, event)) : undefined;
+  return isNum(v) ? v : null;
+}
+/** L3 part 3b: why a game's questions don't count when it wasn't played (sports/score.ts: the provider's status). */
+const calledOffWhy = (g) =>
+  g.called === 'postponed' ? "The game was postponed: it doesn't count either way" : g.called === 'canceled' ? "The game was cancelled: it doesn't count either way" : "The game wasn't played: it doesn't count either way";
+
+/** How a question a sport's game settles stands on one game (`g`: its facts as of the viewer's moment, or none yet; `line`: the
+ *  line it plays by, an over/under's: lineOf). */
+function gameVerdict(q, g, line = isNum(q.line) ? q.line : null) {
+  if (!g || g.status === 'pre') return WAITING;
+  if (g.status === 'off') return off(calledOffWhy(g));
+  // L3 part 3b: an over/under on the game's own line that never had one by the time it started: nobody could answer it.
+  if (q.line === LINE_GAME && q.answer === 'overUnder' && line === null) return off("No line came out before the game: it doesn't count either way");
+  const ln = q.line === LINE_GAME && line !== null ? { line } : {};
+  const st = q.settle;
+  // L4 part 2: a bracket, its draw's winners round by round (sequence/bracket.js), known once the card is final; live, the draw so far.
+  if (st.by === 'final' && st.take === 'bracket') {
+    const field = Bracket.bracketOf(g.bouts, st.of);
+    if (field.first === null) return g.status === 'final' ? off("That draw isn't on the card: it doesn't count either way") : WAITING;
+    return g.status === 'final' ? { ...known([]), bracket: field } : { state: 'waiting', live: { bracket: field } };
+  }
+  const now = standingIn(st, g, q);
+  if (g.status === 'final') return now.off ? off(now.off) : { ...known(now.right || [], now.value), ...ln };
+  if (st.by === 'final' && st.take === 'total' && q.answer === 'overUnder' && line !== null && isNum(now.value) && now.value > line) return { ...known([], now.value), early: true, ...ln };
+  return now.off ? WAITING : { state: 'waiting', live: now };
+}
+
+/**
+ * L3 part 2f part 2: a question asked of each game of the episode (each: 'game'), one verdict for each of its games as linked
+ * (facts.slate: event id to the game's facts, as of the viewer's mark), each as one game's question is graded (gameVerdict).
+ * Known once every game of the episode is over (final, or off: that game's picks void); before, waiting, with how each stands
+ * (`live.each`: the games settled so far, and where the rest are). An episode with no game linked waits.
+ */
+function eachGameVerdict(q, episode, facts) {
+  const games = facts.slate instanceof Map ? facts.slate.get(episode) : undefined;
+  if (!(games instanceof Map) || !games.size) return WAITING;
+  const base = baseOf(q);
+  const each = {};
+  let over = true;
+  for (const [id, g] of games) {
+    const v = gameVerdict(base, g, lineOf(q, facts, episode, id));
+    each[id] = v;
+    if (v.state === 'waiting') over = false;
+  }
+  return over ? { state: 'known', right: [], each } : { state: 'waiting', live: { each } };
+}
+
+/**
  * A14 part 1: a question the players' own answers settle (settle.by 'players'), from `answers`, the window's answers that settle it
  * (its own, or with `of` the game's question it names: the grader's, [{ playerId, answer }]): the answer most of them gave is right
  * (majority), or the one fewest did (minority). Data settles it, the couch's answers, never what happened on the show. Known once its
@@ -508,7 +670,9 @@ function plainVerdict(q, episode, facts, answers) {
     const fg = timelineGroups(q, episode, facts);
     return fg ? onTimeline(q, factVerdict(q, episode, facts), fg, facts) : forGroups(q, factVerdict(q, episode, facts));
   }
-  if (!st || !['results', 'moment', 'role', 'phase', 'points'].includes(st.by)) return WAITING; // the sports branch's settles, and the calls
+  if (q && q.each === 'game') return eachGameVerdict(q, episode, facts);
+  if (st && (st.by === 'final' || st.by === 'stat')) return sportsVerdict(q, episode, facts);
+  if (!st || !['results', 'moment', 'role', 'phase', 'points'].includes(st.by)) return WAITING; // the calls
   if (q.each) return eachVerdict(q, episode, facts);
   if (st.by === 'results' && st.take === 'outlast') return pairsVerdict(q, facts);
   const fg = timelineGroups(q, episode, facts);
@@ -687,8 +851,10 @@ function rightAnswers(q, v, facts) {
   if (q.settle && q.settle.by === 'players') return v.right.length ? v.right : null;
   const value = valueOf(v);
   if (q.answer === 'overUnder') {
-    if (value === null || !isNum(q.line) || value === q.line) return null;
-    return [value > q.line ? 'over' : 'under'];
+    // L3 part 3b: a game's own line, the one it played by (gameVerdict's).
+    const line = isNum(v.line) ? v.line : q.line;
+    if (value === null || !isNum(line) || value === line) return null;
+    return [value > line ? 'over' : 'under'];
   }
   if (q.answer === 'choice') {
     const opts = Array.isArray(q.options) ? q.options : [];
@@ -721,12 +887,17 @@ const key = (q, x) => (NAMES.includes(q.answer) ? x : norm(x));
 const baseOf = (q) => {
   const b = { ...q };
   delete b.each;
+  delete b.confidence;
   if (q.answer === 'pairs') Object.assign(b, { answer: 'person', pick: 1 });
   return b;
 };
 /** The answers given for one person (or pair), of a question about each ({ key: answer } each), as that one's own. */
-const eachAnswers = (answers, id) =>
-  answers.filter((a) => isObj(a.answer) && Object.prototype.hasOwnProperty.call(a.answer, id)).map((a) => ({ playerId: a.playerId, answer: a.answer[id] }));
+const eachAnswers = (answers, id, q) =>
+  answers.filter((a) => isObj(a.answer) && Object.prototype.hasOwnProperty.call(a.answer, id)).map((a) => ({ playerId: a.playerId, answer: pickOf(q, a.answer[id]) }));
+/** L3 part 2f part 2: one game's pick of a question about each game, as its answer (ranked by confidence: { answer, confidence }). */
+const pickOf = (q, x) => (q && q.confidence === true && isObj(x) ? x.answer : x);
+/** A confidence pick's rank (L3 part 2f part 2), 0 when it has none. */
+const confidenceOf = (x) => (isObj(x) && Number.isInteger(x.confidence) && x.confidence > 0 ? x.confidence : 0);
 /** A wagered question as the answer it's on (A8): the same question without its wager. */
 const unwagered = (q) => { const b = { ...q }; delete b.wager; return b; };
 /** An answer's stake held to what the question allows (A9: any of your points, 'total', as the answer was checked when it was
@@ -834,8 +1005,22 @@ function pointsFor(q, v, answers, facts) {
   if (q.each || q.answer === 'pairs') {
     if (!isObj(v.each)) return out;
     const base = baseOf(q);
+    // L3 part 2f part 2: ranked by confidence, a right pick worth its rank times the question's points.
+    const ranked = q.each === 'game' && q.confidence === true;
+    const mine = new Map(answers.map((a) => [a.playerId, a.answer]));
     for (const [id, pv] of Object.entries(v.each)) {
-      pointsFor(base, pv, eachAnswers(answers, id), facts).forEach((n, pid) => out.set(pid, (out.get(pid) || 0) + n));
+      pointsFor(ranked ? { ...base, points: 1 } : base, pv, eachAnswers(answers, id, q), facts).forEach((n, pid) => {
+        const got = ranked ? n * confidenceOf(mine.get(pid)[id]) * (isNum(q.points) ? q.points : 0) : n;
+        if (got) out.set(pid, (out.get(pid) || 0) + got);
+      });
+    }
+    return out;
+  }
+  // L4 part 2: a bracket's right picks, round by round.
+  if (q.answer === 'bracket') {
+    for (const a of answers) {
+      const n = Bracket.bracketPoints(q, v.bracket || null, a.answer);
+      if (n) out.set(a.playerId, (out.get(a.playerId) || 0) + n);
     }
     return out;
   }
@@ -901,11 +1086,13 @@ function isRight(q, v, mine, answers, facts) {
     if (!isObj(v.each) || !isObj(mine.answer)) return false;
     const base = baseOf(q);
     return Object.entries(v.each).some(
-      ([id, pv]) => Object.prototype.hasOwnProperty.call(mine.answer, id) && !!isRight(base, pv, { playerId: mine.playerId, answer: mine.answer[id] }, eachAnswers(answers, id), facts)
+      ([id, pv]) => Object.prototype.hasOwnProperty.call(mine.answer, id) && !!isRight(base, pv, { playerId: mine.playerId, answer: pickOf(q, mine.answer[id]) }, eachAnswers(answers, id, q), facts)
     );
   }
   // A8's kinds: anything earned (an order's place, a confidence pick or a chip on someone right, the split).
   if (MORE.includes(q.answer)) return earned({ ...q, points: 1 }, v, mine.answer, facts) > 0;
+  // L4 part 2: a bracket, as A8's kinds: any right pick.
+  if (q.answer === 'bracket') return Bracket.bracketPoints({ ...q, points: 1 }, v.bracket || null, mine.answer) > 0;
   if (q.wager) {
     const bet = betOf(q, mine.answer);
     return !!bet && !!isRight(unwagered(q), v, { playerId: mine.playerId, answer: bet.answer }, [], facts);
@@ -1023,6 +1210,35 @@ function allRight(legs, facts) {
 }
 
 /**
+ * L3 part 2f part 2: what's wrong with an answer to a question about each game ({ [eventId]: answer }: ranked by confidence, each
+ * { answer, confidence }, the ranks each used once, from 1 to the episode's games), or null. `faces`: each game of the episode by its
+ * event id, with its sides (a side answer's faces), or null when it isn't read. A pick for a game that's started is the server's to
+ * keep as it was (answers.ts).
+ */
+function eachGameProblem(q, value, faces) {
+  if (!isObj(value)) return 'An answer for each game: { game: answer }';
+  const ids = Object.keys(value);
+  if (!ids.length) return 'Answer for a game';
+  const games = faces instanceof Map ? faces : null;
+  if (games && ids.some((id) => !games.has(id))) return 'Answer only for its games';
+  const base = baseOf(q);
+  const most = games ? games.size : null;
+  const ranks = [];
+  for (const id of ids) {
+    const x = value[id];
+    if (q.confidence === true) {
+      if (!isObj(x) || !('answer' in x)) return 'Your pick and how sure you are: { answer, confidence }';
+      if (!(Number.isInteger(x.confidence) && x.confidence >= 1 && (most === null || x.confidence <= most))) return most === null ? 'Confidence is a whole number, 1 or more' : `Confidence is 1 to ${most}`;
+      ranks.push(x.confidence);
+    }
+    const p = answerProblem(base, pickOf(q, x), games ? games.get(id) || null : null);
+    if (p) return p;
+  }
+  if (new Set(ranks).size !== ranks.length) return 'Use each confidence once';
+  return null;
+}
+
+/**
  * Why an answer can't be given, or null: the shape each kind takes. `faces`: the ids a person or group answer can name (who's
  * still in, or your own team; the groups someone still in is on), or who a question about each person asks about, as a Set. A
  * person or group answer naming more than one is a list of different ones, at most its pick. A question about each person is
@@ -1050,6 +1266,8 @@ function answerProblem(q, value, faces, o) {
     }
     return answerProblem(unwagered(q), value.answer, faces);
   }
+  // L3 part 2f part 2: a question about each game, `faces` each of the episode's games by event id with its sides (a Map).
+  if (q.each === 'game') return eachGameProblem(q, value, faces);
   if (q.each) {
     if (!isObj(value)) return 'An answer for each person: { who: answer }';
     const ids = Object.keys(value);
@@ -1078,6 +1296,11 @@ function answerProblem(q, value, faces, o) {
       return null;
     }
     case 'yesNo': return YES_NO.includes(value) ? null : 'Yes or no';
+    // L1 part 4b: a side of the game (a team's id), `faces` its sides.
+    case 'side': {
+      if (typeof value !== 'string' || !value) return 'Pick a side';
+      return faces && !faces.has(value) && !(q.draw === true && value === DRAW) ? (q.draw === true ? 'Pick one of the sides, or a draw' : 'Pick one of the sides') : null;
+    }
     // A14 part 7: an episode's rating, 0 to 10.
     case 'number': if (isObj(q.settle) && q.settle.by === 'outside') return isNum(value) && value >= 0 && value <= 10 ? null : 'A rating, 0 to 10';
       return isNum(value) && value >= 0 && value <= 100000 ? null : 'A number, 0 or more';
@@ -1111,6 +1334,8 @@ function answerProblem(q, value, faces, o) {
       if (faces && Object.entries(value).some(([k, id]) => !faces.has(`${k}:${id}`))) return 'Name one of the pair';
       return null;
     }
+    // L4 part 2: each round's winners ({ round: [ids] }), `faces` the draw as it stands (bracketOf's), or none: the shape alone.
+    case 'bracket': return Bracket.bracketProblem(value, isObj(faces) && !(faces instanceof Set) ? faces : null);
     case 'trivia': {
       // A13: { [trivia question id]: one of its options }, `faces` each of the round's questions' "id:option" (none: no round yet).
       if (!isObj(value) || !Object.keys(value).length) return 'Answer one of its questions: { question: option }';
@@ -1146,7 +1371,13 @@ function factsThrough(facts, k) {
     ...(facts.formatGroups ? { formatGroups: upTo(facts.formatGroups) } : {}),
     ...(facts.episodeFacts ? { episodeFacts: upTo(facts.episodeFacts) } : {}),
     ...(facts.outside ? { outside: upTo(facts.outside) } : {}),
+    // L3 part 2c: a sport's games, as known through k (a walk's week k never grades a later game's question).
+    ...(facts.games instanceof Map ? { games: upTo(facts.games) } : {}),
+    // L3 part 2f part 2: and each episode's games, by event id.
+    ...(facts.slate instanceof Map ? { slate: upTo(facts.slate) } : {}),
+    // L8 part 1's engine items, part 2: a league's playoffs, still being played for a week before the one their final was won in.
+    ...(facts.playoffs && facts.playoffs.status === 'final' && !(Number.isInteger(facts.playoffs.wonAt) && facts.playoffs.wonAt <= k) ? { playoffs: { ...facts.playoffs, status: 'in' } } : {}),
   };
 }
 
-module.exports = { WAITING, readsTimeline, verdictOf, rightAnswers, pointsFor, windowPoints, wagerParts, stakeLines, unwagered, ticketVerdict, allRight, shrunk, isRight, answerProblem, spanEpisodes, pairsFrom, pairKey, windowOf, factsThrough, botKey, botCall, botRight };
+module.exports = { WAITING, DRAW, lineKey, readsTimeline, verdictOf, rightAnswers, pointsFor, windowPoints, wagerParts, stakeLines, unwagered, ticketVerdict, allRight, shrunk, isRight, answerProblem, spanEpisodes, pairsFrom, pairKey, windowOf, factsThrough, botKey, botCall, botRight };

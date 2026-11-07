@@ -1,6 +1,6 @@
 import StateLogic from "@/lib/game/state-logic.js";
 import * as Spec from "@/lib/game/game-spec/index.js";
-import type { AnswerFacts, FormatGroups, Question, SpecContext, Verdict } from "@/lib/game/game-spec/index.js";
+import type { AnswerFacts, FormatGroups, Question, SpecContext, SportsGameFacts, Verdict } from "@/lib/game/game-spec/index.js";
 import type { RulebookBlocks } from "@/lib/game/formats/rulebook-schema";
 import type { LeagueState } from "@/lib/game/types";
 import type { CallBook } from "@/lib/game/calls";
@@ -17,6 +17,9 @@ import { gamesHere, type GameHere } from "./season-games";
 import { playedInSheet, triviaWritten } from "./trivia-key";
 import { factContextForSeason } from "./episode-facts";
 import { tvmazeLinked } from "./outside-numbers";
+import { drawNow, sidesFor } from "./sports/score";
+import { keepLines } from "./question-lines";
+import { PLAYOFFS } from "@/lib/sports/playoffs";
 
 // A game's questions (docs/PLAN-start-a-game-gpt.md step A4; migration 0200 game_answers):
 //   GET  /api/seasons/[id]/answers?league=&episode=   the game's questions as you may see them: this week's (asked each
@@ -79,6 +82,7 @@ export interface QuestionView {
   closes: "start" | "finale";
   pick: number | null;
   from: "cast" | "team" | null;
+  /** An over/under's line: its own, or (L3 part 3b) on the game's own line the one kept when it opened (null: none out yet). */
   line: number | null;
   options: string[] | null;
   /** A8: an order's places off that still score; chips to spread; a wager's most stake; who outlasts whom, the pairs (each its
@@ -107,19 +111,32 @@ export interface QuestionView {
   shrink: { points: number; per: "episode" | "change" } | null;
   worth: number | null;
   stakeMost: number | null;
-  /** "person": asked about each person still in (A6), answered { castawayId: answer } for any of `faces`. */
-  each: "person" | null;
+  /** "person": asked about each person still in (A6), answered { castawayId: answer } for any of `faces`. L3 part 2f part 2:
+   *  "game", asked of each game of the episode, answered { eventId: answer } for any of `games` (ranked by confidence: each
+   *  { answer, confidence }), each pick locking as its own game starts. */
+  each: "person" | "game" | null;
+  /** L3 part 2f part 2, a question about each game: whether its picks are ranked by confidence (1 to the episode's games). */
+  confidence: boolean;
+  /** L3 part 2f part 2, a question about each game: the episode's games as linked, in the order they start, each with its sides
+   *  (a side answer's faces: the teams by name) and whether it's started (its pick locked, kept as it was); null for any other. */
+  games: { id: string; name: string | null; startsAt: string | null; started: boolean; sides: QuestionFace[]; line: number | null; called: "postponed" | "canceled" | null }[] | null;
   /** The episode it's answered for (asked each), or null (the game's own). */
   episode: number | null;
   /** open: yours to answer; behind: see Episode `catchUp` first (it says who's still in), or catch up on the game first (null);
+   *  waiting (L3 part 3b): an over/under on the game's own line before there's one ("Line coming"), opening once it's read;
    *  closed: locked. */
-  status: "open" | "behind" | "closed";
+  status: "open" | "behind" | "waiting" | "closed";
   catchUp: number | null;
   /** When it locks (the closing episode's air time), when that's known. */
   closesAt: string | null;
   /** Who a person answer can name: who's still in as far as you've seen (or, from your own team, yours); a group answer, the groups
    *  someone still in is on; a question about each person, who it asks about. */
   faces: QuestionFace[] | null;
+  /** L3 part 2e: a bracket's draw as listed (sports/score.ts drawNow), the draw as it was made and nothing it's played since (no
+   *  spoiler): how many rounds it is (`first`, the first round's distance from the final), its first round's matches, and who's in
+   *  it, each with the round they enter in (a seed with a bye later). Null for any other question, a draw not listed yet, or while
+   *  you're behind. */
+  draw: { first: number; matches: [QuestionFace, QuestionFace][]; entrants: (QuestionFace & { enters: number })[] } | null;
   /** F3 part 2: why a group question has nothing to pick this episode on a season played in pairs (who is with whom going in
    *  isn't sure, or nobody is in a group): it doesn't count either way. A13: why a trivia round has none (yet). Null otherwise. */
   offWhy: string | null;
@@ -174,7 +191,103 @@ const questionsOf = (state: LeagueState): Question[] => StateLogic.AnswerLogic.q
 
 /** Whether a question's answers name someone still in, or ask about each of them (A6): what you can answer depends on who's still in
  *  (and on what group), so it waits until you've seen the episode before it. */
-const namesSomeone = (q: Question) => Spec.NAMES.includes(q.answer) || Spec.RANKS.includes(q.answer) || q.answer === "chips" || q.answer === "pairs" || !!q.each;
+const namesSomeone = (q: Question) => Spec.NAMES.includes(q.answer) || Spec.RANKS.includes(q.answer) || q.answer === "chips" || q.answer === "pairs" || q.each === "person";
+
+/** L3 part 2f part 2: whether a game of an episode has started (its listing's start passed; a game with none, once it's on). L3 part
+ *  3b: or it's called off (postponed, cancelled): nothing to pick for it from then. */
+const gameStarted = (g: SportsGameFacts, now: number) => g.status === "off" || (g.listing?.startsAt ? Date.parse(g.listing.startsAt) <= now : g.status !== "pre");
+
+/** L3 part 3b: an over/under on a game's own line, the games it's on at a window (each its kept line's event: an episode's one
+ *  game '', each game its own id): a question about each game, the episode's; any other, its window's game (asked once: the game's
+ *  first episode's). */
+function lineGames(facts: AnswerFacts, q: Question, ep: number): [string, SportsGameFacts][] {
+  if (q.each === "game") return [...(facts.slate?.get(ep) ?? [])];
+  const n = q.asked === "once" ? facts.from : ep;
+  const g = n === null ? undefined : facts.games?.get(n);
+  return g ? [["", g]] : [];
+}
+
+/** L3 part 3b: the line kept for a question's game at a window (an episode's one game: ''), or null while none is. */
+const keptLine = (facts: AnswerFacts, q: Question, ep: number, event: string) => facts.lines?.get(Spec.lineKey(q, ep, event)) ?? null;
+
+/**
+ * L3 part 3b: an over/under on a game's own line as it opens (not closed): each of its games still to start with a line read and
+ * none kept yet takes the latest one (the listing's), kept for good (question-lines.ts), and the facts carry what's kept now.
+ */
+async function openLines(r: Read, q: Question, ep: number): Promise<void> {
+  if (q.line !== Spec.LINE_GAME) return;
+  const now = r.now.getTime();
+  const due = lineGames(r.facts, q, ep).filter(([event, g]) => keptLine(r.facts, q, ep, event) === null && !gameStarted(g, now) && typeof g.listing?.line === "number");
+  if (!due.length) return;
+  r.facts.lines = await keepLines(r.h.game.leagueId, due.map(([event, g]) => ({ question: q.id, window: ep, event, line: g.listing!.line!, readAt: g.listing?.lineAt ?? null })));
+}
+
+/** L3 part 2f part 2: a question about each game closes as its episode's last game starts (each pick at its own game's start before
+ *  then): that start, or null when a game's start isn't known (the episode's own lock, then). */
+function lastStartOf(facts: AnswerFacts, ep: number): string | null {
+  const games = facts.slate?.get(ep);
+  if (!games?.size) return null;
+  let last: string | null = null;
+  for (const g of games.values()) {
+    const at = g.listing?.startsAt;
+    if (!at) return null;
+    if (last === null || Date.parse(at) > Date.parse(last)) last = at;
+  }
+  return last;
+}
+
+/** L3 part 2f part 2: a question about each game's games at a window, as the view lists them (QuestionView.games). */
+function gamesView(facts: AnswerFacts, q: Question, ep: number, now: number): NonNullable<QuestionView["games"]> {
+  return [...(facts.slate?.get(ep) ?? new Map<string, SportsGameFacts>())]
+    .map(([id, g]) => ({
+      id,
+      name: g.listing?.name ?? null,
+      startsAt: g.listing?.startsAt ?? null,
+      started: gameStarted(g, now),
+      sides: (g.listing?.sides ?? g.sides.map((x) => ({ id: x.id, name: null }))).map((x) => ({ id: x.id, name: x.name ?? "A team", photo: null })),
+      // L3 part 3b: an over/under on each game's own line, the one kept when its pick opened (null: none out yet: no pick for it).
+      line: q.line === Spec.LINE_GAME ? keptLine(facts, q, ep, id) : null,
+      called: g.status === "off" ? (g.called ?? null) : null,
+    }))
+    .sort((a, b) => (a.startsAt ?? "").localeCompare(b.startsAt ?? "") || a.id.localeCompare(b.id));
+}
+
+/** L3 part 2f part 2: a question about each game's faces at a window, each game by event id with its sides. */
+function gameFaces(facts: AnswerFacts, ep: number): Map<string, Set<string>> {
+  return new Map([...(facts.slate?.get(ep) ?? new Map<string, SportsGameFacts>())].map(([id, g]) => [id, new Set(g.sides.map((x) => x.id))]));
+}
+
+/**
+ * L3 part 2f part 2: an answer to a question about each game with each started game's pick kept as it was (a pick there left out
+ * stays; one there for a game that started with none, or changed, is refused); taken back (null), only the games still to start.
+ * Null when nothing's left.
+ */
+function keepStarted(r: Read, q: Question, ep: number, value: unknown): unknown {
+  const games = r.facts.slate?.get(ep);
+  if (!games?.size) return value;
+  const given = value === null ? {} : value;
+  if (!given || typeof given !== "object" || Array.isArray(given)) return value;
+  const before = (r.rows.find((a) => a.playerId === r.h.playerId && a.question === q.id && a.episode === ep)?.answer ?? {}) as Record<string, unknown>;
+  const out: Record<string, unknown> = { ...(given as Record<string, unknown>) };
+  const now = r.now.getTime();
+  for (const [id, g] of games) {
+    const named = g.listing?.name ?? "That game";
+    if (!gameStarted(g, now)) {
+      // L3 part 3b: an over/under on each game's own line, a game's pick only once its line is kept.
+      if (q.line === Spec.LINE_GAME && Object.prototype.hasOwnProperty.call(given, id) && out[id] != null && keptLine(r.facts, q, ep, id) === null) throw new HttpError(409, `No line for ${named} yet: pick it once there is one`);
+      continue;
+    }
+    const had = Object.prototype.hasOwnProperty.call(before, id);
+    if (Object.prototype.hasOwnProperty.call(given, id) && (!had || JSON.stringify(out[id]) !== JSON.stringify(before[id]))) {
+      // L3 part 3b: called off (its picks don't count), or under way.
+      if (g.status === "off") throw new HttpError(409, `${named} was ${g.called === "canceled" ? "cancelled" : "postponed"}: its pick doesn't count either way`);
+      throw new HttpError(409, `${named} has started: its pick is locked`);
+    }
+    if (had) out[id] = before[id];
+    else delete out[id];
+  }
+  return value === null && !Object.keys(out).length ? null : out;
+}
 
 /** A pairs question's pairs (step A8): drawn from who was in at the game's start (AnswerLogic.startIn, as the grader draws them),
  *  the same every time, each with its key (its answers' { "a|b": who }). */
@@ -206,6 +319,25 @@ function offWhy(q: Question, fg: FormatGroups | null | undefined): string | null
 function castFace(view: LeagueState, id: string): QuestionFace {
   const c = view.castaways.find((x) => x.id === id);
   return { id, name: c?.name ?? "Someone", photo: c ? publicMediaSrc(c.photoUrl) : null };
+}
+
+/** L3 part 2e: a bracket question's draw for its window, as listed (QuestionView.draw: as it was made, none of what's been played),
+ *  or null. */
+async function drawView(view: LeagueState, state: LeagueState, q: Question, episode: number, facts: Pick<AnswerFacts, "games" | "playoffs">): Promise<QuestionView["draw"]> {
+  const of = (q.settle as { of?: string }).of;
+  // L8 part 1's engine items, part 2: a league's playoffs are its teams (by name as linked), not its people.
+  // As the grader read them, as of the viewer's mark (serverFacts: every game asking a sport's final has them).
+  const playoffs = of === PLAYOFFS ? (facts.playoffs ?? null) : null;
+  const field = of ? await drawNow(state, episode, of, { games: facts.games, playoffs }) : null;
+  if (!field || field.first === null) return null;
+  const first = field.first;
+  const teams = new Map((playoffs?.listing?.sides ?? []).map((t) => [t.id, t.name]));
+  const face = (id: string): QuestionFace => (playoffs ? { id, name: teams.get(id) ?? "A team", photo: null } : castFace(view, id));
+  return {
+    first,
+    matches: (field.matches[first] ?? []).map(([a, b]) => [face(a), face(b)] as [QuestionFace, QuestionFace]),
+    entrants: Object.entries(field.entrants).map(([id, enters]) => ({ ...face(id), enters })).sort((a, b) => b.enters - a.enters || a.name.localeCompare(b.name)),
+  };
 }
 
 /** One of your games on a season, by league: 404 when you don't play it. */
@@ -271,7 +403,9 @@ const triviaBefore = (r: Read, q: Question, ep: number) =>
  *  lock (step A7) keeps it open while you haven't seen it. */
 function isClosed(r: Read, q: Question, episode: number): boolean {
   const { airAt } = closing(r, q, episode);
-  return StateLogic.AnswerLogic.closed(r.h.state, q, episode, { now: r.now.getTime(), finale: r.finale?.number ?? null, airAt, mark: r.h.mark });
+  // L3 part 2f part 2: a question about each game, at its episode's last game's start.
+  const lastStart = q.each === "game" ? lastStartOf(r.facts, episode) : null;
+  return StateLogic.AnswerLogic.closed(r.h.state, q, episode, { now: r.now.getTime(), finale: r.finale?.number ?? null, airAt, mark: r.h.mark, lastStart });
 }
 
 /** How many of the game's episodes have started now (A9: when an answer is made), the schedule's air time for one the league
@@ -428,6 +562,10 @@ async function readQuestions(r: Read, episodeIn?: unknown): Promise<GameQuestion
     const { airAt } = closing(r, q, ep);
     const seen = needsSeen(r, q, ep);
     const behind = !closed && (catching || (seen !== null && mark < seen));
+    // L3 part 3b: an over/under on the game's own line keeps the latest one read as it opens; before there's one it waits.
+    if (!closed) await openLines(r, q, ep);
+    const ownLine = q.line === Spec.LINE_GAME && q.each !== "game" ? keptLine(r.facts, q, ep, "") : null;
+    const lineComing = q.line === Spec.LINE_GAME && q.each !== "game" && ownLine === null;
     // Once it's closed, how it stands as far as you've seen.
     const v = closed ? (graded.verdicts.get(`${q.id}|${ep}`) ?? Spec.verdictOf(q, ep, facts)) : null;
     // A13: a trivia round's questions, once you've seen the episode it's about (whether or not it's locked), each one you've played in
@@ -456,7 +594,7 @@ async function readQuestions(r: Read, episodeIn?: unknown): Promise<GameQuestion
       closes: q.closes,
       pick: (Spec.NAMES.includes(q.answer) || Spec.RANKS.includes(q.answer)) && !q.each ? (q.pick ?? 1) : null,
       from: q.answer === "person" && !q.each ? (q.from ?? "cast") : null,
-      line: typeof q.line === "number" ? q.line : null,
+      line: typeof q.line === "number" ? q.line : ownLine,
       options: q.options ?? null,
       within: q.answer === "order" ? (q.within ?? 0) : null,
       chips: q.answer === "chips" ? (q.chips ?? null) : null,
@@ -474,12 +612,15 @@ async function readQuestions(r: Read, episodeIn?: unknown): Promise<GameQuestion
       stakeMost: Spec.drawsOnBank(q, bank) ? Math.min(stakeMost(points, held, `${q.id}|${ep}`), typeof q.wager === "number" ? q.wager : Infinity) : null,
       pairs: q.answer === "pairs" && !behind ? pairsOf(h.state, q).map((p) => ({ key: p.key, faces: [castFace(view, p.ids[0]), castFace(view, p.ids[1])] })) : null,
       each: q.each ?? null,
+      confidence: q.confidence === true,
+      games: q.each === "game" ? gamesView(r.facts, q, ep, r.now.getTime()) : null,
       episode: each ? ep : null,
-      status: closed ? "closed" : behind ? "behind" : "open",
+      status: closed ? "closed" : behind ? "behind" : lineComing ? "waiting" : "open",
       catchUp: behind && !catching ? seen : null,
-      closesAt: airAt,
+      closesAt: (q.each === "game" ? lastStartOf(facts, ep) : null) ?? airAt,
       // A pairs question's faces are its pairs'.
       faces: namesSomeone(q) && q.answer !== "pairs" && !behind ? facesFor(view, q, me, facts.formatGroups?.get(ep)) : null,
+      draw: q.answer === "bracket" && !behind ? await drawView(view, h.state, q, ep || (StateLogic.startEpisode(h.state) ?? 1), facts) : null,
       offWhy: !behind ? (triviaOff ?? offWhy(q, facts.formatGroups?.get(ep))) : null,
       trivia: round,
       mine,
@@ -588,7 +729,8 @@ export async function answerQuestions(user: SessionUser, seasonId: string, leagu
       const legs = (given as { legs?: unknown } | null | undefined)?.legs;
       return Array.isArray(legs) && legs.includes(id);
     });
-  for (const [key, value] of Object.entries(body.answers)) {
+  for (const [key, said] of Object.entries(body.answers)) {
+    let value = said;
     const q = qs.find((x) => x.id === key);
     if (!q) throw new HttpError(400, `"${key}" isn't one of this game's questions`);
     let ep = 0;
@@ -609,6 +751,11 @@ export async function answerQuestions(user: SessionUser, seasonId: string, leagu
       const { at } = closing(r, q, ep);
       throw new HttpError(409, at === null ? `"${q.ask}" is closed` : `"${q.ask}" closed when Episode ${at} started`);
     }
+    // L3 part 3b: an over/under on the game's own line, its line kept as it opens; none out yet, nothing to answer.
+    await openLines(r, q, ep);
+    if (q.line === Spec.LINE_GAME && q.each !== "game" && value !== null && keptLine(r.facts, q, ep, "") === null) throw new HttpError(409, "The line isn't out yet: you can answer once it is");
+    // L3 part 2f part 2: a question about each game, each started game's pick kept as it was.
+    if (q.each === "game") value = keepStarted(r, q, ep, value);
     if (value !== null) {
       // Step C7 part 2: a line of a card the bot chooses waits for its card (its moment isn't known till then).
       if (Spec.cardWaiting(q, ep, r.facts.cardChoices?.get(ep))) {
@@ -622,13 +769,21 @@ export async function answerQuestions(user: SessionUser, seasonId: string, leagu
       // Who it can name (still in, your team, a group); for a pairs question, each pair's "index:id" (A8); a trivia round (A13), each
       // of its questions' "id:option".
       const faces =
-        q.answer === "pairs"
+        q.each === "game"
+          ? gameFaces(r.facts, ep)
+          : q.answer === "pairs"
           ? new Set(pairsOf(h.state, q).flatMap((p) => p.ids.map((id) => `${p.key}:${id}`)))
           : Spec.isTrivia(q)
             ? new Set(roundKey(r, ep).flatMap((t) => t.options.map((o) => `${t.id}:${o}`)))
             : namesSomeone(q)
               ? new Set(facesFor(view, q, h.playerId, r.facts.formatGroups?.get(ep)).map((f) => f.id))
-              : null;
+              : q.answer === "side"
+                ? // L3 part 1: a side is one of its game's teams (a question asked once: the game's first).
+                  await sidesFor(h.state, ep || (StateLogic.startEpisode(h.state) ?? 1), r.facts.games)
+                : q.answer === "bracket"
+                  ? // L3 part 2e: a bracket, its draw as listed now (who's in it, its matches so far).
+                    await drawNow(h.state, ep || (StateLogic.startEpisode(h.state) ?? 1), (q.settle as { of?: string }).of ?? "", { games: r.facts.games, playoffs: r.facts.playoffs ?? null })
+                  : null;
       let most: number | undefined;
       if (Spec.drawsOnBank(q, bank)) {
         room ??= await stakeRoom(r);
@@ -710,6 +865,8 @@ export async function answerQuestions(user: SessionUser, seasonId: string, leagu
       }
       const shut = rows.find((w) => isClosed({ ...r, now: new Date() }, w.q, w.ep));
       if (shut) throw new HttpError(409, `"${shut.q.ask}" closed as it was answered`);
+      // L3 part 2f part 2: and each game's pick of a question about each game, at its own game's start.
+      for (const w of rows) if (w.q.each === "game") keepStarted({ ...r, now: new Date() }, w.q, w.ep, w.value);
       await client.query("COMMIT");
     } catch (e) {
       await client.query("ROLLBACK").catch(() => {});
