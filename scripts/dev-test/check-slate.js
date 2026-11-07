@@ -242,6 +242,9 @@ const forget = () => pool.query("DELETE FROM sports_cache WHERE key LIKE $1", [`
     check(lg?.byGame.get(10)?.size === 2 && lg.byGame.get(10).get("zt-sl-g1")?.[one]?.PTS === 20, "each final game's lines apart", JSON.stringify([...(lg?.byGame.get(10)?.keys() ?? [])]));
     check(Object.keys(lg?.lines.get(10) ?? {}).length === 4 && lg.lines.get(10)[one]?.PTS === 20, "the episode's lines: its final games' added up", JSON.stringify(lg?.lines.get(10)));
     check(lg?.games.size === 0 && lg.sides.size === 0 && lg.slate.get(14)?.size === 1, "a slate's every episode in `slate` (day 3's one game too: its shape never changes as more are linked); `games` and `sides` none", JSON.stringify({ games: lg?.games.size, g14: lg?.slate.get(14)?.size }));
+    // L3 part 2f: an episode is done once every game in it is over (two finals and a postponed one); one with a game to play isn't.
+    check(lg?.done.has(10) && !lg.done.has(14), "an episode's results once every game in it is over (final or postponed); one with a game to play has none", JSON.stringify([...(lg?.done ?? [])]));
+    check(lg?.lines.get(10)?.[one]?.["FG%"] === lg?.byGame.get(10)?.get("zt-sl-g1")?.[one]?.["FG%"] && typeof lg?.lines.get(10)?.[one]?.FGM === "number", "the week's line: each game's counts added, a rate worked out on the sum", JSON.stringify(lg?.lines.get(10)?.[one]));
 
     // What it can be once made: the seasons made for it, the playoffs' grown.
     const madeNow = await leagueSlates(NBA, opts);

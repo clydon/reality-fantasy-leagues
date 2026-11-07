@@ -561,7 +561,7 @@ declare const StateLogic: {
     /** The server's stamp, in place: each final episode's lines (and a card's bouts) by castaway, the cast's position groups, the
      *  episodes whose game is final (part 2c: ep.gameFinal); part 2e, a squares game's final scores (ep.gameScore), each locked
      *  episode's digits (ep.squareDigits) and the sport's regulation periods (state.statPeriods). */
-    stamp(state: LeagueState, o: { lines?: Record<number, Record<string, Record<string, number>>>; bouts?: Record<number, Record<string, import("./sequence/stats").StatBout[]>>; groups?: Record<string, string>; finals?: number[]; defs?: import("./sequence/categories").CategoryDefs; games?: Record<number, Pick<import("./game-spec").SportsGameFacts, "status" | "sides" | "periods">>; digits?: Record<number, import("./sequence/squares").SquaresDigits>; periods?: number | null }): LeagueState;
+    stamp(state: LeagueState, o: { lines?: Record<number, Record<string, Record<string, number>>>; bouts?: Record<number, Record<string, import("./sequence/stats").StatBout[]>>; groups?: Record<string, string>; finals?: number[]; defs?: import("./sequence/categories").CategoryDefs; games?: Record<number, Pick<import("./game-spec").SportsGameFacts, "status" | "sides" | "periods">>; digits?: Record<number, import("./sequence/squares").SquaresDigits>; periods?: number | null; byGame?: Record<number, Record<string, Record<string, Record<string, number>>>> }): LeagueState;
     unstamp(state: LeagueState): LeagueState;
     /** The keys a stamp writes (a save leaves them out). */
     stampedKeys(): string[];

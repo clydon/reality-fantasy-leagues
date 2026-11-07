@@ -182,6 +182,9 @@ export interface Episode {
    *  it's locked (the server's draw): stamped as statLines are, never stored (SquaresLogic.settle keeps the digits in state.squares). */
   gameScore?: Pick<import("./game-spec").SportsGameFacts, "status" | "sides" | "periods">;
   squareDigits?: import("./sequence/squares").SquaresDigits;
+  /** L3 part 2f: a league's slate, each game's lines (event id to castaway id to counts) beside the week's, once every game of the
+   *  week is over: stamped as statLines are, never stored. */
+  statGames?: Record<string, Record<string, Record<string, number>>>;
   /**
    * Both optional and both filled in only by the wiki connector's eliminations import, which gets them
    * for free off the episode guide. Never overwritten once set, and absent on every hand-created

@@ -1133,7 +1133,9 @@ engine track; L brings each sport's data to it. Its screens wait for the UI trac
     game of questions on the sports settles (pick'em and pick a few: `final`, `stat`, the `side` answer to 'now', an episode's game
     final as its results: built 2026-11-06, As built below); 2d, categories and roto (`MatchupLogic` on `categoryParts`, the server handing `statDefs` over, `rank.by`
     categories and roto to 'now': built 2026-11-06, As built below); 2e, squares and a bracket question (the squares themselves, their pays from the facts, a
-    bracket's faces on the server: built 2026-11-06, As built below); 2f, a week's slate (a per-game bonus summed per game, a question per game of an episode). Each
+    bracket's faces on the server: built 2026-11-06, As built below); 2f, a week's slate (part 1, a week scored game by game and its
+    results once all its games are over: built 2026-11-06, As built below; part 2, a question per game of an episode, each pick
+    locking at its own game's start). Each
     part's proof a sports game played end to end on the recorded fixtures.
 - **L4. The formats, as the engine's pieces with sports data:** head-to-head, categories and roto (A11), best ball (A9),
   pick'em and pick a few (A4's questions with the sports settles), brackets (A8), squares (a sports way to `get`), live calls
@@ -3501,6 +3503,26 @@ in the placement corpus with the roto refusal kept on the 7 of them ranked roto)
   ask: squares by their squares playing as squares; the bracket as its twin asking who goes home, 22 playing now). GAME-PIECES.md's
   squares and bracket rows and the sequence's steps 1 and 2. 1,841 unit tests pass; `tsc` clean; eslint clean on the files changed.
 
+**L3 part 2f part 1 as built: a slate's week, game by game (2026-11-06, `sports`, not merged; no migration).**
+- **The server** (`sports/score.ts` leagueGames): a slate's episode's `lines` are each game's counts with its derived stats worked out
+  on it, added up (a double-double, a defense's points-allowed bracket: a game's, where the week's sum read them off the sum before),
+  and its rates worked out on the week's counts (never a sum of rates); `done` (new): its episodes whose every game is over (final
+  and kept, or off). `stampStats` stamps a slate's week only once it's `done` (its results then: **a partial week is never in**, so
+  the reveal, a viewer's mark and the week's result wait for its last game: 2a's Noticed), with `gameFinal` and each game's lines
+  (`byGame`, stamped `ep.statGames`).
+- **The engine** (`StatsLogic.scored`, `lineOf`): a week with `statGames` is scored game by game at the table (a moment a game for
+  each holding that scored in it) and added up; its line's parts are each stat's over the week. Categories read the week's line.
+  `STAMPED` takes `statGames` (never saved); the spoiler view drops it.
+- **Checks.** `tests/sports-hook.test.js` (19): a week of two games, a double-double in the first (15 and 4: 19), the line's parts,
+  the viewer and the save. `check-slate.js` (58, all pass): an episode done once its two finals and a postponed game are over, one
+  with a game to play not; the week's line with a rate worked out. `check-stats-game.js` (41) still passes. 1,842 unit tests pass.
+
+**L3 part 2f part 1 noticed, not fixed:**
+- **A week's live points wait for its last game** on the server (its results are the week's): the phone's live lines (L2) are what
+  show a week as it goes; U1's to say "so far".
+- **A game linked to a week after it was done** (a makeup moved into it) reopens it: its results go until the new game is over.
+  Rare (L8's sync links a makeup to its own day's episode), and right: the week isn't over.
+
 **L3 part 2e noticed, not fixed:**
 - **The server pays squares on kept finals only**: a quarter's end pays once the game's final is kept (the listings job, then a read),
   not as it happens. Live pays are the phone's (`TeamSport.periodScores` on the summary it polls: L2's), or the live poller's (L5 part
@@ -4080,7 +4102,8 @@ A season made of a whole league's games, several an episode, shared by everyone 
   Challenge 40, 74 games, 9,548 reads, every one the same. blind.js and the rehearsal not run: no show's game links several games an
   episode, and every read is kept the same (golden alone).
 - **For the engine lane (with L3 part 2's hook):**
-  - A **week's games**: `leagueGames`' `lines` for an episode of several games are its counts added up, so a categories matchup over
+  - A **week's games** (built in L3 part 2f part 1: each game scored on its own and added up, a week's results once all its games
+    are over): `leagueGames`' `lines` for an episode of several games are its counts added up, so a categories matchup over
     a week reads them as it reads one game's (L4 part 1b's window is the episode); points per stat with a per-game bonus (100 yards,
     a double-double) score each game of `byGame` through `statLine` and add them (`statMoments` over each game, summed per holding).
   - **A question per game of an episode** (pick'em over a week's slate, confidence points): `facts.games` is an episode's one game

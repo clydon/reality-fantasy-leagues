@@ -54,6 +54,8 @@ export interface LeagueGames {
   defs: CategoryDefs;
   /** L3 part 2e: a team sport's regulation periods (Sport.periods: halftime's, for squares), or null. */
   periods: number | null;
+  /** L3 part 2f: a slate's episodes whose every game is over (final and kept, or off), as far as the mark: its results are in. */
+  done: Set<number>;
 }
 
 /** The season a league plays (its show's slug and season number), or null. */
@@ -98,7 +100,10 @@ export async function leagueGames(state: LeagueState, o: { mark?: number | null;
   const now = (o.now ?? new Date()).getTime();
   const mark = o.mark ?? null;
   const who = peopleOf(state, cast);
-  const out: LeagueGames = { lines: new Map(), byGame: new Map(), slate: new Map(), groups: {}, bouts: new Map(), games: new Map(), sides: new Map(), defs: {}, periods: null };
+  const out: LeagueGames = { lines: new Map(), byGame: new Map(), slate: new Map(), groups: {}, bouts: new Map(), games: new Map(), sides: new Map(), defs: {}, periods: null, done: new Set() };
+  // L3 part 2f: a slate's episodes with a game not over yet (still to play, being played, or final without its counts kept).
+  const open = new Set<number>();
+  const slateEps = new Set<number>();
   // L8: a slate's every episode is of several games (one with a single game listed so far too: its shape never changes as more are
   // linked).
   const slate = slated.length > 0;
@@ -113,6 +118,11 @@ export async function leagueGames(state: LeagueState, o: { mark?: number | null;
   // server (never the weekend's places on qualifying's episode, nor its lines twice).
   const lastOf = new Map<string, number>();
   const raw = new Map<number, Record<string, Stats>>();
+  // L3 part 2f: a slate's episode's lines, each game's with its derived stats added up; the sport's rates (worked out on the sum).
+  const sums = new Map<number, Record<string, Stats>>();
+  const rates = new Set<string>();
+  const sportOfRows = rows.length ? sportOf(rows[0].league) : null;
+  if (sportOfRows) for (const [k, d] of Object.entries(sportOfRows.categoryDefs())) if (d.parts) rates.add(k);
   for (const r of rows) {
     const k = `${r.provider}|${r.league}|${r.event_id}`;
     lastOf.set(k, Math.max(lastOf.get(k) ?? 0, Number(r.episode)));
@@ -128,12 +138,15 @@ export async function leagueGames(state: LeagueState, o: { mark?: number | null;
     if (!sport) continue;
     if (!Object.keys(out.defs).length) out.defs = sport.categoryDefs();
     if (out.periods === null && sport instanceof TeamSport) out.periods = sport.periods.regulation;
+    if (slate) slateEps.add(n);
     if (mark !== null && n > mark) {
       setGame(n, event, { status: "pre", sides: teams.map((id) => ({ id, score: 0 })), lines: {}, teams: {} });
+      open.add(n);
       continue;
     }
     const early = Number(r.episode) < (lastOf.get(`${r.provider}|${r.league}|${r.event_id}`) ?? 0);
     const status = early && statusOf(r, now) === "final" ? "in" : statusOf(r, now);
+    if (status !== "final" && status !== "off") open.add(n);
     if (status !== "final") {
       setGame(n, event, { status, sides: status === "pre" ? teams.map((id) => ({ id, score: 0 })) : known, lines: {}, teams: {} });
       continue;
@@ -152,19 +165,26 @@ export async function leagueGames(state: LeagueState, o: { mark?: number | null;
     const full = (lines: Record<string, Stats>) => (sport instanceof TeamSport ? Object.fromEntries(Object.entries(lines).map(([id, l]) => [id, sport.full(l)])) : lines);
     if (slate) {
       if (!out.byGame.has(n)) out.byGame.set(n, new Map());
-      out.byGame.get(n)!.set(event, full(g.lines));
-      // The episode's counts added up (each game's raw counts: a rate worked out on the sum, never a sum of rates).
+      const each = full(g.lines);
+      out.byGame.get(n)!.set(event, each);
+      // The episode's counts added up: each game's with its derived stats worked out on it (a double-double, a defense's points
+      // allowed bracket: L3 part 2f), and a rate worked out on the counts' sum, never a sum of rates (its raw counts kept apart).
       const sum = (raw.get(n) ?? raw.set(n, {}).get(n))!;
+      const counts = (sums.get(n) ?? sums.set(n, {}).get(n))!;
       for (const [id, l] of Object.entries(g.lines)) {
         const had = (sum[id] ??= {});
         for (const [k, v] of Object.entries(l)) had[k] = (had[k] ?? 0) + v;
+        const got = (counts[id] ??= {});
+        for (const [k, v] of Object.entries(each[id] ?? {})) if (!rates.has(k)) got[k] = (got[k] ?? 0) + v;
       }
-      out.lines.set(n, full(sum));
+      const whole = full(sum);
+      out.lines.set(n, Object.fromEntries(Object.entries(counts).map(([id, l]) => [id, { ...l, ...Object.fromEntries(Object.entries(whole[id] ?? {}).filter(([k]) => rates.has(k))) }])));
       continue;
     }
     out.lines.set(n, full(g.lines));
     if (g.kind === "card") out.bouts.set(n, Object.fromEntries(Object.keys(g.lines).map((id) => [id, boutsOf(g.card, g.byBout, id)])));
   }
+  for (const n of slateEps) if (!open.has(n)) out.done.add(n);
   return out;
 }
 
@@ -237,7 +257,7 @@ export async function sidesFor(state: LeagueState, episode: number, games?: Map<
 /** A final game's score as the squares read it (StatsLogic.stamp's `o.games`). */
 type GameScore = Pick<SportsGameFacts, "status" | "sides" | "periods">;
 /** What a stamp writes (StateLogic.StatsLogic.stamp's `o`). */
-type Stamp = { lines: Record<number, Record<string, Stats>>; bouts: Record<number, Record<string, StatBout[]>>; groups: Record<string, string>; finals: number[]; defs: CategoryDefs; games: Record<number, GameScore>; periods: number | null };
+type Stamp = { lines: Record<number, Record<string, Stats>>; bouts: Record<number, Record<string, StatBout[]>>; groups: Record<string, string>; finals: number[]; defs: CategoryDefs; games: Record<number, GameScore>; periods: number | null; byGame: Record<number, Record<string, Record<string, Stats>>> };
 // The league poll reads every 15 s (league-read.ts readyLeague), and a season's kept finals are big (everyone's counts, a game an
 // episode): each server instance keeps the last stamp it worked out for a league, with a fingerprint of what it read (32 bytes: the
 // season's kept finals, its cast's provider ids and positions, the league's castaways), and reads the finals again only when it moves.
@@ -283,14 +303,18 @@ export async function stampStats(state: LeagueState): Promise<LeagueState> {
     const finals = [...g.games].filter(([, f]) => f.status === "final").map(([n]) => n);
     // L3 part 2e: each final game's score, for squares (its sides and each period's end).
     const games = Object.fromEntries(finals.map((n) => { const f = g.games.get(n)!; return [n, { status: f.status, sides: f.sides, ...(f.periods ? { periods: f.periods } : {}) }]; }));
-    hit = { key, stamp: { lines: Object.fromEntries(g.lines), bouts: Object.fromEntries(g.bouts), groups: g.groups, finals, defs: g.defs, games, periods: g.periods } };
+    // L3 part 2f: a slate's episode only once every game in it is over (its results then: a partial week is never in), its lines
+    // the week's and each game's (a table scored game by game: byGame).
+    const lines = Object.fromEntries([...g.lines].filter(([n]) => !g.slate.has(n) || g.done.has(n)));
+    const byGame = Object.fromEntries([...g.byGame].filter(([n]) => g.done.has(n)).map(([n, m]) => [n, Object.fromEntries(m)]));
+    hit = { key, stamp: { lines, bouts: Object.fromEntries(g.bouts), groups: g.groups, finals: [...finals, ...g.done], defs: g.defs, games, periods: g.periods, byGame } };
     stamps.delete(id);
     stamps.set(id, hit);
     if (stamps.size > MAX_STAMPS) stamps.delete(stamps.keys().next().value!);
   }
   // Each league its own copy of the lines (stamp keeps only its castaways' and the copy is the league's to change); a game of
   // questions, its finals alone (the grader reads the games); the sport's stats' defs only for a game ranked by categories; squares
-  // their finals' scores, the sport's periods and each locked episode's digits.
+  // their finals' scores, the sport's periods and each locked episode's digits; a slate's each game's lines beside its week's.
   const { defs, games, periods, ...lines } = hit.stamp;
   const stamp = StateLogic.SquaresLogic.on(state)
     ? { finals: [...hit.stamp.finals], games: structuredClone(games), periods, digits: squareDigits(state) }

@@ -512,3 +512,27 @@ test("a bracket question plays: tennis's defaults are a game of questions now", 
     assert.equal(G.typeOf(spec), "questions", league);
   }
 });
+
+// L3 part 2f: a league's slate, a week of several games an episode. The server stamps a week only once every game in it is over, its
+// lines the week's (each game's counts and derived stats added up) and each game's (`statGames`), so a table scores each game on its
+// own: a double-double is a game's, never the week's sum's.
+test("a slate's week: each game at the table on its own and added up, a double-double a game's; never saved, never past the mark", () => {
+  const spec = base({ score: { by: "stats", points: { PTS: 1, DD: 5 } }, count: { all: true } });
+  const s = league(spec);
+  const [x] = s.castaways.map((c) => c.id);
+  // Two games in the week: a double-double in the first (10 and 10), none in the second.
+  const g1 = { [x]: { PTS: 10, REB: 10, DD: 1 } };
+  const g2 = { [x]: { PTS: 4, REB: 3, DD: 0 } };
+  const week = { [x]: { PTS: 14, REB: 13, DD: 1 } };
+  S.StatsLogic.stamp(s, { lines: { 1: week }, byGame: { 1: { g1, g2 } }, finals: [1] });
+  const scored = S.StatsLogic.scored(s, ep(s, 1));
+  assert.deepEqual(scored.map((m) => m.points), [15, 4], "a moment a game");
+  assert.equal(score(s, "ann"), 19);
+  const line = S.StatsLogic.lineOf(s, ep(s, 1), x);
+  assert.equal(line.points, 19);
+  assert.deepEqual(line.parts.map((p) => [p.stat, p.value, p.points]).sort(), [["DD", 1, 5], ["PTS", 14, 14]]);
+  // The viewer who hasn't seen the week: nothing; a write saves none of it.
+  assert.equal(S.SpoilerLogic.viewThrough(s, 0).episodes.some((e) => e.statGames), false);
+  const keys = new Set(S.StatsLogic.stampedKeys());
+  assert.equal(JSON.parse(JSON.stringify(s, (k, v) => (keys.has(k) ? undefined : v))).episodes.some((e) => e.statGames), false);
+});

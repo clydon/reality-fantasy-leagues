@@ -3135,7 +3135,10 @@ function roundPoints(n){ return Seq.round(n); }
 // L3 part 2e: a squares game, each final game's score as the squares read it (`ep.gameScore`: its status, its two sides with their
 // scores, each period's end), the sport's regulation periods (`state.statPeriods`: halftime's), and each locked episode's digits as
 // the server drew them (`ep.squareDigits`: SquaresLogic.settle keeps them in the league at the next write).
-const STAMPED = { episode: ['statLines', 'statBouts', 'gameFinal', 'gameScore', 'squareDigits'], state: ['statGroups', 'statDefs', 'statPeriods'] };
+// L3 part 2f: a league's slate (several games an episode), each game's lines beside the week's (`ep.statGames`: event id to castaway
+// id to counts), so a table scores each game on its own and adds them up (a double-double, a bonus at 100 yards, a defense's points
+// allowed: each a game's); stamped only once every game of the week is over, so a partial week is never its results.
+const STAMPED = { episode: ['statLines', 'statBouts', 'gameFinal', 'gameScore', 'squareDigits', 'statGames'], state: ['statGroups', 'statDefs', 'statPeriods'] };
 // The settles a sport's game answers (L1 part 4b).
 const SPORTS_SETTLES = ['final', 'stat'];
 class StatsLogic {
@@ -3152,8 +3155,11 @@ class StatsLogic {
   static scored(state, ep){
     if(!ep || !ep.statLines || typeof ep.statLines !== 'object') return null;
     const groups = state.statGroups || {};
+    const score = playedGame(state).score;
+    // L3 part 2f: a week of a slate's, each game at the table on its own (a moment a game for each holding that scored in it).
+    if(ep.statGames && typeof ep.statGames === 'object') return Object.values(ep.statGames).flatMap(lines => Stats.statMoments(lines, score, id => groups[id] || null));
     const bouts = ep.statBouts && typeof ep.statBouts === 'object' ? ep.statBouts : null;
-    return Stats.statMoments(ep.statLines, playedGame(state).score, id => groups[id] || null, bouts ? id => bouts[id] || null : undefined);
+    return Stats.statMoments(ep.statLines, score, id => groups[id] || null, bouts ? id => bouts[id] || null : undefined);
   }
   // One holding's line in an episode at the game's table: { points, parts: [{ stat, value, points, bout? }] } (statLine's), or null
   // when the episode's lines aren't in or they have none for them.
@@ -3161,6 +3167,19 @@ class StatsLogic {
     const line = ep && ep.statLines && ep.statLines[castawayId];
     if(!line) return null;
     const groups = state.statGroups || {};
+    // L3 part 2f: a slate's week, each game's line at the table, their points and parts added up by stat.
+    if(ep.statGames && typeof ep.statGames === 'object'){
+      const score = playedGame(state).score;
+      const by = new Map();
+      let points = 0;
+      Object.values(ep.statGames).forEach(lines => {
+        if(!lines || !lines[castawayId]) return;
+        const one = Stats.statLine(score, lines[castawayId], { group: groups[castawayId] || null });
+        points += one.points;
+        one.parts.forEach(p => { const had = by.get(p.stat); by.set(p.stat, had ? { stat: p.stat, value: had.value + p.value, points: Stats.cents(had.points + p.points) } : { ...p }); });
+      });
+      return { points: Stats.cents(points), parts: [...by.values()] };
+    }
     const bouts = ep.statBouts && ep.statBouts[castawayId];
     return Stats.statLine(playedGame(state).score, line, { group: groups[castawayId] || null, bouts: bouts || undefined });
   }
@@ -3176,6 +3195,7 @@ class StatsLogic {
     const lines = (o && o.lines) || {};
     const bouts = (o && o.bouts) || {};
     const finals = new Set((o && o.finals) || []);
+    const byGame = (o && o.byGame) || {};
     const games = (o && o.games) || {};
     const digits = (o && o.digits) || {};
     (state.episodes || []).forEach(ep => {
@@ -3186,6 +3206,7 @@ class StatsLogic {
       if(!at || typeof at !== 'object') return;
       ep.statLines = only(at);
       if(bouts[ep.number]) ep.statBouts = only(bouts[ep.number]);
+      if(byGame[ep.number] && typeof byGame[ep.number] === 'object') ep.statGames = Object.fromEntries(Object.entries(byGame[ep.number]).map(([event, l]) => [event, only(l)]));
     });
     const groups = only(o && o.groups);
     if(Object.keys(groups).length) state.statGroups = groups;
@@ -8433,7 +8454,7 @@ class SpoilerLogic {
       ep.events = []; ep.scoringEvents = []; ep.exiled = []; ep.roles = []; ep.groups = []; delete ep.formatGroups;
       delete ep.resultsStage; delete ep.noExit;
       // L3 part 2: a sport's stat lines and its game's final (StatsLogic.stamp).
-      delete ep.statLines; delete ep.statBouts; delete ep.gameFinal; delete ep.gameScore;
+      delete ep.statLines; delete ep.statBouts; delete ep.gameFinal; delete ep.gameScore; delete ep.statGames;
       ep.postMerge = visible ? !!visible.postMerge : false;
       (ep.bets || []).forEach(b => (b.predictions || []).forEach(p => { p.correct = null; }));
       ep.resultsHidden = true;
