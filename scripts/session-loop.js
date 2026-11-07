@@ -74,8 +74,10 @@ function capCheck() {
     return null;
   }
 }
-/** How long a session that ended a turn without its hand-off may stay quiet (waiting on its own background work). */
-const QUIET_MS = 20 * 60 * 1000;
+/** How long a session that ended a turn without its hand-off may stay quiet (waiting on its own background work). 45
+ *  minutes since 2026-11-07: the long checks run together at a step's end (golden, blind, the rehearsal: 30 to 40 minutes),
+ *  and a blind replay alone outlasted the 20 minutes this was, ending G3 part 3b's session mid-check. */
+const QUIET_MS = 45 * 60 * 1000;
 
 const EFFORTS = ["low", "medium", "high", "xhigh", "max"];
 // Never from the loop, whatever a prompt says: shipping is the user's call (CLAUDE.md, the plan's Rules).
