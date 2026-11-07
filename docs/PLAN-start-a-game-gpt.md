@@ -9,7 +9,9 @@ them next (the user's, in production). **Merged and live in production (2026-10-
 (2026-10-31, 12:31 AM, `075d193e`, no migration), then A13 (2026-11-05, 9:26 PM, `1d4b20a0`, migrations 0204 and 0436), then A14 parts 1-2, C1 and C2
 (2026-11-06, 9:33 AM, `e450fcd4`, migrations 0205 and 0206), then C3, C4, C4b and C5 (2026-11-06, 12:37 PM, `f22c9753`, migration
 0207), then C6 and C7 part 1 (2026-11-06, 3:53 PM, `abfa4a74`, no migration), then C7 part 2 (2026-11-06, 5:57 PM, `9d74258d`, migration 0208), and track L's live sports, released with no screens yet (2026-11-07, 1:05 AM, `e7f5dc0b`, migrations 0300 to 0306);
-later engine parts (A14 part 2b on) stay on
+then A14 parts 2b to 7b (2026-11-07, 9:09 AM, `fbc7dc0a`, migrations 0209 to 0213; the call prompt approved by the user, the bot's
+reason kept hidden; TVmaze ratings off, the user's no); A15 waits for a concept session on the watch along with the user
+(2026-11-07); later engine parts stay on
 `engine` until the main folder merges them, after each
 lettered step. A1–A4 are built on `engine` (A4 in two parts: the engine and storage, then the Prediction Sheet's screens, built before
 the screens moved to U1), merged and live since 2026-10-30 (above).
@@ -8705,7 +8707,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     scored nobody who said the same, a night of several exits only the one it named. The study doc's "A14 part 2".
   - **The Survivor 51 rehearsal** isn't run for this part: no existing game scores differently (none is played against the bot; golden
     every read the same).
-  **As built (A14 part 2b, the bot's own run for its calls, 2026-11-06, on `engine`; migration 0209).** One session, after `lane.js sync
+  **As built (A14 part 2b, the bot's own run for its calls, 2026-11-06, on `engine`; merged and live 2026-11-07, `fbc7dc0a`; migration 0209).** One session, after `lane.js sync
   engine` (master's docs only; 1582 tests). Part 2's piece (beat the bot) had its calls only from stand-ins; this part is the run that
   makes them, so a game played against the bot plays it for real once it's merged. No screen, no new piece, no game scores differently
   (every existing game's call is still none: no game in production plays against the bot), and nothing in `state-logic.js` changed
@@ -8782,7 +8784,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     (blind files its stand-in calls through `fileCalls`, unchanged; the rehearsal's bot runs are the quick and full research), so golden
     answers whether anything moved.
 
-  **As built (A14 part 3, bounties, 2026-11-06, on `engine`; no migration).** One session, after `lane.js sync engine` (nothing new from
+  **As built (A14 part 3, bounties, 2026-11-06, on `engine`; merged and live 2026-11-07, `fbc7dc0a`; no migration).** One session, after `lane.js sync engine` (nothing new from
   master; 1587 tests). Points that move between seats by what the results say, as a piece that composes: a line of its own in the
   scoring sequence (step 2), a transfer between seats that always adds up to nothing, on any draft's place or moments. No screen; no
   prompt change (research already asks who voted for whom); every game that played before scores the same (the rows carry `bounty`
@@ -8846,7 +8848,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     bounty moved (Noticed). The Survivor 51 rehearsal (`season-forward.js rehearse --from=backups/prod-2026-10-30
     --scenario=realistic,rough,dst --before=master`): every invariant holds, flag off against on and master's engine against this
     tree's, 2,856 reads each, every one the same.
-  **As built (A14 part 4, secret roles among the players, 2026-11-06, on `engine`; migration 0210).** One session, after `lane.js sync
+  **As built (A14 part 4, secret roles among the players, 2026-11-06, on `engine`; merged and live 2026-11-07, `fbc7dc0a`; migration 0210).** One session, after `lane.js sync
   engine` (master's C7 part 2 merge, docs only; 1601 tests). Some seats secretly dealt a role, as a piece that composes: who holds it
   (dealt at random once the game starts, from a seed the server keeps), what it scores by (what the results say: who goes home, as
   data), when it's revealed (the game's end or an episode), and where it sits in the scoring sequence (a line of its own, step 2,
@@ -8927,7 +8929,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     tree's, 2,856 reads each, every one the same. Blind (`blind.js run`): every game played through and over on all five seasons, The
     Challenge 41 121, 40 115 and 39 123 (as after part 3: nobody's voted out there, so a role on votedOut doesn't play), Survivor 49
     158 and The Traitors 4 112 (one more each: s24 and who.secret share a spec, and blind plays each distinct spec once).
-  **As built (A14 part 5, the top scorer's twist, 2026-11-06, on `engine`; migration 0211).** One session, after `lane.js sync engine`
+  **As built (A14 part 5, the top scorer's twist, 2026-11-06, on `engine`; merged and live 2026-11-07, `fbc7dc0a`; migration 0211).** One session, after `lane.js sync engine`
   (nothing new from master; 1615 tests). A player's choice that changes the next episode's rules for everyone, as a piece that
   composes: who chooses (the game's own walk, as data), what can be chosen (the spec's list, each a multiplier that already has its
   place in the scoring sequence), when it's chosen and closes, what plays when nobody chooses (the fallback, from the start). No
@@ -9022,7 +9024,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     tree's, 2,856 reads each, every one the same. Blind (`blind.js run`): every game played through and over on all five seasons, The
     Challenge 41 122, 40 116 and 39 124, Survivor 49 159 and The Traitors 4 113 (one more each: s40, a lineup, which plays on every
     show; nobody chooses in a replay, so it plays without a twist: Noticed).
-  **As built (A14 part 6, a rotating host's questions, 2026-11-06, on `engine`; migration 0212).** One session, after `lane.js sync
+  **As built (A14 part 6, a rotating host's questions, 2026-11-06, on `engine`; merged and live 2026-11-07, `fbc7dc0a`; migration 0212).** One session, after `lane.js sync
   engine` (nothing new from master; 1624 tests). The host is a third way a card is chosen (C7: in turn, the AI's, now a host's), so
   the piece is C7's: the lines, the stamp, the grading and the answers route are the card's, and what's new is whose turn it is, the
   host's deadline and where the host's lines wait. No screen; no prompt change; every game that played before scores the same (only
@@ -9126,7 +9128,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     the Drive-By 18, the Fan 11, the Fan Who Forgets 6) and The Traitors 4 113. The Survivor 51 rehearsal
     (`season-forward.js rehearse --from=backups/prod-2026-10-30 --scenario=realistic,rough,dst --before=master`): every invariant
     holds, flag off against on and master's engine against this tree's, 2,856 reads each, every one the same.
-  **As built (A14 part 7, a number from a vetted outside source, 2026-11-06, on `engine`; migration 0213).** One session, after
+  **As built (A14 part 7, a number from a vetted outside source, 2026-11-06, on `engine`; merged and live 2026-11-07, `fbc7dc0a`; migration 0213).** One session, after
   `lane.js sync engine` (nothing new from master; 1631 tests). The last of A14's pieces, and not a player mechanic: data still settles
   it, only from outside research (the Decisions table, "Numbers from outside research": vetted, free, settled once at a fixed moment
   and stored). A new settle kind, so it composes with every answer that takes a number and every way a question's points combine,
@@ -9248,7 +9250,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     --from=../reality-fantasy-leagues/backups/prod-2026-10-30 --scenario=realistic,rough,dst --before=master`): every invariant
     holds, flag off against on and master's engine against this tree's, 2,856 reads each, every one the same.
 
-  **As built (A14 part 7b, the outside number off, 2026-11-07, on `engine`; no migration).** The user's answer to part 7's Noticed:
+  **As built (A14 part 7b, the outside number off, 2026-11-07, on `engine`; merged and live 2026-11-07, `fbc7dc0a`; no migration).** The user's answer to part 7's Noticed:
   TVmaze's ratings as a source, no (the Decisions table, "Outside numbers: TVmaze ratings"). One small step, before the main
   session's merge of A14 parts 2b to 7; `lane.js sync engine` had nothing new.
   - **schema.js**: VOCAB's `ask.settle.outside` is 'later' (its comment says why and what a yes is), so `specWaitsFor` names any

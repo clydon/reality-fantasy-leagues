@@ -343,6 +343,19 @@ it doesn't go in the menu.** The audit (checked in the code, 2026-10-30), per ol
   full target first (A5, the capability tracker, then A6–A15), today's games rebuilt on it (R1–R3), the UI last (U0–U1), the
   GPT's words alongside (G1), and live sports folded in as track L. Lanes (worktree + branch + database + port + session loop):
   [PARALLEL-SESSIONS.md](PARALLEL-SESSIONS.md); season tapes and playtests: [PLAN-playtests.md](PLAN-playtests.md).
+- **Merged and pushed 2026-11-07, 9:09 AM: the engine's A14 parts 2b to 7b, the players' own mechanics** (`fbc7dc0a`, merging the
+  engine's `6b343c1c`; migrations 0209 to 0213, rehearsed by the user on the Neon branch `rehearse-c4b-2026-11-06`, which
+  also took the sports release's 0300 to 0306: all applied, `[check] all good`, rulebooks backfilled, the game-specs check
+  PASS on all 6 leagues). Part 2b: the bot's own calls in beat the bot, six hours before each episode, one ask a game a
+  lock (the call prompt approved by the user, 2026-11-07; the bot's one-line reason stored, not shown). Part 3: bounties
+  (your castaway votes out someone else's, you take their points). Part 4: secret roles (dealt at random, hidden in their
+  own table until the reveal). Part 5: the top scorer's twist for the next episode. Part 6: a rotating host's weekly card.
+  Part 7: a number from TVmaze's ratings, built and then switched off (7b: the user's no; a later yes is one VOCAB flip and
+  one hourly step). None can be made from a screen yet, so nothing runs in production. The user's other answers: A15 waits
+  for a concept session on the watch along. Checked: the lane's long checks on `e732eaaa` (golden 19,361 reads the same;
+  blind, every game through; the Survivor 51 rehearsal, every invariant), and 7b's quick checks (a VOCAB flip turning a
+  piece off); on the merged tree (rfl-merge, branch merge-a14): unit tests 1929, eslint on the changed source files and
+  `next build` with its type-check.
 - **Merged and pushed 2026-11-07, 1:05 AM: track L, live sports, released with no screens yet** (`e7f5dc0b`, merging the sports lane's
   `32c11e65`; migrations 0300 to 0306, rehearsed on the Neon branch `rehearse-c4b-2026-11-06` (production's schema since
   0208; the branch limit left no room for a new one; `pre-c7b-2026-11-06` the latest snapshot). The user's word: "Release
@@ -533,7 +546,7 @@ it doesn't go in the menu.** The audit (checked in the code, 2026-10-30), per ol
   **Waiting on the user:** restart the main bot (8765) on the new code, then the tapes move back to it and 8766 goes. The
   playtest branch is merged into master (`2c945d31`).
 - **Neon is on Launch** since 2026-10-28 (the user upgraded it at 98.3% of the free transfer; about $5 a month; HOSTING.md).
-- **On branches, not merged:** the engine from A14 part 2b on (`engine`: the bot's own calls, built; then A14's rest),
+- **On branches, not merged:** nothing on `engine` past A14 (A15 waits for the watch along's concept, the user's session),
   track L's live sports released (above; next: G3 and the screens). The lanes run at high
   since 2026-11-05 (the user; C2 at xhigh) under the usage cap ([PARALLEL-SESSIONS.md](PARALLEL-SESSIONS.md), "The usage
   cap"). Waiting on the

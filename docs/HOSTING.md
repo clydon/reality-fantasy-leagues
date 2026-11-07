@@ -1237,3 +1237,8 @@ never handles it: the user does the reset and the pasting.
   in production yet), and the search, schedule, league and add routes call ESPN only when someone asks (each call cached).
   New tables `sports_events`, `sports_matchups`, `sports_slates` and `question_lines`, empty until a sports game is made.
   The sizes and calls are in the entries above (Matchups, finals and lines; Finding a game by team; A league's slate).
+- **2026-11-07, pushed to master (`fbc7dc0a`, migrations 0209 to 0213).** The engine's A14 parts 2b to 7b. **Four small new
+  tables, empty until such a game is made** (`secret_role_deals`, `twist_choices`, `host_cards`, and `outside_numbers`,
+  unused while TVmaze ratings are off), and a bot research run kind, `call`: one ask a game a lock, six hours before the
+  episode, only for games with a beat-the-bot question (none can be made yet). Same bot as research's other runs; no paid
+  key, no new service or schedule.
