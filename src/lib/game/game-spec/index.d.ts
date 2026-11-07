@@ -723,6 +723,9 @@ export interface SpecDescription {
   rules: string[];
   /** The details nobody asked about. */
   details: { id: string; label: string; value: string; recommended: boolean }[];
+  /** G4: the game at a glance: a title (up to 28 characters) and one line of chips joined by " · " (up to 60: when it plays, what
+   *  you do, how it's won when that isn't the game's own, then its twists, as many as fit), and how many chips didn't fit. */
+  short: { title: string; line: string; more: number };
 }
 
 /** A league's settings fields as a spec writes them; undefined: the field goes. */
@@ -1201,3 +1204,40 @@ export function ownedFields(spec: SpecInput | GameSpec): string[] | null;
 /** The settings with the spec's fields written into a copy, or null when settingsOf has none. */
 export function withSpec<T extends object>(settings: T, spec: SpecInput | GameSpec): T | null;
 export function describeSpec(spec: SpecInput | GameSpec, ctx?: SpecContext | null): SpecDescription;
+
+/** G4 (roll.js): Randomize. A page is G1's { ctx, pack } or a SpecContext alone. */
+export type RollLength = "one" | "few" | "half" | "rest" | "phase" | "until-phase" | number | SpecSpan;
+export interface RollLocks {
+  length?: RollLength;
+  play?: "draft" | "pick" | "questions" | "card";
+  base?: "outlast" | "lineup" | "best-ball" | "pool" | "picks" | "questions" | "bingo" | "calls";
+  win?: "total" | "streak" | "standing" | "matchups" | "weeks" | "coop" | "race";
+  /** Ids of ROLL.twists, up to two; [] for none. */
+  twists?: string[];
+  /** Part of a spec held over whatever's rolled (what someone typed). */
+  keep?: SpecInput;
+}
+export interface RollResult {
+  ok: boolean;
+  /** The seed it landed on: rolling it again is the same game in one try. */
+  seed: number | string;
+  tries: number;
+  spec: SpecInput | null;
+  base: string | null;
+  win: string | null;
+  twists: string[];
+  length: string | null;
+  describe: SpecDescription | null;
+  problems: SpecProblem[];
+  waits: SpecWait[];
+  /** Why the nearest it found doesn't play (ok false), else null. */
+  why: string | null;
+}
+export interface RollWeights {
+  bases: Record<string, number>;
+  twists: Record<string, number>;
+  wins: Record<string, number>;
+}
+export function rollSpec(page: { ctx?: SpecContext | null; pack?: unknown } | SpecContext | null, locks?: RollLocks | null, seed?: number | string, opts?: { weights?: RollWeights | null; tries?: number }): RollResult;
+export function weightsFrom(rows: unknown[], ctxOf: (row: { page?: unknown }) => SpecContext | null): RollWeights;
+export const ROLL: { bases: { id: string; play: string }[]; wins: string[]; twists: { id: string; cost: number }[]; lengths: string[]; plays: string[]; budget: number; tries: number };

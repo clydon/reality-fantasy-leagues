@@ -6,11 +6,13 @@
 //   ./settings.js  specOf(settings), settingsOf(spec), withSpec, ownedFields; OWNED and OUTSIDE
 //   ./describe.js  describeSpec: the wizard's sentence, How it works and the details
 //   ./answers.js   grading its questions (A4): verdictOf, pointsFor, isRight, answerProblem
+//   ./roll.js      Randomize (G4): rollSpec, a game rolled from a seed on a page's rules, locks held; weightsFrom, ROLL
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
 const schema = require('./schema.js');
 const settings = require('./settings.js');
 const { describeSpec } = require('./describe.js');
 const answers = require('./answers.js');
+const { rollSpec, weightsFrom, ROLL } = require('./roll.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
-module.exports = { ...schema, ...settings, describeSpec, ...answers };
+module.exports = { ...schema, ...settings, describeSpec, ...answers, rollSpec, weightsFrom, ROLL };

@@ -1683,7 +1683,179 @@ function describeStages(s, ctx) {
     { id: 'join', label: 'Who can join', recommended: e.join === null, value: e.lockedDown ? "Nobody new while it's locked down" : own(JOIN_WORDS, e.join) || JOIN_WORDS.open },
     { id: 'lockedDown', label: 'Locked down', recommended: e.lockedDown !== true, value: e.lockedDown ? 'Nobody new, and the rules stay as they are' : 'No' },
   ];
-  return { name: null, sentence: parts.map((p) => p.text).join(''), parts, rules, details };
+  return { name: null, sentence: parts.map((p) => p.text).join(''), parts, rules, details, short: stagesShort(s, ctx) };
+}
+
+// ---------- the short form (G4: Randomize's "easy to read at a glance") ----------
+// A game in a title and one line, for a roll's card and anywhere a game is shown small: "Weekly Lineup" / "Episodes 7–9 · Draft 5,
+// start 3 · Captain scores double". The line's chips in order: when it plays, what you do, then what makes it different (its twists,
+// then how you win when that isn't the game's own), as many as fit SHORT_LINE; when and what you do always stay. The sentence and
+// How it works say the rest, a tap away. The words are a screen's (U0, through impeccable).
+const SHORT_TITLE = 28;
+const SHORT_LINE = 60;
+/** "Won the Immunity challenge" -> "won the Immunity challenge" (an initialism stays). */
+const lowerFirst = (t) => (t && !/^[A-Z]{2}/.test(t) ? t.charAt(0).toLowerCase() + t.slice(1) : t || '');
+/** Text within `max`, cut with an ellipsis. */
+const capTo = (t, max) => (t.length > max ? `${t.slice(0, max - 1).trimEnd()}…` : t);
+const timesShort = (x) => ({ 2: 'double', 3: 'triple', 0.5: 'half' })[x] || `×${x}`;
+
+/** When a game plays, as a chip: "Episode 7", "Episodes 7–9", "Episode 7 on", "All season", "From Merged", "Until Merged". */
+function spanShort(span, w) {
+  if (!isObj(span)) return null;
+  if (span.from === null) return 'From a format change';
+  const endPhase = spanEndPhase(span);
+  if (endPhase) return `${span.from === 1 || isObj(span.from) ? '' : `${w.Part} ${span.from} `}until ${phaseWord(endPhase, w)}`.replace(/^u/, 'U');
+  if (isObj(span.from)) return `From ${phaseWord(span.from.phase, w)}${span.to === null ? '' : ` to ${w.Part} ${span.to}`}`;
+  if (span.to === null) return span.from === 1 ? 'All season' : `From ${w.Part} ${span.from}`;
+  return span.to === span.from ? `${w.Part} ${span.from}` : `${w.Parts} ${span.from}–${span.to}`;
+}
+
+/** What you do, as a chip: "Draft 3", "Draft 5, start 3", "Pick 1 to stay in", "3 questions". */
+function holdShort(s, w) {
+  const g = s.get || {};
+  const each = isNum(g.each) ? g.each : null;
+  if (g.by === 'draft') {
+    // A draft still being made (no size yet) says what it is without one.
+    const how = each === null ? (g.order === 'draw' ? 'From a hat' : g.order === 'auction' ? 'Bid' : 'Draft') : g.order === 'draw' ? `${each} from a hat` : g.order === 'auction' ? `Bid for ${each}` : `Draft ${each}`;
+    const c = s.count || {};
+    if (isNum(c.start)) return `${how}, start ${c.start}`;
+    if (isNum(c.best)) return `${how}, best ${c.best} count`;
+    return how;
+  }
+  if (g.by === 'pick') return s.score && s.score.by === 'survive' ? 'Pick 1 to stay in' : `Pick ${each || 1} to score`;
+  if (g.by === 'card') return `New card each ${w.part}`;
+  if (g.by === 'squares') return 'Squares';
+  const asks = Array.isArray(s.ask) ? s.ask.filter(isObj) : [];
+  if (asks.some((q) => q.answer === 'calls')) return '2 calls';
+  return !asks.length ? 'Questions' : asks.length === 1 ? '1 question' : `${asks.length} questions`;
+}
+
+/** What makes a game different, as chips in the order they're shown: its twists, then how it's won when that isn't the game's own. */
+function twistShorts(s, w) {
+  const out = [];
+  const sc = s.score || {};
+  const g = s.get || {};
+  const rank = s.rank || {};
+  const asks = Array.isArray(s.ask) ? s.ask.filter(isObj) : [];
+  if (isObj(sc.captain) && isNum(sc.captain.times)) out.push(`Captain scores ${timesShort(sc.captain.times)}`);
+  for (const t of Array.isArray(sc.times) ? sc.times.filter(isObj) : []) out.push(t.finale ? `Finale counts ${timesShort(t.times)}` : isNum(t.episode) ? `${w.Part} ${t.episode} counts ${timesShort(t.times)}` : `Some ${w.parts} count ${timesShort(t.times)}`);
+  if (sc.reverse && !(g.by === 'draft' && sc.by === 'place')) out.push('First out scores most');
+  if (isObj(sc.bounty)) out.push('Bounties');
+  const roles = rolesOf(s);
+  if (roles) out.push(roles.count === 1 ? `A secret ${roles.name}` : `${roles.count} secret ${rolePlural(roles.name)}`);
+  if (twistOf(s)) out.push('Top scorer picks a twist');
+  if (onlyCard(s)) out.push(`New objectives each ${w.part}`);
+  else if (Array.isArray(sc.only)) out.push(`Only ${sc.only.length} moments count`);
+  if (isObj(g.groups) && isNum(g.groups.slots)) out.push(g.groups.slots === 1 ? `Plus a ${w.group} slot` : `Plus ${g.groups.slots} ${w.group} slots`);
+  if (isObj(g.across)) out.push(`1 from each ${w.group}`);
+  if (Array.isArray(sc.multiply) && sc.multiply.length) {
+    const m = sc.multiply[0];
+    const first = Array.isArray(m.times) ? m.times[0] : m.times;
+    out.push(`${m.joined === 'draft' ? 'Draftees' : m.joined === 'swap' ? 'Swaps' : m.joined === 'pickup' ? 'Pickups' : 'Replacements'} score ${timesShort(first)}`);
+  }
+  if (finaleIn(asks)) out.push('Finale picks');
+  else if (g.by === 'draft' && asks.length) out.push(asks.length === 1 && typeof asks[0].ask === 'string' && asks[0].ask.trim() ? `Plus ${lowerFirst(asks[0].ask.trim().replace(/\?$/, ''))}` : `Plus ${asks.length} ${asks.length === 1 ? 'question' : 'questions'}`);
+  const pool = g.by === 'pick' && sc.by === 'survive' ? poolOf(s) : null;
+  if (pool) {
+    if (pool.lives) out.push(`${pool.lives} ${pool.lives === 1 ? 'life' : 'lives'}`);
+    if (pool.mulligans) out.push(`${pool.mulligans} wrong ${pool.mulligans === 1 ? 'pick' : 'picks'} forgiven`);
+    if (pool.second) out.push('2nd pick counts if 2 go');
+    if (pool.never) out.push('No repeats');
+    if (pool.buyback) out.push('Buyback');
+  }
+  if (sc.by === 'answers') {
+    if (isNum(sc.lives) && rank.by !== 'coop') out.push(`${sc.lives} ${sc.lives === 1 ? 'life' : 'lives'}`);
+    const bank = bankOf(s);
+    if (bank) out.push(`Bank of ${bank.start}`);
+    if (asks.some((q) => q.share === 'split')) out.push('Split the pot');
+    if (asks.some((q) => q.share === 'only')) out.push('Only unique answers score');
+    if (asks.some((q) => q.rollover)) out.push('Unwon points roll over');
+    if (!bank && asks.some((q) => q.wager !== undefined && q.wager !== null)) out.push('Double or nothing');
+    for (const p of parlaysOf(sc)) out.push(`Parlay pays ${timesShort(p.times)}`);
+    if (asks.some((q) => isBeat(q))) out.push('Beat the bot');
+    if (asks.some((q) => isPlayers(q))) out.push('Match the majority');
+  }
+  const teams = isObj(rank.teams) && isNum(rank.teams.of) ? rank.teams.of : null;
+  if (teams) out.push(`In ${teams} teams`);
+  return [...winShorts(s, w), ...out];
+}
+
+/** How a game is won, as chips, when it isn't the game's own: first among what makes it different (it's a main rule). */
+function winShorts(s, w) {
+  const out = [];
+  const sc = s.score || {};
+  const g = s.get || {};
+  const rank = s.rank || {};
+  const pool = g.by === 'pick' && sc.by === 'survive' ? poolOf(s) : null;
+  if (rank.by === 'matchups') out.push(isObj(rank.playoffs) ? 'Head to head, playoffs' : 'Head to head');
+  else if (rank.by === 'weeks') out.push(`Most ${w.parts} won`);
+  else if (rank.by === 'coop') out.push(`Together, ${isNum(sc.lives) ? `${sc.lives} lives` : 'against the show'}`);
+  else if (rank.by === 'standing' && Array.isArray(rank.cut) && rank.cut.length) out.push('Lowest score is cut');
+  else if (rank.by === 'standing' && !(pool && pool.lives) && !(sc.by === 'answers' && isNum(sc.lives))) out.push('Last one standing');
+  if (isObj(rank.race) && isNum(rank.race.to)) out.push(`First to ${rank.race.to}`);
+  if (g.by === 'pick' && sc.by === 'survive' && rank.by === 'total') out.push('Most right picks');
+  return out;
+}
+
+/** The title: the game's name, or what it is ("Best Ball", "Weekly Picks", "Questions"), within SHORT_TITLE. */
+function titleShort(s, name) {
+  const g = s.get || {};
+  const sc = s.score || {};
+  let t = name;
+  if (!t) {
+    if (g.by === 'draft') t = sc.by === 'place' ? (sc.reverse ? 'Reverse Outlast' : 'Outlast') : s.count && isNum(s.count.best) ? 'Best Ball' : s.count && isNum(s.count.start) ? 'Weekly Lineup' : 'A draft';
+    else if (g.by === 'pick') t = sc.by === 'survive' ? 'Survival Pool' : 'Weekly Picks';
+    else if (g.by === 'card') t = 'Weekly Bingo';
+    else if (g.by === 'squares') t = 'Squares';
+    else t = s.rank && s.rank.by === 'coop' ? 'Co-op' : 'Predictions';
+  } else if (name === 'Outlast' && sc.reverse) t = 'Reverse Outlast';
+  return capTo(t, SHORT_TITLE);
+}
+
+/** Chips into one line within SHORT_LINE: the first `keep` always (cut to fit if they must), then each that still fits, in order
+ *  (one too long is left out, never cut). { line, more }: how many were left out (a screen can say "+1"). */
+function lineOf(chips, keep = 2) {
+  const sep = ' · ';
+  let line = chips.slice(0, keep).filter(Boolean).join(sep);
+  line = capTo(line, SHORT_LINE);
+  let more = 0;
+  for (const c of chips.slice(keep).filter(Boolean)) {
+    if (line.length + sep.length + c.length <= SHORT_LINE) line += `${sep}${c}`;
+    else more += 1;
+  }
+  return { line, more };
+}
+
+/** A game's short form: { title, line, more }. */
+function shortOf(s, w, name) {
+  return { title: titleShort(s, name), ...lineOf([spanShort(s.span, w), holdShort(s, w), ...twistShorts(s, w)]) };
+}
+
+/** A game in stages' short form: its stages' titles ("Outlast, then Outlast"; "Bingo + Trivia" for one beside), and its first
+ *  stage's when, then what each stage is. */
+function stagesShort(s, ctx) {
+  const w = wordsOf(ctx);
+  const stages = s.stages.filter((x) => isObj(x) && isObj(x.game));
+  const mains = mainCount(stages);
+  const games = stages.map((st) => {
+    const g = fullSpec(st.game);
+    const d = { ...g, span: isObj(g.span) ? g.span : { from: 1, to: null } };
+    return { st, s: d, title: st.name || titleShort(d, null) };
+  });
+  // The same game again after a change is a redraft: "Outlast, redrafted".
+  const again = mains > 1 && games.slice(0, mains).every((x) => titleShort(x.s, null) === titleShort(games[0].s, null));
+  const title = again ? `${titleShort(games[0].s, null)}, redrafted` : games.map((x, i) => (i === 0 ? x.title : i < mains ? `then ${x.title}` : `+ ${x.title}`)).join(' ').replace(/ then /g, ', then ');
+  const first = games[0];
+  const last = games[Math.max(0, mains - 1)];
+  const chips = [spanShort({ from: first.s.span.from, to: last.s.span.to === undefined ? null : last.s.span.to }, w), holdShort(first.s, w)];
+  games.slice(1).forEach((x, i) => {
+    const on = stageOn(x.st);
+    const from = isObj(x.s.span.from) ? phaseWord(x.s.span.from.phase, w) : isNum(x.s.span.from) ? `${w.Part} ${x.s.span.from}` : null;
+    const drafts = x.s.get && x.s.get.by === 'draft';
+    const at = on ? (on.again ? 'each big change' : 'a big change') : from;
+    chips.push(i + 1 < mains ? (drafts && at ? `Redraft at ${at}` : `${x.title}${at ? ` from ${at}` : ''}`) : `Plus ${x.title.toLowerCase()}`);
+  });
+  return { title: capTo(title, SHORT_TITLE), ...lineOf([...chips, ...twistShorts(first.s, w)], 3) };
 }
 
 /**
@@ -1706,13 +1878,23 @@ function describeSpec(spec, ctx) {
   };
   const w = wordsOf(ctx);
   const parts = sentenceParts(s, w);
+  const name = nameOf(s);
   return {
-    name: nameOf(s),
+    name,
     sentence: parts.map((p) => p.text).join(''),
     parts,
     rules: rulesOf(s, w),
     details: detailsOf(s, w),
+    short: shortOf(s, w, name),
   };
 }
 
-module.exports = { describeSpec };
+/** The short form alone (G4's rolls weigh it on every try, before the whole description is needed). */
+function shortSpec(spec, ctx) {
+  const full = fullSpec(spec);
+  if (Array.isArray(full.stages) && playsAs(full) === 'stages') return stagesShort(full, ctx);
+  const s = { ...full, span: isObj(full.span) ? full.span : { from: 1, to: null }, get: isObj(full.get) ? full.get : {}, score: isObj(full.score) ? full.score : {}, rank: isObj(full.rank) ? full.rank : {}, ask: Array.isArray(full.ask) ? full.ask.filter(isObj) : [] };
+  return shortOf(s, wordsOf(ctx), nameOf(s));
+}
+
+module.exports = { describeSpec, shortSpec, lowerFirst, SHORT_TITLE, SHORT_LINE };

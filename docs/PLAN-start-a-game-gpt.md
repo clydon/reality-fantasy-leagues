@@ -156,7 +156,7 @@ questions (2026-11-06: `card.from: 'host'`, each episode one of the seats in tur
 migration 0212, until the host's deadline, then filed and stamped on the episode; tracker rows s43 and who.host), and so is part 7,
 a number from a vetted outside source (2026-11-06: `settle.by: 'outside'`, an episode's TVmaze rating read once seven days after it
 airs and stored per season in `outside_numbers`, migration 0213; built and checked, but off since 2026-11-07: the user said no to
-TVmaze's ratings as a source, so `outside` is 'later' in VOCAB and tracker rows s42 and settle.outside wait): **A14 is done**, and the A track stops before A15 for the user. **G1, words to a spec, is built** (2026-11-07, on `engine`, parts 1 to 3: the engine's manual generated from VOCAB, the context pack, the prompts, reading the answer and our check, the bank of requests, the server's route with a daily cap, and llm-browser-api's priority queue on this PC; migration 0214; no screen), and **its part 4, a new moment research answers** (a season's added moments: in its rulebook from the next episode, asked by the full run and a short ask of its own, void where research can't say; measured on the tapes first; no migration). The live-sports plan is
+TVmaze's ratings as a source, so `outside` is 'later' in VOCAB and tracker rows s42 and settle.outside wait): **A14 is done**, and the A track stops before A15 for the user. **G1, words to a spec, is built** (2026-11-07, on `engine`, parts 1 to 3: the engine's manual generated from VOCAB, the context pack, the prompts, reading the answer and our check, the bank of requests, the server's route with a daily cap, and llm-browser-api's priority queue on this PC; migration 0214; no screen), and **its part 4, a new moment research answers** (a season's added moments: in its rulebook from the next episode, asked by the full run and a short ask of its own, void where research can't say; measured on the tapes first; no migration). **G4, Randomize, is built** (2026-11-07, on `engine`, no UI, no migration: `rollSpec`, a game rolled from a seed on a page's rules with locks held, our check the gate; the short form in `describeSpec`). The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5, at
 high since 2026-11-05; C2 at xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: folded in here as track L; its file keeps the details)
 and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track S here).
@@ -11053,6 +11053,85 @@ first), and proves it on these games and on the tracker's other rows that use it
   the end in the blind replays (F4's `blind.js`); the same seed and locks make the same game; every lock holds; every short
   form fits its cap. After A14 (the pieces it rolls) and before U0, so the mocks show real rolls. No migration: a rolled game
   is an ordinary spec.
+  **As built (2026-11-07, `engine`; no migration, no screen):**
+  - **`rollSpec(page, locks, seed, opts)`** (`src/lib/game/game-spec/roll.js`, pure, exported from game-spec's index with its types):
+    `page` is G1's `{ ctx, pack }` (or a SpecContext alone). From the pack: where a game can start (the next episode to air; a
+    season that's aired, from its start at your own pace), the episodes left, the couch, who's in; from the ctx: the moments research
+    answers (the couch's-word ones scored 0, by our check's rule), the phases still to come, whether the show has groups, votes,
+    trivia, a winner. A roll is a **base** (`outlast`, `lineup`, `best-ball`, `pool`, `picks` scored by what they do, `questions`
+    from a bank built from the show's data, `bingo`, `calls`), a **way to win** (`total`, the base's own, `points`, `standing`:
+    lives or a cut, `matchups` with playoffs over six episodes or more, `weeks`, `coop`, `race` to about 60% of a good score), a
+    **length** (`rest` most, `few`, `half`, `one`, `phase`, `until-phase`; an Outlast at least 4 episodes, a pool 3) and **one or two
+    twists** (31: a draft's captain, the finale or first episode counting double, reverse, names out of a hat, an auction, finale
+    picks, who goes home beside the draft, a bounty, secret roles, the top scorer's twist, only some moments, a new card of
+    objectives, a group slot, a spread, discounted shared replacements; a pool's mulligan, second pick, no repeats, buyback; a game
+    of questions' split pot, only the lone right one, rollover, double or nothing, a bank, a parlay, beat the bot, match the
+    majority; teams of players; a redraft at the next phase or each big format change; trivia beside bingo). Each twist costs 1 or
+    2 and a way to win other than the game's own 1, within a budget of 3, and twists of one family (two multipliers by when, say)
+    never stack. Each piece's taste is a weight, times 1 plus the square root of how often the tracker's games that play use it
+    (`weightsFrom(rows, ctxOf)`, the caller's: blind.js and roll-check.js pass the tracker's).
+  - **The gate:** our check (`specProblems`, `specWaitsFor`, a place in the scoring sequence: `typeOf`), then taste: a roll whose
+    short form can't show every piece goes again with a twist fewer, then the next try. A seed's tries are `"<seed>.1"`,
+    `"<seed>.2"`, ... (never the next seed's own, so Roll again on the next number is its own game), up to 24 (`MAX_TRIES`); none
+    passing, the nearest found (fewest problems) with our check's words for why (`ok: false`); locks nothing fits: "Nothing fits
+    those locks on this show: unlock one and roll again". The result says the seed it landed on (rolling it again is the same game
+    in one try: a shared roll, and Back), its base, way to win, twists, length and `describeSpec`.
+  - **Locks** (`ROLL` lists them, the wizard's chips): `length` (an id, a number of episodes, or a span), `play` (draft, pick,
+    questions, card), `base`, `win`, `twists` (up to two; `[]` for none), and `keep`, part of a spec held over the roll (what someone
+    typed: the doors mixed). A locked length too short for a base rules it out unless the base is locked too.
+  - **The short form** (`describeSpec(...).short`, every spec, a game in stages too): `{ title, line, more }`, a title up to 28
+    characters (the game's name, or what it is: Best Ball, Weekly Picks, Predictions, Co-op, Reverse Outlast; a game in stages its
+    stages', "Outlast, redrafted", "Bingo + Trivia") and a line up to 60, chips joined by " · ": when it plays ("Episode 7",
+    "Episodes 7–9", "From Episode 7", "All season", "From Merged", "Episode 7 until Merged"), what you do ("Draft 5, start 3", "6 from
+    a hat, best 2 count", "Pick 1 to stay in", "Pick 3 to score", "2 questions", "New card each episode", "2 calls"), how it's won
+    when that isn't the game's own ("Head to head", "Most episodes won", "Last one standing", "First to 40"), then its twists
+    ("Captain scores double", "Finale counts double", "Bounties", "A secret Traitor", "Plus who goes home", "1 wrong pick forgiven",
+    "2nd pick counts if 2 go", "Split the pot", "Only unique answers score", "Parlay pays triple", "In 2 teams", "Redraft at
+    Merged"), as many as fit; `more` counts those left out (a screen can say "+1"). The plan's own example: "Weekly Lineup / Episode
+    7 · Draft 2, start 1 · Captain scores double".
+  - **impeccable (clarify)** on the short form's words changed: digits throughout ("2 calls", not "Two calls"), "From Episode 7" over
+    "Episode 7 on", "6 from a hat" (the product's own words for a draw), "Plus ..." over a bare "+", "episode" over "week" (the
+    product's word), and plain words for the jargon ("1 wrong pick forgiven" over "1 mulligan", "2nd pick counts if 2 go" over "2nd
+    pick on doubles", "Only unique answers score" over "Only the lone right one scores", "Unwon points roll over" over "Rollover"); the
+    way to win moved ahead of the twists (a main rule); a chip the title already says left out (Reverse Outlast's "First out scores
+    most"). The words are the UI track's to settle in U0 with the rest of the wizard.
+  - **Checks:** `tests/roll.test.js` (7: 600 seeds on each of nine pages, every rulebook the tracker names, each roll passing our
+    check again, within its caps and starting where the page is; the same page, locks and seed the same game, 200 seeds near 200
+    games, a landed seed in one try; every lock holding; locks nothing fits; the tracker's weights; every base, way to win and twist
+    coming up; the short form within its caps on every game the tracker says plays); 1,958 unit tests passing; the type check.
+    `scripts/dev-test/roll-check.js` (new): 3,000 seeds on each season on tape this database has loaded (Survivor 49 and 51, The
+    Challenge 39 to 41, The Traitors 4, Dancing with the Stars 34, Below Deck 12), on the engine lab's own rules at the premiere:
+    21,000 rolls, every one passing, 1,700 to 2,000 distinct games a season, 1.1 tries a roll. `blind.js run --rolls=N [--seed=S]`
+    (new): N distinct rolls in place of the tracker's games, made from the season's page at its premiere and played to the end
+    blind. **Played:** 80 rolls a season on The Challenge 41, 40 and 39, Survivor 49 and The Traitors 4 (the seasons F1 studied), 400
+    rolls in 528 games (a game in stages plays each stage, and each redraft at a change, as a game of its own beside it): every one
+    played through to its end, every score a finite number, no problem in the moves, every base, way to win and all 31 twists
+    among them. That run began before the code review's fixes, which changed the tracker's weights a little (3 of 80 seeds roll
+    another game now), so 40 more rolls (seeds from 5001) were played on the final code on The Challenge 41 and Survivor 49: 114
+    games, every one through. Records in `~\rfl-tapes\replays\blind\<show>-<season>-rolls.json` and `.md` (the first run's The
+    Challenge 41 and Survivor 49 as `-rolls-80`). Some tables end all at 0 (bingo, the show's calls, co-op, a short game of
+    questions): the tracker's own bingo and calls do the same in the replay, whose seats don't play bingo cards or the calls, and
+    co-op's table is the couch's lives together, not points.
+  - **The code review** (`/code-review` at medium, before the commit). Fixed: a locked length the page can't have (from a phase on a
+    show with none to come, half a season of unknown length) threw or rolled an empty span, and now fits nothing; a base's least
+    (an Outlast's 4, a pool's 3) is weighed against what's left of the season, not only a short length; a roll that only ever found
+    games too busy for its short form named a try's seed that doesn't replay it (now the seed rolled); a locked twist now rolls a
+    base it goes on (a captain, a lineup); the length a roll reports is the one it chose (a lock keeps it); a draft still being made
+    no longer says "Draft null", a draft's question without words no longer throws; a tracker row counts each piece once (a game in
+    stages counted a stage's twice); a try weighs only the short form, the whole description made once; one lowercase helper.
+  - **Long checks:** blind.js with rolls (above). golden.js and the Survivor 51 rehearsal didn't run: `state-logic.js` and the scorers
+    are untouched (roll.js only writes specs our check already passes; describe.js gains the short form beside what it said).
+  **Noticed (G4):**
+  - **"Most right by the finale wins" on a game that ends before the finale** (Weekly Calls, Weekly Bingo for a few episodes:
+    describe.js's sentence for their rank says "by the finale" whatever the span). Recommended: "by the end" when the game ends
+    before the season does. Small; the next step that touches describe.js.
+  - **The rolled questions' wording** ("Who'll be the one: won the Immunity challenge?", "Will anyone: played an idol or
+    advantage?") reads from the moment's label, which is past tense. Players see it. Recommended: a present-tense question per
+    moment in the rulebook (a moment's own `ask`, as an added moment's `question`), or the GPT writing it; U0's, through impeccable.
+  - **A secret role on a show without one is still "a Traitor"** (roles' default name), on The Challenge or Dancing with the Stars.
+    Plays fine; a roll could name it from the show once the roles' name is a setting the wizard shows.
+  - **Lengths are taste, not data**: a roll's "few" is 2 to 4 episodes and "half" is half what's left; a season whose length isn't
+    known yet rolls the rest of it, a few, or one. Fine until U0 shows the length chip.
 
 **V. Game pages, generated** (the user, 2026-10-30; "The Games tab and game pages", above).
 - **V1. The page generator: a research spike, then a prototype** (heavy; likely two sessions). First how others turn data

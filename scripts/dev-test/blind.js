@@ -46,6 +46,10 @@
 //                                         every season studied (The Challenge 41, 40, 39, Survivor 49, The Traitors 4), or
 //                                         one; --only the tracker games by number (as `games` lists them); --through stops
 //                                         after episode N; --keep leaves the games standing (down when done)
+//   node scripts/dev-test/blind.js run [<show> <season>] --rolls=N [--seed=S]
+//                                         G4: N rolled games (roll.js rollSpec, seeds S on, each distinct game once) in place
+//                                         of the tracker's, made from the season's page at its premiere; records as
+//                                         <show>-<season>-rolls.json and .md
 //   node scripts/dev-test/blind.js games <show> <season>
 //                                         the tracker's games that play on the season and why the rest don't (no replay)
 //   node scripts/dev-test/blind.js sections <show> <season>
@@ -382,6 +386,49 @@ async function gamesFor(seasonId, show = null) {
   };
   for (const { spec, rows } of bySpec.values()) await both(spec, rows);
   for (const spec of OWN[show] || []) await both(spec, [], "F4's own");
+  return out;
+}
+
+/**
+ * G4: a season's page as a roll sees it at its premiere (the rules a game plays by there, the engine lab's own: stageContext; the
+ * replay's couch of GROUP_SIZE; the whole cast in; every episode still to air), so a rolled game is made from what was known before
+ * the premiere, as the tracker's are. { ctx, pack }.
+ */
+async function rollPage(seasonId, episodes = null) {
+  const { lab, pool } = app();
+  const ctx = await lab.stageContext(seasonId, null);
+  const { rows } = await pool.query("SELECT (SELECT count(*)::int FROM season_cast c WHERE c.season_id = ss.id) AS cast, ss.episode_count AS total FROM show_seasons ss WHERE ss.id = $1", [seasonId]);
+  const cast = rows[0] ? rows[0].cast : null;
+  const total = episodes || (rows[0] ? rows[0].total : null);
+  return { ctx: { ...ctx, couch: GROUP_SIZE, ...(cast ? { pool: cast } : {}) }, pack: { episodes: { aired: 0, ...(total ? { total } : {}), next: { number: 1 } }, stillIn: cast, couch: { people: GROUP_SIZE } } };
+}
+
+/** The tracker's weights for rolls (roll.js weightsFrom on its rows, each on its page's rules). */
+function rollWeights() {
+  const { C, rows: Rows, tracker } = app();
+  return require("../../src/lib/game/game-spec/roll.js").weightsFrom(C.rowsOf(tracker), (r) => Rows.pageCtx(r.page));
+}
+
+/**
+ * G4: `n` rolled games for a season in place of the tracker's (`--rolls=N`, from `--seed=S`, 1 by default): seeds S, S+1, ... each
+ * rolled on the season's page at its premiere (rollPage) with the tracker's weights, each distinct game once (the seed it landed on
+ * as its row), checked by the engine lab's own check as the tracker's are. The same shape as gamesFor's.
+ */
+async function rollsFor(seasonId, n, from = 1, episodes = null) {
+  const { lab } = app();
+  const Roll = require("../../src/lib/game/game-spec/roll.js");
+  const page = await rollPage(seasonId, episodes);
+  const weights = rollWeights();
+  const seen = new Set();
+  const out = [];
+  for (let seed = from; out.length < n && seed < from + n * 20; seed++) {
+    const r = Roll.rollSpec(page, {}, seed, { weights });
+    const key = JSON.stringify(r.spec);
+    if (!r.ok || seen.has(key)) continue;
+    seen.add(key);
+    const v = await lab.labCheck({ seasonId, spec: r.spec });
+    out.push({ n: out.length + 1, spec: r.spec, rows: [`roll ${r.seed}`], variant: null, label: `${r.describe.short.title} (roll ${r.seed})`, short: r.describe.short, roll: { base: r.base, win: r.win, twists: r.twists, length: r.length }, plays: !!(v.startable && v.playsAs), playsAs: v.playsAs || null, why: v.startable ? null : ((v.problems || [])[0] || (v.waits || [])[0] || {}).problem || "doesn't play here", sentence: (v.describe && v.describe.sentence) || "" });
+  }
   return out;
 }
 
@@ -996,10 +1043,11 @@ async function run(show, season, opts = {}) {
   const format = (await app().Research.resolveSeasonResearchContext(pool, H.SLUG(show), season, 1)).format;
   const f2 = FA.answersOf(show, season);
   const measure = await carryMeasure(show, copy.seasonId);
-  const all = await gamesFor(copy.seasonId, show);
+  // G4: rolled games in place of the tracker's (--rolls=N, --seed=S).
+  const all = opts.rolls ? await rollsFor(copy.seasonId, Number(opts.rolls), Number(opts.seed) || 1, E) : await gamesFor(copy.seasonId, show);
   const only = opts.only ? String(opts.only).split(",").map(Number) : null;
   const games = all.filter((g) => g.plays && (!only || only.includes(g.n)));
-  console.log(`${show} ${season}: ${E} episodes; ${all.filter((g) => g.plays).length} of ${all.length} tracker games play here${only ? `, ${games.length} picked` : ""}`);
+  console.log(`${show} ${season}: ${E} episodes; ${all.filter((g) => g.plays).length} of ${all.length} ${opts.rolls ? "rolled" : "tracker"} games play here${only ? `, ${games.length} picked` : ""}`);
   const seats = PT.seatsFor(GROUP_SIZE);
   const users = {};
   for (const seat of seats) users[seat.username] ||= await H.userFor(seat);
@@ -1159,7 +1207,7 @@ async function run(show, season, opts = {}) {
     record.replays.push(g);
   }
   fs.mkdirSync(outDir(), { recursive: true });
-  const base = path.join(outDir(), `${show}-${season}${through < E ? `-through${through}` : ""}`);
+  const base = path.join(outDir(), `${show}-${season}${opts.rolls ? "-rolls" : ""}${through < E ? `-through${through}` : ""}`);
   fs.writeFileSync(`${base}.json`, JSON.stringify(record, null, 2) + "\n", "utf8");
   fs.writeFileSync(`${base}.md`, markdown(record), "utf8");
   const failed = record.replays.filter((g) => g.check.length);
@@ -1351,7 +1399,7 @@ async function main() {
   console.log("Usage: node scripts/dev-test/blind.js run|games|sections|summary|down [<show> <season>] (see the header comment)");
 }
 
-module.exports = { SEASONS, howIn, standIn, sectionFor, fixtureQuick, blindFull, answerFor, ticketFor, fitStakes, answersThisWeek, problemsOf, didLine, markdown };
+module.exports = { SEASONS, rollPage, rollWeights, app, howIn, standIn, sectionFor, fixtureQuick, blindFull, answerFor, ticketFor, fitStakes, answersThisWeek, problemsOf, didLine, markdown };
 
 if (require.main === module) {
   main()

@@ -55,8 +55,9 @@ Three things decide whether a spec is a game (`src/lib/game/game-spec/schema.js`
   its lines: an Outlast-style draft (`classic-draft`), a draft scored by moments (`active-roster`), a pool (`pickem`), Weekly
   Calls, Weekly Bingo, a game of questions (`questions`) or a game in stages (`stages`). The screens read that name until R3.
 
-`describeSpec(spec, ctx)` then says the game in plain words: a sentence, How it works (a rule a line) and the details nobody
-asked about.
+`describeSpec(spec, ctx)` then says the game in plain words: a sentence, How it works (a rule a line), the details nobody
+asked about, and (G4) its short form, a title and one line: "Weekly Lineup / Episode 7 · Draft 2, start 1 · Captain scores
+double" (below, "Randomize").
 
 ---
 
@@ -1000,6 +1001,20 @@ page + words ──(bot + the engine's manual)──▶ a draft spec ──(our 
   second game offered. Every change is listed; nothing is fixed silently. The server's side: `src/lib/server/game-words.ts`, POST
   `/api/seasons/[seasonId]/game-words`, 10 asks a person a day. A moment offered and taken (POST `added-moments`, G1 part 4) is a
   moment of the season's from the next episode, and asking again drafts a game on it.
+- **Randomize** (G4, built 2026-11-07: `src/lib/game/game-spec/roll.js`, no screen yet): the other door, no bot. `rollSpec(page,
+  locks, seed)` rolls a game on the page's rules (G1's ctx and pack: the episodes left, the couch, the moments research answers, the
+  phases to come, the groups): a base (an Outlast, a lineup, best ball, a pool, a pick scored by what they do, a game of questions
+  from the show's data, bingo, the calls), a way to win, a length that fits what's left, and one or two twists within a budget (each
+  piece weighed; two of one family never stack), leaning toward what the tracker's games use (`weightsFrom`). Our check is the gate,
+  then taste (a roll whose short form can't show every piece goes again with a twist fewer); a seed that doesn't pass tries its next
+  tries, then gives the nearest with why. The same page, locks and seed make the same game, and the seed it lands on is the roll to
+  share. Locks hold any part: the length, how you play (draft, pick, questions, card), the base, how you win, the twists, or part of
+  a spec someone typed (`keep`, the doors mixed). **A piece added here reaches the roll by adding it to roll.js** (a twist: its cost,
+  family, where it fits, how it's applied), and its words to the short form (describe.js `twistShorts`), or it never comes up.
+- **The short form** (`describeSpec(...).short`, every game): `{ title, line, more }`, a title up to 28 characters (the game's name,
+  or what it is: Best Ball, Weekly Picks, Predictions, Co-op; a game in stages its stages', "Outlast, redrafted", "Bingo + Trivia")
+  and a line up to 60, chips joined by " · ": when it plays, what you do, how it's won when that isn't the game's own, then its
+  twists, as many as fit (`more`: how many didn't).
 
 ---
 
