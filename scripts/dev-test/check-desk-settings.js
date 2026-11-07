@@ -4,6 +4,8 @@
 //   1. Only site admins: zt_dz_oz (a player) is refused the flag's routes and Settings.
 //   2. Which AI our bot asks: ChatGPT by default; Gemini and anything else refused; Claude (a line in Settings history), and
 //      the next ask (a season's Cast › Ask our bot, through the stand-in bot) asks Claude; Undo, and the next asks ChatGPT.
+//      A run kind sent to an AI of its own (botAiRuns, src/lib/bot-runs.ts): none by default, set with a line, unknown kinds
+//      and AIs refused, the cast's ask (not a run) still the desk's AI, Undo.
 //   3. The rulebooks flag: Switch on refused before a check; Check every league as a desk job (a second refused while it
 //      runs; its progress; the tally: the games that score the same, ZT DZ Loose staying on built-in rules with why, the
 //      deleted one left out; nothing written); Switch on (every game on its season's rulebook); Switch it off (ZT DZ Isle 1, on by itself, stays on: its
@@ -21,7 +23,7 @@
 //   node scripts/dev-test/check-desk-settings.js --down        (takes the fixture down, nothing else)
 //
 // up/down: zt_dz_ accounts (sessions and seats go with them), the ZT DZ couch, the zt-dz- show (its seasons, rulebooks and
-// runs go with it) and games, the admin_changes lines by zt_dz_ people, Settings' bot_ai and the flag's last check. It
+// runs go with it) and games, the admin_changes lines by zt_dz_ people, Settings' bot_ai and bot_ai_runs and the flag's last check. It
 // refuses to run with the rulebooks flag on (it turns it on and off: down turns it off) or the bot set to anything but
 // ChatGPT. Its join codes all start Z5Q (no real one may: it refuses to run if one does). Refuses a non-local database.
 // Prints PASS/FAIL.
@@ -71,7 +73,7 @@ async function down(pool) {
   await pool.query("DELETE FROM couches WHERE name LIKE 'ZT DZ %'");
   await pool.query("DELETE FROM shows WHERE slug LIKE 'zt-dz-%'");
   await pool.query(`DELETE FROM "user" WHERE username LIKE 'zt\\_dz\\_%'`);
-  await pool.query("DELETE FROM app_settings WHERE key IN ('bot_ai', 'rulebooks_check')");
+  await pool.query("DELETE FROM app_settings WHERE key IN ('bot_ai', 'bot_ai_runs', 'rulebooks_check')");
 }
 
 async function up(pool) {
@@ -152,6 +154,8 @@ const REAL_BOOKS = `SELECT md5(coalesce(string_agg(r.id::text || ':' || r.versio
   if (await R.rulebooksOn(pool)) throw new Error("the rulebooks flag is on here: this check turns it on and off, so it runs only with it off");
   const { rows: ai } = await pool.query("SELECT value FROM app_settings WHERE key = 'bot_ai'");
   if (ai[0] && ai[0].value !== "chatgpt") throw new Error(`our bot asks ${ai[0].value} here: this check puts it back to ChatGPT, so it runs only with ChatGPT`);
+  const { rows: runsAi } = await pool.query("SELECT value FROM app_settings WHERE key = 'bot_ai_runs'");
+  if (runsAi[0] && Object.keys(runsAi[0].value || {}).length) throw new Error(`bot runs ask an AI of their own here (${JSON.stringify(runsAi[0].value)}): this check clears that, so it runs only with none`);
   fs.mkdirSync(out, { recursive: true });
   const before = (await pool.query(REAL_LEAGUES)).rows[0].h;
   const booksBefore = (await pool.query(REAL_BOOKS)).rows[0].h;
@@ -222,6 +226,21 @@ const REAL_BOOKS = `SELECT md5(coalesce(string_agg(r.id::text || ':' || r.versio
     check(ask.asked.length === 1 && ask.asked[0].provider === "chatgpt", "and the next ask asks ChatGPT", JSON.stringify(ask.asked.map((a) => a.provider)));
     r = await undo(aiChange);
     check(r.status === 409, "the same Undo twice: refused", JSON.stringify(r.body));
+    // A run kind sent to an AI of its own (src/lib/bot-runs.ts): none by default; set, a line; unknown kinds and AIs refused;
+    // an ask that isn't a run (the cast's) still asks the desk's AI; Undo.
+    check(JSON.stringify(s.settings.botAiRuns) === "{}", "no run asks an AI of its own by default", JSON.stringify(s.settings.botAiRuns));
+    r = await as.desk.call("PUT", "/api/desk/settings", { botAiRuns: { cast: "codex" } });
+    check(r.status === 400 && /No bot run is called cast/.test(r.body.error), "a kind that isn't a run: refused", JSON.stringify(r.body));
+    r = await as.desk.call("PUT", "/api/desk/settings", { botAiRuns: { trivia: "gemini" } });
+    check(r.status === 400, "an AI it can't ask: refused", JSON.stringify(r.body));
+    r = await as.desk.call("PUT", "/api/desk/settings", { botAiRuns: { trivia: "codex", bingo: "codex" } });
+    const runsChange = r.body.changeIds?.[0];
+    check(r.status === 200 && r.body.settings.botAiRuns.trivia === "codex" && r.body.settings.botAiRuns.bingo === "codex" && r.body.settings.botAi === "chatgpt" && r.body.history[0].text === "Codex answers trivia and bingo squares", "trivia and bingo to Codex: set, a line in Settings history", JSON.stringify(r.body.history?.[0]));
+    ask = await askCast("s1");
+    check(ask.asked.length === 1 && ask.asked[0].provider === "chatgpt", "the cast's ask isn't a run: ChatGPT still", JSON.stringify(ask.asked.map((a) => a.provider)));
+    r = await undo(runsChange);
+    s = await settings();
+    check(r.status === 200 && JSON.stringify(s.settings.botAiRuns) === "{}", "Undo: no run on an AI of its own again", JSON.stringify(s.settings.botAiRuns));
 
     // ---- 3. the rulebooks flag ----
     check((await carries(ids.live)) && !(await carries(ids.plain)) && !(await carries(ids.loose)), "before: only ZT DZ Isle 1's game is on its rulebook");

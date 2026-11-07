@@ -644,7 +644,7 @@ export async function askRulebookNow(id: string, kind: ResearchKind, askedBy: st
   try {
     const r = await row(id);
     const q = await rulebookPrompt(id, kind, through);
-    const { answer } = await askBot(q.prompt, { bot, budgetMs });
+    const { answer } = await askBot(q.prompt, { bot, budgetMs, kind: "rulebook" });
     const bad = readable(kind, answer);
     if (bad) throw new Error(bad);
     const { card: c } = await stageAnswer(r, kind, "bot", answer, askedBy, q.through);
@@ -908,7 +908,7 @@ export async function applyScores(by: string, id: string, answerId: string, pick
 export async function scoreRulebookByItself(id: string, by: string, bot: string | undefined, budgetMs: number): Promise<void> {
   const r = await row(id);
   const q = await rulebookPrompt(id, "scores");
-  const { answer } = await askBot(q.prompt, { bot, budgetMs });
+  const { answer } = await askBot(q.prompt, { bot, budgetMs, kind: "rulebook" });
   const bad = readable("scores", answer);
   if (bad) throw new Error(bad);
   const staged = await stageAnswer(r, "scores", "bot", answer, by, null);

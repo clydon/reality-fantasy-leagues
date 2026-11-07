@@ -945,15 +945,17 @@ async function listDue(pool, opts = {}) {
 }
 
 /**
- * Runs one job: asks the bot (`ask(prompt, { budgetMs? }) -> { answer }`, injected so a test can stand in) and files
+ * Runs one job: asks the bot (`ask(prompt, { budgetMs?, kind }) -> { answer }`, injected so a test can stand in; `kind`, the
+ * job's, lets a run kind ask an AI of its own: src/lib/bot-runs.ts) and files
  * the answer. A quick answer is kept on the run row; a full one goes through the paste import, merged
  * into whatever the episode already has; trivia's questions, checked, go in trivia_questions (0140); bingo's squares, checked,
  * go in bingo_squares (0146) as the episode's bank, or with `job.forSeason` the season's own. `send` (the app's) also files
  * either as a source: a quick answer it can't trust yet waits for a commissioner and counts as a failed try, so it's asked again.
  * `dry` asks and parses but writes nothing.
  */
-async function runJob(pool, job, { ask, send = null, dry = false } = {}) {
+async function runJob(pool, job, { ask: askAny, send = null, dry = false } = {}) {
   const { season, episode, kind } = job;
+  const ask = (prompt, o = {}) => askAny(prompt, { kind, ...o });
   const slot = job.slot || "now";
   const started = Date.now();
   let runId = null;

@@ -107,14 +107,16 @@ function fakeDb({ facts = UNSURE, stored = true, title = "Lovable Losers", casta
 }
 const SEASON = { id: "season-1", show_id: "show-1", season_number: 49, slug: "survivor" };
 const job = { season: SEASON, episode: 3, kind: "facts", slot: "facts@750" };
-/** A stand-in bot: answers each prompt with `answer`, keeping what it was asked. */
+/** A stand-in bot: answers each prompt with `answer`, keeping what it was asked (and with what: `opts`). */
 const botSays = (answer) => {
   const asked = [];
-  const ask = async (prompt) => {
+  const opts = [];
+  const ask = async (prompt, o) => {
     asked.push(prompt);
+    opts.push(o);
     return { answer: typeof answer === "string" ? answer : JSON.stringify(answer) };
   };
-  return { ask, asked };
+  return { ask, asked, opts };
 };
 
 test("a facts run: no stored answer yet is a failed try; nothing unsure asks nothing; an unsure one is asked and filed", async () => {
@@ -141,6 +143,7 @@ test("a facts run: no stored answer yet is a failed try; nothing unsure asks not
   assert.equal(out.ok, true);
   assert.equal(out.message, "Title quote: Nate Moore, sure");
   assert.equal(bot.asked.length, 1);
+  assert.equal(bot.opts[0].kind, "facts", "asked as a facts run, so a kind sent to an AI of its own asks that one (src/lib/bot-runs.ts)");
   assert.match(bot.asked[0], /^Survivor season 49, episode 3, titled "Lovable Losers"\./);
   assert.match(bot.asked[0], /The castaways in this episode .*\n1\. Jawan Pitts\n2\. Nate Moore/);
   assert.deepEqual(db.research.payload.episodeFacts, sure("Nate Moore"));
