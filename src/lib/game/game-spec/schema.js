@@ -229,9 +229,11 @@ const VOCAB = {
   // C5: a game scored by moments counting hits (each moment an objective, worth 1: momentWorth): every hit, each objective once
   // for each holding that hit it, or each objective once for you however many of yours hit it.
   'score.hits': { every: 'now', pick: 'now', objective: 'now' },
-  // C7: a new card each week, drawn from the show's moments in turn, or (part 2) chosen by the bot from them before each episode.
-  'card.from': { moments: 'now', bot: 'now' },
+  // C7: a new card each week, drawn from the show's moments in turn, or (part 2) chosen by the bot from them before each episode;
+  // A14 part 6, written by a host, a different one of the players each episode, from them.
+  'card.from': { moments: 'now', bot: 'now', host: 'now' },
   // C7 part 2: a card the bot chooses, in an episode it hasn't chosen by the time the card's out: the spec's list in turn, or void.
+  // A14 part 6: a card a host writes, the lines the host hasn't written by then: the list's next in turn, or none (only the host's).
   'card.fallback': { spec: 'now', void: 'now' },
   // L3 part 2b: a sport's day's or week's lock (each episode's own first start: the server's ep.locksAt), the engine's lock reading it.
   closes: { start: 'now', daily: 'now', weekly: 'now', game: 'now' },
@@ -251,9 +253,15 @@ const VOCAB = {
   },
   // A14 part 1: the players' own answers (the answer most of you give, or fewest), as data: the couch never decides what happened.
   'ask.settle': { results: 'now', moment: 'now', role: 'now', phase: 'now', points: 'now', calls: 'now', trivia: 'now', fact: 'now', players: 'now', legs: 'now',
+    // A14 part 7: a number from a vetted outside source (an episode's TVmaze rating), built and checked but waiting: the user said no to
+    // TVmaze's ratings as a source (2026-11-07), so nothing runs db/outside-numbers.js and nobody can make a rating game. A yes is this
+    // flip, one step of the hourly job and "outside (a number from a vetted source)" back in settle's refusal (questionProblems).
+    outside: 'later',
     // L3 part 2c: a sport's game, its final (who wins, the total, the margin) or a stat in it (answers.js sportsVerdict, on the server's
     // facts.games), its episode's results once it's final (StatsLogic.stamp's gameFinal).
     final: 'now', stat: 'now' },
+  // A14 part 7: where an outside number comes from (one vetted source so far: TVmaze, its episode rating).
+  'ask.settle.source': { tvmaze: 'now' },
   // A14 part 1: a question the players' own answers settle, on a tie for the most (or the fewest): nobody's right (void, no points
   // either way), or each of the tied answers is.
   'ask.settle.tie': { none: 'now', all: 'now' },
@@ -289,6 +297,22 @@ const VOCAB = {
   'score.multiply.joined': { draft: 'now', pickup: 'now', replacement: 'now', swap: 'now' },
   'score.multiply.per': { team: 'now', slot: 'now' },
   'score.multiply.then': { repeat: 'now', ratio: 'now' },
+  // A14 part 3: a bounty (score.bounty), points that move between seats by what the results say: one of yours votes out one of
+  // someone else's, and you take its points from them (votedOut: research's who voted for whom, at a vote that sent someone home).
+  'score.bounty.on': { votedOut: 'now' },
+  // A14 part 4: secret roles among the players (score.roles), some seats dealt a role at random once the game starts, hidden from
+  // everyone else until the reveal, each scoring by what the results say: whenever someone a seat without the role holds goes home
+  // (out), or is voted out (votedOut: a way out the format's votes cause). Revealed at the game's end, or after an episode (its
+  // number), the role's points added then.
+  'score.roles.on': { out: 'now', votedOut: 'now' },
+  'score.roles.deal': { random: 'now' },
+  'score.roles.reveal': { end: 'now' },
+  // A14 part 5: the top scorer's twist (score.twist): each episode's top scorer (top), or bottom (bottom), by that episode's points
+  // (episode) or the standings through it (total), chooses one of the spec's twists for the next episode; a tie broken by the
+  // standings (total) or not at all (none: nobody chooses, the fallback plays).
+  'score.twist.who': { top: 'now', bottom: 'now' },
+  'score.twist.by': { episode: 'now', total: 'now' },
+  'score.twist.tie': { total: 'now', none: 'now' },
   // A10 part 1: group slots (get.groups), a draft's +1 or +2 slot that holds a pair or a team the show forms, read from the
   // format's state over time: whether two people can hold the same group, what a slot does when the groups at its lock or as
   // the episode was played aren't sure (void that episode for the slot, or follow the people), and how a group's points are
@@ -460,6 +484,13 @@ const VOCAB = {
 //               group they were on); asked each episode, about that one. Void when research isn't sure, the title isn't a
 //               line, or whoever said it couldn't be picked (the host, someone already out): no points either way. Our check
 //               takes it only where research says it reliably on the show (ctx.facts, what it returned there: ratingOf, BAR)
+//             { by: 'outside', take: 'rating', source?: 'tvmaze', after?: days } (A14 part 7) a number from a vetted outside
+//               source: the episode's TVmaze rating (its rating.average, 0 to 10) as it stood `after` days after the episode aired
+//               (OUTSIDE: 7 by default, 1 to MAX_OUTSIDE_DAYS), read once then and stored (outside_numbers, migration 0213), so every
+//               league on the season reads the same number and a later rating never changes it. A number (the closest), an
+//               over/under (its line) or a choice (its options ranges: "7-7.9", "8+"), asked each episode about that one. Its
+//               fallback, from the start: the source had no rating by then (or the season isn't linked to it any more) voids it, no
+//               points either way. Our check takes it only for a season linked to its TVmaze listing (ctx.tvmaze)
 //             { by: 'players', take: majority | minority, of?, tie? } (A14 part 1) the players' own answers, as data (the
 //               couch never decides what happened on the show: what's right is what you said, not what happened): the answer
 //               most of you gave in its window (majority: "guess what most of us will pick; you score if you match the
@@ -500,6 +531,7 @@ const TAKES = {
   legs: [],
   fact: ['who'],
   players: ['majority', 'minority'],
+  outside: ['rating'],
   final: ['winner', 'total', 'margin', 'bracket'],
   stat: ['most', 'least', 'value'],
 };
@@ -507,7 +539,7 @@ const TAKES = {
 const SEASON_TAKES = ['results:winner', 'results:placed', 'results:top', 'results:split'];
 /** The settles each kind of answer can be graded by ('by:take'). A choice is matched to whatever settles it: a count's (and
  *  an episode's) range, a yes or no, or names. */
-const NUMBERS = ['moment:count', 'role:count', 'phase:starts', 'final:total', 'final:margin', 'stat:value'];
+const NUMBERS = ['moment:count', 'role:count', 'phase:starts', 'final:total', 'final:margin', 'stat:value', 'outside:rating'];
 /** Who's right, as people (A8's confidence and chips are graded by any of them). */
 const PEOPLE = ['results:winner', 'results:out', 'results:placed', 'results:top', 'results:stays', 'moment:who', 'moment:most', 'moment:first', 'role:who', 'role:end', 'points:most'];
 /** A14 part 1: the players' own answers, as a settle ('by:take'). A choice takes them too (it takes anything). */
@@ -608,6 +640,20 @@ const WHEN = ['episode', 'from', 'phase', 'finale'];
 /** C3: a multiplier on how a holding joined (score.multiply): the most in a list for the Nth, and its defaults. */
 const MAX_JOINED = 6;
 const JOINED = { per: 'team', then: 'repeat' };
+/** A14 part 3: a bounty's most points (in halves), and what it's on when the spec leaves it out. */
+const MAX_BOUNTY = 10;
+const BOUNTY = { on: 'votedOut' };
+/** A14 part 4: secret roles' most seats, most points (in halves) and longest name, and what a spec leaves out. */
+const MAX_ROLE_SEATS = 5;
+const MAX_ROLE_POINTS = 10;
+const MAX_ROLE_NAME = 20;
+const ROLES = { count: 1, name: 'Traitor', on: 'out', deal: 'random', reveal: 'end', mates: true };
+/** A14 part 5: the top scorer's twist: the most twists to choose from, a twist's longest name, the most hours before an episode airs
+ *  the choice closes, and what a spec leaves out (tie: 'total' by the episode's points; by the standings, nothing breaks it). */
+const MAX_TWISTS = 5;
+const MAX_TWIST_NAME = 24;
+const MAX_TWIST_HOURS = 48;
+const TWIST = { who: 'top', by: 'episode', closes: 12, fallback: 'none' };
 /** A10 part 1: a draft's most group slots (the user's "+1 or +2"), and a slot's defaults when the spec leaves them out (the
  *  user's to set: the plan's Noticed for A10). */
 const MAX_GROUP_SLOTS = 2;
@@ -1339,6 +1385,10 @@ const CARD = { from: 'moments', fallback: 'spec' };
 const CARD_OUT_HOURS = 12;
 /** C7 part 2: an episode whose card came out without the bot's choice (its stamp, and an episode with results that has none). */
 const CARD_FALLBACK = Object.freeze({ fallback: true });
+/** A14 part 6: a card a host writes: the most hours before its episode airs the host has until, and what it leaves out (the host has
+ *  until 12 hours before, the card's out time; the host answers their own questions too). The defaults are the user's (Noticed). */
+const MAX_HOST_HOURS = 48;
+const HOST_CARD = { closes: CARD_OUT_HOURS, hostAnswers: true };
 /** C7: how a question on the card settles each line (its moment, that episode), and the answers it takes. */
 const CARD_TAKES = ['happened', 'count', 'who', 'most'];
 const CARD_ANSWERS = ['yesNo', 'number', 'person', 'group'];
@@ -1356,16 +1406,31 @@ function turnOf(list, each, episode) {
   const start = ((Math.max(1, isInt(episode, 1) ? episode : 1) - 1) * each) % list.length;
   return [...list.slice(start), ...list.slice(0, start)];
 }
-/** C7: a spec's card, read the one way ({ from, each, of, fallback (part 2: a card the bot chooses) }, its defaults in), or null
- *  for a game without one. */
+/** C7: a spec's card, read the one way ({ from, each, of, fallback (part 2: a card the bot chooses; A14 part 6: or a host writes),
+ *  closes and hostAnswers (a card a host writes) }, its defaults in), or null for a game without one. */
 function cardOf(s) {
   if (!isObj(s) || !isObj(s.card)) return null;
   const c = s.card;
   const from = c.from === undefined ? CARD.from : c.from;
-  return { from, each: c.each, of: Array.isArray(c.of) ? c.of : [], ...(from === 'bot' ? { fallback: c.fallback === undefined ? CARD.fallback : c.fallback } : {}) };
+  return {
+    from, each: c.each, of: Array.isArray(c.of) ? c.of : [],
+    ...(from === 'bot' || from === 'host' ? { fallback: c.fallback === undefined ? CARD.fallback : c.fallback } : {}),
+    ...(from === 'host' ? { closes: c.closes === undefined ? HOST_CARD.closes : c.closes, hostAnswers: c.hostAnswers === undefined ? HOST_CARD.hostAnswers : c.hostAnswers } : {}),
+  };
 }
 /** C7 part 2: a card the bot chooses. */
 const botCard = (card) => isObj(card) && card.from === 'bot';
+/** A14 part 6: a card a host writes (a different one of the players each episode). */
+const hostCard = (card) => isObj(card) && card.from === 'host';
+/** A14 part 6: a card chosen before each episode, by the bot or a host: its lines read the episode's stamp (`episode.cardChoice`). */
+const chosenCard = (card) => botCard(card) || hostCard(card);
+/** A14 part 6: a host's lines as written (`choice.moments`, in the host's order), those on the card's list, none twice, `each` at
+ *  most: a card whose fallback is void plays only these. */
+function hostLines(of, each, choice) {
+  if (!Array.isArray(of) || !of.length || !isInt(each, 1)) return [];
+  const mine = new Set(of);
+  return [...new Set((Array.isArray(choice.moments) ? choice.moments : []).filter((id) => mine.has(id)))].slice(0, Math.min(each, of.length));
+}
 /**
  * C7 part 2: `each` of `of` for an episode as the bot ranked the season's moments (`choice`: { moments: best first, cannot: those
  * that can't happen then }): those of the list it ranked, in its order; then the rest of the list in turn from where the episode's
@@ -1386,11 +1451,14 @@ function rankedLines(of, each, episode, choice) {
  * episode says (the episode's stamp, `episode.cardChoice`: rankedLines), its fallback once the card came out without one (the
  * spec's list in turn, or none: the week void), and null while it isn't out (nothing stamped: its lines wait).
  */
+// A14 part 6, a card a host writes: as the host wrote it (`choice.moments`), the rest of it the list's next in turn (rankedLines, the
+// host's lines first), or only the host's with fallback void; the host writing nothing, the fallback's (`{ fallback: true }`).
 function cardLines(card, episode, choice) {
   if (!card) return [];
-  if (!botCard(card)) return drawInTurn(card.of, card.each, episode);
+  if (!chosenCard(card)) return drawInTurn(card.of, card.each, episode);
   if (!isObj(choice)) return null;
   if (choice.fallback === true) return card.fallback === 'void' ? [] : drawInTurn(card.of, card.each, episode);
+  if (hostCard(card) && card.fallback === 'void') return hostLines(card.of, card.each, choice);
   return rankedLines(card.of, card.each, episode, choice);
 }
 /** C7: a card's lines each episode as the spec says them, when that's 1 to MAX_CARD (else 0: nothing is drawn from it). */
@@ -1399,7 +1467,8 @@ const cardEach = (c) => (isObj(c) && isInt(c.each, 1) && c.each <= MAX_CARD && A
 const questionLines = (q, s) => (isCardQuestion(q) && isObj(s) && cardEach(s.card) ? s.card.each : 1);
 /** C7: a question on the game's card (as the spec says it: one question for each of the card's lines). */
 const isCardQuestion = (q) => isObj(q) && q.card === true;
-/** C7: one line of the card, as askOf makes it: its card ({ of, each, by, fallback }), its line (from 0) and the question it's from. */
+/** C7: one line of the card, as askOf makes it: its card ({ of, each, by, fallback, hostAnswers }), its line (from 0) and the question
+ *  it's from. */
 const isCardLine = (q) => isObj(q) && isObj(q.card) && Number.isInteger(q.card.line);
 /** C7 part 2: the card a line is on, as cardLines reads it (its `from` is the question it's from; `by`, how the card is drawn). */
 const lineCard = (q) => ({ from: q.card.by === undefined ? CARD.from : q.card.by, fallback: q.card.fallback, of: q.card.of, each: q.card.each });
@@ -1460,7 +1529,7 @@ function askOf(s) {
     const ids = [];
     for (let k = 1; k <= card.each; k++) {
       ids.push(lineId(q.id, k));
-      flat.push({ ...q, id: lineId(q.id, k), card: { of: card.of, each: card.each, line: k - 1, from: q.id, ...(botCard(card) ? { by: 'bot', fallback: card.fallback } : {}) } });
+      flat.push({ ...q, id: lineId(q.id, k), card: { of: card.of, each: card.each, line: k - 1, from: q.id, ...(chosenCard(card) ? { by: card.from, fallback: card.fallback } : {}), ...(hostCard(card) ? { hostAnswers: card.hostAnswers } : {}) } });
     }
     lines.set(q.id, ids);
   }
@@ -1488,12 +1557,25 @@ function cardProblems(s) {
   const c = s.card;
   if (!isObj(c)) return [['card', "A card is { from: 'moments', each, of: [the show's moments] }"]];
   const from = c.from === undefined ? CARD.from : c.from;
-  if (own(VOCAB['card.from'], from) === undefined) out.push(['card.from', "A card is drawn from the show's moments in turn (from 'moments'), or chosen from them by the bot before each episode (from 'bot')"]);
-  // C7 part 2: what a card the bot chooses does in an episode it hasn't chosen by the time the card's out.
+  if (own(VOCAB['card.from'], from) === undefined) out.push(['card.from', "A card is drawn from the show's moments in turn (from 'moments'), chosen from them by the bot before each episode (from 'bot'), or chosen from them by a host, a different one of you each episode (from 'host')"]);
+  // C7 part 2: what a card the bot chooses does in an episode it hasn't chosen by the time the card's out (A14 part 6: or the lines a
+  // host hasn't written by then).
   if (c.fallback !== undefined) {
-    if (from !== 'bot') out.push(['card.fallback', "Only a card the bot chooses falls back: leave fallback out"]);
-    else if (own(VOCAB['card.fallback'], c.fallback) === undefined) out.push(['card.fallback', "When the bot hasn't chosen in time, the card is the list's next lines in turn ('spec') or that episode's card is void ('void')"]);
+    if (from !== 'bot' && from !== 'host') out.push(['card.fallback', "Only a card the bot or a host chooses falls back: leave fallback out"]);
+    else if (own(VOCAB['card.fallback'], c.fallback) === undefined) out.push(['card.fallback', from === 'host'
+      ? "When the host hasn't written every line in time, the rest are the list's next lines in turn ('spec'), or only the host's lines count ('void')"
+      : "When the bot hasn't chosen in time, the card is the list's next lines in turn ('spec') or that episode's card is void ('void')"]);
   }
+  // A14 part 6: a card a host writes: how long the host has, whether they answer their own questions, and only questions on it.
+  if (c.closes !== undefined) {
+    if (from !== 'host') out.push(['card.closes', "Only a card a host chooses has a deadline: leave closes out"]);
+    else if (!(isInt(c.closes, 1) && c.closes <= MAX_HOST_HOURS)) out.push(['card.closes', `The host has until 1 to ${MAX_HOST_HOURS} hours before the episode airs to choose the card`]);
+  }
+  if (c.hostAnswers !== undefined) {
+    if (from !== 'host') out.push(['card.hostAnswers', "Only a card a host chooses has a host: leave hostAnswers out"]);
+    else if (typeof c.hostAnswers !== 'boolean') out.push(['card.hostAnswers', 'hostAnswers is true (the host answers their own questions too) or false (the host sits them out)']);
+  }
+  if (from === 'host' && onlyCard(s.score)) out.push(['score.only', "A host would choose the moments their own team scores by: a card a host chooses is for questions everyone answers (card: true)"]);
   if (!(isInt(c.each, 1) && c.each <= MAX_CARD)) out.push(['card.each', `A card has 1 to ${MAX_CARD} lines each episode`]);
   const list = c.of;
   if (!(Array.isArray(list) && list.length && list.length <= MAX_ONLY && list.every((id) => typeof id === 'string' && id))) out.push(['card.of', `A card is drawn from a list of 1 to ${MAX_ONLY} of the show's moments`]);
@@ -1550,6 +1632,14 @@ function cardQuestionProblems(q, s) {
 }
 /** A13 part 2: a question an episode fact settles (who says the title quote). */
 const isFact = (q) => isObj(q) && isObj(q.settle) && q.settle.by === 'fact';
+/** A14 part 7: a question a number from a vetted outside source settles (an episode's TVmaze rating). */
+const isOutside = (q) => isObj(q) && isObj(q.settle) && q.settle.by === 'outside';
+/** A14 part 7: an outside number's source and when it's read, by default: TVmaze, seven days after the episode airs (the Decisions
+ *  table's "a rating seven days after airing"; the default is the user's to change: Noticed). Up to MAX_OUTSIDE_DAYS. */
+const OUTSIDE = { source: 'tvmaze', after: 7 };
+const MAX_OUTSIDE_DAYS = 30;
+/** The stored number an outside settle reads ('tvmaze:rating:7'): every league on the season asking it the same way reads one row. */
+const outsideKey = (st) => `${(isObj(st) && st.source) || OUTSIDE.source}:${(isObj(st) && st.take) || 'rating'}:${isObj(st) && isInt(st.after, 1) ? st.after : OUTSIDE.after}`;
 /** A14 part 1: a question the players' own answers settle (the answer most of you give, or fewest). */
 const isPlayers = (q) => isObj(q) && isObj(q.settle) && q.settle.by === 'players';
 /** A14 part 1: a question the players settle, on a tie: nobody's right by default (void). The default is the user's (Noticed). */
@@ -1577,17 +1667,24 @@ function fullQuestion(q) {
   if (out.answer === 'person' && out.from === undefined) out.from = 'cast';
   if (isPlayers(out) && out.settle.tie === undefined) out.settle = { ...out.settle, tie: PLAYERS.tie };
   if (isBeat(out) && out.beat.none === undefined) out.beat = { ...out.beat, none: BEAT.none };
+  if (isOutside(out)) out.settle = { ...out.settle, source: out.settle.source === undefined ? OUTSIDE.source : out.settle.source, after: out.settle.after === undefined ? OUTSIDE.after : out.settle.after };
   return out;
 }
 
-/** A choice option as a range a count falls in: "2" (exactly), "3+" (3 or more), "0-1" (0 to 1); else null. */
-function optionRange(o) {
+/** optionRange's patterns: a number alone, "n+" and "a-b", in whole numbers or (A14 part 7) to a tenth. */
+const rangePatterns = (n) => [new RegExp(`^${n}$`), new RegExp(`^${n}\\s*\\+$`), new RegExp(`^${n}\\s*[-\\u2013]\\s*${n}$`)];
+const RANGE_WHOLE = rangePatterns('(\\d+)');
+const RANGE_TENTHS = rangePatterns('(\\d+(?:\\.\\d)?)');
+/** A choice option as a range a count falls in: "2" (exactly), "3+" (3 or more), "0-1" (0 to 1); else null. A14 part 7: with
+ *  `decimals`, an outside number's too, to a tenth ("7.5", "7-7.9", "8.5+": a rating). */
+function optionRange(o, decimals = false) {
   const t = String(o).trim();
-  let m = /^(\d+)$/.exec(t);
+  const [one, plus, span] = decimals ? RANGE_TENTHS : RANGE_WHOLE;
+  let m = one.exec(t);
   if (m) return { min: +m[1], max: +m[1] };
-  m = /^(\d+)\s*\+$/.exec(t);
+  m = plus.exec(t);
   if (m) return { min: +m[1], max: Infinity };
-  m = /^(\d+)\s*[-\u2013]\s*(\d+)$/.exec(t);
+  m = span.exec(t);
   if (m && +m[1] <= +m[2]) return { min: +m[1], max: +m[2] };
   return null;
 }
@@ -1736,7 +1833,12 @@ function fullSpec(spec) {
   if (Array.isArray(s.ask)) s.ask = s.ask.map(fullQuestion);
   // C7: a card says what it leaves out as the defaults (CARD); part 2, one the bot chooses its fallback.
   if (isObj(s.card) && s.card.from === undefined) s.card.from = CARD.from;
-  if (isObj(s.card) && s.card.from === 'bot' && s.card.fallback === undefined) s.card.fallback = CARD.fallback;
+  if (isObj(s.card) && (s.card.from === 'bot' || s.card.from === 'host') && s.card.fallback === undefined) s.card.fallback = CARD.fallback;
+  // A14 part 6: one a host chooses, the host's deadline and whether they answer it too.
+  if (isObj(s.card) && s.card.from === 'host') {
+    if (s.card.closes === undefined) s.card.closes = HOST_CARD.closes;
+    if (s.card.hostAnswers === undefined) s.card.hostAnswers = HOST_CARD.hostAnswers;
+  }
   const by = isObj(s.get) ? s.get.by : undefined;
   if (by === 'draft') {
     // A10 part 3: a draw is either ownership; said alone, nobody shares (DRAW_OWN). Part 3b: an auction is for castaways nobody
@@ -2323,6 +2425,8 @@ function sizesOf(s) {
  *                it's one. Absent: there are none
  *   ctx.grouped  false when nobody on the show is in a group (its cast has no groups): no group answers
  *   ctx.jury     false when no jury decides the finale: no jury vote split (A8)
+ *   ctx.votes    (A14 part 3) false when nobody on the show is voted out by the others' votes (a cast's vote that sends someone
+ *                home): no bounty
  *   ctx.games    (A10 part 4) the couch's games on the show's earlier seasons (ids, or { id }): keepers come from one of them
  *   ctx.pool     (A10 part 1) how many can be drafted where the game drafts (the cast still in then), and ctx.couch how many
  *                people are on its couch: an exclusive draft has to cover every pick (covers: the 9:10 PM decision), else it's
@@ -2463,6 +2567,12 @@ function specProblems(spec, ctx, opts) {
   if (score.by === 'stats') statScoreProblems(score).forEach(([at, p]) => add(`score.${at}`, p));
   // C3: a multiplier on how a holding joined, a draft's.
   if ((score.by === 'moments' || score.by === 'place') && score.multiply !== undefined) multiplyProblems(score.multiply, s).forEach(([at, p]) => add(`score.multiply${at}`, p));
+  // A14 part 3: a bounty, a draft's.
+  if ((score.by === 'moments' || score.by === 'place') && score.bounty !== undefined) bountyProblems(score.bounty, s).forEach(([at, p]) => add(`score.bounty${at}`, p));
+  // A14 part 4: secret roles, a draft's.
+  if ((score.by === 'moments' || score.by === 'place') && score.roles !== undefined) rolesProblems(score.roles, s).forEach(([at, p]) => add(`score.roles${at}`, p));
+  // A14 part 5: the top scorer's twist, a game scored by moments'.
+  if (score.by === 'moments' && score.twist !== undefined) twistProblems(score.twist, s).forEach(([at, p]) => add(`score.twist${at}`, p));
   if (score.by === 'survive') {
     if (!one('score.means', score.means)) add('score.means', 'A pick survives by staying in (staysIn) or by scoring (scores)');
     if (!(isNum(score.points) && score.points >= 0)) add('score.points', 'A right pick is worth 0 or more');
@@ -2648,6 +2758,14 @@ function questionProblems(q, at, s, ids, league) {
     if (q.asked !== 'each' || q.over !== undefined) add('asked', "An episode fact is that episode's: ask it each episode");
   }
   if (st.fact !== undefined && st.by !== 'fact') add('settle.fact', 'Only an episode fact settles by a fact');
+  // A14 part 7: a number from a vetted outside source (an episode's TVmaze rating), about one episode: asked each episode, closing as
+  // it starts, read once a few days after it airs.
+  if (st.by === 'outside') {
+    if (st.source !== undefined && !one('ask.settle.source', st.source)) add('settle.source', 'Where the rating comes from: tvmaze');
+    if (st.after !== undefined && !(isInt(st.after, 1) && st.after <= MAX_OUTSIDE_DAYS)) add('settle.after', `The rating is read 1 to ${MAX_OUTSIDE_DAYS} days after the episode airs`);
+    if (q.asked !== 'each' || q.over !== undefined) add('asked', "An episode's rating is that episode's: ask it each episode");
+  }
+  for (const k of ['source', 'after']) if (st[k] !== undefined && st.by !== 'outside') add(`settle.${k}`, 'Only a rating from an outside source says where it comes from and when');
   // A14 part 1: the players' own answers, one each, in a game of questions with one lock for everyone (each answer is hidden until
   // it; a late lock would show some of you the answers while others can still give theirs).
   if (st.by === 'players') {
@@ -2680,6 +2798,7 @@ function questionProblems(q, at, s, ids, league) {
     if (!(isObj(s.score) && (s.score.by === 'answers' || s.score.by === 'place' || s.score.by === 'moments'))) add('beat', "The bot plays a game of questions' own questions, or a draft's own");
     if (q.wager !== undefined) add('beat', "A wager is on your own call: not with the bot's");
     if (q.from === 'team') add('beat', 'The bot has no team: it names from the cast, so ask from the cast');
+    if (st.by === 'outside') add('beat', "The bot doesn't call an episode's rating yet: play it without the bot");
   }
   // L1 part 4b: a sport's stat or bout says whose with `of` too (below).
   if (st.of !== undefined && st.by !== 'players' && st.by !== 'legs' && st.by !== 'stat' && st.by !== 'final') add('settle.of', "Only your own answers settle by another question's, or a sport's stat or bout says whose");
@@ -2817,6 +2936,7 @@ function questionProblems(q, at, s, ids, league) {
     } else if (new Set(opts.map((o) => o.trim().toLowerCase())).size !== opts.length) add('options', 'Two of its options are the same');
     else if (yesNo && !opts.every((o) => YES_NO.includes(o.trim().toLowerCase()))) add('options', 'Whether it happened is Yes or No');
     else if ((how === 'moment:count' || how === 'role:count') && !opts.every((o) => optionRange(o))) add('options', 'A count\'s options are numbers or ranges: "0", "1-2", "3+"');
+    else if (how === 'outside:rating' && !opts.every((o) => optionRange(o, true))) add('options', 'A rating\'s options are numbers or ranges, to a tenth: "7-7.9", "8+"');
   } else if (q.options !== undefined) add('options', 'Only a choice has options');
   // A13: the episode's trivia, a round before every episode about the one before it, its answers' window that episode's (the batch
   // written after the one before), closing as it starts: so nobody answers what they haven't seen, and it's graded with the rest.
@@ -2840,7 +2960,7 @@ const isInstant = (v) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2
 const KEYS = {
   top: ['spec', 'preset', 'span', 'pool', 'get', 'count', 'score', 'rank', 'ask', 'closes', 'extras', 'stages', 'overall', 'card'],
   // C7: a new card each week.
-  card: ['from', 'each', 'of', 'fallback'],
+  card: ['from', 'each', 'of', 'fallback', 'closes', 'hostAnswers'],
   // A12 part 1: a stage of a game in stages, and its overall.
   stage: ['id', 'name', 'game', 'on', 'side', 'alongside', 'season'],
   overall: ['by', 'places'],
@@ -2861,7 +2981,7 @@ const KEYS = {
   budget: ['total', 'floor', 'ceiling', 'gone', 'fallback', 'trade', 'left'],
   trade: ['fee'],
   second: ['fallback'],
-  score: { moments: ['by', 'points', 'captain', 'times', 'multiply', 'only', 'hits'], place: ['by', 'reverse', 'multiply'], survive: ['by', 'means', 'points', 'lives', 'buyback', 'mulligans'], lines: ['by', 'points'], answers: ['by', 'parlays', 'lives', 'livesOn', 'saves', 'bank'], stages: ['by'], stats: ['by', 'points', 'byPosition', 'byPlace', 'byFormat', 'categories', 'captain', 'times'], squares: ['by', 'pays', 'empty', 'unread'] },
+  score: { moments: ['by', 'points', 'captain', 'times', 'multiply', 'only', 'hits', 'bounty', 'roles', 'twist'], place: ['by', 'reverse', 'multiply', 'bounty', 'roles'], survive: ['by', 'means', 'points', 'lives', 'buyback', 'mulligans'], lines: ['by', 'points'], answers: ['by', 'parlays', 'lives', 'livesOn', 'saves', 'bank'], stages: ['by'], stats: ['by', 'points', 'byPosition', 'byPlace', 'byFormat', 'categories', 'captain', 'times'], squares: ['by', 'pays', 'empty', 'unread'] },
   pay: ['at', 'points'],
   buyback: ['times', 'before', 'cost'],
   before: ['phase', 'episode'],
@@ -2871,6 +2991,10 @@ const KEYS = {
   captain: ['times'],
   when: ['times', 'episode', 'from', 'to', 'phase', 'finale'],
   multiply: ['times', 'joined', 'then', 'per'],
+  bounty: ['points', 'on'],
+  roles: ['count', 'name', 'points', 'on', 'deal', 'reveal', 'mates'],
+  twist: ['of', 'who', 'by', 'tie', 'closes', 'fallback'],
+  twistOf: ['id', 'name', 'times', 'moment'],
   shrink: ['points', 'per'],
   rank: ['by', 'race', 'cut', 'oneLeft', 'allOut', ...MATCHUP_KEYS, 'ties', 'teams', 'handicap'],
   race: ['to'],
@@ -2888,7 +3012,7 @@ const KEYS = {
   draft: ['at', 'timer', 'away', 'opens'],
   bets: ['points'],
   question: ['id', 'ask', 'answer', 'points', 'settle', 'asked', 'closes', 'pick', 'from', 'line', 'options', 'each', 'every', 'over', 'within', 'chips', 'pairs', 'wager', 'odds', 'share', 'rollover', 'shrink', 'fallback', 'beat', 'legs', 'pays', 'card', 'draw', 'rounds', 'confidence'],
-  settle: ['by', 'take', 'moment', 'role', 'phase', 'stat', 'place', 'fact', 'of', 'tie'],
+  settle: ['by', 'take', 'moment', 'role', 'phase', 'stat', 'place', 'fact', 'of', 'tie', 'source', 'after'],
   beat: ['by', 'none'],
 };
 /** The paths of keys a spec has that no game spec does. */
@@ -2922,8 +3046,13 @@ function unknownKeys(s) {
     if (s.score.by === 'squares' && Array.isArray(s.score.pays)) s.score.pays.forEach((p, i) => check(p, KEYS.pay, `score.pays[${i}]`));
     if (isObj(s.score.bank)) check(s.score.bank, KEYS.bank, 'score.bank');
     if ((s.score.by === 'moments' || s.score.by === 'place') && Array.isArray(s.score.multiply)) s.score.multiply.forEach((m, i) => check(m, KEYS.multiply, `score.multiply[${i}]`));
+    if (s.score.by === 'moments' || s.score.by === 'place') check(s.score.bounty, KEYS.bounty, 'score.bounty');
+    if (s.score.by === 'moments' || s.score.by === 'place') check(s.score.roles, KEYS.roles, 'score.roles');
     if (s.score.by === 'moments' || s.score.by === 'stats') {
       check(s.score.captain, KEYS.captain, 'score.captain');
+      // A14 part 5: the top scorer's twist, and each twist it offers.
+      check(s.score.twist, KEYS.twist, 'score.twist');
+      if (isObj(s.score.twist) && Array.isArray(s.score.twist.of)) s.score.twist.of.forEach((t, i) => check(t, KEYS.twistOf, `score.twist.of[${i}]`));
       if (Array.isArray(s.score.times)) s.score.times.forEach((t, i) => check(t, KEYS.when, `score.times[${i}]`));
     }
     if (s.score.by === 'survive' && isObj(s.score.buyback)) {
@@ -3827,6 +3956,119 @@ function multiplyProblems(list, s) {
   return out;
 }
 /**
+ * A14 part 3: a bounty (score.bounty), as [[at, problem]]: { points, on? }, points 0.5 to MAX_BOUNTY in halves, on what the results
+ * say (votedOut, the only one: one of yours voted for someone of someone else's who went home by that vote). A draft's (a lineup,
+ * best ball or an Outlast): the people you hold are who vote and who go home. Not a stock market's (its worth is prices, not
+ * points), and not beside cuts yet (someone knocked out still holds their people, so it would take points from a team that's
+ * out). Whether the show votes anyone out is the data-can-settle rule's (ctx.votes).
+ */
+function bountyProblems(b, s) {
+  if (!isObj(b)) return [['', 'A bounty is { points }: what you take from someone when one of your castaways votes out one of theirs']];
+  const out = [];
+  if (!(isNum(b.points) && b.points >= 0.5 && b.points <= MAX_BOUNTY && Number.isInteger(b.points * 2))) out.push(['.points', `A bounty is 0.5 to ${MAX_BOUNTY} points, in halves`]);
+  if (b.on !== undefined && own(VOCAB['score.bounty.on'], b.on) === undefined) out.push(['.on', 'A bounty is on a vote: votedOut, one of yours voting out one of theirs']);
+  if (!(isObj(s.get) && s.get.by === 'draft')) out.push(['', 'A bounty moves points between teams, so it needs a draft: each of you holds castaways who vote and get voted out']);
+  else if (marketOf(s) || (isObj(s.rank) && s.rank.by === 'worth')) out.push(['', 'A stock market scores by prices, not points, so a bounty has no points to move']);
+  else if (isObj(s.rank) && Array.isArray(s.rank.cut) && s.rank.cut.length) out.push(['', "A bounty can't go beside cuts yet: a team knocked out still holds its castaways, so it would keep losing points. Take out the cuts, or the bounty"]);
+  return out;
+}
+/**
+ * A14 part 4: secret roles among the players (score.roles), as [[at, problem]]: { count?, name?, points, on?, deal?, reveal?, mates? }.
+ * `count` seats (1 to MAX_ROLE_SEATS; fewer at the deal when the game has fewer seats, always leaving one without) are dealt the role
+ * at random once the game starts; each scores `points` (0.5 to MAX_ROLE_POINTS, in halves) whenever someone a seat without the role
+ * holds goes home (`on` 'out') or is voted out ('votedOut'), whatever the seat itself holds. Who holds it stays secret, and so do its
+ * points, until the reveal (`reveal`: 'end', the game's last episode's results, or an episode's number in the game), when they're
+ * added; `mates` (true) says whether the seats with it know each other. A draft's (the people you hold are who go home), not a
+ * stock market's; not beside cuts, a race, head to head or weeks won (the points land all at once at the reveal, so they'd be
+ * missing from a cut or a race before it, and would decide its week's matchup). Whether the show sends anyone home, or votes
+ * anyone out, is the data-can-settle rule's (ctx.results, ctx.votes).
+ */
+function rolesProblems(r, s) {
+  if (!isObj(r)) return [['', 'Secret roles are { count, points }: how many of you get the role, and what it scores']];
+  const out = [];
+  if (r.count !== undefined && !(Number.isInteger(r.count) && r.count >= 1 && r.count <= MAX_ROLE_SEATS)) out.push(['.count', `1 to ${MAX_ROLE_SEATS} of you can get a secret role`]);
+  if (r.name !== undefined && !(typeof r.name === 'string' && r.name.trim().length >= 1 && r.name.length <= MAX_ROLE_NAME && /^[A-Za-z][A-Za-z '\-]*$/.test(r.name))) out.push(['.name', `A role's name is a word or two, up to ${MAX_ROLE_NAME} letters: Traitor`]);
+  if (!(isNum(r.points) && r.points >= 0.5 && r.points <= MAX_ROLE_POINTS && Number.isInteger(r.points * 2))) out.push(['.points', `A secret role scores 0.5 to ${MAX_ROLE_POINTS} points, in halves`]);
+  if (r.on !== undefined && own(VOCAB['score.roles.on'], r.on) === undefined) out.push(['.on', "A secret role scores when someone another player drafted goes home (out) or is voted out (votedOut)"]);
+  if (r.deal !== undefined && own(VOCAB['score.roles.deal'], r.deal) === undefined) out.push(['.deal', 'Secret roles are dealt at random (random)']);
+  if (r.reveal !== undefined && own(VOCAB['score.roles.reveal'], r.reveal) === undefined && !(Number.isInteger(r.reveal) && r.reveal >= 1)) out.push(['.reveal', "Secret roles are revealed at the game's end (end), or after an episode: its number"]);
+  else if (Number.isInteger(r.reveal)) {
+    const from = spanStart(s.span) === null ? 1 : spanStart(s.span);
+    const to = spanEnd(s.span);
+    if (r.reveal < from) out.push(['.reveal', `The reveal is after an episode the game plays: ${from} or later`]);
+    else if (to !== null && r.reveal > to) out.push(['.reveal', `The reveal is after an episode the game plays: ${to} or earlier`]);
+  }
+  if (r.mates !== undefined && typeof r.mates !== 'boolean') out.push(['.mates', 'mates is true (everyone with the role knows who else has it) or false']);
+  if (!(isObj(s.get) && s.get.by === 'draft')) out.push(['', "A secret role scores when another player's castaway goes home, so it needs a draft"]);
+  else if (marketOf(s) || (isObj(s.rank) && s.rank.by === 'worth')) out.push(['', 'A stock market scores by prices, not points, so a secret role has no points to add']);
+  else if (isObj(s.rank) && ((Array.isArray(s.rank.cut) && s.rank.cut.length) || s.rank.race !== undefined)) out.push(['', "A secret role's points are added at the reveal, so a cut or a race before it would leave them out. Take out the cuts or the race, or the roles"]);
+  else if (isObj(s.rank) && (s.rank.by === 'matchups' || s.rank.by === 'weeks')) out.push(['', "A secret role's points are added all at once at the reveal, so they'd decide that week's matchup. Rank by points, or take out the roles"]);
+  return out;
+}
+/**
+ * A14 part 5: the top scorer's twist (score.twist), as [[at, problem]]: { of, who?, by?, tie?, closes?, fallback? }. After each
+ * episode's final results, its top scorer (`who` 'top', or 'bottom' its lowest; `by` 'episode', its points that episode, or 'total',
+ * the standings through it: the game's own walk), among the seats still playing, chooses one of `of` (2 to MAX_TWISTS twists, each
+ * { id, name, times, moment? }) for the next episode only: every point it scores times `times` (more than 0, half is 0.5, not 1, up
+ * to MAX_TIMES), or with `moment` only that moment's. A tie is broken by the standings (`tie` 'total', the default by the episode's
+ * points) or not at all ('none'); still tied, nobody chooses. The choice closes `closes` hours (0 to MAX_TWIST_HOURS) before the
+ * episode airs (or when it locks); nobody chose by then, the `fallback` plays ('none', no twist: the default; or one of the twists'
+ * ids). A game's first episode has none (nobody's scored). A lineup's, best ball's or a pick's scored by moments; not a stock
+ * market's (it ranks by prices), not beside cuts or a race (someone knocked out would still choose), not in a stage (the choosing is
+ * the game's). Whether a twist's moment is the show's, and one data
+ * settles, is the data-can-settle rule's (settleProblems). The guardrail: a player's choice changes the next episode's rules for
+ * everyone, never anyone's points directly; data still settles every one.
+ */
+function twistProblems(t, s) {
+  if (!isObj(t)) return [['', 'A twist is { of }: the twists the top scorer chooses from']];
+  const out = [];
+  const ids = new Set();
+  const said = new Set();
+  if (!(Array.isArray(t.of) && t.of.length >= 2 && t.of.length <= MAX_TWISTS)) out.push(['.of', `The top scorer chooses one of 2 to ${MAX_TWISTS} twists`]);
+  else t.of.forEach((x, i) => {
+    const at = `.of[${i}]`;
+    if (!isObj(x)) return out.push([at, 'Each twist is { id, name, times }, and a moment if it multiplies only that moment']);
+    if (typeof x.id !== 'string' || !QUESTION_ID.test(x.id) || x.id === 'none') out.push([`${at}.id`, "A twist's id is letters, digits, '.', '_' or '-', up to 40 (not none)"]);
+    else if (ids.has(x.id)) out.push([`${at}.id`, `Two twists can't both be "${x.id}"`]);
+    else ids.add(x.id);
+    if (!(typeof x.name === 'string' && x.name.trim().length >= 1 && x.name.length <= MAX_TWIST_NAME)) out.push([`${at}.name`, `A twist's name is a few words, up to ${MAX_TWIST_NAME} characters: Double points`]);
+    if (!(isNum(x.times) && x.times > 0 && x.times !== 1 && x.times <= MAX_TIMES)) out.push([`${at}.times`, `A twist multiplies points by more than 0 (half is 0.5), up to ${MAX_TIMES}, and not 1`]);
+    if (x.moment !== undefined && !(typeof x.moment === 'string' && x.moment)) out.push([`${at}.moment`, 'Which moment it multiplies: its id, or leave it out for every point']);
+    const key = `${x.moment || ''}|${x.times}`;
+    if (said.has(key)) out.push([at, 'Two twists do the same thing: make each one different']);
+    said.add(key);
+  });
+  if (t.who !== undefined && own(VOCAB['score.twist.who'], t.who) === undefined) out.push(['.who', "Who chooses: the episode's top scorer (top) or its bottom one (bottom)"]);
+  if (t.by !== undefined && own(VOCAB['score.twist.by'], t.by) === undefined) out.push(['.by', "Top by that episode's points (episode) or by the standings (total)"]);
+  if (t.tie !== undefined && own(VOCAB['score.twist.tie'], t.tie) === undefined) out.push(['.tie', 'A tie is broken by the standings (total), or nobody chooses (none)']);
+  else if (t.tie === 'total' && t.by === 'total') out.push(['.tie', 'Chosen by the standings, a tie there has nothing left to break it: leave tie out']);
+  if (t.closes !== undefined && !(Number.isInteger(t.closes) && t.closes >= 0 && t.closes <= MAX_TWIST_HOURS)) out.push(['.closes', `The choice closes 0 to ${MAX_TWIST_HOURS} hours before the episode airs`]);
+  if (t.fallback !== undefined && t.fallback !== 'none' && !(typeof t.fallback === 'string' && ids.has(t.fallback))) out.push(['.fallback', "When nobody chooses: no twist (none), or one of the twists' ids"]);
+  if (!(isObj(s.get) && (s.get.by === 'draft' || s.get.by === 'pick'))) out.push(['', 'A twist changes how the next episode scores, so it needs a draft or a pick scored by what they do']);
+  else if (marketOf(s) || (isObj(s.rank) && s.rank.by === 'worth')) out.push(['', 'A stock market ranks by prices, not points, so a twist on points changes nothing']);
+  else if (isObj(s.rank) && ((Array.isArray(s.rank.cut) && s.rank.cut.length) || s.rank.race !== undefined)) out.push(['', "A twist can't go beside cuts or a race yet: someone knocked out would still choose it. Take out the cuts or the race, or the twist"]);
+  return out;
+}
+/** A14 part 5: a spec's top scorer's twist with what it leaves out filled in ({ of, who, by, tie, closes, fallback }), or null. */
+function twistOf(spec) {
+  const sc = isObj(spec) && isObj(spec.score) ? spec.score : {};
+  if (sc.by !== 'moments' || !isObj(sc.twist) || !Array.isArray(sc.twist.of)) return null;
+  const by = sc.twist.by || TWIST.by;
+  return { ...TWIST, tie: by === 'total' ? 'none' : 'total', ...sc.twist };
+}
+/** A14 part 4: a spec's secret roles with what it leaves out filled in ({ count, name, points, on, deal, reveal, mates }), or null. */
+function rolesOf(spec) {
+  const sc = isObj(spec) && isObj(spec.score) ? spec.score : {};
+  if (!(sc.by === 'moments' || sc.by === 'place') || !isObj(sc.roles) || !isNum(sc.roles.points)) return null;
+  return { ...ROLES, ...sc.roles };
+}
+/** A14 part 3: a spec's bounty with what it's on filled in ({ points, on }), or null for none. */
+function bountyOf(spec) {
+  const sc = isObj(spec) && isObj(spec.score) ? spec.score : {};
+  if (!(sc.by === 'moments' || sc.by === 'place') || !isObj(sc.bounty) || !isNum(sc.bounty.points)) return null;
+  return { ...BOUNTY, ...sc.bounty };
+}
+/**
  * C3: every multiplier a spec has, as one piece keyed by a condition (the sequence's factorOf): [{ on, times, ...condition }]. A
  * lineup's captain (score.captain, on 'captain'), each of score.times ('when', its window), each of score.multiply ('joined', with
  * its per and then filled in) and each parlay ('legs', its questions). A confidence ranking's weights are its answer's own ('rank',
@@ -3981,6 +4223,17 @@ function settleProblems(s, ctx, opts) {
     else if (at === 0) out.push(['score.buyback.before.phase', 'The first phase starts with Episode 1: nobody is out before it']);
   }
   if (get.by === 'pick' && get.second !== undefined && ctx.results === false) out.push(['get.second', "The show's results don't say who goes home, so nothing says a night sent two"]);
+  // A14 part 3: a bounty needs a vote that sends someone home, with who voted for whom (research's, at Survivor's Tribal Council or
+  // The Traitors' Round Table).
+  if ((score.by === 'moments' || score.by === 'place') && score.bounty !== undefined) {
+    if (ctx.results === false) out.push(['score.bounty', "The show's results don't say who goes home, so nothing says who voted someone out"]);
+    else if (ctx.votes === false) out.push(['score.bounty', "Nobody on this show is voted out by the others, so there's no vote for a bounty"]);
+  }
+  // A14 part 4: a secret role scores on who goes home (out), or on who's voted out (votedOut).
+  if ((score.by === 'moments' || score.by === 'place') && isObj(score.roles)) {
+    if (ctx.results === false) out.push(['score.roles', "The show's results don't say who goes home, so nothing says when a secret role scores"]);
+    else if (score.roles.on === 'votedOut' && ctx.votes === false) out.push(['score.roles.on', "Nobody on this show is voted out by the others: a secret role here scores when someone goes home (out)"]);
+  }
   // A11 part 1: a cut before a phase is one of the season's, never its first (that starts with Episode 1: nobody has played); where
   // it starts is data (the desk confirms it). A night nobody goes home skipped needs results that say who goes home.
   if (isObj(s.rank) && Array.isArray(s.rank.cut)) {
@@ -4001,6 +4254,18 @@ function settleProblems(s, ctx, opts) {
     const at = ctx.phases.findIndex((p) => (isObj(p) ? p.id : p) === wFrom);
     if (at < 0) out.push(['extras.waivers.from.phase', `"${wFrom}" isn't one of the season's phases`]);
     else if (at === 0) out.push(['extras.waivers.from.phase', 'The first phase starts with Episode 1: leave it out, and waivers run from the start']);
+  }
+  // A14 part 5: a twist on one moment multiplies one of the show's, one data settles and one the game counts.
+  if (score.by === 'moments' && isObj(score.twist) && Array.isArray(score.twist.of) && Array.isArray(ctx.moments)) {
+    score.twist.of.forEach((x, i) => {
+      if (!isObj(x) || typeof x.moment !== 'string' || !x.moment) return;
+      const bad = momentProblem(x.moment);
+      const m = momentById.get(x.moment);
+      const counts = !Array.isArray(score.only) || score.only.includes(x.moment);
+      const onCard = !onlyCard(score) || !cardOf(s) || cardOf(s).of.includes(x.moment);
+      if (bad) out.push([`score.twist.of[${i}].moment`, bad]);
+      else if ((m && m.off) || !counts || !onCard) out.push([`score.twist.of[${i}].moment`, `${m.label || m.id} counts nothing in this game, so a twist on it changes nothing`]);
+    });
   }
   // A9 part 2: a phase whose points multiply is one of the season's (where it starts is data: the desk confirms it); the finale
   // is the episode that ends the season, which only a show whose results say who goes home or wins places.
@@ -4077,6 +4342,9 @@ function settleProblems(s, ctx, opts) {
       const p = EpisodeFacts.factProblem(st.fact, ctx.facts[st.fact]);
       if (p) out.push([`ask[${i}].settle.fact`, p]);
     }
+    // A14 part 7: an outside number only for a season linked to its listing there (ctx.tvmaze: the season's TVmaze listing).
+    // Left out, not checked, as ctx.trivia.
+    if (st.by === 'outside' && ctx.tvmaze === false) out.push([`ask[${i}].settle`, "This season isn't linked to TVmaze, so nothing can settle its episodes' ratings"]);
   });
   // C7: every moment a card is drawn from is the show's, one research answers: its lines are questions and objectives data settles.
   const card = cardOf(s);
@@ -4195,6 +4463,12 @@ function stagedProblems(spec, s, ctx, opts, add) {
     const raw = Array.isArray(spec.stages) && isObj(spec.stages[i]) ? spec.stages[i].game : undefined;
     if (!isObj(raw)) return add(`${at}.game`, 'Each stage is a game: its own spec');
     if (raw.stages !== undefined) return add(`${at}.game.stages`, "A stage is one game: stages don't nest");
+    // A14 part 4: secret roles are dealt once for a game, among its seats (the server's deal is the game's, not a stage's).
+    if (isObj(raw.score) && raw.score.roles !== undefined) add(`${at}.game.score.roles`, "Secret roles are dealt once for the whole game, so they can't go in a stage yet: make it one game, or take out the roles");
+    // A14 part 5: the top scorer's twist is chosen for the whole game, from its own standings.
+    if (isObj(raw.score) && raw.score.twist !== undefined) add(`${at}.game.score.twist`, "The top scorer's twist is chosen from the whole game's scores, so it can't go in a stage yet: make it one game, or take out the twist");
+    // A14 part 6: a host's turn goes round the whole game's players.
+    if (hostCard(raw.card)) add(`${at}.game.card.from`, "The host's turn goes round the whole game's players, so a card a host chooses can't go in a stage yet: make it one game, or draw the card in turn");
     // A12 part 2: a stage a format change starts.
     const rawOn = Array.isArray(spec.stages) && isObj(spec.stages[i]) ? spec.stages[i].on : undefined;
     // A12 part 3: a side stage, beside the game's own.
@@ -4383,7 +4657,7 @@ function stagedWaits(s) {
 
 module.exports = {
   SPEC_VERSION, VOCAB, TAKES, SETTLES_FOR, SEASON_TAKES, EACH_SETTLES_FOR, NAMES, NUMBERS, MAX_WINDOW, LATE_HOURS, windowed,
-  RANKS, MAX_ORDER, MAX_WITHIN, MAX_CHIPS, MAX_PAIRS, WAGERS, WAGER_TOTAL, ODDS, MAX_BANK, BANK, bankOf, drawsOnBank, isTicket, ticketOf, MAX_TICKET_LEGS, MAX_PAYS, TICKET, SHARES, SHRINK_PER, LEGS, MAX_LEGS, MAX_TIMES, MAX_WHEN, WHEN, MAX_JOINED, JOINED, multipliersOf, PRESETS, PRESET_TYPES, TYPE_PRESETS, PRESET_LABELS, NO_WAIVERS, DRAFT_ROOM,
+  RANKS, MAX_ORDER, MAX_WITHIN, MAX_CHIPS, MAX_PAIRS, WAGERS, WAGER_TOTAL, ODDS, MAX_BANK, BANK, bankOf, drawsOnBank, isTicket, ticketOf, MAX_TICKET_LEGS, MAX_PAYS, TICKET, SHARES, SHRINK_PER, LEGS, MAX_LEGS, MAX_TIMES, MAX_WHEN, WHEN, MAX_JOINED, JOINED, multipliersOf, MAX_BOUNTY, BOUNTY, bountyOf, MAX_ROLE_SEATS, MAX_ROLE_POINTS, MAX_ROLE_NAME, ROLES, rolesOf, MAX_TWISTS, MAX_TWIST_NAME, MAX_TWIST_HOURS, TWIST, twistOf, PRESETS, PRESET_TYPES, TYPE_PRESETS, PRESET_LABELS, NO_WAIVERS, DRAFT_ROOM,
   MAX_GROUP_SLOTS, GROUP_SLOTS, covers, MAX_LIVES, MAX_BUYBACKS, MAX_MULLIGANS, MAX_BUYBACK_COST, BUYBACK, SECOND_PICK, NEVER, poolParts,
   DRAFT_ACROSS, DRAW_OWN, spreadBounds, MAX_BUDGET, BUDGET, CAP, AUCTION, MAX_BIDS, ceilingFor, budgetParts, TRADE, MARKET_LEFT,
   marketWaivers, marketOf, waiverOwnOf, waiverMoves, KEEP, keepParts, SEATS, MAX_SEAT_PEOPLE, seatPeople, teamsOf,
@@ -4393,10 +4667,10 @@ module.exports = {
   LINE_GAME, SQUARE_GRIDS, SQUARE_TAKES, SQUARE_EMPTY, SQUARE_UNREAD, SQUARES, MAX_SQUARE_PAYS, BRACKET_ROUNDS, squaresParts, ordinalWord,
   HANDICAP, MAX_HANDICAP, handicapParts,
   WEEKS, MAX_PICKS, MAX_ONLY, momentsPick, weekParts, momentWorth,
-  MAX_CARD, CARD, CARD_OUT_HOURS, CARD_FALLBACK, CARD_TAKES, CARD_ANSWERS, drawInTurn, cardOf, botCard, rankedLines, cardLines, cardWaiting, cardEach, questionLines, isCardQuestion, isCardLine, cardMoment, onlyCard, onlyAt, askOf, linesAsked, lifeRides,
+  MAX_CARD, CARD, CARD_OUT_HOURS, CARD_FALLBACK, CARD_TAKES, CARD_ANSWERS, MAX_HOST_HOURS, HOST_CARD, drawInTurn, cardOf, botCard, hostCard, chosenCard, hostLines, rankedLines, cardLines, cardWaiting, cardEach, questionLines, isCardQuestion, isCardLine, cardMoment, onlyCard, onlyAt, askOf, linesAsked, lifeRides,
   REPLACE_RULES, WINDOW_SCHEDULES, WAIVER_FEELS, WAIVER_ORDERS, WAIVER_HOURS, DRAFT_TIMERS, MAX_BET_POINTS, JOINS, ORDER_OF,
   MAX_TEAM, MAX_STARTERS, MAX_BENCH, MAX_LINEUP_TEAM, MAX_QUESTIONS, MAX_PICK, MAX_QUESTION_POINTS, MAX_OPTIONS, YES_NO,
-  CALLS, finaleQuestions, finaleOf, finaleIn, draftQuestions, draftPlayable, isCalls, isTrivia, isFact, isPlayers, PLAYERS, isBeat, BEAT, BEATS, callsAsk, fullQuestion, optionRange, playable,
+  CALLS, finaleQuestions, finaleOf, finaleIn, draftQuestions, draftPlayable, isCalls, isTrivia, isFact, isOutside, OUTSIDE, MAX_OUTSIDE_DAYS, outsideKey, isPlayers, PLAYERS, isBeat, BEAT, BEATS, callsAsk, fullQuestion, optionRange, playable,
   fullSpec, typeOf, playsAs, flagsOf, sizesOf, specProblems, placeRange, specWaitsFor, waiversFit, finaleFits, betsFit, countKind, presetOf, sameValue, own,
   spanStart, spanPhase, spanEnd, spanEndPhase, phaseTo,
   MAX_STAGES, MAX_STAGE_NAME, MAX_PLACES, OVERALL, STAGE_KINDS, stageGames, stagesOverlap,

@@ -12,6 +12,8 @@ const generic = require('./generic.js');
 const { formatProblems, defineFormat } = require('./define.js');
 const { buildDataFormat, rolesCode } = require('./custom.js');
 const { withChanges, applyChanges, changeProblems } = require('./season-changes.js');
+// A14 part 3: who voted for whom, from an episode's research.
+const { votesOf, voteExits, recordOf: voteRecordOf } = require('./votes.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const FORMATS = { survivor, traitors, challenge, generic };
@@ -145,6 +147,8 @@ module.exports = {
   BUILT_IN_READERS, formatForRulebook,
   // What a format's moments and votes say, for the computer players and research (moment-tags.js).
   momentTags, groupVotesOf,
+  // Who voted for whom, for a bounty (votes.js).
+  votesOf, voteExits, voteRecordOf,
   // Season rule changes (season-changes.js, docs/PLAN-season-rule-changes.md).
   withChanges, applyChanges, changeProblems,
 };

@@ -974,6 +974,54 @@ declare const StateLogic: {
     worth(state: LeagueState, playerId: string, prices?: Map<string, number>): number;
     view(state: LeagueState): { prices: Record<string, number>; cash: Record<string, number>; worth: Record<string, number> } | null;
   };
+  /** Step A14 part 3: a draft's bounty (score.bounty), from each episode's stamped record of who voted for whom. */
+  BountyLogic: {
+    of(state: LeagueState): { points: number; on: "votedOut" } | null;
+    exitsOf(state: LeagueState): Set<string>;
+    votesAt(state: LeagueState, ep: Episode, exits?: Set<string>): [string, string][];
+    heldFor(state: LeagueState, ep: Episode, playerId: string): string[];
+    episodeLines(state: LeagueState, ep: Episode, bounty: { points: number }, exits?: Set<string>): Map<string, number> | null;
+  };
+  /** Step A14 part 4: secret roles among the players (score.roles): dealt by the server (secret-roles.ts), kept out of the state
+   *  until the reveal, then stamped on it (state.secretRoles) for the walk to count. */
+  SecretRoleLogic: {
+    of(state: LeagueState): Required<import("./game-spec/index.js").SpecRoles> | null;
+    seats(state: LeagueState): string[];
+    due(state: LeagueState, now?: number): boolean;
+    deal(state: LeagueState, seed: string): { seats: string[]; holders: string[] };
+    revealAt(state: LeagueState): number | null;
+    known(state: LeagueState): { at: number; holders: string[] } | null;
+    goneAt(state: LeagueState, ep: Episode, cfg: Required<import("./game-spec/index.js").SpecRoles>, exits?: Set<string> | null): string[];
+    episodeLines(state: LeagueState, ep: Episode, cfg: Required<import("./game-spec/index.js").SpecRoles>, holders: string[], exits?: Set<string> | null): Map<string, number> | null;
+    pointsOf(state: LeagueState, playerId: string, holders: string[]): number;
+  };
+  /** Step A14 part 5: the top scorer's twist (score.twist): chosen in the server's own table (twists.ts) until it closes, then filed
+   *  and stamped on the episode (episode.twist) for the scoring to read. */
+  TwistLogic: {
+    of(state: LeagueState): (Required<Omit<import("./game-spec/index.js").SpecTwist, "of">> & { of: import("./game-spec/index.js").SpecTwistOption[] }) | null;
+    at(state: LeagueState, number: number): import("./game-spec/index.js").SpecTwistOption | null;
+    timesAt(state: LeagueState, number: number): number;
+    momentTimes(state: LeagueState, type: string, number?: number): number;
+    episodes(state: LeagueState): number[];
+    closesAt(state: LeagueState, n: number): number | null;
+    closed(state: LeagueState, n: number, now?: number): boolean;
+    chooserAt(state: LeagueState, n: number, series?: unknown[]): { playerId: string } | { playerId: null; why: "first" | "waiting" | "tie" | "nobody" };
+    file(state: LeagueState, n: number, choice: { playerId: string; twist: string } | null, series?: unknown[]): { id: string | null; by: string | null; how: "chosen" | "fallback" };
+  };
+  /** Step A14 part 6: a rotating host's questions (card.from 'host'): the host's lines kept in the server's own table (host-cards.ts)
+   *  until the host's time is up, then filed and stamped on the episode (episode.cardChoice) for the card's questions to read. */
+  HostLogic: {
+    of(state: LeagueState): { from: string; each: number; of: string[]; fallback: "spec" | "void"; closes: number; hostAnswers: boolean } | null;
+    episodes(state: LeagueState): number[];
+    closesAt(state: LeagueState, n: number): number | null;
+    closed(state: LeagueState, n: number, now?: number, choice?: { playerId: string | null; moments: string[] } | null): boolean;
+    hostAt(state: LeagueState, n: number): string | null;
+    walk(state: LeagueState, n: number): { hosts: [number, string | null][]; anchor: string | null };
+    after(state: LeagueState, n: number): string[];
+    turn(state: LeagueState, id: string | null): string[];
+    file(state: LeagueState, n: number, choice: { playerId: string; moments: string[] } | null): { moments: string[]; host: string; how: "host" } | { fallback: true; host: string | null; how: "fallback" };
+    sitsOut(state: LeagueState, n: number, playerId: string): boolean;
+  };
   /** Step A11 part 1: a draft's race (rank.race: the first to N points wins, and the game ends there) and players knocked out
    *  (rank.cut), worked out from the data on every read. `out`: the last episode that counts for someone knocked out. */
   KnockoutLogic: {

@@ -140,7 +140,21 @@ moments (2026-11-06: `card: { from: 'moments', each, of }`, drawn in turn as Wee
 tracker rows p10 and p12, the user's first and third games), is built, and so is part 2, a card the bot chooses (2026-11-06: `card:
 { from: 'bot', fallback }`, the AI ranking the season's cards' moments before each episode, one ask for the season, kept in
 `card_choices`, migration 0208, stamped on each league's episodes, out by 12 hours before the episode on its fallback; tracker row
-p10): **C7 is done**. A14's later parts are next (2b, the bot's own run, and the rest), then a stop before A15. The live-sports plan is
+p10): **C7 is done**. A14 part 2b, the bot's own run for its calls (2026-11-06: before each lock of a question played against the bot,
+the bot's call from only what anyone could know then, one ask per game per lock six hours before the episode, filed and checked as a
+seat's answer is; migration 0209), is built, and so is part 3, bounties (2026-11-06: `score.bounty: { points }` on a draft, one of your
+castaways votes out someone else's and you take its points from them, who voted for whom from research's stored answer, void on an
+episode research isn't sure of; tracker row s16; no migration), and so is part 4, secret roles among the players (2026-11-06:
+`score.roles` on a draft, some seats dealt a role at random once the game starts and kept in `secret_role_deals`, migration 0210,
+never in the state; each scoring when someone a seat without it holds goes home, its points added at the reveal; tracker rows s24 and
+who.secret), and so is part 5, the top scorer's twist (2026-11-06: `score.twist` on a game scored by moments, each episode's top
+scorer choosing one of the spec's twists for the next episode, every point or one moment's times its own, kept in `twist_choices`,
+migration 0211, until it closes, then filed and stamped on the episode; tracker row s40), and so is part 6, a rotating host's
+questions (2026-11-06: `card.from: 'host'`, each episode one of the seats in turn choosing the card's moments, kept in `host_cards`,
+migration 0212, until the host's deadline, then filed and stamped on the episode; tracker rows s43 and who.host), and so is part 7,
+a number from a vetted outside source (2026-11-06: `settle.by: 'outside'`, an episode's TVmaze rating read once seven days after it
+airs and stored per season in `outside_numbers`, migration 0213; built and checked, but off since 2026-11-07: the user said no to
+TVmaze's ratings as a source, so `outside` is 'later' in VOCAB and tracker rows s42 and settle.outside wait): **A14 is done**, and the A track stops before A15 for the user. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5, at
 high since 2026-11-05; C2 at xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: folded in here as track L; its file keeps the details)
 and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track S here).
@@ -185,7 +199,7 @@ and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track
 | Progress (2026-10-28) | **Living tables:** the dials and the stretch requests, each row's status generated from the engine itself (A5), so the user sees what's possible as the engine grows. |
 | Live sports (2026-10-28) | **Folded into this plan** ("Live sports in the same engine"): one engine for shows and sports. The difference is when results arrive: a sport's live, play by play, a show's after the episode. The sports plan's own decisions stand. |
 | Mechanics the players decide (2026-10-28) | **Allowed** (the user's hunch, Claude's call): votes among the players, matching the majority, the top scorer's twist, a rotating host, secret roles, bounties. Guardrails: facts about the show are still settled only by data (a host's questions must be data-settled; the couch never decides what happened); answers that depend on each other stay hidden until the lock; a player-decided outcome changes the game only, never someone's place on the couch. |
-| Numbers from outside research (2026-10-28) | **Allowed from vetted sources** (the user's hunch, Claude's call): free, with terms that allow it (TVmaze's episode ratings, ESPN's stats), settled once at a fixed moment (a rating seven days after airing) and stored, because outside numbers drift. A new source goes into HOSTING.md first. |
+| Numbers from outside research (2026-10-28) | **Allowed from vetted sources** (the user's hunch, Claude's call): free, with terms that allow it (ESPN's stats; TVmaze's episode ratings were the example until the user said no, 2026-11-07: below), settled once at a fixed moment (a rating seven days after airing) and stored, because outside numbers drift. A new source goes into HOSTING.md first. |
 | The engine lab (2026-10-28) | **Yes**, in A5: an admin-only, plain page on the desk for trying the engine's pieces before the UI exists. |
 | Exclusive or shared (2026-10-28) | **Shared whenever the math says so** (the user: "many things will just mathematically have to be shared, no way around it", as in a 12-person Survivor game where everyone drafts several castaways). An exclusive draft only when the pool covers every pick, counted where the game drafts and as the pool shrinks (a later stage, a side draft, group slots among fourteen pairs); otherwise our check makes it shared and the wizard says why ("12 players × 3 picks is more than 18 castaways: two of you can have the same one"). Group slots are shared by default. |
 | Randomize (2026-10-29) | **Planned** (the user's idea): the wizard's other door, designed in U0 with the rest of it, its engine piece G4 built before U1. No bot: a roll is instant, free and works when the bot is away. |
@@ -197,6 +211,7 @@ and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track
 | A shared game's two holders (2026-11-06) | **Per holder, from the live games' next episode on** (the user, on C4's Noticed): someone who goes home in an episode not yet played is owed a replacement on every team that held them, one replacing them settling only their own. Every exit already played stays as it played out (no past loss owed again, no standings moving backwards); games made from now on are per holder from the start; C4's games as they are. As data, never a date or a league named in code: each existing game carries its cutover (`settings.perHolderFrom`, migration 0207: the first episode it hadn't played; Survivor 51's live games, Episode 8). Built as C4b, before Episode 8's results (Wed Nov 11). |
 | A sports week (2026-11-06) | **The episode, wherever the season has episodes of its own** (the main session's call, as the sports track's orchestrator; built in L8 part 3): a league's slate's episode (ESPN's own week for football, Monday to Sunday or a day for the NBA, NHL and MLB, a round for soccer) is the week for its locks, its matchups and the screens, locking at its own first game whatever the spec's `closes` says. Tuesday to Monday (Eastern) only where nothing else defines the week: a team's season and a matchup's series, one game an episode. |
 | Which line a game plays by (2026-11-06) | **The line when the question opens for answers, shown with it, never changing once anyone can answer** (the main session's call at 11:05 AM, as the sports track's orchestrator; the user can overrule; built in L3 part 3b). Not the line at the lock (answers made earlier would be graded against a line their makers never saw), nor the line when the game is made (a game made weeks ahead has none yet for its later games). Each question (each game, for a question about each game) takes the latest line read when it opens (the daily odds read is enough: no hourly read); one that opens before ESPN has a line waits ("Line coming") and opens when there is one. "Opens" is the first time the question is served open in the league (a read of its questions or an answer to it), the line kept then for good: it's the line every answer to it was made against. The phone's `lineAtStart` stays the live display's line, not the question's. |
+| Outside numbers: TVmaze ratings (2026-11-07) | **No** (the user, on A14 part 7's Noticed): TVmaze's episode ratings aren't taken as a source, so `ask.settle`'s `outside` is 'later' in VOCAB (nobody can make a rating game), nothing runs `db/outside-numbers.js` and the hourly job has no step for it. The piece stays built and checked (its code, tests, migration 0213 and the `outside_numbers` table, unused): a later yes is that flip and one step of the job. |
 
 ## What's there today (mapped 2026-10-27)
 
@@ -8690,6 +8705,585 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     scored nobody who said the same, a night of several exits only the one it named. The study doc's "A14 part 2".
   - **The Survivor 51 rehearsal** isn't run for this part: no existing game scores differently (none is played against the bot; golden
     every read the same).
+  **As built (A14 part 2b, the bot's own run for its calls, 2026-11-06, on `engine`; migration 0209).** One session, after `lane.js sync
+  engine` (master's docs only; 1582 tests). Part 2's piece (beat the bot) had its calls only from stand-ins; this part is the run that
+  makes them, so a game played against the bot plays it for real once it's merged. No screen, no new piece, no game scores differently
+  (every existing game's call is still none: no game in production plays against the bot), and nothing in `state-logic.js` changed
+  (for the own-pace merge: no function there touched).
+  - **The run** (`db/call-research.js`, new; `db/bot-research.js` `planCalls`, `callJob`): bot research's call run, a run that isn't any
+    season's schedule (as C7 part 2's card run): planned from the games that need it (`callGames`: every league still played with a
+    question against the bot in its spec, by SQL `jsonb_path_exists`, each confirmed on its state; a draft's own questions included, found
+    through `AnswerLogic.questions` as the grade finds them), one run per game per lock (slot `call:<league id>`, episode_number the lock's
+    episode): every window whose call locks at that episode (`BotCalls.windowsAt`: each window opening there, a question asked once at the
+    game's first) less those it has called. **Timed back from the lock** (`callNext`, the lane's call: Noticed): due `CALL_BEFORE` (6 hours)
+    before the episode airs by the broadcast's schedule, no sooner than `CALL_AFTER_PREV` (an hour) after the episode before it ends (its
+    results in, a nightly show's or a binge drop's), no later than `CALL_LAST` (an hour) before the lock (room for the retries); three tries
+    20 minutes apart (`nextTryAt`, as every run but the quick check), counted since the lock's last try that worked (a window that turns
+    up there later, a phase's or a question added, gets tries of its own); never at or after the lock. Only locks still to come by the broadcast's
+    clock are planned, so a game at its own pace on an aired season is never asked (its windows play their fallback, as a card the bot
+    chooses does there). `planRuns` adds them to what's due and to `next` (the VM's clock is told when one comes due).
+  - **The prompt** (`buildCallPrompt`, the user's to approve at the merge: Noticed): the show, the season, the episode coming ("Episode 7 is
+    the latest to air; episode 8 hasn't aired yet", its air time), recaps and previews only, never anything about the episode or later after
+    it aired, never a spoiler; that it plays against a group of friends who score when they're right and it isn't; who's still in by id
+    (listed once, "if one of them has already left, don't name them"); each question as players see it (its own words), what it's about
+    (`aboutWords`: the episode, a run of episodes, a phase, the game's whole run, or the season as a whole for who wins) and how to answer
+    (`answerWords`: an id, up to N ids, yes or no, a whole number, over or under the line, one of its options; a group's or a format group's
+    choices listed under it, by id); and a strict JSON shape (`{"episode": n, "calls": {id: {"answer", "why"}}}`).
+  - **The parse** (`parseCallAnswer`, `coerce`): the JSON (a code block or the outermost braces), about the episode asked, each call on a
+    question it was asked about (others listed as `unknown`, those it left out as `missing`), each answer as its kind takes it (an id, or a
+    name matched to its id only when it's exactly one of those offered, any case; a list for a pick of several, a list of one unwrapped for a
+    pick of one; yes or no from a word or a boolean; a number from a numeral; over or under; an option in any case), anything else passed on
+    as it came, for `fileCalls`'s check (`Spec.answerProblem` against `facesFor`, as a seat's) to refuse with its reason. The bot's line on
+    each is kept as the call's note (`bot_calls.note`, 300 at most), never shown to players.
+  - **What a try does** (`callJob`): reads the game (gone or archived: nothing to call), the windows open now at the lock with what each can
+    name (`windowsToCall`, on the planner's clock; a window offering nobody yet, the format's groups not sure, waits and the try fails, so
+    it's asked again); while the episode before it has no results in the league yet (back to back), its first two tries wait for them
+    (`waitsForResults`: who it sent home would still be offered) and the last calls from what's there; then asks once, files through `BotCalls.fileCalls` (`made_by` 'bot'; a check's or a replay's job says 'stand-in'). A try that leaves a window
+    uncalled (missing, refused, or waiting) failed, and the next asks about those alone; one with everything filed worked. Its run row says
+    how many it called and lists what was refused and why ("refused: winner (Name someone still in)").
+  - **Migration 0209:** only bot_research_runs' kind check, every kind already allowed (0208's: quick, full, schedule, tiebreak, rulebook,
+    trivia, bingo, facts, card) and `call`.
+  - **The tracker** doesn't move (settle.bot, win.bot and s35 played already, on stand-in calls): 216 ✅ · 47 ⏳. `engine-capabilities.js
+    --check` current; `game-specs-flag.js check`: PASS.
+  - **Proof:** `tests/bot-call-run.test.js` (new, 5): what a lock asks about (each window against the bot locking there, the game's who wins
+    at its first, never a question not against it, less those called, who's gone left out, nothing once it has results or aired), a draft's
+    own questions (an Outlast's who goes home called, never its finale predictions), the prompt (the episode, the cast by id, every answer
+    kind's words, a group's list, what each is about, the JSON), the parse (every kind, names to ids, an unknown id kept for the check, two
+    with one name never guessed, booleans, a list of one, missing and unknown, no JSON, another episode, nothing called) and the timing (six
+    hours before; an hour after the episode before it; back to back an hour before the lock; retries; three failed; a retry at the lock;
+    no air time; waiting for the episode before's results). `npm test` 1587; `tsc` clean. **API check:** `scripts/dev-test/check-bot-calls-run.js`
+    (new), ALL PASS (16): a lab
+    game against the bot (who goes home, an idol, who wins) on the fixture's couch; seven hours before Episode 6 nothing due and the next
+    six hours before it; five hours before, its call run due through `planRuns`; the stand-in's answer (who goes home by name, no idol, who
+    wins naming someone out) files two and lists the third refused, the try failed; 25 minutes on it's due again and asks about who wins
+    alone, filed; its run rows; the calls kept (ids, the reason); a window there left uncalled asked again though the lock's last try worked;
+    nothing left for Episode 6, the next run Episode 7's; riley sees all three
+    called, nothing of what; once Episode 6 airs nothing's planned and a run asks nothing. Also ALL PASS: `check-beat-bot.js`,
+    `check-card-bot.js`.
+  - **The prompt at the local bot** (http://127.0.0.1:8765 directly, one question at a time, waiting for it to be free; built exactly as the
+    run builds it, from each season's cast and who had left): **Survivor 51 Episode 8** (live, before it airs on Nov 11), Survivor 49
+    Episodes 3 and 10 and The Challenge 41 Episode 5 (recorded): every answer parsed, every question called, every call passing the seat's
+    check, 21 to 27 seconds each. Survivor 51's: Mike Pinsky goes home, an idol played, idols over 0.5, Carter Krull wins (its reasons from
+    Episode 7's recaps and the paired twist). On the recorded ones the bot can read what happened: Survivor 49 Episode 3's double boot and
+    The Challenge 41 Episode 5's two exits were named exactly (Episode 10's call missed). Proof of the shape only, and why the planner never
+    asks about a lock already past (Noticed).
+  - **The code review** (`/code-review` at high, before the long runs): ten findings, eight taken: a lock whose last try worked never
+    planned again for a window that turned up later (now its tries count from the last that worked); a number taken as 0 from a list or a
+    boolean (now only a number or a numeral); the episode before's exit still offered on a show back to back (its first two tries wait for
+    its results); the JSON example's answer for a choice (now its first option); the job reading the locks on the real clock while the
+    planner read its own (the job carries the planner's `now`); the answer's JSON read by a copy of the card's (now the card's `jsonIn`);
+    the planner walking every episode of the season and reloading the season it was given (now it stops at the first lock planned and
+    reuses it); `bot-research.d.ts`'s kinds and jobs (`card`, `call`, a job's `leagueId`). Left: the run reading the league and the format's
+    groups again in `fileCalls` (two small queries a run, a few runs a week) and the castaway word worked out inline as the card's, trivia's
+    and bingo's are (a shared helper with the show's plural words, 0429, for every run: Noticed); `callNext` and `cardNext` kept apart (the
+    same shape, different rules at the cut).
+  - **The long checks** (once, last, on `65f31103`): golden (`golden.js --before=master`): 7 seasons, 160 games, **19,361 reads, every one
+    the same**. Blind and the Survivor 51 rehearsal weren't run: no game in either plays against the bot, and neither reaches the call run
+    (blind files its stand-in calls through `fileCalls`, unchanged; the rehearsal's bot runs are the quick and full research), so golden
+    answers whether anything moved.
+
+  **As built (A14 part 3, bounties, 2026-11-06, on `engine`; no migration).** One session, after `lane.js sync engine` (nothing new from
+  master; 1587 tests). Points that move between seats by what the results say, as a piece that composes: a line of its own in the
+  scoring sequence (step 2), a transfer between seats that always adds up to nothing, on any draft's place or moments. No screen; no
+  prompt change (research already asks who voted for whom); every game that played before scores the same (the rows carry `bounty`
+  only in a game with one).
+  - **The piece** (game-spec `schema.js`): `score.bounty: { points, on }` on a draft scored by `place` or `moments` (an Outlast, in reverse
+    too, a lineup, best ball; shared or exclusive), `points` 0.5 to `MAX_BOUNTY` (10) in halves, `on` 'votedOut' (VOCAB
+    `score.bounty.on`, the only value, the default: `BOUNTY`; `bountyOf` fills it in). Refused (`bountyProblems`, the words through
+    impeccable's clarify): anything but a draft, a stock market, beside cuts (a team knocked out still holds its castaways), and by the
+    data-can-settle rule a show whose results don't say who goes home or nobody's voted out on (`ctx.votes`, question-choices.ts
+    `votesSomeoneOut`: a cast's vote with a way out it causes and either its majority's two moments or the show's secret roles, exactly
+    when the compiled rules have research answer who voted for whom; The Challenge's is false). `settings.bounty` both ways
+    (settings.js; tests/game-spec.test.js GAME_FIELDS).
+  - **Who voted for whom** (`formats/votes.js`, new; exported from formats/index.js): `votesOf(format)` reads the format's own vote rules
+    (rules.js's votedForLeaver, votedForLeavers and voteByRole, each naming its answer and the exit it causes: Survivor's `votedFor` and
+    'Voted Out', The Traitors' `votedFor` and 'Banished', a compiled rulebook's `<segment>VotedFor` with its `<segment>VotesReceived`), so
+    no show is named in code. `recordOf(payload, format, resolve)` makes an episode's record from research's answer: `{ sure, why?, votes:
+    [[voterId, votedForId]], out }`, sure only when every name is on the cast and each person voted out has exactly as many votes naming
+    them as research counted against them. **Measured on the season tapes** (every recorded full answer, 2026-11-06; internal agreement,
+    there's no outside truth on tape): Survivor 48 sure on 11 of 13 episodes with a vote-out, Survivor 49 11 of 13, Survivor 50 8 of 13,
+    The Traitors 2 3 of 8, 3 5 of 8, 4 4 of 10 (counts the bot didn't give, a list of votes for a finale's several banishments, votes
+    missing). A double boot asked as one vote each never agrees.
+  - **The stamp** (`src/lib/server/vote-records.ts`, new): `stampVoteRecords`, from `stampAirTimes` (every read and write) and again after a
+    write's mutation (db.ts `withLeagueLock`, so the waiver clock after it reads the new episode's bounty), for a game with a bounty only
+    (any other: a stale stamp taken off, no query): one query for the season's combined research rows of the episodes the league has
+    exits for, each stamped as `episode.voteRecord`; the query in a savepoint inside a write, the reading outside it (a bad answer is
+    logged and that episode left without a record). The league's state route sends the whole state and the browser trims it to each
+    viewer's mark: `SpoilerLogic.viewThrough` takes the record off a hidden episode with its results.
+  - **The lines** (the sequence's `bountyLines`): each vote moves `points` from each seat holding who went home to each other seat holding
+    the voter, a seat holding both taking nothing from itself; never multiplied (a factor on one side alone would make points from
+    nothing); added beside the episode's total, outside best ball's best n. `Seq.total` adds a row's `bounty`.
+  - **state-logic.js** (for the own-pace merge, the functions changed): `BountyLogic` (new: `of`, `exitsOf`, `votesAt`, `heldFor`,
+    `episodeLines`), `ScoringLogic.walk` (each episode's bounty added up, `bounty` on each series row and on now, in the totals),
+    `EliminationOrderScoringStrategy.compute` and `ActiveRosterEventScoringStrategy.compute` (the row's `bounty`; an Outlast's total
+    rounded with one), `SpoilerLogic.viewThrough` (the record off a hidden episode). `votesAt` reads only a sure record, and only for
+    whoever the league's own results say went home by a vote there when research says the same people did (its fallback: void, nothing
+    moves that episode); `heldFor` is what counts that episode (a lineup's starters, best ball's or an Outlast's team then).
+  - **The words** (describe.js `bountySentence`, `bountyRules`, through impeccable's clarify): "Bounties: when one of your castaways votes
+    out someone else's, you take 2 points from them." How it works adds "Every one of yours who voted for who went home takes 2 points.
+    If the episode's votes aren't clear, no bounty that episode.", a lineup's "Only starters count, voting or voted out." and a shared
+    draft's "Share a castaway with someone? You each take the bounty, and everyone who had who went home pays it."
+  - **The tracker:** s16 plays ("Bounties: if your castaway votes out mine, you steal 2.", an Outlast with `bounty: { points: 2 }`): 217
+    ✅ · 46 ⏳ (A14 7 waiting). `engine-capabilities.js --check` current; `game-specs-flag.js check`: PASS.
+  - **Proof:** `tests/bounty.test.js` (new, 7): the shape, defaults, words, settings both ways and every refusal; the record (sure, a count
+    that differs, no count, a name off the cast, a double boot, a medevac, The Traitors' lists, nothing to record); the lines (one way,
+    one's own, shared, nobody holding either: adding up to nothing); an Outlast's table and series by hand (ann +4, bo −6, cy +2, then the
+    next boot); the fallback (unsure, research and the league disagreeing, a medevac, no record yet); a lineup's starters only; the
+    spoiler view. `tests/game-pieces-doc.test.js`: the limit's row. `npm test` 1601; `tsc` clean. The shapes fixture: seven bounty
+    shapes (`bountyShapes`: an Outlast with finale predictions and side bets, its early results and a race, a shared Outlast, a lineup and
+    head to head on it, shared best ball, on `VOTES`: a boot nobody holds, an unsure double boot, an own-team vote beside a medevac, a
+    pickup not held yet, the finale's two), 126 new reads, the 2,412 before them byte-identical: 2,538. **API check:**
+    `scripts/dev-test/check-bounty.js` (new), ALL PASS (17): Couch Cup refused beside cuts, then given a bounty of 2 through setGame
+    with the show's ctx; Episode 6's research stored as the season's combined answer and its result through the season sync; the Games
+    tab as alex, riley and jordan read it the engine's table on each copy, the goner's holder 4 down and each other voter's holder 2 up
+    (riley −4, jordan +2, sam +2: the own team's and the free agent's votes moved nothing); sam (through 3) none of it, and the state
+    route's record trimmed off sam's copy; re-researched with a count that doesn't add up, the next read void; the flag's check.
+  - **The long checks** (once, last, on `a61ad93f`): golden (`golden.js --before=master`): 7 seasons, 160 games, **19,361 reads, every one
+    the same**. Blind (`blind.js run`): every game played through and over on all five seasons, The Challenge 41 121, 40 115 and 39 123
+    (as after C7 part 2: nobody's voted out there, so s16 doesn't play), Survivor 49 157 and The Traitors 4 111 (one more each: s16).
+    On The Traitors 4 (a two-game rerun kept standing, then the season again in full to restore its record) every episode with a
+    banishment carried its record, sure on 4 of 10 (2, 5, 6 and 9), and each of those four sent home someone nobody had drafted, so no
+    bounty moved (Noticed). The Survivor 51 rehearsal (`season-forward.js rehearse --from=backups/prod-2026-10-30
+    --scenario=realistic,rough,dst --before=master`): every invariant holds, flag off against on and master's engine against this
+    tree's, 2,856 reads each, every one the same.
+  **As built (A14 part 4, secret roles among the players, 2026-11-06, on `engine`; migration 0210).** One session, after `lane.js sync
+  engine` (master's C7 part 2 merge, docs only; 1601 tests). Some seats secretly dealt a role, as a piece that composes: who holds it
+  (dealt at random once the game starts, from a seed the server keeps), what it scores by (what the results say: who goes home, as
+  data), when it's revealed (the game's end or an episode), and where it sits in the scoring sequence (a line of its own, step 2,
+  beside the episode's total from the reveal on). No screen; no prompt change (it reads only who went home and how); every game
+  that played before scores the same (rows carry `role` only once a game with roles is revealed).
+  - **The piece** (game-spec `schema.js`): `score.roles: { count, name, points, on, deal, reveal, mates }` on a draft scored by `place`
+    or `moments` (an Outlast, a lineup, best ball; shared or exclusive). `count` 1 to `MAX_ROLE_SEATS` (5, default 1), `name` up to
+    `MAX_ROLE_NAME` (20) letters (default 'Traitor'), `points` 0.5 to `MAX_ROLE_POINTS` (10) in halves, `on` 'out' (any way out, a
+    winner aside: the default) or 'votedOut' (a way out the format's votes cause: BountyLogic.exitsOf), `deal` 'random' (the only
+    one), `reveal` 'end' (the default) or an episode's number in the game's span, `mates` true (the default: the seats with it know
+    each other). VOCAB `score.roles.on`, `.deal`, `.reveal`; `ROLES` the defaults, `rolesOf` fills them in. Refused (`rolesProblems`,
+    the words through impeccable's clarify): anything but a draft, a stock market, beside cuts or a race (the points land at the
+    reveal, so a cut or a race before it would leave them out), head to head or weeks won (they'd decide the reveal's week), in a
+    stage (`stagedProblems`: the deal is the game's), and by the data-can-settle rule a show whose results don't say who goes home
+    (`ctx.results`) or 'votedOut' where nobody's voted out (`ctx.votes`). `settings.secretRoles` both ways (settings.js;
+    tests/game-spec.test.js GAME_FIELDS).
+  - **The deal** (`src/lib/server/secret-roles.ts`, new; **`secret_role_deals`, migration 0210**: one row a game, its seed, the seats
+    dealt among, the holders, the role's name): made by the first read or write after the game starts (`SecretRoleLogic.due`:
+    TeamLogic.started, its first episode locked or with results), from `stampAirTimes` after the air times it reads (which now takes
+    the league's id: every caller passes it) and again after a write's mutation (db.ts `withLeagueLock`); an insert racing nobody (ON
+    CONFLICT DO NOTHING, read back), so it's made once. `SecretRoleLogic.deal(state, seed)` shuffles the seats in the game's rotation
+    (a seat catching up included: a game at your own pace is all of them; no ghost, nobody disabled) by the seed and gives the role to
+    `count` of them, or one fewer than the seats (never everyone), none under two. **Never in the state**, which every route sends
+    whole: the state carries only `secretRolesDealt` (that it's dealt, never to whom), so `RosterLogic.setGame` refuses any change to
+    the roles once dealt ("The secret roles are dealt: they stay as they are until the game ends"), and, once the reveal's episode has
+    results (`SecretRoleLogic.revealAt`: the one `reveal` names, or the game's last episode with results once it's over, whichever
+    first), `state.secretRoles: { at, holders }`, as public as those results; the spoiler view (`SpoilerLogic.viewThrough`, and
+    `GhostLogic.viewFor` for someone catching up) takes it off a copy that hasn't seen that episode. A failed read leaves the stamps as
+    they were (a write saves the state). A game with no roles costs no query.
+  - **The roles route** (`GET /api/leagues/[leagueId]/roles`, new; no screen): the game's rules; whether it's dealt; your seat; `mine`
+    (your role, and with `mates` who else has it and what yours has scored so far as far as you've seen; without `mates`, neither, as
+    the points would say who else has it); `revealed` once you've seen the reveal's episode. Spoiler-trimmed as the Games tab is
+    (season-games.ts markFor: the season's mark, or a late joiner's own week if earlier). Read through readyLeague, so it deals too.
+  - **The lines** (the sequence's `roleLines`): each one gone whom a seat without the role held that episode scores `points` for every
+    seat with it, once a person however many held them, whatever the seat with it held itself; never a transfer (nobody loses them),
+    never multiplied, beside the episode's total, outside best ball's best n. `Seq.total` adds a row's `role`. What counts is what
+    holds that episode (`BountyLogic.heldFor`: a lineup's starters, best ball's or an Outlast's team then).
+  - **state-logic.js** (for the own-pace merge, the functions changed): `SecretRoleLogic` (new: `of`, `seats`, `dealt`, `due`, `deal`,
+    `revealAt`, `known`, `goneAt`, `episodeLines`, `pointsOf`), `ScoringLogic.walk` (the role's points through each episode once
+    known: everything through the reveal's episode added in it, each episode after in its own; `role` on each series row and on now,
+    in the totals), `EliminationOrderScoringStrategy.compute` and `ActiveRosterEventScoringStrategy.compute` (the row's `role`; an
+    Outlast's total rounded with one), `SpoilerLogic.viewThrough` and `GhostLogic.viewFor` (the stamp off a copy that hasn't seen the
+    reveal), `RosterLogic.setGame` (the roles kept once dealt), the exports.
+  - **Its fallbacks, from the start:** someone who joins after the deal holds none (nothing is dealt again); someone who leaves keeps
+    theirs (its points are its row's, as its other points are); fewer than two seats, nobody gets it; a stamp naming a seat no longer
+    in the game is skipped; 'votedOut' scores only exits a vote causes (a medevac, a quit: nothing); a season that ends before the
+    episode `reveal` names reveals at its end.
+  - **The words** (describe.js `rolesSentence`, `rolesRules`, through impeccable's clarify: the count a word so it never reads as the
+    points, "You'll know if you're one" rather than "only you see yours" (most seats hold none), a vote's own verb, the reveal saying
+    what happens after it): "Secret roles: two of you are secretly Traitors. A Traitor scores 2 points each time someone who isn't a
+    Traitor has a castaway voted out." How it works adds "Roles are dealt at random when the game starts. You'll know if you're one;
+    nobody else will. Traitors also know each other.", "Who the Traitors are, and their Traitor points, stay secret until the game
+    ends. Then their points are added to the standings." (or "until Episode 6's results. Then their points so far are added, and
+    each episode after counts right away."), "Traitors play their own team too.", a shared draft's "A castaway two of you had counts
+    once.", a lineup's "Only starters count: a benched castaway going home scores nothing." and "Join after the game starts and you
+    won't get a role." Plurals by the name ("Spies").
+  - **The tracker:** s24 plays ("Two of us are secretly traitors who score when the faithful's picks get banished.", an Outlast with
+    `roles: { count: 2, points: 2, on: 'votedOut' }`) and so does who.secret: 219 ✅ · 44 ⏳ (A14 5 waiting). `engine-capabilities.js
+    --check` current; `game-specs-flag.js check`: PASS.
+  - **Proof:** `tests/secret-roles.test.js` (new, 9): the shape, defaults, words (and a plural), settings both ways and every refusal;
+    the lines; the deal (seeded, the same seed the same, every seat dealt over enough seeds, capped, none for one seat, own pace's
+    seats in, a disabled seat, a ghost and one not brought in out; due once started); the reveal (the end, an episode, a season ending
+    first); an Outlast by hand (cy's 2 from Episode 1 landing in 2, Episode 3's in its own: series 6, 10, 14), the spoiler view;
+    votedOut against any way out; a lineup's starters and a shared castaway; the roles kept once dealt; a game without roles.
+    `tests/game-pieces-doc.test.js`: the limit's row. `npm test` 1615; `tsc` clean. The shapes fixture: five role shapes (`roleShapes`:
+    an Outlast revealed at the end with finale predictions and side bets, one before its reveal, two roles on votedOut in a shared
+    Outlast revealed after 3, a lineup revealed after 4 on its early results, shared best ball), 90 new reads, the 2,538 before them
+    byte-identical: 2,628. **API check:** `scripts/dev-test/check-secret-roles.js` (new), ALL PASS (25): Couch Cup refused beside cuts,
+    then given two Traitors at 2 revealed after Episode 6 through setGame with the show's ctx; the roles route as each of the four
+    (the first read deals, once: two Traitors each told the other and their points so far, the other two nothing); dealt, a change to
+    the roles refused; no roles in the state as read, the Games tab the engine's table without them; Episode 6's result through the
+    season sync (a seat without the role's castaway voted out): the state carries the deal at 6, the Games tab as each of the three
+    who've seen 6 the engine's table on that copy, each Traitor up by its points so far (6), sam (through 3) none of it and the roles
+    route revealing nothing to them; the flag's check. check-bounty.js again (the stamp chain): ALL PASS.
+  - **The long checks** (once, last, on `151f2c12`): golden (`golden.js --before=master`): 7 seasons, 160 games, **19,361 reads, every
+    one the same**. The Survivor 51 rehearsal (`season-forward.js rehearse --from=backups/prod-2026-10-30
+    --scenario=realistic,rough,dst --before=master`): every invariant holds, flag off against on and master's engine against this
+    tree's, 2,856 reads each, every one the same. Blind (`blind.js run`): every game played through and over on all five seasons, The
+    Challenge 41 121, 40 115 and 39 123 (as after part 3: nobody's voted out there, so a role on votedOut doesn't play), Survivor 49
+    158 and The Traitors 4 112 (one more each: s24 and who.secret share a spec, and blind plays each distinct spec once).
+  **As built (A14 part 5, the top scorer's twist, 2026-11-06, on `engine`; migration 0211).** One session, after `lane.js sync engine`
+  (nothing new from master; 1615 tests). A player's choice that changes the next episode's rules for everyone, as a piece that
+  composes: who chooses (the game's own walk, as data), what can be chosen (the spec's list, each a multiplier that already has its
+  place in the scoring sequence), when it's chosen and closes, what plays when nobody chooses (the fallback, from the start). No
+  screen; no prompt change; every game that played before scores the same (only a game with `score.twist` reads a stamp).
+  - **The piece** (game-spec `schema.js`): `score.twist: { of, who, by, tie, closes, fallback }` on a game scored by `moments` (a
+    lineup, best ball, a pick each episode scored by what they do; shared or exclusive). `of`: 2 to `MAX_TWISTS` (5) twists, each `{
+    id, name, times, moment? }` (`name` up to `MAX_TWIST_NAME`, 24; `times` more than 0, not 1, up to `MAX_TIMES`; with `moment`, only
+    that moment's points). `who` 'top' (the default) or 'bottom'; `by` 'episode' (that episode's points, the default) or 'total' (the
+    standings through it); `tie` 'total' (the standings break it, the default by the episode) or 'none' (the only one by the
+    standings); `closes` 0 to `MAX_TWIST_HOURS` (48) hours before the episode airs (default 12, the card's out time); `fallback`
+    'none' (the default) or one of the twists' ids. VOCAB `score.twist.who`, `.by`, `.tie`; `TWIST` the defaults, `twistOf` fills
+    them in. Refused (`twistProblems` and settleProblems, the words through impeccable's clarify): a choice of one or more than five,
+    two twists doing the same, an id twice or 'none', a moment that isn't the show's, the couch's word, or one the game doesn't count
+    (`score.only`, the card's list), anything but a draft or a pick scored by moments (an Outlast's place, a pool, a game of
+    questions), a stock market, beside cuts or a race (someone knocked out would still choose: the code review's), in a stage
+    (`stagedProblems`: the choosing is the game's). `settings.twist` both ways (settings.js, a
+    lineup's and a pick's by moments; tests/game-spec.test.js GAME_FIELDS).
+  - **Who chooses** (`TwistLogic.chooserAt`): episode n's twist is chosen from episode n − 1's final results (the walk's series:
+    early results never choose), among the seats in the game's rotation (`SecretRoleLogic.seats`: nobody who left, no ghost), the
+    most (or fewest) points that episode (its series total less the one before) or in the standings; a tie broken by the standings
+    the same way, or not at all; still tied, nobody. The game's first episode has none.
+  - **The choice and its close** (`src/lib/server/twists.ts`, new; **`twist_choices`, migration 0211**: one row a game's episode, the
+    choice while open, then what's filed): `chooseTwist` keeps the chooser's choice (changed as often as they like) while the
+    episode is open; `stampTwists`, from `stampAirTimes` (last: its close reads the air times, its chooser the walk with the vote
+    records and roles stamped) and again after a write's mutation (db.ts `withLeagueLock`), files each episode once its choice has
+    closed (`TwistLogic.closed`: `closes` hours before it airs, or once it locks or has results), in order, each filing read by the
+    next one's chooser: the choice if whoever made it still chooses by the data then (`TwistLogic.file`; the walk only for a choice
+    made, worked out again only after a filing that changes points), else the fallback; filed once (an upsert that never overwrites
+    a filed row), then stamped on the episode (`episode.twist`: { id, by, how }), public; a failure partway puts the state's stamps
+    back as they were. A choice's upsert carries the close too, so one reaching it after the close never lands. A league at your own
+    pace files nothing: each episode after its first is stamped with the fallback as it reads, and nothing's open. **Never in the
+    state while open** (the state route sends it whole); once filed it stands, a result corrected after it changing nothing that
+    episode played. A game with no twist costs no query.
+  - **The twist route** (`GET /api/leagues/[leagueId]/twist`, new; no screen): the game's twists; the episode being chosen now, its
+    close, whether you choose and your choice so far (only once you've seen the episode before it: who chooses says who scored most
+    in it); each filed episode's twist, by whom and how (each once you've seen the one before). `POST { twist }`: your choice while
+    you're the chooser and it's open (refused for anyone else, a twist the game doesn't offer, nothing open, or before you've seen
+    the episode that chose you). Its spoiler mark is the roles route's, now one helper for both (`src/lib/server/seat-mark.ts`
+    `seatMark`, new; the roles route reads it too).
+  - **Where it sits in the sequence**: a twist on every point is step 3, a factor beside the episode's own multiplier
+    (`ActiveRosterLogic.timesFor`: the spec's windows times `TwistLogic.timesAt`, so a captain, best ball, group slots and how a
+    holding joined all multiply as before); a twist on one moment is step 2, that moment's lines that episode
+    (`ActiveRosterLogic.scoredEvents`, each such moment's points, or a hit's worth, times the twist's), never the moment's own points
+    (`eventPoints`, which a castaway's stats read: a player's choice mustn't move them; the code review's, where the first build
+    had it in `pointsFor`). A game with a twist adds up as a lineup that combines does (`combines`).
+  - **state-logic.js** (for the own-pace merge, the functions changed): `TwistLogic` (new: `of`, `at`, `timesAt`, `momentTimes`,
+    `episodes`, `closesAt`, `closed`, `chooserAt`, `file`), `ActiveRosterLogic.scoredEvents`, `ActiveRosterLogic.timesFor`,
+    `ActiveRosterLogic.combines`, `SpoilerLogic.viewThrough` (a twist chosen after an episode the viewer hasn't seen is off their
+    copy: its chooser says who scored most in it), the exports.
+  - **Its fallbacks, from the start:** the game's first episode has no twist; results not final by the close, a tie still tied, or a
+    chooser who left, and nobody chooses (the fallback plays); a choice by someone the data no longer names (a result corrected
+    before the close) is dropped for the fallback; a stamp naming a twist the spec no longer has plays nothing; a game at your own
+    pace plays its fallback every episode (Noticed).
+  - **The words** (describe.js `twistSentence`, `twistRules`, through impeccable's clarify: "chooses", never "picks", which a pick
+    game's castaways have; who chooses said once; the deadline as the chooser's; "the choice" rather than "it"; the game's own first
+    episode): "After each episode, its top scorer chooses a twist for the next one: Double points (every point counts double) or Half
+    points (every point counts half)." How it works adds "The twist counts for everyone, for that episode only.", "Top scorer means
+    the most points in that episode, once its results are final. A tie goes to whoever's ahead overall; still tied, nobody chooses."
+    (the bottom's and the standings' own), "They have until 12 hours before the next episode airs to choose. The choice stays secret
+    until then; then everyone sees it.", "No choice in time? No twist that episode." (or "It's Double points.") and "Episode 1 has no
+    twist: nobody's scored yet."
+  - **The tracker:** s40 plays ("Each week's top scorer picks a twist for next week.", a Weekly Lineup with double points or half
+    points; Big Brother has no rulebook here, so it's checked against Survivor's, a show of its kind): 220 ✅ · 43 ⏳ (A14 4 waiting).
+    `engine-capabilities.js --check` current; `game-specs-flag.js check`: PASS.
+  - **Proof:** `tests/twist.test.js` (new, 4): the shape, defaults, words (the top's, the bottom's, the standings', a game starting
+    later) and settings both ways, and every refusal; who chooses (the first episode, results not yet final, top, bottom, the
+    standings, a tie broken and not, someone who left); what's filed (a choice standing, someone else's, a twist not offered, the
+    fallback); the points by hand (best ball: double points in Episode 2, bo 6 and cy −9; immunity counting triple, bo 9 and the vote
+    still −3; a stamp for a twist the spec lacks; a lineup's starter and a pick each episode), when it closes (12 hours before, no air
+    time, locked by hand, results); a game starting at a phase's words; beside cuts or a race refused; the spoiler view. `tests/game-pieces-doc.test.js`: the limit's row. `npm test` 1624;
+    `tsc` clean. The shapes fixture: five twist shapes (`twistShapes`: a lineup with finale predictions and three episodes' twists
+    (double, a moment, a fallback), shared best ball with the bottom choosing, head to head on a lineup, a lineup on its early
+    results, a pick each episode by the standings with weeks won), 90 new reads, the 2,628 before them byte-identical: 2,718. **API
+    check:** `scripts/dev-test/check-twist.js` (new), ALL PASS (24): Couch Cup refused a twist, then the couch's Weekly Lineup given
+    double points or immunity counting triple through setGame with the show's ctx; the first read files Episodes 2 to 5 (no twist)
+    and leaves 6 open; the twist route as each of the four (the chooser, Episode 5's top scorer by the engine's walk, told so; the
+    others not; sam, seen through 3, nothing); someone else and a twist not offered refused, the chooser's choice kept and changed,
+    secret (not in the state as read, nobody else's route); Episode 6 airs and the next read files it, chosen, stamped; a choice after
+    refused; Episode 6's result through the season sync, the Games tab as each the engine's table on that copy, each seat's Episode 6
+    double the same copy's without the twist; the played list as alex and sam; the flag's check. check-secret-roles.js,
+    check-bounty.js, check-multipliers.js and check-card.js again (the stamp chain and the multipliers): ALL PASS.
+  - **Code review** (high, before the commit): ten findings, all fixed: the stamps set before the savepoint released (a failure
+    now puts them back); a moment's twist moved from `pointsFor` to the sequence's lines (it reached a castaway's own stats); a
+    league at your own pace filing every episode at once, for good (it now files nothing and stamps the fallback); a seat knocked out
+    by a cut still choosing (refused beside cuts or a race); a choice racing the close (the upsert checks it); a walk before every
+    filing (only for a choice, again only after a filing that changes points); the route reading the rows three times (once); its
+    spoiler mark copied from the roles route (one helper, `seatMark`); the moment check in `pointsFor` for every game (gone with
+    the move); the first episode's words for a game starting at a phase ("The game's first episode has no twist").
+  - **The long checks** (once, last, on `700df755`): golden (`golden.js --before=master`): 7 seasons, 160 games, **19,361 reads, every
+    one the same**. The Survivor 51 rehearsal (`season-forward.js rehearse --from=backups/prod-2026-10-30
+    --scenario=realistic,rough,dst --before=master`): every invariant holds, flag off against on and master's engine against this
+    tree's, 2,856 reads each, every one the same. Blind (`blind.js run`): every game played through and over on all five seasons, The
+    Challenge 41 122, 40 116 and 39 124, Survivor 49 159 and The Traitors 4 113 (one more each: s40, a lineup, which plays on every
+    show; nobody chooses in a replay, so it plays without a twist: Noticed).
+  **As built (A14 part 6, a rotating host's questions, 2026-11-06, on `engine`; migration 0212).** One session, after `lane.js sync
+  engine` (nothing new from master; 1624 tests). The host is a third way a card is chosen (C7: in turn, the AI's, now a host's), so
+  the piece is C7's: the lines, the stamp, the grading and the answers route are the card's, and what's new is whose turn it is, the
+  host's deadline and where the host's lines wait. No screen; no prompt change; every game that played before scores the same (only
+  a card with `from: 'host'` reads a host).
+  - **The piece** (game-spec `schema.js`): `card: { from: 'host', each, of, fallback, closes, hostAnswers }` on a game of questions
+    with questions on its card (`card: true`). The host chooses which of `of` (each one the show's and research answers: the
+    data-can-settle rule, as any card's list; the couch's own words for a moment stay the custom-moments path, the user's) make the
+    card's `each` lines that episode, in their order; how each line is asked is the questions on the card's (a yes or no, a count,
+    who), as for any card. `fallback` (shared with a card the bot chooses): `spec`, lines the host hasn't chosen in time are the list's
+    next in turn (the host's first: `rankedLines`), or `void`, only the host's count (`hostLines`; none chosen, no card that episode).
+    `closes`: the host has until 1 to `MAX_HOST_HOURS` (48) hours before the episode airs (12 by default, the card's out time; never
+    0, so everyone has time to answer). `hostAnswers`: true (the default) the host answers too, false they sit their own card out.
+    `HOST_CARD` the defaults; `cardOf` fills them in; `hostCard`, `chosenCard` (a card the bot or a host chooses); a line carries
+    `by: 'host'` and `hostAnswers`. Refused (`cardProblems`, `stagedProblems`, the words through impeccable's clarify): the moments
+    that count chosen by a host (`score.only: 'card'`: "A host would choose the moments their own team scores by"), in a stage ("The
+    host's turn goes round the whole game's players"), a deadline of 0 or past 48 hours or not whole, `hostAnswers` not true or
+    false, `closes` or `hostAnswers` on any other card. Settings both ways ride `settings.gameCard` (the card whole, as C7's).
+  - **Whose turn** (`HostLogic.hostAt`, `HostLogic.turn`): the game's seats in the order the league lists them (the order they
+    joined, so a seat that joins later comes last), each episode the one after the episode before's host, skipping anyone not in the
+    rotation (who left, a ghost: `SecretRoleLogic.seats`); the game's first episode, the first seat. A filed episode's host is its
+    stamp's (`episode.cardChoice.host`), so the turn goes on from whoever really hosted, a seat leaving or joining moving only what's
+    still to come; a seat taken out of the league altogether (no place in its order any more) has the turn go on from the host
+    before them (`HostLogic.walk`'s anchor). `HostLogic.after`: who hosts after an episode, each seat once.
+  - **The host's lines and their deadline** (`src/lib/server/host-cards.ts`, new; **`host_cards`, migration 0212**: one row a game's
+    episode, the host's lines while they choose them, then what's filed): `writeHostCard` keeps the host's lines (1 to `each` of the
+    list, none twice; none takes them back) while the episode is open and they host it, changed as often as they like; the upsert
+    carries the deadline, so lines reaching it after never land. `stampHostCards`, from `stampAirTimes` (after the air times its
+    deadline reads, before the twist) and again after a write's mutation (db.ts `withLeagueLock`), files each episode once the host's
+    time is up (`HostLogic.closed`: `closes` hours before it airs, or once it locks or has results; with no air time known, once its
+    host has chosen a whole card, else at the lock), in order: the host's lines if
+    whoever chose them still hosts it by the data then (`HostLogic.file`), else the fallback; filed once (an upsert that never
+    overwrites a filed row, and only from the row as read: lines written since leave it for the next read), then stamped on the episode (`episode.cardChoice`: `{ moments, host, how: 'host' }` or `{ fallback:
+    true, host, how: 'fallback' }`), public, as a card the bot chooses is (card-choices.ts now leaves a host's card to host-cards.ts).
+    A failure partway puts the state's stamps back. **Never in the state while open** (the state route sends it whole). **They
+    publish at the deadline, not at the host's submit:** everyone gets the card at the same moment, nothing anyone answers can then
+    change, and it's one filing the card's existing out rule already reads (Noticed has the other way). A game at your own pace files
+    nothing: every episode is stamped with the fallback. A game with no host costs no query.
+  - **The host's own answers:** `hostAnswers: true` (built as the default, recommended: the card is settled by data after the
+    episode, everyone sees it at the same moment, so choosing it is no advantage, and sitting out would cost the host a whole
+    episode's points, unevenly when the seats don't divide the season); `false`, the answers route refuses the host's answers to
+    their own card ("You chose this episode's card, so you sit it out."), its read marks the lines `sitOut` so they're no move due,
+    and the grader drops any (`AnswerLogic.grade`, by the episode's stamp: `HostLogic.sitsOut`).
+  - **The host route** (`GET /api/leagues/[leagueId]/host`, new; no screen): the card's rules (its moments with their words); the
+    episode being chosen now, its deadline, its host, whether you host it and your lines so far (only while you do); the turn after
+    it, each seat once (`turn`); each filed episode's host, how and lines. Nothing in it is a spoiler (who hosts goes by the seats,
+    never results; a card is out before its episode airs), so no seat mark. `POST { moments }`: your lines while you host the open
+    episode (refused for anyone else, by name: "It's Sam's turn to choose Episode 6's card"; a moment not on the list, twice, too
+    many; nothing open; already out).
+  - **Where it sits in the sequence:** step 1, the card's lines that episode (C7's), read by a game of questions' windows (step 2's
+    `windowLines`), graded on the server as any card's lines (`facts.cardChoices` now for a card the bot or a host chooses). Nothing
+    else in the sequence changes.
+  - **state-logic.js** (for the own-pace merge, the functions changed): `HostLogic` (new: `of`, `episodes`, `closesAt`, `closed`,
+    `hostAt`, `walk`, `after`, `turn`, `file`, `sitsOut`), `AnswerLogic.facts` (cardChoices for a host's card too), `AnswerLogic.cardChoices` (the
+    same), `AnswerLogic.grade` (a host sitting out), the exports.
+  - **Its fallbacks, from the start:** the host choosing nothing in time, or too few (the list in turn, or only theirs with `void`);
+    the host leaving before the deadline (the turn skips them, the next seat hosts with nothing chosen: the fallback); a choice by
+    someone the data no longer names as host (dropped for the fallback); a game at your own pace (the fallback every episode); a seat
+    who joins (the end of the turn).
+  - **The words** (describe.js `cardSentence` and `hostRules`, through impeccable's clarify: one verb, "chooses", never "writes"
+    (the host picks from the show's moments, never free text) or "picks" (a pick game's word); one noun, "the card", in the
+    description, How it works and every error): "Each episode, one of you hosts and chooses its card: three of won immunity, found an
+    idol and won reward." How it works adds "You take turns hosting, in the order you joined. Anyone who joins later goes last;
+    anyone who leaves is skipped.", "The host has until 12 hours before the episode airs to choose, and can change the card until
+    then. Only the host sees it until then; then everyone does.", "If the host chooses fewer than three in time, the rest come from
+    the list, in turn." (or "..., only theirs count. If they choose none, nothing scores that episode.") and "The host answers the
+    card too." (or "The host sits out the card they chose."). The answers route: "This episode's card isn't out yet. The host has
+    until 12 hours before it airs to choose it: answer it then." (with no air time known, "It's out once the host has chosen it");
+    a line not chosen in time: "The host didn't choose this one in time:
+    it doesn't count either way".
+  - **The tracker:** s43 plays ("Each week a different one of us writes 3 questions.": a game of questions on Survivor 51, three
+    yes-or-no lines a host chooses from nine of the show's moments) and so does who.host: 222 ✅ · 41 ⏳ (A14 2 waiting: s42 and
+    settle.outside, the outside number). `engine-capabilities.js --check` current; `game-specs-flag.js check`: PASS.
+  - **Proof:** `tests/host-card.test.js` (new, 5): the shape, defaults, words and settings both ways, and every refusal; whose turn
+    (the league's order, a stamped host, someone leaving, someone joining, a ghost, someone taken out of the league, a game starting
+    later; the turn after a seat);
+    what's filed (the host's, someone else's, nothing, nothing on the list) and the lines (too few with each fallback, the fallback, not
+    out); graded by hand (the host's lines, a short card filled from the list, the fallback; void; the host sitting out); when the
+    host's time is up (with no air time, a whole card chosen). `tests/card.test.js`, `tests/card-bot.test.js`: the card's refusals name the host. `tests/game-pieces-doc.test.js`:
+    the limit's row. `npm test` 1631; `tsc` clean. The shapes fixture: two host shapes (`q-card-host`, `q-card-host-void` with the host
+    sitting out, in outsideShapes; `CARD.HOSTED` the stamps as the server files them), 36 new reads, the 2,718 before them
+    byte-identical: 2,754. **API check:** `scripts/dev-test/check-host.js` (new), ALL PASS (27): a game of questions on a host's card
+    (48 hours, the host sitting out) through setGame with the show's ctx; the host route as each of three (jordan, the first seat,
+    hosts Episode 6; the deadline 48 hours before it airs; then riley, sam, jordan); the lines not answerable before it's out (the
+    host's words); riley choosing refused by name, jordan's bad choices refused (the couch's word, twice, three, not a list); his lines
+    kept, changed, secret (not in the state as read, not in riley's route); the deadline passes and the next read files them, stamped;
+    the answers route asks them in his order; jordan's own answers refused, his read marking them his to sit out; riley and sam answer; Episode 6's results through the
+    season sync score riley 2, sam 1, jordan nothing, and the Games tab ranks them; the played list; Episode 7 open with riley its
+    host; the flag's check. check-card.js, check-card-bot.js and check-twist.js again (the stamp chain): ALL PASS.
+  - **Code review** (high, before the commit): eight findings, five fixed: a card with no air time coming out only at the lock (no
+    time to answer: now out once its host has chosen it all); a host sitting out still shown the lines as a move due; the turn
+    restarting at the first seat when a host was taken out of the league (now from the host before them); a filing racing the host's
+    last write when an episode locks early (filed only from the row as read); the spec not saying a host card's defaults (`fullSpec`
+    now does). Three left (Noticed): the stamp's savepoint boilerplate, now four copies; the host's write reading its rows again; the
+    turn worked out again for each episode filed.
+  - **The long checks** (once, last, on `7e514ce2`): golden (`golden.js --before=master`): 7 seasons, 160 games, **19,361 reads, every
+    one the same**. Blind (`blind.js run`): the first run had one game with problems, s43 on Survivor 49 (its seats' answers refused:
+    blind replays each episode as upcoming and answers at once, before a host's deadline, and had a stand-in for the bot's card but
+    none for a host). blind.js now has one (`standInHost`: the episode's host chooses a whole card, the list's last moments, filed as
+    the deadline passing files it), and the second run, in full: every game played through and over on all five seasons, The
+    Challenge 41 122, 40 116 and 39 124 (as before: s43's moments are Survivor's), Survivor 49 160 (one more, s43: the Tinkerer 16,
+    the Drive-By 18, the Fan 11, the Fan Who Forgets 6) and The Traitors 4 113. The Survivor 51 rehearsal
+    (`season-forward.js rehearse --from=backups/prod-2026-10-30 --scenario=realistic,rough,dst --before=master`): every invariant
+    holds, flag off against on and master's engine against this tree's, 2,856 reads each, every one the same.
+  **As built (A14 part 7, a number from a vetted outside source, 2026-11-06, on `engine`; migration 0213).** One session, after
+  `lane.js sync engine` (nothing new from master; 1631 tests). The last of A14's pieces, and not a player mechanic: data still settles
+  it, only from outside research (the Decisions table, "Numbers from outside research": vetted, free, settled once at a fixed moment
+  and stored). A new settle kind, so it composes with every answer that takes a number and every way a question's points combine,
+  its window and its walk; no state-logic.js change (the grader's facts are the server's).
+  - **The piece** (game-spec `schema.js`): `settle: { by: 'outside', take: 'rating', source: 'tvmaze', after }`: the episode's TVmaze
+    rating (its `rating.average`, 0 to 10) as it stood `after` days after the episode aired (1 to `MAX_OUTSIDE_DAYS`, 30; `OUTSIDE`
+    the defaults: TVmaze, 7 days, the Decisions table's "a rating seven days after airing"; `fullQuestion` fills them), asked each
+    episode about that one. Answered as a `number` (the closest; `answerProblem`: a rating, 0 to 10), an `overUnder` (its line) or a
+    `choice` of ranges to a tenth (`optionRange(o, true)`: "7-7.9", "8+"; a count's stay whole numbers). `isOutside`; `outsideKey`
+    ("tvmaze:rating:7", what's stored and read). VOCAB `ask.settle` gains `outside`, `ask.settle.source` is `{ tvmaze }`; TAKES
+    `outside: ['rating']`; NUMBERS `outside:rating`. Refused (`questionProblems`, `specProblems` with the show's ctx; words through
+    impeccable's clarify, "rating" throughout): another source ("Where the rating comes from: tvmaze"), a moment outside 1 to 30 days
+    ("The rating is read 1 to 30 days after the episode airs"), asked other than each episode or over a few ("An episode's rating is
+    that episode's: ask it each episode"), about each person (EACH_SETTLES_FOR has none), a yes or no, against the bot ("The bot
+    doesn't call an episode's rating yet": its call prompt asks for a whole number, and a prompt change is the user's), a choice
+    whose options aren't a rating's, `source` or `after` on another settle, and the data-can-settle rule: a season not linked to its
+    TVmaze listing (`ctx.tvmaze`, from `show_seasons.listing_id`, in answers.ts `questionContext` and engine-lab.ts `rulesOn`: "This
+    season isn't linked to TVmaze, so nothing can settle its episodes' ratings"; left out, not checked, as ctx.trivia).
+  - **Graded** (game-spec `answers.js outsideVerdict`): once the episode has results as far as the viewer has seen (the spoiler
+    guard's, as any question about the episode) and its number is stored (`facts.outside`: Map episode -> { key: { state: 'value',
+    value } | { state: 'none', why } }); known with the rating as its value, so the answers that already grade a count grade it.
+    Waiting while nothing is stored. `factsThrough` cuts it as the episode facts are. **The closest guess's gap is compared to a
+    millionth** (`pointsFor`): two guesses a tenth either side of a rating tie (8.2 and 8.4 on an 8.3 were 0.0999... and 0.1000...1
+    apart: the shapes fixture found it); a count's are whole numbers, so every read before is the same.
+  - **Read once and stored** (**`outside_numbers`, migration 0213**: one row per season, episode, source, what and `after`, the value
+    or why there was none, when it was read; an INSERT that never overwrites; per season, so every league on the season asking it the
+    same way reads one number, and a later rating never changes it). **`db/outside-numbers.js settleOutside`** (new, CommonJS, run as
+    `node db/outside-numbers.js [--dry]`): every game that asks one (a cheap LIKE, then `asked(state)`), by season; each episode from
+    the game's first (`spanStart`, or the episode a phase started it; nothing while it waits for its phase) whose moment (its air
+    time as the app stamps it, `air-schedule.js episodeAirTime`, plus `after` days) has passed with nothing stored: one fetch a season
+    (`tvmazeRatings(listingId)`: TVmaze's `/seasons/{listing}/episodes`, regular episodes by number, `rating.average` or null), then
+    the rating, or `none` (TVmaze had none). Not linked, or TVmaze not answering: tried again each run, and once `GRACE_DAYS` (3) past
+    the moment, `unlisted` or `unreached` (void, so no game waits on it). `fetchRatings` is a stand-in in every test and check: TVmaze
+    is never asked by them (one real read by hand, below). **No job runs it yet** (below, Noticed): asking TVmaze for ratings is a new
+    data source, the user's to approve at the merge.
+  - **The server's read** (`src/lib/server/outside-numbers.ts`, new): `outsideNumbersFor(state)` (in `answer-points.ts serverFacts`,
+    so every grade of a game that asks one; undefined, no query, for any other) reads the season's rows into `facts.outside`, a void
+    one with its reason as a player reads it ("TVmaze had no rating for it 7 days after it aired", "This season isn't linked to
+    TVmaze, so there was no rating for it", "TVmaze couldn't be reached for its rating", each then ": it doesn't count either way");
+    `tvmazeLinked(seasonId)`, the check's ctx. Public (a rating is a number anyone can read), so nothing is secret and nothing is
+    stamped on the state.
+  - **Where it sits in the sequence:** step 2, a game of questions' lines (an answer's right ones at what its window is worth),
+    graded on the server as any question; every combiner, window and walk reads it as it reads a count. Nothing else changes.
+  - **The words** (describe.js `questionRule`, through impeccable's clarify: one noun, "rating", never "number", in everything a
+    player or maker reads; "no rating", not "none"; the same "linked to TVmaze" in the refusal and the void): How it works adds "It's
+    settled by the episode's TVmaze rating 7 days after it airs. If TVmaze has no rating by then, it doesn't count either way." (a
+    day, for `after: 1`; the default from `OUTSIDE`).
+  - **state-logic.js** (for the own-pace merge): no function changed.
+  - **Its fallbacks, from the start:** TVmaze had no rating at the moment (void); the season not linked, or TVmaze not answering, for
+    three days past it (void; before that, tried again, so a season linked late still settles); nothing stored yet (waits); a game
+    at your own pace on an aired season (its episodes' ratings read at the first run, as they stand then: settled long ago).
+  - **The tracker:** s42 plays ("Predict each episode's IMDb rating.": TVmaze's rating, not IMDb's, which has no free API with terms
+    that allow it; a game of questions on Dancing with the Stars 35, 3 points for the closest) and so does settle.outside: 224 ✅ ·
+    39 ⏳ (A14 none left waiting). `engine-capabilities.js --check` current; `game-specs-flag.js check`: PASS.
+  - **Proof:** `tests/outside-number.test.js` (new, 3): the shape, defaults, words and settings both ways, every refusal, the
+    options to a tenth, the answer's range; graded (the closest with a tie, the line, a range; void; waiting with nothing read, with
+    another moment's number, past what you've seen; the walk's cut; a tenth either side a tie); what's due and stored (on a stand-in
+    pool and fetch: six days nothing, seven the rating, never twice, a later rating notwithstanding, a dry run, TVmaze down then its
+    grace, not linked then its grace, linked late, a game from Episode 2 reading nothing of 1). `tests/game-pieces-doc.test.js`: the
+    limit's row. `npm test` 1637; `tsc` clean. The shapes fixture: three outside shapes (`q-outside` a number, an over/under and a
+    range; `q-outside-lives` a life on it; `q-outside-pot` a range's pot split; `SERVER.outside`: Episode 3 void, 6 and 7 waiting),
+    54 new reads, the 2,754 before them byte-identical: 2,808 (`q-outside` hand-checked at bo@5: ann 11, bo 12, cy 5, di 4).
+    **API check:** `scripts/dev-test/check-outside.js` (new), ALL PASS (14): on new-fixture's couch, a game of questions on Episode 6's
+    TVmaze rating (the closest, 3; over or under 7.5, 1) refused while the season isn't linked, made once it is (its words); the
+    answers route asks both, refuses a 12, takes 7.3, 7.9 and 7.6; Episode 6's results through the season sync: waiting, no points;
+    the read six days after aired finds nothing due, seven days after stores 7.4 (only from the game's first episode); the next read
+    grades riley 4, sam 1, jordan 0, the Games tab ranking them; a later 9.9 stores nothing and changes nothing; the flag's check.
+    **One real read of TVmaze** (by hand, once, through `tvmazeRatings`, on two seasons the local catalog links): Below Deck 12's 16
+    episodes rated 6.7 to 10, a tenth each; Below Deck 13's Episodes 1 and 2 rated, 3 to 5 null (not enough votes yet: Noticed).
+    blind.js `standInOutside`: the copy linked to a stand-in listing (999001), and after each episode's results a made-up rating for
+    every key a game on it asks (6.5 to 9.4 from its number; every fifth none), stored as the read stores it.
+  - **Code review** (high, before the commit): nine findings, six fixed: a season not linked when its moment passed was void for good
+    (now tried again until the grace, so one linked late settles); a game starting at `{ at }` or a phase read from Episode 1 (now
+    `spanStart` or the phase's episode, nothing while it waits); every season loaded each hour (now only the wanted ones, in SQL);
+    `optionRange` building three patterns a call (now built once); the words' 7 days hard-coded (now `OUTSIDE.after`); blind's record
+    dropping a void episode. Three left (Noticed): the answer screen's whole-number stepper; nothing running the read until the user
+    approves it; the listing's lookup in two places.
+  - **The long checks** (once, last, on `9d78f313`): golden (`golden.js --before=master`): 7 seasons, 160 games, **19,361 reads,
+    every one the same**. Blind (`blind.js run`, in full): every game played through and over on all five seasons, one more on each
+    (the rating game: s42 and settle.outside are one spec), The Challenge 41 123, 40 117, 39 125, Survivor 49 161 and The Traitors 4
+    114; on The Challenge 41 it graded each episode's stand-in rating, every fifth void, and ended the Tinkerer 21, the Drive-By 21,
+    the Fan Who Forgets 12, the Fan 6. The Survivor 51 rehearsal (`season-forward.js rehearse --from=backups/prod-2026-10-30
+    --scenario=realistic,rough,dst --before=master`): every invariant holds, flag off against on and master's engine against this
+    tree's, 2,856 reads each, every one the same.
+
+  **Master's sports release merged into `engine` (2026-11-07, `e732eaaa`, merging `a1c8f429`: track L, migrations 0300 to 0306).**
+  The main session ran `lane.js sync engine`; this session resolved its 13 files, keeping both sides: A14 parts 2b to 7 and track
+  L's sports pieces. What each kept:
+  - **state-logic.js**: `combines` reads a sport's stats first (always its own path), then a moments lineup with the twist among its
+    reasons; `timesFor` keeps the twist's factor and takes master's `lineupScores` test (a stats lineup reads its windows too: a
+    twist is only ever a moments game's); the exports carry StatsLogic, RotoLogic, SquaresLogic and SquaresScoringStrategy beside
+    BountyLogic, SecretRoleLogic, TwistLogic and HostLogic.
+  - **schema.js**: `ask.settle` has `outside` and sports' `final`/`stat` both 'now', with `ask.settle.source`; `final` takes
+    `bracket`; KEYS keep bounty, roles and twist on moments (bounty and roles on place) beside master's stats and squares keys and
+    `pay`; a question's keys gain `draw`, `rounds` and `confidence`, a settle's keep `source` and `after`; the twist's keys are
+    checked inside master's `moments || stats` block (a twist on stats is refused by `twistProblems`' moments-only rule, as before);
+    the old one-line stats points check went for master's `statScoreProblems`; the exports both sides'.
+  - **answers.js**: `outsideVerdict` and master's sports graders (`standingIn`, `spanGame`, `sportsVerdict`, `lineOf`,
+    `gameVerdict`, `eachGameVerdict`) side by side; a `side` answer and a rating's 0-to-10 number both checked; the walk's facts
+    carry `outside` with `games`, `slate` and `playoffs`.
+  - **settings.js**: bounty, secret roles and the twist read on any lineup, master's `!stats` kept on joinedTimes and the counts;
+    the round-trip fields list both sides' (countAll, squaresGet, statScoring, squaresScore with bounty, secretRoles, twist).
+  - **describe.js**: both imports (rolesOf, twistOf, OUTSIDE with master's categories, squares, ordinals and PLAYOFFS); the bounty,
+    roles and twist rules before master's `lockRule`.
+  - **Server**: air-times.ts keeps `stampAirs` (A14's order: vote records, air times, roles, host cards, twists) with master's
+    clearing of `locksAt`, `gameStarts` and `holdingGames`; db.ts and league-read.ts pass the league id to `stampAirTimes` and then
+    `stampStats`; answer-points.ts `serverFacts` reads the outside numbers and a sport's games together (and the viewer's mark);
+    answers.ts imports both. tests/game-spec.test.js's lineup fields both sides'.
+  - **Docs**: GAME-PIECES.md's settle table has the `outside` row and master's `final` and `stat` rows; this plan merged three ways
+    once both sides' line endings matched (engine had stored it with CRLF since before A14 part 5: the whole file conflicted; it's LF
+    again, as master has it).
+  - **Checked**, on `e732eaaa`: the type check; eslint on the resolved files; the unit tests (1,928, every one passing);
+    `npm run migrate` (0300 to 0306); no check of allowed values set on both sides (0300-0306 add their own tables and columns;
+    0209's kind list stands); check-stats-game.js and check-slate.js all passing; A14's API checks on the dev server (check-beat-bot
+    27, check-bot-calls-run 16, check-bounty 17, check-secret-roles 25, check-twist 24, check-host 27, check-outside 14: all
+    passing). The long checks, once: golden (`--before=d4e1fe84`, engine before the merge): 7 seasons, 160 games, **19,361 reads,
+    every one the same**; blind (`blind.js run`): every game played through and over on all five seasons (The Challenge 41 123,
+    40 117, 39 125, Survivor 49 161, The Traitors 4 114, as after A14 part 7); the Survivor 51 rehearsal (`rehearse
+    --from=../reality-fantasy-leagues/backups/prod-2026-10-30 --scenario=realistic,rough,dst --before=master`): every invariant
+    holds, flag off against on and master's engine against this tree's, 2,856 reads each, every one the same.
+
+  **As built (A14 part 7b, the outside number off, 2026-11-07, on `engine`; no migration).** The user's answer to part 7's Noticed:
+  TVmaze's ratings as a source, no (the Decisions table, "Outside numbers: TVmaze ratings"). One small step, before the main
+  session's merge of A14 parts 2b to 7; `lane.js sync engine` had nothing new.
+  - **schema.js**: VOCAB's `ask.settle.outside` is 'later' (its comment says why and what a yes is), so `specWaitsFor` names any
+    question an outside number settles, `withSpec` plays nothing with one, and `setGame` refuses it: nobody can make a rating game.
+    `ask.settle.source`'s `tvmaze` stays 'now' (only an outside settle reads it). Nothing else changed: the piece's code, its words,
+    `db/outside-numbers.js`, `outside-numbers.ts`, migration 0213 and the `outside_numbers` table stay, built, checked and unused.
+    Nothing runs the read and the hourly job has no step for it. A later yes is the flip back and one step of
+    `.github/workflows/reminders-waivers.yml` (part 7's Noticed has it).
+  - **state-logic.js** (for the own-pace merge): no function changed.
+  - **The tracker:** s42 and settle.outside wait again (⏳, step A14, their notes saying why): 222 ✅ · 41 ⏳ · 1 🆕 · 4 ❓ · 23 💬;
+    `engine-capabilities.js --check` current.
+  - **Tests:** `tests/fixtures/built-off.js` (new) lists the pieces built but off (`BUILT_OFF`: this one), with `builtOn` and
+    `withBuilt` to turn them on in a test's own process. `tests/outside-number.test.js` has a first test that it's off (VOCAB
+    'later', no problems but a wait at `ask[0]`, no settings, `setGame` refusing it), and its other three run with it on
+    (`withBuilt`, each put back as it was), so the built code stays checked for a later yes. The shapes fixture turns it on in its
+    engine's game-spec and in the copy game-view.ts loads through jiti (the record's three outside shapes, 54 reads, unchanged).
+    settle's refusal ("Data settles every question: ...") no longer offers `outside`; a yes puts it back (VOCAB's comment says so). The placement corpus has no outside number (its verdicts don't move). `npm test` 1,929, every one passing; `tsc`
+    clean; eslint on the changed files only the files' usual `require` notes. `scripts/dev-test/check-outside.js`: while off, after
+    the unlinked refusal, a linked season's game waits too and stays a Survival Pool, the rest skipped: ALL PASS (5).
+  - **Docs:** GAME-PIECES.md's settle table and its outside-number entries say it's off and why; this plan's Status, Decisions
+    table and part 7's Noticed (answered).
+  - **Long checks: none** (the user's call for a flip that turns a piece off). Nothing reads differently where they look: golden's
+    and the Survivor 51 rehearsal's games have no outside number; blind plays every game the tracker says plays, so s42 drops out of
+    each season's run (one game fewer, the rating game: part 7's run had it as the one more).
+  - **Code review** (high, before the commit): nine findings, six fixed: check-outside's off check read the league from the database
+    though `setGame` ran on a copy (now it checks the state itself is untouched) and its skip names what it skipped; the test's
+    wrapper put the piece back to 'later' rather than as it was; settle's refusal still offered `outside`; the turn-on written twice
+    (now `built-off.js`); the jiti-loaded copy of game-spec not turned on; the Decisions row naming TVmaze's ratings as allowed.
+    Three left (Noticed, below).
+  - **Noticed (A14 part 7b):** a league made with an outside question before the flip (only possible on a lane's or the local
+    database since part 7: production never had it) keeps it, and with nothing running the read its rating questions wait for good;
+    none is known, and none can be made now. `questionContext` and the engine lab still ask
+    whether a season is linked to TVmaze (one small query each), for a piece nobody can make; kept so a yes is one flip (a later
+    tidy, with part 7's third). Turning a piece off by VOCAB means a test reaching for it turns it on itself (`built-off.js`); a
+    `built but off` state the engine knows would put the list beside VOCAB (worth it only if more pieces wait on a source).
 - **A15. Live and replay** (with the watch along, docs/PLAN-couch-and-episode-night.md §6, and the sports branch's
   `GameClock`). It needs A7. The watch along is in its infancy (the user, 2026-10-28): its concept, how it's built and how it
   connects to games are all open, so A15 is where the games shape it, not only where they plug into it.
@@ -11027,6 +11621,248 @@ From R1 part 2 (2026-10-30):
 - **For the hosting notes, at the merge:** `/api/me` (classic's sign-in and every classic load) now sends each league's settings, not its
   whole state (20-40 KB each): less Neon transfer than before. (The main folder: docs/HOSTING.md, with the merge.)
 
+From A14 part 7 (2026-11-06):
+- **Answered (the user, 2026-11-07): no.** TVmaze's ratings aren't taken as a source, so `outside` went to 'later' in VOCAB (A14 part
+  7b, below its As built; the Decisions table, "Outside numbers: TVmaze ratings"); the design session's questions below wait with
+  the piece. What was asked: **For the user, at the merge (a new data source):** asking TVmaze for episode ratings (`db/outside-numbers.js`: one call to
+  `https://api.tvmaze.com/seasons/{listing}/episodes` a season with a rating due, at most hourly; free, no key, CC BY-SA, at least 20
+  calls every 10 seconds per IP, the same API the listings job uses: docs/HOSTING.md has it). **Nothing runs it yet.** Approved, it's
+  one step of `.github/workflows/reminders-waivers.yml` after waivers.js (`node db/outside-numbers.js`, the same secrets), and a line
+  in HOSTING.md (one more read an hour, at most a call a season). **Until it runs, a game an episode's rating settles waits forever**
+  (no row is ever stored), so if the merge doesn't take the source, `ask.settle`'s `outside` goes to 'later' in VOCAB (s42 and
+  settle.outside back to ⏳) so nobody can make one. Recommended: approve it (the Decisions table already allows TVmaze's ratings),
+  with the job step in the same merge. Start a game's bot reads the engine's manual, so once it plays a typed "guess each episode's
+  rating" becomes this game.
+- **For the user, in the design session (decide nothing a person sees), each built with a recommendation:**
+  1. **When it's read (`after`'s default).** Built: 7 days after the episode airs (the Decisions table's), 1 to 30 a setting. TVmaze's
+     rating needs enough votes: the one real read found Below Deck 13's Episodes 3 to 5 with none yet. A show with few TVmaze voters
+     could be void most weeks at 7 days. Options: a later default (14), or a fallback that waits for the first rating up to N days.
+     Recommended: measure first (a dry run of the read on every linked season, counting how often a rating is null at 3, 7 and 14
+     days), then set the default per show from it, as the episode facts' reliability is set (A13 part 2's bar).
+  2. **The fallback when TVmaze has none.** Built: void (no points either way), the seed's recommendation. Options: wait up to N
+     more days for one; or the closest to the season's average. Recommended: void, plus item 1's measure.
+  3. **What players are told.** The answers route asks it as any number question; the screens (U1) say nothing of when it's read or
+     why one is void beyond the grade's reason. A "rating in N days" note on a graded-but-waiting question is U1's, through
+     impeccable's shape. **The answer screen's number stepper is whole numbers** (`src/new/show/questions.tsx`, +/- 1, no top): a
+     rating needs tenths and a top of 10, so a phone can only give 7 or 8 today (the API takes 7.4; the code review's first finding,
+     left: no screens on this track). (U1.)
+  4. **Other numbers and sources.** Built: TVmaze's episode rating only. IMDb's isn't free with terms that allow it; viewership
+     figures (Nielsen) aren't free. A season's average rating, or a question about the whole season ("will its finale rate above
+     its premiere?"), needs a window over several episodes. (A request that needs it; a new source goes into HOSTING.md first.)
+- **A rating asked against the bot is refused**: the bot's call prompt (A14 part 2b) asks a number question for "a whole number, 0
+  or more". Changing it to a rating's tenth is a prompt change, the user's. (With the call prompt's approval at the merge.)
+- **A rating's moment comes days after the episode**, so a game that knocks players out or races on it (lives, cuts, a race) waits
+  for it before that episode's lives or cuts count: a week later, by default (the shapes fixture's `q-outside-lives` waits there).
+  Recommended: Start a game says so, or refuses a life on a rating unless `after` is short. (U0, with the wizard.)
+- **A game at your own pace reads an aired season's ratings as they stand at its first run**, not as they stood seven days after
+  each aired (that moment passed long ago; TVmaze keeps no history). Fine for the game (every seat reads the same number), but not
+  the rating a live game would have read. (The own-pace merge, if it matters.)
+- **The code review's third left:** what "linked to TVmaze" means is read in two places (`outside-numbers.ts tvmazeLinked` for the
+  check, a query in `db/outside-numbers.js` for the read); `loadSeasons` could select `listing_id` and save the read its query. (A
+  later tidy.)
+- **For the hosting notes, at the merge:** a read or write of a game an outside number settles runs one query for its season's
+  stored numbers (none for any other game); the hourly read, once approved, one query for the games that ask one, one for their
+  seasons, and per season with something due one for what's stored and one TVmaze call. (The main folder: docs/HOSTING.md.)
+
+From A14 part 6 (2026-11-06):
+- **For the user, in the design session (decide nothing a person sees), each built with a recommendation:**
+  1. **The host's own answers.** Built: both, as `hostAnswers`; true (the host answers too) the default. Option: false (the host
+     sits their card out: a whole episode's points lost each turn, unevenly when the seats don't divide the season). Recommended: true
+     (the card is settled by data after the episode and published to everyone at once, so choosing it is no advantage).
+  2. **When the host's card publishes.** Built: at the deadline (everyone gets it at the same moment; nothing answered can change).
+     Option: at the host's submit (more time to answer, but the host couldn't change it once anyone answered, and early hosts give
+     some weeks more time than others). Recommended: as built.
+  3. **The deadline's default.** Built: 12 hours before the episode airs (the card's out time), 1 to 48 a setting. On a show that
+     airs on consecutive nights the next card opens only once the episode before has results (below), so a host there gets a few
+     hours: Start a game should set fewer hours (or the user picks another rule).
+  4. **Too few chosen.** Built: the rest from the list in turn (`spec`, the default), or only the host's (`void`). Recommended: as built.
+  5. **Who hosts first, and the order.** Built: the league's order (the commissioner, usually, then the order they joined).
+     Options: a random order dealt once (a seed, as secret roles are dealt); the standings' last place hosting next. Recommended: as
+     built until a couch asks.
+  6. **What players are told.** The route has it all (whose turn, the deadline, your lines, the turn after, each episode's card); the
+     screens (U1) don't show it: a "your turn to host" move on the Games tab with the card's moments to choose from, and the turn on
+     the game's page, are U1's, through impeccable's shape.
+- **The next card opens only once the league has its episode**, which the season sync adds with the episode before's results, so
+  between one episode's deadline and its results nothing is open (the route's `turn` names who's next). A host on a weekly show has
+  about five days; on consecutive nights, hours. Opening the next episode's card at the deadline before (an episode the league
+  doesn't carry yet) needs the episode in the state ahead of its results. (U1, with the screens; or a request that needs it.)
+- **The host choosing how each line is asked** (a yes or no, a count, who, per line) isn't built: a line's answer kind is its
+  question's, read from the spec by every reader (the answers route, the grader, the sheet), so a kind that changes each episode is a
+  change to all of them. Today a spec asks each line one way, or two ways with two questions on the card. (A later part or a
+  request that needs it.)
+- **A host's card for the moments that count** (`score.only: 'card'`) is refused: the host would choose the moments their own team
+  scores by. A couch that wants it would need the host to sit out that episode's points, or the guardrail relaxed (the user's).
+- **Not in a stage yet**: the turn is the game's, a stage's league its own. Recommended: the turn goes on across stages (the game's
+  order, from the last host). (A12's stages, with a request.)
+- **A game at your own pace plays its fallback every episode** (its season has aired and its seats are at different weeks, so no
+  host can choose for everyone, and choosing knowing the results would be no question at all). With `void` it has no card at all:
+  Start a game should refuse a host's card at your own pace, or the own-pace merge decide. (Own pace.)
+- **A blind replay's host is a stand-in** (blind.js `standInHost`, built after the first long run found s43's answers refused): the
+  episode's host chooses the list's last moments, filed at once. A stand-in that chooses as a person might (say, the moments that
+  went either way last week) would replay more of what a host does. (Whoever next works on blind.js.)
+- **The host route's refusals are the server's English** ("It's Sam's turn to choose Episode 6's card"), the player's name as the
+  league has it; U1's screens say them through impeccable's clarify. (U1.)
+- **The code review's three left:** the stamp modules' savepoint-and-restore boilerplate is now four copies (twists.ts,
+  secret-roles.ts, card-choices.ts, host-cards.ts): a shared `withSavepoint` and snapshot helper would replace them (whoever next adds
+  a stamp); the host route's POST reads host_cards again after readyLeague's stamp read them (one query a write); `HostLogic.hostAt`
+  walks the game's episodes each call, so filing k episodes in one read is O(k x episodes x seats), small for a season. (A later
+  tidy, with the own-pace merge.)
+- **For the hosting notes, at the merge:** a read or write of a game with a host's card runs one query for its host_cards rows, and
+  the first read after each episode's deadline one upsert and one read back; none for any other game. (The main folder:
+  docs/HOSTING.md.)
+
+From A14 part 5 (2026-11-06):
+- **For the user, in the design session (decide nothing a person sees), each built with a recommendation:**
+  1. **Who the twist is for.** Built: everyone, for that one episode (the guardrail: a player's choice changes the rules, never
+     anyone's points directly). Options: the chooser's own points only (a reward more than a twist: it moves their place directly);
+     everyone but the chooser. Recommended: as built.
+  2. **When it closes, and the default 12 hours.** Built: `closes` hours before the next episode airs (12, as the card's out time),
+     or when it locks or has results. On a show that airs on consecutive nights (Big Brother: Wednesday, then Thursday), the final
+     results land at noon the next day, after a 12-hour close, so nobody ever chooses there: such a game needs `closes` of 0 to 4, or
+     early results choosing. Options: choose from early results (a correction at noon could change who chose); close at the lock
+     (0: nobody can adapt their lineup to the twist). Recommended: 12 by default, and Start a game sets fewer hours for a show whose
+     episodes are a day apart (the schedule knows it).
+  3. **Who chooses by default.** Built: the episode's top scorer, a tie to whoever's ahead overall. Options: the standings' leader;
+     the bottom scorer (a catch-up twist, built); the week's winner of head to head. Recommended: as built for most games; the
+     bottom scorer where a couch wants it closer.
+  4. **A result corrected after the twist was filed.** Built: the twist stands (its players set their lineups for it); a correction
+     before the close can change who chooses, and a choice by someone the data no longer names is dropped for the fallback (they
+     aren't told). Options: undo the twist (as a format change's structural action is undone); keep the first chooser's choice.
+     Recommended: as built, and tell the chooser when their choice was dropped (U1's words).
+  5. **The fallback's default.** Built: no twist. Option: a default twist (built, as a setting). Recommended: none (nobody choosing
+     shouldn't change the rules).
+  6. **The same twist every week.** Built: allowed (a top scorer can choose double points every time). Options: each twist once a
+     season; never twice in a row. Recommended: allowed until a couch asks (a later setting, `repeat`).
+  7. **What players are told.** The route has it all (who chooses, the close, the choice, each episode's twist); the screens (U1)
+     don't show it yet: a "you choose" move on the Games tab for the chooser, and each episode's twist on its card for everyone once
+     filed, are U1's, through impeccable's shape.
+- **A game at your own pace plays its fallback every episode** (each closes at once: its season has aired, and its seats are at
+  different weeks, so nobody's the top scorer for all of them at once). Recommended: for own pace, each seat's own week (the twist
+  chosen by the top scorer among the seats that have played that week, applying to the others when they get there): the own-pace
+  merge's to fold in, with the user. (Own pace.)
+- **A twist that adds a question** (one of the game's own, asked only the episode it's chosen) was the third kind the step named;
+  not built: a draft's own questions read their windows from the spec alone (`AnswerLogic.questions`), so asking one only when a
+  twist chose it needs the window to read the episode's stamp, and the answering screens to offer it then. (A later A14 part or a
+  request that needs it.)
+- **A twist on a game of questions or an Outlast** isn't built: a game of questions' points are graded by the server outside the
+  state (answer-points.ts), so a twist there is a factor on each window's worth in its grading; an Outlast's place isn't points
+  earned in an episode, so a twist has nothing to multiply. The former is the next to open, if asked. (A request that needs it.)
+- **Not in a stage yet**: a stage's league is its own, so the filing would work per stage, but who chooses at a stage's first
+  episode (the game's standings or the stage's own) is a rule to decide. Recommended: the stage's own first episode has none, as a
+  game's. (A12's stages, with a request.)
+- **A blind replay has nobody to choose a twist**: blind.js plays the engine without the server's filing, so s40 replays as a plain
+  lineup (no episode stamped). A stand-in chooser (the top scorer by the walk choosing, say, the twist that would have helped them
+  most last week, filed as the server files it) would replay the twist itself. (Whoever next works on blind.js.)
+- **The twist route's refusals are the server's English** (e.g. "You don't choose Episode 6's twist"), written without the show's
+  word for an episode; U1's screens say them through impeccable's clarify. (U1.)
+- **For the hosting notes, at the merge:** a read or write of a game with a twist runs one query for its twist_choices rows, and the
+  first read after each episode's close one upsert and one read back (and the game's walk once to find who chose); none for any
+  other game. (The main folder: docs/HOSTING.md.)
+
+From A14 part 4 (2026-11-06):
+- **For the user, in the design session (decide nothing a person sees), each built with a recommendation:**
+  1. **What a role scores on.** Built: someone a seat without the role holds going home (any way out, or a vote's), once a person,
+     whatever the role's seat holds itself. Options: per seat that held them (a castaway three of you had scoring three times);
+     only when no seat with the role holds them too; the role's seat also losing its own team's points (a pure saboteur). Recommended:
+     as built (what "score when the faithful's picks get banished" says, and the simplest to explain).
+  2. **The reveal's default, and points landing all at once.** Built: the game's end, everything through the reveal added in its
+     episode. Options: a reveal partway (built, as a setting) with the role's points counting live from then on; the points never
+     hidden (and so the role neither). Recommended: as built: anything shown live says who has it.
+  3. **Who knows.** Built: `mates` true by default (Traitors know each other, as on the show); without it a holder isn't told its
+     points before the reveal (they'd say who else has it). Recommended: as built.
+  4. **Dealt at random only.** Built: 'random'. Options: the maker chooses (they'd know, and the maker usually plays); each seat
+     volunteers. Recommended: random only until a request needs another (data-settled, nobody's decision).
+  5. **Roles added to a game already under way count from its start.** The deal happens at the next read, and the role's points count
+     every episode the game has played (the check does just that). Options: count only from the deal's episode; refuse adding roles
+     once the game has started. Recommended: refuse once started (Start a game and the maker's Scoring page only reach a game before
+     it starts today, so nothing a person does now reaches it).
+  6. **Changing the roles once dealt is refused**, the rest of the game still changes. Recommended: as built (a re-deal mid-game would
+     tell people who had it).
+  7. **A game at your own pace** deals at its first read (its season has aired, so it has started at once): seats that join after
+     that hold none, and the reveal (its end) is stamped on the state at once, trimmed from each seat's copy by their own week, as its
+     results are (the state route sends results the same way). Recommended: for own pace, deal when the first seat starts its week,
+     among the seats then (the own-pace merge's to fold in).
+  8. **The screens don't show roles** (your role, the reveal, the Traitors' points so far): U1's (the roles route has what they need).
+     Its words went through impeccable's clarify; the screens' go through shape.
+- **Not beside cuts, a race, head to head or weeks won, and not in a stage.** A role's points through the reveal land in one episode,
+  so a cut or race before it would miss them and a week's matchup at it would be decided by them; the deal is one a game, a stage's
+  game has none of its own. (Whoever takes a role counting live after a mid-game reveal; a stage's deal with A12's stages.)
+- **One role a game, scoring on who goes home.** Two roles (a Traitor and a Seer), or a role scoring on another result (a moment, an
+  answer), would each be a new condition in `roleLines`' place. (A later A14 part, or a request that needs it.)
+- **`BountyLogic.heldFor` is read by both bounties and roles**, each building the episode's holders map; a game with both builds it
+  twice an episode. Small; left. (Whoever next touches either.)
+
+From A14 part 3 (2026-11-06):
+- **For the user, in the design session (decide nothing a person sees), each built with a recommendation:**
+  1. **Per vote, per holder.** Built: each vote out is its own bounty (three of yours voting mine out take 6), and in a shared draft every
+     team holding the voter takes it from every team holding who went home. Options: one bounty per boot, split among whoever voted
+     them out; or per voter's team, once. Recommended: as built (what "if your castaway votes out mine" says, and it adds up to
+     nothing).
+  2. **Starters only.** Built: a lineup's bench neither takes nor pays. Option: the whole team. Recommended: as built (what counts is
+     what's started, as every moment).
+  3. **A steal, never from the bank.** Built: nobody holds who went home, nothing moves. Option: a bounty for voting out a free agent
+     (points from nowhere). Recommended: as built ("you steal 2").
+  4. **The bounty's size.** The tracker's 2; the check allows 0.5 to 10. Recommended: 2 on an Outlast (a boot is worth 1 a place),
+     1 on a lineup.
+- **Not beside cuts yet**: a team knocked out still holds its castaways (and an exclusive draft's go back to the pool), so a bounty would
+  keep taking from a team that's out. Building it needs the knockouts' walk to tell the bounty who's out at each episode (the walk reads
+  the bounty's totals, so a loop to untie). Recommended: when a game asks for it. (Whoever next works on the knockouts.)
+- **Only a vote that sent someone home**: who beat whom in The Challenge's elimination, or who the Traitors murdered, isn't in the results
+  (a murder is the Traitors' together). Each would be a new `on` with its research asked for it: a prompt change, the user's OK at its
+  merge. Recommended: The Challenge's elimination (winner over loser) first, since its research already says who went in. (A14 later,
+  or a game that asks.)
+- **Research isn't always sure of the votes** (the tapes: Survivor 50 8 of 13, The Traitors 3 to 5 of 8 to 10): the void fallback keeps a
+  bounty honest, but a season like those plays few. A double boot asked as one vote each never agrees: asking each vote's own answer
+  (a list per Tribal, as The Traitors' finale has) would settle it. A prompt change, the user's OK at its merge. Recommended: ask it
+  before a bounty game is offered on a show by default. (Whoever next changes the research prompt.)
+- **A steal needs someone to steal from**: on The Traitors 4's blind replay (four seats of three, 12 of 23 drafted) all four episodes
+  research was sure of sent home someone nobody had drafted, so the bounty game ended exactly as a plain Outlast. Item 3's option
+  (points for voting out a free agent too) would make a bounty matter more in a small draft. (The user, with item 3.)
+- **The blind records share one folder across lanes**: this run's Survivor 49 record on file (`rfl-tapes/replays/blind/survivor-49.json`)
+  is another lane's run at the same time (master's tracker, 149 games, no s16); this lane's run counted 157 played through (its
+  log). A lane's own TAPES_DIR for its records, or a lane name in the file, would keep them apart. (Whoever next works on blind.js.)
+- **The screens don't show a bounty** (U1): a row's `bounty` (a gain or a loss) is in its total, and nothing shows who took what from whom
+  or why an episode was void (the record's `why`). (U1.)
+- **The hourly waiver job reads the record saved with the last write** (db/waivers.js has no stamp of its own): a re-research since then
+  reaches its waiver order at the next read or write. (Waivers, if a bounty game orders by the standings.)
+- **For the hosting notes, at the merge:** a read or write of a game with a bounty runs one query for its season's stored research of the
+  episodes it has exits for (the castaways' answers only); none for any other game. (The main folder: docs/HOSTING.md.)
+
+From A14 part 2b (2026-11-06):
+- **The call prompt is the user's to approve at the merge** (8:30 PM note: a prompt change): `db/call-research.js` `buildCallPrompt`, with
+  the run's timing and the parse. Proven on Survivor 51 Episode 8 (live) and three recorded episodes at the local bot (As built). Recommended:
+  approve as built, then watch the first live runs on the desk's run list. (The user, at the merge.)
+- **For the user, in the design session (decide nothing a person sees), each built with a recommendation:**
+  1. **When the bot calls.** Built: 6 hours before the episode airs (no sooner than an hour after the one before it ends, no later than an
+     hour before it). Options: a day before (the card's two days: steadier, but before the week's news); an hour before (the latest news,
+     less room for retries). Recommended: as built.
+  2. **One call per game, or one per season.** Built: one ask per game per lock, so two games asking the same question get two calls that can
+     differ (the bot is asked twice). Option: one ask per season for the questions the games share, every game reading the same call (the
+     card's way). Recommended: as built while few games play against the bot; the season's ask once several on one season do.
+  3. **The bot's reason.** Kept as each call's note, never shown. Option: shown with its call once the window locks ("the bot said: …"), a
+     line players may enjoy. Recommended: shown after the lock, U1's words.
+- **An aired season's bot knows the answers** (the recorded proofs named two episodes' boots exactly): so the run plans only locks still to
+  come by the broadcast's clock, and a game at your own pace on an aired season plays every window on its fallback (as a card the bot
+  chooses does there). A stand-in for it there (a habit like blind.js's) would let such a game play against "the bot" honestly; whether to is
+  the user's (own-pace games' plan). (Own pace, if asked.)
+- **The live proof's list was stale:** this lane's copy of Survivor 51 has results through Episode 4, so the prompt listed those who left
+  in Episodes 5 to 7 as still in; the prompt tells the bot not to name anyone who has, and the league's own list is current in production (its results
+  are in long before the run, six hours before the lock). A call naming someone who left in an episode whose results a league doesn't have
+  yet is accepted (they're in, as far as it knows) and simply wrong, as a seat's would be. (Nothing to do.)
+- **A call is independent of the others**: The Challenge 41 Episode 5's named Cara Maria going home and said nobody quits (she quit). Each
+  question is graded on its own, so nothing breaks; one prompt per lock keeps them in one chat, which helps more than it hurts.
+  (Nothing to do.)
+- **Every run works out the cast's word inline** (the code review's): the card's, trivia's, bingo's and now the call's prompt each take
+  `shows.castaway_term` and add an s, where the show's own plural words (0429) would say it right ("housemates", "players"). One helper
+  for every prompt, with the plural words. (Whoever next changes a research prompt; a prompt change, so with the user's OK at its merge.)
+- **The desk doesn't know the call run** (as C7 part 2's card run): its run list shows kind `call` and slot `call:<league id>` with the
+  run's message; no words, no game named, no Run now. (The desk, when it next works on the bot's page.)
+- **For the hosting notes, at the merge:** every planning (each VM tick and each desk save that tells the bot's clock) reads every league
+  still played whose settings hold a question against the bot (one query, `jsonb_path_exists` over the leagues' settings: a scan of the
+  leagues table, cheap at today's size; a column or an index once leagues number in the thousands), and for each such game its calls and its
+  season's call runs. Each call run asks the bot once (20 to 30 seconds), per game per episode it plays against the bot; its row in
+  bot_research_runs and a few rows in bot_calls. Migration 0209 only changes a check. (The main folder: docs/HOSTING.md, with the merge.)
+
 From C7 part 2 (2026-11-06):
 - **The card prompt is the user's to approve at the merge** (8:30 PM note: a prompt change): `db/card-research.js`
   `buildCardPrompt`, with `card_choices`' shape and the run's timing. Proven on three episodes at the local bot (C7's As built).
@@ -11247,7 +12083,8 @@ From C2 part 4c (2026-11-06):
 - **Tonight shows a draft's finale predictions from Extras by its sheet's `finale`**: a draft with its own questions has a sheet of
   them instead (`finale` false, its finale predictions among its questions but not counted as a move), so Tonight lists it as a sheet
   to fill in, its finale predictions inside it. (U1, the sheet's screen.)
-- **The bot's call on a draft's own questions** is open (as a game of questions'): A14 part 2b's run, which makes the bot's call before
+- **The bot's call on a draft's own questions** (built in A14 part 2b: its run finds them through `AnswerLogic.questions`; the bot line
+  was already worked out for them) was open (as a game of questions'): A14 part 2b's run, which makes the bot's call before
   each lock, has to file calls for a draft's questions too (it finds them through `AnswerLogic.questions`, as `botCallsFor` does); the
   Games tab's bot line is worked out for them (`leagueAnswers`). (A14 part 2b.)
 - **The lane's calls, the user's to overrule** (with the merge's look): a draft's finale predictions come first among its questions (as
@@ -11406,10 +12243,12 @@ From A14 part 2 (2026-10-31):
   4. **How the table shows the bot.** Built: a line beside the table (its calls right of those settled, each seat's beat and beaten), never a
      row or a place. Option: a ghost row ranked among you ("where the bot would be"). Recommended: the line, as built (the Decisions table's
      guardrail: a player-decided outcome never moves anyone's place, and the bot is no player); its words and look are U1's.
-  5. **When the bot calls and what it's told** (part 2b's): recommended, a run of its own a few hours before each lock, for every game with
+  5. **When the bot calls and what it's told** (part 2b's; built in part 2b as recommended, six hours before each lock: its Noticed):
+     recommended, a run of its own a few hours before each lock, for every game with
      a question against the bot, told only what anyone could know before the episode (the show, the season, the episode number, who's still
      in, the question and its choices) and asked not to look anything up about the episode or after it; one ask per game per episode.
-- **A call can be made early** (any open window, Episode 12 now): harmless (it's checked against who's in now, and someone who goes home
+- **A call can be made early** (part 2b's run calls each window only six hours before its lock; fileCalls still takes an early one)
+  (any open window, Episode 12 now): harmless (it's checked against who's in now, and someone who goes home
   before it is simply a wrong call), but part 2b's run calls each window only shortly before its lock. (Part 2b, if it matters.)
 - **For the hosting notes, at the merge:** migration 0206's `bot_calls`, a row per game per window played against the bot (a few a week a
   game): negligible storage; a read of a game against the bot reads its calls once, and the season's schedule while a call's window is still

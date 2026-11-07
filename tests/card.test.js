@@ -89,7 +89,7 @@ test("its shape: a card, a question on it, the moments that count each week; wha
   assert.deepEqual(problems(questions([SHEET], { each: 4, of: MOMENTS })), ["card.each: A card of 4 each episode is drawn from at least 4 moments: name more, or draw fewer"]);
   assert.deepEqual(problems(questions([SHEET], { each: 1, of: [] })), ["card.of: A card is drawn from a list of 1 to 40 of the show's moments"]);
   assert.deepEqual(problems(questions([SHEET], { each: 1, of: ["idolFound", "idolFound"] })), ["card.of: A moment is named twice"]);
-  assert.deepEqual(problems(questions([SHEET], { each: 1, of: MOMENTS, from: "maker" })), ["card.from: A card is drawn from the show's moments in turn (from 'moments'), or chosen from them by the bot before each episode (from 'bot')"]);
+  assert.deepEqual(problems(questions([SHEET], { each: 1, of: MOMENTS, from: "maker" })), ["card.from: A card is drawn from the show's moments in turn (from 'moments'), chosen from them by the bot before each episode (from 'bot'), or chosen from them by a host, a different one of you each episode (from 'host')"]);
   assert.deepEqual(problems(questions([SHEET], "card")), ["card: A card is { from: 'moments', each, of: [the show's moments] }"]);
   assert.ok(ats(questions([SHEET], { each: 1, of: MOMENTS, extra: 1 })).includes("card.extra"));
   // The data-can-settle rule: each moment is the show's, one research answers.

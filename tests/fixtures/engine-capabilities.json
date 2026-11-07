@@ -1320,7 +1320,16 @@
         {
           "id": "settle.outside",
           "what": "A number from a vetted outside source (an episode's TVmaze rating)",
-          "step": "A14"
+          "step": "A14",
+          "spec": {
+            "get": { "by": "none" },
+            "count": null,
+            "score": { "by": "answers" },
+            "rank": { "by": "total" },
+            "ask": [ { "id": "rating", "ask": "What will the episode's TVmaze rating be?", "answer": "number", "points": 3, "asked": "each", "settle": { "by": "outside", "take": "rating", "source": "tvmaze", "after": 7 } } ]
+          },
+          "page": { "show": "Dancing with the Stars", "season": 35, "rulebook": "amazingRace", "checkedAs": true },
+          "note": "built and checked, but waiting: the user said no to TVmaze's ratings as a source (2026-11-07), so ask.settle's outside is 'later' in VOCAB and nothing runs db/outside-numbers.js; a yes is that flip and one step of the hourly job. Built: an episode's TVmaze rating as it stood 7 days after it aired (A14 part 7: settle.by 'outside'), read once and stored per season (outside_numbers: db/outside-numbers.js), so every league on the season reads the same number; void when TVmaze has none by then"
         },
         {
           "id": "settle.stats",
@@ -2092,12 +2101,32 @@
         {
           "id": "who.secret",
           "what": "Secret roles among the players",
-          "step": "A14"
+          "step": "A14",
+          "spec": {
+            "preset": "outlast",
+            "score": { "by": "place", "roles": { "count": 2, "points": 2, "on": "votedOut" } }
+          },
+          "page": {
+            "show": "The Traitors (US)",
+            "season": 4,
+            "rulebook": "traitors"
+          },
+          "note": "secret roles among the players (A14 part 4: score.roles), dealt at random once the game starts and kept out of the state (secret_role_deals); each seat told only its own; a Traitor scores when someone a seat without the role holds is voted out, the points kept off the table until the reveal (the game's end), then added there"
         },
         {
           "id": "who.host",
           "what": "A rotating host writes the questions",
-          "step": "A14"
+          "step": "A14",
+          "spec": {
+            "get": { "by": "none" },
+            "count": null,
+            "score": { "by": "answers" },
+            "rank": { "by": "total" },
+            "card": { "from": "host", "each": 3, "of": ["idolFound", "idolPlayed", "votesNegated", "wentOnJourney", "learnedOfAdvantage", "advantageTargeted", "rewardWin", "tribeImmunity", "individualImmunity"] },
+            "ask": [ { "id": "host", "ask": "The host's questions", "answer": "yesNo", "points": 1, "asked": "each", "card": true, "settle": { "by": "moment", "take": "happened" } } ]
+          },
+          "page": { "show": "Survivor", "season": 51, "rulebook": "survivor" },
+          "note": "a rotating host's questions (A14 part 6: card.from 'host'): each episode one of the seats, in turn (the order they joined, skipping anyone who left), chooses the card's three moments from the spec's list (each one research answers, so data still settles every line), kept by the server until the host's deadline (host_cards: host-cards.ts) and then stamped on the episode for everyone to answer; too few chosen, the rest from the list in turn"
         }
       ]
     },
@@ -3515,10 +3544,15 @@
         "rulebook": "survivor"
       },
       "words": "Bounties: if your castaway votes out mine, you steal 2.",
+      "spec": {
+        "preset": "outlast",
+        "score": { "by": "place", "bounty": { "points": 2 } }
+      },
       "step": "A14",
       "dials": [
         "score"
-      ]
+      ],
+      "note": "a bounty (A14 part 3: score.bounty), points that move between seats by what the results say: research's who voted for whom, at a vote that sent someone home, read only when research's own count agrees (else void: nothing moves that episode)."
     },
     {
       "id": "s17",
@@ -3660,10 +3694,15 @@
         "rulebook": "traitors"
       },
       "words": "Two of us are secretly traitors who score when the faithful's picks get banished.",
+      "spec": {
+        "preset": "outlast",
+        "score": { "by": "place", "roles": { "count": 2, "points": 2, "on": "votedOut" } }
+      },
       "step": "A14",
       "dials": [
         "who"
-      ]
+      ],
+      "note": "secret roles among the players (A14 part 4: score.roles), dealt at random once the game starts and kept out of the state (secret_role_deals); each seat told only its own; a Traitor scores when someone a seat without the role holds is voted out, the points kept off the table until the reveal (the game's end), then added there"
     },
     {
       "id": "s25",
@@ -4134,13 +4173,19 @@
       "page": {
         "show": "Big Brother",
         "season": null,
-        "rulebook": null
+        "rulebook": "survivor",
+        "checkedAs": true
       },
       "words": "Each week's top scorer picks a twist for next week.",
       "step": "A14",
       "dials": [
         "who"
-      ]
+      ],
+      "spec": {
+        "preset": "weekly-lineup",
+        "score": { "by": "moments", "points": null, "twist": { "of": [{ "id": "double", "name": "Double points", "times": 2 }, { "id": "half", "name": "Half points", "times": 0.5 }] } }
+      },
+      "note": "the top scorer's twist (A14 part 5: score.twist): after each episode's final results its top scorer chooses one of the spec's twists for the next episode only, kept by the server until it closes (twist_choices: twists.ts) and then stamped on the episode for the scoring to read; checked against Survivor's rules, a show of its kind (Big Brother has no rulebook here)"
     },
     {
       "id": "s41",
@@ -4197,7 +4242,14 @@
       "dials": [
         "settle"
       ],
-      "note": "outside numbers from a vetted source: TVmaze's rating, not IMDb's"
+      "spec": {
+        "get": { "by": "none" },
+        "count": null,
+        "score": { "by": "answers" },
+        "rank": { "by": "total" },
+        "ask": [ { "id": "rating", "ask": "What will the episode's TVmaze rating be?", "answer": "number", "points": 3, "asked": "each", "settle": { "by": "outside", "take": "rating", "source": "tvmaze", "after": 7 } } ]
+      },
+      "note": "built and checked, but waiting: the user said no to TVmaze's ratings as a source (2026-11-07), so nobody can make it. Built: a number from a vetted outside source (A14 part 7: settle.by 'outside'): TVmaze's rating, not IMDb's (no free API with terms that allow it); each episode's TVmaze rating as it stood 7 days after it aired, read once and stored per season (outside_numbers: db/outside-numbers.js), the closest guess scoring; void when TVmaze has none by then"
     },
     {
       "id": "s43",
@@ -4210,7 +4262,16 @@
       "step": "A14",
       "dials": [
         "who"
-      ]
+      ],
+      "spec": {
+        "get": { "by": "none" },
+        "count": null,
+        "score": { "by": "answers" },
+        "rank": { "by": "total" },
+        "card": { "from": "host", "each": 3, "of": ["idolFound", "idolPlayed", "votesNegated", "wentOnJourney", "learnedOfAdvantage", "advantageTargeted", "rewardWin", "tribeImmunity", "individualImmunity"] },
+        "ask": [ { "id": "host", "ask": "The host's questions", "answer": "yesNo", "points": 1, "asked": "each", "card": true, "settle": { "by": "moment", "take": "happened" } } ]
+      },
+      "note": "a rotating host's questions (A14 part 6: card.from 'host'): each episode one of the seats, in turn (the order they joined, skipping anyone who left), chooses the card's three moments from the spec's list (each one research answers, so data still settles every line), kept by the server until the host's deadline (host_cards: host-cards.ts) and then stamped on the episode for everyone to answer; too few chosen, the rest from the list in turn"
     },
     {
       "id": "s44",

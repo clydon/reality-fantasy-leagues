@@ -13,6 +13,7 @@ import { HttpError, pool } from "./db";
 import { stagesOf } from "./stages";
 import { triviaKeyFor } from "./trivia-key";
 import { episodeFactsFor } from "./episode-facts";
+import { outsideNumbersFor } from "./outside-numbers";
 import type { SeasonSchedule } from "./schedule";
 import { leagueGames } from "./sports/score";
 import { keptLines } from "./question-lines";
@@ -338,11 +339,12 @@ async function scheduleLock(leagueId: string, state: LeagueState, now: Date): Pr
 
 /** What only the server knows of a game's facts: the timeline's groups (F3 part 2), for a game that asks trivia each round's
  *  trivia key (A13: trivia-key.ts triviaKeyFor), for one an episode fact settles each episode's facts as research said them
- *  (A13 part 2: episode-facts.ts episodeFactsFor), and for one played against the bot its calls (A14 part 2: botCallsFor). Each
- *  only when the game reads it. */
-async function serverFacts(state: LeagueState, view: LeagueState, leagueId: string, mark: number | null = null): Promise<Pick<AnswerFacts, "formatGroups" | "trivia" | "episodeFacts" | "bot" | "botCalled" | "games" | "slate" | "playoffs" | "lines">> {
-  const [formatGroups, trivia, episodeFacts, bot, games] = await Promise.all([formatGroupsFor(state, view), triviaKeyFor(state), episodeFactsFor(state, view), botCallsFor(leagueId, state), sportsGamesFor(state, mark, leagueId)]);
-  return { ...(formatGroups ? { formatGroups } : {}), ...(trivia ? { trivia } : {}), ...(episodeFacts ? { episodeFacts } : {}), ...(bot ?? {}), ...(games ?? {}) };
+ *  (A13 part 2: episode-facts.ts episodeFactsFor), for one played against the bot its calls (A14 part 2: botCallsFor), for one
+ *  an outside number settles the numbers stored for its season (A14 part 7: outside-numbers.ts outsideNumbersFor), and for one a
+ *  sport's games settle those games (L3: sportsGamesFor). Each only when the game reads it. */
+async function serverFacts(state: LeagueState, view: LeagueState, leagueId: string, mark: number | null = null): Promise<Pick<AnswerFacts, "formatGroups" | "trivia" | "episodeFacts" | "bot" | "botCalled" | "outside" | "games" | "slate" | "playoffs" | "lines">> {
+  const [formatGroups, trivia, episodeFacts, bot, outside, games] = await Promise.all([formatGroupsFor(state, view), triviaKeyFor(state), episodeFactsFor(state, view), botCallsFor(leagueId, state), outsideNumbersFor(state), sportsGamesFor(state, mark, leagueId)]);
+  return { ...(formatGroups ? { formatGroups } : {}), ...(trivia ? { trivia } : {}), ...(episodeFacts ? { episodeFacts } : {}), ...(bot ?? {}), ...(outside ? { outside } : {}), ...(games ?? {}) };
 }
 
 /** L3 part 1: each episode's game as of the viewer's mark (null: as it stands), for a game that asks a question a sport's game

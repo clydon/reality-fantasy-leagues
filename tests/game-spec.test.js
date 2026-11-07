@@ -63,15 +63,18 @@ const GAME_FIELDS = {
   // A9 part 2: Outlast in reverse; best ball, a lineup's captain, points that multiply by when. A10 part 3c: a stock market
   // ranked by worth.
   // C3: a multiplier on how a holding joined (joinedTimes), an Outlast's or a lineup's.
-  "classic-draft": [...DRAFT_FIELDS, "teamSize", "reverseOrder", "joinedTimes"],
-  "active-roster": [...DRAFT_FIELDS, "activeSlots", "benchSlots", "eventPoints", "hideStartersUntilLock", "bestBall", "captainTimes", "pointsTimes", "groupSlots", "joinedTimes", "scoreOnly", "scoreHits", "gameCard",
+  // A14 part 3: a bounty (bounty), an Outlast's or a lineup's.
+  // A14 part 4: secret roles (secretRoles), an Outlast's or a lineup's.
+  // A14 part 5: the top scorer's twist (twist), a lineup's or a pick's scored by moments.
+  "classic-draft": [...DRAFT_FIELDS, "teamSize", "reverseOrder", "joinedTimes", "bounty", "secretRoles"],
+  "active-roster": [...DRAFT_FIELDS, "activeSlots", "benchSlots", "eventPoints", "hideStartersUntilLock", "bestBall", "captainTimes", "pointsTimes", "groupSlots", "joinedTimes", "bounty", "secretRoles", "twist", "scoreOnly", "scoreHits", "gameCard",
     // L3 part 2: a lineup scored by a sport's stats, its table; everyone drafted counting.
     "statScoring", "countAll"],
   // A10 part 2: a pool's lives, buyback, mulligans, second pick and last one standing. A11 part 2: a pick that never repeats and
   // its fallback; last one standing's end.
   // C5: a pick scored by what they do (poolScore, its points eventPoints and by when pointsTimes, several each episode poolEach),
   // only these moments and hits counted; weeks won's tied week.
-  pickem: ["pickemCorrectPoints", "poolSurvive", "calls", "poolLives", "poolBuyback", "poolMulligans", "poolSecond", "poolRank", "seatPeople", "poolRepeat", "poolFallback", "rankOneLeft", "rankAllOut", "poolScore", "poolEach", "eventPoints", "pointsTimes", "scoreOnly", "scoreHits", "rankTies", "gameCard"],
+  pickem: ["pickemCorrectPoints", "poolSurvive", "calls", "poolLives", "poolBuyback", "poolMulligans", "poolSecond", "poolRank", "seatPeople", "poolRepeat", "poolFallback", "rankOneLeft", "rankAllOut", "poolScore", "poolEach", "eventPoints", "pointsTimes", "twist", "scoreOnly", "scoreHits", "rankTies", "gameCard"],
   "weekly-calls": [],
   // A9: points per line; a game of questions' parlays.
   "weekly-bingo": ["linePoints"],

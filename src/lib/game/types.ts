@@ -246,7 +246,13 @@ export interface Episode {
   formatGroups?: EpisodeFormatGroups;
   /** Step C7 part 2: a card the bot chooses, its choice for this episode as it stood when the card came out (stamped with the air
    *  times from card_choices: card-choices.ts), or { fallback: true } once it came out without one; none while it isn't out. */
-  cardChoice?: { moments?: string[]; cannot?: string[]; fallback?: true };
+  cardChoice?: { moments?: string[]; cannot?: string[]; fallback?: true; host?: string | null; how?: "host" | "fallback" };
+  /** Step A14 part 3, stamped on every read and write for a game with a bounty (vote-records.ts; the engine only reads it): who
+   *  voted for whom in the episode as its research says, by the league's castaway ids, and whether research is sure of it. */
+  voteRecord?: { sure: boolean; why?: string; votes: [string, string][]; out: string[] };
+  /** Step A14 part 5: the top scorer's twist for this episode, as the server filed it once the choice closed (twists.ts, from
+   *  twist_choices): the twist's id (null: none), who chose it (null: nobody did), and how it came to be. Public once filed. */
+  twist?: { id: string | null; by: string | null; how: "chosen" | "fallback" };
   /** Kept open past its start by whoever runs the game (Backstage › Settings' lock; StateLogic.closedForPlay). */
   openPastAir?: boolean;
 }
@@ -367,6 +373,12 @@ export interface LeagueSettings {
   pointsTimes?: import("./game-spec/index.js").SpecWhen[];
   /** Step C3, absent unless a game says it: a draft's multiplier on how a holding joined (the spec's score.multiply). */
   joinedTimes?: import("./game-spec/index.js").SpecJoined[];
+  /** Step A14 part 3, absent unless a game says it: a draft's bounty (the spec's score.bounty). */
+  bounty?: import("./game-spec/index.js").SpecBounty;
+  /** Step A14 part 4, absent unless a game says it: a draft's secret roles among the players (the spec's score.roles). */
+  secretRoles?: import("./game-spec/index.js").SpecRoles;
+  /** Step A14 part 5, absent unless a game says it: the top scorer's twist (the spec's score.twist). */
+  twist?: import("./game-spec/index.js").SpecTwist;
   reverseOrder?: boolean;
   /** Step A10 part 1, absent unless a game says it: a lineup's or best ball's group slots (the spec's get.groups). */
   groupSlots?: import("./game-spec/index.js").GroupSlots;
@@ -1185,6 +1197,12 @@ export interface LeagueState {
    *  (StateLogic.MatchupLogic.settle), so the schedule changing after that moves nothing. */
   seasonEpisodes?: number;
   playoffsFrom?: number;
+  /** A14 part 4: a game's secret roles once revealed (the reveal's episode has results), stamped by the server on every read and
+   *  write from secret_role_deals (secret-roles.ts); absent before then, so nobody's copy says who holds one. The spoiler view takes
+   *  it off a copy that hasn't seen the reveal's episode. */
+  secretRoles?: { at: number; holders: string[] };
+  /** A14 part 4: true once the server has dealt the game's secret roles (secret-roles.ts; never to whom), so setGame keeps them. */
+  secretRolesDealt?: true;
   /** A11 part 4: when each seat joined head to head's schedule (playerId -> the first episode it plays), kept on every write
    *  (MatchupLogic.settle), so a seat coming in later never rewrites the weeks played. */
   matchupSeats?: Record<string, number>;

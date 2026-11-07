@@ -272,4 +272,4 @@ async function stampLeague(pool, state, now = Date.now()) {
   return r.changed;
 }
 
-module.exports = { seasonClock, stampLeague, markFallback, CARD_BEFORE, CARD_AFTER_PREV, MAX_ASKED, buildCardPrompt, parseCardAnswer, outAt, stampChoices, cardSeasons, momentsAsked, hasChoice, storeChoice, liveChoices };
+module.exports = { jsonIn, seasonClock, stampLeague, markFallback, CARD_BEFORE, CARD_AFTER_PREV, MAX_ASKED, buildCardPrompt, parseCardAnswer, outAt, stampChoices, cardSeasons, momentsAsked, hasChoice, storeChoice, liveChoices };

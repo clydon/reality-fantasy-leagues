@@ -32,7 +32,7 @@ export async function dueMoves(userId: string): Promise<{ items: LeagueMove[]; c
   for (const r of rows) {
     if (!r.player_id) continue;
     try {
-      await stampAirTimes(pool, r.state);
+      await stampAirTimes(pool, r.state, r.id);
       // A late joiner who hasn't revealed anything yet is at the episode before their start (as in late-join.ts).
       // Anyone else goes by their mark (results-seen.ts), or sees everything if they've opted out of
       // spoiler protection; no mark yet counts as nothing revealed, so a waiver pickup (which says one of

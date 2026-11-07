@@ -5,6 +5,10 @@ import * as Air from "@/lib/game/air-schedule.js";
 import * as Spec from "@/lib/game/game-spec";
 import { gameLocksOf, locksOf, type Closes } from "@/lib/sports/locks";
 import { stampCardChoices } from "./card-choices";
+import { stampVoteRecords } from "./vote-records";
+import { stampSecretRoles } from "./secret-roles";
+import { stampTwists } from "./twists";
+import { stampHostCards } from "./host-cards";
 
 // Stamps each episode with when it airs (ep.airsAt), from the league's season schedule in the
 // catalog (show_seasons' premiere/air time/zone, overridden by the wiki's own per-episode dates --
@@ -15,12 +19,27 @@ import { stampCardChoices } from "./card-choices";
 // A catching-up league is left unstamped: it plays at its own pace, so the broadcast's clock means
 // nothing to it -- its episodes lock when their results are revealed. So is a league whose season
 // isn't in the catalog or has no schedule.
-export async function stampAirTimes(db: Pool | PoolClient, state: LeagueState): Promise<void> {
+//
+// Step A14 part 4: `leagueId` (the game's), for a game with secret roles: dealt once it has started and stamped once revealed
+// (secret-roles.ts), after the air times its start reads. Left out (a caller with no league to name), none are stamped. Part 5: the
+// top scorer's twist, each closed episode's filed and stamped (twists.ts), last: its close reads the air times, its chooser the
+// game's walk with the vote records and roles stamped. Part 6: a rotating host's card, each episode's filed once the host's time is
+// up and stamped (host-cards.ts), after the air times its close reads.
+export async function stampAirTimes(db: Pool | PoolClient, state: LeagueState, leagueId?: string): Promise<void> {
   // Step A11 part 4: head to head's playoffs at the season's end read its length (stampSeasonLength, below).
   await stampSeasonLength(db, state);
   // Step C7 part 2: a card the bot chooses, each episode's choice as it stood when the card came out (card-choices.ts), by the
   // broadcast's clock, so a league at its own pace has it too.
   await stampCardChoices(db, state);
+  // Step A14 part 3: a bounty, who voted for whom in each episode the league has results for, as research says it (vote-records.ts).
+  await stampVoteRecords(db, state);
+  await stampAirs(db, state);
+  await stampSecretRoles(db, state, leagueId);
+  await stampHostCards(db, state, leagueId);
+  await stampTwists(db, state, leagueId);
+}
+
+async function stampAirs(db: Pool | PoolClient, state: LeagueState): Promise<void> {
   const clear = () => state.episodes.forEach((ep) => {
     delete ep.airsAt;
     delete ep.locksAt;

@@ -8,7 +8,7 @@ import type { Pool } from "pg";
 export type BotKind = "quick" | "full" | "schedule" | "trivia" | "bingo" | "facts";
 /** A run row's kind: a schedule's, or a tie-break (the full research again, when a result's been disputed a day; the
  *  desk's switch) or a rulebook check (a show change the couches confirmed). */
-export type RunKind = BotKind | "tiebreak" | "rulebook";
+export type RunKind = BotKind | "tiebreak" | "rulebook" | "card" | "call";
 /** Every kind a schedule's run can be, and a run's slot ("full@60") as the schedule writes it. */
 export const KINDS: BotKind[];
 export const SLOT_RE: RegExp;
@@ -110,7 +110,7 @@ export function runNext(
   | ({ job: { season: string; seasonNumber: number; seasonId: string; episode: number; slot: string; kind: RunKind }; next: Date | null } & BotRunOutcome)
 >;
 /** `forSeason`: a bingo job for the season's own bank (slot SEASON_BINGO_SLOT). */
-type DueRun = { episode: number; slot: string; kind: RunKind; after: number | null; at: Date; forSeason?: boolean; season: { id: string; slug: string; season_number: number } };
+type DueRun = { episode: number; slot: string; kind: RunKind; after: number | null; at: Date; forSeason?: boolean; season: { id: string; slug: string; season_number: number }; leagueId?: string; tries?: number; now?: number };
 /** The slot of a season's own bingo bank's scheduled job. */
 export const SEASON_BINGO_SLOT: string;
 /** What's due now (each with its season row), earliest first. */

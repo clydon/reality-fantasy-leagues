@@ -115,6 +115,16 @@ export type SpecJoined = {
   per?: "team" | "slot";
   then?: "repeat" | "ratio";
 };
+/** A14 part 3: a bounty, points that move to you from someone else when one of yours votes out one of theirs. */
+export type SpecBounty = { points: number; on?: "votedOut" };
+/** A14 part 4: secret roles among the players: `count` seats dealt `name` at random once the game starts, each scoring `points`
+ *  whenever someone a seat without it holds goes home (or is voted out), revealed (and its points added) at the end or an episode. */
+export type SpecRoles = { count?: number; name?: string; points: number; on?: "out" | "votedOut"; deal?: "random"; reveal?: "end" | number; mates?: boolean };
+/** A14 part 5: the top scorer's twist: after each episode's final results its top (or bottom) scorer, by its points or the standings,
+ *  chooses one of `of` for the next episode only (every point, or one moment's, times `times`), by `closes` hours before it airs;
+ *  nobody chose, the `fallback` ('none' or a twist's id). */
+export type SpecTwistOption = { id: string; name: string; times: number; moment?: string };
+export type SpecTwist = { of: SpecTwistOption[]; who?: "top" | "bottom"; by?: "episode" | "total"; tie?: "total" | "none"; closes?: number; fallback?: string };
 /** C3: one multiplier, keyed by its condition (multipliersOf). */
 export type SpecFactor =
   | { on: "captain"; times: number }
@@ -127,10 +137,10 @@ export type SpecScore =
    *  name each episode, whose points multiply by `times`; and when the points multiply (`times`). C3: how a holding joined. */
   /** C5: only (only these moments count) and hits (each moment an objective hit, worth 1: every hit, each objective once per
    *  holding, or once for you; points never weight a hit, they only say which moments count). */
-  | { by: "moments"; points: Record<string, number> | null; captain?: { times: number }; times?: SpecWhen[]; multiply?: SpecJoined[]; only?: string[] | "card"; hits?: "every" | "pick" | "objective" }
+  | { by: "moments"; points: Record<string, number> | null; captain?: { times: number }; times?: SpecWhen[]; multiply?: SpecJoined[]; only?: string[] | "card"; hits?: "every" | "pick" | "objective"; bounty?: SpecBounty; roles?: SpecRoles; twist?: SpecTwist }
   /** A9 part 2's reverse: the earlier they go home the more (1, plus 1 for everyone who outlasts them). C3: how a holding joined
    *  (never in reverse), its lines then what each one earns while it's yours. */
-  | { by: "place"; reverse?: true; multiply?: SpecJoined[] }
+  | { by: "place"; reverse?: true; multiply?: SpecJoined[]; bounty?: SpecBounty; roles?: SpecRoles }
   /** A10 part 2: lives (a wrong pick costs one, out at none), a buyback (someone out before `before` is back in from the next
    *  episode with one life, `cost` points off their total, `times` in a game), mulligans (the first n wrong picks forgiven). */
   | { by: "survive"; means: "staysIn" | "scores"; points: number; lives?: number; buyback?: PoolBuyback; mulligans?: number }
@@ -417,6 +427,9 @@ export interface AnswerFacts {
   bot?: Map<string, unknown>;
   /** A14 part 2: every window the bot has made its call on that the game still asks, locked or not (nothing of what it said). */
   botCalled?: Set<string>;
+  /** A14 part 7: each outside number stored for the game's season, by episode and key (outsideKey): the server's
+   *  (outside-numbers.ts outsideNumbersFor). A key with none stored, or no map at all, an outside number waits. */
+  outside?: Map<number, Record<string, OutsideOutcome>>;
 }
 /** A13: one question of a round's trivia key (trivia_questions, live and not pulled): what the grader reads (id, answer) and what
  *  the round shows (the rest). */
@@ -540,10 +553,16 @@ export interface GameSpec {
 
 /** C7: a game's card each episode. */
 export interface SpecCard {
-  /** moments: the show's own, the list in turn (Weekly Calls' rotation); bot (part 2): the bot ranks them before each episode. */
-  from?: "moments" | "bot";
-  /** Part 2, a card the bot chooses: an episode it hasn't chosen by the time the card's out plays the list in turn (spec) or is void. */
+  /** moments: the show's own, the list in turn (Weekly Calls' rotation); bot (part 2): the bot ranks them before each episode; host
+   *  (A14 part 6): a different one of the players writes it each episode, from them. */
+  from?: "moments" | "bot" | "host";
+  /** Part 2, a card the bot chooses: an episode it hasn't chosen by the time the card's out plays the list in turn (spec) or is void.
+   *  A14 part 6, a card a host writes: the lines the host hasn't written by then are the list's next in turn (spec), or none (void). */
   fallback?: "spec" | "void";
+  /** A14 part 6, a card a host writes: the host has until this many hours before the episode airs (1 to MAX_HOST_HOURS; 12). */
+  closes?: number;
+  /** A14 part 6, a card a host writes: the host answers their own questions too (true, the default) or sits them out. */
+  hostAnswers?: boolean;
   /** Its lines each episode, 1 to MAX_CARD. */
   each: number;
   /** The show's moments it's drawn from, 1 to MAX_ONLY, at least `each`. */
@@ -650,8 +669,13 @@ export interface SpecContext {
   grouped?: boolean;
   /** false when no jury decides the finale: no jury vote split (A8). */
   jury?: boolean;
+  /** A14 part 3: false when nobody on the show is voted out by the others' votes: no bounty. */
+  votes?: boolean;
   /** A13: false when the season's research writes no trivia (its trivia run off): no trivia question. Left out: it's written. */
   trivia?: boolean;
+  /** A14 part 7: whether the season is linked to its TVmaze listing (an outside number, an episode's rating, needs it). Left out:
+   *  not checked. */
+  tvmaze?: boolean;
   /** A13 part 2: what research returned of each episode fact on the show (the season tapes' measure and the show's stored
    *  episodes: episode-facts.ts factContext): a question it settles only at the bar (episode-facts.js ratingOf). Left out: not
    *  checked. */
@@ -723,6 +747,22 @@ export function draftQuestions(spec: Partial<GameSpec> | null | undefined): Ques
 /** C3: every multiplier a spec has, as one piece keyed by a condition; the most in a list for the Nth, and its defaults. */
 export function multipliersOf(spec: Partial<GameSpec> | null | undefined): SpecFactor[];
 export const MAX_JOINED: number;
+/** A14 part 3: a bounty's most points, its defaults, and a spec's with them filled in (null for none). */
+export const MAX_BOUNTY: number;
+export const BOUNTY: { on: "votedOut" };
+export function bountyOf(spec: Partial<GameSpec> | null | undefined): Required<SpecBounty> | null;
+/** A14 part 4: secret roles' limits, their defaults, and a spec's with them filled in (null for none). */
+export const MAX_ROLE_SEATS: number;
+export const MAX_ROLE_POINTS: number;
+export const MAX_ROLE_NAME: number;
+export const ROLES: { count: 1; name: "Traitor"; on: "out"; deal: "random"; reveal: "end"; mates: true };
+export function rolesOf(spec: Partial<GameSpec> | null | undefined): Required<SpecRoles> | null;
+/** A14 part 5: the top scorer's twist's limits, its defaults, and a spec's with them filled in (null for none). */
+export const MAX_TWISTS: number;
+export const MAX_TWIST_NAME: number;
+export const MAX_TWIST_HOURS: number;
+export const TWIST: { who: "top"; by: "episode"; closes: 12; fallback: "none" };
+export function twistOf(spec: Partial<GameSpec> | null | undefined): (Required<Omit<SpecTwist, "of">> & { of: SpecTwistOption[] }) | null;
 export const JOINED: { per: "team"; then: "repeat" };
 export function draftPlayable(q: SpecQuestion): boolean;
 /** The answers that name someone (a person) or something (a group), `pick` of them (A6). */
@@ -736,6 +776,12 @@ export function isCalls(q: unknown): boolean;
 export function isTrivia(q: unknown): boolean;
 /** A13 part 2: a question an episode fact settles. */
 export function isFact(q: unknown): boolean;
+/** A14 part 7: an outside number, as the grader reads it (facts.outside): stored, void (why), or not read yet. */
+export type OutsideOutcome = { state: "value"; value: number } | { state: "none"; why: string } | { state: "pending" };
+export function isOutside(q: unknown): boolean;
+export const OUTSIDE: { source: "tvmaze"; after: number };
+export const MAX_OUTSIDE_DAYS: number;
+export function outsideKey(settle: unknown): string;
 /** A14 part 1: a question the players' own answers settle. */
 export function isPlayers(q: unknown): boolean;
 /** A14 part 1: a question the players settle, its default on a tie. */
@@ -749,7 +795,7 @@ export const BEATS: readonly SpecQuestion["answer"][];
 export function callsAsk(ask: unknown): boolean;
 export function fullQuestion(q: SpecQuestion): Question;
 /** A choice option as the range a count falls in ("2", "3+", "0-1"), else null. */
-export function optionRange(o: string): { min: number; max: number } | null;
+export function optionRange(o: string, decimals?: boolean): { min: number; max: number } | null;
 export const MAX_QUESTIONS: number;
 export const MAX_PICK: number;
 export const MAX_QUESTION_POINTS: number;
@@ -1019,7 +1065,7 @@ export const CARD: { from: "moments"; fallback: "spec" };
 export const CARD_TAKES: string[];
 export const CARD_ANSWERS: string[];
 export function drawInTurn<T>(list: T[], each: number, episode: number): T[];
-export function cardOf(s: unknown): { from: string; each: number; of: string[]; fallback?: string } | null;
+export function cardOf(s: unknown): { from: string; each: number; of: string[]; fallback?: string; closes?: number; hostAnswers?: boolean } | null;
 /** C7: a card's lines for an episode; part 2, a card the bot chooses reads the episode's choice, and is null while it isn't out. */
 export function cardLines(card: { from?: string; of: string[]; each: number; fallback?: string } | null, episode: number, choice?: CardChoice | null): string[] | null;
 export function isCardQuestion(q: unknown): boolean;
@@ -1029,6 +1075,15 @@ export function cardMoment(q: Question, episode: number, choice?: CardChoice | n
 export function cardWaiting(q: Question, episode: number, choice?: CardChoice | null): boolean;
 /** C7 part 2: a card the bot chooses. */
 export function botCard(card: unknown): boolean;
+/** A14 part 6: a card a host writes (a different one of the players each episode). */
+export function hostCard(card: unknown): boolean;
+/** A14 part 6: a card chosen before each episode, by the bot or a host (its lines read the episode's stamp). */
+export function chosenCard(card: unknown): boolean;
+/** A14 part 6: a host's lines as written, those on the list, none twice, `each` at most. */
+export function hostLines(of: string[], each: number, choice: CardChoice): string[];
+/** A14 part 6: a card a host writes: the most hours before its episode the host has, and its defaults. */
+export const MAX_HOST_HOURS: number;
+export const HOST_CARD: { closes: number; hostAnswers: boolean };
 /** C7 part 2: `each` of `of` for an episode as the bot ranked the season's moments. */
 export function rankedLines(of: string[], each: number, episode: number, choice: CardChoice): string[];
 /** C7 part 2: how many hours before its episode airs a card the bot chooses is out. */
@@ -1037,7 +1092,7 @@ export const CARD_OUT_HOURS: number;
 export const CARD_FALLBACK: CardChoice;
 /** C7 part 2: an episode's stamp for a card the bot chooses (episode.cardChoice): the bot's ranking of the season's moments, or the
  *  card's fallback once it came out without one. */
-export type CardChoice = { moments?: string[]; cannot?: string[]; fallback?: true };
+export type CardChoice = { moments?: string[]; cannot?: string[]; fallback?: true; host?: string | null; how?: "host" | "fallback" };
 export function onlyCard(score: unknown): boolean;
 export function onlyAt(s: unknown, episode?: number, choice?: CardChoice | null): string[] | undefined;
 export function askOf(s: unknown): Question[];

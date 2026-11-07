@@ -279,6 +279,10 @@ function readSpec(st, copy) {
     const score = st.reverseOrder === true ? { by: 'place', reverse: true } : { by: 'place' };
     // C3: a multiplier on how a holding joined (settings.joinedTimes, as the spec says it).
     if (Array.isArray(st.joinedTimes) && st.joinedTimes.length) score.multiply = copy ? clone(st.joinedTimes) : st.joinedTimes;
+    // A14 part 3: a bounty (settings.bounty, as the spec says it).
+    if (isObj(st.bounty)) score.bounty = copy ? clone(st.bounty) : st.bounty;
+    // A14 part 4: secret roles (settings.secretRoles, as the spec says them).
+    if (isObj(st.secretRoles)) score.roles = copy ? clone(st.secretRoles) : st.secretRoles;
     Object.assign(spec, { get: drafted(st.teamSize), count: { all: true }, score, rank: draftRankOf(st, false, copy) });
   } else if (type === 'active-roster') {
     const start = st.activeSlots || 0;
@@ -291,6 +295,10 @@ function readSpec(st, copy) {
     if (typeof st.captainTimes === 'number' && Number.isFinite(st.captainTimes) && st.captainTimes > 1) score.captain = { times: st.captainTimes };
     if (Array.isArray(st.pointsTimes) && st.pointsTimes.length) score.times = copy ? clone(st.pointsTimes) : st.pointsTimes;
     if (!stats && Array.isArray(st.joinedTimes) && st.joinedTimes.length) score.multiply = copy ? clone(st.joinedTimes) : st.joinedTimes;
+    if (isObj(st.bounty)) score.bounty = copy ? clone(st.bounty) : st.bounty;
+    if (isObj(st.secretRoles)) score.roles = copy ? clone(st.secretRoles) : st.secretRoles;
+    // A14 part 5: the top scorer's twist (settings.twist, as the spec says it).
+    if (isObj(st.twist)) score.twist = copy ? clone(st.twist) : st.twist;
     if (!stats) countsOf(st, score, copy);
     // A10 part 1: group slots beside the draft (settings.groupSlots, as the spec says them).
     const get = drafted(R);
@@ -314,6 +322,7 @@ function readSpec(st, copy) {
       : { by: 'survive', means: st.poolSurvive === 'scores' ? 'scores' : 'staysIn', points: typeof st.pickemCorrectPoints === 'number' ? st.pickemCorrectPoints : 1 };
     if (moments) {
       if (Array.isArray(st.pointsTimes) && st.pointsTimes.length) score.times = copy ? clone(st.pointsTimes) : st.pointsTimes;
+      if (isObj(st.twist)) score.twist = copy ? clone(st.twist) : st.twist;
       countsOf(st, score, copy);
     }
     if (Number.isInteger(st.poolLives) && st.poolLives >= 1) score.lives = st.poolLives;
@@ -604,6 +613,12 @@ function settingsOf(spec) {
   out.reverseOrder = type === 'classic-draft' && s.score.reverse === true ? true : undefined;
   // C3: a draft's multiplier on how a holding joined (an Outlast's or a lineup's).
   out.joinedTimes = (type === 'classic-draft' || lineup) && Array.isArray(s.score.multiply) ? clone(s.score.multiply) : undefined;
+  // A14 part 3: a draft's bounty (an Outlast's or a lineup's).
+  out.bounty = (type === 'classic-draft' || lineup) && isObj(s.score.bounty) ? clone(s.score.bounty) : undefined;
+  // A14 part 4: a draft's secret roles (an Outlast's or a lineup's).
+  out.secretRoles = (type === 'classic-draft' || lineup) && isObj(s.score.roles) ? clone(s.score.roles) : undefined;
+  // A14 part 5: the top scorer's twist (a lineup's, best ball's or a pick's scored by moments).
+  out.twist = (lineup || pickMoments) && isObj(s.score.twist) ? clone(s.score.twist) : undefined;
   // A10 part 1: a lineup's or best ball's group slots.
   out.groupSlots = lineup && isObj(s.get.groups) ? clone(s.get.groups) : undefined;
   // A10 part 3: a draw, and a draft spread across the cast's groups.
@@ -673,7 +688,7 @@ const PARTS = [
   // A12 part 2: how a game a format change moves takes the change.
   { fields: ['formatChanges'], read: (s) => (Array.isArray(s.stages) && isObj(s.extras) ? s.extras.changes || null : null) },
   { fields: ['ownershipMode', 'teamSize', 'activeSlots', 'benchSlots', 'bestBall', 'countAll', 'groupSlots', 'poolSecond', 'poolRepeat', 'poolFallback', 'poolEach', 'draftDraw', 'draftAcross', 'draftAuction', 'draftBudget', 'draftKeep', 'squaresGet'], read: (s) => [s.get, s.count] },
-  { fields: ['eventPoints', 'statScoring', 'pickemCorrectPoints', 'poolSurvive', 'parlays', 'linePoints', 'captainTimes', 'pointsTimes', 'joinedTimes', 'reverseOrder', 'poolScore', 'scoreOnly', 'scoreHits', 'poolLives', 'poolBuyback', 'poolMulligans', 'questionsLives', 'questionsLivesOn', 'questionsSaves', 'questionsBank', 'squaresScore'], read: (s) => s.score },
+  { fields: ['eventPoints', 'statScoring', 'pickemCorrectPoints', 'poolSurvive', 'parlays', 'linePoints', 'captainTimes', 'pointsTimes', 'joinedTimes', 'bounty', 'secretRoles', 'twist', 'reverseOrder', 'poolScore', 'scoreOnly', 'scoreHits', 'poolLives', 'poolBuyback', 'poolMulligans', 'questionsLives', 'questionsLivesOn', 'questionsSaves', 'questionsBank', 'squaresScore'], read: (s) => s.score },
   { fields: ['poolRank', 'draftRank', 'draftRace', 'draftCut', 'rankOneLeft', 'rankAllOut', 'questionsRank', 'questionsRace', 'questionsCut', 'rankMatchups', 'rankTies', 'rankTeams', 'rankHandicap'], read: (s) => s.rank },
   { fields: ['allowLateJoiners', 'joinMode'], read: (s) => s.extras.join },
   { fields: ['lockedDown'], read: (s) => s.extras.lockedDown },

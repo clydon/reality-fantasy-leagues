@@ -37,7 +37,7 @@ function draftTurn(state: LeagueState) {
  * 2e: a squares game's deal at its first lock, and each locked episode's digits, kept the same way as a draw's teams.
  */
 export async function readyLeague(leagueId: string, state: LeagueState): Promise<LeagueState> {
-  await stampAirTimes(pool, state);
+  await stampAirTimes(pool, state, leagueId);
   const waiverStepDue = !!StateLogic.WaiverLogic.due(state, Date.now());
   // A draw whose scheduled time has come (step A10 part 3): withLeagueLock draws it.
   const drawDue = StateLogic.DrawLogic.due(state);
@@ -51,6 +51,6 @@ export async function readyLeague(leagueId: string, state: LeagueState): Promise
   const before = draftTurn(state);
   const next = await withLeagueLock(leagueId, () => {});
   if (draftTurn(next) !== before) notifyDraftTurn(leagueId, next, null);
-  await stampAirTimes(pool, next);
+  await stampAirTimes(pool, next, leagueId);
   return stampStats(next);
 }

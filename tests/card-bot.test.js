@@ -75,9 +75,9 @@ test("its shape, settings both ways and words", () => {
   assert.deepEqual(problems(questions([SHEET])), []);
   assert.deepEqual(problems(questions([SHEET], { ...BOT, fallback: "void" })), []);
   assert.deepEqual(problems(objectives({ ...BOT, each: 1 })), []);
-  assert.deepEqual(problems(questions([SHEET], { ...BOT, from: "maker" })), ["card.from: A card is drawn from the show's moments in turn (from 'moments'), or chosen from them by the bot before each episode (from 'bot')"]);
+  assert.deepEqual(problems(questions([SHEET], { ...BOT, from: "maker" })), ["card.from: A card is drawn from the show's moments in turn (from 'moments'), chosen from them by the bot before each episode (from 'bot'), or chosen from them by a host, a different one of you each episode (from 'host')"]);
   assert.deepEqual(problems(questions([SHEET], { ...BOT, fallback: "skip" })), ["card.fallback: When the bot hasn't chosen in time, the card is the list's next lines in turn ('spec') or that episode's card is void ('void')"]);
-  assert.deepEqual(problems(questions([SHEET], { each: 2, of: MOMENTS, fallback: "void" })), ["card.fallback: Only a card the bot chooses falls back: leave fallback out"]);
+  assert.deepEqual(problems(questions([SHEET], { each: 2, of: MOMENTS, fallback: "void" })), ["card.fallback: Only a card the bot or a host chooses falls back: leave fallback out"]);
   // The data-can-settle rule holds for the bot's list as for any card's.
   assert.deepEqual(problems(questions([SHEET], { ...BOT, of: ["idolFound", "nope"] })), ["card.of[1]: \"nope\" isn't one of the show's moments"]);
   // fullSpec says the fallback; the settings carry it both ways.

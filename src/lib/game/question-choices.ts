@@ -53,7 +53,26 @@ export function contextOf(book: CallBook): SpecContext {
     group: blocks.cast?.groups?.singular ?? undefined,
     // A8: whether a jury decides the finale (a jury vote split).
     jury: blocks.season?.finale?.decidedBy === "juryVote",
+    // A14 part 3: whether research says who voted for whom at a vote that sends someone home, for a bounty.
+    votes: votesSomeoneOut(blocks),
   };
+}
+
+/**
+ * A14 part 3: whether the rules have research say who voted for whom at a cast's vote that sends someone home, as the compiled rules
+ * read it (rulebook-compile.js: a vote built-in for the segment, which needs a way out it causes and either its majority's two
+ * moments or the show's secret roles to score the votes by): so a bounty our check accepts is one the engine can pay.
+ */
+function votesSomeoneOut(blocks: CallBook["blocks"]): boolean {
+  const on = new Set(momentsFor(blocks).filter((m) => !m.off).map((m) => m.id));
+  const roles = (blocks.twists ?? []).some((t) => t.type === "secretRole");
+  return (blocks.segments ?? []).some(
+    (s) =>
+      s.decidedBy === "vote" &&
+      s.voters === "cast" &&
+      (blocks.waysOut ?? []).some((w) => !!w.cause && typeof w.cause === "object" && (w.cause as { segment?: string }).segment === s.id) &&
+      ((on.has(`${s.id}VotedWithMajority`) && on.has(`${s.id}VotedAgainstMajority`)) || roles)
+  );
 }
 
 /** How many of the show's moments it offers as yes-or-no questions. */

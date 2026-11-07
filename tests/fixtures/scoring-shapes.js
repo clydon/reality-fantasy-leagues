@@ -41,7 +41,17 @@
 // on the card staked from a bank with a ticket from its lines; w-pick-card in weekWonShapes, only the card's moments counting)
 // likewise, from C7's engine, proven by hand below and in tests/card.test.js; the 2,340 before them stay. C7 part 2's (a card the bot
 // chooses: q-card-bot and q-card-bot-void in outsideShapes, each episode's choice stamped on the league as the server stamps it)
-// likewise, from part 2's engine, proven by hand below and in tests/card-bot.test.js; the 2,376 before them stay:
+// likewise, from part 2's engine, proven by hand below and in tests/card-bot.test.js; the 2,376 before them stay. A14 part 3's (a
+// bounty: bountyShapes, each episode's record of who voted for whom stamped on the league as the server stamps it, VOTES) likewise,
+// from part 3's engine, proven by hand in tests/bounty.test.js; the 2,412 before them stay. A14 part 4's (secret roles: roleShapes,
+// the deal stamped on the league once revealed as the server stamps it, o.roles) likewise, from part 4's engine, proven by hand in
+// tests/secret-roles.test.js; the 2,538 before them stay. A14 part 5's (the top scorer's twist: twistShapes, each episode's filed twist
+// stamped on the league as the server stamps it, o.twists) likewise, from part 5's engine, proven by hand in tests/twist.test.js; the
+// 2,628 before them stay. A14 part 6's (a rotating host's questions: q-card-host and q-card-host-void in outsideShapes, each episode's
+// card as the server files it, its host named, CARD.HOSTED) likewise, from part 6's engine, proven by hand in tests/host-card.test.js;
+// the 2,718 before them stay. A14 part 7's (a number from a vetted outside source: q-outside, q-outside-lives and q-outside-pot in
+// outsideShapes, each episode's TVmaze rating as the server stores it, SERVER.outside) likewise, from part 7's engine, proven by hand
+// in tests/outside-number.test.js; the 2,754 before them stay:
 //   node tests/fixtures/scoring-shapes.js --write [--ref=<git ref>]      the record, from this tree's engine (or the ref's)
 //   node tests/fixtures/scoring-shapes.js --print <shape> <seat|-> <mark|-|all> [--ref=<git ref>]   one read, in full
 //   node tests/fixtures/scoring-shapes.js --diff [<shape>] [--ref=d5222e68]   where this tree's reads part from the ref's (the
@@ -108,6 +118,80 @@ function shapes(G) {
     ...multiplyShapes(G, outlast, lineup),
     ...ownShapes(G, outlast, lineup),
     ...weekWonShapes(outlast, lineup),
+    ...bountyShapes(G, outlast, lineup),
+    ...roleShapes(G, outlast, lineup),
+    ...twistShapes(G, outlast, lineup),
+  ];
+}
+
+/**
+ * A14 part 5: the top scorer's twist (score.twist), on the same season, each episode's twist stamped as the server files it
+ * (o.twists: episode.twist). No engine before part 5 plays them (it refuses score.twist), so their reads are new (from part 5's
+ * engine): a lineup with its finale predictions, double points at 2, found an idol triple at 4 and a fallback with no twist at 6;
+ * shared best ball, half points at 3 and played an idol double at 6; head to head on a lineup, double points at 3 deciding its week;
+ * a lineup on its early results at 4 with that episode's twist; a pick each episode by what they do, the standings' leader choosing
+ * (double at 2, found an idol triple at 5) and weeks won.
+ */
+function twistShapes(G, outlast, lineup) {
+  const of = [
+    { id: "double", name: "Double points", times: 2 },
+    { id: "half", name: "Half points", times: 0.5 },
+    { id: "idol", name: "Idol hunt", moment: "idolFound", times: 3 },
+    { id: "played", name: "Idol frenzy", moment: "idolPlayed", times: 2 },
+  ];
+  const moments = (more = {}) => ({ by: "moments", points: null, twist: { of, ...more } });
+  const t = (id, by) => ({ id, by, how: id ? "chosen" : "fallback" });
+  const pick = { get: { by: "pick", each: 2 }, count: { pick: true }, score: moments({ by: "total" }), rank: { by: "weeks" } };
+  return [
+    ["t-lineup", lineup({ score: moments(), ask: FINALE(G) }), "exclusive", { twists: { 2: t("double", "ann"), 4: t("idol", "bo"), 6: t(null, null) } }],
+    ["t-best-ball-shared", lineup({ count: { best: 2 }, score: moments({ who: "bottom" }) }, { by: "draft", each: 3, order: "blind", own: "shared" }), "shared", { twists: { 3: t("half", "di"), 6: t("played", "cy") } }],
+    ["t-lineup-matchups", lineup({ score: moments(), rank: { by: "matchups" } }), "exclusive", { week: true, twists: { 3: t("double", "cy") } }],
+    ["t-lineup-early", lineup({ score: moments() }), "exclusive", { early: 4, twists: { 2: t("half", "bo"), 4: t("idol", "ann") } }],
+    ["t-pick-weeks", pick, null, { week: true, pick: true, more: true, twists: { 2: t("double", "ann"), 5: t("idol", "di") } }],
+  ];
+}
+
+/**
+ * A14 part 4: secret roles (score.roles), on the same season, the deal stamped as the server stamps it once the reveal's episode has
+ * results (o.roles: state.secretRoles), each seat's view at each mark trimming it off before then. No engine before part 4 plays them
+ * (it refuses score.roles), so their reads are new (from part 4's engine): an Outlast revealed at the end (the finale, 7) with its
+ * finale predictions and side bets, cy holding the role; one before it's revealed (no stamp: every read as a plain Outlast's); two
+ * roles on votedOut revealed after 3 in a shared Outlast (bo and di); a lineup (starters only) revealed after 4, its early results at
+ * 4; shared best ball revealed at the end.
+ */
+function roleShapes(G, outlast, lineup) {
+  const shared = { by: "draft", each: 3, order: "blind", own: "shared" };
+  const place = (roles) => ({ by: "place", roles });
+  const moments = (roles) => ({ by: "moments", points: null, roles });
+  return [
+    ["r-outlast", outlast({ score: place({ points: 2 }), ask: FINALE(G), extras: { bets: { points: 1 } } }), "exclusive", { roles: { at: 7, holders: ["cy"] } }],
+    ["r-outlast-hidden", outlast({ score: place({ points: 2 }) }), "exclusive"],
+    ["r-outlast-voted", outlast({ get: shared, score: place({ count: 2, points: 1.5, on: "votedOut", reveal: 3 }) }), "shared", { roles: { at: 3, holders: ["bo", "di"] } }],
+    ["r-lineup", lineup({ score: moments({ points: 1, reveal: 4 }) }), "exclusive", { roles: { at: 4, holders: ["ann"] }, early: 4 }],
+    ["r-best-ball-shared", lineup({ count: { best: 2 }, score: moments({ points: 2, count: 2 }) }, shared), "shared", { roles: { at: 7, holders: ["ann", "cy"] } }],
+  ];
+}
+
+/**
+ * A14 part 3: a bounty (score.bounty), on the same season with its records of who voted for whom (VOTES, o.votes): Episode 1's boot
+ * nobody holds (nothing moves), Episode 4's double boot not sure (void), 5's own-team vote and a medevac beside it, 6's pickup not
+ * held yet, the finale's two votes out. No engine before part 3 plays them (it refuses score.bounty), so their reads are new (from
+ * part 3's engine): an Outlast with its finale predictions and side bets, early results at the finale and a race; a shared Outlast;
+ * a lineup (starters only) and head to head on it; shared best ball.
+ */
+function bountyShapes(G, outlast, lineup) {
+  const B = { votes: VOTES };
+  const shared = { by: "draft", each: 3, order: "blind", own: "shared" };
+  const place = (points) => ({ by: "place", bounty: { points } });
+  const moments = (points) => ({ by: "moments", points: null, bounty: { points } });
+  return [
+    ["b-outlast", outlast({ score: place(2), ask: FINALE(G), extras: { bets: { points: 1 } } }), "exclusive", B],
+    ["b-outlast-early", outlast({ score: place(2) }), "exclusive", { ...B, early: 7 }],
+    ["b-outlast-race", outlast({ score: place(2), rank: { by: "total", race: { to: 30 } } }), "exclusive", { ...B, week: true }],
+    ["b-outlast-shared", outlast({ get: shared, score: place(1) }), "shared", B],
+    ["b-lineup", lineup({ score: moments(1.5), ask: FINALE(G) }), "exclusive", B],
+    ["b-lineup-matchups", lineup({ score: moments(1), rank: { by: "matchups" } }), "exclusive", { ...B, week: true }],
+    ["b-best-ball-shared", lineup({ count: { best: 2 }, score: moments(2) }, shared), "shared", B],
   ];
 }
 
@@ -306,6 +390,10 @@ const Q = {
   BET: { id: "bet", ask: "An idol found tonight?", answer: "yesNo", points: 1, asked: "each", wager: 5, settle: { by: "moment", moment: "idolFound", take: "happened" } },
   TRIVIA: { id: "trivia", ask: "Trivia about the episode before", answer: "trivia", points: 1, asked: "each", settle: { by: "trivia" } },
   QUOTE: { id: "quote", ask: "Who says the title quote?", answer: "person", points: 2, asked: "each", settle: { by: "fact", fact: "titleQuote", take: "who" } },
+  // A14 part 7: an episode's TVmaze rating, read 7 days after it airs: the closest, over or under 7.5, and a range.
+  RATING: { id: "rating", ask: "The episode's TVmaze rating?", answer: "number", points: 3, asked: "each", settle: { by: "outside", take: "rating" } },
+  RATING_OU: { id: "ratingou", ask: "Over or under 7.5 on TVmaze?", answer: "overUnder", line: 7.5, points: 1, asked: "each", settle: { by: "outside", take: "rating", source: "tvmaze", after: 7 } },
+  RATING_BAND: { id: "ratingband", ask: "Its TVmaze rating, roughly?", answer: "choice", options: ["0-6.9", "7-7.9", "8+"], points: 2, asked: "each", settle: { by: "outside", take: "rating" } },
   HERD: { id: "herd", ask: "Who goes home, as most of us say?", answer: "person", points: 2, asked: "each", settle: { by: "players", take: "majority" } },
   GUESS: { id: "guess", ask: "Who will most of us say goes home?", answer: "person", points: 3, asked: "each", settle: { by: "players", take: "majority", of: "boot" } },
   // C2 part 4a: a shrinking call that's shared.
@@ -339,6 +427,16 @@ const CARD = {
     "botsheet.1": { 1: { ann: "yes", bo: "no" }, 2: { ann: "no", cy: "yes" }, 3: { ann: "yes", di: "yes" } },
     "botsheet.2": { 1: { ann: "no", bo: "yes" }, 2: { ann: "no", cy: "no" }, 3: { ann: "yes", di: "no" } },
   },
+  // A14 part 6: the same four moments, chosen by a host, one of the seats in turn (the stamps as the server files them: HOSTED): ann
+  // one line (too few), bo nothing in time, cy two; each host answering their own card.
+  HOST: { from: "host", each: 2, of: ["individualImmunity", "idolPlayed", "idolFound", "tribeImmunity"] },
+  HOSTSHEET: { id: "hostsheet", ask: "The host's questions", answer: "yesNo", points: 1, asked: "each", card: true, settle: { by: "moment", take: "happened" } },
+  HOSTLINES: ["hostsheet.1", "hostsheet.2"].map((id) => ({ id })),
+  HOSTED: { 1: { moments: ["idolFound"], host: "ann", how: "host" }, 2: { fallback: true, host: "bo", how: "fallback" }, 3: { moments: ["tribeImmunity", "individualImmunity"], host: "cy", how: "host" } },
+  HOSTSAID: {
+    "hostsheet.1": { 1: { ann: "yes", bo: "no" }, 2: { bo: "yes", cy: "yes" }, 3: { cy: "no", di: "yes" } },
+    "hostsheet.2": { 1: { ann: "no", bo: "yes" }, 2: { bo: "no", cy: "no" }, 3: { cy: "yes", di: "no" } },
+  },
 };
 const STAKE = {
   POT: { ...BOOT, id: "stakepot", ask: "Who goes home? Stake up to 5, the pot split", points: 10, wager: 5, share: "split" },
@@ -366,6 +464,10 @@ const SAID = {
   many: { 2: { ann: 2, bo: 1, cy: 3, di: 0 }, 4: { ann: 0, bo: 1 }, 6: { ann: 1, cy: 1, di: 2 } },
   tribe: { 1: { ann: "t1", bo: "t2", cy: "t1" }, 2: { ann: "t2", di: "t1" } },
   winner: { 0: { ann: "c0", bo: "c4", cy: "c2", di: "c0" } },
+  // A14 part 7: guesses at each episode's TVmaze rating (SERVER.outside has what was read).
+  rating: { 1: { ann: 7.1, bo: 8, cy: 6.9, di: 7.6 }, 2: { ann: 8.2, bo: 8.4, cy: 7 }, 3: { ann: 7, bo: 9 }, 4: { ann: 6.5, bo: 7.5, cy: 7.4, di: 7.8 }, 5: { bo: 8, di: 8.1 }, 6: { ann: 7, cy: 8 } },
+  ratingou: { 1: { ann: "over", bo: "under", cy: "under" }, 2: { ann: "over", di: "under" }, 4: { ann: "under", bo: "over", cy: "under", di: "over" }, 5: { cy: "over" } },
+  ratingband: { 1: { ann: "7-7.9", bo: "8+" }, 2: { bo: "8+", cy: "7-7.9", di: "8+" }, 4: { ann: "0-6.9", di: "7-7.9" }, 5: { ann: "8+", bo: "7-7.9" } },
   only2: { 4: { ann: ["c6", "c9"], bo: ["c9", "c0"], cy: ["c4"] }, 5: { ann: ["c1"], di: ["c10", "c1"] }, 6: { ann: ["c11", "c8"], bo: ["c8", "c12"], di: ["c12", "c2"] } },
   chips: { 1: { ann: { c0: 6, c4: 4 }, bo: { c0: 10 }, cy: { c4: 10 } }, 3: { ann: { c2: 5, c0: 5 }, di: { c2: 3 } }, 5: { bo: { c4: 10 }, di: { c4: 1, c0: 9 } } },
   bet: { 1: { ann: { answer: "yes", stake: 3 }, bo: { answer: "no", stake: 5 }, cy: { answer: "yes", stake: 0 } }, 2: { ann: { answer: "no", stake: 2 }, bo: { answer: "yes", stake: 4 } }, 4: { cy: { answer: "yes", stake: 5 }, di: { answer: "no", stake: 1 } } },
@@ -407,6 +509,17 @@ const SERVER = {
       [4, { titleQuote: { state: "who", who: "c13", name: "C13" } }],
       [5, { titleQuote: { state: "who", who: "c2", name: "C2" } }],
       [6, { titleQuote: { state: "outside", name: "The host" } }],
+    ]),
+  }),
+  // A14 part 7: each episode's TVmaze rating as stored: Episode 1 7.0, 2 8.3, 3 none (void), 4 7.5 (right on the line), 5 8.0,
+  // 6 and 7 not read yet (waiting).
+  outside: () => ({
+    outside: new Map([
+      [1, { "tvmaze:rating:7": { state: "value", value: 7 } }],
+      [2, { "tvmaze:rating:7": { state: "value", value: 8.3 } }],
+      [3, { "tvmaze:rating:7": { state: "none", why: "TVmaze had no rating for it 7 days after it aired" } }],
+      [4, { "tvmaze:rating:7": { state: "value", value: 7.5 } }],
+      [5, { "tvmaze:rating:7": { state: "value", value: 8 } }],
     ]),
   }),
   bot: () => {
@@ -532,6 +645,14 @@ function outsideShapes() {
     // lines are off: ann 3, cy 0 (no engine before C7 part 2 plays them: their reads are new).
     shape("q-card-bot", game([CARD.BOTSHEET], {}, undefined, { card: CARD.BOT }), CARD.BOTLINES, { over: CARD.BOTSAID, o: { cardChoices: CARD.CHOICES } }),
     shape("q-card-bot-void", game([CARD.BOTSHEET], {}, undefined, { card: { ...CARD.BOT, fallback: "void" } }), CARD.BOTLINES, { over: CARD.BOTSAID, o: { cardChoices: CARD.CHOICES } }),
+    // A14 part 6: a card a host chooses; then its fallback void and each host sitting out their own card.
+    shape("q-card-host", game([CARD.HOSTSHEET], {}, undefined, { card: CARD.HOST }), CARD.HOSTLINES, { over: CARD.HOSTSAID, o: { cardChoices: CARD.HOSTED } }),
+    shape("q-card-host-void", game([CARD.HOSTSHEET], {}, undefined, { card: { ...CARD.HOST, fallback: "void", hostAnswers: false } }), CARD.HOSTLINES, { over: CARD.HOSTSAID, o: { cardChoices: CARD.HOSTED } }),
+    // A14 part 7: an episode's TVmaze rating, as a number, an over/under and a range (Episode 3 void, 6 and 7 waiting); then a
+    // life on it (one, the closest keeps it) and a pot of it split.
+    shape("q-outside", game([Q.RATING, Q.RATING_OU, Q.RATING_BAND]), [Q.RATING, Q.RATING_OU, Q.RATING_BAND], { extra: SERVER.outside }),
+    shape("q-outside-lives", game([Q.RATING_OU, BOOT], { lives: 1, livesOn: ["ratingou"] }, { by: "standing" }), [Q.RATING_OU, BOOT], { extra: SERVER.outside }),
+    shape("q-outside-pot", game([{ ...Q.RATING_BAND, share: "split" }]), [Q.RATING_BAND], { extra: SERVER.outside }),
     ["calls", { preset: "weekly-calls" }, null, { none: true, outside: { each: 1 } }],
     ["bingo", { preset: "weekly-bingo", score: { by: "lines", points: 2 } }, null, { none: true, outside: { each: 2 } }],
     ["stages-points", stages("points"), null, { none: true, stages: true }],
@@ -549,6 +670,18 @@ const EXITS = {
   5: [["c10", "Voted Out"], ["c1", "Medically Evacuated"]],
   6: [["c11", "Voted Out"], ["c12", "Quit"], ["c8", "Voted Out"]],
   7: [["c14", "Voted Out"], ["c7", "Voted Out"], ["c5", "Lost Fire-Making"], ["c4", "Lost Final Tribal (Jury Vote)", 2], ["c2", "Lost Final Tribal (Jury Vote)", 0], ["c0", "Sole Survivor", 5]],
+};
+// A14 part 3: each episode's record of who voted for whom (as vote-records.ts stamps it), for a bounty's shapes: 1, the boot nobody
+// holds; 2, bo's c3 by ann's c0 and c1, di's c9 and bo's own c4; 4, the double boot research isn't sure of; 5, di's c10 by ann's c2,
+// cy's c7 and di's own c11 (c1's medevac beside it, nobody's vote); 6, c11 and c8 (c14, cy's pickup after 6, not held yet); 7, the
+// finale's c14 and c7.
+const VOTES = {
+  1: { sure: true, votes: [["c0", "c13"], ["c4", "c13"], ["c7", "c13"], ["c13", "c0"]], out: ["c13"] },
+  2: { sure: true, votes: [["c0", "c3"], ["c1", "c3"], ["c9", "c3"], ["c4", "c3"], ["c3", "c9"]], out: ["c3"] },
+  4: { sure: false, why: "The votes research named don't add up to the count against who went home", votes: [["c2", "c6"], ["c5", "c9"]], out: ["c6", "c9"] },
+  5: { sure: true, votes: [["c2", "c10"], ["c7", "c10"], ["c11", "c10"], ["c10", "c2"]], out: ["c10"] },
+  6: { sure: true, votes: [["c0", "c11"], ["c4", "c11"], ["c5", "c8"], ["c7", "c8"], ["c14", "c8"]], out: ["c11", "c8"] },
+  7: { sure: true, votes: [["c0", "c14"], ["c2", "c7"], ["c4", "c7"], ["c5", "c14"]], out: ["c14", "c7"] },
 };
 const MOMENTS = {
   1: [["individualImmunity", "c0", 1.1], ["idolFound", "c4"], ["satOut", "c8"], ["rewardWin", "c5"], ["tribeImmunity", "c0"], ["tribeImmunity", "c1"], ["tribeImmunity", "c2"]],
@@ -687,7 +820,13 @@ function league(S, G, T, spec, own, o = {}) {
     if (o.early === n) ep.resultsStage = "early";
     // C7 part 2: a card the bot chooses, its choice for the episode as the server stamps it (card-choices.ts).
     if (o.cardChoices && o.cardChoices[n]) ep.cardChoice = JSON.parse(JSON.stringify(o.cardChoices[n]));
+    // A14 part 3: who voted for whom, as the server stamps it (vote-records.ts).
+    if (o.votes && o.votes[n]) ep.voteRecord = JSON.parse(JSON.stringify(o.votes[n]));
+    // A14 part 5: the twist filed for the episode, as the server stamps it (twists.ts).
+    if (o.twists && o.twists[n]) ep.twist = JSON.parse(JSON.stringify(o.twists[n]));
   }
+  // A14 part 4: secret roles once revealed, as the server stamps them (secret-roles.ts).
+  if (o.roles) s.secretRoles = JSON.parse(JSON.stringify(o.roles));
   s.finalePredictions = FINALE_PICKS.map((f) => JSON.parse(JSON.stringify(f)));
   if (o.stages) s.stageWalk = JSON.parse(JSON.stringify(STAGE_WALK));
   if (o.pairs) {
@@ -867,11 +1006,14 @@ function readAll(S, G, T, only, GV) {
 }
 const hash = (read) => crypto.createHash("sha1").update(read).digest("hex");
 
+// The record still plays the pieces built but off (built-off.js: A14 part 7's outside number, in q-outside, q-outside-lives and
+// q-outside-pot), in the engine's own game-spec and the copy game-view.ts loads through jiti.
+const { builtOn } = require("./built-off.js");
 function engine(root = path.join(__dirname, "..", "..")) {
   let gv = null;
   return {
     S: require(path.join(root, "src/lib/game/state-logic.js")),
-    G: require(path.join(root, "src/lib/game/game-spec/index.js")),
+    G: builtOn(require(path.join(root, "src/lib/game/game-spec/index.js"))),
     T: require(path.join(root, "src/lib/game/formats/format-timeline.js")),
     // Loaded when a read first needs it (C2 part 3: the Games tab's table).
     get GV() { return (gv = gv || gameView(root)); },
@@ -880,6 +1022,7 @@ function engine(root = path.join(__dirname, "..", "..")) {
 /** An engine's game-view.ts (the Games tab's table), through jiti, as the server and the tests load it. */
 function gameView(root = path.join(__dirname, "..", "..")) {
   const jiti = require("jiti")(__filename, { alias: { "@": path.join(root, "src") } });
+  builtOn(jiti(path.join(root, "src/lib/game/game-spec/index.js")));
   return jiti(path.join(root, "src/lib/game/game-view.ts"));
 }
 /** A git ref's engine (its src/lib/game, exported into a temp folder): { ...engine, done() } to take the folder out. */
