@@ -94,7 +94,8 @@ export interface QuestionView {
   ticket: { of: string[]; min: number; max: number; pays: number[] } | null;
   /** Step C7, a line of the game's card (a question on it, asked for each of its lines: `<id>.<n>`): the question it's from, and the
    *  moment it's about this window, in the league's rules' words; null for any other question. */
-  card: { from: string; moment: string; label: string } | null;
+  /** Step C7 part 2: `waiting`, a card the bot chooses that isn't out yet (its moment and label null till then). */
+  card: { from: string; moment: string | null; label: string | null; waiting?: true } | null;
   pairs: { key: string; faces: [QuestionFace, QuestionFace] }[] | null;
   /** A9: how its points combine. share: split (a pot split between everyone right) or only (only the only right one scores);
    *  rollover: a window nobody earns anything on carries its points into the next (`jackpot`: what's carried into this one, once
@@ -305,14 +306,20 @@ function ticketView(q: Question): QuestionView["ticket"] {
 }
 
 /** Step C7: a line of the game's card at a window: the question it's from and the moment it's about there (as the league's rules
- *  say it), or null for any other question (or a window with no line). */
-function cardView(state: LeagueState, q: Question, ep: number): QuestionView["card"] {
+ *  say it), or null for any other question (or a window with no line). Part 2: a card the bot chooses reads the window's choice
+ *  (facts.cardChoices: the league's stamp), and says it's waiting while it isn't out. */
+function cardView(state: LeagueState, q: Question, ep: number, facts: AnswerFacts): QuestionView["card"] {
   if (!Spec.isCardLine(q) || !q.card || q.card === true) return null;
-  const moment = Spec.cardMoment(q, ep);
+  const choice = facts.cardChoices?.get(ep);
+  if (Spec.cardWaiting(q, ep, choice)) return { from: q.card.from, moment: null, label: null, waiting: true };
+  const moment = Spec.cardMoment(q, ep, choice);
   if (!moment) return null;
   const label = (StateLogic.formatOf(state).events.find((e) => e.id === moment)?.label ?? moment).replace(/\.\s*$/, "");
   return { from: q.card.from, moment, label };
 }
+
+/** Step C7 part 2: why a line of a card the bot chooses can't be answered yet. */
+const CARD_NOT_OUT = `This episode's card isn't out yet. It's out by ${Spec.CARD_OUT_HOURS} hours before the episode airs: answer it then.`;
 
 /** The game's bank (step C6: score.bank), or null: beside one, every stake is drawn from it (Spec.drawsOnBank). */
 const bankOf = (state: LeagueState) => Spec.bankOf(StateLogic.gameOf(state));
@@ -449,10 +456,10 @@ async function readQuestions(r: Read, episodeIn?: unknown): Promise<GameQuestion
     }
     const triviaOff = round && !round.length ? (v?.state === "off" ? v.why : "No trivia questions for this round yet") : null;
     // Step C7: a line of the card says its moment this window, its words the line's own ("This week's sheet: Found an idol").
-    const line = cardView(view, q, ep);
+    const line = cardView(view, q, ep, r.facts);
     const view1: QuestionView = {
       id: q.id,
-      ask: line ? `${q.ask}: ${line.label}` : q.ask,
+      ask: line?.label ? `${q.ask}: ${line.label}` : q.ask,
       answer: q.answer,
       settle: q.settle,
       points: q.points,
@@ -615,6 +622,8 @@ export async function answerQuestions(user: SessionUser, seasonId: string, leagu
       throw new HttpError(409, at === null ? `"${q.ask}" is closed` : `"${q.ask}" closed when Episode ${at} started`);
     }
     if (value !== null) {
+      // Step C7 part 2: a line of a card the bot chooses waits for its card (its moment isn't known till then).
+      if (Spec.cardWaiting(q, ep, r.facts.cardChoices?.get(ep))) throw new HttpError(409, CARD_NOT_OUT);
       const seen = needsSeen(r, q, ep);
       if (seen !== null && mark < seen) throw new HttpError(403, Spec.isTrivia(q) ? `See Episode ${seen} first: the round is about it` : `See Episode ${seen} first: it says who's still in`);
       // Who it can name (still in, your team, a group); for a pairs question, each pair's "index:id" (A8); a trivia round (A13), each

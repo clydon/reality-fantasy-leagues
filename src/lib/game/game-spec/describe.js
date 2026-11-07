@@ -18,7 +18,7 @@
 //
 // Pure CommonJS, like ./schema.js.
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
-const { PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, spanEnd, spanEndPhase, playsAs, callsAsk, finaleIn, draftQuestions, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion, matchupParts, categoryParts, squaresParts, ordinalWord, questionsGame, poolByPoints, teamParts, handicapParts, stageOn, ON_CHANGE, nextStageAts, fallsTo, stageSide, mainCount, stageAlongside, stageSeason, seasonKey, isPlayers, isBeat, waiverOwnOf, waiverMoves, weekParts, momentsPick, bankOf, isTicket, ticketOf, cardOf, isCardQuestion, onlyCard, questionLines, lifeRides, askOf: linesOf } = require('./schema.js');
+const { CARD_OUT_HOURS, PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, spanEnd, spanEndPhase, playsAs, callsAsk, finaleIn, draftQuestions, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion, matchupParts, categoryParts, squaresParts, ordinalWord, questionsGame, poolByPoints, teamParts, handicapParts, stageOn, ON_CHANGE, nextStageAts, fallsTo, stageSide, mainCount, stageAlongside, stageSeason, seasonKey, isPlayers, isBeat, waiverOwnOf, waiverMoves, weekParts, momentsPick, bankOf, isTicket, ticketOf, cardOf, isCardQuestion, onlyCard, questionLines, lifeRides, askOf: linesOf } = require('./schema.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const NUMBER_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
@@ -196,6 +196,13 @@ function cardPhrase(q, c) {
 function cardSentence(c, w) {
   const list = c.of.map(momentWord(w));
   if (c.each >= c.of.length) return `Each ${w.part}'s card: ${listOf(list)}.`;
+  // C7 part 2: a card the bot chooses (its words through impeccable's clarify, 2026-11-06).
+  if (c.from === 'bot') {
+    const late = c.fallback === 'void'
+      ? `that ${w.part} has no card: nothing scores for it either way`
+      : `it's the next ${say(c.each)} in turn`;
+    return `Each ${w.part}'s card is ${say(c.each)} of ${listOf(list)}, picked by the AI from what's in play that ${w.part}. It's out by ${CARD_OUT_HOURS} hours before the ${w.part} airs. If the AI hasn't picked by then, ${late}.`;
+  }
   return `Each ${w.part}'s card is the next ${say(c.each)} of ${listOf(list)}, in turn, so it's new each ${w.part}.`;
 }
 /** C7: the questions a ticket is built from, as the spec names them (a question on the card once, for all its lines). */

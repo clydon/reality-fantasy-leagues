@@ -223,8 +223,10 @@ const VOCAB = {
   // C5: a game scored by moments counting hits (each moment an objective, worth 1: momentWorth): every hit, each objective once
   // for each holding that hit it, or each objective once for you however many of yours hit it.
   'score.hits': { every: 'now', pick: 'now', objective: 'now' },
-  // C7: a new card each week, drawn from the show's moments in turn (the bot writing one is a later part).
-  'card.from': { moments: 'now' },
+  // C7: a new card each week, drawn from the show's moments in turn, or (part 2) chosen by the bot from them before each episode.
+  'card.from': { moments: 'now', bot: 'now' },
+  // C7 part 2: a card the bot chooses, in an episode it hasn't chosen by the time the card's out: the spec's list in turn, or void.
+  'card.fallback': { spec: 'now', void: 'now' },
   // L3 part 2b: a sport's day's or week's lock (each episode's own first start: the server's ep.locksAt), the engine's lock reading it.
   closes: { start: 'now', daily: 'now', weekly: 'now' },
   'pool.where': { stillIn: 'now', teams: 'sports', group: 'later' },
@@ -1302,11 +1304,21 @@ function ticketProblems(q, s) {
 // drawInTurn), so it's new each week, the same for everyone, and settled by data (each one a moment research answers: the
 // data-can-settle rule, settleProblems). Read by a question on the card (`card: true`: one question for each of its lines, the
 // line's moment settling it that episode: askOf) and by the moments that count each week (`score.only: 'card'`: onlyAt). Pure: a
-// card drawn from the spec's own list needs nothing stored (the bot writing one is a later part, with a table of its own).
+// card drawn from the spec's own list needs nothing stored.
+// C7 part 2, a card the bot chooses (`from: 'bot'`): before each episode the bot ranks the moments the season's cards are drawn from
+// (db/card-research.js: best first, and those that can't happen that episode), one ask for every game on the season, kept in a table
+// of its own (card_choices); the server stamps the choice that stood when the card came out on each of a league's episodes
+// (`episode.cardChoice`: src/lib/server/card-choices.ts, with the air times), and every card takes the first `each` of its own list
+// in that order (rankedLines). The card's out CARD_OUT_HOURS before its episode: the bot's choice made by then, else its fallback
+// (`{ fallback: true }` stamped: the spec's list in turn, or the week void); nothing stamped yet, it isn't out (its lines wait).
 /** C7: a card's most lines an episode. */
 const MAX_CARD = 12;
-/** C7: what a card leaves out: drawn from the show's moments. */
-const CARD = { from: 'moments' };
+/** C7: what a card leaves out: drawn from the show's moments; part 2, one the bot chooses falls back to the spec's list in turn. */
+const CARD = { from: 'moments', fallback: 'spec' };
+/** C7 part 2: how many hours before its episode airs a card the bot chooses is out (its choice made by then, else its fallback). */
+const CARD_OUT_HOURS = 12;
+/** C7 part 2: an episode whose card came out without the bot's choice (its stamp, and an episode with results that has none). */
+const CARD_FALLBACK = Object.freeze({ fallback: true });
 /** C7: how a question on the card settles each line (its moment, that episode), and the answers it takes. */
 const CARD_TAKES = ['happened', 'count', 'who', 'most'];
 const CARD_ANSWERS = ['yesNo', 'number', 'person', 'group'];
@@ -1316,54 +1328,99 @@ const CARD_ANSWERS = ['yesNo', 'number', 'person', 'group'];
  */
 function drawInTurn(list, each, episode) {
   if (!Array.isArray(list) || !list.length || !isInt(each, 1)) return [];
-  const want = Math.min(each, list.length);
-  const start = ((Math.max(1, isInt(episode, 1) ? episode : 1) - 1) * each) % list.length;
-  const out = [];
-  for (let i = 0; i < want; i++) out.push(list[(start + i) % list.length]);
-  return out;
+  return turnOf(list, each, episode).slice(0, Math.min(each, list.length));
 }
-/** C7: a spec's card, read the one way ({ from, each, of }, its defaults in), or null for a game without one. */
+/** C7: the whole list from where an episode's draw starts, round to its end (drawInTurn's first `each`; part 2's rankedLines fills
+ *  from it). */
+function turnOf(list, each, episode) {
+  const start = ((Math.max(1, isInt(episode, 1) ? episode : 1) - 1) * each) % list.length;
+  return [...list.slice(start), ...list.slice(0, start)];
+}
+/** C7: a spec's card, read the one way ({ from, each, of, fallback (part 2: a card the bot chooses) }, its defaults in), or null
+ *  for a game without one. */
 function cardOf(s) {
   if (!isObj(s) || !isObj(s.card)) return null;
   const c = s.card;
-  return { from: c.from === undefined ? CARD.from : c.from, each: c.each, of: Array.isArray(c.of) ? c.of : [] };
+  const from = c.from === undefined ? CARD.from : c.from;
+  return { from, each: c.each, of: Array.isArray(c.of) ? c.of : [], ...(from === 'bot' ? { fallback: c.fallback === undefined ? CARD.fallback : c.fallback } : {}) };
 }
-/** C7: a card's lines for an episode, its moments' ids in order (drawInTurn). */
-const cardLines = (card, episode) => (card ? drawInTurn(card.of, card.each, episode) : []);
+/** C7 part 2: a card the bot chooses. */
+const botCard = (card) => isObj(card) && card.from === 'bot';
+/**
+ * C7 part 2: `each` of `of` for an episode as the bot ranked the season's moments (`choice`: { moments: best first, cannot: those
+ * that can't happen then }): those of the list it ranked, in its order; then the rest of the list in turn from where the episode's
+ * draw starts (drawInTurn's place); those it says can't happen last. Always `each` (never more than the list has), none twice.
+ */
+function rankedLines(of, each, episode, choice) {
+  if (!Array.isArray(of) || !of.length || !isInt(each, 1)) return [];
+  const mine = new Set(of);
+  const cannot = new Set((Array.isArray(choice.cannot) ? choice.cannot : []).filter((id) => mine.has(id)));
+  const best = [...new Set((Array.isArray(choice.moments) ? choice.moments : []).filter((id) => mine.has(id) && !cannot.has(id)))];
+  const turn = turnOf(of, each, episode);
+  const taken = new Set(best);
+  const out = [...best, ...turn.filter((id) => !taken.has(id) && !cannot.has(id)), ...turn.filter((id) => cannot.has(id))];
+  return out.slice(0, Math.min(each, of.length));
+}
+/**
+ * C7: a card's lines for an episode, its moments' ids in order (drawInTurn). Part 2, a card the bot chooses: as its `choice` that
+ * episode says (the episode's stamp, `episode.cardChoice`: rankedLines), its fallback once the card came out without one (the
+ * spec's list in turn, or none: the week void), and null while it isn't out (nothing stamped: its lines wait).
+ */
+function cardLines(card, episode, choice) {
+  if (!card) return [];
+  if (!botCard(card)) return drawInTurn(card.of, card.each, episode);
+  if (!isObj(choice)) return null;
+  if (choice.fallback === true) return card.fallback === 'void' ? [] : drawInTurn(card.of, card.each, episode);
+  return rankedLines(card.of, card.each, episode, choice);
+}
 /** C7: a card's lines each episode as the spec says them, when that's 1 to MAX_CARD (else 0: nothing is drawn from it). */
 const cardEach = (c) => (isObj(c) && isInt(c.each, 1) && c.each <= MAX_CARD && Array.isArray(c.of) ? c.each : 0);
 /** C7: how many questions one question is an episode: a question on the card one for each of its lines (none drawn: one). */
 const questionLines = (q, s) => (isCardQuestion(q) && isObj(s) && cardEach(s.card) ? s.card.each : 1);
 /** C7: a question on the game's card (as the spec says it: one question for each of the card's lines). */
 const isCardQuestion = (q) => isObj(q) && q.card === true;
-/** C7: one line of the card, as askOf makes it: its card ({ of, each }), its line (from 0) and the question it's from. */
+/** C7: one line of the card, as askOf makes it: its card ({ of, each, by, fallback }), its line (from 0) and the question it's from. */
 const isCardLine = (q) => isObj(q) && isObj(q.card) && Number.isInteger(q.card.line);
-/** C7: the moment a line of the card is about at an episode (null for anything else, or an episode with no line there). */
-const cardMoment = (q, episode) => (isCardLine(q) ? cardLines(q.card, episode)[q.card.line] || null : null);
+/** C7 part 2: the card a line is on, as cardLines reads it (its `from` is the question it's from; `by`, how the card is drawn). */
+const lineCard = (q) => ({ from: q.card.by === undefined ? CARD.from : q.card.by, fallback: q.card.fallback, of: q.card.of, each: q.card.each });
+/** C7: the moment a line of the card is about at an episode (null for anything else, or an episode with no line there). Part 2:
+ *  `choice`, the episode's stamp for a card the bot chooses (none: not out yet, so no moment). */
+const cardMoment = (q, episode, choice) => {
+  if (!isCardLine(q)) return null;
+  const lines = cardLines(lineCard(q), episode, choice);
+  return (lines && lines[q.card.line]) || null;
+};
+/** C7 part 2: whether a line's card isn't out yet at an episode (a card the bot chooses, nothing stamped for it). */
+const cardWaiting = (q, episode, choice) => isCardLine(q) && cardLines(lineCard(q), episode, choice) === null;
 /** C7: a line's id, the question's own then its line's number from 1 ("sheet.2"). */
 const lineId = (id, k) => `${id}.${k}`;
 /** C7: whether only the card's moments count each week (score.only 'card'). */
 const onlyCard = (score) => isObj(score) && score.only === 'card';
 /**
  * C7: the moments that count in an episode where only some do (score.only): the card's that episode with 'card' (no episode: every
- * moment its list names), else the spec's own list; undefined where every moment counts.
+ * moment its list names), else the spec's own list; undefined where every moment counts. Part 2: `choice`, the episode's stamp for
+ * a card the bot chooses (none: not out, so nothing counts yet).
  */
-function onlyAt(s, episode) {
+function onlyAt(s, episode, choice) {
   const score = isObj(s) ? s.score : null;
   if (onlyCard(score)) {
     const card = cardOf(s);
     if (!card) return [];
     if (!isInt(episode, 1)) return card.of;
-    // Worked out once for each episode of a card (every moment of every seat asks it).
-    let byEp = drawn.get(s.card);
-    if (!byEp) drawn.set(s.card, (byEp = new Map()));
-    if (!byEp.has(episode)) byEp.set(episode, cardLines(card, episode));
+    // Worked out once for each episode of a card and choice (every moment of every seat asks it).
+    let byChoice = drawn.get(s.card);
+    if (!byChoice) drawn.set(s.card, (byChoice = new WeakMap()));
+    const key = isObj(choice) ? choice : NO_CHOICE;
+    let byEp = byChoice.get(key);
+    if (!byEp) byChoice.set(key, (byEp = new Map()));
+    if (!byEp.has(episode)) byEp.set(episode, cardLines(card, episode, choice) || []);
     return byEp.get(episode);
   }
   return isObj(score) && Array.isArray(score.only) ? score.only : undefined;
 }
 const asked = new WeakMap();
 const drawn = new WeakMap();
+const NO_CHOICE = {};
 /**
  * C7: a game's questions as they're answered and graded: each question on the card one for each of its lines (`<id>.1` to
  * `<id>.<each>`, each knowing its card and line: cardMoment), and a ticket built from one of them its lines, as legs; every other
@@ -1383,7 +1440,7 @@ function askOf(s) {
     const ids = [];
     for (let k = 1; k <= card.each; k++) {
       ids.push(lineId(q.id, k));
-      flat.push({ ...q, id: lineId(q.id, k), card: { of: card.of, each: card.each, line: k - 1, from: q.id } });
+      flat.push({ ...q, id: lineId(q.id, k), card: { of: card.of, each: card.each, line: k - 1, from: q.id, ...(botCard(card) ? { by: 'bot', fallback: card.fallback } : {}) } });
     }
     lines.set(q.id, ids);
   }
@@ -1410,7 +1467,13 @@ function cardProblems(s) {
   if (s.card === undefined) return out;
   const c = s.card;
   if (!isObj(c)) return [['card', "A card is { from: 'moments', each, of: [the show's moments] }"]];
-  if (own(VOCAB['card.from'], c.from === undefined ? CARD.from : c.from) === undefined) out.push(['card.from', "A card is drawn from the show's moments: from 'moments'"]);
+  const from = c.from === undefined ? CARD.from : c.from;
+  if (own(VOCAB['card.from'], from) === undefined) out.push(['card.from', "A card is drawn from the show's moments in turn (from 'moments'), or chosen from them by the bot before each episode (from 'bot')"]);
+  // C7 part 2: what a card the bot chooses does in an episode it hasn't chosen by the time the card's out.
+  if (c.fallback !== undefined) {
+    if (from !== 'bot') out.push(['card.fallback', "Only a card the bot chooses falls back: leave fallback out"]);
+    else if (own(VOCAB['card.fallback'], c.fallback) === undefined) out.push(['card.fallback', "When the bot hasn't chosen in time, the card is the list's next lines in turn ('spec') or that episode's card is void ('void')"]);
+  }
   if (!(isInt(c.each, 1) && c.each <= MAX_CARD)) out.push(['card.each', `A card has 1 to ${MAX_CARD} lines each episode`]);
   const list = c.of;
   if (!(Array.isArray(list) && list.length && list.length <= MAX_ONLY && list.every((id) => typeof id === 'string' && id))) out.push(['card.of', `A card is drawn from a list of 1 to ${MAX_ONLY} of the show's moments`]);
@@ -1627,8 +1690,9 @@ function fullSpec(spec) {
   }
   if (isObj(s.pool) && s.pool.where === undefined) s.pool.where = null;
   if (Array.isArray(s.ask)) s.ask = s.ask.map(fullQuestion);
-  // C7: a card says what it leaves out as the defaults (CARD).
+  // C7: a card says what it leaves out as the defaults (CARD); part 2, one the bot chooses its fallback.
   if (isObj(s.card) && s.card.from === undefined) s.card.from = CARD.from;
+  if (isObj(s.card) && s.card.from === 'bot' && s.card.fallback === undefined) s.card.fallback = CARD.fallback;
   const by = isObj(s.get) ? s.get.by : undefined;
   if (by === 'draft') {
     // A10 part 3: a draw is either ownership; said alone, nobody shares (DRAW_OWN). Part 3b: an auction is for castaways nobody
@@ -2723,7 +2787,7 @@ const isInstant = (v) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2
 const KEYS = {
   top: ['spec', 'preset', 'span', 'pool', 'get', 'count', 'score', 'rank', 'ask', 'closes', 'extras', 'stages', 'overall', 'card'],
   // C7: a new card each week.
-  card: ['from', 'each', 'of'],
+  card: ['from', 'each', 'of', 'fallback'],
   // A12 part 1: a stage of a game in stages, and its overall.
   stage: ['id', 'name', 'game', 'on', 'side', 'alongside', 'season'],
   overall: ['by', 'places'],
@@ -4260,7 +4324,7 @@ module.exports = {
   SQUARE_GRIDS, SQUARE_TAKES, SQUARE_EMPTY, SQUARE_UNREAD, SQUARES, MAX_SQUARE_PAYS, BRACKET_ROUNDS, squaresParts, ordinalWord,
   HANDICAP, MAX_HANDICAP, handicapParts,
   WEEKS, MAX_PICKS, MAX_ONLY, momentsPick, weekParts, momentWorth,
-  MAX_CARD, CARD, CARD_TAKES, CARD_ANSWERS, drawInTurn, cardOf, cardLines, cardEach, questionLines, isCardQuestion, isCardLine, cardMoment, onlyCard, onlyAt, askOf, linesAsked, lifeRides,
+  MAX_CARD, CARD, CARD_OUT_HOURS, CARD_FALLBACK, CARD_TAKES, CARD_ANSWERS, drawInTurn, cardOf, botCard, rankedLines, cardLines, cardWaiting, cardEach, questionLines, isCardQuestion, isCardLine, cardMoment, onlyCard, onlyAt, askOf, linesAsked, lifeRides,
   REPLACE_RULES, WINDOW_SCHEDULES, WAIVER_FEELS, WAIVER_ORDERS, WAIVER_HOURS, DRAFT_TIMERS, MAX_BET_POINTS, JOINS, ORDER_OF,
   MAX_TEAM, MAX_STARTERS, MAX_BENCH, MAX_LINEUP_TEAM, MAX_QUESTIONS, MAX_PICK, MAX_QUESTION_POINTS, MAX_OPTIONS, YES_NO,
   CALLS, finaleQuestions, finaleOf, finaleIn, draftQuestions, draftPlayable, isCalls, isTrivia, isFact, isPlayers, PLAYERS, isBeat, BEAT, BEATS, callsAsk, fullQuestion, optionRange, playable,

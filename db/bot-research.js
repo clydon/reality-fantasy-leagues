@@ -44,6 +44,12 @@
 // the desk's switch (app_settings 'tiebreak', off by default), across every season, and its runs are planned with the
 // rest, so the VM's clock is told when one comes due (nextRunAt) and calls only then.
 //
+// A card the bot chooses (docs/PLAN-start-a-game-gpt.md step C7 part 2, db/card-research.js): a game whose card the bot chooses
+// needs its choice before each episode, whatever the season's schedule says. It isn't any season's schedule either: each season
+// with such a game gets a card run for each episode coming (slot 'card'), due CardResearch.CARD_BEFORE minutes before it airs (no
+// sooner than CARD_AFTER_PREV after the one before it ends), three tries 20 minutes apart, and never once the card is out
+// (Spec.CARD_OUT_HOURS before the episode: the game plays its fallback then). An episode with a live choice already isn't asked.
+//
 // Results someone asked for (db/migrations/0152, src/lib/server/research-asks.ts): a show nobody plays a game on, whose
 // aired episodes have no results, gets each episode's full research when someone fills in what happened. It isn't any
 // season's schedule either: each asked episode is a job of its own (slot 'asked'), a season's one at a time in episode
@@ -60,6 +66,7 @@ const Trivia = require("./trivia-research.js");
 const Bingo = require("./bingo-research.js");
 const FactsRun = require("./facts-research.js");
 const FinalResults = require("../src/lib/game/final-results.js");
+const CardResearch = require("./card-research.js");
 
 const KINDS = ["quick", "full", "schedule", "trivia", "bingo", "facts"];
 // A tie-break's run rows (kind 'tiebreak', 0116) carry this slot.
@@ -116,9 +123,12 @@ const QUICK = { fastMs: 5 * MIN, fastForMs: 30 * MIN, slowMs: 15 * MIN, windowMs
 // full one is useful for days, and so is a tie-break.
 // Bingo's squares are worth writing until the episode airs (slots cuts a try off there), however early its run was set. An
 // episode's facts, for a day: a game's question waits for them only until the episode's final results.
-const STALE_MS = { quick: 12 * 60 * MIN, full: 3 * 24 * 60 * MIN, schedule: 3 * 24 * 60 * MIN, tiebreak: 3 * 24 * 60 * MIN, trivia: 2 * 24 * 60 * MIN, bingo: MAX_AFTER * MIN, facts: 24 * 60 * MIN };
+// A card run, until its card is out (cardNext cuts a try off there).
+const STALE_MS = { quick: 12 * 60 * MIN, full: 3 * 24 * 60 * MIN, schedule: 3 * 24 * 60 * MIN, tiebreak: 3 * 24 * 60 * MIN, trivia: 2 * 24 * 60 * MIN, bingo: MAX_AFTER * MIN, facts: 24 * 60 * MIN, card: MAX_AFTER * MIN };
 // A result disputed this long gets its tie-break run.
 const TIEBREAK_AFTER_MS = 24 * 60 * MIN;
+// A card run's rows (kind 'card', 0208) carry this slot.
+const CARD_SLOT = "card";
 // An asked episode's run rows (kind 'full') carry this slot: two tries, the second two minutes after the first failed.
 const ASKED_SLOT = "asked";
 const ASKED_TRIES = 2;
@@ -321,6 +331,94 @@ async function planTiebreaks(pool, now) {
     if (next === null || when < next) next = when;
   }
   return { due, next: next === null ? null : new Date(next) };
+}
+
+// ---------- a card the bot chooses ----------
+
+/**
+ * Each card run of a season still to come (C7 part 2): for every episode whose card isn't out yet at `now` (outAt) and isn't decided
+ * (`chosen`: the episodes with a choice or a fallback), due CARD_BEFORE minutes before it airs and no sooner than CARD_AFTER_PREV
+ * after the one before it ends (`airTimes`, `episodeMinutes` as slots reads them), unless that's too late for the card (episodes
+ * back to back: then CARD_BEFORE minutes before it, from what's known then), its next try (nextTryAt on its tries in `history`, slot
+ * 'card') before the card's out: [{ episode, slot, kind, at (when it was due), next }]. Pure.
+ */
+function cardNext({ airTimes, episodeMinutes = 0, history, chosen, now }) {
+  const out = [];
+  for (const { episode, at: airedAt } of airTimes) {
+    const cut = CardResearch.outAt(airedAt.getTime());
+    if (cut === null || cut <= now.getTime() || chosen.has(episode)) continue;
+    const prev = airTimes.find((e) => e.episode === episode - 1);
+    const after = prev ? prev.at.getTime() + ((prev.minutes ?? episodeMinutes) + CardResearch.CARD_AFTER_PREV) * MIN : -Infinity;
+    const early = airedAt.getTime() - CardResearch.CARD_BEFORE * MIN;
+    const due = Math.max(after, early) < cut ? Math.max(after, early) : early;
+    const next = nextTryAt("card", new Date(due), history.filter((h) => h.episode_number === episode && h.slot === CARD_SLOT));
+    if (!next || next.getTime() >= cut) continue;
+    out.push({ episode, slot: CARD_SLOT, kind: "card", at: new Date(due), next });
+  }
+  return out;
+}
+
+/** The card runs due now, across every season with a game whose card the bot chooses (or one season), and when the next comes
+ *  due: { due: [job], next }. */
+async function planCards(pool, now, seasonId = null) {
+  const due = [];
+  let next = null;
+  const ids = (await CardResearch.cardSeasons(pool)).filter((id) => !seasonId || id === seasonId);
+  for (const id of ids) {
+    const season = await loadSeasonForJob(pool, id);
+    if (!season) continue;
+    const [{ rows: history }, { rows: chosen }] = await Promise.all([
+      pool.query("SELECT episode_number, slot, started_at, ok FROM bot_research_runs WHERE season_id = $1 AND slot = $2", [id, CARD_SLOT]),
+      pool.query("SELECT DISTINCT episode FROM card_choices WHERE season_id = $1 AND status IN ('live', 'fallback')", [id]),
+    ]);
+    const runs = cardNext({ airTimes: episodeAirTimes(season), episodeMinutes: episodeMinutesOf(season), history, chosen: new Set(chosen.map((r) => r.episode)), now });
+    for (const r of runs) {
+      if (r.next <= now) due.push({ episode: r.episode, slot: r.slot, kind: r.kind, after: null, at: r.at, season });
+      const when = Math.max(r.next.getTime(), now.getTime());
+      if (next === null || when < next) next = when;
+    }
+  }
+  return { due, next: next === null ? null : new Date(next) };
+}
+
+/**
+ * A card run (runJob's, C7 part 2: db/card-research.js): the bot ranks the moments the season's cards are drawn from for episode
+ * `episode`, checked and filed in card_choices, live or dropped with why; dropped is a failed try, asked again. A scheduled run for
+ * an episode that has a live choice already leaves it be (a choice is never replaced), and a season with no such game left asks
+ * nothing.
+ */
+async function cardJob(pool, job, { ask, dry, runId, finish }) {
+  const { season, episode } = job;
+  if (job.slot && job.slot !== "now" && (await CardResearch.hasChoice(pool, season.id, episode))) {
+    return finish(true, `Episode ${episode}'s card: chosen already, left as it is`, { kept: true });
+  }
+  const moments = await CardResearch.momentsAsked(pool, season.id);
+  if (!moments.length) return finish(true, "No game on the season has a card the bot chooses: nothing to ask", { asked: [] });
+  const airedAt = Air.episodeAirTime(season.schedule, episode, season.wikiAirDates);
+  // Once the card's out it never changes (its fallback stands): a choice now would change what players have answered.
+  const cut = airedAt ? CardResearch.outAt(airedAt.getTime()) : null;
+  if (cut === null || Date.now() >= cut || (await CardResearch.hasChoice(pool, season.id, episode))) {
+    return finish(true, `Episode ${episode}'s card is out already: nothing to ask`, { out: true });
+  }
+  const { rows: show } = await pool.query("SELECT name, castaway_term FROM shows WHERE id = $1", [season.show_id]);
+  const term = show[0] && show[0].castaway_term ? `${show[0].castaway_term.toLowerCase()}s` : "cast members";
+  const prompt = CardResearch.buildCardPrompt({
+    showName: show[0] ? show[0].name : season.slug,
+    season: season.season_number,
+    episode,
+    airAt: airedAt ? Air.formatInTz(airedAt, season.air_tz) : null,
+    moments,
+    term,
+  });
+  const { answer } = await ask(prompt);
+  const ids = moments.map((m) => m.id);
+  const parsed = CardResearch.parseCardAnswer(answer, episode, ids);
+  const result = { asked: ids, ...parsed };
+  const line = parsed.status === "live" ? `Episode ${episode}'s card: ${parsed.moments.length} of ${ids.length} moment(s) ranked, ${parsed.cannot.length} can't happen` : `Episode ${episode}'s card: ${parsed.note}`;
+  if (dry) return finish(parsed.status === "live", `${line} (dry run: not filed)`, result);
+  // A check or a replay standing in for the bot says so (job.madeBy 'stand-in'): never production's.
+  await CardResearch.storeChoice(pool, season.id, episode, ids, parsed, { runId, madeBy: job.madeBy });
+  return finish(parsed.status === "live", line, result);
 }
 
 // ---------- results someone asked for ----------
@@ -713,6 +811,10 @@ async function planRuns(pool, { now = new Date(), seasonId } = {}) {
   const ties = await planTiebreaks(pool, now);
   for (const job of ties.due) if (!seasonId || job.season.id === seasonId) due.push(job);
   if (!seasonId && ties.next && (next === null || ties.next < next)) next = ties.next;
+  // C7 part 2: a card the bot chooses (any season with such a game, whatever its schedule).
+  const cards = await planCards(pool, now, seasonId);
+  due.push(...cards.due);
+  if (cards.next && (next === null || cards.next < next)) next = cards.next;
   // Results someone asked for (any season, whatever its schedule).
   const asks = await planAsks(pool, now, seasonId);
   due.push(...asks.due);
@@ -821,6 +923,7 @@ async function runJob(pool, job, { ask, send = null, dry = false } = {}) {
     }
     if (kind === "bingo") return await bingoJob(pool, job, { ask, dry, runId, started, finish });
     if (kind === "facts") return await factsJob(pool, job, { ask, dry, runId, finish });
+    if (kind === "card") return await cardJob(pool, job, { ask, dry, runId, finish });
     if (kind === "quick") {
       const ctx = await Research.resolveSeasonResearchContext(pool, season.slug, season.season_number, episode);
       const airedAt = Air.episodeAirTime(season.schedule, episode, season.wikiAirDates);
@@ -1008,6 +1111,9 @@ module.exports = {
   SEASON_BINGO_SLOT,
   ASKED_SLOT,
   ASKED_TRIES,
+  CARD_SLOT,
+  cardNext,
+  planCards,
   RUNNING_STALE_MS,
   askedNext,
   seasonAskNext,

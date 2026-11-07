@@ -4,6 +4,7 @@ import StateLogic from "@/lib/game/state-logic.js";
 import * as Air from "@/lib/game/air-schedule.js";
 import * as Spec from "@/lib/game/game-spec";
 import { locksOf, type Closes } from "@/lib/sports/locks";
+import { stampCardChoices } from "./card-choices";
 
 // Stamps each episode with when it airs (ep.airsAt), from the league's season schedule in the
 // catalog (show_seasons' premiere/air time/zone, overridden by the wiki's own per-episode dates --
@@ -17,6 +18,9 @@ import { locksOf, type Closes } from "@/lib/sports/locks";
 export async function stampAirTimes(db: Pool | PoolClient, state: LeagueState): Promise<void> {
   // Step A11 part 4: head to head's playoffs at the season's end read its length (stampSeasonLength, below).
   await stampSeasonLength(db, state);
+  // Step C7 part 2: a card the bot chooses, each episode's choice as it stood when the card came out (card-choices.ts), by the
+  // broadcast's clock, so a league at its own pace has it too.
+  await stampCardChoices(db, state);
   const clear = () => state.episodes.forEach((ep) => {
     delete ep.airsAt;
     delete ep.locksAt;
