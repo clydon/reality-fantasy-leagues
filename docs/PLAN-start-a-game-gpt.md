@@ -3701,6 +3701,9 @@ HOSTING.md updated).** L4 part 2's Noticed: a bracket question asked over a leag
   (the play-in's); the draw read twice, and the view's draw read past the viewer's mark (the grader's own, as of the mark); hockey's
   default under the NHL's own; a halfless "Conference Semifinals" read as the league's semifinals. Declined: a first round listed in
   part, below; nothing building a sport's ctx on the server yet, below).
+- **The long checks, last, on `32fcab3c`:** `golden.js --before=40d44783` (the step before): Survivor 49, The Challenge 40 and The
+  Traitors US 4, 74 games, 9,548 reads, every one the same. blind.js and the rehearsal not run: state-logic.js isn't touched, no
+  show's game asks a bracket of the playoffs, and every read is kept the same (golden alone). **L8 part 1's engine list is done.**
 
 **L8 part 1's engine items, part 2 noticed, not fixed:**
 - **A bye's team isn't in the draw at the lock**: MLB's four and the NFL's two top seeds first play in the second round, which ESPN
