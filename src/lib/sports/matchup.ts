@@ -19,6 +19,8 @@ export interface Game {
   stage: "pre" | "regular" | "post" | null;
   /** A note the provider puts on it ("World Series - Game 1"). */
   note?: string | null;
+  /** L3 part 3b: why it wasn't played as listed (postponed, canceled, suspended), or null. */
+  called?: "postponed" | "canceled" | "suspended" | null;
   competitors: {
     team: { id: string; name: string; also?: string[]; abbreviation?: string | null } | null;
     home: boolean | null;
@@ -201,6 +203,8 @@ export interface GameFacts {
   startsAt: string | null;
   state: "pre" | "in" | "post";
   final: boolean;
+  /** L3 part 3b: why it wasn't played as listed, or null. */
+  called: "postponed" | "canceled" | "suspended" | null;
   sides: Side[];
   odds: Odds | null;
 }
@@ -212,6 +216,7 @@ export function factsOf(g: Game): GameFacts {
     startsAt: g.at,
     state: g.state,
     final: g.final && g.state === "post",
+    called: g.called ?? null,
     sides: g.competitors
       .filter((c) => c.team)
       .map((c) => {

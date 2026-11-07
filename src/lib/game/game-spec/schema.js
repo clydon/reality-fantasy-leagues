@@ -547,13 +547,17 @@ const EACH_SETTLES_FOR = {
   choice: ['moment:happened', 'moment:count', 'results:out', 'results:stays'],
 };
 /** L3 part 2f part 2: a question asked of each game of the episode (each: 'game'), by its answer: who wins it, its total's or margin's
- *  range, or the closest to its total or margin. An over/under on each game needs each game's own line (the odds' when it opens: L3
- *  part 3b's), so it isn't one yet. */
+ *  range, or the closest to its total or margin. L3 part 3b: an over/under on each game's total, each game by its own line
+ *  (`line: LINE_GAME`). */
 const EACH_GAME_SETTLES_FOR = {
   side: ['final:winner'],
   choice: ['final:total', 'final:margin'],
   number: ['final:total', 'final:margin'],
+  overUnder: ['final:total'],
 };
+/** L3 part 3b: an over/under's line that's the game's own (the provider's over/under on its total), the latest read when the
+ *  question opens for answers in a league, kept then and never changed once anyone can answer (the server's: question_lines). */
+const LINE_GAME = 'game';
 /** The answers that name someone (a person) or something (a group), `pick` of them. */
 const NAMES = ['person', 'group'];
 /** The answers that rank people (A8), `pick` of them, up to MAX_ORDER (a whole cast's boot order). */
@@ -1512,6 +1516,7 @@ function eachGameProblems(q, settled, how) {
   else if (settled && !takes.includes(how)) out.push(['settle', `Each game's ${q.answer} is settled by ${takes.map((x) => x.replace(':', ' ')).join(', ')}`]);
   if (q.asked !== 'each' || windowed(q)) out.push(['asked', "Each game is the episode's: ask it each episode"]);
   if (q.closes !== 'start') out.push(['closes', 'Each game closes as it starts']);
+  if (q.answer === 'overUnder' && q.line !== LINE_GAME) out.push(['line', "Each game's over/under plays by its own line: line 'game'"]);
   if (isObj(q.settle) && q.settle.of !== undefined) out.push(['settle.of', 'Each game is its own: no of']);
   for (const k of ['share', 'rollover', 'shrink']) if (q[k] !== undefined) out.push([k, `A question about each game is a pick for each game, worth its own points: no ${k}`]);
   if (q.confidence !== undefined) {
@@ -2176,7 +2181,7 @@ function plainParts(s) {
 function playable(q) {
   if (!isObj(q) || isCalls(q) || !isObj(q.settle)) return false;
   if (own(VOCAB['ask.answer'], q.answer) !== 'now' || own(VOCAB['ask.settle'], q.settle.by) !== 'now') return false;
-  if (q.answer === 'overUnder' && !isNum(q.line)) return false;
+  if (q.answer === 'overUnder' && !isNum(q.line) && q.line !== LINE_GAME) return false;
   if (q.fallback !== undefined && own(VOCAB['ask.fallback'], q.fallback) !== 'now') return false;
   return !(q.answer === 'person' && q.from === 'team');
 }
@@ -2779,7 +2784,10 @@ function questionProblems(q, at, s, ids, league) {
     else if (q.from === 'team' && !(isObj(s.get) && s.get.by === 'draft')) add('from', 'Only a draft has teams to pick from');
   } else if (q.from !== undefined) add('from', 'Only a person answer picks from someone');
   if (q.answer === 'overUnder') {
-    if (q.line !== null && q.line !== undefined && !isNum(q.line)) add('line', 'The line is a number, or null (or left out) for the wizard to ask');
+    // L3 part 3b: the game's own line is its total's (the provider's over/under), one game's or each game's.
+    if (q.line === LINE_GAME) {
+      if (how !== 'final:total') add('line', "The game's own line is on its total: settle it by the game's final total");
+    } else if (q.line !== null && q.line !== undefined && !isNum(q.line)) add('line', "The line is a number, the game's own (game), or null (or left out) for the wizard to ask");
   } else if (q.line !== undefined) add('line', "Only an over/under has a line");
   // L4 part 2: a bracket, a draw's winners round by round (its draw named: `of`, the sport's key for it), its right picks worth the
   // same each round or doubling (rounds); one answer for the whole draw, its points each right pick's.
@@ -4122,7 +4130,7 @@ function specWaitsFor(spec) {
     if (step) need(`ask[${i}]`, step, `"${(q && q.ask) || q.id}"`);
   });
   // Said, but not all of it yet: an over/under with no line (ESPN's, or the wizard asks).
-  const lines = (Array.isArray(s.ask) ? s.ask : []).map((q, i) => [q, i]).filter(([q]) => isObj(q) && q.answer === 'overUnder' && !isNum(q.line));
+  const lines = (Array.isArray(s.ask) ? s.ask : []).map((q, i) => [q, i]).filter(([q]) => isObj(q) && q.answer === 'overUnder' && !isNum(q.line) && q.line !== LINE_GAME);
   const seen = new Set();
   const steps = out.filter((x) => !seen.has(`${x.at}|${x.step}`) && seen.add(`${x.at}|${x.step}`));
   steps.sort((a, b) => STEP_ORDER.indexOf(a.step) - STEP_ORDER.indexOf(b.step));
@@ -4382,7 +4390,7 @@ module.exports = {
   MAX_RACE, MAX_CUTS, MAX_CUT_OUT, CUT, CUT_AT, knockoutParts, DRAFT_END, POOL_END, ANSWERS_END, COOP, answerParts, livesQuestion, questionsGame, isPool, poolByPoints,
   MATCHUPS, MATCHUP_KEYS, MAX_PLAYOFF_TEAMS, playoffRounds, matchupParts, TEAMS, MAX_PLAYER_TEAMS, MAX_TEAM_NAME, teamParts,
   MAX_CATEGORIES, CATEGORY_RANKS, categoriesOf, categoryParts,
-  SQUARE_GRIDS, SQUARE_TAKES, SQUARE_EMPTY, SQUARE_UNREAD, SQUARES, MAX_SQUARE_PAYS, BRACKET_ROUNDS, squaresParts, ordinalWord,
+  LINE_GAME, SQUARE_GRIDS, SQUARE_TAKES, SQUARE_EMPTY, SQUARE_UNREAD, SQUARES, MAX_SQUARE_PAYS, BRACKET_ROUNDS, squaresParts, ordinalWord,
   HANDICAP, MAX_HANDICAP, handicapParts,
   WEEKS, MAX_PICKS, MAX_ONLY, momentsPick, weekParts, momentWorth,
   MAX_CARD, CARD, CARD_OUT_HOURS, CARD_FALLBACK, CARD_TAKES, CARD_ANSWERS, drawInTurn, cardOf, botCard, rankedLines, cardLines, cardWaiting, cardEach, questionLines, isCardQuestion, isCardLine, cardMoment, onlyCard, onlyAt, askOf, linesAsked, lifeRides,

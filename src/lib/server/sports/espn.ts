@@ -2,7 +2,7 @@ import { readOdds, type EspnOdds } from "@/lib/sports/matchup";
 // One copy of the sports' classes (the index's): `instanceof` reads them alike wherever they're imported from.
 import { FieldSport, LiveEvent, TeamSport, feedOf, idOf, sportOf, storedCard, storedField, storedGame, str, type BoutAnswer, type BoutSport, type EspnSummary, type EventFeed, type FieldAnswer, type Play, type StoredCard, type StoredField } from "@/lib/sports";
 import type { CalendarStage, CalendarWeek, LeagueCalendar } from "@/lib/sports/slate";
-import { SportsUnavailable, type LeagueName, type LeagueTeams, type BoxScore, type Competitor, type EventState, type Found, type League, type Person, type RosterPlayer, type SeasonLine, type SeasonStage, type SportsEvent, type SportsProvider, type StatTable, type Team } from "./types";
+import { SportsUnavailable, type LeagueName, type LeagueTeams, type BoxScore, type Called, type Competitor, type EventState, type Found, type League, type Person, type RosterPlayer, type SeasonLine, type SeasonStage, type SportsEvent, type SportsProvider, type StatTable, type Team } from "./types";
 
 // ESPN (docs/PLAN-sports-data.md, docs/HOSTING.md): free, no key, but unofficial and undocumented, with no stated rate limit or
 // terms, so it's asked little (every call is cached: cache.ts) and credited in Credits. Three hosts:
@@ -45,7 +45,7 @@ interface RawAthlete {
   jersey?: string;
 }
 interface RawStatus {
-  type?: { state?: string; completed?: boolean };
+  type?: { state?: string; completed?: boolean; name?: string };
 }
 interface RawCompetitor {
   homeAway?: string;
@@ -123,9 +123,17 @@ interface RawSummary {
 /** A league's id from ESPN's sport and league slugs. */
 export const leagueId = (sport: string, league: string) => `${sport}/${league}`;
 
-function stateOf(s: RawStatus | undefined): { state: EventState; final: boolean } {
+/** ESPN's status names for a game not played as listed (L3 part 3b: the Yankees' 2026, recorded: STATUS_POSTPONED and
+ *  STATUS_CANCELED, each over and not completed; a makeup is an event of its own). */
+const CALLED: Record<string, Called> = { STATUS_POSTPONED: "postponed", STATUS_CANCELED: "canceled", STATUS_CANCELLED: "canceled", STATUS_SUSPENDED: "suspended" };
+
+function stateOf(s: RawStatus | undefined): { state: EventState; final: boolean; called: Called | null } {
   const st = s?.type?.state;
-  return { state: st === "in" || st === "post" ? st : "pre", final: s?.type?.completed === true };
+  const called = CALLED[s?.type?.name ?? ""] ?? null;
+  // A suspended game is finished later as the same game (its event id kept): still being played, whatever ESPN's state says, so
+  // it's never read as called off.
+  if (called === "suspended") return { state: "in", final: false, called };
+  return { state: st === "in" || st === "post" ? st : "pre", final: s?.type?.completed === true, called: called && st === "post" && s?.type?.completed !== true ? called : null };
 }
 
 /**
@@ -215,6 +223,7 @@ export function readScoreboard(league: string, raw: { events?: RawEvent[]; leagu
       at: str(e.date) ?? str(comps[0]?.date),
       state: whole.state === "post" && partsOn ? "in" : whole.state,
       final: whole.final && !partsOn,
+      called: partsOn ? null : whole.called,
       season: Number.isInteger(e.season?.year) ? (e.season!.year as number) : null,
       stage: stageOf({ ...e.season, type: e.season?.type ?? e.seasonType?.type }),
       note: str(comps[0]?.notes?.[0]?.headline),

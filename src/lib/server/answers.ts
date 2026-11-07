@@ -17,6 +17,7 @@ import { gamesHere, type GameHere } from "./season-games";
 import { playedInSheet, triviaWritten } from "./trivia-key";
 import { factContextForSeason } from "./episode-facts";
 import { drawNow, sidesFor } from "./sports/score";
+import { keepLines } from "./question-lines";
 import { PLAYOFFS } from "@/lib/sports/playoffs";
 
 // A game's questions (docs/PLAN-start-a-game-gpt.md step A4; migration 0200 game_answers):
@@ -80,6 +81,7 @@ export interface QuestionView {
   closes: "start" | "finale";
   pick: number | null;
   from: "cast" | "team" | null;
+  /** An over/under's line: its own, or (L3 part 3b) on the game's own line the one kept when it opened (null: none out yet). */
   line: number | null;
   options: string[] | null;
   /** A8: an order's places off that still score; chips to spread; a wager's most stake; who outlasts whom, the pairs (each its
@@ -116,12 +118,13 @@ export interface QuestionView {
   confidence: boolean;
   /** L3 part 2f part 2, a question about each game: the episode's games as linked, in the order they start, each with its sides
    *  (a side answer's faces: the teams by name) and whether it's started (its pick locked, kept as it was); null for any other. */
-  games: { id: string; name: string | null; startsAt: string | null; started: boolean; sides: QuestionFace[] }[] | null;
+  games: { id: string; name: string | null; startsAt: string | null; started: boolean; sides: QuestionFace[]; line: number | null; called: "postponed" | "canceled" | null }[] | null;
   /** The episode it's answered for (asked each), or null (the game's own). */
   episode: number | null;
   /** open: yours to answer; behind: see Episode `catchUp` first (it says who's still in), or catch up on the game first (null);
+   *  waiting (L3 part 3b): an over/under on the game's own line before there's one ("Line coming"), opening once it's read;
    *  closed: locked. */
-  status: "open" | "behind" | "closed";
+  status: "open" | "behind" | "waiting" | "closed";
   catchUp: number | null;
   /** When it locks (the closing episode's air time), when that's known. */
   closesAt: string | null;
@@ -189,8 +192,34 @@ const questionsOf = (state: LeagueState): Question[] => StateLogic.AnswerLogic.q
  *  (and on what group), so it waits until you've seen the episode before it. */
 const namesSomeone = (q: Question) => Spec.NAMES.includes(q.answer) || Spec.RANKS.includes(q.answer) || q.answer === "chips" || q.answer === "pairs" || q.each === "person";
 
-/** L3 part 2f part 2: whether a game of an episode has started (its listing's start passed; a game with none, once it's on). */
-const gameStarted = (g: SportsGameFacts, now: number) => (g.listing?.startsAt ? Date.parse(g.listing.startsAt) <= now : g.status !== "pre");
+/** L3 part 2f part 2: whether a game of an episode has started (its listing's start passed; a game with none, once it's on). L3 part
+ *  3b: or it's called off (postponed, cancelled): nothing to pick for it from then. */
+const gameStarted = (g: SportsGameFacts, now: number) => g.status === "off" || (g.listing?.startsAt ? Date.parse(g.listing.startsAt) <= now : g.status !== "pre");
+
+/** L3 part 3b: an over/under on a game's own line, the games it's on at a window (each its kept line's event: an episode's one
+ *  game '', each game its own id): a question about each game, the episode's; any other, its window's game (asked once: the game's
+ *  first episode's). */
+function lineGames(facts: AnswerFacts, q: Question, ep: number): [string, SportsGameFacts][] {
+  if (q.each === "game") return [...(facts.slate?.get(ep) ?? [])];
+  const n = q.asked === "once" ? facts.from : ep;
+  const g = n === null ? undefined : facts.games?.get(n);
+  return g ? [["", g]] : [];
+}
+
+/** L3 part 3b: the line kept for a question's game at a window (an episode's one game: ''), or null while none is. */
+const keptLine = (facts: AnswerFacts, q: Question, ep: number, event: string) => facts.lines?.get(Spec.lineKey(q, ep, event)) ?? null;
+
+/**
+ * L3 part 3b: an over/under on a game's own line as it opens (not closed): each of its games still to start with a line read and
+ * none kept yet takes the latest one (the listing's), kept for good (question-lines.ts), and the facts carry what's kept now.
+ */
+async function openLines(r: Read, q: Question, ep: number): Promise<void> {
+  if (q.line !== Spec.LINE_GAME) return;
+  const now = r.now.getTime();
+  const due = lineGames(r.facts, q, ep).filter(([event, g]) => keptLine(r.facts, q, ep, event) === null && !gameStarted(g, now) && typeof g.listing?.line === "number");
+  if (!due.length) return;
+  r.facts.lines = await keepLines(r.h.game.leagueId, due.map(([event, g]) => ({ question: q.id, window: ep, event, line: g.listing!.line!, readAt: g.listing?.lineAt ?? null })));
+}
 
 /** L3 part 2f part 2: a question about each game closes as its episode's last game starts (each pick at its own game's start before
  *  then): that start, or null when a game's start isn't known (the episode's own lock, then). */
@@ -207,7 +236,7 @@ function lastStartOf(facts: AnswerFacts, ep: number): string | null {
 }
 
 /** L3 part 2f part 2: a question about each game's games at a window, as the view lists them (QuestionView.games). */
-function gamesView(facts: AnswerFacts, ep: number, now: number): NonNullable<QuestionView["games"]> {
+function gamesView(facts: AnswerFacts, q: Question, ep: number, now: number): NonNullable<QuestionView["games"]> {
   return [...(facts.slate?.get(ep) ?? new Map<string, SportsGameFacts>())]
     .map(([id, g]) => ({
       id,
@@ -215,6 +244,9 @@ function gamesView(facts: AnswerFacts, ep: number, now: number): NonNullable<Que
       startsAt: g.listing?.startsAt ?? null,
       started: gameStarted(g, now),
       sides: (g.listing?.sides ?? g.sides.map((x) => ({ id: x.id, name: null }))).map((x) => ({ id: x.id, name: x.name ?? "A team", photo: null })),
+      // L3 part 3b: an over/under on each game's own line, the one kept when its pick opened (null: none out yet: no pick for it).
+      line: q.line === Spec.LINE_GAME ? keptLine(facts, q, ep, id) : null,
+      called: g.status === "off" ? (g.called ?? null) : null,
     }))
     .sort((a, b) => (a.startsAt ?? "").localeCompare(b.startsAt ?? "") || a.id.localeCompare(b.id));
 }
@@ -238,10 +270,17 @@ function keepStarted(r: Read, q: Question, ep: number, value: unknown): unknown 
   const out: Record<string, unknown> = { ...(given as Record<string, unknown>) };
   const now = r.now.getTime();
   for (const [id, g] of games) {
-    if (!gameStarted(g, now)) continue;
+    const named = g.listing?.name ?? "That game";
+    if (!gameStarted(g, now)) {
+      // L3 part 3b: an over/under on each game's own line, a game's pick only once its line is kept.
+      if (q.line === Spec.LINE_GAME && Object.prototype.hasOwnProperty.call(given, id) && out[id] != null && keptLine(r.facts, q, ep, id) === null) throw new HttpError(409, `No line for ${named} yet: pick it once there is one`);
+      continue;
+    }
     const had = Object.prototype.hasOwnProperty.call(before, id);
     if (Object.prototype.hasOwnProperty.call(given, id) && (!had || JSON.stringify(out[id]) !== JSON.stringify(before[id]))) {
-      throw new HttpError(409, `${g.listing?.name ?? "That game"} has started: its pick is locked`);
+      // L3 part 3b: called off (its picks don't count), or under way.
+      if (g.status === "off") throw new HttpError(409, `${named} was ${g.called === "canceled" ? "cancelled" : "postponed"}: its pick doesn't count either way`);
+      throw new HttpError(409, `${named} has started: its pick is locked`);
     }
     if (had) out[id] = before[id];
     else delete out[id];
@@ -516,6 +555,10 @@ async function readQuestions(r: Read, episodeIn?: unknown): Promise<GameQuestion
     const { airAt } = closing(r, q, ep);
     const seen = needsSeen(r, q, ep);
     const behind = !closed && (catching || (seen !== null && mark < seen));
+    // L3 part 3b: an over/under on the game's own line keeps the latest one read as it opens; before there's one it waits.
+    if (!closed) await openLines(r, q, ep);
+    const ownLine = q.line === Spec.LINE_GAME && q.each !== "game" ? keptLine(r.facts, q, ep, "") : null;
+    const lineComing = q.line === Spec.LINE_GAME && q.each !== "game" && ownLine === null;
     // Once it's closed, how it stands as far as you've seen.
     const v = closed ? (graded.verdicts.get(`${q.id}|${ep}`) ?? Spec.verdictOf(q, ep, facts)) : null;
     // A13: a trivia round's questions, once you've seen the episode it's about (whether or not it's locked), each one you've played in
@@ -542,7 +585,7 @@ async function readQuestions(r: Read, episodeIn?: unknown): Promise<GameQuestion
       closes: q.closes,
       pick: (Spec.NAMES.includes(q.answer) || Spec.RANKS.includes(q.answer)) && !q.each ? (q.pick ?? 1) : null,
       from: q.answer === "person" && !q.each ? (q.from ?? "cast") : null,
-      line: typeof q.line === "number" ? q.line : null,
+      line: typeof q.line === "number" ? q.line : ownLine,
       options: q.options ?? null,
       within: q.answer === "order" ? (q.within ?? 0) : null,
       chips: q.answer === "chips" ? (q.chips ?? null) : null,
@@ -561,9 +604,9 @@ async function readQuestions(r: Read, episodeIn?: unknown): Promise<GameQuestion
       pairs: q.answer === "pairs" && !behind ? pairsOf(h.state, q).map((p) => ({ key: p.key, faces: [castFace(view, p.ids[0]), castFace(view, p.ids[1])] })) : null,
       each: q.each ?? null,
       confidence: q.confidence === true,
-      games: q.each === "game" ? gamesView(facts, ep, r.now.getTime()) : null,
+      games: q.each === "game" ? gamesView(r.facts, q, ep, r.now.getTime()) : null,
       episode: each ? ep : null,
-      status: closed ? "closed" : behind ? "behind" : "open",
+      status: closed ? "closed" : behind ? "behind" : lineComing ? "waiting" : "open",
       catchUp: behind && !catching ? seen : null,
       closesAt: (q.each === "game" ? lastStartOf(facts, ep) : null) ?? airAt,
       // A pairs question's faces are its pairs'.
@@ -699,6 +742,9 @@ export async function answerQuestions(user: SessionUser, seasonId: string, leagu
       const { at } = closing(r, q, ep);
       throw new HttpError(409, at === null ? `"${q.ask}" is closed` : `"${q.ask}" closed when Episode ${at} started`);
     }
+    // L3 part 3b: an over/under on the game's own line, its line kept as it opens; none out yet, nothing to answer.
+    await openLines(r, q, ep);
+    if (q.line === Spec.LINE_GAME && q.each !== "game" && value !== null && keptLine(r.facts, q, ep, "") === null) throw new HttpError(409, "The line isn't out yet: you can answer once it is");
     // L3 part 2f part 2: a question about each game, each started game's pick kept as it was.
     if (q.each === "game") value = keepStarted(r, q, ep, value);
     if (value !== null) {

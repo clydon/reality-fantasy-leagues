@@ -645,16 +645,18 @@ function eachGame(ask = {}) {
 }
 const facesOf = (slate, n) => new Map([...slate.get(n)].map(([id, g]) => [id, new Set(g.sides.map((x) => x.id))]));
 
-test("a question about each game: it plays (who wins, a total's range, the closest), confidence on who wins; the rest refused", () => {
+test("a question about each game: it plays (who wins, a total's range, the closest, over or under its own line), confidence on who wins; the rest refused", () => {
   const pickem = defaultsFor("football").specs.pickem.spec;
   const withAsk = (ask) => ({ ...pickem, ask: [{ ...pickem.ask[0], each: "game", ...ask }] });
-  for (const ask of [{}, { confidence: true }, { answer: "choice", settle: { by: "final", take: "total" }, options: ["0-40", "41-50", "51+"] }, { answer: "number", settle: { by: "final", take: "margin" } }]) {
+  for (const ask of [{}, { confidence: true }, { answer: "choice", settle: { by: "final", take: "total" }, options: ["0-40", "41-50", "51+"] }, { answer: "number", settle: { by: "final", take: "margin" } }, { answer: "overUnder", settle: { by: "final", take: "total" }, line: "game" }]) {
     assert.deepEqual(G.specProblems(withAsk(ask)), [], JSON.stringify(ask));
     assert.deepEqual(G.specWaitsFor(withAsk(ask)), []);
     assert.equal(G.typeOf(withAsk(ask)), "questions");
   }
   const refused = (ask, where) => assert.ok(G.specProblems(withAsk(ask)).some((p) => p.at === `ask[0].${where}`), `${JSON.stringify(ask)} at ${where}`);
-  refused({ answer: "overUnder", settle: { by: "final", take: "total" }, line: 44 }, "answer");
+  // L3 part 3b: each game's over/under is its own line's, never one line for every game.
+  refused({ answer: "overUnder", settle: { by: "final", take: "total" }, line: 44 }, "line");
+  refused({ answer: "overUnder", settle: { by: "final", take: "margin" }, line: "game" }, "settle");
   refused({ asked: "once" }, "asked");
   refused({ answer: "choice", settle: { by: "final", take: "total" }, options: ["0-40", "41+"], confidence: true }, "confidence");
   refused({ share: "split" }, "share");

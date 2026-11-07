@@ -229,7 +229,8 @@ same games asked twice cost nothing. Each linked game's facts are kept once per 
 final, the line): the line from the day's scoreboard while the game is still to play (a call per day, already cached an hour), or for
 a game seen only after, its summary (a call per game, cached for good). The daily listings job reads each linked game's day's
 scoreboard from three days back to a week ahead until it's final (at most 40 days of scoreboards a run, past days first, each
-cached), a game first seen after it started taking its summary's line (the box score the stats read anyway, cached for good), and
+cached; a suspended game's for 30 days, and a game its day's scoreboard hasn't got, moved, looked up on its team's schedule, cached 12
+hours, at most 10 a run: L3 part 3b), a game first seen after it started taking its summary's line (the box score the stats read anyway, cached for good), and
 sets each matchup season's status. Measured on the real 76ers home opener (2026-10-28): 5 ESPN calls in 0.5 s (the schedule, its summary for
 the line, two rosters, the next game's scoreboard), none a second time. Not backed up (asked again).
 **Finding a game by team (track L, L7, migration 0303; on the `sports` branch, not merged; no screen calls it yet)** polls nothing
@@ -667,6 +668,14 @@ never handles it: the user does the reset and the pasting.
   now. Vercel's function logs have one `[listings]` line per run.
 
 ## Changelog
+
+- **2026-11-06, `sports` branch (not merged).** L3 part 3b (docs/PLAN-start-a-game-gpt.md track L; migration 0306): which line a
+  question plays by, and postponed, suspended and moved games. Stored: `sports_events.called` (a word a game, for games called off)
+  and `question_lines` (one row a league, question, window and game for an over/under on a game's own line, ~120 bytes: a pick'em
+  league on a team's 162 games ~20 KB a season, an NFL week's 14 ~2 KB a week a league), kept once as the question opens (an insert
+  on a read of a league's questions, only while one is open with a line and none kept). New ESPN calls: a team's schedule (already
+  cached 12 hours) for a linked team game its day's scoreboard hasn't got (moved), at most 10 games a daily run, one call a team; a
+  suspended game's day's scoreboard read for 30 days, not 3 (rare: none in ESPN's 2025 or 2026 MLB). Nothing polls; no new job.
 
 - **2026-11-01, branch `reactions`.** React with a GIF in place of Rate it's stars (migration 0162: `episode_gifs`, ~300 bytes a
   row, backed up; `user_settings.share_gifs`). Nothing polls, nothing runs on a schedule, no push. The one service it leans on is

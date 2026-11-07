@@ -98,7 +98,8 @@ export async function leagueGames(state: LeagueState, o: { mark?: number | null;
   if (!seasonId) return undefined;
   const [{ rows }, { rows: cast }, { rows: slated }] = await Promise.all([
     pool.query(
-      `SELECT e.episode, e.provider, e.league, e.event_id, e.name AS title, e.starts_at, e.teams AS linked, e.note, e.best_of, f.state, f.final, f.teams, f.lines, f.people, f.shape
+      `SELECT e.episode, e.provider, e.league, e.event_id, e.name AS title, e.starts_at, e.teams AS linked, e.note, e.best_of, f.state, f.final, f.teams, f.lines, f.people, f.shape, f.called,
+              (f.odds->>'overUnder')::float8 AS line, f.odds_at AS line_at
          FROM season_events e LEFT JOIN sports_events f ON f.provider = e.provider AND f.league = e.league AND f.event_id = e.event_id
         WHERE e.season_id = $1 ORDER BY e.episode`,
       [seasonId]
@@ -128,7 +129,8 @@ export async function leagueGames(state: LeagueState, o: { mark?: number | null;
     if (!out.eachGame.has(n)) out.eachGame.set(n, new Map());
     out.eachGame.get(n)!.set(event, { ...facts, listing });
     if (playoffs && row) playoffs.set(event, { id: event, note: row.note, bestOf: row.best_of, at: row.starts_at ? row.starts_at.toISOString() : null, status: facts.status, sides: facts.sides, episode: n });
-    if (!slate) return void out.games.set(n, facts);
+    // L3 part 3b: with its listing (its line: an over/under on the game's own line opens with it).
+    if (!slate) return void out.games.set(n, { ...facts, listing });
     if (!out.slate.has(n)) out.slate.set(n, new Map());
     out.slate.get(n)!.set(event, facts);
   };
@@ -154,7 +156,8 @@ export async function leagueGames(state: LeagueState, o: { mark?: number | null;
     const teams = known.map((t) => t.id);
     const named = new Map(((r.linked ?? []) as { id: string; name?: string | null }[]).map((t) => [String(t.id), t.name ?? null]));
     if (playoffs) for (const [id, name] of named) if (!teamNames.get(id)) teamNames.set(id, name);
-    listing = { name: (r.title as string | null) ?? null, startsAt: r.starts_at ? (r.starts_at as Date).toISOString() : null, sides: teams.map((id) => ({ id, name: named.get(id) ?? null })) };
+    // L3 part 3b: with the latest line read for it (an over/under on the game's own line keeps the one when it opened: answers.ts).
+    listing = { name: (r.title as string | null) ?? null, startsAt: r.starts_at ? (r.starts_at as Date).toISOString() : null, sides: teams.map((id) => ({ id, name: named.get(id) ?? null })), line: Number.isFinite(r.line) ? (r.line as number) : null, lineAt: r.line_at ? (r.line_at as Date).toISOString() : null };
     if (teams.length && !slate) out.sides.set(n, teams);
     const event = String(r.event_id);
     const sport = sportOf(r.league);
@@ -171,7 +174,9 @@ export async function leagueGames(state: LeagueState, o: { mark?: number | null;
     const status = early && statusOf(r, now) === "final" ? "in" : statusOf(r, now);
     if (status !== "final" && status !== "off") open.add(n);
     if (status !== "final") {
-      setGame(n, event, { status, sides: status === "pre" ? teams.map((id) => ({ id, score: 0 })) : known, lines: {}, teams: {} });
+      // L3 part 3b: a game called off says why (postponed: its makeup, when there is one, a game of its own; cancelled).
+      const called = status === "off" && (r.called === "postponed" || r.called === "canceled") ? { called: r.called as "postponed" | "canceled" } : {};
+      setGame(n, event, { status, sides: status === "pre" ? teams.map((id) => ({ id, score: 0 })) : known, lines: {}, teams: {}, ...called });
       continue;
     }
     // The saved final in the league's people (a team's own ids, its sides, stay as they are).
@@ -295,7 +300,7 @@ type GameScore = Pick<SportsGameFacts, "status" | "sides" | "periods">;
 type Stamp = { lines: Record<number, Record<string, Stats>>; bouts: Record<number, Record<string, StatBout[]>>; groups: Record<string, string>; finals: number[]; defs: CategoryDefs; games: Record<number, GameScore>; periods: number | null; byGame: Record<number, Record<string, Record<string, Stats>>> };
 // The league poll reads every 15 s (league-read.ts readyLeague), and a season's kept finals are big (everyone's counts, a game an
 // episode): each server instance keeps the last stamp it worked out for a league, with a fingerprint of what it read (32 bytes: the
-// season's kept finals, its cast's provider ids and positions, the league's castaways), and reads the finals again only when it moves.
+// season's kept finals, its games called off, its cast's provider ids and positions, the league's castaways), and reads the finals again only when it moves.
 // A final is kept once and never written again (finals.ts), so the fingerprint moves exactly when a game is kept or the cast changes.
 const stamps = new Map<string, { key: string; stamp: Stamp }>();
 const MAX_STAMPS = 200;
@@ -323,6 +328,9 @@ export async function stampStats(state: LeagueState): Promise<LeagueState> {
           FROM season_events e JOIN sports_events f ON f.provider = e.provider AND f.league = e.league AND f.event_id = e.event_id
          WHERE e.season_id = $1 AND f.lines_at IS NOT NULL),
        (SELECT string_agg(e.episode || ':' || e.event_id, ',' ORDER BY e.episode, e.event_id) FROM season_events e WHERE e.season_id = $1),
+       (SELECT string_agg(f.event_id, ',' ORDER BY f.event_id)
+          FROM season_events e JOIN sports_events f ON f.provider = e.provider AND f.league = e.league AND f.event_id = e.event_id
+         WHERE e.season_id = $1 AND f.state = 'post' AND NOT f.final),
        (SELECT string_agg(c.name || ':' || coalesce(c.role, '') || ':' || coalesce(c.provider_ids::text, ''), ',' ORDER BY c.name)
           FROM season_cast c WHERE c.season_id = $1))) AS key`,
     [seasonId]
@@ -334,9 +342,12 @@ export async function stampStats(state: LeagueState): Promise<LeagueState> {
   if (!hit || hit.key !== key) {
     const g = await leagueGames(state);
     if (!g) return state;
-    // An episode's one game final (a league's slate's episodes are 2f's: their lines are their final games' already).
-    const finals = [...g.games].filter(([, f]) => f.status === "final").map(([n]) => n);
-    // L3 part 2e: each final game's score, for squares (its sides and each period's end).
+    // An episode's one game final (a league's slate's episodes are 2f's: their lines are their final games' already). L3 part 3b:
+    // or called off (postponed, cancelled): its results are in, nothing happened (nothing scores, its questions don't count), so
+    // the game moves on past it.
+    const finals = [...g.games].filter(([, f]) => f.status === "final" || f.status === "off").map(([n]) => n);
+    // L3 part 2e: each final game's score, for squares (its sides and each period's end); a called-off one's its status alone (its
+    // squares pay nobody: payScore's 'off').
     const games = Object.fromEntries(finals.map((n) => { const f = g.games.get(n)!; return [n, { status: f.status, sides: f.sides, ...(f.periods ? { periods: f.periods } : {}) }]; }));
     // L3 part 2f: a slate's episode only once every game in it is over (its results then: a partial week is never in), its lines
     // the week's and each game's (a table scored game by game: byGame).

@@ -304,8 +304,10 @@ export interface SpecQuestion {
   pick?: number;
   /** A person answer: the cast still in (default), or your own team (a draft's). */
   from?: "cast" | "team";
-  /** overUnder's line; null: the wizard asks (or ESPN's, the sports branch). */
-  line?: number | null;
+  /** overUnder's line; null: the wizard asks. L3 part 3b, "game": an over/under on a sport's game's total (`final` `total`, one
+   *  game's or each game's) plays by the game's own line, the latest read when the question opens for answers in a league (kept
+   *  then, never changed once anyone can answer: AnswerFacts.lines); before there's one it waits ("Line coming"). */
+  line?: number | null | "game";
   /** L4 part 1a: a side answer on who wins that takes a draw too (a soccer match's three ways): `DRAW` is right on a tie. */
   draw?: true;
   /** choice's options. */
@@ -344,7 +346,9 @@ export interface SportsGameFacts {
   periods?: Record<string, number>[];
   /** L3 part 2f part 2, a question about each game's (AnswerFacts.slate's): the game as linked, its name, when it starts (its pick
    *  locks then) and its sides by name, as listed. */
-  listing?: { name: string | null; startsAt: string | null; sides: { id: string; name: string | null }[] };
+  listing?: { name: string | null; startsAt: string | null; sides: { id: string; name: string | null }[]; line?: number | null; lineAt?: string | null };
+  /** L3 part 3b: why a game that's off wasn't played (postponed: its makeup, when there is one, a game of its own; canceled). */
+  called?: "postponed" | "canceled";
   /** L8 part 1's engine items, part 2: a league's playoffs (AnswerFacts.playoffs), the episode their final was won in, where the
    *  games say (a walk's week before it grades the bracket as still being played: answers.js factsThrough). */
   wonAt?: number;
@@ -403,6 +407,10 @@ export interface AnswerFacts {
   /** L3 part 2f part 2: each episode's games by the provider's event id (a week's slate's, or an episode's one), as of the viewer's
    *  mark (sports/score.ts leagueGames' eachGame), for a question about each game. */
   slate?: Map<number, Map<string, SportsGameFacts>>;
+  /** L3 part 3b: the line each over/under on a game's own line (`line: 'game'`) plays by, kept when it opened in the league
+   *  ("question|window|event": an episode's one game's event ''; a question about each game, each game's id). None kept: it has
+   *  no line (nobody could answer it). */
+  lines?: Map<string, number>;
   /** A14 part 2: the bot's own call on each window of a question played against it ("question|episode", the window's key: 0 asked
    *  once), each once its window's lock has passed (bot_calls): the server's (answer-points.ts botCallsFor). A window with none has
    *  no entry; no map at all, a question played against the bot waits. */
@@ -455,6 +463,8 @@ export type Verdict =
       each?: Record<string, Verdict>;
       /** L1 part 4b: known before the game's final (an over on the total, past its line). */
       early?: boolean;
+      /** L3 part 3b: an over/under on a game's own line (`line: 'game'`), the line it played by (AnswerFacts.lines). */
+      line?: number;
       /** A8, a ranking: the places each one could hold (0-based; ties share a block). */
       places?: Record<string, [number, number]>;
       /** F3 part 2, a group answer on the timeline's groups: the offered groups that played the episode as offered (a pick of
@@ -801,6 +811,10 @@ export function shrunk(q: Question, worth: number, a?: { late?: number; changes?
 export const WAGER_TOTAL: "total";
 /** C6, money: a stake's odds when the question leaves them out; a bank's most at the start, and its default (out at zero or not). */
 export const ODDS: "even";
+/** L3 part 3b: an over/under's line that's the game's own (Question.line), kept when the question opens in a league. */
+export const LINE_GAME: "game";
+/** L3 part 3b: a kept line's key (AnswerFacts.lines): the question, its window (0 asked once) and the game (an episode's one: ''). */
+export function lineKey(q: { id: string }, window: number, event: string): string;
 export const MAX_BANK: number;
 export const BANK: { out: boolean };
 /** C6: a game of questions' bank, { start, out }, or null. */

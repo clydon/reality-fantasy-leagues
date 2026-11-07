@@ -73,15 +73,20 @@ async function stampSportLocks(db: Pool | PoolClient, state: LeagueState, season
   }
 }
 
+/** L3 part 3b: a linked game the provider says is over without being played (postponed, cancelled: sports_events' state 'post', not
+ *  final) locks nothing: its start never comes, so a holding of its team stays free to move (until the lineup's own lock) and a
+ *  day's or a week's lock is its first game played. A suspended game is still being played (state 'in'): it locks as it started. */
+const PLAYED = `NOT EXISTS (SELECT 1 FROM sports_events f WHERE f.provider = e.provider AND f.league = e.league AND f.event_id = e.event_id AND f.state = 'post' AND NOT f.final)`;
+
 /**
  * L8 part 1's engine items: a lineup locking at each game's start, each episode's games in the game's span (their starts, and the end
  * of each one's day: a holding's lock) and each holding's games by its team (season_cast's group, the team's name as the link has it).
- * Two queries, only for such a game.
+ * Two queries, only for such a game. L3 part 3b: a game called off isn't one of them (PLAYED).
  */
 async function stampGameLocks(db: Pool | PoolClient, state: LeagueState, seasonId: string): Promise<void> {
   const to = StateLogic.endEpisode(state);
   const { rows } = await db.query(
-    `SELECT episode, event_id, starts_at, teams FROM season_events WHERE season_id = $1 AND episode >= $2 AND ($3::int IS NULL OR episode <= $3)`,
+    `SELECT e.episode, e.event_id, e.starts_at, e.teams FROM season_events e WHERE e.season_id = $1 AND e.episode >= $2 AND ($3::int IS NULL OR e.episode <= $3) AND ${PLAYED}`,
     [seasonId, StateLogic.startEpisode(state) ?? 1, to]
   );
   if (!rows.length) return;
@@ -110,12 +115,12 @@ async function stampGameLocks(db: Pool | PoolClient, state: LeagueState, seasonI
 /**
  * Each episode's lock on a sport's season, by `closes`, from its linked games' starts; `span` the game's episodes (from, to: null
  * to the season's end), so a game that starts later never locks with a game before it. A league's slate (L8 part 3) locks each
- * episode at its own first game: the episode is the week.
+ * episode at its own first game: the episode is the week. L3 part 3b: its first game played (one called off locks nothing: PLAYED).
  */
 export async function sportLocks(db: Pool | PoolClient, seasonId: string, closes: Closes, span: { from: number; to: number | null } = { from: 1, to: null }): Promise<Map<number, string>> {
   const { rows } = await db.query(
-    `SELECT episode, starts_at, EXISTS (SELECT 1 FROM sports_slates x WHERE x.season_id = $1) AS slate
-       FROM season_events WHERE season_id = $1 AND episode >= $2 AND ($3::int IS NULL OR episode <= $3)`,
+    `SELECT e.episode, e.starts_at, EXISTS (SELECT 1 FROM sports_slates x WHERE x.season_id = $1) AS slate
+       FROM season_events e WHERE e.season_id = $1 AND e.episode >= $2 AND ($3::int IS NULL OR e.episode <= $3) AND ${PLAYED}`,
     [seasonId, span.from, span.to]
   );
   const starts = rows.map((r) => ({ episode: r.episode as number, at: r.starts_at ? (r.starts_at as Date).toISOString() : null }));

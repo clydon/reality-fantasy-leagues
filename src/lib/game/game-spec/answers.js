@@ -66,7 +66,7 @@
 //   factsThrough(facts, k)        the facts as they stood once episode k was in (A11 part 2b's walk)
 //   answerProblem(q, value, faces) why an answer can't be given (null: it can), faces: who (or which groups) it can name
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
-const { YES_NO, NAMES, NUMBERS, optionRange, isBeat, ODDS, ticketOf, isCardLine, cardMoment, cardWaiting } = require('./schema.js');
+const { YES_NO, NAMES, NUMBERS, optionRange, isBeat, ODDS, ticketOf, isCardLine, cardMoment, cardWaiting, LINE_GAME } = require('./schema.js');
 // C2 part 3 (docs/PLAN-start-a-game-gpt.md track C): a window's points are the scoring sequence's lines and combines; the grading
 // (which answers are right, and how many right ones each has) is here.
 const Seq = require('../sequence/index.js');
@@ -463,13 +463,33 @@ function spanGame(q, facts) {
 function sportsVerdict(q, episode, facts) {
   if (q.settle.take === 'bracket' && q.settle.of === Bracket.PLAYOFFS) return gameVerdict(q, facts.playoffs || null);
   if (!(facts.games instanceof Map)) return WAITING;
-  return gameVerdict(q, q.asked === 'once' ? spanGame(q, facts) : facts.games.get(episode));
+  return gameVerdict(q, q.asked === 'once' ? spanGame(q, facts) : facts.games.get(episode), lineOf(q, facts, episode, ''));
 }
 
-/** How a question a sport's game settles stands on one game (`g`: its facts as of the viewer's moment, or none yet). */
-function gameVerdict(q, g) {
+/**
+ * L3 part 3b: the key of the line an over/under on a game's own line plays by (AnswerFacts.lines): the question, its window (the
+ * grader's episode: 0 asked once) and the game (an episode's one game '', a question about each game each one's event id).
+ */
+const lineKey = (q, window, event) => `${q.id}|${window}|${event}`;
+/** The line a question plays by on a game: its own (a number), or on the game's own (`line: 'game'`) the one kept when it opened in
+ *  the league (none kept: null). */
+function lineOf(q, facts, window, event) {
+  if (q.line !== LINE_GAME) return isNum(q.line) ? q.line : null;
+  const v = facts && facts.lines instanceof Map ? facts.lines.get(lineKey(q, window, event)) : undefined;
+  return isNum(v) ? v : null;
+}
+/** L3 part 3b: why a game's questions don't count when it wasn't played (sports/score.ts: the provider's status). */
+const calledOffWhy = (g) =>
+  g.called === 'postponed' ? "The game was postponed: it doesn't count either way" : g.called === 'canceled' ? "The game was cancelled: it doesn't count either way" : "The game wasn't played: it doesn't count either way";
+
+/** How a question a sport's game settles stands on one game (`g`: its facts as of the viewer's moment, or none yet; `line`: the
+ *  line it plays by, an over/under's: lineOf). */
+function gameVerdict(q, g, line = isNum(q.line) ? q.line : null) {
   if (!g || g.status === 'pre') return WAITING;
-  if (g.status === 'off') return off("The game wasn't played: it doesn't count either way");
+  if (g.status === 'off') return off(calledOffWhy(g));
+  // L3 part 3b: an over/under on the game's own line that never had one by the time it started: nobody could answer it.
+  if (q.line === LINE_GAME && q.answer === 'overUnder' && line === null) return off("No line came out before the game: it doesn't count either way");
+  const ln = q.line === LINE_GAME && line !== null ? { line } : {};
   const st = q.settle;
   // L4 part 2: a bracket, its draw's winners round by round (sequence/bracket.js), known once the card is final; live, the draw so far.
   if (st.by === 'final' && st.take === 'bracket') {
@@ -478,8 +498,8 @@ function gameVerdict(q, g) {
     return g.status === 'final' ? { ...known([]), bracket: field } : { state: 'waiting', live: { bracket: field } };
   }
   const now = standingIn(st, g, q);
-  if (g.status === 'final') return now.off ? off(now.off) : known(now.right || [], now.value);
-  if (st.by === 'final' && st.take === 'total' && q.answer === 'overUnder' && isNum(q.line) && isNum(now.value) && now.value > q.line) return { ...known([], now.value), early: true };
+  if (g.status === 'final') return now.off ? off(now.off) : { ...known(now.right || [], now.value), ...ln };
+  if (st.by === 'final' && st.take === 'total' && q.answer === 'overUnder' && line !== null && isNum(now.value) && now.value > line) return { ...known([], now.value), early: true, ...ln };
   return now.off ? WAITING : { state: 'waiting', live: now };
 }
 
@@ -496,7 +516,7 @@ function eachGameVerdict(q, episode, facts) {
   const each = {};
   let over = true;
   for (const [id, g] of games) {
-    const v = gameVerdict(base, g);
+    const v = gameVerdict(base, g, lineOf(q, facts, episode, id));
     each[id] = v;
     if (v.state === 'waiting') over = false;
   }
@@ -807,8 +827,10 @@ function rightAnswers(q, v, facts) {
   if (q.settle && q.settle.by === 'players') return v.right.length ? v.right : null;
   const value = valueOf(v);
   if (q.answer === 'overUnder') {
-    if (value === null || !isNum(q.line) || value === q.line) return null;
-    return [value > q.line ? 'over' : 'under'];
+    // L3 part 3b: a game's own line, the one it played by (gameVerdict's).
+    const line = isNum(v.line) ? v.line : q.line;
+    if (value === null || !isNum(line) || value === line) return null;
+    return [value > line ? 'over' : 'under'];
   }
   if (q.answer === 'choice') {
     const opts = Array.isArray(q.options) ? q.options : [];
@@ -1326,4 +1348,4 @@ function factsThrough(facts, k) {
   };
 }
 
-module.exports = { WAITING, DRAW, readsTimeline, verdictOf, rightAnswers, pointsFor, windowPoints, wagerParts, stakeLines, unwagered, ticketVerdict, allRight, shrunk, isRight, answerProblem, spanEpisodes, pairsFrom, pairKey, windowOf, factsThrough, botKey, botCall, botRight };
+module.exports = { WAITING, DRAW, lineKey, readsTimeline, verdictOf, rightAnswers, pointsFor, windowPoints, wagerParts, stakeLines, unwagered, ticketVerdict, allRight, shrunk, isRight, answerProblem, spanEpisodes, pairsFrom, pairKey, windowOf, factsThrough, botKey, botCall, botRight };

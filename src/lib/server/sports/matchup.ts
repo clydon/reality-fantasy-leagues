@@ -31,6 +31,8 @@ type Queryable = { query: typeof pool.query };
 const MAX_DAYS = 40;
 /** A game's line is looked for once it's this close (books post them a day to a week ahead); the daily job looks as it nears. */
 const WEEK_MS = 8 * 86_400_000;
+/** L3 part 3b: the most linked games a run looks up on a team's schedule when their day's scoreboard hasn't got them (moved). */
+const MAX_MOVED = 10;
 
 export interface Matchup {
   seasonId: string;
@@ -212,16 +214,17 @@ export async function storeEvents(provider: string, league: string, events: Spor
   if (!events.length) return 0;
   const rows = events.map((e) => {
     const f = factsOf(e);
-    return { event_id: f.event, name: f.name.slice(0, 200) || null, starts_at: f.startsAt, state: f.state, final: f.final, teams: f.sides, odds: f.odds };
+    return { event_id: f.event, name: f.name.slice(0, 200) || null, starts_at: f.startsAt, state: f.state, final: f.final, called: f.called, teams: f.sides, odds: f.odds };
   });
   const { rowCount } = await db.query(
-    `INSERT INTO sports_events (provider, league, event_id, name, starts_at, state, teams, final, final_at, odds, odds_at)
-     SELECT $1, $2, x.event_id, x.name, x.starts_at, x.state, x.teams, x.final, CASE WHEN x.final THEN now() END, x.odds, CASE WHEN x.odds IS NOT NULL THEN now() END
-       FROM jsonb_to_recordset($3::jsonb) AS x(event_id TEXT, name TEXT, starts_at TIMESTAMPTZ, state TEXT, teams JSONB, final BOOLEAN, odds JSONB)
+    `INSERT INTO sports_events (provider, league, event_id, name, starts_at, state, teams, final, final_at, odds, odds_at, called)
+     SELECT $1, $2, x.event_id, x.name, x.starts_at, x.state, x.teams, x.final, CASE WHEN x.final THEN now() END, x.odds, CASE WHEN x.odds IS NOT NULL THEN now() END, x.called
+       FROM jsonb_to_recordset($3::jsonb) AS x(event_id TEXT, name TEXT, starts_at TIMESTAMPTZ, state TEXT, teams JSONB, final BOOLEAN, odds JSONB, called TEXT)
      ON CONFLICT (provider, league, event_id) DO UPDATE SET
        name = EXCLUDED.name,
        starts_at = EXCLUDED.starts_at,
        state = CASE WHEN sports_events.final THEN sports_events.state ELSE EXCLUDED.state END,
+       called = CASE WHEN sports_events.final THEN sports_events.called ELSE EXCLUDED.called END,
        teams = CASE WHEN sports_events.final THEN sports_events.teams ELSE EXCLUDED.teams END,
        final = sports_events.final OR EXCLUDED.final,
        final_at = COALESCE(sports_events.final_at, EXCLUDED.final_at),
@@ -239,6 +242,9 @@ export async function storeEvents(provider: string, league: string, events: Spor
  * season's status from its games. A field's or a card's event (golf's tournament, a race weekend, a tennis event, a fight card:
  * L3 part 3) in a league the app reads, from its first day's scoreboard, as stats.ts reads them, for 16 days from its start (a
  * Grand Slam's fortnight), so its final is kept too. `only` (a check's seasons) looks at just those games.
+ * L3 part 3b: a game still being played (suspended, to be finished later as the same game) is read for 30 days from its start; a
+ * team game its day's scoreboard hasn't got (moved to another day: the same event, ESPN's "Rescheduled from Sep. 26") is looked up
+ * on its first side's schedule (movedGames), its new start kept with it and on its links.
  */
 export async function refreshSportsEvents(opts: { providers?: SportsProvider[]; now?: Date; only?: string[] } = {}): Promise<{ days: number; stored: number; finals: number; errors: string[] }> {
   const now = opts.now ?? new Date();
@@ -251,13 +257,16 @@ export async function refreshSportsEvents(opts: { providers?: SportsProvider[]; 
     errors.push(`slates: ${(e as Error).message.slice(0, 160)}`);
   }
   const { rows } = await pool.query(
-    `SELECT DISTINCT e.provider, e.league, e.event_id, e.starts_at, e.teams IS NOT NULL AS linked FROM season_events e
+    `SELECT DISTINCT ON (e.provider, e.league, e.event_id) e.provider, e.league, e.event_id, e.starts_at, e.teams IS NOT NULL AS linked, e.teams->0->>'id' AS side
+       FROM season_events e
        LEFT JOIN sports_events f ON f.provider = e.provider AND f.league = e.league AND f.event_id = e.event_id
       WHERE e.starts_at IS NOT NULL AND (f.event_id IS NULL OR NOT f.final)
-        AND e.starts_at BETWEEN $1::timestamptz - CASE WHEN e.teams IS NOT NULL THEN interval '3 days' ELSE interval '16 days' END AND $1::timestamptz + interval '8 days'
+        AND e.starts_at BETWEEN $1::timestamptz - CASE WHEN f.state = 'in' THEN interval '30 days' WHEN e.teams IS NOT NULL THEN interval '3 days' ELSE interval '16 days' END AND $1::timestamptz + interval '8 days'
         AND ($2::uuid[] IS NULL OR e.season_id = ANY($2::uuid[]))`,
     [now, opts.only ?? null]
   );
+  const sideOf = new Map(rows.filter((r) => r.side).map((r) => [`${r.provider}|${r.league}|${r.event_id}`, String(r.side)]));
+  const missing: { provider: string; league: string; id: string; side: string }[] = [];
   const days = new Map<string, { provider: string; league: string; day: string; ids: Set<string> }>();
   for (const r of rows) {
     // A link without teams: a field's or a card's event the app reads (a team game's has its teams; anything else isn't read).
@@ -279,9 +288,20 @@ export async function refreshSportsEvents(opts: { providers?: SportsProvider[]; 
       const events = (await p.eventsOn(d.league, d.day)).filter((e) => d.ids.has(e.id));
       // A game first seen after it started has no line on the scoreboard: its summary's, as a matchup's maker takes it.
       stored += await storeEvents(p.id, d.league, await withOdds(p, d.league, events, now.getTime()));
+      // L3 part 3b: a team game not on its day's scoreboard (moved), looked up below.
+      const seen = new Set(events.map((e) => e.id));
+      for (const id of d.ids) {
+        const side = sideOf.get(`${d.provider}|${d.league}|${id}`);
+        if (!seen.has(id) && side) missing.push({ provider: d.provider, league: d.league, id, side });
+      }
     } catch (e) {
       errors.push(`${d.league} ${d.day}: ${(e as Error).message.slice(0, 160)}`);
     }
+  }
+  try {
+    stored += await movedGames(providers, missing.slice(0, MAX_MOVED), now);
+  } catch (e) {
+    errors.push(`moved: ${(e as Error).message.slice(0, 160)}`);
   }
   await pool.query(
     `UPDATE show_seasons ss SET status = x.status, updated_at = now()
@@ -304,4 +324,39 @@ export async function refreshSportsEvents(opts: { providers?: SportsProvider[]; 
     errors.push(`finals: ${(e as Error).message.slice(0, 160)}`);
   }
   return { days: Math.min(days.size, MAX_DAYS), stored, finals, errors };
+}
+
+/**
+ * L3 part 3b: linked team games their day's scoreboard hasn't got, each looked up on its first side's schedule (cached: one call a
+ * team, its games now), as a moved game keeps its event id (ESPN's 2026: BAL at NYY moved from Sept 26 to Sept 25, "Rescheduled
+ * from Sep. 26"). One found is kept with its new start (storeEvents) and its links' start moved with it: a matchup's or a slate's
+ * (season_events.starts_at, read by the locks and the questions), and a matchup's episode's air time (a game an episode); a slate's
+ * sync moves it to its new day's episode once that day is read (syncSlate), and a TV listing's links are its listing's. One the
+ * schedule hasn't got either is left as it is (gone from ESPN). Returns how many were kept.
+ */
+async function movedGames(providers: SportsProvider[], missing: { provider: string; league: string; id: string; side: string }[], now: Date): Promise<number> {
+  let kept = 0;
+  const schedules = new Map<string, Promise<SportsEvent[] | null>>();
+  for (const m of missing) {
+    const p = providers.find((x) => x.id === m.provider);
+    if (!p) continue;
+    const k = `${m.provider}|${m.league}|${m.side}`;
+    if (!schedules.has(k)) schedules.set(k, p.schedule(m.league, m.side).catch((e) => (e instanceof SportsUnavailable ? null : Promise.reject(e))));
+    const found = (await schedules.get(k))?.find((e) => e.id === m.id);
+    if (!found?.at) continue;
+    kept += await storeEvents(p.id, m.league, await withOdds(p, m.league, [found], now.getTime()));
+    await pool.query(
+      `UPDATE season_events e SET starts_at = $4
+        WHERE e.provider = $1 AND e.league = $2 AND e.event_id = $3 AND e.starts_at IS DISTINCT FROM $4::timestamptz
+          AND (EXISTS (SELECT 1 FROM sports_matchups m WHERE m.season_id = e.season_id) OR EXISTS (SELECT 1 FROM sports_slates s WHERE s.season_id = e.season_id))`,
+      [m.provider, m.league, m.id, found.at]
+    );
+    await pool.query(
+      `UPDATE season_episodes ep SET air_at = $4, updated_at = now()
+         FROM season_events e JOIN sports_matchups m ON m.season_id = e.season_id
+        WHERE e.provider = $1 AND e.league = $2 AND e.event_id = $3 AND ep.season_id = e.season_id AND ep.number = e.episode AND ep.air_at IS DISTINCT FROM $4::timestamptz`,
+      [m.provider, m.league, m.id, found.at]
+    );
+  }
+  return kept;
 }

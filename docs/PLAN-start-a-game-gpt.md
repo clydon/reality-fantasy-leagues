@@ -195,6 +195,7 @@ and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track
 | A replacement's multiplier (2026-11-05) | **On what the replacement earns while it's yours, on every kind of draft, an Outlast included** (the user: "your assumptions are correct"; C1's Noticed). "The new player who replaces your lost one scores 0.5x" multiplies the points they earn from the episode after they join, never their whole place: in an Outlast, the boots they outlast while yours. An Outlast without a multiplier keeps today's count (whoever holds someone now has their whole place). Built in C3. |
 | A shared game's two holders (2026-11-06) | **Per holder, from the live games' next episode on** (the user, on C4's Noticed): someone who goes home in an episode not yet played is owed a replacement on every team that held them, one replacing them settling only their own. Every exit already played stays as it played out (no past loss owed again, no standings moving backwards); games made from now on are per holder from the start; C4's games as they are. As data, never a date or a league named in code: each existing game carries its cutover (`settings.perHolderFrom`, migration 0207: the first episode it hadn't played; Survivor 51's live games, Episode 8). Built as C4b, before Episode 8's results (Wed Nov 11). |
 | A sports week (2026-11-06) | **The episode, wherever the season has episodes of its own** (the main session's call, as the sports track's orchestrator; built in L8 part 3): a league's slate's episode (ESPN's own week for football, Monday to Sunday or a day for the NBA, NHL and MLB, a round for soccer) is the week for its locks, its matchups and the screens, locking at its own first game whatever the spec's `closes` says. Tuesday to Monday (Eastern) only where nothing else defines the week: a team's season and a matchup's series, one game an episode. |
+| Which line a game plays by (2026-11-06) | **The line when the question opens for answers, shown with it, never changing once anyone can answer** (the main session's call at 11:05 AM, as the sports track's orchestrator; the user can overrule; built in L3 part 3b). Not the line at the lock (answers made earlier would be graded against a line their makers never saw), nor the line when the game is made (a game made weeks ahead has none yet for its later games). Each question (each game, for a question about each game) takes the latest line read when it opens (the daily odds read is enough: no hourly read); one that opens before ESPN has a line waits ("Line coming") and opens when there is one. "Opens" is the first time the question is served open in the league (a read of its questions or an answer to it), the line kept then for good: it's the line every answer to it was made against. The phone's `lineAtStart` stays the live display's line, not the question's. |
 
 ## What's there today (mapped 2026-10-27)
 
@@ -1128,7 +1129,8 @@ engine track; L brings each sport's data to it. Its screens wait for the UI trac
     sequence's line, the saved final replacing it at the end, what it changed said) and a field's and a card's finals kept and read
     as a team game's (migration 0302, HOSTING.md) (built 2026-11-06: As built below); 3b, the server's line at the lock and
     postponed, suspended and moved games (they need ESPN's own answers for a postponed game, none recorded yet, and a call on
-    which line a game plays by: 3a's Noticed).
+    which line a game plays by: 3a's Noticed) (built 2026-11-06 on ESPN's own answers for the Yankees' 2026 rainouts, recorded
+    after the fact, and the main session's call, the line when the question opens: As built below; migration 0306).
   - **Part 2, the engine's hooks, in parts (2026-11-06, once track C was merged in: the main session's note of 3:45 PM; every "For
     the engine lane" item of L3, L4 and L8 with it):** 2a, points per stat in the engine (a lineup, best ball or everyone drafted
     scored by a sport's stats; a card's bouts at their formats: built 2026-11-06, As built below); 2b, the daily and weekly locks
@@ -1608,9 +1610,9 @@ GPT (G3) and the wizard (U1) will call `makeMatchup`.
   than the game's start. A spec's line is fixed when its game is made (from the kept one); a live game's lock could read the
   scoreboard's line itself. (L2, the phone's poller; L3.) **L2:** the poller keeps the last line read before the start
   (`lineAtStart`), on the phone only; the server's is L3's.
-- **A postponed game** comes from ESPN as `post` but not completed: its matchup reads as completed and its final never comes.
+- **Closed (L3 part 3b, 2026-11-06: called off, its episode's results nothing; a matchup doesn't take its makeup: 3b's Noticed).** **A postponed game** comes from ESPN as `post` but not completed: its matchup reads as completed and its final never comes.
   ESPN moves it to a new event or date; the matchup would need its new game. (L3.)
-- **A game not final three days after it starts** (suspended, resumed later) isn't read again by the daily job, and **a game
+- **Closed (L3 part 3b, 2026-11-06: a suspended game read for 30 days; a moved one found on its team's schedule).** **A game not final three days after it starts** (suspended, resumed later) isn't read again by the daily job, and **a game
   moved to another day** is looked for on its first day's scoreboard (`season_events.starts_at` isn't updated for a matchup).
   (L3, with postponements.)
 - **A league's show is named from its slug** ("NBA", "Mens College Basketball"; soccer's "eng.1" would be "Eng 1"): L5 should
@@ -3576,7 +3578,7 @@ in the placement corpus with the roto refusal kept on the 7 of them ranked roto)
   whether it's started), `confidence`, and `mine`.
 - **Others' picks for a game that's started stay hidden until the week's last game starts** (the question's one lock shows
   everyone's): a pool that shows each game's picks as it starts would need the view to show them game by game. U1's call.
-- **No over/under on each game** until each game's line is read when the question opens (L3 part 3b, with "which line a game plays
+- **Closed (L3 part 3b, 2026-11-06).** **No over/under on each game** until each game's line is read when the question opens (L3 part 3b, with "which line a game plays
   by"); then `EACH_GAME_SETTLES_FOR.overUnder` and each game's line in the view.
 - **The bots answer nothing about each game** (their answers are a show's question's). A bots step.
 - **A game linked to the week after its picks opened** joins the question (its faces are the games as linked at each read): a pick
@@ -3752,7 +3754,7 @@ HOSTING.md updated).** L4 part 2's Noticed: a bracket question asked over a leag
 - **The bots draft and set lineups for a categories game by nothing** (as 2a's Noticed: form reads moments). A bots step.
 
 **L3 part 2c noticed, not fixed:**
-- **A game called off never has results** (`status: 'off'`: ESPN's over without a final): its questions are off (void), but its
+- **Closed (L3 part 3b, 2026-11-06: its episode has results, nothing in them).** **A game called off never has results** (`status: 'off'`: ESPN's over without a final): its questions are off (void), but its
   episode has no `gameFinal`, so a one-game pick'em on a postponed game never ends. Whether a postponed game's episode is over, or
   waits for the game's new date, is L3 part 3b's (postponed, suspended and moved games, on a recorded postponement).
 - **Nothing pushes "results are in" for a sport's episode**: the shows' pushes come from results written (decision-apply.ts), and a
@@ -3777,6 +3779,97 @@ HOSTING.md updated).** L4 part 2's Noticed: a bracket question asked over a leag
   lineups.)
 - **A salary cap or a stock market on stats** stays refused (their prices are moments': `PriceLogic.points`). (When a sports
   salary cap is asked for: G3.)
+
+**L3 part 3b as built: which line a question plays by, and postponed, suspended and moved games (2026-11-06, `sports`, not merged;
+migration 0306; HOSTING.md updated).**
+- **What ESPN says of a game called off, recorded after the fact** (`scripts/dev-test/record-espn-called-off.js`, new: each day's
+  scoreboard, the games of the team named, and each event's summary, trimmed; `tests/fixtures/espn/mlb-schedule-called-off-2026.json`,
+  8 KB): the Yankees' 2026. TB at NYY on May 23, `STATUS_POSTPONED` (state post, not completed, "Rain - Makeup date Sept 22"; its
+  summary says the same, no plays, its line still in its pickcenter), made up on Sept 22 as a new event ("Doubleheader - Game 1 -
+  Makeup from May 23"); BAL at NYY moved from Sept 26 to Sept 25 as the same event ("Doubleheader - Game 1 - Rescheduled from Sep.
+  26"), Sept 26's scoreboard without it; BAL at NYY on Sept 27 `STATUS_CANCELED`, never made up. ESPN's MLB 2025 and 2026 months list
+  no suspended game (no `STATUS_SUSPENDED` in any month's scoreboard: only postponed, cancelled, a rain-shortened final, "Game called
+  (rain) with 1 out in the top of the 9th", which is just a final). **Not recorded:** the live moment a game is called off (how long
+  before or after its start ESPN says so, and whether a postponed game's scoreboard keeps its line that day), and a suspended game's
+  answers. What that leaves: a game ESPN calls off after its start already locked what its start locked (below); a suspended game is
+  read by its status name alone, as ESPN's other sports name it (`readScoreboard`), never seen.
+- **The reader** (`espn.ts` stateOf): ESPN's status name read too (`SportsEvent.called`: `postponed`, `canceled`, or `suspended`,
+  `types.ts` Called); postponed and cancelled only when over and not completed; a suspended game is still being played (state 'in',
+  not final, whatever ESPN's state says: it's finished later as the same game). Kept with the game (migration 0306:
+  `sports_events.called`, `storeEvents`, never changed after a final), carried by the pure facts (`matchup.ts` Game and GameFacts).
+- **Which line a question plays by** (the Decisions table, "Which line a game plays by"): a spec's `line: 'game'` (`LINE_GAME`,
+  schema.js) on an over/under settled by its game's final total (the check refuses it on anything else), one game's (each episode's,
+  or asked once the span's first) or each game's of a week (`each: 'game'`: `EACH_GAME_SETTLES_FOR.overUnder`, now open, a fixed
+  line there refused: each game has its own). Playable (`playable`), nothing left to fill in (`specWaitsFor`: only a null line
+  waits for the wizard). Kept by the server as the question opens (`answers.ts` openLines, on every read of a league's questions and
+  every answer, while it isn't closed): each of its games still to start with a line read and none kept takes the latest one
+  (`leagueGames`' listing now carries `line` and `lineAt`: `sports_events.odds` and `odds_at`), kept once in `question_lines`
+  (migration 0306, `question-lines.ts` keepLines, never over one kept: two reads at once keep the first), read back for the grader
+  (`answer-points.ts`: `AnswerFacts.lines`, keyed `question|window|event` by answers.js `lineKey`, an episode's one game ''). The
+  view shows the kept line (`QuestionView.line`, each game's `games[].line`); before there's one, the question is `waiting`
+  (a new status: "Line coming: this one opens as soon as the game's line is out." on the questions sheet, impeccable clarify's words),
+  an answer refused (409 "The line isn't out yet: you can answer once it is"; for one game of a week, "No line for Hawks at Celtics
+  yet: pick it once there is one"). The grader (answers.js `lineOf`, `gameVerdict`): the kept line, carried on the verdict (`line`)
+  so `rightAnswers` reads it; over known early past it; none kept by the game's start, off ("No line came out before the game: it
+  doesn't count either way"). A sheet's summary counts a waiting question as nothing to do. Its words (describe.js, impeccable
+  clarify): "The line is the game's own, set when the question opens, and it won't change after." and for each game "Each game is
+  over or under its own line, set when you can first pick it, and it won't change after."; its phrase "(the game's line)".
+- **A game called off** (postponed, cancelled: state post, not final): **the grader** says why (`calledOffWhy`: "The game was
+  postponed: it doesn't count either way", "The game was cancelled: ...", one read before 0306 "The game wasn't played: ..."), from
+  `SportsGameFacts.called` (`leagueGames`); **its episode has results** (`stampStats`: an episode whose one game is called off is
+  among the `finals`, so `ep.gameFinal`, nothing scored: the reveal, the week, a viewer's mark and a span's end move past it; squares
+  get its status, paying nobody: L3 part 2c's Noticed closed), the fingerprint moving when a game is called off; **the locks** never
+  take its start (`air-times.ts` PLAYED: a day's or a week's lock is its first game played, a holding of its team free to move until
+  the lineup's own lock, for `closes` 'daily', 'weekly' and 'game'); **a question about each game** has it locked at once and says
+  so (`gameStarted`; `games[].called`; a pick refused "76ers at Cavaliers was postponed: its pick doesn't count either way"). **The
+  stats**: it has no lines and is never final, so finals.ts never asks for it, and a lineup's holding of its team scores nothing that
+  game. **Its makeup** is a game of its own: a slate's sync links it to its own day's episode (L8 part 1, as before); a matchup's
+  doesn't take it (Noticed).
+- **A suspended game** (state 'in'): read again by the daily job for 30 days from its start (`refreshSportsEvents`: L1 part 3's
+  Noticed, "a game not final three days after it starts", closed), so its final is kept once it's finished; it locks as it started.
+- **A game moved to another day** (the same event): a linked team game its day's scoreboard hasn't got is looked up on its first
+  side's schedule (`matchup.ts` movedGames, at most 10 a run, one call a team, cached as schedules are), kept with its new start
+  (`storeEvents`), its links' start moved for a matchup's or a slate's season (`season_events.starts_at`: the locks and the questions
+  read it), a matchup's episode's air time too (a game an episode); a slate's sync moves it to its new day's episode once that day's
+  read (as before), and a TV listing's links stay its listing's (link.ts). One the schedule hasn't got either is left as it is. L1
+  part 3's Noticed ("a game moved to another day is looked for on its first day's scoreboard") closed.
+- **Checks.** `tests/sports-called-off.test.js` (6, new): the recording read (the rainout and the cancellation over, not played, said
+  why; the makeup and the moved game final with their notes; the moved game's old day empty; a suspended game, made from the rainout,
+  still being played; a rain delay just a game); a game called off graded off with each kind's words, nothing earned; an over/under on
+  the game's own line graded on the kept line (the listing's moving after changes nothing), over known early past it, off with none
+  kept by the start, a fixed line as before; each game of a week on its own line (one with none kept off, the rainout off); the words;
+  an episode whose game is called off has results. `tests/sports-hook.test.js`: each game's over/under plays with `line: 'game'`, a
+  fixed one refused at its line. `check-stats-game.js` (+17, 86 in all, all pass: a sixth season, a week's slate with an over/under on
+  each game: each line kept as it opens, ESPN's moving after changing nothing, a game with no line refused until its line's read, a
+  postponed game locked and refused, the week's lock its first game played, graded game by game on the kept lines; a seventh, a
+  team's matchup: its postponed opener's episode with results and the week moved on, the next game's over/under waiting and refused,
+  then open with its line and answered, a game moved off its day found on its team's schedule by the daily job, its new start kept on
+  it, its link and its episode). check-slate.js, check-matchup.js, check-finals.js and check-find-game.js pass as before. The
+  placement corpus: no recorded spec moves (none has a game's own line). 1,873 unit tests; `tsc` clean; eslint clean on the files
+  changed.
+
+**L3 part 3b noticed, not fixed:**
+- **A matchup doesn't take a postponed game's makeup** (a team's season, a series: its episodes are its games as made, one an
+  episode, in order; a makeup listed later is a new event, often out of order with the rest: Sept 22 for May 23's). The postponed
+  game's episode has results with nothing in them, so the matchup plays one game fewer. Adding it as an episode after the last would
+  put an episode's air time before the ones it follows; master's plan's "Follow a team" (a team's season that grows) is where it
+  goes, with the screens saying which game made up which.
+- **A game called off after its start** locked what its start locked, and the locks then read without it (PLAYED): a day whose only
+  started game is called off unlocks until its next game's start. No game was played, so nothing was seen; the live moment isn't
+  recorded (above). If a recording shows ESPN calling games off well after their starts, a lock could keep the start it had.
+- **A game moved past a neighbouring game** (a matchup's game moved after the next one's) keeps its episode number, so the two
+  episodes' air times are out of order (the week reads the earlier number first). Rare (ESPN's 2026 Yankees moves were a day); the
+  screens could order by start (U1).
+- **A slate's game moved past the sync's window** (more than eight days on) stays in its old episode with its new start until the sync
+  reads its new day: a question about each game of the old week keeps it until then (its pick open until its new start), and a pick
+  made for it there is dropped when it moves. Right for the week it's played in; the each-game screen (U1) could say "moved".
+- **No default spec asks an over/under on the game's own line yet** (the sports' defaults: `src/lib/sports/defaults`); the GPT's
+  context pack (G1) and the wizard (U0) can offer it now. An over/under on the spread (a margin against ESPN's spread) isn't one:
+  `line: 'game'` is the total's. (G1 or U0.)
+- **The each-game screen** (U1, through impeccable) reads `games[].line` (null: "Line coming" for that game) and `games[].called`.
+- **College scoreboards list only ESPN's default selection of games**, so a linked college game off it is looked up on its team's
+  schedule each run (movedGames: up to 10 a run, cached as a schedule is). If that's every run for many games, a college game's own
+  `groups` scoreboard would be the better read (L1's college Noticed; master's plan's Later).
 
 **L3 part 3a as built: live points on the phone, and a field's and a card's finals kept (2026-11-06, `sports`, not merged; migration
 0302; HOSTING.md updated).**
@@ -3843,12 +3936,12 @@ HOSTING.md updated).** L4 part 2's Noticed: a bracket question asked over a leag
 - **For the engine lane (L3 part 2):** as above, `statMoments(lines, score, groupOf, boutsOf)`, with `leagueGames`' `bouts`.
 
 **L3 part 3a noticed, not fixed:**
-- **Which line a game plays by** (an over/under's): a spec's line is fixed when its game is made, from the line kept then
+- **Closed (L3 part 3b, 2026-11-06: the main session's call, the line when the question opens; the Decisions table).** **Which line a game plays by** (an over/under's): a spec's line is fixed when its game is made, from the line kept then
   (`sports_events.odds`, read once a day), while the phone's poller keeps the last line before the start (`lineAtStart`). Keeping
   the server's at the lock would be an hourly read of the day's scoreboard for games starting within the hour (the desk's hourly
   Reminders and waivers job); whether a game made days ahead should take the line at the lock is a rule question (A4's questions,
   or G3's wording: "locked at first pitch" in the user's example says the lock). (L3 part 3b, with the main session's call.)
-- **Postponed, suspended and moved games** are as L1 part 3 noticed: no recorded answer of ESPN's for a postponed game yet (its
+- **Closed (L3 part 3b, 2026-11-06, on ESPN's answers recorded after the fact).** **Postponed, suspended and moved games** are as L1 part 3 noticed: no recorded answer of ESPN's for a postponed game yet (its
   event id kept or a new one, its date), so part 3b starts by recording one (`record-espn.js` on the next postponement: MLB's
   rainouts, an NFL weather delay). A field's event is now refreshed 16 days from its start, so a golf round postponed a day still
   turns final; a tennis event's suspended match too.
@@ -4235,7 +4328,7 @@ master yet, so its steps 1-3 are what this step built, here).
   once, heavy for the Players tab. Its own roster first, each opponent's as its games near, when the screens show it.
 - **A search reads up to four schedules from Neon** for the next games (~100 KB an MLB team's): held in no memory, unlike the lists.
   A smaller "next game" row or a memo if searches get busy (HOSTING.md has the numbers).
-- **ESPN's schedule shows a postponed game** (the Yankees' 2026: four, "Postponed", state post, not completed; each makeup a new event
+- **Closed (L3 part 3b, 2026-11-06: ESPN still serves them after the fact, recorded and built on).** **ESPN's schedule shows a postponed game** (the Yankees' 2026: four, "Postponed", state post, not completed; each makeup a new event
   id, in a later series). That's the schedule's view only: L3 part 3b still wants a postponement recorded live (a game's summary and
   scoreboard as it's called off).
 - **A league by name** ("NFL", "Premier League") finds no team: L8's slate would be what it adds.

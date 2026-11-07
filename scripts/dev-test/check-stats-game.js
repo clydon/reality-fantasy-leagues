@@ -26,7 +26,13 @@
 // engine items: daily lineups on a week's slate (a fourth season, closes 'game'): a read stamps each game's start and day's end and
 // each holding's games by its team; a holding whose game is on today can't be benched (refused through withLeagueLock), one whose
 // game was yesterday can, saved with its time beside the lineup before it (never the stamp); once the week's games are kept, each
-// game counts the lineup in force when it started.
+// game counts the lineup in force when it started. L3 part 3b: an over/under on each game of a week's slate by its own line (a sixth
+// season): the line kept as the question opens for each game that has one (question_lines), never moved after (ESPN's moving), a game
+// with none yet unanswerable until it has, a postponed game in the week locked and off, its start locking nothing (the week's lock its
+// first game played), graded game by game on the kept lines; and a team's matchup of a game an episode (a seventh): its postponed
+// opener's episode has results (nothing scored) so the week moves on, the next game's over/under waiting ("Line coming") and refused
+// until its line's read, then open with it; a game moved to another day (not on its day's scoreboard) found on its team's schedule by
+// the daily job (refreshSportsEvents), its new start kept with it, on its link and as its episode's air time.
 // No app server: readyLeague is what GET /api/leagues/[id]/state and season-games.ts read through. Every row it makes is keyed
 // "zt-stats-game" (the show's slug, the league's slug, its user "zt-stats-game-user") or provider "zt-espn-stats"; it removes them at the end (--keep leaves
 // them; the next run removes them first). Refuses a non-local database. Prints PASS/FAIL.
@@ -51,6 +57,8 @@ const { saveFinals } = jiti("../../src/lib/server/sports/finals.ts");
 const { stampStats, drawNow, leagueGames } = jiti("../../src/lib/server/sports/score.ts");
 const { leagueAnswers, answerStanding } = jiti("../../src/lib/server/answer-points.ts");
 const { gameQuestions, answerQuestions } = jiti("../../src/lib/server/answers.ts");
+const { sportLocks } = jiti("../../src/lib/server/air-times.ts");
+const { refreshSportsEvents } = jiti("../../src/lib/server/sports/matchup.ts");
 const { sportOf, storedGame, storedCard, defaultsFor, specContextOf } = jiti("../../src/lib/sports/index.ts");
 const Sq = require("../../src/lib/game/sequence/squares.js");
 const G = require("../../src/lib/game/game-spec/index.js");
@@ -510,6 +518,141 @@ async function down() {
       const boDaily = cents(2 * (phoneOf(bo[0]) + phoneOf(bo[1])));
       check(!!w1.statGames && total(s4, "ann") === annDaily && total(s4, "bo") === boDaily, "the week: the opener for the lineup then, tomorrow's for the one set today (ann), bo's one lineup for both", `${total(s4, "ann")} vs ${annDaily}, ${total(s4, "bo")} vs ${boDaily}`);
       check(S.ActiveRosterLogic.isLineupLocked(s4, w1.id), "once its games are over: locked");
+    }
+
+    // L3 part 3b: an over/under on each game of a week's slate, a sixth season of the show: tomorrow's game with no line yet, one in
+    // two days with ESPN's line, and one postponed (its start in twelve hours, before either), answered by ann's account.
+    {
+      const season6 = (await pool.query("INSERT INTO show_seasons (show_id, season_number, premiere_date, air_time, air_tz, status) SELECT id, 6, (now() AT TIME ZONE 'UTC')::date - 1, '12:00', 'UTC', 'airing' FROM shows WHERE slug = $1 RETURNING id", [SLUG])).rows[0].id;
+      await pool.query("INSERT INTO sports_slates (season_id, provider, league, season, stage, cadence, windows, key) VALUES ($1, $2, 'basketball/nba', 2027, 'regular', 'week', '[]'::jsonb, $3)", [season6, P, `${SLUG}-lines`]);
+      await pool.query("INSERT INTO season_episodes (season_id, number, air_at, source) VALUES ($1, 1, $2, 'listing'), ($1, 2, $3, 'listing')", [season6, iso(-DAY), iso(6 * DAY)]);
+      const [ga, gb, gc] = ["zt-line-a", "zt-line-b", "zt-line-off"];
+      for (const [event, at, teams, state, odds, called] of [
+        [ga, DAY, [{ id: "1", name: "Hawks" }, { id: "2", name: "Celtics" }], "pre", null, null],
+        [gb, 2 * DAY, [{ id: "3", name: "Thunder" }, { id: "4", name: "Spurs" }], "pre", { overUnder: 220.5, details: "OKC -4.5" }, null],
+        [gc, 12 * 3600_000, [{ id: "20", name: "76ers" }, { id: "5", name: "Cavaliers" }], "post", { overUnder: 231 }, "postponed"],
+      ]) {
+        await pool.query("INSERT INTO season_events (season_id, episode, provider, league, event_id, starts_at, teams, name) VALUES ($1, 1, $2, 'basketball/nba', $3, $4, $5::jsonb, $6)", [season6, P, event, iso(at), JSON.stringify(teams), `${teams[0].name} at ${teams[1].name}`]);
+        await pool.query("INSERT INTO sports_events (provider, league, event_id, starts_at, state, teams, final, odds, odds_at, called) VALUES ($1, 'basketball/nba', $2, $3, $4, $5::jsonb, false, $6::jsonb, CASE WHEN $6::jsonb IS NULL THEN NULL ELSE now() END, $7)", [P, event, iso(at), state, JSON.stringify(teams.map((t) => ({ id: t.id }))), odds && JSON.stringify(odds), called]);
+      }
+      const q = S.defaultState();
+      S.updateSettings(q, "showId", SLUG);
+      S.updateSettings(q, "wikiSeason", 6);
+      q.settings.game = null;
+      q.players = ["ann", "bo"].map((id) => ({ id, name: id, color: "#000" }));
+      S.updateSettings(q, "setupComplete", true);
+      const pickem = defaultsFor("basketball").specs.pickem.spec;
+      const spec = { ...pickem, ask: [{ id: "pts", ask: "Total points: over or under?", answer: "overUnder", settle: { by: "final", take: "total" }, points: 1, asked: "each", closes: "start", each: "game", line: "game" }] };
+      const wrong = S.setGame(q, spec, { ctx: specContextOf(nba) });
+      check(wrong.length === 0 && q.settings.game?.ask?.[0]?.line === "game", "an over/under on each game by its own line, written as a league's own", JSON.stringify(wrong));
+      for (let n = 1; n <= 2; n++) S.ensureEpisodeNumber(q, n, false);
+      const id = (await pool.query("INSERT INTO leagues (name, slug, join_code, state) VALUES ('ZT lines', $1, 'ZTLINE', $2) RETURNING id", [`${SLUG}-lines`, JSON.stringify(q)])).rows[0].id;
+      await pool.query("INSERT INTO league_memberships (league_id, user_id, player_id, role) VALUES ($1, $2, 'ann', 'member')", [id, USER]);
+      await pool.query("INSERT INTO show_follows (user_id, season_id, seen_through, following) VALUES ($1, $2, 1, true)", [USER, season6]);
+      const user = { id: USER, name: "zt each", email: "zt-stats-game@example.invalid" };
+      const said = async (body) => {
+        try {
+          return { ok: !!(await answerQuestions(user, season6, id, body)) };
+        } catch (e) {
+          return { status: e.status, why: e.message };
+        }
+      };
+      const kept = async () => Object.fromEntries((await pool.query("SELECT event_id, line::float8 AS line, read_at FROM question_lines WHERE league_id = $1", [id])).rows.map((r) => [r.event_id, r.line]));
+      const pts = (g) => g.questions.find((x) => x.id === "pts");
+      let g = await gameQuestions(user, season6, id);
+      let w = pts(g);
+      const lineOf = (w, e) => w?.games?.find((x) => x.id === e)?.line;
+      check(w?.status === "open" && lineOf(w, gb) === 220.5 && lineOf(w, ga) === null && G.sameValue(await kept(), { [gb]: 220.5 }), "the week's over/under opens with each game's line as read then (kept), none yet for tomorrow's", JSON.stringify([w?.status, w?.games, await kept()]));
+      const off = w?.games?.find((x) => x.id === gc);
+      check(off?.started === true && off?.called === "postponed" && lineOf(w, gc) === null, "  the postponed game: locked, said why, no line kept for it", JSON.stringify(off));
+      await pool.query("UPDATE sports_events SET odds = '{\"overUnder\": 230}'::jsonb, odds_at = now() WHERE provider = $1 AND event_id = $2", [P, gb]);
+      g = await gameQuestions(user, season6, id);
+      check(lineOf(pts(g), gb) === 220.5, "  ESPN's line moving after it opened changes nothing: the kept one stays", JSON.stringify(pts(g)?.games));
+      let r = await said({ episode: 1, answers: { pts: { [ga]: "under" } } });
+      check(r.status === 409 && r.why === "No line for Hawks at Celtics yet: pick it once there is one", "  a pick for the game with no line yet: refused (409)", JSON.stringify(r));
+      r = await said({ episode: 1, answers: { pts: { [gc]: "over" } } });
+      check(r.status === 409 && r.why === "76ers at Cavaliers was postponed: its pick doesn't count either way", "  a pick for the postponed game: refused (409)", JSON.stringify(r));
+      r = await said({ episode: 1, answers: { pts: { [gb]: "over" } } });
+      check(r.ok, "  a pick for the game with its line: taken", JSON.stringify(r));
+      // ESPN posts tomorrow's line: kept at the next read, its pick open.
+      await pool.query("UPDATE sports_events SET odds = '{\"overUnder\": 210}'::jsonb, odds_at = now() WHERE provider = $1 AND event_id = $2", [P, ga]);
+      r = await said({ episode: 1, answers: { pts: { [ga]: "under", [gb]: "over" } } });
+      check(r.ok && G.sameValue(await kept(), { [gb]: 220.5, [ga]: 210 }), "  once its line's read: kept, and its pick taken", JSON.stringify([r, await kept()]));
+      // The week's lock (a weekly one) is its first game played: the postponed one, twelve hours on, locks nothing.
+      const locks = await sportLocks(pool, season6, "weekly");
+      check(locks.get(1) === iso(DAY), "the week's lock: its first game played (tomorrow's), never the postponed one's start", JSON.stringify([...locks]));
+      // Both played and kept: 205 under the kept 210, 230 over the kept 220.5 (ESPN's 230 would have been a push).
+      for (const [event, sides] of [[ga, [{ id: "1", score: 100 }, { id: "2", score: 105 }]], [gb, [{ id: "3", score: 120 }, { id: "4", score: 110 }]]]) {
+        await pool.query("UPDATE season_events SET starts_at = $3 WHERE season_id = $1 AND event_id = $2", [season6, event, iso(-3 * 3600_000)]);
+        await pool.query("UPDATE sports_events SET starts_at = $2, state = 'post', final = true, final_at = $2, teams = $3::jsonb, lines = '{}'::jsonb, people = '{}'::jsonb, lines_at = now() WHERE provider = $1 AND event_id = $4", [P, iso(-3 * 3600_000), JSON.stringify(sides), event]);
+      }
+      g = await gameQuestions(user, season6, id, 1);
+      w = pts(g);
+      const each = w?.verdict?.each ?? {};
+      check(w?.status === "closed" && w.verdict?.state === "known" && each[ga]?.line === 210 && each[gb]?.line === 220.5 && each[gc]?.state === "off" && each[gc]?.why === "The game was postponed: it doesn't count either way", "closed and known game by game: each on its kept line, the postponed one off", JSON.stringify(w?.verdict));
+      check(g.points === 2, "  ann's two right: under 210, over 220.5", JSON.stringify(g.points));
+    }
+
+    // L3 part 3b: a team's matchup, a game an episode (a seventh season): Episode 1 the postponed opener (yesterday), Episode 2 a game
+    // in six days with no line yet, Episode 3 one moved from its day, its over/under on the game's own line.
+    {
+      const season7 = (await pool.query("INSERT INTO show_seasons (show_id, season_number, premiere_date, air_time, air_tz, status) SELECT id, 7, (now() AT TIME ZONE 'UTC')::date - 1, '12:00', 'UTC', 'airing' FROM shows WHERE slug = $1 RETURNING id", [SLUG])).rows[0].id;
+      const at1 = Air.zonedToUtc(new Date(now - DAY).toISOString().slice(0, 10), "12:00", "UTC").getTime() - now;
+      const [m1, m2, m3] = ["zt-m-off", "zt-m-next", "zt-m-moved"];
+      const sides = [{ id: "20", name: "76ers" }, { id: "5", name: "Cavaliers" }];
+      for (const [n, event, at, state, called] of [[1, m1, at1, "post", "postponed"], [2, m2, at1 + 7 * DAY, "pre", null], [3, m3, at1 + 14 * DAY, "pre", null]]) {
+        await pool.query("INSERT INTO season_episodes (season_id, number, air_at, source) VALUES ($1, $2, $3, 'listing')", [season7, n, iso(at)]);
+        await pool.query("INSERT INTO season_events (season_id, episode, provider, league, event_id, starts_at, teams, name) VALUES ($1, $2, $3, 'basketball/nba', $4, $5, $6::jsonb, '76ers at Cavaliers')", [season7, n, P, event, iso(at), JSON.stringify(sides)]);
+        await pool.query("INSERT INTO sports_events (provider, league, event_id, starts_at, state, teams, final, called) VALUES ($1, 'basketball/nba', $2, $3, $4, $5::jsonb, false, $6)", [P, event, iso(at), state, JSON.stringify(sides.map((t) => ({ id: t.id }))), called]);
+      }
+      await pool.query("INSERT INTO sports_matchups (season_id, provider, league, events, key) VALUES ($1, $2, 'basketball/nba', $3, $4)", [season7, P, [m1, m2, m3], `${SLUG}-matchup`]);
+      const q = S.defaultState();
+      S.updateSettings(q, "showId", SLUG);
+      S.updateSettings(q, "wikiSeason", 7);
+      q.settings.game = null;
+      q.players = ["ann", "bo"].map((id) => ({ id, name: id, color: "#000" }));
+      S.updateSettings(q, "setupComplete", true);
+      const pickem = defaultsFor("basketball").specs.pickem.spec;
+      const wrong = S.setGame(q, { ...pickem, ask: [pickem.ask[0], { id: "pts", ask: "Total points: over or under?", answer: "overUnder", settle: { by: "final", take: "total" }, points: 1, asked: "each", closes: "start", line: "game" }] }, { ctx: specContextOf(nba) });
+      check(wrong.length === 0, "a matchup's pick'em with an over/under on the game's own line, written as a league's own", JSON.stringify(wrong));
+      for (let n = 1; n <= 3; n++) S.ensureEpisodeNumber(q, n, false);
+      const id = (await pool.query("INSERT INTO leagues (name, slug, join_code, state) VALUES ('ZT matchup lines', $1, 'ZTMLIN', $2) RETURNING id", [`${SLUG}-mlines`, JSON.stringify(q)])).rows[0].id;
+      await pool.query("INSERT INTO league_memberships (league_id, user_id, player_id, role) VALUES ($1, $2, 'ann', 'member')", [id, USER]);
+      await pool.query("INSERT INTO show_follows (user_id, season_id, seen_through, following) VALUES ($1, $2, 1, true)", [USER, season7]);
+      const user = { id: USER, name: "zt each", email: "zt-stats-game@example.invalid" };
+      const said = async (body) => {
+        try {
+          return { ok: !!(await answerQuestions(user, season7, id, body)) };
+        } catch (e) {
+          return { status: e.status, why: e.message };
+        }
+      };
+      const s7 = await readyLeague(id, (await leagueStates([id])).get(id));
+      const e1 = s7.episodes.find((e) => e.number === 1);
+      check(e1.gameFinal === true && S.EpisodeLogic.hasResults(e1), "the postponed opener's episode has results (nothing happened): the week moves on past it", JSON.stringify({ gameFinal: e1.gameFinal, gameScore: e1.gameScore }));
+      let g = await gameQuestions(user, season7, id);
+      let w = g.questions.find((x) => x.id === "pts");
+      check(g.episode === 2 && w?.status === "waiting" && w.line === null && g.questions.find((x) => x.id === "winner")?.status === "open", "this week's Episode 2: its over/under waiting for the game's line, who wins open", JSON.stringify([g.episode, w?.status, w?.line]));
+      let r = await said({ episode: 2, answers: { pts: "over" } });
+      check(r.status === 409 && r.why === "The line isn't out yet: you can answer once it is", "  answered before the line's out: refused (409)", JSON.stringify(r));
+      await pool.query("UPDATE sports_events SET odds = '{\"overUnder\": 224.5}'::jsonb, odds_at = now() WHERE provider = $1 AND event_id = $2", [P, m2]);
+      g = await gameQuestions(user, season7, id);
+      w = g.questions.find((x) => x.id === "pts");
+      r = await said({ episode: 2, answers: { pts: "over" } });
+      check(w?.status === "open" && w.line === 224.5 && r.ok, "  once ESPN's line is read: open with it shown, and answered", JSON.stringify([w?.status, w?.line, r]));
+      // Episode 3's game isn't on its day's scoreboard (moved): the daily job finds it on the 76ers' schedule, three days later.
+      const movedTo = iso(at1 + 17 * DAY);
+      const ev = (eid, at) => ({ id: eid, league: "basketball/nba", name: "76ers at Cavaliers", short: null, at, state: "pre", final: false, called: null, season: 2027, stage: "regular", note: null, competitors: sides.map((t, i) => ({ team: { id: t.id, name: t.name }, home: i === 1, score: null, winner: null })), parts: [], odds: null });
+      const asked = [];
+      const prov = {
+        id: P, name: "ZT ESPN",
+        eventsOn: async (league, d) => { asked.push(`day ${d}`); return []; },
+        schedule: async (league, team) => { asked.push(`schedule ${team}`); return team === "20" ? [ev(m2, iso(at1 + 7 * DAY)), ev(m3, movedTo)] : null; },
+        game: async () => null, calendar: async () => null, boxScore: async () => null,
+      };
+      const out = await refreshSportsEvents({ providers: [prov], now: new Date(at1 + 13 * DAY + now), only: [season7] });
+      const at3 = (await pool.query("SELECT f.starts_at AS kept, e.starts_at AS linked, ep.air_at FROM sports_events f JOIN season_events e ON e.event_id = f.event_id JOIN season_episodes ep ON ep.season_id = e.season_id AND ep.number = e.episode WHERE f.provider = $1 AND f.event_id = $2 AND e.season_id = $3", [P, m3, season7])).rows[0];
+      check(!out.errors.length && asked.filter((x) => x.startsWith("schedule")).length === 1 && [at3.kept, at3.linked, at3.air_at].every((d) => d.toISOString() === movedTo), "a game moved off its day: found on its team's schedule (one call), its new start kept, on its link and as its episode's air time", JSON.stringify({ out, asked, at3 }));
     }
 
     // A show's league is never stamped (nothing asked of the sports tables).

@@ -278,7 +278,7 @@ function SheetBody({ target, d, onDone }: { target: SheetTarget; d: GameQuestion
   );
 }
 
-/** One question: its answer to give (open), why it waits (behind), or how it went (closed). */
+/** One question: its answer to give (open), why it waits (behind, or its game's line not out yet), or how it went (closed). */
 function Question({ q, d, cast, value, onValue }: { q: QuestionView; d: GameQuestions; cast: Map<string, QuestionFace>; value: unknown; onValue: (v: unknown) => void }) {
   return (
     <div data-question={q.id} data-question-status={q.status} className="border-b border-border py-3.5 last:border-b-0">
@@ -309,6 +309,11 @@ function Question({ q, d, cast, value, onValue }: { q: QuestionView; d: GameQues
           {q.catchUp === null
             ? "Catch up on the game first: its questions open once you're on the live episode."
             : `Who's still in decides this one, so it waits until you've seen Episode ${q.catchUp}.`}
+        </p>
+      ) : q.status === "waiting" ? (
+        // L3 part 3b: an over/under on the game's own line, before the line's out (impeccable clarify's words).
+        <p data-question-waiting="line" className="mt-2.5 rounded-[4px] bg-background p-3 text-sm leading-snug text-muted-foreground outline-1 -outline-offset-1 outline-border">
+          Line coming: this one opens as soon as the game&apos;s line is out.
         </p>
       ) : (
         <HowItWent q={q} d={d} cast={cast} />

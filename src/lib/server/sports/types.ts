@@ -73,6 +73,9 @@ export interface LeagueName {
 
 /** "pre": not started; "in": being played; "post": over (final, or called off). */
 export type EventState = "pre" | "in" | "post";
+/** L3 part 3b: why a game wasn't played as listed, as the provider's status names it: postponed (its makeup, when there is one, a
+ *  game of its own), canceled (never made up), or suspended (stopped, to be finished later: the same game, being played). */
+export type Called = "postponed" | "canceled" | "suspended";
 
 /** A sportsbook's line on a game, as the provider shows it (ESPN's DraftKings): an over/under's default line (L1 part 3). */
 export interface Odds {
@@ -110,6 +113,9 @@ export interface SportsEvent {
   at: string | null;
   state: EventState;
   final: boolean;
+  /** L3 part 3b: why it wasn't played as listed (over without being played: postponed or canceled; suspended: still being played,
+   *  to be finished later), or null; an answer cached before has none. */
+  called?: Called | null;
   /** The provider's season year for it (the stats' season). */
   season: number | null;
   /** Which stage of its season it's in, when the provider says: the preseason, the regular season, or the postseason (playoffs,

@@ -18,7 +18,7 @@
 //
 // Pure CommonJS, like ./schema.js.
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
-const { CARD_OUT_HOURS, PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, spanEnd, spanEndPhase, playsAs, callsAsk, finaleIn, draftQuestions, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion, matchupParts, categoryParts, squaresParts, ordinalWord, questionsGame, poolByPoints, teamParts, handicapParts, stageOn, ON_CHANGE, nextStageAts, fallsTo, stageSide, mainCount, stageAlongside, stageSeason, seasonKey, isPlayers, isBeat, waiverOwnOf, waiverMoves, weekParts, momentsPick, bankOf, isTicket, ticketOf, cardOf, isCardQuestion, onlyCard, questionLines, lifeRides, askOf: linesOf } = require('./schema.js');
+const { LINE_GAME, CARD_OUT_HOURS, PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, spanEnd, spanEndPhase, playsAs, callsAsk, finaleIn, draftQuestions, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion, matchupParts, categoryParts, squaresParts, ordinalWord, questionsGame, poolByPoints, teamParts, handicapParts, stageOn, ON_CHANGE, nextStageAts, fallsTo, stageSide, mainCount, stageAlongside, stageSeason, seasonKey, isPlayers, isBeat, waiverOwnOf, waiverMoves, weekParts, momentsPick, bankOf, isTicket, ticketOf, cardOf, isCardQuestion, onlyCard, questionLines, lifeRides, askOf: linesOf } = require('./schema.js');
 const { PLAYOFFS } = require('../sequence/bracket.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
@@ -222,6 +222,7 @@ const ticketIn = (q, s) => ticketOf((s ? linesOf(s) : []).find((x) => x.id === q
 function questionPhrase(q) {
   const text = askOf(q).replace(/\?$/, '');
   const phrase = /^[A-Z][a-z]/.test(text) ? text.charAt(0).toLowerCase() + text.slice(1) : text;
+  if (q.answer === 'overUnder' && q.line === LINE_GAME) return `${phrase} (the game's line)`;
   return q.answer === 'overUnder' && typeof q.line === 'number' ? `${phrase} (${q.line})` : phrase;
 }
 
@@ -599,7 +600,14 @@ function questionRule(q, w, each, ask, bank, s) {
       ? ` Answer for each ${w.castaway} still in: the closest on each wins ${pointsWord(pts)}.`
       : ` Answer for each ${w.castaway} still in: ${pointsWord(pts)} for each one right.`;
   }
-  const line = q.answer === 'overUnder' && typeof q.line === 'number' ? ` The line is ${q.line}.` : '';
+  // L3 part 3b: the game's own line, kept as the question opens (impeccable clarify's words).
+  const line = q.answer !== 'overUnder'
+    ? ''
+    : q.line === LINE_GAME
+      ? q.each === 'game'
+        ? " Each game is over or under its own line, set when you can first pick it, and it won't change after."
+        : " The line is the game's own, set when the question opens, and it won't change after."
+      : typeof q.line === 'number' ? ` The line is ${q.line}.` : '';
   const from = q.answer === 'person' && q.from === 'team' ? ' From your own team.' : '';
   // A wager (A8): its stake, double or nothing; A9's, any of your points. C6: of your bank, at the pool's odds, and apart from a share,
   // a rollover or a shrink.

@@ -336,7 +336,7 @@ Limits: up to 12 questions a game; an `id` is letters, digits, `.`, `_` or `-`, 
 | `group` | a tribe, team or couple (or `pick` of them) | `pick` 1 to 10 |
 | `yesNo` | yes or no | |
 | `number` | a number: the closest wins, ties all score | |
-| `overUnder` | over or under a line | `line` (null: the wizard asks) |
+| `overUnder` | over or under a line | `line` (null: the wizard asks); `"game"` (sports, L3 part 3b), settled `final` `total`: the game's own line (ESPN's over/under), the latest read when the question opens for answers in the league, kept then and never changed (the server's `question_lines`); before ESPN has one it waits ("Line coming"), an answer refused; none kept by the game's start, it doesn't count |
 | `choice` | one of the options ("0", "1", "2+") | `options`: 2 to 12; a count's are numbers or ranges, a yes or no's are Yes and No |
 | `order` | an order (the boot order, a leaderboard) | `pick` 2 to 24; `within` 0 to 5 places still scores |
 | `confidence` | a ranking, surest first | `pick` 2 to 24 |
@@ -360,8 +360,15 @@ its own game's final (a game called off doesn't count either way), known once ev
 own game starts: a started game's pick is kept as it was, a change or a first pick there refused (the server's), and the question
 closes, everyone's picks shown, as the episode's last game starts. `confidence: true` (who wins only) ranks the picks by how sure
 you are, each `{ answer, confidence }`, the ranks each used once from 1 to the episode's games, a right pick worth its rank times the
-points: a confidence pool. Not yet: an over/under on each game (each game's own line, the odds' when it opens: L3 part 3b), or a
-share, rollover or shrink. Example: "the NFL's Week 10, every game: who wins, ranked 1 to 14".
+points: a confidence pool. An over/under on each game (`overUnder`, settled `final` `total`, `line: "game"`: L3 part 3b) takes each
+game's own line as its pick opens, a game with no line yet unpickable until it has one; a fixed line for every game is refused. Not
+yet: a share, rollover or shrink. Example: "the NFL's Week 10, every game: who wins, ranked 1 to 14".
+
+**A game called off** (sports, L3 part 3b: ESPN's postponed or cancelled, over without being played; a makeup is a game of its own):
+every question on it doesn't count either way (said why: postponed, cancelled), its episode has results with nothing in them (the
+reveal and the week move past it), it locks nothing (a day's or a week's lock is its first game played; a holding of its team stays
+free to move), and a lineup's holdings of its teams score nothing in it. A suspended game is still being played, finished later as
+the same game.
 
 ### What settles it: `settle`
 
