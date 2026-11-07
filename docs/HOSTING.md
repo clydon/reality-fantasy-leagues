@@ -1279,8 +1279,8 @@ never handles it: the user does the reset and the pasting.
   time (one browser). Codex's limit reached drops it back to one and queues the rest. The research clock still starts
   one run a call, so it helps when asks come together. Next, with the app's part merged: the trivia and bingo banks
   sent to Codex (the user's yes, 2026-11-07), through the desk's `bot_ai_runs` setting.
-- **2026-11-07, the bot's throughput, step 1 (the bot on the PC and the VM; the app merged and live 2026-11-07, `7ec197d8`; not
-  merged; no migration).** The bot answers up to `CODEX_PARALLEL` Codex questions at once (default 3, in `.env`; 1 is one
+- **2026-11-07, the bot's throughput, step 1 (the bot on the PC and the VM; the app merged and live 2026-11-07, `7ec197d8`;
+  no migration).** The bot answers up to `CODEX_PARALLEL` Codex questions at once (default 3, in `.env`; 1 is one
   at a time): a CLI, no browser, so each is one more `codex` process; ChatGPT, Gemini and Claude stay one at a time. It's
   speed, not more allowance: the PC, the VM and the playtests share the plan's Codex limits, and once Codex says a limit is
   reached it goes back to one at a time, the rest queued, until an answer comes again. `/health` says `running` and
