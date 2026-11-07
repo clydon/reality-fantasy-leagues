@@ -633,6 +633,7 @@ async function standInCalls(r, n, gq) {
 async function standInCard(s, r, n) {
   const { CardResearch, pool, S } = app();
   const Spec = require("../../src/lib/game/game-spec/index.js");
+  if (Spec.hostCard(Spec.cardOf(S.gameOf(s)))) return standInHost(s, r, n);
   if (!Spec.botCard(Spec.cardOf(S.gameOf(s)))) return null;
   // A fallback a read filed for it already (its card was out by the season's clock: a taped season's always is) is newer than the
   // stand-in's, made an hour before it was out, so the stand-in's stands: decided rows are read oldest first.
@@ -644,6 +645,25 @@ async function standInCard(s, r, n) {
   const out = clock ? CardResearch.outAt(clock.airAtOf(n)) : null;
   const moments = asked.slice().reverse();
   await CardResearch.storeChoice(pool, r.seasonId, n, asked, { status: "live", moments, cannot: [] }, { madeBy: "stand-in", at: out === null ? null : new Date(out - 3600 * 1000).toISOString() });
+  return moments;
+}
+
+/**
+ * A14 part 6: a stand-in host's card for episode n, for a game whose card a host chooses: the episode's host (HostLogic.hostAt, the
+ * turn as the league stands) chooses a whole card, the list's last `each` moments, filed as host-cards.ts files it once the host's
+ * deadline has passed (the replay's episode is upcoming and its seats answer at once, so the deadline passes here); the next read
+ * stamps it. Never replaces a filed card. The moments, or null (nobody hosts it).
+ */
+async function standInHost(s, r, n) {
+  const { pool, S } = app();
+  const cfg = S.HostLogic.of(s);
+  const host = cfg ? S.HostLogic.hostAt(s, n) : null;
+  if (!host) return null;
+  const moments = cfg.of.slice().reverse().slice(0, cfg.each);
+  await pool.query(
+    "INSERT INTO host_cards (league_id, episode, player_id, moments, filed, how) VALUES ($1, $2, $3, $4, true, 'host') ON CONFLICT (league_id, episode) DO NOTHING",
+    [r.leagueId, n, host, moments]
+  );
   return moments;
 }
 
@@ -993,7 +1013,8 @@ async function run(show, season, opts = {}) {
       } catch (err) {
         r.problems.push(`episode ${ep}: the stage's draft failed: ${err.message}`);
       }
-      // C7 part 2: a card the bot chooses, the stand-in's choice for this episode before anything is answered or picked for it.
+      // C7 part 2: a card the bot chooses, the stand-in's choice for this episode before anything is answered or picked for it (A14
+      // part 6: or a stand-in host's card).
       try {
         if (S.inPlay(s, ep)) {
           const card = await standInCard(s, r, ep);

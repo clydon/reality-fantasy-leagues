@@ -5671,6 +5671,15 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     last write when an episode locks early (filed only from the row as read); the spec not saying a host card's defaults (`fullSpec`
     now does). Three left (Noticed): the stamp's savepoint boilerplate, now four copies; the host's write reading its rows again; the
     turn worked out again for each episode filed.
+  - **The long checks** (once, last, on `7e514ce2`): golden (`golden.js --before=master`): 7 seasons, 160 games, **19,361 reads, every
+    one the same**. Blind (`blind.js run`): the first run had one game with problems, s43 on Survivor 49 (its seats' answers refused:
+    blind replays each episode as upcoming and answers at once, before a host's deadline, and had a stand-in for the bot's card but
+    none for a host). blind.js now has one (`standInHost`: the episode's host chooses a whole card, the list's last moments, filed as
+    the deadline passing files it), and the second run, in full: every game played through and over on all five seasons, The
+    Challenge 41 122, 40 116 and 39 124 (as before: s43's moments are Survivor's), Survivor 49 160 (one more, s43: the Tinkerer 16,
+    the Drive-By 18, the Fan 11, the Fan Who Forgets 6) and The Traitors 4 113. The Survivor 51 rehearsal
+    (`season-forward.js rehearse --from=backups/prod-2026-10-30 --scenario=realistic,rough,dst --before=master`): every invariant
+    holds, flag off against on and master's engine against this tree's, 2,856 reads each, every one the same.
 - **A15. Live and replay** (with the watch along, docs/PLAN-couch-and-episode-night.md §6, and the sports branch's
   `GameClock`). It needs A7. The watch along is in its infancy (the user, 2026-10-28): its concept, how it's built and how it
   connects to games are all open, so A15 is where the games shape it, not only where they plug into it.
@@ -8022,8 +8031,9 @@ From A14 part 6 (2026-11-06):
 - **A game at your own pace plays its fallback every episode** (its season has aired and its seats are at different weeks, so no
   host can choose for everyone, and choosing knowing the results would be no question at all). With `void` it has no card at all:
   Start a game should refuse a host's card at your own pace, or the own-pace merge decide. (Own pace.)
-- **A blind replay has no host**: blind.js plays the engine without the server's filing, so a host's card replays as its fallback
-  (the list in turn). The tracker's s43 adds no game to blind's corpus beyond a card in turn's. (Whoever next works on blind.js.)
+- **A blind replay's host is a stand-in** (blind.js `standInHost`, built after the first long run found s43's answers refused): the
+  episode's host chooses the list's last moments, filed at once. A stand-in that chooses as a person might (say, the moments that
+  went either way last week) would replay more of what a host does. (Whoever next works on blind.js.)
 - **The host route's refusals are the server's English** ("It's Sam's turn to choose Episode 6's card"), the player's name as the
   league has it; U1's screens say them through impeccable's clarify. (U1.)
 - **The code review's three left:** the stamp modules' savepoint-and-restore boilerplate is now four copies (twists.ts,
