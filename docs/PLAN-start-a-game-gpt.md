@@ -220,6 +220,7 @@ and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track
 | Outside numbers: TVmaze ratings (2026-11-07) | **No** (the user, on A14 part 7's Noticed): TVmaze's episode ratings aren't taken as a source, so `ask.settle`'s `outside` is 'later' in VOCAB (nobody can make a rating game), nothing runs `db/outside-numbers.js` and the hourly job has no step for it. The piece stays built and checked (its code, tests, migration 0213 and the `outside_numbers` table, unused): a later yes is that flip and one step of the job. |
 | U0's first round (2026-11-07) | **The user, at impeccable's shape:** the first round is **the wizard** (Start a game's two doors, the game in a sentence and its questions, the bot's wait and errors, finding a sports game by team, the guide's Sports filter); game pages, live sports screens, answering and watch along are later rounds. **Sports: one search and the guide:** the "Search or add a show" box finds teams and leagues too (Shows · Teams · Leagues), the guide's Sports filter lists games, a team opens its schedule (the next game first, then the next few, a series, the season). **One tap is a quick game for tonight** (a one-episode game on the next airing; a season game is the second step), not the show's usual season game Claude recommended. U0 is designed in the main session; U1 builds it in fresh sessions. |
 | A season's game ideas (2026-11-07) | **Planned** (the user's idea, G5): a season's setup asks for 15 ideas, five each season-long, one-episode and over a few episodes, two standard and three creative per length, each a whole game (its questions, the show's and the cast's moments). Why (the user): an idea already built around the show's structure and stages is a starting point to tweak. Claude's shape, the user's to correct: the standard ones from our own games, the creative ones from the bot; lengths by stage, never by episode number. |
+| Season games start after Episode 1 (2026-11-07) | **Recommended by default** (the user: "we can generally recommend season long games start after episode 1"): the premiere introduces the cast, so a draft isn't a coin flip and the first boot can't knock anyone out before the game starts; premiere night still plays a one-episode game. Claude's assumptions, the user's to correct: shows only (sports drafts happen before the opener, the players known), and a very short season (about six episodes or fewer) may start at Episode 1. |
 
 ## What's there today (mapped 2026-10-27)
 
@@ -11490,7 +11491,7 @@ first), and proves it on these games and on the tracker's other rows that use it
     show's ideas before random rolls; each idea shows its stages over the season's phases (spoiler-safe: the phase's name,
     never its episode); a change keeps the shape (a part for one stage or all of them, words through G1's typed change, a
     Randomize lock on the stages).
-  - **Until the game pages exist** (track V, U1), ideas use only pieces today's screens can play.
+  - **Any piece the engine has** (the user: "we are planning for the future so don't hold back"): the screens catch up in U1 and track V.
   - **Proof:** every idea of every taped season passes our check and plays to the end blind (`blind.js`); the standard ones
     read the same names on every show; a phase-tagged question is asked only in its phase.
 
