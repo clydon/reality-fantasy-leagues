@@ -3562,6 +3562,14 @@ in the placement corpus with the roto refusal kept on the 7 of them ranked roto)
   and graded game by game (ann's 76ers at 2, bo's Hawks at 2). GAME-PIECES.md's "One question about each game". 1,854 unit tests pass;
   `tsc` clean.
 
+- **The long checks, last, on `a94d8e97` (part 2f part 2; it touches state-logic.js), after the sync of master `846436c3` (`ec423ef7`):**
+  `golden.js --before=ec423ef7` (the sync's merge, so master's own changes don't show): Survivor 49, The Challenge 40 and The
+  Traitors US 4, 74 games, 9,548 reads, every one the same. The Survivor 51 rehearsal (`season-forward.js rehearse
+  --from=../reality-fantasy-leagues/backups/prod-2026-10-30 --scenario=realistic,rough,dst --before=ec423ef7`): every invariant
+  holds in all three scenarios, flag off and on the same, the engine before against this tree's the same (2,856 reads each). The
+  blind replays (`blind.js run` on each season loaded here): every game played through, Survivor 49 156 of 156, The Challenge 40 115
+  of 115, The Traitors 4 110 of 110.
+
 **L3 part 2f part 2 noticed, not fixed:**
 - **The questions screen says "answered for each one still in"** for a question about each game (its placeholder for `each`, in
   src/new/show/questions.tsx): U1's screen for it (through impeccable) reads the view's `games` (each with its sides by name and
