@@ -926,6 +926,19 @@ declare const StateLogic: {
     episodeLines(state: LeagueState, ep: Episode, cfg: Required<import("./game-spec/index.js").SpecRoles>, holders: string[], exits?: Set<string> | null): Map<string, number> | null;
     pointsOf(state: LeagueState, playerId: string, holders: string[]): number;
   };
+  /** Step A14 part 5: the top scorer's twist (score.twist): chosen in the server's own table (twists.ts) until it closes, then filed
+   *  and stamped on the episode (episode.twist) for the scoring to read. */
+  TwistLogic: {
+    of(state: LeagueState): (Required<Omit<import("./game-spec/index.js").SpecTwist, "of">> & { of: import("./game-spec/index.js").SpecTwistOption[] }) | null;
+    at(state: LeagueState, number: number): import("./game-spec/index.js").SpecTwistOption | null;
+    timesAt(state: LeagueState, number: number): number;
+    momentTimes(state: LeagueState, type: string, number?: number): number;
+    episodes(state: LeagueState): number[];
+    closesAt(state: LeagueState, n: number): number | null;
+    closed(state: LeagueState, n: number, now?: number): boolean;
+    chooserAt(state: LeagueState, n: number, series?: unknown[]): { playerId: string } | { playerId: null; why: "first" | "waiting" | "tie" | "nobody" };
+    file(state: LeagueState, n: number, choice: { playerId: string; twist: string } | null, series?: unknown[]): { id: string | null; by: string | null; how: "chosen" | "fallback" };
+  };
   /** Step A11 part 1: a draft's race (rank.race: the first to N points wins, and the game ends there) and players knocked out
    *  (rank.cut), worked out from the data on every read. `out`: the last episode that counts for someone knocked out. */
   KnockoutLogic: {

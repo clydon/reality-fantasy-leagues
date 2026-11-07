@@ -45,7 +45,9 @@
 // bounty: bountyShapes, each episode's record of who voted for whom stamped on the league as the server stamps it, VOTES) likewise,
 // from part 3's engine, proven by hand in tests/bounty.test.js; the 2,412 before them stay. A14 part 4's (secret roles: roleShapes,
 // the deal stamped on the league once revealed as the server stamps it, o.roles) likewise, from part 4's engine, proven by hand in
-// tests/secret-roles.test.js; the 2,538 before them stay:
+// tests/secret-roles.test.js; the 2,538 before them stay. A14 part 5's (the top scorer's twist: twistShapes, each episode's filed twist
+// stamped on the league as the server stamps it, o.twists) likewise, from part 5's engine, proven by hand in tests/twist.test.js; the
+// 2,628 before them stay:
 //   node tests/fixtures/scoring-shapes.js --write [--ref=<git ref>]      the record, from this tree's engine (or the ref's)
 //   node tests/fixtures/scoring-shapes.js --print <shape> <seat|-> <mark|-|all> [--ref=<git ref>]   one read, in full
 //   node tests/fixtures/scoring-shapes.js --diff [<shape>] [--ref=d5222e68]   where this tree's reads part from the ref's (the
@@ -114,6 +116,34 @@ function shapes(G) {
     ...weekWonShapes(outlast, lineup),
     ...bountyShapes(G, outlast, lineup),
     ...roleShapes(G, outlast, lineup),
+    ...twistShapes(G, outlast, lineup),
+  ];
+}
+
+/**
+ * A14 part 5: the top scorer's twist (score.twist), on the same season, each episode's twist stamped as the server files it
+ * (o.twists: episode.twist). No engine before part 5 plays them (it refuses score.twist), so their reads are new (from part 5's
+ * engine): a lineup with its finale predictions, double points at 2, found an idol triple at 4 and a fallback with no twist at 6;
+ * shared best ball, half points at 3 and played an idol double at 6; head to head on a lineup, double points at 3 deciding its week;
+ * a lineup on its early results at 4 with that episode's twist; a pick each episode by what they do, the standings' leader choosing
+ * (double at 2, found an idol triple at 5) and weeks won.
+ */
+function twistShapes(G, outlast, lineup) {
+  const of = [
+    { id: "double", name: "Double points", times: 2 },
+    { id: "half", name: "Half points", times: 0.5 },
+    { id: "idol", name: "Idol hunt", moment: "idolFound", times: 3 },
+    { id: "played", name: "Idol frenzy", moment: "idolPlayed", times: 2 },
+  ];
+  const moments = (more = {}) => ({ by: "moments", points: null, twist: { of, ...more } });
+  const t = (id, by) => ({ id, by, how: id ? "chosen" : "fallback" });
+  const pick = { get: { by: "pick", each: 2 }, count: { pick: true }, score: moments({ by: "total" }), rank: { by: "weeks" } };
+  return [
+    ["t-lineup", lineup({ score: moments(), ask: FINALE(G) }), "exclusive", { twists: { 2: t("double", "ann"), 4: t("idol", "bo"), 6: t(null, null) } }],
+    ["t-best-ball-shared", lineup({ count: { best: 2 }, score: moments({ who: "bottom" }) }, { by: "draft", each: 3, order: "blind", own: "shared" }), "shared", { twists: { 3: t("half", "di"), 6: t("played", "cy") } }],
+    ["t-lineup-matchups", lineup({ score: moments(), rank: { by: "matchups" } }), "exclusive", { week: true, twists: { 3: t("double", "cy") } }],
+    ["t-lineup-early", lineup({ score: moments() }), "exclusive", { early: 4, twists: { 2: t("half", "bo"), 4: t("idol", "ann") } }],
+    ["t-pick-weeks", pick, null, { week: true, pick: true, more: true, twists: { 2: t("double", "ann"), 5: t("idol", "di") } }],
   ];
 }
 
@@ -751,6 +781,8 @@ function league(S, G, T, spec, own, o = {}) {
     if (o.cardChoices && o.cardChoices[n]) ep.cardChoice = JSON.parse(JSON.stringify(o.cardChoices[n]));
     // A14 part 3: who voted for whom, as the server stamps it (vote-records.ts).
     if (o.votes && o.votes[n]) ep.voteRecord = JSON.parse(JSON.stringify(o.votes[n]));
+    // A14 part 5: the twist filed for the episode, as the server stamps it (twists.ts).
+    if (o.twists && o.twists[n]) ep.twist = JSON.parse(JSON.stringify(o.twists[n]));
   }
   // A14 part 4: secret roles once revealed, as the server stamps them (secret-roles.ts).
   if (o.roles) s.secretRoles = JSON.parse(JSON.stringify(o.roles));

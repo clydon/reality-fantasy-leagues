@@ -797,6 +797,97 @@ class SecretRoleLogic {
   }
 }
 
+// ---------- TwistLogic: the top scorer's twist (docs/PLAN-start-a-game-gpt.md step A14 part 5) ----------
+// The spec's score.twist ({ of, who, by, tie, closes, fallback }), a game scored by moments' (a lineup, best ball, a pick scored by
+// what they do): after each episode's final results, its top scorer (or bottom one; by that episode's points or the standings
+// through it, the walk's series), among the seats still playing, chooses one of the spec's twists for the next episode only: every
+// point it scores times the twist's `times` (step 3, a factor beside the episode's own multiplier: timesFor), or one moment's points
+// times it (step 2, that moment's lines that episode: scoredEvents, never the moment's own points a castaway's stats read). The
+// choice is private until it closes (`closes` hours before the episode airs, or when it locks or has results): it lives in the
+// server's own table
+// (twist_choices, migration 0211: twists.ts), never in the state, and once closed the server files what the episode plays (the
+// choice, if whoever made it still chooses by the data then; else the fallback: none, or one of the twists) and stamps it on the
+// episode (`episode.twist`: { id, by, how }), public as the air times are. Once filed it stands: a result corrected after it never
+// changes the twist that episode played (its players set their lineups for it). The guardrail: a player's choice changes the next
+// episode's rules for everyone, never anyone's points directly; data still settles every one. Fallbacks, from the start: the game's
+// first episode has none (nobody's scored); results not final by the close, a tie still tied, or a chooser who left: nobody chooses;
+// a stamp naming a twist the spec no longer has plays nothing; a league at your own pace (its seats at different weeks) plays the
+// fallback every episode, stamped by the server as it reads, nothing filed.
+class TwistLogic {
+  /** The game's twist with its defaults ({ of, who, by, tie, closes, fallback }), or null: the game played's. */
+  static of(state){ return Spec.twistOf(playedGame(state)); }
+  /** The twist episode `number` plays (its stamp's, one of the spec's), or null. */
+  static at(state, number){
+    const cfg = TwistLogic.of(state);
+    if(!cfg || !Number.isInteger(number)) return null;
+    const ep = (state.episodes || []).find(e => e.number === number);
+    const id = ep && ep.twist && ep.twist.id;
+    return id ? cfg.of.find(x => x && x.id === id) || null : null;
+  }
+  /** What every point in episode `number` multiplies by for its twist (1 without one, or one on a moment). */
+  static timesAt(state, number){
+    const t = TwistLogic.at(state, number);
+    return t && !t.moment ? t.times : 1;
+  }
+  /** What moment `type`'s points in episode `number` multiply by for its twist (1 for any other moment, or none). */
+  static momentTimes(state, type, number){
+    const t = TwistLogic.at(state, number);
+    return t && t.moment === type ? t.times : 1;
+  }
+  /** The episodes a twist can play: the game's, after its first, to its end. */
+  static episodes(state){
+    const start = startEpisode(state);
+    if(start === null) return [];
+    const last = lastEpisode(state);
+    return (state.episodes || []).filter(e => e.number > start && inPlay(state, e.number) && (last === null || e.number <= last)).map(e => e.number).sort((a, b) => a - b);
+  }
+  /** When episode `n`'s choice closes (ms): `closes` hours before it airs, or null when its air time isn't known. */
+  static closesAt(state, n){
+    const cfg = TwistLogic.of(state);
+    const ep = (state.episodes || []).find(e => e.number === n);
+    return cfg && ep && ep.airsAt ? Date.parse(ep.airsAt) - cfg.closes * HOUR_MS : null;
+  }
+  /** Whether episode `n`'s choice has closed: at its close (closesAt), or once it locks or has results. (A league at your own pace
+   *  files nothing: twists.ts stamps its fallback.) */
+  static closed(state, n, now){
+    const ep = (state.episodes || []).find(e => e.number === n);
+    if(!ep) return false;
+    if(EpisodeLogic.hasResults(ep) || closedForPlay(ep, now)) return true;
+    const at = TwistLogic.closesAt(state, n);
+    return at !== null && (now === undefined ? Date.now() : now) >= at;
+  }
+  /** Who chooses episode `n`'s twist, from episode n - 1's final results (the walk's series; `series` its, worked out once by a
+   *  caller filing several): { playerId } or { playerId: null, why: 'first' (the game's first episode, or before it) | 'waiting'
+   *  (n - 1's results aren't final) | 'tie' | 'nobody' (no seat playing) }. Among the seats in the game's rotation (TeamLogic's:
+   *  nobody who left, no ghost); by the episode's points (that episode's total less the one before) or the standings through it,
+   *  the most (top) or fewest (bottom); a tie broken by the standings (tie 'total') the same way, else nobody. */
+  static chooserAt(state, n, series){
+    const cfg = TwistLogic.of(state);
+    const start = startEpisode(state);
+    if(!cfg || start === null || n <= start) return { playerId: null, why: 'first' };
+    const s = series || ScoringLogic.walk(state, { series: true }).series;
+    const i = s.findIndex(r => r.number === n - 1);
+    if(i < 0) return { playerId: null, why: 'waiting' };
+    const seats = SecretRoleLogic.seats(state);
+    if(!seats.length) return { playerId: null, why: 'nobody' };
+    const total = id => s[i].totals.get(id) || 0;
+    const week = id => Seq.round(total(id) - (i > 0 ? (s[i - 1].totals.get(id) || 0) : 0));
+    const sign = cfg.who === 'bottom' ? -1 : 1;
+    const most = (ids, f) => { const best = Math.max(...ids.map(id => sign * f(id))); return ids.filter(id => sign * f(id) === best); };
+    let top = most(seats, cfg.by === 'total' ? total : week);
+    if(top.length > 1 && cfg.tie === 'total') top = most(top, total);
+    return top.length === 1 ? { playerId: top[0] } : { playerId: null, why: 'tie' };
+  }
+  /** What episode `n` plays once its choice closes, changing nothing: { id (null: none), by, how }. `choice`: the one stored ({
+   *  playerId, twist }) or null; it stands only if whoever made it still chooses by the data now, with one of the spec's twists. */
+  static file(state, n, choice, series){
+    const cfg = TwistLogic.of(state);
+    const who = TwistLogic.chooserAt(state, n, series);
+    if(choice && who.playerId && choice.playerId === who.playerId && cfg.of.some(x => x && x.id === choice.twist)) return { id: choice.twist, by: who.playerId, how: 'chosen' };
+    return { id: cfg.fallback === 'none' ? null : cfg.fallback, by: null, how: 'fallback' };
+  }
+}
+
 // Thin dispatcher -- see "The pieces" comment near the top of this file. Delegates to the scorer the
 // spec's score.by names (scorePiece): EliminationOrderScoringStrategy (the boot order: Outlast),
 // ActiveRosterEventScoringStrategy (moments: Weekly Lineup, best ball), PickEmScoringStrategy (who
@@ -3294,15 +3385,21 @@ class ActiveRosterLogic {
   // An episode's moments (episodeEvents) as the scoring sequence reads them: each { castawayId, points } at the game's points, in
   // order. Worked out once an episode for every seat (compute's `pre.scored`).
   // C7: `episode`, the one they're in (its card's moments, where only they count).
+  // A14 part 5: the top scorer's twist on one moment that episode, on its lines (step 2: each such moment's points, or a hit's worth,
+  // times the twist's), never on the moment's own points (eventPoints: a castaway's stats read those, and a player's choice
+  // mustn't move them).
   static scoredEvents(state, events, episode){
+    const twist = TwistLogic.at(state, episode);
+    const on = twist && twist.moment ? twist : null;
+    const times = (ev, n) => (on && ev.type === on.moment ? Seq.round(n * on.times) : n);
     // C5: counting each objective once (score.hits 'pick' or 'objective'), each moment's id and what a hit on it is worth.
     const hits = ActiveRosterLogic.hits(state);
     if(hits === 'pick' || hits === 'objective'){
       const worth = new Map();
       const of = ev => { if(!worth.has(ev.type)) worth.set(ev.type, ev.couch && !formatOf(state).events.some(e => e.id === ev.type) ? 0 : ActiveRosterLogic.pointsFor(state, ev.type, episode)); return worth.get(ev.type); };
-      return events.map(ev => ({ castawayId: ev.castawayId, points: ActiveRosterLogic.eventPoints(state, ev, episode), type: ev.type, worth: of(ev) }));
+      return events.map(ev => ({ castawayId: ev.castawayId, points: times(ev, ActiveRosterLogic.eventPoints(state, ev, episode)), type: ev.type, worth: times(ev, of(ev)) }));
     }
-    return events.map(ev => ({ castawayId: ev.castawayId, points: ActiveRosterLogic.eventPoints(state, ev, episode) }));
+    return events.map(ev => ({ castawayId: ev.castawayId, points: times(ev, ActiveRosterLogic.eventPoints(state, ev, episode)) }));
   }
   // C5: how a game scored by moments counts hits (score.hits: every, pick, objective), or null (by points, every game before C5).
   static hits(state){
@@ -3334,7 +3431,7 @@ class ActiveRosterLogic {
   // part 1): compute's own path. A plain lineup keeps the arithmetic it always had.
   static combines(state){
     const g = gameOf(state);
-    return g.score.by === 'moments' && (!!ActiveRosterLogic.bestOf(state) || !!ActiveRosterLogic.captainTimes(state) || Array.isArray(g.score.times) || !!GroupSlotLogic.config(state) || !!joinedFactors(state));
+    return g.score.by === 'moments' && (!!ActiveRosterLogic.bestOf(state) || !!ActiveRosterLogic.captainTimes(state) || Array.isArray(g.score.times) || !!GroupSlotLogic.config(state) || !!joinedFactors(state) || !!TwistLogic.of(state));
   }
   // What an episode's points multiply by (the spec's score.times): each window it's in, together -- an episode, a run of them,
   // a phase of the season, the finale -- else 1. A phase counts from where data says it starts (state.phaseStarts, the desk's:
@@ -3344,7 +3441,9 @@ class ActiveRosterLogic {
   // factor of the one multiplier piece, on 'when' (Spec.multipliersOf, Seq.factorOf: Seq.inWindow says whether it's in it).
   static timesFor(state, number){
     const list = gameOf(state).score.times;
-    if(!Array.isArray(list) || gameOf(state).score.by !== 'moments') return 1;
+    // A14 part 5: the top scorer's twist on every point that episode, a factor beside the spec's windows (TwistLogic.timesAt).
+    const twist = gameOf(state).score.by === 'moments' ? TwistLogic.timesAt(state, number) : 1;
+    if(!Array.isArray(list) || gameOf(state).score.by !== 'moments') return twist;
     const seen = SpoilerLogic.latestWithResults(state);
     const starts = Object.values(state.phaseStarts || {}).filter(n => Number.isInteger(n) && n <= seen + 1);
     const inPhase = id => {
@@ -3361,7 +3460,7 @@ class ActiveRosterLogic {
     const facts = { episode: number, phase: inPhase, finale: finaleNumber };
     let x = 1;
     Spec.multipliersOf(gameOf(state)).forEach(f => { if(f.on === 'when') x *= Seq.factorOf(f, facts); });
-    return x;
+    return x * twist;
   }
   // The team a player held for an episode (best ball, which has no lineups to store it): who they hold now, with every move
   // from that episode on taken back, newest first (the mid-season log: a move made after episode k counts from k + 1, as the
@@ -8282,6 +8381,8 @@ class SpoilerLogic {
       if(!s.settings[k].length) delete s.settings[k];
     });
     const ids = new Set(hidden.map(e => e.id));
+    // A14 part 5: a twist chosen after an episode this viewer hasn't seen says who scored most in it.
+    s.episodes.forEach(ep => { if(ep.twist && Number.isInteger(seenThrough) && ep.number > seenThrough + 1) delete ep.twist; });
     // A merge badge on a hidden episode would say a merge happened: carry the last visible value.
     const visible = s.episodes.filter(e => !ids.has(e.id) && e.number <= seenThrough).sort((a,b) => b.number - a.number)[0];
     s.episodes.forEach(ep => {
@@ -9090,7 +9191,7 @@ return {
   // EliminationOrderScoringStrategy/PickEmScoringStrategy are those pieces,
   // exported directly for code that wants to bypass the dispatch.
   Core, ScoringLogic, DraftLogic, RosterLogic, WaiverLogic, EpisodeLogic, BetLogic, FinaleLogic, AnswerLogic, PickEmLogic, BlindDraftLogic, ActiveRosterLogic, GroupSlotLogic, SetupLogic, RevealLogic, SpoilerLogic, GhostLogic, Migrations,
-  SpreadLogic, DrawLogic, PriceLogic, BudgetLogic, MarketLogic, AuctionLogic, KeeperLogic, KnockoutLogic, MatchupLogic, WeekLogic, TeamLogic, HandicapLogic, StageLogic, BountyLogic, SecretRoleLogic, draftFits, draftFitsFor, rankKey,
+  SpreadLogic, DrawLogic, PriceLogic, BudgetLogic, MarketLogic, AuctionLogic, KeeperLogic, KnockoutLogic, MatchupLogic, WeekLogic, TeamLogic, HandicapLogic, StageLogic, BountyLogic, SecretRoleLogic, TwistLogic, draftFits, draftFitsFor, rankKey,
   SnakeDraftStrategy, StagesScoringStrategy, EliminationOrderScoringStrategy, NoDraftStrategy, PickEmScoringStrategy, BlindDraftStrategy, ActiveRosterEventScoringStrategy, DrawDraftStrategy, AuctionDraftStrategy
 };
 

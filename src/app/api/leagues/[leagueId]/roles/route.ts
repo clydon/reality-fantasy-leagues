@@ -5,8 +5,8 @@ import { requireLeagueRole } from "@/lib/server/auth-helpers";
 import { pool, HttpError } from "@/lib/server/db";
 import { leagueState } from "@/lib/server/league-states";
 import { readyLeague } from "@/lib/server/league-read";
-import { EVERYTHING, seenThrough } from "@/lib/server/guard";
-import { LEAGUE_SEASON_JOIN } from "@/lib/server/league-season";
+import { EVERYTHING } from "@/lib/server/guard";
+import { seatMark } from "@/lib/server/seat-mark";
 import { readDeal } from "@/lib/server/secret-roles";
 
 // Secret roles among the players (docs/PLAN-start-a-game-gpt.md step A14 part 4, secret-roles.ts). No screen yet (U1's); the
@@ -33,15 +33,8 @@ export const GET = apiRoute(async (req, { params }: { params: Promise<{ leagueId
   const cfg = R.of(state);
   if (!cfg) throw new HttpError(409, "This game has no secret roles");
   const seat = membership.playerId;
-  const [deal, season, own] = await Promise.all([
-    readDeal(pool, leagueId),
-    pool.query(`SELECT ss.id FROM leagues l ${LEAGUE_SEASON_JOIN} WHERE l.id = $1`, [leagueId]),
-    pool.query("SELECT results_seen_through FROM league_memberships WHERE league_id = $1 AND user_id = $2", [leagueId, user.id]),
-  ]);
   // What they've seen: a role's points are as much a spoiler as the results they come from.
-  let mark = season.rows[0]?.id ? await seenThrough(user.id, season.rows[0].id) : EVERYTHING;
-  const late = seat ? StateLogic.GhostLogic.lateJoinOf(state, seat) : null;
-  if (late?.catchingUp) mark = Math.min(own.rows[0]?.results_seen_through ?? (Number.isInteger(late.startEpisode) ? (late.startEpisode as number) - 1 : 0), mark);
+  const [deal, mark] = await Promise.all([readDeal(pool, leagueId), seatMark(user.id, leagueId, state, seat)]);
   const view = mark === EVERYTHING ? state : StateLogic.GhostLogic.viewFor(state, seat ?? "", mark);
   const holds = !!(deal && seat && deal.holders.includes(seat));
   const known = R.known(view);

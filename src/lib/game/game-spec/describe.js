@@ -18,7 +18,7 @@
 //
 // Pure CommonJS, like ./schema.js.
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
-const { CARD_OUT_HOURS, PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, spanEnd, spanEndPhase, playsAs, callsAsk, finaleIn, draftQuestions, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion, matchupParts, questionsGame, poolByPoints, teamParts, handicapParts, stageOn, ON_CHANGE, nextStageAts, fallsTo, stageSide, mainCount, stageAlongside, stageSeason, seasonKey, isPlayers, isBeat, waiverOwnOf, waiverMoves, weekParts, momentsPick, bankOf, isTicket, ticketOf, rolesOf, cardOf, isCardQuestion, onlyCard, questionLines, lifeRides, askOf: linesOf } = require('./schema.js');
+const { CARD_OUT_HOURS, PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, spanEnd, spanEndPhase, playsAs, callsAsk, finaleIn, draftQuestions, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion, matchupParts, questionsGame, poolByPoints, teamParts, handicapParts, stageOn, ON_CHANGE, nextStageAts, fallsTo, stageSide, mainCount, stageAlongside, stageSeason, seasonKey, isPlayers, isBeat, waiverOwnOf, waiverMoves, weekParts, momentsPick, bankOf, isTicket, ticketOf, rolesOf, twistOf, cardOf, isCardQuestion, onlyCard, questionLines, lifeRides, askOf: linesOf } = require('./schema.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const NUMBER_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
@@ -315,6 +315,41 @@ function rolesRules(s, w) {
   out.push(`Join after the game starts and you won't get a role.`);
   return out;
 }
+/** A14 part 5: the top scorer's twist, the sentence's and How it works' first rule: "After each episode, its top scorer chooses a
+ *  twist for the next one: Double points (every point counts double) or Idol frenzy (found an idol counts triple)." Null for none.
+ *  The words through impeccable's clarify (2026-11-06): "chooses", never "picks" (a pick game's picks are its castaways), who
+ *  chooses said once, the deadline as the chooser's, "the choice" rather than "it", the game's own first episode. */
+function twistSentence(s, w) {
+  const t = twistOf(s);
+  if (!t) return null;
+  const word = momentWord(w);
+  const one = (x) => `${String(x.name).trim()} (${x.moment ? `${word(x.moment)} counts` : 'every point counts'} ${timesWord(x.times)})`;
+  const list = t.of.filter(isObj).map(one);
+  const or = list.length <= 1 ? list.join('') : `${list.slice(0, -1).join(', ')} or ${list[list.length - 1]}`;
+  const who = t.by === 'total'
+    ? (t.who === 'bottom' ? "whoever's last in the standings" : 'whoever leads the standings')
+    : (t.who === 'bottom' ? 'its lowest scorer' : 'its top scorer');
+  return `After each ${w.part}, ${who} chooses a twist for the next one: ${or}.`;
+}
+/** A14 part 5: How it works' rules for the top scorer's twist, after its sentence: for everyone, who chooses and a tie, the deadline
+ *  and the secret, no choice in time, the game's first episode. */
+function twistRules(s, w) {
+  const said = twistSentence(s, w);
+  if (!said) return [];
+  const t = twistOf(s);
+  const out = [said, `The twist counts for everyone, for that ${w.part} only.`];
+  const bottom = t.who === 'bottom';
+  const tie = t.tie === 'total' ? ` A tie goes to whoever's ${bottom ? 'behind' : 'ahead'} overall; still tied, nobody chooses.` : ' A tie: nobody chooses.';
+  out.push(t.by === 'total'
+    ? `That's whoever's ${bottom ? 'last' : 'first'} in the standings once the ${w.part}'s results are final.${tie}`
+    : `${bottom ? 'Lowest scorer means the fewest' : 'Top scorer means the most'} points in that ${w.part}, once its results are final.${tie}`);
+  out.push(`They have until ${t.closes ? `${t.closes} ${t.closes === 1 ? 'hour' : 'hours'} before` : ''}${t.closes ? ' ' : ''}the next ${w.part} airs to choose. The choice stays secret until then; then everyone sees it.`);
+  const fb = t.fallback !== 'none' ? t.of.find((x) => isObj(x) && x.id === t.fallback) : null;
+  out.push(fb ? `No choice in time? It's ${String(fb.name).trim()}.` : `No choice in time? No twist that ${w.part}.`);
+  const first = spanStart(s.span);
+  out.push(first === null ? `The game's first ${w.part} has no twist: nobody's scored yet.` : `${w.Part} ${first} has no twist: nobody's scored yet.`);
+  return out;
+}
 /** C3: what a multiplied holding counts, said once: an Outlast's what they earn while they're yours, not their whole place. */
 const joinedHow = (sc) => (sc.by === 'place'
   ? `Each counts the boots they outlast while they're yours (one you drafted, their whole place), and keeps for you what they earned before you let them go.`
@@ -412,6 +447,8 @@ function sentenceParts(s, w) {
     if (bountySentence(sc, w)) put(` ${bountySentence(sc, w)}`, 'score');
     // A14 part 4: secret roles.
     if (rolesSentence(sc, w)) put(` ${rolesSentence(sc, w)}`, 'score');
+    // A14 part 5: the top scorer's twist.
+    if (twistSentence(s, w)) put(` ${twistSentence(s, w)}`, 'score');
   } else if (sc.by === 'place') {
     put(sc.reverse === true ? ' Each scores more the earlier they go home: the first one out carries you.' : ' Each scores by how long they last: the last one standing carries you.', 'score');
     // C3: how a holding joined.
@@ -1099,7 +1136,7 @@ function rulesOf(s, w) {
     const joinedSaid = s.score.by === 'moments' || s.score.by === 'place' ? joinedRules(s.score) : [];
     if (joinedSaid.length && s.score.by === 'moments') rules.push(...joinedSaid, joinedHow(s.score));
     // A14 part 3: a bounty (an Outlast's after how a place scores, below).
-    if (s.score.by === 'moments') rules.push(...bountyRules(s, w), ...rolesRules(s, w));
+    if (s.score.by === 'moments') rules.push(...bountyRules(s, w), ...rolesRules(s, w), ...twistRules(s, w));
     if (count === 'start') rules.push(`Lineups lock when the ${w.part} starts. Change yours as often as you like until then.`);
     rules.push(...groupSlotRules(s, w));
     if (s.score.by === 'place' && s.score.reverse === true) {
@@ -1149,6 +1186,8 @@ function rulesOf(s, w) {
     rules.push(`No draft. Before each ${w.part}, pick ${n === 1 ? `one ${w.castaway}` : `${say(n)} ${w.castaways}`} still in: ${n === 1 ? 'they score' : 'each scores'} what they do in it.`);
     rules.push(...countRules(s.score, w, cardOf(s)));
     rules.push(...timesRules(s.score, w));
+    // A14 part 5: the top scorer's twist.
+    rules.push(...twistRules(s, w));
     if (s.get.repeat === 'never') rules.push(`You can't pick the same ${w.castaway} twice, all season.`);
     else if (s.get.repeat === 'cycle') rules.push(`You can't pick the same ${w.castaway} again until you've used everyone still in, and never two ${w.parts} in a row.`);
     else rules.push(`Pick anyone still in, every ${w.part}: the same ${n === 1 ? w.castaway : w.castaways} as last time too.`);

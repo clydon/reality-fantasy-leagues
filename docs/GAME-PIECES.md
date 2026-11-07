@@ -288,6 +288,32 @@ Each one's own options:
   weeks won ("A secret role's points are added all at once at the reveal, so they'd decide that week's matchup. Rank by points, or
   take out the roles"); in a stage ("Secret roles are dealt once for the whole game, so they can't go in a stage yet: make it one
   game, or take out the roles"); a show whose results don't say who goes home, and `votedOut` on a show nobody's voted out on.
+- **The top scorer's twist** (A14 part 5), `score.twist: { of, who, by, tie, closes, fallback }` on a game scored by `moments` (a
+  lineup, best ball, a pick each episode scored by what they do): after each episode's final results, its top scorer (`who` `top`,
+  the default, or `bottom`, its lowest; `by` `episode`, that episode's points, the default, or `total`, the standings through it:
+  the game's own walk), among the seats still playing, chooses one of `of` (2 to 5 twists, each `{ id, name, times, moment? }`)
+  for the next episode only, for everyone: every point that episode times `times` (more than 0, half is 0.5, not 1, up to 10: step
+  3, a factor beside the episode's own multiplier), or with `moment` only that moment's lines that episode (step 2: one of the show's,
+  one data settles and the game counts; never the moment's own points, which a castaway's stats read). A tie is broken by the standings (`tie` `total`, the default by the episode's points) or not at all
+  (`none`, the only one by the standings). The choice closes `closes` hours before the episode airs (0 to 48, default 12; or when it
+  locks or has results) and stays secret until then: it lives in a table of its own
+  (`twist_choices`), never in the league's state. Once it closes the server files what the episode plays and stamps it on the
+  episode (`episode.twist`), public: the choice if whoever made it still chooses by the data then, else the `fallback` (`none`, the
+  default: no twist; or one of the twists' ids). Once filed it stands: a result corrected after it doesn't change the twist that
+  episode played. **Its fallbacks**: the game's first episode has none (nobody's scored); results not final by the close, a tie
+  still tied, or a chooser who left, and nobody chooses; a stamp naming a twist the spec no longer has plays nothing; a game at your
+  own pace (its seats at different weeks) plays the fallback every episode. The
+  guardrail: a player's choice changes the next episode's rules for everyone, never anyone's points directly; data still settles
+  every one. Example: `"twist": { "of": [{ "id": "double", "name": "Double points", "times": 2 }, { "id": "half", "name": "Half
+  points", "times": 0.5 }] }` → "After each episode, its top scorer chooses a twist for the next one: Double points (every point
+  counts double) or Half points (every point counts half)." Refused, in our check's words: a choice of one ("The top scorer chooses
+  one of 2 to 5 twists"); two that do the same ("Two twists do the same thing: make each one different"); a moment the game doesn't
+  count ("Won reward counts nothing in this game, so a twist on it changes nothing") or the couch's word; anything but a draft or a
+  pick scored by moments ("A twist changes how the next episode scores, so it needs a draft or a pick scored by what they do"); a
+  stock market ("A stock market ranks by prices, not points, so a twist on points changes nothing"); beside cuts or a race ("A twist
+  can't go beside cuts or a race yet: someone knocked out would still choose it. Take out the cuts or the race, or the twist"); in a
+  stage ("The top scorer's
+  twist is chosen from the whole game's scores, so it can't go in a stage yet: make it one game, or take out the twist").
 - **`survive`**: `points` a right pick; a pool's lives, buyback and mulligans (see "Lives and saves").
 - **`lines`**: `points` a line (1 to 100; 1 when it's left out).
 - **`answers`**: `parlays` (below, under "How a question's points combine"); `lives` and `livesOn`, and co-op's `saves` (see
@@ -774,8 +800,11 @@ each other stay hidden until the lock; what the players decide changes the game,
 - **Secret roles** `score.roles: { count, points, on, reveal }` (A14 part 4, above under "How it scores"): some of you dealt a role
   at random once the game starts, each scoring when someone a player without it holds goes home; who has it, and its points, secret
   until the reveal. The results decide what it scores, never who holds it.
-- Still to build (A14's later parts): the top scorer's twist and a rotating host (choosing among data-settled questions), numbers from a vetted
-  outside source (an episode's TVmaze rating, settled once and stored).
+- **The top scorer's twist** `score.twist: { of, who, by, closes, fallback }` (A14 part 5, above under "How it scores"): each
+  episode's top scorer chooses one of the spec's twists for the next episode (every point, or one moment's, times its own), secret
+  until it closes, then filed on the episode for everyone; data still settles every point.
+- Still to build (A14's later parts): a rotating host (choosing among data-settled questions), numbers from a vetted outside source
+  (an episode's TVmaze rating, settled once and stored).
 
 ---
 
@@ -891,7 +920,9 @@ Every game scores as one sequence of six steps, for each of you and each episode
    bet's a right guess on a bet with company (`betLines`), a bounty's (A14 part 3) each vote out moving its points from each team
    holding who went home to each other team holding a voter (`bountyLines`: a gain and a loss, adding up to nothing), a secret
    role's (A14 part 4) each one gone a team without the role held scoring for every team with it, from the reveal on (`roleLines`:
-   points from the results alone, nobody else losing them); finale
+   points from the results alone, nobody else losing them); a moment's lines that episode times the top scorer's twist on it
+   (A14 part 5: `scoredEvents`, read from the episode's filed twist; the moment's own points, which a castaway's stats read, stay
+   the rules'); finale
    predictions and a handicap are lines settled on their own.
    In a game of questions a line is an **answer's right ones at what its window is worth** to it (`windowLines`): the
    question's points, a rollover's jackpot in them (what the windows before it left unclaimed: `jackpot`, `carry`), a shrinking
@@ -901,7 +932,8 @@ Every game scores as one sequence of six steps, for each of you and each episode
    the grading's (the settles above), never the sequence's. A right call (Weekly Calls) and a bingo line are lines too, counted
    (`tally`). A draft's own questions (since C2 part 4c) are graded the same way, their sum a line of the draft's beside its team's.
 3. **Multipliers**: each line times whatever applies to it, in order (`multiply`), each a factor of the one multiplier piece
-   keyed by its condition (`factorOf`, since C3): a captain's, then the episode's own (`score.times`), then how the holding
+   keyed by its condition (`factorOf`, since C3): a captain's, then the episode's own (`score.times`, and since A14 part 5 the top
+   scorer's twist on every point that episode: `timesFor`), then how the holding
    joined your team (`score.multiply`, from its stint: `stints`), never a bounty's (a factor on one side alone would make points
    from nothing); a parlay's on what each of its windows gave you (after the
    window's share, below: the order today's games keep); a line's points on a count of bingo lines (`counted`). With a
@@ -970,7 +1002,7 @@ one of seven shapes (`schema.js` `noPlace`; `typeOf` names the shape the screens
 |---|---|
 | 1. Hold | a draft (its order with its ownership, a draw, or an auction for castaways nobody else can have) counting its whole team, a lineup or its best few, its waiver moves each exclusive or shared (shared beside an exclusive draft, not beside a stock market); a pick each episode (1 to 8, cycling, never repeating or any: C5); nothing; a bingo card. Beside any of them, a new card each week (C7), read by a game of questions' questions on it or the moments that count |
 | 2. Lines | a place, the whole team held; moments, a lineup or best few held, or (C5) a pick each episode held, only some moments or each a hit; a bounty (A14 part 3) beside a draft's place or moments, not a stock market's, not beside cuts; secret roles (A14 part 4) beside a draft's place or moments, not a stock market's, not in a stage, not beside cuts, a race, head to head or weeks won; a pick staying in (or scoring), one pick held; answers, nothing held, each a question a game of questions plays (or the show's calls alone); bingo lines, a card held. Beside them: a draft's finale predictions and (part 4c) its own questions, each one a draft plays (a game of questions' kind, or a person from your own team), not a stake of any of your points, not beside its cuts or a race, not beside a stock market by its worth |
-| 3 and 4. Multipliers, combine | each checked where it's said (`specProblems`): a captain on a lineup, points by when on moments, parlays on a game of questions, how a holding joined on a draft's team (a lineup, best ball or an Outlast not in reverse, not a stock market) whose waivers make that move; best ball's best n; a question's share, rollover, shrink, wager (since C6 beside any of them, at even money or the pool's odds, and as a parlay's leg) and the bot's call (not with a wager), combining in the sequence's order (the stake, a line's worth, the multipliers, the share) |
+| 3 and 4. Multipliers, combine | each checked where it's said (`specProblems`): a captain on a lineup, points by when on moments, the top scorer's twist on moments (A14 part 5: a lineup, best ball or a pick scored by moments; not a stock market's, not beside cuts or a race, not in a stage), parlays on a game of questions, how a holding joined on a draft's team (a lineup, best ball or an Outlast not in reverse, not a stock market) whose waivers make that move; best ball's best n; a question's share, rollover, shrink, wager (since C6 beside any of them, at even money or the pool's odds, and as a parlay's leg) and the bot's call (not with a wager), combining in the sequence's order (the stake, a line's worth, the multipliers, the share) |
 | 5 and 6. The week's result, rank | weeks won (C5) wherever head to head plays; a pick scored by moments by its points, head to head or weeks won; a running total on any game's (a game of questions' with a bank, C6: its start a line before the first, and out when it runs out, so last one standing too; a pool's by its points with no lives: its series of totals, since C2 part 4b; else its streak or who's still standing); last one standing on a draft's or a game of questions' cuts, or a pool's or a game of questions' lives, and a draft's teams on their cuts (part 4b); a race on a draft's or a game of questions' totals, or a draft's teams'; head to head on a draft's, a game of questions' or a pool's totals, with nobody racing, cut or losing a life; teams of players and a handicap on any of those totals (a draft's teams knocked out or racing; a game of questions' and a pool's by their points or head to head); worth, a stock market's on a lineup; co-op, a game of questions' lives together; the show's calls and bingo lines, most wins |
 
 A piece with no place says which and why ("No game plays this way yet: a pool's picks are its game: questions beside them play
@@ -1004,6 +1036,10 @@ tracker row (`docs/ENGINE-CAPABILITIES.md`, p13 to p25) with the step that bring
   beside cuts, a race, head to head or weeks won (their points land all at once at the reveal); dealt at random only (chosen by
   the maker, or by the players, isn't built); one role a game, scoring on who goes home (a role scoring on anything else the
   results say, or two roles, is later).
+- **The top scorer's twist is a multiplier** (A14 part 5): every point or one moment's, on a game scored by moments, chosen from
+  the spec's list. A twist that adds a question (one of the game's own, asked only the episode it's chosen), one on a game of
+  questions or an Outlast's place, a twist that's only the chooser's, the twist beside cuts or a race (someone knocked out would
+  still choose), in a stage, and chosen at your own pace (each seat's own week) are later.
 - **A ticket's legs are one window's**: a ticket is built from questions asked when it is, each window its own (a ticket across
   episodes, or a leg that's a pot split, a ranking or a question about each person, isn't built).
 - **A card is the show's moments** (C7): in turn, or chosen by the AI before each episode (part 2); the bot writing new questions
@@ -1132,6 +1168,7 @@ picks x cast members that they think will achieve as many objectives as possible
 | How a holding joined | 1 to 3; a list of 1 to 6 |
 | A bounty | 0.5 to 10 points, in halves |
 | Secret roles | 1 to 5 seats, 0.5 to 10 points in halves, a name up to 20 letters |
+| The top scorer's twist | 2 to 5 twists, a name up to 24 characters, closing 0 to 48 hours before the episode airs |
 | Stages | 2 to 6, a name up to 40 characters; copies of a stage a change starts, 12 |
 | A pick each episode | 1 (a pool); 1 to 8 scored by what they do |
 | Only these moments | 1 to 40 |

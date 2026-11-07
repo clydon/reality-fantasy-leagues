@@ -119,6 +119,11 @@ export type SpecBounty = { points: number; on?: "votedOut" };
 /** A14 part 4: secret roles among the players: `count` seats dealt `name` at random once the game starts, each scoring `points`
  *  whenever someone a seat without it holds goes home (or is voted out), revealed (and its points added) at the end or an episode. */
 export type SpecRoles = { count?: number; name?: string; points: number; on?: "out" | "votedOut"; deal?: "random"; reveal?: "end" | number; mates?: boolean };
+/** A14 part 5: the top scorer's twist: after each episode's final results its top (or bottom) scorer, by its points or the standings,
+ *  chooses one of `of` for the next episode only (every point, or one moment's, times `times`), by `closes` hours before it airs;
+ *  nobody chose, the `fallback` ('none' or a twist's id). */
+export type SpecTwistOption = { id: string; name: string; times: number; moment?: string };
+export type SpecTwist = { of: SpecTwistOption[]; who?: "top" | "bottom"; by?: "episode" | "total"; tie?: "total" | "none"; closes?: number; fallback?: string };
 /** C3: one multiplier, keyed by its condition (multipliersOf). */
 export type SpecFactor =
   | { on: "captain"; times: number }
@@ -131,7 +136,7 @@ export type SpecScore =
    *  name each episode, whose points multiply by `times`; and when the points multiply (`times`). C3: how a holding joined. */
   /** C5: only (only these moments count) and hits (each moment an objective hit, worth 1: every hit, each objective once per
    *  holding, or once for you; points never weight a hit, they only say which moments count). */
-  | { by: "moments"; points: Record<string, number> | null; captain?: { times: number }; times?: SpecWhen[]; multiply?: SpecJoined[]; only?: string[] | "card"; hits?: "every" | "pick" | "objective"; bounty?: SpecBounty; roles?: SpecRoles }
+  | { by: "moments"; points: Record<string, number> | null; captain?: { times: number }; times?: SpecWhen[]; multiply?: SpecJoined[]; only?: string[] | "card"; hits?: "every" | "pick" | "objective"; bounty?: SpecBounty; roles?: SpecRoles; twist?: SpecTwist }
   /** A9 part 2's reverse: the earlier they go home the more (1, plus 1 for everyone who outlasts them). C3: how a holding joined
    *  (never in reverse), its lines then what each one earns while it's yours. */
   | { by: "place"; reverse?: true; multiply?: SpecJoined[]; bounty?: SpecBounty; roles?: SpecRoles }
@@ -655,6 +660,12 @@ export const MAX_ROLE_POINTS: number;
 export const MAX_ROLE_NAME: number;
 export const ROLES: { count: 1; name: "Traitor"; on: "out"; deal: "random"; reveal: "end"; mates: true };
 export function rolesOf(spec: Partial<GameSpec> | null | undefined): Required<SpecRoles> | null;
+/** A14 part 5: the top scorer's twist's limits, its defaults, and a spec's with them filled in (null for none). */
+export const MAX_TWISTS: number;
+export const MAX_TWIST_NAME: number;
+export const MAX_TWIST_HOURS: number;
+export const TWIST: { who: "top"; by: "episode"; closes: 12; fallback: "none" };
+export function twistOf(spec: Partial<GameSpec> | null | undefined): (Required<Omit<SpecTwist, "of">> & { of: SpecTwistOption[] }) | null;
 export const JOINED: { per: "team"; then: "repeat" };
 export function draftPlayable(q: SpecQuestion): boolean;
 /** The answers that name someone (a person) or something (a group), `pick` of them (A6). */

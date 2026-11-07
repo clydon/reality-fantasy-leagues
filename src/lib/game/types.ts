@@ -223,6 +223,9 @@ export interface Episode {
   /** Step A14 part 3, stamped on every read and write for a game with a bounty (vote-records.ts; the engine only reads it): who
    *  voted for whom in the episode as its research says, by the league's castaway ids, and whether research is sure of it. */
   voteRecord?: { sure: boolean; why?: string; votes: [string, string][]; out: string[] };
+  /** Step A14 part 5: the top scorer's twist for this episode, as the server filed it once the choice closed (twists.ts, from
+   *  twist_choices): the twist's id (null: none), who chose it (null: nobody did), and how it came to be. Public once filed. */
+  twist?: { id: string | null; by: string | null; how: "chosen" | "fallback" };
   /** Kept open past its start by whoever runs the game (Backstage › Settings' lock; StateLogic.closedForPlay). */
   openPastAir?: boolean;
 }
@@ -347,6 +350,8 @@ export interface LeagueSettings {
   bounty?: import("./game-spec/index.js").SpecBounty;
   /** Step A14 part 4, absent unless a game says it: a draft's secret roles among the players (the spec's score.roles). */
   secretRoles?: import("./game-spec/index.js").SpecRoles;
+  /** Step A14 part 5, absent unless a game says it: the top scorer's twist (the spec's score.twist). */
+  twist?: import("./game-spec/index.js").SpecTwist;
   reverseOrder?: boolean;
   /** Step A10 part 1, absent unless a game says it: a lineup's or best ball's group slots (the spec's get.groups). */
   groupSlots?: import("./game-spec/index.js").GroupSlots;

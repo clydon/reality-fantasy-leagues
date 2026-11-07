@@ -5,6 +5,7 @@ import * as Air from "@/lib/game/air-schedule.js";
 import { stampCardChoices } from "./card-choices";
 import { stampVoteRecords } from "./vote-records";
 import { stampSecretRoles } from "./secret-roles";
+import { stampTwists } from "./twists";
 
 // Stamps each episode with when it airs (ep.airsAt), from the league's season schedule in the
 // catalog (show_seasons' premiere/air time/zone, overridden by the wiki's own per-episode dates --
@@ -17,7 +18,9 @@ import { stampSecretRoles } from "./secret-roles";
 // isn't in the catalog or has no schedule.
 //
 // Step A14 part 4: `leagueId` (the game's), for a game with secret roles: dealt once it has started and stamped once revealed
-// (secret-roles.ts), after the air times its start reads. Left out (a caller with no league to name), none are stamped.
+// (secret-roles.ts), after the air times its start reads. Left out (a caller with no league to name), none are stamped. Part 5: the
+// top scorer's twist, each closed episode's filed and stamped (twists.ts), last: its close reads the air times, its chooser the
+// game's walk with the vote records and roles stamped.
 export async function stampAirTimes(db: Pool | PoolClient, state: LeagueState, leagueId?: string): Promise<void> {
   // Step A11 part 4: head to head's playoffs at the season's end read its length (stampSeasonLength, below).
   await stampSeasonLength(db, state);
@@ -28,6 +31,7 @@ export async function stampAirTimes(db: Pool | PoolClient, state: LeagueState, l
   await stampVoteRecords(db, state);
   await stampAirs(db, state);
   await stampSecretRoles(db, state, leagueId);
+  await stampTwists(db, state, leagueId);
 }
 
 async function stampAirs(db: Pool | PoolClient, state: LeagueState): Promise<void> {

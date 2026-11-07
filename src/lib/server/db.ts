@@ -5,6 +5,7 @@ import { HttpError } from "./http-error";
 import { stampAirTimes, stampSeasonLength } from "./air-times";
 import { stampVoteRecords } from "./vote-records";
 import { stampSecretRoles } from "./secret-roles";
+import { stampTwists } from "./twists";
 import { runBots } from "./bots";
 import { syncWaivers } from "./waivers";
 import { justProcessed, sendProcessed, snapshot as waiverSnapshot } from "./waiver-pushes";
@@ -101,6 +102,9 @@ export async function withLeagueLock(
     // Secret roles (step A14 part 4, secret-roles.ts): a mutation that started the game deals them; one that applied the reveal's
     // results stamps them, so the rest of the write (the waiver clock's order by the standings) reads their points.
     await stampSecretRoles(client, state, leagueId);
+    // The top scorer's twist (step A14 part 5, twists.ts): a mutation that locked an episode or applied its results files its twist
+    // now, so the rest of the write reads it.
+    await stampTwists(client, state, leagueId);
     // A mutation that turned group slots on reads them now; one that turned them off clears them (settle keeps none).
     if (slots) StateLogic.GroupSlotLogic.settle(state, slots);
     else if (StateLogic.GroupSlotLogic.config(state)) await settleGroupSlots(client, state, true);

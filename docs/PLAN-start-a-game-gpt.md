@@ -146,8 +146,10 @@ castaways votes out someone else's and you take its points from them, who voted 
 episode research isn't sure of; tracker row s16; no migration), and so is part 4, secret roles among the players (2026-11-06:
 `score.roles` on a draft, some seats dealt a role at random once the game starts and kept in `secret_role_deals`, migration 0210,
 never in the state; each scoring when someone a seat without it holds goes home, its points added at the reveal; tracker rows s24 and
-who.secret). A14's other parts are next (the top scorer's twist, a rotating host's questions, a number from a vetted outside source),
-then a stop before A15. The live-sports plan is
+who.secret), and so is part 5, the top scorer's twist (2026-11-06: `score.twist` on a game scored by moments, each episode's top
+scorer choosing one of the spec's twists for the next episode, every point or one moment's times its own, kept in `twist_choices`,
+migration 0211, until it closes, then filed and stamped on the episode; tracker row s40). A14's other parts are next (a rotating
+host's questions, a number from a vetted outside source), then a stop before A15. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5, at
 high since 2026-11-05; C2 at xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: folded in here as track L; its file keeps the details)
 and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track S here).
@@ -5477,6 +5479,95 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     tree's, 2,856 reads each, every one the same. Blind (`blind.js run`): every game played through and over on all five seasons, The
     Challenge 41 121, 40 115 and 39 123 (as after part 3: nobody's voted out there, so a role on votedOut doesn't play), Survivor 49
     158 and The Traitors 4 112 (one more each: s24 and who.secret share a spec, and blind plays each distinct spec once).
+  **As built (A14 part 5, the top scorer's twist, 2026-11-06, on `engine`; migration 0211).** One session, after `lane.js sync engine`
+  (nothing new from master; 1615 tests). A player's choice that changes the next episode's rules for everyone, as a piece that
+  composes: who chooses (the game's own walk, as data), what can be chosen (the spec's list, each a multiplier that already has its
+  place in the scoring sequence), when it's chosen and closes, what plays when nobody chooses (the fallback, from the start). No
+  screen; no prompt change; every game that played before scores the same (only a game with `score.twist` reads a stamp).
+  - **The piece** (game-spec `schema.js`): `score.twist: { of, who, by, tie, closes, fallback }` on a game scored by `moments` (a
+    lineup, best ball, a pick each episode scored by what they do; shared or exclusive). `of`: 2 to `MAX_TWISTS` (5) twists, each `{
+    id, name, times, moment? }` (`name` up to `MAX_TWIST_NAME`, 24; `times` more than 0, not 1, up to `MAX_TIMES`; with `moment`, only
+    that moment's points). `who` 'top' (the default) or 'bottom'; `by` 'episode' (that episode's points, the default) or 'total' (the
+    standings through it); `tie` 'total' (the standings break it, the default by the episode) or 'none' (the only one by the
+    standings); `closes` 0 to `MAX_TWIST_HOURS` (48) hours before the episode airs (default 12, the card's out time); `fallback`
+    'none' (the default) or one of the twists' ids. VOCAB `score.twist.who`, `.by`, `.tie`; `TWIST` the defaults, `twistOf` fills
+    them in. Refused (`twistProblems` and settleProblems, the words through impeccable's clarify): a choice of one or more than five,
+    two twists doing the same, an id twice or 'none', a moment that isn't the show's, the couch's word, or one the game doesn't count
+    (`score.only`, the card's list), anything but a draft or a pick scored by moments (an Outlast's place, a pool, a game of
+    questions), a stock market, beside cuts or a race (someone knocked out would still choose: the code review's), in a stage
+    (`stagedProblems`: the choosing is the game's). `settings.twist` both ways (settings.js, a
+    lineup's and a pick's by moments; tests/game-spec.test.js GAME_FIELDS).
+  - **Who chooses** (`TwistLogic.chooserAt`): episode n's twist is chosen from episode n − 1's final results (the walk's series:
+    early results never choose), among the seats in the game's rotation (`SecretRoleLogic.seats`: nobody who left, no ghost), the
+    most (or fewest) points that episode (its series total less the one before) or in the standings; a tie broken by the standings
+    the same way, or not at all; still tied, nobody. The game's first episode has none.
+  - **The choice and its close** (`src/lib/server/twists.ts`, new; **`twist_choices`, migration 0211**: one row a game's episode, the
+    choice while open, then what's filed): `chooseTwist` keeps the chooser's choice (changed as often as they like) while the
+    episode is open; `stampTwists`, from `stampAirTimes` (last: its close reads the air times, its chooser the walk with the vote
+    records and roles stamped) and again after a write's mutation (db.ts `withLeagueLock`), files each episode once its choice has
+    closed (`TwistLogic.closed`: `closes` hours before it airs, or once it locks or has results), in order, each filing read by the
+    next one's chooser: the choice if whoever made it still chooses by the data then (`TwistLogic.file`; the walk only for a choice
+    made, worked out again only after a filing that changes points), else the fallback; filed once (an upsert that never overwrites
+    a filed row), then stamped on the episode (`episode.twist`: { id, by, how }), public; a failure partway puts the state's stamps
+    back as they were. A choice's upsert carries the close too, so one reaching it after the close never lands. A league at your own
+    pace files nothing: each episode after its first is stamped with the fallback as it reads, and nothing's open. **Never in the
+    state while open** (the state route sends it whole); once filed it stands, a result corrected after it changing nothing that
+    episode played. A game with no twist costs no query.
+  - **The twist route** (`GET /api/leagues/[leagueId]/twist`, new; no screen): the game's twists; the episode being chosen now, its
+    close, whether you choose and your choice so far (only once you've seen the episode before it: who chooses says who scored most
+    in it); each filed episode's twist, by whom and how (each once you've seen the one before). `POST { twist }`: your choice while
+    you're the chooser and it's open (refused for anyone else, a twist the game doesn't offer, nothing open, or before you've seen
+    the episode that chose you). Its spoiler mark is the roles route's, now one helper for both (`src/lib/server/seat-mark.ts`
+    `seatMark`, new; the roles route reads it too).
+  - **Where it sits in the sequence**: a twist on every point is step 3, a factor beside the episode's own multiplier
+    (`ActiveRosterLogic.timesFor`: the spec's windows times `TwistLogic.timesAt`, so a captain, best ball, group slots and how a
+    holding joined all multiply as before); a twist on one moment is step 2, that moment's lines that episode
+    (`ActiveRosterLogic.scoredEvents`, each such moment's points, or a hit's worth, times the twist's), never the moment's own points
+    (`eventPoints`, which a castaway's stats read: a player's choice mustn't move them; the code review's, where the first build
+    had it in `pointsFor`). A game with a twist adds up as a lineup that combines does (`combines`).
+  - **state-logic.js** (for the own-pace merge, the functions changed): `TwistLogic` (new: `of`, `at`, `timesAt`, `momentTimes`,
+    `episodes`, `closesAt`, `closed`, `chooserAt`, `file`), `ActiveRosterLogic.scoredEvents`, `ActiveRosterLogic.timesFor`,
+    `ActiveRosterLogic.combines`, `SpoilerLogic.viewThrough` (a twist chosen after an episode the viewer hasn't seen is off their
+    copy: its chooser says who scored most in it), the exports.
+  - **Its fallbacks, from the start:** the game's first episode has no twist; results not final by the close, a tie still tied, or a
+    chooser who left, and nobody chooses (the fallback plays); a choice by someone the data no longer names (a result corrected
+    before the close) is dropped for the fallback; a stamp naming a twist the spec no longer has plays nothing; a game at your own
+    pace plays its fallback every episode (Noticed).
+  - **The words** (describe.js `twistSentence`, `twistRules`, through impeccable's clarify: "chooses", never "picks", which a pick
+    game's castaways have; who chooses said once; the deadline as the chooser's; "the choice" rather than "it"; the game's own first
+    episode): "After each episode, its top scorer chooses a twist for the next one: Double points (every point counts double) or Half
+    points (every point counts half)." How it works adds "The twist counts for everyone, for that episode only.", "Top scorer means
+    the most points in that episode, once its results are final. A tie goes to whoever's ahead overall; still tied, nobody chooses."
+    (the bottom's and the standings' own), "They have until 12 hours before the next episode airs to choose. The choice stays secret
+    until then; then everyone sees it.", "No choice in time? No twist that episode." (or "It's Double points.") and "Episode 1 has no
+    twist: nobody's scored yet."
+  - **The tracker:** s40 plays ("Each week's top scorer picks a twist for next week.", a Weekly Lineup with double points or half
+    points; Big Brother has no rulebook here, so it's checked against Survivor's, a show of its kind): 220 ✅ · 43 ⏳ (A14 4 waiting).
+    `engine-capabilities.js --check` current; `game-specs-flag.js check`: PASS.
+  - **Proof:** `tests/twist.test.js` (new, 4): the shape, defaults, words (the top's, the bottom's, the standings', a game starting
+    later) and settings both ways, and every refusal; who chooses (the first episode, results not yet final, top, bottom, the
+    standings, a tie broken and not, someone who left); what's filed (a choice standing, someone else's, a twist not offered, the
+    fallback); the points by hand (best ball: double points in Episode 2, bo 6 and cy −9; immunity counting triple, bo 9 and the vote
+    still −3; a stamp for a twist the spec lacks; a lineup's starter and a pick each episode), when it closes (12 hours before, no air
+    time, locked by hand, results); a game starting at a phase's words; beside cuts or a race refused; the spoiler view. `tests/game-pieces-doc.test.js`: the limit's row. `npm test` 1624;
+    `tsc` clean. The shapes fixture: five twist shapes (`twistShapes`: a lineup with finale predictions and three episodes' twists
+    (double, a moment, a fallback), shared best ball with the bottom choosing, head to head on a lineup, a lineup on its early
+    results, a pick each episode by the standings with weeks won), 90 new reads, the 2,628 before them byte-identical: 2,718. **API
+    check:** `scripts/dev-test/check-twist.js` (new), ALL PASS (24): Couch Cup refused a twist, then the couch's Weekly Lineup given
+    double points or immunity counting triple through setGame with the show's ctx; the first read files Episodes 2 to 5 (no twist)
+    and leaves 6 open; the twist route as each of the four (the chooser, Episode 5's top scorer by the engine's walk, told so; the
+    others not; sam, seen through 3, nothing); someone else and a twist not offered refused, the chooser's choice kept and changed,
+    secret (not in the state as read, nobody else's route); Episode 6 airs and the next read files it, chosen, stamped; a choice after
+    refused; Episode 6's result through the season sync, the Games tab as each the engine's table on that copy, each seat's Episode 6
+    double the same copy's without the twist; the played list as alex and sam; the flag's check. check-secret-roles.js,
+    check-bounty.js, check-multipliers.js and check-card.js again (the stamp chain and the multipliers): ALL PASS.
+  - **Code review** (high, before the commit): ten findings, all fixed: the stamps set before the savepoint released (a failure
+    now puts them back); a moment's twist moved from `pointsFor` to the sequence's lines (it reached a castaway's own stats); a
+    league at your own pace filing every episode at once, for good (it now files nothing and stamps the fallback); a seat knocked out
+    by a cut still choosing (refused beside cuts or a race); a choice racing the close (the upsert checks it); a walk before every
+    filing (only for a choice, again only after a filing that changes points); the route reading the rows three times (once); its
+    spoiler mark copied from the roles route (one helper, `seatMark`); the moment check in `pointsFor` for every game (gone with
+    the move); the first episode's words for a game starting at a phase ("The game's first episode has no twist").
 - **A15. Live and replay** (with the watch along, docs/PLAN-couch-and-episode-night.md §6, and the sports branch's
   `GameClock`). It needs A7. The watch along is in its infancy (the user, 2026-10-28): its concept, how it's built and how it
   connects to games are all open, so A15 is where the games shape it, not only where they plug into it.
@@ -7794,6 +7885,51 @@ From R1 part 2 (2026-10-30):
   (R3, or whoever next works in Game settings.)
 - **For the hosting notes, at the merge:** `/api/me` (classic's sign-in and every classic load) now sends each league's settings, not its
   whole state (20-40 KB each): less Neon transfer than before. (The main folder: docs/HOSTING.md, with the merge.)
+
+From A14 part 5 (2026-11-06):
+- **For the user, in the design session (decide nothing a person sees), each built with a recommendation:**
+  1. **Who the twist is for.** Built: everyone, for that one episode (the guardrail: a player's choice changes the rules, never
+     anyone's points directly). Options: the chooser's own points only (a reward more than a twist: it moves their place directly);
+     everyone but the chooser. Recommended: as built.
+  2. **When it closes, and the default 12 hours.** Built: `closes` hours before the next episode airs (12, as the card's out time),
+     or when it locks or has results. On a show that airs on consecutive nights (Big Brother: Wednesday, then Thursday), the final
+     results land at noon the next day, after a 12-hour close, so nobody ever chooses there: such a game needs `closes` of 0 to 4, or
+     early results choosing. Options: choose from early results (a correction at noon could change who chose); close at the lock
+     (0: nobody can adapt their lineup to the twist). Recommended: 12 by default, and Start a game sets fewer hours for a show whose
+     episodes are a day apart (the schedule knows it).
+  3. **Who chooses by default.** Built: the episode's top scorer, a tie to whoever's ahead overall. Options: the standings' leader;
+     the bottom scorer (a catch-up twist, built); the week's winner of head to head. Recommended: as built for most games; the
+     bottom scorer where a couch wants it closer.
+  4. **A result corrected after the twist was filed.** Built: the twist stands (its players set their lineups for it); a correction
+     before the close can change who chooses, and a choice by someone the data no longer names is dropped for the fallback (they
+     aren't told). Options: undo the twist (as a format change's structural action is undone); keep the first chooser's choice.
+     Recommended: as built, and tell the chooser when their choice was dropped (U1's words).
+  5. **The fallback's default.** Built: no twist. Option: a default twist (built, as a setting). Recommended: none (nobody choosing
+     shouldn't change the rules).
+  6. **The same twist every week.** Built: allowed (a top scorer can choose double points every time). Options: each twist once a
+     season; never twice in a row. Recommended: allowed until a couch asks (a later setting, `repeat`).
+  7. **What players are told.** The route has it all (who chooses, the close, the choice, each episode's twist); the screens (U1)
+     don't show it yet: a "you choose" move on the Games tab for the chooser, and each episode's twist on its card for everyone once
+     filed, are U1's, through impeccable's shape.
+- **A game at your own pace plays its fallback every episode** (each closes at once: its season has aired, and its seats are at
+  different weeks, so nobody's the top scorer for all of them at once). Recommended: for own pace, each seat's own week (the twist
+  chosen by the top scorer among the seats that have played that week, applying to the others when they get there): the own-pace
+  merge's to fold in, with the user. (Own pace.)
+- **A twist that adds a question** (one of the game's own, asked only the episode it's chosen) was the third kind the step named;
+  not built: a draft's own questions read their windows from the spec alone (`AnswerLogic.questions`), so asking one only when a
+  twist chose it needs the window to read the episode's stamp, and the answering screens to offer it then. (A later A14 part or a
+  request that needs it.)
+- **A twist on a game of questions or an Outlast** isn't built: a game of questions' points are graded by the server outside the
+  state (answer-points.ts), so a twist there is a factor on each window's worth in its grading; an Outlast's place isn't points
+  earned in an episode, so a twist has nothing to multiply. The former is the next to open, if asked. (A request that needs it.)
+- **Not in a stage yet**: a stage's league is its own, so the filing would work per stage, but who chooses at a stage's first
+  episode (the game's standings or the stage's own) is a rule to decide. Recommended: the stage's own first episode has none, as a
+  game's. (A12's stages, with a request.)
+- **The twist route's refusals are the server's English** (e.g. "You don't choose Episode 6's twist"), written without the show's
+  word for an episode; U1's screens say them through impeccable's clarify. (U1.)
+- **For the hosting notes, at the merge:** a read or write of a game with a twist runs one query for its twist_choices rows, and the
+  first read after each episode's close one upsert and one read back (and the game's walk once to find who chose); none for any
+  other game. (The main folder: docs/HOSTING.md.)
 
 From A14 part 4 (2026-11-06):
 - **For the user, in the design session (decide nothing a person sees), each built with a recommendation:**

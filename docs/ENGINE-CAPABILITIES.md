@@ -9,8 +9,8 @@ A row plays now when its spec passes the validator (`specProblems`, with what it
 needs waits (`specWaitsFor`); it then says the game in the engine's own words (`describeSpec`). A show the tracker has no
 rules for is checked against a show of its kind, and says so.
 
-**Now:** 219 ✅ · 44 ⏳ · 1 🆕 · 4 ❓ · 23 💬, of 291.
-**Waiting, by step:** A14 5 · A15 15 · L3 7 · L4 13 · G1 4.
+**Now:** 220 ✅ · 43 ⏳ · 1 🆕 · 4 ❓ · 23 💬, of 291.
+**Waiting, by step:** A14 4 · A15 15 · L3 7 · L4 13 · G1 4.
 
 ## The dials
 
@@ -237,7 +237,7 @@ Requests that push the dials, from fantasy leagues, beyond them, and live with t
 | ✅ | s37 | The Traitors (US) 5 | Co-op: together we have 5 lives; every faithful banished we didn't see coming costs one. | win | A game for The Traitors (US) 5: everyone answers one question before each episode: which Faithful will be banished, all season. A point for each right answer. Together you have five lives: each time none of you gets it right, you lose one. Keep one to the end and you all win. |
 | ✅ | s38 | Survivor 51 | Names out of a hat: everyone gets a random castaway; last one standing wins. | answer | An Outlast for Survivor 51: everyone gets 1 drawn at random, all season. Each scores by how long they last: the last one standing carries you. |
 | ✅ | s39 | Survivor 51 | Pre-merge and post-merge are separate games with their own drafts, plus an overall winner. | shape | A game in two stages for Survivor 51: Pre-merge, an Outlast: everyone drafts 3, until Merged starts. Each scores by how long they last: the last one standing carries you; then Post-merge, an Outlast: everyone drafts 3, from when Merged starts. Each scores by how long they last: the last one standing carries you. Overall, the most stages won wins (ties all win a stage); level on that, by your places, then your points. |
-| ⏳ | s40 | Big Brother | Each week's top scorer picks a twist for next week. | who | A14 |
+| ✅ | s40 | Big Brother | Each week's top scorer picks a twist for next week. | who | A Weekly Lineup for Big Brother: everyone drafts 5 and starts 3 each episode, all season. Scored by Big Brother's rules. After each episode, its top scorer chooses a twist for the next one: Double points (every point counts double) or Half points (every point counts half). (Checked against Survivor's rules, a show of its kind.) |
 | ✅ | s41 | Survivor 51 | My brother watches a day late: let him lock later. | when | A game for Survivor 51: everyone answers one question before each episode: who goes home, all season. 2 points for each right answer. |
 | ⏳ | s42 | Dancing with the Stars 35 | Predict each episode's IMDb rating. | settle | A14: outside numbers from a vetted source: TVmaze's rating, not IMDb's |
 | ⏳ | s43 | Survivor 51 | Each week a different one of us writes 3 questions. | who | A14 |

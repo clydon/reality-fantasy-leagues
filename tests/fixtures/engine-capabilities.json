@@ -4154,13 +4154,19 @@
       "page": {
         "show": "Big Brother",
         "season": null,
-        "rulebook": null
+        "rulebook": "survivor",
+        "checkedAs": true
       },
       "words": "Each week's top scorer picks a twist for next week.",
       "step": "A14",
       "dials": [
         "who"
-      ]
+      ],
+      "spec": {
+        "preset": "weekly-lineup",
+        "score": { "by": "moments", "points": null, "twist": { "of": [{ "id": "double", "name": "Double points", "times": 2 }, { "id": "half", "name": "Half points", "times": 0.5 }] } }
+      },
+      "note": "the top scorer's twist (A14 part 5: score.twist): after each episode's final results its top scorer chooses one of the spec's twists for the next episode only, kept by the server until it closes (twist_choices: twists.ts) and then stamped on the episode for the scoring to read; checked against Survivor's rules, a show of its kind (Big Brother has no rulebook here)"
     },
     {
       "id": "s41",
