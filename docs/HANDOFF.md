@@ -343,6 +343,15 @@ it doesn't go in the menu.** The audit (checked in the code, 2026-10-30), per ol
   full target first (A5, the capability tracker, then A6–A15), today's games rebuilt on it (R1–R3), the UI last (U0–U1), the
   GPT's words alongside (G1), and live sports folded in as track L. Lanes (worktree + branch + database + port + session loop):
   [PARALLEL-SESSIONS.md](PARALLEL-SESSIONS.md); season tapes and playtests: [PLAN-playtests.md](PLAN-playtests.md).
+- **Merged and pushed 2026-11-07, 1:05 AM: track L, live sports, released with no screens yet** (`e7f5dc0b`, merging the sports lane's
+  `32c11e65`; migrations 0300 to 0306, rehearsed on the Neon branch `rehearse-c4b-2026-11-06` (production's schema since
+  0208; the branch limit left no room for a new one; `pre-c7b-2026-11-06` the latest snapshot). The user's word: "Release
+  push now what you can." ESPN's data for the big four, college, the WNBA, soccer, golf, racing, MMA and tennis; live
+  points on the phone and finals kept on the server; every sports game the engine plays (a draft by points per stat,
+  categories and roto, best ball, pick'em and pick a few, a week's pick'em with confidence, squares, a bracket of a draw
+  or of the playoffs, daily lineups inside a week); finding a game by team, schedule, matchup or a league's whole
+  season; postponed, suspended and moved games; a question's line fixed when it opens. Nothing reaches players until the
+  screens (U0, U1) and G3 (the GPT's sports words). Checked: on the merged tree (rfl-merge, branch merge-l6), unit tests 1873, eslint on the 60 changed source files and `next build` with its type-check; golden on all 7 seasons against origin/master (160 games, 19,361 reads, every one the same); the Survivor 51 rehearsal on the 2026-10-30 backup (every invariant holds in all three scenarios; origin/master's engine against this tree's, 2,856 reads the same). No Neon rehearsal: the clipboard stayed locked when the main session tried, and the migrations are additive (new tables and columns; 0304's two key changes only add NOT NULL columns to keys already unique, so they hold on any data), applied clean on the merge's copy.
 - **Merged and pushed 2026-11-06, 5:57 PM: the engine's C7 part 2, a card the bot chooses** (`9d74258d`, merging the engine's
   `3eaf7d96`; migration 0208, rehearsed on the Neon branch `rehearse-c4b-2026-11-06` (its schema production's since 0207;
   the branch limit left room for one new branch), the snapshot to roll back to `pre-c7b-2026-11-06`, auto-deleted after 7
@@ -525,7 +534,7 @@ it doesn't go in the menu.** The audit (checked in the code, 2026-10-30), per ol
   playtest branch is merged into master (`2c945d31`).
 - **Neon is on Launch** since 2026-10-28 (the user upgraded it at 98.3% of the free transfer; about $5 a month; HOSTING.md).
 - **On branches, not merged:** the engine from A14 part 2b on (`engine`: the bot's own calls, built; then A14's rest),
-  track L's live sports (`sports`: L1, L2, L5 and L7 done, L3, L4 and L8 in parts; synced with master `846436c3` on 2026-11-06 and its engine hooks in parts: L3 part 2a, points per stat, 2b, the daily and weekly locks, 2c, the sports settles in a game of questions, 2d, categories and roto, 2e, squares and a bracket question, 2f part 1, a slate's week game by game, and 2f part 2, a question per game of a week (confidence points, each pick locking at its own game's start), built; L8 part 1's other engine items next). The lanes run at high
+  track L's live sports released (above; next: G3 and the screens). The lanes run at high
   since 2026-11-05 (the user; C2 at xhigh) under the usage cap ([PARALLEL-SESSIONS.md](PARALLEL-SESSIONS.md), "The usage
   cap"). Waiting on the
   user: S3 after two matching episodes; which rule a preset meets (open until the engine is complete: the user, 2026-10-30);

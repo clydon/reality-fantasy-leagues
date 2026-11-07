@@ -8,7 +8,8 @@ them next (the user's, in production). **Merged and live in production (2026-10-
 **the game-specs flag is on** (R2, 2:39 PM: every league carries its spec), then the rest of A12 (parts 2–4c) and R1 part 3
 (2026-10-31, 12:31 AM, `075d193e`, no migration), then A13 (2026-11-05, 9:26 PM, `1d4b20a0`, migrations 0204 and 0436), then A14 parts 1-2, C1 and C2
 (2026-11-06, 9:33 AM, `e450fcd4`, migrations 0205 and 0206), then C3, C4, C4b and C5 (2026-11-06, 12:37 PM, `f22c9753`, migration
-0207), then C6 and C7 part 1 (2026-11-06, 3:53 PM, `abfa4a74`, no migration), then C7 part 2 (2026-11-06, 5:57 PM, `9d74258d`, migration 0208); later parts (A14 part 2b on) stay on
+0207), then C6 and C7 part 1 (2026-11-06, 3:53 PM, `abfa4a74`, no migration), then C7 part 2 (2026-11-06, 5:57 PM, `9d74258d`, migration 0208), and track L's live sports, released with no screens yet (2026-11-07, 1:05 AM, `e7f5dc0b`, migrations 0300 to 0306);
+later engine parts (A14 part 2b on) stay on
 `engine` until the main folder merges them, after each
 lettered step. A1–A4 are built on `engine` (A4 in two parts: the engine and storage, then the Prediction Sheet's screens, built before
 the screens moved to U1), merged and live since 2026-10-30 (above).
@@ -1195,12 +1196,13 @@ engine track; L brings each sport's data to it. Its screens wait for the UI trac
   - **Part 3 (2026-11-06, the main session's note of 2:25 PM): one meaning of a sports week.** A slate's episode is the week
     everywhere: its lock its own first game whatever `closes` says, L4's weekly lock reading the episode instead of its own
     Tuesday-to-Monday calendar; Tuesday to Monday kept only where nothing else defines the week (built, As built below).
-- **L6. Release:** `sports` merges into master at once (migrations checked against a production backup first), then G3
+- **L6. Release:** **released 2026-11-07, 1:05 AM (`e7f5dc0b`), with no screens yet: nobody can start a sports game until U0 and U1 build
+  them; the migrations rehearsed on a Neon copy of production first.** `sports` merges into master at once (migrations checked against a production backup first), then G3
   teaches the GPT these formats.
 - Its screens (the scorebug, the live box score, the couch's play feed, players organised, the matchup, sync, each format's
   own) are in U0 and U1.
 
-**L1 part 1 as built (2026-10-28, `sports`, not merged; no migration, no ESPN calls from the app, nothing stored).** The
+**L1 part 1 as built (2026-10-28, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration, no ESPN calls from the app, nothing stored).** The
 framework and baseball: a game is its plays, so the box score at any moment is the plays up to it, added up, and the final box
 score is the truth.
 - **`src/lib/sports/`** (new, pure: the server, the phone and the tests share it; nothing in it asks ESPN).
@@ -1289,7 +1291,7 @@ score is the truth.
     and `ordinal`, `str` and `idOf` shared, not copied: `server/sports/espn.ts` reads the last two from `sport.ts`).
   - No HOSTING.md change: nothing here calls ESPN from the app, adds a table or stores data (part 3 does).
 
-**L1 part 1 addendum: baseball on days it wasn't tuned on (2026-10-28, `sports`, not merged; no migration, nothing stored).**
+**L1 part 1 addendum: baseball on days it wasn't tuned on (2026-10-28, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration, nothing stored).**
 Part 2's Noticed item, taken. Each difference was a count, read against ESPN's data before changing the reader:
 - **A dropped third strike** ("Friedl struck out, Friedl to first on passed ball by Ruiz"): ESPN lists the batter only on
   first, so the strikeout was lost. The batter is now the at-bat's (from its start and pitches) when a clause starts with him
@@ -1348,7 +1350,7 @@ Part 2's Noticed item, taken. Each difference was a count, read against ESPN's d
 - ~~**A game's plays are ~60% pitches**~~ (~450 Plays, a few hundred KB as JSON): fine for the phone, which reads ESPN's summary
   (~1 MB) anyway. **L2:** reading a whole answer takes 2-5 ms in Node, every 15 s.
 
-**L1 part 2 as built: basketball and hockey (2026-10-28, `sports`, not merged; no migration, no ESPN calls from the app,
+**L1 part 2 as built: basketball and hockey (2026-10-28, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration, no ESPN calls from the app,
 nothing stored).** Football, whose plays are text only, is part 2's next session.
 - **`sport.ts`** gains what they need: the header's season type, status detail and a hockey game's goalies of record
   (`featuredAthletes`); basketball's shot flags and hockey's strength and net on a play; `Play.shootout`; `pair` ("6-10");
@@ -1437,7 +1439,7 @@ nothing stored).** Football, whose plays are text only, is part 2's next session
 - ~~**Baseball's reader does less well on days part 1 didn't tune it on**~~ (May 12-14 33 of 41, September 1-3 37 of 39):
   **done** in part 1's addendum (above): 41 of 41 and 39 of 39, every cached MLB game 335 of 340.
 
-**L1 part 2 as built: football (2026-10-28, `sports`, not merged; no migration, no ESPN calls from the app, nothing
+**L1 part 2 as built: football (2026-10-28, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration, no ESPN calls from the app, nothing
 stored).** Part 2 is done: L1 part 3 (games from ESPN's schedule) is next, or L2.
 - **`Football`** (`football.ts`; **the NFL only**: college football's plays are another grammar, below), registered in
   `index.ts` with `defenseId` exported. Positions as ESPN's rosters say them (QB RB FB WR TE OT G C OL; DE DT NT DL LB CB S
@@ -1546,7 +1548,7 @@ stored).** Part 2 is done: L1 part 3 (games from ESPN's schedule) is next, or L2
   such case seen; the reader does too. Rare. (L3.)
 - **Baseball's reader on days part 1 didn't tune it on**: done since, in part 1's addendum (above).
 
-**L1 part 3 as built: games straight from ESPN's schedule (2026-10-28, `sports`, not merged; migration 0300; HOSTING.md
+**L1 part 3 as built: games straight from ESPN's schedule (2026-10-28, `sports`; merged and live 2026-11-07, `e7f5dc0b`; migration 0300; HOSTING.md
 updated).** A matchup (one game, a series, a team's next few) is a season of its own, made from a team's ESPN schedule, keyed
 by its games and shared by everyone who asks for them; each linked game's final and line are kept. No UI, no API route: the
 GPT (G3) and the wizard (U1) will call `makeMatchup`.
@@ -1624,7 +1626,7 @@ GPT (G3) and the wizard (U1) will call `makeMatchup`.
 - **Nothing makes a matchup yet** but code: the GPT's ask (G3), the wizard (U1) or an engine lab page (A5) will call
   `makeMatchup`; a route for it comes with the first of them.
 
-**L2 as built: the live clock (2026-10-28, `sports`, not merged; no migration, nothing stored, no ESPN calls from our server;
+**L2 as built: the live clock (2026-10-28, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration, nothing stored, no ESPN calls from our server;
 HOSTING.md updated).** A game's clock for someone, a game live on the phone, and every recorded game replayed through them. No
 UI.
 - **`src/lib/sports/clock.ts`** (new; pure, plain data; A15 uses it unchanged: its shape is under A15 in Steps). A `Moment` is
@@ -1830,7 +1832,7 @@ UI.
 - **A phone's IP reaches ESPN** when it asks (a plain cross-origin fetch sends no cookies): a line for a privacy note when
   there is one. (U1.)
 
-**L5 part 1 as built: soccer (2026-10-28, `sports`, not merged; no migration, no new ESPN call from the app, nothing stored but
+**L5 part 1 as built: soccer (2026-10-28, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration, no new ESPN call from the app, nothing stored but
 a league's own name on read shapes already cached; HOSTING.md updated).** Master still hadn't A1-A4, so L5 came before L1's
 spec parts and L3 (the main session's order).
 - **What ESPN gives** (checked on 315 finished matches across 17 competitions, and two cup ties live). A soccer summary has no
@@ -1971,7 +1973,7 @@ spec parts and L3 (the main session's order).
 - **A sub's position is his roster's** (a match sheet says "SUB"): slots read `season_cast.role` (G, D, M, F), as L1's Noticed
   says for every sport. (L4.)
 
-**L5 part 2a as built: college basketball and the WNBA (2026-10-28, `sports`, not merged; no migration, no ESPN calls from the
+**L5 part 2a as built: college basketball and the WNBA (2026-10-28, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration, no ESPN calls from the
 app, nothing stored).** Master still hadn't A1-A4 (the main session's order). College is split in three (L5's line): this is
 2a; 2b is college football, 2c college baseball and hockey.
 - **What ESPN gives** (checked on 348 men's and 168 women's college games of 2025-26 and 120 of the WNBA's 2026, 2026-10-28):
@@ -2080,7 +2082,7 @@ app, nothing stored).** Master still hadn't A1-A4 (the main session's order). Co
   name), so the reader's outs and strikes go to nobody (Ole Miss–Troy, 2026-06-14: a starter's 14 outs read as 3). 2c: the
   box's own names and columns, then the proof on the 2026 season's days and the College World Series.
 
-**L5 part 2b as built: college football (2026-10-30, `sports`, not merged; no migration, no ESPN calls from the app, nothing
+**L5 part 2b as built: college football (2026-10-30, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration, no ESPN calls from the app, nothing
 stored).** Master still hadn't A1-A4 (the main session's order).
 - **What ESPN gives** (checked on 2026's FBS weeks 6-8, 176 games): plays in drives as the NFL's, typed alike ("Rush", "Pass
   Reception", "Sack"), each with its wallclock, the score after it and who had the ball where (`start.yardLine`), and, unlike the
@@ -2188,7 +2190,7 @@ stored).** Master still hadn't A1-A4 (the main session's order).
 - Live: two FBS games of 2026-10-30 (Baylor at UCF 401856844, Tulane at Charlotte 401862813) are being recorded by detached recorders
   that stop themselves at each final (`rfl-espn-live/`, a log beside each): the next session runs `--compare` on each.
 
-**L5 part 2c as built: college baseball (2026-10-30, `sports`, not merged; no migration, no ESPN calls from the app, nothing
+**L5 part 2c as built: college baseball (2026-10-30, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration, no ESPN calls from the app, nothing
 stored).** Master still hadn't A1-A4 (the main session's order). With it, L5 part 2 (college and the WNBA) is done.
 - **What ESPN gives** (checked on the 2026 season, February to June, 476 games' summaries, 2026-10-30):
   - **Every game ESPN lists has its score; a box and play by play only where its scoreboard says `playByPlayAvailable`**: its
@@ -2334,7 +2336,7 @@ stored).** Master still hadn't A1-A4 (the main session's order). With it, L5 par
 - **The live-clock check's rhythm needs a quiet machine**: with the other lanes' sessions running, all 22 recordings at once at
   60x fail only on gaps between asks (every answer, every later watch and every end right); the three new ones alone pass.
 
-**L5 part 3a as built: golf (2026-10-30, `sports`, not merged; no migration, no ESPN calls from the app, nothing stored).**
+**L5 part 3a as built: golf (2026-10-30, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration, no ESPN calls from the app, nothing stored).**
 Master still hadn't A1-A4 (the main session's order). Part 3 is split in two: 3a golf (this), 3b racing (next: what ESPN gives
 for it is below, looked at in this session).
 - **What ESPN gives for golf** (checked 2026-10-30 on every finished event of the 2025 and 2026 seasons of six tours, ~340):
@@ -2499,7 +2501,7 @@ for it is below, looked at in this session).
 - **Match play (the Presidents Cup, Solheim Cup, TGL) and Stableford** aren't read: match play with the bouts (BoutSport, MMA and
   tennis's part), Stableford if ever asked for (its points are its own table).
 
-**L5 part 3b as built: racing (2026-10-30, `sports`, not merged; no migration, no ESPN calls from the app, nothing stored).**
+**L5 part 3b as built: racing (2026-10-30, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration, no ESPN calls from the app, nothing stored).**
 Master still hadn't A1-A4 (the main session's order).
 - **What ESPN gives for racing** (checked 2026-10-30 on every finished event of the 2025 and 2026 seasons of its five series: F1's
   42 weekends, NASCAR's 79 Cup, 64 O'Reilly and 48 Truck races, IndyCar's 35; ~13,000 calls, ~51 MB, cached):
@@ -2643,7 +2645,7 @@ Master still hadn't A1-A4 (the main session's order).
   steps); F1 Fantasy's from a page listing it (fantasy.formula1.com needs a browser).
 - **No racing season was held out**: the next races (Mexico City, Martinsville) are the first the reader wasn't written against.
 
-**L5 part 4a as built: MMA (2026-10-30, `sports`, not merged; no migration, no ESPN calls from the app, nothing stored).** Master
+**L5 part 4a as built: MMA (2026-10-30, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration, no ESPN calls from the app, nothing stored).** Master
 still hadn't A1-A4 (the main session's order). Part 4 is split in two: 4a MMA (this), 4b tennis (next).
 - **What ESPN gives for MMA** (checked 2026-10-30 on every finished card of 2025 and 2026 of the UFC (99 cards, 1,088 bouts), the
   PFL (28, 281), LFA (36, 121), Cage Warriors (11) and ACA (3), 65 of the "other" league's (Road to UFC, PFL MENA and Africa, a
@@ -2810,7 +2812,7 @@ still hadn't A1-A4 (the main session's order). Part 4 is split in two: 4a MMA (t
   Performance of the Night bonuses would need a source ESPN isn't (HOSTING.md first, the decision's "vetted sources").
 - **No season was held out**: the reader was written against 2025 and 2026; Saturday's card is the first it wasn't.
 
-**L5 part 4b as built: tennis (2026-10-30, `sports`, not merged; no migration, no ESPN calls from the app, nothing stored).** Master
+**L5 part 4b as built: tennis (2026-10-30, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration, no ESPN calls from the app, nothing stored).** Master
 still hadn't A1-A4 (the main session's order). With it, L5 is done: soccer, college and the WNBA, golf, racing, MMA and tennis.
 - **What ESPN gives for tennis** (checked 2026-10-30 on every ATP and WTA event of 2025 and 2026: 318 boards, 278 events over,
   24,594 matches; ~360 calls, ~93 MB unpacked, cached):
@@ -2990,7 +2992,7 @@ still hadn't A1-A4 (the main session's order). With it, L5 is done: soccer, coll
 - **No season was held out**: the reader was written against 2025 and 2026; Basel's and Guangzhou's live recordings are the first
   it wasn't, and it read every result right but the suspensions (above).
 
-**The weekend's recordings compared, as built (2026-11-05, `sports`, not merged; no migration, no ESPN calls from the app, nothing
+**The weekend's recordings compared, as built (2026-11-05, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration, no ESPN calls from the app, nothing
 stored).** After the lane's pause (for the week's usage): master merged in first (`lane.js sync`: the engine to A12 and R1 part
 3, track C's plan; one conflict, `browser.js`'s exports, both kept), the lane's database migrated (0155-0162, 0203). Then every
 weekend recording, all final, compared (`record-espn-live.js --compare`); what each shows is in its part's Noticed: the team
@@ -3027,7 +3029,7 @@ them (ESPN's data read first each time):
 - No HOSTING.md change: no new ESPN call from the app (the server's scoreboard reader reads the same answer), no table, nothing
   stored.
 
-**L2 part 2a as built: the pollers for golf and tennis (2026-11-05, `sports`, not merged; no migration, nothing stored; HOSTING.md
+**L2 part 2a as built: the pollers for golf and tennis (2026-11-05, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration, nothing stored; HOSTING.md
 updated).**
 - **`Poller`** (`live.ts`): the asking rhythm, now shared: one ask at a time, on its own while the screen's visible, the next when
   due once it's back, doubling to 5 minutes while ESPN fails, until there's nothing more to ask; a subclass says how to ask and
@@ -3081,7 +3083,7 @@ updated).**
   the next tee time or the next day's order of play (tennis's placeholder starts): U1 could stop at a day's end and say when it's
   back. (U1.)
 
-**L2 part 2b as built: the pollers for a race weekend and a fight card (2026-11-05, `sports`, not merged; no migration, nothing
+**L2 part 2b as built: the pollers for a race weekend and a fight card (2026-11-05, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration, nothing
 stored; HOSTING.md updated).**
 - **An ask in rounds** (`live-event.ts`): an `EventFeed` can say, after its first round (`paths`, every ask), what else the answers
   so far want (`more`: the core API's calls, from everything had and this ask's own), up to four rounds; each call's last answer is
@@ -3152,7 +3154,7 @@ stored; HOSTING.md updated).**
 - **The check counts content, so the poller's own versions of a live bout's totals** (the FightCenter's, where the recording
   read the core's) have no recorded twin and aren't timed against it; their results and ESPN-timed plays are.
 
-**L1 part 4a as built: a game scored by a sport's stats (2026-11-06, `sports`, not merged; no migration, no ESPN calls, nothing
+**L1 part 4a as built: a game scored by a sport's stats (2026-11-06, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration, no ESPN calls, nothing
 stored).** Master merged in first (`a8093de2`: A13, own-pace games, the rulebook research; its six migrations run on rfl_sports).
 The engine's spec already had `score.by: 'stats'` marked as the sports branch's; it now says everything a sport's standard table
 does, the engine's own check reads it against the sport, and one scorer works it out on every shape of sport.
@@ -3201,7 +3203,7 @@ does, the engine's own check reads it against the sport, and one scorer works it
   midfielder's). The roster's (`season_cast.role`) is the right one, as L5 part 1 noticed; L3's scorer reads it.
 - **The words are long**: F1's are four lists of places. The wizard's short form is the UI track's (U0) and G4's.
 
-**L1 part 4b as built: the sports settles (2026-11-06, `sports`, not merged; no migration, no ESPN calls, nothing stored).** A
+**L1 part 4b as built: the sports settles (2026-11-06, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration, no ESPN calls, nothing stored).** A
 question a sport's game settles, checked by the engine's own check and graded by its own grader, from facts the sports build out
 of a game as of the viewer's moment.
 - **The settles** (`game-spec/schema.js`, the engine's): `{ by: 'final', take: winner | total | margin, of? }` (a team game's
@@ -3248,7 +3250,7 @@ of a game as of the viewer's moment.
   what's saved (L3). Only the total clinches: a stat can go down (plus-minus, to par, places gained).
 - **A soccer draw is off for a side answer**: a draw as a third side ("draw" an answer) isn't in the vocabulary. (L4's pick'em.)
 
-**L3 part 1 as built: the server's side of points per stat (2026-11-06, `sports`, not merged; migration 0301; HOSTING.md
+**L3 part 1 as built: the server's side of points per stat (2026-11-06, `sports`; merged and live 2026-11-07, `e7f5dc0b`; migration 0301; HOSTING.md
 updated).** Master merged in first (`572806d4`: C2's scoring sequence, A14 parts 1-2; the four spec files' conflicts kept both
 sides, and `settle.of` is now shared: the players' settles name a question with it, the sports settles a player, team or bout, each
 checked by its own rule). Nothing plays a stats game yet: the engine's hook is part 2, the engine lane's (below).
@@ -3329,7 +3331,7 @@ checked by its own rule). Nothing plays a stats game yet: the engine's hook is p
   category (ESPN's answer changed; the regular season still reads). Not this step's code (season stats); the check's expectation
   needs the answer as it is now. (A sports-data step.)
 
-**L3 part 2a as built: points per stat in the engine (2026-11-06, `sports`, not merged; no migration; HOSTING.md updated).** The
+**L3 part 2a as built: points per stat in the engine (2026-11-06, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration; HOSTING.md updated).** The
 engine's hook, after the sync of master `8c3bdc0d` (track C's C3 to C7 part 1; the merge's six conflicts kept both sides: C6's
 ticket and bank beside L4's bracket and squares, squares' `MAX_PAYS` renamed `MAX_SQUARE_PAYS` beside C6's ticket's, C6's openings
 in the placement corpus with the roto refusal kept on the 7 of them ranked roto).
@@ -3371,7 +3373,7 @@ in the placement corpus with the roto refusal kept on the 7 of them ranked roto)
   but for what's done (L3 part 2's hook and a card's bouts to `statMoments`, 2a; L4 part 1a's `closedForPlay` on `locksAt` and the
   daily and weekly lock words, 2b).
 
-**L3 part 2b as built: the daily and weekly locks (2026-11-06, `sports`, not merged; no migration).**
+**L3 part 2b as built: the daily and weekly locks (2026-11-06, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration).**
 - **The engine's lock** (`state-logic.js` `closedForPlay`): an episode locks at `ep.locksAt` (the server's: air-times.ts
   stampSportLocks, L4 part 1a and L8 part 3's day or week) when it's earlier than its own start or it has none, so a day's or a
   week's episodes lock together; a later lock is never read (its start locks it); `lineupsLocked` and `openPastAir` as before.
@@ -3396,7 +3398,7 @@ in the placement corpus with the roto refusal kept on the 7 of them ranked roto)
   Challenge 39 and 41 aren't in this lane's database): every game played through and over, Survivor 49 156 of 156, The Challenge
   40 115 of 115, The Traitors 4 110 of 110.
 
-**L3 part 2c as built: a game of questions on a sport's games (2026-11-06, `sports`, not merged; no migration; HOSTING.md updated).**
+**L3 part 2c as built: a game of questions on a sport's games (2026-11-06, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration; HOSTING.md updated).**
 - **The spec** (`schema.js`): VOCAB `ask.settle` `final` and `stat` and `ask.answer` `side` to 'now', so `playable` takes them and
   every sport's `pickem` and `pickAFew` (src/lib/sports/defaults) plays as a game of questions; a draft may ask them too (its own
   questions, C2 part 4c). `final`'s `bracket` and the `bracket` answer stay the sports branch's (2e). The 76ers opener's example
@@ -3421,7 +3423,7 @@ in the placement corpus with the roto refusal kept on the 7 of them ranked roto)
   from 6b8b1269's engine with the rest: each as its twin asking who goes home). GAME-PIECES.md's `side`, `final` and `stat`. 1,833
   unit tests pass (2 more here); `tsc` clean; eslint clean on the src files changed.
 
-**L3 part 2d as built: categories and roto (2026-11-06, `sports`, not merged; no migration).**
+**L3 part 2d as built: categories and roto (2026-11-06, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration).**
 - **The spec** (`schema.js`): VOCAB `rank.by` `categories` and `roto` to 'now'. A categories score has no line of points (`LINES.stats`
   takes it on a draft), its place the week's result and the rank's (`rankPlace`: head to head or roto, nobody racing or cut;
   `categoryProblems` refuses the rest, as built in L4 part 1b). `flagsOf`: `hasMatchups` for head to head on categories too,
@@ -3458,7 +3460,7 @@ in the placement corpus with the roto refusal kept on the 7 of them ranked roto)
   engine before against this tree's the same (2,856 reads each). The blind replays (`blind.js run` on each season loaded here): every
   game played through, Survivor 49 156 of 156, The Challenge 40 115 of 115, The Traitors 4 110 of 110.
 
-**L3 part 2e as built: squares and a bracket question (2026-11-06, `sports`, not merged; no migration; HOSTING.md updated).**
+**L3 part 2e as built: squares and a bracket question (2026-11-06, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration; HOSTING.md updated).**
 - **The spec** (`schema.js`): VOCAB `get.by` and `score.by` `squares` and `ask.answer` `bracket` to 'now'. Squares' place in the
   sequence: `holdOf` 'squares' (a hold of its own, nothing counted), `LINES.squares` (its lines are its pays, for whoever holds the
   square), `askPlace` nothing beside them (a stage alongside, as bingo's and a pool's), `rankPlace` the total with nobody racing or
@@ -3508,7 +3510,7 @@ in the placement corpus with the roto refusal kept on the 7 of them ranked roto)
   ask: squares by their squares playing as squares; the bracket as its twin asking who goes home, 22 playing now). GAME-PIECES.md's
   squares and bracket rows and the sequence's steps 1 and 2. 1,841 unit tests pass; `tsc` clean; eslint clean on the files changed.
 
-**L3 part 2f part 1 as built: a slate's week, game by game (2026-11-06, `sports`, not merged; no migration).**
+**L3 part 2f part 1 as built: a slate's week, game by game (2026-11-06, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration).**
 - **The server** (`sports/score.ts` leagueGames): a slate's episode's `lines` are each game's counts with its derived stats worked out
   on it, added up (a double-double, a defense's points-allowed bracket: a game's, where the week's sum read them off the sum before),
   and its rates worked out on the week's counts (never a sum of rates); `done` (new): its episodes whose every game is over (final
@@ -3529,7 +3531,7 @@ in the placement corpus with the roto refusal kept on the 7 of them ranked roto)
   engine before against this tree's the same (2,856 reads each). The blind replays (`blind.js run` on each season loaded here): every
   game played through, Survivor 49 156 of 156, The Challenge 40 115 of 115, The Traitors 4 110 of 110.
 
-**L3 part 2f part 2 as built: a question about each game of the episode (2026-11-06, `sports`, not merged; no migration; HOSTING.md updated).**
+**L3 part 2f part 2 as built: a question about each game of the episode (2026-11-06, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration; HOSTING.md updated).**
 - **The spec** (`schema.js`): VOCAB `ask.each` `game` to 'now' (beside `person`); `confidence` a question key. `eachGameProblems`: who
   wins each game (`side`, settled `final` `winner`), its total's or margin's range (`choice`) or the closest to it (`number`, `final`
   `total` or `margin`); asked each episode about that one (no `over`, not once), closing at the start, no `settle.of` (each game is its
@@ -3584,7 +3586,7 @@ in the placement corpus with the roto refusal kept on the 7 of them ranked roto)
 - **A game linked to the week after its picks opened** joins the question (its faces are the games as linked at each read): a pick
   for it is open until it starts. Right for a makeup; a confidence pool's ranks then run to one more.
 
-**L8 part 1's engine items, part 1 as built: daily lineups inside a week's episode (2026-11-06, `sports`, not merged; no migration; HOSTING.md updated).**
+**L8 part 1's engine items, part 1 as built: daily lineups inside a week's episode (2026-11-06, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration; HOSTING.md updated).**
 Yahoo's NBA (set each day, scored over the week), as a lock rather than as episodes: a week's episode stays the week (one meaning of a
 week: L8 part 3), and its lineup is set game by game inside it.
 - **The spec** (`schema.js`): `closes: 'game'` (VOCAB 'now'), a lineup's (`count.start`) scored by a sport's stats (points or
@@ -3646,7 +3648,7 @@ week: L8 part 3), and its lineup is set game by game inside it.
 - **The bots** set their best lineup each run; mid-week one that moves a locked holding is refused, so they keep what they had. A bots
   step.
 
-**L8 part 1's engine items, part 2 as built: a playoff's series as a bracket (2026-11-06, `sports`, not merged; migration 0305;
+**L8 part 1's engine items, part 2 as built: a playoff's series as a bracket (2026-11-06, `sports`; merged and live 2026-11-07, `e7f5dc0b`; migration 0305;
 HOSTING.md updated).** L4 part 2's Noticed: a bracket question asked over a league's playoffs, its draw their series.
 - **The spec** (`schema.js`): a bracket `of: 'playoffs'` (`sequence/bracket.js` `PLAYOFFS`), the whole playoffs one draw, so it's
   asked once (`asked: 'once'`, closing at the first playoff game: "A bracket of the playoffs is picked once, before they start: ask it
@@ -3780,7 +3782,7 @@ HOSTING.md updated).** L4 part 2's Noticed: a bracket question asked over a leag
 - **A salary cap or a stock market on stats** stays refused (their prices are moments': `PriceLogic.points`). (When a sports
   salary cap is asked for: G3.)
 
-**L3 part 3b as built: which line a question plays by, and postponed, suspended and moved games (2026-11-06, `sports`, not merged;
+**L3 part 3b as built: which line a question plays by, and postponed, suspended and moved games (2026-11-06, `sports`; merged and live 2026-11-07, `e7f5dc0b`;
 migration 0306; HOSTING.md updated).**
 - **What ESPN says of a game called off, recorded after the fact** (`scripts/dev-test/record-espn-called-off.js`, new: each day's
   scoreboard, the games of the team named, and each event's summary, trimmed; `tests/fixtures/espn/mlb-schedule-called-off-2026.json`,
@@ -3875,7 +3877,7 @@ migration 0306; HOSTING.md updated).**
   schedule each run (movedGames: up to 10 a run, cached as a schedule is). If that's every run for many games, a college game's own
   `groups` scoreboard would be the better read (L1's college Noticed; master's plan's Later).
 
-**L3 part 3a as built: live points on the phone, and a field's and a card's finals kept (2026-11-06, `sports`, not merged; migration
+**L3 part 3a as built: live points on the phone, and a field's and a card's finals kept (2026-11-06, `sports`; merged and live 2026-11-07, `e7f5dc0b`; migration
 0302; HOSTING.md updated).**
 - **Live points** (`src/lib/sports/points.ts`, new, pure: the screens' to call, U1): `livePoints(sport, score, { live, saved, card,
   who, groupOf })`, each holding's points (by the league's castaway: `who` a provider id to theirs, else the provider's) from the
@@ -3963,7 +3965,7 @@ migration 0306; HOSTING.md updated).**
 - **A phone's live points for a card scored by format need the poller's card** (`shape`): `livePoints` throws without it, as
   `statePoints` does; a screen always has it once the poller's answered (U1).
 
-**L4 part 1a as built: pick'em, pick a few and lineup locks per sport (2026-11-06, `sports`, not merged; no migration, no ESPN
+**L4 part 1a as built: pick'em, pick a few and lineup locks per sport (2026-11-06, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration, no ESPN
 calls, nothing stored).**
 - **Pick'em and pick a few, as data** (`src/lib/sports/defaults/*.json`: `pickem`, `pickAFew` beside each sport's `season` and
   `short`; racing's F1 and IndyCar too): games of questions (A4: `get.by: none`, `score.by: answers`), asked each episode, closing
@@ -4032,7 +4034,7 @@ calls, nothing stored).**
   rusher. A stat the sport works out (scrimmage yards, touchdowns of any kind) would be a derived stat in football.ts. (G3 asks
   better ones; or L5's football.)
 
-**L4 part 1b as built: categories and roto, and head to head's and best ball's default specs (2026-11-06, `sports`, not merged; no
+**L4 part 1b as built: categories and roto, and head to head's and best ball's default specs (2026-11-06, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no
 migration, no ESPN calls, nothing stored).**
 - **The spec's shape** (`game-spec/schema.js`): the categories live on the score, `score: { by: 'stats', categories: ['FG%', 'REB',
   ...] }` (1 to `MAX_CATEGORIES`, 20, each once, never beside a points table): what counts is the stats, and the rank says how
@@ -4126,7 +4128,7 @@ migration, no ESPN calls, nothing stored).**
 - **The scorer compares rates at full precision**: Yahoo shows FG% to three places; two seats whose rates differ past the third
   place aren't tied here. A rounding rule if a couch sees a "tie" lost. (U1's display, or the user.)
 
-**L4 part 2 as built: squares and brackets (2026-11-06, `sports`, not merged; no migration, no ESPN calls; a kept final keeps a
+**L4 part 2 as built: squares and brackets (2026-11-06, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration, no ESPN calls; a kept final keeps a
 little more: HOSTING.md).**
 - **Squares' spec** (`game-spec/schema.js`): `get: { by: 'squares', grid?, take?, each? }` (a grid of a team game's two scores'
   last digits, 10 by 10 or 5 by 5, `grid` 10 the default; its squares picked, `take: 'pick'` the default, up to `each`, first come
@@ -4252,7 +4254,7 @@ little more: HOSTING.md).**
   game level after regulation pays the 4th's end at overtime's first play, not when regulation ends. Small; the status's detail could
   say it.
 
-**L7 as built: finding a game (2026-11-06, `sports`, not merged; migration 0303; new ESPN calls and cache rows: HOSTING.md).**
+**L7 as built: finding a game (2026-11-06, `sports`; merged and live 2026-11-07, `e7f5dc0b`; migration 0303; new ESPN calls and cache rows: HOSTING.md).**
 The data side of adding sports by team (the user, 2026-11-06), as three routes the screens (U0, U1) can read; no screen calls them
 yet. Built on L1 part 3's pieces (master's Add a team plan, docs/PLAN-sports-add.md, brings them to master early: nothing of it is on
 master yet, so its steps 1-3 are what this step built, here).
@@ -4337,7 +4339,7 @@ master yet, so its steps 1-3 are what this step built, here).
   scoreboard as it's called off).
 - **A league by name** ("NFL", "Premier League") finds no team: L8's slate would be what it adds.
 
-**L8 part 1 as built: a league's slate (2026-11-06, `sports`, not merged; migration 0304; new ESPN calls and stored data: HOSTING.md).**
+**L8 part 1 as built: a league's slate (2026-11-06, `sports`; merged and live 2026-11-07, `e7f5dc0b`; migration 0304; new ESPN calls and stored data: HOSTING.md).**
 A season made of a whole league's games, several an episode, shared by everyone who asks for it; no route or screen calls it yet
 (part 2's routes, then U0 and U1).
 - **What an episode is** (`src/lib/sports/slate.ts`, new, pure), from ESPN's own answers: **by week** for a sport whose calendar is
@@ -4445,7 +4447,7 @@ A season made of a whole league's games, several an episode, shared by everyone 
   the provider's id: R2 or U1.)
 - **The NBA's play-in** (its own stage, 5) is in neither slate: a playoffs slate starts at the first round.
 
-**L8 part 2 as built: finding and adding a league's slate (2026-11-06, `sports`, not merged; no migration; a new route, no new kind
+**L8 part 2 as built: finding and adding a league's slate (2026-11-06, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration; a new route, no new kind
 of ESPN call: HOSTING.md).** The data side of adding a whole league by its name, as routes the screens can read (U0, U1: no screen).
 - **A league by its name** (`src/lib/sports/teams.ts` findLeagues, pure): the leagues some words name, by the names their team lists
   already give (ESPN's full name, its short one, its show's name and its path's words), on teamScore's rules: "nfl" and "NBA" (their
@@ -4506,7 +4508,7 @@ of ESPN call: HOSTING.md).** The data side of adding a whole league by its name,
 - **The NBA's playoffs list 0 episodes until ESPN's day calendar has them** (in November it doesn't): an add is refused ("It has no
   games listed yet") until it does. The screens can say "Playoffs: coming" from `episodes: 0`.
 
-**L8 part 3 as built: one meaning of a sports week (2026-11-06, `sports`, not merged; no migration, no ESPN calls, nothing stored).**
+**L8 part 3 as built: one meaning of a sports week (2026-11-06, `sports`; merged and live 2026-11-07, `e7f5dc0b`; no migration, no ESPN calls, nothing stored).**
 The main session's note of 2:25 PM: L4 part 1a's weekly lock ran Tuesday to Monday for every weekly sport while L8's episodes are
 ESPN's weeks, Monday-to-Sunday weeks, days or rounds, so "a week" had two calendars. Now it has one: the episode's, where the season
 has episodes of its own (the Decisions table's "A sports week").

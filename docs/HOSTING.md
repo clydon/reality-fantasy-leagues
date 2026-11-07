@@ -233,7 +233,7 @@ cached; a suspended game's for 30 days, and a game its day's scoreboard hasn't g
 hours, at most 10 a run: L3 part 3b), a game first seen after it started taking its summary's line (the box score the stats read anyway, cached for good), and
 sets each matchup season's status. Measured on the real 76ers home opener (2026-10-28): 5 ESPN calls in 0.5 s (the schedule, its summary for
 the line, two rosters, the next game's scoreboard), none a second time. Not backed up (asked again).
-**Finding a game by team (track L, L7, migration 0303; on the `sports` branch, not merged; no screen calls it yet)** polls nothing
+**Finding a game by team (track L, L7, migration 0303; merged and live 2026-11-07; no screen calls it yet)** polls nothing
 and wakes nothing of its own: three routes, asked only when someone searches, opens a team or adds. **Search** (`/api/sports/search`,
 open signed out, edge-cached an hour per query) matches the words against each team sport's league team list, read from ESPN's
 `/teams` (one call a league a week: 9 leagues, the NFL's, MLB's, the NBA's, the WNBA's, the NHL's and college football's, baseball's
@@ -248,7 +248,7 @@ one already made free) makes a matchup as before (a game, a series, their meetin
 (up to 200: an MLB team's 162, ~162 rows each in `season_episodes`, `season_events` and `sports_events`, ~120 KB, and its cast from
 every opponent's roster, ~30 roster calls cached a day, ~780 people ~200 KB on `season_cast`); a game already played is never asked
 for its line then (no summary per game), so a whole season costs ESPN the schedule, the week's scoreboards and the rosters.
-**A league's slate (track L, L8, migration 0304; on the `sports` branch, not merged; no screen calls it yet)** polls
+**A league's slate (track L, L8, migration 0304; merged and live 2026-11-07; no screen calls it yet)** polls
 nothing and wakes nothing of its own. A slate is a season of a whole league's games, several an episode (a day's, a week's, a
 soccer round's), shared by everyone who asks for it (`sports_slates`, ~200 bytes plus its episodes' windows, ~30 bytes each: a
 day-by-day MLB season's 186 ~6 KB). Made from **ESPN's calendar** (two new kinds of call: the league's bare scoreboard, its season
@@ -271,7 +271,7 @@ a soccer league's rounds are counted from its fixtures (the month scoreboards a 
 above), only while its round slate isn't made; a tour's league asks nothing. **Adding** one (`/api/sports/add` with `{ league, slate }`,
 signed in) makes or finds it as above and follows it, under the same ten new ones a person a day as matchups (one count for both:
 `sports_slates.made_by` beside `sports_matchups.made_by`).
-**A team game's counts at its final (track L, L3 part 1, migration 0301; on the `sports` branch, not merged)** poll nothing and
+**A team game's counts at its final (track L, L3 part 1, migration 0301; merged and live 2026-11-07)** poll nothing and
 wake nothing of their own. Once a linked team game is final, its summary is read once more into everyone's counts in the sport's
 keys (`sports_events.lines` and `people`, 3-7 KB a game: the NBA's 3 KB, the NFL's 5 KB, the NHL's 5 KB), kept with the game for
 good and never asked again (one ESPN call a game, the same summary the box score reads; cached a day in `sports_cache` too, ~the
@@ -289,7 +289,7 @@ when they're due writes once, as a due draw does). A bracket question's answers 
 the kept card once it's final, else the provider's card (one cached ESPN call, an hour until it's final: the same board the finals
 read), one query for the episode's event and cast a read. Nothing new is stored but the squares in the league; a show's league asks
 nothing.
-**A field's and a card's final (track L, L3 part 3, migration 0302; on the `sports` branch, not merged)**, kept the same way: once a
+**A field's and a card's final (track L, L3 part 3, migration 0302; merged and live 2026-11-07)**, kept the same way: once a
 linked golf tournament, race weekend, tennis event or fight card is final, the server asks the calls the phone's poller makes for
 it, once (`src/lib/server/sports/espn.ts` eventFinal, through `live-event.ts`'s feeds): golf's board and leaderboard (2 calls); a
 race weekend's board and its core's lists and statistics (~135 calls an F1 weekend, ~47 a NASCAR Cup race, ~36 IndyCar's; ~5 s,
@@ -304,7 +304,7 @@ shootout score, a few bytes, L4 part 1a), and cached a day in `sports_cache`
 card's event the app reads, for 16 days from its start (a Grand Slam's fortnight; one call per league and day, cached as before).
 At most 10 fields or cards a run; one whose later call ESPN fails is asked whole again the next run. Nothing polls, nothing new
 wakes Neon.
-**Live games (docs/PLAN-start-a-game-gpt.md track L, L2; on the `sports` branch, not merged; no screen uses it yet, U1)** cost
+**Live games (docs/PLAN-start-a-game-gpt.md track L, L2; merged and live 2026-11-07; no screen uses it yet, U1)** cost
 nothing on Vercel or Neon. The phone asks ESPN's summary itself (`src/lib/sports/live.ts`): once when the page opens, then from
 the game's start every 15 s (±10%) while it's on and the screen is visible, never while hidden, backing off to 5 minutes while ESPN
 fails, and not after the final; a later watch of a finished game asks once. Live points are worked out on the phone, so nothing
@@ -1232,3 +1232,8 @@ never handles it: the user does the reset and the pasting.
   (`card_choices`, a row a season-episode) and a new bot research run kind, `card`: one bot ask per season per episode,
   two days before it airs, only for seasons with a live game whose card the bot chooses** (none yet). It goes through the
   same bot (ChatGPT on the VM) as research's other runs; no paid key, no new service or schedule beyond the hourly job's.
+- **2026-11-07, pushed to master (`e7f5dc0b`, migrations 0300 to 0306).** Track L's live sports, released with no screens yet.
+  **Nothing polls or wakes on its own:** the daily listings job reads ESPN only for sports games someone has added (none
+  in production yet), and the search, schedule, league and add routes call ESPN only when someone asks (each call cached).
+  New tables `sports_events`, `sports_matchups`, `sports_slates` and `question_lines`, empty until a sports game is made.
+  The sizes and calls are in the entries above (Matchups, finals and lines; Finding a game by team; A league's slate).
