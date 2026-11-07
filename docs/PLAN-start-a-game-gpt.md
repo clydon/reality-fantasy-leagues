@@ -218,6 +218,8 @@ and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track
 | A sports week (2026-11-06) | **The episode, wherever the season has episodes of its own** (the main session's call, as the sports track's orchestrator; built in L8 part 3): a league's slate's episode (ESPN's own week for football, Monday to Sunday or a day for the NBA, NHL and MLB, a round for soccer) is the week for its locks, its matchups and the screens, locking at its own first game whatever the spec's `closes` says. Tuesday to Monday (Eastern) only where nothing else defines the week: a team's season and a matchup's series, one game an episode. |
 | Which line a game plays by (2026-11-06) | **The line when the question opens for answers, shown with it, never changing once anyone can answer** (the main session's call at 11:05 AM, as the sports track's orchestrator; the user can overrule; built in L3 part 3b). Not the line at the lock (answers made earlier would be graded against a line their makers never saw), nor the line when the game is made (a game made weeks ahead has none yet for its later games). Each question (each game, for a question about each game) takes the latest line read when it opens (the daily odds read is enough: no hourly read); one that opens before ESPN has a line waits ("Line coming") and opens when there is one. "Opens" is the first time the question is served open in the league (a read of its questions or an answer to it), the line kept then for good: it's the line every answer to it was made against. The phone's `lineAtStart` stays the live display's line, not the question's. |
 | Outside numbers: TVmaze ratings (2026-11-07) | **No** (the user, on A14 part 7's Noticed): TVmaze's episode ratings aren't taken as a source, so `ask.settle`'s `outside` is 'later' in VOCAB (nobody can make a rating game), nothing runs `db/outside-numbers.js` and the hourly job has no step for it. The piece stays built and checked (its code, tests, migration 0213 and the `outside_numbers` table, unused): a later yes is that flip and one step of the job. |
+| U0's first round (2026-11-07) | **The user, at impeccable's shape:** the first round is **the wizard** (Start a game's two doors, the game in a sentence and its questions, the bot's wait and errors, finding a sports game by team, the guide's Sports filter); game pages, live sports screens, answering and watch along are later rounds. **Sports: one search and the guide:** the "Search or add a show" box finds teams and leagues too (Shows · Teams · Leagues), the guide's Sports filter lists games, a team opens its schedule (the next game first, then the next few, a series, the season). **One tap is a quick game for tonight** (a one-episode game on the next airing; a season game is the second step), not the show's usual season game Claude recommended. U0 is designed in the main session; U1 builds it in fresh sessions. |
+| A season's game ideas (2026-11-07) | **Planned** (the user's idea, G5): a season's setup asks for 15 ideas, five each season-long, one-episode and over a few episodes, two standard and three creative per length, each a whole game (its questions, the show's and the cast's moments). Why (the user): an idea already built around the show's structure and stages is a starting point to tweak. Claude's shape, the user's to correct: the standard ones from our own games, the creative ones from the bot; lengths by stage, never by episode number. |
 
 ## What's there today (mapped 2026-10-27)
 
@@ -11467,6 +11469,30 @@ first), and proves it on these games and on the tracker's other rows that use it
     Plays fine; a roll could name it from the show once the roles' name is a setting the wizard shows.
   - **Lengths are taste, not data**: a roll's "few" is 2 to 4 episodes and "half" is half what's left; a season whose length isn't
     known yet rolls the rest of it, a few, or one. Fine until U0 shows the length chip.
+- **G5. A season's game ideas** (the user, 2026-11-07, in U0's first round: "part of a show's/season's initial research
+  should ask for fun game types"; "that'll assist the user in picking a game structure that may already account for the
+  show's structure or stages so they can tweak it to their liking"). When a season is set up (after Make it a game's research,
+  in the background so setup isn't slower; once for every season set up before it), it gets **15 ideas, five of each length**:
+  season-long, one episode, and a few episodes. **Two of each length are standard and three creative.**
+  - **The standard two per length are our own games** (Survival Pool, Weekly Lineup, Predictions, Weekly Picks..., whichever
+    `rulebook-fits` says fit the show), not the bot's: the same names on every show, free, never wrong (Claude's
+    recommendation; the bot renaming them per show would make the couch relearn them).
+  - **The bot writes the three creative ones per length** (nine a season): each a name, a one-line hook and the whole game,
+    its questions and the show's and the cast's moments it counts, from G1's ask (the context pack and the manual) asked for
+    nine; our check is the gate (a failure asked again once, then dropped); a new moment goes through G1's reliability ask.
+    One bot run per season, shared by every couch on it as research is, a run kind of its own in `bot_ai_runs` (the CHECK
+    constraint re-set with the union of every kind).
+  - **Built on the show's stages:** lengths by where they start and end, never episode numbers that go stale ("the next 3
+    episodes", "until the merge", "finale night"); questions over whoever's still in, never a named person who may be gone;
+    a one-moment question tagged to its phase (the merge, the finale); present-tense questions in the bot's words (G4's
+    Noticed: rolled questions read from past-tense labels).
+  - **In the wizard (U0, U1):** tonight's one-tap game is the first standard one-episode idea; Roll (or a swipe) walks the
+    show's ideas before random rolls; each idea shows its stages over the season's phases (spoiler-safe: the phase's name,
+    never its episode); a change keeps the shape (a part for one stage or all of them, words through G1's typed change, a
+    Randomize lock on the stages).
+  - **Until the game pages exist** (track V, U1), ideas use only pieces today's screens can play.
+  - **Proof:** every idea of every taped season passes our check and plays to the end blind (`blind.js`); the standard ones
+    read the same names on every show; a phase-tagged question is asked only in its phase.
 
 **V. Game pages, generated** (the user, 2026-10-30; "The Games tab and game pages", above).
 - **V1. The page generator: a research spike, then a prototype** (heavy; likely two sessions). First how others turn data
