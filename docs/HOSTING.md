@@ -1266,3 +1266,9 @@ never handles it: the user does the reset and the pasting.
   has room: Codex is a CLI, no browser). The PC and the VM share the account's ChatGPT and Codex limits. **On the PC:**
   the bot runs as the Windows task `llm-browser-api` (hidden, at logon, restarted on crash). The details are in the bot's
   own READMEs (`llm-browser-api/README.md`, `deploy/README.md`).
+- **2026-11-07 afternoon, the bot answers up to 3 Codex questions at once** (`CODEX_PARALLEL`, on the PC and the VM; the
+  sports lane's step 1 of the bot's throughput). On the VM three one-word asks took 10.6 s together (one alone about
+  10 s), MemAvailable 701 MB before and 570 MB at the lowest, so the free 1 GB VM holds it. ChatGPT stays one at a
+  time (one browser). Codex's limit reached drops it back to one and queues the rest. The research clock still starts
+  one run a call, so it helps when asks come together. Next, with the app's part merged: the trivia and bingo banks
+  sent to Codex (the user's yes, 2026-11-07), through the desk's `bot_ai_runs` setting.
