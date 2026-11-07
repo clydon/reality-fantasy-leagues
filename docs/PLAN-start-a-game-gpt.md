@@ -150,8 +150,10 @@ who.secret), and so is part 5, the top scorer's twist (2026-11-06: `score.twist`
 scorer choosing one of the spec's twists for the next episode, every point or one moment's times its own, kept in `twist_choices`,
 migration 0211, until it closes, then filed and stamped on the episode; tracker row s40), and so is part 6, a rotating host's
 questions (2026-11-06: `card.from: 'host'`, each episode one of the seats in turn choosing the card's moments, kept in `host_cards`,
-migration 0212, until the host's deadline, then filed and stamped on the episode; tracker rows s43 and who.host). A14's last part is
-next (a number from a vetted outside source), then a stop before A15. The live-sports plan is
+migration 0212, until the host's deadline, then filed and stamped on the episode; tracker rows s43 and who.host), and so is part 7,
+a number from a vetted outside source (2026-11-06: `settle.by: 'outside'`, an episode's TVmaze rating read once seven days after it
+airs and stored per season in `outside_numbers`, migration 0213; nothing runs the read until the user approves the source at the
+merge; tracker rows s42 and settle.outside): **A14 is done**, and the A track stops before A15 for the user. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5, at
 high since 2026-11-05; C2 at xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: folded in here as track L; its file keeps the details)
 and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track S here).
@@ -5680,6 +5682,91 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     the Drive-By 18, the Fan 11, the Fan Who Forgets 6) and The Traitors 4 113. The Survivor 51 rehearsal
     (`season-forward.js rehearse --from=backups/prod-2026-10-30 --scenario=realistic,rough,dst --before=master`): every invariant
     holds, flag off against on and master's engine against this tree's, 2,856 reads each, every one the same.
+  **As built (A14 part 7, a number from a vetted outside source, 2026-11-06, on `engine`; migration 0213).** One session, after
+  `lane.js sync engine` (nothing new from master; 1631 tests). The last of A14's pieces, and not a player mechanic: data still settles
+  it, only from outside research (the Decisions table, "Numbers from outside research": vetted, free, settled once at a fixed moment
+  and stored). A new settle kind, so it composes with every answer that takes a number and every way a question's points combine,
+  its window and its walk; no state-logic.js change (the grader's facts are the server's).
+  - **The piece** (game-spec `schema.js`): `settle: { by: 'outside', take: 'rating', source: 'tvmaze', after }`: the episode's TVmaze
+    rating (its `rating.average`, 0 to 10) as it stood `after` days after the episode aired (1 to `MAX_OUTSIDE_DAYS`, 30; `OUTSIDE`
+    the defaults: TVmaze, 7 days, the Decisions table's "a rating seven days after airing"; `fullQuestion` fills them), asked each
+    episode about that one. Answered as a `number` (the closest; `answerProblem`: a rating, 0 to 10), an `overUnder` (its line) or a
+    `choice` of ranges to a tenth (`optionRange(o, true)`: "7-7.9", "8+"; a count's stay whole numbers). `isOutside`; `outsideKey`
+    ("tvmaze:rating:7", what's stored and read). VOCAB `ask.settle` gains `outside`, `ask.settle.source` is `{ tvmaze }`; TAKES
+    `outside: ['rating']`; NUMBERS `outside:rating`. Refused (`questionProblems`, `specProblems` with the show's ctx; words through
+    impeccable's clarify, "rating" throughout): another source ("Where the rating comes from: tvmaze"), a moment outside 1 to 30 days
+    ("The rating is read 1 to 30 days after the episode airs"), asked other than each episode or over a few ("An episode's rating is
+    that episode's: ask it each episode"), about each person (EACH_SETTLES_FOR has none), a yes or no, against the bot ("The bot
+    doesn't call an episode's rating yet": its call prompt asks for a whole number, and a prompt change is the user's), a choice
+    whose options aren't a rating's, `source` or `after` on another settle, and the data-can-settle rule: a season not linked to its
+    TVmaze listing (`ctx.tvmaze`, from `show_seasons.listing_id`, in answers.ts `questionContext` and engine-lab.ts `rulesOn`: "This
+    season isn't linked to TVmaze, so nothing can settle its episodes' ratings"; left out, not checked, as ctx.trivia).
+  - **Graded** (game-spec `answers.js outsideVerdict`): once the episode has results as far as the viewer has seen (the spoiler
+    guard's, as any question about the episode) and its number is stored (`facts.outside`: Map episode -> { key: { state: 'value',
+    value } | { state: 'none', why } }); known with the rating as its value, so the answers that already grade a count grade it.
+    Waiting while nothing is stored. `factsThrough` cuts it as the episode facts are. **The closest guess's gap is compared to a
+    millionth** (`pointsFor`): two guesses a tenth either side of a rating tie (8.2 and 8.4 on an 8.3 were 0.0999... and 0.1000...1
+    apart: the shapes fixture found it); a count's are whole numbers, so every read before is the same.
+  - **Read once and stored** (**`outside_numbers`, migration 0213**: one row per season, episode, source, what and `after`, the value
+    or why there was none, when it was read; an INSERT that never overwrites; per season, so every league on the season asking it the
+    same way reads one number, and a later rating never changes it). **`db/outside-numbers.js settleOutside`** (new, CommonJS, run as
+    `node db/outside-numbers.js [--dry]`): every game that asks one (a cheap LIKE, then `asked(state)`), by season; each episode from
+    the game's first (`spanStart`, or the episode a phase started it; nothing while it waits for its phase) whose moment (its air
+    time as the app stamps it, `air-schedule.js episodeAirTime`, plus `after` days) has passed with nothing stored: one fetch a season
+    (`tvmazeRatings(listingId)`: TVmaze's `/seasons/{listing}/episodes`, regular episodes by number, `rating.average` or null), then
+    the rating, or `none` (TVmaze had none). Not linked, or TVmaze not answering: tried again each run, and once `GRACE_DAYS` (3) past
+    the moment, `unlisted` or `unreached` (void, so no game waits on it). `fetchRatings` is a stand-in in every test and check: TVmaze
+    is never asked by them (one real read by hand, below). **No job runs it yet** (below, Noticed): asking TVmaze for ratings is a new
+    data source, the user's to approve at the merge.
+  - **The server's read** (`src/lib/server/outside-numbers.ts`, new): `outsideNumbersFor(state)` (in `answer-points.ts serverFacts`,
+    so every grade of a game that asks one; undefined, no query, for any other) reads the season's rows into `facts.outside`, a void
+    one with its reason as a player reads it ("TVmaze had no rating for it 7 days after it aired", "This season isn't linked to
+    TVmaze, so there was no rating for it", "TVmaze couldn't be reached for its rating", each then ": it doesn't count either way");
+    `tvmazeLinked(seasonId)`, the check's ctx. Public (a rating is a number anyone can read), so nothing is secret and nothing is
+    stamped on the state.
+  - **Where it sits in the sequence:** step 2, a game of questions' lines (an answer's right ones at what its window is worth),
+    graded on the server as any question; every combiner, window and walk reads it as it reads a count. Nothing else changes.
+  - **The words** (describe.js `questionRule`, through impeccable's clarify: one noun, "rating", never "number", in everything a
+    player or maker reads; "no rating", not "none"; the same "linked to TVmaze" in the refusal and the void): How it works adds "It's
+    settled by the episode's TVmaze rating 7 days after it airs. If TVmaze has no rating by then, it doesn't count either way." (a
+    day, for `after: 1`; the default from `OUTSIDE`).
+  - **state-logic.js** (for the own-pace merge): no function changed.
+  - **Its fallbacks, from the start:** TVmaze had no rating at the moment (void); the season not linked, or TVmaze not answering, for
+    three days past it (void; before that, tried again, so a season linked late still settles); nothing stored yet (waits); a game
+    at your own pace on an aired season (its episodes' ratings read at the first run, as they stand then: settled long ago).
+  - **The tracker:** s42 plays ("Predict each episode's IMDb rating.": TVmaze's rating, not IMDb's, which has no free API with terms
+    that allow it; a game of questions on Dancing with the Stars 35, 3 points for the closest) and so does settle.outside: 224 ✅ ·
+    39 ⏳ (A14 none left waiting). `engine-capabilities.js --check` current; `game-specs-flag.js check`: PASS.
+  - **Proof:** `tests/outside-number.test.js` (new, 3): the shape, defaults, words and settings both ways, every refusal, the
+    options to a tenth, the answer's range; graded (the closest with a tie, the line, a range; void; waiting with nothing read, with
+    another moment's number, past what you've seen; the walk's cut; a tenth either side a tie); what's due and stored (on a stand-in
+    pool and fetch: six days nothing, seven the rating, never twice, a later rating notwithstanding, a dry run, TVmaze down then its
+    grace, not linked then its grace, linked late, a game from Episode 2 reading nothing of 1). `tests/game-pieces-doc.test.js`: the
+    limit's row. `npm test` 1637; `tsc` clean. The shapes fixture: three outside shapes (`q-outside` a number, an over/under and a
+    range; `q-outside-lives` a life on it; `q-outside-pot` a range's pot split; `SERVER.outside`: Episode 3 void, 6 and 7 waiting),
+    54 new reads, the 2,754 before them byte-identical: 2,808 (`q-outside` hand-checked at bo@5: ann 11, bo 12, cy 5, di 4).
+    **API check:** `scripts/dev-test/check-outside.js` (new), ALL PASS (14): on new-fixture's couch, a game of questions on Episode 6's
+    TVmaze rating (the closest, 3; over or under 7.5, 1) refused while the season isn't linked, made once it is (its words); the
+    answers route asks both, refuses a 12, takes 7.3, 7.9 and 7.6; Episode 6's results through the season sync: waiting, no points;
+    the read six days after aired finds nothing due, seven days after stores 7.4 (only from the game's first episode); the next read
+    grades riley 4, sam 1, jordan 0, the Games tab ranking them; a later 9.9 stores nothing and changes nothing; the flag's check.
+    **One real read of TVmaze** (by hand, once, through `tvmazeRatings`, on two seasons the local catalog links): Below Deck 12's 16
+    episodes rated 6.7 to 10, a tenth each; Below Deck 13's Episodes 1 and 2 rated, 3 to 5 null (not enough votes yet: Noticed).
+    blind.js `standInOutside`: the copy linked to a stand-in listing (999001), and after each episode's results a made-up rating for
+    every key a game on it asks (6.5 to 9.4 from its number; every fifth none), stored as the read stores it.
+  - **Code review** (high, before the commit): nine findings, six fixed: a season not linked when its moment passed was void for good
+    (now tried again until the grace, so one linked late settles); a game starting at `{ at }` or a phase read from Episode 1 (now
+    `spanStart` or the phase's episode, nothing while it waits); every season loaded each hour (now only the wanted ones, in SQL);
+    `optionRange` building three patterns a call (now built once); the words' 7 days hard-coded (now `OUTSIDE.after`); blind's record
+    dropping a void episode. Three left (Noticed): the answer screen's whole-number stepper; nothing running the read until the user
+    approves it; the listing's lookup in two places.
+  - **The long checks** (once, last, on `9d78f313`): golden (`golden.js --before=master`): 7 seasons, 160 games, **19,361 reads,
+    every one the same**. Blind (`blind.js run`, in full): every game played through and over on all five seasons, one more on each
+    (the rating game: s42 and settle.outside are one spec), The Challenge 41 123, 40 117, 39 125, Survivor 49 161 and The Traitors 4
+    114; on The Challenge 41 it graded each episode's stand-in rating, every fifth void, and ended the Tinkerer 21, the Drive-By 21,
+    the Fan Who Forgets 12, the Fan 6. The Survivor 51 rehearsal (`season-forward.js rehearse --from=backups/prod-2026-10-30
+    --scenario=realistic,rough,dst --before=master`): every invariant holds, flag off against on and master's engine against this
+    tree's, 2,856 reads each, every one the same.
 - **A15. Live and replay** (with the watch along, docs/PLAN-couch-and-episode-night.md §6, and the sports branch's
   `GameClock`). It needs A7. The watch along is in its infancy (the user, 2026-10-28): its concept, how it's built and how it
   connects to games are all open, so A15 is where the games shape it, not only where they plug into it.
@@ -7997,6 +8084,47 @@ From R1 part 2 (2026-10-30):
   (R3, or whoever next works in Game settings.)
 - **For the hosting notes, at the merge:** `/api/me` (classic's sign-in and every classic load) now sends each league's settings, not its
   whole state (20-40 KB each): less Neon transfer than before. (The main folder: docs/HOSTING.md, with the merge.)
+
+From A14 part 7 (2026-11-06):
+- **For the user, at the merge (a new data source):** asking TVmaze for episode ratings (`db/outside-numbers.js`: one call to
+  `https://api.tvmaze.com/seasons/{listing}/episodes` a season with a rating due, at most hourly; free, no key, CC BY-SA, at least 20
+  calls every 10 seconds per IP, the same API the listings job uses: docs/HOSTING.md has it). **Nothing runs it yet.** Approved, it's
+  one step of `.github/workflows/reminders-waivers.yml` after waivers.js (`node db/outside-numbers.js`, the same secrets), and a line
+  in HOSTING.md (one more read an hour, at most a call a season). **Until it runs, a game an episode's rating settles waits forever**
+  (no row is ever stored), so if the merge doesn't take the source, `ask.settle`'s `outside` goes to 'later' in VOCAB (s42 and
+  settle.outside back to ⏳) so nobody can make one. Recommended: approve it (the Decisions table already allows TVmaze's ratings),
+  with the job step in the same merge. Start a game's bot reads the engine's manual, so once it plays a typed "guess each episode's
+  rating" becomes this game.
+- **For the user, in the design session (decide nothing a person sees), each built with a recommendation:**
+  1. **When it's read (`after`'s default).** Built: 7 days after the episode airs (the Decisions table's), 1 to 30 a setting. TVmaze's
+     rating needs enough votes: the one real read found Below Deck 13's Episodes 3 to 5 with none yet. A show with few TVmaze voters
+     could be void most weeks at 7 days. Options: a later default (14), or a fallback that waits for the first rating up to N days.
+     Recommended: measure first (a dry run of the read on every linked season, counting how often a rating is null at 3, 7 and 14
+     days), then set the default per show from it, as the episode facts' reliability is set (A13 part 2's bar).
+  2. **The fallback when TVmaze has none.** Built: void (no points either way), the seed's recommendation. Options: wait up to N
+     more days for one; or the closest to the season's average. Recommended: void, plus item 1's measure.
+  3. **What players are told.** The answers route asks it as any number question; the screens (U1) say nothing of when it's read or
+     why one is void beyond the grade's reason. A "rating in N days" note on a graded-but-waiting question is U1's, through
+     impeccable's shape. **The answer screen's number stepper is whole numbers** (`src/new/show/questions.tsx`, +/- 1, no top): a
+     rating needs tenths and a top of 10, so a phone can only give 7 or 8 today (the API takes 7.4; the code review's first finding,
+     left: no screens on this track). (U1.)
+  4. **Other numbers and sources.** Built: TVmaze's episode rating only. IMDb's isn't free with terms that allow it; viewership
+     figures (Nielsen) aren't free. A season's average rating, or a question about the whole season ("will its finale rate above
+     its premiere?"), needs a window over several episodes. (A request that needs it; a new source goes into HOSTING.md first.)
+- **A rating asked against the bot is refused**: the bot's call prompt (A14 part 2b) asks a number question for "a whole number, 0
+  or more". Changing it to a rating's tenth is a prompt change, the user's. (With the call prompt's approval at the merge.)
+- **A rating's moment comes days after the episode**, so a game that knocks players out or races on it (lives, cuts, a race) waits
+  for it before that episode's lives or cuts count: a week later, by default (the shapes fixture's `q-outside-lives` waits there).
+  Recommended: Start a game says so, or refuses a life on a rating unless `after` is short. (U0, with the wizard.)
+- **A game at your own pace reads an aired season's ratings as they stand at its first run**, not as they stood seven days after
+  each aired (that moment passed long ago; TVmaze keeps no history). Fine for the game (every seat reads the same number), but not
+  the rating a live game would have read. (The own-pace merge, if it matters.)
+- **The code review's third left:** what "linked to TVmaze" means is read in two places (`outside-numbers.ts tvmazeLinked` for the
+  check, a query in `db/outside-numbers.js` for the read); `loadSeasons` could select `listing_id` and save the read its query. (A
+  later tidy.)
+- **For the hosting notes, at the merge:** a read or write of a game an outside number settles runs one query for its season's
+  stored numbers (none for any other game); the hourly read, once approved, one query for the games that ask one, one for their
+  seasons, and per season with something due one for what's stored and one TVmaze call. (The main folder: docs/HOSTING.md.)
 
 From A14 part 6 (2026-11-06):
 - **For the user, in the design session (decide nothing a person sees), each built with a recommendation:**
