@@ -18,7 +18,7 @@
 //
 // Pure CommonJS, like ./schema.js.
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
-const { CARD_OUT_HOURS, PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, spanEnd, spanEndPhase, playsAs, callsAsk, finaleIn, draftQuestions, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion, matchupParts, questionsGame, poolByPoints, teamParts, handicapParts, stageOn, ON_CHANGE, nextStageAts, fallsTo, stageSide, mainCount, stageAlongside, stageSeason, seasonKey, isPlayers, isBeat, waiverOwnOf, waiverMoves, weekParts, momentsPick, bankOf, isTicket, ticketOf, cardOf, isCardQuestion, onlyCard, questionLines, lifeRides, askOf: linesOf } = require('./schema.js');
+const { CARD_OUT_HOURS, PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, spanEnd, spanEndPhase, playsAs, callsAsk, finaleIn, draftQuestions, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion, matchupParts, questionsGame, poolByPoints, teamParts, handicapParts, stageOn, ON_CHANGE, nextStageAts, fallsTo, stageSide, mainCount, stageAlongside, stageSeason, seasonKey, isPlayers, isBeat, waiverOwnOf, waiverMoves, weekParts, momentsPick, bankOf, isTicket, ticketOf, rolesOf, cardOf, isCardQuestion, onlyCard, questionLines, lifeRides, askOf: linesOf } = require('./schema.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const NUMBER_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
@@ -280,6 +280,41 @@ function bountyRules(s, w) {
   if (isObj(s.get) && s.get.own === 'shared') out.push(`Share a ${w.castaway} with someone? You each take the bounty, and everyone who had who went home pays it.`);
   return out;
 }
+/** A14 part 4: secret roles, the sentence's and How it works' first rule: "Secret roles: two of you are secretly Traitors. A
+ *  Traitor scores 2 points each time someone who isn't a Traitor loses a castaway." Null for none. The words through impeccable's
+ *  clarify (2026-11-06): the count a word, so it never reads as the points. */
+const rolesIn = (sc) => rolesOf({ score: sc });
+/** A role's name for several ("Traitors", "Spies", "Bosses"). */
+const rolePlural = (name) => (/[^aeiou]y$/i.test(name) ? `${name.slice(0, -1)}ies` : /(s|x|z|ch|sh)$/i.test(name) ? `${name}es` : `${name}s`);
+function rolesSentence(sc, w) {
+  const r = rolesIn(sc);
+  if (!r) return null;
+  const name = r.name.trim();
+  const n = r.count;
+  const who = n === 1 ? `one of you is secretly ${article(name)} ${name}` : `${say(n)} of you are secretly ${rolePlural(name)}`;
+  const loses = r.on === 'votedOut' ? `has ${article(w.castaway)} ${w.castaway} voted out` : `loses ${article(w.castaway)} ${w.castaway}`;
+  return `Secret roles: ${who}. ${cap(article(name))} ${name} scores ${pointsWord(r.points)} each time someone who isn't ${article(name)} ${name} ${loses}.`;
+}
+/** A14 part 4: How it works' rules for secret roles, after its sentence: the deal, who knows, the reveal, a shared draft's, a
+ *  lineup's starters, someone joining later. */
+function rolesRules(s, w) {
+  const said = rolesSentence(s.score, w);
+  if (!said) return [];
+  const r = rolesIn(s.score);
+  const name = r.name.trim();
+  const many = rolePlural(name);
+  const n = r.count;
+  const out = [said, `Roles are dealt at random when the game starts. You'll know if you're one; nobody else will.${n > 1 ? (r.mates === false ? ` ${many} don't know who the others are.` : ` ${many} also know each other.`) : ''}`];
+  const whoIs = n === 1 ? `Who the ${name} is` : `Who the ${many} are`;
+  out.push(Number.isInteger(r.reveal)
+    ? `${whoIs}, and their ${name} points, stay secret until ${w.Part} ${r.reveal}'s results. Then their points so far are added, and each ${w.part} after counts right away.`
+    : `${whoIs}, and their ${name} points, stay secret until the game ends. Then their points are added to the standings.`);
+  out.push(`${many} play their own team too.`);
+  if (isObj(s.get) && s.get.own === 'shared') out.push(`${cap(article(w.castaway))} ${w.castaway} two of you had counts once.`);
+  if (countKind(s.count) === 'start') out.push(`Only starters count: a benched ${w.castaway} going home scores nothing.`);
+  out.push(`Join after the game starts and you won't get a role.`);
+  return out;
+}
 /** C3: what a multiplied holding counts, said once: an Outlast's what they earn while they're yours, not their whole place. */
 const joinedHow = (sc) => (sc.by === 'place'
   ? `Each counts the boots they outlast while they're yours (one you drafted, their whole place), and keeps for you what they earned before you let them go.`
@@ -375,12 +410,16 @@ function sentenceParts(s, w) {
     for (const rule of joinedRules(sc)) put(` ${rule}`, 'score');
     // A14 part 3: a bounty.
     if (bountySentence(sc, w)) put(` ${bountySentence(sc, w)}`, 'score');
+    // A14 part 4: secret roles.
+    if (rolesSentence(sc, w)) put(` ${rolesSentence(sc, w)}`, 'score');
   } else if (sc.by === 'place') {
     put(sc.reverse === true ? ' Each scores more the earlier they go home: the first one out carries you.' : ' Each scores by how long they last: the last one standing carries you.', 'score');
     // C3: how a holding joined.
     if (sc.reverse !== true) for (const rule of joinedRules(sc)) put(` ${rule}`, 'score');
     // A14 part 3: a bounty.
     if (bountySentence(sc, w)) put(` ${bountySentence(sc, w)}`, 'score');
+    // A14 part 4: secret roles.
+    if (rolesSentence(sc, w)) put(` ${rolesSentence(sc, w)}`, 'score');
   }
   else if (sc.by === 'survive') {
     // A10 part 2: lives, a buyback, mulligans; last one standing.
@@ -1060,20 +1099,20 @@ function rulesOf(s, w) {
     const joinedSaid = s.score.by === 'moments' || s.score.by === 'place' ? joinedRules(s.score) : [];
     if (joinedSaid.length && s.score.by === 'moments') rules.push(...joinedSaid, joinedHow(s.score));
     // A14 part 3: a bounty (an Outlast's after how a place scores, below).
-    if (s.score.by === 'moments') rules.push(...bountyRules(s, w));
+    if (s.score.by === 'moments') rules.push(...bountyRules(s, w), ...rolesRules(s, w));
     if (count === 'start') rules.push(`Lineups lock when the ${w.part} starts. Change yours as often as you like until then.`);
     rules.push(...groupSlotRules(s, w));
     if (s.score.by === 'place' && s.score.reverse === true) {
       rules.push(`Each ${w.castaway} earns 1 point, plus 1 for everyone who outlasts them.`);
       rules.push('So the first one out scores the most and the winner 1: the earlier yours go home, the better.');
       rules.push("While they're still in, they count what they'd score if they went home next.");
-      rules.push(...bountyRules(s, w));
+      rules.push(...bountyRules(s, w), ...rolesRules(s, w));
       rules.push('No lineups to set. Just watch.');
     } else if (s.score.by === 'place') {
       rules.push(`Each ${w.castaway} earns 1 point, plus 1 for every boot they outlast.`);
       rules.push('So they end on their place in the boot order: the last one standing carries you.');
       if (joinedSaid.length) rules.push(...joinedSaid, joinedHow(s.score));
-      rules.push(...bountyRules(s, w));
+      rules.push(...bountyRules(s, w), ...rolesRules(s, w));
       rules.push('No lineups to set. Just watch.');
     }
     // A10 part 3c: a stock market's moves are its trades (drawRules says them).

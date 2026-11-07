@@ -63,8 +63,9 @@ const GAME_FIELDS = {
   // ranked by worth.
   // C3: a multiplier on how a holding joined (joinedTimes), an Outlast's or a lineup's.
   // A14 part 3: a bounty (bounty), an Outlast's or a lineup's.
-  "classic-draft": [...DRAFT_FIELDS, "teamSize", "reverseOrder", "joinedTimes", "bounty"],
-  "active-roster": [...DRAFT_FIELDS, "activeSlots", "benchSlots", "eventPoints", "hideStartersUntilLock", "bestBall", "captainTimes", "pointsTimes", "groupSlots", "joinedTimes", "bounty", "scoreOnly", "scoreHits", "gameCard"],
+  // A14 part 4: secret roles (secretRoles), an Outlast's or a lineup's.
+  "classic-draft": [...DRAFT_FIELDS, "teamSize", "reverseOrder", "joinedTimes", "bounty", "secretRoles"],
+  "active-roster": [...DRAFT_FIELDS, "activeSlots", "benchSlots", "eventPoints", "hideStartersUntilLock", "bestBall", "captainTimes", "pointsTimes", "groupSlots", "joinedTimes", "bounty", "secretRoles", "scoreOnly", "scoreHits", "gameCard"],
   // A10 part 2: a pool's lives, buyback, mulligans, second pick and last one standing. A11 part 2: a pick that never repeats and
   // its fallback; last one standing's end.
   // C5: a pick scored by what they do (poolScore, its points eventPoints and by when pointsTimes, several each episode poolEach),

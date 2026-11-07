@@ -4,6 +4,7 @@ import StateLogic from "@/lib/game/state-logic.js";
 import * as Air from "@/lib/game/air-schedule.js";
 import { stampCardChoices } from "./card-choices";
 import { stampVoteRecords } from "./vote-records";
+import { stampSecretRoles } from "./secret-roles";
 
 // Stamps each episode with when it airs (ep.airsAt), from the league's season schedule in the
 // catalog (show_seasons' premiere/air time/zone, overridden by the wiki's own per-episode dates --
@@ -14,7 +15,10 @@ import { stampVoteRecords } from "./vote-records";
 // A catching-up league is left unstamped: it plays at its own pace, so the broadcast's clock means
 // nothing to it -- its episodes lock when their results are revealed. So is a league whose season
 // isn't in the catalog or has no schedule.
-export async function stampAirTimes(db: Pool | PoolClient, state: LeagueState): Promise<void> {
+//
+// Step A14 part 4: `leagueId` (the game's), for a game with secret roles: dealt once it has started and stamped once revealed
+// (secret-roles.ts), after the air times its start reads. Left out (a caller with no league to name), none are stamped.
+export async function stampAirTimes(db: Pool | PoolClient, state: LeagueState, leagueId?: string): Promise<void> {
   // Step A11 part 4: head to head's playoffs at the season's end read its length (stampSeasonLength, below).
   await stampSeasonLength(db, state);
   // Step C7 part 2: a card the bot chooses, each episode's choice as it stood when the card came out (card-choices.ts), by the
@@ -22,6 +26,11 @@ export async function stampAirTimes(db: Pool | PoolClient, state: LeagueState): 
   await stampCardChoices(db, state);
   // Step A14 part 3: a bounty, who voted for whom in each episode the league has results for, as research says it (vote-records.ts).
   await stampVoteRecords(db, state);
+  await stampAirs(db, state);
+  await stampSecretRoles(db, state, leagueId);
+}
+
+async function stampAirs(db: Pool | PoolClient, state: LeagueState): Promise<void> {
   const clear = () => state.episodes.forEach((ep) => delete ep.airsAt);
   const { showId, wikiSeason } = state.settings;
   if (!showId || wikiSeason == null || StateLogic.RevealLogic.isCatchingUp(state)) return clear();

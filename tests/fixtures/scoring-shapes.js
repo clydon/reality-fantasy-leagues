@@ -43,7 +43,9 @@
 // chooses: q-card-bot and q-card-bot-void in outsideShapes, each episode's choice stamped on the league as the server stamps it)
 // likewise, from part 2's engine, proven by hand below and in tests/card-bot.test.js; the 2,376 before them stay. A14 part 3's (a
 // bounty: bountyShapes, each episode's record of who voted for whom stamped on the league as the server stamps it, VOTES) likewise,
-// from part 3's engine, proven by hand in tests/bounty.test.js; the 2,412 before them stay:
+// from part 3's engine, proven by hand in tests/bounty.test.js; the 2,412 before them stay. A14 part 4's (secret roles: roleShapes,
+// the deal stamped on the league once revealed as the server stamps it, o.roles) likewise, from part 4's engine, proven by hand in
+// tests/secret-roles.test.js; the 2,538 before them stay:
 //   node tests/fixtures/scoring-shapes.js --write [--ref=<git ref>]      the record, from this tree's engine (or the ref's)
 //   node tests/fixtures/scoring-shapes.js --print <shape> <seat|-> <mark|-|all> [--ref=<git ref>]   one read, in full
 //   node tests/fixtures/scoring-shapes.js --diff [<shape>] [--ref=d5222e68]   where this tree's reads part from the ref's (the
@@ -111,6 +113,28 @@ function shapes(G) {
     ...ownShapes(G, outlast, lineup),
     ...weekWonShapes(outlast, lineup),
     ...bountyShapes(G, outlast, lineup),
+    ...roleShapes(G, outlast, lineup),
+  ];
+}
+
+/**
+ * A14 part 4: secret roles (score.roles), on the same season, the deal stamped as the server stamps it once the reveal's episode has
+ * results (o.roles: state.secretRoles), each seat's view at each mark trimming it off before then. No engine before part 4 plays them
+ * (it refuses score.roles), so their reads are new (from part 4's engine): an Outlast revealed at the end (the finale, 7) with its
+ * finale predictions and side bets, cy holding the role; one before it's revealed (no stamp: every read as a plain Outlast's); two
+ * roles on votedOut revealed after 3 in a shared Outlast (bo and di); a lineup (starters only) revealed after 4, its early results at
+ * 4; shared best ball revealed at the end.
+ */
+function roleShapes(G, outlast, lineup) {
+  const shared = { by: "draft", each: 3, order: "blind", own: "shared" };
+  const place = (roles) => ({ by: "place", roles });
+  const moments = (roles) => ({ by: "moments", points: null, roles });
+  return [
+    ["r-outlast", outlast({ score: place({ points: 2 }), ask: FINALE(G), extras: { bets: { points: 1 } } }), "exclusive", { roles: { at: 7, holders: ["cy"] } }],
+    ["r-outlast-hidden", outlast({ score: place({ points: 2 }) }), "exclusive"],
+    ["r-outlast-voted", outlast({ get: shared, score: place({ count: 2, points: 1.5, on: "votedOut", reveal: 3 }) }), "shared", { roles: { at: 3, holders: ["bo", "di"] } }],
+    ["r-lineup", lineup({ score: moments({ points: 1, reveal: 4 }) }), "exclusive", { roles: { at: 4, holders: ["ann"] }, early: 4 }],
+    ["r-best-ball-shared", lineup({ count: { best: 2 }, score: moments({ points: 2, count: 2 }) }, shared), "shared", { roles: { at: 7, holders: ["ann", "cy"] } }],
   ];
 }
 
@@ -728,6 +752,8 @@ function league(S, G, T, spec, own, o = {}) {
     // A14 part 3: who voted for whom, as the server stamps it (vote-records.ts).
     if (o.votes && o.votes[n]) ep.voteRecord = JSON.parse(JSON.stringify(o.votes[n]));
   }
+  // A14 part 4: secret roles once revealed, as the server stamps them (secret-roles.ts).
+  if (o.roles) s.secretRoles = JSON.parse(JSON.stringify(o.roles));
   s.finalePredictions = FINALE_PICKS.map((f) => JSON.parse(JSON.stringify(f)));
   if (o.stages) s.stageWalk = JSON.parse(JSON.stringify(STAGE_WALK));
   if (o.pairs) {

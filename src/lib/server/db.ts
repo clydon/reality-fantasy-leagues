@@ -4,6 +4,7 @@ import type { LeagueState } from "@/lib/game/types";
 import { HttpError } from "./http-error";
 import { stampAirTimes, stampSeasonLength } from "./air-times";
 import { stampVoteRecords } from "./vote-records";
+import { stampSecretRoles } from "./secret-roles";
 import { runBots } from "./bots";
 import { syncWaivers } from "./waivers";
 import { justProcessed, sendProcessed, snapshot as waiverSnapshot } from "./waiver-pushes";
@@ -71,7 +72,7 @@ export async function withLeagueLock(
     if (!rows.length) throw new HttpError(404, "League not found");
     const state: LeagueState = rows[0].state;
     // Air times first: whether a lineup or pick is still open depends on them (air-times.ts).
-    await stampAirTimes(client, state);
+    await stampAirTimes(client, state, leagueId);
     const waiversBefore = waiverSnapshot(state);
     // Then the waiver clock, so the mutation sees the week as it stands now: a claim saved after its
     // week processed is refused rather than slipped in (waivers.js).
@@ -97,6 +98,9 @@ export async function withLeagueLock(
     // A bounty (step A14 part 3, vote-records.ts): an episode whose results the mutation just applied gets its record of who voted for
     // whom now, so the waiver clock after it (an order by the standings) and the rest of the write read its bounty.
     await stampVoteRecords(client, state);
+    // Secret roles (step A14 part 4, secret-roles.ts): a mutation that started the game deals them; one that applied the reveal's
+    // results stamps them, so the rest of the write (the waiver clock's order by the standings) reads their points.
+    await stampSecretRoles(client, state, leagueId);
     // A mutation that turned group slots on reads them now; one that turned them off clears them (settle keeps none).
     if (slots) StateLogic.GroupSlotLogic.settle(state, slots);
     else if (StateLogic.GroupSlotLogic.config(state)) await settleGroupSlots(client, state, true);
@@ -134,7 +138,7 @@ export async function withLeagueLock(
     await client.query("UPDATE leagues SET state=$1, updated_at=now() WHERE id=$2", [JSON.stringify(state), leagueId]);
     if (spec) {
       // The next episode may be new since the mutation (ensureNextEpisode): stamped, so Undo stays open until it airs.
-      await stampAirTimes(client, state);
+      await stampAirTimes(client, state, leagueId);
       await recordChange(client, leagueId, state, spec);
     }
     await client.query("COMMIT");

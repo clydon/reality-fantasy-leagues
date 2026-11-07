@@ -233,6 +233,24 @@ function bountyLines(votes, holdersOf, points) {
   });
   return out;
 }
+/**
+ * One episode's secret roles as lines (A14 part 4, score.roles): `gone`, who went home that episode as the role is on (any way out,
+ * or a vote's); `holdersOf(id)`, the seats that castaway counts for that episode (step 1's holdings); `roled`, the seats dealt the
+ * role. Each one gone whom a seat without the role held scores `points` for every seat with it, once each however many held them,
+ * and whatever the seat with the role held itself: [{ playerId, points, castawayId }]. Points from the results alone, never a
+ * transfer (nobody else loses them), never multiplied (they're no holding's), and added beside the episode's total, outside best
+ * ball's best n, from the reveal on (the state's to say when).
+ */
+function roleLines(gone, holdersOf, roled, points) {
+  const has = new Set(roled || []);
+  if (!has.size) return [];
+  const out = [];
+  (gone || []).forEach((id) => {
+    if (!(holdersOf(id) || []).some((p) => !has.has(p))) return;
+    has.forEach((p) => out.push({ playerId: p, points, castawayId: id }));
+  });
+  return out;
+}
 
 /** The answers with anything right in a window's units (Map playerId -> units), in their order: [[playerId, units]]. */
 function rightOf(units) {
@@ -909,7 +927,7 @@ function coop(series, o) {
  * whole places).
  */
 function total(row, bets, rounded) {
-  const t = row.locked + (bets ? row.bonus : 0) + row.finale + (row.questions || 0) + (row.bounty || 0);
+  const t = row.locked + (bets ? row.bonus : 0) + row.finale + (row.questions || 0) + (row.bounty || 0) + (row.role || 0);
   return rounded ? round(t) : t;
 }
 /** Two keys compared from their first number on (positive when `a` is higher): sort with compareKeys(key(b), key(a)). */
@@ -955,6 +973,7 @@ const api = {
   groupRaw,
   betLines,
   bountyLines,
+  roleLines,
   windowLines,
   shrink,
   jackpot,

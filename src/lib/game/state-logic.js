@@ -497,6 +497,8 @@ class EliminationOrderScoringStrategy {
       if(asks) results[p.id].questions = at.questions;
       // A14 part 3: a bounty's points, a gain or a loss.
       if(at.bounty !== undefined) results[p.id].bounty = at.bounty;
+      // A14 part 4: secret roles' points, once revealed.
+      if(at.role !== undefined) results[p.id].role = at.role;
     });
     state.castaways.forEach(c=>{
       // Dropped via replenish/trade: no longer counts (C3: with a multiplier on how a holding joined, what they earned while
@@ -508,7 +510,7 @@ class EliminationOrderScoringStrategy {
     const bets = addSideLayers(state, results);
     // Rounded once its own questions (a pot's share), a multiplier on how a holding joined (C3: half a place) or a bounty (A14 part
     // 3: half a point) are in it.
-    const rounded = asks || !!joinedFactors(state) || !!BountyLogic.of(state);
+    const rounded = asks || !!joinedFactors(state) || !!BountyLogic.of(state) || !!SecretRoleLogic.known(state);
     Object.values(results).forEach(r=> r.total = Seq.total(r, bets, rounded));
     return Seq.byTotal(Object.values(results));
   }
@@ -711,6 +713,90 @@ class BountyLogic {
   }
 }
 
+// ---------- SecretRoleLogic: secret roles among the players (docs/PLAN-start-a-game-gpt.md step A14 part 4) ----------
+// The spec's score.roles ({ count, name, points, on, deal, reveal, mates }), a draft's: `count` of the game's seats are dealt the
+// role at random once the game starts (deal, from a seed, as DrawLogic deals), and each scores `points` whenever someone a seat
+// without the role holds goes home (on 'out') or is voted out ('votedOut', a way out the format's votes cause), whatever it holds
+// itself. Who holds it is private until the reveal: the deal lives in the server's own table (secret_role_deals, migration 0210:
+// secret-roles.ts), never in the state, which every route sends whole, and each seat is told only its own role (and, with `mates`,
+// who else has it). At the reveal (the game's last episode's results, or the episode `reveal` names; whichever comes first) the
+// server stamps the deal on the state (`state.secretRoles`: { at, holders }), as public as that episode's results (the spoiler view
+// takes it off a copy that hasn't seen them), and from then on the walk counts the role's points: everything through the reveal's
+// episode in that episode, each one after in its own. So nobody's table says who holds it before then, and no week's result
+// before it moves (a race, a cut and head to head are refused beside it: the points would land all at once). Its fallbacks: a seat
+// that joins after the deal holds none (nothing is dealt again); a seat that leaves keeps its role (its points are its row's, as its
+// other points are); fewer than two seats, nobody gets it; an episode whose exits don't say how they went (votedOut) scores nothing.
+class SecretRoleLogic {
+  /** The game's secret roles with their defaults ({ count, name, points, on, deal, reveal, mates }), or null: the game played's. */
+  static of(state){ return Spec.rolesOf(playedGame(state)); }
+  /** The seats a deal deals among: in the game's rotation (no ghost, nobody disabled or still to be brought in); a seat catching up
+   *  is one (a game at your own pace is all of them). */
+  static seats(state){ return (state.players || []).filter(p => inLeagueRotation(p)).map(p => p.id); }
+  /** Whether the server has dealt the game's roles (state.secretRolesDealt, its stamp: says only that they're dealt, never to whom):
+   *  once they are, setGame keeps them as they were dealt. */
+  static dealt(state){ return state.secretRolesDealt === true; }
+  /** Whether the deal is due: the game has roles and has started (its first episode has locked or has results: TeamLogic.started). */
+  static due(state, now){ return !!SecretRoleLogic.of(state) && TeamLogic.started(state, now); }
+  /** Who `seed` deals the role to, changing nothing: { seats, holders } (the seats dealt among, and those given it, `count` of them
+   *  or one fewer than the seats, none under two). */
+  static deal(state, seed){
+    const cfg = SecretRoleLogic.of(state);
+    const seats = SecretRoleLogic.seats(state);
+    if(!cfg || seats.length < 2) return { seats, holders: [] };
+    const order = [...seats].sort((a, b) => hashUnit(`${seed}|role|${a}`) - hashUnit(`${seed}|role|${b}`) || (a < b ? -1 : a > b ? 1 : 0));
+    return { seats, holders: order.slice(0, Math.min(cfg.count, seats.length - 1)).sort() };
+  }
+  /** The episode the roles are revealed after, once it has results (its number), or null: the one `reveal` names, else (or when the
+   *  game ends first) the game's last episode with results once it's over. */
+  static revealAt(state){
+    const cfg = SecretRoleLogic.of(state);
+    if(!cfg) return null;
+    const last = lastEpisode(state);
+    const played = (state.episodes || []).filter(e => inPlay(state, e.number) && (last === null || e.number <= last) && EpisodeLogic.hasResults(e)).map(e => e.number);
+    if(Number.isInteger(cfg.reveal) && played.includes(cfg.reveal)) return cfg.reveal;
+    return played.length && gameOver(state) ? Math.max(...played) : null;
+  }
+  /** The roles as this copy has them (the server's stamp once revealed: { at, holders }), or null. */
+  static known(state){
+    const r = state.secretRoles;
+    return r && Number.isInteger(r.at) && Array.isArray(r.holders) ? r : null;
+  }
+  /** Who went home in an episode as the role is on: any way out (the night's, a winner aside), or a vote's (`exits`: exitsOf's). */
+  static goneAt(state, ep, cfg, exits){
+    if(cfg.on === 'votedOut') return (ep.events || []).filter(e => exits.has(e.method)).map(e => e.castawayId);
+    return [...nightOf(state, ep).gone];
+  }
+  /** One episode's role points for each seat with the role (Map playerId -> points), or null when none scores. `holders`: the seats
+   *  with it; `exits`: BountyLogic.exitsOf's (votedOut). */
+  static episodeLines(state, ep, cfg, holders, exits){
+    const gone = SecretRoleLogic.goneAt(state, ep, cfg, exits);
+    if(!gone.length) return null;
+    const held = new Map();
+    (state.players || []).forEach(p => new Set(BountyLogic.heldFor(state, ep, p.id)).forEach(id => {
+      if(!held.has(id)) held.set(id, []);
+      held.get(id).push(p.id);
+    }));
+    const seated = new Set((state.players || []).map(p => p.id));
+    const out = new Map();
+    Seq.roleLines(gone, id => held.get(id) || [], holders.filter(id => seated.has(id)), cfg.points).forEach(l => out.set(l.playerId, Seq.round((out.get(l.playerId) || 0) + l.points)));
+    return out.size ? out : null;
+  }
+  /** What a seat's role has scored in this copy so far (the seat's own read before the reveal: its role and only its own), through
+   *  every episode the game plays with results. 0 for a seat without it. */
+  static pointsOf(state, playerId, holders){
+    const cfg = SecretRoleLogic.of(state);
+    if(!cfg || !(holders || []).includes(playerId)) return 0;
+    const last = lastEpisode(state);
+    const exits = cfg.on === 'votedOut' ? BountyLogic.exitsOf(state) : null;
+    let total = 0;
+    (state.episodes || []).filter(e => inPlay(state, e.number) && (last === null || e.number <= last) && EpisodeLogic.hasResults(e)).forEach(ep => {
+      const got = SecretRoleLogic.episodeLines(state, ep, cfg, holders, exits);
+      if(got && got.has(playerId)) total = Seq.round(total + got.get(playerId));
+    });
+    return total;
+  }
+}
+
 // Thin dispatcher -- see "The pieces" comment near the top of this file. Delegates to the scorer the
 // spec's score.by names (scorePiece): EliminationOrderScoringStrategy (the boot order: Outlast),
 // ActiveRosterEventScoringStrategy (moments: Weekly Lineup, best ball), PickEmScoringStrategy (who
@@ -744,7 +830,9 @@ class ScoringLogic {
   // the move that let it go), times its factor: an Outlast's, its place where it was let go (or at the mark) less its place when it
   // joined (Seq.earnedWhileHeld), each line rounded and their sum; a lineup's, each moment line times it too (episodeScore). A14
   // part 3: a bounty's lines (BountyLogic.episodeLines: each vote moving points from who went home's seats to their voter's), added
-  // up episode by episode beside them (`bounty`, on each row and now: a gain or a loss), never multiplied.
+  // up episode by episode beside them (`bounty`, on each row and now: a gain or a loss), never multiplied. A14 part 4: secret roles'
+  // points once the roles are revealed (SecretRoleLogic.episodeLines on the server's stamp: `role`, on each row and now), everything
+  // through the reveal's episode added in it, each episode after in its own, never multiplied.
   static walk(state, want){
     const w = want || { series: true, now: true };
     const game = gameOf(state);
@@ -810,6 +898,12 @@ class ScoringLogic {
     const bounty = BountyLogic.of(state);
     const taken = bounty ? new Map(players.map(p => [p.id, 0])) : null;
     const exits = bounty ? BountyLogic.exitsOf(state) : null;
+    // A14 part 4: secret roles' points through each episode, and now, once they're revealed (before then, nobody's).
+    const roles = SecretRoleLogic.of(state);
+    const known = roles ? SecretRoleLogic.known(state) : null;
+    const roled = known ? new Map(players.map(p => [p.id, 0])) : null;
+    const owed = known ? new Map() : null;
+    const roleExits = known && roles.on === 'votedOut' ? (exits || BountyLogic.exitsOf(state)) : null;
     let finaleIn = false;
     const series = [];
     for(const ep of episodes){
@@ -817,6 +911,14 @@ class ScoringLogic {
       if(bounty && (w.now || final)){
         const moved = BountyLogic.episodeLines(state, ep, bounty, exits);
         if(moved) moved.forEach((pts, id) => { if(taken.has(id)) taken.set(id, Seq.round(taken.get(id) + pts)); });
+      }
+      if(known && (w.now || final)){
+        const got = SecretRoleLogic.episodeLines(state, ep, roles, known.holders, roleExits);
+        if(got) got.forEach((pts, id) => owed.set(id, Seq.round((owed.get(id) || 0) + pts)));
+        if(ep.number >= known.at){
+          owed.forEach((pts, id) => { if(roled.has(id)) roled.set(id, Seq.round(roled.get(id) + pts)); });
+          owed.clear();
+        }
       }
       if(!outlast && (w.now || final)){
         const events = ActiveRosterLogic.episodeEvents(state, ep);
@@ -844,8 +946,10 @@ class ScoringLogic {
         if(tally) row.handicap = handicap;
         const b = bounty ? taken.get(p.id) : 0;
         if(bounty) row.bounty = b;
+        const r = known ? roled.get(p.id) : 0;
+        if(known) row.role = r;
         rows.set(p.id, row);
-        totals.set(p.id, Seq.round(locked + bonus + fin + handicap + q + b));
+        totals.set(p.id, Seq.round(locked + bonus + fin + handicap + q + b + r));
       });
       series.push({ number: ep.number, quiet: !!ep.noExit, totals, rows });
     }
@@ -856,6 +960,7 @@ class ScoringLogic {
         const at = outlast ? placesAt(p.id, Infinity, mark) : { locked: running.get(p.id), banked: 0 };
         if(asks) at.questions = askedAt(lines && lines.now, p.id);
         if(bounty) at.bounty = taken.get(p.id);
+        if(known) at.role = roled.get(p.id);
         now.set(p.id, at);
       });
     }
@@ -3864,6 +3969,8 @@ class ActiveRosterEventScoringStrategy {
       if(asks) results[p.id].questions = now.get(p.id).questions;
       // A14 part 3: a bounty's points, a gain or a loss.
       if(now.get(p.id).bounty !== undefined) results[p.id].bounty = now.get(p.id).bounty;
+      // A14 part 4: secret roles' points, once revealed.
+      if(now.get(p.id).role !== undefined) results[p.id].role = now.get(p.id).role;
     });
     // The same optional layers classic-draft carries: side bets and finale predictions are orthogonal
     // to how the main score is earned, so an Active Roster league can still use them.
@@ -5472,6 +5579,10 @@ class RosterLogic {
     // winner). The presets' questions (a draft's finale predictions, the show's calls) are today's games.
     if(!ctx && ownQuestions(want) && !Spec.sameValue(want.ask, was.ask)){
       return [{ at: 'ask', problem: "A game's own questions are checked against what the show's results can settle: write them with the show's moments" }];
+    }
+    // A14 part 4: secret roles dealt (the server's stamp) stay as they were dealt: changing them would deal again, or say who has one.
+    if(SecretRoleLogic.dealt(state) && !Spec.sameValue(Spec.rolesOf(want), Spec.rolesOf(was))){
+      return [{ at: 'score.roles', problem: "The secret roles are dealt: they stay as they are until the game ends" }];
     }
     const had = new Set(Spec.specProblems(was, ctx, { league: true, was }).map(problemKey));
     const problems = Spec.specProblems(want, ctx, { league: true, was }).filter(p => !had.has(problemKey(p)));
@@ -8178,6 +8289,8 @@ class SpoilerLogic {
       ep.events = []; ep.scoringEvents = []; ep.exiled = []; ep.roles = []; ep.groups = []; delete ep.formatGroups;
       // A14 part 3: who voted for whom says who went home.
       delete ep.voteRecord;
+      // A14 part 4: secret roles revealed after an episode this viewer hasn't seen (below).
+      if(s.secretRoles && s.secretRoles.at === ep.number) delete s.secretRoles;
       delete ep.resultsStage; delete ep.noExit;
       ep.postMerge = visible ? !!visible.postMerge : false;
       (ep.bets || []).forEach(b => (b.predictions || []).forEach(p => { p.correct = null; }));
@@ -8473,6 +8586,8 @@ class GhostLogic {
     if(others.size) GhostLogic.stripPlayers(s, others);
     if(catchingUp || !full) s = SpoilerLogic.viewThrough(s, full ? seenThrough + 1 : seenThrough);
     if(catchingUp) GhostLogic.rewindTo(s, seenThrough);
+    // A14 part 4: secret roles revealed after the episode they're about to reveal stay hidden with its results.
+    if(catchingUp && s.secretRoles && !(s.secretRoles.at <= (full ? seenThrough + 1 : seenThrough))) delete s.secretRoles;
     // Someone who started after your week picked their team from who was still in then: their team would say who survives, so in
     // your copy they hold nobody yet (own-pace games, part 3a: a friend who joins later than you).
     if(catchingUp){
@@ -8975,7 +9090,7 @@ return {
   // EliminationOrderScoringStrategy/PickEmScoringStrategy are those pieces,
   // exported directly for code that wants to bypass the dispatch.
   Core, ScoringLogic, DraftLogic, RosterLogic, WaiverLogic, EpisodeLogic, BetLogic, FinaleLogic, AnswerLogic, PickEmLogic, BlindDraftLogic, ActiveRosterLogic, GroupSlotLogic, SetupLogic, RevealLogic, SpoilerLogic, GhostLogic, Migrations,
-  SpreadLogic, DrawLogic, PriceLogic, BudgetLogic, MarketLogic, AuctionLogic, KeeperLogic, KnockoutLogic, MatchupLogic, WeekLogic, TeamLogic, HandicapLogic, StageLogic, BountyLogic, draftFits, draftFitsFor, rankKey,
+  SpreadLogic, DrawLogic, PriceLogic, BudgetLogic, MarketLogic, AuctionLogic, KeeperLogic, KnockoutLogic, MatchupLogic, WeekLogic, TeamLogic, HandicapLogic, StageLogic, BountyLogic, SecretRoleLogic, draftFits, draftFitsFor, rankKey,
   SnakeDraftStrategy, StagesScoringStrategy, EliminationOrderScoringStrategy, NoDraftStrategy, PickEmScoringStrategy, BlindDraftStrategy, ActiveRosterEventScoringStrategy, DrawDraftStrategy, AuctionDraftStrategy
 };
 

@@ -913,6 +913,19 @@ declare const StateLogic: {
     heldFor(state: LeagueState, ep: Episode, playerId: string): string[];
     episodeLines(state: LeagueState, ep: Episode, bounty: { points: number }, exits?: Set<string>): Map<string, number> | null;
   };
+  /** Step A14 part 4: secret roles among the players (score.roles): dealt by the server (secret-roles.ts), kept out of the state
+   *  until the reveal, then stamped on it (state.secretRoles) for the walk to count. */
+  SecretRoleLogic: {
+    of(state: LeagueState): Required<import("./game-spec/index.js").SpecRoles> | null;
+    seats(state: LeagueState): string[];
+    due(state: LeagueState, now?: number): boolean;
+    deal(state: LeagueState, seed: string): { seats: string[]; holders: string[] };
+    revealAt(state: LeagueState): number | null;
+    known(state: LeagueState): { at: number; holders: string[] } | null;
+    goneAt(state: LeagueState, ep: Episode, cfg: Required<import("./game-spec/index.js").SpecRoles>, exits?: Set<string> | null): string[];
+    episodeLines(state: LeagueState, ep: Episode, cfg: Required<import("./game-spec/index.js").SpecRoles>, holders: string[], exits?: Set<string> | null): Map<string, number> | null;
+    pointsOf(state: LeagueState, playerId: string, holders: string[]): number;
+  };
   /** Step A11 part 1: a draft's race (rank.race: the first to N points wins, and the game ends there) and players knocked out
    *  (rank.cut), worked out from the data on every read. `out`: the last episode that counts for someone knocked out. */
   KnockoutLogic: {

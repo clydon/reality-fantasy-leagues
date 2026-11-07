@@ -76,6 +76,8 @@ export function momentRaw(ids: string[], events: ScoredEvent[], hits?: "every" |
 export function groupRaw(members: string[], size: number, events: ScoredEvent[], how: "sum" | "mean" | string): number;
 /** A14 part 3: one episode's bounties, each vote moving points from who went home's seats to their voter's: lines that add up to
  *  nothing. */
+/** A14 part 4: one episode's secret roles as lines: each one gone a seat without the role held scores `points` for every seat with it. */
+export function roleLines(gone: Iterable<string> | null | undefined, holdersOf: (castawayId: string) => string[], roled: Iterable<string> | null | undefined, points: number): { playerId: string; points: number; castawayId: string }[];
 export function bountyLines(votes: [string, string][] | null | undefined, holdersOf: (castawayId: string) => string[], points: number): { playerId: string; points: number; vote: [string, string] }[];
 export function betLines<B extends { points?: number; predictions?: { playerId: string; correct: boolean | null }[] }>(bets: B[] | null | undefined): { playerId: string; points: number; bet: B }[];
 /** C2 part 3, outside the state: a window's lines (each answer's right ones at its worth), a shrinking call's worth, a rollover's
@@ -223,7 +225,7 @@ export function matchups(series: SeriesEpisode[], o: {
 export function teamStep(run: Map<string, number>, grown: Map<string, number[]>, how: "sum" | "mean" | string): void;
 export function saved(said: number, right: number, saves: "one" | "most" | "all" | string): boolean;
 export function coop(series: CoopNight[], o: { lives: number }): { lives: number; lost: { episode: number; question: string }[]; ends: number | null; walked: SeriesEpisode[] };
-export function total(row: { locked: number; bonus: number; finale: number; questions?: number; bounty?: number }, bets: boolean, rounded: boolean): number;
+export function total(row: { locked: number; bonus: number; finale: number; questions?: number; bounty?: number; role?: number }, bets: boolean, rounded: boolean): number;
 export function compareKeys(a: number[], b: number[]): number;
 export function byTotal<T extends { total: number }>(rows: T[]): T[];
 export function byKey<T>(rows: T[], key: (row: T) => number[]): T[];

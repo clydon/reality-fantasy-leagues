@@ -255,6 +255,13 @@ const VOCAB = {
   // A14 part 3: a bounty (score.bounty), points that move between seats by what the results say: one of yours votes out one of
   // someone else's, and you take its points from them (votedOut: research's who voted for whom, at a vote that sent someone home).
   'score.bounty.on': { votedOut: 'now' },
+  // A14 part 4: secret roles among the players (score.roles), some seats dealt a role at random once the game starts, hidden from
+  // everyone else until the reveal, each scoring by what the results say: whenever someone a seat without the role holds goes home
+  // (out), or is voted out (votedOut: a way out the format's votes cause). Revealed at the game's end, or after an episode (its
+  // number), the role's points added then.
+  'score.roles.on': { out: 'now', votedOut: 'now' },
+  'score.roles.deal': { random: 'now' },
+  'score.roles.reveal': { end: 'now' },
   // A10 part 1: group slots (get.groups), a draft's +1 or +2 slot that holds a pair or a team the show forms, read from the
   // format's state over time: whether two people can hold the same group, what a slot does when the groups at its lock or as
   // the episode was played aren't sure (void that episode for the slot, or follow the people), and how a group's points are
@@ -540,6 +547,11 @@ const JOINED = { per: 'team', then: 'repeat' };
 /** A14 part 3: a bounty's most points (in halves), and what it's on when the spec leaves it out. */
 const MAX_BOUNTY = 10;
 const BOUNTY = { on: 'votedOut' };
+/** A14 part 4: secret roles' most seats, most points (in halves) and longest name, and what a spec leaves out. */
+const MAX_ROLE_SEATS = 5;
+const MAX_ROLE_POINTS = 10;
+const MAX_ROLE_NAME = 20;
+const ROLES = { count: 1, name: 'Traitor', on: 'out', deal: 'random', reveal: 'end', mates: true };
 /** A10 part 1: a draft's most group slots (the user's "+1 or +2"), and a slot's defaults when the spec leaves them out (the
  *  user's to set: the plan's Noticed for A10). */
 const MAX_GROUP_SLOTS = 2;
@@ -2304,6 +2316,8 @@ function specProblems(spec, ctx, opts) {
   if ((score.by === 'moments' || score.by === 'place') && score.multiply !== undefined) multiplyProblems(score.multiply, s).forEach(([at, p]) => add(`score.multiply${at}`, p));
   // A14 part 3: a bounty, a draft's.
   if ((score.by === 'moments' || score.by === 'place') && score.bounty !== undefined) bountyProblems(score.bounty, s).forEach(([at, p]) => add(`score.bounty${at}`, p));
+  // A14 part 4: secret roles, a draft's.
+  if ((score.by === 'moments' || score.by === 'place') && score.roles !== undefined) rolesProblems(score.roles, s).forEach(([at, p]) => add(`score.roles${at}`, p));
   if (score.by === 'stats' && !(pointsMap(score.points) && Object.keys(score.points).length)) add('score.points', 'Stats score as stat key to points');
   if (score.by === 'survive') {
     if (!one('score.means', score.means)) add('score.means', 'A pick survives by staying in (staysIn) or by scoring (scores)');
@@ -2664,7 +2678,7 @@ const KEYS = {
   budget: ['total', 'floor', 'ceiling', 'gone', 'fallback', 'trade', 'left'],
   trade: ['fee'],
   second: ['fallback'],
-  score: { moments: ['by', 'points', 'captain', 'times', 'multiply', 'only', 'hits', 'bounty'], place: ['by', 'reverse', 'multiply', 'bounty'], survive: ['by', 'means', 'points', 'lives', 'buyback', 'mulligans'], lines: ['by', 'points'], answers: ['by', 'parlays', 'lives', 'livesOn', 'saves', 'bank'], stages: ['by'], stats: ['by', 'points'] },
+  score: { moments: ['by', 'points', 'captain', 'times', 'multiply', 'only', 'hits', 'bounty', 'roles'], place: ['by', 'reverse', 'multiply', 'bounty', 'roles'], survive: ['by', 'means', 'points', 'lives', 'buyback', 'mulligans'], lines: ['by', 'points'], answers: ['by', 'parlays', 'lives', 'livesOn', 'saves', 'bank'], stages: ['by'], stats: ['by', 'points'] },
   buyback: ['times', 'before', 'cost'],
   before: ['phase', 'episode'],
   parlay: ['of', 'times'],
@@ -2674,6 +2688,7 @@ const KEYS = {
   when: ['times', 'episode', 'from', 'to', 'phase', 'finale'],
   multiply: ['times', 'joined', 'then', 'per'],
   bounty: ['points', 'on'],
+  roles: ['count', 'name', 'points', 'on', 'deal', 'reveal', 'mates'],
   shrink: ['points', 'per'],
   rank: ['by', 'race', 'cut', 'oneLeft', 'allOut', ...MATCHUP_KEYS, 'ties', 'teams', 'handicap'],
   race: ['to'],
@@ -2725,6 +2740,7 @@ function unknownKeys(s) {
     if (isObj(s.score.bank)) check(s.score.bank, KEYS.bank, 'score.bank');
     if ((s.score.by === 'moments' || s.score.by === 'place') && Array.isArray(s.score.multiply)) s.score.multiply.forEach((m, i) => check(m, KEYS.multiply, `score.multiply[${i}]`));
     if (s.score.by === 'moments' || s.score.by === 'place') check(s.score.bounty, KEYS.bounty, 'score.bounty');
+    if (s.score.by === 'moments' || s.score.by === 'place') check(s.score.roles, KEYS.roles, 'score.roles');
     if (s.score.by === 'moments') {
       check(s.score.captain, KEYS.captain, 'score.captain');
       if (Array.isArray(s.score.times)) s.score.times.forEach((t, i) => check(t, KEYS.when, `score.times[${i}]`));
@@ -3461,6 +3477,45 @@ function bountyProblems(b, s) {
   else if (isObj(s.rank) && Array.isArray(s.rank.cut) && s.rank.cut.length) out.push(['', "A bounty can't go beside cuts yet: a team knocked out still holds its castaways, so it would keep losing points. Take out the cuts, or the bounty"]);
   return out;
 }
+/**
+ * A14 part 4: secret roles among the players (score.roles), as [[at, problem]]: { count?, name?, points, on?, deal?, reveal?, mates? }.
+ * `count` seats (1 to MAX_ROLE_SEATS; fewer at the deal when the game has fewer seats, always leaving one without) are dealt the role
+ * at random once the game starts; each scores `points` (0.5 to MAX_ROLE_POINTS, in halves) whenever someone a seat without the role
+ * holds goes home (`on` 'out') or is voted out ('votedOut'), whatever the seat itself holds. Who holds it stays secret, and so do its
+ * points, until the reveal (`reveal`: 'end', the game's last episode's results, or an episode's number in the game), when they're
+ * added; `mates` (true) says whether the seats with it know each other. A draft's (the people you hold are who go home), not a
+ * stock market's; not beside cuts, a race, head to head or weeks won (the points land all at once at the reveal, so they'd be
+ * missing from a cut or a race before it, and would decide its week's matchup). Whether the show sends anyone home, or votes
+ * anyone out, is the data-can-settle rule's (ctx.results, ctx.votes).
+ */
+function rolesProblems(r, s) {
+  if (!isObj(r)) return [['', 'Secret roles are { count, points }: how many of you get the role, and what it scores']];
+  const out = [];
+  if (r.count !== undefined && !(Number.isInteger(r.count) && r.count >= 1 && r.count <= MAX_ROLE_SEATS)) out.push(['.count', `1 to ${MAX_ROLE_SEATS} of you can get a secret role`]);
+  if (r.name !== undefined && !(typeof r.name === 'string' && r.name.trim().length >= 1 && r.name.length <= MAX_ROLE_NAME && /^[A-Za-z][A-Za-z '\-]*$/.test(r.name))) out.push(['.name', `A role's name is a word or two, up to ${MAX_ROLE_NAME} letters: Traitor`]);
+  if (!(isNum(r.points) && r.points >= 0.5 && r.points <= MAX_ROLE_POINTS && Number.isInteger(r.points * 2))) out.push(['.points', `A secret role scores 0.5 to ${MAX_ROLE_POINTS} points, in halves`]);
+  if (r.on !== undefined && own(VOCAB['score.roles.on'], r.on) === undefined) out.push(['.on', "A secret role scores when someone another player drafted goes home (out) or is voted out (votedOut)"]);
+  if (r.deal !== undefined && own(VOCAB['score.roles.deal'], r.deal) === undefined) out.push(['.deal', 'Secret roles are dealt at random (random)']);
+  if (r.reveal !== undefined && own(VOCAB['score.roles.reveal'], r.reveal) === undefined && !(Number.isInteger(r.reveal) && r.reveal >= 1)) out.push(['.reveal', "Secret roles are revealed at the game's end (end), or after an episode: its number"]);
+  else if (Number.isInteger(r.reveal)) {
+    const from = spanStart(s.span) === null ? 1 : spanStart(s.span);
+    const to = spanEnd(s.span);
+    if (r.reveal < from) out.push(['.reveal', `The reveal is after an episode the game plays: ${from} or later`]);
+    else if (to !== null && r.reveal > to) out.push(['.reveal', `The reveal is after an episode the game plays: ${to} or earlier`]);
+  }
+  if (r.mates !== undefined && typeof r.mates !== 'boolean') out.push(['.mates', 'mates is true (everyone with the role knows who else has it) or false']);
+  if (!(isObj(s.get) && s.get.by === 'draft')) out.push(['', "A secret role scores when another player's castaway goes home, so it needs a draft"]);
+  else if (marketOf(s) || (isObj(s.rank) && s.rank.by === 'worth')) out.push(['', 'A stock market scores by prices, not points, so a secret role has no points to add']);
+  else if (isObj(s.rank) && ((Array.isArray(s.rank.cut) && s.rank.cut.length) || s.rank.race !== undefined)) out.push(['', "A secret role's points are added at the reveal, so a cut or a race before it would leave them out. Take out the cuts or the race, or the roles"]);
+  else if (isObj(s.rank) && (s.rank.by === 'matchups' || s.rank.by === 'weeks')) out.push(['', "A secret role's points are added all at once at the reveal, so they'd decide that week's matchup. Rank by points, or take out the roles"]);
+  return out;
+}
+/** A14 part 4: a spec's secret roles with what it leaves out filled in ({ count, name, points, on, deal, reveal, mates }), or null. */
+function rolesOf(spec) {
+  const sc = isObj(spec) && isObj(spec.score) ? spec.score : {};
+  if (!(sc.by === 'moments' || sc.by === 'place') || !isObj(sc.roles) || !isNum(sc.roles.points)) return null;
+  return { ...ROLES, ...sc.roles };
+}
 /** A14 part 3: a spec's bounty with what it's on filled in ({ points, on }), or null for none. */
 function bountyOf(spec) {
   const sc = isObj(spec) && isObj(spec.score) ? spec.score : {};
@@ -3613,6 +3668,11 @@ function settleProblems(s, ctx, opts) {
   if ((score.by === 'moments' || score.by === 'place') && score.bounty !== undefined) {
     if (ctx.results === false) out.push(['score.bounty', "The show's results don't say who goes home, so nothing says who voted someone out"]);
     else if (ctx.votes === false) out.push(['score.bounty', "Nobody on this show is voted out by the others, so there's no vote for a bounty"]);
+  }
+  // A14 part 4: a secret role scores on who goes home (out), or on who's voted out (votedOut).
+  if ((score.by === 'moments' || score.by === 'place') && isObj(score.roles)) {
+    if (ctx.results === false) out.push(['score.roles', "The show's results don't say who goes home, so nothing says when a secret role scores"]);
+    else if (score.roles.on === 'votedOut' && ctx.votes === false) out.push(['score.roles.on', "Nobody on this show is voted out by the others: a secret role here scores when someone goes home (out)"]);
   }
   // A11 part 1: a cut before a phase is one of the season's, never its first (that starts with Episode 1: nobody has played); where
   // it starts is data (the desk confirms it). A night nobody goes home skipped needs results that say who goes home.
@@ -3806,6 +3866,8 @@ function stagedProblems(spec, s, ctx, opts, add) {
     const raw = Array.isArray(spec.stages) && isObj(spec.stages[i]) ? spec.stages[i].game : undefined;
     if (!isObj(raw)) return add(`${at}.game`, 'Each stage is a game: its own spec');
     if (raw.stages !== undefined) return add(`${at}.game.stages`, "A stage is one game: stages don't nest");
+    // A14 part 4: secret roles are dealt once for a game, among its seats (the server's deal is the game's, not a stage's).
+    if (isObj(raw.score) && raw.score.roles !== undefined) add(`${at}.game.score.roles`, "Secret roles are dealt once for the whole game, so they can't go in a stage yet: make it one game, or take out the roles");
     // A12 part 2: a stage a format change starts.
     const rawOn = Array.isArray(spec.stages) && isObj(spec.stages[i]) ? spec.stages[i].on : undefined;
     // A12 part 3: a side stage, beside the game's own.
@@ -3994,7 +4056,7 @@ function stagedWaits(s) {
 
 module.exports = {
   SPEC_VERSION, VOCAB, TAKES, SETTLES_FOR, SEASON_TAKES, EACH_SETTLES_FOR, NAMES, NUMBERS, MAX_WINDOW, LATE_HOURS, windowed,
-  RANKS, MAX_ORDER, MAX_WITHIN, MAX_CHIPS, MAX_PAIRS, WAGERS, WAGER_TOTAL, ODDS, MAX_BANK, BANK, bankOf, drawsOnBank, isTicket, ticketOf, MAX_TICKET_LEGS, MAX_PAYS, TICKET, SHARES, SHRINK_PER, LEGS, MAX_LEGS, MAX_TIMES, MAX_WHEN, WHEN, MAX_JOINED, JOINED, multipliersOf, MAX_BOUNTY, BOUNTY, bountyOf, PRESETS, PRESET_TYPES, TYPE_PRESETS, PRESET_LABELS, NO_WAIVERS, DRAFT_ROOM,
+  RANKS, MAX_ORDER, MAX_WITHIN, MAX_CHIPS, MAX_PAIRS, WAGERS, WAGER_TOTAL, ODDS, MAX_BANK, BANK, bankOf, drawsOnBank, isTicket, ticketOf, MAX_TICKET_LEGS, MAX_PAYS, TICKET, SHARES, SHRINK_PER, LEGS, MAX_LEGS, MAX_TIMES, MAX_WHEN, WHEN, MAX_JOINED, JOINED, multipliersOf, MAX_BOUNTY, BOUNTY, bountyOf, MAX_ROLE_SEATS, MAX_ROLE_POINTS, MAX_ROLE_NAME, ROLES, rolesOf, PRESETS, PRESET_TYPES, TYPE_PRESETS, PRESET_LABELS, NO_WAIVERS, DRAFT_ROOM,
   MAX_GROUP_SLOTS, GROUP_SLOTS, covers, MAX_LIVES, MAX_BUYBACKS, MAX_MULLIGANS, MAX_BUYBACK_COST, BUYBACK, SECOND_PICK, NEVER, poolParts,
   DRAFT_ACROSS, DRAW_OWN, spreadBounds, MAX_BUDGET, BUDGET, CAP, AUCTION, MAX_BIDS, ceilingFor, budgetParts, TRADE, MARKET_LEFT,
   marketWaivers, marketOf, waiverOwnOf, waiverMoves, KEEP, keepParts, SEATS, MAX_SEAT_PEOPLE, seatPeople, teamsOf,

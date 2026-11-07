@@ -2092,7 +2092,17 @@
         {
           "id": "who.secret",
           "what": "Secret roles among the players",
-          "step": "A14"
+          "step": "A14",
+          "spec": {
+            "preset": "outlast",
+            "score": { "by": "place", "roles": { "count": 2, "points": 2, "on": "votedOut" } }
+          },
+          "page": {
+            "show": "The Traitors (US)",
+            "season": 4,
+            "rulebook": "traitors"
+          },
+          "note": "secret roles among the players (A14 part 4: score.roles), dealt at random once the game starts and kept out of the state (secret_role_deals); each seat told only its own; a Traitor scores when someone a seat without the role holds is voted out, the points kept off the table until the reveal (the game's end), then added there"
         },
         {
           "id": "who.host",
@@ -3665,10 +3675,15 @@
         "rulebook": "traitors"
       },
       "words": "Two of us are secretly traitors who score when the faithful's picks get banished.",
+      "spec": {
+        "preset": "outlast",
+        "score": { "by": "place", "roles": { "count": 2, "points": 2, "on": "votedOut" } }
+      },
       "step": "A14",
       "dials": [
         "who"
-      ]
+      ],
+      "note": "secret roles among the players (A14 part 4: score.roles), dealt at random once the game starts and kept out of the state (secret_role_deals); each seat told only its own; a Traitor scores when someone a seat without the role holds is voted out, the points kept off the table until the reveal (the game's end), then added there"
     },
     {
       "id": "s25",

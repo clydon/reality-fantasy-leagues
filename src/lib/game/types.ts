@@ -345,6 +345,8 @@ export interface LeagueSettings {
   joinedTimes?: import("./game-spec/index.js").SpecJoined[];
   /** Step A14 part 3, absent unless a game says it: a draft's bounty (the spec's score.bounty). */
   bounty?: import("./game-spec/index.js").SpecBounty;
+  /** Step A14 part 4, absent unless a game says it: a draft's secret roles among the players (the spec's score.roles). */
+  secretRoles?: import("./game-spec/index.js").SpecRoles;
   reverseOrder?: boolean;
   /** Step A10 part 1, absent unless a game says it: a lineup's or best ball's group slots (the spec's get.groups). */
   groupSlots?: import("./game-spec/index.js").GroupSlots;
@@ -1155,6 +1157,12 @@ export interface LeagueState {
    *  (StateLogic.MatchupLogic.settle), so the schedule changing after that moves nothing. */
   seasonEpisodes?: number;
   playoffsFrom?: number;
+  /** A14 part 4: a game's secret roles once revealed (the reveal's episode has results), stamped by the server on every read and
+   *  write from secret_role_deals (secret-roles.ts); absent before then, so nobody's copy says who holds one. The spoiler view takes
+   *  it off a copy that hasn't seen the reveal's episode. */
+  secretRoles?: { at: number; holders: string[] };
+  /** A14 part 4: true once the server has dealt the game's secret roles (secret-roles.ts; never to whom), so setGame keeps them. */
+  secretRolesDealt?: true;
   /** A11 part 4: when each seat joined head to head's schedule (playerId -> the first episode it plays), kept on every write
    *  (MatchupLogic.settle), so a seat coming in later never rewrites the weeks played. */
   matchupSeats?: Record<string, number>;

@@ -116,6 +116,9 @@ export type SpecJoined = {
 };
 /** A14 part 3: a bounty, points that move to you from someone else when one of yours votes out one of theirs. */
 export type SpecBounty = { points: number; on?: "votedOut" };
+/** A14 part 4: secret roles among the players: `count` seats dealt `name` at random once the game starts, each scoring `points`
+ *  whenever someone a seat without it holds goes home (or is voted out), revealed (and its points added) at the end or an episode. */
+export type SpecRoles = { count?: number; name?: string; points: number; on?: "out" | "votedOut"; deal?: "random"; reveal?: "end" | number; mates?: boolean };
 /** C3: one multiplier, keyed by its condition (multipliersOf). */
 export type SpecFactor =
   | { on: "captain"; times: number }
@@ -128,10 +131,10 @@ export type SpecScore =
    *  name each episode, whose points multiply by `times`; and when the points multiply (`times`). C3: how a holding joined. */
   /** C5: only (only these moments count) and hits (each moment an objective hit, worth 1: every hit, each objective once per
    *  holding, or once for you; points never weight a hit, they only say which moments count). */
-  | { by: "moments"; points: Record<string, number> | null; captain?: { times: number }; times?: SpecWhen[]; multiply?: SpecJoined[]; only?: string[] | "card"; hits?: "every" | "pick" | "objective"; bounty?: SpecBounty }
+  | { by: "moments"; points: Record<string, number> | null; captain?: { times: number }; times?: SpecWhen[]; multiply?: SpecJoined[]; only?: string[] | "card"; hits?: "every" | "pick" | "objective"; bounty?: SpecBounty; roles?: SpecRoles }
   /** A9 part 2's reverse: the earlier they go home the more (1, plus 1 for everyone who outlasts them). C3: how a holding joined
    *  (never in reverse), its lines then what each one earns while it's yours. */
-  | { by: "place"; reverse?: true; multiply?: SpecJoined[]; bounty?: SpecBounty }
+  | { by: "place"; reverse?: true; multiply?: SpecJoined[]; bounty?: SpecBounty; roles?: SpecRoles }
   /** A10 part 2: lives (a wrong pick costs one, out at none), a buyback (someone out before `before` is back in from the next
    *  episode with one life, `cost` points off their total, `times` in a game), mulligans (the first n wrong picks forgiven). */
   | { by: "survive"; means: "staysIn" | "scores"; points: number; lives?: number; buyback?: PoolBuyback; mulligans?: number }
@@ -646,6 +649,12 @@ export const MAX_JOINED: number;
 export const MAX_BOUNTY: number;
 export const BOUNTY: { on: "votedOut" };
 export function bountyOf(spec: Partial<GameSpec> | null | undefined): Required<SpecBounty> | null;
+/** A14 part 4: secret roles' limits, their defaults, and a spec's with them filled in (null for none). */
+export const MAX_ROLE_SEATS: number;
+export const MAX_ROLE_POINTS: number;
+export const MAX_ROLE_NAME: number;
+export const ROLES: { count: 1; name: "Traitor"; on: "out"; deal: "random"; reveal: "end"; mates: true };
+export function rolesOf(spec: Partial<GameSpec> | null | undefined): Required<SpecRoles> | null;
 export const JOINED: { per: "team"; then: "repeat" };
 export function draftPlayable(q: SpecQuestion): boolean;
 /** The answers that name someone (a person) or something (a group), `pick` of them (A6). */

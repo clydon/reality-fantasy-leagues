@@ -9,8 +9,8 @@ A row plays now when its spec passes the validator (`specProblems`, with what it
 needs waits (`specWaitsFor`); it then says the game in the engine's own words (`describeSpec`). A show the tracker has no
 rules for is checked against a show of its kind, and says so.
 
-**Now:** 217 ✅ · 46 ⏳ · 1 🆕 · 4 ❓ · 23 💬, of 291.
-**Waiting, by step:** A14 7 · A15 15 · L3 7 · L4 13 · G1 4.
+**Now:** 219 ✅ · 44 ⏳ · 1 🆕 · 4 ❓ · 23 💬, of 291.
+**Waiting, by step:** A14 5 · A15 15 · L3 7 · L4 13 · G1 4.
 
 ## The dials
 
@@ -132,7 +132,7 @@ Every watch-along game is a setting on these dials (the plan's "Where the engine
 | ✅ | Two people share one team | An Outlast for The Challenge 41: everyone drafts 3, all season. Each scores by how long they last: the last one standing carries you. Up to two of you can share a team. |
 | ✅ | Group slots: a solo draft, plus a +1 or +2 slot for a pair or team the show forms, riding with it while it lasts | A Weekly Lineup for The Challenge 41: everyone drafts 5 and starts 3 each episode, plus two slots for a pair or team the show forms, all season. Scored by The Challenge 41's rules. |
 | ✅ | A draft spread across the show's groups (one from each tribe), as the data has them when it drafts | A Weekly Lineup for The Challenge 41: everyone drafts 5 from across the teams and starts 3 each episode, all season. Scored by The Challenge 41's rules. |
-| ⏳ | Secret roles among the players | A14 |
+| ✅ | Secret roles among the players | An Outlast for The Traitors (US) 4: everyone drafts 3, all season. Each scores by how long they last: the last one standing carries you. Secret roles: two of you are secretly Traitors. A Traitor scores 2 points each time someone who isn't a Traitor has a person voted out. |
 | ⏳ | A rotating host writes the questions | A14 |
 
 ### Shape over time
@@ -221,7 +221,7 @@ Requests that push the dials, from fantasy leagues, beyond them, and live with t
 | 🆕 | s21 | Survivor 51 | A kids' version, no points shown. | shape | how a game shows, not what it is: a setting for the UI track |
 | ✅ | s22 | Survivor 51 | Stock market: buy and sell castaways each week. | answer | A Weekly Lineup for Survivor 51: everyone drafts 5 with 100 to spend, then buys and sells after every episode and starts 3 each episode, all season. Scored by Survivor 51's rules. Most worth wins: cash plus the team at today's prices. |
 | ✅ | s23 | Survivor 51 | One mulligan a season. | answer | A Survival Pool for Survivor 51: everyone picks one person to stay in each episode, all season. One wrong pick forgiven. Longest streak wins. |
-| ⏳ | s24 | The Traitors (US) 5 | Two of us are secretly traitors who score when the faithful's picks get banished. | who | A14 |
+| ✅ | s24 | The Traitors (US) 5 | Two of us are secretly traitors who score when the faithful's picks get banished. | who | An Outlast for The Traitors (US) 5: everyone drafts 3, all season. Each scores by how long they last: the last one standing carries you. Secret roles: two of you are secretly Traitors. A Traitor scores 2 points each time someone who isn't a Traitor has a person voted out. |
 | ✅ | s25 | Survivor 51 | Every two episodes, name someone who'll be gone by then. | when | A game for Survivor 51: everyone answers one question before every two episodes: name someone who'll be gone in the next two, all season. 2 points for each right answer. |
 | ⏳ | s26 | Survivor 51 | Within the next 3 episodes, will there be a blindside? | when | G1: the window plays now (A7); a blindside isn't a moment research answers, so it's the new-moment path (G1: rated reliable, or the nearest settled question) |
 | ✅ | s27 | Survivor 51 | Guess which episode the merge happens in. | what | A game for Survivor 51: everyone answers one question before it starts: which episode does the merge happen in, all season. 3 points for each right answer. |

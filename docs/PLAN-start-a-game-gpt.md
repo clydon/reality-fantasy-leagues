@@ -143,8 +143,11 @@ p10): **C7 is done**. A14 part 2b, the bot's own run for its calls (2026-11-06: 
 the bot's call from only what anyone could know then, one ask per game per lock six hours before the episode, filed and checked as a
 seat's answer is; migration 0209), is built, and so is part 3, bounties (2026-11-06: `score.bounty: { points }` on a draft, one of your
 castaways votes out someone else's and you take its points from them, who voted for whom from research's stored answer, void on an
-episode research isn't sure of; tracker row s16; no migration). A14's other parts are next (secret roles, the top scorer's twist, a
-rotating host's questions, a number from a vetted outside source), then a stop before A15. The live-sports plan is
+episode research isn't sure of; tracker row s16; no migration), and so is part 4, secret roles among the players (2026-11-06:
+`score.roles` on a draft, some seats dealt a role at random once the game starts and kept in `secret_role_deals`, migration 0210,
+never in the state; each scoring when someone a seat without it holds goes home, its points added at the reveal; tracker rows s24 and
+who.secret). A14's other parts are next (the top scorer's twist, a rotating host's questions, a number from a vetted outside source),
+then a stop before A15. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5, at
 high since 2026-11-05; C2 at xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: folded in here as track L; its file keeps the details)
 and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track S here).
@@ -5393,6 +5396,81 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     bounty moved (Noticed). The Survivor 51 rehearsal (`season-forward.js rehearse --from=backups/prod-2026-10-30
     --scenario=realistic,rough,dst --before=master`): every invariant holds, flag off against on and master's engine against this
     tree's, 2,856 reads each, every one the same.
+  **As built (A14 part 4, secret roles among the players, 2026-11-06, on `engine`; migration 0210).** One session, after `lane.js sync
+  engine` (master's C7 part 2 merge, docs only; 1601 tests). Some seats secretly dealt a role, as a piece that composes: who holds it
+  (dealt at random once the game starts, from a seed the server keeps), what it scores by (what the results say: who goes home, as
+  data), when it's revealed (the game's end or an episode), and where it sits in the scoring sequence (a line of its own, step 2,
+  beside the episode's total from the reveal on). No screen; no prompt change (it reads only who went home and how); every game
+  that played before scores the same (rows carry `role` only once a game with roles is revealed).
+  - **The piece** (game-spec `schema.js`): `score.roles: { count, name, points, on, deal, reveal, mates }` on a draft scored by `place`
+    or `moments` (an Outlast, a lineup, best ball; shared or exclusive). `count` 1 to `MAX_ROLE_SEATS` (5, default 1), `name` up to
+    `MAX_ROLE_NAME` (20) letters (default 'Traitor'), `points` 0.5 to `MAX_ROLE_POINTS` (10) in halves, `on` 'out' (any way out, a
+    winner aside: the default) or 'votedOut' (a way out the format's votes cause: BountyLogic.exitsOf), `deal` 'random' (the only
+    one), `reveal` 'end' (the default) or an episode's number in the game's span, `mates` true (the default: the seats with it know
+    each other). VOCAB `score.roles.on`, `.deal`, `.reveal`; `ROLES` the defaults, `rolesOf` fills them in. Refused (`rolesProblems`,
+    the words through impeccable's clarify): anything but a draft, a stock market, beside cuts or a race (the points land at the
+    reveal, so a cut or a race before it would leave them out), head to head or weeks won (they'd decide the reveal's week), in a
+    stage (`stagedProblems`: the deal is the game's), and by the data-can-settle rule a show whose results don't say who goes home
+    (`ctx.results`) or 'votedOut' where nobody's voted out (`ctx.votes`). `settings.secretRoles` both ways (settings.js;
+    tests/game-spec.test.js GAME_FIELDS).
+  - **The deal** (`src/lib/server/secret-roles.ts`, new; **`secret_role_deals`, migration 0210**: one row a game, its seed, the seats
+    dealt among, the holders, the role's name): made by the first read or write after the game starts (`SecretRoleLogic.due`:
+    TeamLogic.started, its first episode locked or with results), from `stampAirTimes` after the air times it reads (which now takes
+    the league's id: every caller passes it) and again after a write's mutation (db.ts `withLeagueLock`); an insert racing nobody (ON
+    CONFLICT DO NOTHING, read back), so it's made once. `SecretRoleLogic.deal(state, seed)` shuffles the seats in the game's rotation
+    (a seat catching up included: a game at your own pace is all of them; no ghost, nobody disabled) by the seed and gives the role to
+    `count` of them, or one fewer than the seats (never everyone), none under two. **Never in the state**, which every route sends
+    whole: the state carries only `secretRolesDealt` (that it's dealt, never to whom), so `RosterLogic.setGame` refuses any change to
+    the roles once dealt ("The secret roles are dealt: they stay as they are until the game ends"), and, once the reveal's episode has
+    results (`SecretRoleLogic.revealAt`: the one `reveal` names, or the game's last episode with results once it's over, whichever
+    first), `state.secretRoles: { at, holders }`, as public as those results; the spoiler view (`SpoilerLogic.viewThrough`, and
+    `GhostLogic.viewFor` for someone catching up) takes it off a copy that hasn't seen that episode. A failed read leaves the stamps as
+    they were (a write saves the state). A game with no roles costs no query.
+  - **The roles route** (`GET /api/leagues/[leagueId]/roles`, new; no screen): the game's rules; whether it's dealt; your seat; `mine`
+    (your role, and with `mates` who else has it and what yours has scored so far as far as you've seen; without `mates`, neither, as
+    the points would say who else has it); `revealed` once you've seen the reveal's episode. Spoiler-trimmed as the Games tab is
+    (season-games.ts markFor: the season's mark, or a late joiner's own week if earlier). Read through readyLeague, so it deals too.
+  - **The lines** (the sequence's `roleLines`): each one gone whom a seat without the role held that episode scores `points` for every
+    seat with it, once a person however many held them, whatever the seat with it held itself; never a transfer (nobody loses them),
+    never multiplied, beside the episode's total, outside best ball's best n. `Seq.total` adds a row's `role`. What counts is what
+    holds that episode (`BountyLogic.heldFor`: a lineup's starters, best ball's or an Outlast's team then).
+  - **state-logic.js** (for the own-pace merge, the functions changed): `SecretRoleLogic` (new: `of`, `seats`, `dealt`, `due`, `deal`,
+    `revealAt`, `known`, `goneAt`, `episodeLines`, `pointsOf`), `ScoringLogic.walk` (the role's points through each episode once
+    known: everything through the reveal's episode added in it, each episode after in its own; `role` on each series row and on now,
+    in the totals), `EliminationOrderScoringStrategy.compute` and `ActiveRosterEventScoringStrategy.compute` (the row's `role`; an
+    Outlast's total rounded with one), `SpoilerLogic.viewThrough` and `GhostLogic.viewFor` (the stamp off a copy that hasn't seen the
+    reveal), `RosterLogic.setGame` (the roles kept once dealt), the exports.
+  - **Its fallbacks, from the start:** someone who joins after the deal holds none (nothing is dealt again); someone who leaves keeps
+    theirs (its points are its row's, as its other points are); fewer than two seats, nobody gets it; a stamp naming a seat no longer
+    in the game is skipped; 'votedOut' scores only exits a vote causes (a medevac, a quit: nothing); a season that ends before the
+    episode `reveal` names reveals at its end.
+  - **The words** (describe.js `rolesSentence`, `rolesRules`, through impeccable's clarify: the count a word so it never reads as the
+    points, "You'll know if you're one" rather than "only you see yours" (most seats hold none), a vote's own verb, the reveal saying
+    what happens after it): "Secret roles: two of you are secretly Traitors. A Traitor scores 2 points each time someone who isn't a
+    Traitor has a castaway voted out." How it works adds "Roles are dealt at random when the game starts. You'll know if you're one;
+    nobody else will. Traitors also know each other.", "Who the Traitors are, and their Traitor points, stay secret until the game
+    ends. Then their points are added to the standings." (or "until Episode 6's results. Then their points so far are added, and
+    each episode after counts right away."), "Traitors play their own team too.", a shared draft's "A castaway two of you had counts
+    once.", a lineup's "Only starters count: a benched castaway going home scores nothing." and "Join after the game starts and you
+    won't get a role." Plurals by the name ("Spies").
+  - **The tracker:** s24 plays ("Two of us are secretly traitors who score when the faithful's picks get banished.", an Outlast with
+    `roles: { count: 2, points: 2, on: 'votedOut' }`) and so does who.secret: 219 ✅ · 44 ⏳ (A14 5 waiting). `engine-capabilities.js
+    --check` current; `game-specs-flag.js check`: PASS.
+  - **Proof:** `tests/secret-roles.test.js` (new, 9): the shape, defaults, words (and a plural), settings both ways and every refusal;
+    the lines; the deal (seeded, the same seed the same, every seat dealt over enough seeds, capped, none for one seat, own pace's
+    seats in, a disabled seat, a ghost and one not brought in out; due once started); the reveal (the end, an episode, a season ending
+    first); an Outlast by hand (cy's 2 from Episode 1 landing in 2, Episode 3's in its own: series 6, 10, 14), the spoiler view;
+    votedOut against any way out; a lineup's starters and a shared castaway; the roles kept once dealt; a game without roles.
+    `tests/game-pieces-doc.test.js`: the limit's row. `npm test` 1615; `tsc` clean. The shapes fixture: five role shapes (`roleShapes`:
+    an Outlast revealed at the end with finale predictions and side bets, one before its reveal, two roles on votedOut in a shared
+    Outlast revealed after 3, a lineup revealed after 4 on its early results, shared best ball), 90 new reads, the 2,538 before them
+    byte-identical: 2,628. **API check:** `scripts/dev-test/check-secret-roles.js` (new), ALL PASS (25): Couch Cup refused beside cuts,
+    then given two Traitors at 2 revealed after Episode 6 through setGame with the show's ctx; the roles route as each of the four
+    (the first read deals, once: two Traitors each told the other and their points so far, the other two nothing); dealt, a change to
+    the roles refused; no roles in the state as read, the Games tab the engine's table without them; Episode 6's result through the
+    season sync (a seat without the role's castaway voted out): the state carries the deal at 6, the Games tab as each of the three
+    who've seen 6 the engine's table on that copy, each Traitor up by its points so far (6), sam (through 3) none of it and the roles
+    route revealing nothing to them; the flag's check. check-bounty.js again (the stamp chain): ALL PASS.
 - **A15. Live and replay** (with the watch along, docs/PLAN-couch-and-episode-night.md §6, and the sports branch's
   `GameClock`). It needs A7. The watch along is in its infancy (the user, 2026-10-28): its concept, how it's built and how it
   connects to games are all open, so A15 is where the games shape it, not only where they plug into it.
@@ -7710,6 +7788,39 @@ From R1 part 2 (2026-10-30):
   (R3, or whoever next works in Game settings.)
 - **For the hosting notes, at the merge:** `/api/me` (classic's sign-in and every classic load) now sends each league's settings, not its
   whole state (20-40 KB each): less Neon transfer than before. (The main folder: docs/HOSTING.md, with the merge.)
+
+From A14 part 4 (2026-11-06):
+- **For the user, in the design session (decide nothing a person sees), each built with a recommendation:**
+  1. **What a role scores on.** Built: someone a seat without the role holds going home (any way out, or a vote's), once a person,
+     whatever the role's seat holds itself. Options: per seat that held them (a castaway three of you had scoring three times);
+     only when no seat with the role holds them too; the role's seat also losing its own team's points (a pure saboteur). Recommended:
+     as built (what "score when the faithful's picks get banished" says, and the simplest to explain).
+  2. **The reveal's default, and points landing all at once.** Built: the game's end, everything through the reveal added in its
+     episode. Options: a reveal partway (built, as a setting) with the role's points counting live from then on; the points never
+     hidden (and so the role neither). Recommended: as built: anything shown live says who has it.
+  3. **Who knows.** Built: `mates` true by default (Traitors know each other, as on the show); without it a holder isn't told its
+     points before the reveal (they'd say who else has it). Recommended: as built.
+  4. **Dealt at random only.** Built: 'random'. Options: the maker chooses (they'd know, and the maker usually plays); each seat
+     volunteers. Recommended: random only until a request needs another (data-settled, nobody's decision).
+  5. **Roles added to a game already under way count from its start.** The deal happens at the next read, and the role's points count
+     every episode the game has played (the check does just that). Options: count only from the deal's episode; refuse adding roles
+     once the game has started. Recommended: refuse once started (Start a game and the maker's Scoring page only reach a game before
+     it starts today, so nothing a person does now reaches it).
+  6. **Changing the roles once dealt is refused**, the rest of the game still changes. Recommended: as built (a re-deal mid-game would
+     tell people who had it).
+  7. **A game at your own pace** deals at its first read (its season has aired, so it has started at once): seats that join after
+     that hold none, and the reveal (its end) is stamped on the state at once, trimmed from each seat's copy by their own week, as its
+     results are (the state route sends results the same way). Recommended: for own pace, deal when the first seat starts its week,
+     among the seats then (the own-pace merge's to fold in).
+  8. **The screens don't show roles** (your role, the reveal, the Traitors' points so far): U1's (the roles route has what they need).
+     Its words went through impeccable's clarify; the screens' go through shape.
+- **Not beside cuts, a race, head to head or weeks won, and not in a stage.** A role's points through the reveal land in one episode,
+  so a cut or race before it would miss them and a week's matchup at it would be decided by them; the deal is one a game, a stage's
+  game has none of its own. (Whoever takes a role counting live after a mid-game reveal; a stage's deal with A12's stages.)
+- **One role a game, scoring on who goes home.** Two roles (a Traitor and a Seer), or a role scoring on another result (a moment, an
+  answer), would each be a new condition in `roleLines`' place. (A later A14 part, or a request that needs it.)
+- **`BountyLogic.heldFor` is read by both bounties and roles**, each building the episode's holders map; a game with both builds it
+  twice an episode. Small; left. (Whoever next touches either.)
 
 From A14 part 3 (2026-11-06):
 - **For the user, in the design session (decide nothing a person sees), each built with a recommendation:**
