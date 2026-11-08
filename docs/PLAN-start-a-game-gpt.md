@@ -11721,6 +11721,26 @@ first), and proves it on these games and on the tracker's other rows that use it
     Dream Team: Best Ball with Challenge Champions; Sole Survivor Futures: a bank and the winner; Finale Glory League), replacing the
     first run's nine creative and three betting games; a game made with a theme names it in What scores. The shapes that failed
     are the first run's again (a redraft at the merge in stages, a bingo card, a race on picks): the manual's worked examples, in G5.
+  - **Speedy asks: one game from words, and change-it buttons** (the user, 2026-11-08: "my goal isn't to make the full
+    generate all games fast. It's the more gpt to one game feature we want to be speedy. Or the buttons that could modify a
+    game to make it more competitive, casual, different scoring, more creative moments"; for G5's ask, "the most accurate
+    and/or 100% free one": ChatGPT, G5 above). G1's own asks on seven models through the local bot, one run each: the user's
+    five typed games, four buttons as typed changes to a plain Weekly Lineup (more competitive, more casual, score it a
+    different way, more creative moments) and two moment ratings; a blind read scored each 1 to 5 (models hidden, letters
+    reshuffled per ask; the reader was Claude Sonnet, reading our engine's sentences, not the models' own words). Median
+    seconds (typed, change, moment) and score: Claude Sonnet 5.5 low 10.6, 5.6, 7.5, 3.3; Opus 5.5 low 14.6, 10.1, 8.8, 3.3;
+    Fable 5.1 low 11.0, 9.9, 6.5, 3.3; ChatGPT GPT-6 Instant 39.1, 35.2, 33.5, 3.1; Codex gpt-6.1-sol low 22.4, 17.3, 14.6,
+    3.0; Haiku 5.5 low 19.9, 8.9, 8.6, 3.0; Codex gpt-6-luna low 11.7, 8.5, 11.9, 2.3. The browser costs ChatGPT about 30 s
+    an ask; Claude's CLI starts in a few. What failed on every model is ours: a button tap answered with a question back
+    (all seven on "score it a different way", five on "more creative moments": G1's rule of a question for each open
+    choice), the weekly-sheet game (four read no game from it, one made it a bingo; Sonnet alone kept the bank and the bot's
+    card: the engine lane's G1 fixes, unmerged, teach it), and generic "which game?" questions. So for U1: a button the
+    engine can do moves B's own pickers at once, no AI (a scoring theme; head to head, a captain or a cut; best ball for no
+    lineups); the AI only for what needs words (new moments, a typed change), with a button's own line in the prompt (your
+    best change of that kind, others as options); new moments' ratings asked at once, not one after another. Which AI:
+    Sonnet 5.5 at low is the fastest and ties the best, on the user's Claude subscription (the lanes' week); Codex sol about
+    halves ChatGPT's time at the same score, on the ChatGPT plan. The user's call. Scripts: the session's scratchpad
+    ask-matrix.js and judge-matrix.js.
   - **Still to design in U0:** finding a sports game by team, the guide's Sports filter (typing's result is F's); then an
     impeccable critique of the option the user picks (round 14) and the edges before U1.
 - **U1. Build.** The field and the wizard in Start a game, Start from a spec, Make it a game chained for a show that isn't set
