@@ -227,6 +227,8 @@ and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track
 | A team: a sheet (2026-11-08) | **A sheet, as mocked** (the user went with the recommendation): you go to a team to start a game, and the game then lives on the couch. Revisit if couches start following teams the way they follow shows. |
 | Team colours: Tags Not Fills kept (2026-11-08) | **No exception** (the user went with the recommendation): a team's colour is on its mark and on the angled tag of its lower third (its name on the white plate, the league on a dark plate under it), as a show's colour is when you tune in. The guide's cards are dark. |
 | The game card: the white card (2026-11-08) | **The white card stays for now** (the user: "for the white background, i think we keep it as is for now"); the title plate stays on the canvas, parked. |
+| Sports results arrive live, then a recap (2026-11-08) | **Live, then a recap** (the user picked it): each pick turns right or wrong as its game ends and the table moves live; when the day's last game ends, a short reveal recaps the night. With Hide scores on, nothing moves until that person taps. |
+| Round 2's aim (2026-11-08) | **Every answer kind, low-fi first, so every game type and every combination can be played** (the user: "I don't want the UIUX to feel piece mealed, I am hopeful the UI can feel like a cohesive design made strictly for the game that was generated. But of course we need to programmatically create it... The end goal is the quick actions a game needs, but also a individual game page"). The approach is proposed, waiting on the user's OK. |
 
 ## What's there today (mapped 2026-10-27)
 
