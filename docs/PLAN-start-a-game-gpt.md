@@ -11635,8 +11635,36 @@ first), and proves it on these games and on the tracker's other rows that use it
     need a group (What scores groups them); a couch's own bingo square, always on the card; G5's ask covers wager games beside the
     standard and creative ones (one per length left the season with one); a typed game knows the page's moment (the typed bingo
     said Episode 1: asked on premiere night's page).
+  - **Round 14 (2026-11-08): how to show the premade games and tinker with them** (the user: several options, each improved by
+    reviewing it as a user would, low-fi until the last round; casual first, but the breadth easy to find). Four options (A a
+    shortlist with house rules, B the strip, C the deck, D the host), each taken through three low-fi rounds (the couch's
+    archetypes walking five jobs, impeccable's ten heuristics: A 28→33, B 30→35, C 29→33, D 29→32), then a **blind test** (fresh
+    agents, the sketch only, the same six tasks as a casual fan and a tinkerer: A 6/6, B 7/7, C 7/6, D 7/7 out of 10). What every
+    tester hit, now in every option: **bets must show on the front, in the word "bet"** (points, never money); **the tinkering
+    door names what's inside** ("Change the rules", never "House rules · none"); **each twist says its effect** ("Captain
+    scores double"); **plain words for the steps** ("A team of 5", "Play 3 each episode", not "draft" or "start 3"); **the
+    footer says what happens next** ("Next: everyone picks a team of 5, before Episode 2"), so "start" means one thing; **changes
+    show on the game**; roles say why ("Least effort", "Play along live", "Made for Survivor 51", "A betting game"); head to head
+    says who sits out with an odd couch. Liked by all: the game already picked, drawn as its steps with one plain sentence, and
+    the footer naming it.
+  - **The three full mocks** (canvas boards B, C and D after F; A dropped: it scored lowest blind and B does its job better for
+    the Tinkerer): **B, the strip**: the game drawn as three steps (before it starts, each episode, to win), each a tap to change
+    it (its kinds, its count, its twists; picks flow down, with an undo), a bet row and What scores under it, Surprise me with
+    "keep" locks (G4); **C, the deck**: one game at a time as a card, filters by how much you do, flip it for the rules or a bet,
+    deal a new one, see them all; **D, the host**: one game at a time in a conversation, two rows of replies ("Other games"
+    swap it, "This game" change it), the rules card inline, your words to our AI inline. **The engine runs inside each mock**:
+    rollSpec and everything it needs bundle for the browser (8 modules, 671 KB, no externals), so every combination (head to head,
+    a captain, play 4, Immunity worth 5, a side bet) is checked and worded live. A build note for U1: the wizard can roll, check
+    and describe on the phone for instant feedback, the server checking again on save. The user picks one (or a mix) before U1.
+  - **Asks from round 14:** rollSpec's why for a refused lock is generic ("Nothing fits those locks on this show") where the
+    wizard needs which part refuses; a twist's own numbers are random (a captain doubles or triples by the seed) where the
+    maker should choose them; roll's yes-or-no questions pick near-certain moments (a tribe winning immunity before the merge
+    reads as always yes: a dud); G5's standard games carry season-worded hooks, so standard games are shown by the engine's own
+    words and creative ones by their hook, and creative ideas fit their own length only (a few: 2 to 5 episodes; a season: to the
+    finale); G5's Merge Reset never rolls (redraft at the merge), nor do the redraft, never-twice and trivia-too twists on these
+    games.
   - **Still to design in U0:** finding a sports game by team, the guide's Sports filter (typing's result is F's); then an
-    impeccable critique of F and the edges before U1.
+    impeccable critique of the option the user picks (round 14) and the edges before U1.
 - **U1. Build.** The field and the wizard in Start a game, Start from a spec, Make it a game chained for a show that isn't set
   up (was G2); answering and results; the live and sports screens; the Games tab's launcher and the game pages from track V's
   generator (V3's golden screens their check); checked at 390 on Night and Studio with a zt- fixture.
