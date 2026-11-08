@@ -229,6 +229,7 @@ and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track
 | The game card: the white card (2026-11-08) | **The white card stays for now** (the user: "for the white background, i think we keep it as is for now"); the title plate stays on the canvas, parked. |
 | Sports results arrive live, then a recap (2026-11-08) | **Live, then a recap** (the user picked it): each pick turns right or wrong as its game ends and the table moves live; when the day's last game ends, a short reveal recaps the night. With Hide scores on, nothing moves until that person taps. |
 | Round 2's aim (2026-11-08) | **Every answer kind, low-fi first, so every game type and every combination can be played** (the user: "I don't want the UIUX to feel piece mealed, I am hopeful the UI can feel like a cohesive design made strictly for the game that was generated. But of course we need to programmatically create it... The end goal is the quick actions a game needs, but also a individual game page"). The approach (a grammar, not a form; one skeleton; a main block picked from the spec; twists in the places they change; one code path proving coverage) okayed by the user ("This works"); low-fi done the same day (U0's Round 2 bullet). |
+| Game pages bold and fun; quick actions plain (2026-11-08) | **The user's direction:** "I want these games uiux to be bold and fun. Quick actions are just that, but within the page we will have fun bold designs." Quick actions (Tonight's card, the dock, the Your moves sheet) stay quick and plain; a game's own page is where the design goes big. My reading for the hi-fi: the grammar keeps the structure, and the boldness lives mostly in the main blocks, each designed as a set piece of its own (the ladder, the matchup, the race, the card, the slate...), with the game's own identity, big type, and one motion moment on open; through impeccable's bolder and delight. |
 
 ## What's there today (mapped 2026-10-27)
 
@@ -11843,7 +11844,8 @@ first), and proves it on these games and on the tracker's other rows that use it
     u0/r2/ (specs.js, dials.js, grammar.js, compile.js, census.js, render*.js, make_r2.js; `node census.js` is the
     coverage check, `node make_r2.js` draws and places the boards).
   - **Still to design in U0:** round 2's hi-fi (the controls, the main blocks and three or four pages in the Lower Third
-    style, a critique, the user's pick); round 3, the live pieces (the watch along, live calls, a live game's screens);
+    style, the pages bold and fun and the quick actions plain (the user's direction, in Decisions), a critique, the user's
+    pick); round 3, the live pieces (the watch along, live calls, a live game's screens);
     the Games tab's launcher. Then U1.
 - **U1. Build.** The field and the wizard in Start a game, Start from a spec, Make it a game chained for a show that isn't set
   up (was G2); answering and results; the live and sports screens; the Games tab's launcher and the game pages from track V's
