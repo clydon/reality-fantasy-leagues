@@ -11565,6 +11565,13 @@ first), and proves it on these games and on the tracker's other rows that use it
     overview line; a sports series shows its if-needed games dashed (a game to the end of the series ends when it's won; the count
     reads "4-7 games"). The episode count is usually known (schedules, research: the user); when it isn't, stage blocks with "or
     just 1-5 episodes" (counted from the stage's start) are the fallback, and cells appear over them once the schedule lands.
+  - **When it runs, by how often each length is used** (the user: tonight, then the full season, then a stage span, then an
+    episode span): three big options, **Tonight · The season · Custom**, Tonight chosen on open (the one-tap quick game); **The
+    season starts after the premiere** on a show whose premiere introduces the cast (the user: "so people can thoughtfully draft"),
+    said in one line with an "Include the premiere" link; mid-season it reads "Rest of season"; **Custom** opens a small toggle,
+    **Stages** first (big stage blocks, tap one or two) then **Episodes** (the date-style picker). By show: no stages (a scripted
+    series, a talk show) means Custom is episodes only; sports use their own words (tonight's game, the regular season, the whole
+    series).
   - **Stages are first-class, not a fallback** (the user: The Challenge's three-part final, a game of "everything but the final"):
     the stage bands tap exactly like the cells (one tap, the whole stage; a later stage or episode stretches to it; the same stage
     again settles it; cells and stages mix); a stage whose edges the schedule gives is exact, only one nobody can date gets ≈.
