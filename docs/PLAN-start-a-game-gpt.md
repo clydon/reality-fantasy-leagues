@@ -11675,6 +11675,13 @@ first), and proves it on these games and on the tracker's other rows that use it
     each of the four opens from Describe a new game as the engine will play it (its questions re-rolled live) and in the sheet
     as a game to change. Also: describe's short line counts a sheet and its ticket as "2 questions", and its sentence lists all
     eight moments a sheet draws from (shorter: "four of eight moments, our AI's pick").
+  - **Scoring the user can name (2026-11-08):** "a survivor league where you are only scored by individual immunity placement
+    and elimination" works today (only four moments count, at Survivor 51's standard points; the bot asks what "elimination"
+    means); "their final placement, beside immunity points" doesn't (a game scores by moments or by place, not both): an ask
+    for the engine lane, after C8. The mocks now show the scoring on the game itself (a peek: each counting moment and its
+    points, when there are six or fewer), What scores leads with what counts (the rest folded under "Not counting"), unticking
+    a moment drops it from the game's moments (so the engine says "Only N moments count"), and "Survivor 51's standard points"
+    names the season's own (the user found "Survivor 51's rules" unclear; the engine's sentence to follow).
   - **Still to design in U0:** finding a sports game by team, the guide's Sports filter (typing's result is F's); then an
     impeccable critique of the option the user picks (round 14) and the edges before U1.
 - **U1. Build.** The field and the wizard in Start a game, Start from a spec, Make it a game chained for a show that isn't set
