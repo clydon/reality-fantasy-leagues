@@ -11567,7 +11567,9 @@ first), and proves it on these games and on the tracker's other rows that use it
     just 1-5 episodes" (counted from the stage's start) are the fallback, and cells appear over them once the schedule lands.
   - **When it runs, by how often each length is used** (the user: tonight, then the full season, then a stage span, then an
     episode span): three big options, **Tonight · The season · Custom**, Tonight chosen on open (the one-tap quick game); **The
-    season starts after the premiere** on a show whose premiere introduces the cast (the user: "so people can thoughtfully draft"),
+    season starts after the premiere** on a show whose premiere introduces the cast (the user: "so people can thoughtfully draft");
+    **the default follows where the season is** (the user): before the premiere or until Episode 2 has aired, The season; mid-
+    season, Tonight;
     said in one line with an "Include the premiere" link; mid-season it reads "Rest of season"; **Custom** opens a small toggle,
     **Stages** first (big stage blocks, tap one or two) then **Episodes** (the date-style picker). By show: no stages (a scripted
     series, a talk show) means Custom is episodes only; sports use their own words (tonight's game, the regular season, the whole
@@ -11578,9 +11580,19 @@ first), and proves it on these games and on the tracker's other rows that use it
   - **Episode types** (the user left the call to Claude): the cells are the show's own rounds (Big Brother's week groups its 3
     airings, as a sports slate's "Week 9" groups its games: no engine change, research groups them); where research tags a
     round's kind that changes a game (a double-eviction week, a recoupling, an elimination, a live show), a tiny mark on the cell
-    and an "Only <kind>" chip keep just those rounds in the stretch. That needs research tagging round kinds, an engine piece for a
+    and an "Only <kind>" filter keep just those rounds; **not in the timing control** (the user: it felt out of place): kinds are
+    twists in Make it yours ("double evictions count double", "plays only on recoupling nights"). That needs research tagging round kinds, an engine piece for a
     game that plays only some rounds, and score.times by kind ("double evictions count double"). What counts inside an episode
     (only competitions, only the vote) stays moments (score.only, built), reached from Make it yours, not the timing control.
+  - **Cliffhangers (the user: The Traitors ends an episode on the round table or the murder and opens the next with the result,
+    so the next episode's outcome is easy to guess):** play in the show's own rounds. A Traitors round is a round table and the
+    murder after it, not an episode; the cells are round tables (↪ marks one split across two episodes; the readout says where
+    the last result airs). Engine: each round gets a **start episode** (where its first part airs) and a **reveal episode** (where
+    its result is shown), from research ("this episode ends on a cliffhanger; the result comes next episode"); a round's questions
+    **close when its first part airs**, so a cliffhanger can't be used to guess; its points count, and its reveal is gated, with
+    the reveal episode (spoiler-safe). As sports slates group events into a round, but with a start and a reveal: a real engine
+    step. Until then: research flags cliffhanger episodes, questions on the split event close at the cliffhanger episode's airtime,
+    and its result stays behind the next episode's reveal.
   - **Asks of the engine and research from this round** (for G5 and U1): a count from a stage start ("3 episodes from the merge":
     a span from a phase plus n); "just the finale" by condition (a finale marker); G5's research adds the season's round word,
     each stage's rough place (where its ≈ line sits) and standard games that work at any length (the bot's standard Predictions
