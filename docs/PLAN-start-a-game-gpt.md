@@ -221,6 +221,8 @@ and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track
 | U0's first round (2026-11-07) | **The user, at impeccable's shape:** the first round is **the wizard** (Start a game's two doors, the game in a sentence and its questions, the bot's wait and errors, finding a sports game by team, the guide's Sports filter); game pages, live sports screens, answering and watch along are later rounds. **Sports: one search and the guide:** the "Search or add a show" box finds teams and leagues too (Shows · Teams · Leagues), the guide's Sports filter lists games, a team opens its schedule (the next game first, then the next few, a series, the season). **One tap is a quick game for tonight** (a one-episode game on the next airing; a season game is the second step), not the show's usual season game Claude recommended. U0 is designed in the main session; U1 builds it in fresh sessions. |
 | A season's game ideas (2026-11-07) | **Planned** (the user's idea, G5): a season's setup asks for 15 ideas, five each season-long, one-episode and over a few episodes, two standard and three creative per length, each a whole game (its questions, the show's and the cast's moments). Why (the user): an idea already built around the show's structure and stages is a starting point to tweak. Claude's shape, the user's to correct: the standard ones from our own games, the creative ones from the bot; lengths by stage, never by episode number. |
 | Season games start after Episode 1 (2026-11-07) | **Recommended by default** (the user: "we can generally recommend season long games start after episode 1"): the premiere introduces the cast, so a draft isn't a coin flip and the first boot can't knock anyone out before the game starts; premiere night still plays a one-episode game. Claude's assumptions, the user's to correct: shows only (sports drafts happen before the opener, the players known), and a very short season (about six episodes or fewer) may start at Episode 1. |
+| Start a game, settled (2026-11-08) | **Settled: B, the strip, with quick changes** (the user: "settle on the start a game mock including with my final asks (about the small modifications)"; B picked the same day). The canvas board "B, settled" is the design U1 builds; U0's Settled bullet has it whole. Left in U0: finding a sports game by team and the guide's Sports filter. |
+| The fast AI is paid; free waits carry an ad (2026-11-08) | **Direction** (the user): once there's a paid model, the fast AI is paywalled and free users get the slow bot with a video ad while they wait, on every slow-bot action, even when the answer is already cached ("if it was there first time it'd be a wait"). Which AI is tabled (U0's Speedy asks; HOSTING 2026-11-08). Pricing and the paywall's own screens aren't designed. |
 
 ## What's there today (mapped 2026-10-27)
 
@@ -11741,8 +11743,37 @@ first), and proves it on these games and on the tracker's other rows that use it
     Sonnet 5.5 at low is the fastest and ties the best, on the user's Claude subscription (the lanes' week); Codex sol about
     halves ChatGPT's time at the same score, on the ChatGPT plan. The user's call. Scripts: the session's scratchpad
     ask-matrix.js and judge-matrix.js.
-  - **Still to design in U0:** finding a sports game by team, the guide's Sports filter (typing's result is F's); then an
-    impeccable critique of the option the user picks (round 14) and the edges before U1.
+  - **Settled: B, with quick changes** (2026-11-08; the user: "settle on the start a game mock including with my final asks
+    (about the small modifications)"; the canvas board "B, settled", version 33). On the game card, under its three steps,
+    four quick changes, each showing its next step on a second line. **More competitive** climbs a ladder per kind of game,
+    only upward: a team game goes head to head, then a captain who scores double, then the lowest each episode is out,
+    then bounties, then the boot call; a pool tries never the same pick twice first, a question game a lone right answer
+    (each when it fits). **More casual** comes back down: a competitive twist off, most points again, then Best Ball (no
+    lineups to set), one wrong pick forgiven, then Outlast. **Different scoring** takes the season's scoring themes in turn,
+    or split the points and a rollover jackpot for a question game. **Creative moments** asks our AI for three new moments
+    research can answer, each with how sure recaps are, ticked and pointed before they're added. Every tap is a toast with
+    Undo and an outline on the step it touched; Your version lists the changes under the title; a button with nothing left
+    is dashed and says why (the two-twist cap included). The engine checks every step, and twists roll on one seed whatever
+    the way to win, so a captain stays double. **Every slow-bot wait on Free** (Describe a new game, Creative moments): one
+    line, a 15-second video ad (labelled, muted, counting down), the time once (about 40 seconds, ChatGPT's measured) and
+    Keep going; leaving brings a See it or See them toast when it's ready. **Premium**: about 10 seconds, no ad (the
+    board's Plan prop). **Start it** says it tells the couch and holds that behind a 10-second Undo; new episodes or a
+    swapped game say what starts over, with Undo, and carry what still fits (added moments, a scoring theme). The hook
+    shows only for made-for, typed and shuffled games; the game's sentence moved into How it plays; rail cards lead with
+    the game's three drawings, no eyebrow; head to head is a face-off icon. **Creative moments' real answer** (Claude
+    Sonnet 5.5 at low, the change prompt plus the button's own line, 7.2 s; the three ratings 8.8 s): Cried, Blindsided
+    by vote flip, Caught fish or camp success, all "recaps usually say". **The button's line** (a prompt change, the user's
+    to approve at U1's merge): "They tapped a button, not typed: the button is the whole request. Make your best change of
+    that kind without asking them anything, and put at most one other way under ask, as options. New moments: three of your
+    own, fun and true to this show, each its own cantYet entry with its own newMoment question, the kind recaps report."
+    **impeccable critique** (dual-agent, before the fixes): 29/40; its three P1s (Start it, blind quick changes, silent
+    resets) and two P2s (the wait, repetition) fixed, then two looks at 390. **For U1:** the real air day and time in Next;
+    Tell the couch pings only members who watch the show; the ad is never a spoiler promo for the show on its night; the
+    moments' ratings folded into the one ask on the slow bot (three more asks one after another is about 2 minutes in
+    ChatGPT's browser); When it runs' episode cells and bands stay under 44px (D2's control, agreed). Scripts: the
+    session's scratchpad g/quick_edits.py and quick_fix1-8.py, gen-creative.js; check-g.js runs every quick change, both
+    plans and the waits.
+  - **Still to design in U0:** finding a sports game by team and the guide's Sports filter (typing's result is F's); then U1.
 - **U1. Build.** The field and the wizard in Start a game, Start from a spec, Make it a game chained for a show that isn't set
   up (was G2); answering and results; the live and sports screens; the Games tab's launcher and the game pages from track V's
   generator (V3's golden screens their check); checked at 390 on Night and Studio with a zt- fixture.
