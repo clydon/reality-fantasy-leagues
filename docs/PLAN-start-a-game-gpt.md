@@ -223,6 +223,10 @@ and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track
 | Season games start after Episode 1 (2026-11-07) | **Recommended by default** (the user: "we can generally recommend season long games start after episode 1"): the premiere introduces the cast, so a draft isn't a coin flip and the first boot can't knock anyone out before the game starts; premiere night still plays a one-episode game. Claude's assumptions, the user's to correct: shows only (sports drafts happen before the opener, the players known), and a very short season (about six episodes or fewer) may start at Episode 1. |
 | Start a game, settled (2026-11-08) | **Settled: B, the strip, with quick changes** (the user: "settle on the start a game mock including with my final asks (about the small modifications)"; B picked the same day). The canvas board "B, settled" is the design U1 builds; U0's Settled bullet has it whole. Left in U0: finding a sports game by team and the guide's Sports filter. |
 | The fast AI is paid; free waits carry an ad (2026-11-08) | **Direction** (the user): once there's a paid model, the fast AI is paywalled and free users get the slow bot with a video ad while they wait, on every slow-bot action, even when the answer is already cached ("if it was there first time it'd be a wait"). Which AI is tabled (U0's Speedy asks; HOSTING 2026-11-08). Pricing and the paywall's own screens aren't designed. |
+| Sports spoilers: Hide scores (2026-11-08) | **A switch in each person's Settings** (the user: "yes hide scores in each persons settings (and it includes spoiling length info like innings or overtime)"). With it on, a game that has begun says only when it started: never live or final, its clock, period, innings, overtime, score, winner or a team's record, until that person taps the game's **Show the score**, which shows that one game everywhere for the visit. Watch along stays (its room, or a plan for later). My reading, for round 2 and U1: a series lists every if-needed game until they look, and results and pushes on a sports game wait for the same tap. |
+| A team: a sheet (2026-11-08) | **A sheet, as mocked** (the user went with the recommendation): you go to a team to start a game, and the game then lives on the couch. Revisit if couches start following teams the way they follow shows. |
+| Team colours: Tags Not Fills kept (2026-11-08) | **No exception** (the user went with the recommendation): a team's colour is on its mark and on the angled tag of its lower third (its name on the white plate, the league on a dark plate under it), as a show's colour is when you tune in. The guide's cards are dark. |
+| The game card: the white card (2026-11-08) | **The white card stays for now** (the user: "for the white background, i think we keep it as is for now"); the title plate stays on the canvas, parked. |
 
 ## What's there today (mapped 2026-10-27)
 
@@ -11776,7 +11780,7 @@ first), and proves it on these games and on the tracker's other rows that use it
   - **The white card or a title plate** (the critique's question; the user: "Mock both, then pick"): the board beside B
     settled, "the title plate", puts only the game's name on a white plate (its role in the tag, its changes under the name)
     and its steps, quick changes and rows on the dark sheet, so Start it stays the brightest thing. Same logic and checks.
-    The user's pick is open. **The icon sheet for the rebrand** (the user: "give me an icon sheet and ill rebrand it"): every
+    The user's pick (2026-11-08): the white card, for now. **The icon sheet for the rebrand** (the user: "give me an icon sheet and ill rebrand it"): every
     icon on the settled sheet, 32, with what each should mean, where it shows and what it mustn't be mistaken for, today's
     drawing only as a stand-in (an artifact: https://claude.ai/artifact/6exCdZsRUWLbgTShQnKHej). Three clashes to fix in the
     redraw: Most points, What scores and Different scoring share one drawing; More competitive and Head to head share one;
@@ -11803,9 +11807,10 @@ first), and proves it on these games and on the tracker's other rows that use it
     fixed, then a look at 390; B's scan: 22 findings, one real (10px initials, now 11px), the rest the board format's. **The
     engine's three asks** (in the engine lane's notes): rollSpec on a sport page; a team's season in the game's own words, not
     the league's week; a live game's live calls (A15, round 3). **For U1:** a long season's "from this game, for N games".
-    **The user's calls, open:** spoilers for sports (scores in the guide, a team's sheet, search: a Hide scores switch?); a
-    team as its own place like a show, or a sheet; team colours as fills, written into DESIGN.md as Tags Not Fills' one
-    exception. Scripts: the session's scratchpad sports/ (make-sports-mock.js, make_s.py, s-*.js; check-s.js runs every
+    **The user's calls (the same day, in Decisions):** Hide scores in each person's Settings, length too (innings,
+    overtime); a team stays a sheet; Tags Not Fills kept (the team header is now the tune-in's lower third, the guide's cards
+    dark). The boards' Scores prop shows Hide scores (version 41), and check-s.js scans every hidden screen for a score,
+    clock, period, overtime, winner or record. Scripts: the session's scratchpad sports/ (make-sports-mock.js, make_s.py, s-*.js; check-s.js runs every
     board).
   - **Still to design in U0:** round 2, answering a game's questions and its results (picks, a draft's turn, the reveal in
     a sport's words); round 3, the live pieces (the watch along, live calls, a live game's screens); round 4, a game's own
