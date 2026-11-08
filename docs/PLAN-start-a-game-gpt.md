@@ -11565,6 +11565,15 @@ first), and proves it on these games and on the tracker's other rows that use it
     overview line; a sports series shows its if-needed games dashed (a game to the end of the series ends when it's won; the count
     reads "4-7 games"). The episode count is usually known (schedules, research: the user); when it isn't, stage blocks with "or
     just 1-5 episodes" (counted from the stage's start) are the fallback, and cells appear over them once the schedule lands.
+  - **Stages are first-class, not a fallback** (the user: The Challenge's three-part final, a game of "everything but the final"):
+    the stage bands tap exactly like the cells (one tap, the whole stage; a later stage or episode stretches to it; the same stage
+    again settles it; cells and stages mix); a stage whose edges the schedule gives is exact, only one nobody can date gets ≈.
+  - **Episode types** (the user left the call to Claude): the cells are the show's own rounds (Big Brother's week groups its 3
+    airings, as a sports slate's "Week 9" groups its games: no engine change, research groups them); where research tags a
+    round's kind that changes a game (a double-eviction week, a recoupling, an elimination, a live show), a tiny mark on the cell
+    and an "Only <kind>" chip keep just those rounds in the stretch. That needs research tagging round kinds, an engine piece for a
+    game that plays only some rounds, and score.times by kind ("double evictions count double"). What counts inside an episode
+    (only competitions, only the vote) stays moments (score.only, built), reached from Make it yours, not the timing control.
   - **Asks of the engine and research from this round** (for G5 and U1): a count from a stage start ("3 episodes from the merge":
     a span from a phase plus n); "just the finale" by condition (a finale marker); G5's research adds the season's round word,
     each stage's rough place (where its ≈ line sits) and standard games that work at any length (the bot's standard Predictions
