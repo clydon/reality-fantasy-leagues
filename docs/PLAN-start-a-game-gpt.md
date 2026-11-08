@@ -11768,11 +11768,19 @@ first), and proves it on these games and on the tracker's other rows that use it
     own, fun and true to this show, each its own cantYet entry with its own newMoment question, the kind recaps report."
     **impeccable critique** (dual-agent, before the fixes): 29/40; its three P1s (Start it, blind quick changes, silent
     resets) and two P2s (the wait, repetition) fixed, then two looks at 390. **For U1:** the real air day and time in Next;
-    Tell the couch pings only members who watch the show; the ad is never a spoiler promo for the show on its night; the
+    Tell the couch pings only members who watch the show; no ad rule yet (the user: decided when an ad network is chosen); the
     moments' ratings folded into the one ask on the slow bot (three more asks one after another is about 2 minutes in
     ChatGPT's browser); When it runs' episode cells and bands stay under 44px (D2's control, agreed). Scripts: the
     session's scratchpad g/quick_edits.py and quick_fix1-8.py, gen-creative.js; check-g.js runs every quick change, both
     plans and the waits.
+  - **The white card or a title plate** (the critique's question; the user: "Mock both, then pick"): the board beside B
+    settled, "the title plate", puts only the game's name on a white plate (its role in the tag, its changes under the name)
+    and its steps, quick changes and rows on the dark sheet, so Start it stays the brightest thing. Same logic and checks.
+    The user's pick is open. **The icon sheet for the rebrand** (the user: "give me an icon sheet and ill rebrand it"): every
+    icon on the settled sheet, 32, with what each should mean, where it shows and what it mustn't be mistaken for, today's
+    drawing only as a stand-in (an artifact: https://claude.ai/artifact/6exCdZsRUWLbgTShQnKHej). Three clashes to fix in the
+    redraw: Most points, What scores and Different scoring share one drawing; More competitive and Head to head share one;
+    Ticked and Done share one.
   - **Still to design in U0:** finding a sports game by team and the guide's Sports filter (typing's result is F's); then U1.
 - **U1. Build.** The field and the wizard in Start a game, Start from a spec, Make it a game chained for a show that isn't set
   up (was G2); answering and results; the live and sports screens; the Games tab's launcher and the game pages from track V's
