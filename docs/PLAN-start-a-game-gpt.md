@@ -11702,6 +11702,14 @@ first), and proves it on these games and on the tracker's other rows that use it
     length, and trust in every one shown. Recommended: per season, the kinds' standard games plus 3 creative ones per length,
     each a kind × a theme × a twist; for Tonight, a few fresh ideas per episode from that episode's research; everything else
     through Shuffle, Describe and Change the rules.
+  - **The user's pick: B, the strip (2026-11-08: "I think B is the best so far").** Then, on B: **Start from is a rail**
+    scrolling sideways (the user: "should list more but they horizontally scroll"): every game for the stretch in role order (the
+    classic, least effort or play along live, the made-for games, a betting game, the other kinds), each card its role, name and
+    kind (with its theme), the next card peeking. **More made-for games:** G5's creative ask again with the themes (6 per
+    length, a betting game in each, names at the user's 3 to 4, hooks true to their length): 18 asked, 16 kept (e.g. Challenge Day
+    Dream Team: Best Ball with Challenge Champions; Sole Survivor Futures: a bank and the winner; Finale Glory League), replacing the
+    first run's nine creative and three betting games; a game made with a theme names it in What scores. The shapes that failed
+    are the first run's again (a redraft at the merge in stages, a bingo card, a race on picks): the manual's worked examples, in G5.
   - **Still to design in U0:** finding a sports game by team, the guide's Sports filter (typing's result is F's); then an
     impeccable critique of the option the user picks (round 14) and the edges before U1.
 - **U1. Build.** The field and the wizard in Start a game, Start from a spec, Make it a game chained for a show that isn't set
