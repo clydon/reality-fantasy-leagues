@@ -38,6 +38,26 @@ test("the manual offers only what plays now on the page's kind, the rest as can'
   assert.ok(!/- side:/.test(show), "a side is a sport's answer");
 });
 
+test("the manual teaches the user's games as worked examples: a card, a ticket on it, a multiplier per replacement", () => {
+  const ctx = B.ctxOf(survivor);
+  const worked = W.workedFor(ctx, B.requests(), { show: "Survivor" });
+  const ids = (spec) => JSON.stringify(spec);
+  assert.ok(worked.some((e) => /"card":\{"from":"bot"/.test(ids(e.spec)) && /"answer":"ticket"/.test(ids(e.spec)) && /ticket/.test(e.teach)), "the weekly sheet with one stake on it");
+  assert.ok(worked.some((e) => /"times":\[0\.5,0\.25\]/.test(ids(e.spec)) && /own\.replace 'shared'/.test(e.teach)), "the exclusive draft with shared replacements at half then a quarter");
+  assert.ok(worked.some((e) => /"only":"card"/.test(ids(e.spec))), "the shared objectives each week");
+  for (const e of worked) {
+    assert.deepEqual(S.specProblems(e.spec, ctx), [], e.words);
+    assert.equal(e.on, undefined, "typed on this page's show");
+  }
+  const manual = W.manualFor(ctx, { examples: B.requests(), show: "Survivor" });
+  assert.match(manual, /WORKED EXAMPLES/);
+  assert.match(manual, /a sheet of objectives\) each episode, not only bingo/, "a card isn't only bingo's");
+  const traitors = W.workedFor(B.ctxOf({ show: "The Traitors", season: 4, rulebook: "traitors" }), B.requests(), { show: "The Traitors" });
+  assert.ok(traitors.length && traitors.every((e) => e.on === "Survivor"), "on another show, said where it was typed");
+  const lesson = W.examplesFor(ctx, B.requests(), { show: "Survivor", skip: new Set(worked.map((e) => e.words)) }).playing;
+  assert.ok(!lesson.some((e) => worked.some((x) => x.words === e.words)), "each request once in the manual");
+});
+
 test("the manual's examples are the tracker's own requests, each one playing on the page", () => {
   const ctx = B.ctxOf(survivor);
   const { playing, waiting } = W.examplesFor(ctx, B.requests(), { show: "Survivor" });
@@ -129,6 +149,21 @@ test("the numbers their words say, and a quote found only on word boundaries", (
   assert.deepEqual(n("$100 to bid"), [100]);
   assert.deepEqual(n("first to twenty"), [20]);
   assert.deepEqual(n("2.5x in the finale"), [2.5]);
+  // The user's typed games (2026-11-08): number words as verbs and plurals.
+  assert.deepEqual(n("the replacement's replacement points count as quartered"), [0.25]);
+  assert.deepEqual(n("their points halves"), [0.5]);
+  assert.deepEqual(n("halved, then quarters"), [0.25, 0.5]);
+  assert.deepEqual(n("doubled or tripled, quadrupled in the finale"), [2, 3, 4]);
+  assert.deepEqual(n("zero for a quit"), [0]);
+  assert.deepEqual([...W.numbersIn("points for doubles and triples", { kind: "sport" })], [], "a sport's nouns aren't numbers");
+  assert.deepEqual([...W.numbersIn("their points halves", { kind: "sport" })], []);
+  // "no negative points" backs a 0 on a moment's points, and nothing else (g30 is the real bot's answer).
+  const zero = (quote, game, part) => W.checkDraft({ game, said: [{ part, quote }] }, { ctx: B.ctxOf(survivor), words: quote });
+  const neg = zero("no negative points", { preset: "weekly-lineup", score: { by: "moments", points: { votedOut: 0 } } }, "score.points");
+  assert.deepEqual(neg.dropped, []);
+  assert.equal(neg.spec.score.points.votedOut, 0);
+  const tie = zero("no points for ties", { preset: "outlast", rank: { by: "matchups", playoffs: { teams: 2, from: 0 } } }, null);
+  assert.ok(tie.dropped.some((d) => d.part === "rank.playoffs.from"), "a 0 elsewhere isn't backed by the phrase");
   // A quote is said only where it's in their words whole: "3" isn't in "30", and a period at its end doesn't matter.
   const ctx = B.ctxOf(survivor);
   const said = (words, quote) => W.checkDraft({ game: { preset: "outlast" }, said: [{ part: "preset", quote }] }, { ctx, words }).said.length;
@@ -192,6 +227,29 @@ test("our check on the bank's hand-written cases: each mistake a question or a c
       assert.ok(r.describe && r.describe.sentence, `${c.id}: said in the engine's words`);
     }
   }
+});
+
+test("the user's typed games (2026-11-08): half then a quarter kept, everyone counting is best ball, the bank's page has its cast", () => {
+  const c = B.cases().find((x) => x.id === "g25");
+  const ctx = B.ctxOf(c.page);
+  assert.equal(ctx.pool, 21, "Survivor 51's cast, as it premiered: an exclusive draft of 5 times 3 is checked against it");
+  assert.equal(B.packOf(c.page, ctx).cast.length, 21);
+  assert.equal(B.ctxOf({ ...c.page, pool: 18 }).pool, 18, "a page's own pool wins");
+  assert.equal(B.ctxOf({ ...c.page, cast: false }).pool, undefined, "a page can have no cast");
+  const r = W.checkAnswer(B.answerOf(c), B.checkOpts(c.page, c.words, ctx));
+  assert.deepEqual(r.spec.score.multiply[0].times, [0.5, 0.25]);
+  assert.deepEqual(r.spec.count, { best: 3 });
+  assert.ok(r.assumed.some((a) => a.part === "count" && a.by === "check" && /best ball of all 3/.test(a.why)), "said in what our check filled in");
+  assert.match(r.describe.sentence, /all 3 count each episode/);
+  assert.match(r.describe.sentence, /the first replacement scores half, the second a quarter/);
+  // Counting everyone where it already plays (an Outlast scores places, the whole team) is left alone.
+  const outlast = W.checkDraft({ game: { preset: "outlast", count: { all: true } }, said: [{ part: "preset", quote: "outlast" }] }, { ctx, words: "outlast" });
+  assert.deepEqual(outlast.spec.count, { all: true });
+  // A team size they didn't say is asked: the count isn't fixed at our guess while their answer changes the team.
+  const lineup = { preset: "weekly-lineup", get: { by: "draft", each: 7, order: "blind", own: "shared" }, count: { all: true } };
+  const guessed = W.checkDraft({ game: lineup, said: [{ part: "preset", quote: "a lineup where everyone counts" }] }, { ctx, words: "a lineup where everyone counts" });
+  assert.ok(guessed.ask.some((q) => q.part === "get.each"));
+  assert.equal(guessed.spec.count && guessed.spec.count.best, undefined, "not repaired while the size is asked");
 });
 
 test("every request the engine plays, drafted ideally, comes back the same game: our check never changes a good draft", () => {

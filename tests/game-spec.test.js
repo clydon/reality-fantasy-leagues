@@ -571,6 +571,21 @@ test("describeSpec: the sentence for each game, and the details nobody asked abo
   assert.match(say(points({ votedOut: -5, immunity: 3 }), { ...ctx, moments }), /with one moment's points changed\.$/);
   assert.match(say(points({ votedOut: -5 })), /with the game's own points\.$/, "without the moments it can't say how many");
   assert.match(say(points({ votedOut: -3, immunity: 0 }), { ...ctx, moments: [moments[0], { ...moments[1], off: true }] }), /Scored by Survivor 51's rules\.$/, "an off moment's points change nothing");
+  // The user's "no negative points" (2026-11-08): every point the rules would cost taken away, said as that (impeccable's clarify).
+  assert.match(say(points({ votedOut: 0 }), { ...ctx, moments }), /Scored by Survivor 51's rules, but nothing costs points\.$/);
+  assert.match(say(points({ votedOut: 0, immunity: 5 }), { ...ctx, moments }), /but nothing costs points, and one other moment's points changed\.$/);
+  assert.match(say(points({ votedOut: -1 }), { ...ctx, moments }), /with one moment's points changed\.$/, "a smaller loss still costs points");
+  assert.match(say(points({ votedOut: 0, immunity: -1 }), { ...ctx, moments }), /with two moments' points changed\.$/, "a new loss isn't no negatives");
+  assert.match(say(points({ immunity: 5 }), { ...ctx, moments: [moments[1]] }), /with one moment's points changed\.$/, "rules that cost nothing to begin with");
+  assert.match(say(points({ votedOut: 5 }), { ...ctx, moments }), /but nothing costs points, and one other moment's points changed\.$/, "a penalty that now scores is named");
+  // Best ball of the whole team: "all 3 count", never "best 3 of 3".
+  const best = (n) => ({ ...G.PRESETS["weekly-lineup"], get: { ...G.PRESETS["weekly-lineup"].get, each: 3 }, count: { best: n } });
+  assert.match(say(best(3)), /everyone drafts 3, and all 3 count each episode/);
+  assert.match(say(best(2)), /everyone drafts 3, and their best 2 count each episode/);
+  assert.ok(G.describeSpec(best(3)).short.line.includes("Draft 3, all count"));
+  assert.ok(G.describeSpec(best(3)).rules.includes("Each episode, all three count: no lineups to set."));
+  const slots = { ...best(3), get: { ...best(3).get, groups: { slots: 1 } } };
+  assert.match(say(slots), /their best 3 count each episode/, "a group slot beside them: the best 3 of 4");
   const stats = { spec: 1, get: { by: "draft", each: 3 }, count: { all: true }, score: { by: "stats", points: { AST: 1, HR: 4, TB: 1 } } };
   assert.match(say(stats, { stats: [{ key: "AST", label: "assist" }, "HR", "TB"] }), /Scored 1 an assist, 4 an HR and 1 a TB\.$/);
 

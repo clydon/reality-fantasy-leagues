@@ -19,6 +19,9 @@ const CHIP_WORDS = [
   [/^Draft (\d+)$/, (m) => new RegExp(`drafts ${m[1]}\\b`)],
   [/^(\d+) from a hat, start (\d+)$/, (m) => new RegExp(`gets ${m[1]} drawn at random.* starts ${m[2]}`)],
   [/^(\d+) from a hat, best (\d+) count$/, (m) => new RegExp(`gets ${m[1]} drawn at random.* their best ${m[2]} count`)],
+  // Best ball of the whole team (G1's typed fixes, impeccable's clarify): "all count", said "all 3 count".
+  [/^(Draft|Bid for) (\d+), all count$/, (m) => new RegExp(`(drafts|team of) ${m[2]}\\b.* all ${m[2]} count`)],
+  [/^(\d+) from a hat, all count$/, (m) => new RegExp(`gets ${m[1]} drawn at random.* all ${m[1]} count`)],
   [/from a hat$/i, /drawn at random/],
   [/^Bid/, /bid/],
   [/^Pick 1 to stay in$/, /to stay in/],

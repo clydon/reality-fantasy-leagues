@@ -16,6 +16,16 @@ const C = require("../../../src/lib/game/game-spec/capabilities.js");
 
 const CASES = path.join(__dirname, "cases.json");
 const TRACKER = path.join(__dirname, "..", "engine-capabilities.json");
+const CASTS = path.join(__dirname, "casts.json");
+
+/** A page's cast: its own (`page.cast`, a list; `false` for none), else the season's in ./casts.json (as it premiered), else none. */
+function castOf(page) {
+  if (!page || page.sport) return [];
+  if (Array.isArray(page.cast)) return page.cast;
+  if (page.cast === false) return [];
+  const known = JSON.parse(fs.readFileSync(CASTS, "utf8")).casts[`${page.show}/${page.season}`];
+  return known ? known.cast : [];
+}
 
 /** The hand-written cases. */
 const cases = () => JSON.parse(fs.readFileSync(CASES, "utf8")).cases;
@@ -23,15 +33,18 @@ const cases = () => JSON.parse(fs.readFileSync(CASES, "utf8")).cases;
 /** The tracker's requests (every row with words), each with its part. */
 const requests = () => C.rowsOf(JSON.parse(fs.readFileSync(TRACKER, "utf8"))).filter((r) => r.words);
 
-/** What a page can settle (its rulebook's ctx), named for its show, with the couch and who can be drafted when it says. */
+/** What a page can settle (its rulebook's ctx), named for its show, with the couch and who can be drafted: the page's pool, else
+ *  its cast still in (as the server counts it). */
 function ctxOf(page) {
   const base = pageCtx(page);
   if (!base) return null;
+  const cast = castOf(page);
+  const pool = Number.isInteger(page && page.pool) ? page.pool : cast.length ? cast.filter((c) => c.in !== false).length : null;
   return {
     ...base,
     show: C.pageName(page),
     ...(Number.isInteger(page && page.couch) ? { couch: page.couch } : {}),
-    ...(Number.isInteger(page && page.pool) ? { pool: page.pool } : {}),
+    ...(pool !== null ? { pool } : {}),
   };
 }
 
@@ -53,7 +66,8 @@ function sportInput(page) {
   };
 }
 
-/** A page's context pack, from its rulebook alone (no cast: the bank has no database); a sport's from its ESPN league. */
+/** A page's context pack, from its rulebook and its cast (castOf: no database, the bank's own list); a sport's from its ESPN
+ *  league. */
 const packOf = (page, ctx = ctxOf(page)) =>
   W.packOf({
     label: C.pageName(page),
@@ -61,6 +75,7 @@ const packOf = (page, ctx = ctxOf(page)) =>
     ...(page && Number.isInteger(page.season) ? { season: page.season } : {}),
     kind: page && page.sport ? "sport" : "show",
     ctx: ctx || {},
+    cast: castOf(page),
     couch: Number.isInteger(page && page.couch) ? { people: page.couch } : null,
     ...(page && page.sport ? sportInput(page) : {}),
   });
@@ -90,4 +105,4 @@ function idealDraft(row) {
 /** A case's answer as the bot sends it: its raw text, or its object as JSON. */
 const answerOf = (c) => (typeof c.answer === "string" ? c.answer : JSON.stringify(c.answer));
 
-module.exports = { CASES, TRACKER, cases, requests, ctxOf, packOf, gamesOf, checkOpts, idealDraft, answerOf };
+module.exports = { CASES, TRACKER, CASTS, castOf, cases, requests, ctxOf, packOf, gamesOf, checkOpts, idealDraft, answerOf };

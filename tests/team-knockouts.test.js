@@ -81,7 +81,7 @@ test("teams knocked out and a race between teams: their shape, words and setting
   assert.deepEqual(at({ ...asks, rank: { by: "total", race: { to: 20 }, teams: { of: 2 } } }), ["rank.teams"]);
   // The words: the teams first, then how they're knocked out or race.
   const W = { show: "Survivor 51", castaway: "castaway" };
-  assert.equal(G.describeSpec(cut, W).sentence, "A game for Survivor 51: everyone drafts 2, and their best 2 count each episode, all season. Scored by Survivor 51's rules, with the game's own points. Played in three teams, each of you picking yours before it starts: a team's points are its members' added up. After Episode 2 the lowest team on points is cut. Last team standing wins.");
+  assert.equal(G.describeSpec(cut, W).sentence, "A game for Survivor 51: everyone drafts 2, and all 2 count each episode, all season. Scored by Survivor 51's rules, with the game's own points. Played in three teams, each of you picking yours before it starts: a team's points are its members' added up. After Episode 2 the lowest team on points is cut. Last team standing wins.");
   assert.equal(G.describeSpec(race, W).sentence.endsWith("Played in three teams, each of you picking yours before it starts: a team's points are its members' added up. The first team to 10 points wins: the game ends there."), true);
   assert.match(G.describeSpec(lineup({ by: "standing", cut: [{ at: { every: 1 }, out: 2 }] }), W).sentence, /Each episode the two lowest-scoring teams are out\./);
   const how = G.describeSpec(cut, W).rules;

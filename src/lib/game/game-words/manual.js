@@ -25,7 +25,7 @@ const WORDS = {
     values: {
       draft: 'a team of people drafted for the game (get.each, get.order, get.own)',
       pick: 'people picked fresh each episode (get.each 1 to 8; a pool picks 1)',
-      card: 'a new bingo card each episode (score.by lines)',
+      card: "a bingo card each episode (score.by lines); a weekly sheet of questions or objectives is the card field, not this",
       none: 'nothing held: you answer questions (score.by answers, the questions in ask)',
       squares: "a grid of a team game's two scores' last digits (score.by squares)",
     },
@@ -133,7 +133,7 @@ const WORDS = {
       side: "one of a team game's two sides",
       bracket: "a draw's winners round by round",
       trivia: "the round's trivia questions about the episode before (settle trivia)",
-      ticket: 'a ticket: the questions you put on it and a stake (settle legs)',
+      ticket: 'a ticket (a parlay): one stake on several of your answers, its legs, the payout growing with each leg (settle legs; wager the stake)',
     },
     sport: ['side', 'bracket'],
     show: ['calls', 'split', 'pairs', 'trivia'],
@@ -299,7 +299,7 @@ const FIELDS = {
   'ask.shrink': "{ points, per }: a call open to the finale worth less the later it's made",
   'ask.wager': 'a stake: up to n of your points (or "total") on your answer; right wins it, wrong loses it',
   'ask.beat': "{ by: 'bot' }: a right answer scores only where our bot's call isn't right",
-  'ask.card': "true: a question on each line of this week's card",
+  'ask.card': "true: one question asked on each line of this week's card, any answer (a person who does it: settle moment, take who; yes or no: take happened)",
   'ask.settle.place': 'where they finish, for placed or top',
   'rank.race': '{ to }: the first to that many points wins, and the game ends there',
   'rank.cut': '[{ at, out }]: players knocked out (rank by standing); out a number or "half"; in an exclusive draft a cut player\'s people go back in the pool',
@@ -311,7 +311,7 @@ const FIELDS = {
   'stages.side': '{ held }: a side game for each grouping that has held that many episodes',
   'stages.alongside': 'true: plays at the same time as the stages before it (two ways of scoring at once)',
   'stages.season': "{ show, number }: a stage on another show's season",
-  card: "{ from, each, of }: a new card each episode: each lines, drawn from of (the show's moment ids)",
+  card: "{ from, each, of }: a new card (a sheet of objectives) each episode, not only bingo: each lines drawn from of (the show's moment ids), picked by the AI (from 'bot') or in turn ('moments'); questions on it are ask.card, the moments that count score.only 'card'",
   'extras.waivers': "replacements and swaps mid-season: { replace: 'always' | 'never', windows: { schedule, every, swaps }, own: { replace, swap } }",
   'extras.seats': '{ people }: up to that many of you share one team',
   'extras.lateLock': '{ hours }: someone who watches later locks that many hours after the episode airs',
@@ -413,6 +413,22 @@ function examplesFor(ctx, rows, { limit = 24, cant = 6, show, kind = 'show', ski
     }
   }
   return { playing, waiting };
+}
+
+/**
+ * The worked examples (G1's typed fixes, 2026-11-08): the tracker's requests that carry a lesson (`teach`: which pieces their words
+ * call for), on a show's or a sport's page as theirs is, each { words, spec, teach, on? }: `on` the show it was typed on when that
+ * isn't this page's (its moment ids are that show's). The user's own games, so the bot reaches for the pieces that compose (a card,
+ * a ticket, a multiplier) rather than a fixed list and a can't-yet. At most `limit` (the ask stays short).
+ */
+function workedFor(ctx, rows, { show, kind = 'show', limit = 4 } = {}) {
+  return (rows || [])
+    .filter((r) => r && r.words && r.spec && typeof r.teach === 'string' && r.teach && kindOfPage(r.page) === kind && !specWaitsFor(r.spec).length)
+    .slice(0, limit)
+    .map((r) => {
+      const page = r.page && r.page.show ? r.page.show : null;
+      return { words: r.words, spec: r.spec, teach: r.teach, ...(page && page !== show ? { on: page } : {}) };
+    });
 }
 
 /** "A Survivor 51 game ...": a preset whole, in the engine's words, and its spec's main parts. */
@@ -541,7 +557,14 @@ function manualFor(ctx, { kind = 'show', examples = [], limit = 16, show = null,
     const e = fieldLines.get(field);
     lines.push(`- ${field}: ${words}${e ? `. e.g. "${e.words}" -> ${oneLine(e.spec)}` : ''}`);
   }
-  const ex = examplesFor(ctx, examples, { limit, show, kind, skip: new Set([...fieldLines.values()].map((e) => e.words)) });
+  const worked = workedFor(ctx, examples, { show, kind });
+  if (worked.length) {
+    lines.push('');
+    lines.push('WORKED EXAMPLES (requests like these combine pieces; reach for the same pieces before saying cantYet):');
+    // Their words, the game and why (the engine's sentence left out: the ask stays short, and the lesson says it).
+    for (const e of worked) lines.push(`- "${e.words}" -> ${oneLine(e.spec)}${e.on ? ` (typed on ${e.on}: use this page's own moments)` : ''}. Why: ${e.teach}`);
+  }
+  const ex = examplesFor(ctx, examples, { limit, show, kind, skip: new Set([...fieldLines.values()].map((e) => e.words).concat(worked.map((e) => e.words))) });
   if (ex.playing.length) {
     lines.push('');
     lines.push('EXAMPLES THAT PLAY ON THIS PAGE (their words -> the game, and how we say it):');
@@ -555,4 +578,4 @@ function manualFor(ctx, { kind = 'show', examples = [], limit = 16, show = null,
   return lines.join('\n');
 }
 
-module.exports = { WORDS, FIELDS, manualFor, examplesFor, fieldExamples, fieldsOf, signature, plays, sportGameSpec };
+module.exports = { WORDS, FIELDS, manualFor, examplesFor, workedFor, fieldExamples, fieldsOf, signature, plays, sportGameSpec };
