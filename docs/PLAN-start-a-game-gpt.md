@@ -11546,6 +11546,38 @@ first), and proves it on these games and on the tracker's other rows that use it
   but by team: search for a team, its schedule, the team against an opponent, and the like, on the sports data's own schedules
   (ESPN's `schedule(league, team)`; the data side is track L's, before its release). And the TV guide's Sports filter turned
   on (today a "coming soon" button, `src/new/hub/guide.tsx`) once sports is released.
+  **U0, round 1 (2026-11-07, the main session with the user; impeccable shape, then the surface concept round; the mocks on
+  the canvas https://claude.ai/artifact/DrbDz9CCCqNiha6yaUGckj, private: D2 and "When it runs, at the edges" lead; A to E are the
+  steps that got there; every sentence on D, D2 and A is the engine's own, from G5's first real run, below):**
+  - **The sheet leads with the games made for the show** (G5's): When it runs, then "Made for <show>": every premade game that fits
+    that stretch (a standard one first, the creative ones, the other standard ones tagged Standard), each a row with its type's
+    icon, its name and the bot's one-line sell; the selected one opens as a white plate with the engine's line and sentence, then
+    **Make it yours**: Play it as (the 7 ways to win, labelled tiles) and Add a twist (the engine's twists valid for it, wagers
+    included), Back to the original. Game type chips (Questions, Drafts, Picks, Bingo, with counts) filter the list; how you win
+    is a modifier, never a filter (filtering by it would hide games that could be played that way). Build your own (the pickers:
+    the game, then how you win, then Versions) and Say it your way stay below. A quick game for tonight is one tap (the user).
+  - **Picks only flow down** (the user): a later pick never changes an earlier one; what doesn't fit is dashed and says why.
+  - **When it runs = episodes picked like dates:** tap where it starts, then where it ends (one tap, one episode; the same
+    again settles it); the stretch one white plate with a slanted end; stage bands under the cells pick a stage (Tribes = pre-merge,
+    the premiere left out); a stage boundary nobody can date (the merge, the jury, Casa Amor) is a dashed "≈" divider meaning
+    "whenever it happens"; a readout plate ("≈4 EPS | EPISODE 3 UNTIL THE MERGE"). Cells are the show's own rounds (Big Brother
+    by week, about 3 episodes each; legs, games); too many still fold the aired ones into one cell and scroll, with a thin
+    overview line; a sports series shows its if-needed games dashed (a game to the end of the series ends when it's won; the count
+    reads "4-7 games"). The episode count is usually known (schedules, research: the user); when it isn't, stage blocks with "or
+    just 1-5 episodes" (counted from the stage's start) are the fallback, and cells appear over them once the schedule lands.
+  - **Asks of the engine and research from this round** (for G5 and U1): a count from a stage start ("3 episodes from the merge":
+    a span from a phase plus n); "just the finale" by condition (a finale marker); G5's research adds the season's round word,
+    each stage's rough place (where its ≈ line sits) and standard games that work at any length (the bot's standard Predictions
+    bundled season-long questions, so it couldn't run one episode); G5's check keeps every number as the bot's choice (G1's check
+    drops numbers nobody typed); the manual needs worked examples for a bingo card, Weekly Calls and a redraft at the merge (the 3
+    of 17 the first run wrote in shapes the engine doesn't use; each cleaned version still played); one-episode ideas belong on
+    the next episode, the premiere included (the first run put them on Episode 2); describe.js says "from the first time the
+    merge." for a stage that starts at the merge.
+  - **G5's first real run** (Survivor 51, a couch of 5, the local bot, ChatGPT, 59 s, the whole 44,000-character prompt arrived):
+    17 games, 14 played as written, 3 after our check cleaned them. The prompt: the page's pack, the manual and G5's ask
+    (scratchpad g5-prompt.js; the real one goes in game-words/prompt.js beside gamePrompt, the user's to approve).
+  - **Still to design in U0:** typing's result screen, finding a sports game by team, the guide's Sports filter; then an
+    impeccable critique of D2 and the edges before U1.
 - **U1. Build.** The field and the wizard in Start a game, Start from a spec, Make it a game chained for a show that isn't set
   up (was G2); answering and results; the live and sports screens; the Games tab's launcher and the game pages from track V's
   generator (V3's golden screens their check); checked at 390 on Night and Studio with a zt- fixture.
