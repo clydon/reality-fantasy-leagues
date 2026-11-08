@@ -11494,6 +11494,17 @@ first), and proves it on these games and on the tracker's other rows that use it
   - **Any piece the engine has** (the user: "we are planning for the future so don't hold back"): the screens catch up in U1 and track V.
   - **Proof:** every idea of every taped season passes our check and plays to the end blind (`blind.js`); the standard ones
     read the same names on every show; a phase-tagged question is asked only in its phase.
+  - **Which AI writes them** (the user's idea, 2026-11-08: a faster model when an ask needs no web research). The made-for
+    ask (45,600 characters, no web), twice on each. ChatGPT's GPT-6 at Instant (the bot's default): 71 s and 71 s, 14 of 18
+    played as written both times. Codex's gpt-6-luna (its fast model) at low: 69 s and 58 s, so no faster (it writes less,
+    not quicker); 11 of 18 lengths wrong, 4 of 18 themed (about half asked), and its second answer broken JSON. Codex's
+    gpt-6.1-sol at low (what Codex is in the app): 112 s and 106 s, 6 then 18 of 18 as written. Every answer that parsed
+    played 16 to 18 games after our check. A blind read of the five sets, which paired sol's two runs and ChatGPT's two by
+    itself: sol 7.0 and 6.5, ChatGPT 6.8 and 5.8, luna 6.2 (the most Survivor-true ideas, the least variety). So no faster
+    model for a long answer, and luna is out. Nobody waits for G5: its ask can go to Codex once it's a run kind of its own
+    (the desk's bot_ai_runs), keeping ChatGPT's browser, one question at a time, free for research, which needs the web. The
+    user's call. Asking another model gives more new games than asking one again (ChatGPT's two runs both wrote Tribal
+    Council Jackpot and Sole Survivor Futures). Scripts: the session's scratchpad run-made.js and compare-made.js.
 
 **V. Game pages, generated** (the user, 2026-10-30; "The Games tab and game pages", above).
 - **V1. The page generator: a research spike, then a prototype** (heavy; likely two sessions). First how others turn data
