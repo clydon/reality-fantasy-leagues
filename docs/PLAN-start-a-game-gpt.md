@@ -11604,8 +11604,39 @@ first), and proves it on these games and on the tracker's other rows that use it
   - **G5's first real run** (Survivor 51, a couch of 5, the local bot, ChatGPT, 59 s, the whole 44,000-character prompt arrived):
     17 games, 14 played as written, 3 after our check cleaned them. The prompt: the page's pack, the manual and G5's ask
     (scratchpad g5-prompt.js; the real one goes in game-words/prompt.js beside gamePrompt, the user's to approve).
-  - **Still to design in U0:** typing's result screen, finding a sports game by team, the guide's Sports filter; then an
-    impeccable critique of D2 and the edges before U1.
+  - **Episode types and rounds are tabled** (the user, 2026-11-07: back to the mock once When it runs was near final); the two
+    bullets above stand as the record.
+  - **F, the complete sheet** (the canvas's StartF board; every game, line, sentence and option the engine's own, from G5's run, a
+    G5 ask for wager games and three typed games through G1, all on the local bot): simple first (the season-aware default is
+    picked; Start it is one tap), everything else a tap away:
+    - **Describe a game** heads the sheet (our AI: say it like you'd tell the couch). Typing, three real asks as starters, about 20
+      seconds (the sheet can be left: the row says "Ready" when it's done), then the result: the engine's plate and sentence;
+      **the user's own words with what made it into the game underlined and what can't count yet dashed** (a quote is in when its
+      part is in the checked spec); **Can't count yet** in the user's words with an offer where there's one ("Someone cries" as a
+      square on the card, for a bingo game that can't score crying); **Your call** (the check's asks, the bot's pick
+      preselected); **We filled in** (its assumptions). Start it, or change the words.
+    - **What scores**, a row in the picked game ("23 moments · Survivor 51's rules", "2 questions · stake up to 15, double or
+      nothing"): moments grouped (Challenges, Tribal Council, Idols and journeys, Leaving, The finale), each on or off with its
+      points to step, "add a moment of your own" (research asks it after every episode; when the recaps don't say, two of you
+      settle it); a game of questions' points; a bingo card's own squares; what a pool or an Outlast scores instead. Changes are
+      this game's only, with "Back to Survivor 51's rules".
+    - **Wagers, highlighted** (the user: none showed): G5's wager games (Boot Bet, one episode; Tribal Jackpot, until the merge,
+      the couch's pot; Sole Survivor Stakes, the season: the winner once and the boot each week from a bank of 30), tagged Wager
+      with a coin icon; a **Wagers** chip listing them first, then every game that takes a wager shown with it on (9 of the
+      season's 14); and **Add a wager** apart from the twists in Make it yours: double or nothing, a bank, the couch's pot, a
+      parlay, a ticket, or on a draft a side bet on who goes home.
+  - **Asks from F** (for the engine, G1, G5 and U1): rollSpec's money twists don't compose with a game's own questions (a bank
+    needs a stake on one, the parlay twist names a question the game hasn't got, double or nothing leaves the line unchanged), so
+    F builds each wager as a spec the engine checks; `score.times` is a draft's only, so "points double after the merge" on
+    Predictions is dropped (times on a game of questions); a side question is refused beside picks, bingo and a pool; the check's
+    why for a dropped part is in its own words (“times isn't part of a game spec”) and the result screen needs the user's,
+    from the part's said quote; describe's line says "Double or nothing" at the pool's odds, and roll's questions read "Will
+    anyone: learned of an idol or advantage privately?" and "Who'll be the one: won the Reward challenge?"; the rulebook's moments
+    need a group (What scores groups them); a couch's own bingo square, always on the card; G5's ask covers wager games beside the
+    standard and creative ones (one per length left the season with one); a typed game knows the page's moment (the typed bingo
+    said Episode 1: asked on premiere night's page).
+  - **Still to design in U0:** finding a sports game by team, the guide's Sports filter (typing's result is F's); then an
+    impeccable critique of F and the edges before U1.
 - **U1. Build.** The field and the wizard in Start a game, Start from a spec, Make it a game chained for a show that isn't set
   up (was G2); answering and results; the live and sports screens; the Games tab's launcher and the game pages from track V's
   generator (V3's golden screens their check); checked at 390 on Night and Studio with a zt- fixture.
