@@ -11682,6 +11682,23 @@ first), and proves it on these games and on the tracker's other rows that use it
     points, when there are six or fewer), What scores leads with what counts (the rest folded under "Not counting"), unticking
     a moment drops it from the game's moments (so the engine says "Only N moments count"), and "Survivor 51's standard points"
     names the season's own (the user found "Survivor 51's rules" unclear; the engine's sentence to follow).
+  - **Scoring themes (the user, 2026-11-08):** named ways to score a season's moments, made by research from the show's own
+    moments (it knows the built-in ones and may add up to two of its own, as a season's added moment), each checked by the
+    engine; **names literal, saying what scores** (the user: "they should be more literal and describe how it's scored"). Survivor
+    51's, from the local bot (scratchpad run-themes.js): Challenges only, Votes and idols, Staying in the game (adds "Stayed in the
+    game", +1 each episode someone's still in), Finale counts most, No minus points, Idols and advantages: all six play. In the
+    mocks they're "Start from" at the top of What scores, and the game names its scoring ("Challenges only · 9 moments"). They
+    go into G5 next: premade games built with a theme ("Best Ball, Challenges only"). Engine asks (the engine lane's notes): a
+    theme's name on the spec for describe's words, and a built-in "stayed in" moment from the results, which would make
+    placement beside other moments playable.
+  - **How many premade games (the user asked the limit):** no technical limit (a G5 ask is one bot call of about a minute for
+    17 games, a themes ask 30 seconds, the engine's check milliseconds a game). With themes, the engine can make tens of
+    thousands of valid games per season (8 kinds × 7 scorings × 7 ways to win × 28 twists × the timings), so premade games are a
+    curated front onto that space, not its limit. The limits are people's: about 3 to compare up front, 10 to 15 in Every game
+    per stretch before a list stops helping, near-duplicates (dedupe by spec: one game, one name), honest hooks for their
+    length, and trust in every one shown. Recommended: per season, the kinds' standard games plus 3 creative ones per length,
+    each a kind × a theme × a twist; for Tonight, a few fresh ideas per episode from that episode's research; everything else
+    through Shuffle, Describe and Change the rules.
   - **Still to design in U0:** finding a sports game by team, the guide's Sports filter (typing's result is F's); then an
     impeccable critique of the option the user picks (round 14) and the edges before U1.
 - **U1. Build.** The field and the wizard in Start a game, Start from a spec, Make it a game chained for a show that isn't set
