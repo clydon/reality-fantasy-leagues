@@ -11781,7 +11781,35 @@ first), and proves it on these games and on the tracker's other rows that use it
     drawing only as a stand-in (an artifact: https://claude.ai/artifact/6exCdZsRUWLbgTShQnKHej). Three clashes to fix in the
     redraw: Most points, What scores and Different scoring share one drawing; More competitive and Head to head share one;
     Ticked and Done share one.
-  - **Still to design in U0:** finding a sports game by team and the guide's Sports filter (typing's result is F's); then U1.
+  - **Round 1's sports and the AI's errors** (2026-11-08; the user: "lets work on the remaining designs and mocks to do
+    within U0"; the canvas's bottom row, version 40). Real data: the app's own finding code (`sports/find.ts`'s searchTeams
+    and teamSchedule, run through jiti) and ESPN's free API, read 8 Nov 2026 about 1:30 PM Eastern; the couch's follows are
+    examples. Four boards. **Find a team**: the add box finds Shows · Teams · Leagues as you type (a team, a team's schedule,
+    "Eagles v Cowboys"); a team opens its own header in its colour, **Play the next game now** (one tap starts Pick'em on it,
+    the couch told after a 10-second Undo), its rivals (the couch's own teams first, four shown, then All opponents · N) and
+    Coming up (five, then folded by month, so an NBA team's 60 games don't run on); a game already on offers the couch's next
+    kickoff today and Watch along now; a league opens This week and Next week, each row a game. **The guide's Sports**: this
+    week's real games (8 to 14 Nov), each day leading with the couch's teams' games as cards, each face under its own team,
+    every other game counted by league a tap away; nothing picked by hand. **Start a game on a team**: B settled in a sport's
+    words, When it runs the team's own games (the next one, the rest of the season, picked like dates, or the meetings with a
+    rival), the rail the sport's standard games that fit (Pick'em, Squares, Pick a few, a draft, Best Ball, a season league),
+    each in the engine's own words (describe.js on the NFL page); the quick changes dashed "Coming for sports" until rollSpec
+    rolls sport pages. **The AI's errors** (game-words.ts's own three, the board's Error prop): the bot away, today's 10 used,
+    no game in the words; each keeps the words, says that one didn't count, says when the limit resets ("10 more at
+    midnight, in 9 hours"), and offers the next step; Build it waits for changed words, a tip used has an Undo. Each team's
+    colour picks white or ink for its text by contrast (the worst 4.35:1, none under 3:1). **impeccable critique**
+    (dual-agent, before the fixes): 24/40; its three P1s (one tap that wasn't one, a sheet built for the NFL's 17 games,
+    white text on any team colour) and two P2s (the engine's "Week 10" against the readout, errors that spent asks unsaid)
+    fixed, then a look at 390; B's scan: 22 findings, one real (10px initials, now 11px), the rest the board format's. **The
+    engine's three asks** (in the engine lane's notes): rollSpec on a sport page; a team's season in the game's own words, not
+    the league's week; a live game's live calls (A15, round 3). **For U1:** a long season's "from this game, for N games".
+    **The user's calls, open:** spoilers for sports (scores in the guide, a team's sheet, search: a Hide scores switch?); a
+    team as its own place like a show, or a sheet; team colours as fills, written into DESIGN.md as Tags Not Fills' one
+    exception. Scripts: the session's scratchpad sports/ (make-sports-mock.js, make_s.py, s-*.js; check-s.js runs every
+    board).
+  - **Still to design in U0:** round 2, answering a game's questions and its results (picks, a draft's turn, the reveal in
+    a sport's words); round 3, the live pieces (the watch along, live calls, a live game's screens); round 4, a game's own
+    page (track V's frame) and the Games tab's launcher. Then U1.
 - **U1. Build.** The field and the wizard in Start a game, Start from a spec, Make it a game chained for a show that isn't set
   up (was G2); answering and results; the live and sports screens; the Games tab's launcher and the game pages from track V's
   generator (V3's golden screens their check); checked at 390 on Night and Studio with a zt- fixture.
