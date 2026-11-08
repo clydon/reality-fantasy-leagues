@@ -1294,3 +1294,15 @@ never handles it: the user does the reset and the pasting.
   codex, bingo: codex }`, set through `PUT /api/desk/settings`, in Settings history with Undo). Every other run kind
   (the quick and full research that settle results first) still asks ChatGPT. Codex's limits are the plan's, shared by
   the PC, the VM and the playtests; the bot queues rather than spends past them.
+- **2026-11-08, planned: after the ChatGPT Plus trial** (the user keeps a free ChatGPT account and won't pay for Plus;
+  nothing changed yet). OpenAI's pages today: Free has unlimited text chats with web search, on its free model (Luna;
+  Plus's menu offers only GPT-6 and GPT-5.6 Sol, so the bot's GPT-6 pick may not match on Free), and other sites put
+  its context at 27K tokens (our research and game prompts are 8 to 12K); Codex on Free is GPT-6 Luna in the desktop
+  app only (the CLI comes with Plus), so the bot's `codex` provider stops on the PC and the VM. Before the trial ends:
+  the trivia and bingo banks back to ChatGPT (the desk's `bot_ai_runs`), and the bot's door fallback to Codex off
+  (`CHATGPT_FALLBACK`) or onto Claude; the season tapes can't record on Codex. Claude (the user's Claude plan, through
+  the Claude Code CLI) is unaffected, and was 3 to 6 times faster than ChatGPT's browser on one game from words and a
+  button's change (docs/PLAN-start-a-game-gpt.md, U0 "Speedy asks"); it shares the plan's weekly limit with the
+  lanes, and on the VM it would need Claude Code installed and signed in. The Gemini CLI's personal sign-in ended in
+  June 2026; a free Gemini API key (Flash, about 250 a day by others' counts; Google may use free-tier inputs to
+  improve its products) is the free API option. None is set up.
