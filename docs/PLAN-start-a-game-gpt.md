@@ -11663,6 +11663,18 @@ first), and proves it on these games and on the tracker's other rows that use it
     words and creative ones by their hook, and creative ideas fit their own length only (a few: 2 to 5 episodes; a season: to the
     finale); G5's Merge Reset never rolls (redraft at the merge), nor do the redraft, never-twice and trivia-too twists on these
     games.
+  - **The user's four typed games (2026-11-08), through the local bot and G1's check:** (1) an exclusive draft of 3 with
+    replacements from anyone at half, then a quarter per spot: the engine plays it (best ball of 3, or an Outlast; per: 'slot'),
+    G1 didn't (it dropped "quartered", wrote "the whole team counts" in a shape the check refuses, and the bank's page had no
+    cast); (2) a bank of 500, a sheet our AI deals each week, a person named for each, one stake on the sheet that pays more for
+    more: the engine plays it (the user's first game: card from the bot, person answers, a ticket), G1 didn't find card or
+    ticket; (3) head to head for 3 as 2 on 1, the pair's points halved: a real gap, the nearest plays (head to head, the odd one
+    the middle score); (4) "no negative points": plays today. **Handed to the engine lane** (seed-typed.md, started 2026-11-08):
+    the three fixes, the user's three games as the manual's worked examples, the no-negatives sentence, the four re-runs, and
+    the 2-on-1 head to head for a couch of 3 to plan (its rule questions to the user) and build if it fits. In the canvas mocks
+    each of the four opens from Describe a new game as the engine will play it (its questions re-rolled live) and in the sheet
+    as a game to change. Also: describe's short line counts a sheet and its ticket as "2 questions", and its sentence lists all
+    eight moments a sheet draws from (shorter: "four of eight moments, our AI's pick").
   - **Still to design in U0:** finding a sports game by team, the guide's Sports filter (typing's result is F's); then an
     impeccable critique of the option the user picks (round 14) and the edges before U1.
 - **U1. Build.** The field and the wizard in Start a game, Start from a spec, Make it a game chained for a show that isn't set
