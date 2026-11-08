@@ -228,7 +228,7 @@ and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track
 | Team colours: Tags Not Fills kept (2026-11-08) | **No exception** (the user went with the recommendation): a team's colour is on its mark and on the angled tag of its lower third (its name on the white plate, the league on a dark plate under it), as a show's colour is when you tune in. The guide's cards are dark. |
 | The game card: the white card (2026-11-08) | **The white card stays for now** (the user: "for the white background, i think we keep it as is for now"); the title plate stays on the canvas, parked. |
 | Sports results arrive live, then a recap (2026-11-08) | **Live, then a recap** (the user picked it): each pick turns right or wrong as its game ends and the table moves live; when the day's last game ends, a short reveal recaps the night. With Hide scores on, nothing moves until that person taps. |
-| Round 2's aim (2026-11-08) | **Every answer kind, low-fi first, so every game type and every combination can be played** (the user: "I don't want the UIUX to feel piece mealed, I am hopeful the UI can feel like a cohesive design made strictly for the game that was generated. But of course we need to programmatically create it... The end goal is the quick actions a game needs, but also a individual game page"). The approach is proposed, waiting on the user's OK. |
+| Round 2's aim (2026-11-08) | **Every answer kind, low-fi first, so every game type and every combination can be played** (the user: "I don't want the UIUX to feel piece mealed, I am hopeful the UI can feel like a cohesive design made strictly for the game that was generated. But of course we need to programmatically create it... The end goal is the quick actions a game needs, but also a individual game page"). The approach (a grammar, not a form; one skeleton; a main block picked from the spec; twists in the places they change; one code path proving coverage) okayed by the user ("This works"); low-fi done the same day (U0's Round 2 bullet). |
 
 ## What's there today (mapped 2026-10-27)
 
@@ -11814,9 +11814,37 @@ first), and proves it on these games and on the tracker's other rows that use it
     dark). The boards' Scores prop shows Hide scores (version 41), and check-s.js scans every hidden screen for a score,
     clock, period, overtime, winner or record. Scripts: the session's scratchpad sports/ (make-sports-mock.js, make_s.py, s-*.js; check-s.js runs every
     board).
-  - **Still to design in U0:** round 2, answering a game's questions and its results (picks, a draft's turn, the reveal in
-    a sport's words); round 3, the live pieces (the watch along, live calls, a live game's screens); round 4, a game's own
-    page (track V's frame) and the Games tab's launcher. Then U1.
+  - **Round 2, low-fi: every kind of question, and a page generated for any game** (2026-11-08; the user: "every answer
+    kind... so we can be sure every game type, every combination, can be played... a cohesive design made strictly for the
+    game that was generated. But of course we need to programmatically create it... the quick actions a game needs, but
+    also a individual game page"; the approach okayed: "This works"). Round 4 (a game's page) folded in; the canvas's
+    Round 2 rows, version 45. **The grammar, as data:** every value of the engine's vocabulary (schema.js VOCAB: 71 dials,
+    214 values) and every twist (30) names its place on the page, from seven kinds and only these: the main block (one per
+    game: what it's about), a move, a control (how one kind of question is answered), a rider (an extra under an answer),
+    a badge (on a face), an event (on an episode), the table (its kind, a column or a line), plus the lock line and a rule
+    line in How it plays. **One skeleton for every game:** the title as a lower third, Your move, the main block, the table,
+    What's happened, How it plays. **The main block, picked from the spec:** how you win first when it's the game's heart
+    (co-op, a race, head to head, categories, worth, weeks won), then what you hold (squares, a card, objectives, a team,
+    picks scored by what they do, a pick that keeps you in, a pick per game), else the questions; a game in stages leads
+    with its stage strip, each stage its own. **Rules the drawing found:** a move that is the main block is made in place
+    (the lineup on your team, ticks on the card, answers on the questions) and Your move is one status line; a page is
+    drawn at a moment from its span (a game that starts tonight shows what's due before it; a longer one its weekly move,
+    the start-of-season moves in What's happened); a game with nothing due says All set and gets no Tonight card; badges go
+    on faces, never a section; a blind draft or an auction is the draft, its room by the order; the quick action is
+    Tonight's card plus the Your moves sheet, the same blocks as the page. **The proof:** 214 of 214 values placed; every
+    spec we have (2,701: 2,444 engine rolls, 49 sports standards, 88 made-for and typed games, 120 of the engine's own
+    examples) compiles with no hole and draws with no undefined or NaN; every place drawn; all 16 kinds of question appear
+    in real specs. **The boards:** the grammar, every kind of question in its four states (open, answered, locked, scored),
+    the riders, modifiers, locks, badges, events and moves, the main blocks and tables, and 17 real games (one per main
+    block, then the fewest more that bring the riders, badges and events), each its quick action beside its whole page.
+    Low-fi: greys only, the cast's names placeholders. **Noticed for the engine lane:** describe.js tells a sport's game in
+    a show's words ("before each episode", "A game for Survivor 51"; the known sport-vocabulary ask); no spec we have uses
+    objectives (score.hits objective), so the kit draws it without a real example. Scripts: the session's scratchpad
+    u0/r2/ (specs.js, dials.js, grammar.js, compile.js, census.js, render*.js, make_r2.js; `node census.js` is the
+    coverage check, `node make_r2.js` draws and places the boards).
+  - **Still to design in U0:** round 2's hi-fi (the controls, the main blocks and three or four pages in the Lower Third
+    style, a critique, the user's pick); round 3, the live pieces (the watch along, live calls, a live game's screens);
+    the Games tab's launcher. Then U1.
 - **U1. Build.** The field and the wizard in Start a game, Start from a spec, Make it a game chained for a show that isn't set
   up (was G2); answering and results; the live and sports screens; the Games tab's launcher and the game pages from track V's
   generator (V3's golden screens their check); checked at 390 on Night and Studio with a zt- fixture.
