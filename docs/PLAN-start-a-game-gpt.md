@@ -11684,10 +11684,13 @@ first), and proves it on these games and on the tracker's other rows that use it
     names the season's own (the user found "Survivor 51's rules" unclear; the engine's sentence to follow).
   - **Scoring themes (the user, 2026-11-08):** named ways to score a season's moments, made by research from the show's own
     moments (it knows the built-in ones and may add up to two of its own, as a season's added moment), each checked by the
-    engine; **names literal, saying what scores** (the user: "they should be more literal and describe how it's scored"). Survivor
-    51's, from the local bot (scratchpad run-themes.js): Challenges only, Votes and idols, Staying in the game (adds "Stayed in the
-    game", +1 each episode someone's still in), Finale counts most, No minus points, Idols and advantages: all six play. In the
-    mocks they're "Start from" at the top of What scores, and the game names its scoring ("Challenges only · 9 moments"). They
+    engine; **names say what scores, with a little flavour: a 3 or 4 on the user's scale** (0 clinical, "Challenge moments only";
+    10 wacky, "Chaos Goblins"; the user first asked for literal names, then: "you're at a 2, we can go up to a 3 or 4"). Survivor
+    51's, from the local bot (scratchpad run-themes.js): Challenge Champions, Votes & Secret Weapons, Outlast the Rest (adds
+    "Survived the episode", +1 each episode someone's still in), Finale Glory, All Upside, No Penalty, Big Moves & Bold Plays (adds
+    "Orchestrated a blindside"): all six play. In the mocks they're "Start from" at the top of What scores, and **What scores always
+    names the scoring** (the user): "What scores: Challenge Champions", "What scores: Standard points", a game's own ("Immunity
+    and elimination's own"), with ", changed" once you change it. They
     go into G5 next: premade games built with a theme ("Best Ball, Challenges only"). Engine asks (the engine lane's notes): a
     theme's name on the spec for describe's words, and a built-in "stayed in" moment from the results, which would make
     placement beside other moments playable.
