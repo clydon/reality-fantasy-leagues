@@ -12122,6 +12122,12 @@ first), and proves it on these games and on the tracker's other rows that use it
     log. Below Deck: Predictions on the show's own questions, a crew lineup in their roles (L9's slots for shows) and a crew
     member's story. The strip's unit is the world's (Wk, G, Ep), the qualifier its position or role, and a sport's game log takes
     the place of a castaway's story (PLAN-sports-live's player sheet).
+    **The game's page rethought in the sheet's language** (the user: "does that make you rethink any (or all) of the designs we
+    made for generated game pages?"; canvas v55, `make_page_rethink.js`): keep the title card (with the game's line in the engine's
+    words), the move and How it plays; the couch as the Games tab's leaderboard rows; plates and tags only for the broadcast
+    moments. Three ways beside the page as built, for Survival Pool and Weekly Lineup: A the couch's sheet (the leaderboard, then
+    the couch's week by week and the chosen episode for everyone), B you first (your own sheet, then the leaderboard), C the season
+    grid (everyone by episode, then the episode). The user's pick is pending; U1 step 1's page changes with it.
 
 **L. Live sports:** the steps are in "Live sports in the same engine", above (L1–L6, the Sports lane).
 
