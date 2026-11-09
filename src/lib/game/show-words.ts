@@ -37,6 +37,19 @@ export function pluralWord(word: string): string {
 }
 
 /** `people`: the show's own word for many of them, when the desk set one (shows.castaway_plural, 0429: "People" for "Person"). */
+/** An episode word as a strip or a tag says it, short (U1's sports slice: the strip's unit is the world's, "Wk", "G", "Ep"): the
+ *  usual shortenings, else the word itself (never two letters cut off it: "Game" was "Ga"). */
+export function epShort(episode: string): string {
+  const SHORT: Record<string, string> = { Episode: "Ep", Week: "Wk", Game: "G", Round: "Rd", Matchday: "MD", Gameweek: "GW", Race: "Race", Day: "Day", Night: "Night" };
+  return SHORT[episode] ?? episode;
+}
+
+/** An engine's words (its "Episode", the default when it isn't told the show's) in the show's own ("Game 3", "Weeks 1–4"). */
+export function inShowWords(text: string, words: Pick<ShowWords, "episode" | "episodes">): string {
+  if (words.episode === "Episode") return text;
+  return text.replace(/\bEpisodes\b/g, words.episodes).replace(/\bEpisode\b/g, words.episode).replace(/\bepisodes\b/g, words.episodes.toLowerCase()).replace(/\bepisode\b/g, words.episode.toLowerCase());
+}
+
 export function showWords(terms: { castaway?: string | null; people?: string | null; episode?: string | null } | null | undefined): ShowWords {
   const episode = cap((terms?.episode ?? "").trim()) || "Episode";
   const said = cap((terms?.castaway ?? "").trim()) || "Cast member";
@@ -47,7 +60,7 @@ export function showWords(terms: { castaway?: string | null; people?: string | n
   return {
     episode,
     episodes,
-    ep: episode === "Episode" ? "Ep" : episode,
+    ep: epShort(episode),
     person,
     people,
     peopleTab: people.length <= TAB_ROOM ? people : "Cast",

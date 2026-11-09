@@ -25,6 +25,9 @@ import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { useReducedMotion } from "../welcome/hooks";
 import { AddNewBlock, ListingsCredit, SearchNote, SearchRows, SuggestionCard, seasonLine, useShowSearch, type SearchRow } from "./search";
+import { SportsResults, useTeamSearch, type TeamPick } from "../sports/search";
+import { LeagueView, openSports, startOn } from "../sports/sheets";
+import { TeamView } from "../sports/team";
 import { WhereAsk, type SeasonPick, type WhereSeason } from "./where";
 import { episodeWordFromTitles } from "@/lib/game/show-words";
 
@@ -196,6 +199,9 @@ type Step =
   // `season`: one of the listing's seasons picked by number (Where are you's picker), else the one adding it would follow.
   | { kind: "listing"; hit: ListingHit; season?: number }
   | { kind: "name"; name: string }
+  // A team or a league the search found (U1's sports slice): its season, Play the next game and Start a gameâ€¦
+  | { kind: "team"; league: string; team: string; name: string; against?: string }
+  | { kind: "league"; league: string; leagueName: string }
   // The tour's practice, where the save would have been (`demo`: one the tour added itself), and the end of its demo.
   | { kind: "practiced"; label: string; demo?: boolean }
   | { kind: "demoed"; labels: string[] }
@@ -236,6 +242,9 @@ function AddShowSheet({ open, practice, onOpenChange }: { open: boolean; practic
   const mine = useMemo(() => new Set((home?.shows ?? []).filter((s) => s.following || s.games.length).map((s) => s.seasonId)), [home]);
   const watchers = useMemo(() => watchersOf(home, couch?.id ?? null, me), [home, couch?.id, me]);
   const search = useShowSearch(q, catalog, mine, watchers);
+  // Teams and leagues beside the shows (not in the tour's practice, which types a show).
+  const teams = useTeamSearch(practice ? "" : q);
+  const pickTeam = (p: TeamPick) => setStep(p.kind === "team" ? { kind: "team", league: p.league, team: p.team, name: p.name, against: p.against } : p);
   // Not for the tour's practice: the name's typed in for you, and a phone's keyboard coming up would only cover it.
   useEffect(() => {
     if (!open || step || practice) return;
@@ -451,7 +460,11 @@ function AddShowSheet({ open, practice, onOpenChange }: { open: boolean; practic
           : "That's how you add a show"
         : step.kind === "name"
           ? `Add ${step.name}?`
-          : "Where are you?";
+          : step.kind === "team"
+            ? "A team"
+            : step.kind === "league"
+              ? step.leagueName
+              : "Where are you?";
   const subtitle = !step
     ? "Everything on TV. Playing is optional."
     : step.kind === "ready"
@@ -462,7 +475,11 @@ function AddShowSheet({ open, practice, onOpenChange }: { open: boolean; practic
         ? "A show nobody here has added yet"
         : step.kind === "season"
           ? step.s.label
-          : step.hit.name;
+          : step.kind === "team"
+            ? "Play a game of theirs with the couch"
+            : step.kind === "league"
+              ? "Every game, week by week"
+              : step.hit.name;
   // The practice's one path (tour/practice.tsx keepToPath): the show it typed in, where you are and Add to my shows, then its finish;
   // nothing while the demo adds its shows by itself. A practice with no show typed in takes any show.
   const here = (sel: string) => document.querySelector(`[role=dialog][data-open] ${sel}`);
@@ -542,14 +559,37 @@ function AddShowSheet({ open, practice, onOpenChange }: { open: boolean; practic
               )
             ) : (
               <>
+                {/* Shows Â· Teams Â· Leagues; a team the words name exactly comes first. */}
+                {teams.strong && !search.exact && <SportsResults data={teams.data} onPick={pickTeam} />}
+                {teams.data && (teams.data.teams.length > 0 || teams.data.matchup) && search.rows.length > 0 && (
+                  <p className="type-caption mb-1 mt-4 text-[14px] tracking-[0.04em] text-muted-foreground">Shows</p>
+                )}
                 <SearchRows rows={search.rows} onPick={pick} ringed={ringedKey ?? (demoOn ? undefined : (practice?.seasonId ?? undefined))} />
                 <SearchNote loading={search.loading} unavailable={search.unavailable} />
-                {!search.exact && !search.loading && q.trim().length >= 2 && <AddNewBlock q={q} any={search.rows.length > 0} onPick={() => setStep({ kind: "name", name: q.trim() })} />}
+                {!(teams.strong && !search.exact) && <SportsResults data={teams.data} onPick={pickTeam} />}
+                {!search.exact && !teams.strong && !search.loading && q.trim().length >= 2 && <AddNewBlock q={q} any={search.rows.length > 0} onPick={() => setStep({ kind: "name", name: q.trim() })} />}
               </>
             )}
             <ListingsCredit />
           </>
         )}
+        {step?.kind === "team" && (
+          <TeamView
+            league={step.league}
+            team={step.team}
+            against={step.against}
+            onStart={(when, name) => {
+              onOpenChange(false);
+              openSports(startOn(step.league, step.team, name, when, { kind: "team", league: step.league, team: step.team }));
+            }}
+            onGame={(g) => {
+              onOpenChange(false);
+              openSports({ kind: "game", league: step.league, team: step.team, game: g.id });
+            }}
+            onStarted={() => onOpenChange(false)}
+          />
+        )}
+        {step?.kind === "league" && <LeagueView league={step.league} leagueName={step.leagueName} onStarted={() => onOpenChange(false)} />}
         {step?.kind === "season" && (
           <CatalogWhere
             s={step.s}

@@ -139,12 +139,14 @@ async function sportPart(seasonId: string, label: string, terms: { castaway?: st
  */
 export async function packFor(user: SessionUser, seasonId: string, couchId: string | null, now = new Date()): Promise<{ pack: Pack; ctx: SpecContext; kind: "show" | "sport"; show: string; games: Words.SportGameSpec[] }> {
   // A show's rules beside the rest (a show not yet a game is a 404, thrown only for a show's page: a sport's needn't be one).
-  const [headers, schedules, mark, showRules] = await Promise.all([
+  const [headers, schedules, seen, showRules] = await Promise.all([
     seasonHeaders([seasonId]),
     seasonSchedules([seasonId], now),
     seenThrough(user.id, seasonId),
     stageContext(seasonId, couchId).catch((e: unknown) => e),
   ]);
+  // Everything (results straight away; a sport's season, live) as the largest episode SQL's integer holds.
+  const mark = Number.isFinite(seen) ? seen : 2_147_483_646;
   const h = headers.get(seasonId);
   if (!h) throw new HttpError(404, "Season not found");
   const schedule = schedules.get(seasonId);

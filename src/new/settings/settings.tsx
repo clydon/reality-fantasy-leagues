@@ -149,6 +149,22 @@ export function SettingsScreen() {
                   </div>
                 </div>
               )}
+              {/* Sports are live by default (the user, 2026-11-09): a line of its own, off until you turn it on. Show the score on a
+                  game shows that one for the visit either way. */}
+              <SwitchRow
+                data="hide-sports-scores"
+                on={!!p?.hideSportsScores}
+                disabled={!p}
+                title="Sports scores too"
+                line={
+                  p?.hideSportsScores
+                    ? "A game that's begun says only when it started: no score, clock, period, winner or record until you tap Show the score"
+                    : "Off: sports show live and final as they happen. Turn on if you watch games later"
+                }
+                onChange={(on) =>
+                  void save({ hideSportsScores: on }, on ? "On: sports scores wait for Show the score" : "Off: sports show live", { hideSportsScores: !on })
+                }
+              />
             </div>
             <AppearanceSection p={p} />
           </div>

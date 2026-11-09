@@ -242,6 +242,7 @@ and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track
 | You set apart on a game's page (2026-11-08) | **The user** picked C, the couch framed (the grid in a panel, You the page under a big header), "rather than create another layer" over A, You on a sheet-like panel; the page keeps one layer, sheets are only what opens (canvas v58). |
 | Live calls (A15) and the live screens (2026-11-08) | **The user's answers** (U0's last round, impeccable shape): live calls are **the game's, on the show's clock**: they open and close at moments of the episode's runtime ("before tribal: who goes home?", "the next 10 minutes: an idol?"), an earlier answer worth more, nobody running anything (not couch-made, not a host). **Late viewers play on their own clock**: a call opens at the same runtime for anyone watching along, honour-based like bingo, so a Friday streamer plays too; nothing answered after that person has revealed the episode's results counts. **Sports sync by "tap the last play you saw"**: a stream 30-60 seconds behind snaps its clock, and the feed, scores and calls wait for it; Hide scores honours it. They live in today's watch along (step 13's layer: its clock, the 30 s safety margin, who's on now, a planned night's one clock). |
 | U1 Start a game's calls (2026-11-09) | **The user, at impeccable's questions before the build:** Free's AI wait shows **no ad until an ad network is chosen** (the wait says its time, with Keep going; nothing stands in for the ad); **Different scoring, until G5's themes, cycles engine-made ways from the season's own rulebook** (No points lost: moments that cost points score 0; Big moments only: the top-pointed ones count; then back to the standard points), no AI; **today's list keeps Run it back and a season that's aired** (at your own pace) while the wizard takes every live season, the tour's practice included. A sport's season keeps the list too (Claude's call: its Start a game is U0's "Start a game on a team", with the sports screens the user scoped out). |
+| U1 sports on the couch's calls (2026-11-09) | **The user, at impeccable's shape** (U1's sports slice: finding a game by team and the guide's Sports, on U0's round 1 boards): **Hide scores for sports is a line of its own** under today's Hide scores, "Sports scores too", **off by default** (sports live by default, as PLAN-sports-live decided), Show the score per game either way; **Play the next game is one tap, as mocked** (Pick'em on it, the couch told after the 10-second Undo), Start a game… opens the live wizard set to the next game, a series, the season or a rival's meetings; **Follow a team is built** (a team sheet's Follow, a small table): the couch's teams are those anyone on the couch follows plus those in games it plays, leading the guide's Sports; nothing is added by itself. |
 | U1 Start a game, after the critique (2026-11-09) | **The user:** the steps' screens keep listing every game, so a step can change the game's kind (the board as settled; the critique would have kept that to the rail and Every game); **Tell the couch stays on by default**, its 10-second Undo the guard. Also OK'd: the two prompt changes (the Creative moments button's words, BUTTONS.creative; new moments rated in one ask, momentsPrompt), migration 0216 and the merge. |
 
 ## What's there today (mapped 2026-10-27)
@@ -12273,6 +12274,39 @@ first), and proves it on these games and on the tracker's other rows that use it
     `check-episode-lock.js` and `check-new-computer-players.js` moved to the wizard (all pass); `check-new-tour.js`'s Start a game
     step moved to its selectors (the check fails earlier, in Add a show's demo: BACKLOG 42). What it left: BACKLOG 42. **Merged and
     pushed 2026-11-09 (3896c0bf, migration 0216 rehearsed on Neon), live**, with the user's OK for the two prompt changes.
+  - **Step 4: sports on the couch, the first playable slice** (2026-11-09, the sports lane `../reality-fantasy-leagues-sports`, branch
+    `sports`, migration 0307; the user's calls in Decisions, "U1 sports on the couch's calls": Sports scores too its own line, off by
+    default; Play the next game one tap; Follow a team built). U0's round 1 boards (Find a team, The guide's Sports, Start a game on a
+    team) built on L7 and L8's routes. **Finding a game by team:** Add a show's box finds Teams (a matchup when it names two, each team
+    with its next game) and Leagues beside its Shows, a team the words name exactly above them (`src/new/sports/search.tsx`); a team
+    opens as a step (`sports/team.tsx` TeamView): its lower third (the colour on its tag, the league on the dark plate), Follow with
+    the couch's faces, its form and record (only with scores shown), a game on now (only "Started" while hidden, Show the score),
+    **Play the next game** the one yellow (Pick'em on it, one tap, the couch told after the 10-second Undo), Start a game…, its
+    rivals (the couch's teams first) filtering what's below, the series still to finish, Coming up (five, then by month), Earlier;
+    a game's own sheet (Play this game, Another game on it…); a league's week (Play this week's games, Play the season, week by
+    week). The same views open anywhere from `openSports` (`sports/sheets.tsx`, mounted in the layout). **Start a game on a team**
+    (`sports/start-sport.tsx`): When it runs (Next game · Rest of season · Against a rival · Pick games, or for a league This week ·
+    The season, or for a sport's season on the couch Next game · Every game left), Start from the sport's standard games that fit
+    (`src/lib/sports/start-games.ts` sportRail: Pick'em, Pick a few, A draft, Squares, Best Ball; a slate's Season league, Categories,
+    Roto too; each in the engine's words and checked with its span), the white card (what it is, its line, How it plays; the quick
+    changes dashed, "Coming for sports"), Tell the couch, Start it: `POST /api/sports/start` adds the games (L7's addGames, L8's
+    addSlate) and starts it through the wizard's own `startFromSpec` (checked again on the season's page; `start-game.ts` no longer
+    blocks a sport's league season as "not a game yet", and StartRouter sends one here). **The guide's Sports** (`sports/guide.tsx`,
+    `GET /api/sports/week`): this week a day a column, the couch's teams' games first as dark cards (two marks, who follows each),
+    every other game counted by league, a tap from its list; the switch always shows. **Sports scores too** (Settings, under Hide
+    scores; `user_settings.hide_sports_scores`): the rule in `src/lib/sports/hide.ts` (a begun game says only "Started 8:20 PM"),
+    every sports screen through `useGameScore`, Show the score kept for the visit and moving the mark of the seasons you follow with
+    that game (`POST /api/sports/shown`); `guard.ts` reads a sport's season by it (live: everything, unless a seat's a late joiner;
+    hidden: the mark), so results, the game log and pushes wait for the tap; the TV guide's sport cards say "Started" too. **A
+    sport's game's page:** named as itself (show-space.ts gameName: "Squares", not the "Outlast" it plays on; the couch's feed
+    too), a sport's league season named by its matchup ("Cowboys at Eagles, Nov 11", never "NFL 3": seasonHeaders), the strip's
+    unit the world's (`epShort`: G, Wk, Ep; "Game by game"), the engine's line in the show's words (`inShowWords`), each face's
+    position beside its team or state ("WR · Starting": `sports/faces.ts` from the roster's roles), and a player's sheet with their
+    game log (`/api/seasons/[id]/player-log`, up to the viewer's mark) where a castaway's story goes. **Fixed on the way:** a one-game
+    Pick'em's question had no sides to pick (answers.ts GET now sends its game's two teams); packFor put "everything" (Infinity) into
+    SQL for anyone who sees results straight away. **Checks:** `tests/sports-start.test.js`, `tests/sports-couch.test.js`, and
+    `scripts/dev-test/check-sports-couch.js` (API, then the browser at 390, on a stand-in ESPN with ZT teams: ALL PASS), Pick'em
+    played through to its grade. What it left: BACKLOG 43. **Not merged or pushed** (the user's to OK).
 
 **L. Live sports:** the steps are in "Live sports in the same engine", above (L1–L6, the Sports lane).
 

@@ -54,6 +54,15 @@ async function listOf(p: SportsProvider, league: string): Promise<TeamList | nul
   return l === "down" ? null : l;
 }
 
+/** One team as its league's list has it (a follow keeps its name and mark from here, never from what a phone sends); null when
+ *  the list has no such team or the provider didn't answer. */
+export async function listedTeam(league: string, team: string, opts: { providers?: SportsProvider[] } = {}): Promise<TeamHit | null> {
+  const p = (opts.providers ?? sportsProviders())[0];
+  const list = p ? await listOf(p, league) : null;
+  const t = list?.teams.find((x) => x.id === team);
+  return list && t ? teamHit(list, t, 100) : null;
+}
+
 /** The lists, read once a few minutes in a warm server (they're kept a week; a search reads them all). */
 let memo: { key: string; at: number; lists: TeamList[] } | null = null;
 const MEMO_MS = 10 * 60_000;
@@ -219,8 +228,8 @@ export interface TeamSchedule {
   against: TeamHit | null;
   /** The provider's year for the season ("2027" for the NBA's 2026-27). */
   season: number | null;
-  /** Each with the season made for it alone, if one is. */
-  games: (ScheduleGame & { seasonId: string | null })[];
+  /** Each with the season made for it alone, if one is, and its opponent's colour (the league's list's). */
+  games: (Omit<ScheduleGame, "opponent"> & { opponent: (NonNullable<ScheduleGame["opponent"]> & { color: string | null }) | null; seasonId: string | null })[];
   series: (Series & AddOption)[];
   next: string | null;
   /** The team's regular season (`kind` season), or with `against` their meetings (`kind` meetings), as one season to add. */
@@ -286,7 +295,12 @@ export async function teamSchedule(league: string, team: string, opts: { against
     team: me,
     against,
     season: year,
-    games: view.games.map((g) => ({ ...g, seasonId: made.get(gameKey(g.id)) ?? null })),
+    // Each opponent with its colour from the league's list, for its mark.
+    games: view.games.map((g) => ({
+      ...g,
+      opponent: g.opponent ? { ...g.opponent, color: list?.teams.find((t) => t.id === g.opponent!.id)?.color ?? null } : null,
+      seasonId: made.get(gameKey(g.id)) ?? null,
+    })),
     series: series.map((s) => ({ ...s, name: matchupName(pick(s.games), team), seasonId: made.get(seriesKey(s)) ?? null })),
     next: view.next,
     whole:

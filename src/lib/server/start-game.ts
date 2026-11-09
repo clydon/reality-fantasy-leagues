@@ -136,6 +136,9 @@ export interface StartOptions {
   watchers: string[];
   /** Why nothing can start here, or null. */
   blocked: string | null;
+  /** A sport's league season (a matchup's or a slate's, made from the provider's games): its league path ("football/nfl"). Its
+   *  rules are the sport's own defaults, so it needn't be made a game first (U1's sports slice: start-sport.ts). */
+  sport: { league: string } | null;
   /** A game at your own pace (docs/PLAN-own-pace-games.md): the starts on what's aired. `here`: where you are plus one (null once
    *  you've seen everything aired), `top` Episode 1, `aired` the latest aired. Null while nothing has aired. */
   pace: { here: number | null; top: number; aired: number } | null;
@@ -249,12 +252,15 @@ export async function startOptions(
   if (!couchId || !isUuid(couchId)) throw new HttpError(400, "couch required");
   const role = await requireCouch(user, couchId);
   if (role === "viewer") throw new HttpError(403, "Join the couch to start a game on it");
-  const [headers, schedules, members, { rows: couchRows }] = await Promise.all([
+  const [headers, schedules, members, { rows: couchRows }, { rows: leagueRows }] = await Promise.all([
     seasonHeaders([seasonId]),
     seasonSchedules([seasonId], now),
     couchMembers([couchId]),
     pool.query("SELECT name FROM couches WHERE id = $1", [couchId]),
+    pool.query("SELECT s.sports_league FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id = $1 AND s.kind = 'sport'", [seasonId]),
   ]);
+  // "espn:football/nfl": the provider's league path after its id.
+  const sportLeague = typeof leagueRows[0]?.sports_league === "string" ? (leagueRows[0].sports_league as string).replace(/^[a-z]+:/, "") : null;
   const h = headers.get(seasonId);
   if (!h) throw new HttpError(404, "Season not found");
   const schedule = schedules.get(seasonId);
@@ -315,7 +321,7 @@ export async function startOptions(
   const phases = phasesFrom(season, copy)
     .filter((p) => !p.first && (p.from === null || p.from >= next))
     .map((p) => ({ id: p.id, name: p.name, summary: p.summary, at: p.from }));
-  const blocked = h.ready === false ? `Make ${show} a game first` : over && !pace ? "The season's over: every episode has aired" : null;
+  const blocked = h.ready === false && !sportLeague ? `Make ${show} a game first` : over && !pace ? "The season's over: every episode has aired" : null;
   if (ownPace) {
     // At your own pace: Survival Pool, and Outlast and Weekly Lineup with shared teams (part 3a: each seat picks its own from who
     // was in before its start). The Prediction Sheet and the one-night games' season versions come with the plan's later parts.
@@ -393,6 +399,7 @@ export async function startOptions(
     questions: asks.map((c) => ({ id: c.question.id, ask: c.question.ask, line: c.line, on: c.on, season: c.season })),
     watchers,
     blocked,
+    sport: sportLeague ? { league: sportLeague } : null,
     pace,
     ownPace,
     couch: { id: couchId, name: couchRows[0]?.name ?? "Your couch", members: people.length },

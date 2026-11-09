@@ -71,7 +71,7 @@ function fitsWord(typed: string, word: string): boolean {
 }
 
 const isCollege = (league: string) => /college|ncaa/.test(league);
-const shortOf = (t: ListedTeam) => t.also?.[0] ?? t.name;
+export const shortOf = (t: ListedTeam) => t.also?.[0] ?? t.name;
 
 /**
  * How well `typed` (its words) fits a team, 0 to 100: its abbreviation (100), its whole name (100) or another of its names (96),

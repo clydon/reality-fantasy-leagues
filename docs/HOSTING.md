@@ -676,6 +676,17 @@ never handles it: the user does the reset and the pasting.
 
 ## Changelog
 
+- **2026-11-09, the sports lane (not merged).** U1's sports slice (docs/PLAN-start-a-game-gpt.md U1; migration 0307: `team_follows`,
+  one small row a team someone follows, and `user_settings.hide_sports_scores`). **New ESPN reads, all cached, nothing polls:** the
+  guide's Sports (`GET /api/sports/week`, the same for everyone, the edge keeps it 5 minutes) reads each pro league's day scoreboard
+  for a week, and a couch team's league's (the same `eventsOn` the daily job reads: kept 3 minutes while a game's on, an hour before,
+  30 days once over), so a cold week is about 35 calls (5 leagues × 7 days) and a warm one none; it fills teams' colours from the
+  leagues' team lists (kept a week, read by the search anyway). The phone asks it when the guide's Sports is opened, never on a
+  timer. **New writes:** Follow (one row), Show the score (`POST /api/sports/shown`: one UPDATE of the follows that have that game),
+  and a game started on a team (the matchup's season, made once and shared, under the day's cap of ten, as L7's add). **New reads:**
+  a player's game log (`/api/seasons/[id]/player-log`, one query when the sheet opens), the rail (`GET /api/sports/start`, no I/O,
+  the edge keeps it a day). No paid AI anywhere in it.
+
 - **2026-11-09, pushed to master (`3896c0bf`, migration 0216).** U1's Start a game, the wizard (docs/PLAN-start-a-game-gpt.md U1
   step 3; migration 0216, a looser check on `game_word_asks`, no new table). **Start it holds the couch's push 10 seconds** (for its
   Undo) in the request's `after()`, so each game started keeps its function about 10 s past its answer (`maxDuration` 60 on

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Check, X } from "lucide-react";
-import { useEpisodeBingo, useEpisodeCalls, useGameQuestions, useSeasonStats, type GameView, type QuestionFace, type TableRow } from "../data";
+import { useEpisodeBingo, useEpisodeCalls, useGameQuestions, usePlayerLog, useSeasonStats, type GameView, type QuestionFace, type TableRow } from "../data";
 import type { ShowData } from "../screens/show-space";
 import { gameColour, ordinal } from "../games";
 import { Avatar } from "../ui/bars";
@@ -255,7 +255,7 @@ function Strip({ g, r, sel, onPick, words }: { g: GameView; r: TableRow; sel: nu
         : k === "won"
           ? `${sq.filter((s) => s.won).length} won`
           : vals.length
-            ? `${fmt(avg)} a week · best ${signed(best)} (${words.ep} ${sq[vals.indexOf(best)].episode})`
+            ? `${fmt(avg)} a ${words.episode.toLowerCase()} · best ${signed(best)} (${words.ep} ${sq[vals.indexOf(best)].episode})`
             : null;
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -267,7 +267,7 @@ function Strip({ g, r, sel, onPick, words }: { g: GameView; r: TableRow; sel: nu
   return (
     <>
       <div className="mt-1 flex items-baseline justify-between gap-2">
-        <p className="type-caption text-[14px] tracking-[0.02em] text-muted-foreground">{k === "pick" ? "Picks, oldest first" : "Week by week"}</p>
+        <p className="type-caption text-[14px] tracking-[0.02em] text-muted-foreground">{k === "pick" ? "Picks, oldest first" : `${words.episode} by ${words.episode.toLowerCase()}`}</p>
         {right && <small className="text-right text-[13px] text-muted-foreground">{right}</small>}
       </div>
       <div ref={ref} className={`-mx-4 px-4 ${many ? "overflow-x-auto [scrollbar-width:none]" : ""}`}>
@@ -647,7 +647,10 @@ function TribeTag({ name, colour }: { name: string; colour: string }) {
 /** Who holds or picked them in this game and how it went, then their story (the Castaways tab's), up to your mark. */
 function CastBody({ g, show, seasonId, id, go }: Ctx & { id: string; go: Drill }) {
   const c = faceIn(g, id)!;
-  const stats = useSeasonStats(seasonId, show.couch?.id ?? null);
+  // A sport's player: their games (a game log) where a castaway has their story (U1's sports slice).
+  const sport = show.header?.show.kind === "sport";
+  const stats = useSeasonStats(seasonId, show.couch?.id ?? null, null, !sport);
+  const log = usePlayerLog(seasonId, c.name, sport);
   const story = stats.data?.cast.find((x) => x.name === c.name) ?? null;
   const rows: { r: TableRow; line: string; ok: boolean | null; points: number | null }[] = [];
   for (const r of g.table.filter((x) => opensSheet(g, x))) {
@@ -667,8 +670,9 @@ function CastBody({ g, show, seasonId, id, go }: Ctx & { id: string; go: Drill }
   return (
     <div data-cast-sheet={id} className="pb-2">
       <div className="mt-1 flex items-center gap-2 text-[13px] text-muted-foreground">
+        {c.role && <span className="type-caption rounded-[2px] px-1.5 py-0.5 text-[12px] tracking-[0.04em] outline-1 -outline-offset-1 outline-edge" data-cast-role>{c.role}</span>}
         {c.tribe && <TribeTag name={c.tribe.name} colour={c.tribe.colour} />}
-        <span>{c.left ? `Out${c.out ? ` · ${show.words.episode} ${c.out}` : ""}` : "Still in"}</span>
+        {!sport && <span>{c.left ? `Out${c.out ? ` · ${show.words.episode} ${c.out}` : ""}` : "Still in"}</span>}
         {c.points !== null && <span>· {fmt(c.points)} pts in this game</span>}
       </div>
       <Caption right={rows.length ? `${rows.length} on the couch` : undefined}>In this game</Caption>
@@ -685,8 +689,37 @@ function CastBody({ g, show, seasonId, id, go }: Ctx & { id: string; go: Drill }
         </button>
       ))}
       {g.plays.kind === "pick" && next && <p className="mt-2 text-[13px] text-muted-foreground">Who&apos;s picked them for {show.words.ep} {next.episode} stays hidden until it&apos;s decided.</p>}
-      <Caption right="Newest first">Their story</Caption>
-      {stats.isPending ? <div aria-busy className="h-24 animate-pulse rounded-[3px] bg-background" /> : story && stats.data ? <StoryBody d={stats.data} c={story} group={false} /> : <p className="text-sm text-muted-foreground">Nothing recorded for {first(c.name)} yet.</p>}
+      {sport ? (
+        <>
+          <Caption right="Newest first">Their games</Caption>
+          {log.isPending ? (
+            <div aria-busy className="h-24 animate-pulse rounded-[3px] bg-background" />
+          ) : log.data?.games.length ? (
+            <div data-game-log>
+              {log.data.games.map((x) => (
+                <div key={x.episode} className="border-t border-border py-2" data-log-game={x.episode}>
+                  <p className="flex items-baseline justify-between gap-2 text-[14px] font-semibold">
+                    <span className="truncate">
+                      {show.words.ep} {x.episode}
+                      {x.opponent ? ` · ${x.opponent}` : ""}
+                    </span>
+                    {x.at && <small className="flex-none text-[12px] font-normal text-muted-foreground">{new Date(x.at).toLocaleDateString([], { month: "short", day: "numeric" })}</small>}
+                  </p>
+                  <p className="mt-1 text-[13px] leading-snug text-muted-foreground">{x.items.length ? x.items.map((i) => `${i.value} ${i.label}`).join(" · ") : "Played, no stats in the box score"}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">No games of {first(c.name)}&rsquo;s here yet.</p>
+          )}
+          {log.data?.newer && <p className="mt-2 text-[13px] text-muted-foreground">A later game&rsquo;s line is in: it shows once you&rsquo;ve seen that game.</p>}
+        </>
+      ) : (
+        <>
+          <Caption right="Newest first">Their story</Caption>
+          {stats.isPending ? <div aria-busy className="h-24 animate-pulse rounded-[3px] bg-background" /> : story && stats.data ? <StoryBody d={stats.data} c={story} group={false} /> : <p className="text-sm text-muted-foreground">Nothing recorded for {first(c.name)} yet.</p>}
+        </>
+      )}
     </div>
   );
 }

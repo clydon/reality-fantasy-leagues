@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { EyeOff, Gamepad2, Plus, UserPlus } from "lucide-react";
 import { episodeLine, eveningAt, guideWeek, nextUpAfter, type GuideCard, type GuideDay, type GuidePlan, type GuideShow } from "@/lib/game/guide";
 import { alsoOn, hitOfListing, listingLine, type AlsoOnDay, type AlsoOnItem } from "@/lib/game/tv-listings";
@@ -18,6 +18,8 @@ import { plainName as plain } from "../couch/where";
 import { usePracticeShows } from "../tour/practice-shows";
 import { ListingsCredit } from "../watching/search";
 import { openWatching } from "../watching/sheets";
+import { SportsGuide } from "../sports/guide";
+import { useHideSports } from "../sports/scores";
 import { useReducedMotion } from "../welcome/hooks";
 import { namesOf, showOfMove } from "./sections";
 
@@ -119,7 +121,7 @@ function useRoll(reel: React.RefObject<HTMLDivElement | null>) {
 
 /** What the guide shows under your shows and the couch's (2026-10-27): nothing more (to begin with), the competitions on TV
  *  (tv-listings.ts competitionOf), or all of TV. Per phone; held for the visit when the phone won't keep it. */
-type OnTv = "couch" | "comps" | "all";
+type OnTv = "couch" | "comps" | "all" | "sports";
 const ON_TV_KEY = "gys.guideTv";
 const onTvListeners = new Set<() => void>();
 let onTvHere: OnTv | null = null;
@@ -128,7 +130,7 @@ function readOnTv(): OnTv {
   if (onTvHere) return onTvHere;
   try {
     const v = localStorage.getItem(ON_TV_KEY);
-    return v === "comps" || v === "all" ? v : "couch";
+    return v === "comps" || v === "all" || v === "sports" ? v : "couch";
   } catch {
     return "couch";
   }
@@ -154,13 +156,14 @@ const useOnTv = () =>
     (): OnTv => "couch"
   );
 
-/** The guide's switch, quiet in its foot: Couch (My shows, solo) · Competitions · All TV · Sports, which says it's coming (the
- *  user, 2026-11-01: games by team, docs/PLAN-sports-add.md). */
+/** The guide's switch, quiet in its foot: Couch (My shows, solo) · Competitions · All TV · Sports, this week's games by team (the
+ *  user, 2026-11-01; U1's sports slice, 2026-11-09: sports/guide.tsx). */
 function OnTvSwitch({ on, solo }: { on: OnTv; solo: boolean }) {
   const choices: [OnTv, string][] = [
     ["couch", solo ? "My shows" : "Couch"],
     ["comps", "Competitions"],
     ["all", "All TV"],
+    ["sports", "Sports"],
   ];
   const choice = "nd-press h-9 rounded-[2px] px-2 text-[12px] font-semibold transition-colors";
   return (
@@ -178,9 +181,6 @@ function OnTvSwitch({ on, solo }: { on: OnTv; solo: boolean }) {
           {label}
         </button>
       ))}
-      <button type="button" aria-disabled data-guide-tv-soon onClick={() => toast("Sports are coming soon.")} className={`${choice} text-muted-foreground`}>
-        Sports
-      </button>
     </div>
   );
 }
@@ -318,8 +318,13 @@ function GuideArt({ id, c, className = "" }: { id: string; c: Pick<GuideCard, "a
   );
 }
 
+/** Sports scores too (U1's sports slice): the sports seasons whose cards say only when a game started, never On now or aired. */
+const HiddenSports = createContext<Set<string>>(new Set());
+
 function CardBody({ c, now, me }: { c: GuideCard; now: number; me: string }) {
   const own = c.key.startsWith("plan:");
+  const quiet = useContext(HiddenSports).has(c.seasonId) && c.at < now && !own;
+  if (quiet) c = { ...c, live: false };
   return (
     <>
       <GuideArt id={`guide-${c.key}`} c={c} className={c.tie !== "plays" ? "[filter:saturate(.35)_brightness(.8)]" : ""} />
@@ -330,7 +335,7 @@ function CardBody({ c, now, me }: { c: GuideCard; now: number; me: string }) {
         }`}
       >
         {c.live && <i className="size-1.5 animate-pulse rounded-full bg-current" aria-hidden />}
-        {c.live ? "On now" : timeOf(c.at)}
+        {c.live ? "On now" : quiet ? `Started ${timeOf(c.at)}` : timeOf(c.at)}
       </span>
       {/* A game's going on it: a white controller, with a move due its red dot. */}
       {c.games ? (
@@ -360,7 +365,7 @@ function CardBody({ c, now, me }: { c: GuideCard; now: number; me: string }) {
       )}
       <span className="type-caption line-clamp-2 text-[17px] leading-[.95] [text-shadow:0_1px_8px_rgba(0,0,0,.5)]">{c.name}</span>
       <span className="mt-[3px] flex items-center justify-between gap-1 text-[11px] font-semibold opacity-85">
-        <span className="truncate">{own ? planWho(c.plan!, me) : c.at < now && !c.live && !c.drop ? `${episodeLine(c)} · aired` : episodeLine(c)}</span>
+        <span className="truncate">{own ? planWho(c.plan!, me) : c.at < now && !c.live && !c.drop && !quiet ? `${episodeLine(c)} · aired` : episodeLine(c)}</span>
         <Faces faces={c.faces} />
       </span>
     </>
@@ -569,10 +574,15 @@ export function Guide({ home: read, couch }: { home: Home; couch: Couch | null }
   const hidden = hiddenNow(home);
   const listings = useListingsWeek().data?.listings;
   const onTv = useOnTv();
+  const hideSports = useHideSports();
+  const quietSports = useMemo(
+    () => new Set(hideSports ? [...home.shows, ...(home.couchShows ?? [])].filter((s) => s.show.kind === "sport").map((s) => s.seasonId) : []),
+    [hideSports, home]
+  );
   // Also on leaves out your shows, the couch's and what you've hidden: by their listing, or by name for a show here that
   // hasn't one yet (the daily job links them). The switch leaves out all of it, or all but the competitions.
   const also = useMemo(() => {
-    if (!listings?.length || onTv === "couch") return [];
+    if (!listings?.length || onTv === "couch" || onTv === "sports") return [];
     const ids = new Set<number>();
     const names: string[] = [];
     const leave = (show: { tvmazeId?: number | null; name: string }) => (show.tvmazeId ? ids.add(show.tvmazeId) : names.push(show.name));
@@ -598,20 +608,23 @@ export function Guide({ home: read, couch }: { home: Home; couch: Couch | null }
     </span>
   );
   return (
+    <HiddenSports.Provider value={quietSports}>
     <section className="mt-8" data-guide>
       <div className="mb-2.5 flex items-baseline justify-between px-4">
         <h2 className="type-caption text-[24px]">{couch ? "This week on the couch" : "This week"}</h2>
         {/* With reduced motion it never rolls, so it doesn't say Paused either. */}
-        {!still && (
+        {!still && onTv !== "sports" && (
           <span data-guide-roll={rolling ? "on" : "off"} className="flex h-8 items-center gap-1.5 text-xs font-semibold text-muted-foreground">
             <i className={`size-[7px] rounded-full ${rolling ? "bg-good" : "bg-input"}`} aria-hidden />
             {rolling ? "Rolling" : "Paused"}
           </span>
         )}
       </div>
+      {onTv === "sports" && <SportsGuide couchId={couch?.id ?? null} />}
       <div
         ref={reel}
         data-guide-reel
+        hidden={onTv === "sports"}
         className="mx-2 flex overflow-x-auto pb-1.5 pt-2 [scrollbar-width:none] [mask-image:linear-gradient(90deg,transparent,#000_14px,#000_calc(100%_-_24px),transparent)]"
       >
         {week.map((d, i) => (
@@ -620,8 +633,9 @@ export function Guide({ home: read, couch }: { home: Home; couch: Couch | null }
       </div>
       {/* With TV listings, the switch shares Add a show's line and the notes go under it. */}
       <div data-guide-foot className="px-4 pt-1 text-[13px] text-muted-foreground">
-        <div className={`flex items-center justify-between gap-x-3 gap-y-1.5 ${listings?.length ? "flex-wrap" : ""}`}>
-          {listings?.length ? <OnTvSwitch on={onTv} solo={!couch} /> : notes()}
+        {/* The switch is always there (Sports reads no TV listings); the notes go under it. */}
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+          <OnTvSwitch on={onTv} solo={!couch} />
           <button
             type="button"
             data-guide-add
@@ -632,13 +646,14 @@ export function Guide({ home: read, couch }: { home: Home; couch: Couch | null }
             Add a show
           </button>
         </div>
-        {!!listings?.length && notes()}
+        {notes()}
       </div>
       <CouchShowSheet home={home} couch={couch} card={couchCard} onOpenChange={(o) => !o && setCouchCard(null)} />
       <ListingSheet l={listing} couchId={couch?.id ?? null} onOpenChange={(o) => !o && setListing(null)} />
       <EveningSheet day={evening} also={evening ? also[evening.offset] : undefined} now={now} onOpenChange={(o) => !o && setEvening(null)} />
       <HiddenSheet open={hiddenOpen} onOpenChange={setHiddenOpen} hidden={hidden} />
     </section>
+    </HiddenSports.Provider>
   );
 }
 

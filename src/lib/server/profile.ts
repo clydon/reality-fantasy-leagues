@@ -38,6 +38,9 @@ export interface Profile {
   ai: AiChoice;
   /** Results wait for you to reveal them (user_settings.show_results_immediately turned round). */
   hideScores: boolean;
+  /** Sports scores too (user_settings.hide_sports_scores, U1's sports slice): a sports game that's begun says only when it started
+   *  until you tap its Show the score. Off by default: sports stay live. */
+  hideSportsScores: boolean;
   /** Appearance (step 15 part 4): Night, Studio or Match phone. */
   theme: Theme;
   /** "Survivor 49": the first season you played, for the me card's "since". */
@@ -62,7 +65,7 @@ export interface Profile {
 export async function readProfile(user: SessionUser): Promise<Profile> {
   const [{ rows }, { rows: first }, notify] = await Promise.all([
     pool.query(
-      `SELECT u.username, u.name, u.email, s.colour, s.ai, s.theme, COALESCE(s.show_results_immediately, false) AS immediate,
+      `SELECT u.username, u.name, u.email, s.colour, s.ai, s.theme, COALESCE(s.show_results_immediately, false) AS immediate, COALESCE(s.hide_sports_scores, false) AS sports_hidden,
               (EXTRACT(EPOCH FROM p.updated_at) * 1000)::bigint AS picture,
               EXISTS (SELECT 1 FROM account a WHERE a."userId" = u.id AND a."providerId" = 'credential') AS password,
               EXISTS (SELECT 1 FROM account a WHERE a."userId" = u.id AND a."providerId" = 'google') AS google
@@ -87,6 +90,7 @@ export async function readProfile(user: SessionUser): Promise<Profile> {
     picture: r.picture == null ? null : Number(r.picture),
     ai: AI_CHOICES.includes(r.ai) ? (r.ai as AiChoice) : "chatgpt",
     hideScores: !r.immediate,
+    hideSportsScores: !!r.sports_hidden,
     theme: isTheme(r.theme) ? r.theme : DEFAULT_THEME,
     since: first[0] ? `${(first[0].name as string).replace(/^The /, "")}${first[0].season_number ? ` ${first[0].season_number}` : ""}` : null,
     notify,
@@ -150,7 +154,7 @@ function mayChange(session: Session) {
  */
 export async function saveSettings(
   session: Session,
-  body: { colour?: unknown; ai?: unknown; hideScores?: unknown; notify?: unknown; sharing?: unknown; theme?: unknown }
+  body: { colour?: unknown; ai?: unknown; hideScores?: unknown; hideSportsScores?: unknown; notify?: unknown; sharing?: unknown; theme?: unknown }
 ): Promise<void> {
   mayChange(session);
   if (body.notify !== undefined) {
@@ -174,6 +178,11 @@ export async function saveSettings(
     if (typeof body.hideScores !== "boolean") throw new HttpError(400, "hideScores must be true or false");
     args.push(!body.hideScores);
     sets.push(`show_results_immediately = $${args.length}`);
+  }
+  if ("hideSportsScores" in body) {
+    if (typeof body.hideSportsScores !== "boolean") throw new HttpError(400, "hideSportsScores must be true or false");
+    args.push(body.hideSportsScores);
+    sets.push(`hide_sports_scores = $${args.length}`);
   }
   if ("theme" in body) {
     if (!isTheme(body.theme)) throw new HttpError(400, "theme must be night, studio or phone");

@@ -21,6 +21,17 @@ and the Neon password rotation (deferred; steps there). Fixed 2026-10-24: the ch
 end); GitHub Actions, stopped since 2026-10-19, runs again. Vercel builds production only (Preview shared
 production's database).
 
+## Sports on the couch, the first playable slice (2026-11-09; U1; the sports lane `../reality-fantasy-leagues-sports`, port 3004, branch `sports`, migration 0307)
+Finding a game by team: Add a show's box finds Teams and Leagues beside its Shows; a team's sheet (Follow, the next game first with
+**Play the next game**, one tap, Pick'em; Start a game…; rivals, series, Coming up); Start a game on a team (the sport's standard
+games through the wizard's own start, 10-second Undo); the guide's Sports (this week, the couch's teams first); **Sports scores too**
+in Settings (off by default; Show the score per game for the visit, moving the mark); a sport's game's page in its own words (its
+name, G not Ep, positions on faces, a player's game log). Code `src/new/sports/`, `src/lib/sports/start-games.ts` and `hide.ts`, the
+routes under `src/app/api/sports/` (follow, couch, week, start, shown) and `/api/seasons/[id]/player-log`. The user's three calls
+are in the plan's Decisions ("U1 sports on the couch's calls"); its U1 "Step 4" bullet has it all; BACKLOG 43 what it left. Check:
+`scripts/dev-test/check-sports-couch.js` (BASE=http://localhost:3004; API, then 390; a stand-in ESPN with ZT teams). **Not merged
+or pushed: the user's to OK** (never on an S51 episode night, Wed 8 PM ET; 0307 is additive).
+
 ## Start a game, the wizard (2026-11-09; U1 step 3; lane `start` (`../rfl-start`, port 3011), branch `start-a-game`, migration 0216)
 U0's settled board "B, settled" built: **Start a game is the wizard** for every season with an episode still to air. When it runs
 (Tonight · The season · Custom), Start from (the engine's games that fit the rulebook, each rolled for the stretch), the white game
