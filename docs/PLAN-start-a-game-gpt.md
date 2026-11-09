@@ -237,6 +237,9 @@ and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track
 | A face carries its qualifier (2026-11-08) | **The user:** "Cast might need faction/position or something qualifying next to their name. For instance sports wed want to see WR/1B/ST/etc, or below deck we'd want to see 1st Stew, Bosun, Chef." Every face shows a qualifier on the line under the name, from the show's own data: its group (Survivor's tribe), its role (Below Deck's crew: Captain, Chief Stew, Bosun, Chef, Deckhand), a sport's position (WR, 1B, ST, GK), with the team when a list mixes teams. It generalises the app's cast tile's tribe line: a state that matters (Used Ep 2, Starting, Out) takes the line, keeping a short position beside it (WR · Starting). A secret faction never shows until it's revealed (The Traitors' Traitors). Data: season_cast's group and role columns, research where a source lacks one (TVmaze lists some crew under their own names), a sport's roster positions. In the mocks (version 49); U1 builds it into the cast tile and every face. |
 | U1 step 1's calls (2026-11-08) | **The user, at impeccable's questions before the build:** the universal page first, the four show themes (Survivor, The Traitors, Below Deck, the NY Giants) a later step; the title card's show art in **full colour** (washed toward Night at the left and foot so the title reads), not the greyscale texture; the Games tab stays as it is, each game's name on it (and Tonight's game tiles) opening the game's page, the launcher still U0's. |
 | A standard fantasy football season, and slots for any show (2026-11-08) | **Planned as L9** (the user: "yes add it to the plan"; then "this positioning applies across different show types too": slots take the cast's own role or group, Below Deck's Deckhand and Stew as a sport's WR and TE). The season, draft, weekly lineup, points per stat, D/ST, kicker, head to head with playoffs and waivers already play in the engine; L9 adds lineup slots (QB, RB, WR, TE, flex, K, D/ST, bench; superflex/OP, three WR and two flex as data), IR (from ESPN's injury status), FAAB bids and trades, then their screens in U1. For the engine lane. |
+| The person sheet and the cast sheet on every game's page (2026-11-08) | **The user** (with two screenshots of today's Games tab sheets, Survival Pool's picks and Weekly Lineup's week by week): "we need a way to see other players picks and plays week by week. I'm particularly proud of the uiux of this... apply something like that universally within the games pages (it'll be navigated to naturally by tapping on names of users. Additionally tapping on cast members names should also show some sort of stats)". Designed the same day as today's sheet made universal from the spec, and the Castaways tab's story sheet with the game's lens (canvas v53); a U1 step. The user's look-over is pending. |
+| The game's page in the sheet's language (2026-11-08) | **The user**, seeing the person sheet beside the page as built: "i love the season grid for most, but i feel like some hybrid of season grid and you first (maybe you second lol). just remember the rule of yellow (yellow is something due, you need to do). and we need to be sure essentially every row, cast photo, etc, should lead to a view that feels like a natural drill down". So: the title card, your move, the season grid, You, How it plays; yellow only for what's due; every name, square, episode and face opens the next view down on the same episode, sheets stacked with the path back on top (canvas v56). Mocks' person colours carry no yellow. Replaces round 2's couch plates, Previously on and big number. |
+| You set apart on a game's page (2026-11-08) | **The user** picked C, the couch framed (the grid in a panel, You the page under a big header), "rather than create another layer" over A, You on a sheet-like panel; the page keeps one layer, sheets are only what opens (canvas v58). |
 | Live calls (A15) and the live screens (2026-11-08) | **The user's answers** (U0's last round, impeccable shape): live calls are **the game's, on the show's clock**: they open and close at moments of the episode's runtime ("before tribal: who goes home?", "the next 10 minutes: an idol?"), an earlier answer worth more, nobody running anything (not couch-made, not a host). **Late viewers play on their own clock**: a call opens at the same runtime for anyone watching along, honour-based like bingo, so a Friday streamer plays too; nothing answered after that person has revealed the episode's results counts. **Sports sync by "tap the last play you saw"**: a stream 30-60 seconds behind snaps its clock, and the feed, scores and calls wait for it; Hide scores honours it. They live in today's watch along (step 13's layer: its clock, the 30 s safety margin, who's on now, a planned night's one clock). |
 
 ## What's there today (mapped 2026-10-27)
@@ -12047,7 +12050,14 @@ first), and proves it on these games and on the tracker's other rows that use it
     the icon sheet on a tile, bone for the game that needs you (the user, 2026-11-08: "use some game type icons so we can tell
     not only from the name but also the icons"; Live calls use Weekly Calls' drawing, so the sheet's rebrand lands here too), its
     name on a plate tagged with its state (Due, Set, 8 PM), its move or state under it, where you stand on the right at its
-    page's big-number scale; the Up next plate's tag carries the game's drawing; Start a game last (canvas v51). Real cast and players; every call and result on the boards made up. Checked by eye at 390 and
+    page's big-number scale; the Up next plate's tag carries the game's drawing; Start a game last (canvas v51). **Set aside the same
+    day** (the user: "i kinda like the games tab look right now, its a leaderboard for each game, and shows their last picks"):
+    today's Games tab stays (the pills, your move's card, each game's table with everyone's team or last picks), and only the line
+    under each game's name changes, to say briefly what the game is ("the length its played, game type, how to score... just not
+    visually overwhelming"): how long, what you do and how you win in the engine's words, plus the type when a game has its own
+    name. Four ways on the canvas (v52, u0/r2/make_games_tab_opts.js): A the facts instead of today's sentence, B the sentence
+    then tags, C the sentence then drawings, D the facts and the season ruler. The user's pick is pending. For U1 the engine says
+    how a game is won for every game (today only when it isn't the game's usual). Real cast and players; every call and result on the boards made up. Checked by eye at 390 and
     fixed once; a full impeccable critique is the U1 build's first look. Scripts: the session's scratchpad u0/r2/make_live.js.
   - **U0 is designed.** Next: U1 in fresh sessions (the game page and quick actions first, then Start a game, then the sports
     screens), L9 in the engine lane after the week's reset, and A15's engine (the calls' windows on the clock) for the live parts. round 3, the live pieces (the watch along, live calls, a live game's screens);
@@ -12108,6 +12118,92 @@ first), and proves it on these games and on the tracker's other rows that use it
     says ×2, the slot pick made a real move, your role says how many hold it, the twist's options as plates (white until picked),
     shorter strips, the cut's count on its own line, a fraction to one place at hero size. Last checked by the machine checks
     only (the skill's two-round ceiling).
+  - **Next: the person sheet and the cast sheet on every game's page** (designed 2026-11-08 in U0, canvas v53: boards
+    "The person sheet, on every game's page" and "The cast sheet on a game's page, and the census"; the user's ask in Decisions).
+    **Tapping a name** anywhere on a game's page (the couch's rows, the podium, Previously on, a face-off) opens that person's
+    sheet, and the Games tab's rows open the same sheet for every game (today calls, bingo and questions don't open). It is
+    today's sheet kept as it is (`games.tsx` PlayerSheet, `lineup-sheet.tsx`: the header with their name, the game, their place
+    of N and their total in the game's own terms, ‹ › and a swipe through the couch in the table's order) made universal from the
+    spec: **a strip of their weeks** in the game's terms (bars of points with the dashed average, as today; a pick a week as faces
+    right or wrong, as today's pool; won or lost with the score; bars marking the episodes they won; the couch's lives; bars
+    climbing to the target; each stage's own in turn), **the chosen episode** (a column tapped or the weeks swiped, as today)
+    with its plays in their scored state (their answers with the right one and what each earned; started and bench; the team
+    with its best counted; who left and what it scored; the pick; the picks and their moments; their card marked; their squares;
+    a slate's picks; their calls with the minute each was made), then **the season** (the team, every pick, or their totals).
+    Only up to the viewer's spoiler mark; anyone's next move shows only that it's set until it's decided (today's rule). **Tapping
+    a castaway** opens the Castaways tab's story sheet (`cast.tsx` StorySheet) with **In this game** on top: who picked or holds
+    them and how it went (survived, counted for whom), this game's own points beside the show's when only some moments count (a
+    story moment that doesn't count here says so), and who's picked them next stays hidden until it's decided; a sport's player,
+    their game log (PLAN-sports-live's player sheet). The mock's census reads all 2,701 specs into a strip and an episode's block
+    from the spec alone, none left without one (`make_person_sheet.js`, the U0 scratchpad; a copy in .impeccable/mocks/game-page/).
+    **Needs:** each person's plays by episode on `GameView` for every kind (today only a lineup's weeks and a pool's picks), with
+    BACKLOG 40's twists' state; the sheet's blocks reuse the sixteen answer controls in their scored state.
+    **The parallels** (the user: "add a parallel with sports (nfl/mlb) and realtiy show (below deck)"; canvas v54): the same
+    sheets in each world's words. The NFL: a Weekly Lineup in L9's slots, head to head (each slot's player with their line and
+    points, the bench), Pick'em on every game (the team they took, the final, right or wrong; with Hide scores on a final waits
+    for a tap) and a player's sheet (who started or benched him in this game, then his game log in the game's scoring). MLB: the
+    typed Red Sox–Yankees series draft (the strip is the series' games, a game is their hitters' box lines) and a hitter's series
+    log. Below Deck: Predictions on the show's own questions, a crew lineup in their roles (L9's slots for shows) and a crew
+    member's story. The strip's unit is the world's (Wk, G, Ep), the qualifier its position or role, and a sport's game log takes
+    the place of a castaway's story (PLAN-sports-live's player sheet).
+    **The game's page rethought in the sheet's language** (the user: "does that make you rethink any (or all) of the designs we
+    made for generated game pages?"; canvas v55, `make_page_rethink.js`): keep the title card (with the game's line in the engine's
+    words), the move and How it plays; the couch as the Games tab's leaderboard rows; plates and tags only for the broadcast
+    moments. Three ways beside the page as built, for Survival Pool and Weekly Lineup: A the couch's sheet (the leaderboard, then
+    the couch's week by week and the chosen episode for everyone), B you first (your own sheet, then the leaderboard), C the season
+    grid (everyone by episode, then the episode). **The user's pick: the season first, you second** ("i love the season grid for
+    most, but... some hybrid of season grid and you first (maybe you second lol)"; canvas v56, `make_hybrid.js`): the title card,
+    your move (yellow only while it's due: the rule of yellow), the season grid (a row a person, a column an episode, each square
+    holding what the game's strip holds: a pick, points, won or lost; your row lit, the next episode only Set, Due or not yet), You
+    (your own sheet: your picks, or your weeks and last episode), How it plays. **Every row, square and face drills down** (the
+    user's rule): a name or row opens their sheet on the episode you were on, a square their sheet on that episode, an episode
+    everyone's plays that night (‹ › steps episodes), a face that castaway in this game, your move Your moves, How it plays the
+    rules; inside a sheet the same doors. Each is a sheet over the last with the path back on top; Close shuts them all. U1 step
+    1's page changes to this: its couch, Previously on and big number give way to the grid and You.
+    **For every generated game** (the user: "this flavor of layout is used across all generated games right?"): the frame and the
+    drill downs are the same; a square holds what the game's strip holds, by the census's reading of the spec (of 2,701 specs:
+    points 1,880, the episode's points, the week's best bright; head to head 371, W or L with the score; a race 138, the running
+    total and a target column; episodes won 134, the points with the won ones marked; a pool 83, the pick's face right or wrong;
+    co-op 61, each one's right or wrong and a row for the couch's lives; stages 34, a block of columns a stage), and You is that
+    game's own episode block. **Defaults where the grid adapts** (mine, for the user's look): a one-night game shows that night's
+    view for everyone in the grid's place; a long season shows the latest seven columns and scrolls sideways, names pinned; a big
+    couch or a public game shows the top rows and yours, with All N to open; a draft with nothing to set each week (Outlast) shows
+    points earned or who's left, You its team; a sport's columns are its weeks or games (an MLB series, three). Mocked whole so far:
+    Survival Pool, Weekly Lineup and Predictions.
+    **You set apart: the couch framed** (the user: "im just wondering if we should have some visual separation of the leage/game
+    players, and me", then picking C "rather than create another layer"; canvas v58, `make_you_apart.js`): the season grid sits in a
+    panel, the league's table; You is the page itself under a big header (your avatar, You, your place, Your sheet ›), your place
+    moved there from under the title; your move stays at the top, what's due seen first. The page stays one layer: a sheet is only
+    what opens over it, so nothing on the page looks like one.
+  - **Step 2 brief, from the main session that designed it (2026-11-08), for the fresh session building it.** Canvas v58: R4
+    (person and cast sheets, the NFL/MLB/Below Deck parallels), R6 (the page, the drill down), R7 (you apart: C picked). Mock code
+    in .impeccable/mocks/game-page/: `make_person_sheet.js` (the sheet's parts and `classify(spec)`, the census: every spec to a
+    strip kind, an episode block and a season block), `make_hybrid.js` (the page, the grid, You, the drill-down sheets, the tap
+    map), `make_you_apart.js` (C, the couch framed). Port the logic and the look, not the HTML.
+    1. **Data first.** `TableRow` (src/lib/game/game-view.ts) carries a pool's `picks` and a lineup's `weeks`, nothing per episode
+       for the rest. Add each person's plays by episode for every kind the census names: answers (the question, their answer, the
+       right one, points), calls (with the minute made), a card (marked squares, lines), picks by moments, a best ball's team with
+       its counted, an outlast's boots, head to head's week (opponent, both scores), co-op's right or wrong and the couch's lives,
+       a race's running total, stages by stage. The privacy rules ride with it: up to the viewer's spoiler mark only, and anyone's
+       next move is only set or not until it locks or is decided (today's pool rule). Pure, with tests over the census's specs.
+    2. **The sheet family, once** (src/new/show/): the week strip (bars with the dashed average as `lineup-sheet.tsx` has it, a
+       pool's faces, won or lost, episodes won, the couch's lives, a race, stages), the episode block (the eleven kinds; answers
+       reuse the sixteen controls' scored state), the person sheet (replacing `games.tsx` PlayerSheet: the Games tab's rows then
+       open for every game, calls, bingo and questions included), the cast sheet (`cast.tsx` StorySheet with In this game on top),
+       the episode sheet (everyone's plays that night, ‹ › through episodes). Stacked: each opens over the last with its path back
+       on top ("Survival Pool › Joanna ›"), Close shuts them all; Back as the user's rule has it (back goes where you came from).
+    3. **The page rebuilt on it** (`game-page.tsx`, `model.ts`): the title card (keep), your move (keep; yellow only while it's
+       due), the couch framed (the season grid in its panel: a row a person, a column an episode, a square by kind, the next
+       episode Set, Due or –), You (the page under its big header: your strip and last episode, or your picks), How it plays. Out:
+       the podium and plates, Previously on, the 140px number. The grid's defaults where it adapts are in the bullet above.
+    4. **Every door:** a name or row opens their sheet on the episode you were on; a square, their sheet on that episode; an
+       episode, the episode sheet; a face, that castaway in this game; the move, Your moves; How it plays, the rules. Same in the
+       sheets. Nothing on the page looks like a sheet (the user's one-layer rule).
+    5. **Checks:** extend `check-game-page.js` (the grid at 390 with no sideways page scroll, every door opens its sheet on the
+       right episode, the path back, at most one yellow and only on what's due) and `check-games-insight.js` (every game's rows
+       open); run BACKLOG 41's two sheet-swipe failures down while in the pager. Real data only from zt- fixtures.
+    **Left alone:** the Games tab's line under each game's name (four ways on the canvas, v52, the user's pick still open; the
+    main session leaned to A, the facts line), the four show themes (a later step), L9's slots (the engine lane).
 
 **L. Live sports:** the steps are in "Live sports in the same engine", above (L1–L6, the Sports lane).
 

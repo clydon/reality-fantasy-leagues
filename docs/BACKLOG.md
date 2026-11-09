@@ -438,6 +438,13 @@ Last updated 2026-10-27.
     - **Not touched:** the dock and the Your moves sheet have no way to a game's page; the Games tab's launcher (U0); the four
       show themes (the user: a later step); Studio (the new design is Night only until step 15).
 
+41. **The Games tab check's two sheet-swipe failures (noticed 2026-11-08, running `check-games-insight.js` at 390 for U0's
+    Games tab screenshots).** Against the main dev server (master, with U1 step 1 merged), twice in a row, the same two fail and
+    the other 60 pass: "a short drag springs back" (the player sheet isn't on Episode 5 after a short drag) and "a swipe on to
+    Episode 6: who's set, nothing else" (it stays on 5). U1 step 1 only made a game's name a link on the Games tab, so it may be
+    older than that: the check's emulated touch against `src/new/ui/swipe-pager.tsx`. Not looked into. For the next session on the
+    Games tab or the pager (U1's line under each game's name): run it once and see whether the pager or the check moved.
+
 ## Decided against (don't re-propose without new information)
 
 - **An AI draft/lineup/pick advisor for players** ("Coach"): rejected. Feels like pay-to-win inside
