@@ -11844,9 +11844,21 @@ first), and proves it on these games and on the tracker's other rows that use it
     objectives (score.hits objective), so the kit draws it without a real example. Scripts: the session's scratchpad
     u0/r2/ (specs.js, dials.js, grammar.js, compile.js, census.js, render*.js, make_r2.js; `node census.js` is the
     coverage check, `node make_r2.js` draws and places the boards).
-  - **Still to design in U0:** round 2's hi-fi (the controls, the main blocks and three or four pages in the Lower Third
-    style, the pages bold and fun and the quick actions plain (the user's direction, in Decisions), a critique, the user's
-    pick); round 3, the live pieces (the watch along, live calls, a live game's screens);
+  - **Round 2, hi-fi: The broadcast segment** (2026-11-08; the user's pick in impeccable's surface round, seed 93c5fa10,
+    after a first direction round of new worlds felt "very disjointed from the rest of the app"). The direction contract is in
+    .impeccable/surfaces/src-new-show-game-page-tsx.md. A game's page runs like a segment of the show, from Lower Third's own
+    parts at full strength: a title card (the game's name in 64px caps over the show's art as texture, a plate with the show's
+    tag and when it airs), the alert strip (Your move, the screen's one yellow; a single question says itself: "Who wins: PHI
+    at NYG?"), one big graphic (the main block at full size: a 140px number with what it counts and its faces with tone
+    badges, or its own set piece: the bingo card, the face-off of two teams, the bars of a race), questions in place as small
+    caption plates with the control on the night under them, the couch as stacked lower thirds in the game's own terms (out
+    on a live tag, you on a bone tag, the cut as a dashed line), Previously on as the reveal's stacked plates, How it plays.
+    Quick actions stay plain: Tonight's Up next plate and the Your moves sheet. One renderer (the session's scratchpad
+    u0/r2/render-hi.js) draws every one of the 2,701 specs with no error; the canvas's hi-fi rows (version 46) show six games
+    (Weekly Lineup, Survival Pool, Predictions, Pick'em on the NFL, a betting game, Weekly Bingo), every kind of question in
+    its frame, and the big graphic for every main block. For U1: these parts (the title card, the big graphic, stacked lower
+    thirds as a table) go into DESIGN.md when they ship.
+  - **Still to design in U0:** round 2's critique fixes and the user's review; round 3, the live pieces (the watch along, live calls, a live game's screens);
     the Games tab's launcher. Then U1.
 - **U1. Build.** The field and the wizard in Start a game, Start from a spec, Make it a game chained for a show that isn't set
   up (was G2); answering and results; the live and sports screens; the Games tab's launcher and the game pages from track V's
