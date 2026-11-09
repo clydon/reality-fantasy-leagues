@@ -200,7 +200,15 @@ export interface MadeIdea {
   game: Record<string, unknown>;
 }
 export const MADE_LENGTHS: MadeIdea["length"][];
-export function madePrompt(o: { pack: Pack; manual: string }): string;
+export interface MadeMenu {
+  /** Each with the engine's own game of it on this season, when it fits one (`example`: the spec less where it runs), and the
+   *  ways to win the engine takes for it (`wins`). */
+  kinds: { id: string; name: string; says: string; example?: unknown; wins?: string[] }[];
+  wins: { id: string; label: string; says: string }[];
+  twists: string[];
+  bets: string[];
+}
+export function madePrompt(o: { pack: Pack; manual: string; menu: MadeMenu; have?: { name: string; kind: string; length: string }[]; missing?: string[] }): string;
 export function readIdeas(answer: string): MadeIdea[];
 export function ideaDraft(idea: MadeIdea): Draft;
 export function checkDraft(draft: Draft, o?: CheckOptions): CheckResult;

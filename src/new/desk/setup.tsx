@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Activity, Check, Clock, Hash, Pencil, Search, Sparkles, Tv, Users } from "lucide-react";
+import { Activity, Check, Clock, Hash, Pencil, RotateCcw, Search, Sparkles, Tv, Users } from "lucide-react";
 import { useNav } from "../nav";
 import { paths } from "../routes";
 import { HoldSheet } from "../ui/guards";
@@ -167,18 +167,19 @@ export function SetupPage({ id }: { id: string }) {
   );
 }
 
-/** G5's made-for games (src/lib/server/made-games.ts): how many the wizard offers, and Make them (again): a minute or two. */
+/** G5's made-for games (src/lib/server/made-games.ts): how many the wizard offers and what kinds they lack; tap for more (the gaps
+ *  first), or Start over: a minute or three either way. */
 function MadeSection({ id }: { id: string }) {
-  const q = useDesk<{ count: number; at: string | null; error: string | null }>(`/seasons/${id}/made`);
+  const q = useDesk<{ count: number; missing: string[]; at: string | null; error: string | null }>(`/seasons/${id}/made`);
   const after = useAfterDesk();
   const [busy, setBusy] = useState(false);
   const m = q.data;
-  const make = async () => {
+  const make = async (fresh: boolean) => {
     if (busy) return;
     setBusy(true);
-    toast.quiet("Our bot is writing them: a minute or two");
+    toast.quiet("Our bot is writing them: a minute or three");
     try {
-      const out = await deskSend<{ text: string }>(`/seasons/${id}/made`, {});
+      const out = await deskSend<{ text: string }>(`/seasons/${id}/made`, { fresh });
       toast(out.text);
     } catch (e) {
       toast.quiet((e as Error).message);
@@ -192,14 +193,15 @@ function MadeSection({ id }: { id: string }) {
     : !m
       ? "…"
       : m.count
-        ? `${m.count} on the Start a game rail · made ${dateOf(m.at!)}${m.error ? " · last ask failed" : ""} · Make them again`
+        ? `${m.count} on the Start a game rail · made ${dateOf(m.at!)}${m.missing.length ? ` · none yet: ${m.missing.join(", ")}` : ""}${m.error ? " · last ask failed" : ""}. Tap for more`
         : m.error
           ? `None · last ask failed: ${m.error}`
           : "None yet · Make them";
   return (
     <Section title="Made-for games">
       <div className="border-b border-border">
-        <DeskRow data="setup-made" onClick={make} lead={<IconLead icon={Sparkles} />} title="Made for this season" line={line} />
+        <DeskRow data="setup-made" onClick={() => make(false)} lead={<IconLead icon={Sparkles} />} title="Made for this season" line={line} />
+        {!!m?.count && !busy && <DeskRow data="setup-made-fresh" onClick={() => make(true)} lead={<IconLead icon={RotateCcw} />} title="Start over" line="Our bot writes a new library in place of this one" />}
       </div>
     </Section>
   );

@@ -3,9 +3,10 @@
 //   1. the ask kept some (season_game_ideas: every kept idea a name, hook, length and a spec), and printed each;
 //   2. the wizard's rail (start-wizard createWizard(...).games) offers them by length: one episode, a few, the season, after the
 //      classic and the easy one, each "Made for <show>", each building a game (build(...).r.ok).
-// About a minute or two of the bot's time: --reuse skips the ask when the season already has its games (the rail check only).
+// A minute or three of the bot's time: an ask adds to the season's library (the kinds it lacks first); --fresh starts it over;
+// --reuse skips the ask when the season already has its games (the rail check only).
 //
-//   node scripts/dev-test/check-made-games.js <seasonId> [--reuse] [--keep]
+//   node scripts/dev-test/check-made-games.js <seasonId> [--fresh | --reuse] [--keep]
 //   node scripts/dev-test/check-made-games.js --down          (takes the zt-mg- admin down, nothing else)
 //
 // up/down: one zt-mg-desk account (made_by points at it; down sets it null and leaves the season's games, which are real data
@@ -50,13 +51,15 @@ async function down() {
   let games = await Made.madeGames(seasonId);
   if (!args.includes("--reuse") || !games.length) {
     const t0 = Date.now();
-    const out = await Made.makeGames(user, seasonId);
+    const out = await Made.makeGames(user, seasonId, { fresh: args.includes("--fresh") });
     console.log(`asked: ${out.text}, ${Math.round((Date.now() - t0) / 1000)} s`);
     games = await Made.madeGames(seasonId);
   }
   check(games.length > 0, `the season keeps made-for games (${games.length})`);
   check(games.every((g) => g.name && g.hook && ["one", "few", "season"].includes(g.length) && g.spec), "each has a name, hook, length and spec");
-  for (const g of games) console.log(`      [${g.length}${g.bet ? ", bet" : ""}] ${g.name}: ${g.hook}`);
+  const W0 = require("../../src/lib/game/start-wizard/index.js");
+  for (const g of games) console.log(`      [${g.length}, ${W0.kindOfSpec(g.spec)}, ${W0.winOfSpec(g.spec)}${g.bet ? ", bet" : ""}] ${g.name}: ${g.hook}`);
+  console.log(`      none yet: ${(await Made.madeRow(seasonId)).missing.join(", ") || "nothing"}`);
 
   // 2. The rail, on the season's page as the throwaway admin sees it (no couch).
   const { pack, ctx } = await packFor(user, seasonId, null);

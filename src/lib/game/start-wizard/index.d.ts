@@ -154,4 +154,7 @@ export function scoreKind(spec: Spec): string;
 export function moneyOf(keep: Spec): Record<string, Spec>;
 export function keepOf(spec: Spec): Spec;
 export function createWizard(input: WizardInput): Wizard;
+/** A spec's kind of game (KINDS' id), and its way to win (WINS' id). */
+export function kindOfSpec(spec: Spec): string;
+export function winOfSpec(spec: Spec): string;
 export function choiceKey(c: Choice): string;

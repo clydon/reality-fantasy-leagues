@@ -952,4 +952,4 @@ function choiceKey(c) {
   return JSON.stringify([c.sel, c.row ? c.row.seed || c.row.id : null, c.win, c.tws, c.bet, c.cnt, c.scoring, c.edits, c.off, c.qedits, (c.added || []).map((a) => [a.id, a.pts])]);
 }
 
-module.exports = { KINDS, WINS, TWISTS, TWIST_GROUPS, MONEY, SCORINGS, fresh, timing, sayRange, nTag, nOf, normalSpan, partsOf, steps, plainLine, twistLabel, scoreKind, moneyOf, keepOf, createWizard, choiceKey };
+module.exports = { KINDS, WINS, TWISTS, TWIST_GROUPS, MONEY, kindOfSpec, winOfSpec, SCORINGS, fresh, timing, sayRange, nTag, nOf, normalSpan, partsOf, steps, plainLine, twistLabel, scoreKind, moneyOf, keepOf, createWizard, choiceKey };
