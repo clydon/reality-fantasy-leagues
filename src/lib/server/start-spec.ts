@@ -104,6 +104,7 @@ export async function startFromSpec(
   const couch = opts.couch.id;
   const { ctx } = await packFor(user, seasonId, couch, now);
   const spec = structuredClone(body.spec) as Record<string, unknown>;
+  if (Array.isArray(spec.stages)) throw new HttpError(409, "A game in stages can't start from here yet");
 
   // Where it starts: the next to air (or the one on now, with `late`), a later listed one, or a phase still to come; where it ends:
   // the season's end, a later episode, or a phase.

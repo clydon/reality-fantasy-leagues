@@ -671,6 +671,9 @@ function Wizardly({
               const out = wizard.typed(spanOf, r.spec, r.describe?.short.title);
               if (out.why) return sayWhy(out.why);
               if (out.choice) {
+                // The ask is used: Describe a new game opens fresh next time.
+                setJob(jobKey(o.seasonId, "ask"), null);
+                setWords("");
                 setSpanRaw(spanOf);
                 setMode(spanOf.from === t.first && spanOf.to === t.first ? "tonight" : spanOf.to === null && (spanOf.from === t.season.from || spanOf.from === t.first) ? "season" : "custom");
                 setChoice(out.choice);
@@ -1146,7 +1149,7 @@ function Home(p: {
 
 function CardRow({ icon, title, line, onClick, data }: { icon: string; title: string; line: string; onClick: () => void; data: string }) {
   return (
-    <button type="button" data-start-row={data} onClick={onClick} className="mt-0 flex min-h-[54px] w-full items-center gap-2.5 border-t border-plate-muted/20 py-2 text-left first-of-type:mt-3">
+    <button type="button" data-start-cardrow={data} onClick={onClick} className="mt-0 flex min-h-[54px] w-full items-center gap-2.5 border-t border-plate-muted/20 py-2 text-left first-of-type:mt-3">
       <Glyph d={icon} />
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className="text-[15px] font-bold">{title}</span>
@@ -1217,7 +1220,11 @@ function Custom(p: Parameters<typeof Home>[0]) {
               >
                 <span className="type-caption max-w-full truncate text-[15px]">{st.label}</span>
                 <span className={`max-w-full truncate text-[11px] font-semibold ${inSpan ? "text-plate-muted" : "text-muted-foreground"}`}>
-                  {n ? `${st.exact ? "" : "about "}${n} ${n === 1 ? "ep" : "eps"}` : "≈ when it happens"}
+                  {n
+                    ? `${st.exact ? "" : "about "}${n} ${n === 1 ? "ep" : "eps"}`
+                    : typeof st.span.from === "number"
+                      ? `From ${o.part.singular === "episode" ? "Ep" : o.part.singular} ${st.span.from}`
+                      : "≈ when it starts"}
                 </span>
               </button>
             );
@@ -1431,7 +1438,7 @@ function StepScreen(p: {
         </div>
       )}
       {p.which === "each" && (
-        <button type="button" onClick={p.openScores} data-start-row="scores" className="mt-3 flex min-h-16 w-full items-center gap-3 rounded-[4px] border border-dashed border-edge p-2.5 text-left">
+        <button type="button" onClick={p.openScores} data-start-cardrow="scores" className="mt-3 flex min-h-16 w-full items-center gap-3 rounded-[4px] border border-dashed border-edge p-2.5 text-left">
           <span className="flex min-w-0 flex-1 flex-col gap-1">
             <span className="text-[16px] font-semibold">What scores: {wizard.scoringName(span, ch)}</span>
             <span className="line-clamp-2 text-[13px] text-muted-foreground">{wizard.scoreLine(span, ch)}</span>
@@ -2039,7 +2046,7 @@ function MomentsScreen({ o, job, name, onBack, onAdd }: { o: WizardOptions; job:
       })}
       {unrated.length > 0 && (
         <Note>
-          Not sure enough to add: {unrated.map((x) => x.newMoment).join(", ")}. {unrated[0]?.why}
+          Not sure enough to add: {unrated.map((x) => x.newMoment).join(", ")}. Recaps often miss {unrated.length === 1 ? "it" : "them"}, so research couldn&rsquo;t settle {unrated.length === 1 ? "it" : "them"} each {o.part.singular}.
         </Note>
       )}
       {offered.length > 0 && (

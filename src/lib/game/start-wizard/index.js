@@ -50,8 +50,14 @@ const WINS = [
   { id: 'race', roll: 'race', label: 'First to a target', says: () => 'First past the line wins' },
   { id: 'coop', roll: 'coop', label: 'Together', says: () => 'The couch against the show' },
 ];
-const WIN_OF_ROLL = { total: 'points', own: 'points', points: 'points', matchups: 'h2h', standing: 'last', weeks: 'weeks', streak: 'streak', race: 'race', coop: 'coop' };
 const WIN_OF_RANK = { total: 'points', matchups: 'h2h', standing: 'last', weeks: 'weeks', streak: 'streak', coop: 'coop' };
+/** A game's way to win, from its spec. */
+const winOfSpec = (spec) => {
+  const r = (spec && spec.rank) || {};
+  return r.race ? 'race' : WIN_OF_RANK[r.by] || 'points';
+};
+/** Roll's id for a way to win on a base: a pool ranked by its points is roll's 'points', every other game's 'total'. */
+const rollWin = (w, base) => (w === 'points' && base === 'pool' ? 'points' : (WINS.find((x) => x.id === w) || {}).roll);
 
 /** The twists the sheet offers, by the step they change, each with what it does. Not the two that make a game in stages (redraft,
  *  trivia too): Start from a spec doesn't make stages yet. */
@@ -116,6 +122,9 @@ const COMPETITIVE = { captain: 'no captain', 'only-right': 'every right answer s
 const RANK = { coop: 0, points: 1, weeks: 1, race: 1, streak: 2, h2h: 3, last: 4 };
 
 const fresh = () => ({ win: '', tws: [], bet: '', cnt: {}, scoring: 'standard', edits: {}, off: [], qedits: {}, added: [] });
+/** Whether a choice changes its game's counts or scoring (not its way to win, twists or bet). */
+const changed = (c) =>
+  !!((c.cnt && (c.cnt.each || c.cnt.play)) || (c.scoring && c.scoring !== 'standard') || Object.keys(c.edits || {}).length || (c.off || []).length || Object.keys(c.qedits || {}).length || (c.added || []).length);
 
 // ---------- When it runs ----------
 
@@ -393,7 +402,7 @@ function createWizard(input) {
           const win = WINS.find((x) => x.id === w);
           const r = roll({ length: span, base: k.base, win: win.roll, twists: [] }, `g-${k.id}-${w}`);
           if (r.ok) {
-            row = { id: k.id, kind: 'standard', game: k.id, name: k.name, win: WIN_OF_ROLL[r.win] || w, spec: r.spec, describe: r.describe };
+            row = { id: k.id, kind: 'standard', game: k.id, name: k.name, win: winOfSpec(r.spec), spec: r.spec, describe: r.describe };
             break;
           }
         }
@@ -468,7 +477,11 @@ function createWizard(input) {
       }
       const win = choice.win || row.win;
       const base = (KINDS.find((k) => k.id === row.game) || {}).base;
-      const winRoll = (WINS.find((w) => w.id === win) || {}).roll;
+      // A way to win picked is locked and rolled; else the game keeps its own (its rank, as it came).
+      const winRoll = choice.win ? rollWin(choice.win, base) : null;
+      if (!choice.win && row.spec.rank) keep.rank = clone(row.spec.rank);
+      const unchanged = !choice.win && !(choice.tws || []).length && !choice.bet && !changed(choice);
+      if (unchanged && row.kind !== 'standard') return { row, win, r: { ok: true, spec: clone(row.spec), describe: row.describe, why: null, seed: row.seed }, keep };
       const r = roll({ length: span, ...(base ? { base } : {}), ...(winRoll ? { win: winRoll } : {}), twists: choice.tws || [], keep }, `c-${row.id}${row.seed ? `-${row.seed}` : ''}`);
       return { row, win, r, keep };
     });
@@ -818,10 +831,16 @@ function createWizard(input) {
     if (locks && locks.game && c) l.base = (KINDS.find((k) => k.id === c.row.game) || {}).base;
     if (locks && locks.win && c) l.win = (WINS.find((w) => w.id === c.win) || {}).roll;
     const seed = `sh-${spanKey(span)}-${n}`;
-    const r = roll(l, seed);
+    // A game in stages (the redraft, trivia too) can't start from here yet: the next seed instead.
+    let r = null;
+    for (let i = 0; i < 12; i++) {
+      r = roll(l, i ? `${seed}.s${i}` : seed);
+      if (!r.ok || !Array.isArray(r.spec.stages)) break;
+    }
     if (!r.ok) return { why: r.why || 'Nothing fits those locks: unlock one' };
+    if (Array.isArray(r.spec.stages)) return { why: 'Nothing fits those locks: unlock one' };
     const game = KIND_OF_BASE[r.base] || 'predictions';
-    const row = { id: 'shuffle', kind: 'shuffle', game, name: r.describe.short.title, win: WIN_OF_ROLL[r.win] || 'points', spec: r.spec, describe: r.describe, seed: String(r.seed) };
+    const row = { id: 'shuffle', kind: 'shuffle', game, name: r.describe.short.title, win: winOfSpec(r.spec), spec: r.spec, describe: r.describe, seed: String(r.seed) };
     return { choice: { ...fresh(), sel: 'shuffle', row } };
   }
 
@@ -840,8 +859,7 @@ function createWizard(input) {
     const problems = G.specProblems(s, ctx);
     if (problems.length) return { why: problems[0].problem };
     const d = G.describeSpec(s, ctx);
-    const rank = s.rank || {};
-    const row = { id: 'typed', kind: 'typed', game: base, name: name || d.short.title, win: rank.race ? 'race' : WIN_OF_RANK[rank.by] || 'points', spec: s, describe: d, seed: `typed-${hash(JSON.stringify(s))}` };
+    const row = { id: 'typed', kind: 'typed', game: base, name: name || d.short.title, win: winOfSpec(s), spec: s, describe: d, seed: `typed-${hash(JSON.stringify(s))}` };
     return { choice: { ...fresh(), sel: 'typed', row } };
   }
 

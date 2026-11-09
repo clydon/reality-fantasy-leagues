@@ -30,6 +30,8 @@ function kindOf(prompt) {
   // reliability ask for a moment the show doesn't have.
   if (/You turn the words someone typed into a game/.test(prompt)) return /THE CHANGE THEY TYPED NOW/.test(prompt) ? "gameChange" : "gameWords";
   if (/Rate how reliably research could answer it/.test(prompt)) return "momentAsk";
+  // U1: several new moments rated in one ask (game-words prompt.js momentsPrompt): a JSON array, one rating each.
+  if (/Rate how reliably research could answer each one/.test(prompt)) return "momentsAsk";
   // G1 part 4: a season's added moments, the short ask after the full run (db/moments-research.js).
   if (/one entry for each question by its id/.test(prompt)) return "momentsRun";
   return "other";
