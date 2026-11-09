@@ -136,6 +136,27 @@ type by themselves." After the above.
   player, then grows into today's computer players (drafts and pools) for every answer kind.
 - **The page solo**: no couch panel (the grid needs a couch); You is the page. The grid appears when someone joins.
 
+## One person at their own pace on a live game (the user, 2026-11-09)
+
+"i also want current games (with live airing) to have a option backstage to allow users to run at their own pace. aka in
+survivor 51 i have a user who often forgets to set lineups and other actions by the air time, but i know she doesnt always watch
+live. im okay letting her pick late if she hasnt watched the episode yet"
+
+- **Backstage › Members › a person: "Plays at their own pace"**, a switch per game, set by the game's Commissioner. For
+  someone who doesn't always watch live.
+- **What it does:** after an episode airs, their moves for it stay open until they mark it watched (their Spoiler-safe mark
+  passes it) **or the next episode airs, whichever comes first** (the user's pick). That covers a lineup, a pick, answers, and
+  calls and a bingo card on their own clock. It's honour-based: only if they haven't watched it. Then the move locks and scores
+  as if made on time. League-wide windows keep their times: a draft, waivers, trades.
+- **The couch sees a quiet marker** (the user's pick): their row and sheet say "Set after it aired, before they watched". In
+  head to head, the opponent's week reads "Waiting on Joanna's lineup" until it's set.
+- **What they see:** after airtime, while they're behind, the move is still due. It's still the yellow, and it says why: "Episode
+  8 aired · you haven't watched it · set your lineup first". Then watch, reveal and the scores, as at your own pace.
+- **The engine:** no new machinery. A live seat with the switch on catches up while it's behind (the late joiner's loop:
+  `applyAs` on their copy at their mark + 1, reveal with `catchUpReveal`). The flag sits on the membership; the cap is the
+  next episode's air time.
+- **Backlogged** (the user, "the former is simpler"): no limit, open until they watch even past the next airtime (BACKLOG 44).
+
 ## How it reuses the engine
 
 | Need | What exists | What's new |

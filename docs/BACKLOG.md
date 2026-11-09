@@ -542,6 +542,13 @@ Last updated 2026-10-27.
     - **The guide's Sports reads the pro leagues and the couch's teams' leagues**, a week from today in the East; no other college or
       soccer league's games are counted until someone on the couch follows one of its teams.
 
+44. **Own pace on a live game with no limit** (the user, 2026-11-09, backlogged: "the former is simplier"). A person set to
+    play at their own pace on a live game keeps their moves open until they mark the episode watched, even past the next
+    episode's airtime, so they can fall more than a week behind. What's built first stops at the next airtime
+    (docs/PLAN-own-pace-games.md, "One person at their own pace on a live game"). Needs: their copy more than one episode behind
+    on a live game (the catch-up loop allows it), the game's other weekly windows (waivers, matchups) waiting on them or not, and
+    what the couch sees meanwhile. (After the capped version, if asked.)
+
 ## Decided against (don't re-propose without new information)
 
 - **An AI draft/lineup/pick advisor for players** ("Coach"): rejected. Feels like pay-to-win inside
