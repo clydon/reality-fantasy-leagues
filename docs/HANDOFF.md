@@ -21,6 +21,15 @@ and the Neon password rotation (deferred; steps there). Fixed 2026-10-24: the ch
 end); GitHub Actions, stopped since 2026-10-19, runs again. Vercel builds production only (Preview shared
 production's database).
 
+## One person at their own pace on a live game (2026-11-09; branch `own-pace-live`, no migration; docs/PLAN-own-pace-games.md)
+Backstage › Members › a person: **Plays at their own pace**, a switch per game (a Commissioner's), for someone who doesn't always
+watch live (the S51 ask). On, their moves for an aired episode stay open until they've watched it or the next episode airs, then
+score as if on time; drafts, waivers and trades keep their times. The couch sees a quiet clock on their square ("Set after it
+aired, before they watched"); head to head waits on them ("Waiting on jordan's lineup"); their due move stays the yellow with the
+reason. Engine `GhostLogic.lateWindow`/`lateCopy`/`applyAs` late, server `own-pace-seats.ts`; the plan's "As built: one person at
+their own pace on a live game" has it all, and its Noticed what it left. Checks: `tests/own-pace.test.js`,
+`scripts/dev-test/check-own-pace-live.js` (API and 390: ALL PASS). **Waiting on the user:** the push (S51 airs Wednesday 8 PM ET).
+
 ## Sports on the couch, the first playable slice (2026-11-09; U1; the sports lane `../reality-fantasy-leagues-sports`, port 3004, branch `sports`, migration 0307)
 Finding a game by team: Add a show's box finds Teams and Leagues beside its Shows; a team's sheet (Follow, the next game first with
 **Play the next game**, one tap, Pick'em; Start a game…; rivals, series, Coming up); Start a game on a team (the sport's standard

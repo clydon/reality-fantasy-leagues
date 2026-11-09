@@ -3,6 +3,7 @@ import { apiRoute, stateResponse } from "@/lib/server/api-route";
 import { requireLeagueRole } from "@/lib/server/auth-helpers";
 import { withLeagueLock, HttpError } from "@/lib/server/db";
 import { catchingUpMark } from "@/lib/server/late-join";
+import { lateMark } from "@/lib/server/own-pace-seats";
 import { forPlayerChange } from "@/lib/server/change-log";
 
 // Pick'em only: sets (or replaces) the caller's own weekly pick for this episode. Same
@@ -32,9 +33,12 @@ export const PUT = apiRoute(async (req, { params }: { params: Promise<{ leagueId
 
   const state = await withLeagueLock(leagueId, async (s) => {
     // A late joiner catching up (StateLogic.GhostLogic): their week, as they see the league.
-    const mark = await catchingUpMark(leagueId, s, playerId);
+    const caught = await catchingUpMark(leagueId, s, playerId);
+    // Someone playing at their own pace (docs/PLAN-own-pace-games.md): the aired episode, until they've watched it.
+    const late = caught === null ? await lateMark(leagueId, s, playerId, epId) : null;
+    const mark = caught ?? late;
     if (mark === null) return StateLogic.setPickEmPick(s, epId, playerId, castawayId, opts);
-    const problem = StateLogic.GhostLogic.applyAs(s, playerId, mark, epId, (v) => StateLogic.setPickEmPick(v, epId, playerId, castawayId, opts));
+    const problem = StateLogic.GhostLogic.applyAs(s, playerId, mark, epId, (v) => StateLogic.setPickEmPick(v, epId, playerId, castawayId, opts), { late: late !== null });
     if (problem) throw new HttpError(400, problem);
   }, forPlayerChange(user.id, membership.playerId, playerId ?? "", "pick", (name) => (second === true ? `Made ${name}'s second pick` : `Made ${name}'s pick`), { kind: "pick", episodeId: epId }));
   return stateResponse(req, state);

@@ -239,3 +239,24 @@ test("a late lock: someone who hasn't seen an episode answers until they have, u
   ep(plain, 1).airsAt = new Date(air).toISOString();
   assert.equal(S.AnswerLogic.closed(plain, S.AnswerLogic.questions(plain)[0], 1, { now: air + HOUR, mark: 0 }), true);
 });
+
+test("one person at their own pace on a live game: their answers stay open until they've watched it or the next one airs", () => {
+  const s = league("pickem", 6);
+  const OUT = { id: "out", ask: "Who goes home?", answer: "person", points: 2, asked: "each", settle: { by: "results", take: "out" } };
+  assert.deepEqual(S.setGame(s, game([OUT], { span: { from: 1, to: null } }), { ctx: CTX }), []);
+  const q = S.AnswerLogic.questions(s)[0];
+  const air = Date.parse("2026-11-01T00:00:00Z");
+  ep(s, 1).airsAt = new Date(air).toISOString();
+  ep(s, 2).airsAt = new Date(air + 7 * 24 * HOUR).toISOString();
+  const closed = (mark, now) => S.AnswerLogic.closed(s, q, 1, { now, mark, player: "ann" });
+  assert.equal(closed(0, air + HOUR), true, "no switch, no late lock: closed at airtime");
+  assert.equal(S.GhostLogic.setPlaysOwnPace(s, "ann", true), null);
+  assert.equal(closed(0, air + HOUR), false, "on: open while she hasn't watched it");
+  results(s, 1, [0]);
+  assert.equal(closed(0, air + 30 * HOUR), false, "results in, a day later: still open for her");
+  assert.equal(closed(1, air + HOUR), true, "watched it: closed");
+  assert.equal(closed(0, air + 7 * 24 * HOUR + 1), true, "the next one aired: closed");
+  assert.equal(S.AnswerLogic.closed(s, q, 1, { now: air + HOUR, mark: 0, player: "bo" }), true, "only her seat");
+  assert.equal(S.AnswerLogic.lateEpisode(s, 0, { now: air + 2 * HOUR, player: "ann" }), 1, "her week is the one that aired");
+  assert.equal(S.AnswerLogic.lateEpisode(s, 0, { now: air + 2 * HOUR, player: "bo" }), 2);
+});

@@ -145,13 +145,24 @@ export function movesOf(g: GameView, o: MoveContext): YourMove[] {
     }
   }
 
+  // Playing at your own pace (docs/PLAN-own-pace-games.md): the episode aired and you haven't watched it, so its move is still
+  // yours to make first, and still the yellow, saying why; a lineup carried in from last week isn't one you've set for it.
+  const late = g.late;
+  const lateWhy = (what: string) => `${E} ${late!.episode} aired · you haven't watched it · ${what} first`;
+
   // The week's lineup.
   const L = g.lineup;
   if (L && g.gameType === "active-roster") {
     const title = `Your ${E} ${L.episode} lineup`;
     const faces = L.starters.slice(0, L.slots);
     const lineup = { kind: "lineup" as const, faces, out: [], go: { tab: "lineup" as const } };
-    if (g.revealFirst) {
+    if (late && late.episode === L.episode && !L.locked) {
+      found.push(
+        !L.set || L.carried
+          ? { ...lineup, empty: Math.max(0, L.need - faces.length), title: `Set your ${E} ${L.episode} lineup`, line: lateWhy("set your lineup"), action: "Set", due: true }
+          : { ...lineup, empty: 0, title, line: "Change until you watch it", action: "Edit", due: false }
+      );
+    } else if (g.revealFirst) {
       found.push({ ...lineup, faces: [], empty: 0, title: `Reveal ${E} ${g.revealFirst} first`, line: "Who went home decides who you can start", action: "Open", due: false });
     } else if (L.locked) {
       found.push({ ...lineup, empty: 0, title, line: "Locked at airtime · scores hidden until you reveal", action: "See", due: false });
@@ -173,7 +184,13 @@ export function movesOf(g: GameView, o: MoveContext): YourMove[] {
   const P = g.pick;
   if (P && g.gameType === "pickem") {
     const pick = { kind: "pick" as const, out: [], go: { tab: "pool" as const } };
-    if (g.revealFirst) {
+    if (late && late.episode === P.episode && P.open) {
+      found.push(
+        P.pick
+          ? { ...pick, faces: [P.pick], empty: 0, title: `Your ${E} ${P.episode} pick: ${castName(P.pick)}`, line: "Change until you watch it", action: "Edit", due: false }
+          : { ...pick, faces: [], empty: 1, title: `Pick a survivor for ${E} ${P.episode}`, line: lateWhy("pick"), action: "Pick", due: true }
+      );
+    } else if (g.revealFirst) {
       found.push({ ...pick, faces: [], empty: 0, title: `Reveal ${E} ${g.revealFirst} first`, line: "Who went home decides who you can pick", action: "Open", due: false });
     } else if (!P.open) {
       if (P.pick) found.push({ ...pick, faces: [P.pick], empty: 0, title: `Your ${E} ${P.episode} pick: ${castName(P.pick)}`, line: "Locked at airtime", action: "See", due: false });

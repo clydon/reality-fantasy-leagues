@@ -6,6 +6,7 @@ import { requireLeagueRole } from "@/lib/server/auth-helpers";
 import { forPlayerChange } from "@/lib/server/change-log";
 import { pool, withLeagueLock, HttpError } from "@/lib/server/db";
 import { catchingUpMark } from "@/lib/server/late-join";
+import { lateMark } from "@/lib/server/own-pace-seats";
 import { EVERYTHING, seenThrough } from "@/lib/server/guard";
 
 // A game with group slots (docs/PLAN-start-a-game-gpt.md step A10 part 1, the spec's get.groups: a draft's +1 or +2 slot that
@@ -65,7 +66,10 @@ export const PUT = apiRoute(async (req, { params }: { params: Promise<{ leagueId
     leagueId,
     async (s) => {
       // A late joiner catching up (StateLogic.GhostLogic): their week, as they see the league.
-      const mark = await catchingUpMark(leagueId, s, playerId);
+      const caught = await catchingUpMark(leagueId, s, playerId);
+      // Someone playing at their own pace (docs/PLAN-own-pace-games.md): the aired episode, until they've watched it.
+      const late = caught === null ? await lateMark(leagueId, s, playerId, epId) : null;
+      const mark = caught ?? late;
       const problem =
         mark === null
           ? StateLogic.GroupSlotLogic.validatePick(s, epId, playerId, n, id)
@@ -74,7 +78,7 @@ export const PUT = apiRoute(async (req, { params }: { params: Promise<{ leagueId
               if (p) return p;
               StateLogic.GroupSlotLogic.setPick(v, epId, playerId, n, id);
               return null;
-            });
+            }, { late: late !== null });
       if (problem) throw new HttpError(400, problem);
       if (mark === null) StateLogic.GroupSlotLogic.setPick(s, epId, playerId, n, id);
     },

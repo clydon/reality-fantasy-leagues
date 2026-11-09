@@ -409,7 +409,7 @@ function isClosed(r: Read, q: Question, episode: number): boolean {
   const { airAt } = closing(r, q, episode);
   // L3 part 2f part 2: a question about each game, at its episode's last game's start.
   const lastStart = q.each === "game" ? lastStartOf(r.facts, episode) : null;
-  return StateLogic.AnswerLogic.closed(r.h.state, q, episode, { now: r.now.getTime(), finale: r.finale?.number ?? null, airAt, mark: r.h.mark, lastStart });
+  return StateLogic.AnswerLogic.closed(r.h.state, q, episode, { now: r.now.getTime(), finale: r.finale?.number ?? null, airAt, mark: r.h.mark, lastStart, player: r.h.playerId || null });
 }
 
 /** How many of the game's episodes have started now (A9: when an answer is made), the schedule's air time for one the league
@@ -494,7 +494,7 @@ const yourPoints = (r: Read, points: Map<string, number>) => (r.walk ? (r.walk.t
  *  your mark while it's still open for you. None after the game ended early as far as you've seen (step A11 part 2b: a race won,
  *  one left; answerQuestions refuses an answer after it as the league stands). */
 const weekOf = (r: Read) => {
-  const n = StateLogic.AnswerLogic.lateEpisode(r.h.state, r.h.mark, { now: r.now.getTime(), airAtOf: (e) => r.schedule?.episodes.find((x) => x.number === e)?.airAt ?? null });
+  const n = StateLogic.AnswerLogic.lateEpisode(r.h.state, r.h.mark, { now: r.now.getTime(), airAtOf: (e) => r.schedule?.episodes.find((x) => x.number === e)?.airAt ?? null, player: r.h.playerId || null });
   return n !== null && StateLogic.KnockoutLogic.endedBefore(r.view, n) ? null : n;
 };
 

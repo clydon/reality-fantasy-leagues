@@ -11,6 +11,7 @@ import { pool } from "./db";
 import { EVERYTHING, seenThrough } from "./guard";
 import { readyLeague } from "./league-read";
 import { leagueStates } from "./league-states";
+import { paceMarks } from "./own-pace-seats";
 import type { ReadOnly } from "./read-only";
 import { games, type Game } from "./show-space";
 
@@ -226,7 +227,9 @@ export async function viewWithCalls(user: SessionUser, seasonId: string, h: Game
     console.error(`[season-games] calls ${h.game.leagueId}:`, e);
     return null;
   });
-  const view = gameView(h.ref, h.state, h.readOnly ? null : h.playerId, h.mark, h.userOf, calls ?? undefined);
+  // Anyone playing it at their own pace (docs/PLAN-own-pace-games.md): their marks, for whoever the couch is waiting on.
+  const marks = await paceMarks(h.game.leagueId, h.state).catch(() => new Map<string, number>());
+  const view = gameView(h.ref, h.state, h.readOnly ? null : h.playerId, h.mark, h.userOf, calls ?? undefined, { marks });
   // A game at your own pace: where the others are, for its plate and its reveal button, and the season's last episode
   // (docs/PLAN-own-pace-games.md).
   if (!h.readOnly && StateLogic.GhostLogic.ownPace(h.state)) {

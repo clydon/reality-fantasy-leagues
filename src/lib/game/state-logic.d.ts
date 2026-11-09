@@ -482,8 +482,21 @@ declare const StateLogic: {
     /** The league as one viewer may see it; `full` keeps their week's results for the reveal. */
     viewFor(state: LeagueState, viewerId: string | null, seenThrough: number | null | undefined, opts?: { full?: boolean }): LeagueState;
     ghosts(state: LeagueState): Player[];
-    /** Runs a late joiner's own move against their view; a reason on refusal, else null. */
-    applyAs(state: LeagueState, playerId: string, seenThrough: number, epId: string, fn: (view: LeagueState) => unknown): string | null;
+    /** Runs a late joiner's own move against their view; a reason on refusal, else null. `opts.late`: a live seat at their own
+     *  pace, on the copy where episode seenThrough+1 is still open (lateCopy); marks ep.lateSet when anything of theirs changed. */
+    applyAs(state: LeagueState, playerId: string, seenThrough: number, epId: string, fn: (view: LeagueState) => unknown, opts?: { late?: boolean }): string | null;
+    /** One person at their own pace on a live game (player.ownPace, a live seat). */
+    playsOwnPace(state: LeagueState, playerId: string | null | undefined): boolean;
+    /** The Commissioner's switch; a reason on refusal, else null. */
+    setPlaysOwnPace(state: LeagueState, playerId: string, on: boolean): string | null;
+    /** The aired episode their moves are open late for at `now`, given their mark (Infinity: sees results as they come). */
+    lateWindow(state: LeagueState, playerId: string, mark: number | null | undefined, now?: number): { episode: number; epId: string; until: string | null } | null;
+    /** The league going into episode `n`, with `n` still open (its results hidden, the teams as they are). */
+    lateCopy(state: LeagueState, n: number): LeagueState;
+    /** A lineup set for the episode (not carried in) or a pick. */
+    movedFor(state: LeagueState, playerId: string, epId: string): boolean;
+    /** Seats at their own pace whose window is open with nothing set for it yet (`marks`: each one's mark). */
+    lateWaiting(state: LeagueState, marks: Map<string, number | null>, now?: number): { playerId: string; episode: number }[];
   };
   RevealLogic: {
     revealedThrough(state: LeagueState): number | null;
@@ -1297,10 +1310,10 @@ declare const StateLogic: {
     /** A7: the window an episode is in (where it opens), or null. */
     windowAt(state: LeagueState, q: Question, episode: number | null, seen?: number | null): number | null;
     closesAt(state: LeagueState, q: Question, episode: number, finale?: number | null): number | null;
-    closed(state: LeagueState, q: Question, episode: number, o?: { now?: number; finale?: number | null; airAt?: string | null; mark?: number | null; lastStart?: string | null }): boolean;
+    closed(state: LeagueState, q: Question, episode: number, o?: { now?: number; finale?: number | null; airAt?: string | null; mark?: number | null; lastStart?: string | null; player?: string | null }): boolean;
     episodeNow(state: LeagueState): number | null;
     /** A7: the episode someone answers for now with a late lock (the one after their mark while it's open for them). */
-    lateEpisode(state: LeagueState, mark: number | null, o?: { now?: number; airAtOf?: (episode: number) => string | null }): number | null;
+    lateEpisode(state: LeagueState, mark: number | null, o?: { now?: number; airAtOf?: (episode: number) => string | null; player?: string | null }): number | null;
     /** earned: each window's ("question|episode") points by player, A9's ways of combining in; worth: a rollover's window's
      *  points with its jackpot. */
     grade(

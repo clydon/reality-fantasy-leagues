@@ -42,10 +42,18 @@ export interface MoveCard {
 /** A required move as Tonight's card. `twin`: another move of the same kind is due here (two leagues), so name it. `paced`: you're
  *  catching up in that game (a late joiner's week, a game at your own pace): the episode aired long ago, so it locks when you
  *  reveal it, not at airtime. */
-export function moveCard(m: Move, seasonId: string, twin: boolean, paced = false): MoveCard {
+export function moveCard(m: Move, seasonId: string, twin: boolean, paced = false, episodeWord = "Episode"): MoveCard {
   const when = m.deadline ? airTime(Date.parse(m.deadline)) : null;
   const which = twin ? ` · ${m.leagueName}` : "";
   const key = `${m.kind}-${m.leagueId}`;
+  // Playing at your own pace (docs/PLAN-own-pace-games.md): the episode aired and you haven't watched it, so it's still yours, and
+  // the card says why.
+  if (m.late && (m.kind === "lineup" || m.kind === "pick")) {
+    const why = `${episodeWord} ${m.episode} aired · you haven't watched it · ${m.kind === "lineup" ? "set your lineup" : "pick"} first${which}`;
+    return m.kind === "lineup"
+      ? { key, title: "Set your lineup", line: why, action: "Set lineup", tab: "lineup", leagueId: m.leagueId }
+      : { key, title: "Pick who survives", line: why, action: "Make my pick", tab: "pool", leagueId: m.leagueId };
+  }
   switch (m.kind) {
     case "lineup":
       return { key, title: "Set your lineup", line: `${plural(slotsOf(m), "open slot")}${when ? ` · locks ${when}` : paced ? " · locks when you reveal it" : ""}${which}`, action: "Set lineup", tab: "lineup", leagueId: m.leagueId };
@@ -88,7 +96,7 @@ export function doneCards(play: GameView[]): MoveCard[] {
     const l = g.lineup;
     if (l && !l.locked && l.set && l.starters.length) {
       const names = l.starters.map((id) => first(faceIn(g, id)?.name ?? "")).filter(Boolean);
-      const until = l.airsAt ? ` · change until ${airTime(Date.parse(l.airsAt))}` : "";
+      const until = g.late?.episode === l.episode ? " · change until you watch it" : l.airsAt ? ` · change until ${airTime(Date.parse(l.airsAt))}` : "";
       cards.push({ key: `lineup-done-${g.leagueId}`, title: "Your lineup is in", line: `${names.join(", ")}${until}${which}`, action: "Change", tab: "lineup", leagueId: g.leagueId });
     }
     const c = g.call;

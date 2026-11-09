@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, type ReactNode } from "react";
+import { Clock } from "lucide-react";
 import type { GameView, LineupWeek, TableRow } from "../data";
 import type { ShowData } from "../screens/show-space";
 import { airTime } from "../clock";
@@ -22,6 +23,13 @@ type Words = ShowData["words"];
 type Item = { n: number; w: LineupWeek | null };
 
 const fmt = (n: number) => String(Math.round(n * 10) / 10);
+/** The quiet marker (docs/PLAN-own-pace-games.md): someone playing at their own pace set that episode's move after it aired, before
+ *  they'd watched it. A small clock in the square's corner; the grid's foot says what it means. */
+export const LATE_SET = "Set after it aired, before they watched";
+export function LateMark({ className = "" }: { className?: string }) {
+  return <Clock aria-hidden className={`pointer-events-none absolute size-[10px] text-muted-foreground ${className}`} strokeWidth={2.5} />;
+}
+
 /** A week's points: "+4", "−2", "0". */
 export const signed = (n: number) => (n > 0 ? `+${fmt(n)}` : n < 0 ? `−${fmt(-n)}` : "0");
 
@@ -167,11 +175,16 @@ function WeekPane({ g, r, it, next, words, onClose, onFace }: { g: GameView; r: 
   const w = it.w;
   const title = `${words.episode} ${it.n}`;
   if (!w) {
-    const airs = next?.airsAt ? `Airs ${airTime(Date.parse(next.airsAt))}` : null;
+    const lateYou = r.you && g.late?.episode === it.n;
+    const airs = lateYou ? "Aired · you haven't watched it" : next?.airsAt ? `Airs ${airTime(Date.parse(next.airsAt))}` : null;
     const set = !!next?.done.get(r.playerId);
     const faces = r.you ? (g.lineup?.starters ?? []) : set ? r.team : r.last;
     const caption = r.you ? "Your lineup" : set ? "Their team" : "Stands in";
-    const note = r.you
+    const note = lateYou
+      ? set
+        ? "Yours to change until you watch it."
+        : "Set your lineup before you watch it. Until you do, last week's stands in."
+      : r.you
       ? set
         ? "Yours to change until it airs. Nobody sees it before then."
         : "Not set yet. Until you set one, last week's stands in."
@@ -216,6 +229,9 @@ function WeekPane({ g, r, it, next, words, onClose, onFace }: { g: GameView; r: 
       </div>
     );
   }
+  // Its square: set late by someone playing at their own pace, or (head to head) a matchup waiting on their lineup.
+  const sq = g.plays.rows[r.playerId]?.find((s) => s.episode === it.n);
+  const wait = sq?.waiting ? g.waiting?.find((x) => x.episode === it.n && (x.playerId === r.playerId || x.playerId === sq.result?.against)) : undefined;
   return (
     <div data-week-pane={it.n}>
       <div className="flex items-end gap-3">
@@ -223,6 +239,8 @@ function WeekPane({ g, r, it, next, words, onClose, onFace }: { g: GameView; r: 
           <h3 className="type-caption text-[26px]">{title}</h3>
           <p className="mt-1 text-[13px] text-muted-foreground">
             {placeWords(weekPlace(g, r.playerId, it.n))} of {g.table.length} that week
+            {sq?.late && <span data-late-set> · {LATE_SET}</span>}
+            {wait && <span data-waiting-line> · Waiting on {wait.playerId === r.playerId && r.you ? "your" : `${wait.name}'s`} lineup</span>}
           </p>
         </div>
         <b className="type-num flex-none text-[34px]">{signed(w.total)}</b>

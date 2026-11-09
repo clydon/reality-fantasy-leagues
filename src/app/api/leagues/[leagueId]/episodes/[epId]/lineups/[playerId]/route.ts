@@ -4,6 +4,7 @@ import { apiRoute, stateResponse } from "@/lib/server/api-route";
 import { requireLeagueRole } from "@/lib/server/auth-helpers";
 import { withLeagueLock, HttpError } from "@/lib/server/db";
 import { catchingUpMark } from "@/lib/server/late-join";
+import { lateMark } from "@/lib/server/own-pace-seats";
 import { forPlayerChange } from "@/lib/server/change-log";
 
 // Active Roster only: set which of a player's castaways are ACTIVE for this episode. A member sets
@@ -39,7 +40,10 @@ export const PUT = apiRoute(
     };
     const state = await withLeagueLock(leagueId, async (s) => {
       // A late joiner catching up (StateLogic.GhostLogic): their week, as they see the league.
-      const mark = await catchingUpMark(leagueId, s, playerId);
+      const caught = await catchingUpMark(leagueId, s, playerId);
+      // Someone playing at their own pace (docs/PLAN-own-pace-games.md): the aired episode, until they've watched it.
+      const late = caught === null ? await lateMark(leagueId, s, playerId, epId) : null;
+      const mark = caught ?? late;
       const problem =
         mark === null
           ? problemIn(s)
@@ -48,7 +52,7 @@ export const PUT = apiRoute(
               if (p) return p;
               write(v);
               return null;
-            });
+            }, { late: late !== null });
       if (problem) throw new HttpError(400, problem);
       if (mark === null) write(s);
     }, forPlayerChange(user.id, membership.playerId, playerId, "lineup", (name) => `Set ${name}'s lineup`, { kind: "lineup", episodeId: epId }));

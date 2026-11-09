@@ -35,6 +35,10 @@ export interface Square {
   /** Outlast: who they held going into it, and who of them left in it. */
   held?: string[];
   left?: string[];
+  /** Their move for it was set after it aired, before they'd watched it (playing at their own pace): the couch's quiet marker. */
+  late?: boolean;
+  /** Head to head: the matchup waits on someone playing at their own pace who hasn't set that episode's move (GameView.waiting). */
+  waiting?: boolean;
 }
 
 export interface GamePlays {
@@ -154,6 +158,8 @@ export function playsOf(view: LeagueState, i: PlaysIn): GamePlays {
     rows[r.playerId] = episodes.map((n) => {
       const p = mine.has(n) ? mine.get(n)! : null;
       const sq: Square = { episode: n, points: p, total: totals.get(r.playerId)!.get(n) ?? null, best: false };
+      // Playing at their own pace (docs/PLAN-own-pace-games.md): their move for it was set after it aired, before they'd watched.
+      if (view.episodes.find((e) => e.number === n)?.lateSet?.[r.playerId]) sq.late = true;
       if (kind === "pick") {
         const pk = picks.get(n);
         if (pk) sq.pick = { id: pk.castawayId, correct: pk.correct };

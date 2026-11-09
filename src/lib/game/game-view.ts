@@ -298,6 +298,13 @@ export interface GameView extends GameRefIn {
   catchingUp: boolean;
   /** Catching up (step 9): the episode they're on (their week), and the latest the game has results for ("Episode 2 of 4"). */
   catchUp: { week: number; latest: number } | null;
+  /** You play this live game at your own pace (docs/PLAN-own-pace-games.md, the Commissioner's switch) and an episode has aired
+   *  that you haven't watched: its moves are still open to you (the lineup's and pick's episode is it) until you watch it or the
+   *  next one airs (`until`, its air time; null: not known). Only while you're one behind (further back, you reveal first). */
+  late: { episode: number; until: string | null } | null;
+  /** Whoever the couch is waiting on, playing at their own pace with nothing set yet for the episode that aired (head to head's
+   *  "Waiting on Joanna's lineup"). The server reads their marks; empty without them. */
+  waiting: { playerId: string; name: string; episode: number }[];
   /** A game at your own pace (docs/PLAN-own-pace-games.md): everyone else in it (not its computer players) and the episode
    *  they're on, null once they've finished; the season's last episode. The server fills it (season-games.ts); null otherwise. */
   pace: {
@@ -338,11 +345,16 @@ export type UserOf = (playerId: string) => string | null;
  * docs/PLAN-desk-parity.md part 6c): the table as anyone on its couch sees it, nobody marked "you", no moves and nothing
  * to reveal; its `playerId` is "".
  */
-export function gameView(game: GameRefIn, full: LeagueState, playerId: string | null, seen: number | null, userOf: UserOf, calls?: GameCalls): GameView {
+export function gameView(game: GameRefIn, full: LeagueState, playerId: string | null, seen: number | null, userOf: UserOf, calls?: GameCalls, own?: OwnPace): GameView {
+  // Playing at your own pace (docs/PLAN-own-pace-games.md): the episode that aired while you haven't watched it is still open in
+  // your copy, as it is on the server (GhostLogic.lateWindow, the moves' applyAs late), while you're one behind.
+  const now = own?.now ?? Date.now();
+  const window = playerId !== null && seen !== null ? StateLogic.GhostLogic.lateWindow(full, playerId, seen, now) : null;
+  const late = window && seen === window.episode - 1 ? { episode: window.episode, until: window.until } : null;
   // A game over a span (settings.endEpisode) as it stood at its last episode, however far past it you are. Step A11 part 2b: a game
   // of questions' walk on your copy (answer-points.ts), so it ends, and knocks anyone out, only as far as you've seen; step C2 part
   // 4c, a draft's own questions' lines on it, so its table counts them as far as you've seen.
-  const seenView = StateLogic.GhostLogic.viewFor(full, playerId, seen);
+  const seenView = late ? openLate(StateLogic.GhostLogic.viewFor(full, playerId, seen), late.episode) : StateLogic.GhostLogic.viewFor(full, playerId, seen);
   const carried = calls?.walk ? StateLogic.AnswerLogic.withWalk(seenView, calls.walk) : calls?.lines ? StateLogic.AnswerLogic.withLines(seenView, calls.lines) : seenView;
   const view = StateLogic.spanView(carried);
   const pieces = StateLogic.piecesOf(view);
@@ -371,6 +383,17 @@ export function gameView(game: GameRefIn, full: LeagueState, playerId: string | 
     : progress && progress.episode > through && !isPublic
       ? { episode: progress.episode, set: Object.fromEntries(progress.people.map((p) => [p.playerId, p.done])) }
       : (calls?.next ?? null);
+  const waiting = own
+    ? StateLogic.GhostLogic.lateWaiting(full, own.marks, now).map((w) => ({ ...w, name: everyone.find((r) => r.playerId === w.playerId)?.name ?? "someone" }))
+    : [];
+  const plays = playsOf(view, { rows: table, through, outside: calls?.episodes ?? null, next: nextIn, coop: calls?.walk?.coop ?? null });
+  // Head to head: a matchup that waits on someone's late move isn't final yet, on either side of it.
+  for (const w of waiting) {
+    for (const [pid, squares] of Object.entries(plays.rows)) {
+      const sq = squares.find((x) => x.episode === w.episode);
+      if (sq?.result && (pid === w.playerId || sq.result.against === w.playerId)) sq.waiting = true;
+    }
+  }
   return {
     ...game,
     playerId: me,
@@ -387,7 +410,7 @@ export function gameView(game: GameRefIn, full: LeagueState, playerId: string | 
     short: gameShort(view),
     weeksWon: StateLogic.gameOf(view).rank.by === "weeks" ? Object.fromEntries(StateLogic.computeScores(view).map((r) => [r.playerId, r.weeks?.won ?? 0])) : null,
     cast: castOf(view),
-    plays: playsOf(view, { rows: table, through, outside: calls?.episodes ?? null, next: nextIn, coop: calls?.walk?.coop ?? null }),
+    plays,
     twists: twistsOf(view, me, next, new Map(everyone.map((r) => [r.playerId, r.team])), end ?? Math.max(0, ...(full.episodes ?? []).map((e) => e.number))),
     lineup,
     pick,
@@ -397,9 +420,12 @@ export function gameView(game: GameRefIn, full: LeagueState, playerId: string | 
     sheet: null,
     predictions: catchingUp || !seat ? [] : predictionsOf(view, me),
     progress,
-    revealFirst: hidden.length && !catchingUp && seat ? hidden[0].number : null,
+    // Playing at your own pace with the aired episode still open to you: its results don't stand in the way of its own move.
+    revealFirst: hidden.length && !catchingUp && seat && !late ? hidden[0].number : null,
     catchingUp,
     catchUp,
+    late,
+    waiting,
     pace: null,
     coop: calls?.walk?.coop ?? null,
     matchups: seat ? StateLogic.MatchupLogic.view(view, me) : null,
@@ -408,6 +434,23 @@ export function gameView(game: GameRefIn, full: LeagueState, playerId: string | 
     handicap: StateLogic.HandicapLogic.view(view, seat ? me : null),
     bot: calls?.bot ?? null,
   };
+}
+
+/** The seats playing at their own pace's marks (the server's: own-pace-seats.ts paceMarks), and the clock (tests). */
+export interface OwnPace {
+  marks: Map<string, number>;
+  now?: number;
+}
+
+/** Your copy with episode `n` still open (it aired; you haven't watched it): its lineups and picks as they were at airtime. */
+function openLate(view: LeagueState, n: number): LeagueState {
+  const s = JSON.parse(JSON.stringify(view)) as LeagueState;
+  const ep = s.episodes.find((e) => e.number === n);
+  if (ep) {
+    ep.openPastAir = true;
+    ep.lineupsLocked = false;
+  }
+  return s;
 }
 
 /** A public pool's rows: the top POOL_TOP, then you and your neighbours when you're further down. */

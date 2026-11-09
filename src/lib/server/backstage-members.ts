@@ -4,10 +4,11 @@ import StateLogic from "@/lib/game/state-logic.js";
 import type { LeagueState, Player } from "@/lib/game/types";
 import { isSuperAdminUser, isUuid, type SessionUser } from "./auth-helpers";
 import { dropBlindPicksForPlayer } from "./blind-draft";
-import { roleChange, type ChangeSpec, type MemberUndo } from "./change-log";
+import { plainChange, roleChange, type ChangeSpec, type MemberUndo } from "./change-log";
 import { stayedOnCouch } from "./couches";
 import { pool, withLeagueLock, HttpError } from "./db";
 import { gameBots, type GameBots } from "./computer-players";
+import { EVERYTHING, seenThrough } from "./guard";
 import { couchGames } from "./league-changes";
 import { leagueStates } from "./league-states";
 import { LEAGUE_ROLES, lastCommissionerProblem, setLeagueRole, type LeagueRole } from "./roles";
@@ -33,6 +34,8 @@ export interface MemberGame {
   yours: boolean;
   /** Its computer players, when you run it (Commissioner or Game admin) and they play it; else null. */
   computer: GameBots | null;
+  /** Someone in it can play at their own pace (a live game; docs/PLAN-own-pace-games.md): not a game everyone plays that way. */
+  pace: boolean;
 }
 
 export interface Member {
@@ -41,6 +44,11 @@ export interface Member {
   you: boolean;
   /** Their role in each game here by league id; absent: not in that game. */
   roles: Record<string, LeagueRole>;
+  /** The games they play at their own pace (Plays at their own pace: the Commissioner's switch), by league id. */
+  pace: string[];
+  /** They see results as they come in (spoiler protection off, or Live moving their mark by itself): never behind, so playing at
+   *  their own pace changes nothing for them until that changes. */
+  seesAll: boolean;
 }
 
 export interface Members {
@@ -74,15 +82,19 @@ export async function membersFor(user: SessionUser, seasonId: string, couchId: s
   const people = new Map<string, Member & { first: number }>();
   for (const r of rows) {
     const name = seatName(r.league_id, r.player_id) ?? r.name;
-    const m: Member & { first: number } = people.get(r.user_id) ?? { userId: r.user_id, name, you: r.user_id === user.id, roles: {}, first: r.first ? Date.parse(r.first) : 0 };
+    const m: Member & { first: number } = people.get(r.user_id) ?? { userId: r.user_id, name, you: r.user_id === user.id, roles: {}, pace: [], seesAll: false, first: r.first ? Date.parse(r.first) : 0 };
     m.roles[r.league_id] = r.role;
+    const s = states.get(r.league_id);
+    if (s && r.player_id && StateLogic.GhostLogic.playsOwnPace(s, r.player_id)) m.pace.push(r.league_id);
     people.set(r.user_id, m);
   }
+  // Whether each of them sees results as they come in (guard.ts: their mark on this season is everything).
+  await Promise.all([...people.values()].map(async (m) => void (m.seesAll = (await seenThrough(m.userId, seasonId)) === EVERYTHING)));
   // You first, then whoever runs the most, then by when they joined.
   const rank = (m: Member) => Object.values(m.roles).reduce((n, r) => n + (r === "commissioner" ? 2 : r === "admin" ? 1 : 0), 0);
   const members = [...people.values()]
     .sort((a, b) => Number(b.you) - Number(a.you) || rank(b) - rank(a) || a.first - b.first || a.name.localeCompare(b.name))
-    .map((m): Member => ({ userId: m.userId, name: m.name, you: m.you, roles: m.roles }));
+    .map((m): Member => ({ userId: m.userId, name: m.name, you: m.you, roles: m.roles, pace: m.pace, seesAll: m.seesAll }));
   return {
     games: here.map((g) => {
       const s = runs.has(g.leagueId) ? states.get(g.leagueId) : undefined;
@@ -93,6 +105,7 @@ export async function membersFor(user: SessionUser, seasonId: string, couchId: s
         gameType: g.gameType,
         yours: admin || g.yourRole === "commissioner",
         computer: s ? gameBots(s) : null,
+        pace: !!states.get(g.leagueId) && !StateLogic.GhostLogic.ownPace(states.get(g.leagueId)!),
       };
     }),
     members,
@@ -139,6 +152,33 @@ export async function setMemberRole(
   const batch = crypto.randomUUID();
   for (const g of games) await setLeagueRole(g.leagueId, userId, role, (client, before) => roleChange(client, g.leagueId, user.id, userId, before, role as string, batch));
   return { batch, games: games.length };
+}
+
+/**
+ * Plays at their own pace (docs/PLAN-own-pace-games.md, the user, 2026-11-09): a Commissioner's switch for someone on one game here,
+ * for a person who doesn't always watch live. On, their moves for an aired episode stay open until they've watched it or the next
+ * episode airs (StateLogic.GhostLogic.lateWindow). A line in Recent changes; the toast's Undo switches it back.
+ */
+export async function setMemberPace(user: SessionUser, seasonId: string, couchId: string | null, userId: string, leagueId: unknown, on: unknown): Promise<{ on: boolean }> {
+  if (typeof leagueId !== "string" || typeof on !== "boolean") throw new HttpError(400, "leagueId and on (true or false) required");
+  const { here, admin } = await scope(user, seasonId, couchId);
+  const g = here.find((x) => x.leagueId === leagueId);
+  if (!g) throw new HttpError(404, "That game isn't here");
+  if (!admin && g.yourRole !== "commissioner") throw new HttpError(403, "Only a Commissioner of the game changes this");
+  const seat = (await theirLeagues(userId, [leagueId])).get(leagueId)?.playerId;
+  if (!seat) throw new HttpError(404, "They don't play that game");
+  await withLeagueLock(
+    leagueId,
+    (s) => {
+      const problem = StateLogic.GhostLogic.setPlaysOwnPace(s, seat, on);
+      if (problem) throw new HttpError(409, problem);
+    },
+    (_before, after) => {
+      const name = after.players.find((p) => p.id === seat)?.name ?? "someone";
+      return plainChange(user.id, "settings", on ? `${name} plays ${g.gameName} at their own pace` : `${name} plays ${g.gameName} live again`);
+    }
+  );
+  return { on };
 }
 
 /**

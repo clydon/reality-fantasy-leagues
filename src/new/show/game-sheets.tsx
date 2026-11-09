@@ -9,7 +9,7 @@ import { Avatar } from "../ui/bars";
 import { Sheet } from "../ui/sheet";
 import type { Square } from "@/lib/game/game-plays";
 import { StoryBody } from "./cast";
-import { LineupSheet, signed } from "./lineup-sheet";
+import { LATE_SET, LateMark, LineupSheet, signed } from "./lineup-sheet";
 import { faceIn, first } from "./moves";
 import { Face } from "./parts";
 import { answerWords, verdictWords } from "./questions";
@@ -278,8 +278,9 @@ function Strip({ g, r, sel, onPick, words }: { g: GameView; r: TableRow; sel: nu
           {sq.map((s) => {
             const on = s.episode === sel;
             return (
-              <button key={s.episode} type="button" data-strip-ep={s.episode} aria-pressed={on} aria-label={`${words.episode} ${s.episode}`} onClick={() => onPick(s.episode)} className={`relative flex min-h-11 flex-col items-center rounded-[3px] py-1.5 ${on ? "bg-secondary" : ""}`}>
+              <button key={s.episode} type="button" data-strip-ep={s.episode} aria-pressed={on} aria-label={`${words.episode} ${s.episode}${s.late ? `. ${LATE_SET}` : ""}`} onClick={() => onPick(s.episode)} className={`relative flex min-h-11 flex-col items-center rounded-[3px] py-1.5 ${on ? "bg-secondary" : ""}`}>
                 <StripCell g={g} s={s} on={on} max={max} colour={colour} />
+                {s.late && <LateMark className="right-0.5 top-0.5" />}
                 <span className={`mt-1.5 text-[12px] ${on ? "font-bold" : "text-muted-foreground"}`}>{many ? s.episode : `${words.ep} ${s.episode}`}</span>
               </button>
             );
@@ -312,6 +313,14 @@ function StripCell({ g, s, on, max, colour }: { g: GameView; s: Square; on: bool
   }
   if (k === "result") {
     const r = s.result;
+    if (r && s.waiting) {
+      return (
+        <>
+          <b data-waiting className="type-num mt-0.5 grid size-[30px] place-items-center rounded-[3px] border border-dashed border-edge text-[17px] text-muted-foreground">…</b>
+          <span className="type-num mt-1 whitespace-nowrap text-[13px] text-foreground/85">&nbsp;</span>
+        </>
+      );
+    }
     return (
       <>
         <b className={`type-num mt-0.5 grid size-[30px] place-items-center rounded-[3px] text-[17px] ${r?.r === "W" ? "bg-good text-good-foreground" : r ? "bg-secondary text-foreground" : "text-muted-foreground"}`}>{r?.r ?? "–"}</b>
@@ -346,7 +355,7 @@ function Tick({ ok, quiet, className = "" }: { ok: boolean; quiet?: boolean; cla
 function EpisodeBlock({ g, show, seasonId, r, n, go }: { g: GameView; show: ShowData; seasonId: string; r: TableRow; n: number; go: Drill }) {
   const s = sqOf(g, r, n);
   const k = g.plays.kind;
-  const head = k === "pick" ? (s?.pick ? (s.pick.correct === null ? "Waiting" : s.pick.correct ? "Stayed" : "Went home") : "No pick") : k === "result" ? (s?.result ? s.result.r : "–") : s?.points === null || !s ? "–" : signed(s.points);
+  const head = k === "pick" ? (s?.pick ? (s.pick.correct === null ? "Waiting" : s.pick.correct ? "Stayed" : "Went home") : "No pick") : k === "result" ? (s?.waiting ? "…" : s?.result ? s.result.r : "–") : s?.points === null || !s ? "–" : signed(s.points);
   return (
     <section data-episode-block={n} className="mt-[22px] border-t border-border pt-[18px]">
       <div className="flex items-end gap-3">
@@ -354,7 +363,10 @@ function EpisodeBlock({ g, show, seasonId, r, n, go }: { g: GameView; show: Show
           <button type="button" data-door-episode={n} onClick={() => go.open({ kind: "episode", episode: n })} className="type-caption -my-1 py-1 text-left text-[26px] underline decoration-border decoration-2 underline-offset-[5px]">
             {show.words.episode} {n}
           </button>
-          <p className="mt-1 text-[13px] text-muted-foreground">{blockLine(g, r, n, s)}</p>
+          <p className="mt-1 text-[13px] text-muted-foreground">
+            {blockLine(g, r, n, s)}
+            {s?.late && <span data-late-set> · {LATE_SET}</span>}
+          </p>
         </div>
         <b className={`type-num flex-none text-[34px] leading-none ${(k === "result" && s?.result?.r === "W") || (k === "pick" && s?.pick?.correct) ? "text-good" : ""}`}>{head}</b>
       </div>
@@ -368,6 +380,8 @@ function EpisodeBlock({ g, show, seasonId, r, n, go }: { g: GameView; show: Show
 function blockLine(g: GameView, r: TableRow, n: number, s: Square | null): string {
   const k = g.plays.kind;
   if (k === "result" && s?.result) {
+    const wait = g.waiting?.find((w) => w.episode === n && (w.playerId === s.result!.against || w.playerId === r.playerId));
+    if (wait) return `Waiting on ${wait.playerId === r.playerId && r.you ? "your" : `${wait.name}'s`} ${g.plays.blocks.some((b) => b === "pick" || b === "picks") ? "pick" : "lineup"}`;
     const who = s.result.against ? (g.table.find((x) => x.playerId === s.result!.against)?.name ?? s.result.against) : s.result.median ? "the couch's middle score" : "a bye";
     const by = s.result.them === null ? "" : ` by ${fmt(Math.abs(s.result.us - s.result.them))}`;
     return `${s.result.round ? `Playoffs, round ${s.result.round} · ` : ""}${s.result.r === "W" ? `Beat ${who}${by}` : s.result.r === "L" ? `Lost to ${who}${by}` : `Tied with ${who}`}`;

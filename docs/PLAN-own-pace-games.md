@@ -329,7 +329,47 @@ Weekly Lineup stays shared (its preset). Everything else at your own pace is unc
   the draft plate, joining before the draft, nobody after, the draft through its route, waivers on, sam ahead at a waiver moment
   with the wait and Go on, jordan arriving and the week on at that episode; three screens at 390px).
 
+## As built: one person at their own pace on a live game (2026-11-09)
+
+The user's decisions above, built and checked (no migration: the switch rides on the seat in the league's state).
+
+- **Engine** (`state-logic.js GhostLogic`): `player.ownPace` is the switch (`playsOwnPace`, `setPlaysOwnPace`: never a computer player,
+  a seat still catching up, or a game everyone plays at their own pace). `lateWindow(state, seat, mark, now)` is the latest of the
+  game's episodes that has aired, while the seat's mark is before it and the next one hasn't aired (`until`, its air time; none
+  known: until they watch). `lateCopy(state, n)` is the league going into `n` with `n` held open (`openPastAir`; its results hidden,
+  the teams as they are, since waivers and trades keep their times); `applyAs(..., { late: true })` runs the move there, copies the
+  seat's part back and marks `ep.lateSet[seat]` when anything of theirs changed. `movedFor` (a lineup set for it, not carried in, or
+  a pick) and `lateWaiting(state, marks, now)` (only a game with a lineup or a pick) name who the couch waits on. Answers:
+  `AnswerLogic.closed` and `lateEpisode` take the one answering (`player`) and keep that episode open the same way.
+- **Server:** `own-pace-seats.ts` (`watchMark`: the seat's season mark, guard.ts `seenThrough`, so someone who sees results as
+  they come is never behind; `paceMarks`; `lateMark` for a move on that episode). The lineup, pick (set and clear) and group-slot
+  routes run a late move through `applyAs` late. `due-moves.ts` lists the episode's lineup or pick from the late copy as `late`,
+  due by the next air time, in place of the next episode's (a carried lineup counts as not set). `calls.ts` opens an aired
+  episode's calls to someone with a seat at their own pace on the season (`lateOn`, from the schedule). Bingo cards never close
+  once aired, so nothing there. `backstage-members.ts`: `Member.pace`, `Member.seesAll`, `MemberGame.pace`, `setMemberPace` (a
+  Commissioner of that game; a line in Recent changes), `PUT /api/seasons/[id]/backstage/members/[userId]/pace`.
+- **Views** (`game-view.ts`): `GameView.late` (your window, while you're one behind; your copy has the episode open and
+  `revealFirst` is null, since its results don't stand in the way of its own move) and `GameView.waiting` (from the server's
+  marks), which marks both squares of a head-to-head matchup that waits (`Square.waiting`). `Square.late` from `ep.lateSet`.
+- **Screens** (through impeccable; 390 first): Backstage › Members › a person: a "Plays at their own pace" section, a switch per
+  game of theirs you're a Commissioner of (the shared `SwitchRow`, bone when on), its meaning said once ("After an episode airs,
+  their moves stay open until they watch it or the next one airs"), or, for someone who sees results as they come, that nothing
+  stays open until they hide them; a toast with Undo. Their due move is the yellow with the reason (Tonight's card, the Games
+  tab's card: "Episode 6 aired · you haven't watched it · set your lineup first"; once set, "Change until you watch it"). The
+  quiet marker: a small clock in the corner of their square (grid and strip), the grid's foot saying "Set after it aired, before
+  they watched", and the same words on their episode's line and lineup week. Head to head: that matchup's two squares pending
+  (a dashed "…"), the grid's foot "Episode 6: waiting on jordan's lineup", the week's line "Waiting on jordan's lineup".
+- Checked: `tests/own-pace.test.js` (six live cases), `tests/answers-time.test.js` (answers), `npm test` 2023 pass;
+  `scripts/dev-test/check-own-pace-live.js` (API, then 390: ALL PASS; seven screens); `check-own-pace.js` still passes.
+
 ## Noticed, not fixed
+- Head to head's record (the W–L column, the sheet's 2–2–2) still counts a matchup that waits on a late lineup, scored with the
+  carried one, until it's set; only its squares and lines say it's pending. A U1 follow-up if it reads wrong to the couch.
+- The hero's matchup line also says "waiting on" (model.ts), but today's game page shows head to head in the grid, not the hero.
+- An opponent sees "Waiting on" only once they've revealed that episode themselves (before then it's hidden like any result).
+- Prediction Sheet answers and Call it open late in the engine and the routes; neither was looked at in a browser yet.
+- Push reminders (db/reminders.js) and the desk's moves for a seat (desk-seat-moves.ts) don't know the late window.
+- Someone two or more behind: the window is on the latest aired episode; they reveal the one before first (as anyone does).
 - The Play it card on a finished season offered Start a game and the sheet then refused it (the dead end that started this).
   Part 1 fixes it by making the start work; the Games tab's own Start row already hid itself.
 - A pool with lives: once anyone's out for good (`GhostLogic.someoneOut`, bots included, which run ahead of a slower joiner),

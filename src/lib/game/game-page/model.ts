@@ -259,6 +259,17 @@ function heroOf(g: GameView, page: GamePage, main: MainBlock, phase: Phase, ctx:
       const last = m?.last;
       const them = last?.opponent ? g.table.find((r) => r.playerId === last.opponent) : null;
       const rec = you.record ? `${you.record.wins}–${you.record.losses}${you.record.ties ? `–${you.record.ties}` : ""}` : null;
+      // Your opponent plays at their own pace and hasn't set that episode's move yet (docs/PLAN-own-pace-games.md): the matchup
+      // waits on them, their score not final.
+      const wait = last && them ? g.waiting?.find((w) => w.episode === last.episode && w.playerId === them.playerId) : null;
+      if (last && last.points != null && wait && them) {
+        return {
+          ...blank,
+          label: "",
+          sub: `${E} ${last.episode}: waiting on ${wait.name}'s ${g.plays.blocks.some((b) => b === "pick" || b === "picks") ? "pick" : "lineup"} · ${rec ? `you're ${rec}, ` : ""}${ordinal(you.place)}`,
+          vs: { you: "You", them: first(them.name), you_n: String(last.points), them_n: "–", youId: you.playerId, themId: them.playerId, youUser: you.userId, themUser: them.userId ?? null },
+        };
+      }
       if (last && last.points != null) {
         const against = them ? them.name : last.stand === "median" ? "the median" : "a bye";
         return {

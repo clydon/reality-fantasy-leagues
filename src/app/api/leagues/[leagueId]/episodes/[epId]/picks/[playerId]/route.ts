@@ -4,6 +4,7 @@ import { apiRoute } from "@/lib/server/api-route";
 import { requireLeagueRole } from "@/lib/server/auth-helpers";
 import { withLeagueLock, HttpError } from "@/lib/server/db";
 import { catchingUpMark } from "@/lib/server/late-join";
+import { lateMark } from "@/lib/server/own-pace-seats";
 import { forPlayerChange } from "@/lib/server/change-log";
 
 // Pick'em only: clears the given player's pick for this episode. Same self-or-commissioner shape
@@ -22,9 +23,12 @@ export const DELETE = apiRoute(
     const one = q.get("castawayId");
     const opts = q.has("second") ? { second: true } : one ? { castawayId: one } : undefined;
     const state = await withLeagueLock(leagueId, async (s) => {
-      const mark = await catchingUpMark(leagueId, s, playerId);
+      const caught = await catchingUpMark(leagueId, s, playerId);
+      // Someone playing at their own pace (docs/PLAN-own-pace-games.md): the aired episode, until they've watched it.
+      const late = caught === null ? await lateMark(leagueId, s, playerId, epId) : null;
+      const mark = caught ?? late;
       if (mark !== null) {
-        const problem = StateLogic.GhostLogic.applyAs(s, playerId, mark, epId, (v) => StateLogic.removePickEmPick(v, epId, playerId, opts));
+        const problem = StateLogic.GhostLogic.applyAs(s, playerId, mark, epId, (v) => StateLogic.removePickEmPick(v, epId, playerId, opts), { late: late !== null });
         if (problem) throw new HttpError(400, problem);
         return;
       }

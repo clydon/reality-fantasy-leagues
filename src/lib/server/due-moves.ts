@@ -4,8 +4,11 @@ import { pool } from "./db";
 import { stampAirTimes } from "./air-times";
 import { showsResultsImmediately } from "./results-seen";
 import { leagueStates } from "./league-states";
+import { watchMark } from "./own-pace-seats";
+import StateLogic from "@/lib/game/state-logic.js";
 
-export type LeagueMove = ActionItem & { leagueId: string; leagueName: string };
+/** `late`: a move for an episode that's aired, open to someone playing at their own pace until they've watched it. */
+export type LeagueMove = ActionItem & { leagueId: string; leagueName: string; late?: boolean };
 export type LeagueJob = CommissionerItem & { leagueId: string; leagueName: string };
 
 /**
@@ -43,7 +46,24 @@ export async function dueMoves(userId: string): Promise<{ items: LeagueMove[]; c
         : immediate
           ? null
           : (r.results_seen_through ?? 0);
-      items.push(...actionItems(r.state, r.player_id, seen, { commissioner: r.role === "commissioner" }).map((it) => ({ ...it, leagueId: r.id as string, leagueName: r.name as string })));
+      let own = actionItems(r.state, r.player_id, seen, { commissioner: r.role === "commissioner" });
+      // Playing at their own pace (docs/PLAN-own-pace-games.md): the episode that aired while they haven't watched it is still
+      // theirs to set, read from the league as it stood at airtime (nothing of its results), due by the next one's air time. The
+      // next episode's lineup or pick waits behind it, as it would behind a reveal.
+      if (StateLogic.GhostLogic.playsOwnPace(r.state, r.player_id)) {
+        const mark = await watchMark(r.id, r.player_id);
+        const w = StateLogic.GhostLogic.lateWindow(r.state, r.player_id, mark, Date.now());
+        if (w && mark === w.episode - 1) {
+          const weekly = (it: { kind: string }) => it.kind === "lineup" || it.kind === "pick";
+          const late: ActionItem[] = actionItems(StateLogic.GhostLogic.lateCopy(r.state, w.episode), r.player_id, mark).filter((it) => weekly(it) && it.episode === w.episode);
+          // A lineup carried in from last week isn't one set for this episode (the Games tab's card says the same).
+          if (!late.length && StateLogic.piecesOf(r.state).hasActiveRoster && !StateLogic.GhostLogic.movedFor(r.state, r.player_id, w.epId)) {
+            late.push({ kind: "lineup", text: `Set your episode ${w.episode} lineup`, href: "/lineup", episode: w.episode, who: "you" });
+          }
+          own = [...late.map((it) => ({ ...it, deadline: w.until, late: true })), ...own.filter((it) => !weekly(it))];
+        }
+      }
+      items.push(...own.map((it) => ({ ...it, leagueId: r.id as string, leagueName: r.name as string })));
       // None of these says anything about results, so the full state is safe to read.
       if (r.role === "commissioner") commish.push(...commissionerItems(r.state).map((it) => ({ ...it, leagueId: r.id as string, leagueName: r.name as string })));
     } catch (e) {

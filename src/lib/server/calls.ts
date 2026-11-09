@@ -15,6 +15,7 @@ import { isUuid, type SessionUser } from "./auth-helpers";
 import { requireCouch } from "./couches";
 import { HttpError, pool } from "./db";
 import { EVERYTHING, seenThrough } from "./guard";
+import { LEAGUE_SEASON_JOIN } from "./league-season";
 import { latestAired, seasonSchedules, type SeasonSchedule } from "./schedule";
 import { seasonHeaders, type SeasonHeader } from "./show-space";
 
@@ -256,6 +257,26 @@ interface Context {
    *  calls are open to whoever is on it (has seen the one before, not it), on the honour system, as bingo's ticks are; they close
    *  when you've seen it. */
   paced: boolean;
+  /** You play a live game on this season at your own pace (docs/PLAN-own-pace-games.md, the Commissioner's switch) and this
+   *  episode aired while you haven't watched it, nor has the next one: its calls are open to you as at your own pace. */
+  late: boolean;
+}
+
+/**
+ * Whether `userId` plays a game on this season at their own pace with episode `n`'s window open (StateLogic.GhostLogic.lateWindow,
+ * read from the season's schedule here): `n` aired, `n + 1` hasn't, they've watched through `n - 1` only, in a game it's in.
+ */
+async function lateOn(userId: string, seasonId: string, n: number, mark: number, schedule: SeasonSchedule | undefined, now: Date): Promise<boolean> {
+  if (mark !== n - 1) return false;
+  const at = (k: number) => schedule?.episodes.find((e) => e.number === k)?.airAt ?? null;
+  const aired = (k: number) => !!at(k) && Date.parse(at(k)!) <= now.getTime();
+  if (!aired(n) || aired(n + 1)) return false;
+  const { rows } = await pool.query(
+    `SELECT l.state, m.player_id FROM league_memberships m JOIN leagues l ON l.id = m.league_id ${LEAGUE_SEASON_JOIN}
+      WHERE m.user_id = $1 AND ss.id = $2 AND l.deleted_at IS NULL AND m.player_id IS NOT NULL`,
+    [userId, seasonId]
+  );
+  return rows.some((r) => StateLogic.GhostLogic.playsOwnPace(r.state, r.player_id) && StateLogic.inPlay(r.state, n));
 }
 
 /** A season watched at your own pace: finished, every listed episode aired, or dropped all at once. */
@@ -283,11 +304,14 @@ async function context(user: SessionUser, seasonId: string, couchId: string | nu
   if (!aired && (!open || open.number !== n)) throw new HttpError(409, open ? `Calls are open for Episode ${open.number}` : `Episode ${n} has no air time yet`);
   const alone = !couch || (await othersSharing(couch, seasonId, user.id)) === 0;
   const paced = pacedSeason(header, schedule, now);
-  return { header, book, talk: kindOf(book.blocks) === "talk", mark: seen === EVERYTHING ? Number.POSITIVE_INFINITY : seen, airAt, aired, open, couch, alone, cast, paced };
+  const mark = seen === EVERYTHING ? Number.POSITIVE_INFINITY : seen;
+  const late = !paced && aired && (await lateOn(user.id, seasonId, n, mark, schedule, now));
+  return { header, book, talk: kindOf(book.blocks) === "talk", mark, airAt, aired, open, couch, alone, cast, paced, late };
 }
 
-/** Calls for an aired episode you're on, at your own pace: open until you've seen it. */
-const pacedOpen = (ctx: Context, n: number) => ctx.paced && ctx.aired && ctx.mark === n - 1;
+/** Calls for an aired episode you're on, at your own pace (a season watched that way, or you on a live game): open until you've
+ *  seen it. */
+const pacedOpen = (ctx: Context, n: number) => (ctx.paced || ctx.late) && ctx.aired && ctx.mark === n - 1;
 
 /** One episode's calls, as this viewer may see them. */
 export async function episodeCalls(user: SessionUser, seasonId: string, couchId: string | null, nIn: unknown, now = new Date()): Promise<EpisodeCalls> {

@@ -3,7 +3,8 @@
 import { inShowWords } from "@/lib/game/show-words";
 import { useWithRoles } from "../sports/faces";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { Check, ChevronDown, ChevronLeft, ChevronRight, Heart, X } from "lucide-react";
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Heart, X } from "lucide-react";
+import { LATE_SET, LateMark } from "./lineup-sheet";
 import { lockTime } from "../clock";
 import { useQueryClient } from "@tanstack/react-query";
 import { chooseTwist, setGroupSlot, useGameQuestions, useLeagueRoles, useLeagueTwist, useSeasonDraft, useSeasonWaivers, type GameView, type LeagueTwist } from "../data";
@@ -547,8 +548,9 @@ function SeasonGrid({ g, m, words, due, drill }: { g: GameView; m: PageModel; wo
                   {cutAt(i) && <CutRow />}
                   <div data-restack={s.playerId} className={`grid ${ROW} border-t border-border ${s.you ? "bg-secondary" : ""}`} style={{ gridTemplateColumns: tmpl }}>
                     {sq.map((x) => (
-                      <button key={x.episode} type="button" data-square={`${s.playerId}:${x.episode}`} aria-label={`${s.name}, ${words.episode} ${x.episode}`} onClick={() => person(s.playerId, x.episode)} className={`nd-press grid place-items-center ${x.episode === latest ? (s.you ? "bg-input/45" : "bg-secondary/60") : ""}`}>
+                      <button key={x.episode} type="button" data-square={`${s.playerId}:${x.episode}`} data-late={x.late ? "" : undefined} aria-label={`${s.name}, ${words.episode} ${x.episode}${x.late ? `. ${LATE_SET}` : ""}`} onClick={() => person(s.playerId, x.episode)} className={`nd-press relative grid place-items-center ${x.episode === latest ? (s.you ? "bg-input/45" : "bg-secondary/60") : ""}`}>
                         <Cell g={g} x={x} />
+                        {x.late && <LateMark className="right-px top-px" />}
                       </button>
                     ))}
                     {p.next && <span className="grid place-items-center">{rowOf.has(s.playerId) && <NextCell set={p.next.set[s.playerId]} you={s.you} due={due} />}</span>}
@@ -595,6 +597,17 @@ function SeasonGrid({ g, m, words, due, drill }: { g: GameView; m: PageModel; wo
       <p className="mt-2.5 text-[12.5px] leading-[1.4] text-muted-foreground">
         {eps.length || p.kind === "staged" ? keyLine(g) : m.phase === "before" ? `It fills in from the first ${words.episode.toLowerCase()} with results, as far as you've watched.` : "Nothing counted yet, as far as you've watched."}
         {[m.couch.note, m.couch.players > all.length ? `${m.couch.players} playing` : null].filter(Boolean).map((x) => ` ${x}.`)}
+        {g.waiting?.length > 0 && p.kind === "result" && (
+          <span data-waiting-key className="mt-1 block">
+            {g.waiting.map((w) => `${words.episode} ${w.episode}: waiting on ${w.name}'s ${p.blocks.some((b) => b === "pick" || b === "picks") ? "pick" : "lineup"}.`).join(" ")}
+          </span>
+        )}
+        {rows.some((s) => p.rows[s.playerId]?.some((x) => x.late)) && (
+          <span data-late-key className="mt-1 flex items-center gap-1.5">
+            <Clock className="size-3 flex-none" aria-hidden />
+            {LATE_SET}.
+          </span>
+        )}
       </p>
     </section>
   );
@@ -628,6 +641,8 @@ function Cell({ g, x }: { g: GameView; x: Square }) {
   }
   if (k === "result") {
     if (!x.result) return <span className="text-[13px] text-muted-foreground">–</span>;
+    // Waiting on a late move (someone playing at their own pace): not won or lost yet.
+    if (x.waiting) return <b data-waiting className="type-num grid size-6 place-items-center rounded-[2px] border border-dashed border-edge text-[14px] text-muted-foreground">…</b>;
     return <b className={`type-num grid size-6 place-items-center rounded-[2px] text-[14px] ${x.result.r === "W" ? "bg-good text-good-foreground" : "bg-input text-foreground"}`}>{x.result.r}</b>;
   }
   if (g.plays.blocks.includes("boots") && x.held) {

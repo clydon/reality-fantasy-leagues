@@ -193,6 +193,9 @@ export interface Move {
   leagueName: string;
   episode?: number;
   deadline?: string | null;
+  /** For an episode that's aired, open to you because you play at your own pace (docs/PLAN-own-pace-games.md) until you've
+   *  watched it; `deadline` is then the next episode's air time. */
+  late?: boolean;
 }
 
 export interface HomeShow extends SeasonHeader {
@@ -787,6 +790,9 @@ export const gameAdmin = {
     sendJson<{ batch: string | null; games: number }>(seasonUrl(seasonId, "/backstage/settings", { couch: couchId }), "PATCH", { lockDown: on }),
   role: (seasonId: string, couchId: string, userId: string, role: LeagueRole, leagueIds?: string[]) =>
     sendJson<{ batch: string; games: number }>(seasonUrl(seasonId, `/backstage/members/${encodeURIComponent(userId)}`, { couch: couchId }), "PUT", { role, leagueIds }),
+  /** Plays at their own pace (docs/PLAN-own-pace-games.md): a Commissioner's switch for someone in one game. */
+  pace: (seasonId: string, couchId: string, userId: string, leagueId: string, on: boolean) =>
+    sendJson<{ on: boolean }>(seasonUrl(seasonId, `/backstage/members/${encodeURIComponent(userId)}/pace`, { couch: couchId }), "PUT", { leagueId, on }),
   remove: (seasonId: string, couchId: string, userId: string, preview = false) =>
     sendJson<OutPreview & { batch: string | null }>(seasonUrl(seasonId, `/backstage/members/${encodeURIComponent(userId)}/remove`, { couch: couchId }), "POST", { preview }),
   leave: (seasonId: string, couchId: string, preview = false) => sendJson<OutPreview & { batch: string | null }>(seasonUrl(seasonId, "/leave", { couch: couchId }), "POST", { preview }),

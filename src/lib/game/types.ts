@@ -28,6 +28,9 @@ export interface Player {
   /** Step A11 part 5c of docs/PLAN-start-a-game-gpt.md: what a team given after the draft cost under a price (a late joiner's own
    *  draft, or castaways whoever runs the game gave them): a stock market's cash counts it as it counts the draft's log. */
   joinPaid?: number;
+  /** Plays a live game at their own pace (docs/PLAN-own-pace-games.md, the Commissioner's switch on Backstage › Members): their
+   *  moves for an aired episode stay open until they've watched it or the next one airs (StateLogic.GhostLogic.lateWindow). */
+  ownPace?: boolean;
 }
 
 export interface LateJoin {
@@ -255,6 +258,9 @@ export interface Episode {
   twist?: { id: string | null; by: string | null; how: "chosen" | "fallback" };
   /** Kept open past its start by whoever runs the game (Backstage › Settings' lock; StateLogic.closedForPlay). */
   openPastAir?: boolean;
+  /** Seats whose move for this episode was set after it aired, before they'd watched it (playing at their own pace:
+   *  StateLogic.GhostLogic.applyAs late), by player id: the couch's quiet marker. */
+  lateSet?: Record<string, boolean>;
 }
 
 /** A group slot's pick (step A10 part 1): the group as it was offered (its id in the season's format timeline, and its members,

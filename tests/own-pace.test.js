@@ -268,3 +268,131 @@ test("sync point 2: a waiver moment opens a week on the cast as it stood then, o
   const goneBy5 = s.castaways.slice(0, 5).map((c) => c.id);
   assert.ok(mine.every((id) => !goneBy5.includes(id)), "the replacement was still in");
 });
+
+// ---- One person at their own pace on a live game (the user, 2026-11-09): Backstage's "Plays at their own pace" ----
+
+const HOUR = 3600 * 1000;
+const NOW = Date.parse("2026-11-12T03:00:00Z");
+const at = (h) => new Date(NOW + h * HOUR).toISOString();
+
+/** A live Weekly Lineup (shared teams, three start), ann and bo each holding C2..C7 and a computer player: Episodes 1 and 2 played,
+ *  Episode 3 aired two hours ago (`results3`: someone went home and C2 scored in it), Episode 4 airs in a week. */
+function liveLineup({ results3 = false, preset = "weekly-lineup" } = {}) {
+  const s = S.defaultState();
+  S.updateSettings(s, "showId", "survivor");
+  S.updateSettings(s, "leagueTypeId", preset === "survival-pool" ? "pickem" : "active-roster");
+  for (let i = 0; i < 10; i++) S.addCastaway(s, `C${i}`);
+  s.players = ["ann", "bo"].map((id) => ({ id, name: id, color: "#000", active: true, disabled: false }));
+  s.players.push({ id: "bot", name: "Bot", color: "#00f", active: true, disabled: false, automated: true });
+  S.updateSettings(s, "setupComplete", true);
+  const spec = preset === "survival-pool" ? { preset } : { preset, get: { by: "draft", each: 6, order: "blind", own: "shared" } };
+  assert.deepEqual(S.setGame(s, spec, { ctx: CTX }), []);
+  if (preset !== "survival-pool") for (const c of s.castaways.slice(2, 8)) c.ownerIds = ["ann", "bo"];
+  s.draftPicksMade = 6;
+  for (let k = 1; k <= 4; k++) {
+    S.ensureEpisodeNumber(s, k, false);
+    ep(s, k).airsAt = at(k === 4 ? 24 * 7 - 2 : -2 - 24 * 7 * (3 - k));
+  }
+  for (const k of [1, 2]) S.addElimination(s, ep(s, k).id, s.castaways[k - 1].id, "Voted Out");
+  if (results3) {
+    S.addElimination(s, ep(s, 3).id, s.castaways[8].id, "Voted Out");
+    if (preset !== "survival-pool") S.addScoringEvent(s, ep(s, 3).id, "individualImmunity", s.castaways[2].id);
+  }
+  return s;
+}
+const ids = (s, k) => k.map((i) => s.castaways[i].id);
+
+test("live at your own pace: off by default; on, the aired episode stays open until they've watched it or the next airs", () => {
+  const s = liveLineup();
+  assert.equal(GhostLogic.playsOwnPace(s, "ann"), false);
+  assert.equal(GhostLogic.lateWindow(s, "ann", 2, NOW), null, "off: nothing open late");
+  assert.equal(GhostLogic.setPlaysOwnPace(s, "ann", true), null);
+  assert.equal(GhostLogic.setPlaysOwnPace(s, "bot", true), "Computer players keep up by themselves");
+  assert.equal(GhostLogic.playsOwnPace(s, "ann"), true);
+  assert.deepEqual(GhostLogic.lateWindow(s, "ann", 2, NOW), { episode: 3, epId: ep(s, 3).id, until: ep(s, 4).airsAt });
+  assert.equal(GhostLogic.lateWindow(s, "ann", 3, NOW), null, "watched it: closed");
+  assert.equal(GhostLogic.lateWindow(s, "ann", Number.POSITIVE_INFINITY, NOW), null, "sees results as they come: never behind");
+  assert.equal(GhostLogic.lateWindow(s, "ann", 2, Date.parse(ep(s, 4).airsAt) + 1000)?.episode, 4, "the next one aired: 3 closed, 4 is the one open");
+  assert.equal(GhostLogic.lateWindow(s, "ann", 2, Date.parse(ep(s, 3).airsAt) - 1000), null, "before airtime it's an ordinary move");
+  assert.equal(GhostLogic.lateWindow(s, "bo", 2, NOW), null, "only the seat that's switched on");
+  assert.equal(GhostLogic.setPlaysOwnPace(s, "ann", false), null);
+  assert.equal(GhostLogic.lateWindow(s, "ann", 2, NOW), null, "switched off again");
+});
+
+test("live at your own pace: a late lineup runs on the copy where the episode's open, is marked, and scores as if on time", () => {
+  const s = liveLineup({ results3: true });
+  GhostLogic.setPlaysOwnPace(s, "ann", true);
+  const e3 = ep(s, 3);
+  assert.ok(S.ActiveRosterLogic.validateLineup(s, e3.id, "ann", ids(s, [2, 3, 4])), "locked for everyone the ordinary way");
+  const set = (v) => S.ActiveRosterLogic.validateLineup(v, e3.id, "ann", ids(s, [2, 3, 4])) ?? (S.setActiveRosterLineup(v, e3.id, "ann", ids(s, [2, 3, 4])), null);
+  assert.equal(GhostLogic.applyAs(s, "ann", 2, e3.id, set, { late: true }), null);
+  assert.deepEqual(S.activeRosterLineupFor(s, e3.id, "ann"), ids(s, [2, 3, 4]));
+  assert.deepEqual(e3.lateSet, { ann: true }, "the couch's quiet marker");
+  assert.equal(S.ActiveRosterLogic.episodeScore(s, e3, "ann").total > 0, true, "C2's immunity counts, as if set at airtime");
+  // Nobody outside the roster, as at airtime; the episode before is closed.
+  const bad = (v) => S.ActiveRosterLogic.validateLineup(v, e3.id, "ann", ids(s, [2, 3, 9]));
+  assert.match(GhostLogic.applyAs(s, "ann", 2, e3.id, bad, { late: true }), /isn't on your roster/);
+  assert.equal(GhostLogic.applyAs(s, "ann", 2, ep(s, 2).id, set, { late: true }), "Only this week’s episode is open");
+  assert.equal(GhostLogic.movedFor(s, "bo", e3.id), false, "bo's untouched");
+});
+
+test("live at your own pace: a late pick in a Survival Pool, from who was in at airtime, counted as made on time", () => {
+  const s = liveLineup({ results3: true, preset: "survival-pool" });
+  GhostLogic.setPlaysOwnPace(s, "ann", true);
+  const e3 = ep(s, 3);
+  const c8 = s.castaways[8].id;
+  S.setPickEmPick(s, e3.id, "ann", c8);
+  assert.ok(!PickEmLogic.pickFor(s, e3.id, "ann"), "closed the ordinary way");
+  assert.equal(GhostLogic.applyAs(s, "ann", 2, e3.id, (v) => S.setPickEmPick(v, e3.id, "ann", c8), { late: true }), null);
+  assert.equal(PickEmLogic.pickFor(s, e3.id, "ann").castawayId, c8, "C8 was still in at airtime");
+  assert.equal(e3.lateSet.ann, true);
+  assert.equal(S.pickEmHistory(s, "ann").rows.find((r) => r.episode === 3)?.correct, false, "and went home in it: scored as it fell");
+});
+
+test("live at your own pace: the couch waits on them until it's set; a carried lineup doesn't count as set", () => {
+  const s = liveLineup();
+  GhostLogic.setPlaysOwnPace(s, "ann", true);
+  S.setActiveRosterLineup(s, ep(s, 2).id, "ann", ids(s, [2, 3, 4]));
+  const marks = new Map([["ann", 2]]);
+  assert.deepEqual(GhostLogic.lateWaiting(s, marks, NOW), [{ playerId: "ann", episode: 3 }], "her Episode 2 lineup carries, but she hasn't set 3");
+  assert.deepEqual(GhostLogic.lateWaiting(s, new Map([["ann", 3]]), NOW), [], "watched it: nobody waits");
+  GhostLogic.applyAs(s, "ann", 2, ep(s, 3).id, (v) => S.setActiveRosterLineup(v, ep(s, 3).id, "ann", ids(s, [5, 6, 7])), { late: true });
+  assert.deepEqual(GhostLogic.lateWaiting(s, marks, NOW), []);
+});
+
+test("live at your own pace: the game view opens the aired episode in your copy, says why it's due, and the couch waits", () => {
+  const { gameView } = jiti("../src/lib/game/game-view.ts");
+  const { yourMove } = jiti("../src/new/show/your-move.ts");
+  const s = liveLineup({ results3: true });
+  GhostLogic.setPlaysOwnPace(s, "ann", true);
+  S.setActiveRosterLineup(s, ep(s, 2).id, "ann", ids(s, [2, 3, 4]));
+  const ref = { leagueId: "L", name: "Lineup", gameType: "active-roster", gameName: "Weekly Lineup", yourRole: "member" };
+  const own = { marks: new Map([["ann", 2]]), now: NOW };
+  const g = gameView(ref, s, "ann", 2, () => null, undefined, own);
+  assert.deepEqual(g.late, { episode: 3, until: ep(s, 4).airsAt });
+  assert.equal(g.revealFirst, null, "Episode 3's results don't stand in the way of its own lineup");
+  assert.equal(g.lineup.episode, 3);
+  assert.equal(g.lineup.locked, false, "open in her copy");
+  const move = yourMove(g, { seasonId: "S", episode: "Episode", when: (iso) => iso });
+  assert.equal(move.due, true, "carried in from Episode 2, so still the yellow");
+  assert.equal(move.title, "Set your Episode 3 lineup");
+  assert.equal(move.line, "Episode 3 aired · you haven't watched it · set your lineup first");
+  // Bo, live, sees Episode 3 with its results (he's watched it), and the couch waiting on ann.
+  const bo = gameView(ref, s, "bo", 3, () => null, undefined, own);
+  assert.equal(bo.late, null);
+  assert.deepEqual(bo.waiting, [{ playerId: "ann", name: "ann", episode: 3 }]);
+  // Without the switch, ann's Episode 3 is locked like anyone's, and she's told to reveal it.
+  GhostLogic.setPlaysOwnPace(s, "ann", false);
+  const off = gameView(ref, s, "ann", 2, () => null, undefined, own);
+  assert.equal(off.late, null);
+  assert.equal(off.revealFirst, 3);
+  // Set late: no longer due, the square marked, the couch no longer waiting.
+  GhostLogic.setPlaysOwnPace(s, "ann", true);
+  GhostLogic.applyAs(s, "ann", 2, ep(s, 3).id, (v) => S.setActiveRosterLineup(v, ep(s, 3).id, "ann", ids(s, [2, 3, 5])), { late: true });
+  const after = gameView(ref, s, "ann", 2, () => null, undefined, own);
+  assert.equal(yourMove(after, { seasonId: "S", episode: "Episode", when: (iso) => iso }).line, "Change until you watch it");
+  const seen = gameView(ref, s, "bo", 3, () => null, undefined, own);
+  assert.deepEqual(seen.waiting, []);
+  assert.equal(seen.plays.rows.ann.find((q) => q.episode === 3)?.late, true, "the quiet marker on her square");
+  assert.equal(seen.plays.rows.bo.find((q) => q.episode === 3)?.late, undefined);
+});
