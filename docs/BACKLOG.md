@@ -431,8 +431,8 @@ Last updated 2026-10-27.
       question:" ends in a colon that leads into the next numbered rule. The census proves no holes, not that words read: a
       check for words that read wrong over every spec's describe. (The engine lane, with describe.js's sport-words ask.)
     - **A person's colour can be Gold** (#e0b23a, the palette's, `src/lib/people.ts`): beside a yellow strip it reads as a near
-      second yellow (the finish review). It's their identity colour across the app, so not recoloured on one page; whether Gold
-      stays in the palette is the user's call. (Any time, small.)
+      second yellow (the finish review). It's their identity colour across the app, so not recoloured on one page. **Decided
+      (the user, 2026-11-08): Gold is fine**, it stays.
     - **Not touched:** the dock and the Your moves sheet have no way to a game's page; the Games tab's launcher (U0); the four
       show themes (the user: a later step); Studio (the new design is Night only until step 15).
 
