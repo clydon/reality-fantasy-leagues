@@ -175,6 +175,8 @@ export const FIELDS: Record<string, string>;
 export function fieldsOf(spec: unknown): Set<string>;
 export function fieldExamples(ctx: SpecContext | null, rows: unknown[], o?: { show?: string | null }): Map<string, { words: string; spec: unknown }>;
 export function examplesFor(ctx: SpecContext | null, rows: unknown[], o?: { limit?: number; cant?: number; show?: string; kind?: "show" | "sport" }): { playing: { words: string; spec: unknown; sentence: string }[]; waiting: { words: string; why: string }[] };
+/** The worked examples: the tracker's requests with a lesson (`teach`), the user's own games (G1's typed fixes). */
+export function workedFor(ctx: SpecContext | null, rows: unknown[], o?: { show?: string | null; kind?: "show" | "sport"; limit?: number }): { words: string; spec: unknown; teach: string; on?: string }[];
 export function signature(spec: unknown): string;
 export function packOf(input: PackInput): Pack;
 export function idsOf(pack: Pack): Record<string, Set<string>>;

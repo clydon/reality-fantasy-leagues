@@ -95,23 +95,40 @@ function numbersOf(v, path = '', out = []) {
 // ---- their words ----
 
 const NUMBER_WORDS = {
-  one: 1, two: 2, twice: 2, double: 2, three: 3, triple: 3, thrice: 3, four: 4, quadruple: 4, five: 5, six: 6, seven: 7, eight: 8,
+  zero: 0, one: 1, two: 2, twice: 2, double: 2, three: 3, triple: 3, thrice: 3, four: 4, quadruple: 4, five: 5, six: 6, seven: 7, eight: 8,
   nine: 9, ten: 10, eleven: 11, twelve: 12, fifteen: 15, twenty: 20, thirty: 30, forty: 40, fifty: 50, hundred: 100, half: 0.5,
   quarter: 0.25,
+  // As a verb or a plural ("count as quartered", "points halves", "doubled"): the user's typed games, 2026-11-08.
+  halve: 0.5, halves: 0.5, halved: 0.5, quarters: 0.25, quartered: 0.25, doubles: 2, doubled: 2, triples: 3, tripled: 3,
+  quadruples: 4, quadrupled: 4,
 };
 /** "a point", "an extra life", "every week": a one only where the words count something (never "a" or "each" alone). */
 const ONE_PHRASE = /\b(an?|one)\s+(extra\s+)?(point|life|pick|castaway|player|person|question|line|slot|mulligan|buyback|captain|stage|week|episode|round|bonus)\b|\b(each|every)\s+(single\s+)?(week|episode|night|round)\b/;
 
-/** The numbers some words say: digits ("5", "2.5", "$100", "3x", "-1"), number words, double, half, and a one that counts something
- *  ("a point", "every week"); each as said and negated (a "minus 1" is -1, but a quote of "1" can back either). */
-function numbersIn(text) {
+/** "no negative points", "never lose points", "no minus points": a 0 (the points a moment that would cost them now scores). */
+const ZERO_PHRASE = /\bno\s+(negative\s+|minus\s+)?(points?|negatives|minus(es)?|penalt(y|ies))\b|\bnever\s+(lose|loses|losing)\s+(any\s+)?points\b/;
+
+/** A sport's own nouns that are number words on a show's page: a baseball double or triple, a tennis doubles match, a game's
+ *  quarters and halves say no number there. */
+const SPORT_NOUNS = new Set(['doubles', 'triples', 'quarters', 'halves']);
+
+/** The numbers some words say: digits ("5", "2.5", "$100", "3x", "-1"), number words (halved, quartered, doubled...), and a one that
+ *  counts something ("a point", "every week"); each as said and negated (a "minus 1" is -1, but a quote of "1" can back either).
+ *  `kind` 'sport': a sport's nouns (SPORT_NOUNS) aren't numbers. */
+function numbersIn(text, { kind = 'show' } = {}) {
   const out = new Set();
   const s = String(text || '').toLowerCase();
   for (const m of s.matchAll(/-?\d+(?:\.\d+)?/g)) out.add(Math.abs(Number(m[0])));
-  for (const w of s.split(/[^a-z]+/)) if (Object.prototype.hasOwnProperty.call(NUMBER_WORDS, w)) out.add(NUMBER_WORDS[w]);
+  for (const w of s.split(/[^a-z]+/)) {
+    if (kind === 'sport' && SPORT_NOUNS.has(w)) continue;
+    if (Object.prototype.hasOwnProperty.call(NUMBER_WORDS, w)) out.add(NUMBER_WORDS[w]);
+  }
   if (ONE_PHRASE.test(s)) out.add(1);
   return out;
 }
+
+/** Whether a quote backs the number `n` at `path`: a number it says, or (a phrase about losing no points) a 0 on a moment's points. */
+const backs = (quote, path, n, kind) => numbersIn(quote, { kind }).has(Math.abs(n)) || (n === 0 && /(^|\.)score\.points\./.test(path) && ZERO_PHRASE.test(String(quote).toLowerCase()));
 
 /** Words as compared: lower case, letters, digits (a decimal point kept) and single spaces, a space at each end, so a quote is
  *  found only on word boundaries ("3" isn't in "30"). */
@@ -324,6 +341,37 @@ function fixWaits(start, ctx) {
     if (!done) return { spec, out, waits };
   }
   return { spec, out, waits: specWaitsFor(spec) };
+}
+
+/** A draft scored by moments counting the whole team (`count: { all: true }`) waits ("best ball with all of it"): the same game
+ *  is best ball of everyone drafted, `count: { best: each }`. The repaired spec and why, or null when it doesn't apply or doesn't
+ *  clear the wait: the team's size still asked (`sizeAsked`: the best would stay at what we guessed while their answer changed
+ *  the team), or a team that holds more than its draft (group slots: the best of them would bench one). */
+function countAllRepair(spec, { sizeAsked = false } = {}) {
+  if (sizeAsked || !isObj(spec.count) || spec.count.all !== true) return null;
+  const waits = specWaitsFor(spec);
+  if (!waits.some((w) => w.at === 'count')) return null;
+  let full;
+  try {
+    full = fullSpec(spec);
+  } catch {
+    return null;
+  }
+  const each = isObj(full.get) && full.get.by === 'draft' ? full.get.each : null;
+  if (!Number.isInteger(each) || each < 1 || isObj(full.get.groups)) return null;
+  const to = { best: each };
+  const next = { ...clone(spec), count: to };
+  if (specWaitsFor(next).some((w) => w.at === 'count')) return null;
+  return { spec: next, from: clone(spec.count), to, why: `Everyone on your team counts: best ball of all ${each}, so every one of them scores` };
+}
+
+/** The default our check fills an extra's detail with (fixProblems' way): the draft's own preset's, else the one value every
+ *  preset that has one agrees on; undefined where they differ or none has one. */
+function oursAt(spec, path) {
+  const own = spec.preset && PRESETS[spec.preset] ? getAt(fullSpec({ preset: spec.preset }), path) : undefined;
+  if (own !== undefined) return own;
+  const all = new Set(Object.keys(PRESETS).map((id) => getAt(fullSpec({ preset: id }), path)).filter((v) => v !== undefined).map((v) => JSON.stringify(v)));
+  return all.size === 1 ? JSON.parse([...all][0]) : undefined;
 }
 
 // ---- a sport's page (G3) ----
@@ -569,7 +617,7 @@ function checkDraft(draft, { ctx = null, pack = null, words = '', kind, carry = 
 
   // G3: a sport's page: its stats by key, its standard table, ESPN's line, its teams (each a named change, before the numbers).
   if (pageKind === 'sport') {
-    const saidNumber = (path, n) => result.said.some((s) => (!s.part || covers(s.part, path) || covers(path, s.part)) && numbersIn(s.quote).has(Math.abs(n)));
+    const saidNumber = (path, n) => result.said.some((s) => (!s.part || covers(s.part, path) || covers(path, s.part)) && backs(s.quote, path, n, pageKind));
     const sport = sportFixes(spec, { pack, said: saidNumber, games, positions: isObj(ctx) && Array.isArray(ctx.positions) ? ctx.positions.filter((g) => isObj(g) && g.key) : [] });
     const moved = (part) => {
       if (!part) return part;
@@ -598,13 +646,16 @@ function checkDraft(draft, { ctx = null, pack = null, words = '', kind, carry = 
   // Last first: taking a number out of a list moves the ones after it, never the ones before.
   for (const [path, n] of numbersOf(spec).reverse()) {
     if (path === 'spec') continue;
-    const said = result.said.some((s) => (!s.part || covers(s.part, path) || covers(path, s.part)) && numbersIn(s.quote).has(Math.abs(n)));
+    const said = result.said.some((s) => (!s.part || covers(s.part, path) || covers(path, s.part)) && backs(s.quote, path, n, pageKind));
     const assumed = result.assumed.some((a) => covers(a.part, path));
     if (said || assumed) continue;
     const without = withAt(spec, path, undefined);
     const dflt = getAt(fullSpec(without), path);
     if (dflt === n) continue;
     if (path === 'span.from' && n === next) continue;
+    // An extra's detail the draft wrote as our own default (a waiver's hours, its window's every: a worked example copied whole)
+    // is ours, a chip and never a question, as fixProblems fills it when it's left out.
+    if (/^extras\./.test(path) && oursAt(spec, path) === n) continue;
     // G3: a sport's page whose games the pack lists whole: its last game is the season's end (a one-game matchup's 1 to 1).
     if (path === 'span.to' && pageKind === 'sport' && n === lastGame) continue;
     // Without it the game wouldn't play (a budget needs its total): keep it, but as the bot's choice, asked.
@@ -616,6 +667,15 @@ function checkDraft(draft, { ctx = null, pack = null, words = '', kind, carry = 
     spec = without;
     result.dropped.push({ part: path, value: n, why: "a number they didn't say", ...(dflt !== undefined ? { ours: dflt } : {}) });
     result.ask.push({ part: path, question: numberAsk(path), options: dflt !== undefined && dflt !== null && typeof dflt !== 'object' ? [String(dflt)] : [], by: 'check' });
+  }
+
+  // A draft scored by moments that counts everyone drafted: best ball of all of them, the same game in the engine's terms
+  // (the validator's own hint), said in what our check filled in.
+  const all = countAllRepair(spec, { sizeAsked: result.ask.some((q) => q.part === 'get.each') });
+  if (all) {
+    spec = all.spec;
+    result.fixed.push({ part: 'count', problem: all.why, from: all.from, to: { count: all.to }, options: [], quiet: true });
+    result.assumed.push({ part: 'count', value: all.to, why: all.why, by: 'check' });
   }
 
   // The validator: each problem a named change, or left.

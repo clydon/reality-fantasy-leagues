@@ -2641,6 +2641,7 @@
         "score",
         "win"
       ],
+      "teach": "objectives that change each week are a card of the show's moments (card from 'moments' in turn, or 'bot'); only they count is score.only 'card'; picking people fresh each week is get.by pick; the week's winner is rank.by weeks",
       "note": "the user's third game (2026-11-05, track C), playing since C5: three castaways picked fresh each episode without a draft (get.by pick, each 3, repeat any by default), only the week's objectives counting (since C7, a new card each week: score.only 'card', the card five of ten of the show's moments in turn, card { from: 'moments', each: 5, of }; a fixed list, score.only [ids], still plays), each a hit worth a point counted per pick (score.hits 'pick': each objective once for each of your picks that hit it; 'objective' counts it once for you, 'every' every time), the week's winner and the season ranked by weeks won (rank.by weeks, a tied week won by each of them: rank.ties all). Open (the user's): distinct objectives your picks hit ('objective'), each pick's ('pick', the lane's default) or every hit ('every'); who writes each week's objectives (C7: the show's moments in turn from the maker's list; the bot choosing them is C7's later part); a tied week (all, split or none)."
     },
     {
@@ -3106,6 +3107,59 @@
         "score"
       ],
       "note": "the user's first game with a fixed sheet (C6: a bank of 500, a stake of any of it on each line, and a ticket a player builds from the sheet's lines, each leg doubling what rides on it); its sheet written fresh each week is C7's (p10)."
+    },
+    {
+      "id": "p27",
+      "page": { "show": "Survivor", "season": 51, "rulebook": "survivor" },
+      "words": "Draft 3 players exclusively for the season. If someone gets eliminated you can replace them with anyone, owned or free however now their points count as half. If your replacement gets voted out, you can replace them but then the replacement's replacement points count as quartered.",
+      "spec": {
+        "preset": "weekly-lineup",
+        "get": { "by": "draft", "each": 3, "order": "snake", "own": "exclusive" },
+        "count": { "best": 3 },
+        "score": { "by": "moments", "points": null, "multiply": [{ "joined": "replacement", "times": [0.5, 0.25], "per": "slot" }] },
+        "extras": { "waivers": { "feel": "balanced", "replace": "always", "short": null, "windows": { "schedule": "manual", "every": 3, "swaps": 0 }, "order": "rolling", "hours": 24, "freeAgency": true, "autoFill": true, "own": { "replace": "shared" } } }
+      },
+      "dials": ["score", "who"],
+      "teach": "a draft where everyone drafted scores by moments is best ball of all of them (count best = get.each); a replacement from anyone, owned or free, is extras.waivers own.replace 'shared'; points that shrink with each replacement are score.multiply joined 'replacement' with a list of times (half then a quarter: [0.5, 0.25]), per 'slot' when it's the replacement's replacement",
+      "note": "the user's second game as they typed it on Survivor 51's page (2026-11-08): an exclusive draft of 3, all of them scoring (best ball of 3), replacements from anyone still in, owned or free (C4: own.replace 'shared'), the first on a spot at half and the next a quarter (C3: multiply per 'slot', 'quartered' read as 0.25 since G1's typed fixes). The real bot drafted it whole but counted everyone (count all: our check now makes it best ball of 3) and kept halving after the list (then 'ratio': its own assumption, asked)."
+    },
+    {
+      "id": "p28",
+      "page": { "show": "Survivor", "season": 51, "rulebook": "survivor" },
+      "words": "have a starting bank of 500 points, have a prediction sheet randomly generated each week. That sheet you have to assign a player who you think will achieve that objective. You you wager for your entire prediction sheet. more objectives you pick multiply your earnings.",
+      "spec": {
+        "get": { "by": "none" },
+        "count": null,
+        "score": { "by": "answers", "bank": { "start": 500 } },
+        "rank": { "by": "total" },
+        "card": { "from": "bot", "each": 4, "of": ["individualImmunity", "idolFound", "idolPlayed", "votesNegated", "wentOnJourney", "learnedOfAdvantage", "rewardWin", "zeroVotesSafe"] },
+        "ask": [
+          { "id": "sheet", "ask": "This week's sheet", "answer": "person", "points": 0, "asked": "each", "card": true, "settle": { "by": "moment", "take": "who" } },
+          { "id": "ticket", "ask": "Your ticket", "answer": "ticket", "points": 0, "asked": "each", "wager": "total", "settle": { "by": "legs", "of": ["sheet"] } }
+        ]
+      },
+      "dials": ["answer", "score"],
+      "teach": "a sheet made each week is a card (card from 'bot': the AI picks it from the show's moments), not only bingo; a question on each of its lines is ask.card true, any answer (a person who does it: settle moment take who); one stake on the whole sheet, the more lines the bigger the payout, is a ticket of its lines (answer ticket, wager total, settle legs of the card's question); a bank to stake from is score.bank",
+      "note": "the user's first game as they typed it on Survivor 51's page (2026-11-08): a bank of 500 (C6), a sheet the AI picks each week from the show's moments (C7 part 2: card from 'bot', each 4), a person named for each of its lines (card: true, answer 'person', settled 'who'), and one stake on the sheet: a ticket built from its lines whose payout grows with how many you put on it (C6 part 2: 3 times for two, 7 for three, 15 for four). p10 is the same game with who goes home beside the card and yes-or-no lines."
+    },
+    {
+      "id": "p29",
+      "page": { "show": "Survivor", "season": 51, "rulebook": "survivor", "couch": 3 },
+      "words": "I want a survivor fantasy league head to head. However since there's only 3 players I want the head to heads be 2 on 1. The team of two will have their points halves so they act as one player against the solo player.",
+      "step": "C8",
+      "dials": ["win"],
+      "note": "the user's ask (2026-11-08): head to head for a couch of 3, each episode one of you alone against the other two, the pair's points halved (their average), the solo seat rotating so everyone plays alone equally, both of the pair taking the result. Head to head plays now (rank.by 'matchups'; with three of you today whoever the round robin leaves out plays the median of the other two, who also play each other), so the bot's nearest is right; the 2-on-1 is C8's (the plan, with its rule questions)."
+    },
+    {
+      "id": "p30",
+      "page": { "show": "Survivor", "season": 51, "rulebook": "survivor" },
+      "words": "Survivor fantasy but no negative points",
+      "spec": {
+        "preset": "weekly-lineup",
+        "score": { "by": "moments", "points": { "satOut": 0, "advantageTargeted": 0, "votedOut": 0, "quit": 0, "lostFireMaking": 0, "zeroJuryVotes": 0 } }
+      },
+      "dials": ["score"],
+      "note": "typed on Survivor 51's page (2026-11-08): every moment the rules score below 0 set to 0, the rest as the rules have them; said \"Scored by Survivor 51's rules, but nothing costs points\" (describe, since G1's typed fixes, through impeccable's clarify)."
     }
   ],
   "stretch": [

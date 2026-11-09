@@ -266,6 +266,18 @@ function changedPoints(points, own, moments) {
   return Object.entries(points).filter(([id, p]) => def.has(id) && def.get(id) !== p).length;
 }
 
+/** Whether the spec takes away every point the rulebook would cost (each moment worth less than 0 now 0 or more, none made
+ *  negative) and how many other moments' points it changes: "no negative points" said plainly. Null when it doesn't, or when
+ *  the rulebook costs nothing to begin with. */
+function noNegatives(points, own, moments) {
+  if (!isObj(points) || !moments) return null;
+  const def = new Map(moments.filter((m) => !m.off).map((m) => [m.id, isObj(m.defaultPoints) ? m.defaultPoints[own === 'shared' ? 'shared' : 'exclusive'] || 0 : m.defaultPoints || 0]));
+  const now = (id) => (Object.prototype.hasOwnProperty.call(points, id) && typeof points[id] === 'number' ? points[id] : def.get(id));
+  if (![...def.keys()].some((id) => def.get(id) < 0) || [...def.keys()].some((id) => now(id) < 0)) return null;
+  // Every other change named: a penalty that now scores more than 0 is a change of its own, not only a loss taken away.
+  return { others: Object.entries(points).filter(([id, p]) => def.has(id) && def.get(id) !== p && !(def.get(id) < 0 && p === 0)).length };
+}
+
 /** The preset's name, while the spec still plays the preset's game (the same parts); else null: "A game". Outlast in reverse
  *  (A9 part 2) is another game. */
 function nameOf(s) {
@@ -466,7 +478,8 @@ function sentenceParts(s, w) {
     if (count === 'start') put(` and starts ${s.count.start} each ${w.part}`, 'count');
     // A9 part 2: a lineup's captain.
     if (count === 'start' && isObj(s.score.captain) && isNum(s.score.captain.times)) put(`, one of them a captain who scores ${timesWord(s.score.captain.times)}`, 'score');
-    if (count === 'best') put(`, and their best ${s.count.best} count each ${w.part}`, 'count');
+    // Best ball of the whole team: "all 3 count", never "best 3 of 3" (impeccable's clarify, 2026-11-08).
+    if (count === 'best') put(wholeTeam(s) ? `, and all ${s.count.best} count each ${w.part}` : `, and their best ${s.count.best} count each ${w.part}`, 'count');
     // A10 part 1: group slots.
     const slots = groupSlotsOf(s);
     if (slots) put(`, plus ${slots.slots === 1 ? 'a slot' : `${say(slots.slots)} slots`} for a pair or team the show forms`, 'get');
@@ -532,7 +545,11 @@ function sentenceParts(s, w) {
   const sc = s.score;
   if (sc.by === 'moments') {
     const changed = changedPoints(sc.points, s.get.own, w.moments);
-    put(changed === null ? ` Scored by ${rules}, with the game's own points.` : changed ? ` Scored by ${rules}, with ${say(changed)} ${changed === 1 ? "moment's" : "moments'"} points changed.` : ` Scored by ${rules}.`, 'score');
+    // The user's "no negative points" (2026-11-08): the one fact first, nothing costs points; which moments it touches is What
+    // scores' (impeccable's clarify).
+    const noNeg = changed ? noNegatives(sc.points, s.get.own, w.moments) : null;
+    if (noNeg) put(` Scored by ${rules}, but nothing costs points${noNeg.others ? `, and ${say(noNeg.others)} other ${noNeg.others === 1 ? "moment's" : "moments'"} points changed` : ''}.`, 'score');
+    else put(changed === null ? ` Scored by ${rules}, with the game's own points.` : changed ? ` Scored by ${rules}, with ${say(changed)} ${changed === 1 ? "moment's" : "moments'"} points changed.` : ` Scored by ${rules}.`, 'score');
     // C5: only these moments count, and hits counted.
     for (const rule of countRules(sc, w, cardOf(s))) put(` ${rule}`, 'score');
     // A9 part 2: when the points multiply.
@@ -1198,6 +1215,8 @@ function poolRules(s, w) {
 }
 
 /** A draft's group slots (A10 part 1: get.groups), or null. */
+/** Best ball of the whole team (G1's typed fixes): its best as many as it drafts, with no group slot beside them. */
+const wholeTeam = (s) => isObj(s.count) && isNum(s.count.best) && isObj(s.get) && s.count.best === s.get.each && !groupSlotsOf(s);
 const groupSlotsOf = (s) => (s.get && s.get.by === 'draft' && isObj(s.get.groups) && isNum(s.get.groups.slots) ? s.get.groups : null);
 /** How group slots work, a rule a line. */
 function groupSlotRules(s, w) {
@@ -1360,7 +1379,7 @@ function rulesOf(s, w) {
     rules.push(...keepRules(s, w));
     if (count === 'start') rules.push(`Before each ${w.part}, start ${say(s.count.start)}. Only starters score.`);
     // A9 part 2: best ball, a lineup's captain, when the points multiply, Outlast in reverse.
-    if (count === 'best') rules.push(`Each ${w.part}, your best ${say(s.count.best)} count, whoever they are: no lineups to set.`);
+    if (count === 'best') rules.push(wholeTeam(s) ? `Each ${w.part}, all ${say(s.count.best)} count: no lineups to set.` : `Each ${w.part}, your best ${say(s.count.best)} count, whoever they are: no lineups to set.`);
     if (count === 'all' && s.score.by !== 'place') rules.push('Everyone you draft scores.');
     if (s.score.by === 'moments') rules.push(w.groups.length ? `Points come from what happens: ${listOf(w.groups)}.` : `Points come from what happens in each ${w.part}.`);
     if (s.score.by === 'stats' && statScoreWords(s.score, w)) rules.push(`Points come from their stats: ${statScoreWords(s.score, w)}.`);
@@ -1751,7 +1770,7 @@ function holdShort(s, w) {
     const how = each === null ? (g.order === 'draw' ? 'From a hat' : g.order === 'auction' ? 'Bid' : 'Draft') : g.order === 'draw' ? `${each} from a hat` : g.order === 'auction' ? `Bid for ${each}` : `Draft ${each}`;
     const c = s.count || {};
     if (isNum(c.start)) return `${how}, start ${c.start}`;
-    if (isNum(c.best)) return `${how}, best ${c.best} count`;
+    if (isNum(c.best)) return wholeTeam(s) ? `${how}, all count` : `${how}, best ${c.best} count`;
     return how;
   }
   if (g.by === 'pick') return s.score && s.score.by === 'survive' ? 'Pick 1 to stay in' : `Pick ${each || 1} to score`;

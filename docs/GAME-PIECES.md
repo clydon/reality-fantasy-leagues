@@ -1326,6 +1326,24 @@ picks x cast members that they think will achieve as many objectives as possible
 - Open: the defaults are the user's (hits per pick, a tied week to each of them); who writes each week's objectives (built: the
   show's moments in turn from the maker's list, or the AI's pick of them, `"from": "bot"`; the default is the user's).
 
+**Typed on Survivor 51's page (2026-11-08).** The user typed games 1 and 2 again in their own words, with two more; the
+Start-a-game GPT's manual now teaches games 1 to 3 as worked examples (G1's typed fixes), so the AI drafts them whole:
+- **The bank and the sheet, as typed** (tracker p28): *"have a starting bank of 500 points, have a prediction sheet randomly
+  generated each week. That sheet you have to assign a player who you think will achieve that objective. You wager for your
+  entire prediction sheet. more objectives you pick multiply your earnings."* The AI's card of four (`"card": { "from": "bot",
+  "each": 4 }`), a person named for each line (`"card": true`, `"answer": "person"`, settled `who`), and one stake on the
+  sheet: a ticket of its lines (`"answer": "ticket"`, `"wager": "total"`, legs of the card's question), from a bank of 500.
+- **The replacements, as typed** (p27): *"Draft 3 players exclusively ... replace them with anyone, owned or free ... their
+  points count as half ... the replacement's replacement points count as quartered."* Best ball of all three (`"count": {
+  "best": 3 }`: everyone drafted scores), replacements from anyone (`"own": { "replace": "shared" }`), and `"multiply":
+  [{ "joined": "replacement", "times": [0.5, 0.25], "per": "slot" }]`: on each spot, the first replacement half, the second a
+  quarter.
+- **No negative points** (p30): every moment the rules score below 0 set to 0, said "Scored by Survivor 51's rules, but
+  nothing costs points".
+- **2 on 1** (p29, not built: the plan's C8): head to head for a couch of 3, each episode one of you alone against the other
+  two, whose points are averaged, the one alone turning so everyone plays alone equally. Today three of you play head to head
+  as a round robin with an odd one out against the median of the other two.
+
 ---
 
 ## Size limits

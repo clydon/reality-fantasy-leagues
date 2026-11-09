@@ -159,7 +159,10 @@ questions (2026-11-06: `card.from: 'host'`, each episode one of the seats in tur
 migration 0212, until the host's deadline, then filed and stamped on the episode; tracker rows s43 and who.host), and so is part 7,
 a number from a vetted outside source (2026-11-06: `settle.by: 'outside'`, an episode's TVmaze rating read once seven days after it
 airs and stored per season in `outside_numbers`, migration 0213; built and checked, but off since 2026-11-07: the user said no to
-TVmaze's ratings as a source, so `outside` is 'later' in VOCAB and tracker rows s42 and settle.outside wait): **A14 is done**, and the A track stops before A15 for the user. **G1, words to a spec, is built** (2026-11-07, on `engine`, parts 1 to 3: the engine's manual generated from VOCAB, the context pack, the prompts, reading the answer and our check, the bank of requests, the server's route with a daily cap, and llm-browser-api's priority queue on this PC; migration 0214; no screen), and **its part 4, a new moment research answers** (a season's added moments: in its rulebook from the next episode, asked by the full run and a short ask of its own, void where research can't say; measured on the tapes first; no migration). **G4, Randomize, is built** (2026-11-07, on `engine`, no UI, no migration: `rollSpec`, a game rolled from a seed on a page's rules with locks held, our check the gate; the short form in `describeSpec`). The live-sports plan is
+TVmaze's ratings as a source, so `outside` is 'later' in VOCAB and tracker rows s42 and settle.outside wait): **A14 is done**, and the A track stops before A15 for the user. **G1, words to a spec, is built** (2026-11-07, on `engine`, parts 1 to 3: the engine's manual generated from VOCAB, the context pack, the prompts, reading the answer and our check, the bank of requests, the server's route with a daily cap, and llm-browser-api's priority queue on this PC; migration 0214; no screen), and **its part 4, a new moment research answers** (a season's added moments: in its rulebook from the next episode, asked by the full run and a short ask of its own, void where research can't say; measured on the tapes first; no migration). **G4, Randomize, is built** (2026-11-07, on `engine`, no UI, no migration: `rollSpec`, a game rolled from a seed on a page's rules with locks held, our check the gate; the short form in `describeSpec`). **G1's typed fixes are built** (2026-11-08, on `engine`, no UI, no
+migration: the user's four typed games: number words, a draft counting everyone, the bank's cast, the user's games taught as
+worked examples, "nothing costs points"; the manual's new text is the user's at the merge), and **C8, a 2-on-1 head to head, is
+planned** (its seven rule questions the user's) and next. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5, at
 high since 2026-11-05; C2 at xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: folded in here as track L; its file keeps the details)
 and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track S here).
@@ -10745,6 +10748,50 @@ The three games (the user, 2026-11-05), each a request in the tracker:
 Each part builds its piece general, with an open question a setting where that's cheap (the lane's recommended default
 first), and proves it on these games and on the tracker's other rows that use it.
 
+- **C8. 2-on-1 head to head** (the user, 2026-11-08, typed on Survivor 51's page: "since there's only 3 players I want the head
+  to heads be 2 on 1. The team of two will have their points halves so they act as one player against the solo player";
+  tracker p29). Planned 2026-11-08 (G1's typed fixes); built in its own session. Today a couch of 3 playing head to head gets
+  the round robin with an odd one out: each episode two of you play each other and the third plays the median of those two
+  (`rank.odd: 'median'`), so the bot's nearest (head to head) is right, and the 2-on-1 is a can't-yet.
+  - **The piece** (Claude's shape, the user's to overrule): a head-to-head setting, `rank.vs`: `one` (today's: one of the others
+    each episode, the round robin) or `rest` (each episode one of you alone against everyone else, their points averaged: with
+    three of you, 2 on 1, the pair's points halved). Only beside head to head (`rank.by: 'matchups'`), wherever it plays (a
+    draft's, a game of questions', a pool's by its points); not on categories (L4's) at first.
+  - **The schedule:** the seat alone turns in the order you joined, one an episode from the game's first (episode k: the
+    (k - first)th seat, round and round), so over three episodes each of you plays alone once; a seat that comes in later
+    joins the turn from the first episode still to play then, as the round robin does (state.matchupSeats).
+  - **The result:** the one alone's points against the mean of the rest's that episode (rounded as the median is). More wins
+    it for the one alone and is a loss for each of the rest; less, a win for each of the rest; the same, a tie for everyone
+    (half a win). A night nobody scores counts for nobody (`quiet`, as today). Records as head to head's: wins, a tie half,
+    then the points; each seat's `for` its own points, its `against` the other side's (the mean, or the one alone's).
+  - **Fallbacks, from the start** (formats nobody announced): `rest` plays as 2 on 1 with three seats in it; with any other
+    number (someone joins or leaves) that episode plays as `one`, the round robin with `odd` as set, and the rules say so; the
+    maker is told what changed (the seat view's own words, U1).
+  - **Where it lands:** `sequence/index.js` `matchups` (the turn and the result: a game of `{ a, rest: [ids], aPoints,
+    bPoints, result }`), schema (VOCAB `rank.vs`, `MATCHUP_KEYS`, `h2hParts`, `matchupProblems`: `rest` only beside head to
+    head), MatchupLogic's seat view (`game-view.ts`: who you're with, against whom) and every reader of `weeks[].games`
+    (couch standings), describe (the sentence: "Each episode one of you plays alone against the other two, whose points are
+    averaged"; the rules; a chip "2 on 1": through impeccable's clarify), the manual's words, the tracker's p29 ✅, roll (not
+    rolled until the user says). Proof: unit tests on the sequence (three seats over three episodes, a tie, a quiet night, a
+    fourth joining, one leaving), the tracker, a zt- fixture through the engine's API (a couch of 3 over four episodes), and
+    golden, blind and the rehearsal once, last (every head-to-head read the same: `one` is today's).
+  - **The user's questions** (each a setting with Claude's recommended default first; listed in the next session's Noticed
+    until answered):
+    1. **A tie:** a tie for all three, half a win each (recommended: the same rule as head to head's); or the one alone wins
+       it (the underdog's edge); or the pair does.
+    2. **The standings:** wins, then points, as head to head (recommended); or points first (2 on 1 makes wins lumpy: two of
+       you take a win the same night).
+    3. **The playoffs with three of you:** none (recommended: the season is the table); or a final between the top two, one
+       on one, as head to head's playoffs (`rank.playoffs: { teams: 2 }`, which `rest` would play 1 on 1).
+    4. **A couch of 4:** two on two (pairs turning so everyone partners everyone: three episodes a cycle), or one against
+       three averaged, or the round robin (recommended: the round robin; two on two as a value of its own, `rank.vs: 'pairs'`,
+       if wanted).
+    5. **A couch of 5:** two on two with the fifth against the middle of everyone (today's odd one out), or one against four
+       averaged, or the round robin (recommended: the round robin; `rest` stays a game for three unless the user says).
+    6. **Who's alone first:** the order you joined (recommended: the same on every read) or drawn at random when it starts.
+    7. **The halves:** the pair's points averaged (recommended: "halved" as the user said; with a pair that's the same) or
+       their lower score, or their higher.
+
 **R. Today's games on the new engine** (after the engine track, before the UI).
 - **R1.** Today's five games and their extras (waivers, side bets, finale predictions, calls) rebuilt as compositions of the
   pieces: no `getLeagueType` branch left in scoring, no game type compared as a literal. Every league scores the same: the local
@@ -11097,6 +11144,68 @@ first), and proves it on these games and on the tracker's other rows that use it
     counts as said after a change. Fine for now; a change that says nothing of a part keeps what the first draft had.
   - **The engine lab doesn't take words yet** (it takes a spec or a tracker row): plugging the GPT in is a screen, the UI track's
     (U0/U1, impeccable).
+  **As built (G1's typed fixes, 2026-11-08, on `engine`; no migration).** One session, at high: the four games the user typed on
+  Survivor 51's page (the main session ran each through the local bot on 2026-11-08: one played, one mostly, one didn't, one a
+  real gap). No screen.
+  - **Number words** (`check.js` `numbersIn`): verbs and plurals say their number (halve, halves, halved 0.5; quarters, quartered
+    0.25; doubles, doubled 2; triples, tripled 3; quadruples, quadrupled 4; on a sport's page doubles, triples, quarters and halves are
+    its nouns, no number), and "zero" is 0. A phrase about losing no points ("no negative points", "no minus points", "no penalties",
+    "never lose points") backs a 0 on a moment's points only (`backs`), so "count as quartered" backs a 0.25, and "no negative
+    points" the zeros it means (the real bot's second answer quoted it without listing them as assumed).
+  - **A draft counting everyone** (`check.js` `countAllRepair`): a moments-scored draft with `count: { all: true }` waits ("best
+    ball with all of it"); our check makes it `count: { best: each }`, the same game, listed in what it filled in ("Everyone on
+    your team counts: best ball of all 3, so every one of them scores"), quiet (never a question). Not while the team's size is
+    asked (the best would stay at our guess), nor with group slots beside the draft; an Outlast's `all` is left alone.
+  - **An extra's detail written as our default** (a waiver's hours, its window's `every` and `swaps`: the real bot copied a worked
+    example whole) is ours (`oursAt`: the draft's own preset's, else the one value every preset agrees on), a chip and never "What
+    number for extras.waivers.hours?".
+  - **The bank's cast** (`tests/fixtures/game-words/casts.json`, read by `bank.js` `castOf`): Survivor 51's 21 as it premiered,
+    with their starting tribes (this lane's database); the pack lists them and the ctx counts them (`pool`), as the server does,
+    so an exclusive draft is checked against real people and the bot no longer says the cast is missing. A page's own `pool` or
+    `cast` (or `cast: false`) wins.
+  - **The words** (describe.js, through impeccable's clarify: the one fact first): every point the rules would cost taken away is
+    "Scored by Survivor 51's rules, but nothing costs points" (with others changed too: ", and two other moments' points changed"),
+    never "with six moments' points changed" (`noNegatives`; a smaller loss, a new loss, or rules that cost nothing say it as
+    before); best ball of the whole team is "all 3 count each episode", the chip "Draft 3, all count", the rule "Each episode,
+    all three count: no lineups to set" (never "best 3 of 3").
+  - **The manual teaches the user's games** (`manual.js` `workedFor`): a tracker row with a lesson (`teach`) is a WORKED EXAMPLE,
+    before the others: their words, the game and why, on any show's page (on another show, "typed on Survivor: use this page's own
+    moments"). Three carry one: the AI's weekly card with a person on each line and one stake on a ticket of them from a bank
+    (p28), the exclusive draft with replacements from anyone at half then a quarter per spot (p27), the shared objectives each
+    week (p12). The words for `get.by: card` (bingo, and a weekly sheet is the card field), the `card` field ("a sheet of
+    objectives each episode, not only bingo", from the AI or in turn), `ask.card` (any answer, a person who does it) and a
+    ticket ("a parlay: one stake on several of your answers, the payout growing with each leg") say so. The ask is 48,612
+    characters (the test's ceiling 50,000): the worked examples leave out the engine's sentence to fit.
+  - **The tracker** (four rows, the user's typed words with what each should become): p27 (sentence 1) ✅, p28 (the bank and
+    sheet) ✅, p29 (2 on 1) ⏳ C8 (a new step), p30 (no negatives) ✅: 238 ✅ · 27 ⏳. **The bank:** g25 and g26 (the first run's
+    real answers) and g27 to g30 (this session's), each with what our check makes of it.
+  - **The four sentences on the local bot again** (one at a time while idle, ChatGPT each time, never Codex; this tree's prompt
+    and check on the bank's page): 1, the replacements: **the game whole** (best ball of 3, exclusive, replacements from anyone at
+    half then a quarter per spot), asked only what comes after the list (its own question); 2, the bank: **the user's game** (the
+    AI's card of four, a person on each line, a ticket on them from a bank of 500), no can't-yet, asked how many lines, the stake
+    and the payout; 3, 2 on 1: head to head with the 2-on-1 a can't-yet, explaining today's odd one out (C8); 4, no negatives:
+    the six to 0, "but nothing costs points". Before: 1 couldn't play (a quarter dropped, a wait, "no cast"), 2 wrote three fixed
+    questions and four can't-yets.
+  - **The code review** (`/code-review` at medium, before the commit). Fixed: the count repair fixed the best at our guess while
+    the team's size was still asked, and ignored group slots (and "all 3 count" said so with a slot beside them); a default detail
+    matched any preset's value, not ours; doubles, triples and quarters were numbers on a sport's page; "no points" in a quote with
+    no part backed any 0 in the game; a penalty raised above 0 hid behind "nothing costs points"; `workedFor` described each row
+    for a sentence nobody used, with no limit (now 4).
+  - **Checks:** the unit tests (new: number words, the count repair, the cast, the worked examples, the words); the type check;
+    the tracker (`--check`); `scripts/dev-test/check-game-words.js` on the stand-in through the API (27 checks, all pass). **Long checks: none** (no scorer changed: our check, describe's words and the bank only).
+  - **The user's, at the merge (the prompt):** the manual's new text, which every Start-a-game ask carries: the WORKED EXAMPLES
+    heading ("requests like these combine pieces; reach for the same pieces before saying cantYet"), each line `"<words>" ->
+    <spec>. Why: <teach>` with the three lessons as written in the tracker (p12, p27, p28), and the four changed words above
+    (get.by card, card, ask.card, the ticket answer).
+  **Noticed (G1's typed fixes):**
+  - **A card question worth 0 says "0 points for each right answer"** (the user's sheet game: only the ticket pays), and its rules
+    open "No draft, no team. Answer four questions:" with nothing after the colon. Recommended: leave out a 0-point question's
+    points line when a ticket is built from it, and end that line with a period. (Describe's words, U1 through impeccable.)
+  - **The short line counts a card question as one** ("2 questions" for four lines and a ticket). Recommended: "4 lines · a ticket".
+  - **A "no negative points" quote backs a 0 on any moment** under `score.points`, a positive one too. Recommended: our check
+    could take a 0 the phrase backs only on a moment the rules score below 0 (the rest asked). Small; when a draft does it.
+  - **The bank's cast is as the season premiered** (21 still in): a request typed mid-season sees fewer (the server's pack,
+    through the asker's mark). Fine for the bank's checks; a case that needs who's out can list its own cast.
 - **G3. The GPT learns sports** (after the sports branch merges): teams and games from ESPN's schedule, stat words to the
   Sport's keys, sports settles, and the over/under line from ESPN's odds. The Red Sox and 76ers sentences pass end to end.
   **In parts (2026-11-07):** part 1, a sport's season as G1's page (the pack, the manual, our check, the server's pack, the

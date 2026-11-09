@@ -1,0 +1,94 @@
+{
+ "about": "Each bank page's cast (tests/fixtures/game-words/bank.js), keyed show/season: everyone as the season premiered, with their starting group. So an exclusive draft is checked against real people (ctx.pool), as the server does (game-words.ts: the cast still in). A page that lists its own cast, or its own pool, keeps it.",
+ "casts": {
+  "Survivor/51": {
+   "as": "the premiere",
+   "cast": [
+    {
+     "name": "Aaliyah Puglia",
+     "group": "Toka"
+    },
+    {
+     "name": "Brady Booker",
+     "group": "Toka"
+    },
+    {
+     "name": "Danny Kilby",
+     "group": "Toka"
+    },
+    {
+     "name": "Devin Way",
+     "group": "Toka"
+    },
+    {
+     "name": "Jelly Loblack",
+     "group": "Toka"
+    },
+    {
+     "name": "Jenna Doore",
+     "group": "Toka"
+    },
+    {
+     "name": "Lewis Kelly",
+     "group": "Toka"
+    },
+    {
+     "name": "Maggie Nestor",
+     "group": "Toka"
+    },
+    {
+     "name": "Mike Pinsky",
+     "group": "Toka"
+    },
+    {
+     "name": "Patt Cannaday",
+     "group": "Toka"
+    },
+    {
+     "name": "Thien An Nguyen",
+     "group": "Toka"
+    },
+    {
+     "name": "Alexis Levine",
+     "group": "Savu"
+    },
+    {
+     "name": "Ana Sani",
+     "group": "Savu"
+    },
+    {
+     "name": "Carter Krull",
+     "group": "Savu"
+    },
+    {
+     "name": "Cristian Chavez",
+     "group": "Savu"
+    },
+    {
+     "name": "Eric Macksoud",
+     "group": "Savu"
+    },
+    {
+     "name": "Kristin Flickinger",
+     "group": "Savu"
+    },
+    {
+     "name": "Linnea Capobianco",
+     "group": "Savu"
+    },
+    {
+     "name": "Ori Jean-Charles",
+     "group": "Savu"
+    },
+    {
+     "name": "Rob Antonson",
+     "group": "Savu"
+    },
+    {
+     "name": "Sharonda Cox",
+     "group": "Savu"
+    }
+   ]
+  }
+ }
+}
