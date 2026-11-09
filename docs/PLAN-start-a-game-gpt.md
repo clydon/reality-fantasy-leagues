@@ -232,6 +232,7 @@ and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track
 | Game pages bold and fun; quick actions plain (2026-11-08) | **The user's direction:** "I want these games uiux to be bold and fun. Quick actions are just that, but within the page we will have fun bold designs." Quick actions (Tonight's card, the dock, the Your moves sheet) stay quick and plain; a game's own page is where the design goes big. My reading for the hi-fi: the grammar keeps the structure, and the boldness lives mostly in the main blocks, each designed as a set piece of its own (the ladder, the matchup, the race, the card, the slate...), with the game's own identity, big type, and one motion moment on open; through impeccable's bolder and delight. **And by the show's kind** (the user, the same day: "they could vary based on the base show type (sport, competition, reality, scripted, etc)"): the same blocks in a different world for a sport, a competition, a reality show or a scripted series (the kinds in docs/PLAN-admin-shows-rulebooks.md); the structure stays the grammar's, the look comes from the kind. |
 | Theming per top show and sport (2026-11-08) | **The exception to universal, not curated** (the user: "flair, theming, and delightful touches are the exception to this rule. We want the core game designs to be universal. However I'm sure we could programmatically apply theming to top shows and sports"; and: "set pieces for the top reality shows and competition shows and all sport ESPN handles"). The game's design (its blocks, rules and structure) stays universal; a theming layer keyed to a top show or a sport (motifs, card dressing, delightful touches) is applied programmatically, on that show's own pages only. The page stays inside Lower Third (the user, the same day, after a direction round offered new worlds: trading cards, a game-show set, a sticker album, a departures board: "The look and feel of those game pages feel very disjointed from the rest of the app. I like bold and fun but I shouldnt feel like a separate app"): bold comes from the app's own parts at full strength (caption plates, the chyron tag, the reveal's big numbers and stacked plates, the slant), and theming dresses those parts. The composition is chosen in impeccable's surface round (seed 93c5fa10: The run-of-show, The broadcast segment, The leaderboard first). |
 | A face carries its qualifier (2026-11-08) | **The user:** "Cast might need faction/position or something qualifying next to their name. For instance sports wed want to see WR/1B/ST/etc, or below deck we'd want to see 1st Stew, Bosun, Chef." Every face shows a qualifier on the line under the name, from the show's own data: its group (Survivor's tribe), its role (Below Deck's crew: Captain, Chief Stew, Bosun, Chef, Deckhand), a sport's position (WR, 1B, ST, GK), with the team when a list mixes teams. It generalises the app's cast tile's tribe line: a state that matters (Used Ep 2, Starting, Out) takes the line, keeping a short position beside it (WR · Starting). A secret faction never shows until it's revealed (The Traitors' Traitors). Data: season_cast's group and role columns, research where a source lacks one (TVmaze lists some crew under their own names), a sport's roster positions. In the mocks (version 49); U1 builds it into the cast tile and every face. |
+| A standard fantasy football season (2026-11-08) | **Planned as L9** (the user: "yes add it to the plan"). The season, draft, weekly lineup, points per stat, D/ST, kicker, head to head with playoffs and waivers already play in the engine; L9 adds lineup slots (QB, RB, WR, TE, flex, K, D/ST, bench; superflex/OP, three WR and two flex as data), IR (from ESPN's injury status), FAAB bids and trades, then their screens in U1. For the engine lane. |
 
 ## What's there today (mapped 2026-10-27)
 
@@ -1234,6 +1235,34 @@ engine track; L brings each sport's data to it. Its screens wait for the UI trac
 - **L6. Release:** **released 2026-11-07, 1:05 AM (`e7f5dc0b`), with no screens yet: nobody can start a sports game until U0 and U1 build
   them; the migrations rehearsed on a Neon copy of production first.** `sports` merges into master at once (migrations checked against a production backup first), then G3
   teaches the GPT these formats.
+- **L9. A standard fantasy football season, as Yahoo and ESPN play it** (the user, 2026-11-08: "does the engine allow us to also
+  play a typical fantasy football season? all teams, 8-9 starters (1QB, 2RB, 2WR, 1TE, 1FLEX, 1K, 1 D/ST), bench spots, IR slots,
+  variations like superflex/op, 3 reciever leagues, etc."; then "yes add it to the plan"). **What already plays** (live since
+  `e7f5dc0b`, no screens): a whole league's slate, an NFL week an episode (L8); a 15-round snake draft (auctions and keepers too);
+  a weekly lineup (start 9 of 15, the week's first kickoff its lock); points per stat on Yahoo's half-PPR defaults (PPR and
+  standard are the same table's numbers), the kicker by distance and a D/ST line per side with its points-allowed brackets
+  (`football.ts`); head to head each week with a playoff bracket; waivers and free agency (C4, built for shows, not yet run over a
+  sports season). **What doesn't**, in parts for the engine lane (the injury feed on the sports side):
+  - **Part 1, lineup slots.** A spec's `slots` (each `{ slot, n, takes }`) and `bench`, as `football.json` already holds them
+    beside the spec (QB, 2 RB, 2 WR, TE, a W/R/T flex, K, DEF, 6 bench) and every sport's defaults do (baseball's C to P and
+    Util, basketball's, hockey's, soccer's): a lineup fills its slots, each player in a slot that takes their roster position
+    (ESPN's roster, `season_cast.role`, never the box score's: L4's Noticed), an empty slot scoring nothing. A flex is a slot that
+    takes several positions, so the variations are data: superflex or OP (QB, RB, WR, TE), three WR, two flex, IDP (DL, LB, DB)
+    where the stats are read. The check refuses slots the draft can't fill; the bots set legal lineups; describe.js and G1's
+    manual learn the words ("superflex", "3 WR", "two flex", "half PPR"); a draft's per-position limits (Yahoo's most QBs)
+    as an option. The lineup's lock stays the week's first kickoff; a player's own kickoff (Yahoo's default) is a choice to add.
+  - **Part 2, IR.** A slot outside the roster's count, open only to a player ESPN lists as out, on IR or PUP (the injury status
+    from ESPN's roster, refreshed daily: the sports side). Coming back needs room on the roster; strict (drop or bench someone
+    first) or lenient is the league's, as data. After part 1.
+  - **Part 3, FAAB.** Waivers by blind bids from a season's budget (VOCAB's `get.budget.left: bids`, "later" today): bids in
+    private until the window closes (Wednesday morning after the week's last game), the highest wins, a tie by waiver order, a $0
+    bid allowed, free agency first-come after. On C4's waivers.
+  - **Part 4, trades.** Players for players between two seats (FAAB dollars too, with part 3), offered, accepted, then a review
+    window (the commissioner's, or a vote, as data) and a deadline week; rosters change at the next lock. Its own piece; nothing
+    today trades but the stock market's buying and selling.
+  - **Screens** (U1, after U0's round 2): the lineup by its slots (the slot's position on its label, a face's qualifier its
+    position: Decisions), the bids, the trade's offer and review. **Checks:** a season on a recorded NFL slate through the
+    blind replays, the bots' lineups legal every week, the golden tables.
 - Its screens (the scorebug, the live box score, the couch's play feed, players organised, the matchup, sync, each format's
   own) are in U0 and U1.
 
