@@ -21,6 +21,16 @@ and the Neon password rotation (deferred; steps there). Fixed 2026-10-24: the ch
 end); GitHub Actions, stopped since 2026-10-19, runs again. Vercel builds production only (Preview shared
 production's database).
 
+## A game's own page, generated from its spec (2026-11-08; U1 step 1; lane `u1`, branch `u1-game-page`, no migration)
+Every game now has a page over the show, `/show/[seasonId]/game/[leagueId]`, opened from its name on the Games tab and from
+Tonight's game tiles: "The broadcast segment" (the direction contract in `.impeccable/surfaces/src-new-show-game-page-tsx.md`),
+built from the game's spec by the grammar and compiler ported from U0's mocks (`src/lib/game/game-page/`) and drawn by
+`src/new/show/game-page.tsx`. The sixteen answer controls (`src/new/show/answer-controls.tsx`) answer every kind of question, on
+the page and in the questions sheet. The quick actions are unchanged. The user's calls: universal first (themes later), the
+show's art in full colour, the Games tab as it is. Proof: `tests/game-page.test.js`, `scripts/dev-test/game-page-census.js`, and
+the first look `scripts/dev-test/check-game-page.js` on a kept `blind.js` replay. The plan's U1 "Step 1" bullet has it all;
+BACKLOG 40 what it left. **Not merged or pushed** (the user's to OK).
+
 ## Games at your own pace (2026-11-05; no migration; docs/PLAN-own-pace-games.md)
 A game on a season that's already aired (The Challenge 42 was the ask), or one you're behind on: Start a game now offers
 *Where you are · Episode N* and *From the top*, and every seat (computer players too) is a late joiner from the start

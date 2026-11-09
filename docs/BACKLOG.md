@@ -409,6 +409,33 @@ Last updated 2026-10-27.
     warning on each instance's first connection; `sslmode=verify-full` in the connection string silences it (a change to
     the Vercel and GitHub secrets: the user's). For any session: small.
 
+40. **What U1 step 1 left (noticed 2026-11-08, building the generated game page; branch `u1-game-page`).**
+    - **Twists without their state on the page** (28 of the 92 places draw from the spec alone; `game-page-census.js` lists them):
+      the view (`game-view.ts`) doesn't carry a captain, a bounty, a secret role, a group slot, a cut's position, a bank's or a
+      budget's balance, lives left in a pool, nor a twist chosen; the page shows each as a tag on the title card and in How it
+      plays. Each wants its state on `GameView`, then its badge on the face or its column in the couch. (U1's next steps.)
+    - **The couch's rows don't open anyone**: the Games tab's player sheet (`games.tsx` PlayerSheet) isn't exported. (U1.)
+    - **A single question's strip says "1 question for Episode 7"**, not the question ("Who goes home?"): `SheetMove` has no
+      ask. A word on the view, or the page's own questions read first. (U1, small.)
+    - **A game in stages** shows the stage strip and its overall points, not the current stage's own main block (each stage is
+      a league of its own: its page could link to it); and its title plate says "Episode 7 is next" with no air time, which
+      lives on the current stage's own league (its lineup's lock), not the parent's view (`model.ts nextOf`). (U1.)
+    - **The show's colour on the title plate's tag** falls back to the chart colour when the art can't be read in a canvas
+      (another site's picture without CORS: `tune-in.tsx colourOf`), as the tune-in does. (Any time, small.)
+    - **The bracket control** pairs a later round from your own picks before it, in order; the server checks it
+      (`bracketProblem`), but a draw whose later matches aren't in the first round's order would pair differently. (With a real
+      tennis draw, U1's sports screens.)
+    - **The engine's words read wrong on the page** (the finish review, 2026-11-08): describe.js leaks a phase's id ("Redraft at
+      merged", "until merged starts"), repeats "Before the merge:" over three rules and states the draft twice on Stages; a
+      chips question's rule runs two sentences together ("...who wins immunity Spread ten chips: 1 point..."); "Answer one
+      question:" ends in a colon that leads into the next numbered rule. The census proves no holes, not that words read: a
+      check for words that read wrong over every spec's describe. (The engine lane, with describe.js's sport-words ask.)
+    - **A person's colour can be Gold** (#e0b23a, the palette's, `src/lib/people.ts`): beside a yellow strip it reads as a near
+      second yellow (the finish review). It's their identity colour across the app, so not recoloured on one page. **Decided
+      (the user, 2026-11-08): Gold is fine**, it stays.
+    - **Not touched:** the dock and the Your moves sheet have no way to a game's page; the Games tab's launcher (U0); the four
+      show themes (the user: a later step); Studio (the new design is Night only until step 15).
+
 ## Decided against (don't re-propose without new information)
 
 - **An AI draft/lineup/pick advisor for players** ("Coach"): rejected. Feels like pay-to-win inside

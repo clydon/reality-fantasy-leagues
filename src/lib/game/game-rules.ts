@@ -13,3 +13,10 @@ export function gameRules(state: LeagueState, castaway = StateLogic.formatOf(sta
   const groups = format.eventCategories.map((c) => c.label).filter(Boolean) as string[];
   return describeSpec(StateLogic.gameOf(state), { castaway, groups, group: format.terms.tribe }).rules;
 }
+
+/** The game's short line ("All season · Pick 1 to stay in"): its title card's (describe.js short). */
+export function gameShort(state: LeagueState, castaway = StateLogic.formatOf(state).terms.castaway.toLowerCase()): string {
+  const format = StateLogic.formatOf(state);
+  const groups = format.eventCategories.map((c) => c.label).filter(Boolean) as string[];
+  return describeSpec(StateLogic.gameOf(state), { castaway, groups, group: format.terms.tribe }).short?.line ?? "";
+}

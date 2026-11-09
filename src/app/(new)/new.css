@@ -786,3 +786,26 @@ html[data-nav="right"] .nd-dock {
     animation: none;
   }
 }
+
+/* A game's own page (show/game-page.tsx, U1): its one entrance. On open the title plate's tag slides in from the left, then the
+   plate's words come out from under it. Reduced motion: none (the plate is simply there). */
+@keyframes gp-tag-in {
+  from { transform: translateX(-100%); }
+  to { transform: none; }
+}
+@keyframes gp-plate-in {
+  from { transform: translateX(-28px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+.gp-tag-in {
+  animation: gp-tag-in 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.gp-plate-in {
+  animation: gp-plate-in 320ms cubic-bezier(0.16, 1, 0.3, 1) 120ms both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .gp-tag-in,
+  .gp-plate-in {
+    animation: none;
+  }
+}
