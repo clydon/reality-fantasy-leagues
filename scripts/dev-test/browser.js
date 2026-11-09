@@ -73,7 +73,14 @@ async function open({ user, pass, width = 390, height = 844, motion = process.en
   const page = await context.newPage();
   const errors = [];
   page.on("pageerror", (e) => errors.push(String(e)));
-  page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
+  // A failed load says which resource it was (the console's own text doesn't). The browser's own ask for /favicon.ico isn't the
+  // page's: the app serves its icons from app/icon*.png on purpose (layout.tsx), so that 404 is noise.
+  page.on("console", (m) => {
+    if (m.type() !== "error") return;
+    const url = /^Failed to load resource/.test(m.text()) ? (m.location()?.url ?? "") : "";
+    if (/\/favicon\.ico$/.test(url)) return;
+    errors.push(url ? `${m.text()} ${url}` : m.text());
+  });
   return { page, errors, BASE, close: () => browser.close(), settle: () => motionTools.settle(page), motion: motionTools.motionApi(page) };
 }
 

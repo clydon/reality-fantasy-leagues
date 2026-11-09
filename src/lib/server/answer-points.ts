@@ -3,6 +3,7 @@ import * as Spec from "@/lib/game/game-spec/index.js";
 import * as Seq from "@/lib/game/sequence/index.js";
 import type { SheetNights } from "@/lib/game/episode-view";
 import { gameView, type BotLine, type GameCalls } from "@/lib/game/game-view";
+import { episodesOfEarned } from "@/lib/game/game-plays";
 import { pointsPerLine } from "@/lib/game/bingo";
 import type { AnswerFacts, FormatGroups, Question, Verdict } from "@/lib/game/game-spec/index.js";
 import type { AnswerLines, AnswerWalk, StageWalk } from "@/lib/game/state-logic.js";
@@ -384,9 +385,19 @@ export async function leagueAnswers(o: { leagueId: string; state: LeagueState; p
   const w = await walked(o);
   // Step A11 part 2b: a game that races or knocks players out has its points in its walk (frozen once someone's out), and the
   // table reads who's out from the walk (gameView puts it on its copy of the league).
-  // Graded once, for the table (unless its walk has the points) and the bot's line.
-  const graded = w.walk && !w.facts.bot ? null : StateLogic.AnswerLogic.grade(w.view, w.rows, w.facts);
-  return { right: pointsOf(w, graded), move: null, walk: w.walk, bot: botLine(w, graded) };
+  // Graded once, for the table (unless its walk has the points), the bot's line and (U1 step 2b) the season grid's squares.
+  const graded = StateLogic.AnswerLogic.grade(w.view, w.rows, w.facts);
+  return { right: pointsOf(w, w.walk && !w.facts.bot ? null : graded), move: null, walk: w.walk, bot: botLine(w, graded), episodes: episodesOfEarned(graded.earned), next: answersIn(w) };
+}
+
+/** U1 step 2b: whose answers are in for the next episode's questions (who, never what), for the season grid's next column; null
+ *  when the game asks nothing each episode, or it's over. */
+function answersIn(w: Walked): { episode: number; set: Record<string, boolean | null> } | null {
+  if (StateLogic.gameOver(w.view) || !StateLogic.AnswerLogic.questions(w.view).some((q) => q.asked === "each")) return null;
+  const n = StateLogic.SpoilerLogic.latestWithResults(w.view) + 1;
+  if (!StateLogic.inPlay(w.view, n)) return null;
+  const with_ = new Set(w.rows.filter((a) => a.episode === n).map((a) => a.playerId));
+  return { episode: n, set: Object.fromEntries(w.view.players.map((p) => [p.id, with_.has(p.id)])) };
 }
 
 /**

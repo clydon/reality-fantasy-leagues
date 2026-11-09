@@ -6,6 +6,8 @@ import { castawayPoints, teamOrder } from "./classic-view";
 import { latestScoredEpisode } from "./episode-team-summary";
 import { gameRules, gameShort } from "./game-rules";
 import { compileGame, type GamePage } from "./game-page/compile";
+import { twistsOf, type GameTwists } from "./game-twists";
+import { playsOf, type GamePlays } from "./game-plays";
 import { lineupStatus } from "./lineup-view";
 import { pickWindow } from "./pool-view";
 import { pointsPerLine } from "./bingo";
@@ -158,6 +160,8 @@ export interface SheetMove {
   behind: number | null;
   /** A draft's finale predictions, not a game of questions (nor, step C2 part 4c, a draft's own questions beside them). */
   finale: boolean;
+  /** U1 step 2: the question's own words when exactly one is open ("Who goes home?"), for the game page's strip; else null. */
+  ask?: string | null;
 }
 
 /** What a game reads of its players' calls or bingo cards (they aren't in its state): each one's right calls (Weekly Bingo: lines
@@ -174,6 +178,11 @@ export interface GameCalls {
   lines?: AnswerLines | null;
   /** Step A14 part 2: how the couch did against the bot, on a game whose questions are played against it (answer-points.ts botLine). */
   bot?: BotLine | null;
+  /** U1 step 2b: what each episode added for each seat, by player id (a game of questions' points, right calls, bingo lines at the
+   *  game's points), as far as this viewer has seen: the season grid's squares (game-plays.ts). */
+  episodes?: Map<string, Map<number, number>> | null;
+  /** U1 step 2b: the next episode's questions, whose answers are in (who, never what), for the grid's next column. */
+  next?: { episode: number; set: Record<string, boolean | null> } | null;
 }
 
 /** Step A14 part 2: a game of questions played against the bot's own call, as far as you've seen: the windows its call is settled on,
@@ -231,6 +240,8 @@ export interface GameRefIn {
   archived?: boolean;
   /** A game at your own pace (docs/PLAN-own-pace-games.md): Tonight shows it as one plate (Pick · Watch · Reveal). */
   ownPace?: boolean;
+  /** U1 step 2: a stage of a game in stages (step A12: leagues.stage_of, its parent's league id), else null. */
+  stageOf?: string | null;
 }
 
 /** A public pool's table: the top ten, you and whoever's either side of you (it can hold hundreds). */
@@ -260,6 +271,11 @@ export interface GameView extends GameRefIn {
   short: string;
   /** Step C5, a game ranked by weeks won: each seat's weeks won (a split one's share), by player id; null for any other game. */
   weeksWon: Record<string, number> | null;
+  /** U1 step 2: the game's twists as you may see them (game-twists.ts): your captain, a pool's lives, your group slots, the next
+   *  cut and who's out, the next episode that multiplies, bounties, budgets. */
+  twists: GameTwists;
+  /** U1 step 2b: each person's plays by episode (game-plays.ts), for the season grid and the person sheet. */
+  plays: GamePlays;
   cast: CastFace[];
   lineup: LineupMove | null;
   pick: PickMove | null;
@@ -340,14 +356,26 @@ export function gameView(game: GameRefIn, full: LeagueState, playerId: string | 
   const everyone = tableOf(view, me, userOf, calls?.right).map((r) => (weekly ? { ...r, weeks: weeksOf(view, r.playerId) } : r));
   const table = isPublic ? poolTop(everyone) : everyone;
   const catchUp = catchingUp ? { week: (seen as number) + 1, latest: StateLogic.SpoilerLogic.latestWithResults(full) } : null;
+  const lineup = seat && pieces.hasActiveRoster ? lineupOf(view, me) : null;
+  const pick = seat && pieces.hasWeeklyPicks ? pickOf(view, me) : null;
+  const next = lineup?.episode ?? pick?.episode ?? StateLogic.SpoilerLogic.latestWithResults(view) + 1;
+  const through = pieces.hasCalls || pieces.hasBingo ? (calls?.through ?? 0) : StateLogic.SpoilerLogic.latestWithResults(view);
+  const progress = catchingUp ? null : weekProgress(full, playerId, userOf, { counts: isPublic });
+  const over = pieces.hasCalls || pieces.hasBingo ? !!calls?.ended : StateLogic.gameOver(view);
+  // The grid's next column: whose lineup or pick is in (weekProgress), or whose answers are (the server's); never what.
+  const nextIn = over
+    ? null
+    : progress && progress.episode > through && !isPublic
+      ? { episode: progress.episode, set: Object.fromEntries(progress.people.map((p) => [p.playerId, p.done])) }
+      : (calls?.next ?? null);
   return {
     ...game,
     playerId: me,
-    through: pieces.hasCalls || pieces.hasBingo ? (calls?.through ?? 0) : StateLogic.SpoilerLogic.latestWithResults(view),
+    through,
     from: StateLogic.GhostLogic.startFor(view, me),
     phase: null,
     to: end,
-    over: pieces.hasCalls || pieces.hasBingo ? !!calls?.ended : StateLogic.gameOver(view),
+    over,
     table,
     you: table.find((r) => r.you) ?? null,
     players: everyone.length,
@@ -356,14 +384,16 @@ export function gameView(game: GameRefIn, full: LeagueState, playerId: string | 
     short: gameShort(view),
     weeksWon: StateLogic.gameOf(view).rank.by === "weeks" ? Object.fromEntries(StateLogic.computeScores(view).map((r) => [r.playerId, r.weeks?.won ?? 0])) : null,
     cast: castOf(view),
-    lineup: seat && pieces.hasActiveRoster ? lineupOf(view, me) : null,
-    pick: seat && pieces.hasWeeklyPicks ? pickOf(view, me) : null,
+    plays: playsOf(view, { rows: table, through, outside: calls?.episodes ?? null, next: nextIn, coop: calls?.walk?.coop ?? null }),
+    twists: twistsOf(view, me, next, new Map(everyone.map((r) => [r.playerId, r.team])), end ?? Math.max(0, ...(full.episodes ?? []).map((e) => e.number))),
+    lineup,
+    pick,
     call: calls?.move ?? null,
     bingo: calls?.bingo ?? null,
     linePoints: pieces.hasBingo ? pointsPerLine(view) : null,
     sheet: null,
     predictions: catchingUp || !seat ? [] : predictionsOf(view, me),
-    progress: catchingUp ? null : weekProgress(full, playerId, userOf, { counts: isPublic }),
+    progress,
     revealFirst: hidden.length && !catchingUp && seat ? hidden[0].number : null,
     catchingUp,
     catchUp,

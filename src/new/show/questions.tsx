@@ -77,7 +77,7 @@ const idsOf = (v: unknown): string[] => (Array.isArray(v) ? (v as string[]) : ty
 
 
 /** "Kristin", "Kristin, Sue and Ozzy", "Yes", "4", "Over 3.5". */
-function answerWords(q: QuestionView, v: unknown, cast: Map<string, QuestionFace>): string {
+export function answerWords(q: QuestionView, v: unknown, cast: Map<string, QuestionFace>): string {
   if (!isIn(v)) return "";
   // Step C6 part 2: a ticket says how many legs and its stake (its legs are the sheet's other questions).
   if (q.answer === "ticket" && v && typeof v === "object" && Array.isArray((v as { legs?: unknown }).legs)) {
@@ -118,7 +118,7 @@ const how = (q: QuestionView) => `${q.settle.by}${"take" in q.settle ? `:${q.set
 const seasonal = (q: QuestionView) => ["results:winner", "results:top", "results:placed", "results:split"].includes(how(q));
 
 /** What the right answer was, in a line ("Kristin went home", "It happened"), or what it waits for. */
-function verdictWords(q: QuestionView, d: GameQuestions, cast: Map<string, QuestionFace>): string {
+export function verdictWords(q: QuestionView, d: GameQuestions, cast: Map<string, QuestionFace>): string {
   const v = q.verdict;
   const ep = q.episode;
   if (!v || v.state === "waiting") {

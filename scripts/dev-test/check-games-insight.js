@@ -169,7 +169,9 @@ const signed = (n) => (n > 0 ? `+${round(n)}` : n < 0 ? `−${round(-n)}` : "0")
     check(Math.abs((await sheetTop()) - top0) < 2, "and doesn't move down");
     await swipe(330, 80);
     check((await middle()) === "5", "a swipe left comes back to Episode 5");
-    await swipe(200, 240, 4);
+    // Slow (3px a step, about 0.2px/ms): four 10px steps were over the pager's flick speed (0.4px/ms) whenever the events landed
+    // quickly, so this passed or failed on the machine's load (BACKLOG 41).
+    await swipe(200, 230, 10);
     check((await middle()) === "5", "a short drag springs back");
     await swipe(330, 80);
     check((await middle()) === "6" && /set/i.test((await pane.innerText()) || ""), "a swipe on to Episode 6: who's set, nothing else", await middle());

@@ -946,6 +946,7 @@ function summaryOf(g: GameQuestions, finale: boolean, skip: Set<string> = new Se
     closesAt: Number.isFinite(first) ? new Date(first).toISOString() : null,
     behind,
     finale,
+    ask: open.length === 1 ? open[0].ask : null,
   };
 }
 

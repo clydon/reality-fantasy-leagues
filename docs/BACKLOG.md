@@ -410,17 +410,35 @@ Last updated 2026-10-27.
     the Vercel and GitHub secrets: the user's). For any session: small.
 
 40. **What U1 step 1 left (noticed 2026-11-08, building the generated game page; branch `u1-game-page`).**
-    - **Twists without their state on the page** (28 of the 92 places draw from the spec alone; `game-page-census.js` lists them):
-      the view (`game-view.ts`) doesn't carry a captain, a bounty, a secret role, a group slot, a cut's position, a bank's or a
-      budget's balance, lives left in a pool, nor a twist chosen; the page shows each as a tag on the title card and in How it
-      plays. Each wants its state on `GameView`, then its badge on the face or its column in the couch. (U1's next steps.)
-    - **The couch's rows don't open anyone**: the Games tab's player sheet (`games.tsx` PlayerSheet) isn't exported. (U1.)
-      **Planned 2026-11-08:** U1's person sheet and cast sheet step (PLAN-start-a-game-gpt.md, after step 1; canvas v53).
-    - **A single question's strip says "1 question for Episode 7"**, not the question ("Who goes home?"): `SheetMove` has no
-      ask. A word on the view, or the page's own questions read first. (U1, small.)
+    - **Left by U1 step 2b (2026-11-09, the person and cast sheets and the season grid):**
+      - **Calls don't keep the minute they were made** (`episode_calls` has no time; `CallPerson`): the calls block shows each call
+        and whether it was right, not when. Live calls (A15) will want it. (A15.)
+      - **A game of questions' season-long questions** (asked once) aren't an episode's, so its squares don't add up to its total when
+        it has them (the total does count them). A column for "the season" or the settling episode. (U1, small.)
+      - **Co-op's square is the episode's points**, not each one's right or wrong that night; the Lives row carries the couch's.
+        (U1, small.)
+      - **A game in stages shows its overall only** (names and totals); each stage's grid is on its own page. A column a stage, each
+        that stage's total, would let the parent show the season. (U1.)
+      - **"team" and "picks" games' episode block** (a whole-team draft scored by moments; picks scored by what they do) show the team
+        as it stands, not who was held or picked that episode: the view carries neither per episode for others. (U1.)
+      - **The step 1 hero's twist marks moved or went**: a captain's C badge and the Out badge on held faces were the big graphic's;
+        bounty and budget lines were on the couch's rows (`Standing.sub`). The grid has no room for a line; they could ride the person
+        sheet's header. Hearts, slots and your role moved under You. (U1, small.)
+      - **Long names truncate in the grid's 84px name column** (the test replay's usernames); real couches' first names fit. A two-line
+        name or initials past a width. (Any time, small.)
+      - **The generic person sheet steps episodes by tapping the strip**, not today's swipe pager (a lineup keeps the swipe). (U1.)
+    - ~~Twists without their state on the page, the couch's rows, a single question's strip~~: **done in U1 step 2**
+      (2026-11-08). Still from the spec alone (9 places): best ones counted, one owner each, a joined multiplier, no repeats
+      (used), the draw's order, naming a captain, a host's card, a second pick, one from each group. Each wants its state on
+      the view (game-twists.ts) when a step needs it.
+    - **No screen names a captain** (U1 step 2): the engine has `setActiveRosterCaptain` and the lineup route takes it, but the
+      new design's lineup (Your moves) has no captain control, so a game with a captain shows its C badge only once one is named.
+      A tap-twice on a starter (the U0 mock's) in the lineup sheet. (U1, small.)
+    - **An auction's spend isn't on the page** (U1 step 2): a cap's room and a market's cash are; an auction's `spent` after it
+      settles isn't read. (U1, small.)
     - **A game in stages** shows the stage strip and its overall points, not the current stage's own main block (each stage is
-      a league of its own: its page could link to it); and its title plate says "Episode 7 is next" with no air time, which
-      lives on the current stage's own league (its lineup's lock), not the parent's view (`model.ts nextOf`). (U1.)
+      a league of its own); **its stage plates now open each stage's page and its title takes the current stage's air time (U1
+      step 2)**; the hero still shows the overall, not the current stage's own main block. (U1.)
     - **The show's colour on the title plate's tag** falls back to the chart colour when the art can't be read in a canvas
       (another site's picture without CORS: `tune-in.tsx colourOf`), as the tune-in does. (Any time, small.)
     - **The bracket control** pairs a later round from your own picks before it, in order; the server checks it
@@ -437,12 +455,9 @@ Last updated 2026-10-27.
     - **Not touched:** the dock and the Your moves sheet have no way to a game's page; the Games tab's launcher (U0); the four
       show themes (the user: a later step); Studio (the new design is Night only until step 15).
 
-41. **The Games tab check's two sheet-swipe failures (noticed 2026-11-08, running `check-games-insight.js` at 390 for U0's
-    Games tab screenshots).** Against the main dev server (master, with U1 step 1 merged), twice in a row, the same two fail and
-    the other 60 pass: "a short drag springs back" (the player sheet isn't on Episode 5 after a short drag) and "a swipe on to
-    Episode 6: who's set, nothing else" (it stays on 5). U1 step 1 only made a game's name a link on the Games tab, so it may be
-    older than that: the check's emulated touch against `src/new/ui/swipe-pager.tsx`. Not looked into. For the next session on the
-    Games tab or the pager (U1's line under each game's name): run it once and see whether the pager or the check moved.
+41. ~~The Games tab check's two sheet-swipe failures~~ **Resolved in U1 step 2b (2026-11-09):** the check's "short drag" moved
+    10px every ~16ms, about 0.6px/ms, over the pager's flick speed (0.4px/ms) whenever the events landed quickly, so it was a flick
+    and the next swipe failed after it; the pager was right. The drag is slow now (3px a step); 61 of 61 on every run since.
 
 ## Decided against (don't re-propose without new information)
 

@@ -32,6 +32,8 @@ export function Sheet({
   back,
   stepper,
   foot,
+  crumb,
+  plain,
   children,
 }: {
   open: boolean;
@@ -41,6 +43,10 @@ export function Sheet({
   back?: { label: string; onClick: () => void };
   stepper?: Stepper;
   foot?: ReactNode;
+  /** A sheet opened from another (a game's drill down, U1 step 2b): the path back, over the title, each part a way back. */
+  crumb?: ReactNode;
+  /** A sheet over another sheet: no second scrim darkening the one below. */
+  plain?: boolean;
   children: ReactNode;
 }) {
   const popupRef = useRef<HTMLDivElement>(null);
@@ -57,7 +63,7 @@ export function Sheet({
       <Dialog.Portal>
         <Dialog.Backdrop
           ref={scrimRef}
-          className="nd-fixed-x fixed inset-y-0 z-[80] bg-[var(--scrim)] transition-opacity duration-[250ms] data-[ending-style]:opacity-0 data-[starting-style]:opacity-0"
+          className={`nd-fixed-x fixed inset-y-0 z-[80] ${plain ? "bg-transparent" : "bg-[var(--scrim)]"} transition-opacity duration-[250ms] data-[ending-style]:opacity-0 data-[starting-style]:opacity-0`}
         />
         <Dialog.Popup
           ref={popupRef}
@@ -74,6 +80,7 @@ export function Sheet({
           <div data-sheet-handle className="flex-none cursor-grab pb-1.5 pt-2.5" style={{ touchAction: "none" }} aria-hidden>
             <i className="mx-auto block h-1 w-10 rounded-full bg-input" />
           </div>
+          {crumb && <nav aria-label="Back to" data-sheet-crumb className="flex-none truncate px-4 pb-1.5 pt-0.5 text-[13px] text-muted-foreground">{crumb}</nav>}
           <div
             {...(stepper ? step.handlers : {})}
             className={`relative flex flex-none items-center justify-between gap-3 px-4 pb-2.5 pt-1 ${stepper ? "touch-pan-y overflow-x-clip" : ""}`}

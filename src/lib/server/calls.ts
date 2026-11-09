@@ -2,6 +2,7 @@ import StateLogic from "@/lib/game/state-logic.js";
 import * as Seq from "@/lib/game/sequence/index.js";
 import { callKeys, callQuestions, isRight, settleSays, verdictOf, type CallBook, type CallFace, type CallQuestion, type EpisodeFacts, type MadeCall, type Verdict } from "@/lib/game/calls";
 import { poolCallOf, type GameCalls } from "@/lib/game/game-view";
+import { episodesByPlayer } from "@/lib/game/game-plays";
 import { pickWindow } from "@/lib/game/pool-view";
 import type { LeagueState } from "@/lib/game/types";
 import { rulebookFor } from "@/lib/game/formats/blocks/index.js";
@@ -527,10 +528,12 @@ export async function leagueCalls(o: {
   // A game waiting for its phase (step A3 of docs/PLAN-start-a-game-gpt.md) has no calls of its own yet: nothing counts, and
   // there's nothing to call for it.
   const start = StateLogic.startEpisode(o.state);
+  // U1 step 2b: each episode's too, for the season grid (game-plays.ts).
+  const byEpisode = new Map<number, Map<string, number>>();
   const rights =
     start === null
       ? new Map<string, number>()
-      : await callRights(o.seasonId, userIds, { from: start, through, couchId: calls ? o.couchId : null, only: pooled ? (k) => k === "out" : undefined, book });
+      : await callRights(o.seasonId, userIds, { from: start, through, couchId: calls ? o.couchId : null, only: pooled ? (k) => k === "out" : undefined, book, byEpisode });
   const right = (p: string) => rights.get(o.userOf(p) ?? "") ?? 0;
   if (pooled) {
     if (!o.playerId) return { right, move: null };
@@ -557,6 +560,7 @@ export async function leagueCalls(o: {
   const aired = latestAired(schedule, now);
   return {
     right,
+    episodes: episodesByPlayer(o.state.players, o.userOf, byEpisode),
     through: Math.min(through, aired),
     ended: endedThrough(schedule, Math.min(through, aired), end),
     // Past a span's last show there's nothing left to call for this game.
