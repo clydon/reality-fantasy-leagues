@@ -107,6 +107,18 @@ export async function sportsWeek(opts: { from?: string | null; also?: string[]; 
       })
     );
   }
-  for (const d of out.days) d.games.sort((a, b) => (a.at ?? "").localeCompare(b.at ?? "") || a.league.localeCompare(b.league));
+  // A scoreboard's teams can come without their colours: each league's list has them (read for the search anyway, kept a week).
+  const playing = [...new Set(out.days.flatMap((d) => d.games.filter((g) => g.sides.some((s) => !s.color)).map((g) => g.league)))];
+  const lists = new Map(
+    await Promise.all(playing.map(async (l) => [l, await p.teams(l).catch(() => null)] as const))
+  );
+  for (const d of out.days) {
+    for (const g of d.games)
+      for (const s of g.sides) {
+        const t = s.color && s.logo ? null : lists.get(g.league)?.teams.find((x) => x.id === s.id);
+        if (t) Object.assign(s, { color: s.color ?? t.color ?? null, logo: s.logo ?? t.logo ?? null });
+      }
+    d.games.sort((a, b) => (a.at ?? "").localeCompare(b.at ?? "") || a.league.localeCompare(b.league));
+  }
   return { ...out, down: [...down] };
 }

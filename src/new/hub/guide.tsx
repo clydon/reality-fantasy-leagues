@@ -621,8 +621,9 @@ export function Guide({ home: read, couch }: { home: Home; couch: Couch | null }
       </div>
       {/* With TV listings, the switch shares Add a show's line and the notes go under it. */}
       <div data-guide-foot className="px-4 pt-1 text-[13px] text-muted-foreground">
-        <div className={`flex items-center justify-between gap-x-3 gap-y-1.5 ${listings?.length ? "flex-wrap" : ""}`}>
-          {listings?.length ? <OnTvSwitch on={onTv} solo={!couch} /> : notes()}
+        {/* The switch is always there (Sports reads no TV listings); the notes go under it. */}
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+          <OnTvSwitch on={onTv} solo={!couch} />
           <button
             type="button"
             data-guide-add
@@ -633,7 +634,7 @@ export function Guide({ home: read, couch }: { home: Home; couch: Couch | null }
             Add a show
           </button>
         </div>
-        {!!listings?.length && notes()}
+        {notes()}
       </div>
       <CouchShowSheet home={home} couch={couch} card={couchCard} onOpenChange={(o) => !o && setCouchCard(null)} />
       <ListingSheet l={listing} couchId={couch?.id ?? null} onOpenChange={(o) => !o && setListing(null)} />

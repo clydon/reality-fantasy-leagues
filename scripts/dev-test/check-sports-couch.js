@@ -258,9 +258,33 @@ async function browserChecks(pool, headers, couch) {
     await page.click("[data-sport-mode=next]");
     await page.click("[data-start-go]");
     await page.waitForURL(/\/game\//, { timeout: 20000 });
-    await page.waitForLoadState("networkidle");
+    await page.waitForSelector("[data-game-title]", { timeout: 20000 });
     await shot("4-squares-page");
     check(/\/game\//.test(page.url()), "Start it lands on the game's page");
+    const title = await page.textContent("[data-game-title]");
+    check(!/Ga/.test(title), "the page's unit is the sport's (G, never Ga)", title);
+
+    // A draft on the Sixers' series: its page, a player's position beside their name, and their game log.
+    const me = await signIn({ user: fixture.username("alex"), pass: fixture.PASSWORD, headers });
+    const bs = await me.call("GET", `/api/sports/schedule?league=${BB}&team=9401`);
+    const series = bs.body.series?.find((x) => x.games.length === 3);
+    const dr = await me.call("POST", `/api/sports/start?couch=${couch}`, { league: BB, team: "9401", games: series?.games ?? [], game: "short", tell: false });
+    if (dr.body.seasonId) {
+      const qb = TEAMS[4].roster[0];
+      await pool.query(
+        `INSERT INTO game_lines (season_id, episode, provider, athlete, name, team, tables) VALUES ($1, 1, 'espn', $2, $3, 'ZT Sixers', $4::jsonb) ON CONFLICT DO NOTHING`,
+        [dr.body.seasonId, qb.id, qb.name, JSON.stringify([{ name: null, labels: ["PTS", "REB", "AST"], values: ["21", "7", "5"] }])]
+      );
+      const hiddenLog = await me.call("GET", `/api/seasons/${dr.body.seasonId}/player-log?name=${encodeURIComponent(qb.name)}`);
+      check(hiddenLog.body.games?.length === 0 && hiddenLog.body.newer, "scores hidden: a game log waits for Show the score", hiddenLog.body);
+      await me.call("POST", "/api/sports/shown", { league: BB, event: series.games[0] });
+      const log = await me.call("GET", `/api/seasons/${dr.body.seasonId}/player-log?name=${encodeURIComponent(qb.name)}`);
+      check(log.body.games?.[0]?.items?.some((i) => i.label === "PTS" && i.value === "21"), "a player's game log: each game's line", log.body);
+      await page.goto(`${BASE}/show/${dr.body.seasonId}/game/${dr.body.leagueId}`, { waitUntil: "networkidle" });
+      await page.waitForSelector("[data-game-title]", { timeout: 20000 });
+      await wide("a draft's page");
+      await shot("6-draft-page");
+    } else check(false, "the draft on the series starts", dr.body);
 
     await page.goto(BASE + "/home", { waitUntil: "networkidle" });
     await page.evaluate(() => document.querySelector("[data-guide]")?.scrollIntoView());

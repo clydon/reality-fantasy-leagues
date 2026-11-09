@@ -1,5 +1,7 @@
 "use client";
 
+import { inShowWords } from "@/lib/game/show-words";
+import { useWithRoles } from "../sports/faces";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Check, ChevronDown, ChevronLeft, ChevronRight, Heart, X } from "lucide-react";
 import { lockTime } from "../clock";
@@ -41,7 +43,7 @@ export function GamePageScreen({ seasonId, leagueId }: { seasonId: string; leagu
   const show = useShow(seasonId);
   const nav = useNav();
   const back = () => nav.back(paths.show(seasonId, "games"), isTabOf(seasonId));
-  const g = show.play?.find((x) => x.leagueId === leagueId) ?? null;
+  const g = useWithRoles(show.play?.find((x) => x.leagueId === leagueId) ?? null, seasonId, show.header?.show.kind === "sport");
   if (!show.play) return <Loading onBack={back} />;
   if (!g)
     return (
@@ -98,7 +100,7 @@ function GamePageBody({ show, g, onBack }: { show: ShowData; g: GameView; onBack
     next: show.upNext ? { number: show.upNext.number, airsAt: show.upNext.airAt } : null,
     when,
     move: move ? { kind: move.kind, title: move.title, line: move.line, due: move.due, go: move.go } : null,
-    line: g.short,
+    line: inShowWords(g.short, show.words),
     seen: show.seenThrough,
     roles: roles ? { name: roles.roles.name, count: roles.roles.count, dealt: roles.dealt, mine: roles.mine, revealed: roles.revealed } : null,
     twist: twist ? { options: twist.twist.of, next: twist.next, played: twist.played } : null,
@@ -591,7 +593,7 @@ function SeasonGrid({ g, m, words, due, drill }: { g: GameView; m: PageModel; wo
         </button>
       )}
       <p className="mt-2.5 text-[12.5px] leading-[1.4] text-muted-foreground">
-        {eps.length || p.kind === "staged" ? keyLine(g) : m.phase === "before" ? "It fills in from the first episode with results, as far as you've watched." : "Nothing counted yet, as far as you've watched."}
+        {eps.length || p.kind === "staged" ? keyLine(g) : m.phase === "before" ? `It fills in from the first ${words.episode.toLowerCase()} with results, as far as you've watched.` : "Nothing counted yet, as far as you've watched."}
         {[m.couch.note, m.couch.players > all.length ? `${m.couch.players} playing` : null].filter(Boolean).map((x) => ` ${x}.`)}
       </p>
     </section>

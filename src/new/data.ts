@@ -1939,3 +1939,16 @@ export const sportsApi = {
   start: (couchId: string, body: { game: string; tell: boolean; league?: string; team?: string; games?: string[]; whole?: "season" | "meetings"; against?: string; slate?: { stage?: string; cadence?: string }; seasonId?: string; from?: number; to?: number; only?: boolean }) =>
     sendJson<SportStarted>(`/api/sports/start?couch=${couchId}`, "POST", body),
 };
+
+export type { LoggedGame } from "@/lib/server/sports/player-log";
+import type { LoggedGame } from "@/lib/server/sports/player-log";
+
+/** A sport's player's games in a season, newest first, up to where you may be told. */
+export function usePlayerLog(seasonId: string | null, name: string | null, enabled = true) {
+  return useQuery({
+    queryKey: ["new-design", "player-log", seasonId, name],
+    queryFn: () => get<{ games: LoggedGame[]; newer: boolean }>(`/api/seasons/${seasonId}/player-log?name=${encodeURIComponent(name!)}`),
+    enabled: enabled && !!seasonId && !!name,
+    staleTime: 60_000,
+  });
+}

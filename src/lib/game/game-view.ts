@@ -26,6 +26,9 @@ export interface CastFace {
   photo: string | null;
   /** Their group now, as far as you've seen. */
   tribe: { name: string; colour: string } | null;
+  /** What qualifies them beside their name (the decision "A face carries its qualifier"): a sport's position ("WR", "1B"), a crew's
+   *  role; filled on the phone from the season's roster (src/new/sports/faces.ts), absent where there's none. */
+  role?: string | null;
   /** Left the game, as far as you've seen (a finalist too: `knocked` says who was knocked out). */
   left: boolean;
   knocked: boolean;

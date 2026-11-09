@@ -486,7 +486,7 @@ async function feedFor(
     ),
     // Games started in the new design (step 10 part 2b): their first line in Recent changes.
     pool.query(
-      `SELECT c.league_id, c.user_id, c.created_at, l.state->'settings'->>'leagueTypeId' AS type FROM league_changes c JOIN leagues l ON l.id = c.league_id
+      `SELECT c.league_id, c.user_id, c.created_at, l.name, l.state->'settings'->>'leagueTypeId' AS type FROM league_changes c JOIN leagues l ON l.id = c.league_id
         WHERE c.league_id = ANY($1::uuid[]) AND c.kind = 'game.start' AND c.created_at > now() - interval '60 days'`,
       [ids]
     ),
@@ -511,7 +511,8 @@ async function feedFor(
       userId: s.user_id,
       name: member.get(s.user_id) ?? "",
       at: new Date(s.created_at).toISOString(),
-      text: gameName(s.type),
+      // A sport's game by its own name ("Squares", "Pick'em"): its league type is only what the engine plays it on.
+      text: headers.get(seasonId)?.show.kind === "sport" ? (s.name as string) : gameName(s.type),
       seasonId,
       label: label(seasonId),
     });

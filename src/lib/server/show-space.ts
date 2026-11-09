@@ -54,7 +54,7 @@ export async function seasonHeaders(seasonIds: string[]): Promise<Map<string, Se
   if (!ids.length) return out;
   const { rows } = await pool.query(
     `SELECT ss.id, ss.season_number, ss.name, ss.status, ss.episode_count, to_char(ss.premiere_date, 'YYYY-MM-DD') AS premiere_date,
-            ss.release, ss.drop_at, s.set_up_at IS NOT NULL AS ready,
+            ss.release, ss.drop_at, s.set_up_at IS NOT NULL AS ready, s.sports_league IS NOT NULL AND s.kind = 'sport' AS league_season,
             CASE WHEN f.stuck_at IS NOT NULL THEN 'stuck'
                  WHEN (f.season_id IS NOT NULL AND f.done_at IS NULL) OR EXISTS (SELECT 1 FROM research_asks a WHERE a.season_id = ss.id AND a.done_at IS NULL) THEN 'going'
                  WHEN f.season_id IS NULL AND s.set_up_at IS NOT NULL AND s.kind NOT IN ('sport', 'talk')
@@ -67,21 +67,24 @@ export async function seasonHeaders(seasonIds: string[]): Promise<Map<string, Se
     [ids]
   );
   for (const r of rows) {
+    // A sport's league season (a matchup's or a slate's: "Cowboys at Eagles, Nov 11", "NFL 2026") reads as its own name everywhere
+    // a season is named by its show and number ("NFL 3" says nothing), and is a game already: its rules are its sport's.
+    const own = r.league_season && r.name;
     out.set(r.id, {
       seasonId: r.id,
-      seasonNumber: r.season_number,
+      seasonNumber: own ? null : r.season_number,
       seasonName: r.name,
       status: r.status,
       episodeCount: r.episode_count,
       premiereDate: r.premiere_date,
       release: r.release,
       dropAt: r.drop_at ? new Date(r.drop_at).toISOString() : null,
-      ready: r.ready,
+      ready: r.ready || !!r.league_season,
       filling: r.filling ?? null,
       show: {
         id: r.show_id,
         slug: r.slug,
-        name: r.show_name,
+        name: own ? r.name : r.show_name,
         kind: r.kind,
         artUrl: framedCard(r.art_url, r.art_style, r.own_art),
         backdropUrl: framedHeader(r.backdrop_url, r.backdrop_style),
@@ -146,7 +149,7 @@ export async function games(viewerId: string, filter: { mine?: boolean; couchIds
             COALESCE(l.state->'settings'->>'archivedAt', '') <> '' AS archived,
             l.state->'settings'->'startEpisode' AS start_episode, l.state->'settings'->'endEpisode' AS end_episode,
             l.state->'settings'->>'startPhase' AS start_phase, l.stage_of,
-            COALESCE((l.state->'settings'->>'ownPace')::boolean, false) AS own_pace
+            COALESCE((l.state->'settings'->>'ownPace')::boolean, false) AS own_pace, s.kind AS show_kind
        FROM leagues l
        LEFT JOIN shows s ON s.slug = l.state->'settings'->>'showId'
        LEFT JOIN show_seasons ss ON ss.show_id = s.id AND ss.season_number::text = l.state->'settings'->>'wikiSeason'
@@ -163,7 +166,8 @@ export async function games(viewerId: string, filter: { mine?: boolean; couchIds
     leagueId: r.id,
     name: r.name,
     gameType: r.type_id || "classic-draft",
-    gameName: gameName(r.type_id),
+    // A sport's game goes by its own name ("Squares", "Pick'em"): the classic type it plays on ("Outlast") isn't what it is.
+    gameName: r.show_kind === "sport" ? (r.name as string) : gameName(r.type_id),
     couchId: r.couch_id,
     seasonId: r.season_id,
     groupId: r.group_id,

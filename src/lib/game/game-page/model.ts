@@ -1,3 +1,4 @@
+import { epShort } from "../show-words";
 import type { CastFace, GameView, TableRow } from "../game-view";
 import type { MainBlock } from "./grammar";
 import { compileGame, has, type GamePage } from "./compile";
@@ -211,7 +212,10 @@ function standLine(g: GameView, page: GamePage, you: TableRow): string {
 const faceOf = (g: GameView, id: string): CastFace | null => g.cast.find((c) => c.id === id) ?? null;
 
 function castFace(c: CastFace | null, id: string, o: Partial<FaceM> = {}): FaceM {
-  return { id, name: c ? first(c.name) : "Someone", photo: c?.photo ?? null, line: o.line ?? c?.tribe?.name ?? null, badge: o.badge ?? null, out: o.out ?? !!c?.knocked, on: o.on ?? false };
+  // The qualifier (a position, a role) keeps its place beside whatever state takes the line ("WR Â· Starting").
+  const said = o.line ?? c?.tribe?.name ?? null;
+  const line = c?.role ? (said ? `${c.role} Â· ${said}` : c.role) : said;
+  return { id, name: c ? first(c.name) : "Someone", photo: c?.photo ?? null, line, badge: o.badge ?? null, out: o.out ?? !!c?.knocked, on: o.on ?? false };
 }
 
 function heroOf(g: GameView, page: GamePage, main: MainBlock, phase: Phase, ctx: PageContext): HeroM {
@@ -230,12 +234,12 @@ function heroOf(g: GameView, page: GamePage, main: MainBlock, phase: Phase, ctx:
   switch (main) {
     case "ladder": {
       const decided = you.picks.filter((p) => p.castawayId && p.correct !== null).slice(-5);
-      const faces = decided.map((p) => castFace(faceOf(g, p.castawayId!), p.castawayId!, { line: `${E.slice(0, 2)} ${p.episode}`, badge: p.correct ? { text: "right", tone: "good" } : { text: "wrong", tone: "quiet" }, out: false }));
+      const faces = decided.map((p) => castFace(faceOf(g, p.castawayId!), p.castawayId!, { line: `${epShort(E)} ${p.episode}`, badge: p.correct ? { text: "right", tone: "good" } : { text: "wrong", tone: "quiet" }, out: false }));
       const pick = g.pick;
-      const tonight = pick?.pick ? castFace(faceOf(g, pick.pick), pick.pick, { line: `${E.slice(0, 2)} ${pick.episode}`, on: true }) : null;
+      const tonight = pick?.pick ? castFace(faceOf(g, pick.pick), pick.pick, { line: `${epShort(E)} ${pick.episode}`, on: true }) : null;
       const p = g.twists?.pool;
       const spare = p?.mulligans != null ? ` · ${plural(p.mulligans, "mulligan")} left` : "";
-      return { ...blank, n: String(you.week ?? 0), label: "In a row", sub: sub + spare, faces: tonight ? [...faces, tonight] : faces, slot: pick && !pick.pick ? `${E.slice(0, 2)} ${pick.episode}` : null, lives: p?.lives != null && p.livesOf ? { left: p.lives, of: p.livesOf } : null };
+      return { ...blank, n: String(you.week ?? 0), label: "In a row", sub: sub + spare, faces: tonight ? [...faces, tonight] : faces, slot: pick && !pick.pick ? `${epShort(E)} ${pick.episode}` : null, lives: p?.lives != null && p.livesOf ? { left: p.lives, of: p.livesOf } : null };
     }
     case "team":
     case "picks":
@@ -244,7 +248,7 @@ function heroOf(g: GameView, page: GamePage, main: MainBlock, phase: Phase, ctx:
       const team = you.team.slice(0, 8).map((id) => {
         const c = faceOf(g, id);
         const out = !!c?.knocked;
-        const line = out ? `Out ${E.slice(0, 2)} ${c?.out ?? ""}`.trim() : g.lineup && !g.lineup.locked ? (starters.has(id) ? "Starting" : "Bench") : c?.points != null ? `${c.points} pts` : null;
+        const line = out ? `Out ${epShort(E)} ${c?.out ?? ""}`.trim() : g.lineup && !g.lineup.locked ? (starters.has(id) ? "Starting" : "Bench") : c?.points != null ? `${c.points} pts` : null;
         const captain = g.twists?.captain?.castawayId === id;
         return castFace(c, id, { line: captain && !out ? `Captain ×${g.twists!.captain!.times}` : line, out, on: !!g.lineup && !g.lineup.locked && starters.has(id), badge: out ? { text: "Out", tone: "live" } : captain ? { text: "C", tone: "you" } : null });
       });
@@ -326,7 +330,7 @@ function stripOf(g: GameView, page: GamePage, phase: Phase, ctx: PageContext): S
   // The top scorer's twist, while it's yours to choose: chosen on the page.
   const tw = ctx.twist?.next;
   if (tw?.youChoose) {
-    const lock = `You topped ${E.slice(0, 2)} ${tw.episode - 1}${tw.closesAt ? ` · by ${ctx.when(tw.closesAt)}` : ""}`;
+    const lock = `You topped ${epShort(E)} ${tw.episode - 1}${tw.closesAt ? ` · by ${ctx.when(tw.closesAt)}` : ""}`;
     const chosen = tw.choice ? ctx.twist!.options.find((o) => o.id === tw.choice)?.name : null;
     return chosen
       ? { kind: "twist", tag: "Set", tone: "quiet", title: `Your twist: ${chosen}`, line: `${E} ${tw.episode} · change it until it locks`, due: false, inPlace: true, go: { twist: true } }
@@ -356,7 +360,7 @@ function stripOf(g: GameView, page: GamePage, phase: Phase, ctx: PageContext): S
   if (g.call?.open && g.call.made < g.call.of) return { kind: "calls", tag: "Your calls", tone: "chy", title: `${plural(g.call.of - g.call.made, "call")} for ${E} ${g.call.episode}`, line: g.call.airsAt ? `Locks ${ctx.when(g.call.airsAt)}` : "Before it airs", due: true, inPlace: false, go: { call: g.call.episode } };
   if (m) return { kind: "move", tag: "Set", tone: "quiet", title: m.title, line: m.line, due: false, inPlace: false, go: m.go };
   if (phase === "before") return { kind: "start", tag: "Starts", tone: "quiet", title: g.from === null ? `When ${g.phase ?? "its phase"} starts` : `${E} ${g.from}`, line: airs && g.from === ep ? `Airs ${airs}` : "Nothing to do yet", due: false, inPlace: false, go: null };
-  return { kind: "set", tag: "All set", tone: "quiet", title: `Nothing to do before ${E.slice(0, 2)} ${ep}`, line: airs ? `${E} ${ep} airs ${airs}` : `Waiting for ${E} ${ep}`, due: false, inPlace: false, go: null };
+  return { kind: "set", tag: "All set", tone: "quiet", title: `Nothing to do before ${epShort(E)} ${ep}`, line: airs ? `${E} ${ep} airs ${airs}` : `Waiting for ${E} ${ep}`, due: false, inPlace: false, go: null };
 }
 
 function couchOf(g: GameView, page: GamePage, ctx: PageContext): CouchM {
@@ -366,7 +370,7 @@ function couchOf(g: GameView, page: GamePage, ctx: PageContext): CouchM {
     const handicap = r.handicap ? `+${r.handicap} head start` : null;
     const sub =
       handicap ??
-      (isPool(page) && last ? `${E.slice(0, 2)} ${last.episode}: ${faceOf(g, last.castawayId!)?.name.split(" ")[0] ?? "someone"}, ${last.correct ? "right" : "wrong"}` : r.week != null && !isPool(page) ? `${r.week >= 0 ? "+" : "−"}${Math.abs(r.week)} last ${E.toLowerCase()}` : r.side?.name ? r.side.name : null);
+      (isPool(page) && last ? `${epShort(E)} ${last.episode}: ${faceOf(g, last.castawayId!)?.name.split(" ")[0] ?? "someone"}, ${last.correct ? "right" : "wrong"}` : r.week != null && !isPool(page) ? `${r.week >= 0 ? "+" : "−"}${Math.abs(r.week)} last ${E.toLowerCase()}` : r.side?.name ? r.side.name : null);
     // Out of head to head's playoffs only once they're seeded (Red Is For Leaving): before that, nobody has left.
     const seeded = !!g.matchups?.playoffs?.seeds?.length;
     const extras = [
@@ -391,7 +395,7 @@ function couchOf(g: GameView, page: GamePage, ctx: PageContext): CouchM {
   const cutAfter = next && going > 0 && going < still ? still - going : null;
   const phaseName = next?.phase ? next.phase.charAt(0).toUpperCase() + next.phase.slice(1) : null;
   // How many go says itself on the line (a short line can say it loosely: "Lowest score is cut").
-  const cutLabel = next && cutAfter !== null ? `The cut · bottom ${going} · ${next.after ? `after ${E.slice(0, 2)} ${next.after}` : phaseName ? `when ${phaseName} starts` : "next"}` : null;
+  const cutLabel = next && cutAfter !== null ? `The cut · bottom ${going} · ${next.after ? `after ${epShort(E)} ${next.after}` : phaseName ? `when ${phaseName} starts` : "next"}` : null;
   if (has(page, "table", "reverse")) notes.push("Fewest points wins");
   if (has(page, "table", "bank") && page.facts.bank) notes.push(`Everyone starts with a bank of ${page.facts.bank}`);
   const teams = g.teams?.teams.length
@@ -499,7 +503,7 @@ export function pageModel(g: GameView, page: GamePage, ctx: PageContext): PageMo
   // The next episode's multiplier on its tag, once it's known (a multiplied episode, or the twist chosen for it).
   const chosenTwist = ctx.twist?.next?.choice ? ctx.twist.options.find((o) => o.id === ctx.twist!.next!.choice) : null;
   const times = g.twists?.times?.episode === next.number ? g.twists.times.times : chosenTwist && ctx.twist?.next?.episode === next.number ? chosenTwist.times : null;
-  const tag = phase === "over" ? "Final" : `${E.slice(0, 2)} ${next.number}${times && times !== 1 ? ` ×${times}` : ""}`;
+  const tag = phase === "over" ? "Final" : `${epShort(E)} ${next.number}${times && times !== 1 ? ` ×${times}` : ""}`;
   // The tag says which episode; the title says when it airs.
   const when = phase === "over" ? `Through ${E} ${g.through}` : next.airsAt ? ctx.when(next.airsAt) : `${E} ${next.number} is next`;
   const strip = stripOf(g, page, phase, ctx);
