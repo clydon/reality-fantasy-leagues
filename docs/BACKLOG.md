@@ -469,7 +469,7 @@ Last updated 2026-10-27.
       reads its ideas.)
     - **No ad, no Premium**: Free's wait has no ad until an ad network is chosen (the user, 2026-11-09); every ask is the slow bot's
       wait (about 40 seconds). The fast AI and the paywall's screens aren't designed. (When a network and a paid model are chosen.)
-    - **Two prompt changes wait for the user's OK at the merge**: the button's words (`game-words/prompt.js` BUTTONS.creative, the
+    - **Two prompt changes, OK'd by the user at the merge (2026-11-09)**: the button's words (`game-words/prompt.js` BUTTONS.creative, the
       wording from U0's Settled bullet) and several new moments rated in one ask (`momentsPrompt`, `readMoments`). The stand-in bot
       answers both in `check-start-a-game.js`; neither has been asked of the real bot. (This step's merge.)
     - **Your call's choices that only our AI can make** (a question the bot asked, or "Which game?") go back to it as a typed change:
@@ -496,7 +496,7 @@ Last updated 2026-10-27.
       `check-start-a-game.js` instead (Next through the tour to step 9). Bring check-new-tour.js up to date. (The tour's owner, small.)
     - **Left from impeccable's critique (2026-11-09, 28/40 before the fixes; dual-agent):** the steps' screens change the game's
       kind (Before it starts lists every game) where the critique would keep kind changes to the rail and Every game, and Tell the
-      couch is on by default two screens below Start it: both the settled board's, so **the user's call**. The question wording
+      couch is on by default two screens below Start it: both the settled board's; **decided (the user, 2026-11-09): both stay**. The question wording
       ("who'll be the one: voted against the majority") and How it plays' stitched sentence are describe.js's (the engine lane,
       with BACKLOG 40's words). 14px and 17px type sit off DESIGN.md's ramp here as across the app (about 355 and 70 uses): add the
       steps to DESIGN.md or snap them, app-wide. The sheet's Close and back are 40px (`ui/sheet.tsx`, every sheet). The game's
