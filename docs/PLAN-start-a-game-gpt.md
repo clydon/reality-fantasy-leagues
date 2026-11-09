@@ -11866,7 +11866,24 @@ first), and proves it on these games and on the tracker's other rows that use it
     face-off and a blue W in Previously on for the NY Giants), and one moment of delight named per theme (a torch lighting by
     your streak; a secret role's plate flipping only for you; the tip meeting's number counting up; a Giants win's W). Never
     the show's logos or key art; on that show's pages only.
-  - **Still to design in U0:** round 2's critique fixes and the user's review; round 3, the live pieces (the watch along, live calls, a live game's screens);
+  - **The critique, and the fixes** (impeccable, dual-agent, 2026-11-08): A, the design review, 23/40 (it reads as the same
+    app, one yellow, bold where the main block is a set piece); B measured contrast, targets and overflow. Fixed in the renderer:
+    the hero is where you stand (42 points, 5 in a row, a bank of 20), never the move again; one phase drives the page (drawn
+    before tonight and inside the game's span; a sport locks at kickoff; bingo unticked before it airs); the spoiler chip under
+    the title; one save model (a named white confirm on the page, Save in the sheet, which sits over a scrim so the screen keeps
+    one yellow); the couch is a podium of lower thirds (top three and you) then standings rows; 44px targets; #8f89a3 for dim
+    text; the title card's art renders (a CSS order bug); stakes read the game's bank and limit; one tag word per move; a
+    chevron down when the move is on the page. Still the engine lane's: describe.js and question words in real sentences and a
+    sport's own nouns ("Which episode does Merged start?", "Each episode" on a sport); more states drawn in U1 (a failed save).
+  - **Bolder flair with the real art and cast** (the user: "more bold with our show specific theming... look at the art
+    files we have or would download from tvmaze/etc, let's see the more complete page, use cast headshots"; version 48). Four
+    whole pages: Survivor 51's Survival Pool (the show's art_url, the repo's 21 headshots, a torch by your streak), The
+    Traitors' Predictions (the database's art and 22 TMDB photos), Below Deck's Predictions (TVmaze's image and 18 crew) and
+    the NY Giants' Pick a few on the receivers (ESPN's mark on a Giants-blue title card, 18 headshots); the six hi-fi games carry
+    Survivor 51's real cast too. Picks, scores and results on them are made up. **For U1, the user's call:** full-colour key
+    art and a team's mark are network and league property (PRODUCT.md: no confirmed usage rights); the app already shows art
+    as a greyscale texture and cast photos, so this is a bigger use of the same images.
+  - **Still to design in U0:** the user's review of round 2's hi-fi and flair; round 3, the live pieces (the watch along, live calls, a live game's screens);
     the Games tab's launcher. Then U1.
 - **U1. Build.** The field and the wizard in Start a game, Start from a spec, Make it a game chained for a show that isn't set
   up (was G2); answering and results; the live and sports screens; the Games tab's launcher and the game pages from track V's
