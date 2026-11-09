@@ -464,6 +464,16 @@ Last updated 2026-10-27.
       Starts' where you are and from the top) and a sport's season (`start-game.tsx StartRouter`). The wizard could take the first two
       as options in When it runs; a sport's is U0's "Start a game on a team", with the sports screens. (U1, next.) **A sport's league
       season goes to Start a game on a team since U1's sports slice (2026-11-09); a sport's TV listing keeps the list.**
+    - **The user wants Start a game the same everywhere** (2026-11-09: "doesnt seem like the 'start a game' button is universal
+      across the app. for instance the challenge s42 still has the old whereas survivor 51 has the new"): a season with no episode
+      left to air that the app knows of (Challenge 42's: the `ownPace` rule in `start-game.ts`) gets today's list. So the next Start a
+      game step takes the aired season (at your own pace) and Run it back into the wizard first.
+    - **Computer players for every game** (the user, 2026-11-09: "can we include the option to have bots play (so if youre a single
+      player you have someone to play the game against?)"). The wizard offers them (None to 3, How sharp) only for a draft or a
+      Survival Pool without questions (`start-wizard.tsx` botsFit; the list's `BOT_GAMES`; the server's `botsPlay`): they can't
+      answer questions, calls or a card yet. Two parts: computer players that play every kind (an answer for each of the sixteen
+      kinds, beyond the engine's `botCall` and `botCard`; the engine lane), then the wizard offering them up front when you're the
+      only one on the couch (through impeccable; a solo couch's default to be decided). (Engine lane, then U1.)
     - **No made-for games, no betting-game role, no scoring themes on the rail**: G5 isn't built, so Start from is the engine's own
       kinds that fit the rulebook (rulebook-fits), each rolled for the stretch. Different scoring cycles engine-made ways from the
       season's own rulebook (No points lost, Big moments only: the user's call, 2026-11-09) until G5's themes. (G5, then the wizard
