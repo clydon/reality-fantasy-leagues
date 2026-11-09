@@ -480,6 +480,9 @@ Last updated 2026-10-27.
       desk's Setup; the plan's G5 "Built" bullet says what's left), beside the engine's own kinds that fit the rulebook. Different scoring cycles engine-made ways from the
       season's own rulebook (No points lost, Big moments only: the user's call, 2026-11-09) until G5's themes. (G5, then the wizard
       reads its ideas.)
+    - **An aired season at your own pace opens the wizard** (the user, 2026-11-09, for Challenge 42's made-for games): startFromSpec
+      does start-game.ts's own-pace parts (the mark, GhostLogic.paceAll, Bots.paceTeams, the bingo bank). Not looked at in a browser:
+      When it runs' Tonight word and the footer's "before <day>" read an aired episode's time. (U1, small.)
     - **No ad, no Premium**: Free's wait has no ad until an ad network is chosen (the user, 2026-11-09); every ask is the slow bot's
       wait (about 40 seconds). The fast AI and the paywall's screens aren't designed. (When a network and a paid model are chosen.)
     - **Two prompt changes, OK'd by the user at the merge (2026-11-09)**: the button's words (`game-words/prompt.js` BUTTONS.creative, the

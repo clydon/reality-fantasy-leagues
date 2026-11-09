@@ -1,3 +1,5 @@
+import { after } from "next/server";
+import Bots from "@/lib/game/bot-logic.js";
 import StateLogic from "@/lib/game/state-logic.js";
 import { addBot, botsPlay, MAX_BOTS, type BotLevel } from "@/lib/game/computer-players";
 import * as Spec from "@/lib/game/game-spec/index.js";
@@ -15,6 +17,7 @@ import { refused } from "./game-writes";
 import { makeLeague } from "./new-game";
 import { copyOf } from "./ours";
 import { leaguePhases, scheduleOf, settleIn } from "./phase-starts";
+import { queueSeasonBingo } from "./desk-research";
 import { madeGames, type MadeGame } from "./made-games";
 import { notifyGameStarted } from "./push-events";
 import { couchGamesOn, freeName, linkIn, startOptions, watchersOf, type StartOptions } from "./start-game";
@@ -57,7 +60,8 @@ export type WizardOptions = StartOptions & { wizard: WizardPage | null };
 /** What can start, and (for a season with episodes still to air, set up) the wizard's page. */
 export async function wizardOptions(user: SessionUser, seasonId: string, couchId: string | null, now = new Date(), late = false): Promise<WizardOptions> {
   const opts = await startOptions(user, seasonId, couchId, null, now, late);
-  if (opts.blocked || opts.ownPace) return { ...opts, wizard: null };
+  // An aired season at your own pace takes the wizard too (the user, 2026-11-09): it starts where the season's starts say.
+  if (opts.blocked) return { ...opts, wizard: null };
   const [{ pack, ctx }, asks, tells, made] = await Promise.all([packFor(user, seasonId, opts.couch.id, now), asksToday(user), audience(user, opts.couch.id, seasonId), madeGames(seasonId)]);
   const listed = Math.max(0, ...opts.starts.map((e) => e.number));
   const last = pack.episodes.total ?? (listed >= opts.from ? listed : null);
@@ -96,13 +100,13 @@ export async function startFromSpec(
   seasonId: string,
   couchId: string | null,
   body: { spec?: unknown; name?: unknown; tell?: unknown; bots?: unknown; level?: unknown; late?: unknown; made?: unknown },
-  now = new Date()
+  now = new Date(),
+  o: { origin?: string; bot?: string } = {}
 ): Promise<SpecStarted> {
   if (!isObj(body.spec)) throw new HttpError(400, "spec: the game to start");
   const late = body.late === true;
   const opts = await startOptions(user, seasonId, couchId, null, now, late);
   if (opts.blocked) throw new HttpError(409, opts.blocked);
-  if (opts.ownPace) throw new HttpError(409, "A season that's aired starts at your own pace: pick where from in the list");
   if (late && !opts.late) throw new HttpError(409, `Nothing's on now to include: it starts with ${opts.part.singular} ${opts.from}`);
   const couch = opts.couch.id;
   const { ctx } = await packFor(user, seasonId, couch, now);
@@ -162,7 +166,13 @@ export async function startFromSpec(
     },
     after: async (s, client, id) => {
       leagueMade = id;
-      await client.query("INSERT INTO league_memberships (league_id, user_id, player_id, role) VALUES ($1, $2, $3, 'commissioner')", [id, user.id, seat]);
+      // At your own pace, their mark is the episode before the start (the one they reveal first is the start itself): start-game.ts's.
+      await client.query("INSERT INTO league_memberships (league_id, user_id, player_id, role, results_seen_through) VALUES ($1, $2, $3, 'commissioner', $4)", [
+        id,
+        user.id,
+        seat,
+        opts.ownPace ? opts.from - 1 : null,
+      ]);
       refused(StateLogic.setGame(s, spec as never, { ctx }), 409);
       if (bots && !botsPlay(s)) throw new HttpError(409, "Computer players don't play this game");
       if (StateLogic.readsPhases(s) || StateLogic.startPhase(s) || StateLogic.endPhase(s)) {
@@ -176,11 +186,17 @@ export async function startFromSpec(
         if (ep && StateLogic.episodeHasResults(ep)) throw new HttpError(409, `${P} ${opts.from}'s results are in already: start from the next one`);
         if (ep) ep.openPastAir = true;
       }
+      // At your own pace: every seat, the computer players too, catches up from the start, one episode at a time (GhostLogic);
+      // its computer players pick their teams now, from who was in before the start (start-game.ts's).
+      if (opts.ownPace) {
+        StateLogic.GhostLogic.paceAll(s, typeof span.from === "number" ? span.from : opts.from);
+        Bots.paceTeams(s);
+      }
       await recordChange(client, id, s, {
         userId: user.id,
         kind: "game.start",
         tier: 1,
-        text: `${starter} started ${name}${when}${bots ? ` with ${bots} computer ${bots === 1 ? "player" : "players"}` : ""}`,
+        text: `${starter} started ${name}${when}${opts.ownPace ? ", at their own pace" : ""}${bots ? ` with ${bots} computer ${bots === 1 ? "player" : "players"}` : ""}`,
         detail: { spec: true, from: fromPhase ? settled : span.from, ...(fromPhase ? { phase: fromPhase } : {}), to, bots, ...(made ? { made } : {}) },
       });
     },
@@ -195,6 +211,8 @@ export async function startFromSpec(
     return false;
   });
   await followLeagueProgress(user.id, leagueId);
+  // At your own pace, bingo needs a bank the season may not have: asked of our bot, not waited on (start-game.ts's).
+  if (opts.ownPace && o.origin) after(() => queueSeasonBingo(user.id, seasonId, o.origin!, now, o.bot));
 
   const told = body.tell === false ? [] : (await audience(user, couch, seasonId)).map((p) => p.userId);
   notifyGameStarted({

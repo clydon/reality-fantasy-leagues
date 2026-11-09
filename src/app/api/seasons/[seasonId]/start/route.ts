@@ -45,6 +45,6 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ seasonI
   const user = await requireAuth(req);
   const body = (await req.json().catch(() => ({}))) as { game?: unknown; tell?: unknown; again?: unknown; from?: unknown; phase?: unknown; to?: unknown; bots?: unknown; level?: unknown; late?: unknown; spec?: unknown; name?: unknown; made?: unknown; undo?: unknown };
   if (body.undo !== undefined) return NextResponse.json(await undoStart(user, seasonId, body.undo));
-  if (body.spec !== undefined) return NextResponse.json(await startFromSpec(user, seasonId, new URL(req.url).searchParams.get("couch"), body));
+  if (body.spec !== undefined) return NextResponse.json(await startFromSpec(user, seasonId, new URL(req.url).searchParams.get("couch"), body, new Date(), { origin: new URL(req.url).origin, bot: botFor(req) }));
   return NextResponse.json(await startGame(user, seasonId, new URL(req.url).searchParams.get("couch"), body, new Date(), new URL(req.url).origin, botFor(req)));
 });
