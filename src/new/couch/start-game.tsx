@@ -106,8 +106,8 @@ export function StartGameSheets() {
 
 /**
  * Which Start a game a season gets (docs/PLAN-start-a-game-gpt.md U1): the wizard (start-wizard.tsx) for every season with an
- * episode still to air, and for a show that isn't a game yet (it chains Make it a game); today's list for Run it back and a season
- * that's aired (at your own pace: Starts' where you are and from the top), until the wizard takes them (BACKLOG 42).
+ * episode still to air, and for a show that isn't a game yet (it chains Make it a game); today's list for Run it back, a season
+ * that's aired (at your own pace: Starts' where you are and from the top) and a sport's season, until the wizard takes them (BACKLOG 42).
  */
 function StartRouter({ target: asked, onOpenChange }: { target: StartTarget | null; onOpenChange: (o: boolean) => void }) {
   const { data: home } = useHome();
@@ -119,7 +119,8 @@ function StartRouter({ target: asked, onOpenChange }: { target: StartTarget | nu
   const [late, setLate] = useState(false);
   const wizardWanted = !!target?.seasonId && !target.again;
   const wiz = useWizardOptions(target?.seasonId ?? null, couchId, wizardWanted, late);
-  const list = !!target?.again || (wizardWanted && !!wiz.data && !wiz.data.wizard && !wiz.data.blocked);
+  // A sport's season keeps the list too: its Start a game is U0's "Start a game on a team", built with the sports screens.
+  const list = !!target?.again || (wizardWanted && !!wiz.data && ((!wiz.data.wizard && !wiz.data.blocked) || wiz.data.kind === "sport"));
   if (list || !target) return <StartSheet target={asked} onOpenChange={onOpenChange} />;
   return (
     <WizardSheet

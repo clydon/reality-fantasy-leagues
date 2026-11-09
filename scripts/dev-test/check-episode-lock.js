@@ -128,8 +128,10 @@ function check(ok, what, detail = "") {
       await page.locator("[data-start-late]").waitFor({ timeout: 10000 }).catch(() => {});
       check((await page.locator('[data-start-late="off"]').count()) === 1, "Start a game: Include Episode 6 · on now, off");
       await page.locator("[data-start-late]").click();
-      await page.getByText("from Episode 6").first().waitFor({ timeout: 8000 }).catch(() => {});
-      check((await page.locator('[data-start-late="on"]').count()) === 1 && (await page.getByText("from Episode 6").count()) > 0, "on: the sheet starts from Episode 6");
+      // U1's wizard: the readout says the stretch, the episode on now.
+      await page.locator('[data-start-late="on"]').waitFor({ timeout: 8000 }).catch(() => {});
+      const readout = await page.locator("[data-start-readout]").innerText().catch(() => "");
+      check((await page.locator('[data-start-late="on"]').count()) === 1 && /Episode 6/i.test(readout), `on: the sheet starts from Episode 6 (${readout.split(/\s*\n\s*/).join(" · ")})`);
       await page.locator("[data-start-late]").scrollIntoViewIfNeeded();
       await page.waitForTimeout(400); // not b.settle(): its evaluate crashed the tab here (2026-10-27), the page itself fine
       await shot("start-include");

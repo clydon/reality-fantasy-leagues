@@ -116,7 +116,7 @@ export interface Wizard {
     choice: Choice
   ):
     | { kind: "moments"; rows: { id: string; says: string; pts: number; on: boolean; was: number; changed: boolean; added: boolean; base: number }[] }
-    | { kind: "questions"; rows: { id: string; says: string; asked?: string; pts: number; wager?: number | "total"; odds?: string }[]; bank: number | null; parlay: number | null }
+    | { kind: "asks"; rows: { id: string; says: string; asked?: string; pts: number; wager?: number | "total"; odds?: string; fixed: boolean }[]; bank: number | null; parlay: number | null }
     | { kind: "survive" | "place" | "card" | "other"; rows: never[] };
   setMoment(span: Span, choice: Choice, id: string, on: boolean, pts: number): Outcome;
   setQuestion(span: Span, choice: Choice, id: string, v: number): Outcome;

@@ -11,7 +11,7 @@ import { dayDiff, lockTime, timeOf } from "../clock";
 import { useAfterReveal, useHome, wizardApi, type WizardOptions } from "../data";
 import { useNav } from "../nav";
 import { paths } from "../routes";
-import { keepToPath, PracticeFinish, PracticeStrip, said } from "../tour/practice";
+import { keepToPath, PracticeFinish, PracticeStrip, said, useNudge } from "../tour/practice";
 import { Btn } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
@@ -175,7 +175,7 @@ export function WizardSheet({
       part: o.part,
       label: o.label,
       tonight: tonightWord(o.starts.find((e) => e.number === o.from)?.airAt),
-      only: undefined,
+      only: kindsThatFit(o),
     };
   }, [o, wz]);
   const wizard: Wizard | null = useMemo(() => (W && input ? W.createWizard(input) : null), [W, input]);
@@ -231,6 +231,14 @@ export function WizardSheet({
       firstScreen={firstScreen}
     />
   );
+}
+
+/** The kinds the show's rulebook fits (start-game.ts: rulebook-fits.js gamesFor, the same as today's list), in the wizard's ids: Best
+ *  Ball and Weekly Picks wherever a draft fits (they score the same moments). A talk show, Bingo and Calls; a series, its lineup. */
+const FIT_KIND: Record<string, string> = { survivalPool: "pool", weeklyLineup: "lineup", outlast: "outlast", weeklyCalls: "calls", weeklyBingo: "bingo", questions: "predictions" };
+function kindsThatFit(o: WizardOptions): string[] {
+  const fit = o.games.filter((g) => g.fits && !g.soon).map((g) => FIT_KIND[g.key]).filter(Boolean);
+  return fit.includes("lineup") ? [...fit, "bestball", "picks"] : fit;
 }
 
 /** A show that isn't a game yet: Make it a game first, then back here (chained: G2's "a show that isn't set up chains Make it a game"). */
@@ -290,11 +298,12 @@ function Wizardly({
   firstScreen?: Screen;
 }) {
   const t = useMemo(() => W.timing(input), [W, input]);
-  const [mode, setMode] = useState<Mode>(late ? "tonight" : t.mode);
-  const [span, setSpanRaw] = useState<Span>(late ? t.tonight : t[t.mode]);
+  // The tour's practice: tonight's Prediction Sheet, the easiest to start (the user, 2026-11-01).
+  const [mode, setMode] = useState<Mode>(late || practice ? "tonight" : t.mode);
+  const [span, setSpanRaw] = useState<Span>(late || practice ? t.tonight : t[t.mode]);
   const [awaiting, setAwaiting] = useState<string | null>(null);
   const [cview, setCview] = useState<"stages" | "episodes">(t.stages.length ? "stages" : "episodes");
-  const [choice, setChoice] = useState<Choice>(() => ({ ...W.fresh(), sel: "" }) as Choice);
+  const [choice, setChoice] = useState<Choice>(() => ({ ...W.fresh(), sel: practice ? "predictions" : "" }) as Choice);
   const [screen, setScreen] = useState<Screen>(firstScreen ?? "home");
   const [tell, setTell] = useState(true);
   const [bots, setBots] = useState(0);
@@ -509,6 +518,8 @@ function Wizardly({
     moments: { title: "New moments", back: name },
   };
   const s = sub[screen];
+  // The practice: down the options to their end, then Start it shakes (the user, 2026-11-01).
+  useNudge(!!practice && screen === "home", "[data-start-go]", "[data-start-sheet]");
 
   return (
     <Sheet
@@ -1569,7 +1580,7 @@ function ScoresScreen({ o, W, wizard, span, ch, name, onChoice, onWhy, onOwn }: 
           )}
         </>
       )}
-      {rows.kind === "questions" && (
+      {rows.kind === "asks" && (
         <>
           <Note className="mt-0">Points for each right answer. Change any of them: this game only.</Note>
           {rows.rows.map((q) => (
@@ -1581,7 +1592,13 @@ function ScoresScreen({ o, W, wizard, span, ch, name, onChoice, onWhy, onOwn }: 
                   {q.wager ? ` · stake up to ${q.wager === "total" ? "all you have" : q.wager}${q.odds === "pool" ? ", winners split the pot" : ", double or nothing"}` : ""}
                 </span>
               </span>
-              <Stepper label="Points" value={fmt(q.pts)} onDec={() => set(wizard.setQuestion(span, ch, q.id, q.pts - 1))} onInc={() => set(wizard.setQuestion(span, ch, q.id, q.pts + 1))} />
+              {q.fixed ? (
+                <span className="type-num min-w-10 pr-3 text-center text-[17px] font-extrabold [font-stretch:62%]" title="A right call is a point">
+                  {fmt(q.pts)}
+                </span>
+              ) : (
+                <Stepper label="Points" value={fmt(q.pts)} onDec={() => set(wizard.setQuestion(span, ch, q.id, q.pts - 1))} onInc={() => set(wizard.setQuestion(span, ch, q.id, q.pts + 1))} />
+              )}
             </div>
           ))}
           <Note>

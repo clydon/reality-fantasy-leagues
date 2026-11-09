@@ -256,7 +256,7 @@ function partsOf(spec, input) {
   else if (spec.card && asks.some((q) => q.card)) {
     const cq = asks.find((q) => q.card);
     Object.assign(out, { b: `${cq.answer === 'person' ? 'Name who does ' : 'Call '}${spec.card.each} moments`, bg: 'q' });
-  } else if (spec.preset === 'weekly-calls' || asks.some((q) => q.answer === 'calls')) Object.assign(out, { b: 'Make 2 calls', bg: 'calls' });
+  } else if (asks.some((q) => q.answer === 'calls')) Object.assign(out, { b: 'Make 2 calls', bg: 'calls' });
   else if (asks.length) {
     const q = asks.filter((x) => x.answer !== 'ticket').length;
     Object.assign(out, { b: `Answer ${q} ${q === 1 ? 'question' : 'questions'}`, bg: 'q' });
@@ -302,7 +302,7 @@ function twistLabel(id, times) {
 /** Which way a game scores, for What scores. */
 function scoreKind(spec) {
   const sc = spec.score || {};
-  if (Array.isArray(spec.ask) && spec.ask.length && sc.by === 'answers') return 'questions';
+  if (Array.isArray(spec.ask) && spec.ask.length && sc.by === 'answers') return 'asks';
   if (sc.by === 'survive') return 'survive';
   if (sc.by === 'place') return 'place';
   if (sc.by === 'lines') return 'card';
@@ -571,7 +571,7 @@ function createWizard(input) {
     const n = Object.keys(choice.edits || {}).length + (choice.off || []).length + Object.keys(choice.qedits || {}).length + (choice.added || []).length;
     const sc = c.row.spec.score || {};
     const name =
-      k === 'questions'
+      k === 'asks'
         ? 'Right answers'
         : k === 'card'
           ? 'Bingo lines'
@@ -596,7 +596,7 @@ function createWizard(input) {
     const n = Object.keys(choice.edits || {}).length + (choice.off || []).length + Object.keys(choice.qedits || {}).length;
     const own = (choice.added || []).length ? ` + ${choice.added.length} of your own` : '';
     const chg = own + (n ? ` · ${n} changed` : '');
-    if (k === 'questions') {
+    if (k === 'asks') {
       const q = spec.ask.filter((x) => x.answer !== 'ticket');
       const tk = spec.ask.some((x) => x.answer === 'ticket');
       if (spec.card && q.some((x) => x.card)) return `A sheet of ${spec.card.each} moments${tk ? ' and a ticket' : ''}${chg}`;
@@ -630,12 +630,12 @@ function createWizard(input) {
         });
       return { kind: k, rows };
     }
-    if (k === 'questions') {
+    if (k === 'asks') {
       return {
         kind: k,
         rows: spec.ask
           .filter((q) => q.answer !== 'ticket')
-          .map((q) => ({ id: q.id, says: q.card && spec.card ? `Who does each of the ${spec.card.each} moments on the sheet` : q.ask, asked: q.asked, pts: q.points == null ? 1 : q.points, wager: q.wager, odds: q.odds })),
+          .map((q) => ({ id: q.id, says: q.card && spec.card ? `Who does each of the ${spec.card.each} moments on the sheet` : q.ask, asked: q.asked, pts: q.points == null ? 1 : q.points, wager: q.wager, odds: q.odds, fixed: q.answer === 'calls' })),
         bank: spec.score && spec.score.bank ? spec.score.bank.start : null,
         parlay: spec.score && Array.isArray(spec.score.parlays) ? spec.score.parlays[0].times : null,
       };
@@ -740,7 +740,7 @@ function createWizard(input) {
           .concat(list.slice(0, i0))
           .map((id) => ({ says: id === 'standard' ? SCORINGS.standard.says(show) : SCORINGS[id].name, over: { scoring: id, edits: {}, off: [] }, step: 'each' }));
       }
-      if (k === 'questions') {
+      if (k === 'asks') {
         const SHARE = ['split-pot', 'rollover'];
         const cur = tws.find((x) => SHARE.includes(x)) || null;
         const rest = tws.filter((x) => !SHARE.includes(x));
@@ -848,13 +848,13 @@ function createWizard(input) {
   function typed(span, spec, name) {
     const s = clone(spec);
     s.span = span;
+    // Its kind from its own parts (never a league type's name).
     const base = (() => {
-      const t = G.typeOf(s);
       if (s.get && s.get.by === 'draft') return s.count && s.count.start ? 'lineup' : s.count && s.count.best ? 'bestball' : 'outlast';
       if (s.score && s.score.by === 'survive') return 'pool';
       if (s.score && s.score.by === 'lines') return 'bingo';
       if (s.get && s.get.by === 'pick') return 'picks';
-      return t === 'weekly-calls' ? 'calls' : 'predictions';
+      return Array.isArray(s.ask) && s.ask.some((q) => q && q.answer === 'calls') ? 'calls' : 'predictions';
     })();
     const problems = G.specProblems(s, ctx);
     if (problems.length) return { why: problems[0].problem };

@@ -125,7 +125,6 @@ export async function startFromSpec(
   if (waits.length) throw new HttpError(409, waits[0].problem);
   const type = Spec.typeOf(spec as never);
   if (!type) throw new HttpError(409, "No game plays this way yet");
-  if (type === "stages") throw new HttpError(409, "A game in stages can't start from here yet");
 
   const bots = typeof body.bots === "number" && Number.isInteger(body.bots) ? body.bots : 0;
   if (bots < 0 || bots > MAX_BOTS) throw new HttpError(400, `Up to ${MAX_BOTS} computer players`);

@@ -654,8 +654,8 @@ async function stepsFor(page, { solo = false, reminders = "off" } = {}) {
         const warmed = await page.waitForSelector("[data-start-warming]", { timeout: 6000 }).then(() => true, () => false);
         check(warmed, "A: picking it, a moment getting its rules");
         await page.waitForSelector("[data-start-go]", { timeout: 30000 });
-        check((await page.getAttribute('[data-start-game="questions"]', "aria-pressed")) === "true", "A: the Prediction Sheet chosen");
-        check(!!(await page.$("[data-coming-soon-ai]")), "A: Create a game with AI, coming soon, in the sheet");
+        check((await page.getAttribute('[data-start-game="predictions"]', "aria-pressed")) === "true", "A: the Prediction Sheet chosen");
+        check(!!(await page.$("[data-start-describe]")), "A: Describe a new game (our AI) in the sheet");
         const go = await page.$eval("[role=dialog][data-open] [data-start-go]", (el) => {
           const r = el.getBoundingClientRect();
           return { foot: !!el.closest("[data-sheet-foot]"), seen: r.top >= 0 && r.bottom <= window.innerHeight };
@@ -685,14 +685,14 @@ async function stepsFor(page, { solo = false, reminders = "off" } = {}) {
         await shot(page, "sam-9a-nudged");
         await page.waitForFunction(() => !document.querySelector("[role=dialog][data-open] [data-start-go]")?.getAnimations().length, null, { timeout: 3000 });
         // One path: another game (Outlast, say) stays unchosen, and Start it shakes.
-        const other = await page.$('[role=dialog][data-open] [data-start-game]:not([data-start-game="questions"]):not([disabled])');
+        const other = await page.$('[role=dialog][data-open] [data-start-game]:not([data-start-game="predictions"]):not([disabled])');
         if (other) {
           const name = await other.getAttribute("data-start-game");
           await other.click();
           const startShook = await moving(page, "[role=dialog][data-open] [data-start-go]");
           await page.waitForTimeout(500);
           check(
-            startShook && (await page.getAttribute('[data-start-game="questions"]', "aria-pressed")) === "true" && (await other.getAttribute("aria-pressed")) !== "true",
+            startShook && (await page.getAttribute('[data-start-game="predictions"]', "aria-pressed")) === "true" && (await other.getAttribute("aria-pressed")) !== "true",
             `A: in practice, ${name} stays unchosen: the Prediction Sheet's kept and Start it shakes`
           );
         }
@@ -700,7 +700,7 @@ async function stepsFor(page, { solo = false, reminders = "off" } = {}) {
         await page.click("[data-start-go]");
         await page.waitForSelector("[data-practice-done]", { timeout: 10000 });
         const started = await page.textContent("[data-practice-done]");
-        check(/Prediction Sheet .* isn't saved/.test(started) && !!(await page.$("[data-practice-done] [data-coming-soon-ai]")), "A: its finish: it isn't saved, and the AI's coming", started);
+        check(/Prediction Sheet .* isn't saved/.test(started), "A: its finish: it isn't saved, and nothing was made", started);
         await page.click("[data-practice-close]");
         await ticked(page);
 
@@ -964,7 +964,7 @@ async function stepsFor(page, { solo = false, reminders = "off" } = {}) {
         await page.click("[data-foot-start]", { timeout: 20000 });
         await page.click("[data-pick-show]", { timeout: 10000 });
         await page.waitForSelector("[data-start-go]", { timeout: 30000 });
-        check(!!(await page.$("[role=dialog][data-open] [data-coming-soon-ai]")) && !(await page.$("[data-practice]")), "J: the real Start a game sheet: Create a game with AI, coming soon (and no Practice strip)");
+        check(!!(await page.$("[role=dialog][data-open] [data-start-describe]")) && !(await page.$("[data-practice]")), "J: the real Start a game sheet: Describe a new game, our AI (and no Practice strip)");
         const go = await page.$eval("[role=dialog][data-open] [data-start-go]", (el) => {
           const r = el.getBoundingClientRect();
           return { foot: !!el.closest("[data-sheet-foot]"), seen: r.top >= 0 && r.bottom <= window.innerHeight };

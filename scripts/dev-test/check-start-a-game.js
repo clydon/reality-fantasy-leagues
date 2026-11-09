@@ -19,7 +19,8 @@
 //   screen, a twist, a bet, What scores, How it plays, Every game; Custom's episodes picked like dates; Surprise me and its keeps;
 //   Describe a new game (the wait, the result, Change it in the sheet, Start it), Keep going and the See it toast; the errors
 //   (our AI away, today's 10, no game in the words); Creative moments through to a moment added; Make it a game chained in (a
-//   ready show's ?page=make&then=start hands off to the wizard). No page errors.
+//   ready show's ?page=make&then=start hands off to the wizard); the first-time tour's practice in the wizard (Next through the
+//   tour to its Start a game step: tonight's Prediction Sheet chosen, the practice finish, nothing made). No page errors.
 //
 //   npm run dev  (or node scripts/lane.js dev; in another terminal)
 //   node scripts/dev-test/check-start-a-game.js <outDir> [--width=390] [--keep] [--api | --browser]
@@ -257,7 +258,7 @@ async function browserHalf(pool, fx, bot) {
   await page.locator("[data-sheet-back]").click();
   await page.locator("[data-start-cardrow=scores]").click();
   await page.locator("[data-start-scores]").waitFor();
-  check((await page.locator("[data-start-moment]").count()) > 0 || (await page.locator("[data-start-scores=questions]").count()) === 1, "What scores: its rows");
+  check((await page.locator("[data-start-moment]").count()) > 0 || (await page.locator("[data-start-scores=asks]").count()) === 1, "What scores: its rows");
   await shot("04-scores");
   await wide("What scores");
   await page.locator("[data-sheet-back]").click();
@@ -351,6 +352,44 @@ async function browserHalf(pool, fx, bot) {
   await page.goto(`${BASE}/show/${sid}/games?page=make&then=start&couch=${fx.couchId}`);
   await page.locator("[data-start-screen=home]").waitFor({ timeout: 20000 }).catch(() => {});
   check((await page.locator("[data-start-screen=home]").count()) === 1, "Make it a game, chained: once the show's a game, Start a game opens on it");
+
+  // The first-time tour's practice, in the wizard: Next through the tour to its Start a game step, the practice show, tonight's
+  // Prediction Sheet chosen, another game stays unchosen, Start it ends in the practice finish, nothing made.
+  await page.goto(`${BASE}/home?tour=1`);
+  await page.locator("[data-tour-go]").click({ timeout: 20000 }).catch(() => {});
+  for (let i = 0; i < 40 && !(await page.locator('[role=dialog][data-tour="start"]').count()); i++) {
+    await page.locator("[role=dialog][data-tour] [data-tour-next]").first().click({ timeout: 8000 }).catch(() => {});
+    await page.waitForTimeout(1200);
+  }
+  check((await page.locator('[role=dialog][data-tour="start"]').count()) === 1, "the tour: its Start a game step");
+  // The light comes back on when the step arrives: a finger on what's lit after that.
+  await page.locator('[role=dialog][data-tour="start"][data-tour-lit="on"]').waitFor({ timeout: 15000 }).catch(() => {});
+  await page.waitForTimeout(600);
+  const ring = await page.evaluate(() => {
+    const root = document.querySelector('[role="dialog"][data-tour]');
+    const r = root && root.querySelector("svg rect[stroke-width]");
+    if (!r) return null;
+    const b = root.getBoundingClientRect();
+    const n = (a) => Number(r.getAttribute(a));
+    return { x: b.left + n("x") + n("width") / 2, y: b.top + n("y") + n("height") / 2 };
+  });
+  if (ring) await page.mouse.click(ring.x, ring.y);
+  await page.locator("[data-pick-practice]").click({ timeout: 15000 }).catch(() => {});
+  const warmed = await page.locator("[data-start-warming]").waitFor({ timeout: 6000 }).then(() => true, () => false);
+  await page.locator("[role=dialog][data-open] [data-start-go]").waitFor({ timeout: 30000 }).catch(() => {});
+  check(warmed && (await page.locator('[data-start-game="predictions"][aria-pressed="true"]').count()) === 1, "the practice: a moment getting its rules, then tonight's Prediction Sheet chosen");
+  await shot("11-practice");
+  const leaguesBefore = (await leaguesNow()).length;
+  const other = page.locator('[role=dialog][data-open] [data-start-game]:not([data-start-game="predictions"])').first();
+  if (await other.count()) {
+    await other.click();
+    await page.waitForTimeout(400);
+    check((await page.locator('[data-start-game="predictions"][aria-pressed="true"]').count()) === 1, "in practice, another game stays unchosen");
+  }
+  await page.locator("[role=dialog][data-open] [data-start-go]").click();
+  await page.locator("[data-practice-done]").waitFor({ timeout: 10000 }).catch(() => {});
+  check(/isn't saved/.test(await page.locator("[data-practice-done]").innerText().catch(() => "")) && (await leaguesNow()).length === leaguesBefore, "Start it ends in the practice's finish: nothing made");
+  await shot("12-practice-done");
 
   check(errors.length === 0, "no page errors", errors.slice(0, 3).join(" | "));
   await close();
