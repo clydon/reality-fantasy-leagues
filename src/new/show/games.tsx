@@ -400,7 +400,7 @@ function YourMoveCard({ g, m }: { g: GameView; m: YourMove }) {
 }
 
 /** A player's sheet: whose, in which game, on which week (Weekly Lineup). */
-type Opened = { row: TableRow; game: GameView; week: number | null };
+export type Opened = { row: TableRow; game: GameView; week: number | null };
 
 /** Weekly Lineup with weeks to show (or one being set): its table shows last episode's lineups and points. */
 const weekly = (g: GameView) => g.gameType === "active-roster" && (g.table.some((r) => r.weeks.length > 0) || !!nextWeek(g));
@@ -485,7 +485,7 @@ function LineupTable({ g, words, onPlayer }: { g: GameView; words: ShowData["wor
   );
 }
 
-function PlayerSheet({ open, onOpen, onClose, words }: { open: Opened | null; onOpen: (o: Opened) => void; onClose: () => void; words: ShowData["words"] }) {
+export function PlayerSheet({ open, onOpen, onClose, words }: { open: Opened | null; onOpen: (o: Opened) => void; onClose: () => void; words: ShowData["words"] }) {
   const [last, setLast] = useState(open);
   if (open && open !== last) setLast(open);
   const shown = open ?? last;

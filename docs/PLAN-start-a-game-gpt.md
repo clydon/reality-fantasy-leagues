@@ -12086,6 +12086,28 @@ first), and proves it on these games and on the tracker's other rows that use it
     its right edge, the show tag's ink by contrast. **Open at the ceiling** (its last verdict: fix): describe.js's words on the
     page (the engine lane), a Gold avatar beside the yellow strip (the user's call), Stages' title plate without its air time;
     all in BACKLOG 40. What it noticed and left is BACKLOG 40.
+  - **Step 2: the twists on the page** (2026-11-08, the same lane and session, no migration; merged step 1 first, the user's
+    "Merge and Push... once merged start U1 step 2 here"). `src/lib/game/game-twists.ts` (pure) reads from the viewer's own copy
+    what the engine already worked out: your captain for the next episode, a pool's lives, mulligans and whether you can buy
+    back in, your group slots, the next cut (its episode or phase, how many go) and who's knocked out, the next episode that
+    multiplies (looking to the season's last, as the spec names it), bounty lines and budget left (a cap's room, a market's
+    cash); on every `GameView` as `twists`, with `stageOf` on a stage's game and a single open question's words on its sheet
+    (`SheetMove.ask`). Secret roles and the top scorer's twist stay the server's: the page reads their routes (`/roles`,
+    `/twist`) only on a game that has them. Drawn where the grammar puts them: the captain's C badge, a pool's hearts and
+    mulligans, slot and secret-role plates under the faces (only your own role; "You're not a Traitor" when you weren't dealt
+    it), the cut as a dashed line across the couch, bounty and budget lines on each seat, the multiplied episode on its tag
+    ("×2 Ep 9", or the spec's "×2 the finale" until the engine can number it), the twist chosen in place (the strip's yellow
+    while it's yours, options and a named white confirm), a pool you're out of on a quiet strip, stage plates that open each
+    stage's own page and the title's air time from the current stage. The couch's plates and rows open the Games tab's player
+    sheet (exported). Places drawn from the spec alone: 28 down to 9. A twist tag the short line already says is dropped.
+    Checks: `check-game-page.js` over a second replay (`blind.js run survivor 49 --only=1,51,54,59,61,67,69,71,105,108,113,117,125
+    --through=6 --keep`), as the tinkerer, the drive-by and the seat that chooses the twist (`--user zt_pt_fan`), the twist chosen
+    and a group slot picked through their real routes. **Group slots got their first screen**: a slot that's empty or whose group
+    ended is the strip's due move, the groups on offer picked on the page (`setGroupSlot`, the group-slots route). **impeccable's
+    finish review:** a recapture (a stale "before" frame), then fix twice; fixed: the twist folds once chosen and its episode's tag
+    says ×2, the slot pick made a real move, your role says how many hold it, the twist's options as plates (white until picked),
+    shorter strips, the cut's count on its own line, a fraction to one place at hero size. Last checked by the machine checks
+    only (the skill's two-round ceiling).
 
 **L. Live sports:** the steps are in "Live sports in the same engine", above (L1–L6, the Sports lane).
 

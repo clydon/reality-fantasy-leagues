@@ -8,6 +8,7 @@
 //
 //   node scripts/dev-test/blind.js run survivor 49 --only=1,27,28,41,42,44,56,57,58,59,64,71 --through=6 --keep
 //   node scripts/dev-test/check-game-page.js [--width 390] [--height 844] [--user zt_pt_tinkerer] [--only <leagueId,...>] [--out <dir>]
+// (--user zt_pt_fan and the rest: each seat sees its own page; the top scorer's twist is chosen by whoever topped the last episode)
 //   node scripts/dev-test/blind.js down
 //
 // Needs: this lane's dev server (BASE, default http://localhost:3000; a lane's .env.local sets it), the kept replay. Screens go to
@@ -106,6 +107,23 @@ async function main() {
           await page.addStyleTag({ content: "nextjs-portal{display:none!important}" });
           await page.screenshot({ path: path.join(OUT, `${tag}-saved.png`), fullPage: true });
         } else move = "no simple control first";
+      } else if (await page.locator("[data-game-move=slots] [data-slot-pick]").count()) {
+        // A group slot waiting on a pick: the first group on offer, saved by the tap.
+        await page.locator("[data-game-move=slots] [data-slot-pick]").first().click();
+        move = await page.waitForFunction(() => !document.querySelector("[data-slot-pick]") || /is in slot/.test(document.body.innerText), null, { timeout: 15000 }).then(() => "slot picked").catch(() => "not saved");
+        await page.waitForTimeout(5000);
+        await page.addStyleTag({ content: "nextjs-portal{display:none!important}" });
+        await page.screenshot({ path: path.join(OUT, `${tag}-saved.png`), fullPage: true });
+      } else if (await page.locator("[data-game-move=twist] [data-twist-option]").count()) {
+        // The top scorer's twist, chosen in place: an option not chosen yet, then the named confirm.
+        await page.locator("[data-game-move=twist] [data-twist-option][aria-checked=false]").first().click();
+        await page.screenshot({ path: path.join(OUT, `${tag}-picked.png`), fullPage: true });
+        await page.locator("[data-twist-save]").click();
+        move = await page.waitForFunction(() => !!document.querySelector("[data-twist-state=chosen]"), null, { timeout: 15000 }).then(() => "twist chosen").catch(() => "not saved");
+        // The saved toast covers the top bar for a few seconds: let it go first.
+        await page.waitForTimeout(5000);
+        await page.addStyleTag({ content: "nextjs-portal{display:none!important}" });
+        await page.screenshot({ path: path.join(OUT, `${tag}-saved.png`), fullPage: true });
       } else if (await page.locator("[data-game-strip] button").count()) {
         const before = page.url();
         await page.locator("[data-game-strip] button").click();

@@ -81,6 +81,8 @@ export interface PageFacts {
   /** How many teams of players, and how many the playoffs take. */
   teams: number | null;
   playoffs: number | null;
+  /** The first window whose points multiply (score.times): by how much, and when (an episode, from a phase, the finale). */
+  times: { times: number; episode: number | null; phase: string | null; finale: boolean } | null;
 }
 
 export interface GamePage {
@@ -258,8 +260,17 @@ export function compileGame(spec: Obj): GamePage {
       cut: cut0 ? { every: num(at.every), episode: num(at.episode), phase: typeof at.phase === "string" ? at.phase : null, out: cut0.out === "half" ? "half" : num(cut0.out) } : null,
       teams: isObj(rk.teams) ? num(rk.teams.of) : null,
       playoffs: isObj(rk.playoffs) ? num(rk.playoffs.teams) : null,
+      times: timesOf(sc.times),
     },
   };
+}
+
+/** The first window a spec's points multiply in (score.times: a list, or one). */
+function timesOf(t: unknown): PageFacts["times"] {
+  const w = (Array.isArray(t) ? t[0] : t) as Obj | undefined;
+  if (!isObj(w) || num(w.times) === null) return null;
+  const from = isObj(w.from) ? w.from : {};
+  return { times: num(w.times)!, episode: num(w.episode) ?? num(from.episode), phase: typeof w.phase === "string" ? w.phase : typeof from.phase === "string" ? from.phase : null, finale: !!w.finale };
 }
 
 /** Whether a page has a place ("badge", "captain"). */

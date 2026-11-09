@@ -29,7 +29,9 @@ built from the game's spec by the grammar and compiler ported from U0's mocks (`
 the page and in the questions sheet. The quick actions are unchanged. The user's calls: universal first (themes later), the
 show's art in full colour, the Games tab as it is. Proof: `tests/game-page.test.js`, `scripts/dev-test/game-page-census.js`, and
 the first look `scripts/dev-test/check-game-page.js` on a kept `blind.js` replay. The plan's U1 "Step 1" bullet has it all;
-BACKLOG 40 what it left. **Not merged or pushed** (the user's to OK).
+BACKLOG 40 what it left. **Merged and pushed 2026-11-08** (`07902352`, live). **Step 2, the twists on the page**
+(`src/lib/game/game-twists.ts`, the page's badges, hearts, plates, cut line and the twist chosen in place, the couch opening the
+player sheet) is on the same branch after it: the plan's U1 "Step 2" bullet. **Step 2 not merged or pushed** (the user's to OK).
 
 ## Games at your own pace (2026-11-05; no migration; docs/PLAN-own-pace-games.md)
 A game on a season that's already aired (The Challenge 42 was the ask), or one you're behind on: Start a game now offers

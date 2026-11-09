@@ -3,14 +3,17 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Check, ChevronDown, ChevronLeft, ChevronRight, Heart, X } from "lucide-react";
 import { lockTime } from "../clock";
-import { useGameQuestions, useSeasonDraft, useSeasonWaivers, type GameView } from "../data";
-import { useNav } from "../nav";
+import { useQueryClient } from "@tanstack/react-query";
+import { chooseTwist, setGroupSlot, useGameQuestions, useLeagueRoles, useLeagueTwist, useSeasonDraft, useSeasonWaivers, type GameView, type LeagueTwist } from "../data";
+import { NavLink, useNav } from "../nav";
 import { paths } from "../routes";
 import { isTabOf, openWhere, useShow, type ShowData } from "../screens/show-space";
 import { colourOf } from "../tune-in";
 import { Avatar } from "../ui/bars";
 import { EmptyState, GuardChip } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
+import { toast } from "../ui/toast";
+import { has } from "@/lib/game/game-page/compile";
 import { splitFrame, frameStyle } from "@/lib/art-frame";
 import { pageModel, type FaceM, type HeroM, type PageModel, type PlateM, type Standing, type StripM, type Tone } from "@/lib/game/game-page/model";
 import { openBingo } from "./bingo";
@@ -19,6 +22,7 @@ import { MovesSheet } from "./dock";
 import { openMoves } from "./moves";
 import { Face } from "./parts";
 import { openSheet, QuestionsBody } from "./questions";
+import { PlayerSheet, type Opened } from "./games";
 import { playsWaivers } from "./waivers";
 import { yourMove } from "./your-move";
 
@@ -82,6 +86,11 @@ function GamePageBody({ show, g, onBack }: { show: ShowData; g: GameView; onBack
   // A time as far off as it is: "Wed 8:00 PM" within the week, the date too past it (clock.ts lockTime).
   const when = (iso: string) => lockTime(Date.parse(iso));
   const move = yourMove(g, { seasonId, episode: show.words.episode, when, draft, waivers: wv });
+  // Secret roles and the top scorer's twist live on the server (their own routes): read only on a game that has them.
+  const roles = useLeagueRoles(g.leagueId, has(g.page, "badge", "role")).data ?? null;
+  const twist = useLeagueTwist(g.leagueId, has(g.page, "move", "twist")).data ?? null;
+  // A game in stages: each stage is a game of its own on the show, under this one.
+  const stageGames = (show.play ?? []).filter((x) => x.stageOf === g.leagueId).map((x) => ({ leagueId: x.leagueId, name: x.name, over: x.over, airsAt: x.lineup?.airsAt ?? x.pick?.airsAt ?? null }));
   const m = pageModel(g, g.page, {
     show: show.header?.show.name ?? "",
     words: show.words,
@@ -90,7 +99,15 @@ function GamePageBody({ show, g, onBack }: { show: ShowData; g: GameView; onBack
     move: move ? { kind: move.kind, title: move.title, line: move.line, due: move.due, go: move.go } : null,
     line: g.short,
     seen: show.seenThrough,
+    roles: roles ? { name: roles.roles.name, count: roles.roles.count, dealt: roles.dealt, mine: roles.mine, revealed: roles.revealed } : null,
+    twist: twist ? { options: twist.twist.of, next: twist.next, played: twist.played } : null,
+    stageGames,
   });
+  const [player, setPlayer] = useState<Opened | null>(null);
+  const openRow = (playerId: string) => {
+    const row = g.table.find((r) => r.playerId === playerId);
+    if (row) setPlayer({ row, game: g, week: null });
+  };
   const art = show.header?.show.backdropUrl ?? show.header?.show.artUrl ?? null;
   const [colour, setColour] = useState<string | null>(null);
   useEffect(() => {
@@ -111,10 +128,12 @@ function GamePageBody({ show, g, onBack }: { show: ShowData; g: GameView; onBack
         </div>
       )}
       <Strip strip={m.strip} g={g} show={show} />
-      <Hero hero={m.hero} />
+      <Hero hero={m.hero} seasonId={seasonId} />
       {m.inPlace === "questions" && <InPlaceQuestions seasonId={seasonId} g={g} />}
+      {m.inPlace === "twist" && twist?.next && <TwistChooser leagueId={g.leagueId} t={twist} />}
+      {m.inPlace === "slots" && <SlotPicker g={g} seasonId={seasonId} />}
       <Label>The couch</Label>
-      <Couch m={m} faces={faces} />
+      <Couch m={m} faces={faces} onOpen={openRow} />
       <Previously m={m} faces={faces} />
       <Label>How it plays</Label>
       <ol className="mx-4 list-decimal pl-[18px] text-[15px] leading-[1.45] text-foreground/90" data-game-rules>
@@ -131,6 +150,7 @@ function GamePageBody({ show, g, onBack }: { show: ShowData; g: GameView; onBack
       )}
       {/* Your moves (dock.tsx), as the show's tabs have it: the strip's lineup or pick opens it on this game. */}
       {show.header && <MovesSheet show={show} seasonId={seasonId} />}
+      <PlayerSheet open={player} onOpen={setPlayer} onClose={() => setPlayer(null)} words={show.words} />
       <Sheet open={rules} onOpenChange={setRules} title="How it plays" subtitle={g.gameName}>
         <ol className="list-decimal pl-[18px] text-[15px] leading-[1.45]">
           {m.rules.map((r) => (
@@ -261,6 +281,7 @@ function Strip({ strip, g, show }: { strip: StripM; g: GameView; show: ShowData 
       return openSheet({ seasonId, leagueId: g.leagueId, episode: null, game: g.gameName, finale: g.sheet?.finale });
     }
     if ("bingo" in to) return openBingo({ seasonId, couchId: show.couch?.id ?? null, episode: to.bingo, label: show.header?.show.name ?? "", solo: show.solo });
+    if ("twist" in to || "slots" in to) return document.getElementById("gp-move")?.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
     if ("call" in to) return openCall({ seasonId, couchId: show.couch?.id ?? null, episode: to.call, label: show.header?.show.name ?? "", solo: show.solo });
   };
   const plate = <Plate tag={strip.tag} tone={strip.tone} title={strip.title} line={strip.line} size={strip.due ? "md" : "sm"} chevron={strip.go ? (strip.inPlace ? "down" : "right") : null} />;
@@ -279,15 +300,21 @@ function Strip({ strip, g, show }: { strip: StripM; g: GameView; show: ShowData 
 
 // ---------- the big graphic: where you stand ----------
 
-function Hero({ hero }: { hero: HeroM }) {
+function Hero({ hero, seasonId }: { hero: HeroM; seasonId: string }) {
   const mid = hero.n != null && hero.n.length > 2;
   return (
     <section data-game-hero className="mt-6">
       {hero.stages && (
         <div className="mx-4 mb-6 flex gap-1.5">
-          {hero.stages.map((s) => (
-            <Plate key={s.name} tag={s.tag} tone={s.now ? "show" : "quiet"} title={s.name} size="xs" dim={!s.now} className="min-w-0 flex-1" />
-          ))}
+          {hero.stages.map((s) =>
+            s.leagueId ? (
+              <NavLink key={s.name} href={paths.gamePage(seasonId, s.leagueId)} data-game-stage={s.leagueId} className="nd-press min-w-0 flex-1">
+                <Plate tag={s.tag} tone={s.now ? "show" : "quiet"} title={s.name} size="xs" dim={!s.now} chevron="right" />
+              </NavLink>
+            ) : (
+              <Plate key={s.name} tag={s.tag} tone={s.now ? "show" : "quiet"} title={s.name} size="xs" dim={!s.now} className="min-w-0 flex-1" />
+            )
+          )}
         </div>
       )}
       {hero.vs ? (
@@ -339,6 +366,13 @@ function Hero({ hero }: { hero: HeroM }) {
               <span className="type-caption text-[13px]">{hero.slot}</span>
             </span>
           )}
+        </div>
+      )}
+      {hero.notes.length > 0 && (
+        <div className="mx-4 mt-4 flex flex-col gap-1.5" data-game-notes>
+          {hero.notes.map((n) => (
+            <Plate key={n.tag + n.title} tag={n.tag} tone={n.tone} title={n.title} line={n.line} size="xs" />
+          ))}
         </div>
       )}
       {hero.bars && (
@@ -396,6 +430,93 @@ function InPlaceQuestions({ seasonId, g }: { seasonId: string; g: GameView }) {
   );
 }
 
+/** The top scorer's twist, chosen on the page: each option a plate with its multiplier on the tag (the chosen one white, the rest
+ *  dim), a named white confirm only while there's a change to save; once chosen it folds to one line, "Change it" opening it. */
+function TwistChooser({ leagueId, t }: { leagueId: string; t: LeagueTwist }) {
+  const qc = useQueryClient();
+  const [picked, setPicked] = useState<string | null>(t.next?.choice ?? null);
+  const [saving, setSaving] = useState(false);
+  const [editing, setEditing] = useState(!t.next?.choice);
+  const name = t.twist.of.find((o) => o.id === picked)?.name ?? null;
+  const changed = picked !== (t.next?.choice ?? null);
+  const save = async () => {
+    if (!picked) return;
+    setSaving(true);
+    try {
+      await chooseTwist(leagueId, picked);
+      await qc.invalidateQueries({ queryKey: ["new-design", "twist", leagueId] });
+      setEditing(false);
+      toast(`${name}: it's set for Episode ${t.next?.episode}`);
+    } catch (e) {
+      toast.quiet(`Not saved: ${(e as Error).message}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+  if (!editing)
+    return (
+      <section id="gp-move" className="mx-4 mt-4 scroll-mt-4" data-game-move="twist" data-twist-state="chosen">
+        <button type="button" data-twist-change onClick={() => setEditing(true)} className="inline-flex min-h-11 items-center text-[14px] font-semibold underline underline-offset-[3px]">
+          Change your twist
+        </button>
+      </section>
+    );
+  return (
+    <section id="gp-move" className="mx-4 mt-6 scroll-mt-4" data-game-move="twist">
+      <div className="flex flex-col gap-1.5" role="radiogroup" aria-label="The twist">
+        {t.twist.of.map((o) => (
+          <button key={o.id} type="button" role="radio" aria-checked={picked === o.id} data-twist-option={o.id} onClick={() => setPicked(o.id)} className="nd-press block w-full text-left">
+            <Plate tag={`×${o.times}`} tone={picked === o.id ? "you" : "quiet"} title={o.name} size="sm" dim={picked !== null && picked !== o.id} />
+          </button>
+        ))}
+      </div>
+      {picked && changed && (
+        <button type="button" data-twist-save disabled={saving} onClick={save} className="nd-press type-caption mt-3 grid min-h-[52px] w-full place-items-center rounded-[3px] bg-plate text-[20px] tracking-[0.02em] text-plate-foreground shadow-plate disabled:opacity-60">
+          {saving ? "Saving…" : `Choose ${name}`}
+        </button>
+      )}
+    </section>
+  );
+}
+
+/** Your group slots, picked on the page: the groups on offer, once, as plates; a tap puts that group in your next open slot (its
+ *  tag says which) and saves it (the group-slots route), as a lineup's tap does in Your moves. */
+function SlotPicker({ g, seasonId }: { g: GameView; seasonId: string }) {
+  const qc = useQueryClient();
+  const [saving, setSaving] = useState<string | null>(null);
+  const offered = g.twists.offered;
+  const open = (g.twists.slots ?? []).filter((s) => s.status === "empty" || s.status === "dropped");
+  if (!offered || !open.length) return null;
+  const taken = new Set((g.twists.slots ?? []).map((s) => s.groupId).filter(Boolean));
+  const pick = async (slot: number, groupId: string, name: string) => {
+    setSaving(`${slot}:${groupId}`);
+    try {
+      await setGroupSlot(g.leagueId, offered.epId, g.playerId, slot, groupId);
+      await qc.invalidateQueries({ queryKey: ["new-design", "games", seasonId] });
+      toast(`${name} is in slot ${slot + 1}`);
+    } catch (e) {
+      toast.quiet(`Not saved: ${(e as Error).message}`);
+    } finally {
+      setSaving(null);
+    }
+  };
+  const s = open[0];
+  return (
+    <section id="gp-move" className="mx-4 mt-6 scroll-mt-4" data-game-move="slots">
+      <p className="mb-1.5 text-[13px] text-muted-foreground">
+        {`A tap puts a group in slot ${s.slot + 1}${s.status === "dropped" ? " (its group ended)" : ""}${open.length > 1 ? `, then slot ${open[1].slot + 1}` : ""}`}
+      </p>
+      <div className="flex flex-col gap-1.5">
+        {offered.groups.filter((x) => !taken.has(x.id)).map((x) => (
+          <button key={x.id} type="button" data-slot-pick={`${s.slot}:${x.id}`} disabled={!!saving} onClick={() => pick(s.slot, x.id, x.name)} className="nd-press block w-full text-left disabled:opacity-60">
+            <Plate tag={`Slot ${s.slot + 1}`} tone="quiet" title={saving === `${s.slot}:${x.id}` ? "Saving…" : x.name} line={x.size === 1 ? "1 still in" : `${x.size} still in`} size="xs" />
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 // ---------- the couch ----------
 
 function Label({ children }: { children: ReactNode }) {
@@ -425,7 +546,7 @@ function useRestack(keys: string[]) {
   return box;
 }
 
-function Couch({ m, faces }: { m: PageModel; faces: Map<string, string | null> }) {
+function Couch({ m, faces, onOpen }: { m: PageModel; faces: Map<string, string | null>; onOpen: (playerId: string) => void }) {
   const c = m.couch;
   const box = useRestack([...c.podium, ...c.rows].map((s) => s.playerId));
   if (c.coop)
@@ -439,16 +560,22 @@ function Couch({ m, faces }: { m: PageModel; faces: Map<string, string | null> }
     <div ref={box} data-game-couch={c.unit}>
       {c.teams && <p className="mx-4 mb-2 text-[13px] text-muted-foreground">{c.teams}</p>}
       <div className="mx-4 flex flex-col gap-1.5">
-        {c.podium.map((s) => (
+        {c.podium.map((s, i) => (
           <div key={s.playerId} data-restack={s.playerId}>
-            <Plate tag={s.you ? `${s.rank} · You` : s.rank} tone={s.you ? "you" : "quiet"} title={s.name} line={s.sub} size="xs" right={s.value} photo={s.face ? (faces.get(s.face) ?? null) : undefined} />
+            {c.cutAfter === i && <CutLine label={c.cutLabel} />}
+            <button type="button" onClick={() => onOpen(s.playerId)} data-player={s.name} className="nd-press block w-full text-left">
+              <Plate tag={s.you ? `${s.rank} · You` : s.rank} tone={s.you ? "you" : "quiet"} title={s.name} line={s.sub} size="xs" right={s.value} photo={s.face ? (faces.get(s.face) ?? null) : undefined} />
+            </button>
           </div>
         ))}
       </div>
       {c.rows.length > 0 && (
         <div className="mx-4 mt-2">
-          {c.rows.map((s) => (
-            <Row key={s.playerId} s={s} />
+          {c.rows.map((s, i) => (
+            <div key={s.playerId}>
+              {c.cutAfter === c.podium.length + i && <CutLine label={c.cutLabel} />}
+              <Row s={s} onOpen={onOpen} />
+            </div>
           ))}
         </div>
       )}
@@ -459,9 +586,18 @@ function Couch({ m, faces }: { m: PageModel; faces: Map<string, string | null> }
   );
 }
 
-function Row({ s }: { s: Standing }) {
+/** The next cut's line across the couch: above it stays in when it comes, below it goes. */
+function CutLine({ label }: { label: string | null }) {
   return (
-    <div data-restack={s.playerId} className="flex min-h-12 items-center gap-2.5 border-b border-border text-[15px]">
+    <div data-game-cut className="type-caption my-1.5 flex items-center gap-2 text-[12px] tracking-[0.06em] text-muted-foreground before:flex-1 before:border-t before:border-dashed before:border-edge before:content-[''] after:flex-1 after:border-t after:border-dashed after:border-edge after:content-['']">
+      {label ?? "The cut"}
+    </div>
+  );
+}
+
+function Row({ s, onOpen }: { s: Standing; onOpen: (playerId: string) => void }) {
+  return (
+    <button type="button" onClick={() => onOpen(s.playerId)} data-player={s.name} data-restack={s.playerId} className="nd-press flex min-h-12 w-full items-center gap-2.5 border-b border-border text-left text-[15px]">
       <span className="type-num w-7 text-center text-[18px] text-muted-foreground">{s.out ? "–" : s.rank}</span>
       <Avatar id={s.userId ?? s.playerId} name={s.name} size={28} />
       <span className="min-w-0 flex-1 py-1.5">
@@ -473,7 +609,7 @@ function Row({ s }: { s: Standing }) {
         {s.sub && <small className="block truncate text-[13px] font-normal text-muted-foreground">{s.sub}</small>}
       </span>
       <b className={`type-num min-w-[34px] text-right text-[20px] ${s.out ? "text-muted-foreground" : ""}`}>{s.value}</b>
-    </div>
+    </button>
   );
 }
 

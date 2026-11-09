@@ -1549,6 +1549,38 @@ export const answersApi = {
 };
 
 /** After answers: the sheet's read put in place, and what counts them read again (the games, the home's moves). */
+// ---- a game's secret roles and the top scorer's twist (U1 step 2: the game page; the routes are A14's) ----
+
+/** Your secret role in a game (GET /api/leagues/[id]/roles): only yours, and nobody's before the reveal. */
+export interface LeagueRoles {
+  roles: { name: string; count: number; points: number; mates: boolean };
+  dealt: boolean;
+  mine: { role: string; points: number | null; mates: { playerId: string; name: string }[] | null } | null;
+  revealed: { at: number; holders: { playerId: string; name: string }[] } | null;
+}
+
+/** The top scorer's twist (GET /api/leagues/[id]/twist): its options, the episode being chosen for now and whether it's yours. */
+export interface LeagueTwist {
+  twist: { of: { id: string; name: string; times: number }[] };
+  next: { episode: number; closesAt: string | null; youChoose: boolean; choice: string | null } | null;
+  played: { episode: number; twist: string | null; name: string | null; by: { playerId: string; name: string } | null }[];
+}
+
+export function useLeagueRoles(leagueId: string, enabled: boolean) {
+  return useQuery({ queryKey: ["new-design", "roles", leagueId], queryFn: () => get<LeagueRoles>(`/api/leagues/${leagueId}/roles`), enabled, staleTime: 60_000, retry: false });
+}
+
+export function useLeagueTwist(leagueId: string, enabled: boolean) {
+  return useQuery({ queryKey: ["new-design", "twist", leagueId], queryFn: () => get<LeagueTwist>(`/api/leagues/${leagueId}/twist`), enabled, staleTime: 30_000, retry: false });
+}
+
+/** A group into one of your slots for an episode (PUT .../episodes/[epId]/group-slots/[playerId]; null empties it). */
+export const setGroupSlot = (leagueId: string, epId: string, playerId: string, slot: number, groupId: string | null) =>
+  sendJson<unknown>(`/api/leagues/${leagueId}/episodes/${epId}/group-slots/${playerId}`, "PUT", { slot, groupId });
+
+/** Choose the twist for the open episode (POST /api/leagues/[id]/twist), while you're its chooser. */
+export const chooseTwist = (leagueId: string, twist: string) => post<{ ok: true; episode: number; twist: string }>(`/api/leagues/${leagueId}/twist`, { twist });
+
 export function useAfterAnswers() {
   const client = useQueryClient();
   return useCallback(

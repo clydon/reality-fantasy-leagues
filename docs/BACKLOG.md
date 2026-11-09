@@ -410,16 +410,18 @@ Last updated 2026-10-27.
     the Vercel and GitHub secrets: the user's). For any session: small.
 
 40. **What U1 step 1 left (noticed 2026-11-08, building the generated game page; branch `u1-game-page`).**
-    - **Twists without their state on the page** (28 of the 92 places draw from the spec alone; `game-page-census.js` lists them):
-      the view (`game-view.ts`) doesn't carry a captain, a bounty, a secret role, a group slot, a cut's position, a bank's or a
-      budget's balance, lives left in a pool, nor a twist chosen; the page shows each as a tag on the title card and in How it
-      plays. Each wants its state on `GameView`, then its badge on the face or its column in the couch. (U1's next steps.)
-    - **The couch's rows don't open anyone**: the Games tab's player sheet (`games.tsx` PlayerSheet) isn't exported. (U1.)
-    - **A single question's strip says "1 question for Episode 7"**, not the question ("Who goes home?"): `SheetMove` has no
-      ask. A word on the view, or the page's own questions read first. (U1, small.)
+    - ~~Twists without their state on the page, the couch's rows, a single question's strip~~: **done in U1 step 2**
+      (2026-11-08). Still from the spec alone (9 places): best ones counted, one owner each, a joined multiplier, no repeats
+      (used), the draw's order, naming a captain, a host's card, a second pick, one from each group. Each wants its state on
+      the view (game-twists.ts) when a step needs it.
+    - **No screen names a captain** (U1 step 2): the engine has `setActiveRosterCaptain` and the lineup route takes it, but the
+      new design's lineup (Your moves) has no captain control, so a game with a captain shows its C badge only once one is named.
+      A tap-twice on a starter (the U0 mock's) in the lineup sheet. (U1, small.)
+    - **An auction's spend isn't on the page** (U1 step 2): a cap's room and a market's cash are; an auction's `spent` after it
+      settles isn't read. (U1, small.)
     - **A game in stages** shows the stage strip and its overall points, not the current stage's own main block (each stage is
-      a league of its own: its page could link to it); and its title plate says "Episode 7 is next" with no air time, which
-      lives on the current stage's own league (its lineup's lock), not the parent's view (`model.ts nextOf`). (U1.)
+      a league of its own); **its stage plates now open each stage's page and its title takes the current stage's air time (U1
+      step 2)**; the hero still shows the overall, not the current stage's own main block. (U1.)
     - **The show's colour on the title plate's tag** falls back to the chart colour when the art can't be read in a canvas
       (another site's picture without CORS: `tune-in.tsx colourOf`), as the tune-in does. (Any time, small.)
     - **The bracket control** pairs a later round from your own picks before it, in order; the server checks it
