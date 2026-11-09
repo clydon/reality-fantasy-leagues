@@ -459,6 +459,52 @@ Last updated 2026-10-27.
     10px every ~16ms, about 0.6px/ms, over the pager's flick speed (0.4px/ms) whenever the events landed quickly, so it was a flick
     and the next swipe failed after it; the pager was right. The drag is slow now (3px a step); 61 of 61 on every run since.
 
+42. **What U1's Start a game left (noticed 2026-11-09, building the wizard; lane `start`, branch `start-a-game`).**
+    - **Today's list still serves three starts** (the user's call, 2026-11-09): Run it back, a season that's aired (at your own pace:
+      Starts' where you are and from the top) and a sport's season (`start-game.tsx StartRouter`). The wizard could take the first two
+      as options in When it runs; a sport's is U0's "Start a game on a team", with the sports screens. (U1, next.)
+    - **No made-for games, no betting-game role, no scoring themes on the rail**: G5 isn't built, so Start from is the engine's own
+      kinds that fit the rulebook (rulebook-fits), each rolled for the stretch. Different scoring cycles engine-made ways from the
+      season's own rulebook (No points lost, Big moments only: the user's call, 2026-11-09) until G5's themes. (G5, then the wizard
+      reads its ideas.)
+    - **No ad, no Premium**: Free's wait has no ad until an ad network is chosen (the user, 2026-11-09); every ask is the slow bot's
+      wait (about 40 seconds). The fast AI and the paywall's screens aren't designed. (When a network and a paid model are chosen.)
+    - **Two prompt changes, OK'd by the user at the merge (2026-11-09)**: the button's words (`game-words/prompt.js` BUTTONS.creative, the
+      wording from U0's Settled bullet) and several new moments rated in one ask (`momentsPrompt`, `readMoments`). The stand-in bot
+      answers both in `check-start-a-game.js`; neither has been asked of the real bot. (This step's merge.)
+    - **Your call's choices that only our AI can make** (a question the bot asked, or "Which game?") go back to it as a typed change:
+      another wait and one of the day's ten. A number our check filled in shows as the one choice. Changing it locally, where the
+      engine can (a preset's parts, a number), would skip the wait. (U1, small.)
+    - **A moment added for a game goes to the season**, so every couch's research asks it (G1 part 4's design), worth nothing in games
+      that don't name it; Undo on the toast drops it from this game only. A couch on its own copy of the rules is refused (the
+      server's words shown). (As designed; revisit if couches want private moments.)
+    - **"Add a moment of your own" asks our AI first** (its rating, about 40 seconds) where the board added it at once: a moment
+      research can't answer reliably is never added (Decisions, "Custom moments"). The board's instant add was the mock's. (As built.)
+    - **What scores is one list** (counting, then not counting): the rulebook's moments carry no group (Challenges, Tribal Council...),
+      the engine's ask from round F. (The engine lane.)
+    - **Tell the couch differs between the two sheets**: the wizard tells only those who watch the show or play it there (U1's note),
+      the list still tells everyone on the couch. (With the list's last starts, above.)
+    - **The rail's Prediction Sheet** keeps the live game's name where the board said "Predictions". (Any time, the user's word.)
+    - **Tonight's tab says the day when it isn't tonight** ("Thursday", "Just Thursday"); "Tonight" only on the night. Custom's
+      Episodes view has no ≈ marker for a phase nobody can date (the board's merge line had a guessed episode); Stages carries the
+      phases. A season with more than 13 episodes scrolls its cells sideways. (U1, small.)
+    - **check-new-tour.js fails before its Start a game step**: the Add a show practice's Show me finish no longer names the show it
+      added ("Nothing was saved: it was all practice..."), so the check times out at step 5's second close; stepped past that (a
+      throwaway copy), it stops again at step 7 (`[data-guide-tv-soon]` isn't on the guide). Not this branch's: nothing here touches
+      `watching/`, `tour/` or the guide (not run on master to prove it). Its Start a game step's selectors now name the wizard's
+      (`[data-start-game="predictions"]`, `[data-start-describe]`); the practice's Start a game in the wizard runs in
+      `check-start-a-game.js` instead (Next through the tour to step 9). Bring check-new-tour.js up to date. (The tour's owner, small.)
+    - **Left from impeccable's critique (2026-11-09, 28/40 before the fixes; dual-agent):** the steps' screens change the game's
+      kind (Before it starts lists every game) where the critique would keep kind changes to the rail and Every game, and Tell the
+      couch is on by default two screens below Start it: both the settled board's; **decided (the user, 2026-11-09): both stay**. The question wording
+      ("who'll be the one: voted against the majority") and How it plays' stitched sentence are describe.js's (the engine lane,
+      with BACKLOG 40's words). 14px and 17px type sit off DESIGN.md's ramp here as across the app (about 355 and 70 uses): add the
+      steps to DESIGN.md or snap them, app-wide. The sheet's Close and back are 40px (`ui/sheet.tsx`, every sheet). The game's
+      name shows on the card and in the footer (the board's), and the first screen holds about 22 choices. (The user's calls, then
+      U1 small.)
+    - **Episode types and rounds** (Big Brother's weeks, a recoupling night) stay tabled, as in U0.
+    - **Not checked on Studio** (the new design is Night only until step 15).
+
 ## Decided against (don't re-propose without new information)
 
 - **An AI draft/lineup/pick advisor for players** ("Coach"): rejected. Feels like pay-to-win inside

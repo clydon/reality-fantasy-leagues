@@ -140,7 +140,7 @@ export async function deleteGame(scope: BackstageScope, leagueId: unknown): Prom
  */
 export async function deleteLeague(
   user: SessionUser,
-  o: { leagueId: string; gameName: string; couchId: string | null; seasonId: string | null },
+  o: { leagueId: string; gameName: string; couchId: string | null; seasonId: string | null; text?: string },
   also?: (client: PoolClient, batch: string) => Promise<void>
 ): Promise<{ batch: string; userIds: string[] }> {
   const client = await pool.connect();

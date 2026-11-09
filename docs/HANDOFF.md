@@ -21,6 +21,18 @@ and the Neon password rotation (deferred; steps there). Fixed 2026-10-24: the ch
 end); GitHub Actions, stopped since 2026-10-19, runs again. Vercel builds production only (Preview shared
 production's database).
 
+## Start a game, the wizard (2026-11-09; U1 step 3; lane `start` (`../rfl-start`, port 3011), branch `start-a-game`, migration 0216)
+U0's settled board "B, settled" built: **Start a game is the wizard** for every season with an episode still to air. When it runs
+(Tonight · The season · Custom), Start from (the engine's games that fit the rulebook, each rolled for the stretch), the white game
+card (its three steps, each a tap to change it; four quick changes; a bet; What scores; How it plays), Describe a new game (our AI,
+its wait, its errors, its result) and Surprise me, The couch, and Start it with a 10-second Undo before the couch hears (only those
+who watch or play the show). A show that isn't a game yet chains Make it a game, then lands back in the wizard. The tour's practice
+runs in it. Today's list keeps Run it back, a season that's aired and a sport's season. Logic `src/lib/game/start-wizard/` (pure,
+tested), server `src/lib/server/start-spec.ts`, sheet `src/new/couch/start-wizard.tsx`. Checks: `tests/start-wizard.test.js`,
+`scripts/dev-test/check-start-a-game.js` (API and 390: ALL PASS); `npm test` 2008 pass. The plan's U1 "Step 3" bullet has it all;
+the user's three calls are in Decisions ("U1 Start a game's calls"); BACKLOG 42 what it left. **Waiting on the user:** the two prompt
+changes (the button's words, new moments rated in one ask) and the merge. **Not merged or pushed.**
+
 ## A game's page: the season first, you second, and every door (2026-11-09; U1 step 2b; lane `u1`, branch `u1-game-page`, no migration)
 The game's page is the user's pick now: the title card and your move, then the couch framed as **the season grid** (a row a person, a
 column an episode, a square by the game's kind, the next episode only Set, – or your Due), then **You** under its own header, then How
@@ -153,7 +165,7 @@ the rung's points. The current episode isn't an input (the ladder judges what a 
 finding what's missing. **Read [PLAN-rulebook-research.md](PLAN-rulebook-research.md).** Checks: `tests/rulebook-scores.test.js`,
 `scripts/dev-test/check-desk-rulebook-research.js` (ALL PASS at 390, the stand-in bot); `check-new-desk.js`'s Check for changes
 step moved to the new sheet. **Live 2026-11-04** (`ae013ef`, master, the user's go-ahead). **Not asked of the real bot yet** (no bot in
-that session): the first real What scores pass on The Challenge 42 is the user's, from the desk. `browser.js` now runs off Windows too (a cloud session's container).
+that session): the first real What scores pass on The Challenge 42 is the user's, from the desk. `browser.js` now runs off Windows too (a cloud session's container).
 ## React with a GIF (2026-11-01; branch `reactions`, lane `rfl-reactions`, migration 0162)
 The user found Rate it's stars no fun: an episode's reaction is now **one GIF you search for** (KLIPY, the chat's picker), and
 **Rate it is shelved** (stars, couch verdict, taste twin, rating accolades, Couch verdicts; `episode_ratings` kept). The GIF

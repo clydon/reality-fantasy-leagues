@@ -169,6 +169,8 @@ function check(ok, what, detail = "") {
       await wide("the Games tab");
 
       await page.locator('[data-start-row="start"]').click();
+      // U1's wizard: computer players come with a draft or a pool (the season's game), not tonight's questions.
+      await page.locator('[data-start-mode="season"]').click({ timeout: 15000 }).catch(() => {});
       await page.locator("[data-start-bots]").waitFor({ timeout: 10000 }).catch(() => {});
       check((await page.locator("[data-start-bots]").count()) === 1, "Start a game: Computer players, for a competition's game");
       check((await page.locator("[data-start-bots-level]").count()) === 0, "how sharp only once there are some");

@@ -30,8 +30,8 @@ import { sportGames, sportPageContext, sportStandard, statWords } from "@/lib/sp
 
 /** Asks one person can make in a day: a first ask or a typed change each (the desk aside). Make it a game's is 5 shows. */
 export const GAME_ASKS_A_DAY = 10;
-/** At most this many new moments rated in one ask (each a question of its own to the bot). */
-const MOMENT_ASKS = 2;
+/** At most this many new moments rated for one ask: one rating ask for them all (U1: momentsPrompt), else one each. */
+const MOMENT_ASKS = 3;
 /** What one request may spend on the bot: the route's 300 s, less room to save what came back. */
 const BUDGET_MS = 270_000;
 /** Don't start a reliability ask with less than this left. */
@@ -256,7 +256,19 @@ export async function couchFor(user: SessionUser, couch: unknown): Promise<strin
 export async function rateMoments(result: CheckResult, pack: Pack, o: { bot?: string; deadline: number }): Promise<{ result: CheckResult; seconds: number }> {
   const ratings: Record<string, MomentRating> = {};
   let seconds = 0;
-  for (const m of result.newMoments.slice(0, MOMENT_ASKS)) {
+  const asked = result.newMoments.slice(0, MOMENT_ASKS);
+  // Several at once in one ask (U1: one after another is about two minutes on the slow bot); one alone, its own ask as before.
+  if (asked.length > 1 && o.deadline - Date.now() >= MOMENT_NEEDS_MS) {
+    try {
+      const a = await askBot(Words.momentsPrompt({ pack, moments: asked.map((m) => m.label) }), { bot: o.bot, budgetMs: o.deadline - Date.now(), search: false, priority: "now" });
+      seconds += a.seconds;
+      Words.readMoments(a.answer, asked.length).forEach((r, i) => (ratings[asked[i].label] = r));
+    } catch {
+      // Unrated: they stay can't-yets, as unreliable ones would.
+    }
+    return { result: Object.keys(ratings).length ? Words.withMoments(result, ratings, { pack }) : result, seconds };
+  }
+  for (const m of asked) {
     const left = o.deadline - Date.now();
     if (left < MOMENT_NEEDS_MS) break;
     try {
@@ -272,7 +284,9 @@ export async function rateMoments(result: CheckResult, pack: Pack, o: { bot?: st
 
 /**
  * Their words to a game (`body`: { words, couch?, change?: { from: an ask's id, words } }): the pack, the manual and the prompt to our
- * bot, then our check, then the reliability ask for each new moment. Capped per person a day; the bot must be answering.
+ * bot, then our check, then the reliability ask for each new moment. Capped per person a day; the bot must be answering. U1: a change
+ * can be to a game the wizard holds instead of an ask (`change: { spec, game: its name and line, words, button? }`), the quick
+ * changes' Creative moments among them (`button: 'creative'`, BUTTONS' words).
  */
 export async function gameWords(user: SessionUser, seasonId: string, body: { words?: unknown; couch?: unknown; change?: unknown }, bot?: string, now = new Date()): Promise<GameWordsResult> {
   if (!isUuid(seasonId)) throw new HttpError(404, "Season not found");
@@ -283,7 +297,17 @@ export async function gameWords(user: SessionUser, seasonId: string, body: { wor
   let spec: unknown = null;
   let from: string | null = null;
   let carry: { said: unknown[]; assumed: unknown[] } | null = null;
-  if (change) {
+  const button = change && typeof (change as { button?: unknown }).button === "string" && Words.BUTTONS[(change as { button: string }).button] ? (change as { button: string }).button : undefined;
+  const held = change && !(change as { from?: unknown }).from && (change as { spec?: unknown }).spec;
+  if (held) {
+    // A game the wizard holds (a rail game, a shuffle, a typed one changed since): its spec and the words that name it.
+    const c = change as { spec?: unknown; game?: unknown; words?: unknown };
+    if (!c.spec || typeof c.spec !== "object" || Array.isArray(c.spec)) throw new HttpError(400, "A change says what game it changes");
+    spec = c.spec;
+    changeWords = typeof c.words === "string" ? c.words.trim() : "";
+    words = typeof c.game === "string" && c.game.trim() ? c.game.trim().slice(0, 300) : "A game on this season";
+    if (!changeWords) throw new HttpError(400, "Say what to change");
+  } else if (change) {
     from = typeof change.from === "string" && isUuid(change.from) ? change.from : null;
     changeWords = typeof change.words === "string" ? change.words.trim() : "";
     if (!from || !changeWords) throw new HttpError(400, "A change says which ask it changes and what to change");
@@ -302,7 +326,7 @@ export async function gameWords(user: SessionUser, seasonId: string, body: { wor
   const { pack, ctx, kind, show, games: standard } = await packFor(user, seasonId, couchId, now);
   if (!(await askBotStatus({ bot })).available) throw new HttpError(503, "Our bot isn't answering right now. Start a game's taps work.");
   const manual = manualFor(ctx, kind, show, standard);
-  const prompt = change ? Words.changePrompt({ pack, manual, words, spec, change: changeWords! }) : Words.gamePrompt({ pack, manual, words });
+  const prompt = change ? Words.changePrompt({ pack, manual, words, spec, change: changeWords!, button }) : Words.gamePrompt({ pack, manual, words });
   const { id, left } = await openAsk(user, { seasonId, couchId, from, words, change: changeWords });
   const deadline = Date.now() + BUDGET_MS;
   try {

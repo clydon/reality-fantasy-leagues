@@ -56,11 +56,17 @@ const checkCast: AnswerCheck = (text) => {
 };
 
 export function MakeGamePage({ show }: { show: ShowData }) {
-  const page = usePushedPage("make");
+  // `then` and `couch`: Start a game's chain (below), dropped with the page.
+  const page = usePushedPage("make", ["then", "couch"]);
   const howPage = usePushedPage("make-how");
   const nav = useNav();
   // The desk's New show opens this page (?from=desk, step 10 part 3): Looks right goes back to the desk, to its rulebook.
-  const fromDesk = useSearchParams().get("from") === "desk";
+  const params = useSearchParams();
+  const fromDesk = params.get("from") === "desk";
+  // Reached from Start a game for a show that isn't a game yet (?then=start, U1: Make it a game chained in): once it's ready, the
+  // page steps aside and Start a game opens on it, once.
+  const thenStart = params.get("then") === "start";
+  const chained = useRef(false);
   const h = show.header;
   const seasonId = h?.seasonId ?? "";
   const couchId = show.couch?.id ?? null;
@@ -105,6 +111,23 @@ export function MakeGamePage({ show }: { show: ShowData }) {
       setBusy(false);
     }
   };
+
+  const ready = !!m?.ready;
+  const readyLabel = m?.label ?? "";
+  const handOff = useRef<() => void>(() => {});
+  useEffect(() => {
+    handOff.current = () => {
+      page.close();
+      openStartGame({ seasonId, couchId: params.get("couch") || couchId });
+      toast(`${readyLabel} is a game: now start yours`);
+    };
+  });
+  useEffect(() => {
+    if (!thenStart || !page.open || !ready || chained.current) return;
+    chained.current = true;
+    // A beat on "is a game" first; the latest hand-off runs (the page object is new each render, so it isn't a dependency).
+    setTimeout(() => handOff.current(), 1200);
+  }, [thenStart, page.open, ready]);
 
   const label = m?.label ?? (h ? `${h.show.name}${h.seasonNumber ? ` ${h.seasonNumber}` : ""}` : "");
   const pasting = mode === "paste" || (s?.via === "paste" && mode !== "review" && s.stage !== "ready");

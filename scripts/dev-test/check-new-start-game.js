@@ -20,8 +20,8 @@
 //   - archive (only its Commissioner; it stands still while Episode 6 comes in for the rest; Undo brings Episode 6 in),
 //     delete (the hold's sentence; out of the couch's games and its group, its people's seats kept; restored from Recent
 //     changes by whoever ran it, not by anyone else; gone for good after 30 days).
-//   In a real browser at --width (390 by default): the Games tab's Start a game (a competition's three, Tell the couch,
-//   Start it, its table), the hub's foot (Pick the show, then a sport's sheet), the nudge's Start a game, a talk show's sheet
+//   In a real browser at --width (390 by default): the Games tab's Start a game (U1's wizard: the season's Outlast, Tell the
+//   couch, Start it, its table), the hub's foot (Pick the show, then a sport's sheet), the nudge's Start a game, a talk show's sheet
 //   from the Games tab, Make it a game's Done view, Backstage › Game settings' Archive (Undo) and Delete (hold), Recent
 //   changes' restore, Commercial break's Start a game, the feed's line. Nothing wider than the screen; no page errors.
 //
@@ -349,10 +349,12 @@ function lateNight(shows) {
       await page.locator("[data-start-row]").waitFor();
       await page.locator("[data-start-row]").click();
       await page.locator('[data-start-sheet="competition"]').waitFor();
-      check((await sheet.locator("[data-start-game]").count()) === 4 && /Recommended/.test(await sheet.locator('[data-start-game="survivalPool"]').innerText()), "the Games tab's Start a game: four games (a Prediction Sheet last), Survival Pool recommended");
+      // U1: the wizard (start-wizard.tsx; check-start-a-game.js checks it whole): When it runs, the rail, the game card.
+      check((await sheet.locator("[data-start-mode]").count()) === 3 && (await sheet.locator("[data-start-game]").count()) >= 4 && (await sheet.locator("[data-start-card]").count()) === 1, "the Games tab's Start a game: the wizard (When it runs, the rail, the game card)");
       check(/zt_nd_alex started a game for ZT Survivor/.test(await sheet.locator("[data-start-tell]").innerText()) && (await sheet.locator('[data-start-tell="on"]').count()) === 1, "Tell the couch, on");
       await shot("start-competition");
       await wide("Start a game");
+      await sheet.locator('[data-start-mode="season"]').click();
       await sheet.locator('[data-start-game="outlast"]').click();
       await page.locator("[role=dialog]:has([data-start-sheet]) [data-start-go]").click();
       await page.waitForURL(/\/games$/);
@@ -399,7 +401,8 @@ function lateNight(shows) {
       await page.locator("[data-make-start]").waitFor();
       await page.locator("[data-make-start]").click();
       await page.locator('[data-start-sheet="series"]').waitFor();
-      check(/Draft the crew members/.test(await sheet.innerText()), "Make it a game's Done: Start a game, a series' Weekly Lineup");
+      await sheet.locator('[data-start-mode="season"]').click();
+      check((await sheet.locator('[data-start-game="lineup"]').count()) === 1, "Make it a game's Done: Start a game, a series' Weekly Lineup");
       await shot("start-series");
       await page.keyboard.press("Escape");
 

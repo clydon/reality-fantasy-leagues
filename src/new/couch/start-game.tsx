@@ -6,7 +6,7 @@ import { Bell, Bot, Check, ChevronRight, Plus, Radio, RotateCcw, Sparkles, Troph
 import { airTime, calmWhen } from "../clock";
 import { LEVEL_WORDS, type BotLevel } from "@/lib/game/computer-players";
 import { spanName } from "@/lib/game/spans";
-import { gamesApi, useAfterReveal, useCurrentCouch, useHome, useStartOptions, type HomeShow, type StartChoice, type StartOptions } from "../data";
+import { gamesApi, useAfterReveal, useCurrentCouch, useHome, useStartOptions, useWizardOptions, type HomeShow, type StartChoice, type StartOptions } from "../data";
 import { gameColour } from "../games";
 import { useNav } from "../nav";
 import { paths } from "../routes";
@@ -16,6 +16,7 @@ import { Sheet } from "../ui/sheet";
 import { ShowArt } from "../ui/show-bar";
 import { toast } from "../ui/toast";
 import { openCouchSheet } from "./couch-sheets";
+import { setReopen, WizardSheet, type Screen } from "./start-wizard";
 
 // Start a game (docs/PLAN-new-design.md step 10 part 2b; the mock's rulebook.js newGameW and hubplus.js startGamePicker),
 // opened from anywhere signed in with openStartGame:
@@ -45,6 +46,8 @@ export type StartTarget = {
   couchId?: string | null;
   again?: string | null;
   practice?: StartPractice;
+  /** The wizard's screen to open on (an AI wait's See it: "ask" or "moments"). */
+  screen?: Screen;
 };
 
 type Store = { target: StartTarget | null; n: number };
@@ -88,11 +91,50 @@ export function StartGameSheets() {
     close();
     practice?.onClose();
   };
+  // An AI wait's See it reopens the wizard on its screen (start-wizard.tsx).
+  useEffect(() => {
+    setReopen((seasonId, couchId, screen) => openStartGame({ seasonId, couchId, screen }));
+    return () => setReopen(null);
+  }, []);
   return (
     <>
       <PickShowSheet key={`pick-${n}`} open={!!target && !target.seasonId} couchId={target?.couchId ?? null} practice={target?.practice} onOpenChange={onOpenChange} />
-      <StartSheet key={`start-${n}`} target={target?.seasonId ? target : null} onOpenChange={onOpenChange} />
+      <StartRouter key={`start-${n}`} target={target?.seasonId ? target : null} onOpenChange={onOpenChange} />
     </>
+  );
+}
+
+/**
+ * Which Start a game a season gets (docs/PLAN-start-a-game-gpt.md U1): the wizard (start-wizard.tsx) for every season with an
+ * episode still to air, and for a show that isn't a game yet (it chains Make it a game); today's list for Run it back, a season
+ * that's aired (at your own pace: Starts' where you are and from the top) and a sport's season, until the wizard takes them (BACKLOG 42).
+ */
+function StartRouter({ target: asked, onOpenChange }: { target: StartTarget | null; onOpenChange: (o: boolean) => void }) {
+  const { data: home } = useHome();
+  const current = useCurrentCouch(home);
+  const [shown, setShown] = useState(asked);
+  if (asked && asked !== shown) setShown(asked);
+  const target = asked ?? shown;
+  const couchId = target?.couchId ?? current?.id ?? null;
+  const [late, setLate] = useState(false);
+  const wizardWanted = !!target?.seasonId && !target.again;
+  const wiz = useWizardOptions(target?.seasonId ?? null, couchId, wizardWanted, late);
+  // A sport's season keeps the list too: its Start a game is U0's "Start a game on a team", built with the sports screens.
+  const list = !!target?.again || (wizardWanted && !!wiz.data && ((!wiz.data.wizard && !wiz.data.blocked) || wiz.data.kind === "sport"));
+  if (list || !target) return <StartSheet target={asked} onOpenChange={onOpenChange} />;
+  return (
+    <WizardSheet
+      open={!!asked}
+      onOpenChange={onOpenChange}
+      o={wiz.data}
+      loading={wiz.isLoading || (wiz.isPlaceholderData && wiz.isFetching)}
+      error={(wiz.error as Error | null) ?? null}
+      couchId={couchId}
+      practice={target.practice ? { seasonId: target.practice.seasonId, label: target.practice.label, onClose: target.practice.onClose } : undefined}
+      late={late}
+      setLate={setLate}
+      first={target.screen}
+    />
   );
 }
 
@@ -153,7 +195,7 @@ function PickShowSheet({ open, couchId, practice, onOpenChange }: { open: boolea
                   else if (practice) toast.quiet("For practice, pick a show that's a game already");
                   else {
                     close();
-                    nav.push(`${paths.show(s.seasonId, "games")}?page=make`);
+                    nav.push(`${paths.show(s.seasonId, "games")}?page=make&then=start${couchId ? `&couch=${couchId}` : ""}`);
                   }
                 }}
                 className="nd-press flex min-h-[72px] w-full items-center gap-3 border-t border-border py-2 text-left first:border-t-0"
@@ -357,7 +399,7 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
                 wide
                 onClick={() => {
                   close();
-                  nav.push(`${paths.show(o.seasonId, "games")}?page=make`);
+                  nav.push(`${paths.show(o.seasonId, "games")}?page=make&then=start`);
                 }}
               >
                 Make it a game

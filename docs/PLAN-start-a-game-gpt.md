@@ -241,6 +241,8 @@ and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track
 | The game's page in the sheet's language (2026-11-08) | **The user**, seeing the person sheet beside the page as built: "i love the season grid for most, but i feel like some hybrid of season grid and you first (maybe you second lol). just remember the rule of yellow (yellow is something due, you need to do). and we need to be sure essentially every row, cast photo, etc, should lead to a view that feels like a natural drill down". So: the title card, your move, the season grid, You, How it plays; yellow only for what's due; every name, square, episode and face opens the next view down on the same episode, sheets stacked with the path back on top (canvas v56). Mocks' person colours carry no yellow. Replaces round 2's couch plates, Previously on and big number. |
 | You set apart on a game's page (2026-11-08) | **The user** picked C, the couch framed (the grid in a panel, You the page under a big header), "rather than create another layer" over A, You on a sheet-like panel; the page keeps one layer, sheets are only what opens (canvas v58). |
 | Live calls (A15) and the live screens (2026-11-08) | **The user's answers** (U0's last round, impeccable shape): live calls are **the game's, on the show's clock**: they open and close at moments of the episode's runtime ("before tribal: who goes home?", "the next 10 minutes: an idol?"), an earlier answer worth more, nobody running anything (not couch-made, not a host). **Late viewers play on their own clock**: a call opens at the same runtime for anyone watching along, honour-based like bingo, so a Friday streamer plays too; nothing answered after that person has revealed the episode's results counts. **Sports sync by "tap the last play you saw"**: a stream 30-60 seconds behind snaps its clock, and the feed, scores and calls wait for it; Hide scores honours it. They live in today's watch along (step 13's layer: its clock, the 30 s safety margin, who's on now, a planned night's one clock). |
+| U1 Start a game's calls (2026-11-09) | **The user, at impeccable's questions before the build:** Free's AI wait shows **no ad until an ad network is chosen** (the wait says its time, with Keep going; nothing stands in for the ad); **Different scoring, until G5's themes, cycles engine-made ways from the season's own rulebook** (No points lost: moments that cost points score 0; Big moments only: the top-pointed ones count; then back to the standard points), no AI; **today's list keeps Run it back and a season that's aired** (at your own pace) while the wizard takes every live season, the tour's practice included. A sport's season keeps the list too (Claude's call: its Start a game is U0's "Start a game on a team", with the sports screens the user scoped out). |
+| U1 Start a game, after the critique (2026-11-09) | **The user:** the steps' screens keep listing every game, so a step can change the game's kind (the board as settled; the critique would have kept that to the rail and Every game); **Tell the couch stays on by default**, its 10-second Undo the guard. Also OK'd: the two prompt changes (the Creative moments button's words, BUTTONS.creative; new moments rated in one ask, momentsPrompt), migration 0216 and the merge. |
 
 ## What's there today (mapped 2026-10-27)
 
@@ -12240,6 +12242,36 @@ first), and proves it on these games and on the tracker's other rows that use it
     leaving). The verdict pass: fix (the negative week shared the next week's dashed box, the tribe wasn't a tag, the fold
     repeated the strip, a bare "Still in"); those four fixed after it without a third round (the skill's ceiling). The surface brief's
     direction contract now says the season first, you second. Noticed and left: BACKLOG 40.
+
+  - **Step 3: Start a game, the wizard** (2026-11-09, lane `start`, branch `start-a-game`, migration 0216; the user's calls in Decisions,
+    "U1 Start a game's calls"). U0's settled board "B, settled" (canvas v33) ported: its logic, not its HTML. **The logic**
+    (`src/lib/game/start-wizard/`, CommonJS beside the engine, pure): When it runs (Tonight · The season · Custom, its Stages and
+    Episodes picked like dates; the default the season before Episode 2 has aired, after the premiere, else tonight), Start from (the
+    engine's kinds that fit the rulebook, each rolled for the stretch by rollSpec, the classic first, then least effort or play along
+    live), the game as chosen (a rail game's spec kept over a roll with its changes: team size, how many play, what scores, a bet, a
+    way to win, two twists at most; a game keeps its own way to win until one is picked), the three steps in plain words, the four
+    quick changes (More competitive up its ladder, More casual down it, Different scoring through the engine-made ways, Creative
+    moments by our AI; each tap the next step the engine accepts, dashed with why when there's none), Surprise me (never a game in
+    stages) and the footer's next line. **The server** (`src/lib/server/start-spec.ts`): GET `/start?wizard=1` adds the page
+    (G1's pack and ctx, as the starter has seen it), the season's last episode, asks left and who Start it tells; POST `{ spec }`
+    checks the spec again on that page and makes it (its Commissioner, linked into the couch's group, a line in Recent changes), and
+    tells only those on the couch who watch or play the show, after a 10-second hold in the request's `after`; POST `{ undo }` takes
+    it back inside the hold (deleted, restorable). A change to a game the wizard holds goes to our bot without an ask before it
+    (0216 loosens game_word_asks' check), with a quick change's button words (BUTTONS) and new moments rated in one ask
+    (`momentsPrompt`): **both prompt changes for the user's OK at the merge**. **The sheet** (`src/new/couch/start-wizard.tsx`):
+    the white game card, its steps' screens, the bet, What scores (moments ticked and stepped, a question's points, a fixed one shown
+    plain), How it plays, Every game; Describe a new game (compose with three starters, the wait with Keep going and a See it toast
+    when it lands, the result: the plate, its steps, their words underlined or dashed, Can't count yet, Your call, We filled in;
+    Change it in the sheet or Start it; the errors: our AI away, today's 10, no game in the words); new moments (offers ticked and
+    pointed, added to the season, the page read again so the game scores them); Start it with its 10-second Undo; computer players
+    with a draft or a pool; Include it when an episode is on now; the tour's practice (tonight's Prediction Sheet). **Make it a game
+    chained in:** a show that isn't a game yet says so in the wizard and goes to Make it a game with `then=start`, which hands back
+    to the wizard once it's ready. Today's list keeps Run it back, a season that's aired and a sport's season (`StartRouter`).
+    **Checks:** `tests/start-wizard.test.js` (every rulebook page the roll tests use: the default, every rail game, every quick change
+    to its end, every way to win, twist and bet offered, What scores' changes, shuffles, a typed game), and
+    `scripts/dev-test/check-start-a-game.js` (API, then the browser at 390: ALL PASS); `check-new-start-game.js`,
+    `check-episode-lock.js` and `check-new-computer-players.js` moved to the wizard (all pass); `check-new-tour.js`'s Start a game
+    step moved to its selectors (the check fails earlier, in Add a show's demo: BACKLOG 42). What it left: BACKLOG 42.
 
 **L. Live sports:** the steps are in "Live sports in the same engine", above (L1–L6, the Sports lane).
 

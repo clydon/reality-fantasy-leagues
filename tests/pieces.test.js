@@ -217,6 +217,7 @@ const STILL = {
   "src/lib/server/end-game.ts": "R3",
   "src/lib/server/engine-lab.ts": "R3",
   "src/lib/server/start-game.ts": "R3",
+  "src/lib/server/start-spec.ts": "R3",
   "src/lib/server/solo.ts": "R3",
   "src/lib/game/action-items.js": "R3",
   "src/lib/game/commissioner-items.ts": "R3",

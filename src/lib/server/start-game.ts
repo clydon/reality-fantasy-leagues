@@ -217,7 +217,20 @@ async function spanEpisodes(seasonId: string, schedule: SeasonSchedule | undefin
 }
 
 /** The couch's games on a season (not deleted), in its order. */
-const couchGamesOn = (user: SessionUser, couchId: string, seasonId: string) => games(user.id, { couchIds: [couchId], seasonId });
+export const couchGamesOn = (user: SessionUser, couchId: string, seasonId: string) => games(user.id, { couchIds: [couchId], seasonId });
+
+/** Who else on the couch watches the season openly or plays it there (never how far: the guard): Tell the couch's line, and who
+ *  the wizard's Start it tells (U1: only members who watch the show). */
+export async function watchersOf(user: SessionUser, people: { userId: string; name: string }[], seasonId: string, here: Game[]): Promise<{ userId: string; name: string }[]> {
+  const others = people.filter((p) => p.userId !== user.id);
+  const follows = await followsOf(user.id, others.map((p) => p.userId));
+  const players = new Set(
+    here.length
+      ? (await pool.query("SELECT DISTINCT user_id FROM league_memberships WHERE league_id = ANY($1::uuid[])", [here.map((g) => g.leagueId)])).rows.map((r) => r.user_id as string)
+      : []
+  );
+  return others.filter((p) => players.has(p.userId) || follows.some((f) => f.userId === p.userId && f.seasonId === seasonId && f.following && !f.private));
+}
 
 /**
  * What can be started on a season for a couch (GET /api/seasons/[id]/start?couch=&again=&late=&start=): `late` from the episode
@@ -276,15 +289,7 @@ export async function startOptions(
     bots: false,
   });
 
-  // Who on the couch watches it openly or plays it, for Tell the couch's line (never how far: the guard).
-  const others = people.filter((p) => p.userId !== user.id);
-  const follows = await followsOf(user.id, others.map((p) => p.userId));
-  const players = new Set(
-    here.length
-      ? (await pool.query("SELECT DISTINCT user_id FROM league_memberships WHERE league_id = ANY($1::uuid[])", [here.map((g) => g.leagueId)])).rows.map((r) => r.user_id as string)
-      : []
-  );
-  const watchers = others.filter((p) => players.has(p.userId) || follows.some((f) => f.userId === p.userId && f.seasonId === seasonId && f.following && !f.private)).map((p) => p.name);
+  const watchers = (await watchersOf(user, people, seasonId, here)).map((p) => p.name);
 
   const next = startFrom(schedule, now);
   const eps = schedule?.episodes ?? [];
@@ -420,14 +425,14 @@ function againParts(kept: Readonly<GameSpec>, mine: GameSpec): Partial<GameSpec>
 }
 
 /** A name the couch doesn't use for another of its games here ("Weekly Lineup 2"). */
-function freeName(want: string, here: Game[]): string {
+export function freeName(want: string, here: Game[]): string {
   const taken = new Set(here.map((g) => g.name.toLowerCase()));
   if (!taken.has(want.toLowerCase())) return want;
   for (let n = 2; ; n++) if (!taken.has(`${want} ${n}`.toLowerCase())) return `${want} ${n}`;
 }
 
 /** Joins the new game to the couch's other games here: one reveal and one chat (the classic link route's rule). */
-async function linkIn(leagueId: string, here: Game[], userId: string): Promise<boolean> {
+export async function linkIn(leagueId: string, here: Game[], userId: string): Promise<boolean> {
   if (!here.length) return false;
   const states = await leagueStates([leagueId, ...here.map((g) => g.leagueId)]);
   const mine = states.get(leagueId);

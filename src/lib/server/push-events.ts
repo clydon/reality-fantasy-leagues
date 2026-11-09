@@ -630,21 +630,39 @@ export function notifyCouchJoined(couchId: string, joinerUserId: string, joinerN
 // ---------- the couch's own moments (step 15 part 2; the new design's alone: moments.js NEW_ONLY) ----------
 
 /** Tell the couch (Start a game): everyone else on it hears, with a link to the show's Games tab, where they join. */
-export function notifyGameStarted(o: { userIds: string[]; seasonId: string; leagueId: string; starter: string; show: string; gameName: string; label: string; from: string; span?: string | null }) {
+export function notifyGameStarted(o: {
+  userIds: string[];
+  seasonId: string;
+  leagueId: string;
+  starter: string;
+  show: string;
+  gameName: string;
+  label: string;
+  from: string;
+  span?: string | null;
+  /** Start a game's Undo (U1): wait `ms`, then send only if `still()` says the game wasn't taken back meanwhile. */
+  hold?: { ms: number; still: () => Promise<boolean> };
+}) {
   if (!o.userIds.length) return;
-  notifyAfter("gameStarted", async () => ({
-    userIds: o.userIds,
-    seasonId: o.seasonId,
-    message: {
-      title: `${o.starter} started a game for ${o.show}`,
-      // A game over a span says which ("for Games 4–6"); else where it starts.
-      body: `${o.gameName} on ${o.label}, ${o.span ? `for ${o.span}` : `from ${o.from}`}. Join from the Games tab.`,
-      next: `/show/${o.seasonId}/games`,
-      tag: `started-${o.leagueId}`,
-      key: `started:${o.leagueId}`,
+  notifyAfter("gameStarted", async () => {
+    if (o.hold) {
+      await new Promise((r) => setTimeout(r, o.hold!.ms));
+      if (!(await o.hold.still())) return null;
+    }
+    return {
+      userIds: o.userIds,
       seasonId: o.seasonId,
-    },
-  }));
+      message: {
+        title: `${o.starter} started a game for ${o.show}`,
+        // A game over a span says which ("for Games 4–6"); else where it starts.
+        body: `${o.gameName} on ${o.label}, ${o.span ? `for ${o.span}` : `from ${o.from}`}. Join from the Games tab.`,
+        next: `/show/${o.seasonId}/games`,
+        tag: `started-${o.leagueId}`,
+        key: `started:${o.leagueId}`,
+        seasonId: o.seasonId,
+      },
+    };
+  });
 }
 
 /** A watch along planned (step 11 part 3): everyone invited hears, the time in their own zone, to the show where I'm in is. */
