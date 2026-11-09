@@ -27,7 +27,7 @@ column an episode, a square by the game's kind, the next episode only Set, – o
 it plays. Every name, square, episode and face opens the next view down as a sheet over the last with the path back on top
 (`src/new/show/game-sheets.tsx`): a person's sheet, an episode's, a castaway in this game, the rules; the Games tab's rows open the same
 person sheet for every game. The data is `GameView.plays` (`src/lib/game/game-plays.ts`). The plan's U1 "Step 2b" bullet has it all;
-BACKLOG 40 what it left. **Not merged or pushed** (the user's to OK), and step 2 (the twists) is on the same branch, unmerged.
+BACKLOG 40 what it left. **Merged and pushed 2026-11-09 (15bfcc38), with step 2 (the twists); live.**
 
 ## A game's own page, generated from its spec (2026-11-08; U1 step 1; lane `u1`, branch `u1-game-page`, no migration)
 Every game now has a page over the show, `/show/[seasonId]/game/[leagueId]`, opened from its name on the Games tab and from
