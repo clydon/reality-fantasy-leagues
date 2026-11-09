@@ -135,6 +135,7 @@ type by themselves." After the above.
 - **Then a simple bot**: a seat that picks at random, or by the points so far (the user's idea). It opens every game to a solo
   player, then grows into today's computer players (drafts and pools) for every answer kind.
 - **The page solo**: no couch panel (the grid needs a couch); You is the page. The grid appears when someone joins.
+
 ## How it reuses the engine
 
 | Need | What exists | What's new |
