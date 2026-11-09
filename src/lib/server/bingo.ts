@@ -5,6 +5,7 @@ import { settleSays, type CallBook, type EpisodeFacts } from "@/lib/game/calls";
 import { PRESENT_MS } from "@/lib/game/watch-along";
 import { kindOf } from "@/lib/game/formats/rulebook-schema.js";
 import type { BingoMove, GameCalls } from "@/lib/game/game-view";
+import { episodesByPlayer } from "@/lib/game/game-plays";
 import type { LeagueState } from "@/lib/game/types";
 import { isUuid, type SessionUser } from "./auth-helpers";
 import { endedThrough, episodeFacts, openEpisode, OPEN, othersSharing, saysOn, scopeOf, seasonBook, settledSays, SHARED, type SayRow } from "./calls";
@@ -776,14 +777,17 @@ export async function leagueBingo(o: {
   // A game waiting for its phase (step A3 of docs/PLAN-start-a-game-gpt.md) counts no lines yet, and hands no card.
   const from = StateLogic.startEpisode(o.state);
   const userIds = o.state.players.map((p) => o.userOf(p.id)).filter((id): id is string => !!id);
+  // U1 step 2b: each episode's lines too, for the season grid (game-plays.ts).
+  const byEpisode = new Map<number, Map<string, number>>();
   const [lines, move] = await Promise.all([
-    from === null ? new Map<string, number>() : bingoLines(o.seasonId, userIds, { from, through, couchId: o.couchId, book: o.book }),
+    from === null ? new Map<string, number>() : bingoLines(o.seasonId, userIds, { from, through, couchId: o.couchId, book: o.book, byEpisode }),
     o.playerId && from !== null ? bingoMove(o.userId, o.seasonId, mark, from, schedule, now) : Promise.resolve(null),
   ]);
   // Points per line (step A9 of docs/PLAN-start-a-game-gpt.md), 1 when the game says none: the sequence's count at a line's points.
   const each = pointsPerLine(o.state);
   return {
     right: (p) => Seq.counted(lines.get(o.userOf(p) ?? "") ?? 0, each),
+    episodes: episodesByPlayer(o.state.players, o.userOf, byEpisode, each),
     move: null,
     bingo: move && (end === null || move.episode <= end) ? move : null,
     through,
