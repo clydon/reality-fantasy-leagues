@@ -17,6 +17,7 @@ import { ShowArt } from "../ui/show-bar";
 import { toast } from "../ui/toast";
 import { openCouchSheet } from "./couch-sheets";
 import { setReopen, WizardSheet, type Screen } from "./start-wizard";
+import { SportStartSheet } from "../sports/start-sport";
 
 // Start a game (docs/PLAN-new-design.md step 10 part 2b; the mock's rulebook.js newGameW and hubplus.js startGamePicker),
 // opened from anywhere signed in with openStartGame:
@@ -119,7 +120,16 @@ function StartRouter({ target: asked, onOpenChange }: { target: StartTarget | nu
   const [late, setLate] = useState(false);
   const wizardWanted = !!target?.seasonId && !target.again;
   const wiz = useWizardOptions(target?.seasonId ?? null, couchId, wizardWanted, late);
-  // A sport's season keeps the list too: its Start a game is U0's "Start a game on a team", built with the sports screens.
+  // A sport's league season (a matchup's or a slate's) starts the sport's own games (U1's sports slice: sports/start-sport.tsx);
+  // any other sport's season (a TV listing's) keeps the list.
+  const sport = wizardWanted && wiz.data?.sport && !wiz.data.blocked ? wiz.data : null;
+  if (sport && target)
+    return (
+      <SportStartSheet
+        target={asked ? { kind: "season", seasonId: sport.seasonId, league: sport.sport!.league, label: sport.label, starts: sport.starts } : null}
+        onOpenChange={onOpenChange}
+      />
+    );
   const list = !!target?.again || (wizardWanted && !!wiz.data && ((!wiz.data.wizard && !wiz.data.blocked) || wiz.data.kind === "sport"));
   if (list || !target) return <StartSheet target={asked} onOpenChange={onOpenChange} />;
   return (

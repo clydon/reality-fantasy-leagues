@@ -1037,6 +1037,7 @@ export const profileApi = {
     colour?: string | null;
     ai?: AiChoice;
     hideScores?: boolean;
+    hideSportsScores?: boolean;
     notify?: { moment: MomentId; on: boolean } | { chat: ChatMode };
     sharing?: { preset: SharePreset } | Partial<Sharing>;
     theme?: Theme;
@@ -1842,4 +1843,99 @@ export const togetherApi = {
       keepalive: true,
     }).catch(() => {});
   },
+};
+
+// ── Sports on the couch (docs/PLAN-start-a-game-gpt.md U1's sports slice): finding a game by team or league, a team's season, the
+// guide's week, following a team, and starting one of a sport's standard games (src/app/api/sports/*). ──
+
+export type { FoundTeams, TeamSchedule } from "@/lib/server/sports/find";
+export type { SportsWeek, WeekGame, WeekSide } from "@/lib/server/sports/week";
+export type { CouchTeam, FollowedTeam } from "@/lib/server/sports/team-follows";
+export type { RailGame } from "@/lib/sports/start-games";
+export type { SportStarted } from "@/lib/server/sports/start";
+export type { LeagueSlates } from "@/lib/server/sports/slate";
+import type { LeagueSlates } from "@/lib/server/sports/slate";
+import type { FoundTeams, TeamSchedule } from "@/lib/server/sports/find";
+import type { SportsWeek } from "@/lib/server/sports/week";
+import type { CouchTeam, FollowedTeam } from "@/lib/server/sports/team-follows";
+import type { RailGame } from "@/lib/sports/start-games";
+import type { SportStarted } from "@/lib/server/sports/start";
+
+/** Teams, a matchup and leagues some words name, asked once typing pauses (the edge keeps each an hour). */
+export function useSportsSearch(q: string) {
+  const t = q.trim();
+  return useQuery({
+    queryKey: ["new-design", "sports-search", t.toLowerCase()],
+    queryFn: () => get<FoundTeams>(`/api/sports/search?q=${encodeURIComponent(t)}`),
+    enabled: t.length >= 2,
+    staleTime: 3600_000,
+    placeholderData: keepPreviousData,
+  });
+}
+
+/** A team's season (with `against`, their meetings), what adding each makes, and the season already made for it. */
+export function useTeamSchedule(league: string | null, team: string | null, against: string | null = null) {
+  return useQuery({
+    queryKey: ["new-design", "team-schedule", league, team, against],
+    queryFn: () => get<TeamSchedule>(`/api/sports/schedule?league=${encodeURIComponent(league!)}&team=${encodeURIComponent(team!)}${against ? `&against=${encodeURIComponent(against)}` : ""}`),
+    enabled: !!league && !!team,
+    staleTime: 5 * 60_000,
+    placeholderData: keepPreviousData,
+  });
+}
+
+/** What a league's slate can be (its season now, its stages and cadences). */
+export function useLeagueSlates(league: string | null) {
+  return useQuery({
+    queryKey: ["new-design", "league-slates", league],
+    queryFn: () => get<LeagueSlates>(`/api/sports/league?league=${encodeURIComponent(league!)}`),
+    enabled: !!league,
+    staleTime: 10 * 60_000,
+  });
+}
+
+/** A week of games from `from` (a day in the East), the pro leagues and `also`'s. */
+export function useSportsWeek(from: string | null, also: string[] = [], enabled = true) {
+  const extra = [...new Set(also)].sort().join(",");
+  return useQuery({
+    queryKey: ["new-design", "sports-week", from, extra],
+    queryFn: () => get<SportsWeek>(`/api/sports/week?${from ? `from=${from}&` : ""}${extra ? `also=${encodeURIComponent(extra)}` : ""}`),
+    enabled,
+    staleTime: 2 * 60_000,
+    placeholderData: keepPreviousData,
+  });
+}
+
+/** The couch's teams: those anyone on it follows, and those in the games it plays. */
+export function useCouchTeams(couchId: string | null) {
+  return useQuery({
+    queryKey: ["new-design", "couch-teams", couchId],
+    queryFn: () => get<{ teams: CouchTeam[] }>(`/api/sports/couch?couch=${couchId}`),
+    enabled: !!couchId,
+    staleTime: 60_000,
+  });
+}
+
+/** The sport's standard games for `count` of a league's games (a slate's: `slate`). */
+export function useSportRail(league: string | null, count: number, slate = false) {
+  return useQuery({
+    queryKey: ["new-design", "sport-rail", league, count, slate],
+    queryFn: () => get<{ games: RailGame[] }>(`/api/sports/start?league=${encodeURIComponent(league!)}&count=${count}${slate ? "&slate=1" : ""}`),
+    enabled: !!league && count >= 1,
+    staleTime: 3600_000,
+    placeholderData: keepPreviousData,
+  });
+}
+
+export const sportsApi = {
+  /** Follow or stop following a team; answers your teams. */
+  follow: (league: string, team: string, follow: boolean) => sendJson<{ teams: FollowedTeam[] }>("/api/sports/follow", "POST", { league, team, follow }),
+  /** Add a team's games (or its season, or their meetings with `against`): made or found, and followed. */
+  add: (body: { league: string; team: string; games?: string[]; whole?: "season" | "meetings"; against?: string }) =>
+    sendJson<{ seasonId: string; made: boolean; name: string; games: string[] }>("/api/sports/add", "POST", body),
+  /** Add a league's slate. */
+  addSlate: (league: string, slate: { stage?: string; cadence?: string }) => sendJson<{ seasonId: string; name: string; episodes: number }>("/api/sports/add", "POST", { league, slate }),
+  /** Start one of the sport's standard games on a team's games, or on a sport's season that's here; Undo is wizardApi.undo. */
+  start: (couchId: string, body: { game: string; tell: boolean; league?: string; team?: string; games?: string[]; whole?: "season" | "meetings"; against?: string; slate?: { stage?: string; cadence?: string }; seasonId?: string; from?: number; to?: number; only?: boolean }) =>
+    sendJson<SportStarted>(`/api/sports/start?couch=${couchId}`, "POST", body),
 };

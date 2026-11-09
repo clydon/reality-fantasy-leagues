@@ -35,29 +35,39 @@ export function progressFrom(mark: number | null | undefined, immediate: boolean
   return Number.isInteger(mark) && (mark as number) > 0 ? (mark as number) : 0;
 }
 
+/**
+ * Whether a season's results show straight away for this person: a show's by Hide scores (show_results_immediately), a sport's by
+ * its own line, Sports scores too (hide_sports_scores, off by default: sports are live; U1's sports slice, 2026-11-09).
+ */
+const IMMEDIATE_SQL = (user: string, season: string) =>
+  `CASE WHEN (SELECT sh.kind FROM show_seasons x JOIN shows sh ON sh.id = x.show_id WHERE x.id = ${season}) = 'sport'
+        THEN NOT COALESCE((SELECT hide_sports_scores FROM user_settings WHERE user_id = ${user}), false)
+        ELSE COALESCE((SELECT show_results_immediately FROM user_settings WHERE user_id = ${user}), false) END`;
+
 /** The last episode this person may be told about on this season. */
 export async function seenThrough(userId: string, seasonId: string, db: Queryable = pool): Promise<number> {
   const { rows } = await db.query(
     `SELECT (SELECT seen_through FROM show_follows WHERE user_id = $1 AND season_id = $2) AS mark,
             (SELECT keep_up FROM show_follows WHERE user_id = $1 AND season_id = $2) AS keep_up,
-            COALESCE((SELECT show_results_immediately FROM user_settings WHERE user_id = $1), false) AS immediate`,
+            (SELECT sh.kind = 'sport' FROM show_seasons x JOIN shows sh ON sh.id = x.show_id WHERE x.id = $2) AS sport,
+            ${IMMEDIATE_SQL("$1", "$2")} AS immediate`,
     [userId, seasonId]
   );
   let mark = rows[0]?.mark as number | null;
   if (rows[0]?.keep_up === "auto") mark = (await advanceAuto([seasonId], userId, db)).get(`${userId}/${seasonId}`) ?? mark;
   const immediate = !!rows[0]?.immediate;
   if (!immediate) return progressFrom(mark, false, []);
+  // A sport's season, live: everything, unless a seat is a late joiner's (an own-pace game goes by its mark), even one only followed.
+  const sport = !!rows[0]?.sport;
   const { rows: seats } = await db.query(
     `SELECT l.id, m.player_id FROM league_memberships m JOIN leagues l ON l.id = m.league_id ${LEAGUE_SEASON_JOIN}
       WHERE m.user_id = $1 AND ss.id = $2`,
     [userId, seasonId]
   );
   const states = await leagueStates(seats.map((s) => s.id));
-  return progressFrom(
-    mark,
-    true,
-    seats.filter((s) => states.has(s.id)).map((s) => ({ lateJoiner: !!StateLogic.GhostLogic.lateJoinOf(states.get(s.id) as LeagueState, s.player_id) }))
-  );
+  const held = seats.filter((s) => states.has(s.id)).map((s) => ({ lateJoiner: !!StateLogic.GhostLogic.lateJoinOf(states.get(s.id) as LeagueState, s.player_id) }));
+  if (sport && !held.some((s) => s.lateJoiner)) return EVERYTHING;
+  return progressFrom(mark, true, held);
 }
 
 /**
@@ -66,8 +76,7 @@ export async function seenThrough(userId: string, seasonId: string, db: Queryabl
  */
 export async function seenThroughAll(userId: string, db: Queryable = pool): Promise<Map<string, number>> {
   const { rows } = await db.query(
-    `SELECT f.season_id, f.seen_through, f.keep_up,
-            COALESCE((SELECT show_results_immediately FROM user_settings WHERE user_id = $1), false) AS immediate
+    `SELECT f.season_id, f.seen_through, f.keep_up, ${IMMEDIATE_SQL("$1", "f.season_id")} AS immediate
        FROM show_follows f WHERE f.user_id = $1`,
     [userId]
   );

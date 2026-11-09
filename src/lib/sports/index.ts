@@ -72,7 +72,9 @@ export function sportById(id: string): AnySport | null {
  *  college's halves), or null for one not built yet. */
 export function sportOf(league: string): AnySport | null {
   const [id, name] = String(league).split("/");
-  return SPORTS.find((s) => s.id === id && (!s.leagues || s.leagues.includes(name))) ?? null;
+  // A check's stand-in league ("football/zt-scf": fake-espn.js) reads as its sport's own, as soccer reads every league; no league
+  // of ESPN's starts "zt-".
+  return SPORTS.find((s) => s.id === id && (!s.leagues || s.leagues.includes(name) || name?.startsWith("zt-"))) ?? null;
 }
 
 /** Every sport built so far. */

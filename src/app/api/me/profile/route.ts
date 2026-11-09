@@ -13,13 +13,13 @@ export const GET = apiRoute(async (req) => {
   return withThemeCookie(NextResponse.json(profile), profile.theme, req);
 });
 
-// Body: any of { name, colour, ai, hideScores, notify: { moment, on } | { chat }, sharing: { preset } | { where?, now?, gifs?,
+// Body: any of { name, colour, ai, hideScores, hideSportsScores, notify: { moment, on } | { chat }, sharing: { preset } | { where?, now?, gifs?,
 // reactions? }, theme: night | studio | phone }; only what's sent changes (a theme is this device's cookie too). A new name is your
 // username (checked as sign-up checks it), your seat's name in every league you play and the name on your messages. Answers the
 // profile as it now is.
 export const PUT = apiRoute(async (req) => {
   const session = await requireAuthSession(req);
-  const body = (await req.json().catch(() => ({}))) as { name?: unknown; colour?: unknown; ai?: unknown; hideScores?: unknown; notify?: unknown; sharing?: unknown; theme?: unknown };
+  const body = (await req.json().catch(() => ({}))) as { name?: unknown; colour?: unknown; ai?: unknown; hideScores?: unknown; hideSportsScores?: unknown; notify?: unknown; sharing?: unknown; theme?: unknown };
   const { name, ...rest } = body;
   if (name === undefined && !Object.keys(rest).length) throw new HttpError(400, "Nothing to change");
   if (name !== undefined) await rename(req, session, name);
