@@ -2,10 +2,11 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
-import { Archive, BookOpen, Check, Eye, Plus, RotateCcw, X } from "lucide-react";
+import { Archive, BookOpen, Check, ChevronRight, Eye, Plus, RotateCcw, X } from "lucide-react";
 import { airTime } from "../clock";
 import { backstage, gamesApi, useAfterReveal, useCouchGames, useHowItWorks, useSeasonDraft, useSeasonPolls, useSeasonWaivers, useStartOptions, type GameView, type JoinGame, type TableRow, type WaiverWeek } from "../data";
-import { useNav } from "../nav";
+import { NavLink, useNav } from "../nav";
+import { paths } from "../routes";
 import { openStartGame } from "../couch/start-game";
 import { toast } from "../ui/toast";
 import { JoinGameRow, JoinGameSheet } from "../couch/join-game";
@@ -305,7 +306,15 @@ function Standings({
           <div className="mb-2.5 flex items-center gap-3">
             <span className="w-1 self-stretch rounded-[2px]" style={{ background: gameColour(g.gameName) }} aria-hidden />
             <div className="min-w-0 flex-1">
-              <h2 className="type-caption text-[26px]">{g.gameName}</h2>
+              {/* A game's own page (U1), over the show: its name opens it. */}
+              {scope && !readOnly ? (
+                <NavLink href={paths.gamePage(scope.seasonId, g.leagueId)} data-game-open={g.leagueId} className="nd-press -my-1 flex min-h-11 items-center gap-1">
+                  <h2 className="type-caption text-[26px]">{g.gameName}</h2>
+                  <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />
+                </NavLink>
+              ) : (
+                <h2 className="type-caption text-[26px]">{g.gameName}</h2>
+              )}
               <small className="mt-1 block text-[13px] text-muted-foreground">
                 {spanOf(g, words, aired) && (
                   <b data-span={g.leagueId} className="font-semibold text-foreground">

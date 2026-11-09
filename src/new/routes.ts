@@ -4,6 +4,7 @@
 //   /home                                    the hub (depth 0)
 //   /show/[seasonId]/[tab]                   a show space's five tabs (depth 1)
 //   /show/[seasonId]/backstage|draft|blind|waivers|scoring   pushed over the show (depth 2; a Backstage page is 3)
+//   /show/[seasonId]/game/[leagueId]         a game's own page, pushed over the show (depth 2; docs/PLAN-start-a-game-gpt.md U1)
 //   /welcome                                 the landing, for anyone signed out (depth 0; step 9 part 2)
 //   /signin                                  signing in (depth 1)
 //   /settings, /start/[step], /join/[code]   their own screens (depth 1)
@@ -46,7 +47,7 @@ export function isShowTab(v: string): v is ShowTab {
 }
 
 /** Pages pushed over a show space, each a route of its own. */
-export const SHOW_PAGES = ["backstage", "draft", "blind", "waivers", "scoring"] as const;
+export const SHOW_PAGES = ["backstage", "draft", "blind", "waivers", "scoring", "game"] as const;
 
 /** Backstage's own pages, one level deeper (/show/[seasonId]/backstage/results). */
 export const BACKSTAGE_PAGES = ["results", "waivers", "rules", "members", "settings", "history"] as const;
@@ -72,6 +73,8 @@ export const paths = {
   watch: (seasonId: string, ep?: number | null, plan?: string | null) => `/show/${seasonId}/tonight?page=watch${ep ? `&ep=${ep}` : ""}${plan ? `&plan=${plan}` : ""}`,
   backstage: (seasonId: string, page?: string) => `/show/${seasonId}/backstage${page ? `/${page}` : ""}`,
   showPage: (seasonId: string, page: "draft" | "blind" | "waivers" | "scoring") => `/show/${seasonId}/${page}`,
+  /** A game's own page (U1), over the show: its title card, your move, where you stand, the couch, what happened, how it plays. */
+  gamePage: (seasonId: string, leagueId: string) => `/show/${seasonId}/game/${leagueId}`,
   start: (step: number) => `/start/${step}`,
   join: (code: string) => `/join/${code}`,
   desk: (tab?: "find" | "settings" | "library") => `/desk${tab ? `/${tab}` : ""}`,
@@ -160,7 +163,7 @@ export function depthOf(href: string): number {
     case "home":
       return 0;
     case "show":
-      if ((SHOW_PAGES as readonly string[]).includes(p[2])) return p[3] ? 3 : 2;
+      if ((SHOW_PAGES as readonly string[]).includes(p[2])) return p[3] && p[2] !== "game" ? 3 : 2;
       return 1;
     case "settings":
     case "start":
@@ -199,6 +202,8 @@ export function upFrom(href: string, { signedIn = true }: { signedIn?: boolean }
       if (!p[1]) return paths.home;
       // Recent changes is a player's too, from the show's menu, so up is the show, not Backstage.
       if (p[2] === "backstage") return p[3] && p[3] !== "history" ? paths.backstage(p[1]) : paths.show(p[1]);
+      // A game's own page is up to the Games tab, where its table is.
+      if (p[2] === "game") return paths.show(p[1], "games");
       if ((SHOW_PAGES as readonly string[]).includes(p[2])) return paths.show(p[1]);
       return paths.home;
     case "desk":

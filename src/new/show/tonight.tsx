@@ -899,7 +899,7 @@ function YourGames({ seasonId, show }: { seasonId: string; show: ShowData }) {
         {show.play.map((g) => (
           <NavLink
             key={g.leagueId}
-            href={tab}
+            href={show.header ? paths.gamePage(show.header.seasonId, g.leagueId) : tab}
             data-game={g.leagueId}
             className="nd-press flex min-h-[104px] flex-col gap-1.5 rounded-b-[4px] border-t-[3px] bg-card p-3"
             style={{ borderTopColor: gameColour(g.gameName) }}

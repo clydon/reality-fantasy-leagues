@@ -1,14 +1,15 @@
 "use client";
 
 import { useState, useSyncExternalStore } from "react";
-import { Check, ChevronRight, ListChecks, Minus, Plus, X } from "lucide-react";
+import { Check, ChevronRight, ListChecks, X } from "lucide-react";
 import { calm, lockTime, ticks } from "../clock";
 import { answersApi, useAfterAnswers, useGameQuestions, type GameQuestions, type QuestionFace, type QuestionView, type SheetMove } from "../data";
 import { Avatar, useNow } from "../ui/bars";
-import { Btn, Chip } from "../ui/parts";
+import { Btn } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { Face, IconBox } from "./parts";
+import { Answer, ANSWERED_HERE } from "./answer-controls";
 
 // A game's questions (docs/PLAN-start-a-game-gpt.md step A4 part 2; the server's answers.ts): a Prediction Sheet's, or a draft's
 // finale predictions, opened from anywhere signed in with openSheet. One sheet, as Call it's (calls.tsx):
@@ -74,8 +75,6 @@ const isIn = (v: unknown) => v !== null && v !== undefined && v !== "" && !(Arra
 const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 const idsOf = (v: unknown): string[] => (Array.isArray(v) ? (v as string[]) : typeof v === "string" && v ? [v] : []);
 
-/** The answers this sheet has controls for; the rest (A8's) wait for the UI track's screens. */
-const SHEET_ANSWERS: QuestionView["answer"][] = ["person", "group", "yesNo", "number", "overUnder", "choice"];
 
 /** "Kristin", "Kristin, Sue and Ozzy", "Yes", "4", "Over 3.5". */
 function answerWords(q: QuestionView, v: unknown, cast: Map<string, QuestionFace>): string {
@@ -150,6 +149,11 @@ function verdictWords(q: QuestionView, d: GameQuestions, cast: Map<string, Quest
 
 /** The line under a question: what a right answer earns. */
 function worth(q: QuestionView): string {
+  if (q.answer === "chips") return `${pts(q.points)} for each chip on someone right`;
+  if (q.answer === "order") return `${pts(q.points)} for each one in the right place`;
+  if (q.answer === "confidence") return "Your surest scores the most";
+  if (q.answer === "pairs") return `${pts(q.points)} for each pair right`;
+  if (q.answer === "ticket") return "Pays if every leg hits";
   if (q.each) return q.answer === "number" ? `Closest on each gets ${pts(q.points)}` : `${pts(q.points)} for each one right`;
   if ((q.answer === "person" || q.answer === "group") && (q.pick ?? 1) > 1) return `Name ${q.pick} · ${pts(q.points)} for each one right`;
   if (q.answer === "number") return `Closest gets ${pts(q.points)}`;
@@ -190,14 +194,16 @@ function QuestionSheet({ target, onOpenChange }: { target: SheetTarget | null; o
       ) : !d.questions.length ? (
         <p className="py-4 text-sm text-muted-foreground">Nothing to answer here yet.</p>
       ) : (
-        <SheetBody key={JSON.stringify(d.questions.map((q) => [q.id, q.mine, q.status]))} target={target} d={d} onDone={() => onOpenChange(false)} />
+        <QuestionsBody key={JSON.stringify(d.questions.map((q) => [q.id, q.mine, q.status]))} target={target} d={d} onDone={() => onOpenChange(false)} />
       )}
     </Sheet>
   );
 }
 
-/** Each group of questions (this episode's, then the season's), what you can still answer, and Save. */
-function SheetBody({ target, d, onDone }: { target: SheetTarget; d: GameQuestions; onDone: () => void }) {
+/** Each group of questions (this episode's, then the season's), what you can still answer, and Save. In the sheet (Your moves) Save is
+ *  the yellow; on a game's own page (`place` "page", the move made in place: game-page.tsx) the strip has the screen's one yellow, so
+ *  Save is a white confirm that names what it saves, and the score is the page's big graphic, not a plate here. */
+export function QuestionsBody({ target, d, onDone, place = "sheet" }: { target: SheetTarget; d: GameQuestions; onDone: () => void; place?: "sheet" | "page" }) {
   const after = useAfterAnswers();
   // The groups (tribes) too, for a group answer (A6): their ids never meet a castaway's.
   const cast = new Map([...d.cast, ...(d.groups ?? [])].map((c) => [c.id, c]));
@@ -236,7 +242,7 @@ function SheetBody({ target, d, onDone }: { target: SheetTarget; d: GameQuestion
 
   return (
     <div data-sheet={target.leagueId} data-sheet-episode={d.episode ?? ""} data-sheet-status={open.length ? "open" : "closed"}>
-      {settled.length > 0 && (
+      {settled.length > 0 && place === "sheet" && (
         <div data-sheet-score className="nd-beat mt-1 rounded-[4px] bg-plate p-4 text-plate-foreground shadow-plate">
           <span className="type-caption inline-block bg-chyron py-1 pl-2 pr-4 text-xs tracking-[0.06em] text-chyron-foreground [clip-path:polygon(0_0,100%_0,calc(100%_-_8px)_100%,0_100%)]">
             {target.finale ? "Your predictions" : "Your sheet"}
@@ -254,12 +260,12 @@ function SheetBody({ target, d, onDone }: { target: SheetTarget; d: GameQuestion
         const lock = gOpen.map((q) => q.closesAt).filter((x): x is string => !!x).sort()[0] ?? null;
         return (
           <section key={g.key} data-sheet-group={g.key} className="mt-4 first:mt-1">
-            <div className="flex items-baseline justify-between gap-3 border-b border-border pb-1.5">
+            <div className={`flex items-baseline justify-between gap-3 border-b border-border pb-1.5 ${place === "page" && groups.length === 1 ? "sr-only" : ""}`}>
               <b className="type-caption text-[15px] tracking-[0.04em] text-muted-foreground">{g.label}</b>
               <LockLine at={lock} closed={!gOpen.length} />
             </div>
             {g.list.map((q) => (
-              <Question key={q.id} q={q} d={d} cast={cast} value={picked[q.id]} onValue={(v) => setPicked((x) => ({ ...x, [q.id]: v }))} />
+              <Question key={q.id} q={q} d={d} cast={cast} value={picked[q.id]} onValue={(v) => setPicked((x) => ({ ...x, [q.id]: v }))} others={d.questions} />
             ))}
           </section>
         );
@@ -269,9 +275,21 @@ function SheetBody({ target, d, onDone }: { target: SheetTarget; d: GameQuestion
           <p data-sheet-count className="mt-4 text-[13px] leading-snug text-muted-foreground">
             {answered ? `${answered} on the couch ${answered === 1 ? "has" : "have"} answered` : "Nobody on the couch has answered yet"} · nobody sees an answer until it locks. Tap an answer again to take it back.
           </p>
-          <Btn tone={changed.length ? "must" : "optional"} wide className="mt-3" disabled={saving} onClick={save} data-sheet-save>
-            {saving ? "Saving…" : changed.length ? "Save my answers" : "Done"}
-          </Btn>
+          {place === "page" ? (
+            <button
+              type="button"
+              data-sheet-save
+              disabled={saving || !changed.length}
+              onClick={save}
+              className="nd-press type-caption mt-3 grid min-h-[52px] w-full place-items-center rounded-[3px] bg-plate text-[20px] tracking-[0.02em] text-plate-foreground shadow-plate disabled:bg-secondary disabled:text-muted-foreground disabled:shadow-none"
+            >
+              {saving ? "Saving…" : changed.length ? `Save ${changed.length === 1 ? "my answer" : `${changed.length} answers`}` : open.some((q) => isIn(q.mine)) ? "Saved" : "Answer to save"}
+            </button>
+          ) : (
+            <Btn tone={changed.length ? "must" : "optional"} wide className="mt-3" disabled={saving} onClick={save} data-sheet-save>
+              {saving ? "Saving…" : changed.length ? "Save my answers" : "Done"}
+            </Btn>
+          )}
         </>
       )}
     </div>
@@ -279,7 +297,7 @@ function SheetBody({ target, d, onDone }: { target: SheetTarget; d: GameQuestion
 }
 
 /** One question: its answer to give (open), why it waits (behind, or its game's line not out yet), or how it went (closed). */
-function Question({ q, d, cast, value, onValue }: { q: QuestionView; d: GameQuestions; cast: Map<string, QuestionFace>; value: unknown; onValue: (v: unknown) => void }) {
+function Question({ q, d, cast, value, onValue, others }: { q: QuestionView; d: GameQuestions; cast: Map<string, QuestionFace>; value: unknown; onValue: (v: unknown) => void; others: QuestionView[] }) {
   return (
     <div data-question={q.id} data-question-status={q.status} className="border-b border-border py-3.5 last:border-b-0">
       <div className="flex items-baseline justify-between gap-3">
@@ -290,19 +308,14 @@ function Question({ q, d, cast, value, onValue }: { q: QuestionView; d: GameQues
         {worth(q)}
         {q.status === "open" && (q.answer === "person" || q.answer === "group") && (q.pick ?? 1) > 1 ? ` · ${idsOf(value).length} of ${q.pick} named` : ""}
       </small>
-      {q.status === "open" && q.each ? (
-        // A question about each person (A6) has no screen of its own yet (the UI track's): the API takes its answers.
-        <p data-question-each className="mt-2.5 text-sm leading-snug text-muted-foreground">
-          This one is answered for each {q.faces?.length ? `of the ${q.faces.length} still in` : "one still in"}, on a screen still to come.
-        </p>
-      ) : q.status === "open" && (q.wager !== null || !SHEET_ANSWERS.includes(q.answer)) ? (
-        // A8's (an order, confidence, chips, a split, pairs, a wager): the same.
+      {q.status === "open" && !ANSWERED_HERE.includes(q.answer) ? (
+        // Weekly Calls' calls are Call it's (calls.tsx).
         <p data-question-later className="mt-2.5 text-sm leading-snug text-muted-foreground">
-          This one is answered on a screen still to come.
+          This one is answered in Call it.
         </p>
       ) : q.status === "open" ? (
         <div className="mt-2.5">
-          <Answer q={q} value={value} onValue={onValue} />
+          <Answer q={q} value={value} onValue={onValue} others={others} />
         </div>
       ) : q.status === "behind" ? (
         <p data-question-behind={q.catchUp ?? "game"} className="mt-2.5 rounded-[4px] bg-background p-3 text-sm leading-snug text-muted-foreground outline-1 -outline-offset-1 outline-border">
@@ -318,79 +331,6 @@ function Question({ q, d, cast, value, onValue }: { q: QuestionView; d: GameQues
       ) : (
         <HowItWent q={q} d={d} cast={cast} />
       )}
-    </div>
-  );
-}
-
-/** The answer to give, by kind: faces, chips, a stepper. A tap on what's chosen takes it back. */
-function Answer({ q, value, onValue }: { q: QuestionView; value: unknown; onValue: (v: unknown) => void }) {
-  // A person, or a group (A6: its faces are the groups someone still in is on).
-  if (q.answer === "person" || q.answer === "group") {
-    const pick = q.pick ?? 1;
-    const chosen = idsOf(value);
-    const tap = (id: string) => {
-      if (chosen.includes(id)) return onValue(pick === 1 ? null : chosen.filter((x) => x !== id));
-      if (pick === 1) return onValue(id);
-      if (chosen.length >= pick) return toast.quiet(`${pick} at most: take one off first`);
-      onValue([...chosen, id]);
-    };
-    return (
-      <div className="grid grid-cols-4 gap-2" role="group" aria-label={q.ask}>
-        {(q.faces ?? []).map((f) => {
-          const on = chosen.includes(f.id);
-          return (
-            <button
-              key={f.id}
-              type="button"
-              aria-pressed={on}
-              data-answer-face={f.id}
-              data-answer-name={f.name}
-              onClick={() => tap(f.id)}
-              className={`nd-press relative rounded-[3px] text-left ${on ? "outline-2 outline-offset-1 outline-foreground" : ""}`}
-            >
-              <Face src={f.photo} name={f.name} className={`aspect-square w-full rounded-[3px] text-[24px] ${on || !chosen.length ? "" : "saturate-[.5]"}`} />
-              {on && (
-                <span className="absolute right-1 top-1 grid size-5 place-items-center rounded-full bg-foreground text-background">
-                  <Check className="size-3" strokeWidth={3} aria-hidden />
-                </span>
-              )}
-              <b className="type-caption mt-1 block truncate text-[14px]">{q.answer === "group" ? f.name : first(f.name)}</b>
-            </button>
-          );
-        })}
-      </div>
-    );
-  }
-  if (q.answer === "number") {
-    const n = typeof value === "number" ? value : null;
-    return (
-      <div className="flex items-center gap-2" data-answer-number>
-        <button type="button" aria-label="One less" disabled={!n} onClick={() => onValue(n === null ? 0 : Math.max(0, n - 1))} className="nd-press grid size-11 place-items-center rounded-[3px] bg-secondary disabled:opacity-40">
-          <Minus className="size-5" aria-hidden />
-        </button>
-        <b className="type-num min-w-[64px] text-center text-[32px] leading-none" aria-live="polite">
-          {n ?? "–"}
-        </b>
-        <button type="button" aria-label="One more" onClick={() => onValue(n === null ? 1 : n + 1)} className="nd-press grid size-11 place-items-center rounded-[3px] bg-secondary">
-          <Plus className="size-5" aria-hidden />
-        </button>
-        {n !== null && (
-          <button type="button" onClick={() => onValue(null)} className="ml-auto h-11 px-2 text-sm font-semibold text-muted-foreground">
-            Take it back
-          </button>
-        )}
-      </div>
-    );
-  }
-  const options: [string, string][] =
-    q.answer === "yesNo" ? [["yes", "Yes"], ["no", "No"]] : q.answer === "overUnder" ? [["over", `Over ${q.line ?? ""}`], ["under", `Under ${q.line ?? ""}`]] : (q.options ?? []).map((o) => [o, o]);
-  return (
-    <div className="flex flex-wrap gap-2" role="group" aria-label={q.ask}>
-      {options.map(([key, label]) => (
-        <Chip key={key} on={value === key} data-answer-option={key} onClick={() => onValue(value === key ? null : key)} className="h-11 px-5 text-[15px]">
-          {label.trim()}
-        </Chip>
-      ))}
     </div>
   );
 }
