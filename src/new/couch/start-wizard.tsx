@@ -176,6 +176,7 @@ export function WizardSheet({
       label: o.label,
       tonight: tonightWord(o.starts.find((e) => e.number === o.from)?.airAt),
       only: kindsThatFit(o),
+      made: wz.made,
     };
   }, [o, wz]);
   const wizard: Wizard | null = useMemo(() => (W && input ? W.createWizard(input) : null), [W, input]);
@@ -1032,6 +1033,7 @@ function Home(p: {
           );
         })}
       </div>
+      {!shuffled && c?.row?.kind === "made" && c.row.hook && <p data-start-hook className="mt-2.5 text-[14px] leading-[1.45] text-foreground/85">{c.row.hook}</p>}
       {shuffled && c?.row && <p className="mt-2.5 text-[14px] leading-[1.45] text-foreground/85">{c.row.kind === "typed" ? "Your words, as our engine plays them." : "Shuffled for you: keep the parts you like, then Surprise me again."}</p>}
 
       {ok ? (

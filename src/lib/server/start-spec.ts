@@ -15,6 +15,7 @@ import { refused } from "./game-writes";
 import { makeLeague } from "./new-game";
 import { copyOf } from "./ours";
 import { leaguePhases, scheduleOf, settleIn } from "./phase-starts";
+import { madeGames, type MadeGame } from "./made-games";
 import { notifyGameStarted } from "./push-events";
 import { couchGamesOn, freeName, linkIn, startOptions, watchersOf, type StartOptions } from "./start-game";
 
@@ -47,6 +48,8 @@ export interface WizardPage {
   asksLeft: number | null;
   /** Who Start it tells: those on the couch who watch the show or play it here. */
   tells: number;
+  /** G5: the season's made-for games, for the rail. */
+  made: MadeGame[];
 }
 
 export type WizardOptions = StartOptions & { wizard: WizardPage | null };
@@ -55,10 +58,10 @@ export type WizardOptions = StartOptions & { wizard: WizardPage | null };
 export async function wizardOptions(user: SessionUser, seasonId: string, couchId: string | null, now = new Date(), late = false): Promise<WizardOptions> {
   const opts = await startOptions(user, seasonId, couchId, null, now, late);
   if (opts.blocked || opts.ownPace) return { ...opts, wizard: null };
-  const [{ pack, ctx }, asks, tells] = await Promise.all([packFor(user, seasonId, opts.couch.id, now), asksToday(user), audience(user, opts.couch.id, seasonId)]);
+  const [{ pack, ctx }, asks, tells, made] = await Promise.all([packFor(user, seasonId, opts.couch.id, now), asksToday(user), audience(user, opts.couch.id, seasonId), madeGames(seasonId)]);
   const listed = Math.max(0, ...opts.starts.map((e) => e.number));
   const last = pack.episodes.total ?? (listed >= opts.from ? listed : null);
-  return { ...opts, wizard: { page: { ctx, pack }, last, asksLeft: asks.left, tells: tells.length } };
+  return { ...opts, wizard: { page: { ctx, pack }, last, asksLeft: asks.left, tells: tells.length, made } };
 }
 
 /** Who Start it tells: the couch's members who watch the show or play it here, never the starter. */

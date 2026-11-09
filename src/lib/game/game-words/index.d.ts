@@ -189,6 +189,20 @@ export const BUTTONS: Record<string, string>;
 export function readDraft(answer: string): { draft: Draft; notes: string[] };
 export function readMoment(answer: string): MomentRating;
 export function readMoments(answer: string, n: number): MomentRating[];
+/** G5: a made-for game, as the bot wrote it (made.js). */
+export interface MadeIdea {
+  base: string | null;
+  length: "one" | "few" | "season";
+  name: string;
+  hook: string;
+  fits: string | null;
+  bet: boolean;
+  game: Record<string, unknown>;
+}
+export const MADE_LENGTHS: MadeIdea["length"][];
+export function madePrompt(o: { pack: Pack; manual: string }): string;
+export function readIdeas(answer: string): MadeIdea[];
+export function ideaDraft(idea: MadeIdea): Draft;
 export function checkDraft(draft: Draft, o?: CheckOptions): CheckResult;
 export const SPORT_GAME_LABELS: Record<string, string>;
 export function checkAnswer(answer: string, o?: CheckOptions): AnswerResult;

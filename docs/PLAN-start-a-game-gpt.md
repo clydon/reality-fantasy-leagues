@@ -11673,6 +11673,17 @@ first), and proves it on these games and on the tracker's other rows that use it
     user's call. Asking another model gives more new games than asking one again (ChatGPT's two runs both wrote Tribal
     Council Jackpot and Sole Survivor Futures). Scripts: the session's scratchpad run-made.js and compare-made.js.
 
+  - **Built 2026-11-09 (branch g5-made-games, migration 0437), the light version:** the desk makes them (Setup › Made-for
+    games, POST /api/desk/seasons/[id]/made: one ask, run kind 'made', so `botAiRuns: { made: "codex" }` sends it to Codex; the
+    desk's AI, ChatGPT, by default); `season_game_ideas` keeps the ones our check passes (game-words/made.js: U0's run-made
+    ask less the themes, eighteen creative games, a bet in each length; every number the bot's; a short game checked from the
+    next episode, the wizard's stretch setting its own), with what was left out and why and the raw answer. The wizard's rail
+    offers those of the stretch's length after the classic and the easy one, "Made for <show>", the hook under the card.
+    Survivor 51 locally: 16 of 19 kept (5 one, 4 few, 7 season); the 3 dropped need a wager bank, two answer kinds or a settle
+    the engine lacks. `scripts/dev-test/check-made-games.js <seasonId> [--reuse]`. **Not yet:** made on its own after setup's
+    research (the desk's button only), the two standard games per length (the rail's own kinds stand in), themes (G5's
+    "Different scoring"), aired seasons at your own pace (the wizard doesn't take them: today's list), a sport's season.
+
 **V. Game pages, generated** (the user, 2026-10-30; "The Games tab and game pages", above).
 - **V1. The page generator: a research spike, then a prototype** (heavy; likely two sessions). First how others turn data
   into screens: server-driven UI (screens described as a tree of known components), schema-driven forms, generative UI over a

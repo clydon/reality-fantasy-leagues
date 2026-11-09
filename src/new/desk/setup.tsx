@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Activity, Check, Clock, Hash, Pencil, Search, Tv, Users } from "lucide-react";
+import { Activity, Check, Clock, Hash, Pencil, Search, Sparkles, Tv, Users } from "lucide-react";
 import { useNav } from "../nav";
 import { paths } from "../routes";
 import { HoldSheet } from "../ui/guards";
@@ -10,7 +10,7 @@ import { Btn, EmptyState } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { deskSend, useAfterDesk, useDesk, type DeskSetup, type SeasonDelete } from "./data";
-import { ChoiceCard, DeleteRow, DeskHeader, DeskRow, Facts, Field, IconLead, LatestHistory, LowerThird, Section, useChangeToast } from "./parts";
+import { ChoiceCard, dateOf, DeleteRow, DeskHeader, DeskRow, Facts, Field, IconLead, LatestHistory, LowerThird, Section, useChangeToast } from "./parts";
 import { CountSheet, ListingSheet, WhenSheet } from "./setup-schedule";
 import { forgetDeskPage } from "./trail";
 
@@ -134,6 +134,7 @@ export function SetupPage({ id }: { id: string }) {
           <DeskRow data="setup-results" onClick={() => setSheet("results")} lead={<IconLead icon={Check} />} title="Who decides results" line={s.rows.results} />
         </div>
       </Section>
+      <MadeSection id={id} />
       <LatestHistory lines={s.history} />
       <SeasonDeleteRow id={id} del={s.delete} showId={s.show.id} />
       <NameSheet open={sheet === "name"} onClose={close} s={s} />
@@ -163,6 +164,44 @@ export function SetupPage({ id }: { id: string }) {
         </p>
       </Sheet>
     </div>
+  );
+}
+
+/** G5's made-for games (src/lib/server/made-games.ts): how many the wizard offers, and Make them (again): a minute or two. */
+function MadeSection({ id }: { id: string }) {
+  const q = useDesk<{ count: number; at: string | null; error: string | null }>(`/seasons/${id}/made`);
+  const after = useAfterDesk();
+  const [busy, setBusy] = useState(false);
+  const m = q.data;
+  const make = async () => {
+    if (busy) return;
+    setBusy(true);
+    toast.quiet("Our bot is writing them: a minute or two");
+    try {
+      const out = await deskSend<{ text: string }>(`/seasons/${id}/made`, {});
+      toast(out.text);
+    } catch (e) {
+      toast.quiet((e as Error).message);
+    } finally {
+      setBusy(false);
+      await after();
+    }
+  };
+  const line = busy
+    ? "Writing them now…"
+    : !m
+      ? "…"
+      : m.count
+        ? `${m.count} on the Start a game rail · made ${dateOf(m.at!)}${m.error ? " · last ask failed" : ""} · Make them again`
+        : m.error
+          ? `None · last ask failed: ${m.error}`
+          : "None yet · Make them";
+  return (
+    <Section title="Made-for games">
+      <div className="border-b border-border">
+        <DeskRow data="setup-made" onClick={make} lead={<IconLead icon={Sparkles} />} title="Made for this season" line={line} />
+      </div>
+    </Section>
   );
 }
 
