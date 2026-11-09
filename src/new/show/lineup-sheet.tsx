@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import type { GameView, LineupWeek, TableRow } from "../data";
 import type { ShowData } from "../screens/show-space";
 import { airTime } from "../clock";
@@ -50,13 +50,16 @@ export function latestWeek(g: GameView, r: TableRow): number | null {
   return r.weeks.at(-1)?.episode ?? nextWeek(g)?.episode ?? null;
 }
 
+/** What scored, without the rulebook's aside: "Voted with the majority (voted for who went home)" is "Voted with the majority". */
+const shortWhy = (label: string) => label.replace(/\s*\([^)]*\)\s*$/, "") || label;
+
 const PEEK_KEY = "gys.lineup-weeks.peeked";
 const BAR = 64;
 // The bars' highlight sits behind a column: its left edge is the column's index times one column and one gap (4px).
 const pillAt = (i: number, n: number) => `translateX(calc(${Math.max(0, Math.min(n - 1, i))} * (100% + 4px)))`;
 const reduced = () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-export function LineupSheet({ g, r, week, onWeek, words, onClose }: { g: GameView; r: TableRow; week: number | null; onWeek: (episode: number) => void; words: Words; onClose: () => void }) {
+export function LineupSheet({ g, r, week, onWeek, words, onClose, onFace, noTeam }: { g: GameView; r: TableRow; week: number | null; onWeek: (episode: number) => void; words: Words; onClose: () => void; onFace?: (id: string) => void; noTeam?: boolean }) {
   const next = nextWeek(g);
   const items: Item[] = [...r.weeks.map((w) => ({ n: w.episode, w })), ...(next ? [{ n: next.episode, w: null }] : [])];
   const found = items.findIndex((x) => x.n === week);
@@ -76,7 +79,8 @@ export function LineupSheet({ g, r, week, onWeek, words, onClose }: { g: GameVie
   if (!items.length) return <p className="pb-2 text-sm text-muted-foreground">No weeks yet. Lineups count from the first {words.episode.toLowerCase()} with results.</p>;
 
   const totals = r.weeks.map((w) => w.total);
-  const max = Math.max(1, ...totals);
+  // A week's size either way: a negative week is a hatched bar of its size, never a zero's stub nor the next week's dashed box.
+  const max = Math.max(1, ...totals.map((t) => Math.abs(t)));
   const avg = totals.length ? totals.reduce((a, b) => a + b, 0) / totals.length : 0;
   const best = totals.length ? Math.max(...totals) : 0;
   const many = items.length > 8;
@@ -100,7 +104,7 @@ export function LineupSheet({ g, r, week, onWeek, words, onClose }: { g: GameVie
             className="pointer-events-none absolute inset-y-0 left-0 rounded-[3px] bg-secondary"
             style={{ width: many ? 42 : `calc((100% - ${(items.length - 1) * 4}px) / ${items.length})`, transform: pillAt(index, items.length) }}
           />
-          {totals.length > 0 && <span aria-hidden className="pointer-events-none absolute inset-x-0 z-[1] border-t border-dashed border-muted-foreground/60" style={{ top: 26 + (BAR - (Math.max(0, avg) / max) * BAR) }} />}
+          {totals.some((t) => t !== 0) && <span aria-hidden className="pointer-events-none absolute inset-x-0 z-[1] border-t border-dashed border-muted-foreground/60" style={{ top: 26 + (BAR - (Math.max(0, avg) / max) * BAR) }} />}
           {items.map((it, i) => {
             const on = i === index;
             const set = !it.w && next ? next.done.get(r.playerId) : undefined;
@@ -119,7 +123,10 @@ export function LineupSheet({ g, r, week, onWeek, words, onClose }: { g: GameVie
                 </span>
                 <span className="mt-1 flex w-full items-end justify-center" style={{ height: BAR }}>
                   {it.w ? (
-                    <span className={`w-6 rounded-t-[2px] transition-colors duration-[260ms] ${on ? "" : "bg-muted-foreground/35"}`} style={{ height: Math.max(3, Math.round((Math.max(0, it.w.total) / max) * BAR)), background: on ? colour : undefined }} />
+                    <span
+                      className={`w-6 rounded-t-[2px] transition-colors duration-[260ms] ${it.w.total < 0 ? "bg-[repeating-linear-gradient(135deg,var(--muted-foreground)_0_2px,transparent_2px_5px)]" : on ? "" : "bg-muted-foreground/35"}`}
+                      style={{ height: Math.max(3, Math.round((Math.abs(it.w.total) / max) * BAR)), background: on && it.w.total >= 0 ? colour : undefined }}
+                    />
                   ) : (
                     <span className={`h-[18px] w-6 rounded-t-[2px] border-[1.5px] border-dashed transition-colors duration-[260ms] ${on ? "border-foreground" : "border-muted-foreground/60"}`} />
                   )}
@@ -136,7 +143,7 @@ export function LineupSheet({ g, r, week, onWeek, words, onClose }: { g: GameVie
         count={items.length}
         index={index}
         onIndex={(i) => onWeek(items[i].n)}
-        page={(i) => <WeekPane g={g} r={r} it={items[i]} next={next} words={words} onClose={onClose} />}
+        page={(i) => <WeekPane g={g} r={r} it={items[i]} next={next} words={words} onClose={onClose} onFace={onFace} />}
         // The bars' highlight follows the week, finger and all.
         onMove={(at, ms, easing) => {
           const p = pill.current;
@@ -150,13 +157,13 @@ export function LineupSheet({ g, r, week, onWeek, words, onClose }: { g: GameVie
         paneClass="px-4 pb-0.5 pt-4"
         attrs={{ "data-weeks": true }}
       />
-      <SeasonTeam g={g} r={r} words={words} />
+      {!noTeam && <SeasonTeam g={g} r={r} words={words} onFace={onFace} />}
     </div>
   );
 }
 
 /** One week: who started and the bench with that episode's points, or for the episode being set, who's set. */
-function WeekPane({ g, r, it, next, words, onClose }: { g: GameView; r: TableRow; it: Item; next: ReturnType<typeof nextWeek>; words: Words; onClose: () => void }) {
+function WeekPane({ g, r, it, next, words, onClose, onFace }: { g: GameView; r: TableRow; it: Item; next: ReturnType<typeof nextWeek>; words: Words; onClose: () => void; onFace?: (id: string) => void }) {
   const w = it.w;
   const title = `${words.episode} ${it.n}`;
   if (!w) {
@@ -226,15 +233,15 @@ function WeekPane({ g, r, it, next, words, onClose }: { g: GameView; r: TableRow
         {w.started.map((s) => {
           const c = faceIn(g, s.id);
           return (
-            <div key={s.id} data-starter={s.id}>
+            <FaceDoor key={s.id} id={s.id} onFace={onFace} attrs={{ "data-starter": s.id }}>
               <Face src={c?.photo ?? null} name={c?.name} draggable={false} className="aspect-square w-full rounded-[3px] text-[30px]" />
               <div className="mt-[7px] flex items-baseline justify-between gap-1.5">
                 <b className="type-caption min-w-0 truncate text-[17px]">{first(c?.name ?? "")}</b>
                 <b className="type-num flex-none text-[19px]">{signed(s.points)}</b>
               </div>
               {/* What scored most: a rulebook's labels run long ("Voted with the majority (voted for who went home)"). */}
-              {s.why.length > 0 && <small className="mt-1 line-clamp-2 text-[12px] leading-[1.3] text-muted-foreground">{s.why[0]}</small>}
-            </div>
+              {s.why.length > 0 && <small className="mt-1 line-clamp-2 text-[12px] leading-[1.3] text-muted-foreground">{shortWhy(s.why[0])}</small>}
+            </FaceDoor>
           );
         })}
       </div>
@@ -248,11 +255,11 @@ function WeekPane({ g, r, it, next, words, onClose }: { g: GameView; r: TableRow
           {w.bench.map((s) => {
             const c = faceIn(g, s.id);
             return (
-              <div key={s.id} data-bench={s.id} className="flex min-h-[52px] items-center gap-3 border-t border-border">
+              <FaceDoor key={s.id} id={s.id} onFace={onFace} attrs={{ "data-bench": s.id }} className="flex min-h-[52px] w-full items-center gap-3 border-t border-border">
                 <Face src={c?.photo ?? null} name={c?.name} draggable={false} className="size-9 rounded-[3px] opacity-55 grayscale-[0.5]" />
                 <span className="min-w-0 flex-1 truncate text-[15px] font-semibold text-muted-foreground">{c?.name}</span>
                 <b className="type-num flex-none text-[20px] text-muted-foreground">{signed(s.points)}</b>
-              </div>
+              </FaceDoor>
             );
           })}
         </>
@@ -263,7 +270,7 @@ function WeekPane({ g, r, it, next, words, onClose }: { g: GameView; r: TableRow
 }
 
 /** The team over the season: what each castaway earned this player, in how many starts; anyone who's left the team after them. */
-function SeasonTeam({ g, r, words }: { g: GameView; r: TableRow; words: Words }) {
+function SeasonTeam({ g, r, words, onFace }: { g: GameView; r: TableRow; words: Words; onFace?: (id: string) => void }) {
   const firstWeek = r.weeks[0]?.episode ?? null;
   const latest = r.weeks.at(-1)?.episode ?? null;
   const ids = [...new Set([...r.team, ...r.weeks.flatMap((w) => [...w.started, ...w.bench].map((x) => x.id))])];
@@ -293,15 +300,30 @@ function SeasonTeam({ g, r, words }: { g: GameView; r: TableRow; words: Words })
         <small className="text-[12px] text-muted-foreground">{r.you ? "Points for you" : `Points for ${r.name}`}</small>
       </div>
       {rows.map(({ id, c, earned, gone, line }) => (
-        <div key={id} data-team-row={id} className={`flex min-h-14 items-center gap-3 border-t border-border py-1.5 ${gone ? "opacity-(--nd-dim)" : ""}`}>
+        <FaceDoor key={id} id={id} onFace={onFace} attrs={{ "data-team-row": id }} className={`flex min-h-14 w-full items-center gap-3 border-t border-border py-1.5 ${gone ? "opacity-(--nd-dim)" : ""}`}>
           <Face src={c?.photo ?? null} name={c?.name} out={c?.knocked} draggable={false} className="size-10 rounded-[3px]" />
           <span className="min-w-0 flex-1">
             <b className="block truncate text-[15px] font-semibold">{c?.name}</b>
             <small className="block text-[13px] text-muted-foreground">{line}</small>
           </span>
           <b className="type-num text-[22px]">{earned < 0 ? `−${fmt(-earned)}` : fmt(earned)}</b>
-        </div>
+        </FaceDoor>
       ))}
     </>
+  );
+}
+
+/** A castaway on the sheet: a door to them in this game (U1 step 2b) when the sheet has one, else as it was. */
+function FaceDoor({ id, onFace, attrs, className = "", children }: { id: string; onFace?: (id: string) => void; attrs: Record<string, string>; className?: string; children: ReactNode }) {
+  if (!onFace)
+    return (
+      <div {...attrs} className={className}>
+        {children}
+      </div>
+    );
+  return (
+    <button type="button" {...attrs} data-door-cast={id} onClick={() => onFace(id)} className={`nd-press block text-left ${className}`}>
+      {children}
+    </button>
   );
 }

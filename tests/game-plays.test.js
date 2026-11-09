@@ -40,10 +40,10 @@ test("the census: every spec reads into a square and an episode's block", () => 
   for (const x of ALL) {
     const { kind, blocks } = kindsOf(G.fullSpec(x.spec));
     assert.ok(kind, x.id);
-    assert.ok(blocks.length || kind === "stages", `${x.id}: no block`);
+    assert.ok(blocks.length || kind === "staged", `${x.id}: no block`);
     kinds.set(kind, (kinds.get(kind) ?? 0) + 1);
   }
-  for (const k of ["points", "pick", "result", "won", "lives", "race", "stages"]) assert.ok(kinds.get(k) > 0, `no spec squares ${k}`);
+  for (const k of ["points", "pick", "result", "won", "lives", "race", "staged"]) assert.ok(kinds.get(k) > 0, `no spec squares ${k}`);
 });
 
 test("the three demo games: a square a row a column, through the viewer's mark", () => {

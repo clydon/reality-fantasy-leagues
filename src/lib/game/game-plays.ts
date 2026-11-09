@@ -13,8 +13,8 @@ import { rosterAtEpisode } from "./active-roster-rows";
 // walk, a pool's picks, a walked game of questions), a lineup's weeks (weeksOf), or what the server counted outside the state (a game
 // of questions' answers, Weekly Calls' calls, bingo's lines: GameCalls.episodes).
 
-/** What a square holds, by how the game ranks (the census's strip). */
-export type GridKind = "points" | "pick" | "result" | "won" | "lives" | "race" | "stages";
+/** What a square holds, by how the game ranks (the census's strip; "staged": a game in stages, its overall only). */
+export type GridKind = "points" | "pick" | "result" | "won" | "lives" | "race" | "staged";
 /** What an episode's block shows, by how the game is played (the census's week; a game can have two: a pick and its answers). */
 export type BlockKind = "lineup" | "counted" | "boots" | "team" | "pick" | "picks" | "card" | "squares" | "slate" | "calls" | "answers";
 
@@ -62,7 +62,7 @@ export function kindsOf(spec: Obj): { kind: GridKind; blocks: BlockKind[] } {
   const rk = isObj(spec.rank) ? spec.rank : {};
   const count = isObj(spec.count) ? spec.count : {};
   const asks = (Array.isArray(spec.ask) ? spec.ask : []).filter(isObj);
-  if (Array.isArray(spec.stages) && spec.stages.length) return { kind: "stages", blocks: [] };
+  if (Array.isArray(spec.stages) && spec.stages.length) return { kind: "staged", blocks: [] };
   const race = isObj(rk.race) && rk.race.to != null;
   const kind: GridKind = rk.by === "matchups" ? "result" : rk.by === "coop" ? "lives" : race ? "race" : rk.by === "weeks" ? "won" : get.by === "pick" && sc.by === "survive" ? "pick" : "points";
   const blocks: BlockKind[] = [];
@@ -94,7 +94,8 @@ export function playsOf(view: LeagueState, i: PlaysIn): GamePlays {
   const end = StateLogic.endEpisode(view);
   const last = Math.min(i.through, end ?? Number.POSITIVE_INFINITY);
   const episodes: number[] = [];
-  for (let n = Math.max(1, start); n <= last; n++) if (StateLogic.inPlay(view, n)) episodes.push(n);
+  // A game in stages has no episodes of its own: each stage is a league with its own grid (its page); this one is their overall.
+  if (kind !== "staged") for (let n = Math.max(1, start); n <= last; n++) if (StateLogic.inPlay(view, n)) episodes.push(n);
   const ids = i.rows.map((r) => r.playerId);
 
   // Each episode's points by player: the server's count, a lineup's weeks, or the growth of the engine's series.

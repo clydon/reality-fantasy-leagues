@@ -12204,6 +12204,42 @@ first), and proves it on these games and on the tracker's other rows that use it
        open); run BACKLOG 41's two sheet-swipe failures down while in the pager. Real data only from zt- fixtures.
     **Left alone:** the Games tab's line under each game's name (four ways on the canvas, v52, the user's pick still open; the
     main session leaned to A, the facts line), the four show themes (a later step), L9's slots (the engine lane).
+  - **Step 2b: each person's plays, the sheet family, and the page rebuilt on them** (2026-11-09, lane `u1`, the same branch, no
+    migration; the brief above, in its order). **Data:** `src/lib/game/game-plays.ts` (pure) reads a spec into U0's census (`kindsOf`:
+    the square, points, a pick, a result, weeks won, lives, a race, or a game in stages' overall only, "staged"; and the episode's
+    block, lineup, counted, boots, team, pick, picks, card, squares, slate, calls or answers) and puts `plays` on every `GameView`: a
+    square a person an episode, as far as the viewer has seen, from the engine's own series (`MatchupLogic.seatSeries`), a lineup's
+    weeks, or what the server counts outside the state (a game of questions' graded points, Weekly Calls' right calls and bingo's
+    lines by episode, now `GameCalls.episodes`); head to head's result and who against, weeks won, a pool's pick (someone else's only
+    once decided), an Outlast's team and who of it left; the week's best; the next episode only whether each move is in (lineups and
+    picks from `weekProgress`, a game of questions' from who has answered, `answer-points.ts answersIn`). `tests/game-plays.test.js`
+    plays every draft and pick spec on a made-up season. **The sheet family** (`src/new/show/game-sheets.tsx`): `useDrill` and
+    `DrillSheets`, a stack of real sheets (each its own history entry: the phone's back takes the top one down; Close shuts them all;
+    a sheet over a sheet takes no second scrim, `Sheet`'s new `plain`), the path back on top (`Sheet`'s new `crumb`); the person
+    sheet (a Weekly Lineup's is `lineup-sheet.tsx` as it was, its faces now doors; any other game, the strip in the game's terms, the
+    chosen episode's block, then the season), the episode sheet (everyone's plays that night, ‹ › through episodes), the castaway in
+    this game (who holds or picked them and how it went, then `cast.tsx`'s story, now `StoryBody`), the rules. The answers block reads
+    the questions route (everyone's answers once locked), the calls block Call it's, the card bingo's `?of=`. The Games tab's rows open
+    the person sheet for every game now (calls, bingo and questions too); `games.tsx PlayerSheet` is gone. **The page** (`game-page.tsx`):
+    the title card and your move kept (a game of questions' answers fold to one line once all are in, "Change your answers"), the
+    stage plates, the season grid framed in its panel (names and totals pinned, the latest seven episodes, a square by kind, the next
+    column Set, – or your Due in white, the cut, Out, All N for a big couch, a Lives row for co-op), You under its big header (place,
+    Your sheet ›, hearts, your settled plates, your own strip and latest episode), How it plays (three rules, All N rules ›). Out: the
+    big number, the podium and plates, Previously on. Every name, square, episode and face is a door. **Checks:** `check-game-page.js`
+    now checks the grid, You, no yellow unless due, the grid's squares at WCAG's 24px (seven columns at 390; every other target 44),
+    and every door (a name on the latest episode, a square on its episode, a face over the person, an episode and a name over it with
+    two parts on the path back, Escape back down, Close shuts all): 13 games of the kept Survivor 49 replay pass.
+    `check-games-insight.js` 61 of 61 (BACKLOG 41 resolved: its "short drag" was a flick at 0.6px/ms whenever the events landed fast;
+    now slow). `browser.js` names a failed resource's URL and ignores the browser's own `/favicon.ico`. `tests/pieces.test.js`' type
+    guard caught the grid kind "stages" (renamed "staged"). **impeccable's finish review** (a fresh agent, dual capture at 390 and the
+    desktop column): fix, eight items, all taken but two answered with a cited adaptation (the selected bar in the game's own colour,
+    GAME_STYLE; the strip kept as the episode picker when every week is 0, its average rule gone); fixed: the saved answers fold, a
+    missed pick says so with an empty dashed square, the grid's header on one baseline with the latest column carried down, a negative
+    week a hollow dashed bar of its size, scoring reasons without their aside, one instructional line per surface, the tribe once as a tag in its colour,
+    DESIGN.md's game page and motion bullets rewritten; and beyond the list, a wrong answer or call crosses quietly (red is for
+    leaving). The verdict pass: fix (the negative week shared the next week's dashed box, the tribe wasn't a tag, the fold
+    repeated the strip, a bare "Still in"); those four fixed after it without a third round (the skill's ceiling). The surface brief's
+    direction contract now says the season first, you second. Noticed and left: BACKLOG 40.
 
 **L. Live sports:** the steps are in "Live sports in the same engine", above (L1–L6, the Sports lane).
 

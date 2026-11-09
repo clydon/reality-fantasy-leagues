@@ -11,18 +11,19 @@ import { isTabOf, openWhere, useShow, type ShowData } from "../screens/show-spac
 import { colourOf } from "../tune-in";
 import { Avatar } from "../ui/bars";
 import { EmptyState, GuardChip } from "../ui/parts";
-import { Sheet } from "../ui/sheet";
+import { ordinal } from "../games";
 import { toast } from "../ui/toast";
 import { has } from "@/lib/game/game-page/compile";
 import { splitFrame, frameStyle } from "@/lib/art-frame";
-import { pageModel, type FaceM, type HeroM, type PageModel, type PlateM, type Standing, type StripM, type Tone } from "@/lib/game/game-page/model";
+import { pageModel, type HeroM, type PageModel, type StripM, type Tone } from "@/lib/game/game-page/model";
+import type { Square } from "@/lib/game/game-plays";
 import { openBingo } from "./bingo";
 import { openCall } from "./calls";
 import { MovesSheet } from "./dock";
 import { openMoves } from "./moves";
 import { Face } from "./parts";
-import { openSheet, QuestionsBody } from "./questions";
-import { PlayerSheet, type Opened } from "./games";
+import { answerWords, openSheet, QuestionsBody } from "./questions";
+import { DrillSheets, PersonBody, totalWords, useDrill, type DrillState } from "./game-sheets";
 import { playsWaivers } from "./waivers";
 import { yourMove } from "./your-move";
 
@@ -103,11 +104,8 @@ function GamePageBody({ show, g, onBack }: { show: ShowData; g: GameView; onBack
     twist: twist ? { options: twist.twist.of, next: twist.next, played: twist.played } : null,
     stageGames,
   });
-  const [player, setPlayer] = useState<Opened | null>(null);
-  const openRow = (playerId: string) => {
-    const row = g.table.find((r) => r.playerId === playerId);
-    if (row) setPlayer({ row, game: g, week: null });
-  };
+  // Every name, square, episode and face is a door (game-sheets.tsx): each a sheet over the last, the path back on top.
+  const drill = useDrill();
   const art = show.header?.show.backdropUrl ?? show.header?.show.artUrl ?? null;
   const [colour, setColour] = useState<string | null>(null);
   useEffect(() => {
@@ -117,8 +115,6 @@ function GamePageBody({ show, g, onBack }: { show: ShowData; g: GameView; onBack
       on = false;
     };
   }, [seasonId, art]);
-  const [rules, setRules] = useState(false);
-  const faces = new Map(g.cast.map((c) => [c.id, c.photo]));
   return (
     <div data-game-page={g.leagueId} data-game-main={m.main} data-game-phase={m.phase} className="pb-16">
       <TitleCard m={m} art={art} colour={colour} onBack={onBack} />
@@ -128,38 +124,29 @@ function GamePageBody({ show, g, onBack }: { show: ShowData; g: GameView; onBack
         </div>
       )}
       <Strip strip={m.strip} g={g} show={show} />
-      <Hero hero={m.hero} seasonId={seasonId} />
       {m.inPlace === "questions" && <InPlaceQuestions seasonId={seasonId} g={g} />}
       {m.inPlace === "twist" && twist?.next && <TwistChooser leagueId={g.leagueId} t={twist} />}
       {m.inPlace === "slots" && <SlotPicker g={g} seasonId={seasonId} />}
-      <Label>The couch</Label>
-      <Couch m={m} faces={faces} onOpen={openRow} />
-      <Previously m={m} faces={faces} />
+      {m.hero.stages && <Stages stages={m.hero.stages} seasonId={seasonId} />}
+      <SeasonGrid g={g} m={m} words={show.words} due={!!move?.due} drill={drill} />
+      {g.you && <YouSection g={g} m={m} show={show} seasonId={seasonId} drill={drill} />}
       <Label>How it plays</Label>
       <ol className="mx-4 list-decimal pl-[18px] text-[15px] leading-[1.45] text-foreground/90" data-game-rules>
-        {m.rules.slice(0, 4).map((r) => (
+        {m.rules.slice(0, 3).map((r) => (
           <li key={r} className="mb-1.5 pl-1">
             {r}
           </li>
         ))}
       </ol>
-      {m.rules.length > 4 && (
-        <button type="button" onClick={() => setRules(true)} className="mx-4 inline-flex min-h-11 items-center text-[14px] font-semibold underline underline-offset-[3px]">
+      {m.rules.length > 3 && (
+        <button type="button" data-door-rules onClick={() => drill.open({ kind: "rules" })} className="mx-4 inline-flex min-h-11 items-center gap-0.5 text-[14px] font-semibold">
           All {m.rules.length} rules
+          <ChevronRight className="size-4" aria-hidden />
         </button>
       )}
       {/* Your moves (dock.tsx), as the show's tabs have it: the strip's lineup or pick opens it on this game. */}
       {show.header && <MovesSheet show={show} seasonId={seasonId} />}
-      <PlayerSheet open={player} onOpen={setPlayer} onClose={() => setPlayer(null)} words={show.words} />
-      <Sheet open={rules} onOpenChange={setRules} title="How it plays" subtitle={g.gameName}>
-        <ol className="list-decimal pl-[18px] text-[15px] leading-[1.45]">
-          {m.rules.map((r) => (
-            <li key={r} className="mb-2 pl-1">
-              {r}
-            </li>
-          ))}
-        </ol>
-      </Sheet>
+      <DrillSheets drill={drill} g={g} show={show} seasonId={seasonId} rules={m.rules} />
     </div>
   );
 }
@@ -298,125 +285,45 @@ function Strip({ strip, g, show }: { strip: StripM; g: GameView; show: ShowData 
   );
 }
 
-// ---------- the big graphic: where you stand ----------
+// ---------- a game in stages: each stage's own page ----------
 
-function Hero({ hero, seasonId }: { hero: HeroM; seasonId: string }) {
-  const mid = hero.n != null && hero.n.length > 2;
+function Stages({ stages, seasonId }: { stages: NonNullable<HeroM["stages"]>; seasonId: string }) {
   return (
-    <section data-game-hero className="mt-6">
-      {hero.stages && (
-        <div className="mx-4 mb-6 flex gap-1.5">
-          {hero.stages.map((s) =>
-            s.leagueId ? (
-              <NavLink key={s.name} href={paths.gamePage(seasonId, s.leagueId)} data-game-stage={s.leagueId} className="nd-press min-w-0 flex-1">
-                <Plate tag={s.tag} tone={s.now ? "show" : "quiet"} title={s.name} size="xs" dim={!s.now} chevron="right" />
-              </NavLink>
-            ) : (
-              <Plate key={s.name} tag={s.tag} tone={s.now ? "show" : "quiet"} title={s.name} size="xs" dim={!s.now} className="min-w-0 flex-1" />
-            )
-          )}
-        </div>
-      )}
-      {hero.vs ? (
-        // The face-off: the last episode's final, the two seats either side, the score on one line as big as 390 lets it be.
-        <>
-          <div className="mx-4 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2" data-game-vs>
-            <span className="flex min-w-0 flex-col items-start gap-1.5">
-              <Avatar id={hero.vs.youUser ?? hero.vs.youId} name="You" size={52} />
-              <span className="type-caption text-[17px]">{hero.vs.you}</span>
-            </span>
-            <b className={`type-num whitespace-nowrap leading-[.8] ${scoreSize(hero.vs.you_n.length + hero.vs.them_n.length)}`}>
-              {hero.vs.you_n}
-              <span className="text-muted-foreground">–</span>
-              {hero.vs.them_n}
-            </b>
-            <span className="flex min-w-0 flex-col items-end gap-1.5">
-              {hero.vs.themId ? <Avatar id={hero.vs.themUser ?? hero.vs.themId} name={hero.vs.them} size={52} /> : <span className="size-[52px]" />}
-              <span className="type-caption max-w-full truncate text-[17px]">{hero.vs.them}</span>
-            </span>
-          </div>
-        </>
-      ) : (
-        hero.n != null && (
-          <div className="mx-4 flex items-end gap-3">
-            <b className={`type-num flex-none ${mid ? "text-[104px]" : "text-[140px]"} leading-[.74]`}>{hero.n}</b>
-            <p className="type-caption mb-1.5 text-[26px] leading-none">
-              {hero.label}
-              {hero.sub && <small className="mt-1.5 block text-[14px] font-medium normal-case tracking-normal text-muted-foreground [font-stretch:100%]">{hero.sub}</small>}
-            </p>
-          </div>
+    <div className="mx-4 mt-6 flex gap-1.5" data-game-stages>
+      {stages.map((s) =>
+        s.leagueId ? (
+          <NavLink key={s.name} href={paths.gamePage(seasonId, s.leagueId)} data-game-stage={s.leagueId} className="nd-press min-w-0 flex-1">
+            <Plate tag={s.tag} tone={s.now ? "show" : "quiet"} title={s.name} size="xs" dim={!s.now} />
+          </NavLink>
+        ) : (
+          <Plate key={s.name} tag={s.tag} tone={s.now ? "show" : "quiet"} title={s.name} size="xs" dim={!s.now} className="min-w-0 flex-1" />
         )
       )}
-      {hero.vs && hero.sub && <p className="mx-4 mt-3 text-[14px] text-muted-foreground">{hero.sub}</p>}
-      {hero.lives && (
-        <div className="mx-4 mt-4 flex items-center gap-1.5" aria-label={`${hero.lives.left} of ${hero.lives.of} lives left`}>
-          {Array.from({ length: hero.lives.of }, (_, i) => (
-            <Heart key={i} className={`size-6 ${i < hero.lives!.left ? "fill-foreground text-foreground" : "text-muted-foreground"}`} aria-hidden />
-          ))}
-        </div>
-      )}
-      {(hero.faces.length > 0 || hero.slot) && (
-        <div className="mx-4 mt-[18px] flex flex-wrap gap-x-1.5 gap-y-3" data-game-faces>
-          {hero.faces.map((f) => (
-            <HeroFace key={f.id} f={f} />
-          ))}
-          {hero.slot && (
-            <span className="flex w-[54px] flex-col items-center gap-1.5">
-              <span className="grid size-[52px] place-items-center rounded-[6px] border-2 border-dashed border-edge text-[22px] text-muted-foreground">+</span>
-              <span className="type-caption text-[13px]">{hero.slot}</span>
-            </span>
-          )}
-        </div>
-      )}
-      {hero.notes.length > 0 && (
-        <div className="mx-4 mt-4 flex flex-col gap-1.5" data-game-notes>
-          {hero.notes.map((n) => (
-            <Plate key={n.tag + n.title} tag={n.tag} tone={n.tone} title={n.title} line={n.line} size="xs" />
-          ))}
-        </div>
-      )}
-      {hero.bars && (
-        <div className="mx-4 mt-4 flex flex-col gap-2" data-game-bars>
-          {hero.bars.map((b) => (
-            <div key={b.name} className="flex items-center gap-2.5">
-              <span className="type-caption w-[62px] truncate text-[15px]">{b.name}</span>
-              <span className="h-3.5 flex-1 overflow-hidden rounded-[2px] bg-secondary">
-                <i className={`block h-full origin-left ${b.you ? "bg-foreground" : "bg-muted-foreground"}`} style={{ transform: `scaleX(${Math.min(1, b.max ? b.value / b.max : 0)})` }} />
-              </span>
-              <span className="type-num w-[30px] text-right text-[18px]">{b.value}</span>
-            </div>
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
-
-/** The face-off's score size by how many digits it has ("18–14" 104px, "6.5–2.5" 72px). */
-const scoreSize = (n: number) => (n <= 4 ? "text-[104px]" : n <= 6 ? "text-[72px]" : "text-[56px]");
-
-function HeroFace({ f }: { f: FaceM }) {
-  return (
-    <span className="flex w-[54px] flex-col items-center gap-1.5" data-game-face={f.id}>
-      <span className={`relative size-[52px] rounded-full ${f.on ? "ring-[3px] ring-foreground" : ""}`}>
-        <Face src={f.photo} name={f.name} out={f.out} className={`size-[52px] rounded-full text-[18px] ${f.out ? "brightness-[.55]" : ""}`} />
-        {f.badge && (
-          <span className={`type-caption absolute -bottom-1 -right-1 grid h-[22px] min-w-[22px] place-items-center rounded-full px-1 text-[12px] shadow-[0_0_0_2px_var(--background)] ${TONE[f.badge.tone]}`}>
-            {f.badge.text === "right" ? <Check className="size-3.5" strokeWidth={3} aria-label="right" /> : f.badge.text === "wrong" ? <X className="size-3.5" strokeWidth={3} aria-label="wrong" /> : f.badge.text}
-          </span>
-        )}
-      </span>
-      <span className={`type-caption max-w-[64px] truncate text-[13px] ${f.out ? "text-muted-foreground" : ""}`}>{f.name}</span>
-      {f.line && <span className="max-w-[64px] truncate text-[12.5px] text-muted-foreground">{f.line}</span>}
-    </span>
+    </div>
   );
 }
 
 // ---------- the move, in place ----------
 
+/** A game of questions answered on the page. Once every open question has your answer it folds to one line, your answers and
+ *  "Change your answers" (as the twist chooser folds), so the season grid comes back into the first screen. */
 function InPlaceQuestions({ seasonId, g }: { seasonId: string; g: GameView }) {
   const r = useGameQuestions(seasonId, g.leagueId, null);
   const d = r.data;
+  const [editing, setEditing] = useState<boolean | null>(null);
+  const open = d?.questions.filter((q) => q.status === "open") ?? [];
+  const done = open.length > 0 && open.every((q) => q.mine !== null && q.mine !== undefined && q.mine !== "");
+  if (d && done && !(editing ?? !done)) {
+    const cast = new Map([...d.cast, ...(d.groups ?? [])].map((c) => [c.id, c]));
+    return (
+      <section id="gp-move" className="mx-4 mt-4 scroll-mt-4" data-game-move="questions" data-questions-state="saved">
+        <p className="text-[15px] font-semibold leading-snug">{open.map((q) => answerWords(q, q.mine, cast)).join(" · ")}</p>
+        <button type="button" data-questions-change onClick={() => setEditing(true)} className="inline-flex min-h-11 items-center text-[14px] font-semibold underline underline-offset-[3px]">
+          Change your answers
+        </button>
+      </section>
+    );
+  }
   return (
     <section id="gp-move" className="mx-4 mt-6 scroll-mt-4" data-game-move="questions">
       {r.isPending ? (
@@ -424,7 +331,7 @@ function InPlaceQuestions({ seasonId, g }: { seasonId: string; g: GameView }) {
       ) : !d ? (
         <p className="text-sm text-muted-foreground">Couldn&apos;t load the questions. Try again in a moment.</p>
       ) : (
-        <QuestionsBody key={JSON.stringify(d.questions.map((q) => [q.id, q.mine, q.status]))} target={{ seasonId, leagueId: g.leagueId, episode: null, game: g.gameName }} d={d} onDone={() => {}} place="page" />
+        <QuestionsBody key={JSON.stringify(d.questions.map((q) => [q.id, q.mine, q.status]))} target={{ seasonId, leagueId: g.leagueId, episode: null, game: g.gameName }} d={d} onDone={() => setEditing(false)} place="page" />
       )}
     </section>
   );
@@ -517,13 +424,14 @@ function SlotPicker({ g, seasonId }: { g: GameView; seasonId: string }) {
   );
 }
 
-// ---------- the couch ----------
+// ---------- the couch, framed: the season grid ----------
 
 function Label({ children }: { children: ReactNode }) {
   return <h2 className="type-caption mx-4 mb-2.5 mt-8 text-[24px]">{children}</h2>;
 }
 
-/** After a reveal the couch's plates restack: each slides from where it was to its new place (FLIP, transform only). */
+/** After a reveal the grid's rows restack: each slides from where it was to its new place (FLIP, transform only). A row is three
+ *  cells (its name, its squares, its total), all keyed by the seat, so they move together. */
 function useRestack(keys: string[]) {
   const box = useRef<HTMLDivElement>(null);
   const last = useRef<Map<string, number> | null>(null);
@@ -546,92 +454,246 @@ function useRestack(keys: string[]) {
   return box;
 }
 
-function Couch({ m, faces, onOpen }: { m: PageModel; faces: Map<string, string | null>; onOpen: (playerId: string) => void }) {
-  const c = m.couch;
-  const box = useRestack([...c.podium, ...c.rows].map((s) => s.playerId));
-  if (c.coop)
-    return (
-      <div className="mx-4 flex flex-col gap-1.5" data-game-couch="coop">
-        <Plate tag={c.coop.result === "won" ? "Won" : c.coop.result === "lost" ? "Lost" : "Couch"} tone={c.coop.result === "won" ? "good" : "quiet"} title={`${c.coop.lives} of ${c.coop.of} lives`} line="Together against the show" size="sm" />
-        {c.podium.length > 0 && <p className="text-[13px] text-muted-foreground">{c.podium.map((s) => (s.you ? "You" : s.name)).join(", ")}{c.rows.length ? ` and ${c.rows.length} more` : ""}</p>}
-      </div>
-    );
+const ROW = "h-[50px]";
+const VISIBLE = 7;
+/** A big couch (or a public game's top and you): the top rows and yours, the rest behind All N. */
+const BIG = 8;
+const num = (n: number) => String(Math.round(n * 10) / 10);
+
+/** What a square holds, in a line under the grid. */
+function keyLine(g: GameView): string {
+  const p = g.plays;
+  if (p.kind === "staged") return "Each stage keeps its own season, a grid of its own on its page: open one above. This is the overall.";
+  if (p.kind === "pick") return "Each square is that episode's pick. The next ones stay hidden until they're decided.";
+  if (p.kind === "result") return "Won or lost each week, against who the schedule set. A square opens that matchup.";
+  if (p.kind === "race") return `Each square is the running total, climbing to ${num(p.target ?? 0)}.`;
+  if (p.kind === "won") return "Each square is that episode's points; a teal one won the week.";
+  if (p.blocks.includes("boots")) return "Each square is how many of their team were still in after it; a red dot, one went home.";
+  if (p.kind === "lives") return "Each square is that episode's points; the couch's lives run along the foot.";
+  return "Each square is that episode's points; the week's best is the bright one. The next ones stay hidden until they lock.";
+}
+
+/** The league's table as the season grid, framed in its panel (the user's pick, C): a row a person, a column an episode, a square by
+ *  kind, the next episode only Set, Due or –; your row lit; every name, square and episode a door. */
+function SeasonGrid({ g, m, words, due, drill }: { g: GameView; m: PageModel; words: ShowData["words"]; due: boolean; drill: DrillState }) {
+  const p = g.plays;
+  const all = [...m.couch.podium, ...m.couch.rows];
+  const [open, setOpen] = useState(false);
+  const big = all.length > BIG;
+  const rows = !big || open ? all : all.filter((s, i) => i < BIG - 2 || s.you);
+  const eps = p.episodes;
+  const latest = eps.at(-1) ?? null;
+  const cols = eps.length + (p.next ? 1 : 0);
+  const many = cols > VISIBLE + 1;
+  const tmpl = many ? `repeat(${cols}, 30px)` : `repeat(${cols}, minmax(0, 1fr))`;
+  const box = useRestack(rows.map((s) => s.playerId));
+  const scroller = useRef<HTMLDivElement>(null);
+  // A long season opens on its latest columns; earlier ones scroll in from the left, the names pinned.
+  useLayoutEffect(() => {
+    const c = scroller.current;
+    if (c && many) c.scrollLeft = c.scrollWidth;
+  }, [many, cols]);
+  const rowOf = new Map(g.table.map((r) => [r.playerId, r]));
+  const person = (playerId: string, episode: number | null) => drill.open({ kind: "person", playerId, episode });
+  const cut = m.couch.cutAfter;
+  const cutAt = (i: number) => cut !== null && cut === i && i > 0;
+  const unit = m.couch.unit === "Points" ? "Pts" : m.couch.unit;
+  const lives = p.lives;
   return (
-    <div ref={box} data-game-couch={c.unit}>
-      {c.teams && <p className="mx-4 mb-2 text-[13px] text-muted-foreground">{c.teams}</p>}
-      <div className="mx-4 flex flex-col gap-1.5">
-        {c.podium.map((s, i) => (
-          <div key={s.playerId} data-restack={s.playerId}>
-            {c.cutAfter === i && <CutLine label={c.cutLabel} />}
-            <button type="button" onClick={() => onOpen(s.playerId)} data-player={s.name} className="nd-press block w-full text-left">
-              <Plate tag={s.you ? `${s.rank} · You` : s.rank} tone={s.you ? "you" : "quiet"} title={s.name} line={s.sub} size="xs" right={s.value} photo={s.face ? (faces.get(s.face) ?? null) : undefined} />
-            </button>
-          </div>
-        ))}
+    <section className="mx-2 mt-6 rounded-[14px] bg-card px-4 pb-3.5 pt-4" data-game-couch={m.couch.unit} data-game-grid={p.kind}>
+      <div className="mb-2.5 flex items-baseline justify-between gap-2">
+        <h2 className="type-caption text-[24px]">The season</h2>
       </div>
-      {c.rows.length > 0 && (
-        <div className="mx-4 mt-2">
-          {c.rows.map((s, i) => (
+      {m.couch.teams && <p className="mb-2 text-[13px] text-muted-foreground">{m.couch.teams}</p>}
+      <div ref={box} className="flex">
+        {/* The names, pinned. */}
+        <div className="w-[84px] flex-none">
+          <div className="h-[26px]" />
+          {rows.map((s, i) => (
             <div key={s.playerId}>
-              {c.cutAfter === c.podium.length + i && <CutLine label={c.cutLabel} />}
-              <Row s={s} onOpen={onOpen} />
+              {cutAt(i) && <CutRow label={m.couch.cutLabel ?? "The cut"} />}
+              <button
+                type="button"
+                data-restack={s.playerId}
+                data-player={s.name}
+                data-door-person={s.playerId}
+                onClick={() => person(s.playerId, latest)}
+                className={`nd-press flex ${ROW} items-center gap-1.5 border-t border-border text-left ${s.you ? "-ml-2 w-[calc(100%+8px)] rounded-l-[3px] bg-secondary pl-2" : "w-full"}`}
+              >
+                <Avatar id={s.userId ?? s.playerId} name={s.name} size={20} />
+                <span className={`min-w-0 truncate text-[14px] font-semibold ${s.out ? "text-muted-foreground" : ""}`}>{s.you ? "You" : s.name}</span>
+              </button>
             </div>
           ))}
+          {lives && <div className={`flex ${ROW} items-center border-t border-border text-[13px] font-semibold text-muted-foreground`}>Lives</div>}
         </div>
+        {/* The episodes: the latest seven in view, earlier ones a scroll away. */}
+        <div ref={scroller} className={`min-w-0 flex-1 ${many ? "overflow-x-auto [scrollbar-width:none]" : ""}`}>
+          <div style={{ width: many ? "max-content" : undefined }}>
+            <div className="grid h-[26px]" style={{ gridTemplateColumns: tmpl }}>
+              {eps.map((n) => (
+                <button key={n} type="button" data-door-episode={n} aria-label={`${words.episode} ${n}`} onClick={() => drill.open({ kind: "episode", episode: n })} className={`type-caption grid h-[26px] place-items-center rounded-t-[3px] text-[13px] ${n === latest ? "bg-secondary/60 text-foreground" : "text-muted-foreground"}`}>
+                  {n}
+                </button>
+              ))}
+              {p.next && <span className="type-caption grid h-[26px] place-items-center text-[13px] text-muted-foreground">{p.next.episode}</span>}
+            </div>
+            {rows.map((s, i) => {
+              const sq = p.rows[s.playerId] ?? [];
+              return (
+                <div key={s.playerId}>
+                  {cutAt(i) && <CutRow />}
+                  <div data-restack={s.playerId} className={`grid ${ROW} border-t border-border ${s.you ? "bg-secondary" : ""}`} style={{ gridTemplateColumns: tmpl }}>
+                    {sq.map((x) => (
+                      <button key={x.episode} type="button" data-square={`${s.playerId}:${x.episode}`} aria-label={`${s.name}, ${words.episode} ${x.episode}`} onClick={() => person(s.playerId, x.episode)} className={`nd-press grid place-items-center ${x.episode === latest ? (s.you ? "bg-input/45" : "bg-secondary/60") : ""}`}>
+                        <Cell g={g} x={x} />
+                      </button>
+                    ))}
+                    {p.next && <span className="grid place-items-center">{rowOf.has(s.playerId) && <NextCell set={p.next.set[s.playerId]} you={s.you} due={due} />}</span>}
+                  </div>
+                </div>
+              );
+            })}
+            {lives && (
+              <div className={`grid ${ROW} border-t border-border`} style={{ gridTemplateColumns: tmpl }} data-game-lives>
+                {eps.map((n) => (
+                  <span key={n} className="type-num grid place-items-center text-[16px] text-muted-foreground">
+                    {lives.after[n] ?? "–"}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+        {/* The totals, pinned. */}
+        <div className="w-[40px] flex-none">
+          <div className="type-caption flex h-[26px] items-center justify-end text-[13px] text-muted-foreground">{unit}</div>
+          {rows.map((s, i) => (
+            <div key={s.playerId}>
+              {cutAt(i) && <CutRow />}
+              <div data-restack={s.playerId} className={`flex ${ROW} flex-col items-end justify-center border-t border-border ${s.you ? "-mr-2 w-[calc(100%+8px)] rounded-r-[3px] bg-secondary pr-2" : ""}`}>
+                <b className={`type-num text-[20px] leading-none ${s.out ? "text-muted-foreground" : ""}`}>{s.value}</b>
+                {s.out && <span className="type-caption mt-1 rounded-[2px] bg-live px-1 text-[10px] tracking-[0.04em] text-live-foreground">Out</span>}
+              </div>
+            </div>
+          ))}
+          {lives && (
+            <div className={`flex ${ROW} items-center justify-end border-t border-border`}>
+              <b className="type-num text-[20px]">{m.couch.coop?.lives ?? lives.of}</b>
+            </div>
+          )}
+        </div>
+      </div>
+      {big && (
+        <button type="button" data-grid-all onClick={() => setOpen((o) => !o)} className="mt-1 inline-flex min-h-11 items-center gap-0.5 text-[14px] font-semibold">
+          {open ? "Show fewer" : `All ${all.length}`}
+          <ChevronDown className={`size-4 ${open ? "rotate-180" : ""}`} aria-hidden />
+        </button>
       )}
-      <p className="mx-4 mt-2 text-[13px] text-muted-foreground">
-        {[c.unit === "Points" ? null : `Ranked by ${c.unit.toLowerCase()}`, c.note, c.players > c.podium.length + c.rows.length ? `${c.players} playing` : null].filter(Boolean).join(" · ")}
+      <p className="mt-2.5 text-[12.5px] leading-[1.4] text-muted-foreground">
+        {eps.length || p.kind === "staged" ? keyLine(g) : m.phase === "before" ? "It fills in from the first episode with results, as far as you've watched." : "Nothing counted yet, as far as you've watched."}
+        {[m.couch.note, m.couch.players > all.length ? `${m.couch.players} playing` : null].filter(Boolean).map((x) => ` ${x}.`)}
       </p>
+    </section>
+  );
+}
+
+/** The next cut's line across the grid, in each of its three columns: the label on the names' side. */
+function CutRow({ label }: { label?: string }) {
+  return (
+    <div aria-hidden={!label} data-game-cut={label ? "" : undefined} className="type-caption flex h-[18px] items-center gap-1.5 whitespace-nowrap text-[11px] tracking-[0.06em] text-muted-foreground after:flex-1 after:border-t after:border-dashed after:border-edge after:content-['']">
+      {label ?? null}
     </div>
   );
 }
 
-/** The next cut's line across the couch: above it stays in when it comes, below it goes. */
-function CutLine({ label }: { label: string | null }) {
-  return (
-    <div data-game-cut className="type-caption my-1.5 flex items-center gap-2 text-[12px] tracking-[0.06em] text-muted-foreground before:flex-1 before:border-t before:border-dashed before:border-edge before:content-[''] after:flex-1 after:border-t after:border-dashed after:border-edge after:content-['']">
-      {label ?? "The cut"}
-    </div>
-  );
-}
-
-function Row({ s, onOpen }: { s: Standing; onOpen: (playerId: string) => void }) {
-  return (
-    <button type="button" onClick={() => onOpen(s.playerId)} data-player={s.name} data-restack={s.playerId} className="nd-press flex min-h-12 w-full items-center gap-2.5 border-b border-border text-left text-[15px]">
-      <span className="type-num w-7 text-center text-[18px] text-muted-foreground">{s.out ? "–" : s.rank}</span>
-      <Avatar id={s.userId ?? s.playerId} name={s.name} size={28} />
-      <span className="min-w-0 flex-1 py-1.5">
-        <span className={`flex items-center gap-2 font-semibold ${s.out ? "text-muted-foreground" : ""}`}>
-          <span className="truncate">{s.name}</span>
-          {s.bot && <span className="type-caption flex-none rounded-[2px] bg-secondary px-1.5 py-0.5 text-[10px] tracking-[0.06em] text-muted-foreground">Computer</span>}
-          {s.out && <span className="type-caption flex-none rounded-[2px] bg-live px-1.5 py-0.5 text-[11px] tracking-[0.04em] text-live-foreground">Out</span>}
-        </span>
-        {s.sub && <small className="block truncate text-[13px] font-normal text-muted-foreground">{s.sub}</small>}
+/** One square, by kind: a pick's face (right or wrong), W or L, the points (the week's best bright), a running total, who's left. */
+function Cell({ g, x }: { g: GameView; x: Square }) {
+  const k = g.plays.kind;
+  if (k === "pick") {
+    if (!x.pick) return <span className="text-[13px] text-muted-foreground">–</span>;
+    const c = x.pick.id ? g.cast.find((f) => f.id === x.pick!.id) : undefined;
+    return (
+      <span className="relative block size-6">
+        {c ? <Face src={c.photo} name={c.name} className={`size-6 rounded-[2px] text-[10px] ${x.pick.correct === false ? "opacity-50 grayscale" : ""}`} /> : <span aria-label="No pick" className="block size-6 rounded-[2px] border border-dashed border-edge" />}
+        {x.pick.correct !== null && (
+          <i className={`absolute -right-[3px] -top-[3px] grid size-3 place-items-center rounded-full shadow-[0_0_0_1.5px_var(--card)] ${x.pick.correct ? "bg-good text-good-foreground" : "bg-live text-live-foreground"}`}>
+            {x.pick.correct ? <Check className="size-2" strokeWidth={4} aria-label="stayed" /> : <X className="size-2" strokeWidth={4} aria-label="went home" />}
+          </i>
+        )}
       </span>
-      <b className={`type-num min-w-[34px] text-right text-[20px] ${s.out ? "text-muted-foreground" : ""}`}>{s.value}</b>
-    </button>
-  );
+    );
+  }
+  if (k === "result") {
+    if (!x.result) return <span className="text-[13px] text-muted-foreground">–</span>;
+    return <b className={`type-num grid size-6 place-items-center rounded-[2px] text-[14px] ${x.result.r === "W" ? "bg-good text-good-foreground" : "bg-input text-foreground"}`}>{x.result.r}</b>;
+  }
+  if (g.plays.blocks.includes("boots") && x.held) {
+    const left = x.held.length - (x.left?.length ?? 0);
+    return (
+      <span className="relative">
+        <b className="type-num text-[16px] text-foreground/80">{left}</b>
+        {!!x.left?.length && <i aria-label="one went home" className="absolute -right-1.5 top-0 size-1.5 rounded-full bg-live" />}
+      </span>
+    );
+  }
+  if (x.points === null) return <span className="text-[13px] text-muted-foreground">–</span>;
+  const v = k === "race" ? (x.total ?? 0) : x.points;
+  return <b className={`type-num text-[16px] ${x.won ? "rounded-[2px] bg-good px-1 text-good-foreground" : x.best ? "text-foreground" : "text-muted-foreground"}`}>{num(v)}</b>;
 }
 
-// ---------- Previously on ----------
+/** The next episode: yours Due (white, never yellow: the strip above is the one yellow), Set, or –; anyone else's Set or –. */
+function NextCell({ set, you, due }: { set: boolean | null | undefined; you: boolean; due: boolean }) {
+  if (you && due && !set) return <NextTag due>Due</NextTag>;
+  if (set === undefined || set === null) return null;
+  return set ? <NextTag>Set</NextTag> : <span className="text-[13px] text-muted-foreground">–</span>;
+}
 
-function Previously({ m, faces }: { m: PageModel; faces: Map<string, string | null> }) {
-  const p = m.previously;
+function NextTag({ due, children }: { due?: boolean; children: ReactNode }) {
+  return <i className={`type-caption grid size-[26px] place-items-center rounded-[2px] border-[1.5px] border-dashed text-[10px] not-italic tracking-[0.02em] ${due ? "border-foreground text-foreground" : "border-edge text-good"}`}>{children}</i>;
+}
+
+// ---------- You ----------
+
+/** You, the page itself under a big header (the couch framed above): your place, your sheet's door, what's yours of the twists, then
+ *  your own sheet's strip and latest episode. */
+function YouSection({ g, m, show, seasonId, drill }: { g: GameView; m: PageModel; show: ShowData; seasonId: string; drill: DrillState }) {
+  const r = g.you!;
+  const [episode, setEpisode] = useState<number | null>(null);
+  const place = r.rank.startsWith("T") ? `Tied ${ordinal(Number(r.rank.slice(1)))}` : ordinal(r.place);
+  const hero = m.hero;
   return (
-    <section data-game-previously={p.items.length}>
-      <h2 className="type-caption mx-4 mb-1 mt-8 text-[32px] leading-[.9]">Previously on</h2>
-      <p className="mx-4 mb-2.5 text-[13px] text-muted-foreground">{p.asOf}</p>
-      {p.items.length > 0 ? (
-        <div className="mx-4 flex flex-col gap-1.5">
-          {p.items.map((it: PlateM, i) => (
-            <Plate key={i} tag={it.tag} tone={it.tone} title={it.title} line={it.line} size="xs" photo={it.face ? (faces.get(it.face) ?? null) : undefined} />
+    <section className="mt-8" data-game-you>
+      <div className="mx-4 flex items-center gap-3">
+        <Avatar id={r.userId ?? r.playerId} name={r.name} size={40} />
+        <div className="min-w-0">
+          <b className="type-caption block text-[28px] leading-none">You</b>
+          <small className="mt-1 block text-[14px] text-muted-foreground">
+            {place} of {g.players} · {totalWords(g, r)}
+          </small>
+        </div>
+        <button type="button" data-door-you onClick={() => drill.open({ kind: "person", playerId: r.playerId, episode })} className="ml-auto inline-flex min-h-11 flex-none items-center gap-0.5 text-[14px] font-semibold">
+          Your sheet
+          <ChevronRight className="size-4" aria-hidden />
+        </button>
+      </div>
+      {hero.lives && (
+        <div className="mx-4 mt-3 flex items-center gap-1.5" aria-label={`${hero.lives.left} of ${hero.lives.of} lives left`} data-game-hearts>
+          {Array.from({ length: hero.lives.of }, (_, i) => (
+            <Heart key={i} className={`size-5 ${i < hero.lives!.left ? "fill-foreground text-foreground" : "text-muted-foreground"}`} aria-hidden />
           ))}
         </div>
-      ) : (
-        <div className="mx-4">
-          <Plate tag="Next" tone="quiet" title="Nothing yet" line={m.phase === "before" ? p.asOf : "It fills in as you watch"} size="xs" dim />
+      )}
+      {hero.notes.length > 0 && (
+        <div className="mx-4 mt-3 flex flex-col gap-1.5" data-game-notes>
+          {hero.notes.map((n) => (
+            <Plate key={n.tag + n.title} tag={n.tag} tone={n.tone} title={n.title} line={n.line} size="xs" />
+          ))}
         </div>
       )}
+      <div className={`mx-4 mt-4 ${g.plays.kind === "staged" ? "hidden" : ""}`}>
+        <PersonBody g={g} show={show} seasonId={seasonId} rules={m.rules} r={r} episode={episode} onEpisode={setEpisode} go={drill} onClose={() => {}} compact />
+      </div>
     </section>
   );
 }
