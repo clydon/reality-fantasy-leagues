@@ -11858,6 +11858,14 @@ first), and proves it on these games and on the tracker's other rows that use it
     (Weekly Lineup, Survival Pool, Predictions, Pick'em on the NFL, a betting game, Weekly Bingo), every kind of question in
     its frame, and the big graphic for every main block. For U1: these parts (the title card, the big graphic, stacked lower
     thirds as a table) go into DESIGN.md when they ship.
+  - **Show flair, four examples** (the user, 2026-11-08: "survivor, traitors, below deck, and ny giants"; the canvas's
+    flair board, version 47). A theme is data (the session's scratchpad u0/r2/themes.js) the same renderer applies to the same
+    parts: a texture behind the title card, the show's colour on its tags, one drawn motif beside the when plate, the show's
+    own words (Tribal Council, Snuffed Ep 4 on Survivor's out tags with a flame; the round table, Banished or Murdered on The
+    Traitors with a shield; the charter, Fired and a tip over/under on Below Deck with an anchor; MetLife, Giants blue on the
+    face-off and a blue W in Previously on for the NY Giants), and one moment of delight named per theme (a torch lighting by
+    your streak; a secret role's plate flipping only for you; the tip meeting's number counting up; a Giants win's W). Never
+    the show's logos or key art; on that show's pages only.
   - **Still to design in U0:** round 2's critique fixes and the user's review; round 3, the live pieces (the watch along, live calls, a live game's screens);
     the Games tab's launcher. Then U1.
 - **U1. Build.** The field and the wizard in Start a game, Start from a spec, Make it a game chained for a show that isn't set
