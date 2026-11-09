@@ -414,8 +414,29 @@ function createWizard(input) {
       const rank = (x) => (x.id === classic ? 0 : x.id === easy ? 1 : 2 + KINDS.findIndex((k) => k.id === x.id));
       out.sort((a, b) => rank(a) - rank(b));
       for (const x of out) x.role = x.id === classic ? 'The classic' : x.id === easy ? (x.game === 'bingo' ? 'Play along live' : 'Least effort') : '';
+      // G5's made-for games of this stretch's length, after the classic and the easy one (U0's settled rail), each on these episodes.
+      const made = madeFor(span, n);
+      const at = out.findIndex((x) => x.id !== classic && x.id !== easy);
+      out.splice(at < 0 ? out.length : at, 0, ...made);
       return { list: out, classic, easy, n };
     });
+  }
+
+  /** The season's made-for games (input.made, G5) whose length fits a stretch of `n` episodes, each as the engine plays it there. */
+  function madeFor(span, n) {
+    const length = n === 1 ? 'one' : n !== null && n <= 5 ? 'few' : 'season';
+    const says = (page && page.pack && page.pack.show) || show;
+    const out = [];
+    (input.made || []).forEach((m, i) => {
+      if (!m || m.length !== length || !isObj(m.spec)) return;
+      const s = clone(m.spec);
+      s.span = span;
+      const game = kindOfSpec(s);
+      if (input.only && !input.only.includes(game)) return;
+      if (G.specProblems(s, ctx).length) return;
+      out.push({ id: `made-${i}`, kind: 'made', game, name: m.name, role: `Made for ${says}`, hook: m.hook, win: winOfSpec(s), spec: s, describe: G.describeSpec(s, ctx) });
+    });
+    return out;
   }
 
   const rowOf = (span, choice) => {
@@ -848,14 +869,7 @@ function createWizard(input) {
   function typed(span, spec, name) {
     const s = clone(spec);
     s.span = span;
-    // Its kind from its own parts (never a league type's name).
-    const base = (() => {
-      if (s.get && s.get.by === 'draft') return s.count && s.count.start ? 'lineup' : s.count && s.count.best ? 'bestball' : 'outlast';
-      if (s.score && s.score.by === 'survive') return 'pool';
-      if (s.score && s.score.by === 'lines') return 'bingo';
-      if (s.get && s.get.by === 'pick') return 'picks';
-      return Array.isArray(s.ask) && s.ask.some((q) => q && q.answer === 'calls') ? 'calls' : 'predictions';
-    })();
+    const base = kindOfSpec(s);
     const problems = G.specProblems(s, ctx);
     if (problems.length) return { why: problems[0].problem };
     const d = G.describeSpec(s, ctx);
@@ -909,6 +923,15 @@ function createWizard(input) {
   };
 }
 
+/** A spec's kind of game (KINDS' id) from its own parts, never a league type's name: a typed or made-for game's. */
+function kindOfSpec(s) {
+  if (s.get && s.get.by === 'draft') return s.count && s.count.start ? 'lineup' : s.count && s.count.best ? 'bestball' : 'outlast';
+  if (s.score && s.score.by === 'survive') return 'pool';
+  if (s.score && s.score.by === 'lines') return 'bingo';
+  if (s.get && s.get.by === 'pick') return 'picks';
+  return Array.isArray(s.ask) && s.ask.some((q) => q && q.answer === 'calls') ? 'calls' : 'predictions';
+}
+
 /** A short, stable hash of a string (FNV-1a), for a typed game's seed. */
 function hash(text) {
   let a = 2166136261;
@@ -929,4 +952,4 @@ function choiceKey(c) {
   return JSON.stringify([c.sel, c.row ? c.row.seed || c.row.id : null, c.win, c.tws, c.bet, c.cnt, c.scoring, c.edits, c.off, c.qedits, (c.added || []).map((a) => [a.id, a.pts])]);
 }
 
-module.exports = { KINDS, WINS, TWISTS, TWIST_GROUPS, MONEY, SCORINGS, fresh, timing, sayRange, nTag, nOf, normalSpan, partsOf, steps, plainLine, twistLabel, scoreKind, moneyOf, keepOf, createWizard, choiceKey };
+module.exports = { KINDS, WINS, TWISTS, TWIST_GROUPS, MONEY, kindOfSpec, winOfSpec, SCORINGS, fresh, timing, sayRange, nTag, nOf, normalSpan, partsOf, steps, plainLine, twistLabel, scoreKind, moneyOf, keepOf, createWizard, choiceKey };

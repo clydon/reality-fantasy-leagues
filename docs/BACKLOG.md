@@ -476,8 +476,8 @@ Last updated 2026-10-27.
       only one on the couch (through impeccable; a solo couch's default to be decided). (Engine lane, then U1.)
       **Reframed by the user (2026-11-09): solo first, then a simple bot**; every game at your own pace through the wizard
       before either (docs/PLAN-own-pace-games.md, the two sections of 2026-11-09).
-    - **No made-for games, no betting-game role, no scoring themes on the rail**: G5 isn't built, so Start from is the engine's own
-      kinds that fit the rulebook (rulebook-fits), each rolled for the stretch. Different scoring cycles engine-made ways from the
+    - **No betting-game role, no scoring themes on the rail**: G5's made-for games are on the rail since 2026-11-09 (made from the
+      desk's Setup; the plan's G5 "Built" bullet says what's left), beside the engine's own kinds that fit the rulebook. Different scoring cycles engine-made ways from the
       season's own rulebook (No points lost, Big moments only: the user's call, 2026-11-09) until G5's themes. (G5, then the wizard
       reads its ideas.)
     - **No ad, no Premium**: Free's wait has no ad until an ad network is chosen (the user, 2026-11-09); every ask is the slow bot's

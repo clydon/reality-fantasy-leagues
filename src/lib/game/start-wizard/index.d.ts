@@ -29,6 +29,8 @@ export interface WizardInput {
   tonight?: string | null;
   /** Kinds this show can play (rulebook-fits), when only some. */
   only?: string[];
+  /** G5: the season's made-for games (src/lib/server/made-games.ts), offered on the rail by length. */
+  made?: { name: string; hook: string; length: "one" | "few" | "season"; bet: boolean; spec: Spec }[];
   short?: number;
 }
 
@@ -53,11 +55,13 @@ export interface Timing {
 
 export interface Row {
   id: string;
-  kind: "standard" | "shuffle" | "typed";
+  kind: "standard" | "shuffle" | "typed" | "made";
   /** Its kind of game (KINDS' id). */
   game: string;
   name: string;
   role?: string;
+  /** A made-for game's one line, as the bot sold it. */
+  hook?: string;
   win: string;
   spec: Spec;
   describe: SpecDescription;
@@ -150,4 +154,7 @@ export function scoreKind(spec: Spec): string;
 export function moneyOf(keep: Spec): Record<string, Spec>;
 export function keepOf(spec: Spec): Spec;
 export function createWizard(input: WizardInput): Wizard;
+/** A spec's kind of game (KINDS' id), and its way to win (WINS' id). */
+export function kindOfSpec(spec: Spec): string;
+export function winOfSpec(spec: Spec): string;
 export function choiceKey(c: Choice): string;

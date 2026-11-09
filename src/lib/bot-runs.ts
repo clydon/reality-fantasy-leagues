@@ -19,7 +19,7 @@ export const BOT_PROVIDER_NAMES: Record<RunProvider, string> = { chatgpt: "ChatG
 /** The bot's runs, by kind: db/bot-research.js's (quick, full, schedule, trivia, bingo, facts; an asked episode is a full),
  *  the tie-break, the card and call runs, and a rulebook's research (desk-rulebooks.ts: the desk's Run now and Getting it
  *  ready's What scores). */
-export const BOT_RUN_KINDS = ["quick", "full", "schedule", "tiebreak", "rulebook", "trivia", "bingo", "facts", "card", "call"] as const;
+export const BOT_RUN_KINDS = ["quick", "full", "schedule", "tiebreak", "rulebook", "trivia", "bingo", "facts", "card", "call", "made"] as const;
 export type BotRunKind = (typeof BOT_RUN_KINDS)[number];
 
 const isProvider = (v: unknown): v is RunProvider => (RUN_PROVIDERS as readonly unknown[]).includes(v);
@@ -56,6 +56,7 @@ export const BOT_RUN_NAMES: Record<BotRunKind, string> = {
   facts: "the facts check",
   card: "the bot's card",
   call: "the bot's calls",
+  made: "the made-for games",
 };
 
 /**

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Activity, Check, Clock, Hash, Pencil, Search, Tv, Users } from "lucide-react";
+import { Activity, Check, Clock, Hash, Pencil, RotateCcw, Search, Sparkles, Tv, Users } from "lucide-react";
 import { useNav } from "../nav";
 import { paths } from "../routes";
 import { HoldSheet } from "../ui/guards";
@@ -10,7 +10,7 @@ import { Btn, EmptyState } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { deskSend, useAfterDesk, useDesk, type DeskSetup, type SeasonDelete } from "./data";
-import { ChoiceCard, DeleteRow, DeskHeader, DeskRow, Facts, Field, IconLead, LatestHistory, LowerThird, Section, useChangeToast } from "./parts";
+import { ChoiceCard, dateOf, DeleteRow, DeskHeader, DeskRow, Facts, Field, IconLead, LatestHistory, LowerThird, Section, useChangeToast } from "./parts";
 import { CountSheet, ListingSheet, WhenSheet } from "./setup-schedule";
 import { forgetDeskPage } from "./trail";
 
@@ -134,6 +134,7 @@ export function SetupPage({ id }: { id: string }) {
           <DeskRow data="setup-results" onClick={() => setSheet("results")} lead={<IconLead icon={Check} />} title="Who decides results" line={s.rows.results} />
         </div>
       </Section>
+      <MadeSection id={id} />
       <LatestHistory lines={s.history} />
       <SeasonDeleteRow id={id} del={s.delete} showId={s.show.id} />
       <NameSheet open={sheet === "name"} onClose={close} s={s} />
@@ -163,6 +164,62 @@ export function SetupPage({ id }: { id: string }) {
         </p>
       </Sheet>
     </div>
+  );
+}
+
+/** G5's made-for games (src/lib/server/made-games.ts): how many the wizard offers and what kinds they lack; tap for more (the gaps
+ *  first), or Start over: a minute or three either way. */
+function MadeSection({ id }: { id: string }) {
+  const q = useDesk<{ count: number; missing: string[]; at: string | null; error: string | null }>(`/seasons/${id}/made`);
+  const after = useAfterDesk();
+  const [busy, setBusy] = useState(false);
+  // Start over replaces every game with no Undo: a second tap within a few seconds says so.
+  const [sure, setSure] = useState(false);
+  const m = q.data;
+  const make = async (fresh: boolean) => {
+    if (busy) return;
+    if (fresh && !sure) {
+      setSure(true);
+      setTimeout(() => setSure(false), 5000);
+      return;
+    }
+    setSure(false);
+    setBusy(true);
+    toast.quiet("Our bot is writing them: a minute or three");
+    try {
+      const out = await deskSend<{ text: string }>(`/seasons/${id}/made`, { fresh });
+      toast(out.text);
+    } catch (e) {
+      toast.quiet((e as Error).message);
+    } finally {
+      setBusy(false);
+      await after();
+    }
+  };
+  const line = busy
+    ? "Our bot is writing them now…"
+    : !m
+      ? "Loading…"
+      : m.count
+        ? `${m.count} on Start a game's rail · made ${dateOf(m.at!)}${m.missing.length ? ` · none yet: ${m.missing.join(", ")}` : ""}${m.error ? ` · last ask failed: ${m.error}` : ""}`
+        : m.error
+          ? `None yet · last ask failed: ${m.error}`
+          : "None yet · our bot writes about 30, in a minute or three";
+  return (
+    <Section title="Made-for games">
+      <div className="border-b border-border">
+        <DeskRow data="setup-made" onClick={() => make(false)} lead={<IconLead icon={Sparkles} />} title={m?.count ? "Make more" : "Make them"} line={line} />
+        {!!m?.count && !busy && (
+          <DeskRow
+            data="setup-made-fresh"
+            onClick={() => make(true)}
+            lead={<IconLead icon={RotateCcw} />}
+            title={sure ? "Tap again to start over" : "Start over"}
+            line={sure ? `Replaces all ${m.count}: there's no Undo` : `A new set in place of these ${m.count}, a minute or three`}
+          />
+        )}
+      </div>
+    </Section>
   );
 }
 

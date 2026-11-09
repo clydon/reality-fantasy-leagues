@@ -11673,6 +11673,24 @@ first), and proves it on these games and on the tracker's other rows that use it
     user's call. Asking another model gives more new games than asking one again (ChatGPT's two runs both wrote Tribal
     Council Jackpot and Sole Survivor Futures). Scripts: the session's scratchpad run-made.js and compare-made.js.
 
+  - **Built 2026-11-09 (branch g5-made-games, migration 0437), the light version:** the desk makes them (Setup › Made-for
+    games, POST /api/desk/seasons/[id]/made: one ask, run kind 'made', so `botAiRuns: { made: "codex" }` sends it to Codex; the
+    desk's AI, ChatGPT, by default). A library, not a fixed count (the user, 2026-11-09: a wide spread over every kind we offer,
+    a start and inspiration to tinker; names a 3 or 4 of 10): the prompt (game-words/made.js) gets the page (stages, moments,
+    cast, roles), the manual, and a menu from the wizard's own lists (KINDS, WINS, TWISTS, MONEY), each kind with the engine's
+    own game of it on this season and the ways to win the wizard takes for it, so a kind the engine gains is asked for from
+    then on; about 30 the first time, every kind twice and every way to win once; tapping again adds about 20, what the library
+    lacks first (`missing`, shown on the desk's row), Start over replaces it. `season_game_ideas` keeps what our check passes
+    (every number the bot's; a short game checked from the next episode, the wizard's stretch setting its own), what it left
+    out and why, and the raw answer. The rail offers those of the stretch's length after the classic and the easy one, "Made
+    for <show>", the hook under the card. Survivor 51 locally: 22 to 26 of about 34 kept, 120 to 200 s (one ask of 35 took
+    201 s of the 280 allowed; one came back empty); a second ask took it to 39. **Engine gaps the bot keeps hitting** (for the
+    engine lane): a show's bingo with its own card (`card`: can't yet), Weekly Calls beyond the preset (head to head refused),
+    Last one standing outside a pool with lives, `score.lives` in an answers game, `get.groups`. `scripts/dev-test/check-made-
+    games.js <seasonId> [--fresh | --reuse]`. **Not yet:** made on its own after setup's research (the desk's button only),
+    themes (G5's "Different scoring"), aired seasons at your own pace (the wizard doesn't take them: today's list), a sport's
+    season.
+
 **V. Game pages, generated** (the user, 2026-10-30; "The Games tab and game pages", above).
 - **V1. The page generator: a research spike, then a prototype** (heavy; likely two sessions). First how others turn data
   into screens: server-driven UI (screens described as a tree of known components), schema-driven forms, generative UI over a

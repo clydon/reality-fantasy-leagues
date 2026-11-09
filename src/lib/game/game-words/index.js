@@ -7,6 +7,7 @@ const pack = require('./pack.js');
 const prompt = require('./prompt.js');
 const read = require('./read.js');
 const check = require('./check.js');
+const made = require('./made.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 /**
@@ -25,4 +26,4 @@ function checkAnswer(answer, opts = {}) {
 
 const { readDraft } = read;
 
-module.exports = { ...manual, ...pack, ...prompt, ...read, ...check, checkAnswer };
+module.exports = { ...manual, ...pack, ...prompt, ...read, ...check, ...made, checkAnswer };
