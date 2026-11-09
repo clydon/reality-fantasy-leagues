@@ -12271,7 +12271,8 @@ first), and proves it on these games and on the tracker's other rows that use it
     to its end, every way to win, twist and bet offered, What scores' changes, shuffles, a typed game), and
     `scripts/dev-test/check-start-a-game.js` (API, then the browser at 390: ALL PASS); `check-new-start-game.js`,
     `check-episode-lock.js` and `check-new-computer-players.js` moved to the wizard (all pass); `check-new-tour.js`'s Start a game
-    step moved to its selectors (the check fails earlier, in Add a show's demo: BACKLOG 42). What it left: BACKLOG 42.
+    step moved to its selectors (the check fails earlier, in Add a show's demo: BACKLOG 42). What it left: BACKLOG 42. **Merged and
+    pushed 2026-11-09 (3896c0bf, migration 0216 rehearsed on Neon), live**, with the user's OK for the two prompt changes.
 
 **L. Live sports:** the steps are in "Live sports in the same engine", above (L1–L6, the Sports lane).
 

@@ -31,7 +31,10 @@ runs in it. Today's list keeps Run it back, a season that's aired and a sport's 
 tested), server `src/lib/server/start-spec.ts`, sheet `src/new/couch/start-wizard.tsx`. Checks: `tests/start-wizard.test.js`,
 `scripts/dev-test/check-start-a-game.js` (API and 390: ALL PASS); `npm test` 2008 pass. The plan's U1 "Step 3" bullet has it all;
 the user's three calls are in Decisions ("U1 Start a game's calls"); BACKLOG 42 what it left. **Waiting on the user:** the two prompt
-changes (the button's words, new moments rated in one ask) and the merge. **Not merged or pushed.**
+changes and the merge: **all OK'd by the user and merged and pushed 2026-11-09 (3896c0bf, migration 0216 rehearsed on the Neon branch
+`rehearse-start-2026-11-09`: applied, `[check] all good`, the game-specs check PASS on all 6 leagues; the snapshot to roll back to
+`pre-start-2026-11-09`); live, seen on Survivor 51's Games tab.** The user's answers to the critique: the steps keep every game,
+Tell the couch stays on by default.
 
 ## A game's page: the season first, you second, and every door (2026-11-09; U1 step 2b; lane `u1`, branch `u1-game-page`, no migration)
 The game's page is the user's pick now: the title card and your move, then the couch framed as **the season grid** (a row a person, a
