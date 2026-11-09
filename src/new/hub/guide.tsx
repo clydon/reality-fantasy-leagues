@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { EyeOff, Gamepad2, Plus, UserPlus } from "lucide-react";
 import { episodeLine, eveningAt, guideWeek, nextUpAfter, type GuideCard, type GuideDay, type GuidePlan, type GuideShow } from "@/lib/game/guide";
 import { alsoOn, hitOfListing, listingLine, type AlsoOnDay, type AlsoOnItem } from "@/lib/game/tv-listings";
@@ -19,6 +19,7 @@ import { usePracticeShows } from "../tour/practice-shows";
 import { ListingsCredit } from "../watching/search";
 import { openWatching } from "../watching/sheets";
 import { SportsGuide } from "../sports/guide";
+import { useHideSports } from "../sports/scores";
 import { useReducedMotion } from "../welcome/hooks";
 import { namesOf, showOfMove } from "./sections";
 
@@ -317,8 +318,13 @@ function GuideArt({ id, c, className = "" }: { id: string; c: Pick<GuideCard, "a
   );
 }
 
+/** Sports scores too (U1's sports slice): the sports seasons whose cards say only when a game started, never On now or aired. */
+const HiddenSports = createContext<Set<string>>(new Set());
+
 function CardBody({ c, now, me }: { c: GuideCard; now: number; me: string }) {
   const own = c.key.startsWith("plan:");
+  const quiet = useContext(HiddenSports).has(c.seasonId) && c.at < now && !own;
+  if (quiet) c = { ...c, live: false };
   return (
     <>
       <GuideArt id={`guide-${c.key}`} c={c} className={c.tie !== "plays" ? "[filter:saturate(.35)_brightness(.8)]" : ""} />
@@ -329,7 +335,7 @@ function CardBody({ c, now, me }: { c: GuideCard; now: number; me: string }) {
         }`}
       >
         {c.live && <i className="size-1.5 animate-pulse rounded-full bg-current" aria-hidden />}
-        {c.live ? "On now" : timeOf(c.at)}
+        {c.live ? "On now" : quiet ? `Started ${timeOf(c.at)}` : timeOf(c.at)}
       </span>
       {/* A game's going on it: a white controller, with a move due its red dot. */}
       {c.games ? (
@@ -359,7 +365,7 @@ function CardBody({ c, now, me }: { c: GuideCard; now: number; me: string }) {
       )}
       <span className="type-caption line-clamp-2 text-[17px] leading-[.95] [text-shadow:0_1px_8px_rgba(0,0,0,.5)]">{c.name}</span>
       <span className="mt-[3px] flex items-center justify-between gap-1 text-[11px] font-semibold opacity-85">
-        <span className="truncate">{own ? planWho(c.plan!, me) : c.at < now && !c.live && !c.drop ? `${episodeLine(c)} · aired` : episodeLine(c)}</span>
+        <span className="truncate">{own ? planWho(c.plan!, me) : c.at < now && !c.live && !c.drop && !quiet ? `${episodeLine(c)} · aired` : episodeLine(c)}</span>
         <Faces faces={c.faces} />
       </span>
     </>
@@ -568,6 +574,11 @@ export function Guide({ home: read, couch }: { home: Home; couch: Couch | null }
   const hidden = hiddenNow(home);
   const listings = useListingsWeek().data?.listings;
   const onTv = useOnTv();
+  const hideSports = useHideSports();
+  const quietSports = useMemo(
+    () => new Set(hideSports ? [...home.shows, ...(home.couchShows ?? [])].filter((s) => s.show.kind === "sport").map((s) => s.seasonId) : []),
+    [hideSports, home]
+  );
   // Also on leaves out your shows, the couch's and what you've hidden: by their listing, or by name for a show here that
   // hasn't one yet (the daily job links them). The switch leaves out all of it, or all but the competitions.
   const also = useMemo(() => {
@@ -597,6 +608,7 @@ export function Guide({ home: read, couch }: { home: Home; couch: Couch | null }
     </span>
   );
   return (
+    <HiddenSports.Provider value={quietSports}>
     <section className="mt-8" data-guide>
       <div className="mb-2.5 flex items-baseline justify-between px-4">
         <h2 className="type-caption text-[24px]">{couch ? "This week on the couch" : "This week"}</h2>
@@ -641,6 +653,7 @@ export function Guide({ home: read, couch }: { home: Home; couch: Couch | null }
       <EveningSheet day={evening} also={evening ? also[evening.offset] : undefined} now={now} onOpenChange={(o) => !o && setEvening(null)} />
       <HiddenSheet open={hiddenOpen} onOpenChange={setHiddenOpen} hidden={hidden} />
     </section>
+    </HiddenSports.Provider>
   );
 }
 

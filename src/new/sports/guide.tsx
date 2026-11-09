@@ -17,7 +17,8 @@ import { openSports } from "./sheets";
 const DAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 export function SportsGuide({ couchId }: { couchId: string | null }) {
-  const teams = useCouchTeams(couchId).data?.teams ?? [];
+  const listed = useCouchTeams(couchId).data?.teams;
+  const teams = useMemo(() => listed ?? [], [listed]);
   const also = [...new Set(teams.map((t) => t.league))];
   const week = useSportsWeek(null, also);
   const hidden = useHideSports();

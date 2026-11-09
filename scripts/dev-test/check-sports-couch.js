@@ -53,8 +53,8 @@ const TEAMS = [
   { id: "9302", name: "ZT Cowboys", short: "Cowboys", location: "ZT Dallas", abbreviation: "ZDAL", league: FB, color: "041e42", roster: roster("93020", ["QB", "WR", "RB", "TE"]) },
   { id: "9303", name: "ZT Giants", short: "Giants", location: "ZT New York", abbreviation: "ZNYG", league: FB, color: "0b2265", roster: roster("93030", ["QB", "WR", "RB"]) },
   { id: "9304", name: "ZT Jets", short: "Jets", location: "ZT New Jersey", abbreviation: "ZNYJ", league: FB, color: "125740", roster: roster("93040", ["QB", "WR", "RB"]) },
-  { id: "9401", name: "ZT Sixers", short: "Sixers", location: "ZT Philly", abbreviation: "ZPHL", league: BB, color: "006bb6", roster: roster("94010", ["G", "G", "F", "F", "C"]) },
-  { id: "9402", name: "ZT Knicks", short: "Knicks", location: "ZT Manhattan", abbreviation: "ZNYK", league: BB, color: "f58426", roster: roster("94020", ["G", "G", "F", "F", "C"]) },
+  { id: "9401", name: "ZT Sixers", short: "Sixers", location: "ZT Philly", abbreviation: "ZPHL", league: BB, color: "006bb6", roster: roster("94010", ["G", "G", "G", "F", "F", "F", "C", "C"]) },
+  { id: "9402", name: "ZT Knicks", short: "Knicks", location: "ZT Manhattan", abbreviation: "ZNYK", league: BB, color: "f58426", roster: roster("94020", ["G", "G", "G", "F", "F", "F", "C", "C"]) },
 ];
 const EVENTS = [
   { league: FB, id: "93101", at: at(-14 * D), home: "9301", away: "9303", state: "post", score: [24, 17] },

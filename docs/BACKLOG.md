@@ -462,7 +462,8 @@ Last updated 2026-10-27.
 42. **What U1's Start a game left (noticed 2026-11-09, building the wizard; lane `start`, branch `start-a-game`).**
     - **Today's list still serves three starts** (the user's call, 2026-11-09): Run it back, a season that's aired (at your own pace:
       Starts' where you are and from the top) and a sport's season (`start-game.tsx StartRouter`). The wizard could take the first two
-      as options in When it runs; a sport's is U0's "Start a game on a team", with the sports screens. (U1, next.)
+      as options in When it runs; a sport's is U0's "Start a game on a team", with the sports screens. (U1, next.) **A sport's league
+      season goes to Start a game on a team since U1's sports slice (2026-11-09); a sport's TV listing keeps the list.**
     - **No made-for games, no betting-game role, no scoring themes on the rail**: G5 isn't built, so Start from is the engine's own
       kinds that fit the rulebook (rulebook-fits), each rolled for the stretch. Different scoring cycles engine-made ways from the
       season's own rulebook (No points lost, Big moments only: the user's call, 2026-11-09) until G5's themes. (G5, then the wizard
@@ -504,6 +505,30 @@ Last updated 2026-10-27.
       U1 small.)
     - **Episode types and rounds** (Big Brother's weeks, a recoupling night) stay tabled, as in U0.
     - **Not checked on Studio** (the new design is Night only until step 15).
+
+43. **What U1's sports slice left (noticed 2026-11-09, building sports on the couch; the sports lane, branch `sports`).**
+    - **First run's search finds shows only** (`welcome/first-run.tsx`): teams and leagues are in Add a show's box, not first run's.
+      The tour's demo still adds by TVmaze ids (BACKLOG 38). (U1 small, with the tour's demo by team.)
+    - **A tour's or a promotion's league** (golf's, F1's, the UFC's: an event an episode) isn't offered: the search shows only leagues
+      a slate can be made of. Their season (L8's Noticed) comes first. (Track L, then U1.)
+    - **The quick changes stay dashed, "Coming for sports"**: rollSpec can't roll on a sport's page (every base fails its fit there:
+      roll.js), so More competitive, More casual, Different scoring and Surprise me wait for it. (The engine lane's ask, U0's.)
+    - **The engine's words for a sport**: gameShort and describeSpec aren't given the show's word for an episode, so the page says
+      the line through `inShowWords` ("Episodes 1–3" made "Games 1–3"); the game card's short line says "Game 1" where the board
+      wanted its date; "Airs Wed 9:22 AM" on a game's Starts plate (model.ts). (The engine lane: describe.js with `part`; U1 small.)
+    - **Played through in the check: Pick'em only.** Squares, a series draft, Pick a few and a season's Pick'em start and their pages
+      draw; taking squares and the draw, the draft itself and Pick a few's grading are the engine lane's own checks (L4), not walked
+      on the phone here. (U1, a check-sports-couch.js part.)
+    - **A final with no box score grades two days late**: score.ts's stamp fingerprint moves when a game's lines are kept, so a final
+      ESPN has no box for waits for saveFinals' two-day fallback before a Pick'em on it grades. ESPN has a box for every team game it
+      lists, so only the stand-in shows it. (Track L, if a real game ever does.)
+    - **Classic's league read** (`/api/leagues/[id]/state`, results-seen.ts) goes by Hide scores for a sport's league too, not by
+      Sports scores too: only classic reads it. (Classic, or step C's removal.)
+    - **A player's game log matches by name**, as the season's cast and lines are (two players of one name: L8's Noticed).
+    - **The mock's Watch along now and Plan a watch along** on a team's and a game's sheets aren't built (the watch along is out of
+      this slice). Nor is L9 (lineup slots, FAAB, trades: the engine lane's).
+    - **The guide's Sports reads the pro leagues and the couch's teams' leagues**, a week from today in the East; no other college or
+      soccer league's games are counted until someone on the couch follows one of its teams.
 
 ## Decided against (don't re-propose without new information)
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { Eye } from "lucide-react";
 import { useProfile } from "../data";
 
@@ -43,6 +43,16 @@ const subscribe = (l: () => void) => {
   return () => listeners.delete(l);
 };
 const NONE = new Set<string>();
+
+/** The clock the sports screens are drawn at, moved on each minute (a game begins while you look). */
+export function useNow(): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(t);
+  }, []);
+  return now;
+}
 
 /** Whether you hide sports scores (Settings' Sports scores too; off by default). */
 export function useHideSports(): boolean {

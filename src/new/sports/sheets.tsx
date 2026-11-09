@@ -4,7 +4,7 @@ import { useSyncExternalStore } from "react";
 import { useSportsWeek, useTeamSchedule } from "../data";
 import { Sheet } from "../ui/sheet";
 import { MoreAction, PlayPlate, SportsLabel, WeekRow } from "./parts";
-import { begun } from "./scores";
+import { begun, useNow } from "./scores";
 import { useStartSport } from "./start";
 import { SportStartSheet, type SportTarget } from "./start-sport";
 import { GameView, TeamView, type StartWhen } from "./team";
@@ -89,7 +89,7 @@ function GameFromSchedule({ league, team, game }: { league: string; team: string
 export function LeagueView({ league, leagueName, onStarted }: { league: string; leagueName: string; onStarted?: () => void }) {
   const week = useSportsWeek(null, [league]);
   const { start, busy } = useStartSport();
-  const now = Date.now();
+  const now = useNow();
   const days = (week.data?.days ?? []).map((d) => ({ ...d, games: d.games.filter((g) => g.league === league) })).filter((d) => d.games.length);
   const left = days.flatMap((d) => d.games).filter((g) => !begun(g, now)).length;
   return (

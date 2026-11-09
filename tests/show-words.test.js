@@ -16,9 +16,10 @@ test("a show made of episodes keeps Episode, Ep and its people's word", () => {
   assert.deepEqual([showWords({ castaway: "Cast" }).people, showWords({ castaway: "Cast" }).person], ["Cast", "Cast member"]);
 });
 
-test("a baseball series: Game, Players, and Schedule for its tab (Games is the app's tab)", () => {
+// The strip's unit is the world's short form (U1's sports slice, 2026-11-09: "Wk", "G", "Ep").
+test("a baseball series: Game (G for short), Players, and Schedule for its tab (Games is the app's tab)", () => {
   const w = showWords({ castaway: "Player", episode: "Game" });
-  assert.deepEqual([w.episode, w.ep, w.episodes, w.episodesTab, w.peopleTab], ["Game", "Game", "Games", "Schedule", "Players"]);
+  assert.deepEqual([w.episode, w.ep, w.episodes, w.episodesTab, w.peopleTab], ["Game", "G", "Games", "Schedule", "Players"]);
 });
 
 test("F1: Races and Drivers; a long word falls back", () => {

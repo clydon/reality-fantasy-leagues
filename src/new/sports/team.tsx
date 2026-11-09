@@ -7,7 +7,7 @@ import { sportsApi, useCouchTeams, useHome, useCurrentCouch, useTeamSchedule, ty
 import { Avatar } from "../ui/bars";
 import { toast } from "../ui/toast";
 import { GameRow, MoreAction, OpenRow, PlayPlate, SportsLabel, TeamMark, TeamPlate, type TeamGame } from "./parts";
-import { begun, clockOf, dayOf, ShowScore, useGameScore, useHideSports } from "./scores";
+import { begun, clockOf, dayOf, ShowScore, useGameScore, useHideSports, useNow } from "./scores";
 import { useStartSport } from "./start";
 
 // A team's sheet (docs/PLAN-start-a-game-gpt.md U1's sports slice; U0's board "Find a team", the user's calls of 2026-11-08 and
@@ -79,7 +79,7 @@ export function TeamView({
   const [earlier, setEarlier] = useState(false);
   const [following, setFollowing] = useState<boolean | null>(null);
   const s = sched.data;
-  const now = Date.now();
+  const now = useNow();
 
   const view = useMemo(() => {
     if (!s) return null;

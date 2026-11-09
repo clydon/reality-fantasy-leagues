@@ -5,7 +5,7 @@ import { Check } from "lucide-react";
 import { useHome, useCurrentCouch, useLeagueSlates, useSportRail, useTeamSchedule, type RailGame } from "../data";
 import { Btn } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
-import { begun, clockOf, dayOf } from "./scores";
+import { begun, clockOf, dayOf, useNow } from "./scores";
 import { useStartSport } from "./start";
 import type { StartWhen } from "./team";
 import { versus } from "./team";
@@ -75,7 +75,7 @@ export function SportStartSheet({
   const [tell, setTell] = useState(true);
   const [rules, setRules] = useState(false);
   const { start, busy } = useStartSport();
-  const now = Date.now();
+  const now = useNow();
 
   const coming = useMemo(() => (s ? s.games.filter((g) => !g.calledOff && !begun(g, now)) : []), [s, now]);
   const rivals = useMemo(() => {
