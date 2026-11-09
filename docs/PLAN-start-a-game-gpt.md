@@ -12153,6 +12153,35 @@ first), and proves it on these games and on the tracker's other rows that use it
     panel, the league's table; You is the page itself under a big header (your avatar, You, your place, Your sheet ›), your place
     moved there from under the title; your move stays at the top, what's due seen first. The page stays one layer: a sheet is only
     what opens over it, so nothing on the page looks like one.
+  - **Step 2 brief, from the main session that designed it (2026-11-08), for the fresh session building it.** Canvas v58: R4
+    (person and cast sheets, the NFL/MLB/Below Deck parallels), R6 (the page, the drill down), R7 (you apart: C picked). Mock code
+    in .impeccable/mocks/game-page/: `make_person_sheet.js` (the sheet's parts and `classify(spec)`, the census: every spec to a
+    strip kind, an episode block and a season block), `make_hybrid.js` (the page, the grid, You, the drill-down sheets, the tap
+    map), `make_you_apart.js` (C, the couch framed). Port the logic and the look, not the HTML.
+    1. **Data first.** `TableRow` (src/lib/game/game-view.ts) carries a pool's `picks` and a lineup's `weeks`, nothing per episode
+       for the rest. Add each person's plays by episode for every kind the census names: answers (the question, their answer, the
+       right one, points), calls (with the minute made), a card (marked squares, lines), picks by moments, a best ball's team with
+       its counted, an outlast's boots, head to head's week (opponent, both scores), co-op's right or wrong and the couch's lives,
+       a race's running total, stages by stage. The privacy rules ride with it: up to the viewer's spoiler mark only, and anyone's
+       next move is only set or not until it locks or is decided (today's pool rule). Pure, with tests over the census's specs.
+    2. **The sheet family, once** (src/new/show/): the week strip (bars with the dashed average as `lineup-sheet.tsx` has it, a
+       pool's faces, won or lost, episodes won, the couch's lives, a race, stages), the episode block (the eleven kinds; answers
+       reuse the sixteen controls' scored state), the person sheet (replacing `games.tsx` PlayerSheet: the Games tab's rows then
+       open for every game, calls, bingo and questions included), the cast sheet (`cast.tsx` StorySheet with In this game on top),
+       the episode sheet (everyone's plays that night, ‹ › through episodes). Stacked: each opens over the last with its path back
+       on top ("Survival Pool › Joanna ›"), Close shuts them all; Back as the user's rule has it (back goes where you came from).
+    3. **The page rebuilt on it** (`game-page.tsx`, `model.ts`): the title card (keep), your move (keep; yellow only while it's
+       due), the couch framed (the season grid in its panel: a row a person, a column an episode, a square by kind, the next
+       episode Set, Due or –), You (the page under its big header: your strip and last episode, or your picks), How it plays. Out:
+       the podium and plates, Previously on, the 140px number. The grid's defaults where it adapts are in the bullet above.
+    4. **Every door:** a name or row opens their sheet on the episode you were on; a square, their sheet on that episode; an
+       episode, the episode sheet; a face, that castaway in this game; the move, Your moves; How it plays, the rules. Same in the
+       sheets. Nothing on the page looks like a sheet (the user's one-layer rule).
+    5. **Checks:** extend `check-game-page.js` (the grid at 390 with no sideways page scroll, every door opens its sheet on the
+       right episode, the path back, at most one yellow and only on what's due) and `check-games-insight.js` (every game's rows
+       open); run BACKLOG 41's two sheet-swipe failures down while in the pager. Real data only from zt- fixtures.
+    **Left alone:** the Games tab's line under each game's name (four ways on the canvas, v52, the user's pick still open; the
+    main session leaned to A, the facts line), the four show themes (a later step), L9's slots (the engine lane).
 
 **L. Live sports:** the steps are in "Live sports in the same engine", above (L1–L6, the Sports lane).
 
