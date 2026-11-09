@@ -676,7 +676,7 @@ never handles it: the user does the reset and the pasting.
 
 ## Changelog
 
-- **2026-11-09, the sports lane (not merged).** U1's sports slice (docs/PLAN-start-a-game-gpt.md U1; migration 0307: `team_follows`,
+- **2026-11-09, pushed to master (`e8b51c8a`, migration 0307).** U1's sports slice (docs/PLAN-start-a-game-gpt.md U1; migration 0307: `team_follows`,
   one small row a team someone follows, and `user_settings.hide_sports_scores`). **New ESPN reads, all cached, nothing polls:** the
   guide's Sports (`GET /api/sports/week`, the same for everyone, the edge keeps it 5 minutes) reads each pro league's day scoreboard
   for a week, and a couch team's league's (the same `eventsOn` the daily job reads: kept 3 minutes while a game's on, an hour before,

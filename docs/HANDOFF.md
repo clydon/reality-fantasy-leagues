@@ -29,8 +29,8 @@ in Settings (off by default; Show the score per game for the visit, moving the m
 name, G not Ep, positions on faces, a player's game log). Code `src/new/sports/`, `src/lib/sports/start-games.ts` and `hide.ts`, the
 routes under `src/app/api/sports/` (follow, couch, week, start, shown) and `/api/seasons/[id]/player-log`. The user's three calls
 are in the plan's Decisions ("U1 sports on the couch's calls"); its U1 "Step 4" bullet has it all; BACKLOG 43 what it left. Check:
-`scripts/dev-test/check-sports-couch.js` (BASE=http://localhost:3004; API, then 390; a stand-in ESPN with ZT teams). **Not merged
-or pushed: the user's to OK** (never on an S51 episode night, Wed 8 PM ET; 0307 is additive).
+`scripts/dev-test/check-sports-couch.js` (BASE=http://localhost:3004; API, then 390; a stand-in ESPN with ZT teams). **Merged and
+pushed 2026-11-09 (e8b51c8a; 0307 rehearsed on Neon, the snapshot `pre-sports-2026-11-09`).**
 
 ## Start a game, the wizard (2026-11-09; U1 step 3; lane `start` (`../rfl-start`, port 3011), branch `start-a-game`, migration 0216)
 U0's settled board "B, settled" built: **Start a game is the wizard** for every season with an episode still to air. When it runs

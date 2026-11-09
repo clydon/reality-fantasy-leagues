@@ -12307,7 +12307,9 @@ first), and proves it on these games and on the tracker's other rows that use it
     Pick'em's question had no sides to pick (answers.ts GET now sends its game's two teams); packFor put "everything" (Infinity) into
     SQL for anyone who sees results straight away. **Checks:** `tests/sports-start.test.js`, `tests/sports-couch.test.js`, and
     `scripts/dev-test/check-sports-couch.js` (API, then the browser at 390, on a stand-in ESPN with ZT teams: ALL PASS), Pick'em
-    played through to its grade. What it left: BACKLOG 43. **Not merged or pushed** (the user's to OK).
+    played through to its grade. What it left: BACKLOG 43. **Merged and pushed 2026-11-09 (e8b51c8a, migration 0307 rehearsed on the Neon branch
+    `rehearse-start-2026-11-09`: applied, `[check] all good`, the game-specs check PASS on all 6 leagues; the snapshot to roll back to
+    `pre-sports-2026-11-09`), with the user's OK.**
 
 **L. Live sports:** the steps are in "Live sports in the same engine", above (L1–L6, the Sports lane).
 
