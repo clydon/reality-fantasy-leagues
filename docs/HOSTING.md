@@ -676,6 +676,16 @@ never handles it: the user does the reset and the pasting.
 
 ## Changelog
 
+- **2026-11-09, `start-a-game` branch (lane `start`; not merged).** U1's Start a game, the wizard (docs/PLAN-start-a-game-gpt.md U1
+  step 3; migration 0216, a looser check on `game_word_asks`, no new table). **Start it holds the couch's push 10 seconds** (for its
+  Undo) in the request's `after()`, so each game started keeps its function about 10 s past its answer (`maxDuration` 60 on
+  `/api/seasons/[id]/start`): a wait with no work in it (a timer, then one query), negligible at the couch's few starts a week. The
+  wizard's page (`GET /start?wizard=1`) reads G1's context pack (a few queries, a few KB) once when Start a game opens; every game,
+  change and shuffle is rolled and checked on the phone (the engine bundled, loaded with the sheet), so nothing polls and the
+  server sees one write per start. **Our AI's asks from the sheet** are G1's (`game-words`, the day's 10 a person): Describe a new
+  game, a change to a game the sheet holds (Creative moments, a moment of your own: a new row shape, no `change_of`), and **new
+  moments rated in one ask** (up to three, where G1 asked one at a time): fewer bot asks than before. No ad network, no paid model.
+
 - **2026-11-07, `engine` branch (not merged).** G1, the Start-a-game GPT's words to a spec (docs/PLAN-start-a-game-gpt.md;
   migration 0214). One new table, `game_word_asks` (a row each time someone's words or a typed change go to our bot: the words,
   the bot's answer and our check's result, about 5 to 15 KB; capped at 10 a person a day, the desk aside), empty until a screen
