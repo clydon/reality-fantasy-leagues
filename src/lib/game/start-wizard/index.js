@@ -16,6 +16,7 @@
 // bet: a MONEY id; cnt: { each, play }; scoring: 'standard' | 'no-loss' | 'big'; edits: { momentId: points }; off: momentIds;
 // qedits: { questionId: points }; added: [{ id, says, pts }] (moments added to the season for this game) }. Picks only flow down:
 // a game picked again starts its changes over (fresh()).
+/* eslint-disable-next-line @typescript-eslint/no-require-imports -- CommonJS on purpose, see ../game-spec/schema.js */
 const G = require('../game-spec/index.js');
 
 const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -361,9 +362,9 @@ function createWizard(input) {
   const spanKey = (span) => JSON.stringify(span);
 
   /** The season's moments research answers, with their points here (shared or exclusive), for What scores. */
-  const moments = () =>
+  const moments = (choice) =>
     (Array.isArray(ctx.moments) ? ctx.moments : [])
-      .filter((m) => m && m.id && !m.off && !m.auto && m.answeredBy !== 'league')
+      .filter((m) => m && m.id && !m.off && !m.auto && m.answeredBy !== 'league' && !((choice && choice.added) || []).some((a) => a.id === m.id))
       .map((m) => ({ id: m.id, says: m.label || m.id, pts: m.defaultPoints }));
   const ptsOf = (m, spec) => {
     const own = spec && spec.get && spec.get.own === 'exclusive';
@@ -592,7 +593,7 @@ function createWizard(input) {
     if (k === 'place') return 'How long your people last';
     if (k === 'card') return `A card of squares each ${part}`;
     if (k !== 'moments') return '';
-    const counting = moments()
+    const counting = moments(choice)
       .concat((choice.added || []).map((a) => ({ id: a.id, says: a.says, pts: a.pts })))
       .filter((m) => momentPts(spec, m) !== 0);
     if (counting.length && counting.length <= 6) return counting.map((m) => `${m.says} ${fmt(momentPts(spec, m))}`).join(' · ') + own;
@@ -607,7 +608,7 @@ function createWizard(input) {
     const k = scoreKind(spec);
     if (k === 'moments') {
       const orig = c.row.spec;
-      const rows = moments()
+      const rows = moments(choice)
         .concat((choice.added || []).map((a) => ({ id: a.id, says: a.says, pts: a.pts, added: true })))
         .map((m) => {
           const p = momentPts(spec, m);

@@ -60,7 +60,12 @@ export function MakeGamePage({ show }: { show: ShowData }) {
   const howPage = usePushedPage("make-how");
   const nav = useNav();
   // The desk's New show opens this page (?from=desk, step 10 part 3): Looks right goes back to the desk, to its rulebook.
-  const fromDesk = useSearchParams().get("from") === "desk";
+  const params = useSearchParams();
+  const fromDesk = params.get("from") === "desk";
+  // Reached from Start a game for a show that isn't a game yet (?then=start, U1: Make it a game chained in): once it's ready, the
+  // page steps aside and Start a game opens on it, once.
+  const thenStart = params.get("then") === "start";
+  const chained = useRef(false);
   const h = show.header;
   const seasonId = h?.seasonId ?? "";
   const couchId = show.couch?.id ?? null;
@@ -105,6 +110,17 @@ export function MakeGamePage({ show }: { show: ShowData }) {
       setBusy(false);
     }
   };
+
+  useEffect(() => {
+    if (!thenStart || !page.open || !m?.ready || chained.current) return;
+    chained.current = true;
+    const t = setTimeout(() => {
+      page.close();
+      openStartGame({ seasonId, couchId: params.get("couch") || couchId });
+      toast(`${m.label} is a game: now start yours`);
+    }, 1200);
+    return () => clearTimeout(t);
+  }, [thenStart, page, m, seasonId, couchId, params]);
 
   const label = m?.label ?? (h ? `${h.show.name}${h.seasonNumber ? ` ${h.seasonNumber}` : ""}` : "");
   const pasting = mode === "paste" || (s?.via === "paste" && mode !== "review" && s.stage !== "ready");
