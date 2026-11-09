@@ -96,6 +96,45 @@ own pace, maybe catching up to live, maybe not.
 - Mocked as flow 8 (https://claude.ai/artifact/3E6rgiMSJcP3MYJaQkS3rh): the Draft together plate, the waiver moment's wait
   (OK, I'll wait; Episode 6 quiet below with Go on), and Everyone's here: waivers.
 
+## Every game at your own pace, through the wizard (the user, 2026-11-09)
+
+"i want to use the wizard for everything so i have the same limitless options for game types. if im watching an old season of
+the challenege with friends id want acess to these game types and to be able to reveal as i watch (some games require
+syncronous, others can be played asyncronouly, some can be a hybrid of both and have check points to sync up)."
+
+- **The wizard for every season.** An aired season (at your own pace) and Run it back open Start a game's wizard with the same
+  options as a live season: the field, Randomize, every game. When it runs offers *Where you are · Episode N* and *From the top ·
+  Episode 1*; Run it back fills in the last game. Today's list goes (`start-spec.ts wizardOptions` returns `wizard: null` for
+  own pace now; `start-game.tsx` StartRouter sends it to the list).
+- **Every game gets a pace, read from its spec** (a census over every spec, none left out, as the game page's):
+  - **At your own pace**: everything one person does an episode at a time. Picks, lineups, best ball, a question each
+    episode, bingo, trivia, a race, categories, wagers, and head to head (a matchup shows when you reveal that episode). Calls on
+    a clock play on your own clock, honour-based (U0's late viewer).
+  - **With sync points**, your checkpoints, only where a part needs everyone on the same episode:
+    - an exclusive draft or an auction: draft together (built for Outlast);
+    - waivers, FAAB or trades on exclusive teams: the waiver moment (built);
+    - answers that depend on each other (split the pot, match the majority, only unique answers), and co-op's shared lives: that
+      episode settles once everyone has revealed it ("Settles when Joanna reaches Episode 3"). Words only, as decided: nothing
+      blocks anyone.
+  - **Together**: watching at the same time is the watch along's planned night. The separate together mode stays dropped.
+- **The wizard says it on the game**: "At your own pace", or "At your own pace · syncs at the draft and at waivers".
+- **Order.** Engine first: the catch-up loop for every kind of spec game, `paceOf(spec)` naming its sync points, the census,
+  and part 4's Prediction Sheet folded in. Then U1: the wizard on aired seasons and Run it back.
+
+## Solo, then a simple bot (the user, 2026-11-09)
+
+"maybe rather than computer players we allow users to play solo. for now at least, then introduce bots (or we just have a very
+simple bot that picks randomly or based on players total points). end of the day this is so a solo player can play any game
+type by themselves." After the above.
+
+- **Solo first.** A couch of one starts any game in the wizard. Anyone invited later joins where they are. Your score is the
+  game's own number (a streak, points, lines) against your own best.
+- **What can't score alone.** Of 2,701 specs, 1,833 (68%) play solo as they are. The rest rank against or depend on others:
+  head to head 371, split the pot 192, most episodes won 134, in teams 111, match the majority 79, only unique answers 59. Solo,
+  those stay out of the wizard's choices until a bot can stand in; a typed game that needs them says why.
+- **Then a simple bot**: a seat that picks at random, or by the points so far (the user's idea). It opens every game to a solo
+  player, then grows into today's computer players (drafts and pools) for every answer kind.
+- **The page solo**: no couch panel (the grid needs a couch); You is the page. The grid appears when someone joins.
 ## How it reuses the engine
 
 | Need | What exists | What's new |

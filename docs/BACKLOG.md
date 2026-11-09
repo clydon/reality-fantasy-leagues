@@ -474,6 +474,8 @@ Last updated 2026-10-27.
       answer questions, calls or a card yet. Two parts: computer players that play every kind (an answer for each of the sixteen
       kinds, beyond the engine's `botCall` and `botCard`; the engine lane), then the wizard offering them up front when you're the
       only one on the couch (through impeccable; a solo couch's default to be decided). (Engine lane, then U1.)
+      **Reframed by the user (2026-11-09): solo first, then a simple bot**; every game at your own pace through the wizard
+      before either (docs/PLAN-own-pace-games.md, the two sections of 2026-11-09).
     - **No made-for games, no betting-game role, no scoring themes on the rail**: G5 isn't built, so Start from is the engine's own
       kinds that fit the rulebook (rulebook-fits), each rolled for the stretch. Different scoring cycles engine-made ways from the
       season's own rulebook (No points lost, Big moments only: the user's call, 2026-11-09) until G5's themes. (G5, then the wizard
