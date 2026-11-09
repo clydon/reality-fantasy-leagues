@@ -12114,6 +12114,14 @@ first), and proves it on these games and on the tracker's other rows that use it
     from the spec alone, none left without one (`make_person_sheet.js`, the U0 scratchpad; a copy in .impeccable/mocks/game-page/).
     **Needs:** each person's plays by episode on `GameView` for every kind (today only a lineup's weeks and a pool's picks), with
     BACKLOG 40's twists' state; the sheet's blocks reuse the sixteen answer controls in their scored state.
+    **The parallels** (the user: "add a parallel with sports (nfl/mlb) and realtiy show (below deck)"; canvas v54): the same
+    sheets in each world's words. The NFL: a Weekly Lineup in L9's slots, head to head (each slot's player with their line and
+    points, the bench), Pick'em on every game (the team they took, the final, right or wrong; with Hide scores on a final waits
+    for a tap) and a player's sheet (who started or benched him in this game, then his game log in the game's scoring). MLB: the
+    typed Red Sox–Yankees series draft (the strip is the series' games, a game is their hitters' box lines) and a hitter's series
+    log. Below Deck: Predictions on the show's own questions, a crew lineup in their roles (L9's slots for shows) and a crew
+    member's story. The strip's unit is the world's (Wk, G, Ep), the qualifier its position or role, and a sport's game log takes
+    the place of a castaway's story (PLAN-sports-live's player sheet).
 
 **L. Live sports:** the steps are in "Live sports in the same engine", above (L1–L6, the Sports lane).
 
