@@ -12042,9 +12042,11 @@ first), and proves it on these games and on the tracker's other rows that use it
     called at 23:04, early; 0; Missed). **Sports:** Tap the last play you saw (a list of the latest plays, one tap, "I saw this
     one", or Watch live), then the watch along with a scorebug (the teams' tags, the score as of your play, the down and
     distance), "Synced to your stream · 40s behind live · Change", a drive call, your players' live points as faces, the plays
-    as they reach you. **The Games tab's launcher:** Up next first (the one yellow), then each game a row: where you stand at its
-    page's big-number scale, its name on a plate tagged with its state (Due, Set, 8 PM), its move or state under it, a chevron to
-    its page; Start a game last. Real cast and players; every call and result on the boards made up. Checked by eye at 390 and
+    as they reach you. **The Games tab's launcher:** Up next first (the one yellow), then each game a row led by its kind's drawing from
+    the icon sheet on a tile, bone for the game that needs you (the user, 2026-11-08: "use some game type icons so we can tell
+    not only from the name but also the icons"; Live calls use Weekly Calls' drawing, so the sheet's rebrand lands here too), its
+    name on a plate tagged with its state (Due, Set, 8 PM), its move or state under it, where you stand on the right at its
+    page's big-number scale; the Up next plate's tag carries the game's drawing; Start a game last (canvas v51). Real cast and players; every call and result on the boards made up. Checked by eye at 390 and
     fixed once; a full impeccable critique is the U1 build's first look. Scripts: the session's scratchpad u0/r2/make_live.js.
   - **U0 is designed.** Next: U1 in fresh sessions (the game page and quick actions first, then Start a game, then the sports
     screens), L9 in the engine lane after the week's reset, and A15's engine (the calls' windows on the clock) for the live parts. round 3, the live pieces (the watch along, live calls, a live game's screens);
