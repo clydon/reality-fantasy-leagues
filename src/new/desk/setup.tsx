@@ -173,9 +173,17 @@ function MadeSection({ id }: { id: string }) {
   const q = useDesk<{ count: number; missing: string[]; at: string | null; error: string | null }>(`/seasons/${id}/made`);
   const after = useAfterDesk();
   const [busy, setBusy] = useState(false);
+  // Start over replaces every game with no Undo: a second tap within a few seconds says so.
+  const [sure, setSure] = useState(false);
   const m = q.data;
   const make = async (fresh: boolean) => {
     if (busy) return;
+    if (fresh && !sure) {
+      setSure(true);
+      setTimeout(() => setSure(false), 5000);
+      return;
+    }
+    setSure(false);
     setBusy(true);
     toast.quiet("Our bot is writing them: a minute or three");
     try {
@@ -189,19 +197,27 @@ function MadeSection({ id }: { id: string }) {
     }
   };
   const line = busy
-    ? "Writing them now…"
+    ? "Our bot is writing them now…"
     : !m
-      ? "…"
+      ? "Loading…"
       : m.count
-        ? `${m.count} on the Start a game rail · made ${dateOf(m.at!)}${m.missing.length ? ` · none yet: ${m.missing.join(", ")}` : ""}${m.error ? " · last ask failed" : ""}. Tap for more`
+        ? `${m.count} on Start a game's rail · made ${dateOf(m.at!)}${m.missing.length ? ` · none yet: ${m.missing.join(", ")}` : ""}${m.error ? ` · last ask failed: ${m.error}` : ""}`
         : m.error
-          ? `None · last ask failed: ${m.error}`
-          : "None yet · Make them";
+          ? `None yet · last ask failed: ${m.error}`
+          : "None yet · our bot writes about 30, in a minute or three";
   return (
     <Section title="Made-for games">
       <div className="border-b border-border">
-        <DeskRow data="setup-made" onClick={() => make(false)} lead={<IconLead icon={Sparkles} />} title="Made for this season" line={line} />
-        {!!m?.count && !busy && <DeskRow data="setup-made-fresh" onClick={() => make(true)} lead={<IconLead icon={RotateCcw} />} title="Start over" line="Our bot writes a new library in place of this one" />}
+        <DeskRow data="setup-made" onClick={() => make(false)} lead={<IconLead icon={Sparkles} />} title={m?.count ? "Make more" : "Make them"} line={line} />
+        {!!m?.count && !busy && (
+          <DeskRow
+            data="setup-made-fresh"
+            onClick={() => make(true)}
+            lead={<IconLead icon={RotateCcw} />}
+            title={sure ? "Tap again to start over" : "Start over"}
+            line={sure ? `Replaces all ${m.count}: there's no Undo` : `A new set in place of these ${m.count}, a minute or three`}
+          />
+        )}
       </div>
     </Section>
   );
