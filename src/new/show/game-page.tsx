@@ -293,7 +293,6 @@ function Hero({ hero }: { hero: HeroM }) {
       {hero.vs ? (
         // The face-off: the last episode's final, the two seats either side, the score on one line as big as 390 lets it be.
         <>
-          <p className="type-caption mx-4 mb-3 text-[15px] tracking-[0.04em] text-muted-foreground">{hero.label}</p>
           <div className="mx-4 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2" data-game-vs>
             <span className="flex min-w-0 flex-col items-start gap-1.5">
               <Avatar id={hero.vs.youUser ?? hero.vs.youId} name="You" size={52} />

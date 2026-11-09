@@ -12060,7 +12060,13 @@ first), and proves it on these games and on the tracker's other rows that use it
     --through=6 --keep`): no sideways scroll, no undefined, never two yellows, every target 44px, all six parts, the move works
     (answered and saved in place; a strip opens its move). Two inspection rounds fixed the face-off's wrap, the next episode's
     number, a phase that read "before" on an aired bingo, the spoiler chip's width and height and a row's clipped Out tag.
-    What it noticed and left is BACKLOG 40.
+    **impeccable's finish review** (the skill's reviewer, in a fresh agent): a recapture (stale captures, the dev indicator), then
+    **fix** twice; fixed: answered questions stay on the page, head to head's face-off (labelled, both faces, the opponent named),
+    no Out before the playoffs are seeded, a line under each question for what every kind earns, no eyebrow over the questions,
+    long-form times, the air time on the title plate, your name on your plate and the pick's face on a pool's, the art washed at
+    its right edge, the show tag's ink by contrast. **Open at the ceiling** (its last verdict: fix): describe.js's words on the
+    page (the engine lane), a Gold avatar beside the yellow strip (the user's call), Stages' title plate without its air time;
+    all in BACKLOG 40. What it noticed and left is BACKLOG 40.
 
 **L. Live sports:** the steps are in "Live sports in the same engine", above (L1–L6, the Sports lane).
 

@@ -155,12 +155,12 @@ export function phaseOf(g: Pick<GameView, "over" | "from" | "through">, next: nu
 
 /** The next episode for this page: the schedule's next to air, but never one at or before where you are or the game is (a season
  *  watched behind its airing, a replayed season's schedule); its air time only when it's the schedule's own. */
-export function nextOf(g: Pick<GameView, "through"> & Partial<Pick<GameView, "lineup" | "pick" | "call">>, ctx: Pick<PageContext, "next" | "seen">): { number: number; airsAt: string | null } {
+export function nextOf(g: Pick<GameView, "through"> & Partial<Pick<GameView, "lineup" | "pick" | "call" | "sheet">>, ctx: Pick<PageContext, "next" | "seen">): { number: number; airsAt: string | null } {
   const past = Math.max(g.through, ctx.seen ?? 0);
   if (ctx.next && ctx.next.number > past) return ctx.next;
   // The game's own move for that episode knows when it airs (its lock), when the schedule doesn't.
-  const own = [g.lineup, g.pick, g.call].find((x) => x && x.episode === past + 1 && x.airsAt);
-  return { number: past + 1, airsAt: own?.airsAt ?? null };
+  const own = [g.lineup, g.pick, g.call].find((x) => x && x.episode === past + 1 && x.airsAt)?.airsAt ?? (g.sheet?.episode === past + 1 ? g.sheet.closesAt : null);
+  return { number: past + 1, airsAt: own ?? null };
 }
 
 /** What a row's number is, in this game's terms. */
@@ -245,8 +245,8 @@ function heroOf(g: GameView, page: GamePage, main: MainBlock, phase: Phase, ctx:
         const against = them ? them.name : last.stand === "median" ? "the median" : "a bye";
         return {
           ...blank,
-          label: `${E} ${last.episode} · final`,
-          sub: `${last.result === "win" ? "Beat" : last.result === "loss" ? "Lost to" : "Tied with"} ${against} · ${rec ? `you're ${rec}, ` : ""}${ordinal(you.place)}${m?.playoffs ? ` · the top ${m.playoffs.teams} make the playoffs` : ""}`,
+          label: "",
+          sub: `${E} ${last.episode} final: ${last.result === "win" ? "you beat" : last.result === "loss" ? "you lost to" : "you tied with"} ${against} · ${rec ? `you're ${rec}, ` : ""}${ordinal(you.place)}${m?.playoffs ? ` · the top ${m.playoffs.teams} make the playoffs` : ""}`,
           vs: { you: "You", them: them ? first(them.name) : last.stand === "median" ? "Median" : "Bye", you_n: String(last.points), them_n: last.against == null ? "–" : String(last.against), youId: you.playerId, themId: them?.playerId ?? null, youUser: you.userId, themUser: them?.userId ?? null },
         };
       }
@@ -414,7 +414,8 @@ export function pageModel(g: GameView, page: GamePage, ctx: PageContext): PageMo
   const phase = phaseOf(g, next.number);
   const E = ctx.words.episode;
   const tag = phase === "over" ? "Final" : `${E.slice(0, 2)} ${next.number}`;
-  const when = phase === "over" ? `Through ${E} ${g.through}` : next.airsAt ? `${E} ${next.number} · ${ctx.when(next.airsAt)}` : `${E} ${next.number} is next`;
+  // The tag says which episode; the title says when it airs.
+  const when = phase === "over" ? `Through ${E} ${g.through}` : next.airsAt ? ctx.when(next.airsAt) : `${E} ${next.number} is next`;
   const strip = stripOf(g, page, phase, ctx);
   return {
     phase,

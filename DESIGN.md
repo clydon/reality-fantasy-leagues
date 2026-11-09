@@ -38,6 +38,13 @@ colors:
   chart-lake: "#5089c9"
   desktop-backdrop: "#0b0a0f"
 typography:
+  caption-display:
+    fontFamily: "Archivo, system-ui, sans-serif"
+    fontSize: "64px"
+    fontWeight: 800
+    lineHeight: 0.86
+    letterSpacing: "0.01em"
+    fontVariation: "'wdth' 62"
   caption-xl:
     fontFamily: "Archivo, system-ui, sans-serif"
     fontSize: "24px"
@@ -65,6 +72,13 @@ typography:
     fontWeight: 800
     lineHeight: 1
     letterSpacing: "0.04em"
+    fontVariation: "'wdth' 62"
+  number-display:
+    fontFamily: "Archivo, system-ui, sans-serif"
+    fontSize: "140px"
+    fontWeight: 800
+    lineHeight: 0.74
+    fontFeature: "'tnum' 1"
     fontVariation: "'wdth' 62"
   number-hero:
     fontFamily: "Archivo, system-ui, sans-serif"
@@ -296,6 +310,8 @@ The same roles on a bright set. Plates, plate ink, the chyron fill and its ink d
 **Character:** One family split by width, like a broadcast package. The condensed caps are loud and compact, so a long castaway name still fits a 390px plate; the normal width underneath is plain and readable.
 
 ### Hierarchy
+- **Title card** (800, 64px, condensed caps, line-height .86; 48px when the name runs past 14 characters): a game's name over the show's art on its own page. The reveal's and Waivers' big headings use the same size.
+- **Big graphic number** (800, 140px, condensed, tabular, line-height .74; 104px past two characters): the one number a game's page (or the reveal's moment) leads with, with what it counts beside it in 26px caps.
 - **Section heading** (800, 24px, condensed caps, line-height 1): Overview sections and other page sections (`section-title`, `DashCard`).
 - **Page title / plate title** (800, 22px, condensed caps): the mobile header's page name, caption plate titles, bottom sheet titles.
 - **Small plate title** (800, 19px, condensed caps): the alert strip and small plates.
@@ -573,6 +589,7 @@ Mobile first, and for a thumb: motion explains a change you just made, never del
 - **Waiver banner → way in** (`waivers/team-waivers.tsx`): tapping Team / Lineup's banner smooth-scrolls to the Waivers way in and plays `.way-in-lit` on it once it's in view (opacity, plus a 1.02 → 1 settle), and focuses it.
 - **Applied**: applying an episode's results opens its page with a quiet "Applied · N results in your league" plate rising in once (`lib/applied-results-store.ts`; a reload or a later visit shows nothing).
 - **Roll call** (`new/show/recaps.tsx`, Fill in what happened's results): the episode our bot is writing up is a loading broadcast graphic. A small caption plate (quiet tag "Ep 3", the stage or "9 of 22 written up") comes on from the left (`.roll-in`, 300ms) when a new episode starts while you watch; under it a rail of one segment per person, each lighting as it's written up (`.seg-lit`: opacity and a scaleY from the bottom, 280ms, 45ms apart across the ones that arrive together); while ChatGPT searches, a light sweeps the rail (`.roll-sweep`, the loading mark's sweep). The live episode's chip fills from the bottom as a meter (`scaleY`, 700ms ease-out), and a chip that goes live or lands settles (`.chip-land`, 240ms). Past where you are it's one meter with no head count (how many are still in would give exits away). Nothing on first paint; under reduced motion the lit segments, the meter and the plate show, still.
+- **A game's own page** (`new/show/game-page.tsx`, the end of `new.css`): one entrance, on open: the title plate's tag slides in from behind the plate's left edge (`.gp-tag-in`, `translateX`, 260ms), then its words come out from under it (`.gp-plate-in`, 28px and a fade, 320ms after 120ms), both on the exponential ease-out (`cubic-bezier(.16,1,.3,1)`). After a reveal **the couch restacks**: each podium plate and standings row slides from where it was to its new place (FLIP, `translateY`, 420ms, the same ease), only when the order changes while you watch, never on first paint. Under reduced motion neither plays; the plate and the new order are simply there.
 - **Check**: `scripts/dev-test/check-motion.js` (parts: strip, sheet, tap, upnext, lineup, reduce, apply; fails on any animation that isn't transform or opacity), with `open({ motion: "on" | "off" | "reduce", watch })` in `scripts/dev-test/motion.js` for capturing deterministically.
 
 ## The new design (docs/PLAN-new-design.md, from step 0c)
@@ -592,6 +609,7 @@ The full-site mock (`.impeccable/mocks/site/`, decisions in memory `site-mock-de
 - **Chat** (`src/new/show/chat.tsx`, step 4): one chat per couch and show, flat on the ground. Day lines between hairlines; others' bubbles on the card, the name and time inside a run's first bubble and a 28px face beside its last; yours in bone on the right; reveal lines centred and muted with an eye ("riley revealed Episode 5"); reactions under the bubble; a message's sheet holds the quick reactions, Copy, Edit and Delete. The composer sits above the tab bar (lifted over the keyboard) and its send is grey, never yellow. What others said since an episode you haven't seen aired is **one dashed fold** where the first of it was ("5 messages since Episode 4 aired", who has revealed it, then Reveal Episode N and Show them, both outlines); its words never reach the page until you ask.
 - **Preview**: a part of a new screen not yet on real data has a 2px dashed Field Line outline and a small "Preview" tag, and its taps say "Coming soon" (`<Preview id>`, `src/new/preview.ts`). It isn't decoration; it goes as each step makes the part real.
 - **The first-time tour** (docs/PLAN-first-time-tour.md, `src/new/tour/`): over the real Home, once an account, a lower third at the phone's foot: a "Skip tour" pill, the step's example in a box over the shoulder (the real component in small, on made-up content, never a real result), and a caption plate with the count on a quiet tag, the title, one line and Next. **Next is the bone ink button, never yellow**: the tour teaches that yellow is your move, so it spends none (step 9's Turn on is ink too, as the reminder sheet's). What a step is about is lit: the `--scrim` with a hole and a 2px `--foreground` ring. Between steps the light goes off, the whole Home shows while the page scrolls as a person would (ease in and out, 0.9–2 s by distance), and it comes back on at arrival; targets on the same screen glide. The step's words change as the move starts; its example waits for the light, then a beat before it moves and before each simulated tap (a white ring with a dark edge, `.nd-tour-tap`, readable on a white plate, a yellow button and the night). Reduced motion: no glides, and each example holds its teaching picture.
+- **A game's own page** (U1, docs/PLAN-start-a-game-gpt.md; "The broadcast segment", `src/new/show/game-page.tsx`, laid out from the game's spec by `src/lib/game/game-page/`): any game runs like a segment of the show, never a fantasy-app page of tabs, avatar cards and a stats table. **The title card**: the back link and the show's name, then the game's name in 64px condensed caps (48px when long) over the show's art in **full colour**, washed toward Night at the left, the right edge and the foot so the name reads (the user, 2026-11-08: a change from the greyscale texture elsewhere). Under it **the title plate**, a small plate whose tag is the show's colour read from its art ("Ep 7", "Final"), its ink plate ink or white by contrast, and whose title is when the next episode airs; then the game's **twists** as small outlined caps tags (28px, 2px corners, at most four, none the page already says). **The alert strip** is the screen's one yellow only when a move is due (60px, chyron tag); otherwise a small plate on a quiet tag (Set, All set, Final), and its chevron points down when the move is made on this page. **The big graphic**: where you stand, as one 140px condensed number with what it counts beside it in 26px caps (104px past two characters), or for head to head the face-off, both seats' 52px faces either side of the score. Faces here are 52px, ringed in the foreground when they're the ones you hold, with a tone corner badge (a tick, a cross, a number). **The move in place** (a game of questions): the answer controls (`answer-controls.tsx`), one per answer kind; chosen is white (a ring or a filled chip), never yellow; its riders (a stake, what it's worth now, a rollover, beat the bot) are small panel rows under the control. On the page the confirm is a white plate button that names what it saves ("Save 3 answers", "Saved", "Answer to save"), never yellow, since the strip above already has it; in the Your moves sheet the same controls keep the yellow Save. **The couch** is a podium of extra-small caption plates (the top three, and you; your tag is bone "4 · You" with your name as the title), then 48px standings rows; **Previously on** is a 32px caps heading over extra-small plates with a cut-in headshot, as far as you've watched; **How it plays** closes it. The quick actions (Tonight's card, the dock, Your moves) stay plain and stay where they are. This page bends **Plates are for single moments**: the podium and Previously on stack plates the way a broadcast stacks lower thirds, here only.
 
 ## Do's and Don'ts
 

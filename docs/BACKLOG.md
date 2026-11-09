@@ -418,7 +418,8 @@ Last updated 2026-10-27.
     - **A single question's strip says "1 question for Episode 7"**, not the question ("Who goes home?"): `SheetMove` has no
       ask. A word on the view, or the page's own questions read first. (U1, small.)
     - **A game in stages** shows the stage strip and its overall points, not the current stage's own main block (each stage is
-      a league of its own: its page could link to it). (U1.)
+      a league of its own: its page could link to it); and its title plate says "Episode 7 is next" with no air time, which
+      lives on the current stage's own league (its lineup's lock), not the parent's view (`model.ts nextOf`). (U1.)
     - **The show's colour on the title plate's tag** falls back to the chart colour when the art can't be read in a canvas
       (another site's picture without CORS: `tune-in.tsx colourOf`), as the tune-in does. (Any time, small.)
     - **The bracket control** pairs a later round from your own picks before it, in order; the server checks it
