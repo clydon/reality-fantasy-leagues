@@ -237,6 +237,7 @@ and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track
 | A face carries its qualifier (2026-11-08) | **The user:** "Cast might need faction/position or something qualifying next to their name. For instance sports wed want to see WR/1B/ST/etc, or below deck we'd want to see 1st Stew, Bosun, Chef." Every face shows a qualifier on the line under the name, from the show's own data: its group (Survivor's tribe), its role (Below Deck's crew: Captain, Chief Stew, Bosun, Chef, Deckhand), a sport's position (WR, 1B, ST, GK), with the team when a list mixes teams. It generalises the app's cast tile's tribe line: a state that matters (Used Ep 2, Starting, Out) takes the line, keeping a short position beside it (WR · Starting). A secret faction never shows until it's revealed (The Traitors' Traitors). Data: season_cast's group and role columns, research where a source lacks one (TVmaze lists some crew under their own names), a sport's roster positions. In the mocks (version 49); U1 builds it into the cast tile and every face. |
 | U1 step 1's calls (2026-11-08) | **The user, at impeccable's questions before the build:** the universal page first, the four show themes (Survivor, The Traitors, Below Deck, the NY Giants) a later step; the title card's show art in **full colour** (washed toward Night at the left and foot so the title reads), not the greyscale texture; the Games tab stays as it is, each game's name on it (and Tonight's game tiles) opening the game's page, the launcher still U0's. |
 | A standard fantasy football season, and slots for any show (2026-11-08) | **Planned as L9** (the user: "yes add it to the plan"; then "this positioning applies across different show types too": slots take the cast's own role or group, Below Deck's Deckhand and Stew as a sport's WR and TE). The season, draft, weekly lineup, points per stat, D/ST, kicker, head to head with playoffs and waivers already play in the engine; L9 adds lineup slots (QB, RB, WR, TE, flex, K, D/ST, bench; superflex/OP, three WR and two flex as data), IR (from ESPN's injury status), FAAB bids and trades, then their screens in U1. For the engine lane. |
+| The person sheet and the cast sheet on every game's page (2026-11-08) | **The user** (with two screenshots of today's Games tab sheets, Survival Pool's picks and Weekly Lineup's week by week): "we need a way to see other players picks and plays week by week. I'm particularly proud of the uiux of this... apply something like that universally within the games pages (it'll be navigated to naturally by tapping on names of users. Additionally tapping on cast members names should also show some sort of stats)". Designed the same day as today's sheet made universal from the spec, and the Castaways tab's story sheet with the game's lens (canvas v53); a U1 step. The user's look-over is pending. |
 | Live calls (A15) and the live screens (2026-11-08) | **The user's answers** (U0's last round, impeccable shape): live calls are **the game's, on the show's clock**: they open and close at moments of the episode's runtime ("before tribal: who goes home?", "the next 10 minutes: an idol?"), an earlier answer worth more, nobody running anything (not couch-made, not a host). **Late viewers play on their own clock**: a call opens at the same runtime for anyone watching along, honour-based like bingo, so a Friday streamer plays too; nothing answered after that person has revealed the episode's results counts. **Sports sync by "tap the last play you saw"**: a stream 30-60 seconds behind snaps its clock, and the feed, scores and calls wait for it; Hide scores honours it. They live in today's watch along (step 13's layer: its clock, the 30 s safety margin, who's on now, a planned night's one clock). |
 
 ## What's there today (mapped 2026-10-27)
@@ -12093,6 +12094,26 @@ first), and proves it on these games and on the tracker's other rows that use it
     its right edge, the show tag's ink by contrast. **Open at the ceiling** (its last verdict: fix): describe.js's words on the
     page (the engine lane), a Gold avatar beside the yellow strip (the user's call), Stages' title plate without its air time;
     all in BACKLOG 40. What it noticed and left is BACKLOG 40.
+  - **Next: the person sheet and the cast sheet on every game's page** (designed 2026-11-08 in U0, canvas v53: boards
+    "The person sheet, on every game's page" and "The cast sheet on a game's page, and the census"; the user's ask in Decisions).
+    **Tapping a name** anywhere on a game's page (the couch's rows, the podium, Previously on, a face-off) opens that person's
+    sheet, and the Games tab's rows open the same sheet for every game (today calls, bingo and questions don't open). It is
+    today's sheet kept as it is (`games.tsx` PlayerSheet, `lineup-sheet.tsx`: the header with their name, the game, their place
+    of N and their total in the game's own terms, ‹ › and a swipe through the couch in the table's order) made universal from the
+    spec: **a strip of their weeks** in the game's terms (bars of points with the dashed average, as today; a pick a week as faces
+    right or wrong, as today's pool; won or lost with the score; bars marking the episodes they won; the couch's lives; bars
+    climbing to the target; each stage's own in turn), **the chosen episode** (a column tapped or the weeks swiped, as today)
+    with its plays in their scored state (their answers with the right one and what each earned; started and bench; the team
+    with its best counted; who left and what it scored; the pick; the picks and their moments; their card marked; their squares;
+    a slate's picks; their calls with the minute each was made), then **the season** (the team, every pick, or their totals).
+    Only up to the viewer's spoiler mark; anyone's next move shows only that it's set until it's decided (today's rule). **Tapping
+    a castaway** opens the Castaways tab's story sheet (`cast.tsx` StorySheet) with **In this game** on top: who picked or holds
+    them and how it went (survived, counted for whom), this game's own points beside the show's when only some moments count (a
+    story moment that doesn't count here says so), and who's picked them next stays hidden until it's decided; a sport's player,
+    their game log (PLAN-sports-live's player sheet). The mock's census reads all 2,701 specs into a strip and an episode's block
+    from the spec alone, none left without one (`make_person_sheet.js`, the U0 scratchpad; a copy in .impeccable/mocks/game-page/).
+    **Needs:** each person's plays by episode on `GameView` for every kind (today only a lineup's weeks and a pool's picks), with
+    BACKLOG 40's twists' state; the sheet's blocks reuse the sixteen answer controls in their scored state.
 
 **L. Live sports:** the steps are in "Live sports in the same engine", above (L1–L6, the Sports lane).
 

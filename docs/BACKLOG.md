@@ -415,6 +415,7 @@ Last updated 2026-10-27.
       budget's balance, lives left in a pool, nor a twist chosen; the page shows each as a tag on the title card and in How it
       plays. Each wants its state on `GameView`, then its badge on the face or its column in the couch. (U1's next steps.)
     - **The couch's rows don't open anyone**: the Games tab's player sheet (`games.tsx` PlayerSheet) isn't exported. (U1.)
+      **Planned 2026-11-08:** U1's person sheet and cast sheet step (PLAN-start-a-game-gpt.md, after step 1; canvas v53).
     - **A single question's strip says "1 question for Episode 7"**, not the question ("Who goes home?"): `SheetMove` has no
       ask. A word on the view, or the page's own questions read first. (U1, small.)
     - **A game in stages** shows the stage strip and its overall points, not the current stage's own main block (each stage is
