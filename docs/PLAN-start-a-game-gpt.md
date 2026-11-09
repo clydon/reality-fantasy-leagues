@@ -12137,6 +12137,16 @@ first), and proves it on these games and on the tracker's other rows that use it
     everyone's plays that night (‹ › steps episodes), a face that castaway in this game, your move Your moves, How it plays the
     rules; inside a sheet the same doors. Each is a sheet over the last with the path back on top; Close shuts them all. U1 step
     1's page changes to this: its couch, Previously on and big number give way to the grid and You.
+    **For every generated game** (the user: "this flavor of layout is used across all generated games right?"): the frame and the
+    drill downs are the same; a square holds what the game's strip holds, by the census's reading of the spec (of 2,701 specs:
+    points 1,880, the episode's points, the week's best bright; head to head 371, W or L with the score; a race 138, the running
+    total and a target column; episodes won 134, the points with the won ones marked; a pool 83, the pick's face right or wrong;
+    co-op 61, each one's right or wrong and a row for the couch's lives; stages 34, a block of columns a stage), and You is that
+    game's own episode block. **Defaults where the grid adapts** (mine, for the user's look): a one-night game shows that night's
+    view for everyone in the grid's place; a long season shows the latest seven columns and scrolls sideways, names pinned; a big
+    couch or a public game shows the top rows and yours, with All N to open; a draft with nothing to set each week (Outlast) shows
+    points earned or who's left, You its team; a sport's columns are its weeks or games (an MLB series, three). Mocked whole so far:
+    Survival Pool, Weekly Lineup and Predictions.
 
 **L. Live sports:** the steps are in "Live sports in the same engine", above (L1–L6, the Sports lane).
 
