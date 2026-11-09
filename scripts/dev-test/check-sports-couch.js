@@ -110,7 +110,7 @@ async function main() {
   const alex = fixture.username("alex");
   const me = await signIn({ user: alex, pass: fixture.PASSWORD, headers });
   const couch = fx.couchId;
-  const started = {};
+  const started = { espn };
   try {
     if (only !== "browser") await apiChecks(pool, me, couch, started);
     if (only !== "api") await browserChecks(pool, headers, couch);
@@ -199,9 +199,38 @@ async function apiChecks(pool, me, couch, started) {
   check(shown.status === 200 && shown.body.moved >= 1 && (await seenThrough(uid, sq.body.seasonId)) === 1, "Show the score moves the mark to that game", shown.body);
   await me.call("PUT", "/api/me/profile", { hideSportsScores: false });
 
+  // It plays: alex picks the Eagles in the season's first game, the game goes final in the stand-in, the daily refresh keeps the
+  // final, and the pick is graded right.
+  if (ss.body.leagueId) {
+    const q = await me.call("GET", `/api/seasons/${ss.body.seasonId}/answers?league=${ss.body.leagueId}`);
+    const winner = q.body.questions?.find((x) => /win/i.test(x.ask ?? x.question?.ask ?? ""));
+    check(winner?.faces?.length === 2 && winner.faces.some((f) => /Eagles/.test(f.name)), "Pick'em's question offers the game's two teams", winner?.faces);
+    const side = winner?.faces?.find((f) => /Eagles/.test(f.name))?.id;
+    const a = winner ? await me.call("POST", `/api/seasons/${ss.body.seasonId}/answers?league=${ss.body.leagueId}`, { answers: { [winner.id]: side } }) : { status: 0, body: q.body };
+    const mineNow = await me.call("GET", `/api/seasons/${ss.body.seasonId}/answers?league=${ss.body.leagueId}`);
+    check(a.status === 200 && mineNow.body.questions?.find((x) => x.id === winner?.id)?.mine != null, "Pick'em: the pick goes in before kickoff", { a: a.body });
+    const ev = started.espn.events.find((e) => e.id === "93104");
+    // Its box score, as the summary carries one once it's over (the final is kept with its lines: finals.ts).
+    const box = (t) => ({ labels: ["C/ATT", "YDS", "TD"], rows: [{ id: t.roster[0].id, name: t.roster[0].name, position: "QB", stats: ["20/30", "250", "2"] }] });
+    Object.assign(ev, { state: "post", score: [27, 20], at: at(-3 * H), box: { 9301: box(TEAMS[0]), 9302: box(TEAMS[1]) } });
+    await pool.query("DELETE FROM sports_cache WHERE key LIKE 'zt-standin:%'");
+    const { refreshSportsEvents } = jiti("../../src/lib/server/sports/matchup.ts");
+    const { sportsProviders } = jiti("../../src/lib/server/sports/index.ts");
+    const r = await refreshSportsEvents({ providers: sportsProviders({ base: started.espn.url }), only: [ss.body.seasonId] });
+    const { saveFinals } = jiti("../../src/lib/server/sports/finals.ts");
+    // As of three days on: a box score the sport's reader can't read is kept as none after two (the stand-in's isn't ESPN's own).
+    const kept = await saveFinals({ providers: sportsProviders({ base: started.espn.url }), seasons: [ss.body.seasonId], now: new Date(Date.now() + 3 * D) });
+    const fin = (await pool.query("SELECT final, lines_at FROM sports_events WHERE league = $1 AND event_id = '93104'", [FB])).rows[0];
+    check(!!fin?.final && !!fin.lines_at, "the daily job keeps the game's final and its lines", { r, kept, fin });
+    const after = await me.call("GET", `/api/seasons/${ss.body.seasonId}/answers?league=${ss.body.leagueId}&episode=${ss.body.from}`);
+    const mine = JSON.stringify(after.body);
+    check(/"right":true|"correct":true|"points":1/.test(mine), "the pick is graded right once the game is final", mine.slice(400, 2600));
+    Object.assign(ev, { state: "pre", score: undefined, box: undefined, at: at(2 * D) });
+  }
+
   // Each started game's page.
   for (const [k, g] of Object.entries(started)) {
-    if (!g?.leagueId) continue;
+    if (!g?.leagueId || k === "espn") continue;
     const r = await me.raw("GET", `/show/${g.seasonId}/game/${g.leagueId}`);
     check(r.status === 200, `the ${k} game's page answers`, r.status);
   }

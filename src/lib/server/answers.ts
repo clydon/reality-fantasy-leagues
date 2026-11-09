@@ -237,6 +237,10 @@ function lastStartOf(facts: AnswerFacts, ep: number): string | null {
 }
 
 /** L3 part 2f part 2: a question about each game's games at a window, as the view lists them (QuestionView.games). */
+/** A side's faces (one game's two teams, by name), as a question about each game's are. */
+const sideFaces = (g: SportsGameFacts | undefined): QuestionFace[] | null =>
+  g ? (g.listing?.sides ?? g.sides.map((x) => ({ id: x.id, name: null }))).map((x) => ({ id: x.id, name: x.name ?? "A team", photo: null })) : null;
+
 function gamesView(facts: AnswerFacts, q: Question, ep: number, now: number): NonNullable<QuestionView["games"]> {
   return [...(facts.slate?.get(ep) ?? new Map<string, SportsGameFacts>())]
     .map(([id, g]) => ({
@@ -244,7 +248,7 @@ function gamesView(facts: AnswerFacts, q: Question, ep: number, now: number): No
       name: g.listing?.name ?? null,
       startsAt: g.listing?.startsAt ?? null,
       started: gameStarted(g, now),
-      sides: (g.listing?.sides ?? g.sides.map((x) => ({ id: x.id, name: null }))).map((x) => ({ id: x.id, name: x.name ?? "A team", photo: null })),
+      sides: sideFaces(g)!,
       // L3 part 3b: an over/under on each game's own line, the one kept when its pick opened (null: none out yet: no pick for it).
       line: q.line === Spec.LINE_GAME ? keptLine(facts, q, ep, id) : null,
       called: g.status === "off" ? (g.called ?? null) : null,
@@ -618,8 +622,13 @@ async function readQuestions(r: Read, episodeIn?: unknown): Promise<GameQuestion
       status: closed ? "closed" : behind ? "behind" : lineComing ? "waiting" : "open",
       catchUp: behind && !catching ? seen : null,
       closesAt: (q.each === "game" ? lastStartOf(facts, ep) : null) ?? airAt,
-      // A pairs question's faces are its pairs'.
-      faces: namesSomeone(q) && q.answer !== "pairs" && !behind ? facesFor(view, q, me, facts.formatGroups?.get(ep)) : null,
+      // A pairs question's faces are its pairs'; a side's (one game's: Pick'em on a matchup's game) its game's two teams.
+      faces:
+        q.answer === "side" && q.each !== "game" && !behind
+          ? sideFaces(facts.games?.get(ep || (StateLogic.startEpisode(h.state) ?? 1)))
+          : namesSomeone(q) && q.answer !== "pairs" && !behind
+            ? facesFor(view, q, me, facts.formatGroups?.get(ep))
+            : null,
       draw: q.answer === "bracket" && !behind ? await drawView(view, h.state, q, ep || (StateLogic.startEpisode(h.state) ?? 1), facts) : null,
       offWhy: !behind ? (triviaOff ?? offWhy(q, facts.formatGroups?.get(ep))) : null,
       trivia: round,
