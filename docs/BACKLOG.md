@@ -494,6 +494,14 @@ Last updated 2026-10-27.
       `watching/`, `tour/` or the guide (not run on master to prove it). Its Start a game step's selectors now name the wizard's
       (`[data-start-game="predictions"]`, `[data-start-describe]`); the practice's Start a game in the wizard runs in
       `check-start-a-game.js` instead (Next through the tour to step 9). Bring check-new-tour.js up to date. (The tour's owner, small.)
+    - **Left from impeccable's critique (2026-11-09, 28/40 before the fixes; dual-agent):** the steps' screens change the game's
+      kind (Before it starts lists every game) where the critique would keep kind changes to the rail and Every game, and Tell the
+      couch is on by default two screens below Start it: both the settled board's, so **the user's call**. The question wording
+      ("who'll be the one: voted against the majority") and How it plays' stitched sentence are describe.js's (the engine lane,
+      with BACKLOG 40's words). 14px and 17px type sit off DESIGN.md's ramp here as across the app (about 355 and 70 uses): add the
+      steps to DESIGN.md or snap them, app-wide. The sheet's Close and back are 40px (`ui/sheet.tsx`, every sheet). The game's
+      name shows on the card and in the footer (the board's), and the first screen holds about 22 choices. (The user's calls, then
+      U1 small.)
     - **Episode types and rounds** (Big Brother's weeks, a recoupling night) stay tabled, as in U0.
     - **Not checked on Studio** (the new design is Night only until step 15).
 

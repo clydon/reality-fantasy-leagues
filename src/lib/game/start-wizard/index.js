@@ -582,7 +582,7 @@ function createWizard(input) {
               : choice.scoring && choice.scoring !== 'standard'
                 ? SCORINGS[choice.scoring].name
                 : sc.only || (sc.points && Object.keys(sc.points).some((id) => sc.points[id] !== 0))
-                  ? `${nameOf(span, choice)}’s own`
+                  ? `${possessive(nameOf(span, choice))} own`
                   : 'Standard points';
     return name + (n ? ', changed' : '');
   }
@@ -918,6 +918,9 @@ function hash(text) {
   }
   return (a >>> 0).toString(36);
 }
+
+/** "Outlast's", "Weekly Picks'". */
+const possessive = (name) => (/s$/.test(name) ? `${name}’` : `${name}’s`);
 
 const fmt = (n) => (n < 0 ? `−${-n}` : String(n));
 

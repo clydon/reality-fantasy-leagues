@@ -346,21 +346,42 @@ function Wizardly({
     setTimeout(() => setFlash(""), 1600);
   };
 
-  // A new stretch: the game starts over when it had changes (or another game was picked), said with an undo back.
+  // A new stretch keeps the game when it still fits (its changes start over), else the stretch's classic: either way said, with an
+  // undo back (the critique: a mode change swapped the game silently).
   const setSpan = (next: Span, wait: string | null = null) => {
-    const had = ok && (changes.length > 0 || (!!choice.sel && choice.sel !== g.list[0]?.id));
     const was = { span, choice, mode };
+    const undo = () => {
+      setSpanRaw(was.span);
+      setChoice(was.choice);
+      setMode(was.mode);
+    };
+    // A game someone picked stays; the default gives way to the new stretch's classic.
+    const current = ok && c!.row.kind === "standard" && (!!choice.sel || changes.length > 0) ? c!.row : null;
+    const nextList = wizard.games(next).list;
+    const keep = !!current && nextList.some((x) => x.id === current.id);
     setSpanRaw(next);
     setAwaiting(wait);
-    if (had) {
+    if (wait) return setChoice({ ...choice, ...(keep ? {} : { ...W.fresh(), sel: "" }) } as Choice);
+    if (keep) {
+      setChoice({ ...W.fresh(), sel: current!.id } as Choice);
+      if (changes.length) say(`New ${o.part.plural}: ${current!.name}'s changes start over`, undo);
+    } else {
       setChoice({ ...W.fresh(), sel: "" } as Choice);
-      say(`New ${o.part.plural}, so the game starts over`, () => {
-        setSpanRaw(was.span);
-        setChoice(was.choice);
-        setMode(was.mode);
-      });
-    } else if (choice.sel === "shuffle" || choice.sel === "typed") setChoice({ ...W.fresh(), sel: "" } as Choice);
+      const stretch = W.sayRange(next, input).replace(/^./, (x) => x.toLowerCase());
+      if (current && nextList[0]) say(`${name} doesn't fit ${stretch}: now ${nextList[0].name}`, undo);
+      else if (ok && nextList[0] && nextList[0].id !== c!.row.id) toast.quiet(`Now ${nextList[0].name}, the classic for ${stretch}`);
+    }
   };
+  // The picked game's card in view on the rail, wherever it sits.
+  useEffect(() => {
+    if (screen !== "home") return;
+    const el = bodyRef.current?.querySelector<HTMLElement>('[data-start-game][aria-pressed="true"]');
+    const rail = el?.parentElement;
+    if (!el || !rail) return;
+    // Sideways only: the sheet stays where it's scrolled.
+    const left = el.offsetLeft - rail.offsetLeft;
+    if (left < rail.scrollLeft || left + el.offsetWidth > rail.scrollLeft + rail.clientWidth) rail.scrollTo({ left: Math.max(0, left - 16) });
+  }, [sel, span, screen]);
   const pickMode = (m: Mode) => {
     setMode(m);
     if (m === "tonight") setSpan(t.tonight);
@@ -401,7 +422,7 @@ function Wizardly({
       const r = await wizardApi.start(o.seasonId, couchId, { spec: startSpec, name: startName, tell, ...(bots ? { bots, level } : {}), ...(late ? { late: true } : {}), made });
       await refresh();
       // Start it tells the couch after a 10-second Undo (round 14's critique: one tap shouldn't ping everyone unseen).
-      toast(`${r.name} started${r.told ? ` · ${r.told === 1 ? "1 person hears" : `${r.told} hear`} in 10 seconds` : ""}`, {
+      toast(`${r.name} started${r.told ? " · the couch hears in 10 seconds" : ""}`, {
         ms: r.holdMs,
         undo: () => {
           wizardApi.undo(o.seasonId, couchId, r.leagueId).then(
@@ -458,7 +479,7 @@ function Wizardly({
     </div>
   );
   const done = (
-    <Btn tone="ink" wide data-start-done className="type-caption text-[20px]" onClick={() => go("home")}>
+    <Btn tone="ink" wide data-start-done className="type-caption text-[22px]" onClick={() => go("home")}>
       Done
     </Btn>
   );
@@ -479,11 +500,11 @@ function Wizardly({
         "Describe a new game",
         limited ? "Back at midnight" : askJob?.error?.status === 503 ? `Our AI is away · ${asksLeft ?? 10} of 10 asks left` : asksLeft === null ? "Our AI writes it, our engine checks it" : `${asksLeft} of your 10 asks left today`,
         limited ? (
-          <Btn tone="ink" wide className="type-caption text-[20px]" onClick={() => go("home")}>
+          <Btn tone="ink" wide className="type-caption text-[22px]" onClick={() => go("home")}>
             Back to the games
           </Btn>
         ) : (
-          <Btn tone="must" wide data-start-build className="type-caption text-[22px]" disabled={practice !== undefined} onClick={() => askAI(words)}>
+          <Btn tone={words.trim() ? "must" : "ink"} wide data-start-build className="type-caption text-[22px]" disabled={practice !== undefined} onClick={() => askAI(words)}>
             {askJob?.error?.status === 503 ? "Try again" : "Build it"}
           </Btn>
         )
@@ -526,7 +547,7 @@ function Wizardly({
       open={open}
       onOpenChange={onOpenChange}
       title={s ? s.title : "Start a game"}
-      subtitle={s ? s.back : `${o.label} · ${o.couch.name}`}
+      subtitle={s ? s.back : o.couch.name && o.couch.name !== o.label ? `${o.label} · for ${o.couch.name}` : o.label}
       back={s ? { label: `Back to ${s.back}`, onClick: () => go("home") } : undefined}
       foot={foot}
     >
@@ -584,7 +605,7 @@ function Wizardly({
               if (out.choice) {
                 const undo = choice;
                 setChoice(out.choice);
-                say("Shuffled: the engine rolled every part", undo, 5000);
+                say("Shuffled: a new game for these episodes", undo, 5000);
               }
             }}
             ask={() => go("ask")}
@@ -930,7 +951,7 @@ function Home(p: {
   const n = W.nOf(span, input);
 
   return (
-    <div data-start-home>
+    <div data-start-home className="pb-4">
       <Label>When it runs</Label>
       <div role="radiogroup" aria-label="When it runs" className="flex rounded-[4px] bg-background p-[3px]">
         {(
@@ -1006,12 +1027,12 @@ function Home(p: {
                 ))}
               </span>
               <span className="line-clamp-2 text-[15px] font-bold leading-tight">{x.name}</span>
-              <span className={`line-clamp-2 text-[12px] leading-snug ${on ? "text-background/70" : "text-muted-foreground"}`}>{[x.role, kindLine].filter(Boolean).join(" · ")}</span>
+              <span className={`line-clamp-2 text-[13px] leading-snug ${on ? "text-background/70" : "text-muted-foreground"}`}>{[x.role, kindLine].filter(Boolean).join(" · ")}</span>
             </button>
           );
         })}
       </div>
-      {shuffled && c?.row && <p className="mt-2.5 text-[14px] leading-[1.45] text-foreground/85">{c.row.kind === "typed" ? "Your words, as our engine plays them." : "Shuffled for you: the engine picked every part."}</p>}
+      {shuffled && c?.row && <p className="mt-2.5 text-[14px] leading-[1.45] text-foreground/85">{c.row.kind === "typed" ? "Your words, as our engine plays them." : "Shuffled for you: keep the parts you like, then Surprise me again."}</p>}
 
       {ok ? (
         <div data-start-card className="mt-3 rounded-[3px] bg-plate px-3 pb-2.5 pt-3.5 text-plate-foreground shadow-plate">
@@ -1042,7 +1063,7 @@ function Home(p: {
                   <span className="type-caption text-[11px] tracking-[0.05em] text-plate-muted">{st.label}</span>
                   <Drawing draw={st.draw} />
                   <span className="text-[14px] font-bold leading-tight">{st.words}</span>
-                  {extra.length > 0 && <span className="text-[12px] leading-snug text-plate-muted">{extra.map((x) => `+ ${x}`).join(" · ")}</span>}
+                  {extra.length > 0 && <span className="text-[13px] leading-snug text-plate-muted">{extra.map((x) => `+ ${x}`).join(" · ")}</span>}
                   <span className="type-caption mt-auto pt-0.5 text-[11px] tracking-[0.05em] underline underline-offset-[3px]">Change</span>
                 </button>
               );
@@ -1056,12 +1077,12 @@ function Home(p: {
                 data-start-quick={q.id}
                 aria-disabled={q.off}
                 onClick={() => p.onQuick(q.id)}
-                className={`flex min-h-[52px] min-w-0 items-center gap-1.5 rounded-[4px] border bg-plate px-2 py-1.5 text-left text-[14px] font-semibold leading-tight ${q.off ? "border-dashed border-plate-muted/40 opacity-55" : "border-plate-muted/40"}`}
+                className={`flex min-h-[52px] min-w-0 items-center gap-1.5 rounded-[4px] border bg-plate px-2 py-1.5 text-left text-[14px] font-semibold leading-tight ${q.off ? "border-dashed border-plate-muted/50 text-plate-muted" : "border-plate-muted/40"}`}
               >
                 <Glyph d={q.id === "comp" ? ICONS.h2h : q.id === "casual" ? ICONS.casual : q.id === "score" ? ICONS.points : ICONS.spark} className="size-[18px]" />
                 <span className="flex min-w-0 flex-col">
                   <span>{q.label}</span>
-                  <span className="mt-0.5 line-clamp-2 text-[12px] font-normal leading-snug text-plate-muted">{q.next}</span>
+                  <span className="mt-0.5 line-clamp-2 text-[13px] font-normal leading-snug text-plate-muted">{q.next}</span>
                 </span>
               </button>
             ))}
@@ -1106,7 +1127,7 @@ function Home(p: {
               aria-pressed={!!p.locks[k]}
               data-start-keep={k}
               onClick={() => p.setLocks({ ...p.locks, [k]: !p.locks[k] })}
-              className={`min-h-10 rounded-full border px-3 text-[13px] font-semibold ${p.locks[k] ? "border-foreground bg-foreground text-background" : "border-edge"}`}
+              className={`min-h-11 rounded-[4px] border px-3 text-[13px] font-semibold ${p.locks[k] ? "border-foreground bg-foreground text-background" : "border-edge"}`}
             >
               {label}
             </button>
@@ -1120,7 +1141,7 @@ function Home(p: {
           <span className="min-w-0">
             Describe a new game
             {p.askJob && (
-              <small className="block text-[12px] font-normal text-muted-foreground">{p.askJob.state === "wait" ? "Building…" : p.askJob.state === "done" ? "Ready: see it" : "Didn’t build"}</small>
+              <small className="block text-[13px] font-normal text-muted-foreground">{p.askJob.state === "wait" ? "Building…" : p.askJob.state === "done" ? "Ready: see it" : "Didn’t build"}</small>
             )}
           </span>
         </button>
@@ -1191,7 +1212,7 @@ function Custom(p: Parameters<typeof Home>[0]) {
               aria-pressed={p.cview === id}
               data-start-cview={id}
               onClick={() => p.setCview(id)}
-              className={`h-[34px] rounded-full border px-3.5 text-[13px] font-semibold ${p.cview === id ? "border-foreground bg-foreground text-background" : "border-edge"}`}
+              className={`h-11 rounded-[4px] border px-3.5 text-[14px] font-semibold ${p.cview === id ? "border-foreground bg-foreground text-background" : "border-edge"}`}
             >
               {label}
             </button>
@@ -1203,7 +1224,11 @@ function Custom(p: Parameters<typeof Home>[0]) {
           {t.stages.map((st, i) => {
             const inSpan = (() => {
               // A stage is in the stretch when its edges sit inside it (phase edges match by phase).
-              const a = JSON.stringify(st.span.from) === JSON.stringify(span.from) || (fromN(st.span.from) !== null && fromN(span.from) !== null && fromN(st.span.from)! >= fromN(span.from)!);
+              const a =
+                JSON.stringify(st.span.from) === JSON.stringify(span.from) ||
+                (fromN(st.span.from) !== null && fromN(span.from) !== null && fromN(st.span.from)! >= fromN(span.from)!) ||
+                // A stage that starts with a phase is inside a stretch that starts with an episode before it.
+                (fromN(st.span.from) === null && fromN(span.from) !== null);
               const endIn = span.to === null || JSON.stringify(st.span.to) === JSON.stringify(span.to) || (typeof st.span.to === "number" && typeof span.to === "number" && st.span.to <= span.to);
               const startAfter = typeof st.span.from === "number" && typeof span.to === "number" && st.span.from > span.to;
               const beforeStart = typeof st.span.to === "number" && typeof span.from === "number" && st.span.to < span.from;
@@ -1276,7 +1301,7 @@ function Custom(p: Parameters<typeof Home>[0]) {
           : p.awaiting
             ? "Tap a later stage to run through it, or the same one again for just that one."
             : p.cview === "stages" && t.stages.length
-              ? "Tap a stage for all of it. ≈: nobody can date it yet, so it runs whenever it happens."
+              ? "Tap a stage for all of it. ≈ marks a stage nobody can date yet: it runs from whenever it happens."
               : `Tap where it starts, then where it ends.`}
       </Note>
     </div>
@@ -1442,7 +1467,7 @@ function StepScreen(p: {
               <Tick on={on} />
               <span className="text-[15px] leading-snug">
                 {W.twistLabel(tw.id, on ? times : v?.times)}
-                {tw.says && <span className="ml-1.5 text-[12px] text-muted-foreground">{tw.says}</span>}
+                {tw.says && <span className="ml-1.5 text-[13px] text-muted-foreground">{tw.says}</span>}
               </span>
             </button>
           ))}
@@ -1478,7 +1503,7 @@ function BetsScreen({ W, wizard, span, ch, sentence, onBet }: { W: WM; wizard: W
               </span>
               <span className="text-[15px] leading-snug">
                 {label}
-                <span className="ml-1.5 text-[12px] text-muted-foreground">{says}</span>
+                <span className="mt-0.5 block text-[13px] text-muted-foreground">{says}</span>
               </span>
             </button>
           );
@@ -1519,7 +1544,7 @@ function ScoresScreen({ o, W, wizard, span, ch, name, onChoice, onWhy, onOwn }: 
                     aria-pressed={on}
                     data-start-scoring={id}
                     onClick={() => onChoice({ ...ch, scoring: id as Choice["scoring"], edits: {}, off: [] })}
-                    className={`inline-flex min-h-9 items-center rounded-[4px] border px-2.5 text-[13px] font-semibold ${on ? "border-foreground bg-foreground text-background" : "border-edge"}`}
+                    className={`inline-flex min-h-11 items-center rounded-[4px] border px-2.5 text-[13px] font-semibold ${on ? "border-foreground bg-foreground text-background" : "border-edge"}`}
                   >
                     {W.SCORINGS[id].name}
                   </button>
@@ -1542,7 +1567,7 @@ function ScoresScreen({ o, W, wizard, span, ch, name, onChoice, onWhy, onOwn }: 
             ))}
           {rows.rows.some((r) => !r.on) && (
             <div>
-              <p className="type-caption mb-1 mt-[18px] flex items-baseline justify-between text-[13px] tracking-[0.05em] text-muted-foreground">
+              <p className="type-caption mt-3 flex min-h-11 items-center justify-between text-[13px] tracking-[0.05em] text-muted-foreground">
                 Not counting · {rows.rows.filter((r) => !r.on).length}
                 <Link onClick={() => setShowOff(!showOff)} data-start-showoff="">
                   {showOff ? "Hide" : "Show them"}
@@ -1556,11 +1581,11 @@ function ScoresScreen({ o, W, wizard, span, ch, name, onChoice, onWhy, onOwn }: 
           )}
           {adding ? (
             <div className="mt-3.5">
-              <label htmlFor="own-moment" className="type-caption mb-1.5 block text-[12px] tracking-[0.05em] text-muted-foreground">
+              <label htmlFor="own-moment" className="type-caption mb-1.5 block text-[13px] tracking-[0.05em] text-muted-foreground">
                 Add a moment of your own
               </label>
               <div className="flex gap-2">
-                <input id="own-moment" value={own} onChange={(e) => setOwn(e.target.value)} placeholder="Did anyone cry?" maxLength={120} className="h-12 min-w-0 flex-1 rounded-[4px] border border-input bg-background px-3 text-[16px] caret-chyron-line outline-none focus:border-chyron-line" />
+                <input id="own-moment" value={own} onChange={(e) => setOwn(e.target.value)} placeholder="Did anyone cry?" maxLength={120} className="h-12 min-w-0 flex-1 rounded-[4px] border border-input bg-background px-3 text-[16px] caret-chyron-line outline-none focus:border-chyron-line focus:ring-[3px] focus:ring-chyron-line/20" />
                 <button type="button" onClick={() => (own.trim() ? onOwn(own.trim()) : onWhy("Type the moment first"))} className="h-12 rounded-[4px] border border-edge px-4 text-[15px] font-semibold">
                   Ask
                 </button>
@@ -1635,7 +1660,7 @@ function MomentRow({ m, onToggle, onPts }: { m: { id: string; says: string; pts:
         <Tick on={m.on} />
         <span className="text-[15px] leading-snug">
           {m.says}
-          {m.added ? <span className="ml-1.5 text-[12px] text-muted-foreground">research asks it</span> : m.changed && <span className="ml-1.5 text-[12px] text-muted-foreground">was {fmt(m.was)}</span>}
+          {m.added ? <span className="ml-1.5 text-[13px] text-muted-foreground">research asks it</span> : m.changed && <span className="ml-1.5 text-[13px] text-muted-foreground">was {fmt(m.was)}</span>}
         </span>
       </button>
       <Stepper label={m.says} value={fmt(m.pts)} onDec={() => onPts(m.pts - 1)} onInc={() => onPts((m.on ? m.pts : 0) + 1)} />
@@ -1730,7 +1755,7 @@ function AskScreen(p: {
   const { o, job } = p;
   const compose = (
     <div>
-      <label htmlFor="ask-words" className="type-caption mb-1.5 block text-[12px] tracking-[0.05em] text-muted-foreground">
+      <label htmlFor="ask-words" className="type-caption mb-1.5 block text-[13px] tracking-[0.05em] text-muted-foreground">
         Your game, in your words
       </label>
       <textarea
@@ -1739,8 +1764,8 @@ function AskScreen(p: {
         value={p.words}
         onChange={(e) => p.setWords(e.target.value)}
         maxLength={2000}
-        placeholder="Pick who goes home each week, a bonus for calling the winner"
-        className="min-h-28 w-full resize-none rounded-[4px] border border-input bg-background p-3 text-[16px] leading-[1.45] caret-chyron-line outline-none placeholder:text-muted-foreground focus:border-chyron-line"
+        placeholder="Say it like you’d tell the couch"
+        className="min-h-28 w-full resize-none rounded-[4px] border border-input bg-background p-3 text-[16px] leading-[1.45] caret-chyron-line outline-none placeholder:text-muted-foreground/70 focus:border-chyron-line focus:ring-[3px] focus:ring-chyron-line/20"
       />
     </div>
   );
@@ -1788,7 +1813,7 @@ function AskScreen(p: {
           </div>
         ) : (
           <>
-            <p className="type-caption mb-2 mt-[18px] text-[12px] tracking-[0.05em] text-muted-foreground">Or start from one of these</p>
+            <p className="type-caption mb-2 mt-[18px] text-[13px] tracking-[0.05em] text-muted-foreground">Or start from one of these</p>
             <div className="flex flex-col gap-2">
               {EXAMPLES.map((x) => (
                 <button key={x} type="button" onClick={() => p.setWords(x)} className="min-h-12 rounded-[4px] border border-input px-3 py-2.5 text-left text-[14px] leading-snug">
@@ -1843,7 +1868,7 @@ function AskResult(p: Parameters<typeof AskScreen>[0] & { r: NonNullable<GameWor
             {wizard.steps(spec!).map((st) => (
               <div key={st.key} className="flex min-w-0 flex-1 flex-col gap-1">
                 <Drawing draw={st.draw} className="h-6 w-14" />
-                <span className="text-[12px] font-bold leading-tight">{st.words}</span>
+                <span className="text-[13px] font-bold leading-tight">{st.words}</span>
               </div>
             ))}
           </div>
@@ -1851,7 +1876,7 @@ function AskResult(p: Parameters<typeof AskScreen>[0] & { r: NonNullable<GameWor
         </>
       )}
       {!playable && <p className="type-caption text-[20px]">Not a game our engine can play yet</p>}
-      <p className="type-caption mb-1.5 mt-5 text-[12px] tracking-[0.05em] text-muted-foreground">From your words</p>
+      <p className="type-caption mb-1.5 mt-5 text-[13px] tracking-[0.05em] text-muted-foreground">From your words</p>
       <p data-start-yourwords className="text-[17px] leading-[1.65]">
         {segs.map((s, i) => (
           <span
@@ -1865,7 +1890,7 @@ function AskResult(p: Parameters<typeof AskScreen>[0] & { r: NonNullable<GameWor
       <Note className="mt-1">{segs.some((s) => s.k === "cant") ? "Underlined made it in. Dashed can’t count yet: below." : "Underlined: what made it into the game."}</Note>
       {r.cantYet.length > 0 && (
         <div className="mt-3.5 rounded-[4px] bg-secondary p-3">
-          <p className="type-caption mb-1 text-[12px] tracking-[0.05em] text-muted-foreground">Can’t count yet</p>
+          <p className="type-caption mb-1 text-[13px] tracking-[0.05em] text-muted-foreground">Can’t count yet</p>
           {r.cantYet.map((x, i) => (
             <div key={i} className="mt-1.5">
               <p className="text-[14px] font-bold leading-snug">{/^[a-z]+(\.|\[|$)/.test(x.what) ? "Part of it" : `“${x.what}”`}</p>
@@ -1879,7 +1904,7 @@ function AskResult(p: Parameters<typeof AskScreen>[0] & { r: NonNullable<GameWor
       )}
       {r.ask.length > 0 && (
         <div>
-          <p className="type-caption mb-1 mt-5 text-[12px] tracking-[0.05em] text-muted-foreground">Your call</p>
+          <p className="type-caption mb-1 mt-5 text-[13px] tracking-[0.05em] text-muted-foreground">Your call</p>
           {r.ask.map((a, qi) => (
             <div key={qi} className="mt-2.5">
               <p className="mb-2 text-[15px] font-semibold">{a.question}</p>
@@ -1915,7 +1940,7 @@ function AskResult(p: Parameters<typeof AskScreen>[0] & { r: NonNullable<GameWor
       )}
       {r.assumed.length > 0 && (
         <div>
-          <p className="type-caption mb-1 mt-5 text-[12px] tracking-[0.05em] text-muted-foreground">We filled in</p>
+          <p className="type-caption mb-1 mt-5 text-[13px] tracking-[0.05em] text-muted-foreground">We filled in</p>
           {r.assumed.slice(0, 6).map((x, i) => (
             <p key={i} className="mt-1.5 text-[14px] leading-snug text-foreground/85">
               <strong>{typeof x.value === "object" ? x.part : String(x.value)}</strong> · {x.why}
@@ -2052,7 +2077,7 @@ function MomentsScreen({ o, job, name, onBack, onAdd }: { o: WizardOptions; job:
               </button>
               <Stepper label={m.label} value={v} onDec={() => setPts({ ...pts, [i]: Math.max(1, v - 1) })} onInc={() => setPts({ ...pts, [i]: Math.min(10, v + 1) })} />
             </div>
-            <p className="ml-8 flex items-start gap-2 text-[12px] leading-snug text-muted-foreground">
+            <p className="ml-8 flex items-start gap-2 text-[13px] leading-snug text-muted-foreground">
               <i className={`mt-1 size-2 flex-none rounded-full ${(SURE[m.reliable] ?? SURE.low)[1]}`} aria-hidden />
               <span className="line-clamp-2">
                 <strong className="text-foreground/85">{(SURE[m.reliable] ?? SURE.low)[0]}</strong> · {m.why}
