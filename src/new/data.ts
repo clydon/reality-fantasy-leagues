@@ -37,6 +37,8 @@ import type { StepEpisode } from "@/lib/server/schedule";
 import type { ListingSeason } from "@/lib/server/listings";
 import type { MakeState } from "@/lib/server/make-game";
 import type { Started, StartOptions } from "@/lib/server/start-game";
+import type { SpecStarted, WizardOptions } from "@/lib/server/start-spec";
+import type { GameWordsResult } from "@/lib/server/game-words";
 import type { DeletePreview, EndGame } from "@/lib/server/end-game";
 import type { HiddenShow, WeekEpisode } from "@/lib/server/guide";
 import type { WeekListing } from "@/lib/game/tv-listings";
@@ -88,6 +90,8 @@ export type { CallMove } from "@/lib/game/game-view";
 export type { BotLevel, PoolInfo, PracticeGame, PracticeInfo, SoloSeason } from "@/lib/server/solo";
 export type { MakeReview, MakeState } from "@/lib/server/make-game";
 export type { StartChoice, Started, StartOptions, StartQuestion } from "@/lib/server/start-game";
+export type { SpecStarted, WizardOptions, WizardPage } from "@/lib/server/start-spec";
+export type { GameWordsResult } from "@/lib/server/game-words";
 export type { GameQuestions, QuestionFace, QuestionPerson, QuestionView } from "@/lib/server/answers";
 export type { SheetMove } from "@/lib/game/game-view";
 export type { DeletePreview, EndGame } from "@/lib/server/end-game";
@@ -1388,6 +1392,34 @@ export function useStartOptions(seasonId: string | null, couchId: string | null,
     staleTime: 0,
   });
 }
+
+/** Start a game's wizard (docs/PLAN-start-a-game-gpt.md U1; start-spec.ts): startOptions plus the page the sheet rolls and checks
+ *  on. `wizard` is null where the list still serves (a season that's aired: at your own pace). `late`: from the episode on now. */
+export function useWizardOptions(seasonId: string | null, couchId: string | null, enabled = true, late = false) {
+  return useQuery({
+    queryKey: ["new-design", "start-wizard", seasonId, couchId, late],
+    queryFn: () => get<WizardOptions>(seasonUrl(seasonId!, "/start", { couch: couchId!, wizard: "1", ...(late ? { late: "1" } : {}) })),
+    placeholderData: (prev) => prev,
+    enabled: enabled && !!seasonId && !!couchId,
+    staleTime: 0,
+  });
+}
+
+export const wizardApi = {
+  /** Start from a spec: the wizard's game, checked again on the server; the couch hears after the hold. */
+  start: (seasonId: string, couchId: string, body: { spec: unknown; name?: string; tell: boolean; bots?: number; level?: BotLevel; late?: boolean; made?: Record<string, unknown> }) =>
+    post<SpecStarted>(seasonUrl(seasonId, "/start", { couch: couchId }), body),
+  /** Take back a game you just started (inside the hold, nobody hears). */
+  undo: (seasonId: string, couchId: string, leagueId: string) => post<{ undone: true }>(seasonUrl(seasonId, "/start", { couch: couchId }), { undo: leagueId }),
+  /** Your words to a game (G1, game-words.ts): our bot drafts it, our check decides. About 40 seconds on the free bot. */
+  words: (seasonId: string, couchId: string | null, words: string) => post<GameWordsResult>(seasonUrl(seasonId, "/game-words", {}), { words, ...(couchId ? { couch: couchId } : {}) }),
+  /** A typed change: to an ask (`from`), or to a game the sheet holds (`spec` and its words), maybe a quick change's button. */
+  change: (seasonId: string, couchId: string | null, change: { from?: string; spec?: unknown; game?: string; words: string; button?: string }) =>
+    post<GameWordsResult>(seasonUrl(seasonId, "/game-words", {}), { change, ...(couchId ? { couch: couchId } : {}) }),
+  /** A moment our check offered in an ask, added to the season for research to ask from the next episode. */
+  addMoment: (seasonId: string, ask: string, moment: number) =>
+    post<{ moment: { id: string; label: string; question: string; from: number; reliability: string }; existing: boolean; words: string }>(seasonUrl(seasonId, "/added-moments", {}), { ask, moment }),
+};
 
 /** The games here a Commissioner can archive or delete (archived ones too). */
 export function useEndGames(seasonId: string, couchId: string | null, enabled = true) {

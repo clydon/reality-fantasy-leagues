@@ -141,4 +141,23 @@ function readMoment(answer) {
   return { reliable, why: str(value.why) || '', about, question: str(value.question) || '', label: str(value.label) || str(value.question) || '', nearest };
 }
 
-module.exports = { readDraft, readMoment, tidy, objectIn, SPEC_PARTS };
+/** momentsPrompt's answer: one rating for each of `n` moments asked, in order (one missing or unreadable: low, with why). */
+function readMoments(answer, n) {
+  const text = String(answer || '');
+  const start = text.indexOf('[');
+  const end = text.lastIndexOf(']');
+  let list = [];
+  try {
+    list = start >= 0 && end > start ? JSON.parse(text.slice(start, end + 1)) : [];
+  } catch {
+    list = [];
+  }
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const v = Array.isArray(list) && list[i] && typeof list[i] === 'object' ? list[i] : { reliable: 'low', why: "The bot didn't rate it" };
+    out.push(readMoment(JSON.stringify(v)));
+  }
+  return out;
+}
+
+module.exports = { readDraft, readMoment, readMoments, tidy, objectIn, SPEC_PARTS };

@@ -13,6 +13,8 @@ interface Toast {
   id: number;
   text: string;
   undo?: () => void;
+  /** The end button's word when it isn't Undo ("See it": Start a game's AI wait, ready while you were elsewhere). */
+  label?: string;
   quiet?: boolean;
 }
 
@@ -23,10 +25,11 @@ let hideTimer: ReturnType<typeof setTimeout> | undefined;
 /** How long a quiet toast is up. */
 export const QUIET_MS = 4000;
 
-export function toast(text: string, opts: { undo?: () => void; quiet?: boolean } = {}) {
+/** `ms`: how long it's up when it isn't the usual (Start it's Undo holds 10 seconds, as long as the couch's push waits). */
+export function toast(text: string, opts: { undo?: () => void; label?: string; quiet?: boolean; ms?: number } = {}) {
   clearTimeout(hideTimer);
-  useToasts.setState({ current: { id: ++seq, text, undo: opts.undo, quiet: opts.quiet }, shown: true });
-  hideTimer = setTimeout(dismiss, opts.undo ? 5000 : opts.quiet ? QUIET_MS : 2600);
+  useToasts.setState({ current: { id: ++seq, text, undo: opts.undo, label: opts.label, quiet: opts.quiet }, shown: true });
+  hideTimer = setTimeout(dismiss, opts.ms ?? (opts.undo ? 5000 : opts.quiet ? QUIET_MS : 2600));
 }
 
 /** Why something can't be done, or what went wrong: no tick. */
@@ -69,7 +72,7 @@ export function ToastHost() {
                 dismiss();
               }}
             >
-              Undo
+              {current.label ?? "Undo"}
             </button>
           )}
         </span>

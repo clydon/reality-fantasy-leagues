@@ -56,9 +56,16 @@ function gamePrompt({ pack, manual, words }) {
   ].join('\n');
 }
 
+/** What a quick change's button means to the bot (U1; the user's to approve at U1's merge: U0's "Settled" bullet). `creative`: More
+ *  creative moments, three new moments of the bot's own. */
+const BUTTONS = {
+  creative:
+    "They tapped a button, not typed: the button is the whole request. Make your best change of that kind without asking them anything, and put at most one other way under ask, as options. New moments: three of your own, fun and true to this show, each its own cantYet entry with its own newMoment question, the kind recaps report.",
+};
+
 /** A typed change to the game so far: the whole game back, with the change made. G3 part 2: on a team's page, with its games so
- *  far (`matchup`, the ask it named). */
-function changePrompt({ pack, manual, words, spec, change, matchup }) {
+ *  far (`matchup`, the ask it named). U1: `button`, a quick change's button (BUTTONS) whose words close the ask. */
+function changePrompt({ pack, manual, words, spec, change, matchup, button }) {
   return [
     HEAD,
     '',
@@ -78,6 +85,7 @@ function changePrompt({ pack, manual, words, spec, change, matchup }) {
     fenced(change),
     '',
     'Answer the whole game with the change made: keep everything the change doesn\'t touch as it is. Quote the change\'s words under said for what it changed.',
+    ...(button && BUTTONS[button] ? ['', BUTTONS[button]] : []),
     '',
     answerFor(pack),
   ].join('\n');
@@ -104,4 +112,26 @@ function momentPrompt({ pack, moment }) {
   ].join('\n');
 }
 
-module.exports = { gamePrompt, changePrompt, momentPrompt };
+/** Several moments rated in one ask (U1: on the slow bot, three asks one after another take about two minutes): momentPrompt's
+ *  rating, one object each, in the order given. The user's to approve at U1's merge. */
+function momentsPrompt({ pack, moments }) {
+  const one = momentPrompt({ pack, moment: '' }).split('\n');
+  const rules = one.slice(one.findIndex((l) => l.startsWith('- about:')));
+  const shape = one.find((l) => l.startsWith('{ "reliable"'));
+  const page = (pack && pack.page) || 'this show';
+  return [
+    `Our app's research answers questions about each episode of ${page} the morning after it airs, from recaps, episode summaries and reports written about it (not from watching it). Someone wants a game to ask each of these each episode:`,
+    ...moments.map((m, i) => `${i + 1}. ${fenced(m)}`),
+    '',
+    "Rate how reliably research could answer each one, for every episode, from what is usually written about this show. Don't search the web: answer from what you know about the show and how it is covered.",
+    '',
+    'THE MOMENTS RESEARCH ALREADY ANSWERS ON THIS SHOW (id: what it says):',
+    ((pack && pack.moments) || []).map((m) => `${m.id}: ${m.says}`).join('; ') || '(none)',
+    '',
+    `ANSWER with one JSON array of ${moments.length} objects, one for each in the same order, and nothing else. Each object:`,
+    shape,
+    ...rules,
+  ].join('\n');
+}
+
+module.exports = { gamePrompt, changePrompt, momentPrompt, momentsPrompt, BUTTONS };
