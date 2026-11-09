@@ -11673,7 +11673,7 @@ first), and proves it on these games and on the tracker's other rows that use it
     user's call. Asking another model gives more new games than asking one again (ChatGPT's two runs both wrote Tribal
     Council Jackpot and Sole Survivor Futures). Scripts: the session's scratchpad run-made.js and compare-made.js.
 
-  - **Built 2026-11-09 (branch g5-made-games, migration 0437), the light version:** the desk makes them (Setup › Made-for
+  - **Built 2026-11-09, merged + pushed e33c9a44 (migration 0437; the prompt approved by the user), the light version:** the desk makes them (Setup › Made-for
     games, POST /api/desk/seasons/[id]/made: one ask, run kind 'made', so `botAiRuns: { made: "codex" }` sends it to Codex; the
     desk's AI, ChatGPT, by default). A library, not a fixed count (the user, 2026-11-09: a wide spread over every kind we offer,
     a start and inspiration to tinker; names a 3 or 4 of 10): the prompt (game-words/made.js) gets the page (stages, moments,

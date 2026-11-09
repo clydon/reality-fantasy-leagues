@@ -1294,6 +1294,10 @@ never handles it: the user does the reset and the pasting.
   has room: Codex is a CLI, no browser). The PC and the VM share the account's ChatGPT and Codex limits. **On the PC:**
   the bot runs as the Windows task `llm-browser-api` (hidden, at logon, restarted on crash). The details are in the bot's
   own READMEs (`llm-browser-api/README.md`, `deploy/README.md`).
+- **2026-11-09, made-for games (G5, migration 0437):** one bot ask a season, only when an admin taps Make them / Make more
+  on the desk (no schedule, nothing per couch or per person); 2 to 3 minutes on the free bot (run kind `made`), the request
+  held open up to 280 s (`maxDuration` 300, as the desk's other runs). Storage: one `season_game_ideas` row a season (the
+  kept games' specs plus the last ask's raw answer, roughly 50 to 150 KB). The wizard reads it with one indexed query.
 - **2026-11-07 afternoon, the bot answers up to 3 Codex questions at once** (`CODEX_PARALLEL`, on the PC and the VM; the
   sports lane's step 1 of the bot's throughput). On the VM three one-word asks took 10.6 s together (one alone about
   10 s), MemAvailable 701 MB before and 570 MB at the lowest, so the free 1 GB VM holds it. ChatGPT stays one at a

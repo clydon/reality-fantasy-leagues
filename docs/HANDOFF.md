@@ -21,6 +21,18 @@ and the Neon password rotation (deferred; steps there). Fixed 2026-10-24: the ch
 end); GitHub Actions, stopped since 2026-10-19, runs again. Vercel builds production only (Preview shared
 production's database).
 
+## Made-for games, G5 (2026-11-09; merged + pushed e33c9a44, migration 0437; docs/PLAN-start-a-game-gpt.md G5 "Built")
+
+A season's library of premade games, shared by every couch on it, on Start a game's rail by the stretch's length ("Made for
+<show>", its hook under the rail). Made from the desk only: a season's Setup › Made-for games › Make them / Make more (adds,
+asking first for the kinds and ways to win it lacks) / Start over (a second tap; no Undo). One bot ask of 2 to 3 minutes
+(run kind `made`, ChatGPT by default; Codex may run past the 280 s budget at ~30 games). The prompt (the user approved it,
+2026-11-09) takes its kinds, ways to win, twists and bets from the wizard's own lists, each kind with the engine's own game
+of it, so a new kind is asked for by itself. Survivor 51 locally: 22 to 26 kept of ~34. **Next:** make Challenge 42's and
+Survivor 51's on production's desk (the user's taps); made on its own after setup's research; the engine gaps the plan lists
+(a show's bingo card, calls beyond the preset, last one standing outside a pool); aired seasons at your own pace reach the
+wizard (own-pace plan). Check: `scripts/dev-test/check-made-games.js <seasonId> [--fresh | --reuse | --screens <dir>]`.
+
 ## One person at their own pace on a live game (2026-11-09; branch `own-pace-live`, no migration; docs/PLAN-own-pace-games.md)
 Backstage › Members › a person: **Plays at their own pace**, a switch per game (a Commissioner's), for someone who doesn't always
 watch live (the S51 ask). On, their moves for an aired episode stay open until they've watched it or the next episode airs, then
