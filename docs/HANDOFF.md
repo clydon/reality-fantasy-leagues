@@ -28,7 +28,8 @@ score as if on time; drafts, waivers and trades keep their times. The couch sees
 aired, before they watched"); head to head waits on them ("Waiting on jordan's lineup"); their due move stays the yellow with the
 reason. Engine `GhostLogic.lateWindow`/`lateCopy`/`applyAs` late, server `own-pace-seats.ts`; the plan's "As built: one person at
 their own pace on a live game" has it all, and its Noticed what it left. Checks: `tests/own-pace.test.js`,
-`scripts/dev-test/check-own-pace-live.js` (API and 390: ALL PASS). **Waiting on the user:** the push (S51 airs Wednesday 8 PM ET).
+`scripts/dev-test/check-own-pace-live.js` (API and 390: ALL PASS). Follow-ups the same day: head to head's W–L leaves a waiting
+matchup out, the reminders job's one push after airtime (`db/reminders.js remindLate`), answers and calls proven in the check.
 
 ## Sports on the couch, the first playable slice (2026-11-09; U1; the sports lane `../reality-fantasy-leagues-sports`, port 3004, branch `sports`, migration 0307)
 Finding a game by team: Add a show's box finds Teams and Leagues beside its Shows; a team's sheet (Follow, the next game first with

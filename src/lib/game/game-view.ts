@@ -387,11 +387,17 @@ export function gameView(game: GameRefIn, full: LeagueState, playerId: string | 
     ? StateLogic.GhostLogic.lateWaiting(full, own.marks, now).map((w) => ({ ...w, name: everyone.find((r) => r.playerId === w.playerId)?.name ?? "someone" }))
     : [];
   const plays = playsOf(view, { rows: table, through, outside: calls?.episodes ?? null, next: nextIn, coop: calls?.walk?.coop ?? null });
-  // Head to head: a matchup that waits on someone's late move isn't final yet, on either side of it.
+  // Head to head: a matchup that waits on someone's late move isn't final yet, on either side of it: its squares say so, and
+  // its result (played on the lineup they carried in) is left out of both records until it's set. The order stays the engine's.
+  const matchups = seat ? StateLogic.MatchupLogic.view(view, me) : null;
   for (const w of waiting) {
     for (const [pid, squares] of Object.entries(plays.rows)) {
       const sq = squares.find((x) => x.episode === w.episode);
-      if (sq?.result && (pid === w.playerId || sq.result.against === w.playerId)) sq.waiting = true;
+      if (!sq?.result || (pid !== w.playerId && sq.result.against !== w.playerId)) continue;
+      sq.waiting = true;
+      const row = everyone.find((r) => r.playerId === pid);
+      if (row?.record) row.record = withoutResult(row.record, sq.result);
+      if (pid === me && matchups) matchups.record = withoutResult(matchups.record, sq.result);
     }
   }
   return {
@@ -428,7 +434,7 @@ export function gameView(game: GameRefIn, full: LeagueState, playerId: string | 
     waiting,
     pace: null,
     coop: calls?.walk?.coop ?? null,
-    matchups: seat ? StateLogic.MatchupLogic.view(view, me) : null,
+    matchups,
     // The teams as the table ranked them (each row's side), not worked out again.
     teams: StateLogic.TeamLogic.view(view, seat ? me : null, everyone.map((r) => ({ playerId: r.playerId, total: r.points, team: r.side }))),
     handicap: StateLogic.HandicapLogic.view(view, seat ? me : null),
@@ -440,6 +446,19 @@ export function gameView(game: GameRefIn, full: LeagueState, playerId: string | 
 export interface OwnPace {
   marks: Map<string, number>;
   now?: number;
+}
+
+/** A head-to-head record without one matchup's result (one that waits on a late move). */
+function withoutResult<R extends { wins: number; losses: number; ties: number; for: number; against: number }>(rec: R, res: { r: "W" | "L" | "T"; us: number; them: number | null }): R {
+  const round = (n: number) => Math.round(n * 100) / 100;
+  return {
+    ...rec,
+    wins: rec.wins - (res.r === "W" ? 1 : 0),
+    losses: rec.losses - (res.r === "L" ? 1 : 0),
+    ties: rec.ties - (res.r === "T" ? 1 : 0),
+    for: round(rec.for - res.us),
+    against: round(rec.against - (res.them ?? 0)),
+  };
 }
 
 /** Your copy with episode `n` still open (it aired; you haven't watched it): its lineups and picks as they were at airtime. */

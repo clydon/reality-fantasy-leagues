@@ -21,6 +21,12 @@
 // commissioner's job by default, and the push stops being due the moment anyone (an admin, research)
 // gets results in.
 //
+// And one after an episode airs, for someone a Commissioner lets play at their own pace (docs/PLAN-own-pace-games.md: Backstage ›
+// Members' switch, player.ownPace): once its air time has passed, while they haven't watched it and the next hasn't aired, one push
+// that its lineup or pick is still theirs to set before they watch (StateLogic.GhostLogic.lateWindow; window 'late' in
+// reminder_log, so once an episode). Their mark is their follow's (show_follows.seen_through); someone who sees results as they
+// come in, or whose mark moves along by itself (Live), is never behind and hears nothing.
+//
 // And the players' "Final results are in" (the user, 2026-10-29): at 12:00 noon the day after an episode airs, in the season's
 // zone (src/lib/game/final-results.js), to everyone on its games once its results are final, once per person and episode (the
 // bell's key final:<season>:<n>, the one push-events.ts writes when final results land after that time instead). Within a day
@@ -89,6 +95,7 @@ async function runReminders(pool, opts = {}) {
   for (const league of leagues) {
     try {
       sent += await remindLeague(pool, league, airing, now, opts);
+      sent += await remindLate(pool, league, airing, now, opts);
       sent += await remindResults(pool, league, airing, now, opts);
     } catch (e) {
       // One league's bad state mustn't cost every other league its reminders.
@@ -164,6 +171,59 @@ async function finalResults(pool, season, leagues, now, opts) {
     console.log(`[reminders] ${opts.dry ? "(dry) " : ""}final results: ${label} Episode ${n}, ${userIds.length} on its games`);
     if (!opts.dry) await sendPush(pool, userIds, "finalScores", message, { seasonId: season.id });
     sent += userIds.length;
+  }
+  return sent;
+}
+
+/** The after-airtime push for seats playing at their own pace (see the top of the file). */
+async function remindLate(pool, league, seasons, now, opts) {
+  const G = StateLogic.GhostLogic;
+  const settings = league.state.settings || {};
+  const season = seasons.get(`${settings.showId}|${settings.wikiSeason}`);
+  if (!season || StateLogic.RevealLogic.isCatchingUp(league.state)) return 0;
+  if (!(league.state.players || []).some((p) => G.playsOwnPace(league.state, p.id))) return 0;
+  // The league with its air times from the season's schedule, as the app stamps them (air-times.ts).
+  const state = JSON.parse(JSON.stringify(league.state));
+  for (const ep of state.episodes || []) {
+    const at = Air.episodeAirTime(season.schedule, ep.number, season.wikiAirDates);
+    if (at) ep.airsAt = at.toISOString();
+  }
+  const { rows: members } = await pool.query(
+    `SELECT m.user_id, m.player_id, f.seen_through, f.keep_up, COALESCE(us.show_results_immediately, false) AS immediate
+       FROM league_memberships m
+       LEFT JOIN show_follows f ON f.user_id = m.user_id AND f.season_id = $2
+       LEFT JOIN user_settings us ON us.user_id = m.user_id
+      WHERE m.league_id = $1 AND m.player_id IS NOT NULL`,
+    [league.id, season.id]
+  );
+  let sent = 0;
+  for (const m of members) {
+    if (!G.playsOwnPace(state, m.player_id) || m.immediate || m.keep_up === "auto") continue;
+    const mark = Number.isInteger(m.seen_through) ? m.seen_through : 0;
+    const w = G.lateWindow(state, m.player_id, mark, now.getTime());
+    if (!w || mark !== w.episode - 1) continue;
+    const due = actionItems(G.lateCopy(state, w.episode), m.player_id, mark).filter((it) => (it.kind === "lineup" || it.kind === "pick") && it.episode === w.episode);
+    // A lineup carried in from last week isn't one set for this episode (the app's due move says the same).
+    if (!due.length && StateLogic.piecesOf(state).hasActiveRoster && !G.movedFor(state, m.player_id, w.epId)) due.push({ kind: "lineup", text: `Set your episode ${w.episode} lineup` });
+    if (!due.length) continue;
+    if (!opts.dry) {
+      const { rowCount } = await pool.query(
+        `INSERT INTO reminder_log (user_id, league_id, kind, episode_number, reminder_window) VALUES ($1,$2,$3,$4,'late') ON CONFLICT DO NOTHING`,
+        [m.user_id, league.id, due[0].kind, w.episode]
+      );
+      if (!rowCount) continue;
+    }
+    const message = {
+      title: `${league.name}: episode ${w.episode} has aired`,
+      body: `${due.map((it) => it.text).join(" · ")} before you watch it`,
+      url: `/?league=${encodeURIComponent(league.id)}`,
+      next: `/show/${season.id}/tonight`,
+      tag: `reminder-late-${league.id}`,
+      seasonId: season.id,
+    };
+    console.log(`[reminders] ${opts.dry ? "(dry) " : ""}${m.user_id} -- ${message.title}: ${message.body}`);
+    if (!opts.dry) await sendPush(pool, [m.user_id], "reminder", message, { seasonId: season.id });
+    sent++;
   }
   return sent;
 }
@@ -265,7 +325,7 @@ async function remindResults(pool, league, seasons, now, opts) {
   return sent;
 }
 
-module.exports = { runReminders, windowFor, morningAfter, finalResults };
+module.exports = { runReminders, windowFor, morningAfter, finalResults, remindLate };
 
 if (require.main === module) {
   const pool = new Pool({ connectionString: process.env.AUTH_DATABASE_URL });

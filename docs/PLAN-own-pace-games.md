@@ -361,15 +361,21 @@ The user's decisions above, built and checked (no migration: the switch rides on
   (a dashed "…"), the grid's foot "Episode 6: waiting on jordan's lineup", the week's line "Waiting on jordan's lineup".
 - Checked: `tests/own-pace.test.js` (six live cases), `tests/answers-time.test.js` (answers), `npm test` 2023 pass;
   `scripts/dev-test/check-own-pace-live.js` (API, then 390: ALL PASS; seven screens); `check-own-pace.js` still passes.
+- **Follow-ups the same day** (from the list below): head to head's records leave a waiting matchup out of both seats' W–L (and
+  your own matchup record) until it's set (`game-view.ts withoutResult`; the order stays the engine's); the reminders job sends one
+  push after airtime ("Lineup League: episode 6 has aired · Set your episode 6 lineup before you watch it", `db/reminders.js
+  remindLate`, window `late` in reminder_log, once an episode; nobody who sees results as they come or moves along Live);
+  `check-own-pace-live.js` now also proves a Prediction Sheet answer and a Call it call taken after airtime (and refused without
+  the switch), the records, the reminder (a dry run), and the Members sheet's read-only line for a game you don't run.
 
 ## Noticed, not fixed
-- Head to head's record (the W–L column, the sheet's 2–2–2) still counts a matchup that waits on a late lineup, scored with the
-  carried one, until it's set; only its squares and lines say it's pending. A U1 follow-up if it reads wrong to the couch.
+- Head to head's ranks still order by the engine's records, which count a waiting matchup as scored with the carried lineup; the
+  W–L shown leaves it out. Two seats can look out of order by one result until it's set.
 - The hero's matchup line also says "waiting on" (model.ts), but today's game page shows head to head in the grid, not the hero.
 - An opponent sees "Waiting on" only once they've revealed that episode themselves (before then it's hidden like any result).
-- Prediction Sheet answers and Call it open late in the engine and the routes; neither was looked at in a browser yet.
-- Push reminders (db/reminders.js) and the desk's moves for a seat (desk-seat-moves.ts) don't know the late window.
 - Someone two or more behind: the window is on the latest aired episode; they reveal the one before first (as anyone does).
+- (The desk's seat moves, desk-seat-moves.ts, were listed here by mistake: they link accounts to seats; Act as them uses the
+  same routes, so it already follows the window.)
 - The Play it card on a finished season offered Start a game and the sheet then refused it (the dead end that started this).
   Part 1 fixes it by making the start work; the Games tab's own Start row already hid itself.
 - A pool with lives: once anyone's out for good (`GhostLogic.someoneOut`, bots included, which run ahead of a slower joiner),
