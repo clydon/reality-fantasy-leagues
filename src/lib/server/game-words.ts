@@ -32,6 +32,15 @@ import { sportGames, sportPageContext, sportStandard, statWords } from "@/lib/sp
 export const GAME_ASKS_A_DAY = 10;
 /** At most this many new moments rated for one ask: one rating ask for them all (U1: momentsPrompt), else one each. */
 const MOMENT_ASKS = 3;
+/** Words that ask for moments to be made up ("create 9 wacky moments"): how many (1 to 9, 3 unsaid), else null (BACKLOG 42). */
+const COUNT: Record<string, number> = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
+function inventAsked(words: string): number | null {
+  const m = words.match(/\b(?:create|invent|make up|come up with|generate|think up)\b([^.]{0,60}?)\bmoments?\b/i);
+  if (!m) return null;
+  const k = (m[1].match(/\b(\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten)\b/i) || [])[1];
+  const n = k ? (/^\d+$/.test(k) ? Number(k) : COUNT[k.toLowerCase()]) : 3;
+  return Math.max(1, Math.min(9, n));
+}
 /** What one request may spend on the bot: the route's 300 s, less room to save what came back. */
 const BUDGET_MS = 270_000;
 /** Don't start a reliability ask with less than this left. */
@@ -256,10 +265,10 @@ export async function couchFor(user: SessionUser, couch: unknown): Promise<strin
 }
 
 /** Each new moment the check found, rated by the reliability ask while there's time (at most MOMENT_ASKS). */
-export async function rateMoments(result: CheckResult, pack: Pack, o: { bot?: string; deadline: number }): Promise<{ result: CheckResult; seconds: number }> {
+export async function rateMoments(result: CheckResult, pack: Pack, o: { bot?: string; deadline: number; limit?: number }): Promise<{ result: CheckResult; seconds: number }> {
   const ratings: Record<string, MomentRating> = {};
   let seconds = 0;
-  const asked = result.newMoments.slice(0, MOMENT_ASKS);
+  const asked = result.newMoments.slice(0, Math.max(MOMENT_ASKS, o.limit ?? 0));
   // Several at once in one ask (U1: one after another is about two minutes on the slow bot); one alone, its own ask as before.
   if (asked.length > 1 && o.deadline - Date.now() >= MOMENT_NEEDS_MS) {
     try {
@@ -337,8 +346,27 @@ export async function gameWords(user: SessionUser, seasonId: string, body: { wor
     // A change's quotes come from what they typed now or first; what the first ask said and assumed comes with it (carry).
     let result: AnswerResult = Words.checkAnswer(asked.answer, { ctx, pack, words: change ? `${words}\n${changeWords}` : words, kind, carry: carry as never, games: standard });
     let seconds = asked.seconds;
+    // Moments they asked to be made up (BACKLOG 42): one short ask of the creative quick change's kind, rated with the rest.
+    const invent = !change && result.state !== "unreadable" ? inventAsked(words) : null;
+    if (invent && result.state !== "unreadable" && result.newMoments.length < invent) {
+      try {
+        const made = await askBot(Words.inventPrompt({ pack, words, n: invent - result.newMoments.length }), { bot, budgetMs: deadline - Date.now(), search: false, priority: "now" });
+        seconds += made.seconds;
+        const list: unknown = JSON.parse(String(made.answer).match(/\[[\s\S]*\]/)?.[0] ?? "[]");
+        const have = new Set(result.newMoments.map((m) => m.label.toLowerCase()));
+        for (const q of Array.isArray(list) ? list : []) {
+          const label = typeof q === "string" ? q.trim().slice(0, 140) : "";
+          if (!label || have.has(label.toLowerCase())) continue;
+          have.add(label.toLowerCase());
+          result.newMoments.push({ label, what: label });
+          result.cantYet.push({ what: label, why: "A moment made up for your game: add it and research answers it after each episode.", nearest: null, newMoment: label });
+        }
+      } catch {
+        // The game stands without them.
+      }
+    }
     if (result.state !== "unreadable" && result.newMoments.length) {
-      const rated = await rateMoments(result, pack, { bot, deadline });
+      const rated = await rateMoments(result, pack, { bot, deadline, limit: invent ?? undefined });
       result = rated.result as AnswerResult;
       seconds += rated.seconds;
     }

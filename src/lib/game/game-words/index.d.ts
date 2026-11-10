@@ -185,6 +185,7 @@ export function gamePrompt(o: { pack: Pack; manual: string; words: string }): st
 export function changePrompt(o: { pack: Pack; manual: string; words: string; spec: unknown; change: string; matchup?: unknown; button?: string }): string;
 export function momentPrompt(o: { pack: Pack; moment: string }): string;
 export function momentsPrompt(o: { pack: Pack; moments: string[] }): string;
+export function inventPrompt(o: { pack: Pack; words: string; n: number }): string;
 export const BUTTONS: Record<string, string>;
 export function readDraft(answer: string): { draft: Draft; notes: string[] };
 export function readMoment(answer: string): MomentRating;

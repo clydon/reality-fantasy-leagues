@@ -136,4 +136,19 @@ function momentsPrompt({ pack, moments }) {
   ].join('\n');
 }
 
-module.exports = { gamePrompt, changePrompt, momentPrompt, momentsPrompt, BUTTONS };
+/** Moments to make up for a game whose words asked for them (BACKLOG 42): the creative quick change's kind, in one short ask, so
+ *  inventing never rides on the drafter. The answer: a JSON array of questions, each one research could answer about a person. */
+function inventPrompt({ pack, words, n }) {
+  const page = (pack && pack.page) || 'this show';
+  return [
+    `Someone is making a game for ${page} in our app, Game Your Show, and asked for moments made up for it. Their words:`,
+    fenced(words),
+    '',
+    `Invent ${n} new moments: fun and true to this show, the kind recaps report, each one a person does (so a player can guess who), none of these moments research already answers:`,
+    ((pack && pack.moments) || []).map((m) => m.says).join('; ') || '(none)',
+    '',
+    `ANSWER with one JSON array of ${n} short questions research could answer the morning after an episode ("Who kissed someone?"), and nothing else.`,
+  ].join('\n');
+}
+
+module.exports = { gamePrompt, changePrompt, momentPrompt, momentsPrompt, inventPrompt, BUTTONS };
