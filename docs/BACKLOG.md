@@ -487,6 +487,9 @@ Last updated 2026-10-27.
       tests/fixtures/engine-capabilities.json `examples` (manual.js `workedFor` shows four; p12, p27 and p28 today), its words the
       user's, its spec nine `person` asks with a bank and a wager each (p10/p28's bank shape); the prompt line in
       game-words/prompt.js; the raw path at start-wizard.tsx:1929 (`x.nearest`); check with `check-game-words.js --real --only=<id>`.
+      **Done 2026-11-09:** two prompt rules (build the closest game that plays; made-up moments one newMoment each), worked
+      example p31, Closest in words. The local bot now drafts the game (nine person questions, a bank of 200, a wager each) with
+      its moments as new-moment offers. Left: it asks "How many points?" once per question (eight times); one ask for them all.
     - **No betting-game role, no scoring themes on the rail**: G5's made-for games are on the rail since 2026-11-09 (made from the
       desk's Setup; the plan's G5 "Built" bullet says what's left), beside the engine's own kinds that fit the rulebook. Different scoring cycles engine-made ways from the
       season's own rulebook (No points lost, Big moments only: the user's call, 2026-11-09) until G5's themes. (G5, then the wizard

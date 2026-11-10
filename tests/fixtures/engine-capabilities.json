@@ -3143,6 +3143,15 @@
       "note": "the user's first game as they typed it on Survivor 51's page (2026-11-08): a bank of 500 (C6), a sheet the AI picks each week from the show's moments (C7 part 2: card from 'bot', each 4), a person named for each of its lines (card: true, answer 'person', settled 'who'), and one stake on the sheet: a ticket built from its lines whose payout grows with how many you put on it (C6 part 2: 3 times for two, 7 for three, 15 for four). p10 is the same game with who goes home beside the card and yes-or-no lines."
     },
     {
+      "id": "p31",
+      "page": { "show": "Survivor", "season": 51, "rulebook": "survivor" },
+      "words": "From 200 starting points create 9 wacky, creative but likely player moments in a bingo sheet. A player guesses which player will make that moment (like \"seen in the pool\", \"kisses\", \"on winning team\", etc.) and how much they wager for that specific square. Players must answer all 9 squares",
+      "spec": {"get":{"by":"none"},"score":{"by":"answers","bank":{"start":200}},"rank":{"by":"total"},"ask":[{"id":"s1","ask":"Who wins immunity?","answer":"person","points":0,"wager":"total","settle":{"by":"moment","moment":"individualImmunity","take":"who"}},{"id":"s2","ask":"Who finds an idol?","answer":"person","points":0,"wager":"total","settle":{"by":"moment","moment":"idolFound","take":"who"}},{"id":"s3","ask":"Who wins the reward?","answer":"person","points":0,"wager":"total","settle":{"by":"moment","moment":"rewardWin","take":"who"}}]},
+      "dials": ["answer", "score"],
+      "teach": "what they're playing, not the nouns: who-will squares with a stake each are questions, not a card: one person question a square (nine here, three shown), score.bank and each ask's wager 'total'.",
+      "note": "the user’s game typed on The Challenge 42 (2026-11-09), drafted as Weekly Bingo and refused; here on Survivor 51’s moments, three of its nine squares."
+    },
+    {
       "id": "p29",
       "page": { "show": "Survivor", "season": 51, "rulebook": "survivor", "couch": 3 },
       "words": "I want a survivor fantasy league head to head. However since there's only 3 players I want the head to heads be 2 on 1. The team of two will have their points halves so they act as one player against the solo player.",

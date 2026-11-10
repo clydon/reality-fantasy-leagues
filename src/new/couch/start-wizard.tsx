@@ -1873,6 +1873,10 @@ function AskScreen(p: {
 
 /** The typed game, as our check read it: the plate, its steps, the sentence, their words (made it in underlined, can't yet dashed),
  *  Can't count yet, Your call, We filled in; Change it in the sheet, or change the words. */
+/** Can't count yet's nearest part in words, never the spec's path ("card.of": the card; "ask[0]": a question). */
+const NEAR: Record<string, string> = { get: "how you get people", count: "who counts", score: "how it scores", rank: "how it's won", ask: "a question", card: "the card", span: "when it runs", extras: "the extras", stages: "a stage" };
+const nearWords = (path: string) => NEAR[path.split(/[.[]/)[0]] ?? null;
+
 function AskResult(p: Parameters<typeof AskScreen>[0] & { r: NonNullable<GameWordsResult["result"]>; askId: string }) {
   const { o, wizard, r } = p;
   const [picks, setPicks] = useState<Record<number, number>>({});
@@ -1926,7 +1930,7 @@ function AskResult(p: Parameters<typeof AskScreen>[0] & { r: NonNullable<GameWor
               <p className="text-[14px] font-bold leading-snug">{/^[a-z]+(\.|\[|$)/.test(x.what) ? "Part of it" : `“${x.what}”`}</p>
               <p className="mt-1 text-[14px] leading-snug text-foreground/85">
                 {x.why}
-                {x.nearest ? ` Closest: ${x.nearest}.` : ""}
+                {x.nearest && nearWords(x.nearest) ? ` Closest: ${nearWords(x.nearest)}.` : ""}
               </p>
             </div>
           ))}

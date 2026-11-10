@@ -29,6 +29,8 @@ The rules:
 - cantYet: what they asked for that the manual can't do, or the page's data can't settle: what, why, and the nearest part of the game you did put in (or null).
 - A moment the show doesn't have (it isn't in the page's moments): never make up an id and never put it in the game. List it under cantYet with "newMoment": a short yes-or-no question research could answer after each episode ("Did it rain?").
 - A moment in couchWordOnly can't score: treat it as one the show doesn't have.
+- Moments they ask you to make up ("9 wacky moments"): each its own cantYet entry with "newMoment", as many as they asked for.
+- Build the closest game that plays: read what they're playing, not their nouns. What you can't match goes under cantYet with its nearest part.
 - Another show or season than the page's: draft it for the page's anyway, and set "about": { "show": "...", "season": n }.
 - Two games in one request: draft the first; describe the second in one line in "also".
 - Not a game at all (a question about the show, words you can't read): "game": null, and say why under cantYet.`;
