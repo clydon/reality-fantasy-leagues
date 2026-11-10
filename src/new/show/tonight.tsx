@@ -90,13 +90,13 @@ export function Tonight({ seasonId, show }: { seasonId: string; show: ShowData }
         />
       )}
       {playing && <LastTime show={show} />}
+      <StatsCard seasonId={seasonId} show={show} />
       <Extras show={show} />
       {!plate && <WatchAlongCard seasonId={seasonId} show={show} place="below" />}
       <PlannedNights seasonId={seasonId} show={show} plate={!!plate} />
       {!playing && <WhosWatching show={show} />}
       {!playing && (!show.solo || !show.ready) && <PlayIt show={show} />}
       {playing && <YourGames seasonId={seasonId} show={show} />}
-      <StatsCard seasonId={seasonId} show={show} />
     </>
   );
 }
@@ -763,20 +763,23 @@ function Extras({ show }: { show: ShowData }) {
   const couchId = show.couch?.id ?? null;
   // The couch's polls still open on this show (step 12 part 2): yours to vote in until it airs.
   const polls = useSeasonPolls(show.header?.seasonId ?? null, couchId, !show.solo && !!couchId);
-  const open = (polls.data?.polls ?? []).some((p) => p.open);
   // A draft's finale predictions while they're open (step A4 part 2), and how your Prediction Sheet went on the latest you've seen.
   const finales = (show.play ?? []).filter((g) => g.sheet?.finale && !g.revealFirst);
   const sheets = seen && show.header ? show.games.filter((g) => g.yourRole && g.gameType === "questions" && !g.archived) : [];
-  if (up?.live || (!predictions.length && !call && !seen && !bingo && !open && !finales.length)) return null;
+  // Just the GIFs and your bingo card for now (the user, 2026-11-09): the rest waits for a session on Extras. The other rows'
+  // code stays, off, so that session can bring them back.
+  const more = false;
+  if (up?.live || (!seen && !bingo)) return null;
   return (
     <Block title={paceNext(show) !== null ? `Extras · Episode ${paceNext(show)}` : "Extras this week"} aside="Optional">
-      {predictions.map((m) => (
+      {more && predictions.map((m) => (
         <ExtraRow key={m.leagueId} title={m.text} line={`Closes at airtime · ${m.leagueName}`} state="Open" onClick={() => openMoves("predict")} />
       ))}
-      {call && show.header && <CallRow target={{ seasonId: show.header.seasonId, couchId, episode: call, label: showLabel(show), solo: show.solo }} />}
-      {show.header &&
+      {more && call && show.header && <CallRow target={{ seasonId: show.header.seasonId, couchId, episode: call, label: showLabel(show), solo: show.solo }} />}
+      {more &&
+        show.header &&
         finales.map((g) => <SheetRow key={g.leagueId} move={g.sheet!} target={{ seasonId: show.header!.seasonId, leagueId: g.leagueId, episode: null, game: g.name, finale: true }} />)}
-      {couchId && (polls.data?.polls ?? []).filter((p) => p.open).map((p) => <PollRow key={p.id} p={p} couchId={couchId} />)}
+      {more && couchId && (polls.data?.polls ?? []).filter((p) => p.open).map((p) => <PollRow key={p.id} p={p} couchId={couchId} />)}
       {seen && show.header && (
         <GifRow
           target={{ seasonId: show.header.seasonId, couchId, episode: seen, label: showLabel(show), solo: show.solo }}
@@ -784,14 +787,14 @@ function Extras({ show }: { show: ShowData }) {
         />
       )}
       {/* How your calls on it went (step 12 part 2), on a show that's a game: a talk show's say what happened here. */}
-      {seen && show.header && show.ready && (
+      {more && seen && show.header && show.ready && (
         <CallResultRow target={{ seasonId: show.header.seasonId, couchId, episode: seen, label: showLabel(show), solo: show.solo }} need="mine" />
       )}
       {bingo && show.header && (
         <BingoRow target={bingoTarget(show, bingo)} title={up && bingo === up.number ? "Your bingo card" : undefined} />
       )}
       {seen && show.header && show.ready && seen !== bingo && <BingoRow target={bingoTarget(show, seen)} need="mine" />}
-      {seen && show.header && sheets.map((g) => <SheetResultRow key={g.leagueId} target={{ seasonId: show.header!.seasonId, leagueId: g.leagueId, episode: seen, game: g.name }} />)}
+      {more && seen && show.header && sheets.map((g) => <SheetResultRow key={g.leagueId} target={{ seasonId: show.header!.seasonId, leagueId: g.leagueId, episode: seen, game: g.name }} />)}
     </Block>
   );
 }

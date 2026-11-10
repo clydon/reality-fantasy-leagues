@@ -200,12 +200,7 @@ export function GifRow({ target, line }: { target: GifTarget; line: EpisodeGifLi
       onClick={() => openGif(target)}
       className="nd-press flex min-h-[64px] w-full items-center gap-3 border-t border-border py-2 text-left"
     >
-      {line?.mine && line.urls[0] ? (
-        // eslint-disable-next-line @next/next/no-img-element -- KLIPY's own picture
-        <img src={line.urls[0]} alt="" className="size-11 flex-none rounded-[4px] object-cover" />
-      ) : (
-        <span className="type-num grid size-11 flex-none place-items-center rounded-[4px] bg-chyron text-[17px] text-chyron-foreground">GIF</span>
-      )}
+      {!line?.urls.length && <span className="type-num grid size-11 flex-none place-items-center rounded-[4px] bg-chyron text-[17px] text-chyron-foreground">GIF</span>}
       <span className="min-w-0 flex-1">
         <b className="block text-[15px] font-semibold">{line?.mine ? `Your GIF for Episode ${target.episode}` : `React to Episode ${target.episode}`}</b>
         <small className="mt-0.5 block text-[13px] text-muted-foreground">
@@ -219,6 +214,15 @@ export function GifRow({ target, line }: { target: GifTarget; line: EpisodeGifLi
               ? `${others} on the couch already did`
               : "How was it? Any GIF you like"}
         </small>
+        {/* Everyone's GIFs in a row (yours first), the couch's reactions at a glance (the user, 2026-11-09). */}
+        {!!line?.urls.length && (
+          <span className="mt-2 flex gap-1.5 overflow-hidden">
+            {line.urls.map((u, i) => (
+              // eslint-disable-next-line @next/next/no-img-element -- KLIPY's own picture
+              <img key={i} src={u} alt="" className="size-14 flex-none rounded-[4px] object-cover" />
+            ))}
+          </span>
+        )}
       </span>
       <span className="text-[13px] font-semibold text-muted-foreground">{line?.mine ? "See all" : "React"}</span>
       <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />

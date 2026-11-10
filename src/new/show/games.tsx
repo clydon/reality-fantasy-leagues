@@ -303,7 +303,7 @@ function Standings({
         </div>
       )}
       {play.map((g) => (
-        <section key={g.leagueId} id={anchor(g)} data-table={g.leagueId} className={`${readOnly ? "mt-2" : "mt-[26px]"} scroll-mt-28 px-4`}>
+        <section key={g.leagueId} id={anchor(g)} data-table={g.leagueId} className={`${readOnly ? "mt-2" : "mt-4"} mx-2 scroll-mt-28 rounded-[14px] bg-card px-4 pb-3.5 pt-4`}>
           <div className="mb-2.5 flex items-center gap-3">
             <span className="w-1 self-stretch rounded-[2px]" style={{ background: gameColour(g.gameName) }} aria-hidden />
             <div className="min-w-0 flex-1">
@@ -372,7 +372,7 @@ function YourMoveCard({ g, m }: { g: GameView; m: YourMove }) {
       data-your-move={m.kind}
       data-due={m.due}
       onClick={() => ("tab" in m.go ? openMoves(m.go.tab, g.leagueId) : nav.push(m.go.href))}
-      className="nd-press mb-1.5 flex min-h-[62px] w-full items-center gap-3 rounded-[4px] bg-card py-2 pl-2.5 pr-2 text-left"
+      className="nd-press mb-1.5 flex min-h-[62px] w-full items-center gap-3 rounded-[4px] bg-background py-2 pl-2.5 pr-2 text-left"
     >
       {(m.faces.length > 0 || m.empty > 0) && (
         <span className="flex flex-none gap-[3px]" aria-hidden>

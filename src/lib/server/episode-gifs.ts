@@ -43,7 +43,7 @@ export interface EpisodeGifLine {
 /** Someone who shares their GIFs on its season (following it openly, My episode GIFs on): a condition on `g`. */
 const OPEN = sharesSql("gifs", "g.user_id", "g.season_id");
 /** The pictures an Episodes row stacks. */
-const STACK = 3;
+const STACK = 12;
 
 /**
  * A kept GIF as it's sent: KLIPY's (cleanGif), or under `next dev` a check's stand-in's picture (fake-gifs.js), which gifFrom let in
