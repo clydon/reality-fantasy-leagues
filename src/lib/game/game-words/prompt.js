@@ -19,7 +19,8 @@ const ANSWER = `ANSWER with one JSON object and nothing else, in this shape:
   "cantYet": [{ "what": "which tribe wins immunity", "why": "...", "nearest": "ask[1]" }],
   "about": null,
   "also": null,
-  "summary": "One or two sentences, in plain words, of the game you drafted." }
+  "invent": 0,
+  "summary": "One or two plain sentences on the game." }
 
 The rules:
 - game: leave out every part their words don't decide (a preset and our defaults fill them). A part is its path in the spec: "get.each", "score.points.votedOut", "ask[0].settle", "stages[1].game.get".
@@ -29,8 +30,8 @@ The rules:
 - cantYet: what they asked for that the manual can't do, or the page's data can't settle: what, why, and the nearest part of the game you did put in (or null).
 - A moment the show doesn't have (it isn't in the page's moments): never make up an id and never put it in the game. List it under cantYet with "newMoment": a short yes-or-no question research could answer after each episode ("Did it rain?").
 - A moment in couchWordOnly can't score: treat it as one the show doesn't have.
-- Moments they ask you to invent: never refuse; each a cantYet "newMoment", the kind recaps report; meanwhile the game uses the page's moments.
-- Build the closest game that plays, as big as they asked (read what they're playing, not their nouns); what can't match goes under cantYet.
+- Moments they ask you to invent: never refuse; "invent" counts them, each a cantYet "newMoment", the kind recaps report; the game uses the page's.
+- Build the closest game that plays, as big as they asked (what they're playing, not their nouns); what can't match goes under cantYet.
 - Another show or season than the page's: draft it for the page's anyway, and set "about": { "show": "...", "season": n }.
 - Two games in one request: draft the first; describe the second in one line in "also".
 - Not a game at all (a question about the show, words you can't read): "game": null, and say why under cantYet.`;

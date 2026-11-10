@@ -347,7 +347,9 @@ export async function gameWords(user: SessionUser, seasonId: string, body: { wor
     let result: AnswerResult = Words.checkAnswer(asked.answer, { ctx, pack, words: change ? `${words}\n${changeWords}` : words, kind, carry: carry as never, games: standard });
     let seconds = asked.seconds;
     // Moments they asked to be made up (BACKLOG 42): one short ask of the creative quick change's kind, rated with the rest.
-    const invent = !change && result.state !== "unreadable" ? inventAsked(words) : null;
+    // How many they asked to be made up: the drafter's count (it reads their words against the show's moments), else the phrase check.
+    const told = /"invent"\s*:\s*(\d{1,2})/.exec(String(asked.answer));
+    const invent = change || result.state === "unreadable" ? null : told ? Math.min(9, Number(told[1])) || null : inventAsked(words);
     if (invent && result.state !== "unreadable" && result.newMoments.length < invent) {
       try {
         const made = await askBot(Words.inventPrompt({ pack, words, n: invent - result.newMoments.length }), { bot, budgetMs: deadline - Date.now(), search: false, priority: "now" });
