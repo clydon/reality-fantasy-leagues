@@ -118,8 +118,10 @@ export async function startFromSpec(
 
   // Where it starts: the next to air (or the one on now, with `late`), a later listed one, or a phase still to come; where it ends:
   // the season's end, a later episode, or a phase.
-  const span = isObj(spec.span) ? spec.span : null;
-  if (!span) throw new HttpError(400, "Say where the game starts and ends");
+  // No span (a described game that runs all season): from the start the options give (the next to air, or where you are at your
+  // own pace) to the season's end.
+  if (!isObj(spec.span)) spec.span = { from: opts.from, to: null };
+  const span = spec.span as Record<string, unknown>;
   const fromPhase = phaseOf(span.from);
   if (fromPhase) {
     if (late) throw new HttpError(400, "Include the one on now, or start with a phase: not both");
