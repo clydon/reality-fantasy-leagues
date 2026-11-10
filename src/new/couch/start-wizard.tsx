@@ -148,6 +148,8 @@ export function WizardSheet({
   practice,
   late,
   setLate,
+  catchUp,
+  setCatchUp,
   first: firstScreen,
 }: {
   open: boolean;
@@ -159,6 +161,8 @@ export function WizardSheet({
   practice?: { seasonId: string | null; label: string | null; onClose: () => void };
   late: boolean;
   setLate: (v: boolean) => void;
+  catchUp: number | null;
+  setCatchUp: (v: number | null) => void;
   first?: Screen;
 }) {
   const W = useWizardModule();
@@ -218,7 +222,7 @@ export function WizardSheet({
   }
   return (
     <Wizardly
-      key={`${o.seasonId}|${late}`}
+      key={`${o.seasonId}|${late}|${o.from}`}
       open={open}
       onOpenChange={onOpenChange}
       o={o}
@@ -229,6 +233,8 @@ export function WizardSheet({
       practice={practice ? { onFinish: setPracticed } : undefined}
       late={late}
       setLate={setLate}
+      catchUp={catchUp}
+      setCatchUp={setCatchUp}
       firstScreen={firstScreen}
     />
   );
@@ -284,6 +290,8 @@ function Wizardly({
   practice,
   late,
   setLate,
+  catchUp,
+  setCatchUp,
   firstScreen,
 }: {
   open: boolean;
@@ -296,6 +304,8 @@ function Wizardly({
   practice?: { onFinish: (name: string) => void };
   late: boolean;
   setLate: (v: boolean) => void;
+  catchUp: number | null;
+  setCatchUp: (v: number | null) => void;
   firstScreen?: Screen;
 }) {
   const t = useMemo(() => W.timing(input), [W, input]);
@@ -577,6 +587,8 @@ function Wizardly({
             setCview={setCview}
             late={late}
             setLate={setLate}
+            catchUp={catchUp}
+            setCatchUp={setCatchUp}
             g={g}
             sel={sel}
             pickGame={pickGame}
@@ -908,6 +920,8 @@ function Home(p: {
   cview: "stages" | "episodes";
   setCview: (v: "stages" | "episodes") => void;
   late: boolean;
+  catchUp: number | null;
+  setCatchUp: (v: number | null) => void;
   setLate: (v: boolean) => void;
   g: G;
   sel: string;
@@ -988,7 +1002,21 @@ function Home(p: {
         </Note>
       )}
       {p.mode === "custom" && <Custom {...p} />}
-      {o.onAir && (
+      {o.pace?.here != null && o.starts.length > 0 && (o.ownPace || o.pace.here < o.from) && (
+        <div className="mt-2">
+          <Switch
+            on={p.catchUp != null}
+            onClick={() => {
+              p.setLate(false);
+              p.setCatchUp(p.catchUp != null ? null : o.pace!.here);
+            }}
+            title={`Start from ${P} ${o.pace.here}, where you are`}
+            line={`Everyone plays one ${o.part.singular} at a time, whenever they watch, and catches up to the ones still to air.`}
+            data={{ "data-start-catch-up": p.catchUp != null ? "on" : "off" }}
+          />
+        </div>
+      )}
+      {o.onAir && p.catchUp == null && (
         <div className="mt-2">
           <Switch
             on={p.late}

@@ -1402,10 +1402,10 @@ export function useStartOptions(seasonId: string | null, couchId: string | null,
 
 /** Start a game's wizard (docs/PLAN-start-a-game-gpt.md U1; start-spec.ts): startOptions plus the page the sheet rolls and checks
  *  on. `wizard` is null where the list still serves (a season that's aired: at your own pace). `late`: from the episode on now. */
-export function useWizardOptions(seasonId: string | null, couchId: string | null, enabled = true, late = false) {
+export function useWizardOptions(seasonId: string | null, couchId: string | null, enabled = true, late = false, start: number | null = null) {
   return useQuery({
-    queryKey: ["new-design", "start-wizard", seasonId, couchId, late],
-    queryFn: () => get<WizardOptions>(seasonUrl(seasonId!, "/start", { couch: couchId!, wizard: "1", ...(late ? { late: "1" } : {}) })),
+    queryKey: ["new-design", "start-wizard", seasonId, couchId, late, start],
+    queryFn: () => get<WizardOptions>(seasonUrl(seasonId!, "/start", { couch: couchId!, wizard: "1", ...(late ? { late: "1" } : {}), ...(start ? { start: String(start) } : {}) })),
     placeholderData: (prev) => prev,
     enabled: enabled && !!seasonId && !!couchId,
     staleTime: 0,

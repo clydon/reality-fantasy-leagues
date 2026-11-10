@@ -36,7 +36,7 @@ export const GET = apiRoute(async (req, { params }: { params: Promise<{ seasonId
   const { seasonId } = await params;
   const user = await requireAuth(req);
   const q = new URL(req.url).searchParams;
-  if (q.get("wizard") === "1" && !q.get("again")) return NextResponse.json(await wizardOptions(user, seasonId, q.get("couch"), new Date(), q.get("late") === "1"));
+  if (q.get("wizard") === "1" && !q.get("again")) return NextResponse.json(await wizardOptions(user, seasonId, q.get("couch"), new Date(), q.get("late") === "1", Number(q.get("start")) || null));
   return NextResponse.json(await startOptions(user, seasonId, q.get("couch"), q.get("again"), new Date(), q.get("late") === "1", startParam(q.get("start"))));
 });
 

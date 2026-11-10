@@ -58,8 +58,9 @@ export interface WizardPage {
 export type WizardOptions = StartOptions & { wizard: WizardPage | null };
 
 /** What can start, and (for a season with episodes still to air, set up) the wizard's page. */
-export async function wizardOptions(user: SessionUser, seasonId: string, couchId: string | null, now = new Date(), late = false): Promise<WizardOptions> {
-  const opts = await startOptions(user, seasonId, couchId, null, now, late);
+export async function wizardOptions(user: SessionUser, seasonId: string, couchId: string | null, now = new Date(), late = false, start: number | null = null): Promise<WizardOptions> {
+  // `start`: an episode that's aired, to catch up from at your own pace (where you are, on a season still airing).
+  const opts = await startOptions(user, seasonId, couchId, null, now, late, start);
   // An aired season at your own pace takes the wizard too (the user, 2026-11-09): it starts where the season's starts say.
   if (opts.blocked) return { ...opts, wizard: null };
   const [{ pack, ctx }, asks, tells, made] = await Promise.all([packFor(user, seasonId, opts.couch.id, now), asksToday(user), audience(user, opts.couch.id, seasonId), madeGames(seasonId)]);
@@ -105,7 +106,9 @@ export async function startFromSpec(
 ): Promise<SpecStarted> {
   if (!isObj(body.spec)) throw new HttpError(400, "spec: the game to start");
   const late = body.late === true;
-  const opts = await startOptions(user, seasonId, couchId, null, now, late);
+  // A start on an episode that's aired is a catch-up at your own pace (startOptions' `start`); any other start is checked below.
+  const asked = isObj(body.spec) && isObj(body.spec.span) && typeof body.spec.span.from === "number" ? body.spec.span.from : null;
+  const opts = await startOptions(user, seasonId, couchId, null, now, late, asked);
   if (opts.blocked) throw new HttpError(409, opts.blocked);
   if (late && !opts.late) throw new HttpError(409, `Nothing's on now to include: it starts with ${opts.part.singular} ${opts.from}`);
   const couch = opts.couch.id;

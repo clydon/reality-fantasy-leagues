@@ -118,8 +118,10 @@ function StartRouter({ target: asked, onOpenChange }: { target: StartTarget | nu
   const target = asked ?? shown;
   const couchId = target?.couchId ?? current?.id ?? null;
   const [late, setLate] = useState(false);
+  // Catching up from where you are on a season still airing (an episode that's aired: at your own pace).
+  const [catchUp, setCatchUp] = useState<number | null>(null);
   const wizardWanted = !!target?.seasonId && !target.again;
-  const wiz = useWizardOptions(target?.seasonId ?? null, couchId, wizardWanted, late);
+  const wiz = useWizardOptions(target?.seasonId ?? null, couchId, wizardWanted, late, catchUp);
   // A sport's league season (a matchup's or a slate's) starts the sport's own games (U1's sports slice: sports/start-sport.tsx);
   // any other sport's season (a TV listing's) keeps the list.
   const sport = wizardWanted && wiz.data?.sport && !wiz.data.blocked ? wiz.data : null;
@@ -143,6 +145,8 @@ function StartRouter({ target: asked, onOpenChange }: { target: StartTarget | nu
       practice={target.practice ? { seasonId: target.practice.seasonId, label: target.practice.label, onClose: target.practice.onClose } : undefined}
       late={late}
       setLate={setLate}
+      catchUp={catchUp}
+      setCatchUp={setCatchUp}
       first={target.screen}
     />
   );
