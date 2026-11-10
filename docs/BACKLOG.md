@@ -483,6 +483,10 @@ Last updated 2026-10-27.
       example in the manual and a prompt line (a sheet of who-will squares with a stake each is questions, not a card; new moments
       become questions). Prompt changes are the user's at the merge. (The engine lane, with G1's typed games.)
       Its "Can't count yet" also shows raw spec paths to people ("Closest: card.of.", "Closest: ask[0]."): say them in words.
+      **Approved by the user (2026-11-09), ahead of the merge.** Where: a fourth `teach` row in
+      tests/fixtures/engine-capabilities.json `examples` (manual.js `workedFor` shows four; p12, p27 and p28 today), its words the
+      user's, its spec nine `person` asks with a bank and a wager each (p10/p28's bank shape); the prompt line in
+      game-words/prompt.js; the raw path at start-wizard.tsx:1929 (`x.nearest`); check with `check-game-words.js --real --only=<id>`.
     - **No betting-game role, no scoring themes on the rail**: G5's made-for games are on the rail since 2026-11-09 (made from the
       desk's Setup; the plan's G5 "Built" bullet says what's left), beside the engine's own kinds that fit the rulebook. Different scoring cycles engine-made ways from the
       season's own rulebook (No points lost, Big moments only: the user's call, 2026-11-09) until G5's themes. (G5, then the wizard
