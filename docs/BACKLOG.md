@@ -476,6 +476,12 @@ Last updated 2026-10-27.
       only one on the couch (through impeccable; a solo couch's default to be decided). (Engine lane, then U1.)
       **Reframed by the user (2026-11-09): solo first, then a simple bot**; every game at your own pace through the wizard
       before either (docs/PLAN-own-pace-games.md, the two sections of 2026-11-09).
+    - **The drafter reads "a bingo sheet" literally** (the user's typed game on Challenge 42, 2026-11-09: 9 wacky "which player will
+      ..." squares, a 200-point bank, a wager on each, all 9 answered): it went to Weekly Bingo's card (no stake per square) and
+      refused new moments ("only moments already in the research list"). The engine plays it as nine `person` questions with a
+      bank and a wager each (WAGERS takes person); the wacky moments are the questions' own words, which research answers. A worked
+      example in the manual and a prompt line (a sheet of who-will squares with a stake each is questions, not a card; new moments
+      become questions). Prompt changes are the user's at the merge. (The engine lane, with G1's typed games.)
     - **No betting-game role, no scoring themes on the rail**: G5's made-for games are on the rail since 2026-11-09 (made from the
       desk's Setup; the plan's G5 "Built" bullet says what's left), beside the engine's own kinds that fit the rulebook. Different scoring cycles engine-made ways from the
       season's own rulebook (No points lost, Big moments only: the user's call, 2026-11-09) until G5's themes. (G5, then the wizard
