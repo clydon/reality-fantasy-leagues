@@ -195,6 +195,13 @@ export async function startFromSpec(
       // its computer players pick their teams now, from who was in before the start (start-game.ts's).
       if (opts.ownPace) {
         StateLogic.GhostLogic.paceAll(s, typeof span.from === "number" ? span.from : opts.from);
+        // Your spoiler mark follows the game: no further on than the episode before its start, and it stops moving by itself (the
+        // user, 2026-11-09: a game from Episode 4 had the show's page showing Episode 14).
+        await client.query(
+          `INSERT INTO show_follows (user_id, season_id, seen_through) VALUES ($1, $2, $3)
+           ON CONFLICT (user_id, season_id) DO UPDATE SET seen_through = LEAST(COALESCE(show_follows.seen_through, $3), $3), keep_up = 'off', updated_at = now()`,
+          [user.id, seasonId, (typeof span.from === "number" ? span.from : opts.from) - 1]
+        );
         Bots.paceTeams(s);
       }
       await recordChange(client, id, s, {
