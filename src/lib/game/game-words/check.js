@@ -647,7 +647,9 @@ function checkDraft(draft, { ctx = null, pack = null, words = '', kind, carry = 
   for (const [path, n] of numbersOf(spec).reverse()) {
     if (path === 'spec') continue;
     const said = result.said.some((s) => (!s.part || covers(s.part, path) || covers(path, s.part)) && backs(s.quote, path, n, pageKind));
-    const assumed = result.assumed.some((a) => covers(a.part, path));
+    // The same number on a sibling (each question's points) is one choice: covered once, never asked once a question.
+    const sib = (p) => String(p || '').replace(/\[\d+\]/g, '[]');
+    const assumed = result.assumed.some((a) => covers(a.part, path) || (sib(a.part) === sib(path) && a.value === n));
     if (said || assumed) continue;
     const without = withAt(spec, path, undefined);
     const dflt = getAt(fullSpec(without), path);

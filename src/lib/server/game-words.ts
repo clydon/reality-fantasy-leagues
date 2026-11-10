@@ -184,7 +184,8 @@ export async function packFor(user: SessionUser, seasonId: string, couchId: stri
     show: h.show.name,
     ...(h.seasonNumber ? { season: h.seasonNumber } : {}),
     kind,
-    status: h.status,
+    // An aired season's game plays at your own pace (docs/PLAN-own-pace-games.md): never "it's over" to the drafter.
+    status: h.status === "completed" ? "aired: a game plays at your own pace" : h.status,
     today: now.toISOString().slice(0, 10),
     episodes: {
       aired: eps.filter((e) => e.airAt && Date.parse(e.airAt) <= now.getTime()).length,
