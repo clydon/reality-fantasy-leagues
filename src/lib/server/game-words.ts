@@ -349,10 +349,12 @@ export async function gameWords(user: SessionUser, seasonId: string, body: { wor
     // Moments they asked to be made up (BACKLOG 42): one short ask of the creative quick change's kind, rated with the rest.
     // How many they asked to be made up: the drafter's count (it reads their words against the show's moments), else the phrase check.
     const told = /"invent"\s*:\s*(\d{1,2})/.exec(String(asked.answer));
-    const invent = change || result.state === "unreadable" ? null : told ? Math.min(9, Number(told[1])) || null : inventAsked(words);
-    if (invent && result.state !== "unreadable" && result.newMoments.length < invent) {
+    // Its 0 is never invent; above 0, an explicit count in their words wins over its own (it counts their examples: the 3 of "create 9").
+    const phrase = inventAsked(words);
+    const invent = change || result.state === "unreadable" ? null : !told ? phrase : Number(told[1]) > 0 ? Math.min(9, Math.max(Number(told[1]), phrase ?? 0)) : null;
+    if (invent && result.state !== "unreadable" && result.newMoments.length < Math.min(18, 2 * invent)) {
       try {
-        const made = await askBot(Words.inventPrompt({ pack, words, n: invent - result.newMoments.length }), { bot, budgetMs: deadline - Date.now(), search: false, priority: "now" });
+        const made = await askBot(Words.inventPrompt({ pack, words, n: Math.min(18, 2 * invent) - result.newMoments.length }), { bot, budgetMs: deadline - Date.now(), search: false, priority: "now" });
         seconds += made.seconds;
         const list: unknown = JSON.parse(String(made.answer).match(/\[[\s\S]*\]/)?.[0] ?? "[]");
         const have = new Set(result.newMoments.map((m) => m.label.toLowerCase()));
@@ -368,7 +370,7 @@ export async function gameWords(user: SessionUser, seasonId: string, body: { wor
       }
     }
     if (result.state !== "unreadable" && result.newMoments.length) {
-      const rated = await rateMoments(result, pack, { bot, deadline, limit: invent ?? undefined });
+      const rated = await rateMoments(result, pack, { bot, deadline, limit: invent ? Math.min(18, 2 * invent) : undefined });
       result = rated.result as AnswerResult;
       seconds += rated.seconds;
     }
