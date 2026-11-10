@@ -44,6 +44,23 @@ const IMMEDIATE_SQL = (user: string, season: string) =>
         THEN NOT COALESCE((SELECT hide_sports_scores FROM user_settings WHERE user_id = ${user}), false)
         ELSE COALESCE((SELECT show_results_immediately FROM user_settings WHERE user_id = ${user}), false) END`;
 
+/** The furthest episode this person has revealed in their games at their own pace on a season (seats catching up), else null. */
+async function paceMark(userId: string, seasonId: string, db: Queryable): Promise<number | null> {
+  const { rows: seats } = await db.query(
+    `SELECT l.id, m.player_id FROM league_memberships m JOIN leagues l ON l.id = m.league_id ${LEAGUE_SEASON_JOIN} WHERE m.user_id = $1 AND ss.id = $2`,
+    [userId, seasonId]
+  );
+  if (!seats.length) return null;
+  const states = await leagueStates(seats.map((s) => s.id));
+  const marks: number[] = [];
+  for (const s of seats) {
+    const st = states.get(s.id) as LeagueState | undefined;
+    const lj = st && StateLogic.GhostLogic.ownPace(st) ? StateLogic.GhostLogic.lateJoinOf(st, s.player_id) : null;
+    if (lj && lj.catchingUp && typeof lj.seenThrough === "number") marks.push(lj.seenThrough);
+  }
+  return marks.length ? Math.max(...marks) : null;
+}
+
 /** The last episode this person may be told about on this season. */
 export async function seenThrough(userId: string, seasonId: string, db: Queryable = pool): Promise<number> {
   const { rows } = await db.query(
@@ -56,6 +73,10 @@ export async function seenThrough(userId: string, seasonId: string, db: Queryabl
   let mark = rows[0]?.mark as number | null;
   if (rows[0]?.keep_up === "auto") mark = (await advanceAuto([seasonId], userId, db)).get(`${userId}/${seasonId}`) ?? mark;
   const immediate = !!rows[0]?.immediate;
+  // Never further on than your own-pace games there: following a finished season marks it seen to its end (the user, 2026-11-09:
+  // Challenge 42 read "up to Episode 13" with their game on Episode 4).
+  const own = await paceMark(userId, seasonId, db);
+  if (own !== null) mark = mark === null ? own : Math.min(mark, own);
   if (!immediate) return progressFrom(mark, false, []);
   // A sport's season, live: everything, unless a seat is a late joiner's (an own-pace game goes by its mark), even one only followed.
   const sport = !!rows[0]?.sport;
