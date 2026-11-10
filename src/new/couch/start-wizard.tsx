@@ -1975,7 +1975,7 @@ function AskResult(p: Parameters<typeof AskScreen>[0] & { r: NonNullable<GameWor
       {r.assumed.length > 0 && (
         <div>
           <p className="type-caption mb-1 mt-5 text-[13px] tracking-[0.05em] text-muted-foreground">We filled in</p>
-          {r.assumed.slice(0, 6).map((x, i) => (
+          {r.assumed.filter((x, i, all) => all.findIndex((y) => y.why === x.why && String(y.value) === String(x.value)) === i).slice(0, 6).map((x, i) => (
             <p key={i} className="mt-1.5 text-[14px] leading-snug text-foreground/85">
               <strong>{typeof x.value === "object" ? x.part : String(x.value)}</strong> · {x.why}
             </p>
