@@ -380,14 +380,17 @@ const STATS_STALE_MS = 6 * 60_000;
  */
 async function statsFor(seasonId: string, mark: number, people: { p: RosterGroup["people"][number]; ids: Record<string, string> | null }[]): Promise<RosterStats> {
   const linked = "(g.episode = 0 OR EXISTS (SELECT 1 FROM season_events e WHERE e.season_id = g.season_id AND e.episode = g.episode))";
+  // Someone told everything (guard.ts EVERYTHING, an infinity: the default on a sport's season) reads every game: the query takes
+  // an episode number, and an infinity isn't one (the tab answered 500 for them; found by the gameplay explorer, 2026-11-14).
+  const upTo = Number.isFinite(mark) ? mark : 2147483647;
   const [{ rows: lines }, { rows: more }, { rows: fill }] = await Promise.all([
-    pool.query(`SELECT g.episode, g.provider, g.athlete, g.label, g.tables FROM game_lines g WHERE g.season_id = $1 AND g.episode <= $2 AND ${linked}`, [seasonId, mark]),
+    pool.query(`SELECT g.episode, g.provider, g.athlete, g.label, g.tables FROM game_lines g WHERE g.season_id = $1 AND g.episode <= $2 AND ${linked}`, [seasonId, upTo]),
     // The latest game past the mark, and every column the season's games show (coming in's columns: a label isn't a spoiler).
     pool.query(
       `SELECT (SELECT max(g.episode) FROM game_lines g WHERE g.season_id = $1 AND g.episode > $2 AND ${linked}) AS newer,
               (SELECT array_agg(DISTINCT l) FROM game_lines g, jsonb_array_elements(g.tables) t, jsonb_array_elements_text(t->'labels') l
                 WHERE g.season_id = $1 AND g.episode > 0) AS shown`,
-      [seasonId, mark]
+      [seasonId, upTo]
     ),
     pool.query("SELECT asking_at, message FROM stat_fills WHERE season_id = $1", [seasonId]),
   ]);

@@ -42,6 +42,11 @@ test("Weekly Lineup: set says what you've set and when it locks; not set is due,
   const locked = yourMove(game({ gameType: "active-roster", lineup: lineup({ locked: true }) }), ctx());
   assert.equal(locked.due, false);
   assert.match(locked.line, /Locked at airtime/);
+  // A sport's lineup its week (or day) locked before its own game: nothing has aired, so it doesn't say airtime or a reveal (BACKLOG 76).
+  const byWeek = yourMove(game({ gameType: "active-roster", lineup: lineup({ locked: true, lockedBy: "week" }) }), ctx());
+  assert.equal(byWeek.line, "Locked when the week's first game began");
+  assert.equal(byWeek.due, false);
+  assert.equal(yourMove(game({ gameType: "active-roster", lineup: lineup({ locked: true, lockedBy: "day" }) }), ctx()).line, "Locked when the day's first game began");
 });
 
 test("Survival Pool: your pick by name, or a pick due; the show's own word for an episode", () => {

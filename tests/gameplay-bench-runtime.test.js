@@ -1358,15 +1358,41 @@ test("stages: two games split at the merge, each a game of its own; the second d
     assert.equal(st('eps~b').castaways.filter(c => c.ownerIds.includes('p1')).length, 3, 'drafted as episode 5 ended the stage before');
     const exported = late.export(), replay = R.resume(exported); try { assert.equal(replay.hash(), exported.stateHash); } finally { replay.dispose(); }
   } finally { late.dispose(); }
-  // Fewer still in than a team takes (BACKLOG 60): nobody can lock a sheet in, as the server refuses every one, so the draft stays
-  // open and unmade, the stage has no team (its lineup reads as set, with nobody to start), and it counts nothing in the overall.
+  // Fewer still in than a team takes (BACKLOG 60, fixed 2026-11-14): a sheet names everyone still in, so the draft is made (every
+  // seat the same five), the stage has teams and a lineup to set. (It couldn't be locked in: every sheet was refused, the stage
+  // never had teams.)
   const few = R.open(D.create({ seed: 9, world: { ...world, contexts: [{ ...world.contexts[0], engine: { ...Q.context, couch: 3, pool: 8 } }] }, games: [{ id: 'six', contextId: 'show', timing: 'live-only', spec: staged({ ...lineup, get: { ...lineup.get, each: 6 } }) }], situation: { clock: '2099-01-10T12:00:00.000Z', marks: [] }, content: { completedEvents: 3, eventCount: 6 } }));
   try {
     const st = few.snapshot().games['six~after'].state;
     assert.equal(st.castaways.filter(c => c.status === 'active').length, 5);
-    assert.deepEqual([S.startEpisode(st), S.DraftLogic.waits(st), st.castaways.some(c => c.ownerIds.length)], [4, null, false]);
-    assert.equal(S.BlindDraftLogic.validateSubmission(st, 'p1', st.castaways.filter(c => c.status === 'active').map(c => c.id)), 'Pick exactly 6 castaways');
-    { const l = few.project('six~after', 'p1').game.lineup; assert.deepEqual([l.episode, l.roster, l.need, l.set], [4, [], 0, true]); }
+    assert.deepEqual([S.startEpisode(st), S.DraftLogic.waits(st), S.DraftLogic.begun(st)], [4, null, true]);
+    for (const p of ['p1', 'p2', 'p3']) assert.deepEqual(st.castaways.filter(c => c.ownerIds.includes(p)).map(c => c.id), st.castaways.filter(c => c.status === 'active').map(c => c.id), p + ' holds everyone still in');
+    assert.equal(S.BlindDraftLogic.sheetSize(st, 'p1'), 5);
+    { const l = few.project('six~after', 'p1').game.lineup; assert.deepEqual([l.episode, l.roster.length, l.need > 0, l.set], [4, 5, true, false]); }
     assert.deepEqual(few.project('six', 'p1').game.table.map(r => r.total), few.project('six~before', 'p1').game.table.map(r => r.total));
   } finally { few.dispose(); }
+});
+
+test("stakes with a bot: points won by beating the bot are yours to stake (the limit read them as nothing)", () => {
+  const D = require('../tools/gameplay-bench/explorer/document.cjs'), Q = require('./fixtures/gameplay-explorer/questions-input.json');
+  // The boot, void when the bot makes no call; "will it happen", staked from your points.
+  const ask = Q.spec.ask.map(q => (q.id === 'boot' ? { ...q, beat: { by: 'bot', none: 'void' } } : q.id === 'happens' ? { ...q, wager: 'total' } : q)).filter(q => ['boot', 'happens'].includes(q.id));
+  const s = R.open(D.create({ seed: 5, world: { contexts: [{ id: 'show', kind: 'show', format: { id: 'survivor' }, engine: { ...Q.context, couch: 2, pool: 8 } }], people: [{ id: 'p1', name: 'Ann' }, { id: 'p2', name: 'Bo' }] },
+    games: [{ id: 'q', contextId: 'show', timing: 'live-only', spec: { ...Q.spec, ask } }], situation: { clock: '2099-01-10T12:00:00.000Z', marks: [] }, content: { completedEvents: 0, eventCount: 3 } }));
+  try {
+    const ok = a => { const r = s.apply(a); assert.equal(r.status, 'accepted', JSON.stringify(a) + ' ' + r.message); };
+    const ids = s.project('q', 'p1').questions.find(q => q.id === 'boot').options.map(o => o.id);
+    ok({ type: 'botCall', gameId: 'q', question: 'boot', episode: 1, answer: ids[1] });   // the bot is wrong
+    ok({ type: 'answer', gameId: 'q', personId: 'p1', question: 'boot', episode: 1, answer: ids[0] });   // Ann is right: she beats it
+    const ev = s.snapshot().contexts.show.events[0];
+    ok({ type: 'clock', at: new Date(Date.parse(ev.airAt) + 3600000).toISOString() });
+    ok({ type: 'results', contextId: 'show', eventId: ev.id, source: 'provider-fixture', resultStatus: 'final', data: { events: [{ castawayId: ids[0], method: 'Voted Out' }], scoringEvents: [] } });
+    for (const p of ['p1', 'p2']) ok({ type: 'reveal', contextId: 'show', personId: p });
+    const v = s.project('q', 'p1'), total = v.game.table.find(r => r.playerId === 'p1').total, happens = v.questions.find(q => q.id === 'happens');
+    assert.ok(total > 0, 'Ann scored by beating the bot');
+    assert.equal(happens.episode, 2);
+    assert.equal(happens.stakeMost, total, 'she may stake all of it on episode 2');
+    assert.equal(s.project('q', 'p2').questions.find(q => q.id === 'happens').stakeMost, 0, 'Bo, with nothing, nothing');
+    assert.equal(s.apply({ type: 'answer', gameId: 'q', personId: 'p1', question: 'happens', episode: 2, answer: { answer: 'yes', stake: total } }).status, 'accepted');
+  } finally { s.dispose(); }
 });

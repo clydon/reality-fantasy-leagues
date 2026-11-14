@@ -5,6 +5,7 @@ const D = require('./document.cjs'), J = require('./json.cjs'), P = require('./p
 // Weekly Calls (runtime-calls.cjs), loaded only by a case that has them (it reads the TypeScript calls module).
 let callsModule = null; const Calls = () => callsModule || (callsModule = require('./runtime-calls.cjs'));
 let waiversModule = null; const Waivers = () => waiversModule || (waiversModule = require('./runtime-waivers.cjs'));
+let sportsModule = null; const Sports = () => sportsModule || (sportsModule = require('./runtime-sports.cjs'));
 const isWeekly = game => G.callsAsk(G.fullSpec(game.spec).ask);
 const isBeatGame = game => (G.fullSpec(game.spec).ask || []).some(q => G.isBeat(q));
 /** A14 part 2: how the couch did against the bot (answer-points.ts botLine, ported: it reads the grade, not the DB). */
@@ -25,7 +26,7 @@ function botLineOf(view, rows, facts, graded) {
 }
 const jiti = require('jiti')(__filename, { alias: { '@': path.resolve(__dirname, '../../../src') } });
 const { gameView } = jiti('../../../src/lib/game/game-view.ts');
-const VERSION = 'core-runtime-29'; // 29: whoever runs a game at its own pace with exclusive teams acts on the copy at everyone's episode (Run now, Open a window, Undo: runtime-waivers.cjs handOn), and its waiver clock leaves a held week alone (BACKLOG 56 fixed, 2026-11-14) // 28: live only is stored as live and strict (settings.lockAtAir: the product's pace setting, 2026-11-13, whose default for a live game is now a move open until you've watched); behaviour unchanged, states differ // 27: a game in stages (stages.cjs: each stage a game of its own beside it, derived from its spec; the game's table the overall, from their tables as answer-points.ts stageWalk reads them; a stage's draft that opens at its start made as it opens, from who's still in) // 26: what whoever runs the game does with its waivers (the waiverWindow, waiverRun and waiverUndo actions, and a claim sent for someone: forId), as the routes and Backstage run them; a free-agency move waits for the week's reveal, as its route makes it // 25: mid-season waivers (claims in a private store, the waiver clock synced on every action as the server syncs it: runtime-waivers.cjs; the claim and freeAgency actions) // 24: an auction's sealed bids, generated and settled at setup as the server settles them // 23: pairs the show forms (context.pairs, in the stored answers' format section), group slots settled from them as the server settles them, the groupSlot action // 22: a pool's second pick (the pick action's second: true) // 21: a world's tribes (context.tribes, in blocks) and a draft spread across them (get.across), drafted in snake rounds // 20: secret roles (the deal, seeded from the game's id, stamped as secret-roles.ts stamps it) // 19: a lineup's captain (captainId with the lineup, as the lineup route takes it) // 18: the top scorer's twist (its choices per episode, the twist action, stamped as twists.ts stamps them) // 17: beat the bot (its calls per window, the botCall action, facts.bot, the bot line) // 16: the projection grades on the viewer's copy carrying its walk, cut at the game's end (answer-points.ts walked), so whole-game questions settle where the game ended // 15: confidence picks (who goes home, ranked surest first) // 14: Weekly Calls (a person's calls on the context: runtime-calls.cjs; the call action) // 13: a game with an answer walk ranks by the walk's totals (frozen at its end), as answer-points.ts pointsOf; the open window's worth (a rollover's jackpot) in the projection // 12: bounties (who voted for whom, stamped as the server stamps it); 5: side bets; 6: season-long questions (asked once: who wins, the final N); 7: head to head (the server's settle on each write); 8: answers refused once you're out or the game has ended (lives, races, head to head's final); 9: only the answers that count (liveRows) once someone's out; 10: stakes held to your points or the bank (answers.ts stakeMost); 11: phases (settleIn after results and at setup) // 2: results need their event to have aired; 3: realistic generated cast names; 4: ownPace stored as production does
+const VERSION = 'core-runtime-35'; // 35: a game of a sport's categories (score.categories ranked by each category, by most of them, or roto) opens on a sport context: the profile's, the stamp carried the sport's category definitions already. 34: a sport's game that locks by the day or the week (runtime-sports.cjs lockTimes: each episode's lock stamped for a read or an action as the server stamps it, never kept; the session's calendar(shiftMs) for a real-route harness), and head to head on a sport. 33: the stake limit reads the bot's calls (a point won against the bot on a question void without its call is yours to stake: it was left out, so the limit read low; found on the real routes, campaign sport-api case 24). 32: the server's spoiler guard on a sport's season (runtime-sports.cjs guard: results straight away unless someone hides sports scores too, a person's hidesScores, or plays only at their own pace there; guard.ts seenThrough, season-games.ts markFor). 31: generated cast names distinct for every pool (they repeated from the 41st on: runtime-data.cjs participantName; a sport's best ball has a pool that size, and its materialized cast is a row a name). 30: a generated sports world (runtime-sports.cjs: a sport context's athletes, schedule and box scores; a drafted team scored by a sport's stats with plain points, ranked by total, locking at the start), 2026-11-14; a show's world and every state on one are unchanged // 29: whoever runs a game at its own pace with exclusive teams acts on the copy at everyone's episode (Run now, Open a window, Undo: runtime-waivers.cjs handOn), and its waiver clock leaves a held week alone (BACKLOG 56 fixed, 2026-11-14) // 28: live only is stored as live and strict (settings.lockAtAir: the product's pace setting, 2026-11-13, whose default for a live game is now a move open until you've watched); behaviour unchanged, states differ // 27: a game in stages (stages.cjs: each stage a game of its own beside it, derived from its spec; the game's table the overall, from their tables as answer-points.ts stageWalk reads them; a stage's draft that opens at its start made as it opens, from who's still in) // 26: what whoever runs the game does with its waivers (the waiverWindow, waiverRun and waiverUndo actions, and a claim sent for someone: forId), as the routes and Backstage run them; a free-agency move waits for the week's reveal, as its route makes it // 25: mid-season waivers (claims in a private store, the waiver clock synced on every action as the server syncs it: runtime-waivers.cjs; the claim and freeAgency actions) // 24: an auction's sealed bids, generated and settled at setup as the server settles them // 23: pairs the show forms (context.pairs, in the stored answers' format section), group slots settled from them as the server settles them, the groupSlot action // 22: a pool's second pick (the pick action's second: true) // 21: a world's tribes (context.tribes, in blocks) and a draft spread across them (get.across), drafted in snake rounds // 20: secret roles (the deal, seeded from the game's id, stamped as secret-roles.ts stamps it) // 19: a lineup's captain (captainId with the lineup, as the lineup route takes it) // 18: the top scorer's twist (its choices per episode, the twist action, stamped as twists.ts stamps them) // 17: beat the bot (its calls per window, the botCall action, facts.bot, the bot line) // 16: the projection grades on the viewer's copy carrying its walk, cut at the game's end (answer-points.ts walked), so whole-game questions settle where the game ended // 15: confidence picks (who goes home, ranked surest first) // 14: Weekly Calls (a person's calls on the context: runtime-calls.cjs; the call action) // 13: a game with an answer walk ranks by the walk's totals (frozen at its end), as answer-points.ts pointsOf; the open window's worth (a rollover's jackpot) in the projection // 12: bounties (who voted for whom, stamped as the server stamps it); 5: side bets; 6: season-long questions (asked once: who wins, the final N); 7: head to head (the server's settle on each write); 8: answers refused once you're out or the game has ended (lives, races, head to head's final); 9: only the answers that count (liveRows) once someone's out; 10: stakes held to your points or the bank (answers.ts stakeMost); 11: phases (settleIn after results and at setup) // 2: results need their event to have aired; 3: realistic generated cast names; 4: ownPace stored as production does
 const RESTORE = Symbol('restore verified checkpoints');
 class Blocked extends Error {
   constructor(report) { super(report.message || report.category); this.report = report; }
@@ -124,6 +125,19 @@ function open(input, internal = {}) {
   const alive = () => { if (disposed) throw Error('Runtime has been disposed'); };
   const worldFor = game => state.contexts[game.contextId];
   const markOf = (game, personId) => worldFor(game).marks.find(m => m.personId === personId)?.through ?? 0;
+  // A sport's locks by the day or the week (runtime-sports.cjs lockTimes) are stamped where the engine reads them and never
+  // kept, as on the server: on a read's copy (projection), and on the working state around an action. `calendarShift`: the
+  // calendar they're read on (0, the scenario's own; a real-route harness sets the shift it writes the schedule with).
+  let calendarShift = 0;
+  const sportGames = () => document.games.filter(g => state.contexts[g.contextId]?.context.kind === 'sport' && state.games[g.id]);
+  const stampLocks = () => { for (const g of sportGames()) Sports().stampLocks(state.contexts[g.contextId], state.games[g.id].state, calendarShift); };
+  const unstampLocks = () => { for (const g of sportGames()) Sports().unstampLocks(state.games[g.id].state); };
+  // What a game's view is cut at for someone (season-games.ts markFor): a seat catching up at its own pace, its own mark; anyone
+  // else what the season's guard lets them be told (their mark; a sport's results straight away, Infinity: runtime-sports.cjs guard).
+  const seenFor = (game, full, personId) => {
+    const told = worldFor(game).context.kind === 'sport' ? Sports().guard(state, document.games, game.contextId, personId) : markOf(game, personId);
+    return S.GhostLogic.lateJoinOf(full, personId)?.catchingUp ? Math.min(markOf(game, personId), told) : told;
+  };
   // Whoever runs a game: the commissioner its roles name, else its first seat (as the materializer seats them: live-db.cjs).
   const runsGame = (game, full, id) => game.roles[id] === 'commissioner' || (!Object.values(game.roles).includes('commissioner') && full.players[0]?.id === id);
   // calls.ts lateOn's league check: on a game on this context they play at their own pace, one that plays episode n.
@@ -155,10 +169,11 @@ function open(input, internal = {}) {
   function stakeLimit(game, full, q, personId, seen, episode) {
     const bank = G.bankOf(S.gameOf(full));
     if (!G.drawsOnBank(q, bank)) return undefined;
-    const seenCopy = S.GhostLogic.viewFor(full, personId, seen), all = state.stores.answers[game.id], facts = S.AnswerLogic.facts(seenCopy);
+    // (With the bot's calls, as the projection's grade and the server's: a point won by beating the bot is yours to stake. 33.)
+    const bf = botFacts(game, full), seenCopy = S.GhostLogic.viewFor(full, personId, seen), all = state.stores.answers[game.id], facts = { ...S.AnswerLogic.facts(seenCopy), ...bf };
     const walk = G.answerParts(S.gameOf(seenCopy)) ? S.AnswerLogic.walk(seenCopy, all, facts) : null;
     const view = S.spanView(walk ? S.AnswerLogic.withWalk(seenCopy, walk) : seenCopy), rows = walk ? S.AnswerLogic.liveRows(seenCopy, all, walk.out) : all;
-    const graded = S.AnswerLogic.grade(view, rows, S.AnswerLogic.facts(view));
+    const graded = S.AnswerLogic.grade(view, rows, { ...S.AnswerLogic.facts(view), ...bf });
     const points = walk ? (walk.totals[personId] ?? 0) : (graded.points.get(personId) ?? 0), key = q.id + '|' + episode;
     let most = points;
     for (const a of rows) {
@@ -235,7 +250,7 @@ function open(input, internal = {}) {
   }
   function readActor(game, full, personId) {
     if (!full.players.some(p => p.id === personId && p.active !== false && !p.disabled) || game.roles[personId] === 'spectator') throw Error('Actor is not a playing member of this game');
-    return markOf(game, personId);
+    return seenFor(game, full, personId);
   }
   // `present` (optional): frame identity only, never state — { leagueId, userOf } for an application frame's IDs.
   function projection(gameId, personId = null, present = {}) {
@@ -243,10 +258,12 @@ function open(input, internal = {}) {
     const { game, full: stored } = resolveGame(gameId);
     // A game in stages as it stands (answer-points.ts asItStands): its stages' tables on it, so its own table is the overall; a
     // viewer's copy cuts them at their mark (SpoilerLogic.viewThrough).
-    const full = S.StageLogic.on(stored) ? S.StageLogic.withWalk(stored, stageWalk(game)) : stored;
+    const staged = S.StageLogic.on(stored) ? S.StageLogic.withWalk(stored, stageWalk(game)) : stored;
+    // (A sport's day and week locks, on this read's copy: runtime-sports.cjs withLocks.)
+    const full = worldFor(game).context.kind === 'sport' ? Sports().withLocks(worldFor(game), staged, calendarShift) : staged;
     if (personId !== null && !state.people.some(p => p.id === personId)) throw Error('Unknown person');
     const member = full.players.some(p => p.id === personId && p.active !== false && !p.disabled) && game.roles[personId] !== 'spectator';
-    const seen = personId ? markOf(game, personId) : 0;
+    const seen = personId ? seenFor(game, full, personId) : 0;
     const seenCopy = S.GhostLogic.viewFor(full, member ? personId : null, seen);
     const rows = state.stores.answers[gameId];
     // The facts as the server builds them on the viewer's copy (answer-points.ts answerFacts; its extras are sports-only): the walk
@@ -266,7 +283,8 @@ function open(input, internal = {}) {
     // Weekly Calls: the table from the person's calls (calls.ts leagueCalls); its one question isn't the answer grade's.
     const call = isWeekly(game) ? Calls().gameCalls(worldFor(game), state.stores.calls[game.contextId], full, member ? personId : null, seen, now) : S.AnswerLogic.questions(full).length ? { right: walk ? (id => walk.totals[id] ?? 0) : (id => grade.points.get(id) || 0), move: null, through: seen, walk, lines, bot: botLineOf(view, live, facts, grade) } : undefined;
     const ref = { leagueId: present.leagueId || game.id, name: game.name || 'Synthetic game', gameName: game.name || G.typeOf(game.spec), gameType: G.typeOf(game.spec), yourRole: game.roles[personId] || 'member', ownPace: game.timing === 'own-pace', solo: full.players.length === 1 ? 'private' : null };
-    const result = gameView(ref, full, member ? personId : null, seen, present.userOf || (id => id), call, { now, marks: new Map(worldFor(game).marks.map(m => [m.personId, m.through])) });
+    // (Everything is the server's null there: season-games.ts markFor.)
+    const result = gameView(ref, full, member ? personId : null, seen === Infinity ? null : seen, present.userOf || (id => id), call, { now, marks: new Map(worldFor(game).marks.map(m => [m.personId, m.through])) });
     const stands = standsOf(game, full);
     const questions = S.AnswerLogic.questions(full).filter(q => !G.isCalls(q)).map(q => {
       const episode = askedFor(q, seen), closed = !member || (q.asked !== 'once' && !full.episodes.some(e => e.number === episode)) || S.AnswerLogic.closed(stands, q, episode, { now, mark: seen, player: member ? personId : null, finale: finaleOf(game) });
@@ -344,8 +362,13 @@ function open(input, internal = {}) {
       if (world.events.some(e => e.number < event.number && !Data.released(e))) throw Error('Publish results in event order');
       // Results exist only after an airing: otherwise chat, recaps and reveals would carry facts nobody could know yet.
       if (event.airAt && Date.parse(state.clock) < Date.parse(event.airAt)) throw Error('Results need the event to have aired: advance the clock past its air time first');
-      const allowed = ['events', 'scoringEvents', 'noExit', 'votes']; // votes: who voted for whom, research's (a bounty's record)
+      // A sport's results are its box score (runtime-sports.cjs: lines, each athlete's counts), final at once: a week in progress
+      // isn't connected.
+      const sport = world.context.kind === 'sport';
+      if (sport && action.resultStatus === 'partial') throw Error("A sport's week in progress is not connected: publish final results");
+      const allowed = sport ? ['events', 'scoringEvents', 'lines'] : ['events', 'scoringEvents', 'noExit', 'votes']; // votes: who voted for whom, research's (a bounty's record)
       if (!J.object(action.data) || Object.keys(action.data).some(k => !allowed.includes(k))) throw Error('Result payload contains unsupported facts or player choices');
+      if (sport) Sports().checkData(world, action.data);
       event.resultStatus = action.resultStatus;
       world.facts = world.facts.filter(f => f.eventId !== event.id);
       world.facts.push({ id: 'fact-' + event.id, contextId: action.contextId, eventId: event.id, source: 'provider-fixture-action', data: copy(action.data) });
@@ -576,7 +599,7 @@ function open(input, internal = {}) {
     const before = J.digest(state), previous = state;
     state = copy(previous); walkRev++;
     let status = 'accepted', category = 'engine-action', message = null;
-    try { actionCore(action); for (const id of Object.keys(state.games)) if (J.digest(state.games[id]) !== J.digest(previous.games[id])) Data.settleWrite(state.contexts[definitions.get(id).contextId], state.games[id].state, { phases: action.type === 'results', clock: state.clock }); /* a stage's draft that opens at its start, opened by results this action applied (db.ts withLeagueLock settleStageDraft; stages.cjs) */ for (const g of document.games) if (g.stageOf !== undefined && J.digest(state.games[g.id]) !== J.digest(previous.games[g.id])) Stages.draftAtStart(document, g, state.games[g.id].state, state.clock); stampAllRoles(); stampAllTwists(); stampAllWaivers(); walkRev++; }
+    try { stampLocks(); try { actionCore(action); } finally { unstampLocks(); } for (const id of Object.keys(state.games)) if (J.digest(state.games[id]) !== J.digest(previous.games[id])) Data.settleWrite(state.contexts[definitions.get(id).contextId], state.games[id].state, { phases: action.type === 'results', clock: state.clock }); /* a stage's draft that opens at its start, opened by results this action applied (db.ts withLeagueLock settleStageDraft; stages.cjs) */ for (const g of document.games) if (g.stageOf !== undefined && J.digest(state.games[g.id]) !== J.digest(previous.games[g.id])) Stages.draftAtStart(document, g, state.games[g.id].state, state.clock); stampAllRoles(); stampAllTwists(); stampAllWaivers(); walkRev++; }
     catch (error) { state = previous; walkRev++; status = error instanceof Blocked ? 'blocked' : 'rejected'; category = error.report?.category || 'validation'; message = error.message; }
     const after = J.digest(state);
     const changedContexts = Object.keys(state.contexts).filter(id => J.digest(state.contexts[id]) !== J.digest(previous.contexts[id]));
@@ -591,6 +614,9 @@ function open(input, internal = {}) {
     apply, project: projection,
     snapshot() { alive(); return copy(state); },
     hash() { alive(); return J.digest(state); },
+    // The calendar a sport's day and week locks are read on (runtime-sports.cjs lockTimes): a real-route harness sets the shift
+    // it writes the schedule with, before it compares. Nothing kept changes: the state and its hash are as they were.
+    calendar(shiftMs) { alive(); if (!Number.isFinite(shiftMs)) throw Error('calendar(shiftMs) takes a number of milliseconds'); calendarShift = Math.round(shiftMs); walkRev++; return calendarShift; },
     checkpoint(id) { alive(); if (typeof id !== 'string' || !id || id.length > 200 || checkpoints.length >= 1000 || checkpoints.some(c => c.id === id)) throw Error('Checkpoint ID must be unique and 1–200 characters; maximum 1000 checkpoints'); const c = { id, traceLength: trace.length, hash: J.digest(state) }; checkpoints.push(c); return copy(c); },
     [RESTORE](rows) { checkpoints = copy(rows); },
     export() { alive(); return copy({ kind: 'gameplay-execution', schemaVersion: 1, input: document, versions, initialHash, state, stateHash: J.digest(state), trace, checkpoints, preparation: { profile: support.profile, notes: support.notes || [], plan, versionDrift, estimatedCells, sources: Object.fromEntries(Object.entries(state.games).map(([id, g]) => [id, g.source])) }, evidence: { rendering: 'unverified', interaction: 'headless-only', design: 'unreviewed', userApproval: 'not-requested' } }); },

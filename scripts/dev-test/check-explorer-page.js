@@ -2,7 +2,8 @@
 // open the example, situate (viewer, Air it, publish, reveal), switch screens, run the route checks, compare with another
 // running app version, side bets, season-long questions answered on the real game page through the finale, head to head
 // played through its playoff final, weeks won, only some moments counted as hits, co-op lives, bounties, teams, parlays, multipliers (the finale played on the page), rollovers,
-// and each later capability's own step (the newest: a game in stages, --only="stages:"), export and
+// and each later capability's own step (a game in stages, --only="stages:"; a sport's stats, --only="sports:"; the newest: a sport's
+// head to head with a weekly lock, --only="sports locks:"; a sport's categories, roto and head to head, --only="sports categories:"), export and
 // replay headlessly, the phone layout and a definition that can't open.
 //
 // Needs: the app (:3000), UI Atlas (:4400; restart after bench edits: bash scripts/dev-test/restart-atlas.sh), local DB.
@@ -252,6 +253,14 @@ const stagesFile = path.join(out, 'stages-definition.json');
   fs.writeFileSync(stagesFile, JSON.stringify(D.create({ seed: 9, world: { contexts: [{ id: 'show', kind: 'show', format: { id: 'survivor' }, engine: { ...Q.context, couch: 2, pool: 12 }, phaseStarts: { merged: 3 } }], people: [{ id: 'ann', name: 'Ann' }, { id: 'bo', name: 'Bo' }] },
     games: [{ id: 'stages', name: 'Before and after', contextId: 'show', timing: 'live-only', spec: { stages: [{ id: 'before', name: 'Before the merge', game: { ...lineup, span: { from: 1, to: { phase: 'merged' } } } }, { id: 'after', name: 'Merged', game: { ...lineup, span: { from: { phase: 'merged' } } } }], overall: { by: 'points' } } }],
     situation: { clock: '2099-01-10T12:00:00.000Z', marks: [{ personId: 'bo', contextId: 'show', through: 1 }] }, content: { completedEvents: 2, eventCount: 6 } })));
+}
+
+// A sport's stats: an NFL lineup (two starters of four), scored by the league's own table, on a generated sports world
+// (tests/fixtures/gameplay-explorer/sports-proof.cjs). Two games played; Ann caught up, Bo a game behind.
+const sportsFile = path.join(out, 'sports-definition.json');
+{
+  const nfl = require(path.join(root, 'tools/gameplay-bench/sports.cjs')).resolve('football/nfl', 'short').row.spec;
+  fs.writeFileSync(sportsFile, JSON.stringify(require(path.join(root, 'tests/fixtures/gameplay-explorer/sports-proof.cjs'))({ league: 'football/nfl', game: { ...nfl, get: { ...nfl.get, each: 4 }, count: { start: 2 } }, timing: 'live-only', ann: 2, bo: 1 })));
 }
 
 (async () => {
@@ -996,6 +1005,137 @@ const stagesFile = path.join(out, 'stages-definition.json');
       if (/last week.s stands in|last lineup carries over/i.test(seen.drafted + seen.sheet)) console.log("NOTE a new stage's first lineup says last week's stands in, when it has no last week (Designs needed items 11 and 33)");
       await p.locator('#route-check').click(); await p.locator('#panel-checks .card', { hasText: 'No spoilers, standings match' }).waitFor({ timeout: 90000 });
     });
+    await step("sports: an NFL lineup's real page shows the tables the runtime scored from the box scores; Ann changes her lineup on the real sheet and the runtime replays it; what Bo, a game behind, is shown and the page's words are recorded; the routes agree", async () => {
+      await p.locator('#open').click(); await p.locator('#open-file').click(); await p.locator('#file').setInputFiles(sportsFile);
+      await p.locator('#device-a iframe').waitFor({ timeout: 40000 }); await checked();
+      const app = p.frameLocator('#device-a iframe'); await p.locator('#game').selectOption('g'); await app.locator('[data-game-page]').waitFor({ timeout: 30000 }); await app.locator('[data-game-grid]').waitFor({ timeout: 30000 }); await p.waitForTimeout(1000);
+      const text = sel => app.locator(sel).first().evaluate(el => el.innerText.replace(/\s+/g, ' ').slice(0, 4000)).catch(() => '');
+      const seen = { ann: await text('[data-game-page]') }; await shot('05zzi-sports');
+      // The page's own numbers: each seat's total as the runtime scored it (its own replay of the definition), on the page.
+      const mine = R.open(JSON.parse(fs.readFileSync(sportsFile, 'utf8'))); let totals; try { totals = mine.project('g', 'ann').game.table.map(r => [r.playerId, r.total]); } finally { mine.dispose(); }
+      for (const [who, total] of totals) assert(seen.ann.includes(String(total)), who + "'s total " + total + ' is not on the page: ' + seen.ann.slice(0, 400));
+      assert(!/undefined|NaN|\[object/.test(seen.ann), 'the page prints a broken value: ' + (seen.ann.match(/.{0,40}(undefined|NaN|\[object).{0,40}/) || [''])[0]);
+      assert((await app.locator('html').evaluate(el => el.scrollWidth - el.clientWidth)) <= 0, 'the game page scrolls sideways');
+      // Her lineup for the next game, on the real sheet: a starter off, a bench player on, saved.
+      await p.locator('#device-a').scrollIntoViewIfNeeded(); await app.locator('[data-game-strip] button, [data-game-strip] a').first().click();
+      await app.locator('[data-starter]').first().waitFor({ timeout: 20000 });
+      seen.sheet = await text('[role="dialog"]'); await shot('05zzj-sports-lineup');
+      // Two games played: the tiles carry what each athlete has scored (they all read "0 pts": BACKLOG 74, fixed 2026-11-14).
+      { const pts = [...seen.sheet.matchAll(/(-?[\d.]+) pts/g)].map(m => Number(m[1])); assert(pts.length >= 4 && pts.some(n => n !== 0), 'the lineup sheet shows no athlete with points after two games: ' + seen.sheet.slice(0, 300)); }
+      await app.locator('[data-starter][aria-pressed="true"]').first().click(); await app.locator('[data-starter][aria-pressed="false"]').last().click();
+      const tapped = (await app.locator('[data-starter][aria-pressed="true"]').evaluateAll(els => els.map(el => el.getAttribute('data-starter')))).sort();
+      const serverState = () => p.evaluate(() => fetch('/__atlas/bench/runtime/state?id=' + window.__GAMEPLAY_EXPLORER_PAGE__.sides.a.id).then(r => r.json()));
+      const before = (await serverState()).trace.length; await app.getByRole('button', { name: /^Save$/ }).first().click();
+      let st; for (let t = 0; t < 25; t++) { st = await serverState(); if (st.trace.length > before) break; await p.waitForTimeout(1000); }
+      assert.equal(st.trace.at(-1)?.type, 'lineup', 'the lineup reached the runtime'); assert.equal(st.live.mismatches, 0, JSON.stringify(st.live.comparisons.at(-1)));
+      assert.equal(tapped.length, 2, 'two starters tapped: ' + tapped);
+      // Bo, a game behind: his page.
+      await p.locator('[data-viewer="bo"]').click(); await p.waitForFunction(() => window.__GAMEPLAY_EXPLORER_PAGE__.ui.viewerId === 'bo'); await checked(); await identity();
+      await p.locator('#game').selectOption('g'); await app.locator('[data-game-page]').waitFor({ timeout: 30000 }); await app.locator('[data-game-grid]').waitFor({ timeout: 30000 }); await p.waitForTimeout(1000);
+      seen.bo = await text('[data-game-page]'); await shot('05zzk-sports-behind');
+      fs.writeFileSync(path.join(out, 'sports-page.json'), JSON.stringify({ seen, totals, tapped }, null, 2));
+      // Recorded findings (the page in a show's words on a sport's game; the table's stats by their keys): not this step's to fail.
+      const all = seen.ann + ' ' + seen.sheet + ' ' + seen.bo, words = [...new Set((all.match(/\b(contestants?|castaways?|episodes?|voted out|went home|tribe)\b/gi) || []).map(w => w.toLowerCase()))];
+      if (words.length) console.log("NOTE a sport's game page and lineup sheet use a show's words (" + words.join(', ') + '); see sports-page.json');
+      const keys = [...new Set(all.match(/\b(PYDS|RYDS|RECYDS|RECTD|RETTD|FUML|DSTSACK|PA\d+(_\d+)?|FGM\d+)\b/g) || [])];
+      if (keys.length) console.log("NOTE the page names the table's stats by their keys (" + keys.slice(0, 6).join(', ') + (keys.length > 6 ? ', …' : '') + '), not their names; see sports-page.json');
+      await p.locator('#route-check').click(); await p.locator('#panel-checks .card', { hasText: 'No spoilers, standings match' }).waitFor({ timeout: 90000 });
+    });
+    await step("sports locks: head to head with a weekly lock on the real page: a lineup locked by its week before its own game; the game aired and its box score published on the page; the next week's lineup set on the real sheet and replayed by the runtime; the page's words recorded; the routes agree", async () => {
+      // Where the games fall in the real week is how far they are from now (the case is written with its clock as the server's
+      // now), so the definition is made here, from where now is in the Eastern week (Tuesday to Monday): a game begun earlier
+      // this week (played), the next later in it (so its lineup is locked before its own start), then two in the weeks after.
+      const ET = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }), DAYNAME = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'short' });
+      const weekOf = ms => { const [y, m, d] = ET.format(new Date(ms)).split('-').map(Number), day = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(DAYNAME.format(new Date(ms))); return new Date(Date.UTC(y, m - 1, d - ((day - 2 + 7) % 7))).toISOString().slice(0, 10); };
+      const HOUR = 3600000, MIN = 60000, now = Date.now(); let lo = now, hi = now; const wk = weekOf(now);
+      while (weekOf(lo - HOUR) === wk) lo -= HOUR; while (weekOf(lo - MIN) === wk) lo -= MIN; while (weekOf(hi + HOUR) === wk) hi += HOUR; while (weekOf(hi + MIN) === wk) hi += MIN;
+      const since = now - lo, until = hi + MIN - now;
+      if (since < 20 * MIN || until < 20 * MIN) { console.log('NOTE sports locks: now is within twenty minutes of the week turning over (Tuesday, Eastern); run this step again in half an hour'); return; }
+      const CLOCK = '2099-01-10T12:00:00.000Z', at = ms => new Date(Date.parse(CLOCK) + ms).toISOString(), inside = Math.min(since / 2, 16 * HOUR), ahead = Math.min(until / 2, 16 * HOUR);
+      const nfl = require(path.join(root, 'tools/gameplay-bench/sports.cjs')).resolve('football/nfl', 'short').row.spec, file = path.join(out, 'sports-locks-definition.json');
+      // (Game 3 a day past the week's turn: the clock moves on about a game when game 2 airs, and the schedule slides back with it.)
+      const schedule = [at(-inside), at(ahead), at(until + 24 * HOUR), at(until + 72 * HOUR)];
+      fs.writeFileSync(file, JSON.stringify(require(path.join(root, 'tests/fixtures/gameplay-explorer/sports-proof.cjs'))({ league: 'football/nfl', game: { ...nfl, get: { ...nfl.get, each: 4 }, count: { start: 2 }, rank: { by: 'matchups' } }, closes: 'weekly', schedule, completed: 1, clock: CLOCK, timing: 'live-only', ann: 1, bo: 1, cy: 1 })));
+      await p.locator('#open').click(); await p.locator('#open-file').click(); await p.locator('#file').setInputFiles(file);
+      await p.locator('#device-a iframe').waitFor({ timeout: 40000 }); await checked();
+      const app = p.frameLocator('#device-a iframe'), text = sel => app.locator(sel).first().evaluate(el => el.innerText.replace(/\s+/g, ' ').slice(0, 4000)).catch(() => '');
+      const serverState = () => p.evaluate(() => fetch('/__atlas/bench/runtime/state?id=' + window.__GAMEPLAY_EXPLORER_PAGE__.sides.a.id).then(r => r.json()));
+      const openGame = async () => { for (let go = 0; ; go++) { await p.locator('#game').selectOption('g'); try { await app.locator('[data-game-page]').waitFor({ timeout: 45000 }); break; } catch (e) { if (go) throw e; await p.locator('#game').selectOption({ index: 0 }).catch(() => {}); } } await app.locator('[data-game-grid]').waitFor({ timeout: 30000 }); await p.waitForTimeout(1000); };
+      const routes = async () => { await p.locator('#route-check').click(); await p.locator('#panel-checks .card', { hasText: 'No spoilers, standings match' }).waitFor({ timeout: 90000 }); };
+      await openGame();
+      const seen = { locked: await text('[data-game-page]'), strip: await text('[data-game-strip]') }; await shot('05zzl-sports-week-lock');
+      assert(!/undefined|NaN|\[object/.test(seen.locked), 'the page prints a broken value');
+      // The page says what locked it (it read "Locked at airtime · scores hidden until you reveal" and "Yours to change until it
+      // airs": BACKLOG 76, fixed 2026-11-14).
+      assert(/Locked when the week's first game began/i.test(seen.strip), 'the strip does not say the week locked the lineup: ' + seen.strip.slice(0, 200));
+      assert(/Locked when the week's first game began\. It plays as it stands\./i.test(seen.locked) && !/Yours to change until it airs/i.test(seen.locked), 'the week by week still says the lineup can be changed: ' + seen.locked.slice(0, 600));
+      // The server and the runtime agree the lineup for game 2 is locked (the route checks compare it), a day or so before it starts.
+      await routes();
+      // Game 2 airs and its box score comes in, on the page.
+      await p.waitForFunction(() => !document.querySelector('#stage.busy'), {}, { timeout: 20000 });
+      await p.locator('#episodes [data-air]').click();
+      await p.waitForFunction(() => { const s = window.__GAMEPLAY_EXPLORER_PAGE__.sides.a.state, e = s.events.find(x => x.number === 2); return Date.parse(s.clock) >= Date.parse(e.airAt); }, {}, { timeout: 20000 });
+      await p.locator('#episodes [data-publish="final"]').first().waitFor({ timeout: 20000 }); await p.locator('#episodes [data-publish="final"]').first().click();
+      await p.waitForFunction(() => window.__GAMEPLAY_EXPLORER_PAGE__.sides.a.state.events.find(e => e.number === 2).resultStatus === 'final', {}, { timeout: 30000 })
+        .catch(async e => { throw Error("game 2's box score did not publish: " + (await p.locator('#error').innerText().catch(() => '')) + ' / ' + e.message.slice(0, 80)); });
+      await checked(); await openGame();
+      seen.played = await text('[data-game-page]'); await shot('05zzm-sports-week-played');
+      // Next week's lineup (game 3: nothing of its week has begun) on the real sheet: a starter off, a bench player on, saved.
+      await p.locator('#device-a').scrollIntoViewIfNeeded(); await app.locator('[data-game-strip] button, [data-game-strip] a').first().click();
+      await app.locator('[data-starter]').first().waitFor({ timeout: 20000 });
+      seen.sheet = await text('[role="dialog"]'); await shot('05zzn-sports-next-week-lineup');
+      await app.locator('[data-starter][aria-pressed="true"]').first().click(); await app.locator('[data-starter][aria-pressed="false"]').last().click();
+      const before = (await serverState()).trace.length; await app.getByRole('button', { name: /^Save$/ }).first().click();
+      let st; for (let t = 0; t < 25; t++) { st = await serverState(); if (st.trace.length > before) break; await p.waitForTimeout(1000); }
+      assert.equal(st.trace.at(-1)?.type, 'lineup', 'the lineup reached the runtime'); assert.equal(st.trace.at(-1)?.status, 'accepted', JSON.stringify(st.trace.at(-1)).slice(0, 300)); assert.equal(st.live.mismatches, 0, JSON.stringify(st.live.comparisons.at(-1)));
+      fs.writeFileSync(path.join(out, 'sports-locks-page.json'), JSON.stringify({ seen, schedule }, null, 2));
+      // Recorded, not this step's to fail: what the page says of a lineup its week has locked, and of who plays whom.
+      if (!/(\bvs\.?|versus|against|you play|playing) (Bo|Cy)\b/i.test(seen.locked + ' ' + seen.played)) console.log("NOTE head to head on a sport: the game page shows each week's W or L and the records, and never names who you play this week (Designs needed item 3); see sports-locks-page.json");
+      await routes();
+    });
+    await step("sports categories: the NBA's roto game on the real page (each seat's roto points as the runtime ranked the categories; a lineup changed on the real sheet and replayed), then its head to head by categories (each seat's record); what the pages show of the categories themselves is recorded; the routes agree", async () => {
+      const proofOf = require(path.join(root, 'tests/fixtures/gameplay-explorer/sports-proof.cjs')), files = { roto: path.join(out, 'sports-roto-definition.json'), categories: path.join(out, 'sports-categories-definition.json') };
+      for (const [game, file] of Object.entries(files)) fs.writeFileSync(file, JSON.stringify(proofOf({ league: 'basketball/nba', game, timing: 'live-only', ann: 2 })));
+      const app = p.frameLocator('#device-a iframe'), text = sel => app.locator(sel).first().evaluate(el => el.innerText.replace(/\s+/g, ' ').slice(0, 5000)).catch(() => '');
+      const serverState = () => p.evaluate(() => fetch('/__atlas/bench/runtime/state?id=' + window.__GAMEPLAY_EXPLORER_PAGE__.sides.a.id).then(r => r.json()));
+      const open = async file => {
+        await p.locator('#open').click(); await p.locator('#open-file').click(); await p.locator('#file').setInputFiles(file);
+        await p.locator('#device-a iframe').waitFor({ timeout: 40000 }); await checked();
+        for (let go = 0; ; go++) { await p.locator('#game').selectOption('g'); try { await app.locator('[data-game-page]').waitFor({ timeout: 45000 }); break; } catch (e) { if (go) throw e; await p.locator('#game').selectOption({ index: 0 }).catch(() => {}); } }
+        await app.locator('[data-game-grid]').waitFor({ timeout: 30000 }); await p.waitForTimeout(1000);
+      };
+      const routes = async () => { await p.locator('#route-check').click(); await p.locator('#panel-checks .card', { hasText: 'No spoilers, standings match' }).waitFor({ timeout: 90000 }); };
+      const mine = file => { const s = R.open(JSON.parse(fs.readFileSync(file, 'utf8'))); try { return s.project('g', 'ann').game; } finally { s.dispose(); } };
+      const seen = {};
+      // Roto: each seat's points on the page; a lineup on the real sheet.
+      await open(files.roto);
+      seen.roto = await text('[data-game-page]'); await shot('05zzo-sports-roto');
+      const roto = mine(files.roto).table.map(r => [r.playerId, r.total]);
+      for (const [who, total] of roto) assert(seen.roto.includes(String(total)), who + "'s roto points " + total + ' are not on the page: ' + seen.roto.slice(0, 500));
+      assert(!/undefined|NaN|\[object/.test(seen.roto), 'the roto page prints a broken value: ' + (seen.roto.match(/.{0,40}(undefined|NaN|\[object).{0,40}/) || [''])[0]);
+      await p.locator('#device-a').scrollIntoViewIfNeeded(); await app.locator('[data-game-strip] button, [data-game-strip] a').first().click();
+      await app.locator('[data-starter]').first().waitFor({ timeout: 20000 });
+      seen.rotoSheet = await text('[role="dialog"]'); await shot('05zzp-sports-roto-lineup');
+      await app.locator('[data-starter][aria-pressed="true"]').first().click(); await app.locator('[data-starter][aria-pressed="false"]').last().click();
+      const before = (await serverState()).trace.length; await app.getByRole('button', { name: /^Save$/ }).first().click();
+      let st; for (let t = 0; t < 25; t++) { st = await serverState(); if (st.trace.length > before) break; await p.waitForTimeout(1000); }
+      assert.equal(st.trace.at(-1)?.type, 'lineup', 'the lineup reached the runtime'); assert.equal(st.trace.at(-1)?.status, 'accepted', JSON.stringify(st.trace.at(-1)).slice(0, 300)); assert.equal(st.live.mismatches, 0, JSON.stringify(st.live.comparisons.at(-1)));
+      await routes();
+      // Head to head by each category: each seat's record on the page.
+      await open(files.categories);
+      seen.categories = await text('[data-game-page]'); await shot('05zzq-sports-categories');
+      const recs = mine(files.categories).table.filter(r => r.record).map(r => [r.playerId, r.record.wins, r.record.losses, r.record.ties]);
+      assert(recs.length >= 2, 'the runtime has records to look for');
+      for (const [who, w, l] of recs) assert(new RegExp('\\b' + w + '\\s*[–-]\\s*' + l + '\\b').test(seen.categories), who + "'s record " + w + '–' + l + ' is not on the page: ' + seen.categories.slice(0, 600));
+      assert(!/undefined|NaN|\[object/.test(seen.categories), 'the categories page prints a broken value');
+      await routes();
+      fs.writeFileSync(path.join(out, 'sports-categories-page.json'), JSON.stringify({ seen, roto, recs }, null, 2));
+      // Recorded, not this step's to fail: what the pages show of the categories themselves.
+      const cats = ['FG%', 'FT%', '3PM', 'REB', 'AST', 'STL', 'BLK'], named = t => cats.filter(k => t.includes(k)).length;
+      if (named(seen.roto.split(/HOW IT PLAYS/i)[0]) < 3) console.log("NOTE roto on the page: each seat's total, and nothing of the categories behind it (no category's value or rank for anyone): Designs needed item 35; see sports-categories-page.json");
+      if (named(seen.categories.split(/HOW IT PLAYS/i)[0]) < 3) console.log("NOTE head to head by categories on the page: the records, and nothing of which categories anyone won or by how much: Designs needed item 35; see sports-categories-page.json");
+      if (/\b0 0 0\b|THE SEASON[^A-Z]*\b0\b/.test(seen.roto + ' ' + seen.categories)) console.log("NOTE a game of categories: the season grid shows each week as 0 (a week's points, which such a game has none of): Designs needed item 35");
+    });
     await step('export replays headlessly to the same state', async () => {
       // The server's hash (the page's own copy can lag the run), and the export's own: the replay must reach both.
       const hash = (await p.evaluate(() => fetch('/__atlas/bench/runtime/state?id=' + window.__GAMEPLAY_EXPLORER_PAGE__.sides.a.id).then(r => r.json()))).hash;
@@ -1018,6 +1158,9 @@ const stagesFile = path.join(out, 'stages-definition.json');
     fs.writeFileSync(path.join(out, 'report.json'), JSON.stringify(report, null, 2));
     console.log(JSON.stringify({ ok: report.ok, passed: steps.filter(s => s.ok).length, failed: steps.filter(s => !s.ok).map(s => s.name), errors: b.errors.slice(0, 6) }));
     if (!report.ok) process.exitCode = 1;
+    // Close whatever case is still open (a run with --only ends on one): its zt-gb rows go with it. Left up, a sports case
+    // with a lineup of ten failed the unit suite's read of every local league (tests/game-spec.test.js, found 2026-11-14).
+    await p.evaluate(async () => { const x = window.__GAMEPLAY_EXPLORER_PAGE__; for (const k of ['a', 'b']) if (x?.sides?.[k]?.id) await fetch('/__atlas/bench/runtime/close', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: x.sides[k].id }) }).catch(() => {}); }).catch(() => {});
     await b.close();
   }
 })().catch(e => { console.error(e.message); process.exitCode = 1; });

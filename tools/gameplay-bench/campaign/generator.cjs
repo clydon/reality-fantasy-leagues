@@ -3,7 +3,7 @@
 // resumes never shift another case's values. Definitions stay inside the runtime's supported profile
 // (core-post-acquisition-v1); anything else would be a generator defect, reported as such.
 const J = require('../explorer/json.cjs'), D = require('../explorer/document.cjs');
-const VERSION = 'proof-family-46'; // 46: a game in stages on some cases (two Weekly Lineups or Outlasts split at the merge or at an episode, sometimes three stages; made live), from a stream of its own; the walk plays each stage as its own game, and airs and publishes more often while a stage waits for its draft // 45: what whoever runs a game does with its waivers in the walk (opens, changes and turns off windows, on games with no waivers too; runs a week now; takes a run back; claims a spot for someone), and claims in a window opened by hand // 44: mid-season waivers on some Outlast games and lineup drafts (half those Outlast games scoring replacements at half); the walk claims and moves in free agency // 43: auctions (sealed bids settled at setup, a budget) on some Outlast games // 42: some survival pools skip a night you've picked everyone still in // 41: group slots on some lineups, on a world that forms pairs; the walk fills slots // 40: a pool's second pick on some streak pools, made in the walk; nights two go home // 39: mulligans and buybacks on some survival pools; a streak pool with mulligans alone // 38: drafts spread across tribes (get.across) on some lineups and Outlast games, on a world with two or three tribes // 37: secret roles on some lineups ranked by total and some Outlast games // 36: a captain (x2 or x3) on some lineups, named with the walk's lineups // 35: the top scorer's twist (double or half points) on some lineups and pick games; the chooser chooses // 34: Outlast (a draft scored by place, every holding counted), half of them in reverse // 33: answers and bot calls on beat questions over the episodes already played // 32: beat the bot on some plain per-episode questions; the bot calls open windows // 31: results sometimes give a picked castaway one of that week's card moments // 30: a weekly card (drawn in turn from the spec's list; only its moments count, a hit once each pick) on some pick games // 29: confidence picks (rank who goes home, surest first) on some games of questions; the boot sometimes follows a surest pick // 28: Weekly Calls on some cases; the walk makes calls; results follow called boots and moments called yes // 27: pre-start picks for who wins immunity first and who finds an idol follow the history half the time; walk results sometimes give an idol to a pre-start pick // 26: whole-game moment questions (who, first, happened, how many; asked once, locked at the start) answered before the start // 25: an episode's results never list one moment twice for one person (the season's decisions keep one row each) // 24: rollovers on some per-episode questions (not shared, staked or a parlay's leg), sometimes worth 3 // 23: a moment someone said yes to often happens, so yes/no legs are right and parlays pay // 22: in a case with a parlay, some steps answer an open leg (finishing a part-answered window first), so parlays pay // 21: multipliers (score.times: episode 1's or the first walked one's, the finale's, or both) on some drafts and pick games // 20: walks often answer a parlay's other legs in a window one is answered in, so parlays pay // 19: parlays (two or three per-episode questions, every one right multiplies their points) on some games of questions // 18: teams of players (drawn, two teams, mean or sum) on some games of 3+ people // 17: bounties on some lineups (who voted for whom with each vote-out, sometimes miscounted) // 16: the merge (a phase start), games from or until it, "When does the merge start?" // 15: races to N points and cuts (the lowest out every N episodes) // 14: questions the couch settles (what most, or fewest, of you say) // 13: wagers (a number or any of your points, even or pool odds) and banks // 12: drafts dealt out of a hat (draw, exclusive or shared) // 11: shared points (split pot, only one right), a who-did-it moment question, results that often follow the answers // 10: lives (last one standing, co-op) on questions games, survival pools with lives // 9: only some moments count (a list) and hits counted (every, pick, objective) // 8: ranking by weeks won (ties all, split or none) // 7: head to head (odd one out, quiet nights, playoffs) on a share of games // 6: season-long questions (who wins, the final three) and the finale's results // 5: side bets on some lineup games, with post/guess/unguess/grade steps // 4: the 'shared' first-name content profile
+const VERSION = 'proof-family-50'; // 50: a league's categories and roto games are among a sports case's games (core-runtime-35: the profile takes score.categories ranked by each category, by most of them, or roto). 49: a sports case has a schedule of its own (games four hours to five days apart from a start anywhere in a week, the clock between two of them), four games in ten lock by the day or the week, and a league's head-to-head season is among its games (core-runtime-34); its walk sends a lineup at a locked one now and then. 48: in a sports case four people in ten hide sports scores too (a person's hidesScores: on a live game they go by their mark, where everyone else is told results straight away; runtime-sports.cjs guard), from a stream of its own. 47: a sports case on about one in six (a generated sports world, runtime-sports.cjs: one league, one or two of its games scored by stats with plain points, ranked by total, locking at the start), from a stream of its own, so every other case is the case it was under 46; its walk sets lineups, airs, publishes box scores, corrects one and reveals // 46: a game in stages on some cases (two Weekly Lineups or Outlasts split at the merge or at an episode, sometimes three stages; made live), from a stream of its own; the walk plays each stage as its own game, and airs and publishes more often while a stage waits for its draft // 45: what whoever runs a game does with its waivers in the walk (opens, changes and turns off windows, on games with no waivers too; runs a week now; takes a run back; claims a spot for someone), and claims in a window opened by hand // 44: mid-season waivers on some Outlast games and lineup drafts (half those Outlast games scoring replacements at half); the walk claims and moves in free agency // 43: auctions (sealed bids settled at setup, a budget) on some Outlast games // 42: some survival pools skip a night you've picked everyone still in // 41: group slots on some lineups, on a world that forms pairs; the walk fills slots // 40: a pool's second pick on some streak pools, made in the walk; nights two go home // 39: mulligans and buybacks on some survival pools; a streak pool with mulligans alone // 38: drafts spread across tribes (get.across) on some lineups and Outlast games, on a world with two or three tribes // 37: secret roles on some lineups ranked by total and some Outlast games // 36: a captain (x2 or x3) on some lineups, named with the walk's lineups // 35: the top scorer's twist (double or half points) on some lineups and pick games; the chooser chooses // 34: Outlast (a draft scored by place, every holding counted), half of them in reverse // 33: answers and bot calls on beat questions over the episodes already played // 32: beat the bot on some plain per-episode questions; the bot calls open windows // 31: results sometimes give a picked castaway one of that week's card moments // 30: a weekly card (drawn in turn from the spec's list; only its moments count, a hit once each pick) on some pick games // 29: confidence picks (rank who goes home, surest first) on some games of questions; the boot sometimes follows a surest pick // 28: Weekly Calls on some cases; the walk makes calls; results follow called boots and moments called yes // 27: pre-start picks for who wins immunity first and who finds an idol follow the history half the time; walk results sometimes give an idol to a pre-start pick // 26: whole-game moment questions (who, first, happened, how many; asked once, locked at the start) answered before the start // 25: an episode's results never list one moment twice for one person (the season's decisions keep one row each) // 24: rollovers on some per-episode questions (not shared, staked or a parlay's leg), sometimes worth 3 // 23: a moment someone said yes to often happens, so yes/no legs are right and parlays pay // 22: in a case with a parlay, some steps answer an open leg (finishing a part-answered window first), so parlays pay // 21: multipliers (score.times: episode 1's or the first walked one's, the finale's, or both) on some drafts and pick games // 20: walks often answer a parlay's other legs in a window one is answered in, so parlays pay // 19: parlays (two or three per-episode questions, every one right multiplies their points) on some games of questions // 18: teams of players (drawn, two teams, mean or sum) on some games of 3+ people // 17: bounties on some lineups (who voted for whom with each vote-out, sometimes miscounted) // 16: the merge (a phase start), games from or until it, "When does the merge start?" // 15: races to N points and cuts (the lowest out every N episodes) // 14: questions the couch settles (what most, or fewest, of you say) // 13: wagers (a number or any of your points, even or pool odds) and banks // 12: drafts dealt out of a hat (draw, exclusive or shared) // 11: shared points (split pot, only one right), a who-did-it moment question, results that often follow the answers // 10: lives (last one standing, co-op) on questions games, survival pools with lives // 9: only some moments count (a list) and hits counted (every, pick, objective) // 8: ranking by weeks won (ties all, split or none) // 7: head to head (odd one out, quiet nights, playoffs) on a share of games // 6: season-long questions (who wins, the final three) and the finale's results // 5: side bets on some lineup games, with post/guess/unguess/grade steps // 4: the 'shared' first-name content profile
 const _v3 = 'proof-family-3'; // 2: results never release the last event (world rule); 3: the clock passes an airing before its results
 const QUESTIONS = require('../../../tests/fixtures/gameplay-explorer/questions-input.json');
 const { outcome, voteFacts, bounties } = require('../explorer/runtime-data.cjs'), SURVIVOR = require('../../../src/lib/game/formats').formatFor('survivor');
@@ -34,8 +34,112 @@ function rng(seed) {
 const caseSeed = (manifest, index) => J.digest([manifest.id, manifest.seed, manifest.generator, index]);
 const caseId = (manifest, index) => 'case-' + J.digest([manifest.id, manifest.generator, caseSeed(manifest, index)]).slice(0, 16);
 
+// ---- The sports family (proof-family-47) ----
+// The leagues and games a sports case draws from: every game the app offers on every league it knows that the runtime's profile
+// takes whole (a drafted team scored by stats, plain points, ranked by total, locking at the start: a short game's whole team of
+// three, best ball's best n, a lineup where a league's season is one). Worked out once a worker (the app's sport definitions load
+// through jiti), and only by a case that is a sports case.
+let sportGames = null;
+function sportsCatalog() {
+  if (sportGames) return sportGames;
+  const Bench = require('../sports.cjs'), Sports = require('../explorer/runtime-sports.cjs'), Profile = require('../explorer/runtime-profile.cjs'), G = require('../../../src/lib/game/game-spec');
+  const out = [];
+  for (const c of Bench.catalog()) {
+    const games = [];
+    for (const g of c.games.filter(x => x.implemented)) {
+      let spec; try { spec = Bench.resolve(c.id, g.id).row.spec; } catch { continue; }
+      const each = G.fullSpec(spec).get?.each || 1;
+      let doc; try { doc = D.create({ seed: 1, world: { contexts: [Sports.contextFor(c.id, { couch: 2, pool: 2 * each + 2, id: 'show' })], people: [{ id: 'p1', name: 'A' }, { id: 'p2', name: 'B' }] }, games: [{ id: 'g', contextId: 'show', spec }], situation: { clock: '2099-01-10T12:00:00.000Z' }, content: {} }); } catch { continue; }
+      if (!Profile.inspect(doc).gaps.length) games.push({ id: g.id, spec, each });
+    }
+    if (games.length) out.push({ league: c.id, games });
+  }
+  return (sportGames = out.sort((a, b) => (a.league < b.league ? -1 : 1)));
+}
+/** A sports case: one league, one or two of its games, on the context every case calls 'show' (the walk and the checks read it by that id). */
+function sportDefinition(manifest, index) {
+  const r = rng([caseSeed(manifest, index), 'sport-definition']), Sports = require('../explorer/runtime-sports.cjs');
+  // (Three to five events still to come: the walk publishes all but the season's last.)
+  const peopleCount = r.int(2, 4), completed = r.int(1, 3), eventCount = completed + r.int(3, 5);
+  // (Four people in ten hide sports scores too: on a live game they go by their mark, where everyone else sees results straight away.)
+  const people = Array.from({ length: peopleCount }, (_, i) => ({ id: 'p' + (i + 1), name: ['Ann', 'Bo', 'Cy', 'Di'][i], ...(rng([caseSeed(manifest, index), 'sport-hides', i]).chance(0.4) ? { hidesScores: true } : {}) }));
+  // (A game with starters first, most times, where the league has one: lineups are the decisions a sports case can make.)
+  const pick = r.pick(sportsCatalog()), order = shuffled(r, pick.games), starters = order.filter(g => require('../../../src/lib/game/game-spec').fullSpec(g.spec).count?.start);
+  const chosen = (starters.length && r.chance(0.7) ? [starters[0], ...order.filter(g => g !== starters[0])] : order).slice(0, r.chance(0.4) ? 2 : 1);
+  // (Four games in ten lock by the day or the week, whatever the league's own rule: a stream of its own.)
+  const locks = rng([caseSeed(manifest, index), 'sport-locks']);
+  const games = chosen.map(g => ({ id: g.id, contextId: 'show', timing: r.chance(0.6) ? 'own-pace' : 'live-only', spec: locks.chance(0.4) ? { ...g.spec, closes: locks.pick(['daily', 'weekly']) } : g.spec }));
+  // The season's schedule, its own (a stream of its own): from a start anywhere in a week, each game four hours to five days
+  // after the one before (two on a day, a week's turn between two, a Monday night), the clock between the last one played and
+  // the next. A day and a week are Eastern time's, a week Tuesday to Monday (src/lib/sports/locks.ts).
+  const sched = rng([caseSeed(manifest, index), 'sport-schedule']), HOUR = 3600000;
+  const times = [Date.parse('2099-01-06T00:00:00.000Z') + sched.int(0, 6) * 24 * HOUR + sched.int(0, 23) * HOUR];
+  while (times.length < eventCount) times.push(times[times.length - 1] + sched.pick([4, 6, 24, 24, 24, 48, 48, 72, 120]) * HOUR);
+  const gap = times[completed] - times[completed - 1], clock = times[completed - 1] + Math.max(1, Math.floor(gap * sched.pick([0.25, 0.5, 0.75]) / HOUR)) * HOUR;
+  const events = times.map((t, i) => ({ id: 'show-event-' + (i + 1), contextId: 'show', number: i + 1, title: 'Synthetic game ' + (i + 1), airAt: new Date(t).toISOString(), resultStatus: i < completed ? 'final' : 'unavailable' }));
+  // Exclusive teams: the cast covers every team of the biggest game, with a few athletes over.
+  const pool = peopleCount * Math.max(...chosen.map(g => g.each)) + r.int(1, 5);
+  return D.create({
+    seed: r.int(1, 999999),
+    world: { contexts: [Sports.contextFor(pick.league, { couch: peopleCount, pool, id: 'show' })], people, events },
+    games,
+    situation: { clock: new Date(clock).toISOString(), marks: people.map(p => ({ personId: p.id, contextId: 'show', through: r.int(0, completed) })) },
+    content: { labels: r.pick(['normal', 'normal', 'long', 'unbroken', 'shared']), completedEvents: completed, eventCount },
+  });
+}
+/** Whether case `index` is a sports case (its own stream: every other case draws what it drew before the family existed). */
+const isSport = (manifest, index) => rng([caseSeed(manifest, index), 'sport']).chance(0.17);
+/**
+ * A sports case's next action: a lineup where a game has starters (most often for whoever hasn't set this week's), the clock past
+ * the next airing, that episode's box score (never the season's last: the world's rule), a correction of one already in, or a
+ * reveal; about one in six deliberately invalid (someone else's athlete, one too many, a week in progress, a line for nobody, a
+ * show's facts).
+ */
+function sportAction(r, snap, document, project) {
+  const Sports = require('../explorer/runtime-sports.cjs');
+  const world = snap.contexts.show, who = r.pick(snap.people.map(p => p.id)), game = r.pick(document.games);
+  const released = e => ['partial', 'final', 'corrected'].includes(e.resultStatus);
+  const next = world.events.find(e => !released(e)), unreleased = world.events.filter(e => !released(e)).length, clock = Date.parse(snap.clock);
+  const invalid = r.chance(0.16), roll = r.next();
+  const lines = () => Sports.linesFor(world.context, world.participants, () => r.int(0, 1e6));
+  const results = (event, resultStatus, data) => ({ type: 'results', contextId: 'show', eventId: event.id, source: 'provider-fixture', resultStatus, data });
+  // A lineup: for whoever hasn't set this week's first (so most weeks are played with one), else anyone's changed.
+  const lineupStep = () => {
+    const all = document.games.flatMap(g => snap.people.map(p => ({ g, p: p.id, l: project(g.id, p.id).game.lineup }))).filter(x => x.l && x.l.roster.length);
+    // (Now and then at a lineup that's locked: by its own start, or by its day's or week's first game.)
+    const shut = all.filter(x => x.l.locked);
+    if (invalid && shut.length && r.chance(0.5)) { const x = r.pick(shut); return { type: 'lineup', gameId: x.g.id, personId: x.p, eventId: x.l.epId, ids: shuffled(r, x.l.roster).slice(0, x.l.need) }; }
+    const open = all.filter(x => !x.l.locked);
+    if (!open.length) return null;
+    const x = r.pick(open.some(y => !y.l.set) && r.chance(0.8) ? open.filter(y => !y.l.set) : open), l = x.l;
+    const mine = shuffled(r, l.roster), other = world.participants.map(p => p.id).filter(id => !l.roster.includes(id));
+    const ids = invalid ? (r.chance(0.5) && other.length ? [other[0], ...mine].slice(0, Math.max(1, l.need)) : mine.slice(0, l.slots + 1)) : mine.slice(0, l.need);
+    return { type: 'lineup', gameId: x.g.id, personId: x.p, eventId: l.epId, ids };
+  };
+  if (roll < 0.30) { const step = lineupStep(); if (step) return step; }
+  else if (roll < 0.44) { if (next && next.airAt && Date.parse(next.airAt) > clock) return { type: 'clock', at: new Date(Date.parse(next.airAt) + 3600000).toISOString() }; }
+  else if (roll < 0.70) {
+    if (next && unreleased >= 2) {
+      if (invalid) return r.pick([results(next, 'partial', { events: [], scoringEvents: [], lines: lines() }), results(next, 'final', { events: [], scoringEvents: [], lines: { nobody: { PTS: 1 } } }), results(next, 'final', { events: [], scoringEvents: [], noExit: true })]);
+      if (next.airAt && Date.parse(next.airAt) > clock) return { type: 'clock', at: new Date(Date.parse(next.airAt) + 3600000).toISOString() };
+      return results(next, 'final', { events: [], scoringEvents: [], lines: lines() });
+    }
+  } else if (roll < 0.77) {
+    const done = world.events.filter(released);
+    if (done.length) return results(r.pick(done), 'corrected', { events: [], scoringEvents: [], lines: lines() });
+  }
+  // Nothing drawn applied: whoever is behind reveals, else a lineup someone owes, else the clock moves on; a reveal with nothing
+  // to reveal is the last resort (and part of the invalid share).
+  const last = Math.max(0, ...world.events.filter(released).map(e => e.number)), behind = world.marks.filter(m => m.through < last).map(m => m.personId);
+  if (behind.length && !invalid) return { type: 'reveal', contextId: 'show', personId: r.pick(behind) };
+  const step = lineupStep(); if (step) return step;
+  if (next && next.airAt && Date.parse(next.airAt) > clock) return { type: 'clock', at: new Date(Date.parse(next.airAt) + 3600000).toISOString() };
+  return { type: 'reveal', contextId: 'show', personId: who };
+}
+
 /** The definition for case `index`: 1-3 games from the proof family, 2-4 people, varied marks, timing and content. */
 function definition(manifest, index) {
+  if (isSport(manifest, index)) return sportDefinition(manifest, index);
   const r = rng([caseSeed(manifest, index), 'definition']);
   const peopleCount = r.int(2, 4), completed = r.int(1, 3), eventCount = completed + r.int(2, 3);
   const people = Array.from({ length: peopleCount }, (_, i) => ({ id: 'p' + (i + 1), name: ['Ann', 'Bo', 'Cy', 'Di'][i] }));
@@ -224,6 +328,7 @@ function definition(manifest, index) {
  * deliberately invalid ones. `view(gameId, personId)` is session.project; `snap` is session.snapshot().
  */
 function nextAction(r, snap, document, project) {
+  if (snap.contexts.show.context.kind === 'sport') return sportAction(r, snap, document, project);
   const world = snap.contexts.show, who = r.pick(snap.people.map(p => p.id));
   // A parlay's legs (proof-family-22): the couch answers them before the episode airs, so every leg answered (and a parlay paid)
   // happens. A leg of a window someone has part-answered first, else any open leg. Only cases with a parlay draw these numbers.

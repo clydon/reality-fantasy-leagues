@@ -177,7 +177,8 @@ export function nextOf(g: Pick<GameView, "through"> & Partial<Pick<GameView, "li
 
 /** What a row's number is, in this game's terms. */
 function valueOf(g: GameView, page: GamePage, r: TableRow): string {
-  if (page.rank === "matchups" && r.record) return `${r.record.wins}–${r.record.losses}${r.record.ties ? `–${r.record.ties}` : ""}`;
+  // (Head to head by points, or by each of a sport's categories: the record. BACKLOG 77: categories read "0".)
+  if ((page.rank === "matchups" || page.rank === "categories") && r.record) return `${r.record.wins}–${r.record.losses}${r.record.ties ? `–${r.record.ties}` : ""}`;
   if (page.rank === "weeks" && g.weeksWon) return String(g.weeksWon[r.playerId] ?? 0);
   return String(r.total);
 }
@@ -187,7 +188,7 @@ const isPool = (page: GamePage) => page.main === "ladder";
 
 function unitOf(g: GameView, page: GamePage): string {
   if (isPool(page) && (page.rank === "streak" || page.rank === "standing")) return "Streak";
-  if (page.rank === "matchups") return "W–L";
+  if (page.rank === "matchups" || page.rank === "categories") return "W–L";
   if (page.rank === "weeks") return "Weeks";
   if (page.rank === "worth") return "Worth";
   if (has(page, "control", "calls")) return "Right";
@@ -231,7 +232,9 @@ function heroOf(g: GameView, page: GamePage, main: MainBlock, phase: Phase, ctx:
     return { ...blank, n: ordinal(you.place), label: "Final", sub: `Of ${g.players} · ${you.total} ${unitOf(g, page).toLowerCase()}` };
   }
   const sub = standLine(g, page, you);
-  switch (main) {
+  // Head to head by categories has head to head's graphic (your last week, the categories each side won; your record): the page's
+  // "categories" block is roto's too, which keeps the points one (BACKLOG 77).
+  switch (main === "categories" && page.rank === "categories" ? "matchup" : main) {
     case "ladder": {
       const decided = you.picks.filter((p) => p.castawayId && p.correct !== null).slice(-5);
       const faces = decided.map((p) => castFace(faceOf(g, p.castawayId!), p.castawayId!, { line: `${epShort(E)} ${p.episode}`, badge: p.correct ? { text: "right", tone: "good" } : { text: "wrong", tone: "quiet" }, out: false }));

@@ -185,7 +185,12 @@ function WeekPane({ g, r, it, next, words, onClose, onFace }: { g: GameView; r: 
         ? "Yours to change until you watch it."
         : "Set your lineup before you watch it. Until you do, last week's stands in."
       : r.you
-      ? set
+      ? g.lineup?.lockedBy
+        ? // (A sport's lineup its day or week has already locked: it can't be changed, whatever its own game's start. BACKLOG 76.)
+          set
+          ? `Locked when the ${g.lineup.lockedBy}'s first game began. It plays as it stands.`
+          : `Locked when the ${g.lineup.lockedBy}'s first game began. Your last lineup stands in.`
+        : set
         ? "Yours to change until it airs. Nobody sees it before then."
         : "Not set yet. Until you set one, last week's stands in."
       : set

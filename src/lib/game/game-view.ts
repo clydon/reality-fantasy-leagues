@@ -103,6 +103,11 @@ export interface LineupMove {
   set: boolean;
   /** Not chosen for this episode: the last lineup you set stands in. */
   carried: boolean;
+  /**
+   * Locked before its own game begins, by its day's or its week's first game (a sport's game that closes daily or weekly:
+   * closedForPlay's ep.locksAt): which. Null for an open lineup, and for one its own start or its results locked.
+   */
+  lockedBy: "day" | "week" | null;
 }
 
 export interface PickMove {
@@ -365,7 +370,9 @@ export function gameView(game: GameRefIn, full: LeagueState, playerId: string | 
   const me = playerId ?? "";
   const seat = playerId !== null;
   const catchingUp = seat && StateLogic.GhostLogic.isCatchingUp(full, me) && Number.isInteger(seen);
-  const end = StateLogic.endEpisode(full);
+  // Where the game ends as this viewer may know it (BACKLOG 61: an end a phase of the season set stays out of their copy until
+  // they've seen its last episode, SpoilerLogic.spanAhead); what's left to reveal below still goes by the game as it stands.
+  const end = StateLogic.endEpisode(view);
   // Results after its last episode aren't this game's to reveal (step A11 part 1: nor after a race won or one left).
   const last = StateLogic.lastEpisode(full);
   const hidden = StateLogic.SpoilerLogic.hiddenEpisodes(full, seen).filter((e) => last === null || e.number <= last);
@@ -581,9 +588,25 @@ function whyOf(items: { label: string; points: number }[]): string[] {
   return labels.filter((l, i) => labels.indexOf(l) === i).slice(0, 3);
 }
 
+/**
+ * Each athlete's points so far in a game scored by a sport's stats: their stat lines at the game's table (StatsLogic.scored: a
+ * line's points for everyone the league has, held or not), over the episodes the game plays, as far as this copy goes.
+ */
+function athletePoints(view: LeagueState): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const ep of view.episodes) {
+    if (!StateLogic.inPlay(view, ep.number)) continue;
+    for (const m of StateLogic.StatsLogic.scored(view, ep) ?? []) out.set(m.castawayId, StateLogic.roundPoints((out.get(m.castawayId) ?? 0) + m.points));
+  }
+  return out;
+}
+
 /** Every castaway as this copy of the league shows them (the waivers' faces too, waiver-view.ts). */
 export function castOf(view: LeagueState): CastFace[] {
   const pieces = StateLogic.piecesOf(view);
+  // A game scored by a sport's stats: an athlete's points are their stat lines', not a show's moments (they have none: every
+  // athlete read "0 pts" on the lineup sheet; found by the gameplay explorer, 2026-11-14, BACKLOG 74).
+  const stats = StateLogic.StatsLogic.on(view) ? athletePoints(view) : null;
   const episode = new Map(view.episodes.map((e) => [e.id, e.number]));
   const tribes = new Map((view.tribes || []).map((t) => [t.id, t]));
   const outlast = pieces.hasRoster && !pieces.hasActiveRoster;
@@ -599,7 +622,7 @@ export function castOf(view: LeagueState): CastFace[] {
       knocked: isKnockedOut(view, c),
       out: left && c.exitEpisodeId ? (episode.get(c.exitEpisodeId) ?? null) : null,
       place: left && c.placementOrder ? view.castaways.length - c.placementOrder + 1 : null,
-      points: outlast ? castawayPoints(view, c) : pieces.hasActiveRoster ? castawayEventStats(view, c.id).total : null,
+      points: outlast ? castawayPoints(view, c) : pieces.hasActiveRoster ? (stats ? (stats.get(c.id) ?? 0) : castawayEventStats(view, c.id).total) : null,
     };
   });
 }
@@ -613,11 +636,16 @@ function lineupOf(view: LeagueState, me: string, now?: number): LineupMove | nul
   // The same "set" as the home's moves (action-items.js): every slot you could fill, filled with someone still in.
   const starters = StateLogic.activeRosterLineupFor(view, ep.id, me).filter((id) => stillIn.has(id));
   const { activeSlots, need } = lineupStatus(view, ep, me);
+  const locked = AR.isLineupLocked(view, ep.id, now);
+  // Locked by its day or its week while its own game is still to come (BACKLOG 76: the page said "Locked at airtime").
+  const closes = StateLogic.gameOf(view).closes;
+  const early = locked && (closes === "daily" || closes === "weekly") && !ep.lineupsLocked && !!ep.airsAt && (now ?? Date.now()) < Date.parse(ep.airsAt) && !StateLogic.episodeHasResults(ep);
   return {
     epId: ep.id,
     episode: ep.number,
     airsAt: ep.airsAt ?? null,
-    locked: AR.isLineupLocked(view, ep.id, now),
+    locked,
+    lockedBy: early ? (closes === "daily" ? "day" : "week") : null,
     slots: activeSlots,
     need,
     starters,

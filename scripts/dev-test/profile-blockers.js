@@ -1,7 +1,10 @@
 // Which runtime-profile gaps block the gameplay matrix's show specimens, most often first: the breadth program's way of picking the
 // next capability (docs/PLAN-GAMEPLAY-SCENARIO-EXPLORER.md §6A Progress). Each specimen is opened as one game in a Survivor world
-// of three people and checked against the bounded runtime profile (tools/gameplay-bench/explorer/runtime-profile.cjs). Sports
-// specimens are left out. A game in stages is opened live, as the engine lab (its only door) makes one. No app, browser or DB.
+// of three people and checked against the bounded runtime profile (tools/gameplay-bench/explorer/runtime-profile.cjs). A
+// specimen scored by a sport's stats is opened on a generated world of its own sport (runtime-sports.cjs: the league its origin
+// names, else its sport's first league), since 2026-11-14: until then the header said sports specimens were left out, and the
+// filter that was meant to do it (`s.sport`, a field no specimen carries) left them in, opened on Survivor. A game in stages is
+// opened live, as the engine lab (its only door) makes one. No app, browser or DB.
 //
 // Needs: the matrix report (.ui-atlas/gameplay-matrix.json): node scripts/gameplay-matrix.js build
 // Run:   node scripts/dev-test/profile-blockers.js [--top=18] [--path=score/parlays] [--kinds]
@@ -18,10 +21,24 @@ const top = Number(arg('top') || 18), only = arg('path') ? '/' + arg('path').rep
 let report;
 try { report = require(path.join(root, '.ui-atlas/gameplay-matrix.json')); } catch { console.error('No matrix report: run node scripts/gameplay-matrix.js build'); process.exit(1); }
 const count = new Map(), blocked = [], kinds = new Map(); let ok = 0, n = 0, docErrors = 0;
+// The league a stats specimen is opened on: its origin's own ('racing/irl:season'), else the first league of its sport ('baseball:short').
+let sportsCatalog = null;
+const leagueOf = s => {
+  const origin = (s.origins || []).map(o => String(o.id || '').split(':')[0]).find(Boolean);
+  if (!origin) return null;
+  if (origin.includes('/')) return origin;
+  sportsCatalog ||= require(path.join(root, 'tools/gameplay-bench/sports.cjs')).catalog();
+  return sportsCatalog.find(c => c.sport === origin)?.id ?? null;
+};
+const Sports = require(path.join(root, 'tools/gameplay-bench/explorer/runtime-sports.cjs'));
 for (const s of report.specimens) {
-  if (!s.spec || s.sport) continue; n++;
+  if (!s.spec) continue; n++;
   let doc;
-  try { doc = D.create({ seed: 1, world: { contexts: [{ id: 'show', kind: 'show', format: { id: 'survivor' }, engine: { ...Q.context, couch: 3, pool: 12 }, tribes: 2, pairs: { every: 2 } }], people: [{ id: 'p1', name: 'A' }, { id: 'p2', name: 'B' }, { id: 'p3', name: 'C' }] }, games: [{ id: 'g', contextId: 'show', spec: s.spec, ...(s.spec.stages ? { timing: 'live-only' } : {}) }], situation: { clock: '2099-01-10T12:00:00.000Z', marks: [] } }); }
+  const league = s.spec.score?.by === 'stats' ? leagueOf(s) : null;
+  const world = league
+    ? { contexts: [Sports.contextFor(league, { couch: 3, pool: 3 * (s.spec.get?.each || 1) + 3, id: 'show' })] }
+    : { contexts: [{ id: 'show', kind: 'show', format: { id: 'survivor' }, engine: { ...Q.context, couch: 3, pool: 12 }, tribes: 2, pairs: { every: 2 } }] };
+  try { doc = D.create({ seed: 1, world: { ...world, people: [{ id: 'p1', name: 'A' }, { id: 'p2', name: 'B' }, { id: 'p3', name: 'C' }] }, games: [{ id: 'g', contextId: 'show', spec: s.spec, ...(s.spec.stages ? { timing: 'live-only' } : {}) }], situation: { clock: '2099-01-10T12:00:00.000Z', marks: [] } }); }
   catch { docErrors++; continue; }
   const r = P.inspect(doc);
   if (!r.gaps.length) { ok++; continue; }

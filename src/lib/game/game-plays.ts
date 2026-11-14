@@ -68,7 +68,9 @@ export function kindsOf(spec: Obj): { kind: GridKind; blocks: BlockKind[] } {
   const asks = (Array.isArray(spec.ask) ? spec.ask : []).filter(isObj);
   if (Array.isArray(spec.stages) && spec.stages.length) return { kind: "staged", blocks: [] };
   const race = isObj(rk.race) && rk.race.to != null;
-  const kind: GridKind = rk.by === "matchups" ? "result" : rk.by === "coop" ? "lives" : race ? "race" : rk.by === "weeks" ? "won" : get.by === "pick" && sc.by === "survive" ? "pick" : "points";
+  // (Head to head by each of a sport's categories, rank.by 'categories', is won or lost each week too: the week to whoever won
+  // more of them, its numbers the categories each side won. It drew a points grid of zeros: BACKLOG 77.)
+  const kind: GridKind = rk.by === "matchups" || rk.by === "categories" ? "result" : rk.by === "coop" ? "lives" : race ? "race" : rk.by === "weeks" ? "won" : get.by === "pick" && sc.by === "survive" ? "pick" : "points";
   const blocks: BlockKind[] = [];
   if (get.by === "draft") blocks.push(count.start != null ? "lineup" : count.best != null ? "counted" : sc.by === "place" ? "boots" : "team");
   else if (get.by === "pick") blocks.push(sc.by === "survive" ? "pick" : "picks");

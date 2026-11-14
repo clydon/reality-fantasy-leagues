@@ -944,6 +944,8 @@ declare const StateLogic: {
     waitingOn(state: LeagueState): Player[];
     setLockedPlayerIds(state: LeagueState, playerIds: string[]): void;
     allLockedIn(state: LeagueState, lockedPlayerIds: string[]): boolean;
+    /** How many a seat's sheet names: a team, or everyone left to pick when that's fewer (BACKLOG 60). */
+    sheetSize(state: LeagueState, playerId: string): number;
     validateSubmission(state: LeagueState, playerId: string, castawayIds: string[]): string | null;
     reveal(state: LeagueState, picksByPlayer: Record<string, string[]>, revealedAt?: string): boolean;
   };
@@ -1160,7 +1162,8 @@ declare const StateLogic: {
     stages(state: LeagueState): { id: string; name: string | null; game: import("./game-spec/index.js").GameSpec }[];
     walkOf(state: LeagueState): StageWalk | null;
     withWalk(state: LeagueState, walk: StageWalk | null): LeagueState;
-    cutWalk(walk: StageWalk, n: number): StageWalk;
+    /** `stages` (the game's, from its spec): a stage's start and end the season's results set are cut at the mark too (BACKLOG 61). */
+    cutWalk(walk: StageWalk, n: number, stages?: unknown[]): StageWalk;
     /** A12 part 4b: an own stage of the game plays on another season. */
     crosses(state: LeagueState): boolean;
     /** A12 part 2: `stage` the spec's stage, `copy` 1, 2, ... for a copy a format change started (null for a stage's own). A12 part 4b:

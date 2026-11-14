@@ -51,4 +51,5 @@ function make(config,{NOW,finish}){
  S.StatsLogic.stamp(state,{lines,bouts,finals:state.episodes.filter(e=>e.number<=config.history).map(e=>e.number),groups:Object.fromEntries(state.castaways.map(p=>[p.id,c.sport.position(p.role)?.group||null])),defs:c.sport.categoryDefs(),periods:c.sport.periods.regulation});
  const result=finish(config,context,spec,state);result.sport={id:c.sport.id,league:c.league,label:c.label,cadence:c.defaults.closes,slots:c.defaults.slots,part:c.context.part,game:c.row.id,about:c.row.about,periods:c.sport.periods,source:'Synthetic stats; engine sport definitions and standard game defaults',surfaces:(catalog().find(s=>s.id===c.league)||addLeague(c.league)).games.find(g=>g.id===config.sportGame).surfaces};return result;
 }
-module.exports={catalog,resolve,make,rawLine,addLeague,sportRail:R.sportRail};
+// (locksOf: the app's own lock rule, src/lib/sports/locks.ts, for the explorer's sports world: explorer/runtime-sports.cjs lockTimes.)
+module.exports={catalog,resolve,make,rawLine,addLeague,sportRail:R.sportRail,locksOf:L.locksOf};

@@ -815,16 +815,21 @@ function BlindRoom({ seasonId, show, game, onSettings }: { seasonId: string; sho
   const waiting = game.seats.filter((s) => !game.locked.includes(s.playerId));
   const forName = forWho ? (seatOf(game, forWho)?.name ?? "someone") : null;
 
+  // How many the sheet names: a team, or everyone left to pick when that's fewer (BACKLOG 60: a later stage's draft from who's
+  // still in; the engine's BlindDraftLogic.sheetSize). `game.cast` is who can be drafted.
+  const need = Math.min(game.size, game.cast.length || game.size);
+  const short = need < game.size;
+
   const toggle = (id: string) => {
     if (!live) return toast.quiet("The draft hasn't started yet");
     if (lockedHere) return toast.quiet("You're locked in. Change it to pick again.");
     if (team.includes(id)) setTeam(team.filter((x) => x !== id));
-    else if (team.length < game.size) setTeam([...team, id]);
+    else if (team.length < need) setTeam([...team, id]);
     else toast.quiet("Take someone out first");
   };
 
   async function lockIn() {
-    if (!acting || team.length !== game.size || busy) return;
+    if (!acting || team.length !== need || busy) return;
     setBusy(true);
     const ok = await write(game.leagueId, { action: "lock", playerId: acting, castawayIds: team }, forName ? `Locked in for ${forName}` : "Locked in. You can change it until everyone is in.");
     setBusy(false);
@@ -845,7 +850,7 @@ function BlindRoom({ seasonId, show, game, onSettings }: { seasonId: string; sho
             </span>
           }
           kick={forName ? `Picking for ${forName}` : "Pick in private"}
-          line={lockedHere ? "Locked in · waiting for the couch" : `Choose ${game.size}. Nobody sees until everyone's in.`}
+          line={lockedHere ? "Locked in · waiting for the couch" : short ? `Only ${need} left to pick: choose ${need === 1 ? "them" : `all ${need}`}. Nobody sees until everyone's in.` : `Choose ${game.size}. Nobody sees until everyone's in.`}
         />
       ) : (
         <WaitingCard seasonId={seasonId} show={show} game={game} onSettings={onSettings} />
@@ -905,8 +910,8 @@ function BlindRoom({ seasonId, show, game, onSettings }: { seasonId: string; sho
       )}
 
       {live && (
-        <div data-my-team className={`grid gap-[7px] px-4 pt-3 ${game.size > 5 ? "grid-cols-5" : game.size === 5 ? "grid-cols-5" : "grid-cols-4"}`}>
-          {Array.from({ length: game.size }, (_, i) => {
+        <div data-my-team className={`grid gap-[7px] px-4 pt-3 ${need > 5 ? "grid-cols-5" : need === 5 ? "grid-cols-5" : "grid-cols-4"}`}>
+          {Array.from({ length: need }, (_, i) => {
             const c = faces.get(shown[i]);
             return c ? (
               <button
@@ -965,11 +970,11 @@ function BlindRoom({ seasonId, show, game, onSettings }: { seasonId: string; sho
             <>
               <span className="min-w-0 flex-1">
                 <small className="block text-xs text-muted-foreground">
-                  {team.length} of {game.size}
+                  {team.length} of {need}
                 </small>
-                <b className="type-caption block truncate text-[22px]">{team.length < game.size ? `Pick ${game.size - team.length} more` : "Ready"}</b>
+                <b className="type-caption block truncate text-[22px]">{team.length < need ? `Pick ${need - team.length} more` : "Ready"}</b>
               </span>
-              <Btn tone={team.length === game.size ? "must" : "optional"} data-lock disabled={busy || team.length !== game.size} onClick={lockIn} className="h-12">
+              <Btn tone={team.length === need ? "must" : "optional"} data-lock disabled={busy || team.length !== need} onClick={lockIn} className="h-12">
                 <Lock className="size-4" aria-hidden />
                 {forName ? `Lock in for ${first(forName)}` : "Lock in"}
               </Btn>

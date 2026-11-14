@@ -1,5 +1,5 @@
 const S = require('../../../src/lib/game/state-logic'), G = require('../../../src/lib/game/game-spec'), F = require('../../../src/lib/game/formats');
-const J = require('./json.cjs'), Stages = require('./stages.cjs');
+const J = require('./json.cjs'), Stages = require('./stages.cjs'), Sports = require('./runtime-sports.cjs');
 const DAY = 86400000;
 const number = (seed, ...parts) => parseInt(J.digest([seed, ...parts]).slice(0, 8), 16);
 // Who goes out in an episode's results, from those still in (`still`, ids) and a seeded number (`pick(key)`).
@@ -67,6 +67,8 @@ function pairsOf(world, n) {
 function people(document) {
   if (document.world.people.length) {
     if (document.world.people.length > 64 || document.world.people.some(p => typeof p.name !== 'string' || !p.name.trim())) throw Error('Provide up to 64 named actors (tool budget)');
+    // (Account settings' "Sports scores too": runtime-sports.cjs guard.)
+    if (document.world.people.some(p => p.hidesScores !== undefined && typeof p.hidesScores !== 'boolean')) throw Error("A person's hidesScores is true or false");
     return J.clone(document.world.people);
   }
   const count = Math.max(...document.world.contexts.map(c => c.engine.couch ?? 2));
@@ -77,9 +79,13 @@ function people(document) {
 // content profile asks for it. labels:'shared' pairs first names on purpose (two contestants called the same).
 const FIRST = ['Avery', 'Blake', 'Cameron', 'Devon', 'Emery', 'Finley', 'Harper', 'Indigo', 'Jordan', 'Kai', 'Logan', 'Marlowe', 'Noor', 'Oakley', 'Parker', 'Quinn', 'Rowan', 'Sage', 'Tatum', 'Uma', 'Vida', 'Wren', 'Xavi', 'Yael', 'Zion', 'Ari', 'Bea', 'Cruz', 'Dana', 'Eli', 'Faye', 'Gio', 'Hana', 'Ivo', 'Jules', 'Kit', 'Lux', 'Mika', 'Nico', 'Oren'];
 const LAST = ['Alvarez', 'Brooks', 'Chen', 'Diallo', 'Evans', 'Fischer', 'Garcia', 'Hughes', 'Ito', 'Jensen', 'Khan', 'Lopez', 'Moreau', 'Nakamura', 'Okafor', 'Patel', 'Quint', 'Rossi', 'Silva', 'Tanaka'];
+// Distinct for every pool the runtime takes (core-runtime-31): the first names come round every 40 (80 where they're shared in
+// pairs), and each time round the last names move on one (two where first names are shared: a pair differs by one), so 800 full
+// names before a number is added. The season's cast
+// has one row a name (season_cast's index), and the server knows a sport's stat line's person by name (score.ts peopleOf).
 function participantName(document, i) {
-  const f = FIRST[(document.content.labels === 'shared' ? i >> 1 : i) % FIRST.length], round = Math.floor(i / (FIRST.length * 2));
-  return label(document, f + ' ' + LAST[i % LAST.length] + (round ? ' ' + (round + 1) : ''));
+  const shared = document.content.labels === 'shared', step = shared ? 2 : 1, turn = Math.floor(i / (FIRST.length * step)), again = Math.floor(turn * step / LAST.length);
+  return label(document, FIRST[(shared ? i >> 1 : i) % FIRST.length] + ' ' + LAST[(i + turn * step) % LAST.length] + (again ? ' ' + (again + 1) : ''));
 }
 function label(document, value) {
   return document.content.labels === 'long' ? value + ' de la Cruz Montgomery-Wellington' : document.content.labels === 'unbroken' ? value + 'UnbrokenName'.repeat(5) : value;
@@ -92,6 +98,9 @@ function contextData(document, context, actors) {
     for (let i = 0; i < count; i++) participants.push({ id: context.id + '-participant-' + (i + 1), contextId: context.id, name: participantName(document, i), photoUrl: null });
   }
   if (participants.length > 1000 || participants.some(p => typeof p.name !== 'string' || !p.name.trim())) throw Error('Provide up to 1000 named participants (tool budget)');
+  // A sport's participants are athletes, each with a position (runtime-sports.cjs: the league's default lineup's slots in turn).
+  const sport = context.kind === 'sport';
+  if (sport) Sports.assignRoles(context, participants);
   // Tribes (the world's opt-in context.tribes, 2 to 4: a show divided into groups, as a draft spread across them reads them): each
   // participant on one, in turn. Only a world that asks has them, so every other world's facts and hashes are unchanged.
   const tribes = context.tribes;
@@ -104,7 +113,7 @@ function contextData(document, context, actors) {
   if (!events.length) {
     const completed = document.content.completedEvents ?? 2, count = document.content.eventCount ?? completed + 1;
     if (!Number.isInteger(count) || !Number.isInteger(completed) || completed < 0 || count < 1 || count > 60 || completed > count) throw Error('Invalid event generation profile or 60-event tool budget exceeded');
-    for (let i = 1; i <= count; i++) events.push({ id: context.id + '-event-' + i, contextId: context.id, number: i, title: 'Synthetic round ' + i, airAt: new Date(Date.parse(document.situation.clock) + (i <= completed ? -(completed + 1 - i) : i - completed) * DAY).toISOString(), resultStatus: i <= completed ? 'final' : 'unavailable' });
+    for (let i = 1; i <= count; i++) events.push({ id: context.id + '-event-' + i, contextId: context.id, number: i, title: sport ? 'Synthetic ' + (context.engine.part?.singular || 'game') + ' ' + i : 'Synthetic round ' + i, airAt: new Date(Date.parse(document.situation.clock) + (i <= completed ? -(completed + 1 - i) : i - completed) * DAY).toISOString(), resultStatus: i <= completed ? 'final' : 'unavailable' });
   }
   if (events.some((e, i) => e.number !== i + 1 || (e.airAt != null && !Number.isFinite(Date.parse(e.airAt))))) throw Error('Runtime events need consecutive numbers from 1 and valid air times');
   let unavailable = false;
@@ -119,6 +128,8 @@ function contextData(document, context, actors) {
     if (existing.has(event.id)) { for (const f of facts.filter(f => f.eventId === event.id)) for (const out of f.data?.events || []) active.delete(out.castawayId); continue; }
     const ids = [...active];
     const pick = k => number(document.seed, context.id, event.number, k);
+    // A sport's results are its box score: every athlete's counts (nobody goes home, no moment is scored).
+    if (sport) { facts.push({ id: 'fact-' + event.id, eventId: event.id, contextId: context.id, source: 'seeded-synthetic-v2', data: { events: [], scoringEvents: [], lines: Sports.linesFor(context, participants, pick) } }); continue; }
     const outs = context.engine.results ? outcome(format, ids, pick, event.number === events.length) : [];
     const votes = bounties(document) ? voteFacts(format, ids, outs, pick) : undefined;
     const scoringEvents = moments.length ? participants.filter(p => active.has(p.id)).map((p, i) => ({ id: 'moment-' + J.digest([context.id, event.number, p.id]).slice(0, 16), type: moments[number(document.seed, event.number, i) % moments.length], castawayId: p.id })) : [];
@@ -197,6 +208,8 @@ function syncMarks(world, game, state) {
   }
 }
 function applyFacts(world, state) {
+  // A sport's results are stat lines, stamped as the server stamps them (runtime-sports.cjs).
+  if (world.context.kind === 'sport') return Sports.applyFacts(world, state, released);
   for (const c of state.castaways) { c.status = 'active'; c.placementOrder = null; c.exitEpisodeId = null; c.exitMethod = null; }
   for (const ep of state.episodes) {
     const event = world.events.find(e => e.id === ep.id);
@@ -348,4 +361,4 @@ function auctionBids(document, game, state) {
   }
   return bids;
 }
-module.exports = { auctionBids, voteFacts, researchOf, pairsOf, bounties, phaseList, settleWrite, outcome, people, contextData, gameData, applyFacts, syncMarks, released };
+module.exports = { participantName, auctionBids, voteFacts, researchOf, pairsOf, bounties, phaseList, settleWrite, outcome, people, contextData, gameData, applyFacts, syncMarks, released };

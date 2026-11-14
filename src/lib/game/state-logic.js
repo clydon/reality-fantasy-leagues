@@ -2526,6 +2526,13 @@ class BlindDraftLogic {
   // unlike most of this file (which silently no-ops on a bad request, see SnakeDraftStrategy.pick),
   // a rejected blind submission needs to tell the player WHY: they can't see what anyone else did,
   // so a silent no-op would be indistinguishable from a successful lock-in.
+  // How many a seat's sheet names: the places its keepers leave, or everyone left to pick (still in, in the game's pool, not one
+  // of its keepers) when that's fewer (BACKLOG 60).
+  static sheetSize(state, playerId){
+    const keep = KeeperLogic.keptIds(state, playerId);
+    const left = PoolLogic.offered(state).filter(c => !keep.includes(c.id)).length;
+    return Math.min(KeeperLogic.places(state, playerId), left);
+  }
   static validateSubmission(state, playerId, castawayIds){
     if(!BlindDraftLogic.on(state)) return 'This league is not running a blind draft';
     if(!DraftLogic.isStarted(state)) return "The draft hasn't started yet";
@@ -2538,7 +2545,15 @@ class BlindDraftLogic {
     // A10 part 4: the places its keepers leave.
     const keep = KeeperLogic.keptIds(state, playerId);
     const teamSize = KeeperLogic.places(state, playerId);
-    if(ids.length !== teamSize) return `Pick exactly ${teamSize} castaway${teamSize===1?'':'s'}${keep.length ? ` beside your keeper${keep.length === 1 ? '' : 's'}` : ''}`;
+    // BACKLOG 60 (the user's decision, 2026-11-14): a draft from who's still in (a later stage's, opening at its start) can have
+    // fewer left to pick than a team takes ("6 each from the merge" with five left). The sheet then names everyone left, as a
+    // lineup takes fewer starters late in a season and a late joiner's team takes everyone left (GhostLogic.teamAt). It asked for
+    // exactly a team, so every sheet was refused and the stage never had teams.
+    const need = BlindDraftLogic.sheetSize(state, playerId);
+    if(ids.length !== need){
+      if(need < teamSize) return `Only ${need} ${need === 1 ? 'is' : 'are'} left to pick: pick ${need === 1 ? 'them' : `all ${need}`}`;
+      return `Pick exactly ${teamSize} castaway${teamSize===1?'':'s'}${keep.length ? ` beside your keeper${keep.length === 1 ? '' : 's'}` : ''}`;
+    }
     if(new Set(ids).size !== ids.length) return 'Same castaway picked more than once';
     const inPool = PoolLogic.test(state);
     for(const id of ids){
@@ -4160,7 +4175,13 @@ class ActiveRosterLogic {
     if(!piecesOf(state).hasActiveRoster) return 'This league type has no active roster';
     const ep = state.episodes.find(e => e.id === epId);
     if(!ep) return 'No such episode';
-    if(ActiveRosterLogic.isLineupLocked(state, epId, now)) return 'This episode has started -- lineups are locked';
+    if(ActiveRosterLogic.isLineupLocked(state, epId, now)){
+      // A sport's lineup its day or week locked before its own game (closedForPlay's ep.locksAt): the episode hasn't started, and
+      // saying so sent people looking for a game that hadn't begun (BACKLOG 76).
+      const closes = gameOf(state).closes;
+      const early = (closes === 'daily' || closes === 'weekly') && !ep.lineupsLocked && !!ep.airsAt && (now || Date.now()) < Date.parse(ep.airsAt) && !EpisodeLogic.hasResults(ep);
+      return early ? `This ${closes === 'daily' ? 'day' : 'week'}'s lineups are locked -- its first game has started` : 'This episode has started -- lineups are locked';
+    }
     if(!inPlay(state, ep.number)){
       const start = startEpisode(state);
       if(start === null) return "This game hasn't started: it waits for its phase of the season";
@@ -5480,9 +5501,27 @@ class StageLogic {
   static withWalk(state, walk){ return walk ? { ...state, stageWalk: walk } : state; }
   // The walk as a viewer through episode n sees it: each stage's tables through n (A12 part 4b: a stage on another season is cut at
   // the viewer's mark there, by the server: n is the game's own season's).
-  static cutWalk(walk, n){
+  // BACKLOG 61 (2026-11-14): with the game's stages (`stages`, the spec's), where a stage starts and ends is cut too. A start or an
+  // end the spec fixes at an episode is the game's rule, known to everyone. Any other (a phase's, a format change's, the game ending
+  // early) is what the season's results said: its start stays out until the viewer has seen the episode before it, its end until
+  // they've seen that episode, as SpoilerLogic.spanAhead cuts a stage's own league.
+  static cutWalk(walk, n, stages){
     if(!walk || !Array.isArray(walk.stages) || !Number.isInteger(n)) return walk;
-    return { ...walk, stages: walk.stages.map(st => (st.season ? st : { ...st, entries: (st.entries || []).filter(e => e.episode <= n) })) };
+    const fixed = (st, end) => {
+      const spec = (stages || []).find(x => x.id === st.key);
+      const at = spec && spec.game && spec.game.span ? spec.game.span[end] : undefined;
+      return Number.isInteger(at) && !Spec.stageOn(spec);
+    };
+    return { ...walk, stages: walk.stages.map(st => {
+      if(st.season) return st;
+      const cut = { ...st, entries: (st.entries || []).filter(e => e.episode <= n) };
+      if(!stages) return cut;
+      const noStart = Number.isInteger(st.from) && n < st.from - 1 && !fixed(st, 'from');
+      const noEnd = noStart || (Number.isInteger(st.to) && n < st.to && !fixed(st, 'to'));
+      if(noStart) cut.from = null;
+      if(noEnd) cut.to = null;
+      return cut;
+    }) };
   }
   // A12 part 4b: an own stage of the game plays on another season.
   static crosses(state){ return StageLogic.on(state) && Spec.crosses(StageLogic.stages(state)); }
@@ -6771,9 +6810,13 @@ class MidSeasonLogic {
     // A seat at its own pace that moves while ahead of the move's episode (exclusive teams: a waiver week runs at the episode
     // everyone has reached, sync point 2) has already played up to its own mark with who it held. `seen` keeps that mark, so the
     // move counts for its lineups from the episode after it (ActiveRosterLogic.heldFor; BACKLOG 57): never back into a week played.
+    // The same for a move made once later episodes have results (a held waiver week runs as it closes, on the next episode's:
+    // WaiverLogic.due), logged at its week's episode all the same: those episodes were played with who the seat held.
     const mover = Core.getPlayer(state, tx.playerId);
     const mark = mover && mover.lateJoin && Number.isInteger(mover.lateJoin.seenThrough) ? mover.lateJoin.seenThrough : null;
-    if(mark !== null && Number.isInteger(tx.episode) && mark > tx.episode) tx.seen = mark;
+    const played = lastCompletedEpisode(state);
+    const past = Math.max(mark === null ? -Infinity : mark, played === null ? -Infinity : played);
+    if(Number.isInteger(tx.episode) && past > tx.episode) tx.seen = past;
     // A10 part 3c: a stock market's move records what it sold for and paid, at today's prices, and its fee (MarketLogic.cash
     // reads them; a caller that read the prices once a pass passes them in `entry`).
     if(tx.paid === undefined && MarketLogic.on(state)) Object.assign(tx, MarketLogic.terms(state, tx.droppedCastawayId, tx.addedCastawayId));
@@ -9063,6 +9106,56 @@ class SpoilerLogic {
       .sort((a,b) => a.number - b.number)[0];
     return ep ? { episode: ep.number, since: ep.airsAt } : null;
   }
+  // BACKLOG 61 (the user's decision, 2026-11-14): where a game starts or ends by a phase of the season (a stage from the merge,
+  // the one until it) says when that phase came, and the team from a draft that opened at that start says who was still in then.
+  // Neither is an episode's results, so cutting those left both in a copy. What a viewer at `seenThrough` may not know yet, or null:
+  //   start  the game's first episode, until they've seen the episode before it (the results its draft opens on: DraftLogic.waits);
+  //   end    its last episode, until they've seen that episode.
+  //   draft  who's on a team from a draft that opened at the game's start (drawn from who was still in then), until they've seen
+  //          the episode before it: whether a phase set that start or the game fixed it at an episode.
+  static spanAhead(state, seenThrough){
+    if(!Number.isInteger(seenThrough)) return null;
+    const game = gameOf(state), span = game.span;
+    const first = Spec.spanStart(span);
+    const from = Spec.spanPhase(span) ? first : null;
+    const to = Spec.spanEndPhase(span) ? Spec.spanEnd(span) : null;
+    const start = from !== null && seenThrough < from - 1, end = to !== null && seenThrough < to;
+    const draft = game.get.by === 'draft' && !!game.extras.draft && game.extras.draft.opens === 'start' && first !== null && first > 1 && seenThrough < first - 1 && DraftLogic.begun(state);
+    return start || end || draft ? { start, end, draft, from: first } : null;
+  }
+  // Their copy, as everyone's stood before that start was settled: the game waiting for its phase (an end it had set goes with the
+  // start, as settleStart leaves a game that waits again), and nobody on a team from a draft that opens at the start: no pick, no
+  // deal, no lineup for an episode of it, no move since. A draft made any other time is left as it is (it drafted from the cast as
+  // it stood, which says nothing). Mutates `s`, which must be a copy.
+  static unsettle(s, ahead){
+    const game = gameOf(s), span = { ...game.span };
+    if(ahead.start){
+      span.from = { phase: Spec.spanPhase(span) };
+      if(!Spec.spanEndPhase(span)) span.to = null;
+    }
+    if(ahead.end) span.to = { phase: Spec.spanEndPhase(span) };
+    if(ahead.start || ahead.end){
+      const settings = Spec.withSpec(s.settings, { ...game, span });
+      if(settings) s.settings = settings;
+    }
+    if(!ahead.draft) return;
+    (s.castaways || []).forEach(c => { c.ownerIds = []; c.acquiredVia = null; delete c.formerOwnerId; delete c.departedVia; c.replenishClaimed = false; });
+    s.draftPicksMade = 0;
+    s.draftLog = [];
+    delete s.draftForceStarted;
+    delete s.draw;
+    delete s.auction;
+    if(s.blindDraft) s.blindDraft = { lockedPlayerIds: [], revealedAt: null };
+    (s.episodes || []).forEach(ep => {
+      if(ep.number < ahead.from) return;
+      ep.lineups = {};
+      delete ep.lineupsAt; delete ep.captains; delete ep.groupSlots; delete ep.lateSet;
+    });
+    if(s.midSeason){
+      s.midSeason.log = [];
+      if(s.midSeason.waivers) s.midSeason.waivers.periods = [];
+    }
+  }
   static viewThrough(state, seenThrough){
     const hidden = SpoilerLogic.hiddenEpisodes(state, seenThrough);
     // A season rule change from an episode this viewer hasn't seen would say a twist is coming
@@ -9072,14 +9165,17 @@ class SpoilerLogic {
     const changeHidden = c => Number.isInteger(seenThrough) && c && c.effectiveEpisode > seenThrough;
     const st = state.settings || {};
     const hidesChanges = ['seasonRuleChanges', 'adoptedRuleChanges'].some(k => (st[k] || []).some(changeHidden));
-    if(!hidden.length && !hidesChanges) return state;
+    // A start or an end by a phase they haven't watched up to (spanAhead).
+    const ahead = SpoilerLogic.spanAhead(state, seenThrough);
+    if(!hidden.length && !hidesChanges && !ahead) return state;
     const s = JSON.parse(JSON.stringify(state));
+    if(ahead) SpoilerLogic.unsettle(s, ahead);
     // A game of questions' walk (A11 part 2b), and a draft's own questions' lines (C2 part 4c), were worked out on more than this copy
     // holds: they're the copy's to work out again.
     delete s.answerWalk;
     delete s.answerLines;
     // A12 part 1: a game in stages' walk, each stage's tables through this mark only.
-    if(s.stageWalk) s.stageWalk = StageLogic.cutWalk(s.stageWalk, seenThrough);
+    if(s.stageWalk) s.stageWalk = StageLogic.cutWalk(s.stageWalk, seenThrough, StageLogic.stages(s));
     ['seasonRuleChanges', 'adoptedRuleChanges'].forEach(k => {
       if(!s.settings[k]) return;
       s.settings[k] = s.settings[k].filter(c => !changeHidden(c));

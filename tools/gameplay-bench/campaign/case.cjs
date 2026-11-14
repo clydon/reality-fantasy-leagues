@@ -5,6 +5,11 @@ const R = require('../explorer/runtime.cjs'), J = require('../explorer/json.cjs'
 
 // Who held whom before each waiver week ran, per session (the undo check's measure).
 const HELD = new WeakMap();
+// The Eastern day an instant falls on, and its week (the date of the Tuesday that starts it), for the sports locks' invariant:
+// worked out with Intl alone, apart from the app's own (src/lib/sports/locks.ts, src/lib/game/air-schedule.js).
+const ET_DATE = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }), ET_DAY = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'short' });
+const etDate = ms => ET_DATE.format(new Date(ms));
+const etWeek = ms => { const [y, m, d] = etDate(ms).split('-').map(Number), day = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(ET_DAY.format(new Date(ms))); return new Date(Date.UTC(y, m - 1, d - ((day - 2 + 7) % 7))).toISOString().slice(0, 10); };
 class Violation extends Error { constructor(signature, message, step) { super(message); this.signature = signature; this.step = step; } }
 
 // `known` (a Set): known product defects the case reproduces (BACKLOG), counted apart from failures, as the API tier's are.
@@ -18,6 +23,99 @@ function invariants(session, document, before, record, step, inject, known = new
     const seen = world.marks.find(m => m.personId === person.id).through;
     for (const game of document.games) {
       const v = session.project(game.id, person.id).game, member = snap.games[game.id].state.players.some(p => p.id === person.id);
+      // What this viewer has been told of this game: as far as their mark; on a sport's season the server's guard, restated here
+      // (guard.ts seenThrough): a seat at its own pace, as far as its mark; anyone else everything straight away, unless they hide
+      // sports scores too or every seat they hold on the season is at its own pace.
+      const seats = world.context.kind === 'sport' ? document.games.filter(g => snap.games[g.id].state.players.some(p => p.id === person.id)) : [];
+      const told = world.context.kind !== 'sport' ? seen : game.timing === 'own-pace' && member ? seen : person.hidesScores || (seats.length && seats.every(g => g.timing === 'own-pace')) ? seen : Infinity;
+      // A game scored by a sport's stats (proof-family-47; runtime-sports.cjs), recounted here from the world's box scores, never
+      // from StatsLogic ('stats-table'). For each viewer, each seat's total is its counted athletes' points over the released
+      // episodes this viewer has seen: the whole team, the starters it fielded (the lineup rule's, from the full state: no move is
+      // made in these games), or its best n each episode; a line's points worked out here (each stat the table scores, its count
+      // times its points to the cent, the line's sum to the cent: plain points, the slice the profile takes) over the sport's full
+      // line (Sport.full: derived stats worked out). And nothing of an episode past their mark is in their copy ('stats-past-mark').
+      if (world.context.kind === 'sport') {
+        const S0 = require('../../../src/lib/game/state-logic'), Sp = require('../explorer/runtime-sports.cjs');
+        const full = snap.games[game.id].state, spec = S0.gameOf(full), c = Sp.league(world.context), cents = n => Math.round((Number(n) || 0) * 100) / 100;
+        const pointsOf = line => cents(Object.entries(spec.score.points || {}).reduce((n, [stat, each]) => n + cents((line[stat] || 0) * each), 0));
+        // (A seat's points for one game, from its box score: the whole team, the starters it fielded, or its best n.)
+        const weekOf = (playerId, e) => {
+          const lines = world.facts.find(f => f.eventId === e.id).data.lines;
+          const held = spec.count.start ? S0.ActiveRosterLogic.lineupFor(full, e.id, playerId) : full.castaways.filter(x => x.ownerIds.includes(playerId)).map(x => x.id);
+          const pts = held.map(id => pointsOf(c.sport.full(lines[id] || {})));
+          return cents((spec.count.best ? [...pts].sort((a, b) => b - a).slice(0, spec.count.best) : pts).reduce((a, b) => a + b, 0));
+        };
+        const toldGames = world.events.filter(e => ['final', 'corrected'].includes(e.resultStatus) && e.number <= told);
+        // A game of the sport's categories (proof-family-50) has no points: its table and its weeks are the categories', recounted
+        // from the box scores by the rule restated apart from the engine (sports-oracle.cjs: a count adds up; a rate is worked out
+        // from the counts added up, from its own group's lines; the better value takes a category; roto ranks each category across
+        // the seats, the tied sharing). 'sport-roto': each seat's total is its roto points over the games this viewer has been
+        // told. 'sport-categories': this viewer's last matchup is a game they've been told, and against a seat its points are the
+        // categories they won, the other side's the ones they lost, and the week whoever won more (a week nobody has anything
+        // in any category counts for nobody unless the game ties everyone).
+        const catsList = Array.isArray(spec.score?.categories) && spec.score.categories.length ? spec.score.categories : null;
+        if (catsList) {
+          const Oracle = require('./sports-oracle.cjs'), defs = c.sport.categoryDefs();
+          const linesOf = (playerId, e) => { const box = world.facts.find(f => f.eventId === e.id).data.lines; return (spec.count.start ? S0.ActiveRosterLogic.lineupFor(full, e.id, playerId) : full.castaways.filter(x => x.ownerIds.includes(playerId)).map(x => x.id)).map(id => box[id]).filter(Boolean).map(l => c.sport.full(l)); };
+          const over = (playerId, events) => Oracle.totals(events.flatMap(e => linesOf(playerId, e)), catsList, defs);
+          if (spec.rank.by === 'roto') {
+            const wantRoto = Oracle.roto(Object.fromEntries(full.players.map(p => [p.id, over(p.id, toldGames)])), catsList, defs), gotRoto = Object.fromEntries(v.table.map(r => [r.playerId, cents(r.total)]));
+            if (Object.keys(wantRoto).some(k => Math.abs((gotRoto[k] ?? NaN) - wantRoto[k]) > 1e-9)) throw new Violation('sport-roto', person.id + ' (through ' + seen + (told === Infinity ? ', told everything' : '') + ') sees ' + game.id + ' at ' + JSON.stringify(gotRoto) + '; each category ranked from the box scores gives ' + JSON.stringify(wantRoto), step);
+          } else {
+            const lastCats = member ? v.matchups?.last : null;
+            if (lastCats) {
+              const e = toldGames.find(x => x.number === lastCats.episode);
+              if (!e) throw new Violation('sport-categories', person.id + "'s last matchup in " + game.id + ' is episode ' + lastCats.episode + ', which they have not been told', step);
+              if (lastCats.opponent) {
+                const w = Oracle.week(over(person.id, [e]), over(lastCats.opponent, [e]), catsList, defs), hush = Oracle.quiet(full.players.map(p => over(p.id, [e])), catsList) && (spec.rank?.quiet ?? 'skip') !== 'tie';
+                if (hush ? lastCats.result !== null : lastCats.points !== w.won || lastCats.against !== w.lost || lastCats.result !== w.result)
+                  throw new Violation('sport-categories', person.id + "'s episode " + lastCats.episode + ' matchup in ' + game.id + ' reads ' + JSON.stringify([lastCats.points, lastCats.against, lastCats.result, lastCats.opponent]) + '; the box scores give ' + JSON.stringify(hush ? 'a quiet week' : [w.won, w.lost, w.result]), step);
+              }
+            }
+          }
+        }
+        const want = {};
+        for (const p of full.players) want[p.id] = cents(toldGames.reduce((n, e) => n + weekOf(p.id, e), 0));
+        // Head to head ('sport-matchup'; proof-family-49): this viewer's last matchup is a game they've been told, their points in
+        // it are that game's box score's, and against a seat (not the median, or a week off) the other side's are that seat's
+        // and the result is who scored more. Who plays whom is the engine's schedule; who won is worked out here.
+        const last = member && !catsList ? v.matchups?.last : null;
+        if (last) {
+          const e = toldGames.find(x => x.number === last.episode);
+          if (!e) throw new Violation('sport-matchup', person.id + "'s last matchup in " + game.id + ' is episode ' + last.episode + ', which they have not been told', step);
+          const mine = weekOf(person.id, e), theirs = last.opponent ? weekOf(last.opponent, e) : null;
+          // (A night nobody scored counts for nobody, the default, unless the game ties everyone: rank.quiet.)
+          const quiet = full.players.every(p => weekOf(p.id, e) === 0) && (spec.rank?.quiet ?? 'skip') !== 'tie';
+          if (Math.abs(cents(last.points) - mine) > 1e-9 || (theirs !== null && (Math.abs(cents(last.against) - theirs) > 1e-9 || last.result !== (quiet ? null : mine > theirs ? 'win' : mine < theirs ? 'loss' : 'tie'))))
+            throw new Violation('sport-matchup', person.id + "'s episode " + last.episode + ' matchup in ' + game.id + ' reads ' + JSON.stringify([last.points, last.against, last.result, last.opponent]) + '; the box score gives ' + JSON.stringify([mine, theirs]), step);
+        }
+        // A lock by the day or the week ('sport-locks'; proof-family-49), restated here from the schedule, never from locksOf: an
+        // episode locks at the first start among the game's own episodes on its Eastern day, or in its Eastern week (Tuesday to
+        // Monday); else at its own. In a live game the lineup a seat is offered is locked exactly when that has passed (at its own
+        // pace a seat's episode stays open until they've watched it: the pace's rule, the engine's own tests).
+        {
+          const closes = spec.closes, key = closes === 'daily' ? etDate : closes === 'weekly' ? etWeek : null;
+          const from = S0.startEpisode(full) ?? 1, to = S0.endEpisode(full), own = world.events.filter(e => e.number >= from && (to == null || e.number <= to) && e.airAt);
+          const lockOf = n => { const e = own.find(x => x.number === n); if (!e) return null; const t = Date.parse(e.airAt); return key ? Math.min(...own.filter(x => key(Date.parse(x.airAt)) === key(t)).map(x => Date.parse(x.airAt))) : t; };
+          const now = Date.parse(snap.clock);
+          if (game.timing !== 'own-pace' && member && v.lineup) {
+            const lock = lockOf(v.lineup.episode), shut = lock !== null && lock <= now;
+            if (!!v.lineup.locked !== shut) throw new Violation('sport-locks', person.id + "'s episode " + v.lineup.episode + ' lineup in ' + game.id + ' (' + closes + ') is ' + (v.lineup.locked ? 'locked' : 'open') + ' at ' + snap.clock + '; the schedule locks it at ' + (lock === null ? 'no time' : new Date(lock).toISOString()), step);
+          }
+          // And the lineup this step sent, where it was this game's in a live game: taken only before its lock; refused as locked only after.
+          const a = record.action;
+          if (a.type === 'lineup' && a.gameId === game.id && a.personId === person.id && game.timing !== 'own-pace') {
+            const n = world.events.find(e => e.id === a.eventId)?.number, lock = n == null ? null : lockOf(n), shut = lock !== null && lock <= now;
+            if (record.status === 'accepted' && shut) throw new Violation('sport-locks', person.id + "'s lineup for episode " + n + ' in ' + game.id + ' was taken at ' + snap.clock + ', after its ' + closes + ' lock at ' + new Date(lock).toISOString(), step);
+            if (record.status !== 'accepted' && /lineups are locked/.test(record.message || '') && !shut && !(S0.EpisodeLogic.hasResults(full.episodes.find(x => x.id === a.eventId) || {}))) throw new Violation('sport-locks', person.id + "'s lineup for episode " + n + ' in ' + game.id + ' was refused as locked at ' + snap.clock + ', before its ' + closes + ' lock' + (lock === null ? '' : ' at ' + new Date(lock).toISOString()), step);
+          }
+        }
+        const got = Object.fromEntries(v.table.map(r => [r.playerId, cents(r.total)]));
+        if (!catsList && Object.keys(want).some(k => Math.abs((got[k] ?? NaN) - want[k]) > 1e-9)) throw new Violation('stats-table', person.id + ' (through ' + seen + (told === Infinity ? ', told everything' : '') + ') sees ' + game.id + ' at ' + JSON.stringify(got) + '; the box scores they have seen add up to ' + JSON.stringify(want), step);
+        const mine = S0.GhostLogic.viewFor(full, member ? person.id : null, seen);
+        const leak = mine.episodes.find(e => e.number > seen && (e.statLines || e.gameFinal || e.statGames));
+        if (leak) throw new Violation('stats-past-mark', person.id + ' (through ' + seen + ") holds episode " + leak.number + "'s lines in their copy of " + game.id, step);
+      }
       // A game in stages (proof-family-46; stages.cjs), recounted here from each stage's own table and the world's facts, never from
       // StageLogic. For each viewer ('stages-overall'): the game's table is, seat by seat, the sum of each stage's own table as this
       // viewer sees that stage, counting a stage only once an episode it plays has results they've seen (one that hasn't started for
@@ -35,9 +133,14 @@ function invariants(session, document, before, record, step, inject, known = new
           for (const r of views[i].table) want[r.playerId] = (want[r.playerId] ?? 0) + r.total;
         });
         for (const id of Object.keys(total)) if (Math.abs(total[id] - (want[id] ?? 0)) > 1e-9) throw new Violation('stages-overall', person.id + ' sees ' + id + ' on ' + total[id] + ' overall in ' + game.id + ', but their stages add up to ' + want[id] + ' (' + kids.map((k, i) => k.stageKey + ' ' + (views[i].table.find(r => r.playerId === id)?.total ?? '-')).join(', ') + ')', step);
-        // Known (BACKLOG 61, counted apart): someone behind is shown a later stage whose draft came after their mark (where it
-        // starts, and their team, drawn only from who was still in after episodes they haven't seen).
-        if (kids.some((k, i) => i > 0 && Number.isInteger(views[i].from) && views[i].from - 1 > seen && (views[i].you?.team || []).length)) known.add('known:later-stage-past-mark');
+        // Nobody behind is shown a later stage that started after their mark ('later-stage-past-mark'; it was the known finding
+        // BACKLOG 61, fixed 2026-11-14): their team there (drawn only from who was still in after episodes they haven't seen),
+        // or where it starts when a phase of the season set that (a start the game fixes at an episode is its rule).
+        kids.forEach((k, i) => {
+          const start = SL.startEpisode(snap.games[k.id].state), byPhase = !!require('../../../src/lib/game/game-spec').spanPhase(SL.gameOf(snap.games[k.id].state).span);
+          if (i === 0 || !Number.isInteger(start) || start - 1 <= seen) return;
+          if ((views[i].you?.team || []).length || (byPhase && views[i].from != null)) throw new Violation('later-stage-past-mark', person.id + ' (through ' + seen + ') is shown ' + k.id + ', which starts with episode ' + start + ': from ' + (views[i].from ?? 'none') + ', a team of ' + (views[i].you?.team || []).length, step);
+        });
         if (kids.length && v.over !== views[kids.length - 1].over) throw new Violation('stages-overall', person.id + ' sees ' + game.id + (v.over ? ' over' : ' still on') + ' while its last stage is ' + (views[kids.length - 1].over ? 'over' : 'still on'), step);
         if (person === snap.people[0]) {
           const stillIn = w => { const gone = new Set(w.facts.filter(x => w.events.some(e => e.id === x.eventId && rel(e))).flatMap(x => (x.data.events || []).map(e => e.castawayId))); return w.participants.map(p => p.id).filter(id => !gone.has(id)); };
@@ -48,12 +151,11 @@ function invariants(session, document, before, record, step, inject, known = new
             if (k.spec.extras?.draft?.opens !== 'start') return;
             const held = x => x.castaways.filter(c => c.ownerIds.length), mine = held(st), was = held(before.games[k.id].state), fail = m => { throw new Violation('stage-draft', game.id + ' ' + k.stageKey + ': ' + m, step); };
             if (mine.length && (from === null || from - 1 > latest)) fail('teams before the episode before its start (' + from + ') has results');
-            // Open (its start known, the episode before it played) and still unmade: only where nobody can lock a sheet in, fewer
-            // still in than a team takes (BACKLOG 60, counted apart: the server refuses every sheet there too).
+            // Open (its start known, the episode before it played): made, with anyone still in at all. (With fewer still in than a
+            // team takes nobody could lock a sheet in, the known finding BACKLOG 60, fixed 2026-11-14: a sheet is everyone left.)
             if (!mine.length && from !== null && from - 1 <= latest) {
               const left = stillIn(world).length, each = SL.gameOf(st).get.each;
-              if (left >= each) fail('its draft is open and unmade with ' + left + ' still in for teams of ' + each);
-              known.add('known:stage-draft-short');
+              if (left > 0) fail('its draft is open and unmade with ' + left + ' still in for teams of ' + each);
             }
             // The teams as they were first made: at setup (seen on the first step, against the world as it was then), or on this step.
             const made = !was.length && mine.length ? { at: snap, list: mine, state: st } : step === 0 && was.length ? { at: before, list: was, state: before.games[k.id].state } : null;
@@ -62,7 +164,8 @@ function invariants(session, document, before, record, step, inject, known = new
             const pool = stillIn(made.at.contexts.show), g = SL.gameOf(made.state).get, seats = made.state.players.filter(p => p.active !== false && !p.disabled);
             const out = made.list.filter(c => !pool.includes(c.id));
             if (out.length) fail('drafted ' + out.map(c => c.id).join(', ') + ', who had gone home');
-            for (const p of seats) { const n = made.list.filter(c => c.ownerIds.includes(p.id)).length; if (n !== g.each) fail(p.id + ' has ' + n + ' of ' + g.each); }
+            // (A whole team, or everyone still in when that's fewer than a team takes: BACKLOG 60.)
+            for (const p of seats) { const n = made.list.filter(c => c.ownerIds.includes(p.id)).length, whole = Math.min(g.each, pool.length); if (n !== whole) fail(p.id + ' has ' + n + ' of ' + whole + (whole < g.each ? ' (everyone still in: a team is ' + g.each + ')' : '')); }
             const fits = seats.length * g.each <= pool.length, own = k.spec.get.own === 'exclusive' && fits ? 'exclusive' : 'shared';
             if (g.own !== own) fail('played ' + g.own + ' with ' + seats.length + ' seats of ' + g.each + ' and ' + pool.length + ' still in (written ' + k.spec.get.own + ')');
             if (g.own === 'exclusive' && made.list.some(c => c.ownerIds.length > 1)) fail('someone is on two teams in an exclusive draft');
@@ -175,7 +278,9 @@ function invariants(session, document, before, record, step, inject, known = new
         const S0 = require('../../../src/lib/game/state-logic'), st = snap.games[game.id].state, prior = before.games[game.id].state, a = record.action;
         if ((st.midSeason?.log || []).length !== (prior.midSeason?.log || []).length) for (const p of st.players) {
           const seenBy = id => Math.min(before.contexts.show.marks.find(m => m.personId === id)?.through ?? 0, world.marks.find(m => m.personId === id)?.through ?? 0), through = Math.max(...st.players.map(q => seenBy(q.id)));
-          for (const e of prior.episodes.filter(e => e.number <= (S0.GhostLogic.ownPace(st) ? seenBy(p.id) : through) && S0.EpisodeLogic.hasResults(e))) {
+          // (The game's own episodes: one after its last, a stage that has ended, isn't played by it, whatever its lineup reads.)
+          const first = S0.startEpisode(st), last = S0.endEpisode(st);
+          for (const e of prior.episodes.filter(e => e.number <= (S0.GhostLogic.ownPace(st) ? seenBy(p.id) : through) && S0.EpisodeLogic.hasResults(e) && first !== null && e.number >= first && (last === null || e.number <= last))) {
             if (a.type === 'lineup' && a.personId === p.id && a.eventId === e.id) continue;
             const was = JSON.stringify(S0.ActiveRosterLogic.lineupFor(prior, e.id, p.id)), now = JSON.stringify(S0.ActiveRosterLogic.lineupFor(st, e.id, p.id));
             if (was !== now) throw new Violation('carried-lineup-rewritten', game.id + ': ' + p.id + "'s lineup for episode " + e.number + ', already played, went from ' + was + ' to ' + now + ' on a ' + a.type + ' step', step);
@@ -402,7 +507,10 @@ function invariants(session, document, before, record, step, inject, known = new
         if (member && v.teams.yours && v.teams.set && spells.some(x => x.team === v.teams.yours && x.from <= Math.min(played, seen, S0.lastEpisode(mine) ?? Infinity)) && !v.teams.teams.find(t => t.id === v.teams.yours)?.members.includes(person.id)) throw new Violation('team-members', person.id + "'s team " + v.teams.yours + ' in ' + game.id + " doesn't list them", step);
       }
       const h = v.matchups;
-      if (h && ((h.last && h.last.episode > seen) || h.record.wins + h.record.losses + h.record.ties > seen || (h.playoffs?.bracket || []).some(r => r.played && r.episode > seen))) throw new Violation('matchup-past-mark', person.id + ' sees a ' + game.id + ' matchup past episode ' + seen, step);
+      // (Past what they've been told: their mark, or on a sport's season the guard's answer, `told`.)
+      // (A record by each of a sport's categories has as many results a week as there are categories.)
+      const perWeek = Array.isArray(game.spec.score?.categories) && game.spec.rank?.by === 'categories' ? game.spec.score.categories.length : 1;
+      if (h && ((h.last && h.last.episode > told) || h.record.wins + h.record.losses + h.record.ties > told * perWeek || (h.playoffs?.bracket || []).some(r => r.played && r.episode > told))) throw new Violation('matchup-past-mark', person.id + ' sees a ' + game.id + ' matchup past episode ' + told, step);
       // Nobody sees someone else's guess on a side bet while it's still open (its episode hasn't locked or got results).
       const full = snap.games[game.id].state, now = Date.parse(snap.clock), text = JSON.stringify(v);
       for (const e of full.episodes) if (!(e.airsAt && Date.parse(e.airsAt) <= now) && !(e.events || []).length && !(e.scoringEvents || []).length)
@@ -419,9 +527,11 @@ const WINNER = require('../../../src/lib/game/formats').formatFor('survivor').wi
 // Known (BACKLOG 49): with hits counted once each ('pick', 'objective'), a game without a multiplier's grid adds up every hit while
 // its standings don't, so the twin's grid can't be the measure there: `known:hits-grid-plain` when its grid and standings disagree.
 function pairedTimes(session, doc, actions, statuses, known) {
-  const timed = doc.games.filter(g => Array.isArray(g.spec.score?.times));
+  // (Not a game with the top scorer's twist, 2026-11-14: a multiplier changes who scores most, so who may choose the twist; the
+  // twin keeps that game's multipliers and it plays the same there.)
+  const timed = doc.games.filter(g => Array.isArray(g.spec.score?.times) && !g.spec.score.twist);
   if (!timed.length) return;
-  const twin = R.open({ ...doc, games: doc.games.map(g => g.spec.score?.times ? { ...g, spec: { ...g.spec, score: Object.fromEntries(Object.entries(g.spec.score).filter(([k]) => k !== 'times')) } } : g) });
+  const twin = R.open({ ...doc, games: doc.games.map(g => timed.includes(g) ? { ...g, spec: { ...g.spec, score: Object.fromEntries(Object.entries(g.spec.score).filter(([k]) => k !== 'times')) } } : g) });
   try {
     actions.forEach((a, i) => { const s = twin.apply(a, 'campaign').status; if (s !== statuses[i]) throw new Violation('times-twin-diverged', a.type + ' was ' + statuses[i] + ' with times and ' + s + ' without', i); });
     const snap = session.snapshot(), world = snap.contexts.show;
@@ -733,6 +843,8 @@ async function runApiCase(manifest, index, { onLease } = {}) {
   let ids = null;
   try {
     const snap = session.snapshot(), shift = Date.now() - Date.parse(snap.clock);
+    // (A sport's day and week locks are the written schedule's days and weeks: the runtime reads its own on the same calendar.)
+    session.calendar(shift);
     ids = await Live.up(snap, doc, undefined, onLease);
     await Live.sync(ids, snap, doc, shift); await Live.seedSocial(ids, snap, doc, shift);
     const all = await checkCase({ app: manifest.app || 'http://localhost:3000', ids, snap, document: doc, project: (g, p) => session.project(g, p) });

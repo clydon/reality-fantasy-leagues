@@ -165,7 +165,8 @@ export function movesOf(g: GameView, o: MoveContext): YourMove[] {
     } else if (g.revealFirst) {
       found.push({ ...lineup, faces: [], empty: 0, title: `Reveal ${E} ${g.revealFirst} first`, line: "Who went home decides who you can start", action: "Open", due: false });
     } else if (L.locked) {
-      found.push({ ...lineup, empty: 0, title, line: "Locked at airtime · scores hidden until you reveal", action: "See", due: false });
+      // (Locked by its day or its week before its own game: nothing has aired yet, and there's nothing to reveal. BACKLOG 76.)
+      found.push({ ...lineup, empty: 0, title, line: L.lockedBy ? `Locked when the ${L.lockedBy}'s first game began` : "Locked at airtime · scores hidden until you reveal", action: "See", due: false });
     } else if (!L.set) {
       found.push({
         ...lineup,

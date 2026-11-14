@@ -86,25 +86,35 @@ test("the Scoreboard's event history follows the same rule as the score", () => 
 
 // ---- BACKLOG 57: a carried lineup reads who the seat held FOR THAT EPISODE, never who it holds now ----
 // A free agent to bring in, and the moves as the waivers make them (MidSeasonLogic, each logged at the episode whose results came
-// before it: a move logged at episode k counts from k + 1).
+// before it: a move logged at episode k counts from k + 1). Time is modelled as it runs: through(s, k) leaves only episodes 1 to
+// k played, the move is made, and play(n) brings a later episode's results in. (A move made once later episodes already have
+// results counts from after them, a test below: so a test that made its moves on a finished season would prove nothing.)
 function withFreeAgent(s) {
   s.castaways.push({ id: "f", name: "F", ownerIds: [], status: "active" });
-  s.episodes.forEach((e) => e.scoringEvents.push({ id: `s${e.number}f`, type: "individualImmunity", castawayId: "f" }));
+  s.episodes.forEach((e) => e.scoringEvents.push({ id: "s" + e.number + "f", type: "individualImmunity", castawayId: "f" }));
   return s;
+}
+function through(s, k) {
+  const later = new Map(s.episodes.filter((e) => e.number > k).map((e) => [e.number, e.scoringEvents]));
+  s.episodes.forEach((e) => { if (e.number > k) e.scoringEvents = []; });
+  return (n) => { s.episodes.find((e) => e.number === n).scoringEvents = later.get(n); };
 }
 const M = StateLogic.MidSeasonLogic;
 
 test("a starter swapped out later still counts for the weeks already played with them (BACKLOG 57)", () => {
   const s = withFreeAgent(makeState());
+  const play = through(s, 2);
   s.episodes[0].lineups.p1 = ["a", "b"];
-  const before = total(s, "p1");
+  assert.equal(total(s, "p1"), 4 * per(s));
   // After episode 2: b out for f.
-  M.applyAddDrop(s, "p1", "b", "f", { episode: 2 });
+  const tx = M.applyAddDrop(s, "p1", "b", "f", { episode: 2 });
+  assert.equal(tx.seen, undefined);
+  assert.equal(total(s, "p1"), 4 * per(s), "no new results: no new total");
+  play(3);
   assert.deepEqual(lineup(s, "ep1", "p1"), ["a", "b"]);
   assert.deepEqual(lineup(s, "ep2", "p1"), ["a", "b"], "played before the swap: as it was fielded");
   assert.deepEqual(lineup(s, "ep3", "p1"), ["a"], "after the swap: a gap to fill");
   assert.equal(total(s, "p1"), (2 + 2 + 1) * per(s));
-  assert.equal(before, 6 * per(s));
 });
 
 test("a swap after the last episode played changes no total (BACKLOG 57)", () => {
@@ -113,11 +123,12 @@ test("a swap after the last episode played changes no total (BACKLOG 57)", () =>
   const before = total(s, "p1");
   M.applyAddDrop(s, "p1", "b", "f", { episode: 3 });
   assert.equal(total(s, "p1"), before);
-  [1, 2, 3].forEach((n) => assert.deepEqual(lineup(s, `ep${n}`, "p1"), ["a", "b"]));
+  [1, 2, 3].forEach((n) => assert.deepEqual(lineup(s, "ep" + n, "p1"), ["a", "b"]));
 });
 
 test("replacing a starter who went home keeps the week they played, and leaves a gap after it (BACKLOG 57)", () => {
   const s = withFreeAgent(makeState());
+  const play = through(s, 2);
   s.episodes[0].lineups.p1 = ["a", "b"];
   // b goes home in episode 2, and is replaced after it.
   const b = s.castaways.find((c) => c.id === "b");
@@ -127,31 +138,39 @@ test("replacing a starter who went home keeps the week they played, and leaves a
   const before = total(s, "p1");
   M.applyPickup(s, "p1", "f", "b", { episode: 2 });
   assert.equal(total(s, "p1"), before, "no new results: no new total");
+  play(3);
   assert.deepEqual(lineup(s, "ep2", "p1"), ["a", "b"], "they played the episode they went home in");
   assert.deepEqual(lineup(s, "ep3", "p1"), ["a"]);
 });
 
 test("someone let go and brought back carries only into the weeks they were held for (BACKLOG 57)", () => {
   const s = withFreeAgent(makeState());
+  const play = through(s, 1);
   s.episodes[0].lineups.p1 = ["a", "b"];
   M.applyAddDrop(s, "p1", "b", "f", { episode: 1 });
+  play(2);
   M.applyAddDrop(s, "p1", "f", "b", { episode: 2 });
+  play(3);
   assert.deepEqual(lineup(s, "ep2", "p1"), ["a"], "not theirs for episode 2");
   assert.deepEqual(lineup(s, "ep3", "p1"), ["a", "b"], "theirs again for episode 3");
 });
 
 test("taking a move back gives every carried week its lineup again (BACKLOG 57)", () => {
   const s = withFreeAgent(makeState());
+  const play = through(s, 1);
   s.episodes[0].lineups.p1 = ["a", "b"];
   const tx = M.applyAddDrop(s, "p1", "b", "f", { episode: 1 });
   assert.deepEqual(lineup(s, "ep2", "p1"), ["a"]);
   M.revert(s, tx);
   s.midSeason.log = s.midSeason.log.filter((x) => x.id !== tx.id);
-  [1, 2, 3].forEach((n) => assert.deepEqual(lineup(s, `ep${n}`, "p1"), ["a", "b"]));
+  play(2);
+  play(3);
+  [1, 2, 3].forEach((n) => assert.deepEqual(lineup(s, "ep" + n, "p1"), ["a", "b"]));
 });
 
 test("a new episode's lineups are copied in from who each seat holds for it (BACKLOG 57)", () => {
   const s = withFreeAgent(makeState());
+  through(s, 1);
   s.episodes = s.episodes.slice(0, 2);
   s.episodes[0].lineups.p1 = ["a", "b"];
   s.episodes[1].lineups = {};
@@ -161,22 +180,41 @@ test("a new episode's lineups are copied in from who each seat holds for it (BAC
 });
 
 test("a seat ahead of the move's episode keeps the weeks it had played (its own pace, a waiver week at everyone's episode) (BACKLOG 57)", () => {
+  // The week runs on the copy at everyone's episode (1); p1 has played through episode 3 at its own pace, and swaps b out in it.
   const s = withFreeAgent(makeState());
+  const play = through(s, 1);
   s.episodes[0].lineups.p1 = ["a", "b"];
-  // p1 has played through episode 3 at its own pace; the week everyone has reached is episode 1's, and p1 swaps b out in it.
   s.players.find((p) => p.id === "p1").lateJoin = { startEpisode: 1, catchingUp: false, seenThrough: 3 };
-  const before = total(s, "p1");
   const tx = M.applyAddDrop(s, "p1", "b", "f", { episode: 1 });
   assert.equal(tx.seen, 3, "the move keeps how far its seat had played");
-  assert.equal(total(s, "p1"), before, "no week it had played changes");
-  [1, 2, 3].forEach((n) => assert.deepEqual(lineup(s, `ep${n}`, "p1"), ["a", "b"]));
+  play(2);
+  play(3);
+  [1, 2, 3].forEach((n) => assert.deepEqual(lineup(s, "ep" + n, "p1"), ["a", "b"]));
+  assert.equal(total(s, "p1"), 6 * per(s), "no week it had played changes");
   // A seat that hadn't played past the move's episode: the move counts from the next one, as ever.
   const t = withFreeAgent(makeState());
+  const playT = through(t, 1);
   t.episodes[0].lineups.p1 = ["a", "b"];
   t.players.find((p) => p.id === "p1").lateJoin = { startEpisode: 1, catchingUp: true, seenThrough: 1 };
   const tx2 = M.applyAddDrop(t, "p1", "b", "f", { episode: 1 });
   assert.equal(tx2.seen, undefined);
+  playT(2);
   assert.deepEqual(lineup(t, "ep2", "p1"), ["a"], "a week it hasn't played: a gap to fill");
+});
+
+test("a week that runs late, once the next episode's results are in, never reaches back into it (BACKLOG 57, 69)", () => {
+  // A held waiver week runs as it closes, on the next episode's results (WaiverLogic.due): its moves are logged at the week's
+  // episode (2) though episode 3 has been played with who the seat held.
+  for (const saved of [false, true]) {
+    const s = withFreeAgent(makeState());
+    s.episodes[0].lineups.p1 = ["a", "b"];
+    if (saved) s.episodes.forEach((e) => (e.lineups.p1 = ["a", "b"]));
+    const before = total(s, "p1");
+    const tx = M.applyAddDrop(s, "p1", "b", "f", { episode: 2 });
+    assert.equal(tx.seen, 3, "episode 3 had been played when it ran");
+    [1, 2, 3].forEach((n) => assert.deepEqual(lineup(s, "ep" + n, "p1"), ["a", "b"], (saved ? "saved" : "carried") + ": episode " + n));
+    assert.equal(total(s, "p1"), before);
+  }
 });
 
 // ---- BACKLOG 69: a lineup SET for an episode leaves out whoever its seat let go before that episode ----
@@ -185,23 +223,25 @@ test("a seat ahead of the move's episode keeps the weeks it had played (its own 
 
 test("a starter swapped away before an episode leaves the lineup saved for it: a gap, not the new one (BACKLOG 69)", () => {
   const s = withFreeAgent(makeState());
+  const play = through(s, 1);
   s.episodes.forEach((e) => (e.lineups.p1 = ["a", "b"]));
   // After episode 1: b out for f.
   M.applyAddDrop(s, "p1", "b", "f", { episode: 1 });
-  assert.deepEqual(lineup(s, "ep1", "p1"), ["a", "b"], "the week played with them: untouched");
   assert.deepEqual(lineup(s, "ep2", "p1"), ["a"], "let go before it: a gap to fill");
+  assert.equal(StateLogic.ActiveRosterLogic.validateLineup(s, "ep2", "p1", ["a", "b"]), "B isn't on your roster");
+  play(2);
+  play(3);
+  assert.deepEqual(lineup(s, "ep1", "p1"), ["a", "b"], "the week played with them: untouched");
+  assert.deepEqual(lineup(s, "ep2", "p1"), ["a"]);
   assert.deepEqual(lineup(s, "ep3", "p1"), ["a"]);
   assert.deepEqual(s.episodes[1].lineups.p1, ["a", "b"], "nothing saved is rewritten");
   assert.equal(StateLogic.ActiveRosterLogic.lineupIsCarried(s, "ep2", "p1"), false);
   assert.equal(total(s, "p1"), (2 + 1 + 1) * per(s), "nobody scores for a team that let them go");
-  // Saving a lineup again fills the gap with whoever they hold now.
-  s.episodes[1].events = [];
-  s.episodes[1].scoringEvents = [];
-  assert.equal(StateLogic.ActiveRosterLogic.validateLineup(s, "ep2", "p1", ["a", "b"]), "B isn't on your roster");
 });
 
 test("taking the move back brings them back to the saved lineup (BACKLOG 69)", () => {
   const s = withFreeAgent(makeState());
+  through(s, 1);
   s.episodes.forEach((e) => (e.lineups.p1 = ["a", "b"]));
   const tx = M.applyAddDrop(s, "p1", "b", "f", { episode: 1 });
   assert.deepEqual(lineup(s, "ep2", "p1"), ["a"]);
@@ -215,15 +255,18 @@ test("a move after an episode never touches the lineup saved for it (BACKLOG 69)
   s.episodes.forEach((e) => (e.lineups.p1 = ["a", "b"]));
   const before = total(s, "p1");
   M.applyAddDrop(s, "p1", "b", "f", { episode: 3 });
-  [1, 2, 3].forEach((n) => assert.deepEqual(lineup(s, `ep${n}`, "p1"), ["a", "b"]));
+  [1, 2, 3].forEach((n) => assert.deepEqual(lineup(s, "ep" + n, "p1"), ["a", "b"]));
   assert.equal(total(s, "p1"), before);
 });
 
 test("someone brought back before the episode is in its saved lineup again (BACKLOG 69)", () => {
   const s = withFreeAgent(makeState());
+  const play = through(s, 1);
   s.episodes.forEach((e) => (e.lineups.p1 = ["a", "b"]));
   M.applyAddDrop(s, "p1", "b", "f", { episode: 1 });
+  play(2);
   M.applyAddDrop(s, "p1", "f", "b", { episode: 2 });
+  play(3);
   assert.deepEqual(lineup(s, "ep2", "p1"), ["a"], "not theirs for episode 2");
   assert.deepEqual(lineup(s, "ep3", "p1"), ["a", "b"], "theirs again for episode 3");
 });
@@ -232,13 +275,15 @@ test("only the log lets someone go: a roster changed by hand leaves a saved line
   const s = withFreeAgent(makeState());
   s.episodes.forEach((e) => (e.lineups.p1 = ["a", "b"]));
   s.castaways.find((c) => c.id === "b").ownerIds = ["p2"];
-  [1, 2, 3].forEach((n) => assert.deepEqual(lineup(s, `ep${n}`, "p1"), ["a", "b"]));
+  [1, 2, 3].forEach((n) => assert.deepEqual(lineup(s, "ep" + n, "p1"), ["a", "b"]));
 });
 
 test("someone who hasn't seen the move still sees the saved lineup whole (BACKLOG 69)", () => {
   const s = withFreeAgent(makeState());
+  const play = through(s, 2);
   s.episodes.forEach((e) => (e.lineups.p1 = ["a", "b"]));
   M.applyAddDrop(s, "p1", "b", "f", { episode: 2 });
+  play(3);
   assert.deepEqual(lineup(s, "ep3", "p1"), ["a"]);
   // A viewer through episode 1: the move, made after episode 2, is taken back on their copy.
   const view = StateLogic.SpoilerLogic.viewThrough(s, 1);
@@ -246,13 +291,15 @@ test("someone who hasn't seen the move still sees the saved lineup whole (BACKLO
 });
 
 test("a seat ahead of the move's episode keeps the lineups it saved for weeks it had played (BACKLOG 69)", () => {
+  // The week runs on the copy at everyone's episode (1); p1, through 2 at its own pace, swaps in it.
   const s = withFreeAgent(makeState());
+  const play = through(s, 1);
   s.episodes.forEach((e) => (e.lineups.p1 = ["a", "b"]));
   s.players.find((p) => p.id === "p1").lateJoin = { startEpisode: 1, catchingUp: false, seenThrough: 2 };
-  const before = total(s, "p1");
-  // The week everyone has reached is episode 1's; p1, through 2, swaps in it.
   M.applyAddDrop(s, "p1", "b", "f", { episode: 1 });
+  play(2);
+  play(3);
   assert.deepEqual(lineup(s, "ep2", "p1"), ["a", "b"], "played before the move: as fielded");
   assert.deepEqual(lineup(s, "ep3", "p1"), ["a"], "the first week it hadn't played: a gap");
-  assert.equal(total(s, "p1"), before - per(s));
+  assert.equal(total(s, "p1"), (2 + 2 + 1) * per(s));
 });

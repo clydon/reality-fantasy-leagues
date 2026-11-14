@@ -8,6 +8,24 @@
 // takes an injected clock); spoiler marks are league_memberships.results_seen_through + show_follows.seen_through
 // (+ lateJoin in own-pace state); answers are game_answers rows. Every row is keyed on a zt-gb-<key> slug or a
 // <name>_ztgb<key><n> username (a person's own initial on faces), so down() can only remove what up() made. Refuses a non-local database.
+//
+// A sports case (a context of kind 'sport': explorer/runtime-sports.cjs; added 2026-11-14): the server never reads a stat line from
+// a saved league. It rebuilds them on every read (src/lib/server/sports/score.ts leagueGames, stampStats) from each episode's
+// linked game (season_events) and that game's kept final (sports_events.lines, people), in the league's people by name through the
+// season's cast (season_cast.provider_ids, its position season_cast.role). So such a case writes: a show of kind 'sport', set up
+// (so the Players tab never asks a provider to fill its roster); its cast with each one's position and provider id; a linked game
+// an episode, starting at the episode's air time; each game's row, final with its box score once the event is released (a
+// correction is the row written again, its lines_at new: the server's stamp is cached on it); and the league as the server saves
+// one, without the stamped keys (Sports.saved). Its provider is 'zt-gb', which no real provider answers to, so no job ever asks
+// ESPN about a zt game (finals.ts, stats.ts and cast.ts each skip a row whose provider they don't have); its event ids are
+// zt-gb-<key>-c<n>-e<episode>, and sports_events is shared (no cascade), so down() removes them by that prefix.
+// A lock by the day or the week (core-runtime-34) needs nothing more written: the server works each episode's lock out from the
+// linked games' starts (air-times.ts stampSportLocks). But a day and a week are the real calendar's, and the starts are written
+// moved by `shiftMs`: whoever compares must have the runtime read its locks on the same calendar first (the session's
+// calendar(shiftMs): explorer/runtime-sports.cjs lockTimes), as the campaign's API tier, the bench's session and the sports
+// check do.
+// Not written (a gap each, as the runtime's): a team game's sides and score, a field's standings, a card's bouts (shape null).
+// Nor the Players tab's stat tables (game_lines: the season's stats fill, from a provider's box score in its own columns).
 require('dotenv').config({ path: require('path').resolve(__dirname, '../../.env.local'), quiet: true });
 const crypto = require('crypto');
 const PASSWORD = 'zt-pass-12345';
@@ -22,10 +40,13 @@ const keyOf = () => crypto.randomBytes(4).toString('hex');
 const slugOf = (key, ...parts) => ['zt-gb', key, ...parts].join('-');
 const usernameOf = (key, i, name) => ((name || '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 12) || 'p') + '_ztgb' + key + i;
 const released = e => ['partial', 'final', 'corrected'].includes(e.resultStatus);
+/** The provider a zt sports game is linked under (nobody's: see the header). */
+const PROVIDER = 'zt-gb';
+const isSport = world => world.context.kind === 'sport';
 
-/** The DB copy of a runtime game state: the same state, tied to its zt season. */
+/** The DB copy of a runtime game state: the same state, tied to its zt season (a sport's, as it's saved: no stamped line). */
 function stateFor(state, season, shiftMs = 0) {
-  const copy = JSON.parse(JSON.stringify(state));
+  const copy = season.sport ? require('./explorer/runtime-sports.cjs').saved(state) : JSON.parse(JSON.stringify(state));
   copy.settings.showId = season.slug; copy.settings.wikiSeason = season.number;
   // Mid-season waivers: every moment of their weeks (opened, process and close times, the run's) shifted as the schedule is, so the
   // server's clock reads them where the runtime's did (a week's times are worked out from when it opened and the next air time).
@@ -48,17 +69,22 @@ async function up(snap, document, dbUrl, onLease) {
       await db.query(`INSERT INTO "user" (id, name, email, "emailVerified", username, "displayUsername", "createdAt", "updatedAt") VALUES ($1, $2, $3, true, $4, $2, now(), now())`, [id, p.name, username + '@example.invalid', username]);
       await db.query(`INSERT INTO account (id, "accountId", "providerId", "userId", password, "createdAt", "updatedAt") VALUES ($1, $2, 'credential', $2, $3, now(), now())`, [crypto.randomUUID(), id, hash]);
       ids.users[p.id] = { id, username };
+      // Account settings' "Sports scores too" (a person's hidesScores: the guard goes by their mark on a sport's season).
+      if (p.hidesScores) await db.query(`INSERT INTO user_settings (user_id, hide_sports_scores) VALUES ($1, true) ON CONFLICT (user_id) DO UPDATE SET hide_sports_scores = true`, [id]);
     }
     const owner = ids.users[snap.people[0].id].id;
     ids.couchId = (await one(`INSERT INTO couches (name, created_by) VALUES ($1, $2) RETURNING id`, ['ZT Bench ' + key, owner])).id;
     for (const [i, p] of snap.people.entries()) await db.query(`INSERT INTO couch_members (couch_id, user_id, role, via) VALUES ($1, $2, $3, 'couch')`, [ids.couchId, ids.users[p.id].id, i ? 'member' : 'owner']);
     for (const [ci, [contextId, world]] of Object.entries(snap.contexts).entries()) {
       const slug = slugOf(key, ci + 1), format = world.context.format?.id || 'survivor';
-      const show = (await one(`INSERT INTO shows (slug, name, format, created_by) VALUES ($1, $2, $3, $4) RETURNING id`, [slug, 'ZT Bench ' + (world.context.label || contextId), format, owner])).id;
+      // (A sport's show as a league's is once a game is made on it: sports/matchup.ts leagueShow's words, make-game.ts's set_up_at.)
+      const sport = isSport(world);
+      const show = (await one(`INSERT INTO shows (slug, name, format, created_by${sport ? ', kind, castaway_term, tribe_term, episode_term, set_up_at' : ''}) VALUES ($1, $2, $3, $4${sport ? ", 'sport', 'Player', 'Team', 'Game', now()" : ''}) RETURNING id`, [slug, 'ZT Bench ' + (world.context.label || contextId), format, owner])).id;
       const season = (await one(`INSERT INTO show_seasons (show_id, season_number, name, status, air_tz, episode_count, episode_minutes, cast_approved_at) VALUES ($1, 1, $2, 'airing', 'America/New_York', $3, 60, now()) RETURNING id`, [show, 'ZT Bench ' + key, world.events.length])).id;
-      ids.seasons[contextId] = { id: season, slug, number: 1 };
+      ids.seasons[contextId] = { id: season, slug, number: 1, ...(sport ? { sport: { league: world.context.key, events: slugOf(key, 'c' + (ci + 1)) } } : {}) };
       ids.groups[contextId] = (await one(`INSERT INTO league_groups (created_by) VALUES ($1) RETURNING id`, [owner])).id;
-      for (const [i, c] of world.participants.entries()) await db.query(`INSERT INTO season_cast (season_id, name, photo_url, sort_order) VALUES ($1, $2, $3, $4)`, [season, c.name, c.photoUrl || null, i]);
+      // (An athlete's position and the provider's id for them: how the server knows a kept line's person, score.ts peopleOf.)
+      for (const [i, c] of world.participants.entries()) await db.query(`INSERT INTO season_cast (season_id, name, photo_url, sort_order, role, provider_ids) VALUES ($1, $2, $3, $4, $5, $6)`, [season, c.name, c.photoUrl || null, i, sport ? c.role || null : null, sport ? JSON.stringify({ [PROVIDER]: c.id }) : null]);
     }
     for (const [gi, game] of document.games.entries()) {
       const state = snap.games[game.id].state, season = ids.seasons[game.contextId], slug = slugOf(key, 'g' + (gi + 1));
@@ -88,12 +114,30 @@ async function syncPhases(db, seasonId, world) {
     if (r?.refused) throw Error('Phase start refused: ' + JSON.stringify(r.refused));
   }
 }
+/**
+ * A sports season's games as the server reads them (the header): each event a linked game at its air time, and the game's own row,
+ * final with its box score once the event is released. Written whole each sync (season_events went with the episodes).
+ */
+async function syncSport(db, season, world, clock, shiftMs) {
+  const { league, events } = season.sport, now = Date.parse(clock);
+  await db.query(`DELETE FROM sports_events WHERE provider = $1 AND event_id LIKE $2`, [PROVIDER, events + '-%']);
+  const people = JSON.stringify(Object.fromEntries(world.participants.map(p => [p.id, { team: null, position: p.role || null }])));
+  for (const e of world.events) {
+    const id = events + '-e' + e.number, at = e.airAt ? new Date(Date.parse(e.airAt) + shiftMs).toISOString() : null, done = released(e);
+    const lines = done ? world.facts.find(f => f.eventId === e.id)?.data.lines : null;
+    if (done && (e.resultStatus === 'partial' || !lines)) throw Error('A released sport event needs its final box score: ' + e.id);
+    // (lines_final on the link: the season's stats fill, stats.ts, has nothing to ask for.)
+    await db.query(`INSERT INTO season_events (season_id, episode, provider, league, event_id, name, starts_at, lines_at, lines_final) VALUES ($1, $2, $3, $4, $5, $6, $7, now(), true)`, [season.id, e.number, PROVIDER, league, id, e.title || null, at]);
+    await db.query(`INSERT INTO sports_events (provider, league, event_id, name, starts_at, state, final, final_at, lines, people, lines_at) VALUES ($1, $2, $3, $4, $5, $6, $7, CASE WHEN $7 THEN now() END, $8::jsonb, $9::jsonb, CASE WHEN $7 THEN clock_timestamp() END)`,
+      [PROVIDER, league, id, e.title || null, at, done ? 'post' : e.airAt && Date.parse(e.airAt) <= now ? 'in' : 'pre', done, lines ? JSON.stringify(lines) : null, done ? people : null]);
+  }
+}
 async function sync(ids, snap, document, shiftMs) {
   const db = pool(ids.db || undefined), client = await db.connect();
   try {
     await client.query('BEGIN');
     for (const [contextId, world] of Object.entries(snap.contexts)) {
-      const season = ids.seasons[contextId];
+      const season = ids.seasons[contextId], sport = isSport(world);
       await syncPhases(client, season.id, world);
       await client.query(`DELETE FROM season_episodes WHERE season_id = $1`, [season.id]);
       const who = new Map(world.participants.map(p => [p.id, p.name]));
@@ -101,11 +145,13 @@ async function sync(ids, snap, document, shiftMs) {
         // A finale's recap names the winner (as a real one leads with), not the whole field; recaps fit the column's 1000 characters.
         const exits = released(e) ? world.facts.find(f => f.eventId === e.id)?.data.events || [] : [], out = exits.map(x => who.get(x.castawayId));
         const won = exits.find(x => x.method === require('../../src/lib/game/formats').formatFor(world.context.format.id).winnerExitMethod);
-        const summary = released(e) ? ('Synthetic recap of episode ' + e.number + (won ? ': ' + who.get(won.castawayId) + ' won the season.' : out.length ? ': ' + out.join(' and ') + ' went home.' : ': nobody went home.')).slice(0, 1000) : null;
+        // (A sport's game has no recap: nobody goes home, and its story is its box score.)
+        const summary = released(e) && !sport ? ('Synthetic recap of episode ' + e.number + (won ? ': ' + who.get(won.castawayId) + ' won the season.' : out.length ? ': ' + out.join(' and ') + ' went home.' : ': nobody went home.')).slice(0, 1000) : null;
         await client.query(`INSERT INTO season_episodes (season_id, number, air_at, runtime_min, source, title, summary, summary_at) VALUES ($1, $2, $3, 60, 'admin', $4, $5, CASE WHEN $5::text IS NULL THEN NULL ELSE now() END)`, [season.id, e.number, e.airAt ? new Date(Date.parse(e.airAt) + shiftMs).toISOString() : null, e.title || null, summary]);
       }
       const first = world.events.find(e => e.airAt);
       if (first) await client.query(`UPDATE show_seasons SET premiere_date = ($2::timestamptz AT TIME ZONE air_tz)::date, air_time = ($2::timestamptz AT TIME ZONE air_tz)::time WHERE id = $1`, [season.id, new Date(Date.parse(first.airAt) + shiftMs).toISOString()]);
+      if (sport) await syncSport(client, season, world, snap.clock, shiftMs);
       // The season's accepted results, from the shared facts (stats, calls and the not-playing fallback read these).
       await client.query(`DELETE FROM season_decisions WHERE season_id = $1`, [season.id]);
       const name = new Map(world.participants.map(p => [p.id, p.name]));
@@ -120,7 +166,7 @@ async function sync(ids, snap, document, shiftMs) {
       const showId = (await client.query(`SELECT show_id FROM show_seasons WHERE id = $1`, [season.id])).rows[0].show_id;
       await client.query(`DELETE FROM episode_research WHERE show_id = $1`, [showId]);
       for (const f of world.facts) {
-        const e = world.events.find(x => x.id === f.eventId), payload = e && released(e) ? require('./explorer/runtime-data.cjs').researchOf(world, f.data, e.number) : null;
+        const e = world.events.find(x => x.id === f.eventId), payload = e && released(e) && !sport ? require('./explorer/runtime-data.cjs').researchOf(world, f.data, e.number) : null;
         if (payload) await client.query(`INSERT INTO episode_research (show_id, season_number, episode_number, payload, provenance, source) VALUES ($1, $2, $3, $4, $5, 'combined')`, [showId, season.number, e.number, JSON.stringify(payload), JSON.stringify({ source: 'zt-gameplay-bench' })]);
       }
       for (const m of world.marks) {
@@ -193,7 +239,8 @@ async function seedSocial(ids, snap, document, shiftMs) {
         await say([league, null, null, user(a.id), a.name, 'message', 'Who are we all starting for episode ' + e.number + '?', at(e, -60), e.number - 1]);
         const out = (world.facts.find(f => f.eventId === e.id)?.data.events || []).map(x => who.get(x.castawayId));
         if (b) {
-          const after = await say([league, null, null, user(b.id), b.name, 'message', out.length ? 'Cannot believe ' + out[0] + ' went home' : 'Nobody went home?!', at(e, 70), e.number]);
+          // (A sport's line names the game: nobody went home. The route checks' spoiler token for it: api-checks.cjs sportLine.)
+          const after = await say([league, null, null, user(b.id), b.name, 'message', isSport(world) ? 'Cannot believe how game ' + e.number + ' ended' : out.length ? 'Cannot believe ' + out[0] + ' went home' : 'Nobody went home?!', at(e, 70), e.number]);
           await db.query(`INSERT INTO chat_reactions (message_id, user_id, emoji) VALUES ($1, $2, $3)`, [after, user(a.id), '😮']);
         }
         for (const p of people.filter(p => markOf(p.id) >= e.number)) await say([league, null, null, user(p.id), p.name, 'reveal', p.name + ' revealed episode ' + e.number, at(e, 180 + people.indexOf(p) * 7), e.number]);
@@ -227,6 +274,7 @@ async function castNames(ids, seasonId) {
   return new Map((await db.query(`SELECT id, name FROM season_cast WHERE season_id = $1`, [seasonId])).rows.map(r => [r.id, r.name]));
 }
 
+const hasSports = async db => !!(await db.query(`SELECT to_regclass('public.sports_events') AS t`)).rows[0].t;
 async function down(key, dbUrl) {
   if (!/^[0-9a-f]{8}$/.test(key)) throw Error('Unexpected bench case key');
   const db = pool(dbUrl || undefined), like = slugOf(key, '%');
@@ -236,6 +284,8 @@ async function down(key, dbUrl) {
   if (groups.length) await db.query(`DELETE FROM league_groups WHERE id = ANY($1::uuid[])`, [groups]);
   await db.query(`DELETE FROM couches WHERE name = $1 AND created_by = ANY($2::text[])`, ['ZT Bench ' + key, users]);
   await db.query(`DELETE FROM shows WHERE slug LIKE $1`, [like]);
+  // A sports case's games (shared rows, no cascade: the header). (A worktree's database from before the sports tables has none.)
+  if (await hasSports(db)) await db.query(`DELETE FROM sports_events WHERE provider = $1 AND event_id LIKE $2`, [PROVIDER, like]);
   if (users.length) await db.query(`DELETE FROM "user" WHERE id = ANY($1::text[])`, [users]);
 }
 /** Remove every bench case's rows (after a crash or an Atlas restart). */
@@ -243,11 +293,12 @@ async function downAll(dbUrl) {
   const db = pool(dbUrl || undefined);
   const keys = new Set((await db.query(`SELECT username FROM "user" WHERE username ~ '_ztgb[0-9a-f]{8}[0-9]{1,2}$' OR username LIKE 'zt\\_gb\\_%'`)).rows.map(r => (r.username.match(/_ztgb([0-9a-f]{8})\d+$/) || r.username.match(/^zt_gb_([0-9a-f]{8})_/) || [])[1]).filter(Boolean));
   for (const slug of (await db.query(`SELECT slug FROM shows WHERE slug LIKE 'zt-gb-%'`)).rows.map(r => r.slug)) keys.add(slug.split('-')[2]);
+  if (await hasSports(db)) for (const id of (await db.query(`SELECT event_id FROM sports_events WHERE provider = $1 AND event_id LIKE 'zt-gb-%'`, [PROVIDER])).rows.map(r => r.event_id)) keys.add(id.split('-')[2]);
   for (const key of keys) if (/^[0-9a-f]{8}$/.test(key)) await down(key, dbUrl);
   return [...keys];
 }
 const close = async () => { const all = [...pools.values()]; pools.clear(); await Promise.all(all.map(p => p.end())); };
-module.exports = { up, sync, seedSocial, read, castNames, down, downAll, close, PASSWORD, released };
+module.exports = { up, sync, seedSocial, read, castNames, down, downAll, close, PASSWORD, PROVIDER, released };
 
 if (require.main === module) {
   // down-all: this checkout's database and every worktree's (cases may have rendered in a worktree's app).

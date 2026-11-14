@@ -19,14 +19,17 @@
 //            draft's log must equal the runtime's.
 //   lineup   a lineup saved in the second stage through the real lineup route is stored as the runtime stores the same action;
 //            the game's own league takes none.
-//   short    a private draft of six each with five still in: started, then every sheet is refused. NOTE (BACKLOG 60).
+//   short    a private draft of six each with five still in (BACKLOG 60, fixed 2026-11-14): started, a sheet of four refused
+//            ("pick all 5"), then each seat locks in everyone still in and the reveal gives the runtime's teams.
 //   pace     when moves lock is the game's setting, and its stages follow (docs/PLAN-own-pace-games.md, "Pace is the game's
 //            setting"; it was one person's switch, set stage by stage). Episode 4 has aired and Bo hasn't watched it. Strict (the
 //            explorer's live-only): his Merged-stage lineup is refused. A stage refuses the setting; set to live on the game,
 //            both stage leagues follow and his lineup is taken; strict again, they follow back.
-// NOTE lines are recorded product findings, not disagreements (both sides do the same): what someone behind is shown of the
-// next stage, and a draft nobody can lock in.
+// NOTE lines are recorded product findings, not disagreements (both sides do the same). What someone behind is shown of the next
+// stage (BACKLOG 61) is checked since its fix (2026-11-14): nothing until they've watched up to it.
 // --verbose prints server answers; --keep leaves the rows up (remove: node tools/gameplay-bench/live-db.cjs down-all).
+// `short` also opens the draft's sheet in a headless browser (--width=390; --no-shots skips it; a folder as an argument takes its
+// screenshot).
 //
 // Needs: the app on :3000 (npm run dev; BASE to override) and the local dev database (.env.local AUTH_DATABASE_URL).
 // Run:   node scripts/dev-test/check-stages-explorer.js [--case=overall|draft|snake|lineup|short|pace|all] [--verbose] [--keep]
@@ -105,8 +108,14 @@ const CASES = {
             check(person.name + ': ' + g.id + (g.stageOf ? ' (a stage)' : ' (the overall)') + ' table, lineup episode and end equal the runtime', JSON.stringify([table(real), real.lineup?.episode ?? null, real.over, real.from, real.to]) === JSON.stringify([table(mine), mine.lineup?.episode ?? null, mine.over, mine.from, mine.to]), { server: [table(real), real.lineup?.episode ?? null, real.over, real.from, real.to], runtime: [table(mine), mine.lineup?.episode ?? null, mine.over, mine.from, mine.to] });
             check(person.name + ': ' + g.id + ' says ' + (g.stageOf ? 'which game it is a stage of' : "it is nobody's stage"), (real.stageOf ?? null) === (g.stageOf ? ids.leagues[g.stageOf] : null), real.stageOf);
           }
-          // What someone behind is shown of the stage after the one they're in (recorded, not a disagreement).
-          const mark = snap.contexts.show.marks.find(m => m.personId === person.id).through, next = list.find(x => x.leagueId === ids.leagues['two~after']);
+          // What someone behind is shown of the stage after the one they're in (BACKLOG 61, fixed 2026-11-14: nothing, until they've
+          // watched up to it: no start, no team, no lineup asked; and the stage they're in doesn't say where it ends).
+          const mark = snap.contexts.show.marks.find(m => m.personId === person.id).through, next = null;
+          if (mark < 3) for (const [before, after] of [['two~before', 'two~after'], ['out~before', 'out~after']]) {
+            const a = list.find(x => x.leagueId === ids.leagues[after]), b = list.find(x => x.leagueId === ids.leagues[before]);
+            check(person.name + ' (through Episode ' + mark + '; the merge came in 3): ' + after + " isn't shown as started: no start, no team, no lineup asked", !!a && a.from == null && !(a.you?.team || []).length && a.lineup == null, a && { from: a.from ?? null, team: a.you?.team ?? null, lineup: a.lineup?.episode ?? null, revealFirst: a.revealFirst ?? null });
+            check(person.name + ': ' + before + " doesn't say where it ends", !!b && b.to == null, b && { to: b.to ?? null });
+          }
           if (next && mark < 3) note(person.name + ' has seen through Episode ' + mark + ' (the merge came in Episode 3). The Merged stage shows them: starts with Episode ' + next.from + '; their team ' + JSON.stringify((next.you?.team || []).map(id => id.replace('show-participant-', '#'))) + ' (everyone on it still in after Episode 3: ' + (next.you?.team || []).every(id => stillIn.has(id) || id === c(4)) + '); a lineup asked for Episode ' + (next.lineup?.episode ?? 'none') + '; reveal first: ' + (next.revealFirst ?? 'no') + '.');
         }
         // An Outlast stage that starts mid-season (recorded, a question: BACKLOG 62): its own table before its first episode, against
@@ -199,18 +208,43 @@ const CASES = {
   async short() {
     const s = R.open(define({ six: staged(lineup(6)) }, { pool: 8 }));
     try {
-      const doc = s.export().input, child = 'six~after';
-      night(s, 1); night(s, 2); night(s, 3); for (const p of ['p1', 'p2', 'p3']) reveal(s, p, 3);
-      const snap = s.snapshot(), st = snap.games[child].state, still = st.castaways.filter(x => x.status === 'active').map(x => x.id);
-      check('the runtime leaves the draft open and unmade (five still in, a team is six)', still.length === 5 && !st.castaways.some(x => x.ownerIds.length) && S.DraftLogic.waits(st) === null, still.length);
-      await withRows(snap, doc, async (ids, as) => {
-        const league = ids.leagues[child], lock = idsOf => as('p1', 'POST', '/api/leagues/' + league + '/draft/blind/lock', { playerId: 'p1', castawayIds: idsOf });
+      const doc = s.export().input, child = 'six~after', seats = ['p1', 'p2', 'p3'];
+      night(s, 1); night(s, 2); for (const p of seats) reveal(s, p, 2);
+      const before = s.snapshot(); night(s, 3); for (const p of seats) reveal(s, p);
+      const after = s.snapshot(), want = after.games[child].state, still = want.castaways.filter(x => x.status === 'active').map(x => x.id), teams = teamsOf(want);
+      check('the runtime makes the draft with five still in and a team of six: every seat takes all five', still.length === 5 && seats.every(p => (teams[p] || []).length === 5 && still.every(id => teams[p].includes(id))), { still: still.length, teams });
+      await withRows(draftOpen(before, after, doc, child), doc, async (ids, as) => {
+        const league = ids.leagues[child], lock = (who, idsOf) => as(who, 'POST', '/api/leagues/' + league + '/draft/blind/lock', { playerId: who, castawayIds: idsOf });
         const started = await as('p1', 'POST', '/api/leagues/' + league + '/draft/force-start', {});
-        const all = await lock(still), padded = await lock([...still, c(1)]);
-        const refused = started.status === 200 && all.status === 400 && padded.status === 400;
-        check('the server starts the draft and refuses every sheet (all five still in; five and someone gone)', refused, [started.status, all.status, all.text.slice(0, 100), padded.status, padded.text.slice(0, 100)]);
-        const after = (await L.read(ids)).states.get(league);
-        if (refused) note('BACKLOG 60: a later stage\'s private draft of 6 each with 5 still in can\'t be locked in by anyone ("' + (all.json?.error || all.text).slice(0, 80) + '"; "' + (padded.json?.error || padded.text).slice(0, 80) + '"). Nobody ever has a team in that stage (on teams now: ' + after.castaways.filter(x => x.ownerIds.length).length + ').');
+        check('the server starts the draft', started.status === 200, started.status);
+        // The sheet on the phone (--width, 390 by default): it asks for everyone left, takes five, and is ready to lock at five.
+        if (!process.argv.includes('--no-shots')) {
+          const { open } = require(path.join(root, 'scripts/dev-test/browser')), width = Number((process.argv.find(x => x.startsWith('--width=')) || '--width=390').slice(8));
+          const b = await open({ user: ids.users.p1.username, pass: L.PASSWORD, width, height: 844 });
+          try {
+            await b.page.goto(b.BASE + '/show/' + ids.seasons.show.id + '/blind');
+            const sheet = b.page.locator('[data-draft="blind"]'); await sheet.waitFor({ timeout: 30000 });
+            const tab = b.page.locator('[data-draft-game="' + league + '"]'); if (await tab.count()) await tab.first().click();
+            await b.page.locator('[data-tile]').first().waitFor({ timeout: 30000 });
+            const said = ((await sheet.textContent()) || '').replace(/\s+/g, ' ');
+            check('the sheet on the phone asks for everyone left ("Only 5 left to pick: choose all 5")', /Only 5 left to pick: choose all 5/.test(said), said.slice(0, 240));
+            for (const id of still) await b.page.locator('[data-tile="' + id + '"]').first().click();
+            const lockBtn = b.page.locator('[data-lock]'); await lockBtn.waitFor();
+            const bar = ((await lockBtn.locator('xpath=ancestor::div[1]').textContent()) || '').replace(/\s+/g, ' ');
+            check('five picked: "5 of 5", Ready, and the lock is live', /5 of 5/.test(bar) && /Ready/.test(bar) && !(await lockBtn.isDisabled()), bar.slice(0, 160));
+            check('five slots in the team row, none that can never be filled', (await b.page.locator('[data-my-team] > *').count()) === 5, await b.page.locator('[data-my-team] > *').count());
+            const wide = await b.page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+            check('nothing wider than the screen', wide <= 0, wide);
+            const out = process.argv.find(x => !x.startsWith('--') && /[\/]/.test(x) && !/check-stages-explorer/.test(x));
+            if (out) { require('fs').mkdirSync(out, { recursive: true }); await b.page.screenshot({ path: path.join(out, 'short-draft-sheet.png') }); }
+          } finally { await b.close(); }
+        }
+        const four = await lock('p1', still.slice(0, 4)), padded = await lock('p1', [...still, c(1)]);
+        check('a sheet of four is refused, and says to pick all five', four.status === 400 && /Only 5 are left to pick: pick all 5/.test(four.text), [four.status, four.text.slice(0, 120)]);
+        check('five and someone who has gone home is refused', padded.status === 400, [padded.status, padded.text.slice(0, 120)]);
+        for (const p of seats) { const r = await lock(p, teams[p]); check(p + ' locks in everyone still in', r.status === 200, [r.status, r.text.slice(0, 160)]); }
+        const st = (await L.read(ids)).states.get(league);
+        check("the server's teams after the reveal are the runtime's: all five each", JSON.stringify(teamsOf(st)) === JSON.stringify(teams), { server: teamsOf(st), runtime: teams });
       });
     } finally { s.dispose(); }
   },
