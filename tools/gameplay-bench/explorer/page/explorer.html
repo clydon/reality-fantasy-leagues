@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gameplay explorer · UI Atlas</title>
+<link rel="stylesheet" href="/__atlas/explorer/explorer.css">
+<script src="/__atlas/explorer/explorer.js" defer></script>
+</head>
+<body>
+<svg hidden xmlns="http://www.w3.org/2000/svg">
+ <symbol id="i-open" viewBox="0 0 24 24"><path d="M3 7h6l2 2h10v10H3z"/></symbol>
+ <symbol id="i-reset" viewBox="0 0 24 24"><path d="M3 10a9 9 0 1 1 2 8M3 4v6h6"/></symbol>
+ <symbol id="i-export" viewBox="0 0 24 24"><path d="M12 3v12m-4-4 4 4 4-4M5 15v5h14v-5"/></symbol>
+ <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+ <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+ <symbol id="i-step" viewBox="0 0 24 24"><path d="m6 5 9 7-9 7ZM18 5v14"/></symbol>
+ <symbol id="i-back" viewBox="0 0 24 24"><path d="m18 5-9 7 9 7ZM6 5v14"/></symbol>
+ <symbol id="i-side" viewBox="0 0 24 24"><path d="M4 4h16v16H4zM15 4v16"/></symbol>
+</svg>
+
+<header class="top">
+ <a class="crumb" href="/">UI Atlas /</a><h1>Gameplay explorer</h1>
+ <nav><a href="/__atlas/bench">Old bench</a><a href="/__atlas/gameplay">Coverage matrix</a><a href="/">Screen atlas</a></nav>
+</header>
+
+<div class="case" id="case">
+ <div>
+  <h2 id="case-title">Nothing open</h2>
+  <div class="meta" id="case-meta"><span class="small">Open a definition, a saved run or a campaign reproducer, or start from the example.</span></div>
+ </div>
+ <div class="actions">
+  <button id="open" aria-haspopup="menu" aria-expanded="false"><svg><use href="#i-open"/></svg>Open…</button>
+  <button id="reset" disabled><svg><use href="#i-reset"/></svg>Reset</button>
+  <button id="export" disabled><svg><use href="#i-export"/></svg>Export</button>
+  <div class="menu" id="open-menu" role="menu" hidden>
+   <button role="menuitem" id="open-file">A file<small>Definition, saved run, execution or campaign reproducer (JSON)</small></button>
+   <button role="menuitem" id="open-example">The three-game example<small>Lineup, three picks and a question sheet; Bo a week behind</small></button>
+   <button role="menuitem" id="open-recipe">Start from a recipe<small>A familiar situation: game type, players, episodes, who's behind</small></button>
+  </div>
+  <input id="file" type="file" accept="application/json,.json" hidden>
+ </div>
+</div>
+
+<div class="layout" id="layout">
+ <aside aria-label="Situation">
+  <section>
+   <h3>Who's watching</h3>
+   <div class="people" id="people" role="radiogroup" aria-label="View as"><p class="hint">Nothing to situate yet.</p></div>
+   <p class="hint" style="margin-top:9px" id="people-hint" hidden>Each person keeps their own mark. Viewing as someone opens the app as them; it changes nothing.</p>
+  </section>
+  <section id="bets-section" hidden>
+   <h3>Side bets</h3>
+   <form class="bet-form" id="bet-form">
+    <label>Bet on <select id="bet-episode" aria-label="Episode"></select></label>
+    <input id="bet-label" placeholder="Will anyone cry?" aria-label="The bet" maxlength="200" required>
+    <div class="bet-row"><label>Points <select id="bet-points"><option>1</option><option>2</option><option>3</option></select></label><select id="bet-game" aria-label="Game" hidden></select><button type="submit" id="bet-post">Post</button></div>
+    <p class="hint" id="bet-who"></p>
+   </form>
+   <div id="bets"></div>
+  </section>
+  <section id="episodes-section" hidden>
+   <h3>Episodes</h3>
+   <div class="eps" id="episodes"></div>
+   <p class="small clock" id="clock"></p>
+   <p class="hint" style="margin-top:6px">Air it moves time past the airing. Then publish partial, final or corrected results; every game on the show gets them at once.</p>
+  </section>
+ </aside>
+
+ <main>
+  <div class="tabs" role="tablist" aria-label="Screen" id="tabs">
+   <button role="tab" data-surface="tonight" aria-selected="true">Tonight</button>
+   <button role="tab" data-surface="episodes" aria-selected="false">Episodes</button>
+   <select id="game" aria-label="A game's page"><option value="">Games…</option></select>
+   <button role="tab" data-surface="hub" aria-selected="false">Hub</button>
+   <button role="tab" data-surface="chat" aria-selected="false">Chat</button>
+   <select id="more" aria-label="More screens"><option value="">More…</option><option value="quick">Quick action</option><option value="detail">Player detail</option><option value="reveal">Episode reveal</option><option value="wizard">Create game</option></select>
+  </div>
+  <div class="appbar">
+   <label>App <select id="app" aria-label="App version"><option value="http://localhost:3000">This checkout (:3000)</option></select></label>
+   <span class="sep"></span>
+   <span class="toggle"><button class="switch" id="compare" role="switch" aria-checked="false" aria-label="Compare with another app version"></button>Compare</span>
+   <select id="app-b" aria-label="Compare with" hidden></select>
+   <span class="sep"></span>
+   <label>Size <select id="size"><option value="390x844">Phone 390</option><option value="360x700">Small phone 360</option><option value="1280x900">Desktop 1280</option></select></label>
+   <label>Theme <select id="theme"><option value="night">Night</option><option value="studio">Studio</option></select></label>
+  </div>
+  <div class="stepper" id="stepper" role="group" aria-label="Recorded steps" hidden>
+   <button class="quiet" id="step-back" aria-label="Step back"><svg><use href="#i-back"/></svg></button>
+   <span class="small" style="white-space:nowrap" id="step-label"></span>
+   <span class="track" id="step-track" aria-hidden="true"></span>
+   <button class="quiet" id="step-forward" aria-label="Step forward"><svg><use href="#i-step"/></svg></button>
+  </div>
+  <div class="error" id="error" role="alert" hidden></div>
+  <div class="stage" id="stage">
+   <div class="empty-stage" id="empty">
+    <h3>Open a case to see the real app</h3>
+    <p>A case is written into the local database and the app's own routes serve it, so these are the real screens, as each person sees them.</p>
+    <button class="primary" id="empty-example"><svg><use href="#i-open"/></svg>Open the three-game example</button>
+   </div>
+  </div>
+  <p class="same" id="same" hidden>Same case, person, screen and step on both. Each side has its own copy of the data, so a save on one never reaches the other.</p>
+  <form class="recipe" id="recipe" hidden aria-labelledby="recipe-title">
+   <h3 id="recipe-title">Start from a recipe</h3>
+   <p class="small">A familiar situation, opened in the shared runtime on real routes. Sports recipes still run in the <a href="/__atlas/bench">old bench</a> until generated statistics are connected.</p>
+   <div class="presets" id="recipe-presets" role="group" aria-label="Presets"></div>
+   <div class="grid">
+    <label>Game<select id="r-game"></select></label>
+    <label>Players<input id="r-players" type="number" min="1" max="24" value="4" required></label>
+    <div class="grid span" id="r-fields"></div>
+    <label>Episodes aired<input id="r-history" type="number" min="0" max="12" value="5" required></label>
+    <label>Situation<select id="r-status"><option value="due">Decision needed</option><option value="saved">Decision saved</option><option value="locked">Round locked</option><option value="catchup">You're behind, results hidden</option><option value="finished">Game finished</option></select></label>
+    <label>Viewing pace<select id="r-pace"><option value="together">Everyone caught up</option><option value="you-behind">You're behind</option><option value="friend-behind">A friend is behind</option><option value="mixed">Everyone at a different pace</option></select></label>
+    <label>Timing<select id="r-timing"><option value="own-pace">At your own pace</option><option value="live-only">Live only</option></select></label>
+    <label>Names<select id="r-labels"><option value="normal">Regular</option><option value="long">Long names</option><option value="unbroken">Unbroken (stress)</option><option value="shared">Shared first names</option></select></label>
+    <label>Seed<input id="r-seed" type="number" min="1" max="999999" value="42" required></label>
+   </div>
+   <p class="hint" id="r-mechanic"></p>
+   <div class="next"><button class="primary" type="submit"><svg><use href="#i-open"/></svg>Open this recipe</button><button type="button" id="r-cancel">Cancel</button></div>
+  </form>
+  <div class="gap" id="gap" role="status" hidden>
+   <h3 id="gap-title"></h3>
+   <p class="small" style="margin-top:6px" id="gap-why"></p>
+   <ul id="gap-list"></ul>
+   <div class="next"><button class="primary" id="gap-open"><svg><use href="#i-open"/></svg>Open something else…</button><a href="/__atlas/bench"><button>Replay it in the old bench</button></a></div>
+  </div>
+ </main>
+
+ <aside class="evidence" aria-label="Evidence" id="evidence">
+  <div class="ev-head">
+   <div class="ev-tabs" role="tablist" id="ev-tabs">
+    <button role="tab" data-panel="checks" aria-selected="true">Checks</button><button role="tab" data-panel="actions" aria-selected="false">Actions</button><button role="tab" data-panel="data" aria-selected="false">Data</button><button role="tab" data-panel="notes" aria-selected="false">Notes</button>
+   </div>
+   <button class="quiet" id="ev-toggle" aria-expanded="true" aria-label="Hide evidence" title="Hide evidence" style="margin-left:auto"><svg><use href="#i-side"/></svg></button>
+  </div>
+  <div id="ev-body">
+   <div id="panel-checks"><p class="hint">Checks appear once a case is open.</p></div>
+   <div id="panel-actions" hidden></div>
+   <div id="panel-data" hidden></div>
+   <div id="panel-notes" hidden><label class="small" for="notes">Review notes for this case (kept in this browser)</label><textarea id="notes" placeholder="What's unclear? Which screen or number needs work?"></textarea></div>
+   <p class="scope">These are engine and route checks. They don't judge the design; review notes do.</p>
+  </div>
+ </aside>
+</div>
+</body>
+</html>

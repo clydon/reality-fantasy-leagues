@@ -1,0 +1,234 @@
+/* The bold round uses the app's own ink / gold / seafoam / Archivo vocabulary.
+   Each component gets a distinct composition, not a new coat on the old cards. */
+.bold-studio .cs-header h1{font-size:clamp(38px,4.5vw,64px);font-variation-settings:'wdth' 66,'wght' 900}
+.bold-studio .cs-header{padding-bottom:24px}
+.bold-studio .cs-option-heading{background:#211c2a;color:#f4f2f8;border-bottom:1px solid #514659;min-height:116px}
+.bold-studio .cs-option-heading h3{color:#c3bdcd}
+.bold-studio .cs-option-heading h3>span{color:#f4f2f8;font-size:24px;font-variation-settings:'wdth' 68,'wght' 800}
+.bold-studio .cs-option-heading p{color:#c3bdcd}
+.bold-studio .cs-choose{color:#f4f2f8;border-color:#8e8199}
+.bold-studio .cs-choose[aria-pressed=true]{background:#ffc531;color:#17141c;border-color:#ffc531}
+.bold-studio .cs-preview.bold-preview{padding:0;--bg:#16141d;--panel:#24212d;--text:#f4f2f8;--muted:#c3bdcd;--line:#65576e;--yellow:#ffc531;--ink:#17141c;--teal:#8be0cf}
+.bold-preview :is(button,a,select){border-radius:0}
+.bold-preview button{background:transparent;text-align:left;padding:0}
+.bold-preview button:focus-visible,.bold-preview a:focus-visible,.bold-preview select:focus-visible{outline:3px solid #ffc531;outline-offset:3px;position:relative;z-index:2}
+.bold-preview button:not(:disabled):hover{filter:none}
+.bold-preview .icon{height:18px;width:18px}
+.cs-previous{font-size:12px;text-underline-offset:4px;color:#f4f2f8;min-height:40px;display:inline-flex;align-items:center}
+.bn-update{display:inline-flex;align-items:center;justify-content:flex-end;gap:4px;min-height:40px;font-weight:750;font-size:12px;flex-shrink:0}
+.bn-fine{font-size:10px;color:#c3bdcd;line-height:1.6;padding:10px 16px}
+.bn-person{display:inline-flex;align-items:center;gap:7px;background:transparent;min-height:44px;min-width:0;text-align:left;padding:0}
+.bn-person .avatar{width:29px;height:29px;margin:0;flex-shrink:0}
+.bn-person>b{font-size:12px;overflow-wrap:anywhere}
+.bn-watch{padding:10px 14px 12px;display:flex;flex-direction:column;gap:3px;background:#16141d}
+.bn-watch>.button{min-height:44px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:750;gap:7px;padding:10px;border-radius:3px;transition:background .15s}
+.bn-watch .primary{background:#ffc531;color:#17141c;font-weight:800}
+.bn-watch .primary:hover{background:#ffda75}
+.bn-watch .quiet{color:#f4f2f8;background:transparent;border:0;min-height:36px;font-weight:550;text-decoration:underline;text-decoration-color:#897b94;text-underline-offset:4px;padding:5px}
+.bn-watch>p{font-size:12px;color:#c3bdcd;padding:4px 0;line-height:1.6}
+.bn-watch>p>b{color:#f4f2f8}
+/* A: a broadcast slate, with the show's face and an episode handoff. */
+.bn-cinema{width:100%;display:block;position:relative;isolation:isolate;overflow:hidden;min-height:252px;color:#fff;background:#162b2e!important}
+.bn-cinema-art{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:75% 15%;z-index:-2}
+.bn-cinema::after{content:'';position:absolute;inset:0;z-index:-1;background:linear-gradient(90deg,#121c26f5 0%,#121c26ba 35%,#121c2600 70%),linear-gradient(0deg,#121823f5 0%,#12182300 65%)}
+.bn-cinema-brand{padding:14px 16px 0;display:flex;gap:10px;align-items:center;justify-content:space-between;font-size:22px;line-height:1;font-variation-settings:'wdth' 65,'wght' 900;text-transform:uppercase}
+.bn-cinema-brand>small{font-size:10px;line-height:1.4;font-variation-settings:normal;font-weight:650;letter-spacing:.06em;white-space:nowrap}
+.bn-cinema-story{display:block;padding:28px 16px 8px;max-width:74%}
+.bn-cinema-story>span:first-child{font-size:12px;display:block;margin-bottom:6px}
+.bn-cinema-story>strong{font-size:28px;font-variation-settings:'wdth' 66,'wght' 850;line-height:.96;display:block;text-wrap:balance}
+.bn-cinema-story>strong>em{font-style:normal;font-size:88px;line-height:.88;letter-spacing:-.035em;color:#ffc531;font-variation-settings:'wdth' 65,'wght' 900}
+.bn-cinema-date{font-size:11px;display:block;margin-top:8px;color:#e7e9eb}
+.bn-cinema-foot{display:flex;align-items:center;justify-content:space-between;padding:7px 16px 8px;border-top:1px solid #72777e;gap:12px;background:#121823c7}
+.bn-cinema-foot>span:first-child{font-size:11px;line-height:1.5}.bn-cinema-foot b{color:#ffc531;margin-left:5px}
+.bn-cinema-foot small{display:block;color:#e7e9eb;font-size:10px}
+/* B: the edit between last time and next time, built like a compact TV guide. */
+.bn-splice{background:#211b28}
+.bn-splice-body{width:100%;display:block;color:#f4f2f8}
+.bn-splice-top{display:flex;justify-content:space-between;align-items:center;gap:15px;padding:16px 16px 13px}
+.bn-splice-top>b{font-size:27px;line-height:.96;font-variation-settings:'wdth' 65,'wght' 850}
+.bn-splice-top>span{max-width:110px;font-size:11px;line-height:1.6;text-align:right;color:#c3bdcd}
+.bn-guide-row{display:flex;gap:14px;align-items:center;min-height:48px;padding:8px 17px;border-top:1px solid #65576e}
+.bn-guide-number{width:52px;flex-shrink:0;font-size:34px;line-height:1;font-variation-settings:'wdth' 70,'wght' 850}
+.bn-guide-row>span:nth-child(2){flex:1;min-width:0}
+.bn-guide-row small{font-size:9px;font-weight:750;letter-spacing:.05em;display:block;margin-bottom:3px}
+.bn-guide-row b{font-size:12px;display:block;overflow-wrap:anywhere}
+.bn-guide-past{color:#c3bdcd;background:#302839}
+.bn-guide-past>.icon{color:#8be0cf}
+.bn-guide-now{background:#ffc531;color:#17141c;min-height:83px;border-color:#ffc531;position:relative}
+.bn-guide-now::before{content:'';position:absolute;inset:5px auto 5px 5px;width:2px;background:#17141c}
+.bn-guide-now .bn-guide-number{font-size:62px;width:65px;font-variation-settings:'wdth' 62,'wght' 900}
+.bn-guide-now b{font-size:17px;line-height:1.2;font-weight:800}
+.bn-guide-now>.icon{width:27px;height:27px}
+.bn-guide-later{color:#c3bdcd}
+.bn-guide-later .bn-guide-number{font-size:28px}
+.bn-splice-bottom{display:flex;gap:8px;align-items:center;justify-content:space-between;padding:0 16px;border-top:1px solid #65576e}
+.bn-splice-bottom>span:first-child{font-size:9px;color:#c3bdcd}
+/* C: a show-specific printed watch record, with a functional progress stamp. */
+.bn-passport{background:#eee6d6;color:#241c2a}
+.bn-passport-body{width:100%;display:block;color:#241c2a!important;background:#eee6d6!important}
+.bn-passport-art{height:62px;position:relative;isolation:isolate;overflow:hidden;display:flex;align-items:center;justify-content:space-between;padding:12px 15px;color:#fff;background:#15262c}
+.bn-passport-art>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:65% 20%;filter:saturate(.6);z-index:-2}
+.bn-passport-art::after{content:'';position:absolute;inset:0;background:#111924a8;z-index:-1}
+.bn-passport-art>strong{font-size:29px;font-variation-settings:'wdth' 62,'wght' 900;text-transform:uppercase}
+.bn-passport-art>span{font-size:9px;font-weight:750;letter-spacing:.07em}
+.bn-passport-head{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:16px 16px 12px}
+.bn-passport-head>b{font-size:34px;line-height:.94;font-variation-settings:'wdth' 65,'wght' 850}
+.bn-stamp{border:2px solid #386c5e;transform:rotate(7deg);padding:6px 9px;display:flex;flex-direction:column;text-align:center;font-size:8px;letter-spacing:.04em;font-weight:750;line-height:1.3;color:#285c4e}
+.bn-stamp>strong{font-size:28px;line-height:1.1;font-variation-settings:'wdth' 70,'wght' 850;letter-spacing:0}
+.bn-passport-track{display:flex;gap:4px;margin:0 16px;height:8px}
+.bn-passport-track>i{flex:1;border:1px solid #756779}.bn-passport-track>.bn-filled{background:#285c4e;border-color:#285c4e}
+.bn-passport-status{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 16px 12px;font-size:11px;font-weight:750}
+.bn-passport-status>small{font-size:9px;color:#625468;font-weight:500}
+.bn-passport-next{border-top:1px dashed #8c7c91;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;background:#e0d6c4}
+.bn-passport-next>span{font-size:10px;min-width:0}.bn-passport-next strong{display:block;font-size:25px;font-variation-settings:'wdth' 70,'wght' 850;line-height:1.1;margin:4px 0}
+.bn-passport-next small{display:block;font-size:10px;color:#625468}
+/* A: a little viewing lounge. The couch is an illustration, not a container. */
+.bn-lounge{position:relative;background:#2c2335;color:#f4f2f8;overflow:hidden;padding:18px 16px 0}
+.bn-lounge-head{display:flex;position:relative;min-height:112px;isolation:isolate;align-items:flex-start}
+.bn-lounge-head h3{font-size:34px;line-height:.92;font-variation-settings:'wdth' 65,'wght' 850;position:relative;z-index:1;max-width:70%}
+.bn-lounge-head h3>em{color:#ffc531;font-style:normal}
+.bn-lounge-head>img{position:absolute;right:-16px;top:-20px;width:150px;height:150px;object-fit:cover;object-position:50% 57%;mix-blend-mode:lighten;z-index:-1}
+.bn-seats{position:relative;padding-top:8px}
+.bn-sofa{width:100%;height:auto;display:block}
+.bn-seat-people{position:absolute;left:9%;right:9%;top:-3px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;z-index:1;align-items:start}
+.bn-seat.bn-person{display:flex;align-items:center;flex-direction:column;gap:0;min-width:0}
+.bn-seat-face{display:block;position:relative;isolation:isolate}
+.bn-seat-face>.avatar{width:53px;height:53px;object-fit:cover;filter:drop-shadow(0 3px 3px #17141c55)}
+.bn-seat.bn-person>b{display:none}
+.bn-seat.bn-person>small{font-size:13px;font-weight:850;background:#ffc531;color:#17141c;padding:3px 7px;border-radius:3px;margin-top:-5px;z-index:1}
+.bn-seat:hover .bn-seat-face>.avatar{transform:translateY(-3px)}
+.bn-seat-face>.avatar{transition:transform .15s cubic-bezier(.16,1,.3,1)}
+.bn-seat-labels{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));text-align:center;gap:8px;margin-top:1px}
+.bn-seat-labels b{display:block;font-size:12px}.bn-seat-labels small{display:block;font-size:10px;color:#d5cddd;margin-top:3px}
+.bn-lounge-you{display:flex;align-items:center;gap:7px;border-top:1px solid #7c6988;margin-top:15px;padding-top:9px;font-size:10px}
+.bn-lounge-you>.avatar{width:24px;height:24px;margin:0}.bn-lounge-you>span:last-child{margin-left:auto;color:#d5cddd}
+.bn-pace-open{display:flex;align-items:center;justify-content:space-between;width:100%;gap:10px;min-height:49px;background:transparent!important;border-top:1px solid #65576e!important;color:inherit;font-size:11px;margin-top:12px;padding:8px 0!important}
+.bn-empty-lounge>h3{font-size:38px;font-variation-settings:'wdth' 65,'wght' 850;line-height:1}
+.bn-empty-lounge>.bn-sofa{margin-top:20px}.bn-empty-lounge>p{font-size:12px;color:#d5cddd;line-height:1.6;margin-top:10px}.bn-empty-lounge>a{display:flex;align-items:center;gap:7px;min-height:48px;font-size:12px}
+/* B: graphic episode posters with faces instead of a progress dashboard. */
+.bn-chapters{background:#17141c;padding:18px 14px 0}
+.bn-chapters>h3{font-size:33px;font-variation-settings:'wdth' 65,'wght' 850;line-height:.97;margin-bottom:18px}
+.bn-chapters>h3>em{font-style:normal;color:#8be0cf}
+.bn-chapter-wall{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;align-items:stretch;padding-bottom:3px}
+.bn-chapter{min-width:0;position:relative;background:#30283b;padding:11px 8px 9px;color:#f4f2f8;display:flex;flex-direction:column;align-items:center;overflow:hidden}
+.bn-chapter.is-yours{background:#ffc531;color:#17141c}
+.bn-chapter-episode{font-size:9px;font-weight:800;align-self:flex-start;line-height:1;display:block}
+.bn-chapter-episode>strong{display:block;font-size:64px;font-variation-settings:'wdth' 62,'wght' 900;line-height:.95;margin-top:3px;letter-spacing:-.025em}
+.bn-chapter-people{position:relative;margin-top:10px;width:100%;margin-bottom:14px}
+.bn-chapter-people .bn-person{display:flex;flex-direction:column;align-items:center;width:100%;gap:3px;min-height:62px;margin-top:5px}
+.bn-chapter-people .bn-person .avatar{width:42px;height:42px}.bn-chapter-people .bn-person>b{font-size:11px}
+.bn-chapter-relative{font-size:8px;font-weight:750;letter-spacing:.04em;text-align:center;margin-top:auto}
+.bn-chapter-note{font-size:10px!important;color:#c3bdcd;line-height:1.5;margin-top:12px!important}
+/* C: an episode tuner whose state changes people, not viewing progress. */
+.bn-tuner{background:#eee6d6;color:#241c2a;padding:17px 14px 0}
+.bn-tuner-head{display:flex;gap:12px;justify-content:space-between;align-items:center}
+.bn-tuner-head>h3{font-size:34px;font-variation-settings:'wdth' 65,'wght' 850;line-height:.95}
+.bn-tuner-head>h3>em{font-style:normal;color:#285c4e}
+.bn-tuner-head>label{font-size:9px;font-weight:750;display:flex;flex-direction:column;gap:5px;max-width:43%}
+.bn-tuner-head select{background:#241c2a;color:#fff!important;border-color:#241c2a!important;min-width:0;width:100%;font-size:10px!important;border-radius:3px!important;padding:7px!important}
+.bn-tuner-portraits{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-top:21px}
+.bn-tuner-person .bn-person{display:block;width:100%}
+.bn-tuner-face{display:block;aspect-ratio:.82;position:relative;overflow:hidden;background:#d0c2d4}
+.bn-tuner-face>.avatar{width:100%;height:100%;object-fit:cover;border-radius:0;display:block;object-position:50% 25%}
+.not-seen .bn-tuner-face>.avatar{filter:grayscale(1);opacity:.7}
+.bn-tuner-person .bn-person>b{display:block;font-size:13px;margin-top:8px}
+.bn-tuner-status{min-height:31px;display:flex;align-items:center;gap:3px;font-size:9px;font-weight:750;color:#625468}
+.has-seen .bn-tuner-status{color:#285c4e}.bn-tuner-status>.icon{height:14px;width:14px}
+.bn-tuner-person>small{font-size:9px;color:#625468;display:block}
+.bn-tuner-bottom{display:flex;align-items:center;gap:12px;justify-content:space-between;border-top:1px solid #a99aaa;margin-top:17px;padding-top:8px}
+.bn-tuner-bottom>strong{display:flex;align-items:center;font-size:42px;line-height:1;font-variation-settings:'wdth' 65,'wght' 850;gap:7px}
+.bn-tuner-bottom>strong>span{font-size:10px;font-variation-settings:normal;font-weight:550;line-height:1.5}
+.bn-tuner-bottom>button{font-size:10px;display:flex;gap:4px;align-items:center;min-height:44px}
+.bn-tuner>.bn-fine{color:#625468;padding:12px 0}
+/* Shared result controls. No totals or rankings are invented for the design. */
+.bn-value{display:flex;align-items:center;gap:5px;min-height:44px;padding:3px 0!important;max-width:100%;line-height:1.1}
+.bn-value>strong{display:block;font-size:26px;font-variation-settings:'wdth' 68,'wght' 850;overflow-wrap:anywhere}
+.bn-value>.icon{height:14px;width:14px;flex-shrink:0}
+.bn-value.is-you{color:#8be0cf}
+.bn-value.is-hidden{color:#c3bdcd!important;gap:4px}.bn-value.is-hidden>strong{font-size:11px;font-variation-settings:normal;font-weight:550;line-height:1.5}
+.bn-cast{background:transparent;padding:0;min-width:0;display:flex;align-items:center;gap:5px}
+.bn-cast>img{width:25px;height:33px;object-fit:cover;object-position:50% 20%;border-radius:2px;flex-shrink:0}
+.bn-cast>span>b{font-size:9px;display:block;line-height:1.3}.bn-cast>span>strong{font-size:11px;display:block;color:#8be0cf}.bn-cast strong>small{font-size:8px;margin-left:3px}
+.bn-games-open{display:flex;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid #65576e;margin-top:12px;padding:3px 0}
+.bn-games-open>button,.bn-games-open>a{display:flex;align-items:center;gap:4px;font-size:10px;min-height:44px;text-decoration:none}
+.bn-games-open .icon{height:14px;width:14px}
+.bn-game-picker{display:flex;align-items:center;gap:9px;color:#c3bdcd;font-size:10px}
+.bn-game-picker>select{flex:1;min-width:0;width:100%;background:#30283b;border-color:#65576e;color:#f4f2f8!important;border-radius:3px!important;font-size:11px!important}
+/* A: a compact broadcast desk, one continuous board across game types. */
+.bn-scorecast{background:#191620;padding:0 14px}
+.bn-scorecast-title{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:17px 0 15px;border-bottom:2px solid #ffc531}
+.bn-scorecast-title>h3{font-size:31px;line-height:.96;font-variation-settings:'wdth' 65,'wght' 850;text-transform:uppercase}
+.bn-scorecast-title>h3>em{font-style:normal;color:#ffc531}
+.bn-scorecast-title>span{font-size:8px;font-weight:750;letter-spacing:.05em;text-align:right;color:#ffc531}
+.bn-scorecast-title strong{display:block;font-size:51px;font-variation-settings:'wdth' 65,'wght' 900;line-height:.95;letter-spacing:-.025em;margin-top:4px}
+.bn-scorecast-game{padding:12px 0 15px;border-bottom:1px solid #65576e}
+.bn-scorecast-game>header{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.bn-scorecast-game>header>a{font-size:12px;font-weight:750;text-decoration:none;min-width:0}
+.bn-scorecast-game>header>a>.icon{display:inline;width:11px;height:11px;vertical-align:middle}
+.bn-scorecast-game>header>span{font-size:9px;color:#c3bdcd;letter-spacing:.03em;flex-shrink:0}
+.bn-on-air-scores{display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-top:12px}
+.bn-on-air-scores>div>span{font-size:9px;letter-spacing:.04em;color:#c3bdcd;font-weight:750}
+.bn-on-air-scores>div>.bn-value>strong{font-size:34px;line-height:1;letter-spacing:-.02em}
+.bn-on-air-scores>div>.bn-value.is-hidden>strong{font-size:12px;letter-spacing:0;line-height:1.5}
+.bn-on-air-scores>div:nth-child(2){border-left:1px solid #65576e;padding-left:15px}
+.bn-on-air-scores>div:nth-child(2)>.bn-value{color:#ffc531}
+.bn-scorecast-picks{display:flex;flex-wrap:wrap;gap:12px;margin-top:7px}
+.bn-result-channel{height:7px;background:#ffc531;position:relative;margin-top:11px}
+.bn-result-channel>i{width:var(--share);height:100%;display:block;background:#8be0cf;border-right:3px solid #191620}
+.bn-scorecast>.bn-fine{padding:10px 0 0}.bn-scorecast>.bn-games-open{margin-top:9px}
+/* B: the cast become result posters; photos and contribution values are content. */
+.bn-cast-night{padding:15px 14px 0;background:#201a28}
+.bn-cast-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 0 17px}
+.bn-cast-heading>h3{font-size:35px;font-variation-settings:'wdth' 65,'wght' 850;line-height:.95}
+.bn-cast-heading>h3>em{font-style:normal;color:#8be0cf}
+.bn-cast-heading>span{font-size:11px;color:#ffc531;font-weight:750;border:1px solid #65576e;padding:6px 7px;align-self:flex-start}
+.bn-trading-wall{display:flex;gap:7px;align-items:stretch}
+.bn-trading-wall>.bn-cast{display:block;position:relative;overflow:hidden;isolation:isolate;flex:1;background:#43304d;min-height:183px;border-radius:3px;min-width:0;box-shadow:0 5px 12px #0e0b1340;transition:filter .15s}
+.bn-trading-wall>.bn-cast:nth-child(2){margin-top:11px;margin-bottom:-4px}
+.bn-trading-wall>.bn-cast>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 15%;border-radius:0;z-index:-2}
+.bn-trading-wall>.bn-cast::after{content:'';position:absolute;inset:0;z-index:-1;background:linear-gradient(0deg,#17141cf5 0%,#17141c70 33%,#17141c00 75%)}
+.bn-trading-wall>.bn-cast>span{position:absolute;bottom:11px;left:9px;right:5px;display:flex;flex-direction:column;align-items:flex-start;color:#fff}
+.bn-trading-wall>.bn-cast>span>b{font-size:14px;font-variation-settings:'wdth' 75,'wght' 800;line-height:1.1;order:2;margin-top:4px}
+.bn-trading-wall>.bn-cast>span>strong{font-size:43px;font-variation-settings:'wdth' 62,'wght' 900;color:#fff;line-height:.95;display:flex;flex-direction:column;align-items:flex-start}
+.bn-trading-wall>.bn-cast strong>small{font-size:8px;line-height:1.2;margin:4px 0 0;letter-spacing:.06em}
+.bn-trading-wall.is-pool>.bn-cast{min-height:225px;max-width:230px;width:100%;margin:0 auto;flex:1}
+.bn-trading-wall.is-pool>.bn-cast>span>b{font-size:26px}
+.bn-cast-total{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:24px;padding-bottom:12px}
+.bn-cast-total>span{font-size:12px;color:#c3bdcd}.bn-cast-total>.bn-value>strong{font-size:41px}
+.bn-cast-total>.bn-value.is-hidden>strong{font-size:13px}
+.bn-cast-opponents>div{display:flex;justify-content:space-between;align-items:center;gap:9px;border-top:1px solid #65576e;min-height:54px}
+.bn-cast-opponents .bn-value>strong{font-size:19px}.bn-cast-opponents .bn-value.is-hidden>strong{font-size:10px}
+.bn-unavailable{padding:25px 8px;display:flex;align-items:center;gap:12px;border:1px dashed #8e8199;color:#c3bdcd}
+.bn-unavailable>.icon{width:28px;height:28px}.bn-unavailable>p{font-size:12px;line-height:1.6}
+/* C: a human matchup. Large faces, team color and game-specific payoff. */
+.bn-versus{background:#191620;padding:17px 14px 0}
+.bn-versus>header>h3{font-size:32px;font-variation-settings:'wdth' 65,'wght' 850;line-height:.96}
+.bn-versus>header>h3>em{font-style:normal;color:#ffc531}
+.bn-versus>header>label{display:flex;align-items:center;gap:9px;margin:15px 0;font-size:10px;color:#c3bdcd}
+.bn-versus>header select{flex:1;font-size:11px!important;min-width:0;background:#30283b;border-radius:3px!important}
+.bn-versus-stage{display:grid;grid-template-columns:1fr 45px 1fr;align-items:stretch;position:relative;isolation:isolate;overflow:hidden;margin:0 -14px 8px;min-height:172px;background:#30283b}
+.bn-versus-stage::before{content:'';position:absolute;left:0;top:0;width:52%;height:100%;background:#ffc531;transform:skewX(-12deg);transform-origin:top left;z-index:-1}
+.bn-versus-stage::after{content:'';position:absolute;right:0;top:0;width:51%;height:100%;background:#8be0cf;transform:skewX(-12deg);transform-origin:bottom right;z-index:-2}
+.bn-versus-player{display:flex;align-items:center;justify-content:center;padding:15px 5px 12px}
+.bn-versus-player .bn-person{flex-direction:column;gap:5px;align-items:center;width:100%;color:#17141c}
+.bn-versus-player .bn-person>span{height:100px;display:block}
+.bn-versus-player .avatar{width:91px;height:100px;object-fit:cover;object-position:50% 15%;border-radius:0;mix-blend-mode:multiply}
+.bn-versus-player .bn-person>b{font-size:27px;font-variation-settings:'wdth' 65,'wght' 900;line-height:1.1;text-align:center;max-width:100%}
+.bn-vs{align-self:center;background:#191620;color:#f4f2f8;font-size:25px;font-style:italic;font-variation-settings:'wdth' 65,'wght' 900;padding:8px 6px;transform:rotate(-6deg);text-align:center;line-height:1}
+.bn-vs>small{display:block;font-size:10px;font-style:normal;margin-top:5px;font-variation-settings:normal}
+.bn-duel-game{border-top:1px solid #65576e;padding:13px 0 10px}
+.bn-duel-game:first-child{border-top:0}
+.bn-duel-game>div:first-child>a{display:flex;gap:5px;align-items:center;justify-content:center;text-align:center;font-size:11px;text-decoration:none;font-weight:750}
+.bn-duel-game>div:first-child .icon{width:12px;height:12px}
+.bn-duel-values{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:6px;align-items:center}
+.bn-duel-values>.bn-value{justify-content:center}.bn-duel-values>.bn-value:first-child{color:#ffc531}.bn-duel-values>.bn-value:nth-child(2){color:#8be0cf}
+.bn-duel-picks{display:grid;grid-template-columns:1fr 1fr;gap:16px;text-align:center;color:#c3bdcd;font-size:10px;line-height:1.4}
+.bn-versus>.bn-fine{padding:9px 0 0}
+.bn-no-games{padding:0 16px 15px;background:#2c2335;overflow:hidden}
+.bn-no-games>img{width:100%;height:170px;object-fit:cover;object-position:50% 58%;mix-blend-mode:lighten}
+.bn-no-games>h3{font-size:34px;line-height:.95;font-variation-settings:'wdth' 65,'wght' 850}
+.bn-no-games>p{font-size:12px;color:#d5cddd;line-height:1.6;margin-top:13px}
+.bn-no-games>a{min-height:44px;display:inline-flex;align-items:center;gap:5px;font-size:12px;margin-top:7px}
+.bn-solo{padding:18px 15px 0;background:#211b28}.bn-solo>h3{font-size:35px;line-height:.95;font-variation-settings:'wdth' 65,'wght' 850;margin-bottom:20px}.bn-solo>h3>em{color:#8be0cf;font-style:normal}.bn-solo>div:not(.bn-games-open){display:flex;justify-content:space-between;align-items:center;gap:12px;border-top:1px solid #65576e;min-height:65px}.bn-solo a{font-size:12px}
+@media(max-width:400px){.bold-studio .cs-option-heading{min-height:0}.bold-studio .cs-option-heading h3>span{font-size:22px}.bn-cinema-story>strong>em{font-size:80px}.bn-cinema-brand{font-size:21px}.bn-cinema-story{padding-top:26px}.bn-cinema{min-height:245px}.bn-guide-now .bn-guide-number{font-size:56px;width:59px}.bn-lounge-head h3{font-size:31px}.bn-chapter-episode>strong{font-size:57px}.bn-tuner-head>h3{font-size:31px}.bn-scorecast-title>h3{font-size:28px}.bn-on-air-scores>div>.bn-value>strong{font-size:30px}.bn-on-air-scores>div>.bn-value.is-hidden>strong{font-size:11px}.bn-cast-heading>h3{font-size:31px}.bn-trading-wall>.bn-cast>span>strong{font-size:37px}.bn-versus>header>h3{font-size:30px}.bn-versus-player .avatar{width:81px}.bn-duel-values>.bn-value>strong{font-size:24px}.bn-duel-values>.bn-value.is-hidden>strong{font-size:11px}}
+@media(prefers-reduced-motion:reduce){.bold-preview *{animation:none!important;transition:none!important;scroll-behavior:auto!important}}

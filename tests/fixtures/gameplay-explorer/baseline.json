@@ -1,0 +1,3312 @@
+{
+  "kind": "gameplay-explorer-baseline",
+  "schemaVersion": 1,
+  "syntheticClock": "2026-11-12T12:00:00.000Z",
+  "capturedWith": {
+    "document": 2,
+    "engine": "17e4c1701702c1fbf0aba0c4b8f10dc76b4abb571a57fb9b2edeb2d3ccb9f8c4",
+    "adapters": "7556c06cf3b0ac57566c3f570a589100fc1ec835656d88fbfabbc9217301fd5e"
+  },
+  "source": {
+    "families": [
+      "classic-draft",
+      "active-roster",
+      "pickem",
+      "weekly-calls",
+      "weekly-bingo",
+      "questions",
+      "stages",
+      "squares"
+    ],
+    "showBases": [
+      {
+        "id": "lineup",
+        "name": "Weekly Lineup"
+      },
+      {
+        "id": "best-ball",
+        "name": "Best Ball"
+      },
+      {
+        "id": "outlast",
+        "name": "Outlast"
+      },
+      {
+        "id": "questions",
+        "name": "Prediction Sheet"
+      },
+      {
+        "id": "picks",
+        "name": "Weekly Picks"
+      },
+      {
+        "id": "pool",
+        "name": "Survival Pool"
+      },
+      {
+        "id": "calls",
+        "name": "Weekly Calls"
+      },
+      {
+        "id": "bingo",
+        "name": "Weekly Bingo"
+      }
+    ],
+    "primaryPatterns": [
+      "together",
+      "race",
+      "matchup",
+      "categories",
+      "worth",
+      "week",
+      "board",
+      "card",
+      "objectives",
+      "team",
+      "picks",
+      "ladder",
+      "slate",
+      "ballot",
+      "stages"
+    ],
+    "answerControls": [
+      "person",
+      "group",
+      "yesNo",
+      "number",
+      "overUnder",
+      "choice",
+      "calls",
+      "order",
+      "confidence",
+      "chips",
+      "split",
+      "pairs",
+      "side",
+      "bracket",
+      "trivia",
+      "ticket"
+    ],
+    "vocabularyHash": "0c816c23282699a578918833023c504b1586174cbf1063735a3c3c7dcf09dac2"
+  },
+  "legacyPilot": {
+    "show": [
+      {
+        "id": "lineup",
+        "type": "active-roster",
+        "fixture": "legacy-generator-connected",
+        "declaredSurfaces": [
+          "full",
+          "mini",
+          "detail",
+          "reveal",
+          "wizard",
+          "quick"
+        ],
+        "rendering": "not-verified-by-inventory",
+        "interaction": "not-verified-by-inventory",
+        "design": "unreviewed"
+      },
+      {
+        "id": "best-ball",
+        "type": "active-roster",
+        "fixture": "legacy-generator-connected",
+        "declaredSurfaces": [
+          "full",
+          "mini",
+          "detail",
+          "reveal",
+          "wizard"
+        ],
+        "rendering": "not-verified-by-inventory",
+        "interaction": "not-verified-by-inventory",
+        "design": "unreviewed"
+      },
+      {
+        "id": "outlast",
+        "type": "classic-draft",
+        "fixture": "legacy-generator-connected",
+        "declaredSurfaces": [
+          "full",
+          "mini",
+          "detail",
+          "reveal",
+          "wizard"
+        ],
+        "rendering": "not-verified-by-inventory",
+        "interaction": "not-verified-by-inventory",
+        "design": "unreviewed"
+      },
+      {
+        "id": "questions",
+        "type": "questions",
+        "fixture": "adapter-missing",
+        "declaredSurfaces": [],
+        "rendering": "not-verified-by-inventory",
+        "interaction": "not-verified-by-inventory",
+        "design": "unreviewed"
+      },
+      {
+        "id": "picks",
+        "type": "pickem",
+        "fixture": "legacy-generator-connected",
+        "declaredSurfaces": [
+          "full",
+          "mini",
+          "detail",
+          "reveal",
+          "wizard",
+          "quick"
+        ],
+        "rendering": "not-verified-by-inventory",
+        "interaction": "single-choice-editor-only; multi-pick commands/history",
+        "design": "unreviewed"
+      },
+      {
+        "id": "pool",
+        "type": "pickem",
+        "fixture": "legacy-generator-connected",
+        "declaredSurfaces": [
+          "full",
+          "mini",
+          "detail",
+          "reveal",
+          "wizard",
+          "quick"
+        ],
+        "rendering": "not-verified-by-inventory",
+        "interaction": "not-verified-by-inventory",
+        "design": "unreviewed"
+      },
+      {
+        "id": "calls",
+        "type": "weekly-calls",
+        "fixture": "adapter-missing",
+        "declaredSurfaces": [],
+        "rendering": "not-verified-by-inventory",
+        "interaction": "not-verified-by-inventory",
+        "design": "unreviewed"
+      },
+      {
+        "id": "bingo",
+        "type": "weekly-bingo",
+        "fixture": "adapter-missing",
+        "declaredSurfaces": [],
+        "rendering": "not-verified-by-inventory",
+        "interaction": "not-verified-by-inventory",
+        "design": "unreviewed"
+      },
+      {
+        "id": "stages",
+        "type": "stages",
+        "fixture": "adapter-missing",
+        "declaredSurfaces": [],
+        "rendering": "not-verified-by-inventory",
+        "interaction": "not-verified-by-inventory",
+        "design": "unreviewed"
+      }
+    ],
+    "sports": [
+      {
+        "id": "football/nfl",
+        "sport": "football",
+        "games": [
+          {
+            "id": "season",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "reveal",
+              "quick"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "short",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "wizard"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickem",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickAFew",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "bestBall",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "wizard"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "squares",
+            "type": "squares",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          }
+        ]
+      },
+      {
+        "id": "basketball/nba",
+        "sport": "basketball",
+        "games": [
+          {
+            "id": "season",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "reveal",
+              "quick"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "short",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "wizard"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickem",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickAFew",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "categories",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "quick"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "roto",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "quick"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "bestBall",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "wizard"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "squares",
+            "type": "squares",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          }
+        ]
+      },
+      {
+        "id": "baseball/mlb",
+        "sport": "baseball",
+        "games": [
+          {
+            "id": "season",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "reveal",
+              "quick"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "short",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "wizard"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickem",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickAFew",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "categories",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "quick"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "roto",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "quick"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "bestBall",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "wizard"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          }
+        ]
+      },
+      {
+        "id": "baseball/college-baseball",
+        "sport": "baseball",
+        "games": [
+          {
+            "id": "season",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "reveal",
+              "quick"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "short",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "wizard"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickem",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickAFew",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "categories",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "quick"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "roto",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "quick"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "bestBall",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "wizard"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          }
+        ]
+      },
+      {
+        "id": "basketball/wnba",
+        "sport": "basketball",
+        "games": [
+          {
+            "id": "season",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "reveal",
+              "quick"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "short",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "wizard"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickem",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickAFew",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "categories",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "quick"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "roto",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "quick"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "bestBall",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "wizard"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "squares",
+            "type": "squares",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          }
+        ]
+      },
+      {
+        "id": "basketball/mens-college-basketball",
+        "sport": "basketball",
+        "games": [
+          {
+            "id": "season",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "reveal",
+              "quick"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "short",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "wizard"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickem",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickAFew",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "categories",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "quick"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "roto",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "quick"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "bestBall",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "wizard"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "squares",
+            "type": "squares",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          }
+        ]
+      },
+      {
+        "id": "basketball/womens-college-basketball",
+        "sport": "basketball",
+        "games": [
+          {
+            "id": "season",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "reveal",
+              "quick"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "short",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "wizard"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickem",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickAFew",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "categories",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "quick"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "roto",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "quick"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "bestBall",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "wizard"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "squares",
+            "type": "squares",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          }
+        ]
+      },
+      {
+        "id": "football/college-football",
+        "sport": "football",
+        "games": [
+          {
+            "id": "season",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "reveal",
+              "quick"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "short",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "wizard"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickem",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickAFew",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "bestBall",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "wizard"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "squares",
+            "type": "squares",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          }
+        ]
+      },
+      {
+        "id": "hockey/nhl",
+        "sport": "hockey",
+        "games": [
+          {
+            "id": "season",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "reveal",
+              "quick"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "short",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "wizard"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickem",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickAFew",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "categories",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "quick"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "roto",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "quick"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "bestBall",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "wizard"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          }
+        ]
+      },
+      {
+        "id": "soccer/eng.1",
+        "sport": "soccer",
+        "games": [
+          {
+            "id": "season",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "reveal",
+              "quick"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "short",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "wizard"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickem",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickAFew",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "bestBall",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "wizard"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          }
+        ]
+      },
+      {
+        "id": "soccer/usa.1",
+        "sport": "soccer",
+        "games": [
+          {
+            "id": "season",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "reveal",
+              "quick"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "short",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "wizard"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickem",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickAFew",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "bestBall",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "wizard"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          }
+        ]
+      },
+      {
+        "id": "soccer/uefa.champions",
+        "sport": "soccer",
+        "games": [
+          {
+            "id": "season",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "reveal",
+              "quick"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "short",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "wizard"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickem",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickAFew",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "bestBall",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "wizard"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          }
+        ]
+      },
+      {
+        "id": "golf/pga",
+        "sport": "golf",
+        "games": [
+          {
+            "id": "season",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "reveal",
+              "quick"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "short",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "wizard"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickem",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickAFew",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "bestBall",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "wizard"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          }
+        ]
+      },
+      {
+        "id": "golf/lpga",
+        "sport": "golf",
+        "games": [
+          {
+            "id": "season",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "reveal",
+              "quick"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "short",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "wizard"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickem",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickAFew",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "bestBall",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "wizard"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          }
+        ]
+      },
+      {
+        "id": "golf/eur",
+        "sport": "golf",
+        "games": [
+          {
+            "id": "season",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "reveal",
+              "quick"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "short",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "wizard"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickem",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickAFew",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "bestBall",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "wizard"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          }
+        ]
+      },
+      {
+        "id": "golf/liv",
+        "sport": "golf",
+        "games": [
+          {
+            "id": "season",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "reveal",
+              "quick"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "short",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "wizard"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickem",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickAFew",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "bestBall",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "wizard"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          }
+        ]
+      },
+      {
+        "id": "golf/champions-tour",
+        "sport": "golf",
+        "games": [
+          {
+            "id": "season",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "reveal",
+              "quick"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "short",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "wizard"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickem",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickAFew",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "bestBall",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "wizard"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          }
+        ]
+      },
+      {
+        "id": "golf/ntw",
+        "sport": "golf",
+        "games": [
+          {
+            "id": "season",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "reveal",
+              "quick"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "short",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "wizard"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickem",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickAFew",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "bestBall",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "wizard"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          }
+        ]
+      },
+      {
+        "id": "golf/mens-olympics-golf",
+        "sport": "golf",
+        "games": [
+          {
+            "id": "season",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "reveal",
+              "quick"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "short",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "wizard"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickem",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickAFew",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "bestBall",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "wizard"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          }
+        ]
+      },
+      {
+        "id": "golf/womens-olympics-golf",
+        "sport": "golf",
+        "games": [
+          {
+            "id": "season",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "reveal",
+              "quick"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "short",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "wizard"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickem",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickAFew",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "bestBall",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "wizard"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          }
+        ]
+      },
+      {
+        "id": "racing/nascar-premier",
+        "sport": "racing",
+        "games": [
+          {
+            "id": "season",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "reveal",
+              "quick"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "short",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "wizard"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickem",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickAFew",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          }
+        ]
+      },
+      {
+        "id": "racing/f1",
+        "sport": "racing",
+        "games": [
+          {
+            "id": "season",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "reveal",
+              "quick"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "short",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "wizard"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickem",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickAFew",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          }
+        ]
+      },
+      {
+        "id": "racing/irl",
+        "sport": "racing",
+        "games": [
+          {
+            "id": "season",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "reveal",
+              "quick"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "short",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "wizard"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickem",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickAFew",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          }
+        ]
+      },
+      {
+        "id": "racing/nascar-secondary",
+        "sport": "racing",
+        "games": [
+          {
+            "id": "season",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "reveal",
+              "quick"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "short",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "wizard"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickem",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickAFew",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          }
+        ]
+      },
+      {
+        "id": "racing/nascar-truck",
+        "sport": "racing",
+        "games": [
+          {
+            "id": "season",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "reveal",
+              "quick"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "short",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "wizard"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickem",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickAFew",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          }
+        ]
+      },
+      {
+        "id": "mma/ufc",
+        "sport": "mma",
+        "games": [
+          {
+            "id": "season",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "reveal",
+              "quick"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "short",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "wizard"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickem",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          }
+        ]
+      },
+      {
+        "id": "mma/pfl",
+        "sport": "mma",
+        "games": [
+          {
+            "id": "season",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "reveal",
+              "quick"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "short",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "wizard"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickem",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          }
+        ]
+      },
+      {
+        "id": "mma/lfa",
+        "sport": "mma",
+        "games": [
+          {
+            "id": "season",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "reveal",
+              "quick"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "short",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "wizard"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickem",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          }
+        ]
+      },
+      {
+        "id": "tennis/atp",
+        "sport": "tennis",
+        "games": [
+          {
+            "id": "season",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "reveal",
+              "quick"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "short",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "wizard"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickem",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "bracket",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          }
+        ]
+      },
+      {
+        "id": "tennis/wta",
+        "sport": "tennis",
+        "games": [
+          {
+            "id": "season",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "reveal",
+              "quick"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "short",
+            "type": "active-roster",
+            "fixture": "legacy-generator-connected",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail",
+              "wizard"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "pickem",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          },
+          {
+            "id": "bracket",
+            "type": "questions",
+            "fixture": "adapter-missing",
+            "declaredSurfaces": [
+              "full",
+              "mini",
+              "detail"
+            ],
+            "rendering": "not-verified-by-inventory",
+            "interaction": "not-verified-by-inventory"
+          }
+        ]
+      }
+    ]
+  },
+  "counts": {
+    "engineFamilies": 8,
+    "showStartingBases": 8,
+    "showFixtureRecipes": 5,
+    "sportContexts": 30,
+    "sportRecipeCombinations": 94
+  },
+  "examples": [
+    {
+      "file": "tests/fixtures/gameplay-explorer/legacy-lineup-v1.json",
+      "hash": "97a85461901b99fa6b4506bf321a1b8e4965bc7bc7c531b172fb207d0c9172a5",
+      "specHash": "4f2bf484d6358c89fbf5d84b418fe4f8c931faae7f8aa5568a1e8dc47e5dcef7",
+      "stateHash": "432567d9b699d1a9919231d298f62c4ba9aea834604a901c081bd99252216de0",
+      "config": {
+        "seed": 42,
+        "players": 2,
+        "starters": 1,
+        "bench": 1,
+        "history": 2,
+        "labels": "normal",
+        "images": "real",
+        "status": "due",
+        "viewer": 0,
+        "pace": "friend-behind",
+        "timing": "own-pace",
+        "context": "show",
+        "showGame": "lineup",
+        "sportGame": "season"
+      },
+      "legacyAdapterFingerprint": "6f008ac260a0aeddfdd84fe489987757848b7754b9c65924ec83c78c61b519ac",
+      "historicalEngineChecks": [
+        {
+          "name": "Context-valid GameSpec",
+          "pass": true
+        },
+        {
+          "name": "Engine preserves selected scoring, ranking and count mode",
+          "pass": true
+        },
+        {
+          "name": "Every rendered placement has a compiler mapping",
+          "pass": true
+        },
+        {
+          "name": "One viewer, exactly one own standings row",
+          "pass": true
+        },
+        {
+          "name": "No episode history beyond the viewing boundary",
+          "pass": true
+        },
+        {
+          "name": "Displayed totals reconcile with the engine",
+          "pass": true
+        },
+        {
+          "name": "Finite scores and complete player population",
+          "pass": true
+        }
+      ],
+      "sourceRequirements": [
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "action:lineup"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "check:compiler"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "check:engine"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "content:profile"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "dial:closes=start"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "dial:count=start"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "dial:get.by=draft"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "dial:get.order=blind"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "dial:get.own=shared"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "dial:pool.where=stillIn"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "dial:rank.by=total"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "dial:score.by=moments"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "fact:events"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "fact:ownership"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "fact:participants"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "fact:people"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "fact:results/moments"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "fact:viewing-boundaries"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:count/start"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:extras/bets/points"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:extras/calls"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:extras/draft/at"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:extras/draft/away"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:extras/draft/timer"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:extras/hideStarters"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:extras/join"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:extras/lateLock"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:extras/lockedDown"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:extras/waivers/autoFill"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:extras/waivers/feel"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:extras/waivers/freeAgency"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:extras/waivers/hours"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:extras/waivers/order"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:extras/waivers/replace"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:extras/waivers/short"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:extras/waivers/windows/every"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:extras/waivers/windows/schedule"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:extras/waivers/windows/swaps"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:get/each"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:pool/of"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:pool/where/stillIn"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:preset"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:score/points"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:span/from"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:span/to"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:spec"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "input:state-snapshot"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "place:lock:start"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "place:main:team"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "place:move:blind"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "place:move:lineup"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "place:move:waivers"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "place:table:points"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "runtime:scenario"
+        }
+      ],
+      "policy": "Frozen synthetic v1 input, not current UI or design evidence"
+    },
+    {
+      "file": "tests/fixtures/gameplay-explorer/legacy-nfl-v1.json",
+      "hash": "24a3fcdd1ab36cd7af23d2e3d7ab5887b16b4968e53271396e1e5596ee910b5f",
+      "specHash": "b0322b31fd878cb3b096950cba45f97c788aa2834ebbbe6df5199074a74336f8",
+      "stateHash": "b7d9fd0a050efcea4d00742dd56a843d931b8dd95c9fc32058791f6207f032d0",
+      "config": {
+        "seed": 42,
+        "players": 2,
+        "starters": 9,
+        "bench": 6,
+        "history": 1,
+        "labels": "normal",
+        "images": "real",
+        "status": "due",
+        "viewer": 0,
+        "pace": "together",
+        "timing": "own-pace",
+        "context": "football/nfl",
+        "showGame": "lineup",
+        "sportGame": "season"
+      },
+      "legacyAdapterFingerprint": "6f008ac260a0aeddfdd84fe489987757848b7754b9c65924ec83c78c61b519ac",
+      "historicalEngineChecks": [
+        {
+          "name": "Context-valid GameSpec",
+          "pass": true
+        },
+        {
+          "name": "Engine preserves selected scoring, ranking and count mode",
+          "pass": true
+        },
+        {
+          "name": "Every rendered placement has a compiler mapping",
+          "pass": true
+        },
+        {
+          "name": "One viewer, exactly one own standings row",
+          "pass": true
+        },
+        {
+          "name": "No episode history beyond the viewing boundary",
+          "pass": true
+        },
+        {
+          "name": "Displayed totals reconcile with the engine",
+          "pass": true
+        },
+        {
+          "name": "Finite scores and complete player population",
+          "pass": true
+        }
+      ],
+      "sourceRequirements": [
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "action:lineup"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "check:compiler"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "check:engine"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "content:profile"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "dial:closes=weekly"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "dial:count=start"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "dial:get.by=draft"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "dial:get.order=snake"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "dial:get.own=exclusive"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "dial:rank.by=matchups"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "dial:score.by=stats"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "fact:events"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "fact:ownership"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "fact:participants"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "fact:people"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "fact:results/stats"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "fact:viewing-boundaries"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:count/start"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:extras/bets"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:extras/calls"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:extras/draft/at"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:extras/draft/away"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:extras/draft/timer"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:extras/hideStarters"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:extras/join"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:extras/lateLock"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:extras/lockedDown"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:extras/waivers/autoFill"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:extras/waivers/feel"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:extras/waivers/freeAgency"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:extras/waivers/hours"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:extras/waivers/order"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:extras/waivers/replace"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:extras/waivers/short"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:extras/waivers/windows/every"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:extras/waivers/windows/schedule"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:extras/waivers/windows/swaps"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:get/each"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:pool/of"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:pool/where"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:preset"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:score/points/2PT"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:score/points/DSTBLK"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:score/points/DSTFR"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:score/points/DSTINT"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:score/points/DSTSACK"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:score/points/DSTSAF"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:score/points/DSTTD"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:score/points/FGM0"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:score/points/FGM20"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:score/points/FGM30"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:score/points/FGM40"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:score/points/FGM50"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:score/points/FRTD"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:score/points/FUML"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:score/points/INT"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:score/points/PA0"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:score/points/PA1_6"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:score/points/PA14_20"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:score/points/PA21_27"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:score/points/PA28_34"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:score/points/PA35"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:score/points/PA7_13"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:score/points/PTD"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:score/points/PYDS"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:score/points/REC"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:score/points/RECTD"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:score/points/RECYDS"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:score/points/RETTD"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:score/points/RTD"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:score/points/RYDS"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:score/points/XPM"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:span/from"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:span/to"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:spec"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "input:state-snapshot"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "place:badge:taken"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "place:lock:weekly"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "place:main:matchup"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "place:main:team"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "place:move:draft"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "place:move:lineup"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "place:move:waivers"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "place:table:points"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "place:table:wl"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "runtime:scenario"
+        }
+      ],
+      "policy": "Frozen synthetic v1 input, not current UI or design evidence"
+    },
+    {
+      "file": "tests/fixtures/gameplay-explorer/legacy-picks-v1.json",
+      "hash": "64a07d611f87b5939d16d1d688620846fa521906dc3d6eca77ed609a6175208d",
+      "specHash": "639b60b4c7fd805068f373ad69f4e3257ba865f5f4629d59eeffe1d31a25662e",
+      "stateHash": "ea7b700d5536d6b7ba7416780bb292ce94db06c386257299b133173639138d00",
+      "config": {
+        "seed": 42,
+        "players": 2,
+        "starters": 3,
+        "bench": 0,
+        "history": 1,
+        "labels": "normal",
+        "images": "real",
+        "status": "due",
+        "viewer": 0,
+        "pace": "together",
+        "timing": "own-pace",
+        "context": "show",
+        "showGame": "picks",
+        "sportGame": "season",
+        "picksPerRound": 3
+      },
+      "legacyAdapterFingerprint": "6f008ac260a0aeddfdd84fe489987757848b7754b9c65924ec83c78c61b519ac",
+      "historicalEngineChecks": [
+        {
+          "name": "Context-valid GameSpec",
+          "pass": true
+        },
+        {
+          "name": "Engine preserves selected scoring, ranking and count mode",
+          "pass": true
+        },
+        {
+          "name": "Every rendered placement has a compiler mapping",
+          "pass": true
+        },
+        {
+          "name": "One viewer, exactly one own standings row",
+          "pass": true
+        },
+        {
+          "name": "No episode history beyond the viewing boundary",
+          "pass": true
+        },
+        {
+          "name": "Displayed totals reconcile with the engine",
+          "pass": true
+        },
+        {
+          "name": "Finite scores and complete player population",
+          "pass": true
+        }
+      ],
+      "sourceRequirements": [
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "action:picks"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "check:compiler"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "check:engine"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "content:profile"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "dial:closes=start"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "dial:count=pick"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "dial:get.by=pick"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "dial:get.repeat=any"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "dial:pool.where=stillIn"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "dial:rank.by=total"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "dial:score.by=moments"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "fact:events"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "fact:participants"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "fact:people"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "fact:results/moments"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "fact:viewing-boundaries"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:count/pick"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:extras/bets"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:extras/calls"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:extras/draft"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:extras/hideStarters"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:extras/join"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:extras/lateLock"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:extras/lockedDown"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:extras/waivers"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:get/each"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:pool/of"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:pool/where/stillIn"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:preset"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:score/points"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:span/from"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:span/to"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "field:spec"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "input:state-snapshot"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "place:lock:start"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "place:main:ladder"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "place:main:picks"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "place:move:pick"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "place:table:points"
+        },
+        {
+          "scope": "game:00000000-0000-4000-8000-00000000b001",
+          "key": "runtime:scenario"
+        }
+      ],
+      "policy": "Frozen synthetic v1 input, not current UI or design evidence"
+    }
+  ],
+  "knownIssues": [
+    {
+      "id": "multi-pick-editor",
+      "component": "src/new/show/dock.tsx",
+      "status": "product-interaction-gap",
+      "description": "The engine/history accepts several picks; the shared quick editor selects one."
+    },
+    {
+      "id": "sports-event-totals",
+      "component": "src/lib/game/game-view.ts",
+      "status": "product-projection-gap",
+      "description": "Some athlete/history projections use event totals while standings use sports stats."
+    },
+    {
+      "id": "v2-runtime",
+      "status": "bench-work-pending",
+      "description": "The v2 document/analyzer do not yet generate or render arbitrary specs. The existing bench still runs the legacy pilot."
+    }
+  ],
+  "statusPolicy": {
+    "discovery": "not-evidence",
+    "engineChecks": "engine-only",
+    "fixtureInput": "not-a-UI-save",
+    "rendering": "per-surface",
+    "interaction": "per-trace",
+    "design": "scoped-review",
+    "userApproval": "separate"
+  }
+}

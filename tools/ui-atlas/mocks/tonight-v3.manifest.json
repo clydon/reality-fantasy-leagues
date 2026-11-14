@@ -1,0 +1,23 @@
+{
+  "version": "V3",
+  "frozenOn": "2026-11-11",
+  "note": "Historical per-game reveal proposal; superseded by all-game episode reveal in V4",
+  "files": [
+    {
+      "file": "tools/ui-atlas/mocks/tonight-v3.html",
+      "sha256": "7ceffe5f68075bf90e2eb5076ea064c6658e8d3575bb997125f7b8831b44a34f"
+    },
+    {
+      "file": "tools/ui-atlas/mocks/tonight-v3.css",
+      "sha256": "97fefe32e98553b3e40ae3d0a297ba8ad6bc9388b623628fb647c784961c1f29"
+    },
+    {
+      "file": "tools/ui-atlas/mocks/tonight-v3.js",
+      "sha256": "9321a2e5b5086f2e7c9204cad92b5e4b7106e55330659a00bee49d569c2cbaa8"
+    },
+    {
+      "file": "tools/ui-atlas/mocks/tonight-v3-results.js",
+      "sha256": "8aaacb418dfe4e19b4bad78a2be9ab4b9c4abad5e9f7e8dbefe7d7b4369be1f4"
+    }
+  ]
+}

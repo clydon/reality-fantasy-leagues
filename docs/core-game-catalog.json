@@ -1,0 +1,1610 @@
+{
+  "schemaVersion": 1,
+  "scope": "Core structures; compatible combinations still require show/sport context validation.",
+  "counts": {
+    "engineFamilies": 8,
+    "namedPresets": 5,
+    "wizardBases": 8,
+    "pagePatterns": 15,
+    "answerControls": 16,
+    "rankModes": 9,
+    "randomizerTwists": 31,
+    "sportDefaultFiles": 9,
+    "sportBaseDeclarations": 49,
+    "sportLeagueDeclarations": 11
+  },
+  "families": [
+    {
+      "id": "classic-draft",
+      "name": "Outlast / placement draft",
+      "description": "A drafted team scored by placement; supports reversed placement and compatible draft/ranking modifiers."
+    },
+    {
+      "id": "active-roster",
+      "name": "Lineups, best ball and scored rosters",
+      "description": "Drafted moment- or sports-stat scoring: selected starters, automatically selected best N, or a whole sports roster. Also the home for compatible objectives, captain, category and market variants."
+    },
+    {
+      "id": "pickem",
+      "name": "Survival pools and weekly participant picks",
+      "description": "One survival pick per episode, or one/multiple fresh picks scored by show moments. Lives, streaks and points apply only where their spec is compatible."
+    },
+    {
+      "id": "weekly-calls",
+      "name": "Weekly Calls",
+      "description": "The show-specific recurring calls, counted by their specialized grading flow."
+    },
+    {
+      "id": "weekly-bingo",
+      "name": "Weekly Bingo",
+      "description": "Episode cards graded by completed bingo lines."
+    },
+    {
+      "id": "questions",
+      "name": "Prediction / answer games",
+      "description": "Arbitrary compatible question sheets, including sports winner/slate picks, brackets, trivia, confidence/chip/pair controls and player-built tickets."
+    },
+    {
+      "id": "stages",
+      "name": "Multi-stage / hybrid games",
+      "description": "Compose supported child games sequentially or alongside each other, with overall scoring; compatible stage rules can follow format changes or other seasons/shows."
+    },
+    {
+      "id": "squares",
+      "name": "Sports squares",
+      "description": "Hold squares on a two-team score-digit grid; the relevant period/halftime/final score pays the winning square."
+    }
+  ],
+  "presets": [
+    "outlast",
+    "weekly-lineup",
+    "survival-pool",
+    "weekly-calls",
+    "weekly-bingo"
+  ],
+  "wizardBases": [
+    {
+      "id": "lineup",
+      "base": "lineup",
+      "name": "Weekly Lineup",
+      "description": "Draft a roster and choose the starters that count each episode."
+    },
+    {
+      "id": "bestball",
+      "base": "best-ball",
+      "name": "Best Ball",
+      "description": "Draft a roster; the engine automatically counts the best N each episode. No manual lineup."
+    },
+    {
+      "id": "outlast",
+      "base": "outlast",
+      "name": "Outlast",
+      "description": "Draft a team; every holding scores by how long it lasts. Reversed placement scoring is an optional variation."
+    },
+    {
+      "id": "predictions",
+      "base": "questions",
+      "name": "Prediction Sheet",
+      "description": "Answer a configurable sheet of predictions; questions can use any compatible answer/settlement controls."
+    },
+    {
+      "id": "picks",
+      "base": "picks",
+      "name": "Weekly Picks",
+      "description": "Pick one or several participants afresh each episode and score what they do. This is distinct from drafting a roster."
+    },
+    {
+      "id": "pool",
+      "base": "pool",
+      "name": "Survival Pool",
+      "description": "Pick one participant per episode to survive or meet the game’s scoring condition; track a streak, points or lives."
+    },
+    {
+      "id": "calls",
+      "base": "calls",
+      "name": "Weekly Calls",
+      "description": "Play the show’s specialized recurring two-call format. This is distinct from arbitrary prediction questions."
+    },
+    {
+      "id": "bingo",
+      "base": "bingo",
+      "name": "Weekly Bingo",
+      "description": "Play an episode bingo card; completed lines score."
+    }
+  ],
+  "sports": [
+    {
+      "sport": "baseball",
+      "league": null,
+      "id": "season",
+      "name": "Season roster / lineup league",
+      "on": null,
+      "type": "active-roster",
+      "main": "matchup",
+      "count": {
+        "start": 18
+      },
+      "score": "stats",
+      "rank": "matchups",
+      "controls": [],
+      "about": "A season-long league: draft a full roster, set a daily lineup, play someone head to head each week."
+    },
+    {
+      "sport": "baseball",
+      "league": null,
+      "id": "short",
+      "name": "Short draft / whole-roster game",
+      "on": null,
+      "type": "active-roster",
+      "main": "team",
+      "count": {
+        "all": true
+      },
+      "score": "stats",
+      "rank": "total",
+      "controls": [],
+      "about": "One game, a series or a team's next few: everyone drafts a few players, every one of them scores, most points wins."
+    },
+    {
+      "sport": "baseball",
+      "league": null,
+      "id": "pickem",
+      "name": "Winner / sports pick’em predictions",
+      "on": null,
+      "type": "questions",
+      "main": "slate",
+      "count": null,
+      "score": "answers",
+      "rank": "total",
+      "controls": [
+        "side"
+      ],
+      "about": "Each game, before it starts: who wins? A point for each one right, most points wins (a tie counts for nobody)."
+    },
+    {
+      "sport": "baseball",
+      "league": null,
+      "id": "pickAFew",
+      "name": "Pick several athletes in a stat prediction",
+      "on": null,
+      "type": "questions",
+      "main": "ballot",
+      "count": null,
+      "score": "answers",
+      "rank": "total",
+      "controls": [
+        "person"
+      ],
+      "about": "Each game, before it starts: pick three players. 3 points for each one who has the most total bases in the game (tied, each of them), most points wins."
+    },
+    {
+      "sport": "baseball",
+      "league": null,
+      "id": "categories",
+      "name": "Head-to-head categories",
+      "on": null,
+      "type": "active-roster",
+      "main": "categories",
+      "count": {
+        "start": 18
+      },
+      "score": "stats",
+      "rank": "categories",
+      "controls": [],
+      "about": "A season-long league by categories: draft a full roster, set a daily lineup, play someone head to head in Yahoo's 5x5's ten categories: each category you win is a win."
+    },
+    {
+      "sport": "baseball",
+      "league": null,
+      "id": "roto",
+      "name": "Rotisserie categories",
+      "on": null,
+      "type": "active-roster",
+      "main": "categories",
+      "count": {
+        "start": 18
+      },
+      "score": "stats",
+      "rank": "roto",
+      "controls": [],
+      "about": "A season-long league, roto-style: draft a full roster, set a daily lineup; each of Yahoo's 5x5's ten categories ranks everyone over the season, points by rank, most points wins."
+    },
+    {
+      "sport": "baseball",
+      "league": null,
+      "id": "bestBall",
+      "name": "Sports best ball",
+      "on": null,
+      "type": "active-roster",
+      "main": "team",
+      "count": {
+        "best": 18
+      },
+      "score": "stats",
+      "rank": "total",
+      "controls": [],
+      "about": "Best ball: draft a full roster and never set a lineup: each game, your best eighteen count, most points wins."
+    },
+    {
+      "sport": "baseball",
+      "league": "mlb",
+      "id": "bracket",
+      "name": "Tournament / playoff bracket",
+      "on": "playoffs",
+      "type": "questions",
+      "main": "ballot",
+      "count": null,
+      "score": "answers",
+      "rank": "total",
+      "controls": [
+        "bracket"
+      ],
+      "about": "A playoff bracket: before the MLB playoffs start, pick who wins every series, round by round to the World Series. A point for each one right in the first round, doubling each round after it; most points wins."
+    },
+    {
+      "sport": "basketball",
+      "league": null,
+      "id": "season",
+      "name": "Season roster / lineup league",
+      "on": null,
+      "type": "active-roster",
+      "main": "matchup",
+      "count": {
+        "start": 10
+      },
+      "score": "stats",
+      "rank": "matchups",
+      "controls": [],
+      "about": "A season-long league: draft a full roster, set a daily lineup, play someone head to head each week."
+    },
+    {
+      "sport": "basketball",
+      "league": null,
+      "id": "short",
+      "name": "Short draft / whole-roster game",
+      "on": null,
+      "type": "active-roster",
+      "main": "team",
+      "count": {
+        "all": true
+      },
+      "score": "stats",
+      "rank": "total",
+      "controls": [],
+      "about": "One game, a series or a team's next few: everyone drafts a few players, every one of them scores, most points wins."
+    },
+    {
+      "sport": "basketball",
+      "league": null,
+      "id": "pickem",
+      "name": "Winner / sports pick’em predictions",
+      "on": null,
+      "type": "questions",
+      "main": "slate",
+      "count": null,
+      "score": "answers",
+      "rank": "total",
+      "controls": [
+        "side"
+      ],
+      "about": "Each game, before it starts: who wins? A point for each one right, most points wins (a tie counts for nobody)."
+    },
+    {
+      "sport": "basketball",
+      "league": null,
+      "id": "pickAFew",
+      "name": "Pick several athletes in a stat prediction",
+      "on": null,
+      "type": "questions",
+      "main": "ballot",
+      "count": null,
+      "score": "answers",
+      "rank": "total",
+      "controls": [
+        "person"
+      ],
+      "about": "Each game, before it starts: pick three players. 3 points for each one who has the most points in the game (tied, each of them), most points wins."
+    },
+    {
+      "sport": "basketball",
+      "league": null,
+      "id": "categories",
+      "name": "Head-to-head categories",
+      "on": null,
+      "type": "active-roster",
+      "main": "categories",
+      "count": {
+        "start": 10
+      },
+      "score": "stats",
+      "rank": "categories",
+      "controls": [],
+      "about": "A season-long league by categories: draft a full roster, set a daily lineup, play someone head to head in Yahoo's nine categories: each category you win is a win."
+    },
+    {
+      "sport": "basketball",
+      "league": null,
+      "id": "roto",
+      "name": "Rotisserie categories",
+      "on": null,
+      "type": "active-roster",
+      "main": "categories",
+      "count": {
+        "start": 10
+      },
+      "score": "stats",
+      "rank": "roto",
+      "controls": [],
+      "about": "A season-long league, roto-style: draft a full roster, set a daily lineup; each of Yahoo's nine categories ranks everyone over the season, points by rank, most points wins."
+    },
+    {
+      "sport": "basketball",
+      "league": null,
+      "id": "bestBall",
+      "name": "Sports best ball",
+      "on": null,
+      "type": "active-roster",
+      "main": "team",
+      "count": {
+        "best": 10
+      },
+      "score": "stats",
+      "rank": "total",
+      "controls": [],
+      "about": "Best ball: draft a full roster and never set a lineup: each game, your best ten count, most points wins."
+    },
+    {
+      "sport": "basketball",
+      "league": null,
+      "id": "squares",
+      "name": "Sports squares",
+      "on": null,
+      "type": "squares",
+      "main": "board",
+      "count": null,
+      "score": "squares",
+      "rank": "total",
+      "controls": [],
+      "about": "Squares on each game: take squares on a 10-by-10 grid of the two scores' last digits, the digits drawn at random once everyone has theirs. The square of the score wins a point at the end of each of the first three quarters and two for the final score, most points wins."
+    },
+    {
+      "sport": "basketball",
+      "league": "mens-college-basketball",
+      "id": "squares",
+      "name": "Sports squares",
+      "on": null,
+      "type": "squares",
+      "main": "board",
+      "count": null,
+      "score": "squares",
+      "rank": "total",
+      "controls": [],
+      "about": "Squares on each game: take squares on a 10-by-10 grid of the two scores' last digits, the digits drawn at random once everyone has theirs. The square of the score wins a point at halftime and two for the final score, most points wins."
+    },
+    {
+      "sport": "basketball",
+      "league": "nba",
+      "id": "bracket",
+      "name": "Tournament / playoff bracket",
+      "on": "playoffs",
+      "type": "questions",
+      "main": "ballot",
+      "count": null,
+      "score": "answers",
+      "rank": "total",
+      "controls": [
+        "bracket"
+      ],
+      "about": "A playoff bracket: before the NBA playoffs start, pick who wins every series, round by round to the Finals. A point for each one right in the first round, doubling each round after it; most points wins."
+    },
+    {
+      "sport": "basketball",
+      "league": "wnba",
+      "id": "bracket",
+      "name": "Tournament / playoff bracket",
+      "on": "playoffs",
+      "type": "questions",
+      "main": "ballot",
+      "count": null,
+      "score": "answers",
+      "rank": "total",
+      "controls": [
+        "bracket"
+      ],
+      "about": "A playoff bracket: before the WNBA playoffs start, pick who wins every series, round by round to the Finals. A point for each one right in the first round, doubling each round after it; most points wins."
+    },
+    {
+      "sport": "football",
+      "league": null,
+      "id": "season",
+      "name": "Season roster / lineup league",
+      "on": null,
+      "type": "active-roster",
+      "main": "matchup",
+      "count": {
+        "start": 9
+      },
+      "score": "stats",
+      "rank": "matchups",
+      "controls": [],
+      "about": "A season-long league: draft a full roster, set a lineup each week, play someone head to head each week."
+    },
+    {
+      "sport": "football",
+      "league": null,
+      "id": "short",
+      "name": "Short draft / whole-roster game",
+      "on": null,
+      "type": "active-roster",
+      "main": "team",
+      "count": {
+        "all": true
+      },
+      "score": "stats",
+      "rank": "total",
+      "controls": [],
+      "about": "One game, a team's next few or a week's slate: everyone drafts a few players, every one of them scores, most points wins."
+    },
+    {
+      "sport": "football",
+      "league": null,
+      "id": "pickem",
+      "name": "Winner / sports pick’em predictions",
+      "on": null,
+      "type": "questions",
+      "main": "slate",
+      "count": null,
+      "score": "answers",
+      "rank": "total",
+      "controls": [
+        "side"
+      ],
+      "about": "Each game, before it starts: who wins? A point for each one right, most points wins (a tie counts for nobody)."
+    },
+    {
+      "sport": "football",
+      "league": null,
+      "id": "pickAFew",
+      "name": "Pick several athletes in a stat prediction",
+      "on": null,
+      "type": "questions",
+      "main": "ballot",
+      "count": null,
+      "score": "answers",
+      "rank": "total",
+      "controls": [
+        "person"
+      ],
+      "about": "Each game, before it starts: pick three players. 3 points for each one who has the most receiving yards in the game (tied, each of them), most points wins."
+    },
+    {
+      "sport": "football",
+      "league": null,
+      "id": "bestBall",
+      "name": "Sports best ball",
+      "on": null,
+      "type": "active-roster",
+      "main": "team",
+      "count": {
+        "best": 9
+      },
+      "score": "stats",
+      "rank": "total",
+      "controls": [],
+      "about": "Best ball: draft a full roster and never set a lineup: each game, your best nine count, most points wins."
+    },
+    {
+      "sport": "football",
+      "league": null,
+      "id": "squares",
+      "name": "Sports squares",
+      "on": null,
+      "type": "squares",
+      "main": "board",
+      "count": null,
+      "score": "squares",
+      "rank": "total",
+      "controls": [],
+      "about": "Squares on each game (the Super Bowl's party game): take squares on a 10-by-10 grid of the two scores' last digits, the digits drawn at random once everyone has theirs. The square of the score wins a point at the end of each of the first three quarters and two for the final score, most points wins."
+    },
+    {
+      "sport": "football",
+      "league": "nfl",
+      "id": "bracket",
+      "name": "Tournament / playoff bracket",
+      "on": "playoffs",
+      "type": "questions",
+      "main": "ballot",
+      "count": null,
+      "score": "answers",
+      "rank": "total",
+      "controls": [
+        "bracket"
+      ],
+      "about": "A playoff bracket: before the NFL playoffs start, pick who wins every game, round by round to the Super Bowl. A point for each one right in the first round, doubling each round after it; most points wins."
+    },
+    {
+      "sport": "golf",
+      "league": null,
+      "id": "season",
+      "name": "Season roster / lineup league",
+      "on": null,
+      "type": "active-roster",
+      "main": "team",
+      "count": {
+        "start": 6
+      },
+      "score": "stats",
+      "rank": "total",
+      "controls": [],
+      "about": "A season of tournaments: draft six golfers, all six play each tournament, most points over the season wins."
+    },
+    {
+      "sport": "golf",
+      "league": null,
+      "id": "short",
+      "name": "Short draft / whole-roster game",
+      "on": null,
+      "type": "active-roster",
+      "main": "team",
+      "count": {
+        "all": true
+      },
+      "score": "stats",
+      "rank": "total",
+      "controls": [],
+      "about": "One tournament: everyone drafts a few golfers, every one of them scores, most points wins."
+    },
+    {
+      "sport": "golf",
+      "league": null,
+      "id": "pickem",
+      "name": "Winner / sports pick’em predictions",
+      "on": null,
+      "type": "questions",
+      "main": "ballot",
+      "count": null,
+      "score": "answers",
+      "rank": "total",
+      "controls": [
+        "person"
+      ],
+      "about": "Each tournament, before it starts: who wins? 5 points if you're right, most points wins."
+    },
+    {
+      "sport": "golf",
+      "league": null,
+      "id": "pickAFew",
+      "name": "Pick several athletes in a stat prediction",
+      "on": null,
+      "type": "questions",
+      "main": "ballot",
+      "count": null,
+      "score": "answers",
+      "rank": "total",
+      "controls": [
+        "person"
+      ],
+      "about": "Each tournament, before it starts: pick three golfers. 5 points if one of them wins, most points wins."
+    },
+    {
+      "sport": "golf",
+      "league": null,
+      "id": "bestBall",
+      "name": "Sports best ball",
+      "on": null,
+      "type": "active-roster",
+      "main": "team",
+      "count": {
+        "best": 4
+      },
+      "score": "stats",
+      "rank": "total",
+      "controls": [],
+      "about": "Best ball: draft a full roster and never set a lineup: each event, your best four count, most points wins."
+    },
+    {
+      "sport": "hockey",
+      "league": null,
+      "id": "season",
+      "name": "Season roster / lineup league",
+      "on": null,
+      "type": "active-roster",
+      "main": "matchup",
+      "count": {
+        "start": 12
+      },
+      "score": "stats",
+      "rank": "matchups",
+      "controls": [],
+      "about": "A season-long league: draft a full roster, set a daily lineup, play someone head to head each week."
+    },
+    {
+      "sport": "hockey",
+      "league": null,
+      "id": "short",
+      "name": "Short draft / whole-roster game",
+      "on": null,
+      "type": "active-roster",
+      "main": "team",
+      "count": {
+        "all": true
+      },
+      "score": "stats",
+      "rank": "total",
+      "controls": [],
+      "about": "One game, a series or a team's next few: everyone drafts a few players, every one of them scores, most points wins."
+    },
+    {
+      "sport": "hockey",
+      "league": null,
+      "id": "pickem",
+      "name": "Winner / sports pick’em predictions",
+      "on": null,
+      "type": "questions",
+      "main": "slate",
+      "count": null,
+      "score": "answers",
+      "rank": "total",
+      "controls": [
+        "side"
+      ],
+      "about": "Each game, before it starts: who wins? A point for each one right, most points wins (a tie counts for nobody)."
+    },
+    {
+      "sport": "hockey",
+      "league": null,
+      "id": "pickAFew",
+      "name": "Pick several athletes in a stat prediction",
+      "on": null,
+      "type": "questions",
+      "main": "ballot",
+      "count": null,
+      "score": "answers",
+      "rank": "total",
+      "controls": [
+        "person"
+      ],
+      "about": "Each game, before it starts: pick three players. 3 points for each one who has the most points (goals and assists) in the game (tied, each of them), most points wins."
+    },
+    {
+      "sport": "hockey",
+      "league": null,
+      "id": "categories",
+      "name": "Head-to-head categories",
+      "on": null,
+      "type": "active-roster",
+      "main": "categories",
+      "count": {
+        "start": 12
+      },
+      "score": "stats",
+      "rank": "categories",
+      "controls": [],
+      "about": "A season-long league by categories: draft a full roster, set a daily lineup, play someone head to head in Yahoo's ten categories: each category you win is a win."
+    },
+    {
+      "sport": "hockey",
+      "league": null,
+      "id": "roto",
+      "name": "Rotisserie categories",
+      "on": null,
+      "type": "active-roster",
+      "main": "categories",
+      "count": {
+        "start": 12
+      },
+      "score": "stats",
+      "rank": "roto",
+      "controls": [],
+      "about": "A season-long league, roto-style: draft a full roster, set a daily lineup; each of Yahoo's ten categories ranks everyone over the season, points by rank, most points wins."
+    },
+    {
+      "sport": "hockey",
+      "league": null,
+      "id": "bestBall",
+      "name": "Sports best ball",
+      "on": null,
+      "type": "active-roster",
+      "main": "team",
+      "count": {
+        "best": 12
+      },
+      "score": "stats",
+      "rank": "total",
+      "controls": [],
+      "about": "Best ball: draft a full roster and never set a lineup: each game, your best twelve count, most points wins."
+    },
+    {
+      "sport": "hockey",
+      "league": "nhl",
+      "id": "bracket",
+      "name": "Tournament / playoff bracket",
+      "on": "playoffs",
+      "type": "questions",
+      "main": "ballot",
+      "count": null,
+      "score": "answers",
+      "rank": "total",
+      "controls": [
+        "bracket"
+      ],
+      "about": "A playoff bracket: before the NHL playoffs start, pick who wins every series, round by round to the Stanley Cup Final. A point for each one right in the first round, doubling each round after it; most points wins."
+    },
+    {
+      "sport": "mma",
+      "league": null,
+      "id": "season",
+      "name": "Season roster / lineup league",
+      "on": null,
+      "type": "active-roster",
+      "main": "team",
+      "count": {
+        "start": 6
+      },
+      "score": "stats",
+      "rank": "total",
+      "controls": [],
+      "about": "A season of cards: draft 6 fighters, each scores on the nights they fight, most points over the season wins."
+    },
+    {
+      "sport": "mma",
+      "league": null,
+      "id": "short",
+      "name": "Short draft / whole-roster game",
+      "on": null,
+      "type": "active-roster",
+      "main": "team",
+      "count": {
+        "all": true
+      },
+      "score": "stats",
+      "rank": "total",
+      "controls": [],
+      "about": "One card: everyone drafts a few fighters, every one of them scores, most points wins."
+    },
+    {
+      "sport": "mma",
+      "league": null,
+      "id": "pickem",
+      "name": "Winner / sports pick’em predictions",
+      "on": null,
+      "type": "questions",
+      "main": "ballot",
+      "count": null,
+      "score": "answers",
+      "rank": "total",
+      "controls": [
+        "person"
+      ],
+      "about": "Each card, before it starts: who wins the main event? 5 points if you're right (a draw or no contest counts for nobody), most points wins."
+    },
+    {
+      "sport": "racing",
+      "league": null,
+      "id": "season",
+      "name": "Season roster / lineup league",
+      "on": null,
+      "type": "active-roster",
+      "main": "team",
+      "count": {
+        "start": 6
+      },
+      "score": "stats",
+      "rank": "total",
+      "controls": [],
+      "about": "A season of races: draft 6 drivers, all 6 score each race, most points over the season wins."
+    },
+    {
+      "sport": "racing",
+      "league": null,
+      "id": "short",
+      "name": "Short draft / whole-roster game",
+      "on": null,
+      "type": "active-roster",
+      "main": "team",
+      "count": {
+        "all": true
+      },
+      "score": "stats",
+      "rank": "total",
+      "controls": [],
+      "about": "One race: everyone drafts a few drivers, every one of them scores, most points wins."
+    },
+    {
+      "sport": "racing",
+      "league": null,
+      "id": "pickem",
+      "name": "Winner / sports pick’em predictions",
+      "on": null,
+      "type": "questions",
+      "main": "ballot",
+      "count": null,
+      "score": "answers",
+      "rank": "total",
+      "controls": [
+        "person"
+      ],
+      "about": "Each race weekend, before it starts: who wins? 5 points if you're right, most points wins."
+    },
+    {
+      "sport": "racing",
+      "league": null,
+      "id": "pickAFew",
+      "name": "Pick several athletes in a stat prediction",
+      "on": null,
+      "type": "questions",
+      "main": "ballot",
+      "count": null,
+      "score": "answers",
+      "rank": "total",
+      "controls": [
+        "person"
+      ],
+      "about": "Each race weekend, before it starts: pick three drivers. 5 points if one of them wins, most points wins."
+    },
+    {
+      "sport": "racing",
+      "league": "f1",
+      "id": "season",
+      "name": "Season roster / lineup league",
+      "on": null,
+      "type": "active-roster",
+      "main": "team",
+      "count": {
+        "start": 5
+      },
+      "score": "stats",
+      "rank": "total",
+      "controls": [],
+      "about": "A season of races: draft 5 drivers, all 5 score each race weekend, most points over the season wins."
+    },
+    {
+      "sport": "racing",
+      "league": "f1",
+      "id": "short",
+      "name": "Short draft / whole-roster game",
+      "on": null,
+      "type": "active-roster",
+      "main": "team",
+      "count": {
+        "all": true
+      },
+      "score": "stats",
+      "rank": "total",
+      "controls": [],
+      "about": "One race weekend: everyone drafts a few drivers, every one of them scores, most points wins."
+    },
+    {
+      "sport": "racing",
+      "league": "irl",
+      "id": "season",
+      "name": "Season roster / lineup league",
+      "on": null,
+      "type": "active-roster",
+      "main": "team",
+      "count": {
+        "start": 6
+      },
+      "score": "stats",
+      "rank": "total",
+      "controls": [],
+      "about": "A season of races: draft 6 drivers, all 6 score each race, most points over the season wins."
+    },
+    {
+      "sport": "racing",
+      "league": "irl",
+      "id": "short",
+      "name": "Short draft / whole-roster game",
+      "on": null,
+      "type": "active-roster",
+      "main": "team",
+      "count": {
+        "all": true
+      },
+      "score": "stats",
+      "rank": "total",
+      "controls": [],
+      "about": "One race: everyone drafts a few drivers, every one of them scores, most points wins."
+    },
+    {
+      "sport": "soccer",
+      "league": null,
+      "id": "season",
+      "name": "Season roster / lineup league",
+      "on": null,
+      "type": "active-roster",
+      "main": "matchup",
+      "count": {
+        "start": 11
+      },
+      "score": "stats",
+      "rank": "matchups",
+      "controls": [],
+      "about": "A season-long league, as FPL Draft plays: draft a squad of 15, start 11 each gameweek, play someone head to head."
+    },
+    {
+      "sport": "soccer",
+      "league": null,
+      "id": "short",
+      "name": "Short draft / whole-roster game",
+      "on": null,
+      "type": "active-roster",
+      "main": "team",
+      "count": {
+        "all": true
+      },
+      "score": "stats",
+      "rank": "total",
+      "controls": [],
+      "about": "One match, a cup tie or a team's next few: everyone drafts a few players, every one of them scores, most points wins."
+    },
+    {
+      "sport": "soccer",
+      "league": null,
+      "id": "pickem",
+      "name": "Winner / sports pick’em predictions",
+      "on": null,
+      "type": "questions",
+      "main": "slate",
+      "count": null,
+      "score": "answers",
+      "rank": "total",
+      "controls": [
+        "side"
+      ],
+      "about": "Each match, before it starts: who wins, or is it a draw? A point for each one right, most points wins."
+    },
+    {
+      "sport": "soccer",
+      "league": null,
+      "id": "pickAFew",
+      "name": "Pick several athletes in a stat prediction",
+      "on": null,
+      "type": "questions",
+      "main": "ballot",
+      "count": null,
+      "score": "answers",
+      "rank": "total",
+      "controls": [
+        "person"
+      ],
+      "about": "Each match, before it starts: pick three players. 3 points for each one who scores the most goals in it (tied, each of them), most points wins."
+    },
+    {
+      "sport": "soccer",
+      "league": null,
+      "id": "bestBall",
+      "name": "Sports best ball",
+      "on": null,
+      "type": "active-roster",
+      "main": "team",
+      "count": {
+        "best": 11
+      },
+      "score": "stats",
+      "rank": "total",
+      "controls": [],
+      "about": "Best ball: draft a full roster and never set a lineup: each game, your best eleven count, most points wins."
+    },
+    {
+      "sport": "tennis",
+      "league": null,
+      "id": "season",
+      "name": "Season roster / lineup league",
+      "on": null,
+      "type": "active-roster",
+      "main": "team",
+      "count": {
+        "start": 6
+      },
+      "score": "stats",
+      "rank": "total",
+      "controls": [],
+      "about": "A season of events: draft 6 players, each scores in every match they play, most points over the season wins."
+    },
+    {
+      "sport": "tennis",
+      "league": null,
+      "id": "short",
+      "name": "Short draft / whole-roster game",
+      "on": null,
+      "type": "active-roster",
+      "main": "team",
+      "count": {
+        "all": true
+      },
+      "score": "stats",
+      "rank": "total",
+      "controls": [],
+      "about": "One event: everyone drafts a few players, every one of them scores in each match they play, most points wins."
+    },
+    {
+      "sport": "tennis",
+      "league": null,
+      "id": "pickem",
+      "name": "Winner / sports pick’em predictions",
+      "on": null,
+      "type": "questions",
+      "main": "ballot",
+      "count": null,
+      "score": "answers",
+      "rank": "total",
+      "controls": [
+        "person"
+      ],
+      "about": "Each tournament, before it starts: who wins the final? 5 points if you're right (a draw or no contest counts for nobody), most points wins."
+    },
+    {
+      "sport": "tennis",
+      "league": null,
+      "id": "bracket",
+      "name": "Tournament / playoff bracket",
+      "on": null,
+      "type": "questions",
+      "main": "ballot",
+      "count": null,
+      "score": "answers",
+      "rank": "total",
+      "controls": [
+        "bracket"
+      ],
+      "about": "Each tournament, before it starts: pick the winner of every match of the men's singles draw, round by round to the final. A point for each right pick in the first round, doubling each round after it (64 for the champion of a Grand Slam's 128), most points wins."
+    },
+    {
+      "sport": "tennis",
+      "league": "wta",
+      "id": "bracket",
+      "name": "Tournament / playoff bracket",
+      "on": null,
+      "type": "questions",
+      "main": "ballot",
+      "count": null,
+      "score": "answers",
+      "rank": "total",
+      "controls": [
+        "bracket"
+      ],
+      "about": "Each tournament, before it starts: pick the winner of every match of the women's singles draw, round by round to the final. A point for each right pick in the first round, doubling each round after it (64 for the champion of a Grand Slam's 128), most points wins."
+    }
+  ],
+  "answerControls": [
+    {
+      "id": "person",
+      "name": "Pick participant(s)",
+      "status": "now"
+    },
+    {
+      "id": "group",
+      "name": "Pick group(s) / tribe(s) / team(s)",
+      "status": "now"
+    },
+    {
+      "id": "yesNo",
+      "name": "Yes / no",
+      "status": "now"
+    },
+    {
+      "id": "number",
+      "name": "Number prediction",
+      "status": "now"
+    },
+    {
+      "id": "overUnder",
+      "name": "Over / under a line",
+      "status": "now"
+    },
+    {
+      "id": "choice",
+      "name": "Choose a listed option",
+      "status": "now"
+    },
+    {
+      "id": "calls",
+      "name": "Specialized show calls",
+      "status": "now"
+    },
+    {
+      "id": "order",
+      "name": "Ordered predictions",
+      "status": "now"
+    },
+    {
+      "id": "confidence",
+      "name": "Confidence-ranked predictions",
+      "status": "now"
+    },
+    {
+      "id": "chips",
+      "name": "Spread chips over participants",
+      "status": "now"
+    },
+    {
+      "id": "split",
+      "name": "Split an allocation",
+      "status": "now"
+    },
+    {
+      "id": "pairs",
+      "name": "Pair / match participants",
+      "status": "now"
+    },
+    {
+      "id": "side",
+      "name": "Pick a sports matchup’s side",
+      "status": "now"
+    },
+    {
+      "id": "bracket",
+      "name": "Round-by-round bracket",
+      "status": "now"
+    },
+    {
+      "id": "trivia",
+      "name": "Trivia answers",
+      "status": "now"
+    },
+    {
+      "id": "ticket",
+      "name": "Build a multi-leg prediction ticket",
+      "status": "now"
+    }
+  ],
+  "pagePatterns": [
+    {
+      "id": "together",
+      "description": "Shared co-op outcome, lives and progress"
+    },
+    {
+      "id": "race",
+      "description": "Progress toward a points target"
+    },
+    {
+      "id": "matchup",
+      "description": "Head-to-head matchup and record"
+    },
+    {
+      "id": "categories",
+      "description": "Stat-category comparisons, head-to-head or roto"
+    },
+    {
+      "id": "worth",
+      "description": "Market holdings, prices, cash and total worth"
+    },
+    {
+      "id": "week",
+      "description": "Episode/week winners and weeks won"
+    },
+    {
+      "id": "board",
+      "description": "Sports squares grid and payouts"
+    },
+    {
+      "id": "card",
+      "description": "Bingo card and lines"
+    },
+    {
+      "id": "objectives",
+      "description": "Objectives hit / completed"
+    },
+    {
+      "id": "team",
+      "description": "Drafted roster, contributions and totals (Outlast, lineup, best ball or stats)"
+    },
+    {
+      "id": "picks",
+      "description": "Fresh participant picks scored by what they do"
+    },
+    {
+      "id": "ladder",
+      "description": "Survival picks, streak and/or remaining lives"
+    },
+    {
+      "id": "slate",
+      "description": "Predictions across a sports slate / matchup sides"
+    },
+    {
+      "id": "ballot",
+      "description": "Prediction or answer sheet"
+    },
+    {
+      "id": "stages",
+      "description": "Stage progress and overall results"
+    }
+  ],
+  "rankModes": [
+    {
+      "id": "total",
+      "name": "Most points"
+    },
+    {
+      "id": "streak",
+      "name": "Longest streak"
+    },
+    {
+      "id": "standing",
+      "name": "Last one standing / elimination ordering"
+    },
+    {
+      "id": "worth",
+      "name": "Cash plus current holding values"
+    },
+    {
+      "id": "coop",
+      "name": "The couch wins or loses together"
+    },
+    {
+      "id": "matchups",
+      "name": "Head-to-head wins / losses"
+    },
+    {
+      "id": "weeks",
+      "name": "Most episodes / weeks won"
+    },
+    {
+      "id": "categories",
+      "name": "Head-to-head stat categories"
+    },
+    {
+      "id": "roto",
+      "name": "Rank points across stat categories"
+    }
+  ],
+  "raceModifier": "rank.race",
+  "eliminationModifier": "rank.cut / score.lives / compatible bank elimination",
+  "randomizer": {
+    "bases": [
+      {
+        "id": "outlast",
+        "play": "draft"
+      },
+      {
+        "id": "lineup",
+        "play": "draft"
+      },
+      {
+        "id": "best-ball",
+        "play": "draft"
+      },
+      {
+        "id": "pool",
+        "play": "pick"
+      },
+      {
+        "id": "picks",
+        "play": "pick"
+      },
+      {
+        "id": "questions",
+        "play": "questions"
+      },
+      {
+        "id": "bingo",
+        "play": "card"
+      },
+      {
+        "id": "calls",
+        "play": "questions"
+      }
+    ],
+    "wins": [
+      "total",
+      "streak",
+      "standing",
+      "matchups",
+      "weeks",
+      "coop",
+      "race"
+    ],
+    "twists": [
+      {
+        "id": "captain",
+        "cost": 1
+      },
+      {
+        "id": "finale-double",
+        "cost": 1
+      },
+      {
+        "id": "first-double",
+        "cost": 1
+      },
+      {
+        "id": "reverse",
+        "cost": 1
+      },
+      {
+        "id": "draw",
+        "cost": 1
+      },
+      {
+        "id": "auction",
+        "cost": 2
+      },
+      {
+        "id": "finale-picks",
+        "cost": 1
+      },
+      {
+        "id": "boot-call",
+        "cost": 1
+      },
+      {
+        "id": "bounty",
+        "cost": 2
+      },
+      {
+        "id": "roles",
+        "cost": 2
+      },
+      {
+        "id": "top-twist",
+        "cost": 2
+      },
+      {
+        "id": "only",
+        "cost": 1
+      },
+      {
+        "id": "objectives",
+        "cost": 2
+      },
+      {
+        "id": "group-slot",
+        "cost": 2
+      },
+      {
+        "id": "spread",
+        "cost": 1
+      },
+      {
+        "id": "replacements",
+        "cost": 2
+      },
+      {
+        "id": "mulligan",
+        "cost": 1
+      },
+      {
+        "id": "second-pick",
+        "cost": 1
+      },
+      {
+        "id": "never-twice",
+        "cost": 1
+      },
+      {
+        "id": "buyback",
+        "cost": 1
+      },
+      {
+        "id": "split-pot",
+        "cost": 1
+      },
+      {
+        "id": "only-right",
+        "cost": 1
+      },
+      {
+        "id": "rollover",
+        "cost": 1
+      },
+      {
+        "id": "double-or-nothing",
+        "cost": 1
+      },
+      {
+        "id": "bank",
+        "cost": 2
+      },
+      {
+        "id": "parlay",
+        "cost": 2
+      },
+      {
+        "id": "beat-bot",
+        "cost": 1
+      },
+      {
+        "id": "majority",
+        "cost": 1
+      },
+      {
+        "id": "teams",
+        "cost": 1
+      },
+      {
+        "id": "redraft",
+        "cost": 2
+      },
+      {
+        "id": "trivia-too",
+        "cost": 1
+      }
+    ],
+    "lengths": [
+      "rest",
+      "one",
+      "few",
+      "half",
+      "phase",
+      "until-phase"
+    ],
+    "plays": [
+      "draft",
+      "pick",
+      "questions",
+      "card"
+    ],
+    "budget": 3,
+    "tries": 24
+  },
+  "futureVocabulary": [
+    {
+      "dial": "pool.where",
+      "value": "group",
+      "status": "later"
+    },
+    {
+      "dial": "ask.settle",
+      "value": "outside",
+      "status": "later"
+    },
+    {
+      "dial": "multiply.on",
+      "value": "streak",
+      "status": "later"
+    },
+    {
+      "dial": "multiply.on",
+      "value": "picked",
+      "status": "later"
+    },
+    {
+      "dial": "get.across.of",
+      "value": "gender",
+      "status": "later"
+    },
+    {
+      "dial": "get.budget.left",
+      "value": "bids",
+      "status": "later"
+    }
+  ],
+  "objectiveExample": {
+    "preset": "weekly-lineup",
+    "score": {
+      "by": "moments",
+      "hits": "objective",
+      "points": null
+    },
+    "rank": {
+      "by": "total"
+    },
+    "spec": 1,
+    "get": {
+      "by": "draft",
+      "each": 5,
+      "order": "blind",
+      "own": "shared"
+    },
+    "span": {
+      "from": 1,
+      "to": null
+    },
+    "pool": {
+      "of": "cast",
+      "where": {
+        "stillIn": true
+      }
+    },
+    "ask": [],
+    "closes": "start",
+    "count": {
+      "start": 3
+    },
+    "extras": {
+      "waivers": {
+        "feel": "balanced",
+        "replace": "never",
+        "short": null,
+        "windows": {
+          "schedule": "manual",
+          "every": 3,
+          "swaps": 0
+        },
+        "order": "rolling",
+        "hours": 24,
+        "freeAgency": true,
+        "autoFill": true
+      },
+      "bets": {
+        "points": 1
+      },
+      "calls": false,
+      "draft": {
+        "at": null,
+        "timer": 0,
+        "away": "wait"
+      },
+      "join": null,
+      "hideStarters": false,
+      "lockedDown": false,
+      "lateLock": null
+    }
+  },
+  "sources": [
+    {
+      "file": "src/lib/game/game-spec/schema.js",
+      "sha256": "2873d0e4d643f0175375ea49ec50ad3e537cd5d1d60bae039ae5f29001c2c858"
+    },
+    {
+      "file": "src/lib/game/game-spec/settings.js",
+      "sha256": "cd3d5252659ac820d654694bf0cc35852b2c76238eed7d06ff97c3ad063cfc24"
+    },
+    {
+      "file": "src/lib/game/game-spec/roll.js",
+      "sha256": "c4c1527d15843efc3d0ebe6678d84ec65999e7aa2f539d4e5fd7f011fc0ddb7e"
+    },
+    {
+      "file": "src/lib/game/start-wizard/index.js",
+      "sha256": "7e71c9acbb491ce59b4e59e9e26c33ae9bfbc92a3cd0003dadb04a984d187d2e"
+    },
+    {
+      "file": "src/lib/game/game-page/grammar.ts",
+      "sha256": "7d03af180600a5c1fdacb9730be569a8a741723566191f2d3044b21fd98ce761"
+    },
+    {
+      "file": "src/lib/game/game-page/compile.ts",
+      "sha256": "4bcfa40d9d1c01d4273bff2d0d21aac3224b6515f9ea9356aae42fbbc15890bc"
+    },
+    {
+      "file": "src/lib/sports/start-games.ts",
+      "sha256": "67dd31acdb63673e8d96fd73eca00f90e66e23ee1ebb70507efac085e3d9d676"
+    },
+    {
+      "file": "src/lib/sports/page.ts",
+      "sha256": "12cda1c0d77dfde91a05b4f874e5e6f767b5965320a1ca41c52242ea9792d816"
+    },
+    {
+      "file": "src/lib/sports/index.ts",
+      "sha256": "f8788b0137322313ca249faafb3b6cde41a67de6e67d31e0728bf670a52a750e"
+    },
+    {
+      "file": "src/lib/sports/defaults/baseball.json",
+      "sha256": "edb3cec8ab46e620955389cb5689245d2eda507cb3e99083fec9a2d9f87fd2db"
+    },
+    {
+      "file": "src/lib/sports/defaults/basketball.json",
+      "sha256": "e0f1e5ece73b0c3744ebeed2978e96c3e2f210a75e6d464a709dfbec3665cace"
+    },
+    {
+      "file": "src/lib/sports/defaults/football.json",
+      "sha256": "35ba8ae005e0312c677e1c88ec568a2159edb5aee4ce67ef9db68af4da33ccc5"
+    },
+    {
+      "file": "src/lib/sports/defaults/golf.json",
+      "sha256": "d909e5f0d9496ef8869ead5328d55a2e2d64f6f1617928e1c9cfbdb4c9821b0f"
+    },
+    {
+      "file": "src/lib/sports/defaults/hockey.json",
+      "sha256": "6b2bc56d652a4760ade83e6b6bec97a0fe8a9bdc33baefd7409f63972451a34a"
+    },
+    {
+      "file": "src/lib/sports/defaults/mma.json",
+      "sha256": "2743f0cd25e3b8c9e8ee1d5f2657a548aebac53a2b1dde86b1b6fd3adf0cbd58"
+    },
+    {
+      "file": "src/lib/sports/defaults/racing.json",
+      "sha256": "39d16c3e61556f2ce904da1ecbda29a5f07870d88f5599b0fdc557cdca2f4658"
+    },
+    {
+      "file": "src/lib/sports/defaults/soccer.json",
+      "sha256": "a039092bef9cd5466ae69400cd4ff1efe6cf20d792f915977124f2cdfd4429eb"
+    },
+    {
+      "file": "src/lib/sports/defaults/tennis.json",
+      "sha256": "edd6addd8a54e9d24e09a20e339dc62494218d0e32feabdcf87908332953a3d3"
+    }
+  ]
+}

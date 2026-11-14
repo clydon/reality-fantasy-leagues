@@ -1,0 +1,100 @@
+[
+  {
+    "id": "tonight-data-r3",
+    "title": "Data round 3 / Episode pickers, timelines & lineups",
+    "caseIds": ["tonight.watcher", "tonight.catchup", "tonight.reveal-ready", "tonight.live", "tonight.caught-up", "tonight.saved", "tonight.locked"],
+    "file": "tonight-data-r3.html",
+    "alignment": "same-proxy-data + captured lineup history + illustrative identities",
+    "note": "Three episode popup alternatives, shared viewing timelines and lineup data comparisons with connected expanded and scoring views. Season overview A is retained. Dedicated local preview state; no production writes."
+  },
+  {
+    "id": "tonight-components",
+    "title": "Component studio / Bold round + originals",
+    "caseIds": ["tonight.watcher", "tonight.catchup", "tonight.reveal-ready", "tonight.live", "tonight.caught-up", "tonight.saved", "tonight.locked"],
+    "file": "tonight-components.html",
+    "alignment": "same-proxy-data + preserved V4 originals + illustrative identities",
+    "note": "Nine bold new concepts: cinematic episode controls, an illustrated viewing lounge and broadcast game payoff. Unchanged V4 originals; round 1 is preserved separately. Working drill-downs and local choices."
+  },
+  {
+    "id": "tonight-components-r1",
+    "title": "Component studio / Round 1 preserved",
+    "caseIds": ["tonight.watcher", "tonight.catchup", "tonight.reveal-ready", "tonight.live", "tonight.caught-up", "tonight.saved", "tonight.locked"],
+    "file": "tonight-components-r1.html",
+    "alignment": "same-proxy-data + preserved V4 originals + illustrative identities",
+    "note": "The first nine component alternatives, preserved before the user requested a bolder direction. Not approved."
+  },
+  {
+    "id": "tonight-pilot",
+    "title": "V1 · First Tonight proposal",
+    "caseIds": [
+      "tonight.watcher",
+      "tonight.catchup"
+    ],
+    "file": "tonight-v1.html",
+    "alignment": "same-proxy-data + illustrative social fixtures",
+    "note": "Uses the active case's show, episode, cast and game projections. Reactions, messages, likes and friendly identities are illustrative. All changes are browser-local; reveal is a full-game handoff."
+  },
+  {
+    "id": "tonight-pilot-v2",
+    "title": "V2 · Clear episodes & a memory jog",
+    "caseIds": [
+      "tonight.watcher",
+      "tonight.catchup"
+    ],
+    "file": "tonight-v2.html",
+    "alignment": "same-proxy-data + illustrative social fixtures",
+    "note": "Episode-specific watch actions, a last-watched recap, and explicit missing/posted GIF states. Own-pace play is the product default; live-only is a per-game exception. UI-only local changes; no engine defaults have been migrated."
+  },
+  {
+    "id": "tonight-pilot-v3",
+    "title": "V3 / Results, showcase & direct detail",
+    "caseIds": [
+      "tonight.watcher",
+      "tonight.catchup",
+      "tonight.reveal-ready"
+    ],
+    "file": "tonight-v3.html",
+    "alignment": "same-proxy-data + recorded episode-3 reveal example + illustrative social fixtures",
+    "note": "Scoped local reveal/replay; no production mutations. Opponent visibility is conservatively derived from explicit per-game pace metadata. V1 and V2 remain preserved."
+  },
+  {
+    "id": "tonight-pilot-v4-detail",
+    "title": "V4 / Episode night + detailed game minis",
+    "caseIds": [
+      "tonight.watcher",
+      "tonight.catchup",
+      "tonight.reveal-ready",
+      "tonight.live",
+      "tonight.caught-up",
+      "tonight.saved",
+      "tonight.locked"
+    ],
+    "file": "tonight-v4.html?mini=detailed",
+    "alignment": "same-proxy-data + recorded episode-3 reveal + illustrative social fixtures",
+    "note": "One episode reveals across all your games. Recap-first Tonight, single progress control, visible pace, top decision strip. Local review state only; production code unchanged."
+  },
+  {
+    "id": "tonight-pilot-v4",
+    "title": "V4 / Episode night + compact game minis",
+    "caseIds": [
+      "tonight.watcher",
+      "tonight.catchup",
+      "tonight.reveal-ready",
+      "tonight.live",
+      "tonight.caught-up",
+      "tonight.saved",
+      "tonight.locked"
+    ],
+    "file": "tonight-v4.html",
+    "alignment": "same-proxy-data + recorded episode-3 reveal + illustrative social fixtures",
+    "note": "One episode reveals across all your games. Recap-first Tonight, single progress control, visible pace, top decision strip. Local review state only; production code unchanged."
+  },
+  {
+    "id": "data-contract-example",
+    "title": "Data contract example (not a redesign)",
+    "surface": "*",
+    "file": "data-contract.html",
+    "alignment": "same-proxy-data",
+    "note": "Demonstrates how a future mock reads the active case payload. It does not replace or redesign a product screen."
+  }
+]

@@ -8,7 +8,10 @@
     "start": "next start",
     "lint": "eslint",
     "migrate": "node db/migrate.js",
-    "test": "node --test \"tests/*.test.js\""
+    "test": "node --test \"tests/*.test.js\"",
+    "ui:atlas": "node scripts/ui-atlas.js serve",
+    "ui:atlas:build": "node scripts/ui-atlas.js build",
+    "ui:atlas:check": "node --test tests/ui-atlas.test.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.128.0",

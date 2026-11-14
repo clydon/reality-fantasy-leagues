@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>Tonight · Game Your Show</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/__atlas/mock/tonight-v1.css">
+  <script src="/__atlas/mock/tonight-v1.js" defer></script>
+</head>
+<body>
+  <div id="app" aria-busy="true"><p class="loading">Getting your episode ready…</p></div>
+  <dialog id="detail" aria-labelledby="detail-title">
+    <div class="sheet-top"><h2 id="detail-title"></h2><button id="close-detail" class="icon-button" aria-label="Close details"></button></div>
+    <div id="detail-body"></div>
+  </dialog>
+  <div id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>

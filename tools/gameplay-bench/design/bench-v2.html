@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gameplay bench · redesign mock</title>
+<!-- Design mock for review (2026-11-12, plan §6A step A). Static: real app captures from the live tier, no behaviour.
+     Variants: #single, #compare, #campaign, #blocked. The phone layout is the same page at 390 px. -->
+<style>
+:root{color-scheme:dark;--bg:#100f14;--panel:#19171f;--raised:#24212c;--sunk:#141219;--ink:#f1edf5;--muted:#b7afc3;--faint:#8c849a;--line:#3c3647;--accent:#ffc531;--accent-ink:#211a06;--good:#9cdbc7;--bad:#ffb2a6;--warn:#f3c98b}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;font-variant-numeric:tabular-nums}
+svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+h1,h2,h3,p{margin:0}
+button,select{font:inherit;color:inherit;border:1px solid var(--line);border-radius:5px;background:var(--raised);min-height:36px;padding:6px 11px;display:inline-flex;align-items:center;gap:7px;cursor:pointer;font-weight:550}
+button:hover{background:#34303e;border-color:#8d829e}
+button[aria-pressed=true],button[aria-selected=true]{color:var(--accent);background:#ffc53112;border-color:#9c7c30}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:700}
+button.quiet{background:transparent;border-color:transparent;color:var(--muted);padding:4px 8px;min-height:30px}
+button.quiet:hover{color:var(--ink);background:var(--raised)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+::selection{background:var(--accent);color:#17120a}
+.small{font-size:12px;color:var(--muted)}
+.label{font-size:11px;font-weight:650;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+
+/* review bar (not part of the design) */
+.review{display:flex;gap:6px;align-items:center;padding:8px 16px;background:#000;border-bottom:1px dashed #555;font-size:12px;color:var(--faint);flex-wrap:wrap}
+.review a{color:var(--muted);text-decoration:none;padding:3px 8px;border-radius:4px;border:1px solid transparent}
+.review a[aria-current=true]{color:var(--accent);border-color:#9c7c30}
+
+/* app chrome */
+.top{display:flex;align-items:center;gap:14px;padding:12px 20px;border-bottom:1px solid var(--line)}
+.top .crumb{color:var(--muted);text-decoration:none}.top h1{font-size:16px;font-weight:650}
+.top nav{margin-left:auto;display:flex;gap:16px}.top nav a{color:var(--accent);font-size:13px;text-underline-offset:4px}
+.case{display:flex;align-items:center;gap:16px;padding:14px 20px;border-bottom:1px solid var(--line);background:var(--panel)}
+.case h2{font-size:18px;font-weight:650;letter-spacing:-.015em}
+.case .meta{display:flex;gap:6px 12px;flex-wrap:wrap;margin-top:3px}
+.case .actions{margin-left:auto;display:flex;gap:8px;flex:none}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:1px 9px;background:var(--sunk)}
+.chip.live::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--good)}
+.chip.fail{color:var(--bad);border-color:#7a4a44}
+
+.layout{display:grid;grid-template-columns:288px minmax(0,1fr) 336px;min-height:calc(100vh - 140px)}
+aside{border-right:1px solid var(--line);padding:18px 18px 28px;display:flex;flex-direction:column;gap:22px}
+aside.evidence{border-right:0;border-left:1px solid var(--line)}
+section>h3{margin-bottom:10px}
+
+/* situation: people */
+.person{display:grid;grid-template-columns:28px 1fr auto;gap:10px;align-items:center;padding:9px 10px;border:1px solid var(--line);border-radius:6px;background:var(--sunk);cursor:pointer}
+.person+.person{margin-top:8px}
+.person[aria-checked=true]{border-color:#9c7c30;background:#ffc5310d}
+.face{width:28px;height:28px;border-radius:4px;display:grid;place-items:center;font-weight:800;font-size:13px;color:#1a1420}
+.person b{display:block;font-size:14px}.person small{display:block;color:var(--muted);font-size:12px}
+.dots{display:flex;gap:3px;margin-top:5px}.dots i{width:14px;height:4px;border-radius:2px;background:var(--line)}.dots i.seen{background:var(--ink)}.dots i.out{background:#5b5466}
+.person .tag{font-size:11px;color:var(--warn)}
+.person .viewing{font-size:11px;color:var(--accent);font-weight:650}
+
+/* situation: episodes */
+.eps{border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.ep{display:grid;grid-template-columns:30px 1fr auto;gap:10px;align-items:center;padding:9px 10px;border-top:1px solid var(--line);background:var(--sunk)}
+.ep:first-child{border-top:0}
+.ep .n{font-weight:700;font-size:15px;color:var(--muted)}
+.ep b{font-weight:600;font-size:13.5px}.ep small{display:block;color:var(--muted);font-size:12px}
+.ep.next{background:#ffc5310a}.ep.next .n{color:var(--accent)}
+.state{font-size:11.5px;padding:1px 7px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+.state.final{color:var(--good);border-color:#3f6b60}.state.partial{color:var(--warn);border-color:#7a6440}
+.clock{display:flex;justify-content:space-between;align-items:baseline;margin-top:9px}
+.hint{font-size:12px;color:var(--faint);line-height:1.45}
+
+/* centre */
+main{padding:16px 22px 28px;min-width:0}
+.bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.tabs{display:flex;gap:4px;flex-wrap:wrap}
+.tabs button{min-height:34px;padding:5px 11px}
+.appbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px;padding:10px 12px;border:1px solid var(--line);border-radius:6px;background:var(--panel)}
+.appbar .sep{width:1px;height:22px;background:var(--line)}
+.appbar label{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:7px}
+select{appearance:none;padding-right:26px;background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);background-position:calc(100% - 13px) 50%,calc(100% - 8px) 50%;background-size:5px 5px;background-repeat:no-repeat}
+.toggle{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--ink)}
+.switch{width:30px;height:18px;border-radius:9px;background:var(--line);position:relative;border:0;padding:0;min-height:0}
+.switch::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:var(--ink);transition:transform .18s ease-out}
+.switch[aria-checked=true]{background:var(--accent)}.switch[aria-checked=true]::after{transform:translateX(12px);background:var(--accent-ink)}
+.stage{margin-top:16px;display:flex;gap:28px;justify-content:center;align-items:flex-start;padding:22px 12px;border-radius:8px;background:radial-gradient(ellipse at top,#1d1a24,#121016 70%);border:1px solid #26222e}
+.device{display:flex;flex-direction:column;align-items:center;gap:10px;min-width:0}
+.device .who{font-size:12.5px;color:var(--muted);display:flex;gap:8px;align-items:center}
+.device .who b{color:var(--ink);font-weight:650}
+.phone{width:300px;max-width:100%;border-radius:22px;padding:8px;background:#0a090c;border:1px solid #2c2834;box-shadow:0 18px 40px -18px #000c}
+.phone img{display:block;width:100%;border-radius:15px}
+.checks{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;max-width:300px}
+.ok,.no{font-size:11.5px;display:inline-flex;align-items:center;gap:4px;color:var(--good)}.no{color:var(--bad)}
+.ok svg,.no svg{width:12px;height:12px}
+.same{font-size:12px;color:var(--faint);text-align:center;margin-top:10px}
+
+/* evidence */
+.ev-tabs{display:flex;gap:4px;margin-bottom:12px}
+.card{border:1px solid var(--line);border-radius:6px;padding:11px 12px;background:var(--sunk)}
+.card+.card{margin-top:8px}
+.card h4{margin:0;font-size:13.5px;font-weight:650;display:flex;gap:7px;align-items:center}
+.card p{margin-top:4px;font-size:12.5px;color:var(--muted);line-height:1.5}
+.card.good h4 svg{color:var(--good)}.card.bad{border-color:#7a4a44;background:#2a1716}.card.bad h4{color:var(--bad)}
+.card code{font:12px ui-monospace,Consolas,monospace;color:var(--ink);background:#0000004d;padding:1px 4px;border-radius:3px}
+.trace{list-style:none;margin:0;padding:0;font-size:12.5px}
+.trace li{display:grid;grid-template-columns:22px 1fr auto;gap:8px;padding:7px 0;border-top:1px solid var(--line)}
+.trace li:first-child{border-top:0}.trace .i{color:var(--faint)}.trace .s{color:var(--good)}.trace .s.r{color:var(--warn)}
+.scope{font-size:11.5px;color:var(--faint);margin-top:14px;line-height:1.45}
+
+/* stepper (campaign) */
+.stepper{display:flex;align-items:center;gap:10px;margin-top:12px;padding:10px 12px;border:1px solid #7a4a44;border-radius:6px;background:#2a1716}
+.stepper .track{flex:1;display:grid;grid-template-columns:repeat(9,1fr);gap:3px}
+.stepper .track i{height:6px;border-radius:3px;background:#5b3b38}.stepper .track i.done{background:var(--bad)}.stepper .track i.at{background:var(--ink)}
+
+/* blocked */
+.gap{max-width:620px;margin:40px auto;padding:22px 24px;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
+.gap h3{font-size:17px}.gap ul{margin:12px 0 0;padding-left:18px;color:var(--muted);font-size:13.5px;line-height:1.6}
+.gap .next{display:flex;gap:8px;margin-top:16px}
+.empty{color:var(--faint);font-size:13px;line-height:1.5}
+
+/* phone layout of the bench itself */
+@media (max-width:760px){
+  .top nav{display:none}
+  .case{flex-wrap:wrap;padding:12px 16px}.case .actions{margin-left:0;width:100%}.case .actions button{flex:1;justify-content:center}
+  .layout{display:flex;flex-direction:column}
+  aside{border:0;border-bottom:1px solid var(--line);padding:14px 16px}
+  aside{order:2}
+  aside.evidence{order:3;border-left:0}
+  main{order:1;padding:14px 16px;border-bottom:1px solid var(--line)}
+  .people{display:flex;gap:8px;overflow-x:auto}.person+.person{margin-top:0}.person{min-width:220px}
+  .stage{padding:14px 6px;gap:14px}.phone{width:260px}
+  .appbar .sep{display:none}
+}
+[data-variant]:not(.on){display:none!important}
+</style>
+</head>
+<body>
+<svg hidden xmlns="http://www.w3.org/2000/svg">
+ <symbol id="i-open" viewBox="0 0 24 24"><path d="M3 7h6l2 2h10v10H3z"/></symbol>
+ <symbol id="i-reset" viewBox="0 0 24 24"><path d="M3 10a9 9 0 1 1 2 8M3 4v6h6"/></symbol>
+ <symbol id="i-export" viewBox="0 0 24 24"><path d="M12 3v12m-4-4 4 4 4-4M5 15v5h14v-5"/></symbol>
+ <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+ <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+ <symbol id="i-play" viewBox="0 0 24 24"><path d="m8 5 11 7-11 7Z"/></symbol>
+ <symbol id="i-step" viewBox="0 0 24 24"><path d="m6 5 9 7-9 7ZM18 5v14"/></symbol>
+ <symbol id="i-back" viewBox="0 0 24 24"><path d="m18 5-9 7 9 7ZM6 5v14"/></symbol>
+</svg>
+
+<div class="review" role="navigation" aria-label="Mock variants (review only)">
+ <span>Review variants:</span>
+ <a href="#single">One app version</a><a href="#compare">Side by side</a><a href="#campaign">Campaign failure opened</a><a href="#blocked">Definition can't run</a>
+ <span>· phone layout: open at 390 px</span>
+</div>
+
+<header class="top">
+ <a class="crumb" href="#">UI Atlas /</a><h1>Gameplay bench</h1>
+ <nav><a href="#">Campaigns</a><a href="#">Coverage matrix</a><a href="#">Screen atlas</a></nav>
+</header>
+
+<!-- ============ case bar ============ -->
+<div class="case" data-variant="single compare">
+ <div>
+  <h2>Three games, Bo a week behind</h2>
+  <div class="meta"><span class="chip live">Real routes · local database</span><span class="chip">From definition · proof-definition.json</span><span class="small">2 people · 3 games · 5 episodes · revision 6</span></div>
+ </div>
+ <div class="actions"><button><svg><use href="#i-open"/></svg>Open…</button><button><svg><use href="#i-reset"/></svg>Reset</button><button><svg><use href="#i-export"/></svg>Export</button></div>
+</div>
+<div class="case" data-variant="campaign">
+ <div>
+  <h2>Campaign api-40 · case 7 of 40</h2>
+  <div class="meta"><span class="chip fail">Spoiler found</span><span class="chip">Seed 1112 · generator proof-family-3</span><span class="small">3 people · 2 games · reproduced from its 9 recorded steps</span></div>
+ </div>
+ <div class="actions"><button><svg><use href="#i-open"/></svg>Open…</button><button><svg><use href="#i-export"/></svg>Export reproducer</button></div>
+</div>
+<div class="case" data-variant="blocked">
+ <div>
+  <h2>lineup-run-2026-11-09.json</h2>
+  <div class="meta"><span class="chip fail">Can't run yet</span><span class="chip">Saved bench run (version 1)</span></div>
+ </div>
+ <div class="actions"><button><svg><use href="#i-open"/></svg>Open…</button></div>
+</div>
+
+<div class="layout">
+ <!-- ============ situation ============ -->
+ <aside aria-label="Situation">
+  <section data-variant="single compare campaign">
+   <h3>Who's watching</h3>
+   <div class="people" role="radiogroup" aria-label="View as">
+    <div class="person" role="radio" tabindex="0" data-variant="single" aria-checked="true"><span class="face" style="background:#c79be0">A</span><span><b>Ann</b><small>Watched through episode 2</small><span class="dots" aria-hidden="true"><i class="seen"></i><i class="seen"></i><i></i><i></i><i></i></span></span><span class="viewing">Viewing</span></div>
+    <div class="person" role="radio" tabindex="0" data-variant="compare campaign" aria-checked="false"><span class="face" style="background:#c79be0">A</span><span><b>Ann</b><small>Watched through episode 2</small><span class="dots" aria-hidden="true"><i class="seen"></i><i class="seen"></i><i></i><i></i><i></i></span></span><span></span></div>
+    <div class="person" role="radio" tabindex="0" data-variant="single" aria-checked="false"><span class="face" style="background:#f0c24c">B</span><span><b>Bo</b><small>Watched through 1 · <span class="tag">1 behind</span></small><span class="dots" aria-hidden="true"><i class="seen"></i><i></i><i></i><i></i><i></i></span></span><span></span></div>
+    <div class="person" role="radio" tabindex="0" data-variant="compare campaign" aria-checked="true"><span class="face" style="background:#f0c24c">B</span><span><b>Bo</b><small>Watched through 1 · <span class="tag">1 behind</span></small><span class="dots" aria-hidden="true"><i class="seen"></i><i></i><i></i><i></i><i></i></span></span><span class="viewing">Viewing</span></div>
+    <div class="person" role="radio" tabindex="0" data-variant="campaign" aria-checked="false"><span class="face" style="background:#7fd0bf">C</span><span><b>Cy</b><small>Nothing watched yet · <span class="tag">2 behind</span></small><span class="dots" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span></span><span></span></div>
+   </div>
+   <p class="hint" style="margin-top:9px">Each person keeps their own mark. Viewing as someone opens the app as them; it changes nothing.</p>
+  </section>
+
+  <section data-variant="single compare campaign">
+   <h3>Episodes</h3>
+   <div class="eps">
+    <div class="ep"><span class="n">1</span><span><b>Aired Wed</b><small>Results in · 1 out</small></span><span class="state final">Final</span></div>
+    <div class="ep"><span class="n">2</span><span><b>Aired Thu</b><small>Avery Alvarez went home</small></span><span class="state final">Final</span></div>
+    <div class="ep next"><span class="n">3</span><span><b>Airs Fri 6:20 PM</b><small>In 1 day · nothing published</small></span><button>Air it</button></div>
+    <div class="ep"><span class="n">4</span><span><b>Airs Sat</b><small>Not aired</small></span><span class="state">Later</span></div>
+    <div class="ep"><span class="n">5</span><span><b>Airs Sun</b><small>Not aired</small></span><span class="state">Later</span></div>
+   </div>
+   <div class="clock"><span class="small">It's <b style="color:var(--ink)">Thu 6:20 PM</b> in this case; the app sees that as now.</span></div>
+   <p class="hint" style="margin-top:6px">Air it moves time past the airing. Then publish partial, final or corrected results; every game on the show gets them at once.</p>
+  </section>
+
+  <section data-variant="blocked">
+   <h3>Who's watching</h3>
+   <p class="empty">Nothing to situate: this run didn't open.</p>
+  </section>
+ </aside>
+
+ <!-- ============ screens ============ -->
+ <main>
+  <div class="bar" data-variant="single compare campaign">
+   <div class="tabs" role="tablist" aria-label="Screen">
+    <button role="tab" aria-selected="true">Tonight</button><button role="tab">Episodes</button><button role="tab">Games ▾</button><button role="tab">Hub</button><button role="tab">Chat</button><button role="tab" class="quiet">More ▾</button>
+   </div>
+  </div>
+  <div class="appbar" data-variant="single compare campaign">
+   <label>App <select aria-label="App version"><option>This checkout (:3000)</option><option>reactions (:3009)</option><option>u1-game-page (:3010)</option><option>start-a-game (:3011)</option></select></label>
+   <span class="sep"></span>
+   <span class="toggle"><button class="switch" role="switch" aria-checked="false" aria-label="Compare with another app version" data-variant="single campaign"></button><button class="switch" role="switch" aria-checked="true" aria-label="Compare with another app version" data-variant="compare"></button>Compare</span>
+   <select aria-label="Compare with" data-variant="compare"><option>reactions (:3009)</option></select>
+   <span class="sep"></span>
+   <label>Size <select><option>Phone 390</option><option>Small phone 360</option><option>Desktop 1280</option></select></label>
+   <label>Theme <select><option>Night</option><option>Studio</option></select></label>
+  </div>
+
+  <!-- single -->
+  <div class="stage" data-variant="single">
+   <div class="device">
+    <div class="who"><b>Ann</b>· Tonight · This checkout</div>
+    <div class="phone"><img src="img/tonight-ann-a.png" alt="The app's Tonight screen as Ann: episode 3 countdown, episode 2 recap with Avery Alvarez out, and her night across Weekly Lineup, Survival Pool and Prediction Sheet"></div>
+    <div class="checks"><span class="ok"><svg><use href="#i-check"/></svg>No sideways scroll</span><span class="ok"><svg><use href="#i-check"/></svg>Choices read differently</span><span class="ok"><svg><use href="#i-check"/></svg>Every control named</span><span class="ok"><svg><use href="#i-check"/></svg>No failed reads</span></div>
+   </div>
+  </div>
+
+  <!-- compare -->
+  <div class="stage" data-variant="compare">
+   <div class="device">
+    <div class="who"><b>This checkout</b>(:3000)</div>
+    <div class="phone"><img src="img/tonight-bo-a.png" alt="Tonight as Bo in this checkout: three plates, Episode 2 of 5, Watch, Pick who survives"></div>
+    <div class="checks"><span class="ok"><svg><use href="#i-check"/></svg>No sideways scroll</span><span class="ok"><svg><use href="#i-check"/></svg>No failed reads</span></div>
+   </div>
+   <div class="device">
+    <div class="who"><b>reactions</b>(:3009)</div>
+    <div class="phone"><img src="img/tonight-bo-b.png" alt="Tonight as Bo in the reactions branch: catching-up rows, Episode 2 of 2, a nudge, Your moves"></div>
+    <div class="checks"><span class="ok"><svg><use href="#i-check"/></svg>No sideways scroll</span><span class="ok"><svg><use href="#i-check"/></svg>No failed reads</span></div>
+   </div>
+  </div>
+  <p class="same" data-variant="compare">Same case, person, screen and step on both. Each side has its own copy of the data, so a save on one never reaches the other.</p>
+
+  <!-- campaign -->
+  <div class="stepper" data-variant="campaign" role="group" aria-label="Recorded steps">
+   <button class="quiet" aria-label="Step back"><svg><use href="#i-back"/></svg></button>
+   <span class="small" style="white-space:nowrap">Step <b style="color:var(--ink)">9</b> of 9</span>
+   <span class="track" aria-hidden="true"><i class="done"></i><i class="done"></i><i class="done"></i><i class="done"></i><i class="done"></i><i class="done"></i><i class="done"></i><i class="done"></i><i class="at"></i></span>
+   <button class="quiet" aria-label="Step forward" disabled><svg><use href="#i-step"/></svg></button>
+  </div>
+  <div class="stage" data-variant="campaign">
+   <div class="device">
+    <div class="who"><b>Bo</b>· Tonight · This checkout</div>
+    <div class="phone"><img src="img/tonight-bo-a.png" alt="Tonight as Bo at the failing step"></div>
+    <div class="checks"><span class="ok"><svg><use href="#i-check"/></svg>No sideways scroll</span><span class="ok"><svg><use href="#i-check"/></svg>No failed reads</span></div>
+   </div>
+  </div>
+
+  <!-- blocked -->
+  <div class="gap" data-variant="blocked" role="status">
+   <h3>This run can't open in the shared runtime yet</h3>
+   <p class="small" style="margin-top:6px">It was saved by the old recipe bench, after the fact: its game was stored as it stood, not as a definition plus the actions that led there.</p>
+   <ul><li>Needs: loading a saved game state as setup (planned: snapshot reconciliation)</li><li>Nothing was generated in its place, and the previous screens were closed so they can't be mistaken for this run.</li></ul>
+   <div class="next"><button class="primary"><svg><use href="#i-open"/></svg>Open something else…</button><button>Replay it in the old recipe bench</button></div>
+  </div>
+ </main>
+
+ <!-- ============ evidence ============ -->
+ <aside class="evidence" aria-label="Evidence">
+  <div class="ev-tabs" role="tablist" data-variant="single compare campaign"><button role="tab" aria-selected="true">Checks</button><button role="tab">Actions</button><button role="tab">Data</button><button role="tab">Notes</button></div>
+
+  <div data-variant="single compare">
+   <div class="card good"><h4><svg><use href="#i-check"/></svg>Server and runtime agree</h4><p>4 saves made in the app (a lineup, a three-person pick, a two-answer sheet, a reveal) were replayed by the runtime: same result each time.</p></div>
+   <div class="card good"><h4><svg><use href="#i-check"/></svg>No spoilers</h4><p>Every route each person's app read carried nothing past their own mark (Bo: episode 1). The check saw allowed lines, so it isn't blind.</p></div>
+   <div class="card good"><h4><svg><use href="#i-check"/></svg>Standings match</h4><p>Both people's tables on the real routes equal the runtime's.</p></div>
+   <div class="card"><h4>Writes not compared</h4><p>1 chat read, 1 GIF: social writes go to the app and are logged, not replayed.</p></div>
+  </div>
+  <div data-variant="campaign">
+   <div class="card bad"><h4><svg><use href="#i-x"/></svg>Spoiler: Bo saw episode 2</h4><p>At step 9, <code>/chat</code> sent Bo (through episode 1) "Cannot believe Avery Alvarez went home", written after episode 2. <button class="quiet" style="padding:0;min-height:0;color:var(--accent)">Open Chat as Bo</button></p></div>
+   <div class="card good"><h4><svg><use href="#i-check"/></svg>Server and runtime agree</h4><p>Standings, catch-up and open moves match for all three people.</p></div>
+   <div class="card"><h4>Same failure in 3 other cases</h4><p>Grouped as <code>spoiler · /chat</code>. Minimal reproducer: 4 of the 9 steps.</p></div>
+  </div>
+  <div data-variant="blocked"><p class="empty">No evidence: nothing ran. The run's file is unchanged.</p></div>
+
+  <p class="scope" data-variant="single compare campaign">These are engine and route checks. They don't judge the design; review notes do.</p>
+ </aside>
+</div>
+
+<script>
+// Review-only variant switch (not the bench's behaviour).
+const pick=()=>{const v=(location.hash||'#single').slice(1);document.querySelectorAll('[data-variant]').forEach(e=>e.classList.toggle('on',e.dataset.variant.split(' ').includes(v)));document.querySelectorAll('.review a').forEach(a=>a.setAttribute('aria-current',String(a.hash==='#'+v)));};
+addEventListener('hashchange',pick);pick();
+</script>
+</body>
+</html>

@@ -1,0 +1,187 @@
+/* Review chrome is separate from the component identity: Archivo, ink, gold,
+   seafoam, recognizable show/cast art, and precise episode/game language. */
+.component-studio{background:#0e0d12;color:var(--text);padding:0;caret-color:var(--yellow);font-variant-numeric:tabular-nums}
+.component-studio ::selection{background:#ffc531;color:#17141c}
+.component-studio :is(button,a,select):focus-visible{outline:3px solid var(--yellow);outline-offset:3px}
+.component-studio{scrollbar-color:#6e637a #17141c;scrollbar-width:thin}
+.cs-workbench{max-width:1430px;margin:0 auto;padding:32px 32px 50px}
+.cs-header{display:flex;justify-content:space-between;gap:28px;align-items:flex-start;padding-bottom:26px;color:#f4f2f8}
+.cs-header h1{font-size:clamp(30px,4vw,54px);font-stretch:68%;line-height:1.05;font-weight:850;letter-spacing:-.025em;margin:0 0 13px}
+.cs-header p{color:#c3bdcd;max-width:65ch;line-height:1.6;font-size:14px;margin:0 0 9px}
+.cs-header .cs-context{color:#92dcca;font-size:12px;margin:0}
+.cs-back{display:inline-flex;gap:7px;align-items:center;min-height:44px;font-size:12px;white-space:nowrap;text-underline-offset:4px}
+.cs-toolbar{position:sticky;top:0;z-index:4;background:#0e0d12;border-top:1px solid #443b50;border-bottom:1px solid #443b50;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px;padding:9px 0;color:#f4f2f8}
+.cs-filters{display:flex;gap:4px;flex-wrap:wrap}
+.cs-filters button{background:transparent;border-radius:4px;color:#c3bdcd;padding:9px 12px;min-height:44px;font-weight:650;font-size:13px}
+.cs-filters [aria-pressed=true]{background:#ffc531;color:#17141c}
+.cs-size{display:flex;align-items:center;gap:9px;font-size:12px;color:#c3bdcd}
+.cs-size select{color:#f4f2f8;background:#24212d;border:1px solid #62566f;border-radius:3px;padding:7px;min-height:40px;max-width:100%;font-size:12px}
+.cs-selection{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:13px 0 4px;color:#c3bdcd;font-size:12px}
+.cs-selection p{display:flex;flex-wrap:wrap;gap:5px 17px;flex:1;margin:0}
+.cs-selection b{color:#f4f2f8;margin-left:3px}
+.cs-selection button{display:flex;align-items:center;gap:6px;min-height:40px;background:transparent;color:#f4f2f8;text-decoration:underline;text-underline-offset:4px;font-size:12px}
+#cs-saved{color:#92dcca}
+.cs-section{margin-top:40px;scroll-margin-top:90px}
+.cs-section-title{padding-bottom:15px;display:flex;align-items:baseline;gap:24px;flex-wrap:wrap;color:#f4f2f8}
+.cs-section-title h2{font-size:30px;font-stretch:70%;font-weight:800;line-height:1.15;margin:0}
+.cs-section-title>p{font-size:13px;color:#c3bdcd;margin:0;max-width:60ch}
+.cs-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;align-items:start}
+.cs-option{min-width:0;border:1px solid #514659;background:#1d1925;overflow:hidden;border-radius:7px}
+.cs-option-heading{padding:16px 18px;display:flex;gap:15px;align-items:flex-start;background:#ede8df;color:#24212d}
+.cs-option-heading>div{flex:1;min-width:0}
+.cs-option-heading h3{font-size:13px;font-weight:650;line-height:1.5;margin:0 0 6px;color:#62556a}
+.cs-option-heading h3>span{display:block;color:#211a29;font-size:21px;font-stretch:75%;font-weight:800;line-height:1.1}
+.cs-option-heading p{font-size:12px;line-height:1.5;color:#62556a;max-width:54ch;margin:0}
+.cs-choose{display:flex;align-items:center;justify-content:center;gap:5px;font-size:12px;min-height:40px;min-width:76px;padding:8px;background:transparent;color:#211a29;border:1px solid #a091a4;border-radius:4px;flex-shrink:0}
+.cs-choose[aria-pressed=true]{background:#211a29;color:#fff5d1;border-color:#211a29}
+.cs-option:has(.cs-choose[aria-pressed=true]){border-color:#ffc531}
+.cs-preview{width:min(100%,var(--cs-preview-width,390px));margin:0 auto;padding:20px 16px;background:var(--bg);min-width:0}
+.cs-original{display:block;width:100%;border:0;background:var(--bg);color-scheme:normal}
+.cs-preview h3{margin:0}.cs-preview p{margin:0}
+.cs-preview :is(button,select,a){touch-action:manipulation}
+.cs-preview button{border:0;color:inherit}
+.cs-preview :is(button,a){transition:background-color .15s,color .15s;text-underline-offset:4px}
+.cs-preview button:not(:disabled):hover{filter:brightness(1.1)}
+.cs-preview .icon{flex-shrink:0}
+.cs-preview .cs-watch{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.cs-watch>.button{flex:1;min-height:44px;justify-content:center;gap:5px;font-size:12px;padding:10px 8px}
+.cs-watch .primary{background:var(--yellow);color:var(--ink)}
+.cs-watch .quiet{border:1px solid var(--line);background:transparent}
+.cs-watch>p{color:var(--muted);font-size:13px;padding:8px 0;line-height:1.7}
+.cs-watch>p>b{color:var(--text)}
+.cs-note{color:var(--muted);font-size:11px;line-height:1.6;margin:13px 0!important}
+.cs-all,.cs-preview .cs-all{display:flex;align-items:center;justify-content:space-between;gap:9px;background:transparent;border-top:1px solid var(--line);width:100%;padding:12px 0 0;margin-top:15px;text-align:left;min-height:44px;font-size:12px;color:var(--text)}
+.cs-person{display:inline-flex;align-items:center;gap:8px;min-height:44px;background:transparent;text-align:left;padding:0;font-size:12px;min-width:0}
+.cs-person .avatar{margin:0;width:28px;height:28px;flex-shrink:0}
+.cs-person b{font-size:12px;font-weight:700;overflow-wrap:anywhere}
+.cs-person small{display:block;color:var(--muted);font-size:11px;margin-top:2px}
+.cs-person>span{min-width:0}
+/* Season A: a physical reading direction, last episode to next episode. */
+.cs-preview .episode-ticket{border:1px solid var(--line);border-radius:6px;overflow:hidden;display:block;width:100%;background:transparent;padding:0;text-align:left}
+.ticket-route{display:grid;grid-template-columns:.85fr 1.15fr;width:100%;padding:0;background:transparent;text-align:left;min-height:122px}
+.ticket-route>span{padding:17px 14px;display:flex;flex-direction:column;justify-content:center;gap:5px;position:relative}
+.ticket-last{background:var(--panel)}
+.ticket-route small{font-size:11px}.ticket-last small,.ticket-last em{color:var(--muted)}
+.ticket-route b{font-size:26px;font-stretch:70%;font-weight:850;line-height:1.15}
+.ticket-route em{font-size:12px;font-style:normal;line-height:1.5}
+.ticket-next{background:var(--yellow);color:var(--ink)}
+.ticket-next b{font-size:31px;padding-right:16px}.ticket-next>.icon{position:absolute;right:10px;top:52px;width:18px}
+.ticket-bottom{display:flex;justify-content:space-between;align-items:center;gap:9px;padding:3px 12px;background:var(--panel);font-size:11px}
+.ticket-update{display:flex;align-items:center;gap:4px;min-height:42px;padding:4px 0;font-size:12px;font-weight:700}
+/* Season B: the sequence carries meaning, rather than decoration. */
+.season-rail{display:block;width:100%;background:transparent;padding:0;text-align:left}
+.rail-header{display:flex;align-items:center;gap:12px;justify-content:space-between}
+.rail-header>b{font-size:14px;font-weight:700}
+.rail-header>span{display:flex;gap:4px;align-items:center;min-height:44px;padding:0;font-size:12px}
+.season-nodes{display:flex;gap:0;position:relative;isolation:isolate;margin:10px 0 12px}
+.season-nodes::before{content:'';position:absolute;left:8%;right:8%;top:21px;height:2px;background:var(--line);z-index:-1}
+.season-node{flex:1;display:flex;align-items:center;flex-direction:column;gap:7px;padding:0;min-height:66px;color:var(--muted)}
+.season-node>span{width:42px;height:42px;display:grid;place-items:center;border:1px solid var(--line);background:var(--bg);border-radius:50%;font-weight:750;font-size:17px}
+.season-node small{font-size:11px}
+.season-nodes .seen>span{background:var(--teal);border-color:var(--teal);color:var(--ink)}
+.season-nodes .current>span{outline:3px solid var(--bg);box-shadow:0 0 0 4px var(--teal)}
+.season-nodes .next{color:var(--yellow)}.season-nodes .next>span{border-color:var(--yellow);color:var(--yellow)}
+.rail-note{display:block;font-size:11px;color:var(--muted)}
+.rail-next{display:flex;align-items:center;gap:18px;border-top:1px solid var(--line);margin-top:18px;padding-top:14px}
+.rail-next>span{flex:1;font-size:11px;color:var(--muted)}
+.rail-next b{display:block;font-size:18px;color:var(--text);font-weight:750;font-stretch:80%;margin-top:4px}
+.rail-next>span:last-child>b{color:var(--yellow)}
+.rail-next small{display:block;font-size:11px;margin-top:3px}
+/* Season C: artwork is content; the overlay protects the action text. */
+.cs-preview .next-screen{display:block;width:100%;position:relative;isolation:isolate;overflow:hidden;border-radius:5px;min-height:236px;background:#122a2d;color:#fff;padding:0;text-align:left}
+.next-screen>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:65% 25%;z-index:-2}
+.next-screen::after{content:'';position:absolute;inset:0;z-index:-1;background:linear-gradient(0deg,#11151cf5 4%,#11151ce6 50%,#11151c55 100%)}
+.next-screen-content{display:block;padding:75px 17px 0}.screen-next-label,.screen-date{display:block;font-size:12px;color:#e2e1e6;margin-bottom:5px}
+.next-screen-content>strong{display:block;font-size:39px;font-stretch:65%;font-weight:850;line-height:1.1;max-width:16ch;margin-bottom:5px}
+.screen-footer{margin-top:15px;border-top:1px solid #82818a;display:flex;align-items:center;gap:10px;font-size:11px;justify-content:space-between}
+.screen-update{display:flex;align-items:center;gap:4px;min-height:44px;color:#fff;padding:0;font-size:12px}
+.screen-last{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:50px;font-size:11px;color:var(--muted)}
+.screen-last b{color:var(--text);margin-left:4px}.screen-last button{background:transparent;color:var(--text);font-size:11px;display:flex;align-items:center;gap:4px;min-height:44px;padding:0}
+/* Pace A: aligned tracks, shared origin, no competitive rank. */
+.track-key{display:flex;justify-content:space-between;color:var(--muted);font-size:11px;margin:0 0 13px}
+.track-key b{font-weight:500}
+.shared-track{display:grid;grid-template-columns:100px 1fr;gap:10px;align-items:center;min-height:56px}
+.shared-track.is-you .cs-person{color:var(--yellow)}
+.track-line{position:relative;height:44px;width:100%;background:transparent;padding:0;color:var(--text)}
+.track-ticks{position:absolute;inset:19px 0;height:6px;background:repeating-linear-gradient(90deg,var(--line) 0, var(--line) calc(100% / var(--ticks) - 2px),transparent calc(100% / var(--ticks) - 2px),transparent calc(100% / var(--ticks)));border-radius:2px}
+.track-fill{position:absolute;left:0;top:19px;height:6px;background:var(--teal);border-radius:2px;max-width:100%}
+.track-line>b{position:absolute;top:7px;transform:translateX(-50%);height:30px;min-width:30px;display:grid;place-items:center;font-size:13px;font-weight:750;background:var(--teal);color:var(--ink);border-radius:4px}
+.is-you .track-fill,.is-you .track-line>b{background:var(--yellow)}
+.track-line>small{position:relative;background:var(--bg);font-size:11px;padding:5px}
+/* Pace B: a social grouping rather than a chart. */
+.group-anchor{display:flex;align-items:center;gap:10px;margin-bottom:20px}
+.group-anchor>.avatar{width:37px;height:37px;margin:0}
+.group-anchor>span{flex:1;font-size:11px;color:var(--muted)}.group-anchor b{display:block;font-size:19px;color:var(--text);margin-top:2px}
+.group-anchor>button{min-height:44px;background:transparent;color:var(--text);font-size:12px;text-decoration:underline;padding:0}
+.pace-groups{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px}
+.pace-groups>section{min-width:0;border-top:1px solid var(--line);padding-top:12px}
+.pace-groups h3{font-size:12px;font-weight:650;margin:0 0 9px}
+.pace-groups .cs-person{display:flex;flex-direction:column;align-items:flex-start;gap:5px;margin:0 0 12px}
+.pace-groups .avatar{width:36px;height:36px}
+.pace-groups>section>p{font-size:11px;line-height:1.6;color:var(--muted)}
+/* Pace C: choose an episode and expose who has reached it. */
+.conversation-pace>label{display:flex;align-items:center;gap:8px;font-size:17px;font-weight:700;flex-wrap:wrap}
+.cs-preview select{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:4px;padding:8px;min-height:44px;max-width:100%;font-size:12px}
+.conversation-pace>label select{flex:1;min-width:130px}
+.conversation-pace>p:first-of-type{color:var(--muted);font-size:12px;margin:8px 0 13px}
+.conversation-row{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:67px;border-top:1px solid var(--line)}
+.conversation-row .avatar{width:35px;height:35px}
+.seen-label{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--muted);white-space:nowrap}
+.seen-label .icon{width:16px;height:16px}.has-seen .seen-label{color:var(--teal)}
+/* Game A: a real comparison table; scoring units never cross game rows. */
+.desk-caption{display:flex;justify-content:space-between;gap:12px;align-items:baseline;margin-bottom:14px}
+.desk-caption>strong{font-size:24px;font-stretch:70%;font-weight:850}.desk-caption>span{font-size:10px;color:var(--muted)}
+.desk-row{display:grid;grid-template-columns:1.12fr 1fr 1fr;gap:7px;align-items:center;border-top:1px solid var(--line);min-height:83px}
+.desk-head{min-height:48px;border-top:0;font-size:11px;color:var(--muted)}
+.desk-head>span:not(:first-child){text-align:center}.desk-head .cs-person{justify-content:center;width:100%;gap:4px}
+.desk-head .avatar{width:22px;height:22px}.desk-head .cs-person>b{font-size:11px}
+.desk-row>div>a{font-size:12px;font-weight:700;text-decoration:none;line-height:1.5;overflow-wrap:anywhere}
+.desk-row>div>a .icon{display:inline;width:12px;height:12px;vertical-align:middle}
+.desk-row>div>small{display:block;font-size:10px;color:var(--muted);line-height:1.5;margin-top:4px}
+.cs-metric{display:flex;align-items:center;justify-content:center;gap:4px;min-height:44px;padding:5px 2px;background:transparent;width:100%;font-size:13px;line-height:1.4;text-align:center}
+.cs-metric b{font-weight:750;overflow-wrap:anywhere}.cs-metric .icon{height:13px;width:13px}
+.cs-metric.your-score{color:var(--teal)}.cs-metric.is-private{color:var(--muted);font-size:10px}.cs-metric.is-private b{font-weight:500}
+.desk-others{background:transparent;display:flex;align-items:center;justify-content:space-between;gap:9px;width:100%;text-align:left;font-size:12px;min-height:49px;margin-top:7px;padding:5px 0;color:var(--text)}
+.cs-game-footer{display:flex;gap:12px;justify-content:space-between;align-items:center;border-top:1px solid var(--line);margin-top:15px;padding-top:7px;flex-wrap:wrap}
+.cs-game-footer>button,.cs-game-footer>a{display:inline-flex;align-items:center;gap:5px;min-height:44px;font-size:11px;background:transparent;text-decoration:none;padding:0;color:var(--text)}
+.cs-game-footer .icon{height:15px;width:15px}
+/* Game B: an illustrated broadcast result with a true game switcher. */
+.game-spotlight>label,.couch-match>label{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--muted)}
+.game-spotlight>label>select,.couch-match>label>select{flex:1;min-width:0}
+.spotlight-result{padding:20px 0 12px}.spotlight-result>span{font-size:12px;color:var(--muted)}
+.spotlight-result .spotlight-score{justify-content:flex-start;text-align:left;padding:2px 0;font-size:50px;font-weight:850;font-stretch:65%;line-height:1.1;color:var(--teal);min-height:68px}
+.spotlight-score>.icon{height:20px;width:20px;margin-left:8px}
+.spotlight-result .is-private{font-size:25px;line-height:1.3;min-height:66px}
+.spotlight-cast{display:flex;gap:8px;margin-bottom:15px}
+.spotlight-cast>button{min-width:0;flex:1;background:transparent;display:flex;flex-direction:column;padding:0;text-align:left}
+.spotlight-cast img{width:100%;height:130px;object-fit:cover;object-position:50% 15%;border-radius:3px}
+.spotlight-cast>button>b{font-size:12px;margin:7px 0 2px}.spotlight-cast>button>span{font-size:12px;color:var(--teal);margin-bottom:3px}
+.spotlight-couch>div{display:flex;align-items:center;justify-content:space-between;gap:10px;border-top:1px solid var(--line);min-height:53px}
+.spotlight-couch .cs-person{flex:1}.spotlight-couch .cs-metric{width:46%;justify-content:flex-end}
+/* Game C: social comparison has faces and game-specific units, no fake rank. */
+.match-people{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:20px 0}
+.match-people .cs-person{flex-direction:column;gap:7px;min-width:66px;align-items:center}
+.match-people .avatar{width:52px;height:52px}.match-people .cs-person>b{font-size:16px}
+.match-people>span{color:var(--muted);font-size:12px}
+.match-game{border-top:1px solid var(--line);padding:13px 0 8px}
+.match-game>a{display:flex;align-items:center;justify-content:center;gap:5px;font-size:12px;font-weight:650;text-decoration:none}
+.match-game>a>.icon{height:13px;width:13px}
+.match-scores{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start;margin-top:7px}
+.match-scores>div{min-width:0}.match-scores .cs-metric{font-size:22px;font-stretch:75%;min-height:48px}
+.match-scores .is-private{font-size:11px;font-stretch:100%}
+.match-bar{display:block;height:4px;background:var(--teal);max-width:100%;transform-origin:left;border-radius:2px}
+.match-bar.rival{background:var(--yellow)}
+.couch-match .match-scores>div:nth-child(2) .cs-metric:not(.is-private){color:var(--yellow)}
+.cs-empty{padding:20px 0}.cs-empty>.icon{width:35px;height:35px;color:var(--yellow);margin-bottom:12px}
+.cs-empty>h3,.solo-night>h3{font-size:29px;font-stretch:70%;font-weight:800;margin-bottom:9px}
+.cs-empty>p,.solo-night>p{font-size:13px;color:var(--muted);line-height:1.7;margin-bottom:12px;max-width:50ch}
+.cs-empty>a{min-height:44px;display:inline-flex;align-items:center;gap:7px;font-size:13px}
+.solo-game{display:flex;align-items:center;gap:15px;justify-content:space-between;min-height:70px;border-top:1px solid var(--line)}
+.solo-game>a{font-size:13px}.solo-game>.cs-metric{width:40%}
+.cs-notes{margin-top:40px;border-top:1px solid #443b50;padding-top:22px;color:#c3bdcd;font-size:12px;line-height:1.8}
+.cs-notes p{max-width:75ch;margin:0 0 12px}.cs-notes .button{color:#f4f2f8}
+.cs-mix{grid-template-columns:1fr;max-width:650px}
+@media(min-width:1200px){.cs-header{padding-bottom:32px}.cs-option-heading{min-height:130px}}
+@media(max-width:850px){.cs-workbench{padding:22px 16px 35px}.cs-options{grid-template-columns:1fr}.cs-header{display:block}.cs-back{margin-top:8px}.cs-section-title{gap:8px}.cs-option-heading{padding:15px}.cs-section{margin-top:30px}.cs-toolbar{gap:7px;padding:8px 0}.cs-size{padding-left:8px}.cs-filters{gap:0}.cs-filters button{padding:8px 10px;font-size:12px}}
+@media(max-width:400px){.cs-workbench{padding-left:10px;padding-right:10px}.cs-option-heading{padding:12px;gap:8px}.cs-option-heading h3>span{font-size:19px}.cs-choose{min-width:65px;font-size:11px}.cs-preview{padding:17px 12px}.cs-section-title h2{font-size:28px}.cs-filters button{padding:8px;font-size:11px}.cs-header h1{font-size:35px}.cs-header p{font-size:13px}.ticket-route>span{padding:15px 10px}.ticket-route b{font-size:24px}.ticket-next b{font-size:28px}.ticket-next>.icon{right:6px}.shared-track{grid-template-columns:93px 1fr;gap:7px}.desk-row{gap:4px}.cs-person{gap:5px}.season-node>span{width:37px;height:37px}.season-nodes::before{top:18px}.season-node small{font-size:10px}.rail-next{gap:10px}.spotlight-cast img{height:113px}}
+@media(prefers-reduced-motion:reduce){.component-studio *{animation:none!important;transition:none!important;scroll-behavior:auto!important}}

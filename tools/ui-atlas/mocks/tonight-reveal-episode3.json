@@ -1,0 +1,1414 @@
+{
+  "schemaVersion": 1,
+  "episode": {
+    "number": 3,
+    "stage": "final",
+    "out": [
+      {
+        "id": "c_ld1r9ni",
+        "name": "Jake Latimer",
+        "photo": "/__atlas/media/cast-2.jpg",
+        "method": "Medically Evacuated",
+        "place": 16,
+        "knocked": true
+      },
+      {
+        "id": "c_zvp1py4",
+        "name": "Jeremiah Ing",
+        "photo": "/__atlas/media/cast-3.jpg",
+        "method": "Voted Out",
+        "place": 15,
+        "knocked": true
+      }
+    ],
+    "happened": [
+      {
+        "label": "Immunity",
+        "winners": [
+          {
+            "name": "Hina",
+            "colour": "#d9704a"
+          }
+        ]
+      }
+    ],
+    "scorers": [
+      {
+        "name": "Alex Moore",
+        "photo": "/__atlas/media/cast-0.jpg",
+        "points": 5.5
+      },
+      {
+        "name": "MC Chukwujekwu",
+        "photo": "/__atlas/media/cast-9.jpg",
+        "points": 2.5
+      },
+      {
+        "name": "Sophi Balerdi",
+        "photo": "/__atlas/media/cast-5.jpg",
+        "points": 2
+      },
+      {
+        "name": "Rizo Velovic",
+        "photo": "/__atlas/media/cast-14.jpg",
+        "points": 1.5
+      },
+      {
+        "name": "Jason Treul",
+        "photo": "/__atlas/media/cast-6.jpg",
+        "points": 1
+      }
+    ],
+    "lines": [
+      {
+        "leagueId": "974326c9-b916-4505-a24d-a6aecd78faf1",
+        "gameName": "Outlast",
+        "gameType": "classic-draft",
+        "big": "All safe",
+        "line": "2 of 3 still in after this episode"
+      },
+      {
+        "leagueId": "f66a12c1-3786-466c-8146-37c44db86535",
+        "gameName": "Survival Pool",
+        "gameType": "pickem",
+        "big": "Survived",
+        "line": "You picked Sophi · streak 3"
+      },
+      {
+        "leagueId": "4b9494bb-1bc0-45bf-8697-66c5ecea92ea",
+        "gameName": "Weekly Lineup",
+        "gameType": "active-roster",
+        "big": "+1.5",
+        "line": "Steven +1 · Sophie +0.5 · Nate 0",
+        "soFar": false
+      },
+      {
+        "leagueId": "81c58309-4dd1-46eb-8259-73d38f1c3ba0",
+        "gameName": "Weekly Lineup",
+        "gameType": "active-roster",
+        "big": "+1.5",
+        "line": "Steven +1 · Sophie +0.5 · Nate 0",
+        "soFar": false
+      },
+      {
+        "leagueId": "5a25ed13-3bb3-44f2-b850-e0ef43128aad",
+        "gameName": "Prediction Sheet",
+        "gameType": "questions",
+        "big": "0 pts",
+        "line": "0 of 1 right"
+      }
+    ],
+    "airAt": "2026-10-15T00:00:00.000Z",
+    "finalAt": "2026-10-15T16:00:00.000Z",
+    "status": "seen",
+    "gifs": {
+      "n": 0,
+      "mine": false,
+      "urls": []
+    }
+  },
+  "games": [
+    {
+      "leagueId": "f66a12c1-3786-466c-8146-37c44db86535",
+      "name": "Survival Pool",
+      "gameType": "pickem",
+      "cast": [
+        {
+          "id": "c_zy90xtc",
+          "name": "Alex Moore",
+          "photo": "/__atlas/media/cast-0.jpg"
+        },
+        {
+          "id": "c_wfx9mxp",
+          "name": "Annie Davis",
+          "photo": "/__atlas/media/cast-1.jpg"
+        },
+        {
+          "id": "c_4xlw25v",
+          "name": "Jake Latimer",
+          "photo": "/__atlas/media/cast-2.jpg"
+        },
+        {
+          "id": "c_rtot74h",
+          "name": "Jeremiah Ing",
+          "photo": "/__atlas/media/cast-3.jpg"
+        },
+        {
+          "id": "c_6no032e",
+          "name": "Nicole Mazullo",
+          "photo": "/__atlas/media/cast-4.jpg"
+        },
+        {
+          "id": "c_1farre9",
+          "name": "Sophi Balerdi",
+          "photo": "/__atlas/media/cast-5.jpg"
+        },
+        {
+          "id": "c_oui98rj",
+          "name": "Jason Treul",
+          "photo": "/__atlas/media/cast-6.jpg"
+        },
+        {
+          "id": "c_fleolaz",
+          "name": "Kristina Mills",
+          "photo": "/__atlas/media/cast-7.jpg"
+        },
+        {
+          "id": "c_tz2hij8",
+          "name": "Matt Williams",
+          "photo": "/__atlas/media/cast-8.jpg"
+        },
+        {
+          "id": "c_7f0p7zr",
+          "name": "MC Chukwujekwu",
+          "photo": "/__atlas/media/cast-9.jpg"
+        },
+        {
+          "id": "c_ka5szi4",
+          "name": "Sophie Segreti",
+          "photo": "/__atlas/media/cast-10.jpg"
+        },
+        {
+          "id": "c_q1ni7te",
+          "name": "Steven Ramm",
+          "photo": "/__atlas/media/cast-11.jpg"
+        },
+        {
+          "id": "c_0eox3z0",
+          "name": "Jawan Pitts",
+          "photo": "/__atlas/media/cast-12.jpg"
+        },
+        {
+          "id": "c_egykh3v",
+          "name": "Nate Moore",
+          "photo": "/__atlas/media/cast-13.jpg"
+        },
+        {
+          "id": "c_uhek968",
+          "name": "Rizo Velovic",
+          "photo": "/__atlas/media/cast-14.jpg"
+        },
+        {
+          "id": "c_lbpu0z3",
+          "name": "Sage Ahrens-Nichols",
+          "photo": "/__atlas/media/cast-15.jpg"
+        },
+        {
+          "id": "c_jyb3x9i",
+          "name": "Savannah Louie",
+          "photo": "/__atlas/media/cast-16.jpg"
+        },
+        {
+          "id": "c_abiubxb",
+          "name": "Shannon Fairweather",
+          "photo": "/__atlas/media/cast-17.jpg"
+        }
+      ],
+      "table": [
+        {
+          "playerId": "p_5cmpz54",
+          "userId": "zt-pt-75b2d76d-8e19-4c34-acc2-5b8254efba43",
+          "name": "Alex",
+          "you": true,
+          "weeks": [],
+          "picks": [
+            {
+              "episode": 1,
+              "castawayId": "c_wfx9mxp",
+              "correct": true
+            },
+            {
+              "episode": 2,
+              "castawayId": "c_zy90xtc",
+              "correct": true
+            },
+            {
+              "episode": 3,
+              "castawayId": "c_1farre9",
+              "correct": true
+            }
+          ]
+        },
+        {
+          "playerId": "p_9hctv6q",
+          "userId": "zt-pt-91ec0d55-cde0-40e0-92d6-8d851501e024",
+          "name": "Jordan",
+          "you": false,
+          "weeks": [],
+          "picks": [
+            {
+              "episode": 1,
+              "castawayId": "c_zy90xtc",
+              "correct": true
+            },
+            {
+              "episode": 2,
+              "castawayId": "c_wfx9mxp",
+              "correct": false
+            },
+            {
+              "episode": 3,
+              "castawayId": "c_4xlw25v",
+              "correct": false
+            }
+          ]
+        },
+        {
+          "playerId": "p_fv51lc0",
+          "userId": "zt-pt-31624868-e888-4b03-af42-40c18e44e443",
+          "name": "Sam",
+          "you": false,
+          "weeks": [],
+          "picks": [
+            {
+              "episode": 1,
+              "castawayId": null,
+              "correct": false
+            },
+            {
+              "episode": 2,
+              "castawayId": "c_fleolaz",
+              "correct": true
+            },
+            {
+              "episode": 3,
+              "castawayId": null,
+              "correct": false
+            }
+          ]
+        },
+        {
+          "playerId": "p_bdfnyky",
+          "userId": "zt-pt-9e74317f-9faf-40e8-a3a6-97edcf80ae49",
+          "name": "Riley",
+          "you": false,
+          "weeks": [],
+          "picks": [
+            {
+              "episode": 1,
+              "castawayId": null,
+              "correct": false
+            },
+            {
+              "episode": 2,
+              "castawayId": "c_egykh3v",
+              "correct": true
+            },
+            {
+              "episode": 3,
+              "castawayId": null,
+              "correct": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "leagueId": "4b9494bb-1bc0-45bf-8697-66c5ecea92ea",
+      "name": "Weekly Lineup",
+      "gameType": "active-roster",
+      "cast": [
+        {
+          "id": "c_br93xvx",
+          "name": "Alex Moore",
+          "photo": "/__atlas/media/cast-0.jpg"
+        },
+        {
+          "id": "c_eht9r7e",
+          "name": "Annie Davis",
+          "photo": "/__atlas/media/cast-1.jpg"
+        },
+        {
+          "id": "c_ld1r9ni",
+          "name": "Jake Latimer",
+          "photo": "/__atlas/media/cast-2.jpg"
+        },
+        {
+          "id": "c_zvp1py4",
+          "name": "Jeremiah Ing",
+          "photo": "/__atlas/media/cast-3.jpg"
+        },
+        {
+          "id": "c_1mm35ki",
+          "name": "Nicole Mazullo",
+          "photo": "/__atlas/media/cast-4.jpg"
+        },
+        {
+          "id": "c_kk8rijf",
+          "name": "Sophi Balerdi",
+          "photo": "/__atlas/media/cast-5.jpg"
+        },
+        {
+          "id": "c_lszxgey",
+          "name": "Jason Treul",
+          "photo": "/__atlas/media/cast-6.jpg"
+        },
+        {
+          "id": "c_joode8j",
+          "name": "Kristina Mills",
+          "photo": "/__atlas/media/cast-7.jpg"
+        },
+        {
+          "id": "c_y0gdlh0",
+          "name": "Matt Williams",
+          "photo": "/__atlas/media/cast-8.jpg"
+        },
+        {
+          "id": "c_yndlu58",
+          "name": "MC Chukwujekwu",
+          "photo": "/__atlas/media/cast-9.jpg"
+        },
+        {
+          "id": "c_913su28",
+          "name": "Sophie Segreti",
+          "photo": "/__atlas/media/cast-10.jpg"
+        },
+        {
+          "id": "c_45d7ya6",
+          "name": "Steven Ramm",
+          "photo": "/__atlas/media/cast-11.jpg"
+        },
+        {
+          "id": "c_d20vndb",
+          "name": "Jawan Pitts",
+          "photo": "/__atlas/media/cast-12.jpg"
+        },
+        {
+          "id": "c_50w5akk",
+          "name": "Nate Moore",
+          "photo": "/__atlas/media/cast-13.jpg"
+        },
+        {
+          "id": "c_aorkgoc",
+          "name": "Rizo Velovic",
+          "photo": "/__atlas/media/cast-14.jpg"
+        },
+        {
+          "id": "c_0aqjzbl",
+          "name": "Sage Ahrens-Nichols",
+          "photo": "/__atlas/media/cast-15.jpg"
+        },
+        {
+          "id": "c_6goplop",
+          "name": "Savannah Louie",
+          "photo": "/__atlas/media/cast-16.jpg"
+        },
+        {
+          "id": "c_nfp1k79",
+          "name": "Shannon Fairweather",
+          "photo": "/__atlas/media/cast-17.jpg"
+        }
+      ],
+      "table": [
+        {
+          "playerId": "p_8g2mnda",
+          "userId": "zt-pt-75b2d76d-8e19-4c34-acc2-5b8254efba43",
+          "name": "Alex",
+          "you": true,
+          "weeks": [
+            {
+              "episode": 1,
+              "total": 7,
+              "predictions": 0,
+              "started": [
+                {
+                  "id": "c_913su28",
+                  "points": 2.5,
+                  "why": [
+                    "Reward win",
+                    "Tribe/team immunity win"
+                  ]
+                },
+                {
+                  "id": "c_45d7ya6",
+                  "points": 2.5,
+                  "why": [
+                    "Reward win",
+                    "Tribe/team immunity win"
+                  ]
+                },
+                {
+                  "id": "c_eht9r7e",
+                  "points": 2,
+                  "why": [
+                    "Received votes at Tribal but survived",
+                    "Voted with the majority (voted for who went home)",
+                    "Sat out a challenge"
+                  ]
+                }
+              ],
+              "bench": [
+                {
+                  "id": "c_50w5akk",
+                  "points": 1
+                },
+                {
+                  "id": "c_0aqjzbl",
+                  "points": 1
+                }
+              ]
+            },
+            {
+              "episode": 2,
+              "total": -2,
+              "predictions": 0,
+              "started": [
+                {
+                  "id": "c_913su28",
+                  "points": 0.5,
+                  "why": [
+                    "Tribe/team immunity win",
+                    "Had an advantage used against them"
+                  ]
+                },
+                {
+                  "id": "c_45d7ya6",
+                  "points": 0.5,
+                  "why": [
+                    "Tribe/team immunity win",
+                    "Had an advantage used against them"
+                  ]
+                },
+                {
+                  "id": "c_eht9r7e",
+                  "points": -3,
+                  "why": [
+                    "Voted out"
+                  ]
+                }
+              ],
+              "bench": [
+                {
+                  "id": "c_50w5akk",
+                  "points": 0
+                },
+                {
+                  "id": "c_0aqjzbl",
+                  "points": 0
+                }
+              ]
+            },
+            {
+              "episode": 3,
+              "total": 1.5,
+              "predictions": 0,
+              "started": [
+                {
+                  "id": "c_45d7ya6",
+                  "points": 1,
+                  "why": [
+                    "Tribe/team immunity win"
+                  ]
+                },
+                {
+                  "id": "c_913su28",
+                  "points": 0.5,
+                  "why": [
+                    "Tribe/team immunity win",
+                    "Sat out a challenge"
+                  ]
+                },
+                {
+                  "id": "c_50w5akk",
+                  "points": 0,
+                  "why": []
+                }
+              ],
+              "bench": [
+                {
+                  "id": "c_0aqjzbl",
+                  "points": 0
+                }
+              ]
+            }
+          ],
+          "picks": []
+        },
+        {
+          "playerId": "p_itcuede",
+          "userId": "zt-pt-91ec0d55-cde0-40e0-92d6-8d851501e024",
+          "name": "Jordan",
+          "you": false,
+          "weeks": [
+            {
+              "episode": 1,
+              "total": 5.5,
+              "predictions": 0,
+              "started": [
+                {
+                  "id": "c_br93xvx",
+                  "points": 2,
+                  "why": [
+                    "Voted with the majority (voted for who went home)",
+                    "Safe at Tribal, zero votes against"
+                  ]
+                },
+                {
+                  "id": "c_eht9r7e",
+                  "points": 2,
+                  "why": [
+                    "Received votes at Tribal but survived",
+                    "Voted with the majority (voted for who went home)",
+                    "Sat out a challenge"
+                  ]
+                },
+                {
+                  "id": "c_ld1r9ni",
+                  "points": 1.5,
+                  "why": [
+                    "Voted with the majority (voted for who went home)",
+                    "Safe at Tribal, zero votes against",
+                    "Sat out a challenge"
+                  ]
+                }
+              ],
+              "bench": [
+                {
+                  "id": "c_zvp1py4",
+                  "points": 1.5
+                },
+                {
+                  "id": "c_1mm35ki",
+                  "points": -3.5
+                }
+              ]
+            },
+            {
+              "episode": 2,
+              "total": 3,
+              "predictions": 0,
+              "started": [
+                {
+                  "id": "c_br93xvx",
+                  "points": 4,
+                  "why": [
+                    "Idol/advantage found",
+                    "Voted with the majority (voted for who went home)",
+                    "Safe at Tribal, zero votes against"
+                  ]
+                },
+                {
+                  "id": "c_ld1r9ni",
+                  "points": 2,
+                  "why": [
+                    "Voted with the majority (voted for who went home)",
+                    "Safe at Tribal, zero votes against"
+                  ]
+                },
+                {
+                  "id": "c_eht9r7e",
+                  "points": -3,
+                  "why": [
+                    "Voted out"
+                  ]
+                }
+              ],
+              "bench": [
+                {
+                  "id": "c_zvp1py4",
+                  "points": 2
+                }
+              ]
+            },
+            {
+              "episode": 3,
+              "total": 2,
+              "predictions": 0,
+              "started": [
+                {
+                  "id": "c_br93xvx",
+                  "points": 5.5,
+                  "why": [
+                    "Played an idol/advantage that cancelled votes",
+                    "Received votes at Tribal but survived",
+                    "Voted with the majority (voted for who went home)"
+                  ]
+                },
+                {
+                  "id": "c_ld1r9ni",
+                  "points": 0,
+                  "why": []
+                },
+                {
+                  "id": "c_zvp1py4",
+                  "points": -3.5,
+                  "why": [
+                    "Voted out",
+                    "Had an advantage used against them"
+                  ]
+                }
+              ],
+              "bench": []
+            }
+          ],
+          "picks": []
+        },
+        {
+          "playerId": "p_qfaw14j",
+          "userId": "zt-pt-9e74317f-9faf-40e8-a3a6-97edcf80ae49",
+          "name": "Riley",
+          "you": false,
+          "weeks": [
+            {
+              "episode": 1,
+              "total": 0,
+              "predictions": 0,
+              "started": [],
+              "bench": [
+                {
+                  "id": "c_y0gdlh0",
+                  "points": 2.5
+                },
+                {
+                  "id": "c_ld1r9ni",
+                  "points": 1.5
+                },
+                {
+                  "id": "c_d20vndb",
+                  "points": 1
+                },
+                {
+                  "id": "c_50w5akk",
+                  "points": 1
+                },
+                {
+                  "id": "c_6goplop",
+                  "points": 1
+                }
+              ]
+            },
+            {
+              "episode": 2,
+              "total": 2.5,
+              "predictions": 0,
+              "started": [
+                {
+                  "id": "c_ld1r9ni",
+                  "points": 2,
+                  "why": [
+                    "Voted with the majority (voted for who went home)",
+                    "Safe at Tribal, zero votes against"
+                  ]
+                },
+                {
+                  "id": "c_y0gdlh0",
+                  "points": 0.5,
+                  "why": [
+                    "Tribe/team immunity win",
+                    "Had an advantage used against them"
+                  ]
+                },
+                {
+                  "id": "c_50w5akk",
+                  "points": 0,
+                  "why": []
+                }
+              ],
+              "bench": [
+                {
+                  "id": "c_d20vndb",
+                  "points": 2.5
+                },
+                {
+                  "id": "c_6goplop",
+                  "points": 0
+                }
+              ]
+            },
+            {
+              "episode": 3,
+              "total": 0.5,
+              "predictions": 0,
+              "started": [
+                {
+                  "id": "c_y0gdlh0",
+                  "points": 0.5,
+                  "why": [
+                    "Tribe/team immunity win",
+                    "Sat out a challenge"
+                  ]
+                },
+                {
+                  "id": "c_ld1r9ni",
+                  "points": 0,
+                  "why": []
+                },
+                {
+                  "id": "c_50w5akk",
+                  "points": 0,
+                  "why": []
+                }
+              ],
+              "bench": [
+                {
+                  "id": "c_6goplop",
+                  "points": 0
+                },
+                {
+                  "id": "c_d20vndb",
+                  "points": -0.5
+                }
+              ]
+            }
+          ],
+          "picks": []
+        },
+        {
+          "playerId": "p_bqfhg39",
+          "userId": "zt-pt-31624868-e888-4b03-af42-40c18e44e443",
+          "name": "Sam",
+          "you": false,
+          "weeks": [
+            {
+              "episode": 1,
+              "total": 0,
+              "predictions": 0,
+              "started": [],
+              "bench": [
+                {
+                  "id": "c_br93xvx",
+                  "points": 2
+                },
+                {
+                  "id": "c_eht9r7e",
+                  "points": 2
+                },
+                {
+                  "id": "c_ld1r9ni",
+                  "points": 1.5
+                },
+                {
+                  "id": "c_zvp1py4",
+                  "points": 1.5
+                },
+                {
+                  "id": "c_1mm35ki",
+                  "points": -3.5
+                }
+              ]
+            },
+            {
+              "episode": 2,
+              "total": 1,
+              "predictions": 0,
+              "started": [
+                {
+                  "id": "c_ld1r9ni",
+                  "points": 2,
+                  "why": [
+                    "Voted with the majority (voted for who went home)",
+                    "Safe at Tribal, zero votes against"
+                  ]
+                },
+                {
+                  "id": "c_zvp1py4",
+                  "points": 2,
+                  "why": [
+                    "Voted with the majority (voted for who went home)",
+                    "Safe at Tribal, zero votes against"
+                  ]
+                },
+                {
+                  "id": "c_eht9r7e",
+                  "points": -3,
+                  "why": [
+                    "Voted out"
+                  ]
+                }
+              ],
+              "bench": [
+                {
+                  "id": "c_br93xvx",
+                  "points": 4
+                }
+              ]
+            },
+            {
+              "episode": 3,
+              "total": -3.5,
+              "predictions": 0,
+              "started": [
+                {
+                  "id": "c_ld1r9ni",
+                  "points": 0,
+                  "why": []
+                },
+                {
+                  "id": "c_zvp1py4",
+                  "points": -3.5,
+                  "why": [
+                    "Voted out",
+                    "Had an advantage used against them"
+                  ]
+                }
+              ],
+              "bench": [
+                {
+                  "id": "c_br93xvx",
+                  "points": 5.5
+                }
+              ]
+            }
+          ],
+          "picks": []
+        }
+      ]
+    },
+    {
+      "leagueId": "81c58309-4dd1-46eb-8259-73d38f1c3ba0",
+      "name": "Weekly Lineup",
+      "gameType": "active-roster",
+      "cast": [
+        {
+          "id": "c_wn80pnc",
+          "name": "Alex Moore",
+          "photo": "/__atlas/media/cast-0.jpg"
+        },
+        {
+          "id": "c_ddyyokj",
+          "name": "Annie Davis",
+          "photo": "/__atlas/media/cast-1.jpg"
+        },
+        {
+          "id": "c_xyon35q",
+          "name": "Jake Latimer",
+          "photo": "/__atlas/media/cast-2.jpg"
+        },
+        {
+          "id": "c_2o654eo",
+          "name": "Jeremiah Ing",
+          "photo": "/__atlas/media/cast-3.jpg"
+        },
+        {
+          "id": "c_jcc550v",
+          "name": "Nicole Mazullo",
+          "photo": "/__atlas/media/cast-4.jpg"
+        },
+        {
+          "id": "c_igihcun",
+          "name": "Sophi Balerdi",
+          "photo": "/__atlas/media/cast-5.jpg"
+        },
+        {
+          "id": "c_1aie6tg",
+          "name": "Jason Treul",
+          "photo": "/__atlas/media/cast-6.jpg"
+        },
+        {
+          "id": "c_srjzk0d",
+          "name": "Kristina Mills",
+          "photo": "/__atlas/media/cast-7.jpg"
+        },
+        {
+          "id": "c_aphssn4",
+          "name": "Matt Williams",
+          "photo": "/__atlas/media/cast-8.jpg"
+        },
+        {
+          "id": "c_hjfdrso",
+          "name": "MC Chukwujekwu",
+          "photo": "/__atlas/media/cast-9.jpg"
+        },
+        {
+          "id": "c_qeze6rj",
+          "name": "Sophie Segreti",
+          "photo": "/__atlas/media/cast-10.jpg"
+        },
+        {
+          "id": "c_5vsprz7",
+          "name": "Steven Ramm",
+          "photo": "/__atlas/media/cast-11.jpg"
+        },
+        {
+          "id": "c_o6hgnou",
+          "name": "Jawan Pitts",
+          "photo": "/__atlas/media/cast-12.jpg"
+        },
+        {
+          "id": "c_4iwy2bd",
+          "name": "Nate Moore",
+          "photo": "/__atlas/media/cast-13.jpg"
+        },
+        {
+          "id": "c_kgsq0oi",
+          "name": "Rizo Velovic",
+          "photo": "/__atlas/media/cast-14.jpg"
+        },
+        {
+          "id": "c_30xnd02",
+          "name": "Sage Ahrens-Nichols",
+          "photo": "/__atlas/media/cast-15.jpg"
+        },
+        {
+          "id": "c_dxb3k1y",
+          "name": "Savannah Louie",
+          "photo": "/__atlas/media/cast-16.jpg"
+        },
+        {
+          "id": "c_vxem1aq",
+          "name": "Shannon Fairweather",
+          "photo": "/__atlas/media/cast-17.jpg"
+        }
+      ],
+      "table": [
+        {
+          "playerId": "p_f9v8uz7",
+          "userId": "zt-pt-75b2d76d-8e19-4c34-acc2-5b8254efba43",
+          "name": "Alex",
+          "you": true,
+          "weeks": [
+            {
+              "episode": 1,
+              "total": 7,
+              "predictions": 0,
+              "started": [
+                {
+                  "id": "c_qeze6rj",
+                  "points": 2.5,
+                  "why": [
+                    "Reward win",
+                    "Tribe/team immunity win"
+                  ]
+                },
+                {
+                  "id": "c_5vsprz7",
+                  "points": 2.5,
+                  "why": [
+                    "Reward win",
+                    "Tribe/team immunity win"
+                  ]
+                },
+                {
+                  "id": "c_ddyyokj",
+                  "points": 2,
+                  "why": [
+                    "Received votes at Tribal but survived",
+                    "Voted with the majority (voted for who went home)",
+                    "Sat out a challenge"
+                  ]
+                }
+              ],
+              "bench": [
+                {
+                  "id": "c_4iwy2bd",
+                  "points": 1
+                },
+                {
+                  "id": "c_30xnd02",
+                  "points": 1
+                }
+              ]
+            },
+            {
+              "episode": 2,
+              "total": -2,
+              "predictions": 0,
+              "started": [
+                {
+                  "id": "c_qeze6rj",
+                  "points": 0.5,
+                  "why": [
+                    "Tribe/team immunity win",
+                    "Had an advantage used against them"
+                  ]
+                },
+                {
+                  "id": "c_5vsprz7",
+                  "points": 0.5,
+                  "why": [
+                    "Tribe/team immunity win",
+                    "Had an advantage used against them"
+                  ]
+                },
+                {
+                  "id": "c_ddyyokj",
+                  "points": -3,
+                  "why": [
+                    "Voted out"
+                  ]
+                }
+              ],
+              "bench": [
+                {
+                  "id": "c_4iwy2bd",
+                  "points": 0
+                },
+                {
+                  "id": "c_30xnd02",
+                  "points": 0
+                }
+              ]
+            },
+            {
+              "episode": 3,
+              "total": 1.5,
+              "predictions": 0,
+              "started": [
+                {
+                  "id": "c_5vsprz7",
+                  "points": 1,
+                  "why": [
+                    "Tribe/team immunity win"
+                  ]
+                },
+                {
+                  "id": "c_qeze6rj",
+                  "points": 0.5,
+                  "why": [
+                    "Tribe/team immunity win",
+                    "Sat out a challenge"
+                  ]
+                },
+                {
+                  "id": "c_4iwy2bd",
+                  "points": 0,
+                  "why": []
+                }
+              ],
+              "bench": [
+                {
+                  "id": "c_30xnd02",
+                  "points": 0
+                }
+              ]
+            }
+          ],
+          "picks": []
+        },
+        {
+          "playerId": "p_pjd6qkb",
+          "userId": "zt-pt-9e74317f-9faf-40e8-a3a6-97edcf80ae49",
+          "name": "Riley",
+          "you": false,
+          "weeks": [
+            {
+              "episode": 1,
+              "total": 0,
+              "predictions": 0,
+              "started": [],
+              "bench": [
+                {
+                  "id": "c_aphssn4",
+                  "points": 2.5
+                },
+                {
+                  "id": "c_xyon35q",
+                  "points": 1.5
+                },
+                {
+                  "id": "c_o6hgnou",
+                  "points": 1
+                },
+                {
+                  "id": "c_4iwy2bd",
+                  "points": 1
+                },
+                {
+                  "id": "c_dxb3k1y",
+                  "points": 1
+                }
+              ]
+            },
+            {
+              "episode": 2,
+              "total": 2.5,
+              "predictions": 0,
+              "started": [
+                {
+                  "id": "c_xyon35q",
+                  "points": 2,
+                  "why": [
+                    "Voted with the majority (voted for who went home)",
+                    "Safe at Tribal, zero votes against"
+                  ]
+                },
+                {
+                  "id": "c_aphssn4",
+                  "points": 0.5,
+                  "why": [
+                    "Tribe/team immunity win",
+                    "Had an advantage used against them"
+                  ]
+                },
+                {
+                  "id": "c_4iwy2bd",
+                  "points": 0,
+                  "why": []
+                }
+              ],
+              "bench": [
+                {
+                  "id": "c_o6hgnou",
+                  "points": 2.5
+                },
+                {
+                  "id": "c_dxb3k1y",
+                  "points": 0
+                }
+              ]
+            },
+            {
+              "episode": 3,
+              "total": 0.5,
+              "predictions": 0,
+              "started": [
+                {
+                  "id": "c_aphssn4",
+                  "points": 0.5,
+                  "why": [
+                    "Tribe/team immunity win",
+                    "Sat out a challenge"
+                  ]
+                },
+                {
+                  "id": "c_xyon35q",
+                  "points": 0,
+                  "why": []
+                },
+                {
+                  "id": "c_4iwy2bd",
+                  "points": 0,
+                  "why": []
+                }
+              ],
+              "bench": [
+                {
+                  "id": "c_dxb3k1y",
+                  "points": 0
+                },
+                {
+                  "id": "c_o6hgnou",
+                  "points": -0.5
+                }
+              ]
+            }
+          ],
+          "picks": []
+        },
+        {
+          "playerId": "p_zc2cmc5",
+          "userId": "zt-pt-91ec0d55-cde0-40e0-92d6-8d851501e024",
+          "name": "Jordan",
+          "you": false,
+          "weeks": [
+            {
+              "episode": 1,
+              "total": 5.5,
+              "predictions": 0,
+              "started": [
+                {
+                  "id": "c_wn80pnc",
+                  "points": 2,
+                  "why": [
+                    "Voted with the majority (voted for who went home)",
+                    "Safe at Tribal, zero votes against"
+                  ]
+                },
+                {
+                  "id": "c_ddyyokj",
+                  "points": 2,
+                  "why": [
+                    "Received votes at Tribal but survived",
+                    "Voted with the majority (voted for who went home)",
+                    "Sat out a challenge"
+                  ]
+                },
+                {
+                  "id": "c_xyon35q",
+                  "points": 1.5,
+                  "why": [
+                    "Voted with the majority (voted for who went home)",
+                    "Safe at Tribal, zero votes against",
+                    "Sat out a challenge"
+                  ]
+                }
+              ],
+              "bench": [
+                {
+                  "id": "c_2o654eo",
+                  "points": 1.5
+                },
+                {
+                  "id": "c_jcc550v",
+                  "points": -3.5
+                }
+              ]
+            },
+            {
+              "episode": 2,
+              "total": 3,
+              "predictions": 0,
+              "started": [
+                {
+                  "id": "c_wn80pnc",
+                  "points": 4,
+                  "why": [
+                    "Idol/advantage found",
+                    "Voted with the majority (voted for who went home)",
+                    "Safe at Tribal, zero votes against"
+                  ]
+                },
+                {
+                  "id": "c_xyon35q",
+                  "points": 2,
+                  "why": [
+                    "Voted with the majority (voted for who went home)",
+                    "Safe at Tribal, zero votes against"
+                  ]
+                },
+                {
+                  "id": "c_ddyyokj",
+                  "points": -3,
+                  "why": [
+                    "Voted out"
+                  ]
+                }
+              ],
+              "bench": [
+                {
+                  "id": "c_2o654eo",
+                  "points": 2
+                }
+              ]
+            },
+            {
+              "episode": 3,
+              "total": 2,
+              "predictions": 0,
+              "started": [
+                {
+                  "id": "c_wn80pnc",
+                  "points": 5.5,
+                  "why": [
+                    "Played an idol/advantage that cancelled votes",
+                    "Received votes at Tribal but survived",
+                    "Voted with the majority (voted for who went home)"
+                  ]
+                },
+                {
+                  "id": "c_xyon35q",
+                  "points": 0,
+                  "why": []
+                },
+                {
+                  "id": "c_2o654eo",
+                  "points": -3.5,
+                  "why": [
+                    "Voted out",
+                    "Had an advantage used against them"
+                  ]
+                }
+              ],
+              "bench": []
+            }
+          ],
+          "picks": []
+        },
+        {
+          "playerId": "p_29gaz33",
+          "userId": "zt-pt-31624868-e888-4b03-af42-40c18e44e443",
+          "name": "Sam",
+          "you": false,
+          "weeks": [
+            {
+              "episode": 1,
+              "total": 0,
+              "predictions": 0,
+              "started": [],
+              "bench": [
+                {
+                  "id": "c_wn80pnc",
+                  "points": 2
+                },
+                {
+                  "id": "c_ddyyokj",
+                  "points": 2
+                },
+                {
+                  "id": "c_xyon35q",
+                  "points": 1.5
+                },
+                {
+                  "id": "c_2o654eo",
+                  "points": 1.5
+                },
+                {
+                  "id": "c_jcc550v",
+                  "points": -3.5
+                }
+              ]
+            },
+            {
+              "episode": 2,
+              "total": 1,
+              "predictions": 0,
+              "started": [
+                {
+                  "id": "c_xyon35q",
+                  "points": 2,
+                  "why": [
+                    "Voted with the majority (voted for who went home)",
+                    "Safe at Tribal, zero votes against"
+                  ]
+                },
+                {
+                  "id": "c_2o654eo",
+                  "points": 2,
+                  "why": [
+                    "Voted with the majority (voted for who went home)",
+                    "Safe at Tribal, zero votes against"
+                  ]
+                },
+                {
+                  "id": "c_ddyyokj",
+                  "points": -3,
+                  "why": [
+                    "Voted out"
+                  ]
+                }
+              ],
+              "bench": [
+                {
+                  "id": "c_wn80pnc",
+                  "points": 4
+                }
+              ]
+            },
+            {
+              "episode": 3,
+              "total": -3.5,
+              "predictions": 0,
+              "started": [
+                {
+                  "id": "c_xyon35q",
+                  "points": 0,
+                  "why": []
+                },
+                {
+                  "id": "c_2o654eo",
+                  "points": -3.5,
+                  "why": [
+                    "Voted out",
+                    "Had an advantage used against them"
+                  ]
+                }
+              ],
+              "bench": [
+                {
+                  "id": "c_wn80pnc",
+                  "points": 5.5
+                }
+              ]
+            }
+          ],
+          "picks": []
+        }
+      ]
+    }
+  ],
+  "provenance": {
+    "kind": "recorded-local-fixture",
+    "capturedAt": "2026-11-10T21:02:35.907Z",
+    "note": "Episode 3 only. Loaded after explicit reveal confirmation. Captured game outputs; not recomputed from local preview picks. Visibility is applied in the mock from explicit per-game progress metadata; not an authorization boundary."
+  }
+}

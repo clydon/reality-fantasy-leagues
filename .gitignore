@@ -33,6 +33,9 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# Claude's machine-local settings can contain MCP credentials.
+/.claude/settings.local.json
+
 # vercel
 .vercel
 
@@ -63,3 +66,9 @@ next-env.d.ts
 
 # scripts/session-loop.js: its state, hand-offs and session logs
 /.session-loop/
+
+# Generated local UI atlas: fixture projections, captures, baselines and review notes
+/.ui-atlas/
+
+# Third-party reaction GIFs a Tonight mock uses (KLIPY; their sources are in provenance.json beside them): kept local, never committed
+/tools/ui-atlas/mocks/tonight-assets/*.gif

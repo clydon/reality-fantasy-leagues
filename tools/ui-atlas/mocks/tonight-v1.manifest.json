@@ -1,0 +1,19 @@
+{
+  "version": "V1",
+  "frozenOn": "2026-11-11",
+  "note": "Preserved first pilot before episode clarity/recap revision. HTML asset paths are versioned; CSS and JS bytes preserved.",
+  "files": [
+    {
+      "file": "tools/ui-atlas/mocks/tonight-v1.html",
+      "sha256": "1d7c23018c04cdf9e8f63feddc387654edb89442048d038ebdcc5744f950a496"
+    },
+    {
+      "file": "tools/ui-atlas/mocks/tonight-v1.css",
+      "sha256": "a2e546513d84dec41e3b946b403fa597b98350fd1569eead09593bce3df34819"
+    },
+    {
+      "file": "tools/ui-atlas/mocks/tonight-v1.js",
+      "sha256": "2dbff164daab42d2b4565ba6b5929262e67bcd83bb177b6a3d81dae540156b93"
+    }
+  ]
+}

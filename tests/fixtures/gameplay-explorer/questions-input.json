@@ -1,0 +1,299 @@
+{
+  "format": { "id": "survivor" },
+  "spec": {
+    "get": {
+      "by": "none"
+    },
+    "score": {
+      "by": "answers"
+    },
+    "rank": {
+      "by": "total"
+    },
+    "ask": [
+      {
+        "id": "boot",
+        "ask": "Who goes home?",
+        "answer": "person",
+        "points": 2,
+        "asked": "each",
+        "settle": {
+          "by": "results",
+          "take": "out"
+        }
+      },
+      {
+        "id": "happens",
+        "ask": "Will this moment occur?",
+        "answer": "yesNo",
+        "points": 1,
+        "asked": "each",
+        "settle": {
+          "by": "moment",
+          "moment": "rewardWin",
+          "take": "happened"
+        }
+      }
+    ]
+  },
+  "context": {
+    "moments": [
+      {
+        "id": "rewardWin",
+        "label": "Won the Reward challenge",
+        "defaultPoints": {
+          "exclusive": 1,
+          "shared": 1.5
+        },
+        "answeredBy": "research",
+        "auto": false,
+        "off": false
+      },
+      {
+        "id": "chosenForReward",
+        "label": "Chosen to join a reward",
+        "defaultPoints": 0.5,
+        "answeredBy": "research",
+        "auto": false,
+        "off": false
+      },
+      {
+        "id": "individualImmunity",
+        "label": "Won the Immunity challenge",
+        "defaultPoints": {
+          "exclusive": 3,
+          "shared": 4
+        },
+        "answeredBy": "research",
+        "auto": false,
+        "off": false
+      },
+      {
+        "id": "challengeRunnerUp",
+        "label": "2nd in the Immunity challenge",
+        "defaultPoints": {
+          "exclusive": 1.5,
+          "shared": 2
+        },
+        "answeredBy": "research",
+        "auto": false,
+        "off": false
+      },
+      {
+        "id": "challengeThird",
+        "label": "3rd in the Immunity challenge",
+        "defaultPoints": 1,
+        "answeredBy": "research",
+        "auto": false,
+        "off": false
+      },
+      {
+        "id": "tribeImmunity",
+        "label": "Tribe won the Immunity challenge",
+        "defaultPoints": 1,
+        "answeredBy": "research",
+        "auto": false,
+        "off": false
+      },
+      {
+        "id": "satOut",
+        "label": "Sat out a challenge",
+        "defaultPoints": -0.5,
+        "answeredBy": "research",
+        "auto": false,
+        "off": false
+      },
+      {
+        "id": "zeroVotesSafe",
+        "label": "Zero votes at Tribal Council",
+        "defaultPoints": {
+          "exclusive": 0.5,
+          "shared": 1
+        },
+        "answeredBy": "research",
+        "auto": false,
+        "off": false
+      },
+      {
+        "id": "survivedVotes",
+        "label": "Received votes at Tribal Council and survived",
+        "defaultPoints": 1.5,
+        "answeredBy": "research",
+        "auto": false,
+        "off": false
+      },
+      {
+        "id": "votedWithMajority",
+        "label": "Voted with the majority",
+        "defaultPoints": {
+          "exclusive": 0.5,
+          "shared": 1
+        },
+        "answeredBy": "research",
+        "auto": false,
+        "off": false
+      },
+      {
+        "id": "votedAgainstMajority",
+        "label": "Voted against the majority",
+        "defaultPoints": 0,
+        "answeredBy": "research",
+        "auto": false,
+        "off": false
+      },
+      {
+        "id": "wonFireMaking",
+        "label": "Won the Fire-making",
+        "defaultPoints": 2,
+        "answeredBy": "research",
+        "auto": false,
+        "off": false
+      },
+      {
+        "id": "idolFound",
+        "label": "Got an idol or advantage",
+        "defaultPoints": 2,
+        "answeredBy": "research",
+        "auto": false,
+        "off": false
+      },
+      {
+        "id": "idolPlayed",
+        "label": "Played an idol or advantage",
+        "defaultPoints": 1,
+        "answeredBy": "research",
+        "auto": false,
+        "off": false
+      },
+      {
+        "id": "votesNegated",
+        "label": "Played an idol or advantage that cancelled votes",
+        "defaultPoints": 2,
+        "answeredBy": "research",
+        "auto": false,
+        "off": false
+      },
+      {
+        "id": "advantageTargeted",
+        "label": "Had an idol or advantage used against them",
+        "defaultPoints": -0.5,
+        "answeredBy": "research",
+        "auto": false,
+        "off": false
+      },
+      {
+        "id": "learnedOfAdvantage",
+        "label": "Learned of an idol or advantage privately",
+        "defaultPoints": 0,
+        "answeredBy": "research",
+        "auto": false,
+        "off": false
+      },
+      {
+        "id": "wentOnJourney",
+        "label": "Went on a journey",
+        "defaultPoints": 1,
+        "answeredBy": "research",
+        "auto": false,
+        "off": false
+      },
+      {
+        "id": "wentToExile",
+        "label": "Sent to Exile",
+        "defaultPoints": 0,
+        "answeredBy": "research",
+        "auto": false,
+        "off": false
+      },
+      {
+        "id": "votedOut",
+        "label": "Voted out",
+        "defaultPoints": -3,
+        "auto": true,
+        "off": false
+      },
+      {
+        "id": "medevac",
+        "label": "Medically evacuated",
+        "defaultPoints": 0,
+        "auto": true,
+        "off": false
+      },
+      {
+        "id": "quit",
+        "label": "Quit",
+        "defaultPoints": -5,
+        "auto": true,
+        "off": false
+      },
+      {
+        "id": "lostFireMaking",
+        "label": "Lost fire-making",
+        "defaultPoints": -1,
+        "auto": true,
+        "off": false
+      },
+      {
+        "id": "finalist",
+        "label": "Finalist",
+        "defaultPoints": {
+          "exclusive": 2,
+          "shared": 3
+        },
+        "auto": true,
+        "off": false
+      },
+      {
+        "id": "soleSurvivor",
+        "label": "Sole Survivor",
+        "defaultPoints": {
+          "exclusive": 1,
+          "shared": 3
+        },
+        "auto": true,
+        "off": false
+      },
+      {
+        "id": "juryVote",
+        "label": "Each jury vote received",
+        "defaultPoints": {
+          "exclusive": 0.5,
+          "shared": 1
+        },
+        "auto": true,
+        "off": false
+      },
+      {
+        "id": "zeroJuryVotes",
+        "label": "Finalist with no jury votes",
+        "defaultPoints": {
+          "exclusive": -2,
+          "shared": -3
+        },
+        "auto": true,
+        "off": false
+      }
+    ],
+    "results": true,
+    "winner": true,
+    "calls": "results",
+    "phases": [
+      {
+        "id": "tribes",
+        "name": "Tribes"
+      },
+      {
+        "id": "merged",
+        "name": "Merged"
+      }
+    ],
+    "roles": [],
+    "grouped": true,
+    "group": "tribe",
+    "jury": true,
+    "votes": true,
+    "show": "Survivor 49",
+    "couch": 2,
+    "pool": 18
+  }
+}

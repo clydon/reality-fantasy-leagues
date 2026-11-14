@@ -1,0 +1,53 @@
+{
+  "savedAt": "2026-11-11",
+  "assets": [
+    {
+      "file": "archivo.woff2",
+      "sha256": "4c98b9d490d1698ec95f2ff17a6c7d0e72691864c0c5d7bc2a2c161b45afe5ad",
+      "source": "Existing fidelity study; reused unchanged",
+      "family": "Archivo"
+    },
+    {
+      "file": "reaction-0.gif",
+      "sha256": "cbe2ad2ab6cedbf6fb5a3240ccc88624cecac3f80a71819382f595c1f38b0987",
+      "source": "Existing fidelity study; reused unchanged",
+      "provider": "KLIPY",
+      "providerRecord": {
+        "id": "5009011247039093",
+        "url": "https://static.klipy.com/ii/35ccce3d852f7995dd2da910f2abd795/77/6b/ZuakiCL7.gif",
+        "w": 498,
+        "h": 498,
+        "title": "Gots Gaming Chair Fall",
+        "preview": "https://static.klipy.com/ii/35ccce3d852f7995dd2da910f2abd795/77/6b/L8CX5cnR.gif"
+      }
+    },
+    {
+      "file": "reaction-1.gif",
+      "sha256": "700d56e0ad6828f56437ca87eacda172db5003f5d679a578f6c049a06f72b308",
+      "source": "Existing fidelity study; reused unchanged",
+      "provider": "KLIPY",
+      "providerRecord": {
+        "id": "5409761516842919",
+        "url": "https://static.klipy.com/ii/4493325008d34b7bf8cd6813cd5c1619/ce/d6/P1UD5mURRZYgCHe.gif",
+        "w": 320,
+        "h": 320,
+        "title": "Triste",
+        "preview": "https://static.klipy.com/ii/4493325008d34b7bf8cd6813cd5c1619/ce/d6/GhyygefEJmsV4z.gif"
+      }
+    },
+    {
+      "file": "reaction-2.gif",
+      "sha256": "71e6dc618a04875c2ae26b63a11bca80ad4527c8a67e22ce4b103967c3dcb8aa",
+      "source": "Existing fidelity study; reused unchanged",
+      "provider": "KLIPY",
+      "providerRecord": {
+        "id": "3353421897024542",
+        "url": "https://static.klipy.com/ii/4493325008d34b7bf8cd6813cd5c1619/2a/02/rJIGwNoK1RxCPq7X.gif",
+        "w": 498,
+        "h": 498,
+        "title": "Big Eyes Yippee",
+        "preview": "https://static.klipy.com/ii/4493325008d34b7bf8cd6813cd5c1619/2a/02/vVvJgjKLBydV.gif"
+      }
+    }
+  ]
+}

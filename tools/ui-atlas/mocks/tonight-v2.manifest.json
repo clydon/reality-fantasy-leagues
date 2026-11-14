@@ -1,0 +1,18 @@
+{
+  "version": "V2",
+  "frozenOn": "2026-11-11",
+  "files": [
+    {
+      "file": "tools/ui-atlas/mocks/tonight-v2.html",
+      "sha256": "e241214349963c7fb00e706529adb99342ae94a6ff3b7213009accbb97ad6543"
+    },
+    {
+      "file": "tools/ui-atlas/mocks/tonight-v2.css",
+      "sha256": "109ef4450facfb6da7cfad1914ab40f13426a2ba2c20a4baa64f9371a89935db"
+    },
+    {
+      "file": "tools/ui-atlas/mocks/tonight-v2.js",
+      "sha256": "0527dbe96d21bed060c0e6e17113a25f4a3d991c6ba3f6a83ae55071c8204f63"
+    }
+  ]
+}

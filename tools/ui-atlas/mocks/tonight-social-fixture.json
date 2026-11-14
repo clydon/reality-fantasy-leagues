@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "kind": "illustrative-social-fixture",
+  "note": "Names map to existing fixture players. GIF reactions, likes and messages are illustrative, not captured user activity. Only shown for the initial last-watched episode.",
+  "aliases": {"zt_pt_tinkerer":"Alex","zt_pt_forgetter":"Sam","zt_pt_driveby":"Jordan","zt_pt_fan":"Riley"},
+  "reactions": [
+    {"person":"Jordan","gif":0,"caption":"I need a minute.","likes":2},
+    {"person":"Riley","gif":2,"caption":"That was a lot.","likes":1}
+  ],
+  "messages": [
+    {"person":"Jordan","text":"I need to process that episode."},
+    {"person":"Riley","text":"Tell me when you finish the next one!"}
+  ]
+}

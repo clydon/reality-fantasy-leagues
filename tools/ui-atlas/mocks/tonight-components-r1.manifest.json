@@ -1,0 +1,17 @@
+{
+  "note": "Preserved first component direction before user-requested bold round",
+  "files": [
+    {
+      "file": "tools/ui-atlas/mocks/tonight-components-r1.html",
+      "sha256": "78a703ad92a00b9ccf5c83077046b7e8f7f7aa428de01f8594a9911f45c5bd0c"
+    },
+    {
+      "file": "tools/ui-atlas/mocks/tonight-components-r1.css",
+      "sha256": "b2487df1bd6cf26aa696c8d57f232b98da8fa5df97faef7722871a4caec785dc"
+    },
+    {
+      "file": "tools/ui-atlas/mocks/tonight-components-r1.js",
+      "sha256": "75d33e38e0f5b279055070adea5abe2e568ec619a1999e55d1c47459d0fd56f8"
+    }
+  ]
+}
