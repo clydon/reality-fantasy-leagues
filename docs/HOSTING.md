@@ -676,6 +676,18 @@ never handles it: the user does the reset and the pasting.
 
 ## Changelog
 
+- **2026-11-14, pushed to master (`4843525f` to `ba2fbc5a`, no migration).** When moves lock is the game's setting (own pace,
+  live, strict), the late lock in hours retired, and four fixes to lineups and waivers (docs/PLAN-own-pace-games.md). **Nothing
+  new polls, runs on a schedule or is stored in a table.** A game's state carries a few more bytes (`settings.startedTogether`,
+  a move's `seen`). **Reads:** a reveal in a game at its own pace with no mark of its own reads the person's place on the show
+  (one row); the trivia sheet reads the person's mark for each season they play a trivia game on, where it read the schedule
+  alone (once as the sheet opens). **Pushes:** in every live game, each person who hasn't watched and hasn't set their move gets
+  the after-airtime reminder once an episode (it was one switched person: BACKLOG 65); web push costs nothing, and the
+  reminder job runs as before. **Static files:** four generated pictures (5.4 MB in all, `public/art/generated/`, served by
+  the edge, used by no screen yet) and four small SVGs. **Dev tooling in the repo, not in the app:** the UI Atlas, the
+  gameplay bench and explorer (`tools/`, `scripts/`), and one page that answers 404 anywhere but local development
+  (`/show/<season>/atlas-kit`). One route gone (`backstage/members/[userId]/pace`). No paid AI anywhere in it.
+
 - **2026-11-09, pushed to master (`e8b51c8a`, migration 0307).** U1's sports slice (docs/PLAN-start-a-game-gpt.md U1; migration 0307: `team_follows`,
   one small row a team someone follows, and `user_settings.hide_sports_scores`). **New ESPN reads, all cached, nothing polls:** the
   guide's Sports (`GET /api/sports/week`, the same for everyone, the edge keeps it 5 minutes) reads each pro league's day scoreboard

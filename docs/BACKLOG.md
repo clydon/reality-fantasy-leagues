@@ -644,7 +644,7 @@ Last updated 2026-10-27.
     Proof: the explorer's engine tier reports it as `known:twist-own-pace`; reproduce with `.ui-atlas/campaigns/twist-200` case
     94 (materialized at step 8, the server's twist route files the same choice).
 53. **A survival pool's page: mulligans left counted backwards, and "You can buy back in" for someone out with none left** (found
-    2026-11-13 by the gameplay explorer, a pool's mulligans and buyback; FIXED in the working tree, uncommitted). `game-twists.ts`
+    2026-11-13 by the gameplay explorer, a pool's mulligans and buyback; FIXED 2026-11-13, pushed 2026-11-14). `game-twists.ts`
     took the history's `mulligans` as the number used (`of - mulligans`), but the engine's tally counts the ones left, so a pool with
     one showed "0 mulligans left" before any wrong pick and "1 mulligan left" after it was used. And `buyBack` was true for anyone out
     while the buyback's deadline stood, though a buyback is automatic (the night the lives run out): someone out had none left or was
@@ -667,7 +667,7 @@ Last updated 2026-10-27.
     the table's picks and the plays square, and say "Skipped: you'd picked everyone still in". Proof: the explorer's page step
     `--only="never repeats"` (`skip-pool-page.json`).
 56. **Own pace with exclusive teams: Run now, Open a window and Undo act on the season as it stands, not on everyone's episode**
-    (**fixed 2026-11-14**, the user's decision that day: "sure A"; uncommitted, not pushed). All three act on the copy at
+    (**fixed 2026-11-14**, the user's decision that day: "sure A"; pushed 2026-11-14). All three act on the copy at
     everyone's episode and fold back (`waivers.js handOn`, `processNow`, `openWindow`, the new `undoRun` and `currentWeek`,
     used by the classic door, Backstage › Waivers and Recent changes' Undo), and the paced clock leaves a week held by an Undo
     alone (`syncPaced`). A window with nobody on an episode yet is refused: "Open a waiver window once everyone has watched an
@@ -695,7 +695,7 @@ Last updated 2026-10-27.
     a `NOTE BACKLOG 56` line from the server's own state, and `paced-time` shows the same claim going through at the week's own
     time. The explorer's engine tier counts it as `known:waivers-own-pace-by-hand`.
 57. **A lineup game with replacements: replacing a starter rewrites the weeks already played** (**fixed 2026-11-14**, the user's
-    decision that day: "definitely address this"; uncommitted, not pushed). A carried lineup reads who the seat held FOR THAT
+    decision that day: "definitely address this"; pushed 2026-11-14). A carried lineup reads who the seat held FOR THAT
     EPISODE, from the move log (`ActiveRosterLogic.heldFor` → `Seq.heldAt`, the read best ball's team already used), where it
     read who the seat holds now. Nothing is stored and nothing migrated: it's a read rule, so every path has it (own pace, a live
     game's late window, a viewer's copy). A bounty follows (it reads the same lineup): what counted that night stays. A seat at
@@ -800,13 +800,13 @@ Last updated 2026-10-27.
     decision of the user's: a game at its own pace has each seat pick its own team, so making it the default would take away the
     shared-team blind draft revealed together. **Decided 2026-11-13** (the plan's "Step 2: the user's decisions"): the draft
     stays together, own pace keeps waiting all season, and the pace family is fixed at the start. **Built 2026-11-13** (the plan's
-    "As built: … step 2"; uncommitted, not pushed): `paceTogether`, `settlePace`, the late window between airtime and results, the
+    "As built: … step 2"; pushed 2026-11-14): `paceTogether`, `settlePace`, the late window between airtime and results, the
     start's `pace`, the wizard's When moves lock, `check-own-pace-start.js`. Left: the explorer's late moves as actions; a start
     with a phase at its own pace (waits on BACKLOG 67); and 56 and 57 before it's pushed (they're on the default path now).
 
 64. **Four rules about moving late, one setting** (found 2026-11-13 while moving own pace to the game; **decided the same day**, the
     user going with the recommendation: the game's pace is the rule, the episode's lock override the one exception, the late lock in
-    hours retired into the pace, BACKLOG 44 becomes own pace). **Built 2026-11-14** (uncommitted, not pushed; the plan's "As built:
+    hours retired into the pace, BACKLOG 44 becomes own pace). **Built 2026-11-14** (pushed 2026-11-14; the plan's "As built:
     the late lock retired"): nothing reads `extras.lateLock` (`AnswerLogic.closed`, `lateEpisode`), nothing describes or offers it
     (`describe.js`'s rule line and its "Watching late" setting, the drafter's manual, the game page's "Late lock" tag), a spec that
     carries one still validates and round-trips; the trivia sheet holds a round's key until the round locks for that person by
@@ -853,7 +853,7 @@ Last updated 2026-10-27.
     settle, away from scoring, and the gameplay explorer can prove it once the draft room is driven as actions.
 
 68. **Exclusive teams at your own pace: nobody new after the draft** (**built 2026-11-14**, the user's decision that day: C, and
-    "an explanation, not a lock"; uncommitted, not pushed). Start a game starts a game whose castaways are one team's each on
+    "an explanation, not a lock"; pushed 2026-11-14). Start a game starts a game whose castaways are one team's each on
     **When the next one airs** (`StartOptions.runs.exclusive`, the wizard's `paceRec`), with own pace still a choice, and says
     what it closes where it's chosen: "Nobody can join once the draft starts." The join row says why it's locked ("Players own
     their castaways and play at their own pace, so nobody joins once the draft has started", where it said someone had closed
@@ -872,7 +872,7 @@ Last updated 2026-10-27.
     exclusive games default to When the next one airs. A question for the user.
 
 69. **A lineup stored for a week keeps a starter the seat let go before it** (**fixed 2026-11-14**, the user that day: "ill take
-    your suggestion for 69"; uncommitted, not pushed). A lineup set for an episode leaves out whoever the move log says its seat
+    your suggestion for 69"; pushed 2026-11-14). A lineup set for an episode leaves out whoever the move log says its seat
     let go before that episode (`ActiveRosterLogic.letGoBefore`, read in `lineupFor`): a gap to fill, as a carried lineup
     leaves, and the one brought in waits on the bench (ESPN's and Yahoo's way; the gap makes the lineup a move that's due). A
     read rule, as 57's, not the write first sketched below: nothing saved is rewritten, so taking the move back brings them back
@@ -897,6 +897,24 @@ Last updated 2026-10-27.
     lineups for episodes after the move's that haven't been played (a gap to fill, as a carried one has), and put them back on
     Undo. A rule question too: should the one brought in take the slot? (ESPN and Yahoo leave it empty.) Not built: it changes
     how a live game's lineup reads after a swap, which is the user's call.
+
+70. **Five check lines that fail on the code that's live, found shipping the pace work** (2026-11-14; each run against
+    origin/master's code too, `bf50bbb9`, in `rfl-merge` on its own port and database: the same lines fail there, so none came
+    with the push). Checks that fail for old reasons hide new ones; each needs its line made true or the product looked at:
+    - `check-new-show.js` "the prediction is an extra this week": Tonight no longer shows the open prediction's row ("Closes at
+      airtime · <game>", `tonight.tsx` `ExtraRow`) on the fixture's couch. **Look at this one first: it may be a real gap on
+      Tonight**, not a stale line (not looked into: it's live either way).
+    - `check-new-show.js` "one yellow button: the first card's" and "yellow only on what's still due": they count every
+      `.bg-chyron` on Tonight, and the GIF row's badge is one since 2026-11-02. The check should count buttons.
+    - `check-start-a-game.js` "a start the listing doesn't have": a spec from Episode 4 is taken (200), where it expected a
+      refusal. Since `ca22b870` (2026-11-09) a start on any episode that's aired is a game at its own pace
+      (`start-game.ts` `paced`: any aired episode, though the sheet offers only where you are and the top). Decide which is
+      right: tighten the server to those two, or make the line expect it.
+    - `check-new-shell.js` "no page errors": a 404 for `/__study/assets/survivor-49.jpg`. Local data only: a playtest fixture
+      show (`zt-pt-survivor`) whose art points at a design study's file, served by the atlas alone. No such row in production's
+      backup. The fixture's art should be a file the app serves.
+    **When:** the first two with the game UI/UX overhaul's Tonight (docs/UX-IDEAS.md); the prediction row before then if it's
+    real; the last two with the next change to those checks.
 
 ## Decided against (don't re-propose without new information)
 

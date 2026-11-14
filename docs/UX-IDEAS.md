@@ -140,3 +140,40 @@ by, Conor tinkers). The current wizard stays the baseline until then (AGENTS.md)
   a second errand created by the first. Today it shows only as a lineup that's due.
 - **Cost.** A waiver run is read later, by people who weren't there when it ran: the offer has to work from the result's line,
   for the episode that's open then, and say nothing once the lineup's been set again.
+
+## For the game UI/UX overhaul: what's already waiting (the user, 2026-11-14: "I certainly plan on a big game UIUX overhaul")
+
+An index, so the overhaul starts from what's known and nothing here is patched onto screens that are about to change. The
+inputs live in four places:
+- **The explorer plan's "Designs needed"** ([PLAN-GAMEPLAY-SCENARIO-EXPLORER.md](PLAN-GAMEPLAY-SCENARIO-EXPLORER.md)): 34 screens
+  or states the generated games need and the app doesn't have, each found by playing a game through. Head to head first (item 3).
+- **This file:** the ideas above; "Start a game, redone" is the wizard's share of the overhaul.
+- **The fresh-start brief** ([APP-REVIEW-DESIGN-BRIEF.md](APP-REVIEW-DESIGN-BRIEF.md)) and AGENTS.md's "UI/UX review direction":
+  the intended experience, and the rule of one page with its states, then a pause for review.
+- **The backlog**, read on 2026-11-14 for what's UI/UX. Sorted by what an overhaul means for each:
+
+**Wrong on screen today: fix whenever, the overhaul keeps the fix.** These are facts and words that come from the page's
+model (`game-page/model.ts`, `game-view.ts`, `game-sheets.tsx`'s lines), which a redesign reuses; none is a layout.
+- 51: an Outlast in reverse says "Fewest points wins" beside a table the most points lead.
+- 49: with hits counted once each, the season grid and the week add up to more than the standings.
+- 47: someone cut from a draft is still asked for a lineup (the move is the fix; what the page shows in its place is design).
+- 55: a pool's skipped night reads "No pick · missed".
+- 59: after Undo, Backstage and the players are still told when the week will run.
+- 66: the reveal doesn't open over a game's own page.
+- 61: someone behind is shown when the next stage starts and who's on their team there. A spoiler, and data not layout: first.
+- (53, a pool's mulligans counted backwards: fixed 2026-11-13.)
+
+**The overhaul's own: don't patch these onto today's screens.**
+- 46 (PRIORITY): head to head's missing screens: who you play this week, the playoffs' bracket and champion, quiet nights.
+- 40: what the generated game page left: no screen names a captain; an auction's spend; a game in stages shows no block for
+  the stage that's on; the bracket control; the engine's words reading wrong on the page; no way from the dock or Your moves to
+  a game's page.
+- 42 and "Start a game, redone": the wizard, and Start a game being the same everywhere (three starts still use the old list).
+- 43: sports' screens (the quick changes "Coming for sports", a sport's own words for an episode, Watch along on a team).
+- 33 (a, b): sheets that draw a slot's group; a pool's sheet stepping through episodes; an Outlast's what-if.
+- 67: a draft that opens mid-season while someone's behind (a flow, and the user's to rule on).
+- App-wide, to do once on the new screens, not twice: 12 (the phone's back closes an open sheet), 34 (the optional button's
+  faint edge and 40px height), 35 (the welcome page's faint "Nothing on"), 22 (where What's New lives), 38 (the tour follows
+  the screens it teaches), 3 (a "you're all set" confirmation), 4 (one leaderboard across linked games).
+
+Everything else in the backlog is engine, data or operations, and doesn't wait on a design.

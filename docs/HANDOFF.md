@@ -21,7 +21,15 @@ and the Neon password rotation (deferred; steps there). Fixed 2026-10-24: the ch
 end); GitHub Actions, stopped since 2026-10-19, runs again. Vercel builds production only (Preview shared
 production's database).
 
-## When moves lock is the game's setting (2026-11-13; both steps built, UNCOMMITTED, not pushed; docs/PLAN-own-pace-games.md "Pace is the game's setting")
+## When moves lock is the game's setting (2026-11-13; PUSHED to master 2026-11-14 with the four fixes below, no migration; docs/PLAN-own-pace-games.md "Pace is the game's setting")
+**The push (2026-11-14, a Saturday, the user: "ship the branch then"):** branch `pace-and-explorer`, a fast-forward of master
+(`4843525f` the pace setting and the late lock, `1e3cca2e` the lineup rules, `ba2fbc5a` waivers at everyone's episode and teams
+of one's own, the dev tooling and design rounds between them). Before it: `npm test`, `next build` and the golden replays in
+`rfl-merge` on the commit pushed; the real-route checks and campaigns listed below; `compare-totals.js` on a production backup
+taken that morning (no league's totals move); the golden replays (seven seasons, 160 games, every read the same as the live
+engine's); the player-facing checks on the same code (hub, couches, Backstage's two, Start a game, show, shell: all pass but
+five lines that fail on the live code as well, BACKLOG 70). **Watch on the first episode night (Wed 2026-11-18):** every live game now keeps
+a move open after airtime for whoever hasn't watched (BACKLOG 65: the after-airtime reminder goes to each of them).
 Each game has one setting for everyone, three values, named by the latest moment a move can be made: **When you've watched it**
 (own pace: the game waits for each person), **When the next one airs** (live: open after an episode airs until you watch it or
 the next one airs) and **At airtime** (strict). The per-person "Plays at their own pace" switch (Backstage › Members) is gone.
@@ -39,15 +47,14 @@ the next one airs) and **At airtime** (strict). The per-person "Plays at their o
   69's), `check-own-pace-start.js`, `check-own-pace.js`, `check-own-pace-live.js`, 200-case engine campaigns (`commish-fixed2`,
   `commish-fixed3b`) and a 30-case one on the real routes (`fix4-api`), `compare-totals.js` on production's last backup. A change to how a lineup reads
   remakes `tests/fixtures/scoring-shapes.json` on purpose only: `--diff --ref=<commit>` first, and say which reads moved.
-- **BACKLOG 56, 57 and 68: decided and built 2026-11-14** (uncommitted on branch `pace-and-explorer`; the plan's "As built:
+- **BACKLOG 56, 57 and 68: decided and built 2026-11-14** (pushed 2026-11-14; the plan's "As built:
   three own-pace bugs"). 57: a week already played keeps who was fielded in it (a carried lineup reads who the seat held for
   that episode: `ActiveRosterLogic.heldFor`; a read rule, nothing migrated). 56: Run now, Open a window and Undo act at
   everyone's episode (`waivers.js handOn`). 68: a game with teams of its own starts on When the next one airs; own pace is a
   choice that says "Nobody can join once the draft starts", and the join row and Game settings say the game's rule.
 - **BACKLOG 69, found on the way, decided and built 2026-11-14:** a lineup SET for a week leaves out whoever its seat let go
   before it (`ActiveRosterLogic.letGoBefore`; a read rule: a gap to fill, Undo brings them back).
-- **Before a push** (it changes how the couch's games lock and how lineups read: never on an episode night, and only with the
-  user's OK): take the fresh backup the routine asks for and run `node scripts/dev-test/compare-totals.js
+- **Before any later push that changes how games score:** take a fresh backup and run `node scripts/dev-test/compare-totals.js
   --backup=<that folder>`: it scores every league by the engine that's live (origin/master) and this tree's and lists any whose
   table would change (by show, season and kind only). On production's backup of 2026-11-14 (`backups/prod-2026-11-14`, taken
   that day through `.session-loop/backup-prod-now.ps1`: the user's Copy + Enter, production's compute only, read-only) none of
@@ -56,8 +63,10 @@ the next one airs) and **At airtime** (strict). The per-person "Plays at their o
 - **The late lock in hours is retired** (BACKLOG 64, 2026-11-14): nothing reads or offers `extras.lateLock`; a stored spec that
   carries one is still valid. Two things decide a late move now: the game's pace, and a hand lock on one episode (set before it
   starts). The trivia sheet holds a round's key until the round locks for that person by the pace. BACKLOG 44 closed.
-- **Waiting on the user:** BACKLOG 60, 61 (bugs), 67 (a draft that opens mid-season when someone's behind); the Start a game
-  wizard's redo, another time (docs/UX-IDEAS.md "Start a game, redone"). **Next to build:** the explorer's late moves as actions; the lock row's third state (docs/UX-IDEAS.md), with the user.
+- **Waiting on the user:** BACKLOG 60, 61 (bugs), 67 (a draft that opens mid-season when someone's behind). **The user plans a
+  big game UI/UX overhaul** (2026-11-14), the Start a game wizard's redo with it: docs/UX-IDEAS.md "For the game UI/UX overhaul"
+  indexes what's waiting (the backlog's UI/UX items sorted: fix now, or the overhaul's own) and "Start a game, redone".
+  **Next to build:** the explorer's late moves as actions; the lock row's third state (docs/UX-IDEAS.md), with the user.
 
 ## Made-for games, G5 (2026-11-09; merged + pushed e33c9a44, migration 0437; docs/PLAN-start-a-game-gpt.md G5 "Built")
 

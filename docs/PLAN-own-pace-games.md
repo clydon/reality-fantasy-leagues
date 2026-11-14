@@ -393,7 +393,7 @@ The user's decisions above, built and checked (no migration: the switch rides on
   `check-own-pace-live.js` now also proves a Prediction Sheet answer and a Call it call taken after airtime (and refused without
   the switch), the records, the reminder (a dry run), and the Members sheet's read-only line for a game you don't run.
 
-## As built: pace is the game's setting, step 1 (2026-11-13; uncommitted, not pushed)
+## As built: pace is the game's setting, step 1 (2026-11-13; pushed 2026-11-14, live)
 
 The user's decisions above ("Pace is the game's setting"), the first of the two steps. The second is built too: "As built: … step 2"
 below.
@@ -484,7 +484,7 @@ design around it).
 - **Where it's chosen:** the wizard's sheet (a control there is a U0-level decision) and the old list.
 - BACKLOG 56 and 57 are own-pace bugs still open; BACKLOG 52 (the twist) too.
 
-## As built: pace is the game's setting, step 2 (2026-11-13; uncommitted, not pushed)
+## As built: pace is the game's setting, step 2 (2026-11-13; pushed 2026-11-14, live)
 
 Own pace as a choice when a game starts on an episode still to air, the default for a show, and a game that keeps waiting all
 season. The user's three decisions above ("Step 2: the user's decisions") are what it does.
@@ -543,7 +543,7 @@ season. The user's three decisions above ("Step 2: the user's decisions") are wh
   episode stays open until that person has watched it, and standings show through each person's own episode. Exclusive teams
   with waivers wait at their waiver moment for everyone (sync point 2, words only). Games already running don't change.
 
-## As built: the late lock retired into the pace (2026-11-14; BACKLOG 64; uncommitted, not pushed)
+## As built: the late lock retired into the pace (2026-11-14; BACKLOG 64; pushed 2026-11-14, live)
 
 The last of "the four late rules become one". After it, two things decide whether a move is taken after airtime: the game's pace,
 and whoever runs the game locking or opening one episode by hand.
@@ -573,7 +573,7 @@ and whoever runs the game locking or opening one episode by hand.
   someone who hadn't watched; nobody reran it). Only checks the change could affect are run each step, and that one was missed:
   any check that asserts a lock at airtime belongs on that list from now on.
 
-## As built: three own-pace bugs decided and fixed (2026-11-14; BACKLOG 56, 57, 68; uncommitted, not pushed)
+## As built: three own-pace bugs decided and fixed (2026-11-14; BACKLOG 56, 57, 68, and 69; pushed 2026-11-14, live)
 
 The user's decisions (2026-11-14): 57 "definitely address this"; 56 "sure A"; 68 "sure C", and asked whether it wants a lock or
 an explanation: an explanation (a lock would take away a game that works).
