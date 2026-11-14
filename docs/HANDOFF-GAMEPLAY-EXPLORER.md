@@ -35,7 +35,56 @@ Small backwards-compatible production changes pass explicit clocks through `game
 
 **Stages, first slice (the thirty-fifth, 2026-11-13).** Read the guide's "Capability: stages". In short: each stage is a game of its own in the definition (`<game>~<stage>`, derived by `explorer/stages.cjs` from the parent's spec on every read), so everything treats a stage as any game; the game's table is built from their tables as `answer-points.ts` `stageWalk` builds it; a later stage's draft is made the moment it opens, by the engine's own draft, from who's still in. Connected: two (or three) plain Weekly Lineups or Outlasts split at the merge or at an episode, the overall by points, made live (a whole staged game at its own pace has no door in the product yet: Start a game refuses a staged spec; when moves lock is the game's setting since 2026-11-13, set once on a game in stages: docs/PLAN-own-pace-games.md, "Pace is the game's setting". The explorer's live-only is live and strict, `core-runtime-28`; since 2026-11-14 the runtime is `core-runtime-29` (BACKLOG 56 and 57 fixed in the product: whoever runs a game at its own pace with exclusive teams acts at everyone's episode, and a carried lineup reads who the seat held for that episode; `known:waivers-own-pace-by-hand` and `known:carried-lineup-rewritten` are failures now, the lineup one per seat at own pace); a live game whose moves stay open late, the product's default now, isn't a timing here yet: its late moves need the routes' late path as actions, a capability to add). The handoff before this one said 19 specimens were this shape: 10 were.
 
-**Next (2026-11-13, after thirty-five): a stage a format change starts** (9 specimens, nothing else blocks them; `node scripts/dev-test/profile-blockers.js` gives the totals):
+**Sports statistics, the thirty-sixth capability (2026-11-14; the user: sports before the rest, the workbench is for every game
+type). FIRST SLICE DONE through the definition of done; the next slices are below.** Read the guide's "Capability: sports
+statistics". In short:
+- **What runs:** a generated sports world (`explorer/runtime-sports.cjs`, runtime `core-runtime-33`): a context of kind 'sport'
+  with its league as `key`, the app's own page context for it as `engine` (`Sports.contextFor`), athletes with positions,
+  each released event's fact a box score (`data.lines`). A drafted team scored by stats with plain points, ranked by total,
+  locking at the start: 26 league-and-game pairs over 13 leagues; **1,209 of 1,312** specimens.
+- **Who is told what is the server's guard** (`Sports.guard`): a sport's results show straight away whatever someone's mark,
+  unless they hide sports scores too (a person's `hidesScores`) or play only at their own pace there. Don't cut a live sports
+  game at a mark.
+- **Where it's proven:** `tests/gameplay-explorer-sports.test.js` (35); generator `proof-family-48`, campaign
+  `.ui-atlas/campaigns/sport-200e` (200 of 200, with `count.cjs`, `control.cjs`, `controls.json`) and `sport-200f` on the
+  final code (200 of 200); the API tier, `sport-api2` (70 of 70, 16 sports cases); the real routes,
+  `node scripts/dev-test/check-sports-explorer.js` (46 checks: tables, live, sweep, control, correction, lineup); the real
+  page, `node scripts/dev-test/check-explorer-page.js --only="sports:"`. The materializer writes a sports case where the
+  server reads one (`live-db.cjs`'s header: provider 'zt-gb', which nobody answers to).
+- **Found and fixed:** BACKLOG 72 (the Players tab answered 500 for anyone told everything on a sport's season), 74's first
+  part (every athlete read "0 pts"). **Recorded:** 73, 74's rest and 75 (a sport's game in a show's words), Designs needed
+  item 34.
+- **Second slice DONE the same day: a lock by the day or the week, and head to head** (the guide's "Sports statistics, second
+  slice"; runtime `core-runtime-34`, generator `proof-family-49`): **1,213 of 1,312**, 35 league-and-game pairs.
+  `Sports.lockTimes` stamps each episode's lock for a read or an action, never kept. **A real-route harness must call
+  `session.calendar(shiftMs)` with the shift it writes the schedule with** (a day and a week are the real calendar's): the
+  campaign's API tier, the bench's session and `check-sports-explorer.js` do. Proof: campaign
+  `.ui-atlas/campaigns/sport-locks-200` (with `count.cjs`, `controls.json`), `sport-locks-api`,
+  `check-sports-explorer.js --case=locks|matchups`, `check-explorer-page.js --only="sports locks:"`. It found BACKLOG 76
+  (fixed: a lineup locked by its week said "Locked at airtime").
+- **Third slice DONE the same day: categories, head to head and roto** (the guide's "Sports statistics, third slice"; runtime
+  `core-runtime-35`, generator `proof-family-50`): **1,219 of 1,312**, 49 league-and-game pairs. The runtime needed only the
+  profile. **The rule is restated apart from the engine in `tools/gameplay-bench/campaign/sports-oracle.cjs`** (a rate from the
+  counts added up, the better value, a week, roto with ties shared): the unit tests, the invariants `sport-roto` and
+  `sport-categories`, and `check-sports-explorer.js --case=categories` (server, runtime and oracle the same) all use it. Proof:
+  campaigns `sport-cats-200` and `sport-cats-api`, `check-explorer-page.js --only="sports categories:"`.
+- **Next, in order:** (1) points by place (7 specimens: golf's and racing's; a field's standings, so `sports_events.shape` with
+  its `standings` and a place in each line, `score.byPlace`), by position (3: soccer's; the cast's position groups are stamped
+  already, `score.byPosition`), by a match's format (2: tennis's; a card's bouts, `statBouts`, `score.byFormat`); (2) a lock
+  at each game's own start (`closes: 'game'`: each holding locks with its own team's game, `stampGameLocks`, so athletes need
+  teams and games need sides); (3) a week of several games scored game by game (`sports_slates`, `ep.statGames`), a week in
+  progress, a postponed game; (4) the old bench's sports recipes onto the runtime. Each through the definition of done;
+  `check-sports-explorer.js`, the oracle and the generator's sports walk are the places to extend.
+- **Found on the way to the engine tier (each recorded):** BACKLOG 71 (a waiver window opens by hand on a game that's over).
+  Three of the campaign's own checks were out of step and are corrected: the captain's and the multiplier's twins can't be
+  replayed where points decide who may act (a cut, a race, the top scorer's twist), and "a week already played" is one of the
+  game's own episodes.
+- **Lessons:** the real routes found two things 600 engine-tier cases couldn't (the runtime's own model of who is told what,
+  names repeating past forty, and a stake limit that left out the bot's calls): run a slice's first case on the real routes
+  before its campaigns. A dev server can serve a
+  stale server module after a fix (BACKLOG 72's note).
+
+**After sports: a stage a format change starts** (9 specimens, nothing else blocks them; `node scripts/dev-test/profile-blockers.js` gives the totals):
 - the specimens: a Weekly Lineup "Draft" stage and a "New draft" stage with `on: { change: [teams-formed, pairs-formed, split-into-individuals, merge, swap-all], again: true }`, `extras.changes: { ok: 'auto', unanswered: 'start' }`, overall by points (rolled from Below Deck: check the format they need before assuming Survivor's);
 - what the server does (read these first, write path before read path): `src/lib/server/change-stages.ts` (the season sync settles it after every result and research answer: `settleSeasonChanges`; a copy of the stage is a league keyed `<stage id>@<the change's id>`, made mid-season, the stage before ended where it starts; a copy whose change a corrected report no longer says is taken away; the maker's answer through the stage-changes route), `StageLogic.changePlan` and `state.changeStages` in the engine, `formats/format-timeline.js` `stageTriggers`, and `db/format-timeline.js` `timelineForShow` (the stored research answers);
 - what the runtime already has: stage games as games (`stages.cjs`: `expand` skips a stage with `on`, since its copies are made when the change comes: a copy is a game added mid-run, which the definition can't hold, so decide where copies live: likely the runtime's state, with the walk reading them); a world with pairs (`context.pairs`) whose research payload says the changes (`runtime-data.cjs` `researchOf`: a split into individuals, a swap), and the timeline built from it for group slots (`settleGroupsIn`);

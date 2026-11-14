@@ -267,7 +267,7 @@ The user's decision (plan §3.4): no duplicated response layer, so new screens, 
   - All five show games (lineup, best ball, Outlast, picks, Survival Pool) × all five situations × every pace, plus every preset, open in the shared runtime (84 combinations; unit test in `tests/gameplay-bench-runtime.test.js`).
   - Deliberate differences from the pilot: "Decision needed" leaves the episode open for everyone; "Game finished" ends the game's span.
   - The weekly-lineup preset has side bets on: the runtime accepts that with none posted, as a declared note shown in Evidence ("posting and settling bets is not connected yet").
-  - Sports recipes stay in the old bench until generated sports statistics are connected; that is the only thing keeping it.
+  - Sports recipes stay in the old bench until they're moved onto the runtime's generated sports world ("Capability: sports statistics", first slice done 2026-11-14: a drafted team scored by stats); that is the only thing keeping it.
 - **Saved runs survive page edits.** The adapter version no longer hashes presentation-only files (`explorer/page/`, `design/`, the old shell), so editing the page doesn't invalidate saved runs. Engine, adapter, runtime and generator changes still do.
 - **Check:** `node scripts/dev-test/check-explorer-page.js [--b=http://localhost:30xx]`, 12 steps:
   - example, then viewer;
@@ -1031,10 +1031,259 @@ A game in stages (`spec.stages`, `overall`: "pre-merge and post-merge are separa
 - **API tier** (new checks): `stage-of-disagree` (each stage names its game; the game names none) and `stage-span-disagree` (start, end, over); the game's overall is the standings check every game gets. `known:later-stage-past-mark` counts BACKLOG 61 apart. Campaign `stages-api` (seed 75, depth 24, one worker): 30 of 30 pass. Six of its cases have a game in stages (twelve stage leagues): five with a later stage drafted, two of those with an episode already played in it, two where an exclusive later stage was being played shared, and one where the merge never comes. BACKLOG 61 in five cases; the usual BACKLOG 45 reports, BACKLOG 56 in seven cases and BACKLOG 57 in one. (It ran before the last two small edits, the profile's extra refusals and the wider BACKLOG 57 detector, neither of which a route check reads; `check-stages-explorer.js` was run again after them.)
 - **UI driver** (`--only="stages:"`): two Weekly Lineups split at the merge, Ann caught up, Bo a week behind. The game's real page (the overall, its stages in a strip), each stage's page, the Merged stage before the merge; Episode 3 aired and published on the page (the merge confirmed, the first stage "Final", the Merged stage drafted); what Bo is shown before he reveals; Ann starts two of her three on the real lineup sheet and saves: the write reaches the runtime as a lineup for Episode 4 (which only the Merged stage takes) with no mismatch; the route checks pass. Screenshots `05zzc` to `05zzi`, words in `stages-page.json`.
 - **Findings:**
-  1. **BACKLOG 60** (confirmed on the real routes): a later stage's private draft can't be locked in when fewer are still in than a team takes; the stage never has teams. `known:stage-draft-short`.
+  1. **BACKLOG 60** (**fixed 2026-11-14**: a sheet names everyone left; the runtime's own stage draft makes it, and `stage-draft` counts a whole team as everyone still in when that's fewer. As found:) (confirmed on the real routes): a later stage's private draft can't be locked in when fewer are still in than a team takes; the stage never has teams. `known:stage-draft-short`.
   2. **BACKLOG 61** (confirmed on the real routes): someone behind is shown the next stage's start (so when the merge came) and their team (who survived it). `known:later-stage-past-mark`.
   3. **BACKLOG 62** (a question): an Outlast stage that starts mid-season starts everyone on points; its own page shows them before its first episode while the overall counts none, then all at once.
   4. **Designs needed item 33** (from the real pages): the game's page says "All set · Nothing to do before Ep 3" while its first stage asks for an Episode 3 lineup; the overall is one number, with nothing saying what each stage gave; a stage waiting for the merge ends up showing a "Draft · Not started yet" plate for a draft the server refuses to start; a new stage's first lineup says "last week's stands in"; "Redraft at merged" (the phase's id); and, undriven because the runtime makes the draft, everything about the next stage's draft opening mid-season. Only the desk's engine lab can start a game in stages.
+
+### Capability: sports statistics (breadth program C, thirty-sixth capability, 2026-11-14)
+
+A game scored by a sport's stats (`score.by: 'stats'`): the largest block of specimens the explorer couldn't run (all of them were
+opened on Survivor, where they had no results to score). The user, 2026-11-14: sports before the rest; the workbench is for every
+game type. On the server nothing about a stat line is saved with a league: every read rebuilds each episode's lines from the
+season's linked games (`season_events`) and each game's kept box score (`sports_events.lines`, `people`), in the league's people
+by name through the season's cast (`season_cast.provider_ids`, its position `role`), and stamps them on the state
+(`src/lib/server/sports/score.ts` `leagueGames`, `stampStats`; `StatsLogic.stamp`); the engine's scorer turns a line into a
+holding's points at the game's table (`sequence/stats.js`).
+
+**This slice: a drafted team scored by stats with plain points, ranked by total, locking at each game's start**: 12 specimens over
+six sports (baseball, basketball, football, hockey, MMA, racing), and in the app's own defaults 26 league-and-game pairs over 13
+leagues (a team of three, best ball's best n, a lineup where a league's season is one). `profile-blockers.js` opens a stats
+specimen on its own sport: **1,209 of 1,312 run**. The definition of done:
+
+- **Definition:** a context of kind 'sport' (`explorer/runtime-sports.cjs`): `key`, its league as the app names it
+  ('football/nfl'); `engine`, the app's own page context for that league (`Sports.contextFor(league, { couch, pool, id })`:
+  its stats, positions and sizes, which `specProblems` checks a game against); `format: { id: 'generic' }` (nobody goes home,
+  no moments). Its participants are athletes with positions (the league's default lineup's slots in turn); a released event's
+  fact is its box score, `data.lines` (every athlete's raw counts), beside the empty `events` and `scoringEvents` every fact
+  has. **A person's `hidesScores: true`** is Account settings' "Sports scores too". Fixture:
+  `tests/fixtures/gameplay-explorer/sports-proof.cjs` (a league, one of its games or a spec, three people, Ann a game behind;
+  `hides`, `timing`, marks).
+- **Runtime** (`core-runtime-33`):
+  - results are a `results` action with `lines` (a partial result is refused: a week in progress isn't connected); a game's
+    state is stamped as the server stamps it (the derived stats worked out, every released episode final, each athlete's
+    position group); a saved state holds no line (`Sports.saved`);
+  - **who is told what is the server's guard** (`Sports.guard`; `guard.ts seenThrough`, `season-games.ts markFor`): a
+    sport's results show straight away to anyone with an ordinary seat on the season, or none, whatever their mark, unless they
+    hide sports scores too; someone who does, or whose every seat there is at its own pace, goes by their mark. Found by the UI
+    driver: the runtime cut a live sports game at each person's mark, and the server, by the sports slice's rule of
+    2026-11-09 ("sports are live"), doesn't;
+  - generated cast names are distinct at any pool size (31: they repeated from the 41st on, which no show's pool reached and a
+    best ball's does; the season's cast is a row a name, and the server knows a line's person by name);
+  - (33, not a sport's: the stake limit reads the bot's calls. On a game with a beat-the-bot question that's void without the
+    bot's call, the points a seat had won against the bot weren't counted as theirs to stake. Found on the real routes by this
+    capability's API campaign: the server said 3, the runtime 1.)
+- **Profile:** stats only on a sport context, and only stats there; `get.by: 'draft'`, `rank.by: 'total'` (and head to head,
+  with a lock by the day or the week: the second slice, below), no questions. Still a gap each: points by position, by place or
+  by a match's format; categories and roto; a lock at each game's own start; a week of several games scored game by game; a
+  week in progress; a postponed or cancelled game.
+- **Unit tests:** `tests/gameplay-explorer-sports.test.js` (35): every league and game the slice takes, each table against a
+  calculation of its own (each stat's count times its points to the cent, over the sport's full line); results as a box score,
+  a correction, refusals; a lineup's lock; marks; a saved state; distinct names; who is told what (a live game with and without
+  "Sports scores too", own pace); an athlete's points on the lineup sheet.
+- **Generator** (`proof-family-48`): a sports case on about one in six, from a stream of its own (every other case is the case
+  it was): one league, one or two of its games (a lineup game most times where the league has one), live or at its own pace,
+  two to four people at marks of their own, four in ten hiding sports scores too. Its walk sets lineups (most often for whoever
+  hasn't set this week's), moves the clock, publishes box scores, corrects one now and then, and reveals for whoever is behind.
+- **Invariants**, recounted in the check from the world's box scores, never from `StatsLogic`:
+  - `stats-table` (every viewer, every step): each seat's total is its counted athletes' points over the released games this
+    viewer has been told (the guard, restated in the check: a seat at its own pace, as far as its mark; anyone else everything,
+    unless they hide sports scores or every seat they hold there is at its own pace);
+  - `stats-past-mark`: a copy cut at a mark holds no line or final past it.
+- **Campaigns** (depth 30): `sport-200c` (seed 5, runtime 30): 200 of 200. `sport-200d` (runtime 31, the names): 200 of 200.
+  **`sport-200e`** (runtime 32, generator 48, the guard): 200 of 200; 29 sports cases over 12 leagues (`count.cjs`: 88 box
+  scores, 70 corrections, 28 lineups set and 31 refused, tables moved 189 times; 33 of its 87 people hide sports scores, 16
+  games live and 25 at their own pace; someone behind on a live game was told everything in 577 step-views and held to their
+  mark in 260). **`sport-200f`** (runtime 33, the final code): 200 of 200, 41 sports cases.
+- **Positive controls** (`node scripts/dev-test/engine-controls.js --controls=.ui-atlas/campaigns/sport-200e/controls.json
+  --run="node .ui-atlas/campaigns/sport-200e/control.cjs 200"`; the unedited files pass all 29): the table's points ignored fails 28; best ball counting everyone 17; a lineup counting its bench 3; a viewer's copy keeping lines past its mark all 29 (16 as `stats-table`, 13 as `stats-past-mark`); the guard going by everyone's mark 14, and someone who hides sports scores told everything anyway 9 (both `stats-table`: the guard restated in the check has teeth both ways); a stamp that keeps every line, which must change nothing, changes nothing. The three files came back byte for byte.
+- **Materializer** (`live-db.cjs`): a show of kind 'sport', set up (so the Players tab never asks a provider to fill its
+  roster); its cast with each one's position and provider id; a linked game an episode at the episode's air time
+  (`season_events`); each game's row (`sports_events`), final with its box score once the event is released, written again
+  on every sync with a new `lines_at` (the server caches its stamp on it); the league saved without the stamped keys;
+  `user_settings.hide_sports_scores` for whoever hides scores. **Its provider is 'zt-gb', which no real provider answers to**:
+  the jobs that would ask ESPN about a linked game (`finals.ts`, `stats.ts`, `cast.ts`) each skip a row whose provider they
+  don't have. `sports_events` is shared and has no cascade, so `down` removes a case's rows by its event-id prefix
+  (`zt-gb-<key>-c<n>-e<episode>`). Not written, a gap each: a team game's sides and score, a field's standings, a card's
+  bouts (`shape` null); the Players tab's stat tables (`game_lines`).
+- **Real routes, directly** (`node scripts/dev-test/check-sports-explorer.js`, reusable; 46 checks):
+  - `tables`: all 26 league-and-game pairs at everyone's own pace, Ann a game behind: tables, the season grid week by week,
+    and nothing of the game she hasn't watched in her tables, grids or any answer she reads; the after-air chat line hidden from
+    her and shown to the others;
+  - `live`: a live game, Ann a game behind: told everything with default settings, held to her mark with "Sports scores too"
+    on, the server and the runtime the same both times;
+  - `sweep`: every GET route under a season and a league (67, found from the route files), as someone told everything and as
+    someone who hides scores: no server error;
+  - `control`: a wrong box score behind the runtime: for a game everyone has watched every table and grid disagrees; for a
+    game Ann hasn't, Bo's and Cy's do and hers doesn't; the right rows back, clean again;
+  - `correction`: a corrected box score moves the runtime's tables, and once written the server's follow;
+  - `lineup`: a lineup saved through the real lineup route is stored as the runtime stores it; someone else's player, three
+    starters where two start, and a change after the start are refused by both; the week is the two starters' points, worked
+    out in the check from the box score.
+- **API tier** (new checks in `api-checks.cjs`): a stats game's season grid (`grid-disagree`); `stats-past-mark` (nobody's
+  grid has a week past what they're told, and no answer they read carries an episode's `statLines` or `gameFinal` past it);
+  the spoiler token and its control are the sport's own after-air chat line; the classic state route's known finding counts a
+  box score past a mark too. What a person may be told is the guard, so someone told everything has no secrets. Campaign `sport-api` (seed 6, depth 20, one worker; runtime 32): 69 of 70, its 9 sports cases all passing; the one failure was a questions game's stake limit, the runtime's own (core-runtime-33 above; the case is clean since). **`sport-api2`** (the final code): 70 of 70, 16 sports cases over 12 leagues (10 with a live game, 6 with two games, most with someone hiding sports scores); the classic state route's known finding in 54.
+- **UI driver** (`node scripts/dev-test/check-explorer-page.js --only="sports:"`): an NFL lineup (two starters of four), Ann
+  caught up, Bo a game behind. The real game page in the bench's phone frame shows each seat's total as the runtime scored it
+  from the box scores, prints no broken value and doesn't scroll sideways; Ann benches a starter and starts another on the real
+  lineup sheet and saves: the write reaches the runtime as a lineup with no mismatch; Bo's page is recorded; the route checks
+  pass. Screenshots `05zzi` to `05zzk`, words in `sports-page.json`.
+- **Findings:**
+  1. **BACKLOG 72 (fixed):** the Players tab's roster route answered 500 on a sport's season for anyone told everything, which
+     is everyone with default settings (the guard's "everything" is an infinity, handed to a query as an episode number).
+  2. **BACKLOG 74:** every athlete read "0 pts" on the lineup sheet and in the cast (fixed: their stat lines' points); "Your
+     sheet" has no week by week, and no screen shows an athlete's line (a design: Designs needed item 34).
+  3. **BACKLOG 75:** a sport's game in a show's words in places ("contestant", "episode", "Airtime", "castaways", "All safe ·
+     3 of 3 still in"), and its table as stat keys in the database's order ("2 a 2PT, -1 an INT, 10 a PA0").
+  4. **BACKLOG 73:** `GET /api/leagues/{id}/ruleset/shared` fails for every league (nothing links to it).
+  5. The classic state route returns box scores past a mark (`known:classic-state-spoiler`, the known defect, now seen for
+     sports too).
+  6. **The runtime was wrong three times, and the real routes said so each time:** it cut a live sports game at each person's mark (the server
+     doesn't: the guard), its names repeated past forty, and its stake limit left out the bot's calls (not a sport's: a
+     questions game in the same API campaign). None showed in 600 engine-tier cases; each showed on the real routes or pages.
+  7. A dev server can keep serving an old server module after its file changes (the roster fix read as not working until the
+     route file itself changed): when a check still fails after a server fix, suspect the server before the fix.
+- **Next slices:** the second (locks by the day or the week, head to head) and the third (categories and roto), below, are done.
+  Then points by place (7 specimens), by position (3), by a match's format (2); a lock at each game's own start; a week of
+  several games scored game by game, a week in progress, a postponed game; the old bench's sports recipes moved onto the runtime
+  (the last thing keeping the old bench).
+
+#### Sports statistics, second slice: a lock by the day or the week, and head to head (2026-11-14)
+
+A sport's game can lock its lineups by the day or by the week (`closes: 'daily' | 'weekly'`; the NBA's and the NFL's own rule):
+every episode on an Eastern day locks at that day's first start, every episode in an Eastern week (Tuesday to Monday) at the week's
+first, never after its own (`src/lib/sports/locks.ts` `locksOf`). The server stamps each episode's lock on every read from the
+linked games' starts (`air-times.ts` `stampSportLocks`, over the game's own episodes) and the engine's lock check reads it
+(`closedForPlay`'s `ep.locksAt`). And head to head (`rank.by: 'matchups'`) is the engine's own on a sport as on a show: an episode
+is a matchup. In the specimens a lock by the day or the week comes with head to head or categories almost every time, so the two
+went together: **1,213 of 1,312 specimens run**, and 35 of the leagues' own league-and-game pairs (the nine head-to-head seasons
+joined the 26).
+
+- **Runtime** (`core-runtime-34`):
+  - `Sports.lockTimes(world, state, shiftMs)`: each episode's lock by the app's own rule over the game's own episodes. **Stamped
+    where the engine reads it and never kept**, as on the server: on a read's copy (the projection) and on the working state
+    around an action; the state and its hash hold no lock.
+  - **The calendar** (`session.calendar(shiftMs)`): a day and a week are the real calendar's, and a case written to the database
+    has its schedule moved so the scenario's clock is the server's now (no route takes a clock), so the server groups the moved
+    starts. A real-route harness sets the same shift before it compares, and the runtime reads its locks on that calendar
+    (returned in scenario time). The campaign's API tier, the bench's session and the sports check do. 0 everywhere else: the
+    engine tier is the scenario's own calendar, replayable.
+  - Head to head needed nothing new: the profile takes `rank.by: 'matchups'` for a game scored by stats.
+- **Profile:** a sport's game scored by stats may close 'daily' or 'weekly' and rank by 'matchups'. Still a gap: a lock at each
+  game's own start (`closes: 'game'`: each holding locks with its own team's game), categories and roto.
+- **Fixture:** `sports-proof.cjs` takes a schedule of its own (`schedule`, with `clock`), `closes` and `from`.
+- **Unit tests** (`tests/gameplay-explorer-sports.test.js`): a weekly lock on a hand-made fortnight (Monday night's game with
+  its week though it's Tuesday in UTC; Friday's lineup locked on Thursday, refused, the state untouched and holding no lock; the
+  week played; Tuesday's open until it starts); a daily lock (an afternoon and an evening game of one Eastern day; a game that
+  starts with the evening one doesn't lock with the afternoon's); the calendar (the same schedule read three and five days on,
+  and across the spring clock change; the hash unchanged); head to head (the leagues' own seasons open; with two seats the
+  record worked out from each week's box score). The lock rule itself has its own tests where it lives (`tests/dst.test.js`,
+  `sports-formats`, `sports-slate`).
+- **Generator** (`proof-family-49`): a sports case has a schedule of its own (each game four hours to five days after the one
+  before, from a start anywhere in a week, the clock between the last game played and the next); four games in ten lock by the
+  day or the week whatever the league's rule; a league's head-to-head season is among its games; the walk sends a lineup at a
+  locked one now and then.
+- **Invariants**, restated in the check with `Intl` alone, never from `locksOf` or the engine's matchups:
+  - `sport-locks`: in a live game the lineup a seat is offered is locked exactly when the first start of its Eastern day or
+    week, among the game's own episodes, has passed; a lineup is taken only before that, and refused as locked only after it
+    (at its own pace a seat's episode stays open until they've watched it: the pace's rule, with its own tests);
+  - `sport-matchup`: each seat's last matchup is a game they've been told; their points in it are that game's box score's;
+    against a seat (not the median, or a week off) the other side's are that seat's and the result is who scored more; a night
+    nobody scored counts for nobody unless the game ties everyone (`rank.quiet`);
+  - `matchup-past-mark` goes by what the viewer has been told (the guard), not their mark, on a sport's season.
+- **Campaigns** (depth 30): `sport-locks-200` (seed 7): 200 of 200; 40 sports cases over 13 leagues (`count.cjs`: 59 games, 13
+  locking by the week, 21 by the day, 23 head to head; 100 lineups set and 191 refused; a lineup was offered locked before its
+  own game in 80 step-views; matchups seen as a win 429 times, a loss 440, a tie 140, against the median 191, a quiet night
+  108; two games on one Eastern day 35 times). **`sport-locks-200b`** (the final code, with BACKLOG 76's words): 200 of 200, 26 sports cases (16 games locking by the day, 9 by the week, 18 head to head).
+- **Positive controls** (`engine-controls.js` over `sport-locks-200`'s 40 sports cases; the unedited files pass all 40): a lock by the day or the week ignored (each episode at its own start) fails 9 as `sport-locks`; a week starting on Monday, 1; a day and a week read in UTC, 3; head to head with the lower week winning, 19 as `sport-matchup`. The first slice's hold over these cases too: the table's points ignored fails 35, best ball counting everyone 8, a lineup counting its bench 34, a viewer's copy keeping lines past its mark all 40, the guard going by everyone's mark 19, someone who hides scores told everything anyway 18, and a stamp that keeps every line changes nothing. Every edited file came back byte for byte. (The runner prints its counts last now: long examples had pushed four controls' counts off the trimmed log, and those four were run again.)
+- **Materializer:** nothing more to write (the server works the locks out from `season_events.starts_at`); its header says the
+  calendar contract.
+- **Real routes, directly** (`check-sports-explorer.js`, now 63 checks): `tables` takes in the nine head-to-head seasons (35
+  pairs: each person's record, last result and next opponent with the rest); two new cases:
+  - `locks`: where a written game falls in the real week is how far it is from now, so the games are placed from where now is
+    in the Eastern week (and day): a game begun earlier this week with the next later in it (its lineup locked before its own
+    start), the next in the week after (open), the game that began being last week's (open). Each time the server, the runtime
+    on the written calendar and the rule worked out in the check agree, and the real lineup route takes or refuses a lineup
+    accordingly, the refusal saying the week's or the day's lock. (Its first version moved the schedule and the clock together,
+    which writes the same real schedule: it ran one alignment seven times, and its own count of outcomes caught that.)
+  - `matchups`: the NFL's own season, live, Ann a game behind: both weeks on her record by default, only the one she has
+    watched with "Sports scores too" on, the server and the runtime the same.
+- **API tier:** `lineup-lock-disagree` (whether each person's open lineup is locked), for every game, a show's too.
+  Campaign `sport-locks-api` (seed 8, depth 20, one worker, the final code): 70 of 70; 10 sports cases (17 games: 7 locking by the day, 4 by the week, 8 head to head); the new lock comparison held for every case, a show's too.
+- **UI driver** (`check-explorer-page.js --only="sports locks:"`): head to head with a weekly lock, the definition made in the
+  step from where now is in the week. The real page says the lineup for the next game is locked by its week; the game is
+  aired and its box score published on the page (the bench's Publish makes a box score on a sport's season now); the next
+  week's lineup is changed on the real sheet and saved: the write reaches the runtime, accepted, with no mismatch; the route
+  checks pass before and after. Screenshots `05zzl` to `05zzn`, words in `sports-locks-page.json`.
+- **Findings:**
+  1. **BACKLOG 76 (fixed):** a lineup its week or day had locked before its own game read "Locked at airtime · scores hidden
+     until you reveal" on the page and "Yours to change until it airs" under it, and the server refused a change as "This
+     episode has started". The view says which lock it was (`LineupMove.lockedBy`), and the three say it.
+  2. Head to head on a sport's page: each week's W or L and the records, and nothing names who you play this week
+     (Designs needed item 3, as on a show).
+  3. With a lock by the week on a season of several games a week, once the week's first game starts the page's one lineup is
+     the next game's, locked; next week's can't be set until this week's games are played (the page offers the next game only).
+     A question for the sports screens (BACKLOG 43), not a fault: both sides do the same.
+  4. No disagreement between the server and the runtime in this slice: the first case on the real routes agreed, as did every
+     one after. What the routes found was the check's own mistake (the alignment above).
+
+#### Sports statistics, third slice: categories, head to head and roto (2026-11-14)
+
+A game of a sport's categories (`score: { by: 'stats', categories: [...] }`: the NBA's nine, baseball's ten, hockey's ten) turns
+no line into points. Each seat's counted athletes' lines over a window add up into a total for each category: a count adds, a
+rate (FG%, ERA, save percentage) is worked out from the window's counts added up, never an average of each game's, and only from
+the lines of its own stat group. Then the totals are compared: head to head by each category (`rank.by: 'categories'`: every
+category won, lost or tied is on the record), by most of them (`'matchups'`: the week to whoever won more), or across everyone
+(`'roto'`: each category ranks the table, the best as many points as there are seats down to 1, the tied sharing). The engine's
+`sequence/categories.js`, `StatsLogic.totals`, `RotoLogic` and `MatchupLogic`'s walk; the server stamps the sport's category
+definitions with the lines (`stampStats`'s `defs`). **1,219 of 1,312 specimens run**, and 49 of the leagues' own league-and-game
+pairs (seven leagues' categories and roto games joined the 35).
+
+- **Runtime** (`core-runtime-35`): nothing but the profile. The stamp already carried `statDefs` for a categories game, and the
+  engine does the rest. The profile takes `score.categories` (a list) ranked by 'categories', 'matchups' or 'roto' on a sport
+  context; a total of categories is refused (they have no points).
+- **The rule, restated apart from the engine:** `tools/gameplay-bench/campaign/sports-oracle.cjs` (no app code loaded: a
+  category's total over some lines, the better of two values, a week between two seats, a quiet week, roto's points). The
+  sport's stat definitions (which is better, a rate's parts, each stat's group) are its data, the app's own
+  `Sport.categoryDefs`. The unit tests, the campaign's invariants and the route check hold the engine and the server to it.
+- **Unit tests** (`tests/gameplay-explorer-sports.test.js`): the oracle against hand-worked numbers (1 of 10 and 9 of 10 is 10
+  of 20; a goalie's line adds nothing to FG%; fewest turnovers is best; no value loses to any value; three seats with two tied
+  for first share 2.5 each); every league's own roto game against it; roto as far as someone has watched; with two seats, head
+  to head by each category (the NBA's, MLB's, the NHL's: the record is every category of every week) and by most categories
+  (a week a result).
+- **Generator** (`proof-family-50`): a league's categories and roto games are among a sports case's games (they have starters,
+  so they're drawn most often where a league has them).
+- **Invariants**, recounted from the box scores with the oracle:
+  - `sport-roto` (every viewer, every step): each seat's total is its roto points over the games this viewer has been told
+    (before any game, everyone tied in every category);
+  - `sport-categories`: this viewer's last matchup is a game they've been told; against a seat, their points are the
+    categories they won, the other side's the ones they lost, and the week whoever won more; a week nobody has anything in any
+    category counts for nobody unless the game ties everyone;
+  - `matchup-past-mark` counts a record by each category as that many results a week; `stats-table` and `sport-matchup` are
+    a points game's.
+- **Campaigns** (depth 30): `sport-cats-200` (seed 9): 200 of 200; 29 sports cases over 12 leagues, 10 with a game of categories (`count.cjs`: 7 head to head by each category, 4 roto; 360 roto tables seen, 236 of them with a shared place; a categories week seen as a win 211 times, a loss 233). **`sport-cats-200b`** (the final code, with BACKLOG 77's page fix): 200 of 200, 43 sports cases (7 categories and 3 roto games).
+- **Positive controls** (`engine-controls.js` over the campaign's sports cases, the six new rules; the unedited files pass):
+  the worse value taking a category fails all 10 cases with a game of categories (7 as `sport-categories`, 3 as `sport-roto`); a categories game counting the whole team, benched or not, the same 10; the week going to whoever won fewer categories, the 7 head-to-head ones; roto's tied not sharing their places' points, the 4 roto ones; a rate with nothing to divide by counting as 0, 1. **One changes nothing: a rate adding every line, another stat group's too.** The generated box scores never put one group's counts in another's line (a skater's line has no goalie counts), so a campaign can't see that rule; the oracle's own unit test has the hand-made line that does, and a generated line that crosses groups is the gap to close. Every edited file came back byte for byte.
+- **Real routes, directly** (`check-sports-explorer.js`, now 85 checks): `tables` takes in the fourteen category games (49
+  pairs); a new case, `categories`: roto, live, for the NHL (a goalie's rates beside the skaters' counts) and the NBA, Ann a
+  game behind with and without "Sports scores too": **the server's table, the runtime's and the oracle's are the same**, for Ann
+  and for Bo; head to head by each category (the NHL's, MLB's): each person's last week on the server is the categories each
+  side won, worked out in the check; a wrong box score behind the runtime moves the server's roto table off it.
+- **API tier:** `table-record-disagree` (every seat's record on the table, not the viewer's alone), for every game, a show's
+  too. Campaign `sport-cats-api` (seed 10, depth 20, one worker): 70 of 70, 13 sports cases (4 games head to head by categories, 3 roto, 2 head to head by points). **`sport-cats-api2`** (the final code): 70 of 70, 12 sports cases (2 by categories, 2 roto).
+- **UI driver** (`check-explorer-page.js --only="sports categories:"`): the NBA's roto game: each seat's roto points on the real page as the runtime ranked the categories; a starter benched and another started on the real lineup sheet and saved, the write reaching the runtime accepted with no mismatch; then its head to head by categories: each seat's record on the page (it wasn't there: finding 2). The route checks pass on both. The check closes its last case when it ends now (a run with `--only` left one up: BACKLOG 78). Screenshots `05zzo` to `05zzq`, words in `sports-categories-page.json`.
+- **Findings:**
+  1. No disagreement between the server and the runtime, and none between either and the oracle: roto and both kinds of head
+     to head agreed on the first run on the real routes (the fault found was on the page: finding 2). What failed first each time was a check of mine (a sanity test that
+     expected points, objects compared in different key orders).
+  2. **BACKLOG 77 (fixed):** head to head by categories drew a points game's page: a season grid of zeros, "0" for every seat
+     and "0 pts" for you, nobody's record anywhere. It reads as head to head does now (each week won or lost with the
+     categories each side won, the records, your last week).
+  3. **Designs needed item 35:** a game of categories shows its table and nothing of the categories: no value, rank or win for
+     any category on the page; roto's season grid still shows each week as 0 (roto has no weeks).
+  4. A seat catching up at its own pace is in no head-to-head week, so it has no record until it catches up
+     (`MatchupLogic.seatsAt`: by design; the page says nothing about it).
 
 ### Product fixes from these findings (2026-11-12, uncommitted; the user asked for all four)
 

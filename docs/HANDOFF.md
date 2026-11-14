@@ -63,9 +63,35 @@ the next one airs) and **At airtime** (strict). The per-person "Plays at their o
 - **The late lock in hours is retired** (BACKLOG 64, 2026-11-14): nothing reads or offers `extras.lateLock`; a stored spec that
   carries one is still valid. Two things decide a late move now: the game's pace, and a hand lock on one episode (set before it
   starts). The trivia sheet holds a round's key until the round locks for that person by the pace. BACKLOG 44 closed.
-- **Waiting on the user:** BACKLOG 60, 61 (bugs), 67 (a draft that opens mid-season when someone's behind). **The user plans a
+- **BACKLOG 60, 61 and 67 decided 2026-11-14 (A for each); 60 and 61 built that day** (uncommitted on branch `explorer-sports`,
+  not pushed): a private draft's sheet takes everyone left when that's fewer than a team; someone behind isn't shown a later
+  stage's start, team or lineup, nor where the stage they're in ends, until they've watched up to it. 67-A's own parts (a
+  private draft that doesn't wait for someone behind; a turn-based draft's deadline and auto-picks) are still to build.
+- **The explorer's sports statistics, first slice done 2026-11-14** (the same branch, uncommitted; docs/HANDOFF-GAMEPLAY-EXPLORER.md
+  has where it stands and the next slices): a generated sports world in the runtime (`runtime-sports.cjs`, `core-runtime-33`), a
+  drafted team scored by stats, ranked by total, through every layer of the definition of done: unit tests, a 200-case campaign
+  with positive controls, the materializer (linked games and kept box scores as zt rows under a provider nobody answers to),
+  the real routes (`node scripts/dev-test/check-sports-explorer.js`: all 26 league-and-game pairs), an API-tier campaign, and
+  the real page and lineup sheet. 1,209 of 1,312 specimens runnable.
+- **Its second slice the same day: a lock by the day or the week, and head to head** (1,213 of 1,312; the NFL's and the NBA's
+  own head-to-head seasons run, on the real routes and page). One more product fix with it (BACKLOG 76): a lineup its week had
+  locked before its own game said "Locked at airtime" and "Yours to change until it airs", and the server refused it as "This
+  episode has started"; each says the week's (or the day's) lock now.
+- **Its third slice the same day: a sport's categories, head to head and roto** (1,219 of 1,312; every league's own categories
+  and roto games run, and the server, the runtime and a recount written apart from the engine agree on the real routes). No
+  One product fix with it (BACKLOG 77): head to head by categories drew a points game's page (a grid of zeros, "0 pts", no
+  record anywhere); it shows the records and each week won or lost now. What the pages don't show of the categories themselves
+  is Designs needed item 35.
+- **Two product fixes came out of it, uncommitted with it** (BACKLOG 72 and 74): a sport's Players tab answered with a server
+  error for anyone told results straight away, which on a sport's season is everyone with default settings
+  (`rosters.ts statsFor`); and every athlete read "0 pts" on the lineup sheet of a game scored by stats (`game-view.ts castOf`).
+  Production has no sport's season yet, so nobody met either. Recorded, not fixed: BACKLOG 73 (an unlinked classic route fails),
+  74's rest (no week by week or athlete's line on a stats game) and 75 (a sport's game in a show's words).
+- **The user plans a
   big game UI/UX overhaul** (2026-11-14), the Start a game wizard's redo with it: docs/UX-IDEAS.md "For the game UI/UX overhaul"
-  indexes what's waiting (the backlog's UI/UX items sorted: fix now, or the overhaul's own) and "Start a game, redone".
+  indexes what's waiting (the backlog's UI/UX items sorted: fix now, or the overhaul's own) and "Start a game, redone". A
+  backlog item that needs UI isn't blocked: a rough temporary UI as a proof of concept is fine (the user), marked `TEMP-UI` and
+  listed in that index.
   **Next to build:** the explorer's late moves as actions; the lock row's third state (docs/UX-IDEAS.md), with the user.
 
 ## Made-for games, G5 (2026-11-09; merged + pushed e33c9a44, migration 0437; docs/PLAN-start-a-game-gpt.md G5 "Built")

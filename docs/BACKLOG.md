@@ -758,7 +758,16 @@ Last updated 2026-10-27.
     `--only="commissioner's waiver window"` (`backstage-waivers-page.json`, screenshots `05zza-backstage-undone` and
     `05zzb-backstage-off`).
 
-60. **A later stage's private draft can't be locked in when fewer are still in than a team takes** (found 2026-11-13 by the
+60. **A later stage's private draft can't be locked in when fewer are still in than a team takes** (**fixed 2026-11-14**, the
+    user's decision that day: 60-A; uncommitted, not pushed). A sheet names everyone left to pick when that's fewer than a team
+    takes (`BlindDraftLogic.sheetSize`, read by `validateSubmission`: "Only 5 are left to pick: pick all 5"), as a lineup takes
+    fewer starters late in a season and a late joiner's team takes everyone left. The sheet on the phone counts the same way
+    (`src/new/show/draft.tsx`: "Only 5 left to pick: choose all 5", five slots, the lock live at five). With shared teams everyone
+    then holds the same people: a Weekly Lineup stage still plays (who you start is yours), an Outlast stage is a dead heat,
+    which the user accepted over a draft nobody can finish. Proof: `tests/short-draft.test.js`; on the real routes and in a
+    browser at 390, `check-stages-explorer.js --case=short` (12 checks: a sheet of four refused, each seat locks in all five, the
+    reveal's teams the runtime's). As found:
+    (found 2026-11-13 by the
     gameplay explorer, stages; confirmed on the real routes). A game in stages' later stage drafts as it starts, from who's
     still in then (`extras.draft.opens: 'start'`). A private draft's sheet must name exactly `each` castaways still in
     (`BlindDraftLogic.validateSubmission`: "Pick exactly 6 castaways"), and nothing checks a later stage's team size against
@@ -770,7 +779,20 @@ Last updated 2026-10-27.
     stage's team size capped as its draft opens, with a line in Recent changes. Proof:
     `node scripts/dev-test/check-stages-explorer.js --case=short`.
 
-61. **Someone behind is shown the next stage's start and their team** (found 2026-11-13 by the gameplay explorer, stages;
+61. **Someone behind is shown the next stage's start and their team** (**fixed 2026-11-14**, the user's decision that day: 61-A;
+    uncommitted, not pushed). A viewer's copy doesn't say where a game starts or ends by a phase of the season until they've
+    watched up to it: the start once they've seen the episode before it, the end once they've seen that episode
+    (`SpoilerLogic.spanAhead` and `unsettle`, inside `viewThrough`). Until then the copy is as everyone's stood before the merge
+    was known: the game waiting for its phase, and nobody on a team from a draft that opened at that start (no pick, no lineup
+    for an episode of it, no move). A game in stages' own summary of its stages is cut the same way (`StageLogic.cutWalk` with the
+    game's stages: a start or end the game fixes at an episode stays, one the season's results set doesn't), and the game view's
+    end comes from the viewer's copy (`game-view.ts`). Proof: `tests/span-spoilers.test.js` (five); on the real routes
+    `check-stages-explorer.js --case=overall` (its NOTE is four checks now: someone two episodes behind is shown neither later
+    stage as started, and neither first stage says where it ends); the route checks' known finding is a failure now
+    (`later-stage-past-mark`). **Left:** such a stage's card still says "Reveal Episode 3 first" to someone behind, as every game
+    of theirs on the season does (it names their next reveal, not the merge); Backstage's How long isn't cut for whoever runs a
+    game and is behind (Backstage shows the season as it stands). As found:
+    (found 2026-11-13 by the gameplay explorer, stages;
     confirmed on the real routes). A stage's league holds where it starts and ends (its span, settled when the merge is
     confirmed) and its teams (drafted as it starts, only from who's still in). Neither is an episode's results, so a viewer's
     copy cut at their mark still has them. Cy, who has seen through Episode 2 of a season whose merge came in Episode 3, is
@@ -836,7 +858,14 @@ Last updated 2026-10-27.
     moves' older "Reveal Episode N first" button makes the same in-place call (`RevealFirst`: `openReveal`), so it very likely
     does nothing there too (not run separately). Likely fix: the same link, or find why the reveal's page isn't read on that route.
 
-67. **A draft that opens mid-season, and someone who's behind** (a recommendation, 2026-11-13; the user asked for an honest view and
+67. **A draft that opens mid-season, and someone who's behind** (**decided 2026-11-14: 67-A**, the recommendation below; built so
+    far: its first half through BACKLOG 61 and 60, someone behind isn't shown the stage or a team until they've watched up to
+    it, and a sheet takes everyone left when that's fewer than a team. **To build:** a private draft that doesn't wait for
+    someone behind (each person drafts when they get there, from who was still in when the stage started: today the reveal waits
+    for every seat's lock, or whoever runs the game picks for them); a draft with turns' deadline and picks made for a seat that
+    hasn't picked, hidden from them until they've watched; at its own pace, the wait that says who it's waiting on and the
+    Commissioner's go-ahead. The turn-based parts want the draft room driven as explorer actions first, to prove them.) As
+    recommended: (a recommendation, 2026-11-13; the user asked for an honest view and
     hasn't decided). Neither "that's on you, take what's left" nor "X is behind, wait?" as a prompt: the first makes someone
     choose among people whose survival they haven't seen, the second is a new waiting-and-voting state on every shared moment,
     which is the thing that would send us back through every generated game. Let the game's pace answer it, with pieces the
@@ -915,6 +944,91 @@ Last updated 2026-10-27.
       backup. The fixture's art should be a file the app serves.
     **When:** the first two with the game UI/UX overhaul's Tonight (docs/UX-IDEAS.md); the prediction row before then if it's
     real; the last two with the next change to those checks.
+
+71. **A waiver window opens by hand on a game that's over** (found 2026-11-14 by the gameplay explorer, a stage that had ended).
+    `WaiverLogic.openWindow` refuses once the season is over, but not once the game is (a span's last episode played: a first
+    stage after the merge). The window opens on the game's last episode, claims are taken and run, and the teams change in a
+    game whose table is frozen where it ended. Nothing scores by it; it's a control that does nothing useful and reads as if it
+    did. The clock's own weeks already stop there (`WaiverLogic.due`: "a game over a span opens no week after its last
+    episode"). Likely fix: the same refusal by hand ("This game is over"). Proof: `.ui-atlas/repro-late-week.json` (five steps).
+
+72. **A sport's Players tab answered with a server error for anyone told results straight away** (**fixed 2026-11-14**, found
+    that day by the gameplay explorer's sports step and its route sweep). On a sport's season the spoiler guard tells everyone
+    everything by default (`guard.ts`: "sports are live"; Account settings' "Sports scores too" is off), and "everything" is an
+    infinity. `rosters.ts statsFor` passed it to a query as an episode number: `invalid input syntax for type integer:
+    "Infinity"`, a 500 from `GET /api/seasons/{id}/roster` on every read, for everyone with default settings (only someone who
+    hid sports scores, or played only at their own pace there, got an answer). Production has no sport's season yet (the backup
+    of 2026-11-14: six shows, none a sport), so nobody met it. The fix: the query reads up to the largest episode number when the
+    mark is everything. Proof: `node scripts/dev-test/check-sports-explorer.js --case=sweep` (all 67 read routes under a season
+    and a league, as someone told everything and as someone who hides scores: no server error). **Noticed on the way:** the dev
+    server kept serving the old module after the file changed, until the route file itself changed; a check that still fails
+    after a server fix may be reading a stale server.
+73. **`GET /api/leagues/{id}/ruleset/shared` fails for every league** (found 2026-11-14 by the same sweep; not a sport's):
+    `error: operator does not exist: uuid <> text` in `db/league-rulesets.js listShared` (`excludeLeagueId`). Its own header
+    says nothing links to it yet (a future copy-browsing screen), so nobody can reach it from the app. Fix when that screen is
+    built, or cast the id; the sweep counts it as known so a fix shows.
+74. **A game scored by a sport's stats: what each athlete has scored** (found 2026-11-14 on the real lineup sheet).
+    - **Fixed that day:** every athlete read "0 pts" on the lineup sheet's tiles and in the cast (`game-view.ts castOf` added up a
+      show's moments, and a sport has none). An athlete's points are their stat lines' at the game's table now
+      (`StatsLogic.scored`), as far as the viewer is told. Unit test in `tests/gameplay-explorer-sports.test.js`.
+    - **Still wrong, the same root (the screens' week and athlete breakdowns read a show's scoring events):** "Your sheet" has
+      no week by week for a stats game (`weeksOf` and `teamEpisodeBreakdown`: a seat's weeks come back empty, though the
+      season grid and the table are right); a person's sheet, an athlete's sheet and the waivers' free agents
+      (`waiver-view.ts`) show no stat line. These need the athlete's line shown (which stats, how many, what each paid), which
+      is a design: **Designs needed item 35**, and BACKLOG 43's sports screens.
+75. **A sport's game speaks in a show's words in places** (recorded 2026-11-14 from the real page, sheet and routes of a
+    generated NFL game; `.ui-atlas/explorer-page/sports-page.json`). The page's own words follow the show's row ("Game 3",
+    "Your Game 3 lineup"), but:
+    - How it plays: "once someone picks a contestant", "Before each episode, start two", and the table as its keys in the order
+      the database keeps them: "2 a 2PT, -1 an INT, 10 a PA0, 4 a PTD ..." (never "4 a passing touchdown"; the spec's own
+      order, passing yards first, is lost once the league is saved);
+    - the season grid's caption: "Each square is that episode's points";
+    - the lineup sheet: "Episode 3 · change anything until ...", "Saving doesn't lock anything. Airtime does.", "Airs Sun";
+      tiles show a first name and no position (AVERY, not a quarterback);
+    - what the server says when it refuses a lineup: "At most 2 active castaways", "This episode has started -- lineups are locked";
+    - the Episodes tab's line for the game: "All safe · 3 of 3 still in after this episode";
+    - How it works for the season: a show's rulebook ("Ways out: Eliminated, Quit, Removed", "Won a challenge/competition"),
+      "13 contestants."; the season's stats: "contestants", nothing through the games played;
+    - "Spoiler protection is off: you see results as they come" on every sports page, for someone who turned nothing off (the
+      setting for a sport is "Sports scores too").
+    **How sure:** the league was written by the explorer with the generic format and no rulebook, so the words that come from a
+    league's format ("contestant") may read right on a league made through Start a game once its show is set up; the keys, the
+    grid's caption, the sheet's "Episode" and "Airtime", the refusals and the Episodes line come from code that has no sport's
+    words to use. Confirm on a league made the real way when the sports screens are reviewed (BACKLOG 43). Nothing here scores
+    wrong.
+
+76. **A lineup locked by its week said "Locked at airtime"** (**fixed 2026-11-14**, found that day on the real page by the
+    explorer's second sports slice). A sport's game that locks by the day or the week locks a lineup when the first game of its
+    day or week starts, which can be days before its own. For such a lineup the game's strip read "Locked at airtime · scores
+    hidden until you reveal" (nothing had aired, and there was nothing to reveal), Your sheet's week said "Yours to change until
+    it airs. Nobody sees it before then." (it couldn't be changed), and the server refused a change with "This episode has
+    started -- lineups are locked". Now the view says which lock it was (`game-view.ts` `LineupMove.lockedBy`: 'day', 'week' or
+    null), the strip reads "Locked when the week's first game began", the week "Locked when the week's first game began. It
+    plays as it stands.", and the refusal "This week's lineups are locked -- its first game has started" (the day's likewise).
+    Words through the impeccable skill's clarify pass (the one fact, no action left, what happens next). Proof: unit tests
+    (`your-move.test.js`, `gameplay-explorer-sports.test.js`), the real route (`check-sports-explorer.js --case=locks`) and the
+    real page (`check-explorer-page.js --only="sports locks:"`). **Left for the sports screens (BACKLOG 43):** the lineup sheet
+    itself can't be opened for a locked week to see it, the page doesn't say when the lock fell or when the next lineup opens,
+    and with several games in a week next week's lineup can't be set until this week's are played.
+
+77. **Head to head by a sport's categories drew a points game's page** (**fixed 2026-11-14**, found that day on the real page by
+    the explorer's third sports slice). The NBA's own categories game showed a season grid of zeros, "0" for every seat under
+    PTS and "2nd of 3 · 0 pts" for you: nobody's record anywhere, though the record is how the game is ranked. The page's
+    grammar already asked for a record table (`rank.by: categories`: table 'wl'); three places only knew 'matchups'
+    (`game-plays.ts`, the grid's kind; `game-page/model.ts`, a row's value, its unit and the big graphic). It reads as head to
+    head does now: each week W, L or T with the categories each side won, the records ("13–3–2") under "W–L", and your last
+    week ("Game 2 final: you beat Bo · you're 12–6, 2nd"). Roto keeps its points table. Proof: a unit test in
+    `gameplay-explorer-sports.test.js` and the real page (`check-explorer-page.js --only="sports categories:"`). **Left for the
+    sports screens (Designs needed item 35):** none of the categories themselves is shown anywhere, and roto's season grid
+    shows each week as 0.
+
+78. **The unit suite's read of every local league checks a sport's league without its sport** (found 2026-11-14). "every league in
+    the local database round-trips through its spec" (`tests/game-spec.test.js`) checks each league's spec with no context, and a
+    sport's own sizes need the sport's (the NBA's lineup of ten: "A lineup starts 1 to 8"). It failed `npm test` when the
+    browser check left a generated NBA league up (the check closes its last case now, so it passes); a real sports league on a
+    local database would fail it the same way, though the server, which checks with the season's context, takes it. Fix when
+    one exists locally: check a league scored by a sport's stats with its season's sport context, or leave such a league's
+    sizes to the server's check.
 
 ## Decided against (don't re-propose without new information)
 

@@ -143,9 +143,11 @@ by, Conor tinkers). The current wizard stays the baseline until then (AGENTS.md)
 
 ## For the game UI/UX overhaul: what's already waiting (the user, 2026-11-14: "I certainly plan on a big game UIUX overhaul")
 
-An index, so the overhaul starts from what's known and nothing here is patched onto screens that are about to change. The
-inputs live in four places:
-- **The explorer plan's "Designs needed"** ([PLAN-GAMEPLAY-SCENARIO-EXPLORER.md](PLAN-GAMEPLAY-SCENARIO-EXPLORER.md)): 34 screens
+An index, so the overhaul starts from what's known and no finished design is spent on screens that are about to change. **A
+backlog item that needs UI isn't blocked by it** (the user, the same day: "if a backlog item requires UI, we can always rough up
+a temporary ui just as a proof of concept, it can always be refined later"): build the behaviour with a plain, temporary screen,
+mark it `TEMP-UI` in the code, and list it under "Temporary UI" below so the overhaul replaces it. The inputs live in four places:
+- **The explorer plan's "Designs needed"** ([PLAN-GAMEPLAY-SCENARIO-EXPLORER.md](PLAN-GAMEPLAY-SCENARIO-EXPLORER.md)): 35 screens
   or states the generated games need and the app doesn't have, each found by playing a game through. Head to head first (item 3).
 - **This file:** the ideas above; "Start a game, redone" is the wizard's share of the overhaul.
 - **The fresh-start brief** ([APP-REVIEW-DESIGN-BRIEF.md](APP-REVIEW-DESIGN-BRIEF.md)) and AGENTS.md's "UI/UX review direction":
@@ -160,16 +162,25 @@ model (`game-page/model.ts`, `game-view.ts`, `game-sheets.tsx`'s lines), which a
 - 55: a pool's skipped night reads "No pick · missed".
 - 59: after Undo, Backstage and the players are still told when the week will run.
 - 66: the reveal doesn't open over a game's own page.
-- 61: someone behind is shown when the next stage starts and who's on their team there. A spoiler, and data not layout: first.
+- 75: on a sport's game, the table read as stat keys in the database's order ("2 a 2PT, -1 an INT, 10 a PA0"), "contestant" and
+  "episode" in How it plays, "Episode 3" and "Airtime" on the lineup sheet, "All safe · 3 of 3 still in" on the Episodes tab
+  (to confirm on a league made the real way).
+- (74, every athlete "0 pts" on a stats game's lineup sheet: fixed 2026-11-14; 72, a sport's Players tab a server error: fixed
+  the same day; 76, a lineup locked by its week reading "Locked at airtime" and "Yours to change until it airs": fixed the
+  same day; 77, head to head by a sport's categories drawn as a points game, a grid of zeros and no record: fixed the same day.)
+- (61, someone behind shown when the next stage starts and who's on their team there: fixed 2026-11-14.)
 - (53, a pool's mulligans counted backwards: fixed 2026-11-13.)
 
-**The overhaul's own: don't patch these onto today's screens.**
+**The overhaul's own: the finished design waits for it; a rough temporary UI is fine meanwhile where the behaviour is wanted now.**
 - 46 (PRIORITY): head to head's missing screens: who you play this week, the playoffs' bracket and champion, quiet nights.
 - 40: what the generated game page left: no screen names a captain; an auction's spend; a game in stages shows no block for
   the stage that's on; the bracket control; the engine's words reading wrong on the page; no way from the dock or Your moves to
   a game's page.
 - 42 and "Start a game, redone": the wizard, and Start a game being the same everywhere (three starts still use the old list).
-- 43: sports' screens (the quick changes "Coming for sports", a sport's own words for an episode, Watch along on a team).
+- 43: sports' screens (the quick changes "Coming for sports", a sport's own words for an episode, Watch along on a team). With
+  it, from the explorer's first sports game on the real page (2026-11-14): 74's rest and Designs needed item 34 (no athlete's
+  line anywhere, no week by week on a stats game, a lineup tile with no position or matchup), 75 (a show's words on a
+  sport's game), and item 35 (a game of categories shows none of its categories, and a season grid of zeros).
 - 33 (a, b): sheets that draw a slot's group; a pool's sheet stepping through episodes; an Outlast's what-if.
 - 67: a draft that opens mid-season while someone's behind (a flow, and the user's to rule on).
 - App-wide, to do once on the new screens, not twice: 12 (the phone's back closes an open sheet), 34 (the optional button's
@@ -177,3 +188,7 @@ model (`game-page/model.ts`, `game-view.ts`, `game-sheets.tsx`'s lines), which a
   the screens it teaches), 3 (a "you're all set" confirmation), 4 (one leaderboard across linked games).
 
 Everything else in the backlog is engine, data or operations, and doesn't wait on a design.
+
+**Temporary UI** (proofs of concept built ahead of the overhaul, each to be redesigned in it; add a line when one is built: the
+backlog item, the file, what it shows):
+- None yet.
