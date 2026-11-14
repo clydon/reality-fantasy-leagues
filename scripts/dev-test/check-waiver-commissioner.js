@@ -11,20 +11,26 @@
 //   window a game with NO waivers of its own (most drafts): a window opened by hand, claims in it (one sent for someone), the
 //          window cut to no swaps (claims trimmed), run, undone, turned off.
 //   paced  a game at its own pace with exclusive teams, everyone on episode 1 of a season aired through 4: Process now, Undo,
-//          Open a window. (The server runs these on the league itself, not on the copy at everyone's episode.)
+//          Open a window. (Each acts on the copy at everyone's episode, never the season as it stands: BACKLOG 56, fixed 2026-11-14.)
 //   paced-claim  the same game with a window opened by hand and Bo's swap claimed for someone who goes home in episode 2 (unseen):
-//          Process now runs it on the league as it stands at episode 4.
-//   paced-time   the same claim left to the week's own time: it runs on the copy at everyone's episode, and Bo's swap goes through.
-//   paced-window the same game with nobody past episode 0 and no week running: Open a window.
-//   paced-undo   Ann's claim settles her week at once (everyone owed has a claim in); then Undo.
+//          Process now runs it at everyone's episode, where they're still in: the swap goes through.
+//   paced-time   the same claim left to the week's own time: the same run, and Bo's swap goes through.
+//   paced-window the same game with nobody past episode 0 and no week running: Open a window is refused (nobody has watched an
+//          episode yet), and says so.
+//   paced-undo   Ann's claim settles her week at once (everyone owed has a claim in); then Undo: the week stays open and held.
 //   carried      a lineup game at its own pace on a season aired through 4 (shared teams, a loss replaced after any episode): Bo saves
 //          one lineup for episode 1 and plays on with it (never saved again, so each later week fields it as carried), then replaces
 //          a starter who went home. No commissioner action: it is here because the same machinery proves it (BACKLOG 57).
-// A NOTE line reports a run that gives away what nobody has seen yet (BACKLOG 56): a replacement counted for a seat nobody of whose
-// has left as far as anyone has seen, or a claim passed over because its castaway is "gone" while they're still in at everyone's
-// episode; a window the server said it opened that isn't there after the same write; an Undo after which the week has already run
-// again. And for BACKLOG 57: a step after which the lineup that counted for an episode already played is a different one, though
-// nobody saved a lineup for it. Each is a recorded product finding, not a disagreement: both sides do the same.
+//   saved        a live lineup game (shared teams), episode 1 played: Bo saves his lineup for episode 2, then swaps one of its
+//          starters away in a window opened by hand. The lineup that counts for episode 2 leaves them out (a gap, on the server's
+//          own state and on Bo's real games route: a slot to fill), what he saved isn't rewritten, and Undo brings them back
+//          (BACKLOG 69, 2026-11-14).
+// BACKLOG 56 (fixed 2026-11-14) is a FAIL now, checked on the server's own state after each step of a paced case: a run that gives
+// away what nobody has seen yet (a replacement counted for a seat nobody of whose has left as far as anyone has seen, or a claim
+// passed over because its castaway is "gone" while they're still in at everyone's episode); a window the server said it opened
+// that isn't there after the same write; an Undo after which the week has already run again.
+// BACKLOG 57 (fixed 2026-11-14) is a FAIL now: a step after which the lineup that counted for an episode already played is a
+// different one, though nobody saved a lineup for it, or after which a total moved on a waiver move alone (`carried`).
 // Doors (--door, default both): backstage (the app's: POST /api/seasons/{S}/backstage/waivers, and Undo through
 //   /changes/{batch}/undo when a run made a line) and classic (POST /api/leagues/{L}/waivers/window|process|undo).
 // --control: also proves the comparison sees a difference (the runtime skips one claim: the run must then disagree).
@@ -32,7 +38,7 @@
 //   tools/gameplay-bench/live-db.cjs down-all).  --seed=5.
 //
 // Needs: the app on :3000 (npm run dev; BASE to override) and the local dev database (.env.local AUTH_DATABASE_URL).
-// Run:   node scripts/dev-test/check-waiver-commissioner.js [--case=live|window|paced|paced-claim|paced-time|paced-window|paced-undo|carried|all] [--door=backstage|classic|both] [--control] [--verbose]
+// Run:   node scripts/dev-test/check-waiver-commissioner.js [--case=live|window|paced|paced-claim|paced-time|paced-window|paced-undo|carried|saved|all] [--door=backstage|classic|both] [--control] [--verbose]
 const path = require('path');
 const root = path.resolve(__dirname, '../..');
 const L = require(path.join(root, 'tools/gameplay-bench/live-db.cjs')), R = require(path.join(root, 'tools/gameplay-bench/explorer/runtime.cjs')), D = require(path.join(root, 'tools/gameplay-bench/explorer/document.cjs'));
@@ -127,6 +133,7 @@ const CASES = {
     steps: [{ type: 'waiverWindow', gameId: 'g', personId: 'p1', swaps: 1 }],
   },
   carried: {
+    steady: true,
     define: () => define({ get: { by: 'draft', each: 3, own: 'shared', order: 'blind' }, count: { start: 2 }, score: { by: 'moments' }, rank: { by: 'total' }, extras: { waivers: { ...always, autoFill: false } } }, 'own-pace', { completedEvents: 4, eventCount: 6 }, [{ personId: 'p1', contextId: 'show', through: 4 }, { personId: 'p2', contextId: 'show', through: 0 }]),
     prelude: () => {},
     steps: (() => {
@@ -139,6 +146,23 @@ const CASES = {
         s => { lost = goner(s).id; return { type: 'lineup', gameId: 'g', personId: 'p2', eventId: st(s).episodes[0].id, ids: [lost, mine(s).find(x => x.id !== lost).id] }; },
         ...[1, 2, 3, 4].map(n => ({ type: 'reveal', contextId: 'show', personId: 'p2', episode: n })),
         s => ({ type: 'freeAgency', gameId: 'g', personId: 'p2', addId: S.MidSeasonLogic.availableFor(st(s), 'p2', 'replace')[0].id, dropId: lost }),
+      ];
+    })(),
+  },
+  saved: {
+    gap: true,
+    define: () => define({ get: { by: 'draft', each: 3, own: 'shared', order: 'blind' }, count: { start: 2 }, score: { by: 'moments' }, rank: { by: 'total' } }, 'live-only', { completedEvents: 0, eventCount: 4 }),
+    prelude: s => { const st = s.snapshot().games.g.state, held = new Set(st.castaways.filter(x => x.ownerIds.length).map(x => x.id)); night(s, 1, st.castaways.find(x => !held.has(x.id)).id); for (const p of ['p1', 'p2']) s.apply({ type: 'reveal', contextId: 'show', personId: p }); },
+    steps: (() => {
+      const st = s => s.snapshot().games.g.state, mine = s => st(s).castaways.filter(x => x.ownerIds.includes('p2') && x.status === 'active');
+      let out = null;
+      return [
+        s => { out = mine(s)[0].id; return { type: 'lineup', gameId: 'g', personId: 'p2', eventId: st(s).episodes.find(e => e.number === 2).id, ids: [out, mine(s)[1].id] }; },
+        { type: 'waiverWindow', gameId: 'g', personId: 'p1', swaps: 1 },
+        s => ({ type: 'claim', gameId: 'g', personId: 'p2', pairs: [{ addId: S.MidSeasonLogic.availableFor(st(s), 'p2', 'swap')[0].id, dropId: out }] }),
+        { type: 'waiverRun', gameId: 'g', personId: 'p1' },
+        { type: 'waiverUndo', gameId: 'g', personId: 'p1' },
+        { type: 'waiverRun', gameId: 'g', personId: 'p1' },
       ];
     })(),
   },
@@ -221,7 +245,9 @@ async function runCase(name, door, control) {
       const was = counted((await L.read(ids)).states.get(league)), wasTotals = await totals('p1');
       const played = async (label, saved) => {
         const now = counted((await L.read(ids)).states.get(league)), changed = Object.keys(was).filter(k => k in now && now[k] !== was[k] && k !== saved);
-        if (changed.length) console.log('NOTE BACKLOG 57 (' + label + "): the lineup that counted for an episode already played changed, with no lineup saved for it: " + changed.map(k => 'episode ' + k.split('|')[0] + ' ' + k.split('|')[1] + ' ' + was[k] + ' to ' + now[k]).join('; ') + '. Totals on the real games route (a viewer who has seen it all): ' + JSON.stringify(wasTotals) + ' to ' + JSON.stringify(await totals('p1')));
+        if (changed.length) note(false, name + '/' + door + ' BACKLOG 57 (' + label + "): the lineup that counted for an episode already played changed, with no lineup saved for it: " + changed.map(k => 'episode ' + k.split('|')[0] + ' ' + k.split('|')[1] + ' ' + was[k] + ' to ' + now[k]).join('; ') + '. Totals on the real games route (a viewer who has seen it all): ' + JSON.stringify(wasTotals) + ' to ' + JSON.stringify(await totals('p1')));
+        // A waiver move alone moves no total (new results do: a reveal isn't one of these).
+        if (def.steady && ['freeAgency', 'claim', 'waiverRun', 'waiverUndo', 'waiverWindow'].includes(label)) { const t = await totals('p1'); note(JSON.stringify(t) === JSON.stringify(wasTotals), name + '/' + door + ' a ' + label + ' moved no total on the real games route: ' + JSON.stringify(wasTotals) + (JSON.stringify(t) === JSON.stringify(wasTotals) ? '' : ' became ' + JSON.stringify(t))); }
       };
       if (typeof step === 'function') step = step(s);
       if (step.clock) {
@@ -244,11 +270,26 @@ async function runCase(name, door, control) {
       if (control && skipped) { if (d.length) sawControl = true; console.log('  ·  ' + label + (d.length ? ' (control: differs, ' + d.length + ')' : '')); continue; }
       note(agree && !d.length, label + (d.length ? '\n     ' + d.slice(0, 8).join('\n     ') : ''));
       await played(action.type, action.type === 'lineup' ? s.snapshot().games.g.state.episodes.find(e => e.id === action.eventId)?.number + '|' + action.personId : null);
+      // (BACKLOG 69) The lineup a seat saved for the next episode, as it counts on the server's own state: everyone saved who's still
+      // theirs, nobody they've let go, the saved lineup itself as it was; and the same on that seat's real games route.
+      if (def.gap && serverOk && ['waiverRun', 'waiverUndo'].includes(action.type)) {
+        const now = (await L.read(ids)).states.get(league), next = now.episodes.filter(e => !S.EpisodeLogic.hasResults(e)).sort((x, y) => x.number - y.number)[0];
+        for (const p of now.players) {
+          const saved = next?.lineups?.[p.id]; if (!saved) continue;
+          const theirs = saved.filter(id => now.castaways.find(x => x.id === id)?.ownerIds.includes(p.id)), fielded = S.ActiveRosterLogic.lineupFor(now, next.id, p.id);
+          const route = (await send(p.id, 'GET', '/api/seasons/' + season + '/games?couch=' + ids.couchId)).body?.games?.find(x => x.leagueId === league)?.lineup;
+          const gapped = theirs.length < saved.length;
+          note(JSON.stringify(fielded) === JSON.stringify(theirs) && JSON.stringify(route?.starters) === JSON.stringify(theirs) && route?.set === !gapped && (action.type !== 'waiverUndo' || !gapped),
+            name + '/' + door + '   BACKLOG 69: ' + p.id + "'s lineup for episode " + next.number + ' counts ' + JSON.stringify(fielded) + ' of the ' + JSON.stringify(saved) + ' saved' + (gapped ? ' (let go: a slot to fill)' : ' (all theirs)') + '; the games route: ' + JSON.stringify(route && { starters: route.starters, set: route.set }));
+        }
+      }
       if (paced) {
         const db = await L.read(ids), now = db.states.get(league), lowest = Math.min(...s.snapshot().contexts.show.marks.map(m => m.through)), week = S.WaiverLogic.current(now);
-        for (const g of giveaways(now, lowest)) if (!noted.has(g)) { noted.add(g); console.log("NOTE BACKLOG 56 (the server's own state after this step): " + g); }
-        if (serverOk && action.type === 'waiverWindow' && action.swaps !== null && !(week && week.window)) console.log('NOTE BACKLOG 56: the server answered ' + r.status + (r.body && 'fresh' in r.body ? ' ' + JSON.stringify(r.body) : '') + ' to Open a window, and no window is open after it (weeks: ' + JSON.stringify(a.weeks.map(w => [w.episode, w.phase])) + ')');
-        if (serverOk && action.type === 'waiverUndo' && week && week.phase === 'processed') console.log('NOTE BACKLOG 56: the server took the run back and the week has run again in the same write (by ' + week.run.by + ': ' + week.run.results.map(x => [x.playerId, x.kind, x.outcome].join(' ')).join('; ') + ')');
+        const gave = giveaways(now, lowest).filter(g => !noted.has(g));
+        gave.forEach(g => noted.add(g));
+        if (serverOk && ['waiverRun', 'claim'].includes(action.type) || gave.length) note(!gave.length, name + '/' + door + '   BACKLOG 56: nothing run gives away what nobody has seen (everyone is on episode ' + lowest + ')' + (gave.length ? ': ' + gave.join('; ') : ''));
+        if (serverOk && action.type === 'waiverWindow' && action.swaps !== null) note(!!(week && week.window && week.episode === lowest), name + '/' + door + '   BACKLOG 56: the window the server said it opened is open after the write, on everyone\'s episode (weeks: ' + JSON.stringify(a.weeks.map(w => [w.episode, w.phase, w.window])) + ')');
+        if (serverOk && action.type === 'waiverUndo') note(!!week && week.phase === 'open' && week.hold === true, name + '/' + door + '   BACKLOG 56: the run taken back stays taken back, the week open and held' + (week && week.phase === 'processed' ? ' (it ran again in the same write, by ' + week.run.by + ')' : ''));
       }
     }
     if (control) note(sawControl, name + '/' + door + ': control (the runtime skipped a claim) made the comparison disagree');

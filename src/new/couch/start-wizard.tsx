@@ -317,10 +317,9 @@ function Wizardly({
   const [choice, setChoice] = useState<Choice>(() => ({ ...W.fresh(), sel: practice ? "predictions" : "" }) as Choice);
   const [screen, setScreen] = useState<Screen>(firstScreen ?? "home");
   const [tell, setTell] = useState(true);
-  // When moves lock (the game's pace, chosen as it starts): the options' recommended one until they change it.
-  const [paceAsked, setPace] = useState<PaceMode>(o.runs?.recommended ?? "live");
-  // A start with a phase runs live or strict (start-game.ts paceAsked): own pace falls back to live while one is chosen.
-  const pace: PaceMode = paceAsked === "own" && typeof span.from !== "number" ? "live" : paceAsked;
+  // When moves lock (the game's pace, chosen as it starts): the recommended one for the game on the sheet until they choose (below,
+  // once the game's known).
+  const [paceAsked, setPace] = useState<PaceMode | null>(null);
   const [bots, setBots] = useState(0);
   const [level, setLevel] = useState<BotLevel>("normal");
   const [flash, setFlash] = useState("");
@@ -349,6 +348,11 @@ function Wizardly({
   const c = wizard.build(span, ch);
   const ok = !!(c && c.r.ok && c.r.spec);
   const spec = (ok ? c!.r.spec : null) as Spec | null;
+  // A game whose castaways are one team's each starts on its own recommended pace (start-game.ts runs.exclusive: live, where the
+  // rest are at your own pace; BACKLOG 68). A pace they chose stays theirs whichever game they move to.
+  const paceRec: PaceMode = (ownTeamsOf(spec) ? o.runs?.exclusive : o.runs?.recommended) ?? "live";
+  // A start with a phase runs live or strict (start-game.ts paceAsked): own pace falls back to live while one is chosen.
+  const pace: PaceMode = (paceAsked ?? paceRec) === "own" && typeof span.from !== "number" ? "live" : (paceAsked ?? paceRec);
   const name = ok ? wizard.nameOf(span, ch) : "";
   const changes = ok ? wizard.changes(span, ch) : [];
 
@@ -592,6 +596,7 @@ function Wizardly({
             late={late}
             setLate={setLate}
             pace={pace}
+            paceRec={paceRec}
             setPace={setPace}
             catchUp={catchUp}
             setCatchUp={setCatchUp}
@@ -912,10 +917,18 @@ const fmt = (n: number) => (n < 0 ? `−${-n}` : String(n));
 
 type PaceMode = WizardOptions["runs"]["choices"][number];
 
+/** Whether a game's castaways are one team's each (a draft that isn't shared: the engine's ownershipModeOf). At its own pace such a
+ *  game takes nobody new once its draft starts (StateLogic.GhostLogic.joinMode, sync point 1). */
+const ownTeamsOf = (spec: Spec | null): boolean => spec?.get?.by === "draft" && spec.get.own !== "shared";
+
 /** Each pace by the latest moment a move can be made, so the heading reads on into the choice ("When moves lock: at airtime").
- *  Backstage > Game settings uses the same names (backstage/settings.tsx Pace). */
-const PACE_WORDS: Record<PaceMode, { title: string; line: (ep: string, drafts: boolean) => string }> = {
-  own: { title: "When you’ve watched it", line: (_ep, drafts) => `However late that is: ${drafts ? "after the draft, " : ""}the game waits for each of you.` },
+ *  Backstage > Game settings uses the same names (backstage/settings.tsx Pace). `ownTeams`: own pace then closes the game to new
+ *  players at its draft, said where it's chosen (BACKLOG 68: an explanation, not a lock). */
+const PACE_WORDS: Record<PaceMode, { title: string; line: (ep: string, drafts: boolean, ownTeams: boolean) => string }> = {
+  own: {
+    title: "When you’ve watched it",
+    line: (_ep, drafts, ownTeams) => `However late that is: ${drafts ? "after the draft, " : ""}the game waits for each of you.${ownTeams ? " Nobody can join once the draft starts." : ""}`,
+  },
   live: { title: "When the next one airs", line: () => "Or sooner, once you’ve watched it." },
   strict: { title: "At airtime", line: (ep) => `Everything locks when the ${ep} starts.` },
 };
@@ -925,12 +938,12 @@ const PACE_WORDS: Record<PaceMode, { title: string; line: (ep: string, drafts: b
  * same for everyone in it. One line that says what the game will do, the three choices behind Change: the recommended one is already
  * chosen, so the quick path costs nothing. `phased`: a start with a phase can't wait for people yet (it runs live or strict).
  */
-function Pace({ o, value, onChange, phased, drafts }: { o: WizardOptions; value: PaceMode; onChange: (v: PaceMode) => void; phased: boolean; drafts: boolean }) {
+function Pace({ o, value, recommended, onChange, phased, drafts, ownTeams }: { o: WizardOptions; value: PaceMode; recommended: PaceMode; onChange: (v: PaceMode) => void; phased: boolean; drafts: boolean; ownTeams: boolean }) {
   const [open, setOpen] = useState(false);
   const ep = o.part.singular;
   const said = PACE_WORDS[value];
   return (
-    <div data-start-pace={value}>
+    <div data-start-pace={value} data-start-pace-recommended={recommended}>
       <Label
         aside={
           <Link onClick={() => setOpen(!open)} data-start-pace-change={open ? "open" : "closed"}>
@@ -942,7 +955,7 @@ function Pace({ o, value, onChange, phased, drafts }: { o: WizardOptions; value:
       </Label>
       {!open ? (
         <p className="text-[15px] leading-snug">
-          <b>{said.title}.</b> <span className="text-muted-foreground">{said.line(ep, drafts)}</span>
+          <b>{said.title}.</b> <span className="text-muted-foreground">{said.line(ep, drafts, ownTeams)}</span>
         </p>
       ) : (
         <div role="radiogroup" aria-label="When moves lock">
@@ -968,9 +981,9 @@ function Pace({ o, value, onChange, phased, drafts }: { o: WizardOptions; value:
                   <span className="min-w-0 flex-1">
                     <b className="block text-[16px] font-semibold">
                       {PACE_WORDS[m].title}
-                      {m === o.runs.recommended && !off && <em className="type-caption ml-2 rounded-[2px] bg-secondary px-1.5 text-[11px] not-italic">Recommended</em>}
+                      {m === recommended && !off && <em className="type-caption ml-2 rounded-[2px] bg-secondary px-1.5 text-[11px] not-italic">Recommended</em>}
                     </b>
-                    <small className="mt-[3px] block text-[13px] leading-snug text-muted-foreground">{off ? "Not for a game that starts with a phase, for now." : PACE_WORDS[m].line(ep, drafts)}</small>
+                    <small className="mt-[3px] block text-[13px] leading-snug text-muted-foreground">{off ? "Not for a game that starts with a phase, for now." : PACE_WORDS[m].line(ep, drafts, ownTeams)}</small>
                   </span>
                 </button>
               );
@@ -1004,6 +1017,7 @@ function Home(p: {
   setCatchUp: (v: number | null) => void;
   setLate: (v: boolean) => void;
   pace: PaceMode;
+  paceRec: PaceMode;
   setPace: (v: PaceMode) => void;
   g: G;
   sel: string;
@@ -1110,7 +1124,7 @@ function Home(p: {
         </div>
       )}
       {!o.ownPace && (o.runs?.choices.length ?? 0) > 1 && (
-        <Pace o={o} value={p.pace} onChange={p.setPace} phased={typeof span.from !== "number"} drafts={spec?.get?.by === "draft"} />
+        <Pace o={o} value={p.pace} recommended={p.paceRec} onChange={p.setPace} phased={typeof span.from !== "number"} drafts={spec?.get?.by === "draft"} ownTeams={ownTeamsOf(spec)} />
       )}
 
       <Label

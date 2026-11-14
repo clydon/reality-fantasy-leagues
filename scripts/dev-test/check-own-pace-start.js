@@ -15,10 +15,18 @@
 //     reveal: caught up, the computer player with them; riley and jordan aren't. jordan, still on 5, changes their Episode 6
 //     lineup after the results (their own copy): taken. jordan reveals 6: caught up, their mark here 6.
 //   - Episode 7's results land: everyone who had caught up is catching up again (it keeps waiting all season).
+//   - Its own teams (BACKLOG 68, the user 2026-11-14: an explanation, not a lock): the options start a game whose castaways are
+//     one team's each on live (runs.exclusive). alex starts an Outlast at its own pace all the same: anyone on the couch joins
+//     until its draft starts (sam's row says so), and nobody after (sam's row says why, and a join is refused); Game settings'
+//     Who can join is the game's own rule, said, with nothing to choose.
 //   - Screens at `--width` (390 by default): Start a game's sheet with "When moves lock" (the one line, then Change: the three
 //     choices, Recommended on the first; At airtime chosen and back), nothing wider than the screen; Backstage > Game settings for
 //     the game ("When you've watched it", chosen when it started; its lock row says who it stays open for), then alex's Tonight and
-//     the game's own page with Episode 7 still to reveal (to look at: nothing asserted).
+//     the game's own page with Episode 7 still to reveal (to look at: nothing asserted). Then the wizard on a game with teams of
+//     its own (the rail's standard games all share theirs, so one made-for game is put on the season for it: MADE, a
+//     season_game_ideas row, taken off after): it starts on "When the next one airs", Recommended there; own pace chosen says
+//     "Nobody can join once the draft starts", and stays chosen on Weekly Lineup without that line. Game settings: the
+//     Outlast's Who can join row. sam's Games tab: the Outlast's row, locked, with why.
 //
 //   npm run dev   (or node scripts/lane.js dev; in another terminal)
 //   node scripts/dev-test/check-own-pace-start.js [<outDir>] [--width=390] [--keep] [--no-shots]
@@ -44,8 +52,14 @@ const shots = !args.includes("--no-shots");
 const width = Number((args.find((a) => a.startsWith("--width=")) || "--width=390").split("=")[1]);
 const outDir = args.find((a) => !a.startsWith("--")) || path.join(process.env.TEMP || "/tmp", "own-pace-start");
 const WHO = ["alex", "riley", "jordan"];
+// sam stays out of every game here: the one who turns up late (BACKLOG 68).
+const LATE = "sam";
+// A made-for game whose castaways are one team's each, for the wizard's rail (the season's library: season_game_ideas).
+const MADE = { name: "ZT Keepers", hook: "Two castaways, yours alone. Whoever lasts longest wins.", length: "season", spec: { get: { by: "draft", each: 2, order: "snake", own: "exclusive" }, count: { all: true }, score: { by: "place" }, rank: { by: "total" } } };
 
 let failures = 0;
+// The zt season the made-for game was put on, to take it off again.
+let madeSeason = null;
 function check(ok, label, detail) {
   if (!ok) failures++;
   console.log(`${ok ? "PASS" : "FAIL"}  ${label}${!ok && detail !== undefined ? `\n      ${typeof detail === "string" ? detail : JSON.stringify(detail).slice(0, 600)}` : ""}`);
@@ -56,7 +70,7 @@ function check(ok, label, detail) {
   try {
     const fx = await fixture.up(pool);
     const as = {};
-    for (const who of WHO) as[who] = await api({ user: fixture.username(who), pass: fixture.PASSWORD });
+    for (const who of [...WHO, LATE]) as[who] = await api({ user: fixture.username(who), pass: fixture.PASSWORD });
     const sid = fx.seasonId;
     const couch = fx.couchId;
     const { syncSeasonLeagues } = jiti("../../src/lib/server/season-decisions.ts");
@@ -78,6 +92,7 @@ function check(ok, label, detail) {
     // ---------- the choice, as the game starts ----------
     let r = await as.alex.call("GET", `/api/seasons/${sid}/start?wizard=1&couch=${couch}`);
     check(r.status === 200 && r.body.runs?.recommended === "own" && ["own", "live", "strict"].every((m) => (r.body.runs?.choices ?? []).includes(m)), "Start a game recommends own pace for a show, with live and strict to choose", r.body.runs ?? r.status);
+    check(r.body.runs?.exclusive === "live", "  and live for a game whose castaways are one team's each", r.body.runs ?? r.status);
     r = await as.alex.call("POST", `/api/seasons/${sid}/start?couch=${couch}`, { game: "weeklyLineup", tell: false, pace: "whenever" });
     check(r.status === 400, "a pace that isn't one is refused", r.body);
     r = await as.alex.call("PATCH", `/api/seasons/${sid}/backstage/settings?couch=${couch}`, { leagueId: fx.leagues.lineup, pace: "own" });
@@ -177,6 +192,28 @@ function check(ok, label, detail) {
     g = await gameIn("alex", G);
     check(g?.lineup?.episode === 7 && g?.lineup?.locked === false, "  alex's view: Episode 7's lineup open on their own copy", g?.lineup && { episode: g.lineup.episode, locked: g.lineup.locked });
 
+    // ---------- its own teams at its own pace: anyone until the draft starts, nobody after ----------
+    r = await as.alex.call("POST", `/api/seasons/${sid}/start?couch=${couch}`, { game: "outlast", tell: false, pace: "own" });
+    const X = r.body.leagueId;
+    check(r.status === 200 && !!X, "alex starts an Outlast at its own pace (theirs to choose: not what the sheet starts on)", r.body);
+    if (!X) throw new Error("no Outlast to check");
+    const rowFor = async (who, id) => ((await as[who].call("GET", `/api/couches/${couch}/games`)).body.games ?? []).find((x) => x.leagueId === id) ?? null;
+    let row = await rowFor(LATE, X);
+    check(!!row && row.mode === "open" && row.ownPace === true && row.shared === false && row.draftStarted === false, `  before its draft: anyone on the couch can join (${LATE}'s row)`, row && { mode: row.mode, ownPace: row.ownPace, shared: row.shared, draftStarted: row.draftStarted });
+    let set = await settingsOf("alex", X);
+    check(set?.joining?.fixed === true && set.joining.mode === "open", "  Game settings: who can join is the game's own rule (fixed), open for now", set?.joining ?? null);
+    const xo = await as.riley.call("GET", `/api/couches/${couch}/games/${X}`);
+    r = await as.riley.call("POST", `/api/couches/${couch}/games/${X}`, { action: "join", start: xo.body.starts?.live ?? xo.body.start ?? null });
+    check(r.status === 200, "  riley joins before the draft", r.body);
+    r = await as.alex.call("POST", `/api/leagues/${X}/draft/force-start`, {});
+    check(r.status === 200 && S.DraftLogic.isStarted(await stateOf(X)), "alex opens its draft", r.body);
+    row = await rowFor(LATE, X);
+    check(!!row && row.mode === "locked" && row.draftStarted === true && row.lockedDown === false, `  the draft has started: nobody new (${LATE}'s row)`, row && { mode: row.mode, draftStarted: row.draftStarted });
+    r = await as[LATE].call("POST", `/api/couches/${couch}/games/${X}`, { action: "join", start: null });
+    check(r.status >= 400, `  ${LATE}'s join is refused`, { status: r.status, body: r.body });
+    set = await settingsOf("alex", X);
+    check(set?.joining?.fixed === true && set.joining.mode === "locked" && set.draftStarted === true, "  Game settings: nobody new, still the game's own rule", set && { joining: set.joining, draftStarted: set.draftStarted });
+
     // ---------- screens ----------
     if (shots) {
       fs.mkdirSync(outDir, { recursive: true });
@@ -230,7 +267,64 @@ function check(ok, label, detail) {
         await a.page.goto(`${a.BASE}/show/${sid}/game/${G}`);
         await a.page.locator("[data-game-strip], main").first().waitFor();
         await shot(a.page, "game-own-pace-behind");
+        // Its own teams (BACKLOG 68). The wizard afresh, on the made-for game with teams of its own: it starts on live, and own
+        // pace says what it closes.
+        madeSeason = sid;
+        await pool.query("INSERT INTO season_game_ideas (season_id, ideas, made_at) VALUES ($1, $2::jsonb, now()) ON CONFLICT (season_id) DO UPDATE SET ideas = EXCLUDED.ideas", [sid, JSON.stringify([MADE])]);
+        await a.page.goto(`${a.BASE}/show/${sid}/games`);
+        await a.page.locator("[data-start-row]").first().click();
+        // A season's game: Rest of season, where the rail lists it.
+        await a.page.locator('[data-start-mode="season"]').click();
+        await a.page.locator('[data-start-game^="made-"]').first().click();
+        const pace2 = a.page.locator("[data-start-pace]");
+        await pace2.waitFor();
+        await pace2.scrollIntoViewIfNeeded();
+        said = ((await pace2.textContent()) || "").replace(/\s+/g, " ");
+        check((await pace2.getAttribute("data-start-pace")) === "live" && (await pace2.getAttribute("data-start-pace-recommended")) === "live" && /When the next one airs\./.test(said), "the wizard on a game with teams of its own: it starts on When the next one airs", said);
+        await shot(a.page, "wizard-own-teams-starts-live");
+        await a.page.locator("[data-start-pace-change]").click();
+        const ownChoice = ((await a.page.locator("[data-start-pace-choice=own]").textContent()) || "").replace(/\s+/g, " ");
+        check(/Recommended/.test((await a.page.locator("[data-start-pace-choice=live]").textContent()) || "") && !/Recommended/.test(ownChoice), "  Change: Recommended is on When the next one airs");
+        check(/Nobody can join once the draft starts\./.test(ownChoice), "  own pace says what it closes, before it's chosen", ownChoice);
+        await pace2.scrollIntoViewIfNeeded();
+        await shot(a.page, "wizard-own-teams-choices");
+        await a.page.locator("[data-start-pace-choice=own]").click();
+        await a.page.locator("[data-start-pace-change]").click();
+        said = ((await pace2.textContent()) || "").replace(/\s+/g, " ");
+        check((await pace2.getAttribute("data-start-pace")) === "own" && /Nobody can join once the draft starts\./.test(said), "  own pace chosen: the one line says nobody can join once the draft starts", said);
+        const wide2 = await a.page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+        check(wide2 <= 0, "  nothing wider than the screen", wide2);
+        await shot(a.page, "wizard-own-teams-own-pace");
+        await a.page.locator('[data-start-game="lineup"]').first().click();
+        await pace2.scrollIntoViewIfNeeded();
+        said = ((await pace2.textContent()) || "").replace(/\s+/g, " ");
+        check((await pace2.getAttribute("data-start-pace")) === "own" && !/Nobody can join/.test(said), "  on Weekly Lineup (shared teams) their choice stays, without that line", said);
+        await a.page.keyboard.press("Escape");
+        // Game settings: Who can join for the Outlast is said, not offered.
+        await a.page.goto(`${a.BASE}/show/${sid}/backstage/settings`);
+        const fixed = a.page.locator("[data-join-fixed]").first();
+        await fixed.waitFor();
+        await fixed.scrollIntoViewIfNeeded();
+        said = ((await fixed.textContent()) || "").replace(/\s+/g, " ");
+        check((await fixed.getAttribute("data-join-fixed")) === "locked" && /Nobody new/.test(said) && /Since the draft started/.test(said) && /play at their own pace/.test(said), "Game settings: Who can join says nobody new and why, nothing to choose", said);
+        await shot(a.page, "settings-who-can-join-fixed");
         check(!errors.length, "no page errors", errors);
+        // sam, who turned up after the draft started: the Outlast's row on the Games tab.
+        const late2 = await open({ user: fixture.username(LATE), pass: fixture.PASSWORD, width, height: 844 });
+        late2.page.setDefaultTimeout(20000);
+        try {
+          await late2.page.goto(`${late2.BASE}/show/${sid}/games`);
+          const joinRow = late2.page.locator(`[data-join-game][data-league="${X}"]`);
+          await joinRow.waitFor();
+          await joinRow.scrollIntoViewIfNeeded();
+          said = ((await joinRow.textContent()) || "").replace(/\s+/g, " ");
+          check(/Players own their castaways and play at their own pace, so nobody joins once the draft has started\./.test(said) && (await joinRow.locator("[data-locked]").count()) === 1 && !/closed it/.test(said), `${LATE}'s Games tab: the Outlast is locked, and says why (the game's rule, nobody closed it)`, said);
+          const jb = await joinRow.boundingBox();
+          check(!!jb && jb.x >= 0 && jb.x + jb.width <= width, "  nothing wider than the screen", jb);
+          await shot(late2.page, "join-row-own-teams-locked");
+        } finally {
+          await late2.close();
+        }
       } finally {
         await a.close();
       }
@@ -240,6 +334,8 @@ function check(ok, label, detail) {
     failures++;
     console.error(e);
   } finally {
+    // The made-for game put on the zt season for the wizard (it goes whether the fixture stays or not).
+    if (madeSeason) await pool.query("DELETE FROM season_game_ideas WHERE season_id = $1", [madeSeason]).catch((e) => console.error("made-for game:", e.message));
     if (!keep) await fixture.down(pool).catch((e) => console.error("down:", e));
     await pool.end();
     console.log(failures ? `\n${failures} FAILED` : "\nALL PASS");

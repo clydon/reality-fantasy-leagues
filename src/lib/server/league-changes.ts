@@ -15,6 +15,7 @@ import { setLeagueRole } from "./roles";
 import { shareCheck } from "./shared-seats";
 import { syncLeagueDecisions } from "./season-decisions";
 import { games } from "./show-space";
+import { currentWeek, undoRun } from "./waivers";
 
 // Reading Recent changes (docs/PLAN-new-design.md step 5), for everyone on the couch, and Undo, for whoever runs the
 // games a change touched. The lines are written by change-log.ts, in the same transaction as each change.
@@ -257,9 +258,9 @@ export async function undoBatch(user: SessionUser, seasonId: string, couchId: st
         await client.query("DELETE FROM league_rulings WHERE league_id = $1 AND decision_id = $2", [r.league_id, undo.decisionId]);
         await syncLeagueDecisions(client, r.league_id, s, { noCorrections: true });
       } else if (undo.type === "waivers") {
-        const p = StateLogic.WaiverLogic.current(s);
+        const p = currentWeek(s);
         if (!p || p.id !== undo.periodId || p.phase !== "processed" || !p.run) throw new HttpError(409, "That waiver run can't be taken back any more");
-        const refused = StateLogic.WaiverLogic.undo(s);
+        const refused = undoRun(s);
         if (refused) throw new HttpError(409, refused);
       } else if (undo.type === "draftPick") {
         // Only the draft's last pick comes back (the one after it was made with it gone from the board).

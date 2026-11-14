@@ -26,8 +26,13 @@ export function saveClaim(
 export function pacedCopy(state: LeagueState): LeagueState | null;
 /** Runs every waiver step due at `now` (ms; default the clock). */
 export function syncWaivers(client: PoolClient, leagueId: string, state: LeagueState, now?: number): Promise<WaiverEvent[]>;
-/** The commissioner's Process now: a reason on refusal, else null. */
+/** The commissioner's Process now: a reason on refusal, else null. At its own pace with exclusive teams it runs the week at
+ *  everyone's episode (as openWindow, undoRun and currentWeek read it: BACKLOG 56). */
 export function processNow(client: PoolClient, leagueId: string, state: LeagueState, now?: number): Promise<string | null>;
+/** The commissioner's Undo last waiver run (WaiverLogic.undo): a reason on refusal, else null. */
+export function undoRun(state: LeagueState): string | null;
+/** The week whoever runs the game sees as the current one, or null. */
+export function currentWeek(state: LeagueState): WaiverPeriod | null;
 /** The commissioner's Open a waiver window (`swaps` each; null turns it off), trimming claims that no longer fit. */
 export function openWindow(
   client: PoolClient,

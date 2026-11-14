@@ -165,18 +165,20 @@ function invariants(session, document, before, record, step, inject, known = new
           }
         }
       }
-      // Known (BACKLOG 57): the lineup that counted for an episode a seat has already played is worked out from who they hold now when
-      // it was never saved for that episode (carried from an earlier one), so a later waiver move rewrites it. Checked once a step on
+      // The lineup that counted for an episode already played never changes on a waiver move ('carried-lineup-rewritten'; it was the
+      // known finding BACKLOG 57, fixed 2026-11-14: a lineup never saved for an episode is carried from an earlier one and reads who
+      // the seat held FOR THAT EPISODE, where it read who they hold now). Checked once a step on
       // a lineup game: a played episode's lineup that changed on a step that isn't that seat's own lineup for it, or new results.
-      // (Played by anyone: at its own pace a seat behind hasn't reached a week others have already seen, and a waiver week's fill
-      // rewrites the lineup it carried into that week all the same; a bounty on it then moves for everyone who saw it.)
+      // (Played by that seat, at its own pace: a week it hasn't reached is still its to change, by a lineup or by a move made
+      // before it, whoever else has seen that week. In a live game an episode is played by every seat at once.)
       if (game.spec.count?.start !== undefined && person === snap.people[0] && before.games[game.id] && record.status === 'accepted' && record.action.type !== 'results') {
         const S0 = require('../../../src/lib/game/state-logic'), st = snap.games[game.id].state, prior = before.games[game.id].state, a = record.action;
         if ((st.midSeason?.log || []).length !== (prior.midSeason?.log || []).length) for (const p of st.players) {
           const seenBy = id => Math.min(before.contexts.show.marks.find(m => m.personId === id)?.through ?? 0, world.marks.find(m => m.personId === id)?.through ?? 0), through = Math.max(...st.players.map(q => seenBy(q.id)));
-          for (const e of prior.episodes.filter(e => e.number <= through && S0.EpisodeLogic.hasResults(e))) {
+          for (const e of prior.episodes.filter(e => e.number <= (S0.GhostLogic.ownPace(st) ? seenBy(p.id) : through) && S0.EpisodeLogic.hasResults(e))) {
             if (a.type === 'lineup' && a.personId === p.id && a.eventId === e.id) continue;
-            if (JSON.stringify(S0.ActiveRosterLogic.lineupFor(prior, e.id, p.id)) !== JSON.stringify(S0.ActiveRosterLogic.lineupFor(st, e.id, p.id))) known.add('known:carried-lineup-rewritten');
+            const was = JSON.stringify(S0.ActiveRosterLogic.lineupFor(prior, e.id, p.id)), now = JSON.stringify(S0.ActiveRosterLogic.lineupFor(st, e.id, p.id));
+            if (was !== now) throw new Violation('carried-lineup-rewritten', game.id + ': ' + p.id + "'s lineup for episode " + e.number + ', already played, went from ' + was + ' to ' + now + ' on a ' + a.type + ' step', step);
           }
         }
       }
@@ -194,13 +196,13 @@ function invariants(session, document, before, record, step, inject, known = new
       //  - a held week runs again only by hand, or once it closes (its closing time passed, or a later episode's results in);
       //  - a claim sent for someone is that one spot of theirs, the rest of their claim kept, sent by someone who has revealed the
       //    week's episode; and a claim or a free-agency move of your own waits for that reveal too.
-      // Known (BACKLOG 56): in a game at its own pace with exclusive teams these run on the league as it stands at its latest
-      // results, not the copy at everyone's episode, and its waiver clock ignores a hold: a window that isn't there after the step
-      // that opened it, a run undone and made again in one step, a run that counts a loss nobody has seen or passes a claim over
-      // as "gone" for someone still in at everyone's episode. There a failed check is `known:waivers-own-pace-by-hand`.
+      // In a game at its own pace with exclusive teams these act on the copy at everyone's episode (waivers.js handOn), and its
+      // waiver clock leaves a held week alone: the same checks hold there. (It was the known finding BACKLOG 56, fixed 2026-11-14,
+      // when they ran on the league as it stands at its latest results: a window gone after the step that opened it, a run undone
+      // and made again in one step, a run counting a loss nobody had seen.)
       if ((game.spec.extras?.waivers || snap.stores.waivers?.[game.id] || ['waiverWindow', 'waiverRun', 'waiverUndo'].includes(record.action.type)) && person === snap.people[0]) {
         const S0 = require('../../../src/lib/game/state-logic'), st = snap.games[game.id].state, prior = before.games[game.id]?.state, a = record.action, mineStep = a.gameId === game.id && record.status === 'accepted';
-        const paced = S0.GhostLogic.draftsTogether(st), fail = m => { if (paced) { known.add('known:waivers-own-pace-by-hand'); return; } throw new Violation('waivers-by-hand', game.id + ': ' + m, step); };
+        const paced = S0.GhostLogic.draftsTogether(st), fail = m => { throw new Violation('waivers-by-hand', game.id + ': ' + m, step); };
         const weeks = x => x?.midSeason?.waivers?.periods || [], cur = x => { const p = weeks(x).at(-1); return p && p.phase !== 'closed' ? p : null; };
         const p0 = cur(prior), p1 = p0 ? weeks(st).find(p => p.id === p0.id) || null : null, claimsAt = (snapshot, id) => snapshot.stores.waivers?.[game.id]?.weeks?.[id] || {};
         const pairsOf = x => (x?.claim?.pairs || []).map(y => y.addId + '>' + y.dropId), hasResults = e => !!e && (!!e.noExit || (e.events || []).length > 0 || (e.scoringEvents || []).length > 0);
@@ -226,12 +228,15 @@ function invariants(session, document, before, record, step, inject, known = new
             if (!(p.phase === 'open' || (p.phase === 'processed' && p.run?.by === 'schedule' && !p0?.hold && Date.parse(p.processAt) <= Date.parse(snap.clock)))) fail('a window opened or changed isn\'t open');
           }
           if (p && !(a.swaps === null && !weekly)) {
-            const status = id => st.castaways.find(c => c.id === id)?.status, shrank = !p0 ? false : a.swaps === null || a.swaps < (p0.swaps ?? 0) || (a.replace === false && p0.replace !== false) || (a.replace === undefined && p0.replace === true);
+            // (At its own pace with exclusive teams a claim is weighed where the week runs: the copy at everyone's episode, where
+            // someone who goes home in an episode nobody has reached is still in.)
+            const at = paced ? require('../explorer/runtime-waivers.cjs').pacedCopy(st) || st : st;
+            const status = id => at.castaways.find(c => c.id === id)?.status, shrank = !p0 ? false : a.swaps === null || a.swaps < (p0.swaps ?? 0) || (a.replace === false && p0.replace !== false) || (a.replace === undefined && p0.replace === true);
             for (const [seat, was] of Object.entries(before0)) {
               const old = pairsOf(was), now = pairsOf(after0[seat]);
               let i = 0; for (const x of now) { i = old.indexOf(x, i) + 1; if (!i) { fail(seat + '\'s claim gained or reordered ' + x + ' when the window changed'); break; } }
               // (A window that didn't shrink keeps every pair that can still be claimed at all: its add still in, its drop still theirs.)
-              const still = old.filter(x => { const [add, drop] = x.split('>'), d = st.castaways.find(c => c.id === drop); return status(add) === 'active' && d && d.ownerIds.includes(seat) && (d.status === 'active' ? p.swaps > 0 : p.replace !== false); });
+              const still = old.filter(x => { const [add, drop] = x.split('>'), d = at.castaways.find(c => c.id === drop); return status(add) === 'active' && d && d.ownerIds.includes(seat) && (d.status === 'active' ? p.swaps > 0 : p.replace !== false); });
               if (!shrank && JSON.stringify(still) !== JSON.stringify(now)) fail(seat + '\'s claim was trimmed by a window that didn\'t shrink: ' + JSON.stringify(old) + ' to ' + JSON.stringify(now));
             }
             for (const [seat, x] of Object.entries(after0)) for (const y of x.claim.pairs) {
@@ -380,9 +385,7 @@ function invariants(session, document, before, record, step, inject, known = new
         // On the game as its span saw it (StateLogic.spanView): nothing after a race was won or the game's last episode counts.
         const S = require('../../../src/lib/game/state-logic'), fullState = S.spanView(snap.games[game.id].state), rule = S.BountyLogic.of(fullState), want = {};
         for (const ep of fullState.episodes.filter(e => e.number <= seen)) for (const [pid, pts] of S.BountyLogic.episodeLines(fullState, ep, rule) || []) want[pid] = (want[pid] || 0) + pts;
-        // Known (BACKLOG 57): once a seat's waiver move has rewritten the lineups it carried into weeks already played, the full state's
-        // bounties for those weeks are no longer what someone behind the move still sees.
-        if (Object.keys({ ...b, ...want }).some(k => Math.abs((b[k] || 0) - (want[k] || 0)) > 1e-9) && !(known.has('known:carried-lineup-rewritten') && game.spec.count?.start !== undefined)) throw new Violation('bounty-past-mark', person.id + ' sees ' + game.id + ' bounties ' + JSON.stringify(b) + ', through episode ' + seen + ' they are ' + JSON.stringify(want), step);
+        if (Object.keys({ ...b, ...want }).some(k => Math.abs((b[k] || 0) - (want[k] || 0)) > 1e-9)) throw new Violation('bounty-past-mark', person.id + ' sees ' + game.id + ' bounties ' + JSON.stringify(b) + ', through episode ' + seen + ' they are ' + JSON.stringify(want), step);
       }
       // Teams of players: everyone listed on one team at most, finite points, and a seat's own team is the one listing them.
       // BACKLOG 48: a team game with a cut ends at its first night when nobody is on a team yet (all catching up as it started).
@@ -565,8 +568,10 @@ function pairedGroups(session, doc, actions, statuses) {
 // each seat's square, as each viewer sees it, is the twin's plus (times - 1) times their captain's line in the twin that episode
 // (the captain as the episode keeps it, ActiveRosterLogic.captainFor: named, carried, and only while a starter).
 function pairedCaptain(session, doc, actions, statuses) {
-  // (Not a game with the top scorer's twist: a captain changes who scores most, so who chooses the twist; the twin can't replay it.)
-  const caps = doc.games.filter(g => g.spec.score?.captain && !g.spec.score.twist);
+  // (Not a game with the top scorer's twist: a captain changes who scores most, so who chooses the twist; the twin can't replay it.
+  // Nor one with a cut or a race, 2026-11-14: a captain's points change who's cut or when it's won, so what the next action is
+  // answered.)
+  const caps = doc.games.filter(g => g.spec.score?.captain && !g.spec.score.twist && !g.spec.rank?.cut && !g.spec.rank?.race);
   if (!caps.length) return;
   const S = require('../../../src/lib/game/state-logic');
   const twin = R.open({ ...doc, games: doc.games.map(g => caps.includes(g) ? { ...g, spec: { ...g.spec, score: Object.fromEntries(Object.entries(g.spec.score).filter(([k]) => k !== 'captain')) } } : g) });

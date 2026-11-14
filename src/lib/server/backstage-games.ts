@@ -26,7 +26,7 @@ import { notifyWaiverWindow } from "./push-events";
 import { latestAired, seasonSchedules, type SeasonSchedule } from "./schedule";
 import type { Game } from "./show-space";
 import { windowSnapshot, type WindowSnapshot } from "./waiver-pushes";
-import { openWindow, processNow, saveClaim } from "./waivers";
+import { currentWeek, openWindow, processNow, saveClaim, undoRun } from "./waivers";
 import { ourRules, type OurRules } from "./ours";
 import { contextOf, leagueBook } from "./answers";
 import { questionChoices, questionLine } from "@/lib/game/question-choices";
@@ -389,7 +389,7 @@ export async function waiverWrite(scope: BackstageScope, leagueId: unknown, body
       async (s, client) => {
         if (!W.supported(s)) throw new HttpError(400, "This game doesn't use waivers");
         done.before = windowSnapshot(s);
-        done.fresh = !W.current(s);
+        done.fresh = !currentWeek(s);
         const r = await openWindow(client, id, s, body.swaps, undefined, { replace: body.replace });
         if (r.error !== undefined) throw new HttpError(/processed/.test(r.error) ? 409 : 400, r.error);
         done.periodId = r.period.id;
@@ -411,7 +411,7 @@ export async function waiverWrite(scope: BackstageScope, leagueId: unknown, body
       id,
       async (s, client) => {
         if (!W.enabled(s)) throw new HttpError(400, "This game doesn't use waivers");
-        periodId = W.current(s)?.id ?? "";
+        periodId = currentWeek(s)?.id ?? "";
         const refused = await processNow(client, id, s);
         if (refused) throw new HttpError(409, refused);
       },
@@ -436,7 +436,7 @@ export async function waiverWrite(scope: BackstageScope, leagueId: unknown, body
     await withLeagueLock(
       id,
       (s) => {
-        const refused = W.undo(s);
+        const refused = undoRun(s);
         if (refused) throw new HttpError(409, refused);
       },
       { ...plainChange(user, "waivers", "Took back the last waiver run", 2), batch }
@@ -506,8 +506,10 @@ export interface GameSettings {
   lineup: { starters: number; bench: number; rec: { starters: number; bench: number }; max: { starters: number; bench: number } } | null;
   /** Outlast: the team's size, set at the draft; `max`: the game spec's limit. */
   team: { size: number; rec: number; max: number } | null;
-  /** Who can join (step 9): anyone on the couch (castaways on several teams: they catch up), ask me first, or nobody new. */
-  joining: { mode: "open" | "ask" | "locked"; rec: "open" | "ask" };
+  /** Who can join (step 9): anyone on the couch (castaways on several teams: they catch up), ask me first, or nobody new.
+   *  `fixed`: the game decides it, nothing to choose (its own teams at its own pace: anyone until its draft starts, nobody after;
+   *  StateLogic.GhostLogic.joinMode, BACKLOG 68). */
+  joining: { mode: "open" | "ask" | "locked"; rec: "open" | "ask"; fixed: boolean };
   /** Waivers' one line, for the row into its page; null without waivers. */
   waivers: string | null;
   /** Lock it down (step 15 part 4): competitive mode, nobody new, rules frozen for the season. */
@@ -744,7 +746,7 @@ export async function gameSettings(scope: BackstageScope): Promise<{ games: Game
         from: next?.number ?? null,
         lineup: type.hasActiveRoster ? lineupOf(s) : null,
         team: type.hasRoster && !type.hasActiveRoster ? { size: StateLogic.rosterSize(s), rec: REC.teamSize, max: MAX_TEAM } : null,
-        joining: { mode: StateLogic.GhostLogic.joinMode(s), rec: StateLogic.GhostLogic.recommendedJoinMode(s) },
+        joining: { mode: StateLogic.GhostLogic.joinMode(s), rec: StateLogic.GhostLogic.recommendedJoinMode(s), fixed: StateLogic.GhostLogic.draftsTogether(s) },
         waivers: c ? `${RULE_WORDS[c.replaceRule]} · ${c.waiverWindows.swaps > 0 ? `${c.waiverWindows.swaps} optional swap${c.waiverWindows.swaps === 1 ? "" : "s"} per window` : "no optional swaps"}` : null,
         lockedDown: StateLogic.GhostLogic.lockedDown(s),
         pace: { mode: StateLogic.GhostLogic.pace(s), of: l.game.stageOf ? (loaded.find((x) => x.game.leagueId === l.game.stageOf)?.game.name ?? "its game") : null },

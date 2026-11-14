@@ -23,6 +23,10 @@ const G = StateLogic.GhostLogic;
 // computer players keep pace), never the season's later statuses: a week opens there only when someone's team lost a person in
 // that episode (a waiver moment), settles once everyone owed a replacement has a claim in (or its time runs out), and closes when
 // everyone has moved past it. What the week did is folded back onto the league.
+// Whoever runs the game acts there too (BACKLOG 56, 2026-11-14): Run now, Open a window and Undo take the copy (handOn), never the
+// league as it stands, which holds results nobody has reached (a run there counted losses nobody had seen; a window opened on the
+// season's last episode, and the clock cancelled it in the same write). A week held by an Undo stays held: it runs by hand, or
+// once everyone has moved past it.
 
 /** The episode every person in the game has reached, or null for any other game. */
 function pacedMark(state) {
@@ -37,6 +41,13 @@ function pacedCopy(state) {
   return n === null ? null : StateLogic.SpoilerLogic.viewThrough(state, n);
 }
 const OWNED_KEYS = ["ownerIds", "acquiredVia", "replenishClaimed", "formerOwnerId", "departedVia"];
+/** What whoever runs the game acts on: the copy at everyone's episode in a game at its own pace with exclusive teams (`none`: such
+ *  a game with nobody on an episode yet, so there's nothing to act on), else the league itself. */
+function handOn(state) {
+  if (!G.draftsTogether(state)) return { on: state, copy: null, none: false };
+  const copy = pacedCopy(state);
+  return { on: copy || state, copy, none: !copy };
+}
 /** A week run on the copy, back onto the league: its waiver weeks, its log and who owns whom. */
 function foldBack(state, copy) {
   state.midSeason = copy.midSeason;
@@ -244,7 +255,8 @@ async function syncPaced(client, leagueId, state, at) {
     const period = W.current(copy);
     // A week opens only at a waiver moment; and settles as soon as everyone owed a replacement has a claim in.
     if (step === "open" && !lossAt(copy)) break;
-    if (!step && period && period.phase === "open" && owedIn(copy, period)) step = "process";
+    // (A week held by an Undo waits for whoever runs the game, as a live game's does: BACKLOG 56.)
+    if (!step && period && period.phase === "open" && !period.hold && owedIn(copy, period)) step = "process";
     if (!step) break;
     if (step === "open") {
       const p = W.open(copy, at);
@@ -269,11 +281,26 @@ async function syncPaced(client, leagueId, state, at) {
 
 /** The commissioner's Process now. A reason on refusal, else null. */
 async function processNow(client, leagueId, state, now) {
-  const period = W.current(state);
+  const { on, copy, none } = handOn(state);
+  const period = none ? null : W.current(on);
   if (!period || period.phase !== "open") return "Waivers aren’t open";
-  await processPeriod(client, leagueId, state, now === undefined ? Date.now() : now, "commissioner");
+  await processPeriod(client, leagueId, on, now === undefined ? Date.now() : now, "commissioner");
+  if (copy) foldBack(state, copy);
   return null;
 }
+
+/** The commissioner's Undo last waiver run (WaiverLogic.undo): the week's moves taken back, its claims open again, the week held.
+ *  A reason on refusal, else null. */
+function undoRun(state) {
+  const { on, copy, none } = handOn(state);
+  if (none) return "There’s no waiver run to undo";
+  const refused = W.undo(on);
+  if (!refused && copy) foldBack(state, copy);
+  return refused;
+}
+
+/** At its own pace with exclusive teams a window opens on the episode everyone has reached: none yet, no window. */
+const NOBODY_YET = "Open a waiver window once everyone has watched an episode";
 
 /**
  * The commissioner's Open a waiver window (WaiverLogic.openWindow): `swaps` each, or null to turn the
@@ -281,8 +308,10 @@ async function processNow(client, leagueId, state, now) {
  * a week that ends takes every claim). { period, trimmed: playerIds whose claim lost pairs } or { error }.
  */
 async function openWindow(client, leagueId, state, swaps, now, opts) {
-  const r = W.openWindow(state, swaps, now === undefined ? Date.now() : now, opts);
-  if (r.error) return { error: r.error };
+  const { on, copy, none } = handOn(state);
+  if (none) return { error: NOBODY_YET };
+  const r = W.openWindow(on, swaps, now === undefined ? Date.now() : now, opts);
+  if (r.error) return { error: copy && /once an episode has results/.test(r.error) ? NOBODY_YET : r.error };
   const period = r.period;
   const trimmed = [];
   if (r.closed) {
@@ -290,17 +319,25 @@ async function openWindow(client, leagueId, state, swaps, now, opts) {
     rows.forEach((row) => trimmed.push(row.player_id));
     await dropClaims(client, leagueId, period.id);
     period.claimsIn = [];
+    if (copy) foldBack(state, copy);
     return { period, trimmed };
   }
-  const claims = await readClaims(client, leagueId, state, period);
+  const claims = await readClaims(client, leagueId, on, period);
   for (const [playerId, claim] of Object.entries(claims)) {
-    const t = W.trimClaim(state, period, playerId, claim);
+    const t = W.trimClaim(on, period, playerId, claim);
     if (!t.removed) continue;
     trimmed.push(playerId);
     await writeClaim(client, leagueId, period.id, playerId, t.claim, null);
   }
-  await republish(client, leagueId, state, period);
+  await republish(client, leagueId, on, period);
+  if (copy) foldBack(state, copy);
   return { period, trimmed };
 }
 
-module.exports = { readOwnClaim, saveClaim, syncWaivers, processNow, openWindow, pacedCopy };
+/** The week whoever runs the game sees as the current one: at its own pace with exclusive teams, the one at everyone's episode. */
+function currentWeek(state) {
+  const { on, none } = handOn(state);
+  return none ? null : W.current(on);
+}
+
+module.exports = { readOwnClaim, saveClaim, syncWaivers, processNow, openWindow, undoRun, currentWeek, pacedCopy };

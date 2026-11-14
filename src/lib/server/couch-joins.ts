@@ -291,6 +291,8 @@ export interface JoinGame {
   mode: JoinMode;
   /** Its draft is done or an episode has results: a new player starts from an episode. */
   underway: boolean;
+  /** Its draft has started (done or not): a game with its own teams at its own pace takes nobody new from here (BACKLOG 68). */
+  draftStarted: boolean;
   /** The latest episode with results in it (0 for none): "Episodes 1 to 4 have aired". */
   latest: number;
   players: number;
@@ -370,6 +372,7 @@ async function couchGameList(viewer: SessionUser | null, couchId: string): Promi
       // Step A12 part 4c: a game in stages that has started takes a newcomer as its stages do (live, each by its own rule), so it's under
       // way for joining from its first episode, results or not.
       underway: G.isUnderway(s) || StateLogic.StageLogic.started(s),
+      draftStarted: StateLogic.DraftLogic.isStarted(s),
       latest: StateLogic.SpoilerLogic.latestWithResults(s),
       players: s.players.filter((p) => !p.disabled && !G.isGhost(p)).length,
       teamSize: G.teamSize(s),

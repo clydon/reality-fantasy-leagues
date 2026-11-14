@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import StateLogic from "@/lib/game/state-logic.js";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireLeagueRole } from "@/lib/server/auth-helpers";
 import { withLeagueLock, HttpError } from "@/lib/server/db";
 import { requireWaivers } from "@/lib/server/waiver-actor";
 import { plainChange } from "@/lib/server/change-log";
+import { undoRun } from "@/lib/server/waivers";
 
 // The commissioner's Undo last waiver run (docs/PLAN-midseason-waivers.md), for when results were
 // applied by mistake: while free agency is still open, every castaway goes back (that week's free-agency
@@ -16,7 +16,7 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
 
   const state = await withLeagueLock(leagueId, (s) => {
     requireWaivers(s);
-    const refused = StateLogic.WaiverLogic.undo(s);
+    const refused = undoRun(s);
     if (refused) throw new HttpError(400, refused);
   }, plainChange(user.id, "waivers", "Took back the last waiver run", 2));
   return NextResponse.json(state);

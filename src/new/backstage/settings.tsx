@@ -155,7 +155,7 @@ function GameBlock({
 }) {
   const L = g.lineup;
   const lineupChanged = !!L && (L.starters !== L.rec.starters || (!g.draftStarted && L.bench !== L.rec.bench));
-  const joinChanged = g.joining.mode !== g.joining.rec;
+  const joinChanged = !g.joining.fixed && g.joining.mode !== g.joining.rec;
   // Locked down: frozen for the season, shown as it stands.
   const can = g.commissioner && !g.lockedDown;
   return (
@@ -270,6 +270,21 @@ function GameBlock({
             </button>
           )}
         </div>
+        {g.joining.fixed && !g.lockedDown ? (
+          // Its own teams at its own pace (BACKLOG 68): the game decides who joins, so it's said, not offered as a choice that does
+          // nothing (StateLogic.GhostLogic.joinMode: anyone until its draft starts, nobody after).
+          <div data-join-fixed={g.joining.mode} className="rounded-[3px] bg-background p-2.5">
+            <b className="block text-[15px]">{g.joining.mode === "open" ? "Anyone on the couch, until the draft starts" : "Nobody new"}</b>
+            <small className="mt-0.5 block text-[13px] leading-snug text-muted-foreground">
+              {g.joining.mode === "open"
+                ? "After that, nobody: players own their castaways and play at their own pace."
+                : g.draftStarted
+                  ? "Since the draft started. Players own their castaways and play at their own pace."
+                  : "Closed to new players."}
+            </small>
+          </div>
+        ) : (
+          <>
         <small className="mb-2 block text-[13px] text-muted-foreground">
           {g.lockedDown
             ? "Locked down for the season: nobody new joins or catches up."
@@ -309,6 +324,8 @@ function GameBlock({
             </span>
           </button>
         ))}
+          </>
+        )}
       </div>
 
       <HowLong g={g} words={words} can={can} write={write} />

@@ -93,7 +93,7 @@ function syncPaced(state, store, now, gameId) {
     let step = W.due(copy, now);
     const period = W.current(copy);
     if (step === 'open' && !lossAt(copy)) break;
-    if (!step && period && period.phase === 'open' && owedIn(copy, period)) step = 'process';
+    if (!step && period && period.phase === 'open' && !period.hold && owedIn(copy, period)) step = 'process';
     if (!step) break;
     if (step === 'open') { const p = openWeek(copy, now, gameId); events.push({ type: 'opened', periodId: p.id, episode: p.episode }); }
     else if (step === 'cancel') { W.cancel(copy); dropClaims(store, period.id); events.push({ type: 'cancelled', periodId: period.id, episode: period.episode }); }
@@ -126,38 +126,61 @@ function saveClaim(state, store, playerId, input, now, gameId) {
 }
 
 // ---- Whoever runs the game (the routes' window, process and undo; Backstage › Waivers' window, run, undo and claimFor) ----
-// Each runs on the league itself, as the server runs it (never a game at its own pace's copy: waivers.js processNow and openWindow take
-// the lock's state as it is); the waiver clock then syncs after the action, as the lock syncs it after every write.
+// As the server runs them (waivers.js handOn, BACKLOG 56 fixed 2026-11-14): on the league itself, or, in a game at its own pace with
+// exclusive teams, on the copy at everyone's episode, folded back (`none`: such a game with nobody on an episode yet). The waiver
+// clock then syncs after the action, as the lock syncs it after every write.
+function handOn(state) {
+  if (!G.draftsTogether(state)) return { on: state, copy: null, none: false };
+  const copy = pacedCopy(state);
+  return { on: copy || state, copy, none: !copy };
+}
+/** The week whoever runs the game sees as the current one (waivers.js currentWeek), or null. */
+function currentWeek(state) { const { on, none } = handOn(state); return none ? null : W.current(on); }
 
 /** processNow (Process now / Run now): every claim that's in, at once, by 'commissioner'. A reason on refusal, else null. */
 function processNow(state, store, now) {
-  const period = W.current(state);
+  const { on, copy, none } = handOn(state);
+  const period = none ? null : W.current(on);
   if (!period || period.phase !== 'open') return 'Waivers aren’t open';
-  processPeriod(state, store, now, 'commissioner');
+  processPeriod(on, store, now, 'commissioner');
+  if (copy) foldBack(state, copy);
   return null;
 }
+
+/** undoRun (Undo last waiver run): the week's moves taken back, its claims open again, the week held. A reason on refusal, else null. */
+function undoRun(state) {
+  const { on, copy, none } = handOn(state);
+  if (none) return 'There’s no waiver run to undo';
+  const refused = W.undo(on);
+  if (!refused && copy) foldBack(state, copy);
+  return refused;
+}
+const NOBODY_YET = 'Open a waiver window once everyone has watched an episode';
 
 /** openWindow (Open a waiver window: `swaps` each, or null to turn the window off; opts.replace, the window's own say on replacements).
  *  A week it opens gets the seeded id a week the clock opens gets. Saved claims that no longer fit are trimmed, each trimmed claim
  *  rewritten at one moment (the server's rows share the transaction's now(), so "who has claims in" lists them after the others, by
  *  seat); a week that ends takes every claim. { period, trimmed } or { error }. */
 function openWindow(state, store, swaps, now, opts, gameId) {
-  const had = W.current(state);
-  const r = W.openWindow(state, swaps, now, opts);
-  if (r.error) return { error: r.error };
+  const { on, copy, none } = handOn(state);
+  if (none) return { error: NOBODY_YET };
+  const had = W.current(on);
+  const r = W.openWindow(on, swaps, now, opts);
+  if (r.error) return { error: copy && /once an episode has results/.test(r.error) ? NOBODY_YET : r.error };
   const period = r.period, trimmed = [];
-  if (!had) period.id = 'wv-' + gameId + '-' + period.episode + '-' + W.periods(state).length;
-  if (r.closed) { trimmed.push(...Object.keys(store.weeks[period.id] || {})); dropClaims(store, period.id); period.claimsIn = []; return { period, trimmed }; }
+  if (!had) period.id = 'wv-' + gameId + '-' + period.episode + '-' + W.periods(on).length;
+  if (r.closed) { trimmed.push(...Object.keys(store.weeks[period.id] || {})); dropClaims(store, period.id); period.claimsIn = []; if (copy) foldBack(state, copy); return { period, trimmed }; }
   const w = store.weeks[period.id] || {};
   let seq = 0;
   for (const [playerId, x] of Object.entries(w)) {
-    const t = W.trimClaim(state, period, playerId, x.claim);
+    const t = W.trimClaim(on, period, playerId, x.claim);
     if (!t.removed) continue;
     trimmed.push(playerId);
     if (W.isEmptyClaim(t.claim)) delete w[playerId]; else w[playerId] = { claim: t.claim, seq: (seq ||= ++store.seq) };
   }
-  republish(state, store, period);
+  republish(on, store, period);
+  if (copy) foldBack(state, copy);
   return { period, trimmed };
 }
 
-module.exports = { sync, saveClaim, pacedCopy, seeded, processNow, openWindow };
+module.exports = { sync, saveClaim, pacedCopy, seeded, processNow, openWindow, undoRun, currentWeek };

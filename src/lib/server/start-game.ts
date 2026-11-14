@@ -147,8 +147,11 @@ export interface StartOptions {
   /** How the game can run from this start (docs/PLAN-own-pace-games.md, "Pace is the game's setting"): the paces to choose from,
    *  and the one a sheet starts on. From an episode that's aired it's at your own pace, nothing to choose. From one still to air a
    *  show's game is at your own pace unless they say otherwise (the user, 2026-11-13); a sport's is live (sports are live). A start
-   *  with a phase runs live or strict (startGame and startFromSpec refuse own pace there, for now). */
-  runs: { choices: PaceMode[]; recommended: PaceMode };
+   *  with a phase runs live or strict (startGame and startFromSpec refuse own pace there, for now). `exclusive`: the one a sheet
+   *  starts on for a game whose castaways are one team's each (a draft that isn't shared): live, where the rest are at your own
+   *  pace (the user, 2026-11-14, BACKLOG 68). At its own pace such a game takes nobody new once its draft starts and its waivers
+   *  wait for everyone to reach the same episode (sync points 1 and 2), so it's a choice there, not what a sheet starts on. */
+  runs: { choices: PaceMode[]; recommended: PaceMode; exclusive: PaceMode };
   couch: { id: string; name: string; members: number };
   /** Run it back: the game it plays again (the same game, name and settings), and, when that was a span, the next one's last
    *  episode (to start with; null: to the season's end). `label` says which it was ("ZT Survivor 51 · Episodes 6–7"). `phase`:
@@ -438,7 +441,9 @@ export async function startOptions(
     sport: sportLeague ? { league: sportLeague } : null,
     pace,
     ownPace,
-    runs: ownPace ? { choices: ["own"], recommended: "own" } : { choices: ["own", "live", "strict"], recommended: (blocks.kind ?? h.show.kind) === "sport" ? "live" : "own" },
+    runs: ownPace
+      ? { choices: ["own"], recommended: "own", exclusive: "own" }
+      : { choices: ["own", "live", "strict"], recommended: (blocks.kind ?? h.show.kind) === "sport" ? "live" : "own", exclusive: "live" },
     couch: { id: couchId, name: couchRows[0]?.name ?? "Your couch", members: people.length },
     again,
   };
