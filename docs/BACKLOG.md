@@ -667,6 +667,15 @@ Last updated 2026-10-27.
     the table's picks and the plays square, and say "Skipped: you'd picked everyone still in". Proof: the explorer's page step
     `--only="never repeats"` (`skip-pool-page.json`).
 56. **Own pace with exclusive teams: Run now, Open a window and Undo act on the season as it stands, not on everyone's episode**
+    (**fixed 2026-11-14**, the user's decision that day: "sure A"; uncommitted, not pushed). All three act on the copy at
+    everyone's episode and fold back (`waivers.js handOn`, `processNow`, `openWindow`, the new `undoRun` and `currentWeek`,
+    used by the classic door, Backstage › Waivers and Recent changes' Undo), and the paced clock leaves a week held by an Undo
+    alone (`syncPaced`). A window with nobody on an episode yet is refused: "Open a waiver window once everyone has watched an
+    episode". The explorer's mirror follows (`runtime-waivers.cjs`, runtime `core-runtime-29`), its known finding is a failure
+    now (`waivers-by-hand`), and the proof's NOTE lines are PASS/FAIL lines: `check-waiver-commissioner.js --case=paced`,
+    `paced-claim`, `paced-time`, `paced-window`, `paced-undo` (both doors). Rarer than first said: the wizard's standard games
+    all share their teams (BACKLOG 68's note), so an exclusive game at its own pace comes from Surprise me, a described game, a
+    made-for game or the older list on an aired season. As found:
     (found 2026-11-13 by the gameplay explorer, the commissioner's waiver actions; confirmed on the real routes, both the
     Backstage door and the classic one). In a game at its own pace with exclusive teams, a waiver week runs on a copy of the league
     as it stood at the episode everyone has reached (`waivers.js` `pacedCopy`, sync point 2), and a claim is checked on that copy.
@@ -685,7 +694,27 @@ Last updated 2026-10-27.
     Proof: `node scripts/dev-test/check-waiver-commissioner.js --case=paced-claim` (and `paced-window`, `paced-undo`): each prints
     a `NOTE BACKLOG 56` line from the server's own state, and `paced-time` shows the same claim going through at the week's own
     time. The explorer's engine tier counts it as `known:waivers-own-pace-by-hand`.
-57. **Own pace, a lineup game with replacements: replacing a starter rewrites the weeks already played** (found 2026-11-13 by the
+57. **A lineup game with replacements: replacing a starter rewrites the weeks already played** (**fixed 2026-11-14**, the user's
+    decision that day: "definitely address this"; uncommitted, not pushed). A carried lineup reads who the seat held FOR THAT
+    EPISODE, from the move log (`ActiveRosterLogic.heldFor` → `Seq.heldAt`, the read best ball's team already used), where it
+    read who the seat holds now. Nothing is stored and nothing migrated: it's a read rule, so every path has it (own pace, a live
+    game's late window, a viewer's copy). A bounty follows (it reads the same lineup): what counted that night stays. A seat at
+    its own pace that moves while AHEAD of the move's episode (exclusive teams: a waiver week runs at everyone's episode) keeps
+    its own mark on the log entry (`seen`), and the move counts for its lineups from after that: never back into a week it had
+    played. Proof: `tests/active-roster-lineups.test.js` (seven cases); `check-waiver-commissioner.js --case=carried` (Bo's
+    total stays 10 where it fell to 8.5; a FAIL now if it moves); the explorer's known finding is a failure now
+    (`carried-lineup-rewritten`, per seat: a week a seat hasn't played is still its to change); 222 recorded reads in
+    `tests/fixtures/scoring-shapes.json` moved, each the fix itself (the fixture's header says which).
+    **It wasn't only own pace:** it needs an episode with no lineup stored for a seat, which a live game has whenever the seat
+    had no lineup in the week before (and older leagues have throughout). Of the 14 leagues on the local database one moves with
+    the fix: a Survivor 49 Weekly Lineup (a seat saved one lineup for Episode 1, rode it through Episode 6, and replaced a
+    starter after Episode 10; weeks 2 to 6 then lost that starter's points, 9 in all: second by 4 became first by 5).
+    **That league is local only** (the user, 2026-11-14: "pretty sure survivor 49 doesnt exist"; right: production's backup of
+    2026-10-30 has ten leagues, none on Survivor 49), and **no production league's totals move** (the same backup, scored by
+    both engines). The check is kept for any scoring change: `node scripts/dev-test/compare-totals.js --backup=<dir>` (a backup
+    made by `scripts/backup-leagues.js`; no database, no connection string) or `--db` (local only). **Before a push:** run it on
+    the fresh backup the push routine takes. As found:
+    (found 2026-11-13 by the
     gameplay explorer; confirmed on the real routes). A lineup not saved for an episode is the last one saved, carried forward, and
     worked out when it's read from who the seat still holds (`ActiveRosterLogic.lineupFor` → `carriedLineup` → `carriesInto`).
     Nothing stamps it when the episode is played. In a live game each episode is created after the last and gets its lineups
@@ -823,13 +852,51 @@ Last updated 2026-10-27.
     No vote, no new prompt: one deadline, one auto-pick, one Commissioner's override. It stays inside the draft and the stage's
     settle, away from scoring, and the gameplay explorer can prove it once the draft room is driven as actions.
 
-68. **Exclusive teams at your own pace: nobody new after the draft** (noticed 2026-11-13, step 2 of "Pace is the game's
+68. **Exclusive teams at your own pace: nobody new after the draft** (**built 2026-11-14**, the user's decision that day: C, and
+    "an explanation, not a lock"; uncommitted, not pushed). Start a game starts a game whose castaways are one team's each on
+    **When the next one airs** (`StartOptions.runs.exclusive`, the wizard's `paceRec`), with own pace still a choice, and says
+    what it closes where it's chosen: "Nobody can join once the draft starts." The join row says why it's locked ("Players own
+    their castaways and play at their own pace, so nobody joins once the draft has started", where it said someone had closed
+    it), and before the draft "Anyone on the couch can join until the draft starts. You'll draft with everyone." Backstage ›
+    Game settings shows Who can join as the game's own rule, with nothing to choose (the two buttons there did nothing:
+    `joining.fixed`). Check: `check-own-pace-start.js` (16 more on the routes, 10 on the screens at 390).
+    **Smaller than first said:** the wizard's standard games all share their teams, Outlast included (`roll.js`: its Outlast is
+    exclusive only when the cast covers everyone's teams, and then for some seeds; the rail's own seed gives shared). An
+    exclusive game comes from Surprise me, a described game, a made-for game, or the older list. As noticed:
+    (noticed 2026-11-13, step 2 of "Pace is the game's
     setting"). `GhostLogic.joinMode` gives an exclusive game at its own pace "open until the draft starts, then locked" (sync
     point 1, decided 2026-11-06 for a season that had aired). Own pace is now the default on a season still airing, where a live
     exclusive game is "Ask me first" and a late joiner takes free agents. So a friend who turns up in week 2 can't be let into
     the couch's default Outlast. Options: leave it (say so on the join sheet); let whoever runs it let someone in with free
     agents as of the newcomer's own episode (the late joiner's path, which `viewFor` already hides from people behind); or make
     exclusive games default to When the next one airs. A question for the user.
+
+69. **A lineup stored for a week keeps a starter the seat let go before it** (**fixed 2026-11-14**, the user that day: "ill take
+    your suggestion for 69"; uncommitted, not pushed). A lineup set for an episode leaves out whoever the move log says its seat
+    let go before that episode (`ActiveRosterLogic.letGoBefore`, read in `lineupFor`): a gap to fill, as a carried lineup
+    leaves, and the one brought in waits on the bench (ESPN's and Yahoo's way; the gap makes the lineup a move that's due). A
+    read rule, as 57's, not the write first sketched below: nothing saved is rewritten, so taking the move back brings them back
+    with no bookkeeping, a viewer who hasn't seen the move still sees them (no gap to give it away), and it's the same on a
+    paced copy. Only the log lets someone go: a roster changed by hand leaves a saved lineup as it was, as before. A week already
+    played can't change by it (a move counts from the episode after it, and from after its seat's own mark when the seat was
+    ahead). Proof: `tests/active-roster-lineups.test.js` (seven cases); `check-waiver-commissioner.js --case=saved` on the real
+    routes, both doors (Bo's Episode 2 lineup counts one starter with a slot to fill after his swap runs, both again after
+    Undo, on the server's state and on his games route); `tests/fixtures/scoring-shapes.json` didn't move; no production
+    league's totals move (`compare-totals.js`). **Left:** a sport's lineup that locks game by game reads its own timed log
+    (`lineupAt`), which this doesn't touch: someone let go mid-week there still counts for games that start after. And the
+    waivers' result could offer the new holding the empty slot in one tap (docs/UX-IDEAS.md). As found:
+    (found 2026-11-14 while fixing BACKLOG 57; the
+    engine, not run on the routes; a question for the user). The mirror of 57. A lineup saved for an episode is never touched by
+    a later move, so a seat that swaps a starter out before that episode airs still fields them: they score for a team that no
+    longer holds them (in an exclusive game, for two teams if someone else picks them up), and the new holding sits on the bench
+    until the seat saves a lineup again (which then refuses the old starter: "isn't on your roster"). A live game stores every
+    seat's next lineup as the episode is made (`carryForwardLineups`), so this is the usual path there for a swap of someone
+    still in; a replacement for someone who went home is fine (they aren't copied in). A carried lineup, since 57's fix, leaves a
+    gap instead: the two paths now disagree. **Not seen in real data** (the local copy of production: 4 lineup games, 3 moves, 0
+    cases; `mirror-count` was a one-off read). Likely fix: when a move lets a holding go, take them out of that seat's stored
+    lineups for episodes after the move's that haven't been played (a gap to fill, as a carried one has), and put them back on
+    Undo. A rule question too: should the one brought in take the slot? (ESPN and Yahoo leave it empty.) Not built: it changes
+    how a live game's lineup reads after a swap, which is the user's call.
 
 ## Decided against (don't re-propose without new information)
 

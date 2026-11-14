@@ -67,3 +67,76 @@ Each entry: the idea, who it's for and what they're doing, the reason, and what 
   is the point.
 - **Cost.** A small control change and one more stored state after airtime (`ep.lineupsLocked` already means it); the words need
   care so "Locked for everyone" doesn't read as the default.
+
+## Start a game, redone (the user, 2026-11-14: "we desperately need to redo the wizard for creating a game. The user flow, intuitive-ness, everything needs a lot of help")
+
+Not scheduled ("that's another time"); ideas are welcome until it is. When it's taken up it goes through impeccable's shape,
+phone first at 390, and is tried on someone who has never seen it (the friend-group archetypes: Joanna forgets, Andrew drives
+by, Conor tinkers). The current wizard stays the baseline until then (AGENTS.md).
+
+**What's wrong, seen first-hand on 2026-11-14** (while checking BACKLOG 68 on its screens; flaws, so raised with the user that day):
+- **It asks when before what.** "When it runs" (Friday / Rest of season / Custom) comes first, and the list of games below
+  depends on it. On "Friday" Outlast isn't offered at all, with nothing saying it exists or why it's missing. A check written
+  that day looked for Outlast and couldn't find it; a person would give up the same way.
+- **Changing one answer silently changes another.** Tapping Rest of season swapped the chosen game (a toast: "Now Weekly
+  Lineup, the classic for the rest of the season"). Since BACKLOG 68, picking a game can also change the "When moves lock" line
+  above it. Each is right by its rule; together the sheet moves under your thumb.
+- **A setting sits above the thing it's a setting of.** "When moves lock" is asked before the game is chosen, and its default
+  follows the game.
+- **The games are a sideways rail of small cards.** Three abstract pictograms, a name, half a line ("A team"). The next card
+  is cut off at the edge; "Every game · 7" is a link. Nothing compares two games, and "Weekly Lineup: A team" and "Best Ball:
+  A team" read the same.
+- **A rule that decides a lot is invisible.** Whether two people can hold the same castaway (shared or exclusive) drives who
+  can join, how waivers work and which pace is safe, and the sheet neither says it nor asks it. Every standard game here is
+  shared, Outlast included; someone from fantasy football will assume the opposite.
+- **One sheet holds everything.** Game, length, pace, twists, ways to win, scoring, moments, bets, bots, a name, Tell the
+  couch, Surprise me, Describe a game, made-for games: about fifty distinct controls behind one scroll.
+- **There are two of them.** A season that's aired and a sport's season still start from the older list (BACKLOG 42).
+- **Kept from today's, because it works:** the footer that says what happens next in the game's own words ("Next: everyone
+  answers 2 questions, before Fri 8 PM · tells the couch") above one button; a recommended choice already made, with Change.
+
+**Ideas** (each to be weighed, none decided):
+
+- **Ask what, then how long.** Choose the game first; each game then says the lengths it can run ("tonight only", "the rest of
+  the season"), and a length it can't run is shown and says why. *Why:* people arrive with a game in mind or with none, never
+  with a span. *Cost:* a one-night game needs to stay one tap for tonight's quick start (U0's decision), so tonight keeps a
+  shortcut of its own.
+- **Ask by effort, in the couch's words, for someone with no game in mind.** "How much should everyone have to do each
+  week?": nothing (draft once, then watch) · one pick · set a lineup · answer a few questions. That narrows eight kinds to one or
+  two. *Who:* whoever starts a game for a group that includes Joanna. *Why:* effort is what decides whether a couch finishes a
+  season, and it's the thing game names hide. *Cost:* a made-for or described game needs an honest effort tag from its spec.
+- **The game as one sentence you can edit.** "Everyone drafts 3 castaways (shared). Set 2 starters each episode. Most points
+  wins. Moves lock when you've watched it. Runs the rest of the season." Each clause is the control for itself: tap it to
+  change it. *Why:* it's the whole game on one screen, in order, and a setting can't sit above its subject. The engine already
+  writes the sentence (`describeSpec`). *Cost:* clauses that depend on each other must say so when one changes another, in
+  place, not in a toast.
+- **Say what changed and why, where it changed.** When one choice moves another, mark the moved line ("Changed with the game:
+  was When you've watched it") with an undo on it. *Why:* silent changes are the least intuitive thing on the sheet today.
+- **Shared or all yours is a question.** For a game with teams: "Can two of you have the same castaway?" with what each answer
+  brings (anyone can join late / a real draft with turns, waivers, nobody new at own pace). *Why:* it's the biggest rule a
+  team game has, and the one outsiders assume wrongly. *Cost:* one more question; it only shows for team games.
+- **Show the first week before you start.** Under the game: what each person does and by when, with the real dates ("Fri 8 PM:
+  lineups lock · Sat noon: results"). *Why:* the footer's "Next:" line already does this for one step and is the clearest thing
+  on the sheet; a week of it answers "what am I signing my friends up for".
+- **A list to compare, not a rail to scroll.** Games down the page, one line each of what you do, an effort tag, the
+  recommended one first and marked. *Why:* nothing is cut off and two games can be read against each other.
+- **Two doors, clearly apart.** "Start one" (a recommended game, one tap, everything changeable after) and "Make your own"
+  (twists, scoring, moments, bets, Describe a game, Surprise me). *Why:* Andrew wants the first and Conor the second, and
+  today each wades through the other's controls. *Cost:* the tinkerer's door needs its own shape; it's most of the work.
+- **Every option says what it closes.** As "Nobody can join once the draft starts" does since BACKLOG 68: a consequence that
+  can't be undone later is said at the moment it's chosen, never discovered. *Cost:* words, kept to one line each.
+- **One wizard.** The older list's cases (a season that's aired, a sport's season, Run it back) move in (BACKLOG 42), so there's
+  one way to start anything.
+- **Measure it blind.** Before building: three people who haven't seen it each try to start a named game ("Outlast for the
+  rest of the season") and a vague one ("something easy for tonight"); count taps, wrong turns and what they say aloud.
+
+## The waivers' result offers the new one the empty slot
+
+- **Idea.** When a move you made leaves a gap in a lineup you'd saved (BACKLOG 69: someone let go leaves the lineups set for the
+  weeks after), the result that tells you the move went through also says "Start <the one you got> in their place?", one tap.
+- **Who, when.** Anyone whose swap or replacement just ran, reading its result; most of all Joanna, who won't go back to the
+  lineup page.
+- **Why.** The gap is right (the one brought in shouldn't start by itself: you may want someone else from the bench), but it's
+  a second errand created by the first. Today it shows only as a lineup that's due.
+- **Cost.** A waiver run is read later, by people who weren't there when it ran: the offer has to work from the result's line,
+  for the episode that's open then, and say nothing once the lineup's been set again.

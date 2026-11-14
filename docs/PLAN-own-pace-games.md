@@ -573,18 +573,51 @@ and whoever runs the game locking or opening one episode by hand.
   someone who hadn't watched; nobody reran it). Only checks the change could affect are run each step, and that one was missed:
   any check that asserts a lock at airtime belongs on that list from now on.
 
+## As built: three own-pace bugs decided and fixed (2026-11-14; BACKLOG 56, 57, 68; uncommitted, not pushed)
+
+The user's decisions (2026-11-14): 57 "definitely address this"; 56 "sure A"; 68 "sure C", and asked whether it wants a lock or
+an explanation: an explanation (a lock would take away a game that works).
+
+- **57: a week already played keeps who was fielded in it.** A lineup never saved for an episode is carried from the last one
+  saved; it now keeps whom the seat held **for that episode**, read from the move log (`ActiveRosterLogic.heldFor`), where it
+  kept whom the seat holds today. So points never move without new results. Nothing stored, nothing migrated. A seat ahead of
+  the pack that moves in the pack's waiver week (exclusive teams) keeps the weeks it had already played (`seen` on the log
+  entry). A week a seat hasn't played is still its to change.
+- **56: whoever runs the game acts at everyone's episode.** Run now, Open a window and Undo in a game at its own pace with
+  exclusive teams take the copy at the episode everyone has reached (`waivers.js handOn`), as a claim always did; an Undo's hold
+  is respected by the paced clock.
+- **68: its own teams start on When the next one airs.** Own pace stays a choice there, and says what it closes; the join row
+  and Game settings say the game's rule in place of "someone closed it" and two buttons that did nothing.
+- **69 (found on the way, decided and built the same day): a lineup SET for a week leaves out whoever its seat let go before
+  it.** The mirror of 57: a live game saves every seat's next lineup as the episode is made, so a swap before it aired left
+  the old starter scoring for a team that no longer held them. Read from the move log (`letGoBefore`), never written: Undo
+  brings them back, and someone who hasn't seen the move sees no gap.
+- **What the checks turned up on the way** (each recorded where it belongs):
+  - The fix to 57 isn't only an own-pace fix: one finished league on the local database changes hands with it. The user said it
+    isn't production's, and it isn't (the 2026-10-30 backup: ten leagues, none of them it, and none of their totals move).
+    `scripts/dev-test/compare-totals.js` is the gate for any change to how games score: run it on a fresh backup before a push.
+  - The wizard's standard games all share their teams, so 56 and 68 are rarer than this plan's step 2 said ("a couch's next
+    Outlast with waivers will reach them" was wrong for the wizard's own Outlast).
+  - The explorer's lineup check counted a week as played once ANYONE had seen it; at own pace it's per seat now. Two more of its
+    checks were out of step, neither a product finding: "can this claim still be made" was asked of the season as it stands
+    where the fixed server asks it at everyone's episode; and a captain's twin can't be replayed on a game with a cut or a race
+    (a captain's points change who's still in).
+- **Checked:** `npm test` (2,158 with 69's); on the real routes `check-waiver-commissioner.js` (every case, both doors, `saved` for 69),
+  `check-own-pace-start.js` (with the new exclusive-teams part and its screens at 390), `check-own-pace.js`,
+  `check-own-pace-live.js`; a 200-case engine campaign on the commissioner's seed (`.ui-atlas/campaigns/commish-fixed2`: 200
+  pass, neither old finding, both failures now if they come back).
+
 ## Noticed, not fixed
+- (2026-11-14) **A shared-team game at its own pace runs its waivers on the season as it stands, not per person.** A seat that's
+  behind and makes a move has it logged at the league's latest episode, so its carried lineups for the weeks in between (which
+  it hasn't played) still field someone it let go, if they're still in. Nobody loses points by it; it's the per-person waivers
+  the parts list always owed ("drafts + waivers per person"), and BACKLOG 69's stored case is its cousin.
 - (2026-11-14) **After an episode has started, whoever runs the game can't close it for people who haven't watched.** The lock
   row is a switch: open to everyone, or back to the pace's rule. With the pace, an aired episode has three states (open to
   everyone / open to whoever hasn't watched / locked for everyone) and the row shows two. Making the game At airtime for a week
   is the workaround. docs/UX-IDEAS.md "The lock row says who it's open for".
-- (2026-11-13, step 2) **Own pace is now the default path, and BACKLOG 56 and 57 are own-pace bugs** (Run now, Open a window and
-  Undo acting on the season as it stands; a replacement rewriting weeks already played). Both waited on the user's decision
-  when they were rarely reached. A couch's next Weekly Lineup or Outlast with waivers will reach them. Decide them before this
-  is pushed, or start those games with When the next one airs until then.
-- (2026-11-13, step 2) Exclusive teams at your own pace take anyone on the couch until the draft starts and nobody after
-  (`GhostLogic.joinMode`, sync point 1's rule from 2026-11-06). A live game's "Ask me first, then free agents" isn't there.
-  Right for a season that had aired; on a season still airing it's a restriction the couch hasn't met before.
+- (2026-11-13, step 2; **done 2026-11-14**, "As built: three own-pace bugs") BACKLOG 56 and 57 on the default path, and
+  exclusive teams at own pace taking nobody new after the draft (BACKLOG 68).
 - (2026-11-13, step 2) A seat created by the settle starts with `seenThrough: start - 1` in the state even when the person is
   further back on the show (the server reads their real mark where it matters: `markFor`, `markRevealed`). "Where the others
   are" (`othersIn`) can read one episode generous for such a seat until its first reveal.
