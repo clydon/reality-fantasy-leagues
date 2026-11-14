@@ -21,6 +21,29 @@ and the Neon password rotation (deferred; steps there). Fixed 2026-10-24: the ch
 end); GitHub Actions, stopped since 2026-10-19, runs again. Vercel builds production only (Preview shared
 production's database).
 
+## When moves lock is the game's setting (2026-11-13; both steps built, UNCOMMITTED, not pushed; docs/PLAN-own-pace-games.md "Pace is the game's setting")
+Each game has one setting for everyone, three values, named by the latest moment a move can be made: **When you've watched it**
+(own pace: the game waits for each person), **When the next one airs** (live: open after an episode airs until you watch it or
+the next one airs) and **At airtime** (strict). The per-person "Plays at their own pace" switch (Backstage › Members) is gone.
+- **Step 1:** live is the default for every game already running (nothing stored, nothing migrated: the user's "turn it on for
+  all"); Backstage › Game settings switches a live game between live and strict; a game in stages sets it once; the honour note
+  on a late move ("Seen it already? Leave this as it is" · I've watched it).
+- **Step 2:** own pace is chosen when a game starts (Start a game's sheet: When moves lock, one line with Change) and is the
+  default for a show on an episode still to air (a sport stays live; a start with a phase runs live or strict for now). Such a
+  game is made and drafted as a live one (the draft stays together), then waits for people from its first results on, all
+  season (`GhostLogic.paceTogether`, `settlePace` after every write). The pace family is fixed at the start.
+- **Checked:** `npm test` (2,144), `check-own-pace-start.js` (new), `check-own-pace-live.js`, `check-own-pace.js`,
+  `check-stages-explorer.js --case=pace`, `check-trivia-game.js`, `check-questions-time.js`, `check-engine-lab.js --api`. A change
+  to when anything locks reruns every check that asserts a lock at airtime (`check-trivia-game.js` was missed after step 1).
+- **Before a push** (it changes how the couch's games lock: never on an episode night, and only with the user's OK): BACKLOG
+  56 and 57 are own-pace bugs that now sit on the default path (the user's to decide); BACKLOG 68 (exclusive teams at own
+  pace take nobody new after the draft) is a question for them.
+- **The late lock in hours is retired** (BACKLOG 64, 2026-11-14): nothing reads or offers `extras.lateLock`; a stored spec that
+  carries one is still valid. Two things decide a late move now: the game's pace, and a hand lock on one episode (set before it
+  starts). The trivia sheet holds a round's key until the round locks for that person by the pace. BACKLOG 44 closed.
+- **Waiting on the user:** BACKLOG 56, 57, 60, 61 (bugs), 67 (a draft that opens mid-season when someone's behind), 68.
+  **Next to build:** the explorer's late moves as actions; the lock row's third state (docs/UX-IDEAS.md), with the user.
+
 ## Made-for games, G5 (2026-11-09; merged + pushed e33c9a44, migration 0437; docs/PLAN-start-a-game-gpt.md G5 "Built")
 
 A season's library of premade games, shared by every couch on it, on Start a game's rail by the stretch's length ("Made for

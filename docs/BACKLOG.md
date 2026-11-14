@@ -564,12 +564,272 @@ Last updated 2026-10-27.
     - **The guide's Sports reads the pro leagues and the couch's teams' leagues**, a week from today in the East; no other college or
       soccer league's games are counted until someone on the couch follows one of its teams.
 
-44. **Own pace on a live game with no limit** (the user, 2026-11-09, backlogged: "the former is simplier"). A person set to
+44. **Own pace on a live game with no limit** (**closed 2026-11-14: this is own pace**, the game's setting "When you've watched
+    it", chosen when a game starts: docs/PLAN-own-pace-games.md "Pace is the game's setting"; BACKLOG 63 and 64). As asked: the
+    user, 2026-11-09, backlogged: "the former is simplier". A person set to
     play at their own pace on a live game keeps their moves open until they mark the episode watched, even past the next
     episode's airtime, so they can fall more than a week behind. What's built first stops at the next airtime
     (docs/PLAN-own-pace-games.md, "One person at their own pace on a live game"). Needs: their copy more than one episode behind
     on a live game (the catch-up loop allows it), the game's other weekly windows (waivers, matchups) waiting on them or not, and
     what the couch sees meanwhile. (After the capped version, if asked.)
+45. **The classic league state route hands any member the whole league** (noticed 2026-11-12 by the gameplay explorer's
+    API checks; the user: "backlog this"). `GET /api/leagues/{id}/state` (the classic app's, ported from SurvivorDraft) returns
+    the full league state to any member: results past their own mark, and others' guesses on side bets still open (verified
+    for someone one episode behind). The bet and grade routes also answer with full state, even with `?quiet`. The new app
+    doesn't read these answers, so nothing shows on screen, but anyone calling the API directly would see spoilers. Likely fix:
+    answer with the member's own view (GhostLogic.viewFor at their mark; others' unlocked choices removed), or retire the route
+    once nothing classic reads it. Check first what still calls it (classic screens, the desk, scripts). Proof: the explorer's
+    API tier reports it as `known:classic-state-spoiler` (docs/GAMEPLAY-EXPLORER.md); once fixed, that count drops to zero.
+46. **PRIORITY: head to head's missing screens** (noticed 2026-11-12 by the gameplay explorer; the user: "Head to head gaps have
+    big gap. Prioritize them in the backlog once we get around"). First in the batched design round
+    (docs/PLAN-GAMEPLAY-SCENARIO-EXPLORER.md, "Designs needed" item 3). Head to head is the most common ranking in generated games
+    (146 specimens), and the new app shows almost none of what makes it head to head:
+    - who you play this week (`matchups.next`, in every game view, read nowhere);
+    - the playoffs: no bracket and no champion named; the losing finalist marked OUT like those who missed them; the final's
+      square unmarked in the regular-season grid; a champion with a worse record ranked above a better one with no reason shown;
+    - quiet nights (counted for nobody) as unexplained dashes; with weeks won, a shared week's half point looks like a whole win.
+
+    The engine and routes already return all of it (agreement checked by the explorer's API tier). Design through Impeccable
+    (phone first), then build, then prove it with the explorer's head-to-head step (scripts/dev-test/check-explorer-page.js).
+47. **Someone knocked out of a draft is still asked for a lineup** (found 2026-11-13 by the gameplay explorer, races and cuts).
+    In a cut game (the lowest out every N episodes), the person cut sees "Set your Episode N lineup · Change until …" as their
+    move while the grid marks them OUT. Saving it is refused by the server (`validateLineup`: KnockoutLogic.moveProblem). After a
+    race is won, everyone sees it. Cause: `lineupOf` in src/lib/game/game-view.ts builds the move without asking
+    `KnockoutLogic.moveProblem(view, me, ep.number)`. The fix is small (no move, or one marked out, once moveProblem says so),
+    but what the page shows instead is a design question (plan "Designs needed" item 10). Proof: the explorer page check's
+    cut step prints a NOTE while it happens (scripts/dev-test/check-explorer-page.js; `.ui-atlas/explorer-page/cut-page.json`).
+48. **A team game with a cut ends at its first episode when nobody is on a team yet** (found 2026-11-13 by the gameplay
+    explorer's campaigns, parlays run). In teams of players drawn at random with a cut (the lowest team out every N episodes), an
+    own-pace game whose seats are all catching up when it starts draws nobody onto a team then (`TeamLogic.drawn` deals only seats
+    there and caught up); each joins a team from the first episode still open once caught up. That's the normal case on a season
+    that has aired, since starting a game sets everyone's mark to the episode before its start. But the teams' knockout walk
+    (`KnockoutLogic.teamWalk` → `Seq.knockouts`) counts a team "left" only on nights someone plays for it, so at episode 1 no team
+    is left, and "one left ends it" (`lastLeft`: one *or none*) ends the game there. Everyone who catches up then joins a game that
+    is over: their teams list nobody (the game view's members are as of the night after the walk ended), and every later move is
+    refused as after the game's end. Likely fix: zero sides playing shouldn't end it (`lastLeft` only when one side is left and
+    others have played), or the walk starts at the first night a team plays. A rule question first: what should a night count
+    for when no team plays yet? Proof: the explorer's engine tier reports it as `known:teams-none-left` (counted apart from
+    failures); reproduce with `.ui-atlas/campaigns/parlays-200/repro-185.json`.
+49. **Hits counted once each: the season grid and the week don't add up to the standings** (found 2026-11-13 by the gameplay
+    explorer's multipliers check). In a draft scored by moments that counts hits once each (`score.hits: 'objective'`, each
+    moment once for you however many of your starters hit it; or `'pick'`, once for each starter), the standings count it
+    rightly (`ActiveRosterLogic.episodeScore` → `Seq.momentRaw`), but the season grid's squares and the week's lines come from
+    `teamEpisodeBreakdown`'s plain path, which adds up every hit. Example: a four-person game where two starters both placed
+    third in a challenge: the square says 4, the standings count 3; over the season the grid adds to 13 against a total of 12.
+    A game with a multiplier, captain or best ball takes the engine's path (`ActiveRosterLogic.combines`) and agrees, so the
+    likely fix is small: `combines` is also true for hits counted `'pick'` or `'objective'`. Proof: the explorer's engine tier
+    reports it as `known:hits-grid-plain` (counted apart from failures: the multipliers check's twin without times shows it);
+    reproduce with `.ui-atlas/campaigns/parlays-probe/repro-6.json` (it shows with no steps, from the generated history).
+50. **Retracted (2026-11-13): not a product bug.** It said a game that ends early (a race won, a co-op couch's last life) settles its
+    whole-game questions on the sheet at the season's end, past the game's. That was the gameplay explorer's own runtime, which
+    graded the sheet on the viewer's copy uncut. The server grades on the copy carrying its walk, cut at the game's end
+    (answer-points.ts `walked`: spanView of withWalk), so the sheet and the table agree. The API tier found it
+    (`once-earned-disagree`, a co-op couch out of lives); the runtime now does the same (core-runtime-16), pinned by the unit test
+    "a game that ends early settles its whole-game questions at its end".
+51. **Outlast in reverse: the game page says "Fewest points wins"; the most points win** (found 2026-11-13 by the gameplay explorer,
+    Outlast in reverse). In reverse a castaway earns the cast's size + 1 less their place, so the earlier yours go home the MORE you
+    score, and the standings rank the most points first (the real routes and the runtime agree). But the generated game page adds the
+    note "Fewest points wins" under the season grid whenever the table is reversed (src/lib/game/game-page/model.ts, `has(page, "table",
+    "reverse")`), right beside "1st of 2 · 19 pts" for the higher score. Likely fix: drop the note, or say what reverse means ("The
+    earlier yours go home, the more you score"); How it plays already says it right. Proof: the explorer page check's reverse step
+    (`--only="Outlast in reverse"`, words in `.ui-atlas/explorer-page/outlast-reverse-page.json`).
+52. **Own pace: the top scorer's twist is chosen before everyone has played the episode that decides it** (found 2026-11-13 by the
+    gameplay explorer, the top scorer's twist; confirmed on the real routes). The engine's own comment says a league at its own pace
+    (its seats at different weeks, so nobody's the top scorer for all of them) files nothing and plays the fallback. But the check is
+    `RevealLogic.isCatchingUp(state)`, the league-wide reveal mode, not seats at their own pace (`GhostLogic`). So in an own-pace
+    game, episode 4's twist was filed as Ann's choice once its choice closed, while Bo (through episode 2) and Cy (through 1) hadn't
+    played episode 3, the one that decides who chooses. When Bo played it at his own pace he tied Ann on it, but a filed twist
+    stands: the twist was chosen by someone who wasn't the top scorer once everyone had played. Likely fix: in an own-pace game, play
+    the fallback (as the comment says), or wait to file until every seat has played the deciding episode. A rule question first.
+    Proof: the explorer's engine tier reports it as `known:twist-own-pace`; reproduce with `.ui-atlas/campaigns/twist-200` case
+    94 (materialized at step 8, the server's twist route files the same choice).
+53. **A survival pool's page: mulligans left counted backwards, and "You can buy back in" for someone out with none left** (found
+    2026-11-13 by the gameplay explorer, a pool's mulligans and buyback; FIXED in the working tree, uncommitted). `game-twists.ts`
+    took the history's `mulligans` as the number used (`of - mulligans`), but the engine's tally counts the ones left, so a pool with
+    one showed "0 mulligans left" before any wrong pick and "1 mulligan left" after it was used. And `buyBack` was true for anyone out
+    while the buyback's deadline stood, though a buyback is automatic (the night the lives run out): someone out had none left or was
+    past its deadline that night, so the Out card's "You can buy back in: it's in Your moves" pointed at a move that doesn't exist.
+    Fixed: mulligans left are the history's own; `buyBack` needs a buyback still left and in time for the night they went out. Proof:
+    the explorer's `pool-riders` invariant (each control fails 8 of 8 and 2 of 5 rider cases on the old lines) and the runtime unit
+    test "a survival pool's mulligans and buyback".
+54. **Group slots on a finale played in pairs: void unless research says the pairs split** (a question; found 2026-11-13 by the
+    gameplay explorer, group slots). The format timeline compares each episode's groups with the last. A finale where everyone goes
+    home leaves no groups at its end; if research's answer lists no change, the timeline finds a split into individuals the answer
+    doesn't state, marks the episode's report unsure, and every slot held that night is void (fallback 'void'), so the finale's
+    slot points never count. Whether a report emptied by exits alone should read as sure (everyone gone is no split), or research
+    should be asked to say it, is a rule question. Proof: `.ui-atlas/campaigns/groups-200` case 177 (before the explorer's world
+    learned to state the split).
+55. **A pool's skipped night reads "No pick · missed"** (found 2026-11-13 by the gameplay explorer, a pool that skips a night
+    you've used everyone). In a pool that never repeats with `get.fallback: 'skip'`, a night you'd already picked everyone still in
+    counts nothing (no life lost, the streak holds), but the person sheet (`src/new/show/game-sheets.tsx`, both "No pick · missed"
+    lines) calls any night with no pick a miss, and the square says "Waiting". The table's pick rows can't tell them apart either
+    (`{ castawayId: null, correct: null }` for a skip; the history row's `skipped` isn't carried). Likely fix: carry `skipped` on
+    the table's picks and the plays square, and say "Skipped: you'd picked everyone still in". Proof: the explorer's page step
+    `--only="never repeats"` (`skip-pool-page.json`).
+56. **Own pace with exclusive teams: Run now, Open a window and Undo act on the season as it stands, not on everyone's episode**
+    (found 2026-11-13 by the gameplay explorer, the commissioner's waiver actions; confirmed on the real routes, both the
+    Backstage door and the classic one). In a game at its own pace with exclusive teams, a waiver week runs on a copy of the league
+    as it stood at the episode everyone has reached (`waivers.js` `pacedCopy`, sync point 2), and a claim is checked on that copy.
+    But `processNow`, `openWindow` and the undo take the league itself, which holds the whole season's results. With everyone on
+    episode 1 of a season aired through 4:
+    - **Run now gives away what nobody has seen.** The run counts a replacement for a seat whose only loss is in episode 4, and
+      everyone's waivers screen then says "Bo · No pick in". A claim for someone who goes home in episode 2 is passed over as
+      "gone". Left to its own time the same claim goes through (it runs on the copy).
+    - **Open a window does nothing.** With no week running it opens one on the season's last episode with results, and the paced
+      clock cancels it in the same write. The answer still says a window opened (`fresh: true`), the toast says so, and the couch
+      is pushed "Waiver window open".
+    - **Undo is undone at once.** The run is taken back and the week held, but the paced clock runs a week as soon as everyone
+      owed has a claim in, hold or not, so it has run again by the time the write ends. The toast says "Waiver run undone".
+
+    Likely fix: run all three on the paced copy and fold it back, as `saveClaim` does, and have `syncPaced` respect `hold`.
+    Proof: `node scripts/dev-test/check-waiver-commissioner.js --case=paced-claim` (and `paced-window`, `paced-undo`): each prints
+    a `NOTE BACKLOG 56` line from the server's own state, and `paced-time` shows the same claim going through at the week's own
+    time. The explorer's engine tier counts it as `known:waivers-own-pace-by-hand`.
+57. **Own pace, a lineup game with replacements: replacing a starter rewrites the weeks already played** (found 2026-11-13 by the
+    gameplay explorer; confirmed on the real routes). A lineup not saved for an episode is the last one saved, carried forward, and
+    worked out when it's read from who the seat still holds (`ActiveRosterLogic.lineupFor` → `carriedLineup` → `carriesInto`).
+    Nothing stamps it when the episode is played. In a live game each episode is created after the last and gets its lineups
+    copied in then (`carryForwardLineups`), so this doesn't arise. In a game at its own pace on an aired season every episode is
+    there from the start, so every week after the one a lineup was saved for is carried. When the seat later drops one of those
+    starters (a replacement or a swap, on waivers or in free agency), every carried week loses them: their points for weeks
+    already played go, and so does a bounty on them. Seen two ways:
+    - Bo saved one lineup for episode 1, revealed through 4, and replaced a starter who went home: his total on the real games
+      route went from 10 to 8.5 with no new results.
+    - On a lineup with a bounty and shared teams, replacing a voted-out starter took Bo out of the bounty he owed on them and left
+      him collecting it from the other seat who still held them (0 and 0 became +2 and −2), and someone a week behind saw the old
+      numbers until they revealed the week of the replacement.
+    - (2026-11-13, later, in the runtime only: the same engine code, not run on the routes.) It also rewrites a week the seat
+      itself hasn't reached. Cy, up to Episode 1, never saved an Episode 2 lineup; Episode 3's waiver week closed and filled two
+      of the starters he'd carried; his Episode 2 lineup went from four starters to two and that week's bounty lines changed for
+      everyone who had already seen it (`.ui-atlas/stages-repro-73.json`: one clock step).
+
+    Likely fix: keep the lineup that counted when the episode is played (on the reveal at own pace, at the lock in a live game), or
+    have a carried lineup read who the seat held then. A rule question first only for the bounty (who owes it once they're
+    replaced). Proof: `node scripts/dev-test/check-waiver-commissioner.js --case=carried` prints a `NOTE BACKLOG 57` line with the
+    lineups and totals before and after; the engine tier counts it as `known:carried-lineup-rewritten`
+    (`.ui-atlas/campaigns/commish-probe2` case 51 for the bounty).
+58. **A window opened a little more than a day before the next episode runs within minutes** (a question; noticed 2026-11-13 by
+    the gameplay explorer). A week's claims run a set number of hours before the next episode airs (24), or halfway between
+    opening and airtime when it opens later than that (`WaiverLogic.schedule`). That suits a week that opens when results come in.
+    A window opened by hand 23 hours before airtime runs 11½ hours later; one opened 24 hours and 5 minutes before runs 5 minutes
+    later, and one opened at exactly 24 hours runs in the same write. The same happens to a week opened by results that arrive
+    just before that mark. Whether a window opened by hand should always leave a minimum time to claim (half the time left, say)
+    is a rule question. Proof: `.ui-atlas/campaigns/commish-200` case 2, step 1 (and `commish-probe2` case 1, step 8): a window
+    opened exactly a day ahead is processed in the step that opened it.
+59. **After Undo, the new app still says when the week will run; it won't** (found 2026-11-13 by the gameplay explorer, the
+    commissioner's waiver actions). An undone week is held: it runs on Run now, or when the next episode airs
+    (`WaiverLogic.undo` sets `hold`). Classic's plate says "Claims are on hold" (`status-plate.ts`). The new app's two reads give
+    the old time whatever the hold (`waiver-view.ts` and `backstage-games.ts`: `due: current.processAt`), so Backstage reads
+    "Waiver window open · due Sat 7:22 AM" and "Run now · Or on its own, Sat 7:22 AM", and players are told the same deadline.
+    Likely fix: no `due` on a held week, and the words "On hold until you run it, or Episode 2 airs". Two smaller things on the
+    same screen: Run now's preview says anyone who forgot "gets whoever's free with the most points", which is a lineup game's
+    rule (any other game fills with a free agent picked by a fixed draw, `WaiverLogic.autoPick`); and after a window is turned off
+    on a game with no waivers of its own, the screen offers "Open a waiver window" again, which the server refuses for that
+    episode with "This episode's waivers have processed" (nothing processed: it was turned off). Proof: the explorer's page step
+    `--only="commissioner's waiver window"` (`backstage-waivers-page.json`, screenshots `05zza-backstage-undone` and
+    `05zzb-backstage-off`).
+
+60. **A later stage's private draft can't be locked in when fewer are still in than a team takes** (found 2026-11-13 by the
+    gameplay explorer, stages; confirmed on the real routes). A game in stages' later stage drafts as it starts, from who's
+    still in then (`extras.draft.opens: 'start'`). A private draft's sheet must name exactly `each` castaways still in
+    (`BlindDraftLogic.validateSubmission`: "Pick exactly 6 castaways"), and nothing checks a later stage's team size against
+    the cast when the game is made (its pool is unknown until it opens: `engine-lab.ts` `makeStages` writes it with no
+    pool). So "6 each from the merge" on a season with 5 left at the merge opens a draft nobody can lock in: every sheet is
+    refused, the stage never has teams, and it counts nothing in the overall. The same after the 9:10 PM fallback: an
+    exclusive snake that no longer fits is played shared, but a team can still be bigger than who's left. Likely fix: a
+    sheet of everyone still in when fewer than a team are left (as a lineup needs fewer starters late in a season), or the
+    stage's team size capped as its draft opens, with a line in Recent changes. Proof:
+    `node scripts/dev-test/check-stages-explorer.js --case=short`.
+
+61. **Someone behind is shown the next stage's start and their team** (found 2026-11-13 by the gameplay explorer, stages;
+    confirmed on the real routes). A stage's league holds where it starts and ends (its span, settled when the merge is
+    confirmed) and its teams (drafted as it starts, only from who's still in). Neither is an episode's results, so a viewer's
+    copy cut at their mark still has them. Cy, who has seen through Episode 2 of a season whose merge came in Episode 3, is
+    shown on `/games`: the first stage "ends with Episode 3", the Merged stage "starts with Episode 4", their Merged team
+    (three people who are therefore still in after Episode 3) and "Set your Episode 4 lineup" behind "reveal Episode 3
+    first". That says when the merge came (the very thing "When does the merge start?" asks) and who survived it. The
+    overall itself is right at every mark (it counts a stage only through what they've seen). The production game view
+    does the same for a game outside stages that runs from or until the merge: its start ("from Episode 4") or end appears
+    once the merge is confirmed, whoever is looking (seen in the explorer's projection; not checked on the route). Likely fix: a viewer's copy keeps a span's phase end unsettled, and a later stage as not started (no team, no
+    lineup), until they've seen the episode before it starts. The route checks count it apart
+    (`known:later-stage-past-mark`). Proof: `node scripts/dev-test/check-stages-explorer.js --case=overall` (its NOTE line).
+
+62. **An Outlast stage that starts mid-season starts everyone on points** (a question; noticed 2026-11-13 by the gameplay
+    explorer, stages). Outlast scores each holding 1 plus every boot it has outlasted, counted over the whole season
+    (`EliminationOrderScoringStrategy`), whenever the game started. So an Outlast "from the merge" (a stage, or a game of
+    its own) shows every team on (boots so far + 1) × its size before it has played an episode: 16 each for teams of four
+    after three boots. The game in stages' overall counts a stage only once one of its episodes has results, so the Merged
+    stage's own page says 16 while the overall counts none of it; a week later all of it lands at once (16, 16, 10 becomes
+    36, 36, 29), and the later stage outweighs the earlier one for good. Nobody's rank moves by the head start itself
+    (everyone gets the same), but is it what "separate games, plus an overall winner" should mean? One option: a stage's
+    Outlast counts boots from its own start. Proof: `node scripts/dev-test/check-stages-explorer.js --case=overall` (its
+    second NOTE line).
+
+63. **Own pace on a season that's still airing: a choice when a game starts, and the default** (the user's decision, 2026-11-13;
+    step 2 of "Pace is the game's setting" in docs/PLAN-own-pace-games.md). Step 1 is built (pace is the game's setting: live
+    for everyone by default, strict as a choice, the per-person switch gone, stages following their game). Step 2 waits on one
+    decision of the user's: a game at its own pace has each seat pick its own team, so making it the default would take away the
+    shared-team blind draft revealed together. **Decided 2026-11-13** (the plan's "Step 2: the user's decisions"): the draft
+    stays together, own pace keeps waiting all season, and the pace family is fixed at the start. **Built 2026-11-13** (the plan's
+    "As built: … step 2"; uncommitted, not pushed): `paceTogether`, `settlePace`, the late window between airtime and results, the
+    start's `pace`, the wizard's When moves lock, `check-own-pace-start.js`. Left: the explorer's late moves as actions; a start
+    with a phase at its own pace (waits on BACKLOG 67); and 56 and 57 before it's pushed (they're on the default path now).
+
+64. **Four rules about moving late, one setting** (found 2026-11-13 while moving own pace to the game; **decided the same day**, the
+    user going with the recommendation: the game's pace is the rule, the episode's lock override the one exception, the late lock in
+    hours retired into the pace, BACKLOG 44 becomes own pace). **Built 2026-11-14** (uncommitted, not pushed; the plan's "As built:
+    the late lock retired"): nothing reads `extras.lateLock` (`AnswerLogic.closed`, `lateEpisode`), nothing describes or offers it
+    (`describe.js`'s rule line and its "Watching late" setting, the drafter's manual, the game page's "Late lock" tag), a spec that
+    carries one still validates and round-trips; the trivia sheet holds a round's key until the round locks for that person by
+    the game's pace (`trivia-key.ts heldFromSheet`); a hand lock on the episode beats the late window (the one exception);
+    BACKLOG 44 closed. **A correction:** I wrote on 2026-11-13 that someone could read the key and still answer. They can't score
+    from it: a question played in the sheet can't be answered in the game after (`playedInSheet`). What the hold prevents is
+    someone spending their own round by accident. Left: the engine lab's row "Your own lock when you watch late"
+    (`tests/fixtures/engine-capabilities.json` `when.ownLock`) still shows the retired spec part as its example; point it at the
+    pace when the lab can show how a game is run. The lock row's override words could say who they apply to ("locked for
+    everyone" / "open to everyone, watched or not"): a words pass. As found: a
+    Commissioner can now meet four separate things that all decide whether a move is taken after airtime: the game's pace (When
+    moves lock: until you've watched, or at airtime), the episode's lock override on the same screen ("open past its start, on
+    the honour system", for everyone, whether they've watched or not), a game of questions' late lock in hours
+    (`extras.lateLock`: until you've seen it, up to 12 to 72 hours), and BACKLOG 44's no-limit version. They were built at
+    different times for the same need. Likely shape: the game's pace is the rule; the episode override stays as the one-off
+    exception it is, worded against the rule ("locked early" / "open to everyone past its start"); the late lock in hours
+    becomes a cap on the game's pace, or goes.
+
+65. **The after-airtime reminder now goes to everyone who's behind** (a consequence to watch, 2026-11-13). It was written for one
+    switched person: "episode 6 has aired: set your lineup before you watch it", once an episode. With live for all, each person
+    in a live game who hasn't watched and hasn't set gets it. Probably right (it's the nudge the late window needs), but look at
+    it after the first episode night: how many go out, and whether the words read well to someone who never asked for it.
+
+66. **The reveal doesn't open over a game's own page** (found 2026-11-13, building the honour note). From Your moves opened on a
+    game's own page (`/show/<season>/game/<league>`), opening the reveal in place changes the address to `?page=reveal` and shows
+    nothing. The new "I've watched it" link works around it by going to Tonight with the reveal open (`paths.reveal`). Your
+    moves' older "Reveal Episode N first" button makes the same in-place call (`RevealFirst`: `openReveal`), so it very likely
+    does nothing there too (not run separately). Likely fix: the same link, or find why the reveal's page isn't read on that route.
+
+67. **A draft that opens mid-season, and someone who's behind** (a recommendation, 2026-11-13; the user asked for an honest view and
+    hasn't decided). Neither "that's on you, take what's left" nor "X is behind, wait?" as a prompt: the first makes someone
+    choose among people whose survival they haven't seen, the second is a new waiting-and-voting state on every shared moment,
+    which is the thing that would send us back through every generated game. Let the game's pace answer it, with pieces the
+    engine mostly has:
+    - **A private draft (shared teams): nobody waits and nothing runs out.** Each person drafts when they get there, from who was
+      still in when the stage started (what a late joiner's team already does: `GhostLogic.teamAt`, which also takes everyone
+      left when that's fewer than a team: BACKLOG 60). Until they've watched up to it they aren't shown the stage as started, or
+      a team (BACKLOG 61).
+    - **A draft with turns (exclusive teams), live game:** it has a deadline, the next episode's lock. A seat that hasn't picked
+      by then gets its picks made for it, hidden from them until they've watched.
+    - **A draft with turns, game at its own pace:** it waits for everyone, says who it's waiting on, and whoever runs the game can
+      go on without them (their picks made for them). The same shape as waivers' Run now.
+    No vote, no new prompt: one deadline, one auto-pick, one Commissioner's override. It stays inside the draft and the stage's
+    settle, away from scoring, and the gameplay explorer can prove it once the draft room is driven as actions.
+
+68. **Exclusive teams at your own pace: nobody new after the draft** (noticed 2026-11-13, step 2 of "Pace is the game's
+    setting"). `GhostLogic.joinMode` gives an exclusive game at its own pace "open until the draft starts, then locked" (sync
+    point 1, decided 2026-11-06 for a season that had aired). Own pace is now the default on a season still airing, where a live
+    exclusive game is "Ask me first" and a late joiner takes free agents. So a friend who turns up in week 2 can't be let into
+    the couch's default Outlast. Options: leave it (say so on the join sheet); let whoever runs it let someone in with free
+    agents as of the newcomer's own episode (the late joiner's path, which `viewFor` already hides from people behind); or make
+    exclusive games default to When the next one airs. A question for the user.
 
 ## Decided against (don't re-propose without new information)
 
