@@ -183,7 +183,9 @@ test('headless result expectations and HTTP execution use the exact same runtime
 });
 
 test('CLI execution saves durable structured results, resumes them and preserves existing evidence files', t => {
-  const root = path.resolve(__dirname, '..'), dir = fs.mkdtempSync(path.join(root, '.ui-atlas/runtime-test-'));
+  // (.ui-atlas is git-ignored scratch: a fresh checkout has none until something makes it.)
+  const root = path.resolve(__dirname, '..'); fs.mkdirSync(path.join(root, '.ui-atlas'), { recursive: true });
+  const dir = fs.mkdtempSync(path.join(root, '.ui-atlas/runtime-test-'));
   t.after(() => { const target = fs.realpathSync(dir); assert.equal(path.dirname(target), fs.realpathSync(path.join(root, '.ui-atlas'))); assert(path.basename(target).startsWith('runtime-test-')); fs.rmSync(target, { recursive: true, force: true }); });
   const input = path.join(dir, 'input.json'), output = path.join(dir, 'result.json'), replay = path.join(dir, 'resumed.json');
   fs.writeFileSync(input, JSON.stringify(proof()));
