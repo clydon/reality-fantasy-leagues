@@ -51,7 +51,12 @@
 // card as the server files it, its host named, CARD.HOSTED) likewise, from part 6's engine, proven by hand in tests/host-card.test.js;
 // the 2,718 before them stay. A14 part 7's (a number from a vetted outside source: q-outside, q-outside-lives and q-outside-pot in
 // outsideShapes, each episode's TVmaze rating as the server stores it, SERVER.outside) likewise, from part 7's engine, proven by hand
-// in tests/outside-number.test.js; the 2,754 before them stay:
+// in tests/outside-number.test.js; the 2,754 before them stay. BACKLOG 57 (2026-11-14: a carried lineup reads who the seat held for
+// that episode, where it read who they hold now) moved 222 reads of the 35 shapes with a lineup, each as nobody and as bo: at the
+// marks that see cy's pickup after Episode 6 (-, 6, 7), cy's carried weeks keep c8, whom he let go after them (a line of 0 points
+// there: no total moves); and on the stock market (market, market-total, from mark 3 on), ann's Episode 2 and 3 keep c1, whom she
+// traded away after Episode 3, so her 2.6 points for Episode 2 stay hers (18.1 where the trade had made it 15.5, and first place
+// on market-total at mark 5). Proven by hand in tests/active-roster-lineups.test.js; `--diff --ref=a59ca606` lists them:
 //   node tests/fixtures/scoring-shapes.js --write [--ref=<git ref>]      the record, from this tree's engine (or the ref's)
 //   node tests/fixtures/scoring-shapes.js --print <shape> <seat|-> <mark|-|all> [--ref=<git ref>]   one read, in full
 //   node tests/fixtures/scoring-shapes.js --diff [<shape>] [--ref=d5222e68]   where this tree's reads part from the ref's (the

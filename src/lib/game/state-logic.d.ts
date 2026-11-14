@@ -672,6 +672,10 @@ declare const StateLogic: {
     validateCaptain(state: LeagueState, epId: string, playerId: string, castawayId: string | null, lineup?: string[]): string | null;
     setCaptain(state: LeagueState, epId: string, playerId: string, castawayId: string | null): boolean;
     /** Best ball: the team a player held for an episode (the mid-season log's moves from it on taken back). */
+    /** Who a seat held for an episode (the mid-season log's moves from it on taken back): what a carried lineup and best ball read. */
+    heldFor(state: LeagueState, playerId: string, number: number): Set<string>;
+    /** Whom a seat had let go by an episode, as the move log has it: a lineup set for that episode leaves them out (BACKLOG 69). */
+    letGoBefore(state: LeagueState, playerId: string, number: number): Set<string>;
     teamFor(state: LeagueState, ep: Episode, playerId: string): string[];
     /** One player's points for one episode, as the game counts them (a captain, best ball, the episode's multiplier). */
     episodeScore(

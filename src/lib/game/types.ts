@@ -999,6 +999,10 @@ export interface MidSeasonLogEntry {
    * lastCompletedEpisode) -- what the move is really tied to, not a raw timestamp. Null/absent on
    * entries from before this existed, or if nothing had aired yet. */
   episode?: number | null;
+  /** The mover's own mark when it moved, kept only when that's past `episode` (a seat at its own pace ahead of the episode its
+   * waiver week runs at): its lineups count the move from the episode after this, never back into a week it had played
+   * (ActiveRosterLogic.heldFor, BACKLOG 57). */
+  seen?: number;
   /** Waivers (docs/PLAN-midseason-waivers.md): how it was made -- processed claims, free agency, or
    * assigned when a pickup was still unfilled at airtime. Absent on live-round moves. */
   via?: "waivers" | "freeAgency" | "auto";

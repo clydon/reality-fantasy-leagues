@@ -3958,11 +3958,36 @@ class ActiveRosterLogic {
     Spec.multipliersOf(gameOf(state)).forEach(f => { if(f.on === 'when') x *= Seq.factorOf(f, facts); });
     return x * twist;
   }
+  // The mid-season log as a seat's lineups read it: a move its seat made while ahead of the move's episode (a log entry's `seen`:
+  // MidSeasonLogic.log) counts from after the seat's own mark then, so a week the seat had played keeps who it fielded.
+  static movesFor(state){
+    const log = (state.midSeason && state.midSeason.log) || [];
+    const ahead = tx => Number.isInteger(tx.seen) && Number.isInteger(tx.episode) && tx.seen > tx.episode;
+    return log.some(ahead) ? log.map(tx => ahead(tx) ? { ...tx, episode: tx.seen } : tx) : log;
+  }
+  // Who a seat held for episode `number` (a Set of ids): who it holds now, with each of its moves from that episode on taken back
+  // (Seq.heldAt on the mid-season log, as movesFor reads it). A move nothing logged (the draft, a roster set by hand) stands for
+  // every episode.
+  static heldFor(state, playerId, number){
+    return Seq.heldAt(Core.ownedCastawayIds(state, playerId), ActiveRosterLogic.movesFor(state), playerId, number);
+  }
+  // Whom a seat had let go by episode `number`, as the log has it (a Set of ids): dropped in a move that counts before it (logged
+  // at an earlier episode: a move made after episode k counts from k + 1) and not brought back by one since. Only what the log
+  // says: a roster changed by hand, which nothing logged, lets nobody go here.
+  static letGoBefore(state, playerId, number){
+    const gone = new Set();
+    for(const tx of ActiveRosterLogic.movesFor(state)){
+      if(tx.playerId !== playerId || !Number.isInteger(tx.episode) || tx.episode >= number) continue;
+      if(tx.droppedCastawayId) gone.add(tx.droppedCastawayId);
+      if(tx.addedCastawayId) gone.delete(tx.addedCastawayId);
+    }
+    return gone;
+  }
   // The team a player held for an episode (best ball, which has no lineups to store it): who they hold now, with every move
   // from that episode on taken back, newest first (the mid-season log: a move made after episode k counts from k + 1, as the
   // spoiler view and the waiver weeks have it), less anyone out before it. In the cast's order.
   static teamFor(state, ep, playerId){
-    const team = Seq.heldAt(Core.ownedCastawayIds(state, playerId), state.midSeason && state.midSeason.log, playerId, ep.number);
+    const team = ActiveRosterLogic.heldFor(state, playerId, ep.number);
     return state.castaways.filter(c => {
       if(!team.has(c.id)) return false;
       if(c.status !== 'eliminated') return true;
@@ -4022,13 +4047,25 @@ class ActiveRosterLogic {
   // entered after, so a derived lock would leave a window in which someone could rewrite their
   // lineup already knowing what happened.
   // A player who never set a lineup for this episode fields their most recent earlier one -- only
-  // what they still own and is still in the game (carriesInto), capped at the active slots. Resolved at READ time, so it holds however the
+  // whom they held for it and is still in the game (carriesInto), capped at the active slots. Resolved at READ time, so it holds however the
   // episodes came to exist (carryForwardLineups only copies at creation, and misses an episode created
   // before the previous lineup was set). Once set for an episode, even to empty, that's what counts.
+  // "Held for it" is as of THAT episode, never as of now (BACKLOG 57, 2026-11-14): a week already played keeps whoever was fielded
+  // in it when its seat lets them go later, so points never move without new results. It read who the seat holds now, and replacing
+  // a starter took their points out of every week carried from the lineup they were in.
+  // A lineup SET for an episode leaves out whoever its seat let go before that episode (BACKLOG 69, 2026-11-14: letGoBefore, the
+  // log's say alone): a gap to fill, as a carried one leaves, never someone scoring for a team that no longer holds them (a live
+  // game saves every seat's next lineup as the episode is made, so a swap before it airs left the old starter in it). Read, never
+  // written: taking the move back brings them back, and a viewer who hasn't seen the move still sees them.
   static lineupFor(state, epId, playerId){
     const ep = state.episodes.find(e => e.id === epId);
     if(!ep) return [];
-    if(ep.lineups && Object.prototype.hasOwnProperty.call(ep.lineups, playerId)) return ep.lineups[playerId] || [];
+    if(ep.lineups && Object.prototype.hasOwnProperty.call(ep.lineups, playerId)){
+      const set = ep.lineups[playerId] || [];
+      if(!set.length || !((state.midSeason && state.midSeason.log) || []).length) return set;
+      const gone = ActiveRosterLogic.letGoBefore(state, playerId, ep.number);
+      return gone.size && set.some(id => gone.has(id)) ? set.filter(id => !gone.has(id)) : set;
+    }
     return ActiveRosterLogic.carriedLineup(state, ep, playerId);
   }
   // The lineup a player carries into an episode from their most recent earlier one (lineupFor's, for one not set for it).
@@ -4037,17 +4074,19 @@ class ActiveRosterLogic {
       .filter(e => e.number < ep.number && e.lineups && Object.prototype.hasOwnProperty.call(e.lineups, playerId))
       .sort((a,b) => b.number - a.number)[0];
     if(!earlier) return [];
+    const held = ActiveRosterLogic.heldFor(state, playerId, ep.number);
     return (earlier.lineups[playerId] || [])
-      .filter(cid => ActiveRosterLogic.carriesInto(state, cid, playerId, ep.number))
+      .filter(cid => ActiveRosterLogic.carriesInto(state, cid, playerId, ep.number, held))
       .slice(0, ActiveRosterLogic.activeSlots(state) || undefined);
   }
-  // Whether a starter from an earlier lineup carries into episode `number`: still owned, and not
+  // Whether a starter from an earlier lineup carries into episode `number`: held by the seat for that episode (heldFor: let go
+  // before it, they don't; let go after it, they still do), and not
   // eliminated before it. An eliminated starter leaves their slot EMPTY rather than sitting in it
   // scoring nothing -- the player sees a gap to fill. (Someone voted out IN episode `number` itself
-  // still carries: they played it. validateLineup allows them for the same reason.)
-  static carriesInto(state, castawayId, playerId, number){
+  // still carries: they played it. validateLineup allows them for the same reason.) `held`: heldFor's, for a caller with it in hand.
+  static carriesInto(state, castawayId, playerId, number, held){
     const c = Core.getCastaway(state, castawayId);
-    if(!c || !ownerListOf(c).includes(playerId)) return false;
+    if(!c || !(held || ActiveRosterLogic.heldFor(state, playerId, number)).has(castawayId)) return false;
     if(c.status !== 'eliminated') return true;
     const exit = state.episodes.find(e => e.id === c.exitEpisodeId);
     return !!exit && exit.number >= number;
@@ -4223,7 +4262,7 @@ class ActiveRosterLogic {
   }
   // Seeds an episode's lineups from the previous episode's so players adjust rather than retype the
   // same lineup every week. Only fills players with no lineup for this episode yet, and never touches
-  // a locked episode. Carries forward only what the player still OWNS -- a castaway lost to replenish
+  // a locked episode. Carries forward only whom the player holds for it (carriesInto) -- a castaway lost to replenish
   // or swap since then isn't theirs to field any more.
   static carryForwardLineups(state, epId){
     const ep = state.episodes.find(e => e.id === epId);
@@ -6729,6 +6768,12 @@ class MidSeasonLogic {
     // `|| []`: league rows are read from Postgres without migrateLeagueState, so a league that
     // predates the log (and 0008's backfill) has no array to push onto yet.
     const tx = { id: Core.uid('tx'), at: new Date().toISOString(), episode: lastCompletedEpisode(state), ...entry };
+    // A seat at its own pace that moves while ahead of the move's episode (exclusive teams: a waiver week runs at the episode
+    // everyone has reached, sync point 2) has already played up to its own mark with who it held. `seen` keeps that mark, so the
+    // move counts for its lineups from the episode after it (ActiveRosterLogic.heldFor; BACKLOG 57): never back into a week played.
+    const mover = Core.getPlayer(state, tx.playerId);
+    const mark = mover && mover.lateJoin && Number.isInteger(mover.lateJoin.seenThrough) ? mover.lateJoin.seenThrough : null;
+    if(mark !== null && Number.isInteger(tx.episode) && mark > tx.episode) tx.seen = mark;
     // A10 part 3c: a stock market's move records what it sold for and paid, at today's prices, and its fee (MarketLogic.cash
     // reads them; a caller that read the prices once a pass passes them in `entry`).
     if(tx.paid === undefined && MarketLogic.on(state)) Object.assign(tx, MarketLogic.terms(state, tx.droppedCastawayId, tx.addedCastawayId));
