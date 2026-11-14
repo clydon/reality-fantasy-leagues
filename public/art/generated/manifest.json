@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-11-10",
+  "policy": "Reuse these versioned files. Generate a new version only for an intentional requested visual change; never regenerate just to implement an approved study.",
+  "assets": [
+    {
+      "file": "public/art/generated/island-night-v1.png",
+      "provider": "Nano Banana MCP",
+      "package": "@seungmanchoi/nano-banana-mcp@1.2.1",
+      "model": "gemini-2.5-flash-image",
+      "prompt": "Create an original cinematic background illustration for a mobile social TV companion. Wide 16:9 image. A tropical island coastline at dusk, seen from a low viewpoint on dark volcanic rock, one subtle amber torch on the far right, ocean and distant palms. Beautiful tactile film photography, plum-black shadows matching #16141d, deep ocean teal and restrained warm amber. Rich real atmosphere, not generic fantasy or a video-game loading screen. The left half is naturally dark and calm so code-rendered show titles can sit above it. No text, no lettering, no people, no faces, no TV/network/show logos, no UI, no scoreboards, no artificial lens flare. This is an original atmospheric alternative to a show's actual poster, not official key art. The edge must blend into dark purple at the bottom.",
+      "width": 1024,
+      "height": 1024,
+      "sha256": "095db1186c5cf3a4d5e3ebb0a00a648007e90fef7218775e6792c0143b65a0f3",
+      "purpose": "Original atmosphere, not official show or venue artwork",
+      "url": "/art/generated/island-night-v1.png",
+      "sourceStudy": "fidelity-2026-11-10",
+      "reviewStatus": "candidate; reuse bytes when selected",
+      "bytes": 1650831
+    },
+    {
+      "file": "public/art/generated/football-night-v1.png",
+      "provider": "Nano Banana MCP",
+      "package": "@seungmanchoi/nano-banana-mcp@1.2.1",
+      "model": "gemini-2.5-flash-image",
+      "prompt": "Create an original cinematic 16:9 editorial background photograph for an American NFL football viewing companion. An American football stadium at night, viewed close to the sideline turf, crisp grass texture and white yard lines in the foreground, softly atmospheric stadium seating and floodlights in the distance. No athletes or people close enough to identify, no team logos, no text, no scores, no numbers, no scoreboard, no fake UI. Visually exciting but composed: dark plum-black shadows matching #16141d, cool white stadium light, restrained natural green turf. Keep the left third dark and uncluttered for code-rendered matchup labels and real team logos. The image is an illustrative generic stadium, not a claim about a specific real venue. Sophisticated sports broadcast photography, believable geometry, no neon, no giant glow, no poster typography.",
+      "width": 1024,
+      "height": 1024,
+      "sha256": "8baecb062083b6d58490ee056a24ed46e87e6b569c33e6ef450f53c120df7c6d",
+      "purpose": "Original atmosphere, not official show or venue artwork",
+      "url": "/art/generated/football-night-v1.png",
+      "sourceStudy": "fidelity-2026-11-10",
+      "reviewStatus": "candidate; reuse bytes when selected",
+      "bytes": 1525015
+    },
+    {
+      "file": "public/art/generated/event-night-v1.png",
+      "provider": "Nano Banana MCP",
+      "package": "@seungmanchoi/nano-banana-mcp@1.2.1",
+      "model": "gemini-2.5-flash-image",
+      "prompt": "Create an original wide 16:9 abstract editorial background for a generic sports and entertainment event companion. A tactile dark plum-black broadcast stage with gently lit fabric and subtle sweeping arcs of cool white arena light in the distance; hints of deep teal and muted copper. It must feel like the anticipation before an event without depicting any particular sport: no balls, fields, stadium-specific markings, cars, courts, equipment, trophies, logos, flags, text, numbers, scoreboards, people, UI or data charts. Sophisticated real photographic lighting and material, not a sci-fi portal, generic gradient blob or glowing neon. Rich restrained atmosphere with a dark calm left half suitable for readable code-rendered event labels. Near-black purple bottom blending into #16141d.",
+      "width": 1024,
+      "height": 1024,
+      "sha256": "aa37823ba66309e24c1ad6a7803c61e9b205438222247f5cc5ae2932ac290df3",
+      "purpose": "Original atmosphere, not official show or venue artwork",
+      "url": "/art/generated/event-night-v1.png",
+      "sourceStudy": "fidelity-2026-11-10",
+      "reviewStatus": "candidate; reuse bytes when selected",
+      "bytes": 1213602
+    },
+    {
+      "file": "public/art/generated/tv-companion-v1.png",
+      "url": "/art/generated/tv-companion-v1.png",
+      "provider": "Nano Banana MCP",
+      "package": "@seungmanchoi/nano-banana-mcp@1.2.1",
+      "model": "gemini-2.5-flash-image",
+      "prompt": "Create one original editorial illustration for a beautiful social TV companion called Game Your Show. A playful sculpted miniature television with subtly asymmetric chunky cream casing, deep teal curved glass screen, amber yellow channel dial and a plum remote leaning against its side. An original design object with tactile ceramic and soft rubber materials, richly crafted, bold graphic silhouette, slightly elevated front three-quarter view. The screen is blank and dark. Subject centered in the middle two thirds of a square, no other objects, plenty of breathing room, the ground and background exactly matte dark plum #16141d. Sophisticated collectible design, joyful but not childish, no face or eyes, no lettering, numbers, logos, symbols, charts, UI, glows, glass panels or reflections outside the object. Soft directional studio light with natural grounded shadow. High resolution. This is a decorative branded illustration for an animated TV Guide entry, not a functional navigation icon.",
+      "width": 1024,
+      "height": 1024,
+      "bytes": 1034555,
+      "sha256": "8a752d7467d42ad59f163e74b4513dea4bbe8d42492a8484e1ee509c9775f505",
+      "purpose": "Decorative TV Guide illustration; functional controls remain code-rendered",
+      "sourceStudy": "fidelity-2026-11-10-redesign",
+      "reviewStatus": "candidate; reuse bytes when selected"
+    }
+  ]
+}
